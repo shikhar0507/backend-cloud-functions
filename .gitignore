@@ -4,6 +4,8 @@ logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+firebase-debug.log*
+.npmrc
 
 # Runtime data
 pids
@@ -29,7 +31,7 @@ bower_components
 # node-waf configuration
 .lock-wscript
 
-# Compiled binary addons (http://nodejs.org/api/addons.html)
+# Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
 
 # Dependency directories
@@ -57,3 +59,14 @@ typings/
 # dotenv environment variables file
 .env
 
+# next.js build output
+.next
+
+# Google account key
+serviceAccountKey.json
+
+# visual studio settings
+.vscode/
+
+# mac
+.DS_Store
