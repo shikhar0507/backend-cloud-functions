@@ -1,17 +1,38 @@
 const admin = require('../../admin/admin');
 const utils = require('../../admin/utils');
+const helpers = require('./helpers');
+
+const rootCollections = admin.rootCollections;
+const activities = rootCollections.activities;
+
+const sendResponse = utils.sendResponse;
+const handleError = utils.handleError;
+const handleCanEdit = helpers.handleCanEdit;
+const getDateObject = helpers.getDateObject;
+const scheduleCreator = helpers.scheduleCreator;
+const venueCreator = helpers.venueCreator;
+const stripPlusFromMobile = helpers.stripPlusFromMobile;
+const isValidLocation = helpers.isValidLocation;
+const isValidString = helpers.isValidString;
+const isValidDate = helpers.isValidDate;
+
+const commitBatch = (conn) => {
+  batch.commit().then(() => {
+    sendResponse(conn, 201, 'CREATED');
+    return null;
+  }).catch((error) => handleError(conn, error));
+};
 
 const addCommentToActivity = (conn) => {
   const batch = admin.batch;
 
-  batch.set(admin.rootCollections.activities.doc(conn.req.body.activityId), {
-    lastUpdateTime: new Date(new Date(conn.req.body.updateTime)
-      .toUTCString()),
+  batch.set(activities.doc(conn.req.body.activityId), {
+    lastUpdateTime: getDateObject(conn.req.body.updateTime),
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
-  batch.set(admin.rootCollections.activities.doc(conn.req.body.activityId)
+  batch.set(activities.doc(conn.req.body.activityId)
     .collection('Addendum').doc(), {
       activityId: conn.req.body.activityId,
       user: admin.rootCollections.profiles.doc(conn.phoneNumber).id,
@@ -20,76 +41,40 @@ const addCommentToActivity = (conn) => {
         conn.req.body.updateLocation[0],
         conn.req.body.updateLocation[1]
       ),
-      timestamp: new Date(new Date(conn.req.body.updateTime)
-        .toUTCString()),
+      timestamp: getDateObject(conn.req.body.updateTime),
       changes: [], // comment doesn't change the activity
     });
 
-  batch.commit().then(() => {
-    utils.sendResponse(conn, 201, 'CREATED', conn.headers);
-    return null;
-  }).catch((error) => utils.handleError(conn, error));
+  commitBatch(conn);
 };
 
 const checkAssignToList = (conn) => {
-  console.log('working till assigntolist', conn.uid);
-  admin.rootCollections.activities.doc(conn.req.body.activityId)
-    .collection('AssignTo').doc(conn.phoneNumber).get()
-    .then((doc) => {
+  activities.doc(conn.req.body.activityId).collection('AssignTo')
+    .doc(conn.phoneNumber).get().then((doc) => {
       doc.exists ? addCommentToActivity(conn) :
-        utils.sendResponse(conn, 401, 'UNAUTHORIZED', conn.headers);
+        sendResponse(conn, 401, 'UNAUTHORIZED');
       return null;
-    }).catch((error) => utils.handleError(conn, error));
+    }).catch((error) => handleError(conn, error));
 };
 
 const getMobileNumber = (conn) => {
   admin.manageUsers.getUserByUid(conn.uid).then((userRecord) => {
-    conn.phoneNumber = userRecord.phoneNumber.split('+')[1];
+    conn.phoneNumber = stripPlusFromMobile(userRecord.phoneNumber);
     checkAssignToList(conn);
     return null;
-  }).catch((error) => {
-    utils.handleError(conn, error);
-  });
+  }).catch((error) => handleError(conn, error));
 };
 
 
 const app = (conn) => {
-  // updateTime should be a unix timestamp.
-  if (!(!isNaN(new Date(conn.req.body.updateTime)) &&
-      Array.isArray(conn.req.body.updateLocation))) {
-    utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
-    return;
+  if (isValidDate(conn.req.body.updateTime)
+    && isValidLocation(conn.req.body.updateLocation)
+    && isValidString(conn.req.body.activityId)
+    && isValidDate(conn.req.body.comment)) {
+    getMobileNumber(conn);
+  } else {
+    sendResponse(conn, 400, 'BAD REQUEST');
   }
-
-  // lat = updateLocation[0]
-  // lng = updateLocation[1]
-  // -90 <= lat <= +90 AND -180 <= lng <= 180
-  if (!((conn.req.body.updateLocation[0] >= -90 &&
-        conn.req.body.updateLocation[0] <= 90) &&
-      (conn.req.body.updateLocation[1] >= -180 &&
-        conn.req.body.updateLocation[1] <= 180))) {
-    utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
-    return;
-  }
-
-  if (!conn.req.body.activityId) {
-    utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
-    return;
-  }
-
-  if (!(typeof conn.req.body.activityId === 'string' &&
-      typeof conn.req.body.comment === 'string')) {
-    utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
-    return;
-  }
-
-  if (conn.req.body.activityId.trim() === '' ||
-    conn.req.body.comment.trim() === '') {
-    utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
-    return;
-  }
-
-  getMobileNumber(conn);
 };
 
 module.exports = app;

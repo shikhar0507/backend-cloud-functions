@@ -6,6 +6,9 @@ const onUpdate = require('../firestore/activity/onUpdate');
 const onComment = require('../firestore/activity/onComment');
 const utils = require('../admin/utils');
 
+const sendResponse = require('../admin/utils').sendResponse;
+const now = utils.now;
+
 const handleActivityRequest = (conn) => {
   const method = conn.req.method;
   const action = url.parse(conn.req.url).path.split('/')[2];
@@ -18,7 +21,7 @@ const handleActivityRequest = (conn) => {
     if (conn.req.query.readFrom) {
       onRead(conn);
     } else {
-      utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
+      sendResponse(conn, 400, 'BAD REQUEST');
     }
   } else if (method === 'POST') {
     // On successful creation, return HTTP status 201, returning a
@@ -29,7 +32,7 @@ const handleActivityRequest = (conn) => {
     } else if (action === 'comment') {
       onComment(conn);
     } else {
-      utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
+      sendResponse(conn, 400, 'BAD REQUEST');
     }
   } else if (method === 'PATCH') {
     if (action === 'update') {
@@ -37,16 +40,16 @@ const handleActivityRequest = (conn) => {
       // (or 204 if not returning any content in the body) from a PUT.
       onUpdate(conn);
     } else {
-      utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
+      sendResponse(conn, 400, 'BAD REQUEST');
     }
   } else {
-    utils.sendResponse(conn, 405, 'METHOD NOT ALLOWED', conn.headers);
+    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
   }
 };
 
 const handleAdminRequest = (conn) => {
   const action = url.parse(conn.req.url).path.split('/');
-  utils.sendResponse(conn, 200, 'OK', conn.headers);
+  sendResponse(conn, 200, 'OK');
 };
 
 const checkAuthorizationToken = (conn) => {
@@ -62,17 +65,17 @@ const checkAuthorizationToken = (conn) => {
       } else if (action === 'admin') {
         handleAdminRequest(conn);
       } else if (action === 'now') {
-        utils.now(conn); // server timestamp
+        now(conn); // server timestamp
       } else {
-        utils.sendResponse(conn, 400, 'BAD REQUEST', conn.headers);
+        sendResponse(conn, 400, 'BAD REQUEST');
       }
       return null;
     }).catch((error) => {
-      console.log(error.message);
-      utils.sendResponse(conn, 403, 'FORBIDDEN', conn.headers);
+      console.log(error);
+      sendResponse(conn, 403, 'FORBIDDEN');
     });
   } else {
-    utils.sendResponse(conn, 403, 'FORBIDDEN', conn.headers);
+    sendResponse(conn, 403, 'FORBIDDEN');
   }
   return null;
 };
@@ -93,12 +96,12 @@ const server = (req, res) => {
 
   if (req.method === 'OPTIONS') {
     const message = 'OK';
-    utils.sendResponse(conn, 200, message, conn.headers);
+    sendResponse(conn, 200, message);
   } else if (req.method === 'GET' || req.method === 'POST' ||
     req.method === 'PATCH') {
     checkAuthorizationToken(conn);
   } else {
-    utils.sendResponse(conn, 405, 'METHOD NOT ALLOWED', conn.headers);
+    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
   }
 };
 
