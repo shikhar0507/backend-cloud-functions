@@ -70,7 +70,7 @@ const app = (conn) => {
   if (isValidDate(conn.req.body.updateTime)
     && isValidLocation(conn.req.body.updateLocation)
     && isValidString(conn.req.body.activityId)
-    && isValidDate(conn.req.body.comment)) {
+    && isValidString(conn.req.body.comment)) {
     getMobileNumber(conn);
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');

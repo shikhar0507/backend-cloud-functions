@@ -1,28 +1,21 @@
 const admin = require('../admin/admin');
+const stripPlusFromMobile =
+  require('../firestore/activity/helpers').stripPlusFromMobile;
 
 const commitBatch = (batch) => batch.commit();
 
 const createInbox = (userRecord, context, batch, addendumDocs) => {
-  if (addendumDocs) { // array of doc refs
-    Promise.all(addendumDocs).then((snapShotArray) => {
-      snapShotArray.forEach((doc) => {
-        batch.set(admin.rootCollections.inboxes
-          .doc(userRecord.uid).collection('Addendum').doc(), {
-            // activityId: doc.ref.path.split('/')[1],
-            activityId: doc.get('activityId'),
-            changes: doc.get('changes'),
-            comment: doc.get('comment'),
-            location: doc.get('location'),
-            timestamp: doc.get('timestamp'),
-            user: doc.get('user'),
-          });
+  if (addendumDocs) {
+    Promise.all(addendumDocs).then((snapShotsArray) => {
+      snapShotsArray.forEach((snapShot) => {
+        snapShot.forEach((doc) => {
+          batch.set(admin.rootCollections.inboxes
+            .doc(userRecord.uid).collection('Addendum').doc(), doc.data());
+        });
       });
       return null;
-    }).catch((error) => {
-      console.log(error);
-    });
+    }).catch(console.log);
   }
-
   return commitBatch(batch);
 };
 
@@ -68,17 +61,15 @@ const copyContactBookData = (userRecord, context, batch) => {
         commitBatch(batch);
       }
       return null;
-    }).catch((error) => {
-      console.log(error);
-    });
+    }).catch(console.log);
 };
 
 const app = (userRecord, context) => {
   const uid = userRecord.uid;
-  const mobile = userRecord.phoneNumber.split('+')[1]; // without ocountry code
+  const mobile = stripPlusFromMobile(userRecord.phoneNumber);
   const batch = admin.batch;
 
-  return admin.rootCollections.contactsBook.doc.get()
+  return admin.rootCollections.contactsBook.doc().get()
     .then((doc) => {
       if (doc.exists) { // previous user
         batch.set(admin.rootCollections.contactsBook.doc(mobile), {

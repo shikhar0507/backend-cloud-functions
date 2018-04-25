@@ -95,8 +95,7 @@ const server = (req, res) => {
   };
 
   if (req.method === 'OPTIONS') {
-    const message = 'OK';
-    sendResponse(conn, 200, message);
+    sendResponse(conn, 200, 'OK');
   } else if (req.method === 'GET' || req.method === 'POST' ||
     req.method === 'PATCH') {
     checkAuthorizationToken(conn);
