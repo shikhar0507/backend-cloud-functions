@@ -13,10 +13,11 @@ const createInbox = (userRecord, context, batch, addendumDocs) => {
             .doc(userRecord.uid).collection('Addendum').doc(), doc.data());
         });
       });
-      return null;
+      return commitBatch(batch);
     }).catch(console.log);
+  } else {
+    return commitBatch(batch);
   }
-  return commitBatch(batch);
 };
 
 const copyContactBookData = (userRecord, context, batch) => {
