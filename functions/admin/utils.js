@@ -7,13 +7,9 @@ const now = (conn) => {
 };
 
 const sendResponse = (conn, statusCode, statusMessage) => {
-  conn.res.writeHead(statusCode, conn.headers);
-  if (statusMessage.strip() === '') {
-    // statusMessage is undefined
-    conn.res.end();
-    return;
-  }
   conn.headers['Content-Type'] = 'application/json';
+  conn.res.writeHead(statusCode, conn.headers);
+
   conn.res.end(JSON.stringify({
     message: statusMessage,
   }));
@@ -23,6 +19,7 @@ const handleError = (conn, error) => {
   console.log(error);
   sendResponse(conn, 500, 'INTERNAL SERVER ERROR');
 };
+
 
 module.exports = {
   sendResponse,

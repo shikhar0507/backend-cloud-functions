@@ -1,77 +1,101 @@
 const admin = require('../../admin/admin');
 const utils = require('../../admin/utils');
-const helpers = require('./helpers');
+const helpers = require('./helperLib');
 
 const rootCollections = admin.rootCollections;
-const activities = rootCollections.activities;
+const users = admin.users;
 
-const sendResponse = utils.sendResponse;
+const activities = rootCollections.activities;
+const updates = rootCollections.updates;
+const profiles = rootCollections.profiles;
+
 const handleError = utils.handleError;
-const handleCanEdit = helpers.handleCanEdit;
-const getDateObject = helpers.getDateObject;
-const scheduleCreator = helpers.scheduleCreator;
-const venueCreator = helpers.venueCreator;
-const stripPlusFromMobile = helpers.stripPlusFromMobile;
-const isValidLocation = helpers.isValidLocation;
-const isValidString = helpers.isValidString;
+const sendResponse = utils.sendResponse;
+
 const isValidDate = helpers.isValidDate;
+const isValidString = helpers.isValidString;
+const isValidLocation = helpers.isValidLocation;
+const isValidPhoneNumber = helpers.isValidPhoneNumber;
+const getDateObject = helpers.getDateObject;
 
 const commitBatch = (conn) => {
-  batch.commit().then(() => {
-    sendResponse(conn, 201, 'CREATED');
-    return null;
-  }).catch((error) => handleError(conn, error));
+  conn.batch.commit().then(() => sendResponse(conn, 204, 'NO CONTENT'))
+    .catch((error) => handleError(conn, error));
 };
 
-const addCommentToActivity = (conn) => {
-  const batch = admin.batch;
-
-  batch.set(activities.doc(conn.req.body.activityId), {
-    lastUpdateTime: getDateObject(conn.req.body.updateTime),
-  }, {
-      merge: true,
-    });
-
-  batch.set(activities.doc(conn.req.body.activityId)
-    .collection('Addendum').doc(), {
+const addAddendumForUsersWithAuth = (conn) => {
+  conn.usersWithAuth.forEach((uid) => {
+    conn.batch.set(updates.doc(uid).collection('Addendum').doc(), {
       activityId: conn.req.body.activityId,
-      user: admin.rootCollections.profiles.doc(conn.phoneNumber).id,
+      user: conn.creator.displayName || conn.creator.phoneNumber,
       comment: conn.req.body.comment,
       location: admin.getGeopointObject(
-        conn.req.body.updateLocation[0],
-        conn.req.body.updateLocation[1]
+        conn.req.body.geopoint[0],
+        conn.req.body.geopoint[1]
       ),
-      timestamp: getDateObject(conn.req.body.updateTime),
+      timestamp: getDateObject(conn.req.body.timestamp),
       changes: [], // comment doesn't change the activity
     });
+  });
 
   commitBatch(conn);
 };
 
-const checkAssignToList = (conn) => {
-  activities.doc(conn.req.body.activityId).collection('AssignTo')
-    .doc(conn.phoneNumber).get().then((doc) => {
-      doc.exists ? addCommentToActivity(conn) :
-        sendResponse(conn, 401, 'UNAUTHORIZED');
-      return null;
-    }).catch((error) => handleError(conn, error));
-};
+const queryUpdatesForAsigneesUid = (conn) => {
+  const promises = [];
+  conn.batch = admin.batch;
 
-const getMobileNumber = (conn) => {
-  admin.manageUsers.getUserByUid(conn.uid).then((userRecord) => {
-    conn.phoneNumber = stripPlusFromMobile(userRecord.phoneNumber);
-    checkAssignToList(conn);
-    return null;
+  conn.assigneesList.forEach((val) => {
+    promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
+  });
+
+  conn.usersWithAuth = [];
+
+  Promise.all(promises).then((snapShotsArray) => {
+    snapShotsArray.forEach((snapShot) => {
+      if (!snapShot.empty) {
+        conn.usersWithAuth.push(snapShot.docs[0].id);
+      }
+    });
+
+    addAddendumForUsersWithAuth(conn);
+    return;
   }).catch((error) => handleError(conn, error));
 };
 
+const getActivityAssignees = (conn) => {
+  conn.assigneesList = [];
+
+  activities.doc(conn.req.body.activityId).collection('AssignTo').get()
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        conn.assigneesList.push(doc.id);
+      });
+
+      queryUpdatesForAsigneesUid(conn);
+      return;
+    }).catch((error) => handleError(conn, error));
+};
+
+const checkCommentPermission = (conn) => {
+
+  profiles.doc(conn.creator.phoneNumber).collection('Activities')
+    .doc(conn.req.body.activityId).get().then((doc) => {
+      if (!doc.exists) {
+        sendResponse(conn, 403, 'FORBIDDEN');
+        return;
+      }
+
+      getActivityAssignees(conn);
+      return;
+    }).catch((error) => handleError(conn, error));
+};
 
 const app = (conn) => {
-  if (isValidDate(conn.req.body.updateTime)
-    && isValidLocation(conn.req.body.updateLocation)
-    && isValidString(conn.req.body.activityId)
-    && isValidString(conn.req.body.comment)) {
-    getMobileNumber(conn);
+  if (isValidDate(conn.req.body.timestamp) &&
+    isValidLocation(conn.req.body.geopoint) &&
+    isValidString(conn.req.body.activityId)) {
+    checkCommentPermission(conn);
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');
   }

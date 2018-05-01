@@ -1,147 +1,199 @@
 const admin = require('../../admin/admin');
 const utils = require('../../admin/utils');
-const helpers = require('./helpers');
+const helpers = require('./helperLib');
 
 const rootCollections = admin.rootCollections;
-const activities = rootCollections.activities;
+const users = admin.users;
 
-const sendResponse = utils.sendResponse;
+const activities = rootCollections.activities;
+const profiles = rootCollections.profiles;
+const updates = rootCollections.updates;
+const enums = rootCollections.enum; // 'enum' is a reserved word
+const activityTemplates = rootCollections.activityTemplates;
+
 const handleError = utils.handleError;
+const sendResponse = utils.sendResponse;
 const handleCanEdit = helpers.handleCanEdit;
+const isValidDate = helpers.isValidDate;
+const isValidString = helpers.isValidString;
+const isValidLocation = helpers.isValidLocation;
+const isValidPhoneNumber = helpers.isValidPhoneNumber;
 const getDateObject = helpers.getDateObject;
 const scheduleCreator = helpers.scheduleCreator;
 const venueCreator = helpers.venueCreator;
-const stripPlusFromMobile = helpers.stripPlusFromMobile;
-const validateLocation = helpers.validateLocation;
-const isValidString = helpers.isValidString;
-const isValidDate = helpers.isValidDate;
+
 
 const commitBatch = (conn) => {
-  conn.batch.commit().then(() => {
-    utils.sendResponse(conn, 204, '');
-    return null;
-  }).catch((error) => utils.handleError(conn, error));
+  conn.batch.commit().then(() => sendResponse(conn, 204, 'NO CONTENT'))
+    .catch((error) => handleError(conn, error));
 };
 
-const addActivityDataToBatch = (conn, result) => {
-  if (conn.req.body.addAssignTo) {
-    if (Array.isArray(conn.req.body.addAssignTo)) {
-      conn.changes.add('AssignTo');
-      conn.req.body.addAssignTo.forEach((val) => {
-        if (!isValidString(val)) return;
 
-        conn.batch.set(activities.doc(conn.req.body.activityId)
-          .collection('AssignTo').doc(val), {
-            // get a boolean true/false from the string 'true/'/'false'
-            canEdit: handleCanEdit(conn.templateData.canEditRule),
-          });
-      });
-    }
-  }
-
-  if (conn.req.body.title || conn.req.body.description ||
-    conn.req.body.status) {
-    // if either of these values have arrived in the request body, then
-    // we can safely assume that Root has changed
-    conn.changes.add('Root');
-  }
+const writeActivityRoot = (conn, result) => {
+  if (!conn.req.body.description) conn.req.body.description = '';
 
   conn.batch.set(activities.doc(conn.req.body.activityId), {
-    title: conn.req.body.title || result[0].data().title || '',
+    title: conn.req.body.title || result[0].data().title,
     description: conn.req.body.description ||
-      result[0].get('description') || '',
-    status: result[1].get('ACTIVITYSTATUS')
+      result[0].data().description,
+    status: result[1].data().ACTIVITYSTATUS
       .indexOf(conn.req.body.status) > -1 ?
-      conn.req.body.status : result[0].get('status'),
-    schedule: scheduleCreator(conn),
-    venue: venueCreator(conn),
-    lastUpdateTime: getDateObject(conn.req.body.updateTime),
+      conn.req.body.status : result[0].data().status,
+    schedule: scheduleCreator(conn.req.body.schedule),
+    venue: venueCreator(conn.req.body.schedule),
   }, {
       merge: true,
     });
 
-  conn.batch.set(activities.doc(conn.req.body.activityId)
-    .collection('Addendum').doc(), {
-      activityId: conn.req.body.activityId,
-      user: rootCollections.profiles.doc(conn.phoneNumber).id,
-      comment: `${conn.displayName || conn.phoneNumber
-        || 'someone'} updated ${conn.templateData.name}`,
-      location: admin.getGeopointObject(
-        conn.req.body.updateLocation[0],
-        conn.req.body.updateLocation[1]
-      ),
-      timestamp: helpers.getDateObject(conn.req.body.updateTime),
-      changes: [...conn.changes], // name of collections that changed
-    });
+  conn.batch.set(updates.doc(conn.creator.uid)
+    .collection('Addendum').doc(), conn.addendumData);
 
   commitBatch(conn);
 };
 
-const updateActivityWithBatch = (conn, result) => {
-  conn.batch = admin.batch;
-  conn.changes = new Set();
 
-  if (conn.req.body.deleteAssignTo) {
-    if (Array.isArray(conn.req.body.deleteAssignTo)) {
-      conn.changes.add('AssignTo'); // assignTo changed
-      conn.req.body.deleteAssignTo.forEach((val) => {
-        conn.batch.delete(activities.doc(conn.req.body.activityId)
-          .collection('AssignTo').doc(val));
-      });
-    }
-  }
+const addAddendumForUsersWithAuth = (conn, result) => {
+  conn.usersWithAuth.forEach((uid) => {
+    conn.batch.set(updates.doc(uid).collection('Addendum')
+      .doc(), conn.addendumData);
+  });
 
-  // result[0] --> activity data
-  rootCollections.templates.doc(result[0].get('template')).get()
-    .then((doc) => {
-      conn.templateData = doc.data();
-      addActivityDataToBatch(conn, result);
-      return null;
-    }).catch((error) => handleError(conn, error));
+  writeActivityRoot(conn, result);
 };
 
-const fetchDocs = (conn) => {
-  const activityRef = activities.doc(conn.req.body.activityId).get();
-  const activityStatusRef = rootCollections.enums.doc('ACTIVITYSTATUS').get();
 
-  Promise.all([activityRef, activityStatusRef]).then((result) => {
-    !result[0].exists ?
-      sendResponse(conn, 400, 'BAD REQUEST'()) :
-      updateActivityWithBatch(conn, result);
+const processAsigneesList = (conn, result) => {
+  if (Array.isArray(conn.req.body.deleteAssignTo)) {
+    conn.req.body.deleteAssignTo.forEach((val) => {
+      if (!isValidPhoneNumber(val)) return;
+
+      conn.batch.delete(activities.doc(conn.req.body.activityId)
+        .collection('AssignTo').doc(val));
+
+      conn.batch.delete(profiles.doc(val).collection('Activities')
+        .doc(conn.req.body.activityId));
+    });
+  }
+
+  if (Array.isArray(conn.req.body.addAssignTo)) {
+    conn.req.body.addAssignTo.forEach((val) => {
+      if (!isValidPhoneNumber(val)) return;
+
+      conn.activityAssignees.push(val);
+    });
+  }
+
+  const promises = [];
+
+  conn.activityAssignees.forEach((val) => {
+    conn.batch.set(activities.doc(conn.req.body.activityId)
+      .collection('AssignTo').doc(val), {
+        canEdit: handleCanEdit(conn.templateData.canEditRule),
+      });
+
+    conn.batch.set(profiles.doc(val).collection('Activities')
+      .doc(conn.req.body.activityId), {
+        canEdit: handleCanEdit(conn.templateData.canEditRule),
+        timestamp: getDateObject(conn.req.body.timestamp),
+      });
+
+    promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
+  });
+
+  conn.usersWithAuth = [];
+
+  Promise.all(promises).then((snapShotsArray) => {
+    snapShotsArray.forEach((snapShot) => {
+      if (!snapShot.empty) conn.usersWithAuth.push(snapShot.docs[0].id);
+    });
+
+    addAddendumForUsersWithAuth(conn, result);
     return;
   }).catch((error) => handleError(conn, error));
 };
 
-const checkAssignToListInActivity = (conn) => {
-  activities.doc(conn.req.body.activityId).collection('AssignTo')
-    .doc(conn.phoneNumber).get().then((doc) => {
-      if (!doc.exists) {
-        sendResponse(conn, 401, 'UNAUTHORIZED');
-      } else if (handleCanEdit(doc.get('canEdit'))) {
-        fetchDocs(conn);
-      }
-      return null;
-    }).catch((error) => handleError(conn, error));
+
+const getTemplateAndAssigneesFromActivity = (conn, result) => {
+  const templateRef = activityTemplates.doc(result[0].get('template')).get();
+  const assignToCollectionRef = activities.doc(conn.req.body.activityId)
+    .collection('AssignTo').get();
+
+  Promise.all([templateRef, assignToCollectionRef]).then((resultingData) => {
+    conn.templateData = resultingData[0].data();
+
+    if (!resultingData[1].empty) {
+      conn.activityAssignees = [];
+      // list of assignees inside the activity is not empty
+      resultingData[1].forEach((doc) => {
+        conn.activityAssignees.push(doc.id);
+      });
+    }
+
+    conn.batch = admin.batch;
+
+    conn.addendumData = {
+      activityId: conn.req.body.activityId,
+      user: conn.creator.displayName || conn.creator.phoneNumber,
+      comment: `${conn.creator.displayName || conn.creator.phoneNumber}
+        updated ${conn.templateData.name}`,
+      location: admin.getGeopointObject(
+        conn.req.body.geopoint[0],
+        conn.req.body.geopoint[1]
+      ),
+      timestamp: getDateObject(conn.req.body.timestamp),
+    };
+
+    if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
+      processAsigneesList(conn, result);
+    } else {
+      writeActivityRoot(conn, result);
+    }
+
+    return;
+  }).catch((error) => handleError(conn, error));
 };
 
-const getPhoneNumberFromAuth = (conn) => {
-  admin.manageUsers.getUserByUid(conn.uid).then((userRecord) => {
-    conn.phoneNumber = stripPlusFromMobile(userRecord.phoneNumber);
-    conn.displayName = userRecord.displayName;
-    checkAssignToListInActivity(conn);
-    return null;
+
+const fetchDocs = (conn) => {
+  const activityRef = activities.doc(conn.req.body.activityId).get();
+  const activityStatusRef = enums.doc('ACTIVITYSTATUS').get();
+
+  Promise.all([activityRef, activityStatusRef]).then((result) => {
+    if (!result[0].exists) {
+      sendResponse(conn, 400, 'BAD REQUEST');
+      return;
+    }
+
+    getTemplateAndAssigneesFromActivity(conn, result);
+    return;
   }).catch((error) => {
     console.log(error);
-    sendResponse(conn, 401, 'UNAUTHORIZED');
+    sendResponse(conn, 400, 'BAD REQUEST');
   });
+};
+
+const verifyPermissionToUpdateActivity = (conn) => {
+  profiles.doc(conn.creator.phoneNumber).collection('Activities')
+    .doc(conn.req.body.activityId).get().then((doc) => {
+      if (!doc.exists) {
+        sendResponse(conn, 403, 'FORBIDDEN');
+        return;
+      }
+
+      doc.get('canEdit') ? fetchDocs(conn) :
+        sendResponse(conn, 403, 'FORBIDDEN');
+      return;
+    }).catch((error) => {
+      handleError(conn, error);
+    });
 };
 
 
 const app = (conn) => {
-  if (validateLocation(conn.req.body.updateLocation)
-    && isValidString(conn.req.body.activityId)
-    && isValidDate(conn.req.body.updateTime)) {
-    getPhoneNumberFromAuth(conn);
+  if (isValidDate(conn.req.body.timestamp) &&
+    isValidString(conn.req.body.activityId) &&
+    isValidLocation(conn.req.body.geopoint)) {
+    verifyPermissionToUpdateActivity(conn);
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');
   }

@@ -1,32 +1,36 @@
 const url = require('url');
+const admin = require('../admin/admin');
+const utils = require('../admin/utils');
+const helpers = require('../firestore/activity/helperLib');
 
 const onRead = require('../firestore/activity/onRead');
 const onCreate = require('../firestore/activity/onCreate');
 const onUpdate = require('../firestore/activity/onUpdate');
 const onComment = require('../firestore/activity/onComment');
-const utils = require('../admin/utils');
+
+const onRequest = require('../firestore/services/onRequest');
 
 const sendResponse = require('../admin/utils').sendResponse;
 const now = utils.now;
 
-const handleActivityRequest = (conn) => {
+const isValidPhoneNumber = helpers.isValidPhoneNumber;
+
+const profiles = admin.rootCollections.profiles;
+const getUserByUid = admin.users.getUserByUid;
+
+// https://firebase.google.com/docs/reference/node/firebase.auth.Error
+
+const activitiesHandler = (conn) => {
   const method = conn.req.method;
   const action = url.parse(conn.req.url).path.split('/')[2];
 
   if (method === 'GET') {
-    // In the “happy” (or non-error) path, GET returns a representation
-    // in XML or JSON and an HTTP response code of 200 (OK). In an
-    // error case, it most often returns a 404 (NOT FOUND) or
-    // 400(BADREQUEST).
-    if (conn.req.query.readFrom) {
+    if (conn.req.query.from) {
       onRead(conn);
     } else {
       sendResponse(conn, 400, 'BAD REQUEST');
     }
   } else if (method === 'POST') {
-    // On successful creation, return HTTP status 201, returning a
-    // Location header with a link to the newly-created resource
-    // with the 201 HTTP status.
     if (action === 'create') {
       onCreate(conn);
     } else if (action === 'comment') {
@@ -36,8 +40,6 @@ const handleActivityRequest = (conn) => {
     }
   } else if (method === 'PATCH') {
     if (action === 'update') {
-      // Response: On successful update it returns 200
-      // (or 204 if not returning any content in the body) from a PUT.
       onUpdate(conn);
     } else {
       sendResponse(conn, 400, 'BAD REQUEST');
@@ -47,37 +49,65 @@ const handleActivityRequest = (conn) => {
   }
 };
 
-const handleAdminRequest = (conn) => {
-  const action = url.parse(conn.req.url).path.split('/');
-  sendResponse(conn, 200, 'OK');
+const servicesHandler = (conn) => {
+  if (conn.req.method !== 'GET') {
+    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+    return;
+  }
+
+  const action = url.parse(conn.req.url).path.split('/')[2];
+
+  if (action.startsWith('contact') &&
+    isValidPhoneNumber(conn.req.query.phoneNumber)) {
+    onRequest(conn);
+  } else {
+    sendResponse(conn, 400, 'BAD REQUEST');
+  }
+};
+
+const getCreatorsPhoneNumber = (conn) => {
+  // https://firebase.google.com/docs/reference/admin/node/admin.auth.DecodedIdToken
+  // getUserByUid(conn.creator.uid).then((userRecord) => {
+  conn.creator.phoneNumber = '+918178135274';
+  // conn.creator.phoneNumber = userRecord.phoneNumber;
+
+  const method = conn.req.method;
+  const action = url.parse(conn.req.url).path.split('/')[1];
+
+  if (action === 'activities') {
+    activitiesHandler(conn);
+  } else if (action === 'services') {
+    servicesHandler(conn);
+  } else if (action === 'now') {
+    now(conn); // server timestamp
+  } else {
+    sendResponse(conn, 400, 'BAD REQUEST');
+  }
+  // }).catch((error) => {
+  //   console.log(error);
+  //   sendResponse(conn, 403, 'FORBIDDEN');
+  // });
 };
 
 const checkAuthorizationToken = (conn) => {
   if (conn.req.headers.authorization) {
     let idToken = conn.req.headers.authorization.split('Bearer ')[1];
-    admin.manageUsers.verifyUserByIdToken(idToken).then((decoded) => {
-      conn.uid = decoded.uid;
-      const method = conn.req.method;
-      const action = url.parse(conn.req.url).path.split('/')[1];
 
-      if (action === 'activity') {
-        handleActivityRequest(conn);
-      } else if (action === 'admin') {
-        handleAdminRequest(conn);
-      } else if (action === 'now') {
-        now(conn); // server timestamp
-      } else {
-        sendResponse(conn, 400, 'BAD REQUEST');
-      }
-      return null;
-    }).catch((error) => {
-      console.log(error);
-      sendResponse(conn, 403, 'FORBIDDEN');
-    });
+    // admin.users.verifyIdToken(idToken).then((decodedIdToken) => {
+    conn.creator = {};
+    conn.creator.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2'
+    // conn.creator.uid = decodedIdToken.uid;
+
+    getCreatorsPhoneNumber(conn);
+    return;
+    // }).catch((error) => {
+    //   console.log(error);
+    //   sendResponse(conn, 403, 'FORBIDDEN');
+    // });
   } else {
     sendResponse(conn, 403, 'FORBIDDEN');
   }
-  return null;
+  return;
 };
 
 const server = (req, res) => {
@@ -87,11 +117,11 @@ const server = (req, res) => {
   };
 
   // preflight headers
-  const accept = 'X-Requested-With, Authorization, Content-Type, Accept';
+  const control = 'X-Requested-With, Authorization, Content-Type, Accept';
   conn.headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH',
-    'Access-Control-Allow-Headers': accept,
+    'Access-Control-Allow-Headers': control,
   };
 
   if (req.method === 'OPTIONS') {

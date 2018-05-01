@@ -1,144 +1,173 @@
 const admin = require('../../admin/admin');
 const utils = require('../../admin/utils');
-const helpers = require('./helpers');
+const helpers = require('./helperLib');
 
 const rootCollections = admin.rootCollections;
+const users = admin.users;
+
 const activities = rootCollections.activities;
-const inbox = rootCollections.inboxes;
-const profile = rootCollections.profiles;
+const profiles = rootCollections.profiles;
+const updates = rootCollections.updates;
+const enums = rootCollections.enum; // 'enum' is a reserved word
+const activityTemplates = rootCollections.activityTemplates;
+const offices = rootCollections.offices;
 
 const handleError = utils.handleError;
 const sendResponse = utils.sendResponse;
-const isValidDate = helpers.isValidDate;
-const venueCreator = helpers.venueCreator;
 const handleCanEdit = helpers.handleCanEdit;
+const isValidDate = helpers.isValidDate;
 const isValidString = helpers.isValidString;
+const isValidPhoneNumber = helpers.isValidPhoneNumber;
+const isValidLocation = helpers.isValidLocation;
 const getDateObject = helpers.getDateObject;
 const scheduleCreator = helpers.scheduleCreator;
-const isValidLocation = helpers.isValidLocation;
-const stripPlusFromMobile = helpers.stripPlusFromMobile;
+const venueCreator = helpers.venueCreator;
 
 const commitBatch = (conn) => {
-  conn.batch.commit().then(() => sendResponse(conn, 200, 'OK'))
-    .catch((error) => handleError(conn, error));
+  conn.batch.commit().then(() => {
+    sendResponse(conn, 201, 'CREATED');
+    return;
+  }).catch((error) => handleError(conn, error));
 };
 
-const createActivityWithBatch = (conn, result) => {
-  conn.batch = admin.batch;
-  conn.changes = new Set();
-  const activityRef = activities.doc();
-
-  // activity ID is required at multiple places
-  conn.activityId = activityRef.id;
-
-  conn.changes.add('Root'); // activity root changed
-
-  // if description is not sent in the request body.
-  // create data in activity root
-  // result[1] -> template
-  if (!conn.req.body.description) conn.req.body.description = '';
-
-  conn.batch.set(activityRef, {
-    title: conn.req.body.title || conn.req.body
-      .description.substring(0, 30) || result[1].get('defaultTitle'),
-    description: conn.req.body.description || '',
-    status: result[1].get('statusOnCreate'),
-    office: !conn.req.body.officeId ? null : conn.req.body.officeId,
-    template: conn.req.body.templateId,
-    schedule: scheduleCreator(conn),
-    venue: venueCreator(conn),
-    lastUpdateTime: getDateObject(conn.req.body.createTime),
+const addAddendumForUsersWithAuth = (conn, result) => {
+  conn.usersWithAuth.forEach((uid) => {
+    conn.batch.set(updates.doc(uid).collection('Addendum')
+      .doc(), conn.addendumData);
   });
 
-  // userRecors --> result[0]
-  // templateRef --> result[1]
-  if (result[1].get('autoIncludeOnCreate').indexOf('CREATOR') > -1) {
-    conn.changes.add('AssignTo'); // creator is added, so assignTo is changed
-    conn.batch.set(activities.doc(conn.activityId)
-      .collection('AssignTo')
-      .doc(stripPlusFromMobile(stripPlusFromMobile(result[0].phoneNumber))), {
-        canEdit: handleCanEdit(result[1].get('canEditRule')),
-      });
-  }
+  commitBatch(conn);
+};
+
+const handleAssignedUsers = (conn, result) => {
+  const promises = [];
 
   // create docs in AssignTo collection if assignTo is in the reqeuest body
-  if (conn.req.body.assignTo) {
-    conn.changes.add('AssignTo'); // assignTo changed
+  if (Array.isArray(conn.req.body.assignTo)) {
     conn.req.body.assignTo.forEach((val) => {
-      if (!isValidString(val)) return;
+      // TODO: add a method for verifying a valid mobile
+      // instead of valid string
+      if (!isValidPhoneNumber(val)) return;
 
       conn.batch.set(activities.doc(conn.activityId)
         .collection('AssignTo').doc(val), {
           // template --> result[1].data()
           canEdit: handleCanEdit(result[1].get('canEditRule')),
+        }, {
+          merge: true,
+        });
+
+      promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
+
+      conn.batch.set(profiles.doc(val).collection('Activities')
+        .doc(conn.activityId), {
+          canEdit: handleCanEdit(result[1].get('canEditRule')),
+          timestamp: getDateObject(conn.req.body.timestamp),
         });
     });
   }
 
-  const addendumData = {
-    activityId: conn.activityId,
-    user: stripPlusFromMobile(result[0].phoneNumber),
-    comment: `${result[0].displayName ||
-      stripPlusFromMobile(result[0].phoneNumber) || 'someone'}
-        created ${result[1].get('name')}`,
-    location: admin.getGeopointObject(
-      conn.req.body.createLocation[0],
-      conn.req.body.createLocation[1]
-    ),
-    timestamp: getDateObject(conn.req.body.createTime),
-    changes: [...conn.changes], // list of things that changed
-  };
+  conn.usersWithAuth = [];
 
-
-  conn.batch.set(activities.doc(conn.activityId).collection('Addendum')
-    .doc(), addendumData);
-
-  conn.batch.set(inbox.doc(conn.uid), {
-    mobile: stripPlusFromMobile(result[0].phoneNumber),
-  }, {
-      merge: true,
+  Promise.all(promises).then((snapShotsArray) => {
+    snapShotsArray.forEach((snapShot) => {
+      if (!snapShot.empty) {
+        conn.usersWithAuth.push(snapShot.docs[0].id);
+      }
     });
-
-  conn.batch.set(inbox.doc(conn.uid).collection('Addendum')
-    .doc(), addendumData);
-
-  conn.batch.set(inbox.doc(conn.uid).collection('Activities').doc(), {
-    activityId: conn.activityId,
-    timestamp: getDateObject(conn.req.body.createTime),
-  });
-
-  // TODO: allowed templates in inbox???
-
-  commitBatch(conn);
+    addAddendumForUsersWithAuth(conn, result);
+    return;
+  }).catch((error) => handleError(conn, error));
 };
 
-const fetchDocs = (conn) => {
-  const userRecord = admin.manageUsers.getUserByUid(conn.uid);
-  const templateRef = rootCollections.templates
-    .doc(conn.req.body.templateId).get();
-  const officeRef = rootCollections.offices.doc(conn.req.body.officeId).get();
-  const profileRef = rootCollections.profiles.doc(conn.uid)
-    .collection('AllowedTemplates').doc('personal').get();
+const createActivity = (conn, result) => {
+  conn.batch = admin.batch;
 
-  Promise.all([userRecord, templateRef, officeRef, profileRef])
-    .then((result) => {
-      if (result[3].get('template')
-        .indexOf(conn.req.body.templateId) > -1) {
-        createActivityWithBatch(conn, result);
-      } else {
-        sendResponse(conn, 401, 'UNAUTHORIZED');
-      }
-      return null;
-    }).catch((error) => {
-      console.log(error);
+  const activityRef = activities.doc();
+  conn.activityId = activityRef.id;
+
+  if (!conn.req.body.description) conn.req.body.description = '';
+
+  conn.batch.set(activityRef, {
+    title: conn.req.body.title || conn.req.body.description
+      .substring(0, 30) || result[1].get('defaultTitle'),
+    description: conn.req.body.description,
+    status: result[0].get('statusOnCreate'),
+    office: !conn.req.body.officeId ? null : conn.req.body.officeId,
+    template: conn.req.body.templateId,
+    schedule: scheduleCreator(conn.req.body.schedule),
+    venue: venueCreator(conn.req.body.venue),
+    timestamp: getDateObject(conn.req.body.timestamp),
+  });
+
+  conn.addendumData = {
+    activityId: conn.activityId,
+    user: conn.creator.displayName || conn.creator.phoneNumber,
+    comment: `${conn.creator.displayName || conn.creator.phoneNumber}
+      created ${result[0].get('name')}`,
+    location: admin.getGeopointObject(
+      conn.req.body.geopoint[0],
+      conn.req.body.geopoint[1]
+    ),
+    timestamp: getDateObject(conn.req.body.timestamp),
+  };
+
+  if (result[0].get('autoIncludeOnCreate').indexOf('CREATOR') > -1) {
+    conn.batch.set(activities.doc(conn.activityId)
+      .collection('AssignTo').doc(conn.creator.phoneNumber), {
+        canEdit: handleCanEdit(result[0].get('canEditRule')),
+      });
+
+    conn.batch.set(updates.doc(conn.creator.uid).collection('Addendum')
+      .doc(), conn.addendumData);
+  }
+
+  if (conn.req.body.assignTo) {
+    handleAssignedUsers(conn, result);
+  } else {
+    commitBatch(conn);
+  }
+};
+
+
+const fetchDocs = (conn) => {
+  const promises = [];
+
+  promises.push(activityTemplates.doc(conn.req.body.templateId).get());
+  promises.push(profiles.doc(conn.creator.phoneNumber).get());
+  promises.push(profiles.doc(conn.creator.phoneNumber)
+    .collection('AllowedTemplates').doc(conn.req.body.officeId).get());
+
+  if (conn.req.body.officeId) {
+    promises.push(offices.doc(conn.req.body.officeId).get());
+  }
+
+  Promise.all(promises).then((result) => {
+    // template
+    if (!result[0].exists) {
       sendResponse(conn, 400, 'BAD REQUEST');
-    });
+      return;
+    }
+
+    if (!result[2].exists || result[2].get('template') !== conn.req.body.templateId) {
+      // the requester is not allowed to create an activity
+      // with the requested template
+      sendResponse(conn, 403, 'FORBIDDEN');
+      return;
+    }
+
+    createActivity(conn, result);
+    return;
+  }).catch((error) => {
+    console.log(error);
+    sendResponse(conn, 400, 'BAD REQUEST');
+  });
 };
 
 const app = (conn) => {
-  if (isValidDate(conn.req.body.createTime)
-    && isValidString(conn.req.body.templateId)
-    && isValidLocation(conn.req.body.createLocation)) {
+  if (isValidDate(conn.req.body.timestamp) &&
+    isValidString(conn.req.body.templateId) &&
+    isValidLocation(conn.req.body.geopoint)) {
     fetchDocs(conn);
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');
