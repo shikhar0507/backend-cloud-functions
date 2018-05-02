@@ -10,6 +10,8 @@ const onComment = require('../firestore/activity/onComment');
 
 const onRequest = require('../firestore/services/onRequest');
 
+const fetchUserRecord = onRequest.fetchUserRecord;
+
 const sendResponse = require('../admin/utils').sendResponse;
 const now = utils.now;
 
@@ -59,7 +61,7 @@ const servicesHandler = (conn) => {
 
   if (action.startsWith('contact') &&
     isValidPhoneNumber(conn.req.query.phoneNumber)) {
-    onRequest(conn);
+    fetchUserRecord(conn);
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');
   }
@@ -95,7 +97,7 @@ const checkAuthorizationToken = (conn) => {
 
     // admin.users.verifyIdToken(idToken).then((decodedIdToken) => {
     conn.creator = {};
-    conn.creator.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2'
+    conn.creator.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2';
     // conn.creator.uid = decodedIdToken.uid;
 
     getCreatorsPhoneNumber(conn);

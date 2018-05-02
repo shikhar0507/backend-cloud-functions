@@ -57,8 +57,6 @@ const venueCreator = (venue) => {
 
   if (Array.isArray(venue)) {
     venue.forEach((val, index) => {
-      if (!Array.isArray(val.geopoint)) return;
-
       if (!isValidLocation(val.geopoint)) return;
 
       // if both conditions above are false, create the venue

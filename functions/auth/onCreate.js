@@ -11,23 +11,25 @@ const app = (userRecord, context) => {
   const phoneNumber = userRecord.phoneNumber;
   const batch = admin.batch;
 
-  batch.set(updates.doc(phoneNumber), {
+  batch.set(updates.doc(uid), {
+    phoneNumber,
+  }, {
+      merge: true,
+    });
+
+  batch.set(profiles.doc(phoneNumber), {
     uid,
   }, {
       merge: true,
     });
 
-  batch.set(updates.doc(phoneNumber).collection('AllowedTemplates')
+  batch.set(profiles.doc(phoneNumber).collection('AllowedTemplates')
     .doc('office'), {
       template: 'plan',
       timestamp: admin.serverTimestamp,
     }, {
       merge: true,
     });
-
-  batch.set(updates.doc(uid), {
-    phoneNumber,
-  });
 
   return batch.commit().catch((error) => console.log(error));
 };

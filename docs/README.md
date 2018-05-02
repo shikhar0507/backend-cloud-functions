@@ -23,3 +23,61 @@ Below are the listed resources:
 You can check out the `/JSON` subfolder in this repository to get a help document on how to consume whatever API you want to read/write data from/to.
 
 ## Sending Requests
+
+* Javascript
+
+  * Using XHR
+
+      ```javascript
+        var data = JSON.stringify('/* JSON string here */');
+        var url = '/* url endpoint here */';
+
+        var xhr = new XMLHttpRequest();
+        xhr.withCredentials = true;
+
+        xhr.addEventListener('readystatechange', () => {
+            if (this.readyState === 4) {
+                /* success */
+                console.log(this.responseText);
+            }
+        });
+
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        /* https://firebase.google.com/docs/auth/admin/create-custom-tokens */
+        xhr.setRequestHeader('Authorization', '/* auth token string */');
+        xhr.setRequestHeader('Cache-Control', 'no-cache');
+        xhr.send(data);
+      ```
+
+  * Using fetch()
+
+        ```javascript
+        const url = '/* url endpoint here */';
+        const body = {}; // add body data here
+
+        const postData = (url, body) => {
+            return fetch(url, {
+                body: JSON.stringify(data),
+                cache: 'no-cache',
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Authorization': 'Bearer ' + getBearer(),
+                    'Content-Type': 'application/json',
+                },
+            }).then((response) => {
+                return response.json();
+            }).catch(console.log);
+        };
+
+        postData(url, body).then((data) => {
+            /* do something with json data */
+        });
+        ```
+
+## LICENSE
+
+MIT LICENSE
+
+Copyright (c) Growthfile 2018

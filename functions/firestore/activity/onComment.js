@@ -78,7 +78,6 @@ const getActivityAssignees = (conn) => {
 };
 
 const checkCommentPermission = (conn) => {
-
   profiles.doc(conn.creator.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists) {

@@ -149,7 +149,8 @@ const fetchDocs = (conn) => {
       return;
     }
 
-    if (!result[2].exists || result[2].get('template') !== conn.req.body.templateId) {
+    if (!result[2].exists
+      || result[2].get('template') !== conn.req.body.templateId) {
       // the requester is not allowed to create an activity
       // with the requested template
       sendResponse(conn, 403, 'FORBIDDEN');

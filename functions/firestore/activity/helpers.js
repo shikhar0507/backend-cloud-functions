@@ -1,14 +1,13 @@
 const admin = require('../../admin/admin');
 
 const isValidLocation = (location) => {
-  if (!Array.isArray(location)) return false;
+  if (Array.isArray(location)) {
+    const lat = location[0];
+    const lng = location[1];
 
-  const lat = location[0];
-  const lng = location[1];
-
-  if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return false;
-
-  return true;
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return true;
+  }
+  return false;
 };
 
 const isValidString = (value) => {

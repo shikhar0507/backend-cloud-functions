@@ -8,9 +8,6 @@ const users = admin.users;
 const activities = rootCollections.activities;
 const profiles = rootCollections.profiles;
 const updates = rootCollections.updates;
-const enums = rootCollections.enum; // 'enum' is a reserved word
-const activityTemplates = rootCollections.activityTemplates;
-const offices = rootCollections.offices;
 
 const handleError = utils.handleError;
 const sendResponse = utils.sendResponse;
@@ -21,40 +18,51 @@ const isValidLocation = helpers.isValidLocation;
 const getDateObject = helpers.getDateObject;
 
 const getAllowedTemplates = (conn, jsonResult) => {
-
-  profiles.doc(conn.creator.phoneNumber).collection('AllowedTemplates').get()
+  profiles.doc(conn.creator.phoneNumber).collection('AllowedTemplates')
+    .where('timestamp', '>=', getDateObject(conn.req.query.from)).get()
     .then((snapShot) => {
-      snapShot.docs.forEach((doc, index) => {
-        jsonResult.allowedTemplates[`${index}`] = doc.get('template');
+      snapShot.forEach((doc) => {
+        jsonResult.allowedTemplates[
+          `${doc.ref.path[0].split('/')[3]}`
+        ] = doc.get('template');
       });
 
       conn.headers['Content-Type'] = 'application/json';
       conn.res.writeHead(200, conn.headers);
       conn.res.end(JSON.stringify(jsonResult));
+
+      return;
     }).catch((error) => handleError(conn, error));
 };
 
 const addActivityRoot = (conn, jsonResult) => {
-  const promises = [];
+  const activitiesList = [];
 
   for (key in jsonResult.updates) {
     if (jsonResult.updates.hasOwnProperty(key)) {
-      promises.push(activities.doc(key).get());
+      activitiesList.push(activities
+        .where('timestamp', '>=', getDateObject(conn.req.query.from)).get());
     }
   }
 
-  Promise.all(promises).then((result) => {
-    result.forEach((val) => {
-      jsonResult.updates[`${val.ref.path.split('/')[1]}`] = {
-        status: val.get('status'),
-        schedule: val.get('schedule'),
-        venue: val.get('venue'),
-        timestamp: val.get('timestamp').toUTCString(),
-        template: val.get('template'),
-        title: val.get('title'),
-        description: val.get('description'),
-        office: val.get('office'),
-      }
+  let activityId;
+
+  Promise.all(activitiesList).then((snapShotsArray) => {
+    snapShotsArray.forEach((snapShot) => {
+      snapShot.forEach((doc) => {
+        activityId = doc.ref.path.split('/')[1];
+
+        jsonResult.updates[`${activityId}`] = {
+          status: doc.get('status'),
+          schedule: doc.get('schedule'),
+          venue: doc.get('venue'),
+          timestamp: doc.get('timestamp').toUTCString(),
+          template: doc.get('template'),
+          title: doc.get('title'),
+          description: doc.get('description'),
+          office: doc.get('office'),
+        };
+      });
     });
 
     getAllowedTemplates(conn, jsonResult);
@@ -65,21 +73,21 @@ const addActivityRoot = (conn, jsonResult) => {
 const readAddendumsByQuery = (conn) => {
   const jsonResult = {};
 
-  // adding readFrom timestamp to the listOfTimestamps in order to
-  // avoid the situtation where the query inside the 'Addendum' collection
-  // yeilds no results. Since we actually have to send at least a single date
-  // to the client.
-  conn.listOfTimestamps = [Date.parse(conn.req.query.from)];
-
-  jsonResult.addendum = {};
+  jsonResult.addendum = [];
   jsonResult.updates = {};
   jsonResult.allowedTemplates = {};
 
+  // adding the 'from' timestamp to the listOfTimestamps in order to
+  // avoid the situtation where the query inside the 'Addendum' collection
+  // yeilds no results. Since we actually have to send at least a one date
+  // to the client.
+  conn.listOfTimestamps = [Date.parse(conn.req.query.from)];
+
   updates.doc(conn.creator.uid).collection('Addendum')
-    .where('timestamp', '>=', getDateObject(conn.req.query.from))
-    .orderBy('timestamp', 'asc').get().then((snapShot) => {
-      snapShot.docs.forEach((doc, index) => {
-        jsonResult.addendum[index] = {
+    .where('timestamp', '>=', getDateObject(conn.req.query.from)).get()
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        jsonResult.addendum.push({
           activityId: doc.get('activityId'),
           comment: doc.get('comment'),
           timestamp: doc.get('timestamp').toUTCString(),
@@ -88,9 +96,9 @@ const readAddendumsByQuery = (conn) => {
             doc.get('location')._longitude,
           ],
           user: doc.get('user'),
-        };
+        });
 
-        jsonResult.updates[`${doc.get('activityId')}`] = {};
+        // jsonResult.updates[`${doc.get('activityId')}`] = {};
 
         conn.listOfTimestamps.push(Date.parse(doc.get('timestamp')));
       });

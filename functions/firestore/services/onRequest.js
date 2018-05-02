@@ -9,7 +9,7 @@ const handleError = utils.handleError;
 
 const getUserByPhoneNumber = users.getUserByPhoneNumber;
 
-const app = (conn) => {
+const fetchUserRecord = (conn) => {
   // http://localhost:5000/contactform-1b262/us-central1/app/services/contact?phoneNumber=%2B918178135274
   getUserByPhoneNumber(conn.req.query.phoneNumber).then((userRecord) => {
     sendResponse(conn, 200, userRecord);
@@ -26,4 +26,6 @@ const app = (conn) => {
   });
 };
 
-module.exports = app;
+module.exports = {
+  fetchUserRecord,
+};
