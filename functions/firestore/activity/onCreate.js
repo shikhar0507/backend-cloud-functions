@@ -23,6 +23,12 @@ const getDateObject = helpers.getDateObject;
 const scheduleCreator = helpers.scheduleCreator;
 const venueCreator = helpers.venueCreator;
 
+
+/**
+ * Commits the batch and sends a response to the client.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const commitBatch = (conn) => {
   conn.batch.commit().then(() => {
     sendResponse(conn, 201, 'CREATED');
@@ -30,6 +36,14 @@ const commitBatch = (conn) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
+/**
+ * Adds Addendum for each user who has their document inside the Updates
+ * collection in the database.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} result Contains the fetched documents from Firestore.
+ */
 const addAddendumForUsersWithAuth = (conn, result) => {
   conn.usersWithAuth.forEach((uid) => {
     conn.batch.set(updates.doc(uid).collection('Addendum')
@@ -39,41 +53,44 @@ const addAddendumForUsersWithAuth = (conn, result) => {
   commitBatch(conn);
 };
 
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} result Contains the fetched documents from Firestore.
+ */
 const handleAssignedUsers = (conn, result) => {
   const promises = [];
 
   // create docs in AssignTo collection if assignTo is in the reqeuest body
-  if (Array.isArray(conn.req.body.assignTo)) {
-    conn.req.body.assignTo.forEach((val) => {
-      // TODO: add a method for verifying a valid mobile
-      // instead of valid string
-      if (!isValidPhoneNumber(val)) return;
+  conn.req.body.assignTo.forEach((val) => {
+    // TODO: add a method for verifying a valid mobile
+    // instead of valid string
+    if (!isValidPhoneNumber(val)) return;
 
-      conn.batch.set(activities.doc(conn.activityId)
-        .collection('AssignTo').doc(val), {
-          // template --> result[1].data()
-          canEdit: handleCanEdit(result[1].get('canEditRule')),
-        }, {
-          merge: true,
-        });
+    conn.batch.set(activities.doc(conn.activityId)
+      .collection('AssignTo').doc(val), {
+        // template --> result[1].data()
+        canEdit: handleCanEdit(result[1].get('canEditRule')),
+      }, {
+        merge: true,
+      });
 
-      promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
+    // phone numbers exist uniquely in the db
+    promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
 
-      conn.batch.set(profiles.doc(val).collection('Activities')
-        .doc(conn.activityId), {
-          canEdit: handleCanEdit(result[1].get('canEditRule')),
-          timestamp: getDateObject(conn.req.body.timestamp),
-        });
-    });
-  }
+    conn.batch.set(profiles.doc(val).collection('Activities')
+      .doc(conn.activityId), {
+        canEdit: handleCanEdit(result[1].get('canEditRule')),
+        timestamp: getDateObject(conn.req.body.timestamp),
+      });
+  });
 
   conn.usersWithAuth = [];
 
+  // getting the docs which have uids inside /Updates
   Promise.all(promises).then((snapShotsArray) => {
     snapShotsArray.forEach((snapShot) => {
-      if (!snapShot.empty) {
-        conn.usersWithAuth.push(snapShot.docs[0].id);
-      }
+      if (!snapShot.empty) conn.usersWithAuth.push(snapShot.docs[0].id);
     });
     addAddendumForUsersWithAuth(conn, result);
     return;
@@ -88,12 +105,17 @@ const createActivity = (conn, result) => {
 
   if (!conn.req.body.description) conn.req.body.description = '';
 
+  if (!result[4]) { // request body didn't have the office
+    result[4] = {};
+    result[4].exists = false;
+  }
+
   conn.batch.set(activityRef, {
     title: conn.req.body.title || conn.req.body.description
       .substring(0, 30) || result[1].get('defaultTitle'),
     description: conn.req.body.description,
     status: result[0].get('statusOnCreate'),
-    office: !conn.req.body.officeId ? null : conn.req.body.officeId,
+    office: result[4].exists ? conn.req.body.officeId : null,
     template: conn.req.body.templateId,
     schedule: scheduleCreator(conn.req.body.schedule),
     venue: venueCreator(conn.req.body.venue),
@@ -122,11 +144,8 @@ const createActivity = (conn, result) => {
       .doc(), conn.addendumData);
   }
 
-  if (conn.req.body.assignTo) {
-    handleAssignedUsers(conn, result);
-  } else {
-    commitBatch(conn);
-  }
+  Array.isArray(conn.req.body.assignTo)
+    ? handleAssignedUsers(conn, result) : commitBatch(conn);
 };
 
 
@@ -138,7 +157,7 @@ const fetchDocs = (conn) => {
   promises.push(profiles.doc(conn.creator.phoneNumber)
     .collection('AllowedTemplates').doc(conn.req.body.officeId).get());
 
-  if (conn.req.body.officeId) {
+  if (isValidString(conn.req.body.officeId)) {
     promises.push(offices.doc(conn.req.body.officeId).get());
   }
 
