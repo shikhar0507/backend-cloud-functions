@@ -23,9 +23,10 @@ const app = (userRecord, context) => {
       merge: true,
     });
 
-  batch.set(profiles.doc(phoneNumber).collection('AllowedTemplates')
-    .doc('office'), {
-      template: 'plan',
+  // profiles.doc(`${phoneNumber}/Subscriptions/subscriptions/Personal/plan`)
+  batch.set(profiles.doc(phoneNumber).collection('Subscriptions')
+    .doc('subscriptions').collection('Personal').doc('plan'), {
+      autoIncludeOnCreate: [phoneNumber], // can possible have multiple values
       timestamp: admin.serverTimestamp,
     }, {
       merge: true,

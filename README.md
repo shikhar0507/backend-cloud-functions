@@ -1,2 +1,3 @@
 # temporary-new-funcs
-Temporary repo for the new cloud functions
+
+Temporary repository for the cloud functions based on the new database structure.

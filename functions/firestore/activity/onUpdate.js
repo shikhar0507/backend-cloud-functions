@@ -22,13 +22,22 @@ const getDateObject = helpers.getDateObject;
 const scheduleCreator = helpers.scheduleCreator;
 const venueCreator = helpers.venueCreator;
 
-
+/**
+ * Commits the batch and sends a response to the client of the result.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const commitBatch = (conn) => {
-  conn.batch.commit().then(() => sendResponse(conn, 204, 'NO CONTENT'))
+  conn.batch.commit().then(() => sendResponse(conn, 202, 'ACCEPTED'))
     .catch((error) => handleError(conn, error));
 };
 
-
+/**
+ * Adds the activity root data to the batch.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Array} result Array of document data objects fetched from Firestore.
+ */
 const writeActivityRoot = (conn, result) => {
   if (!conn.req.body.description) conn.req.body.description = '';
 
@@ -61,7 +70,13 @@ const addAddendumForUsersWithAuth = (conn, result) => {
   writeActivityRoot(conn, result);
 };
 
-
+/**
+ * Handles the document creation in /Profiles and addition of new documents in
+ * /Updates/<uid>/Activities collection for the assigned users of the acivity.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Array} result Array of document data objects fetched from Firestore.
+ */
 const processAsigneesList = (conn, result) => {
   if (Array.isArray(conn.req.body.deleteAssignTo)) {
     conn.req.body.deleteAssignTo.forEach((val) => {
@@ -112,7 +127,12 @@ const processAsigneesList = (conn, result) => {
   }).catch((error) => handleError(conn, error));
 };
 
-
+/**
+ * Fetches the assignees list and the template from the Activity in context.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Array} result Array of document data objects fetched from Firestore.
+ */
 const getTemplateAndAssigneesFromActivity = (conn, result) => {
   const templateRef = activityTemplates.doc(result[0].get('template')).get();
   const assignToCollectionRef = activities.doc(conn.req.body.activityId)
@@ -154,13 +174,19 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
 };
 
 
+/**
+ * Fetches the activtiy root and enum/activitytemplates doc.
+ *
+ * @param {*} conn Contains Express' Request and Respone objects.
+ */
 const fetchDocs = (conn) => {
   const activityRef = activities.doc(conn.req.body.activityId).get();
   const activityStatusRef = enums.doc('ACTIVITYSTATUS').get();
 
   Promise.all([activityRef, activityStatusRef]).then((result) => {
     if (!result[0].exists) {
-      sendResponse(conn, 400, 'BAD REQUEST');
+      // the activity-id in the request doesn't exist
+      sendResponse(conn, 409, 'CONFLICT');
       return;
     }
 
@@ -172,6 +198,11 @@ const fetchDocs = (conn) => {
   });
 };
 
+/**
+ * Checks whether the user has the permission to update the activity.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const verifyPermissionToUpdateActivity = (conn) => {
   profiles.doc(conn.creator.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
@@ -180,6 +211,8 @@ const verifyPermissionToUpdateActivity = (conn) => {
         return;
       }
 
+      // along with having a document in /AssignTo collection,
+      // the user must also have the permission to edit the activity.
       doc.get('canEdit') ? fetchDocs(conn) :
         sendResponse(conn, 403, 'FORBIDDEN');
       return;

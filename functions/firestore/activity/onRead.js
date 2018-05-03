@@ -17,13 +17,17 @@ const isValidString = helpers.isValidString;
 const isValidLocation = helpers.isValidLocation;
 const getDateObject = helpers.getDateObject;
 
-const getAllowedTemplates = (conn, jsonResult) => {
-  profiles.doc(conn.creator.phoneNumber).collection('AllowedTemplates')
-    .where('timestamp', '>=', getDateObject(conn.req.query.from)).get()
-    .then((snapShot) => {
+const getSubscriptions = (conn, jsonResult) => {
+  profiles.doc(conn.creator.phoneNumber).collection('Subscriptions')
+    .doc('subscriptions').collection('Personal')
+    .where('timestamp', '>=', getDateObject(conn.req.query.from))
+    .get().then((snapShot) => {
       snapShot.forEach((doc) => {
-        jsonResult.allowedTemplates[
-          `${doc.ref.path[0].split('/')[3]}`
+        // Profiles/+918178135274/Subscriptions/subscriptions/Personal
+        // doc.ref.path.split('/')[5]/doc.ref.path.split('/')[6]: personal/plan
+        // TODO: verify if this structure is correct.
+        jsonResult.subscriptions[
+          `${doc.ref.path[0].split('/')[5]} / ${doc.ref.path[0].split('/')[6]}`
         ] = doc.get('template');
       });
 
@@ -39,20 +43,18 @@ const addActivityRoot = (conn, jsonResult) => {
   const activitiesList = [];
 
   for (key in jsonResult.updates) {
+    // skip iteration for inherited properties for the jsonResult object
     if (jsonResult.updates.hasOwnProperty(key)) {
       activitiesList.push(activities
         .where('timestamp', '>=', getDateObject(conn.req.query.from)).get());
     }
   }
 
-  let activityId;
-
   Promise.all(activitiesList).then((snapShotsArray) => {
     snapShotsArray.forEach((snapShot) => {
       snapShot.forEach((doc) => {
-        activityId = doc.ref.path.split('/')[1];
-
-        jsonResult.updates[`${activityId}`] = {
+        // doc.ref.path.split('/')[1] ==> activity-id
+        jsonResult.updates[`${doc.ref.path.split('/')[1]}`] = {
           status: doc.get('status'),
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
@@ -65,22 +67,27 @@ const addActivityRoot = (conn, jsonResult) => {
       });
     });
 
-    getAllowedTemplates(conn, jsonResult);
+    getSubscriptions(conn, jsonResult);
     return;
   }).catch((error) => handleError(conn, error));
 };
 
+/**
+ * Fetches the addendums and adds them to a a temporary object in memory.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const readAddendumsByQuery = (conn) => {
   const jsonResult = {};
 
   jsonResult.addendum = [];
   jsonResult.updates = {};
-  jsonResult.allowedTemplates = {};
+  jsonResult.subscriptions = {};
 
-  // adding the 'from' timestamp to the listOfTimestamps in order to
-  // avoid the situtation where the query inside the 'Addendum' collection
-  // yeilds no results. Since we actually have to send at least a one date
-  // to the client.
+  /** adding the 'from' timestamp to the listOfTimestamps in order to
+  avoid the situtation where the query inside the 'Addendum' collection
+  yeilds no results. Since we actually have to send at least a one date
+  to the client. **/
   conn.listOfTimestamps = [Date.parse(conn.req.query.from)];
 
   updates.doc(conn.creator.uid).collection('Addendum')
@@ -98,12 +105,10 @@ const readAddendumsByQuery = (conn) => {
           user: doc.get('user'),
         });
 
-        // jsonResult.updates[`${doc.get('activityId')}`] = {};
-
         conn.listOfTimestamps.push(Date.parse(doc.get('timestamp')));
       });
 
-      jsonResult.from = getDateObject(conn.req.query.from).toUTCString();
+      jsonResult.from = new Date(conn.req.query.from).toUTCString();
       jsonResult.upto = new Date(Math.max(...conn.listOfTimestamps))
         .toUTCString();
 

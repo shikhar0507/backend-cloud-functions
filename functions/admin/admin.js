@@ -15,13 +15,33 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
 const getGeopointObject = (lat, lng) => new admin.firestore.GeoPoint(lat, lng);
 
+/**
+ * Returns the user record object using the phone number.
+ *
+ * @param {string} phoneNumber Firebase user's phone number.
+ */
 const getUserByPhoneNumber =
   (phoneNumber) => auth.getUserByPhoneNumber(phoneNumber);
 
+/**
+ * Returns the user record by using the uid.
+ *
+ * @param {string} uid Firebase uid string.
+ */
 const getUserByUid = (uid) => auth.getUser(uid);
 
+/**
+ * Verifies the user session and returns the uid in a callback.
+ *
+ * @param {string} idToken String containing the token from the request.
+ */
 const verifyIdToken = (idToken) => auth.verifyIdToken(idToken);
 
+/**
+ * Returns the user records of all the from the array of phone numbers.
+ *
+ * @param {Array} phoneNumbers An array of phone numbers.
+ */
 const getMultipleUsersByPhoneNumber = (phoneNumbers) => {
   const phoneNumberPromisesArray = [];
 
@@ -36,6 +56,12 @@ const getMultipleUsersByPhoneNumber = (phoneNumbers) => {
     });
 };
 
+/**
+ * Returns the user records for all the users in an array.
+ *
+ * @param {Array} uidsArray An array of uid strings.
+ * @returns {Array} UserRecordsArray Contains the user records.
+ */
 const getMultipleUsersByUid = (uidsArray) => {
   const uidPromisesArray = [];
 

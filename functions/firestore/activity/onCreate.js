@@ -30,10 +30,8 @@ const venueCreator = helpers.venueCreator;
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const commitBatch = (conn) => {
-  conn.batch.commit().then(() => {
-    sendResponse(conn, 201, 'CREATED');
-    return;
-  }).catch((error) => handleError(conn, error));
+  conn.batch.commit().then(() => sendResponse(conn, 201, 'CREATED'))
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -64,7 +62,6 @@ const handleAssignedUsers = (conn, result) => {
   // create docs in AssignTo collection if assignTo is in the reqeuest body
   conn.req.body.assignTo.forEach((val) => {
     // TODO: add a method for verifying a valid mobile
-    // instead of valid string
     if (!isValidPhoneNumber(val)) return;
 
     conn.batch.set(activities.doc(conn.activityId)
@@ -92,6 +89,7 @@ const handleAssignedUsers = (conn, result) => {
     snapShotsArray.forEach((snapShot) => {
       if (!snapShot.empty) conn.usersWithAuth.push(snapShot.docs[0].id);
     });
+
     addAddendumForUsersWithAuth(conn, result);
     return;
   }).catch((error) => handleError(conn, error));
@@ -101,25 +99,21 @@ const createActivity = (conn, result) => {
   conn.batch = admin.batch;
 
   const activityRef = activities.doc();
-  conn.activityId = activityRef.id;
+  conn.activityId = activityRef.id; // used multiple times
 
   if (!conn.req.body.description) conn.req.body.description = '';
-
-  if (!result[4]) { // request body didn't have the office
-    result[4] = {};
-    result[4].exists = false;
-  }
 
   conn.batch.set(activityRef, {
     title: conn.req.body.title || conn.req.body.description
       .substring(0, 30) || result[1].get('defaultTitle'),
     description: conn.req.body.description,
     status: result[0].get('statusOnCreate'),
-    office: result[4].exists ? conn.req.body.officeId : null,
+    office: conn.req.body.officeId,
     template: conn.req.body.templateId,
     schedule: scheduleCreator(conn.req.body.schedule),
     venue: venueCreator(conn.req.body.venue),
     timestamp: getDateObject(conn.req.body.timestamp),
+    attachment: null,
   });
 
   conn.addendumData = {
@@ -134,15 +128,12 @@ const createActivity = (conn, result) => {
     timestamp: getDateObject(conn.req.body.timestamp),
   };
 
-  if (result[0].get('autoIncludeOnCreate').indexOf('CREATOR') > -1) {
+  result[2].get('autoIncludeOnCreate').forEach((val) => {
     conn.batch.set(activities.doc(conn.activityId)
-      .collection('AssignTo').doc(conn.creator.phoneNumber), {
+      .collection('AssignTo').doc(val), {
         canEdit: handleCanEdit(result[0].get('canEditRule')),
       });
-
-    conn.batch.set(updates.doc(conn.creator.uid).collection('Addendum')
-      .doc(), conn.addendumData);
-  }
+  });
 
   Array.isArray(conn.req.body.assignTo)
     ? handleAssignedUsers(conn, result) : commitBatch(conn);
@@ -155,21 +146,19 @@ const fetchDocs = (conn) => {
   promises.push(activityTemplates.doc(conn.req.body.templateId).get());
   promises.push(profiles.doc(conn.creator.phoneNumber).get());
   promises.push(profiles.doc(conn.creator.phoneNumber)
-    .collection('AllowedTemplates').doc(conn.req.body.officeId).get());
-
-  if (isValidString(conn.req.body.officeId)) {
-    promises.push(offices.doc(conn.req.body.officeId).get());
-  }
+    .collection('Subscriptions').doc('subscriptions')
+    .collection('personal').doc(conn.req.body.officeId).get());
 
   Promise.all(promises).then((result) => {
-    // template
+    // template sent in the request body is not a valid type
     if (!result[0].exists) {
       sendResponse(conn, 400, 'BAD REQUEST');
       return;
     }
 
-    if (!result[2].exists
-      || result[2].get('template') !== conn.req.body.templateId) {
+    if (!result[1].exists || !result[2].exists) {
+      // profile doesn't exist
+      // OR
       // the requester is not allowed to create an activity
       // with the requested template
       sendResponse(conn, 403, 'FORBIDDEN');
