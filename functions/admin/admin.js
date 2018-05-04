@@ -87,7 +87,7 @@ const rootCollections = {
   profiles: db.collection('Profiles'),
   activities: db.collection('Activities'),
   updates: db.collection('Updates'),
-  enum: db.collection('Enum'),
+  enums: db.collection('Enum'),
   activityTemplates: db.collection('ActivityTemplates'),
   offices: db.collection('Offices'),
 };

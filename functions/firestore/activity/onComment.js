@@ -1,31 +1,35 @@
-const admin = require('../../admin/admin');
-const utils = require('../../admin/utils');
-const helpers = require('./helperLib');
+const {
+  rootCollections,
+  users,
+  batch,
+} = require('../../admin/admin');
 
-const rootCollections = admin.rootCollections;
-const users = admin.users;
+const {
+  handleError,
+  sendResponse,
+} = require('../../admin/utils');
 
-const activities = rootCollections.activities;
-const updates = rootCollections.updates;
-const profiles = rootCollections.profiles;
+const {
+  isValidDate,
+  isValidString,
+  isValidLocation,
+  isValidPhoneNumber,
+  getDateObject,
+} = require('./helperLib');
 
-const handleError = utils.handleError;
-const sendResponse = utils.sendResponse;
+const {
+  activities,
+  updates,
+  profiles,
+} = rootCollections;
 
-const isValidDate = helpers.isValidDate;
-const isValidString = helpers.isValidString;
-const isValidLocation = helpers.isValidLocation;
-const isValidPhoneNumber = helpers.isValidPhoneNumber;
-const getDateObject = helpers.getDateObject;
-
-const commitBatch = (conn) => {
-  conn.batch.commit().then(() => sendResponse(conn, 204, 'NO CONTENT'))
-    .catch((error) => handleError(conn, error));
-};
+const commitBatch = (conn) => batch.commit()
+  .then(() => sendResponse(conn, 201, 'CREATED'))
+  .catch((error) => handleError(conn, error));
 
 const addAddendumForUsersWithAuth = (conn) => {
   conn.usersWithAuth.forEach((uid) => {
-    conn.batch.set(updates.doc(uid).collection('Addendum').doc(), {
+    batch.set(updates.doc(uid).collection('Addendum').doc(), {
       activityId: conn.req.body.activityId,
       user: conn.creator.displayName || conn.creator.phoneNumber,
       comment: conn.req.body.comment,
@@ -43,7 +47,6 @@ const addAddendumForUsersWithAuth = (conn) => {
 
 const queryUpdatesForAsigneesUid = (conn) => {
   const promises = [];
-  conn.batch = admin.batch;
 
   conn.assigneesList.forEach((val) => {
     promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
@@ -68,9 +71,7 @@ const getActivityAssignees = (conn) => {
 
   activities.doc(conn.req.body.activityId).collection('AssignTo').get()
     .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        conn.assigneesList.push(doc.id);
-      });
+      snapShot.forEach((doc) => conn.assigneesList.push(doc.id));
 
       queryUpdatesForAsigneesUid(conn);
       return;

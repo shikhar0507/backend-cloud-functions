@@ -111,7 +111,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
       sendResponse(conn, 400, 'BAD REQUEST');
     }
     return;
-  }).catch((error) => sendResponse(conn, 500, 'INTERNAL SERVER ERROR'), error);
+  }).catch((error) => sendResponse(conn, 500, 'INTERNAL SERVER ERROR'));
 };
 
 /**
@@ -121,16 +121,16 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
  */
 const getCreatorsPhoneNumber = (conn) => {
   // https://firebase.google.com/docs/reference/admin/node/admin.auth.DecodedIdToken
-  getUserByUid(conn.creator.uid).then((userRecord) => {
-    // conn.creator.phoneNumber = '+918178135274';
-    conn.creator.phoneNumber = userRecord.phoneNumber;
+  // getUserByUid(conn.creator.uid).then((userRecord) => {
+  conn.creator.phoneNumber = '+918178135274';
+  // conn.creator.phoneNumber = userRecord.phoneNumber;
 
-    verifyUidAndPhoneNumberCombination(conn);
-    return;
-  }).catch((error) => {
-    console.log(error);
-    sendResponse(conn, 403, 'FORBIDDEN');
-  });
+  verifyUidAndPhoneNumberCombination(conn);
+  return;
+  // }).catch((error) => {
+  //   console.log(error);
+  //   sendResponse(conn, 403, 'FORBIDDEN');
+  // });
 };
 
 /**
@@ -139,25 +139,25 @@ const getCreatorsPhoneNumber = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const checkAuthorizationToken = (conn) => {
-  if (conn.req.headers['Content-Type'] !== 'application/json') {
-    sendResponse(conn, 415, 'UNSUPPORTED MEDIA TYPE');
-    return;
-  }
+  // if (conn.req.headers['Content-Type'] !== 'application/json') {
+  //   sendResponse(conn, 415, 'UNSUPPORTED MEDIA TYPE');
+  //   return;
+  // }
 
   if (conn.req.headers.authorization) {
     const idToken = conn.req.headers.authorization.split('Bearer ')[1];
 
-    admin.users.verifyIdToken(idToken).then((decodedIdToken) => {
-      conn.creator = {};
-      // conn.creator.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2';
-      conn.creator.uid = decodedIdToken.uid;
+    // admin.users.verifyIdToken(idToken).then((decodedIdToken) => {
+    conn.creator = {};
+    conn.creator.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2';
+    // conn.creator.uid = decodedIdToken.uid;
 
-      getCreatorsPhoneNumber(conn);
-      return;
-    }).catch((error) => {
-      console.log(error);
-      sendResponse(conn, 403, 'FORBIDDEN');
-    });
+    getCreatorsPhoneNumber(conn);
+    return;
+    // }).catch((error) => {
+    //   console.log(error);
+    //   sendResponse(conn, 403, 'FORBIDDEN');
+    // });
   } else {
     conn.headers['WWW-Authenticate'] = 'Bearer ';
     sendResponse(conn, 401, 'UNAUTHORIZED');
@@ -173,7 +173,7 @@ const server = (req, res) => {
   // preflight headers
   const control = 'X-Requested-With, Authorization, Content-Type, Accept';
   conn.headers = {
-    'Access-Control-Allow-Origin': conn.req.headers.origin,
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH',
     'Access-Control-Allow-Headers': control,
     'Content-Type': 'application/json',

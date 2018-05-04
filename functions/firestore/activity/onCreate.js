@@ -1,27 +1,34 @@
-const admin = require('../../admin/admin');
-const utils = require('../../admin/utils');
-const helpers = require('./helperLib');
+const {
+  rootCollections,
+  users,
+  batch,
+} = require('../../admin/admin');
 
-const rootCollections = admin.rootCollections;
-const users = admin.users;
+const {
+  activities,
+  profiles,
+  updates,
+  enums,
+  activityTemplates,
+  offices,
+} = rootCollections;
 
-const activities = rootCollections.activities;
-const profiles = rootCollections.profiles;
-const updates = rootCollections.updates;
-const enums = rootCollections.enum; // 'enum' is a reserved word
-const activityTemplates = rootCollections.activityTemplates;
-const offices = rootCollections.offices;
+const {
+  handleError,
+  sendResponse,
+} = require('../../admin/utils');
 
-const handleError = utils.handleError;
-const sendResponse = utils.sendResponse;
-const handleCanEdit = helpers.handleCanEdit;
-const isValidDate = helpers.isValidDate;
-const isValidString = helpers.isValidString;
-const isValidPhoneNumber = helpers.isValidPhoneNumber;
-const isValidLocation = helpers.isValidLocation;
-const getDateObject = helpers.getDateObject;
-const scheduleCreator = helpers.scheduleCreator;
-const venueCreator = helpers.venueCreator;
+
+const {
+  handleCanEdit,
+  isValidDate,
+  isValidString,
+  isValidPhoneNumber,
+  isValidLocation,
+  getDateObject,
+  scheduleCreator,
+  venueCreator,
+} = require('./helperLib');
 
 
 /**
@@ -29,10 +36,9 @@ const venueCreator = helpers.venueCreator;
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
-const commitBatch = (conn) => {
-  conn.batch.commit().then(() => sendResponse(conn, 201, 'CREATED'))
-    .catch((error) => handleError(conn, error));
-};
+const commitBatch = (conn) => batch.commit()
+  .then(() => sendResponse(conn, 201, 'CREATED'))
+  .catch((error) => handleError(conn, error));
 
 
 /**
@@ -44,7 +50,7 @@ const commitBatch = (conn) => {
  */
 const addAddendumForUsersWithAuth = (conn, result) => {
   conn.usersWithAuth.forEach((uid) => {
-    conn.batch.set(updates.doc(uid).collection('Addendum')
+    batch.set(updates.doc(uid).collection('Addendum')
       .doc(), conn.addendumData);
   });
 
@@ -64,7 +70,7 @@ const handleAssignedUsers = (conn, result) => {
     // TODO: add a method for verifying a valid mobile
     if (!isValidPhoneNumber(val)) return;
 
-    conn.batch.set(activities.doc(conn.activityId)
+    batch.set(activities.doc(conn.activityId)
       .collection('AssignTo').doc(val), {
         // template --> result[1].data()
         canEdit: handleCanEdit(result[1].get('canEditRule')),
@@ -75,7 +81,7 @@ const handleAssignedUsers = (conn, result) => {
     // phone numbers exist uniquely in the db
     promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
 
-    conn.batch.set(profiles.doc(val).collection('Activities')
+    batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.activityId), {
         canEdit: handleCanEdit(result[1].get('canEditRule')),
         timestamp: getDateObject(conn.req.body.timestamp),
@@ -96,17 +102,13 @@ const handleAssignedUsers = (conn, result) => {
 };
 
 const createActivity = (conn, result) => {
-  conn.batch = admin.batch;
-
   const activityRef = activities.doc();
   conn.activityId = activityRef.id; // used multiple times
 
-  if (!conn.req.body.description) conn.req.body.description = '';
-
-  conn.batch.set(activityRef, {
+  batch.set(activityRef, {
     title: conn.req.body.title || conn.req.body.description
       .substring(0, 30) || result[1].get('defaultTitle'),
-    description: conn.req.body.description,
+    description: conn.req.body.description || '',
     status: result[0].get('statusOnCreate'),
     office: conn.req.body.officeId,
     template: conn.req.body.templateId,
@@ -128,8 +130,8 @@ const createActivity = (conn, result) => {
     timestamp: getDateObject(conn.req.body.timestamp),
   };
 
-  result[2].get('autoIncludeOnCreate').forEach((val) => {
-    conn.batch.set(activities.doc(conn.activityId)
+  result[2].docs[0].get('autoIncludeOnCreate').forEach((val) => {
+    batch.set(activities.doc(conn.activityId)
       .collection('AssignTo').doc(val), {
         canEdit: handleCanEdit(result[0].get('canEditRule')),
       });
@@ -146,8 +148,12 @@ const fetchDocs = (conn) => {
   promises.push(activityTemplates.doc(conn.req.body.templateId).get());
   promises.push(profiles.doc(conn.creator.phoneNumber).get());
   promises.push(profiles.doc(conn.creator.phoneNumber)
-    .collection('Subscriptions').doc('subscriptions')
-    .collection('personal').doc(conn.req.body.officeId).get());
+    .collection('Subscriptions')
+    .where('template', '==', conn.req.body.templateId).limit(1).get());
+
+  // promises.push(profiles.doc(conn.creator.phoneNumber)
+  //   .collection('Subscriptions').doc('subscriptions')
+  //   .collection('personal').doc(conn.req.body.officeId).get());
 
   Promise.all(promises).then((result) => {
     // template sent in the request body is not a valid type
@@ -156,7 +162,7 @@ const fetchDocs = (conn) => {
       return;
     }
 
-    if (!result[1].exists || !result[2].exists) {
+    if (!result[1].exists || !result[2].docs[0].exists) {
       // profile doesn't exist
       // OR
       // the requester is not allowed to create an activity
@@ -167,15 +173,13 @@ const fetchDocs = (conn) => {
 
     createActivity(conn, result);
     return;
-  }).catch((error) => {
-    console.log(error);
-    sendResponse(conn, 400, 'BAD REQUEST');
-  });
+  }).catch((error) => handleError(conn, error));
 };
 
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp) &&
     isValidString(conn.req.body.templateId) &&
+    isValidString(conn.req.body.office) &&
     isValidLocation(conn.req.body.geopoint)) {
     fetchDocs(conn);
   } else {

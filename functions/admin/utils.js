@@ -6,17 +6,9 @@ const now = (conn) => {
   }
 };
 
-const sendResponse = (conn, statusCode, message, error) => {
+const sendResponse = (conn, statusCode, message) => {
   conn.headers['Content-Type'] = 'application/json';
   conn.res.writeHead(statusCode, conn.headers);
-
-  if (error) {
-    conn.res.end(JSON.stringify({
-      code: statusCode,
-      error: message,
-    }));
-    return;
-  }
 
   conn.res.end(JSON.stringify({
     code: statusCode,

@@ -1,4 +1,6 @@
-const admin = require('../../admin/admin');
+const {
+  getGeopointObject,
+} = require('../../admin/admin');
 
 const isValidLocation = (location) => {
   if (Array.isArray(location)) {
@@ -11,10 +13,10 @@ const isValidLocation = (location) => {
 };
 
 const isValidString = (value) => {
-  if (!value) return false;
-  if (typeof value !== 'string') return false;
-  if (value.trim() === '') return false;
-  return true;
+  if (typeof value === 'string') {
+    if (value.trim() !== '') return true;
+  }
+  return false;
 };
 
 const isValidDate = (date) => !isNaN(new Date(date));
@@ -67,7 +69,7 @@ const venueCreator = (conn) => {
       validVenueObject[`${index}`] = {
         venueDescriptor: val.venueDescriptor || '',
         location: val.location || '',
-        geopoint: admin.getGeopointObject(
+        geopoint: getGeopointObject(
           val.geopoint[0],
           val.geopoint[1]
         ),
@@ -82,14 +84,11 @@ const getDateObject = (date) => new Date(new Date(date).toUTCString());
 
 const handleCanEdit = (canEditRule) => true;
 
-const stripPlusFromMobile = (mobile) => mobile.split('+')[1];
-
 module.exports = {
   scheduleCreator,
   venueCreator,
   getDateObject,
   handleCanEdit,
-  stripPlusFromMobile,
   validateLocation,
   isValidString,
   isValidDate,

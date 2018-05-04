@@ -13,8 +13,8 @@ interface ActivityTemplate {
     id: name!
     name: String!
     defaultTitle: String!
-    schedule: Schedule!
-    venue: Venue!
+    schedule: [Schedule]!
+    venue: [Venue]!
     canEditRule: boolean!
     autoIncludeOnCreate: [User]!
     comment: String!

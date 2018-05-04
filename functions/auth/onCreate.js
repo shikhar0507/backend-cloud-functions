@@ -1,15 +1,18 @@
-const admin = require('../admin/admin');
-const utils = require('../admin/utils');
-const helpers = require('../firestore/activity/helperLib');
+const {
+  batch,
+  rootCollections,
+} = require('../admin/admin');
 
-const rootCollections = admin.rootCollections;
-const updates = rootCollections.updates;
-const profiles = rootCollections.profiles;
+const {
+  updates,
+  profiles,
+} = rootCollections;
 
 const app = (userRecord, context) => {
-  const uid = userRecord.uid;
-  const phoneNumber = userRecord.phoneNumber;
-  const batch = admin.batch;
+  const {
+    uid,
+    phoneNumber,
+  } = userRecord;
 
   batch.set(updates.doc(uid), {
     phoneNumber,
@@ -23,10 +26,11 @@ const app = (userRecord, context) => {
       merge: true,
     });
 
-  // profiles.doc(`${phoneNumber}/Subscriptions/subscriptions/Personal/plan`)
   batch.set(profiles.doc(phoneNumber).collection('Subscriptions')
-    .doc('subscriptions').collection('Personal').doc('plan'), {
-      autoIncludeOnCreate: [phoneNumber], // can possible have multiple values
+    .doc(), {
+      office: 'personal',
+      template: 'plan',
+      autoIncludeOnCreate: [phoneNumber],
       timestamp: admin.serverTimestamp,
     }, {
       merge: true,

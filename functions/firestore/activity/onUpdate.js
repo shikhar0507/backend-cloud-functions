@@ -1,36 +1,41 @@
-const admin = require('../../admin/admin');
-const utils = require('../../admin/utils');
-const helpers = require('./helperLib');
+const {
+  rootCollections,
+  users,
+  batch,
+} = require('../../admin/admin');
 
-const rootCollections = admin.rootCollections;
-const users = admin.users;
+const {
+  handleError,
+  sendResponse,
+} = require('../../admin/utils');
 
-const activities = rootCollections.activities;
-const profiles = rootCollections.profiles;
-const updates = rootCollections.updates;
-const enums = rootCollections.enum; // 'enum' is a reserved word
-const activityTemplates = rootCollections.activityTemplates;
+const {
+  handleCanEdit,
+  isValidDate,
+  isValidString,
+  isValidLocation,
+  isValidPhoneNumber,
+  getDateObject,
+  scheduleCreator,
+  venueCreator,
+} = require('./helperLib');
 
-const handleError = utils.handleError;
-const sendResponse = utils.sendResponse;
-const handleCanEdit = helpers.handleCanEdit;
-const isValidDate = helpers.isValidDate;
-const isValidString = helpers.isValidString;
-const isValidLocation = helpers.isValidLocation;
-const isValidPhoneNumber = helpers.isValidPhoneNumber;
-const getDateObject = helpers.getDateObject;
-const scheduleCreator = helpers.scheduleCreator;
-const venueCreator = helpers.venueCreator;
+const {
+  activities,
+  profiles,
+  updates,
+  enums,
+  activityTemplates,
+} = rootCollections;
 
 /**
  * Commits the batch and sends a response to the client of the result.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
-const commitBatch = (conn) => {
-  conn.batch.commit().then(() => sendResponse(conn, 202, 'ACCEPTED'))
-    .catch((error) => handleError(conn, error));
-};
+const commitBatch = (conn) => batch.commit()
+  .then(() => sendResponse(conn, 202, 'ACCEPTED'))
+  .catch((error) => handleError(conn, error));
 
 /**
  * Adds the activity root data to the batch.
@@ -41,7 +46,7 @@ const commitBatch = (conn) => {
 const writeActivityRoot = (conn, result) => {
   if (!conn.req.body.description) conn.req.body.description = '';
 
-  conn.batch.set(activities.doc(conn.req.body.activityId), {
+  batch.set(activities.doc(conn.req.body.activityId), {
     title: conn.req.body.title || result[0].data().title,
     description: conn.req.body.description ||
       result[0].data().description,
@@ -54,7 +59,7 @@ const writeActivityRoot = (conn, result) => {
       merge: true,
     });
 
-  conn.batch.set(updates.doc(conn.creator.uid)
+  batch.set(updates.doc(conn.creator.uid)
     .collection('Addendum').doc(), conn.addendumData);
 
   commitBatch(conn);
@@ -63,7 +68,7 @@ const writeActivityRoot = (conn, result) => {
 
 const addAddendumForUsersWithAuth = (conn, result) => {
   conn.usersWithAuth.forEach((uid) => {
-    conn.batch.set(updates.doc(uid).collection('Addendum')
+    batch.set(updates.doc(uid).collection('Addendum')
       .doc(), conn.addendumData);
   });
 
@@ -82,10 +87,10 @@ const processAsigneesList = (conn, result) => {
     conn.req.body.deleteAssignTo.forEach((val) => {
       if (!isValidPhoneNumber(val)) return;
 
-      conn.batch.delete(activities.doc(conn.req.body.activityId)
+      batch.delete(activities.doc(conn.req.body.activityId)
         .collection('AssignTo').doc(val));
 
-      conn.batch.delete(profiles.doc(val).collection('Activities')
+      batch.delete(profiles.doc(val).collection('Activities')
         .doc(conn.req.body.activityId));
     });
   }
@@ -101,12 +106,12 @@ const processAsigneesList = (conn, result) => {
   const promises = [];
 
   conn.activityAssignees.forEach((val) => {
-    conn.batch.set(activities.doc(conn.req.body.activityId)
+    batch.set(activities.doc(conn.req.body.activityId)
       .collection('AssignTo').doc(val), {
         canEdit: handleCanEdit(conn.templateData.canEditRule),
       });
 
-    conn.batch.set(profiles.doc(val).collection('Activities')
+    batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.req.body.activityId), {
         canEdit: handleCanEdit(conn.templateData.canEditRule),
         timestamp: getDateObject(conn.req.body.timestamp),
@@ -148,8 +153,6 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
         conn.activityAssignees.push(doc.id);
       });
     }
-
-    conn.batch = admin.batch;
 
     conn.addendumData = {
       activityId: conn.req.body.activityId,
