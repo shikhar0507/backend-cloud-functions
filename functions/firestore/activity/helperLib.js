@@ -1,4 +1,6 @@
-const getGeopointObject = require('../../admin/admin').getGeopointObject;
+const {
+  getGeopointObject,
+} = require('../../admin/admin');
 
 const isValidLocation = (location) => {
   if (!Array.isArray(location)) return false;
@@ -25,26 +27,28 @@ const isValidPhoneNumber = (phoneNumber) => {
   return true;
 };
 
-const scheduleCreator = (schedule) => {
+const scheduleCreator = (schedule, scheduleDataFromTemplate) => {
   const schedules = {};
-  // venue needs to be an array.
+
   if (Array.isArray(schedule)) {
-    schedule.forEach((sch, index) => {
+    schedule.forEach((sch) => {
+      if (sch.name !== scheduleDataFromTemplate.name) return;
+
       if (!isNaN(new Date(sch.startTime)) && !sch.endTime) {
         // schedule has startTime but not endTime
-        schedules[`${index}`] = {
-          name: sch.name || '',
-          startTime: new Date(new Date(sch.startTime).toUTCString()),
-          endTime: new Date(new Date(sch.startTime).toUTCString()),
+        schedules[`${sch.name}`] = {
+          name: sch.name,
+          startTime: new Date(sch.startTime),
+          endTime: new Date(sch.startTime),
         };
       } else if (!isNaN(new Date(sch.startTime)) &&
         !isNaN(new Date(sch.endTime)) &&
         sch.endTime >= sch.startTime) {
         // schedule has both startTime, endTime & endTime  >= startTime
-        schedules[`${index}`] = {
-          name: sch.name || '',
-          startTime: getDateObject(sch.startTime),
-          endTime: getDateObject(sch.endTime),
+        schedules[`${sch.name}`] = {
+          name: sch.name,
+          startTime: new Date(sch.startTime),
+          endTime: new Date(sch.endTime),
         };
       }
     });
@@ -52,16 +56,21 @@ const scheduleCreator = (schedule) => {
   return schedules;
 };
 
-const venueCreator = (venue) => {
+const venueCreator = (venue, venueDataFromTemplate) => {
   const venues = {};
 
   if (Array.isArray(venue)) {
-    venue.forEach((val, index) => {
-      if (!isValidLocation(val.geopoint)) return;
+    venue.forEach((val) => {
+      if (venue.venueDescriptor !== venueDataFromTemplate.venueDescriptor) {
+        return;
+      }
 
-      // if both conditions above are false, create the venue
-      venues[`${index}`] = {
-        venueDescriptor: val.venueDescriptor || '',
+      if (!isValidLocation(val.geopoint)) {
+        return;
+      }
+
+      venues[`${val.venueDescriptor}`] = {
+        venueDescriptor: val.venueDescriptor,
         location: val.location || '',
         geopoint: getGeopointObject(
           val.geopoint[0],
@@ -71,17 +80,16 @@ const venueCreator = (venue) => {
       };
     });
   }
+
   return venues;
 };
 
-const getDateObject = (date) => new Date(new Date(date).toUTCString());
 
 const handleCanEdit = (canEditRule) => true;
 
 module.exports = {
   scheduleCreator,
   venueCreator,
-  getDateObject,
   handleCanEdit,
   isValidString,
   isValidDate,

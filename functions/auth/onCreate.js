@@ -1,6 +1,7 @@
 const {
   batch,
   rootCollections,
+  serverTimestamp,
 } = require('../admin/admin');
 
 const {
@@ -31,7 +32,7 @@ const app = (userRecord, context) => {
       office: 'personal',
       template: 'plan',
       autoIncludeOnCreate: [phoneNumber],
-      timestamp: admin.serverTimestamp,
+      timestamp: serverTimestamp,
     }, {
       merge: true,
     });

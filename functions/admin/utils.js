@@ -1,6 +1,6 @@
 const now = (conn) => {
   if (conn.req.method === 'GET') {
-    sendResponse(conn, 200, (new Date()).toUTCString());
+    sendResponse(conn, 200, new Date());
   } else {
     sendResponse(conn, 405, 'METHOD NOT ALLOWED');
   }

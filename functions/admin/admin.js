@@ -15,13 +15,73 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
 const getGeopointObject = (lat, lng) => new admin.firestore.GeoPoint(lat, lng);
 
+const updateUserInAuth = (userRecord) => {
+  if (userRecord.phoneNumber) {
+    const {
+      phoneNumber,
+      email,
+      displayName,
+      photoURL,
+    } = userRecord;
+
+    return auth.updateUser(conn.creator.uid, {
+      phoneNumber: phoneNumber,
+      email: email || null,
+      displayName: displayName || null,
+      photoURL: photoURL || null,
+    }).catch((error) => {
+      return;
+    });
+  }
+};
+
+const createUserInAuth = (userRecord) => {
+  if (userRecord.phoneNumber) {
+    const {
+      phoneNumber,
+      email,
+      displayName,
+      photoURL,
+    } = userRecord;
+
+    return auth.createUser({
+      email: email || null,
+      phoneNumber: phoneNumber,
+      displayName: displayName || null,
+      photoURL: photoURL || null,
+    }).catch((error) => {
+      console.log(error);
+      return;
+    });
+  } else {
+    return;
+  }
+};
+
 /**
  * Returns the user record object using the phone number.
  *
  * @param {string} phoneNumber Firebase user's phone number.
  */
-const getUserByPhoneNumber =
-  (phoneNumber) => auth.getUserByPhoneNumber(phoneNumber);
+const getUserByPhoneNumber = (phoneNumber) => {
+  return auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
+    return {
+      [phoneNumber]:
+        {
+          photoUrl: userRecord.photoURL || null,
+          displayName: userRecord.displayName || null,
+        },
+    };
+  }).catch((error) => {
+    if (error.code === 'auth/user-not-found' ||
+      error.code === 'auth/invalid-phone-number') {
+      return {
+        [phoneNumber]: {},
+      };
+    }
+  });
+};
+
 
 /**
  * Returns the user record by using the uid.
@@ -36,25 +96,6 @@ const getUserByUid = (uid) => auth.getUser(uid);
  * @param {string} idToken String containing the token from the request.
  */
 const verifyIdToken = (idToken) => auth.verifyIdToken(idToken);
-
-/**
- * Returns the user records of all the from the array of phone numbers.
- *
- * @param {Array} phoneNumbers An array of phone numbers.
- */
-const getMultipleUsersByPhoneNumber = (phoneNumbers) => {
-  const phoneNumberPromisesArray = [];
-
-  phoneNumbers.forEach((phoneNumber) => phoneNumberPromisesArray
-    .push(getUserByPhoneNumber(phoneNumber)));
-
-  return Promise.all(phoneNumberPromisesArray)
-    .then((userRecordsArray) => userRecordsArray)
-    .catch((error) => {
-      console.log(error);
-      return phoneNumberPromisesArray;
-    });
-};
 
 /**
  * Returns the user records for all the users in an array.
@@ -79,8 +120,9 @@ const users = {
   getUserByPhoneNumber,
   getUserByUid,
   getMultipleUsersByUid,
-  getMultipleUsersByPhoneNumber,
   verifyIdToken,
+  createUserInAuth,
+  updateUserInAuth,
 };
 
 const rootCollections = {

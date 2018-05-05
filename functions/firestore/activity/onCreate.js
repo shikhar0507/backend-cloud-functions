@@ -2,6 +2,7 @@ const {
   rootCollections,
   users,
   batch,
+  getGeopointObject,
 } = require('../../admin/admin');
 
 const {
@@ -18,14 +19,12 @@ const {
   sendResponse,
 } = require('../../admin/utils');
 
-
 const {
   handleCanEdit,
   isValidDate,
   isValidString,
   isValidPhoneNumber,
   isValidLocation,
-  getDateObject,
   scheduleCreator,
   venueCreator,
 } = require('./helperLib');
@@ -84,7 +83,7 @@ const handleAssignedUsers = (conn, result) => {
     batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.activityId), {
         canEdit: handleCanEdit(result[1].get('canEditRule')),
-        timestamp: getDateObject(conn.req.body.timestamp),
+        timestamp: new Date(conn.req.body.timestamp),
       });
   });
 
@@ -112,9 +111,15 @@ const createActivity = (conn, result) => {
     status: result[0].get('statusOnCreate'),
     office: conn.req.body.officeId,
     template: conn.req.body.templateId,
-    schedule: scheduleCreator(conn.req.body.schedule),
-    venue: venueCreator(conn.req.body.venue),
-    timestamp: getDateObject(conn.req.body.timestamp),
+    schedule: scheduleCreator(
+      conn.req.body.schedule,
+      result[0].get('schedule')
+    ),
+    venue: venueCreator(
+      conn.req.body.venue,
+      result[0].get('venue')
+    ),
+    timestamp: new Date(conn.req.body.timestamp),
     attachment: null,
   });
 
@@ -123,11 +128,11 @@ const createActivity = (conn, result) => {
     user: conn.creator.displayName || conn.creator.phoneNumber,
     comment: `${conn.creator.displayName || conn.creator.phoneNumber}
       created ${result[0].get('name')}`,
-    location: admin.getGeopointObject(
+    location: getGeopointObject(
       conn.req.body.geopoint[0],
       conn.req.body.geopoint[1]
     ),
-    timestamp: getDateObject(conn.req.body.timestamp),
+    timestamp: new Date(conn.req.body.timestamp),
   };
 
   result[2].docs[0].get('autoIncludeOnCreate').forEach((val) => {
@@ -151,10 +156,6 @@ const fetchDocs = (conn) => {
     .collection('Subscriptions')
     .where('template', '==', conn.req.body.templateId).limit(1).get());
 
-  // promises.push(profiles.doc(conn.creator.phoneNumber)
-  //   .collection('Subscriptions').doc('subscriptions')
-  //   .collection('personal').doc(conn.req.body.officeId).get());
-
   Promise.all(promises).then((result) => {
     // template sent in the request body is not a valid type
     if (!result[0].exists) {
@@ -162,11 +163,21 @@ const fetchDocs = (conn) => {
       return;
     }
 
-    if (!result[1].exists || !result[2].docs[0].exists) {
+    if (!result[1].exists) {
       // profile doesn't exist
-      // OR
+      sendResponse(conn, 403, 'FORBIDDEN');
+      return;
+    }
+
+    if (!result[2].docs[0].exists) {
       // the requester is not allowed to create an activity
       // with the requested template
+      sendResponse(conn, 403, 'FORBIDDEN');
+      return;
+    }
+
+    if (result[2].docs[0].get('office') !== conn.req.body.office) {
+      // template from the request body and the office do not match
       sendResponse(conn, 403, 'FORBIDDEN');
       return;
     }

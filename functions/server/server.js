@@ -1,24 +1,43 @@
-const url = require('url');
-const admin = require('../admin/admin');
-const utils = require('../admin/utils');
-const helpers = require('../firestore/activity/helperLib');
+const {
+  parse,
+} = require('url');
 
-const onRead = require('../firestore/activity/onRead');
-const onCreate = require('../firestore/activity/onCreate');
-const onUpdate = require('../firestore/activity/onUpdate');
-const onComment = require('../firestore/activity/onComment');
+const {
+  rootCollections,
+  users,
+} = require('../admin/admin');
 
-const onRequest = require('../firestore/services/onRequest');
+const {
+  getUserByUid,
+  verifyIdToken,
+} = users;
 
-const fetchUserRecord = onRequest.fetchUserRecord;
+const {
+  handleError,
+  sendResponse,
+  now,
+} = require('../admin/utils');
 
-const sendResponse = require('../admin/utils').sendResponse;
-const now = utils.now;
+const {
+  isValidPhoneNumber,
+} = require('../firestore/activity/helperLib');
 
-const isValidPhoneNumber = helpers.isValidPhoneNumber;
+const {
+  profiles,
+} = rootCollections;
 
-const profiles = admin.rootCollections.profiles;
-const getUserByUid = admin.users.getUserByUid;
+const activity = {
+  onRead: require('../firestore/activity/onRead'),
+  onCreate: require('../firestore/activity/onCreate'),
+  onUpdate: require('../firestore/activity/onUpdate'),
+  onComment: require('../firestore/activity/onComment'),
+};
+
+const authUsers = {
+  onRead: require('../auth/user/onRead'),
+  onCreate: require('../auth/user/onCreate'),
+  onUpdate: require('../auth/user/onUpdate'),
+};
 
 
 /**
@@ -29,31 +48,36 @@ const getUserByUid = admin.users.getUserByUid;
  */
 const activitiesHandler = (conn) => {
   const method = conn.req.method;
-  const action = url.parse(conn.req.url).path.split('/')[2];
+  const action = parse(conn.req.url).path.split('/')[2];
 
   if (method === 'GET') {
     if (conn.req.query.from) {
-      onRead(conn);
+      activity.onRead(conn);
     } else {
       sendResponse(conn, 400, 'BAD REQUEST');
     }
   } else if (method === 'POST') {
     if (action === 'create') {
-      onCreate(conn);
+      activity.onCreate(conn);
     } else if (action === 'comment') {
-      onComment(conn);
+      activity.onComment(conn);
     } else {
       sendResponse(conn, 400, 'BAD REQUEST');
     }
   } else if (method === 'PATCH') {
     if (action === 'update') {
-      onUpdate(conn);
+      activity.onUpdate(conn);
     } else {
       sendResponse(conn, 400, 'BAD REQUEST');
     }
   } else {
     sendResponse(conn, 405, 'METHOD NOT ALLOWED');
   }
+};
+
+const handleUserProfiles = (conn) => {
+  console.log('working');
+  conn.res.end('OK');
 };
 
 
@@ -69,14 +93,23 @@ const servicesHandler = (conn) => {
     return;
   }
 
-  const action = url.parse(conn.req.url).path.split('/')[2];
+  const action = parse(conn.req.url).path.split('/')[2];
 
-  if (action.startsWith('contact') &&
-    isValidPhoneNumber(conn.req.query.phoneNumber)) {
-    fetchUserRecord(conn);
+  if (action === 'users') {
+    handleUserProfiles(conn);
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');
   }
+
+  conn.res.end('OK');
+  // console.log(conn.req.query.q);
+
+  // if (action.startsWith('getUsers') && Array.isArray(conn.req.query.q)) {
+
+  //   fetchProfiles(conn);
+  // } else {
+  //   sendResponse(conn, 400, 'BAD REQUEST');
+  // }
 };
 
 
@@ -99,7 +132,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
     }
 
     const method = conn.req.method;
-    const action = url.parse(conn.req.url).path.split('/')[1];
+    const action = parse(conn.req.url).path.split('/')[1];
 
     if (action === 'activities') {
       activitiesHandler(conn);
@@ -120,8 +153,12 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const getCreatorsPhoneNumber = (conn) => {
-  // https://firebase.google.com/docs/reference/admin/node/admin.auth.DecodedIdToken
   // getUserByUid(conn.creator.uid).then((userRecord) => {
+  // if (userRecord.disabled) {
+  //   sendResponse(conn, 403, 'FORBIDDEN');
+  //   return;
+  // }
+
   conn.creator.phoneNumber = '+918178135274';
   // conn.creator.phoneNumber = userRecord.phoneNumber;
 
@@ -147,7 +184,7 @@ const checkAuthorizationToken = (conn) => {
   if (conn.req.headers.authorization) {
     const idToken = conn.req.headers.authorization.split('Bearer ')[1];
 
-    // admin.users.verifyIdToken(idToken).then((decodedIdToken) => {
+    // verifyIdToken(idToken).then((decodedIdToken) => {
     conn.creator = {};
     conn.creator.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2';
     // conn.creator.uid = decodedIdToken.uid;

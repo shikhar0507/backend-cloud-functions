@@ -15,7 +15,6 @@ const {
   isValidString,
   isValidLocation,
   isValidPhoneNumber,
-  getDateObject,
   scheduleCreator,
   venueCreator,
 } = require('./helperLib');
@@ -53,8 +52,15 @@ const writeActivityRoot = (conn, result) => {
     status: result[1].data().ACTIVITYSTATUS
       .indexOf(conn.req.body.status) > -1 ?
       conn.req.body.status : result[0].data().status,
-    schedule: scheduleCreator(conn.req.body.schedule),
-    venue: venueCreator(conn.req.body.schedule),
+    schedule: scheduleCreator(
+      conn.req.body.schedule,
+      conn.templateData.schedule
+    ),
+    venue: venueCreator(
+      conn.req.body.schedule,
+      conn.templateData.venue
+    ),
+    timestamp: new Date(conn.req.body.timestamp),
   }, {
       merge: true,
     });
@@ -114,7 +120,7 @@ const processAsigneesList = (conn, result) => {
     batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.req.body.activityId), {
         canEdit: handleCanEdit(conn.templateData.canEditRule),
-        timestamp: getDateObject(conn.req.body.timestamp),
+        timestamp: new Date(conn.req.body.timestamp),
       });
 
     promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
@@ -159,11 +165,11 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
       user: conn.creator.displayName || conn.creator.phoneNumber,
       comment: `${conn.creator.displayName || conn.creator.phoneNumber}
         updated ${conn.templateData.name}`,
-      location: admin.getGeopointObject(
+      location: getGeopointObject(
         conn.req.body.geopoint[0],
         conn.req.body.geopoint[1]
       ),
-      timestamp: getDateObject(conn.req.body.timestamp),
+      timestamp: new Date(conn.req.body.timestamp),
     };
 
     if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
@@ -180,7 +186,7 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
 /**
  * Fetches the activtiy root and enum/activitytemplates doc.
  *
- * @param {*} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const fetchDocs = (conn) => {
   const activityRef = activities.doc(conn.req.body.activityId).get();

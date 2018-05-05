@@ -14,7 +14,6 @@ const {
   isValidString,
   isValidLocation,
   isValidPhoneNumber,
-  getDateObject,
 } = require('./helperLib');
 
 const {
@@ -37,7 +36,7 @@ const addAddendumForUsersWithAuth = (conn) => {
         conn.req.body.geopoint[0],
         conn.req.body.geopoint[1]
       ),
-      timestamp: getDateObject(conn.req.body.timestamp),
+      timestamp: new Date(conn.req.body.timestamp),
       changes: [], // comment doesn't change the activity
     });
   });

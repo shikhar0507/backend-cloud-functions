@@ -1,7 +1,5 @@
 const {
-  users,
   rootCollections,
-  batch,
 } = require('../../admin/admin');
 
 const {
@@ -12,7 +10,6 @@ const {
 const {
   isValidDate,
   isValidLocation,
-  getDateObject,
   isValidString,
 } = require('./helperLib');
 
@@ -28,7 +25,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
   Promise.all(conn.templatesList).then((snapShot) => {
     snapShot.forEach((doc) => {
       if (doc.exists) {
-        // console.log(doc.ref.path.split('/')[1]);
+        // template name: doc.ref.path.split('/')[1])
         jsonResult.templates[doc.ref.path.split('/')[1]] = {
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
@@ -47,46 +44,82 @@ const fetchSubscriptions = (conn, jsonResult) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
 const getTemplates = (conn, jsonResult) => {
   profiles.doc(conn.creator.phoneNumber).collection('Subscriptions')
-    .where('timestamp', '>=', getDateObject(conn.req.query.from))
+    .where('timestamp', '>=', new Date(conn.req.query.from))
     .get().then((snapShot) => {
       conn.templatesList = [];
 
-      snapShot.forEach((doc) =>
-        conn.templatesList.push(
-          activityTemplates.doc(doc.get('template')).get())
-      );
+      snapShot.forEach((doc) => {
+        conn.templatesList
+          .push(activityTemplates.doc(doc.get('template')).get());
+      });
 
       fetchSubscriptions(conn, jsonResult);
       return;
     }).catch((error) => handleError(conn, error));
 };
 
-const addActivityRoot = (conn, jsonResult) => {
-  const activitiesList = [];
+const fetchAssignToUsers = (conn, jsonResult) => {
+  Promise.all(conn.assignToFetchPromises).then((snapShotsArray) => {
+    let activityObj;
 
-  jsonResult.addendum.forEach((val) =>
-    activitiesList.push(activities.doc(val.activityId).get()));
-
-  Promise.all(activitiesList).then((snapShot) => {
-    snapShot.forEach((doc) => {
-      // doc.ref.path.split('/')[1]} --> activityId
-      jsonResult.activities[`${doc.ref.path.split('/')[1]}`] = {
-        status: doc.get('status'),
-        schedule: doc.get('schedule'),
-        venue: doc.get('venue'),
-        timestamp: doc.get('timestamp').toUTCString(),
-        template: doc.get('template'),
-        title: doc.get('title'),
-        description: doc.get('description'),
-        office: doc.get('office'),
-      };
+    snapShotsArray.forEach((snapShot) => {
+      snapShot.forEach((doc) => {
+        // activity-id --> doc.ref.path.split('/')[1]
+        activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
+        activityObj.assignTo.push(doc.id);
+      });
     });
 
     getTemplates(conn, jsonResult);
     return;
   }).catch((error) => handleError(conn, error));
+};
+
+const fetchActivities = (conn, jsonResult) => {
+  Promise.all(conn.activityFetchPromises).then((snapShot) => {
+    let activityObj;
+    snapShot.forEach((doc) => {
+      // activity-id --> doc.ref.path.split('/')[1]
+      activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
+
+      activityObj.status = doc.get('status');
+      activityObj.schedule = doc.get('schedule');
+      activityObj.venue = doc.get('venue');
+      activityObj.timestamp = doc.get('timestamp');
+      activityObj.template = doc.get('template');
+      activityObj.title = doc.get('title');
+      activityObj.description = doc.get('description');
+      activityObj.office = doc.get('office');
+      activityObj.assignTo = [];
+    });
+
+    fetchAssignToUsers(conn, jsonResult);
+    return;
+  }).catch((error) => handleError(conn, error));
+};
+
+const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
+  conn.activityFetchPromises = [];
+  conn.assignToFetchPromises = [];
+
+  profiles.doc(conn.creator.phoneNumber).collection('Activities')
+    .where('timestamp', '>=', new Date(conn.req.query.from)).get()
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        conn.activityFetchPromises.push(activities.doc(doc.id).get());
+        conn.assignToFetchPromises
+          .push(activities.doc(doc.id).collection('AssignTo').get());
+
+        jsonResult.activities[doc.id] = {};
+        jsonResult.activities[doc.id]['canEdit'] = doc.get('canEdit');
+      });
+
+      fetchActivities(conn, jsonResult);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 /**
@@ -100,36 +133,33 @@ const readAddendumsByQuery = (conn) => {
   jsonResult.addendum = [];
   jsonResult.activities = {};
   jsonResult.templates = {};
-
-  /** adding the 'from' timestamp to the listOfTimestamps in order to
-  avoid the situtation where the query inside the 'Addendum' collection
-  yeilds no results. Since we actually have to send at least a one date
-  to the client. **/
-  conn.listOfTimestamps = [Date.parse(conn.req.query.from)];
+  jsonResult.from = {};
+  jsonResult.upto = {};
 
   updates.doc(conn.creator.uid).collection('Addendum')
-    .where('timestamp', '>=', getDateObject(conn.req.query.from)).get()
-    .then((snapShot) => {
+    .where('timestamp', '>=', new Date(conn.req.query.from))
+    .orderBy('timestamp', 'asc').get().then((snapShot) => {
       snapShot.forEach((doc) => {
         jsonResult.addendum.push({
           activityId: doc.get('activityId'),
           comment: doc.get('comment'),
-          timestamp: doc.get('timestamp').toUTCString(),
+          timestamp: doc.get('timestamp'),
           location: [
             doc.get('location')._latitude,
             doc.get('location')._longitude,
           ],
           user: doc.get('user'),
         });
+      }); // forEach end
 
-        conn.listOfTimestamps.push(Date.parse(doc.get('timestamp')));
-      });
+      jsonResult.from = new Date(conn.req.query.from);
+      jsonResult.upto = jsonResult.from;
 
-      jsonResult.from = new Date(conn.req.query.from).toUTCString();
-      jsonResult.upto = new Date(Math.max(...conn.listOfTimestamps))
-        .toUTCString();
+      if (!snapShot.empty) {
+        jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
+      }
 
-      addActivityRoot(conn, jsonResult);
+      getActivityIdsFromProfileCollection(conn, jsonResult);
       return;
     }).catch((error) => handleError(conn, error));
 };
