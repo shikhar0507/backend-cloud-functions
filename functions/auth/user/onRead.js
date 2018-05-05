@@ -27,6 +27,4 @@ const app = (conn) => {
   });
 };
 
-module.exports = {
-  app,
-};
+module.exports = app;

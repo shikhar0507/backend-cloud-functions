@@ -12,6 +12,12 @@ const {
 } = users;
 
 const updateUserProfile = (conn) => {
+  // TODO: Add check whether the requester's uid and phone combination in
+  // Profiles matches.
+  // 2. Check whether the mobile is being updated
+  //  if mobile is not being updated, update the profile
+  // 3. If mobile is being updated
+  //    TODO: do something when this happens.
   updateUserInAuth({
     photoURL: conn.req.body.photoURL,
     displayName: conn.req.body.displayName,
@@ -22,6 +28,7 @@ const updateUserProfile = (conn) => {
       sendResponse(conn, 400, 'BAD REQUEST');
       return;
     }
+
     sendResponse(conn, 202, 'ACCEPTED');
     return;
   }).catch((error) => {
@@ -36,6 +43,4 @@ const app = (conn) => {
   }
 };
 
-module.exports = {
-  app,
-};
+module.exports = app;

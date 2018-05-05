@@ -32,31 +32,23 @@ const updateUserInAuth = (userRecord) => {
     }).catch((error) => {
       return;
     });
-  }
-};
-
-const createUserInAuth = (userRecord) => {
-  if (userRecord.phoneNumber) {
-    const {
-      phoneNumber,
-      email,
-      displayName,
-      photoURL,
-    } = userRecord;
-
-    return auth.createUser({
-      email: email || null,
-      phoneNumber: phoneNumber,
-      displayName: displayName || null,
-      photoURL: photoURL || null,
-    }).catch((error) => {
-      console.log(error);
-      return;
-    });
   } else {
     return;
   }
 };
+
+const createUserInAuth = (userRecord) => {
+  return auth.createUser({
+    phoneNumber: userRecord.phoneNumber,
+    displayName: userRecord.displayName || null,
+    email: userRecord.email || null,
+    photoURL: userRecord.photoURL || null,
+  }).catch((error) => {
+    console.log(error);
+    throw new Error('error/user-not-created');
+  });
+};
+
 
 /**
  * Returns the user record object using the phone number.
@@ -97,29 +89,10 @@ const getUserByUid = (uid) => auth.getUser(uid);
  */
 const verifyIdToken = (idToken) => auth.verifyIdToken(idToken);
 
-/**
- * Returns the user records for all the users in an array.
- *
- * @param {Array} uidsArray An array of uid strings.
- * @returns {Array} UserRecordsArray Contains the user records.
- */
-const getMultipleUsersByUid = (uidsArray) => {
-  const uidPromisesArray = [];
-
-  uidsArray.forEach((uid) => uidPromisesArray.push(getUserByUid(uid)));
-
-  return Promise.all(uidPromisesArray)
-    .then((userRecordsArray) => userRecordsArray)
-    .catch((error) => {
-      console.log(error);
-      return uidPromisesArray;
-    });
-};
 
 const users = {
   getUserByPhoneNumber,
   getUserByUid,
-  getMultipleUsersByUid,
   verifyIdToken,
   createUserInAuth,
   updateUserInAuth,

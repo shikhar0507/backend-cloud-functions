@@ -12,23 +12,13 @@ const {
 } = require('../../admin/utils');
 
 const app = (conn) => {
-  const {
-    phoneNumber,
-    displayName,
-    photoURL,
-    email,
-  } = conn.req.body;
-
   createUserInAuth({
-    phoneNumber,
-    displayName,
-    photoURL,
-    email,
-  }).then((response) => {
-    if (response === null) {
-      sendResponse(conn, 400, 'BAD REQUEST');
-      return;
-    }
+    phoneNumber: conn.req.body.phoneNumber,
+    displayName: conn.req.body.displayName,
+    photoURL: conn.req.body.photoURL,
+    email: conn.req.body.email,
+  }).then((userRecord) => {
+    console.log(userRecord);
     sendResponse(conn, 201, 'CREATED');
     return;
   }).catch((error) => {
@@ -36,6 +26,5 @@ const app = (conn) => {
   });
 };
 
-module.exports = {
-  app,
-};
+
+module.exports = app;

@@ -76,8 +76,29 @@ const activitiesHandler = (conn) => {
 };
 
 const handleUserProfiles = (conn) => {
-  console.log('working');
-  conn.res.end('OK');
+  const action = parse(conn.req.url).path.split('/')[3];
+
+  if (conn.req.method === 'GET') {
+    if (action === 'fetch') {
+      authUsers.onRead(conn);
+    } else {
+      sendResponse(conn, 400, 'BAD REQUEST');
+    }
+  } else if (conn.req.method === 'POST') {
+    if (action === 'create') {
+      authUsers.onCreate(conn);
+    } else {
+      sendResponse(conn, 400, 'BAD REQUEST');
+    }
+  } else if (conn.req.method === 'PATCH') {
+    if (action === 'update') {
+      authUsers.onUpdate(conn);
+    } else {
+      sendResponse(conn, 400, 'BAD REQUEST');
+    }
+  } else {
+    sendResponse(conn, 400, 'BAD REQUEST');
+  }
 };
 
 
@@ -88,11 +109,6 @@ const handleUserProfiles = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const servicesHandler = (conn) => {
-  if (conn.req.method !== 'GET') {
-    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
-    return;
-  }
-
   const action = parse(conn.req.url).path.split('/')[2];
 
   if (action === 'users') {
@@ -100,16 +116,6 @@ const servicesHandler = (conn) => {
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');
   }
-
-  conn.res.end('OK');
-  // console.log(conn.req.query.q);
-
-  // if (action.startsWith('getUsers') && Array.isArray(conn.req.query.q)) {
-
-  //   fetchProfiles(conn);
-  // } else {
-  //   sendResponse(conn, 400, 'BAD REQUEST');
-  // }
 };
 
 
