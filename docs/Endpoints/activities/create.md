@@ -10,7 +10,7 @@
 {
     "template": "plan",
     "timestamp": 1520015400000,
-    "office": "OsUR4ANqFzfKxyWBCS0r",
+    "office": "personal",
     "geopoint": [80.2333, 30.3434],
     "title": "Title of the activity",
     "description": "Description of the activity.",
