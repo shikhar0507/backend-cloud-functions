@@ -19,7 +19,7 @@
 
 * **ActivityId**: A non-null non-empty string containing the id of the activity which you want to add a comment to.
 
-* **timestamp**: A non-null non-empty Number (or `long` for Java) containing the unix timestamp denoting the time at which you hit the endpoint.
+* **timestamp**: A non-null non-empty Number (or `long` for Java) containing the Unix timestamp denoting the time at which you hit the endpoint.
 
 * **geopoint**: A non-empty array containing the latitude and longitude of the client at the time of creating the activity.
 

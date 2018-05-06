@@ -92,9 +92,9 @@
 
 ## Fields
 
-Most of the fields follow the same naming scheme as with `/create`, `/update` and `/comment` endpoints, explaination for each one would be redundant.
+Most of the fields follow the same naming scheme as with `/create`, `/update` and `/comment` endpoints, an explanation for each one again would be redundant.
 
-* **addendum**: An object contianing chronilogically ordered addendums (updates) starting from the time which was passed in the request.
+* **addendum**: An object containing chronologically ordered addendums (updates) starting from the time which was passed in the request.
 
 * **from**: Timestamp denoting time from which the updates were fetched in the server.
 
@@ -104,7 +104,7 @@ Most of the fields follow the same naming scheme as with `/create`, `/update` an
 
 ## Query Parameters
 
-The `/read` endpoint **requires** you to add a query paramter with with the unix timestamp denoting the time from which you want the updates in the response.
+The `/read` endpoint **requires** you to add a query parameter with the Unix timestamp denoting the time from which you want the updates in the response.
 
 **example**: `.../read?from=1525170327665`
 
@@ -114,9 +114,9 @@ Regardless of whether your request was fulfilled or if there was an error, you w
 
 * `200`: OK: The request for fetching the data was successful.
 
-The endpoint at which you sent the request was not correct or the `from` query parameter does not constitute a valid unix timestamp.
+The endpoint at which you sent the request was not correct or the `from` query parameter does not constitute a valid Unix timestamp.
 
-* `400`: BAD REQUEST: The request endpoint was not implemented or the query paramter was omitted.
+* `400`: BAD REQUEST: The request endpoint was not implemented or the query parameter was omitted.
 
 * `403`: FORBIDDEN: The requester doesn't have the authority to make the request.
 

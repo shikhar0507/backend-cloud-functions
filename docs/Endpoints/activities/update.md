@@ -43,7 +43,7 @@
 
 ## Minimal request body
 
-Here's an example of the the least amount of fields that you can use to update an activity.
+Here's an example of the least amount of fields that you can use to update an activity.
 
 ```json
     "activityId": "gnCuHnQQOvQGsWtFxmqQ",
@@ -57,7 +57,7 @@ This request will only add an addendum to the activity with the updated time and
 
 * **activityId**: A non-null non-empty string containing the id of the activity which you want to update.
 
-* **timestamp**: A non-null non-empty Number (or `long` for Java) containing the unix timestamp denoting the time at which you hit the endpoint.
+* **timestamp**: A non-null non-empty Number (or `long` for Java) containing the Unix timestamp denoting the time at which you hit the endpoint.
 
 * **geopoint**: A non-empty array containing the latitude and longitude of the client at the time of creating the activity.
 
@@ -89,7 +89,7 @@ This request will only add an addendum to the activity with the updated time and
 
   * A venue object without the `geopoint` field will be ignored. All other fields are optional.
 
-* **schedule**: A nullable array containing the schedules ou want to add to the activity.
+* **schedule**: A nullable array containing the schedules you want to add to the activity.
 
   * Can be an empty array.
 

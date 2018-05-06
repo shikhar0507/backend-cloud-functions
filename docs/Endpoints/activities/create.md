@@ -45,7 +45,7 @@
 
 ## Minimal request body
 
-Here's an example of the the least amount of fields that you can use to create an activity.
+Here's an example of the least amount of fields that you can use to create an activity.
 
 ```json
     "template": "plan",
@@ -62,7 +62,7 @@ Of course, you can always send a request to `/update` with the activity-id of th
 
 * **templateId**: A non-null non-empty string containing the id of the template with which you want to create the activity with.
 
-* **timestamp**: A non-null non-empty `Number` (`long` for Java) containing the unix timestamp denoting the time at which you hit the endpoint.
+* **timestamp**: A non-null non-empty `Number` (`long` for Java) containing the Unix timestamp denoting the time at which you hit the endpoint.
 
 * **officeId**: A non-null non-empty string containing the id of the office with which you want to create the activity with.
 
@@ -92,7 +92,7 @@ Of course, you can always send a request to `/update` with the activity-id of th
 
   * A venue object without the `geopoint` field will be ignored. All other fields are optional.
 
-* **schedule**: A nullable array containing the schedules ou want to add to the activity.
+* **schedule**: A nullable array containing the schedules you want to add to the activity.
 
   * Can be an empty array.
 
@@ -155,11 +155,11 @@ And, lastly, just for your convenience, here's are a few examples which you can 
         public void isPhoneNumberValid(phoneNumber) {
             String patternString = "/^\+?[1-9]\d{5,14}$/";
             Pattern pattern = Pattern.compile(patternString);
-            return matcher = pattern.matcher(phoneNumber).matches();
+            return pattern.matcher(phoneNumber).matches();
         }
 
-        System.out.println(isPhoneNumberValid("+919810385815")) // true;
-        System.out.println(isPhoneNumberValid("919810385815")) // false;
-        System.out.println(isPhoneNumberValid("+91 981 038 5815")) // false;
+        System.out.println(isPhoneNumberValid("+919810385815")); // true;
+        System.out.println(isPhoneNumberValid("919810385815")); // false;
+        System.out.println(isPhoneNumberValid("+91 981 038 5815")); // false;
     }
     ```
