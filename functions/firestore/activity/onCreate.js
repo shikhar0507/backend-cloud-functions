@@ -1,3 +1,39 @@
+/** {
+  "template": "plan",
+  "timestamp": 1525626403718,
+  "office": "personal",
+  "geopoint": [80.2333, 30.3434],
+  "title": "Title of the activity",
+  "description": "Description of the activity.",
+  "assignTo": [
+      "+918178135274",
+      "+919999434325"
+  ],
+  "venue": [{
+      "venueDescriptor": "where",
+      "location": "location name",
+      "geopoint": [80.80,90.0],
+      "address": "address of the venue"
+  },
+  {
+      "venueDescriptor": "where",
+      "location": "second location name",
+      "geopoint": [72.11,90.99],
+      "address": "address of the venue"
+  }],
+  "schedule": [{
+      "name": "when",
+      "startTime": 1520015400000,
+      "endTime": 1520101800000
+  },
+  {
+      "name": "when",
+      "startTime": 1520274600000,
+      "endTime": 1520188200000
+  }]
+}**/
+
+
 const {
   rootCollections,
   users,
@@ -36,25 +72,9 @@ const {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const commitBatch = (conn) => batch.commit()
-  .then(() => sendResponse(conn, 201, 'CREATED'))
+  .then((result) => sendResponse(conn, 201, 'CREATED'))
   .catch((error) => handleError(conn, error));
 
-
-/**
- * Adds Addendum for each user who has their document inside the Updates
- * collection in the database.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- * @param {Object} result Contains the fetched documents from Firestore.
- */
-const addAddendumForUsersWithAuth = (conn, result) => {
-  conn.usersWithAuth.forEach((uid) => {
-    batch.set(updates.doc(uid).collection('Addendum')
-      .doc(), conn.addendumData);
-  });
-
-  commitBatch(conn);
-};
 
 /**
  *
@@ -78,7 +98,8 @@ const handleAssignedUsers = (conn, result) => {
       });
 
     // phone numbers exist uniquely in the db
-    promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
+    // promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
+    promises.push(profiles.doc(val).get());
 
     batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.activityId), {
@@ -87,15 +108,15 @@ const handleAssignedUsers = (conn, result) => {
       });
   });
 
-  conn.usersWithAuth = [];
-
-  // getting the docs which have uids inside /Updates
-  Promise.all(promises).then((snapShotsArray) => {
-    snapShotsArray.forEach((snapShot) => {
-      if (!snapShot.empty) conn.usersWithAuth.push(snapShot.docs[0].id);
+  Promise.all(promises).then((snapShots) => {
+    snapShots.forEach((doc) => {
+      if (doc.exists && doc.get('uid') !== null) {
+        batch.set(updates.doc(doc.get('uid')).collection('Addendum')
+          .doc(), conn.addendumData);
+      }
     });
 
-    addAddendumForUsersWithAuth(conn, result);
+    commitBatch(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -109,8 +130,8 @@ const createActivity = (conn, result) => {
       .substring(0, 30) || result[1].get('defaultTitle'),
     description: conn.req.body.description || '',
     status: result[0].get('statusOnCreate'),
-    office: conn.req.body.officeId,
-    template: conn.req.body.templateId,
+    office: conn.req.body.office,
+    template: conn.req.body.template,
     schedule: scheduleCreator(
       conn.req.body.schedule,
       result[0].get('schedule')
@@ -142,19 +163,19 @@ const createActivity = (conn, result) => {
       });
   });
 
-  Array.isArray(conn.req.body.assignTo)
-    ? handleAssignedUsers(conn, result) : commitBatch(conn);
+  Array.isArray(conn.req.body.assignTo) ?
+    handleAssignedUsers(conn, result) : commitBatch(conn);
 };
 
 
 const fetchDocs = (conn) => {
   const promises = [];
 
-  promises.push(activityTemplates.doc(conn.req.body.templateId).get());
+  promises.push(activityTemplates.doc(conn.req.body.template).get());
   promises.push(profiles.doc(conn.creator.phoneNumber).get());
   promises.push(profiles.doc(conn.creator.phoneNumber)
     .collection('Subscriptions')
-    .where('template', '==', conn.req.body.templateId).limit(1).get());
+    .where('template', '==', conn.req.body.template).limit(1).get());
 
   Promise.all(promises).then((result) => {
     // template sent in the request body is not a valid type
@@ -177,6 +198,7 @@ const fetchDocs = (conn) => {
     }
 
     if (result[2].docs[0].get('office') !== conn.req.body.office) {
+      console.log('result[2] compare');
       // template from the request body and the office do not match
       sendResponse(conn, 403, 'FORBIDDEN');
       return;
@@ -189,8 +211,8 @@ const fetchDocs = (conn) => {
 
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp) &&
-    isValidString(conn.req.body.templateId) &&
-    isValidString(conn.req.body.office) &&
+    isValidString(conn.req.body.template) &&
+    isValidString(conn.req.body.office) && // officeId --> office
     isValidLocation(conn.req.body.geopoint)) {
     fetchDocs(conn);
   } else {

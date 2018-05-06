@@ -15,39 +15,10 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
 const getGeopointObject = (lat, lng) => new admin.firestore.GeoPoint(lat, lng);
 
-const updateUserInAuth = (userRecord) => {
-  if (userRecord.phoneNumber) {
-    const {
-      phoneNumber,
-      email,
-      displayName,
-      photoURL,
-    } = userRecord;
+const updateUserInAuth = (uid, userRecord) =>
+  auth.updateUser(uid, userRecord);
 
-    return auth.updateUser(conn.creator.uid, {
-      phoneNumber: phoneNumber,
-      email: email || null,
-      displayName: displayName || null,
-      photoURL: photoURL || null,
-    }).catch((error) => {
-      return;
-    });
-  } else {
-    return;
-  }
-};
-
-const createUserInAuth = (userRecord) => {
-  return auth.createUser({
-    phoneNumber: userRecord.phoneNumber,
-    displayName: userRecord.displayName || null,
-    email: userRecord.email || null,
-    photoURL: userRecord.photoURL || null,
-  }).catch((error) => {
-    console.log(error);
-    throw new Error('error/user-not-created');
-  });
-};
+const createUserInAuth = (userRecord) => auth.createUser(userRecord);
 
 
 /**
@@ -58,11 +29,11 @@ const createUserInAuth = (userRecord) => {
 const getUserByPhoneNumber = (phoneNumber) => {
   return auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
     return {
-      [phoneNumber]:
-        {
-          photoUrl: userRecord.photoURL || null,
-          displayName: userRecord.displayName || null,
-        },
+      [phoneNumber]: {
+        photoUrl: userRecord.photoURL || null,
+        displayName: userRecord.displayName || null,
+        lastSignInTime: userRecord.metadata.lastSignInTime,
+      },
     };
   }).catch((error) => {
     if (error.code === 'auth/user-not-found' ||
@@ -71,6 +42,8 @@ const getUserByPhoneNumber = (phoneNumber) => {
         [phoneNumber]: {},
       };
     }
+    console.log(error);
+    return null;
   });
 };
 

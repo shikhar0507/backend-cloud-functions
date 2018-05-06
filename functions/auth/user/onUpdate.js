@@ -18,23 +18,23 @@ const updateUserProfile = (conn) => {
   //  if mobile is not being updated, update the profile
   // 3. If mobile is being updated
   //    TODO: do something when this happens.
-  updateUserInAuth({
-    photoURL: conn.req.body.photoURL,
-    displayName: conn.req.body.displayName,
-    email: conn.req.body.email,
-    phoneNumber: conn.req.body.phoneNumber,
-  }).then((response) => {
-    if (response === null) {
-      sendResponse(conn, 400, 'BAD REQUEST');
+  if (conn.req.body.phoneNumber) {
+    updateUserInAuth('jy2aZkvpflRXGwxLKip7opC1HqM2', {
+      photoURL: conn.req.body.photoURL,
+      displayName: conn.req.body.displayName,
+      email: conn.req.body.email,
+      phoneNumber: conn.req.body.phoneNumber,
+    }).then((userRecord) => {
+      console.log('returned', data);
+      sendResponse(conn, 202, 'ACCEPTED');
       return;
-    }
-
-    sendResponse(conn, 202, 'ACCEPTED');
-    return;
-  }).catch((error) => {
-    console.log(error);
-    handleError(conn, error);
-  });
+    }).catch((error) => {
+      console.log(error);
+      handleError(conn, error);
+    });
+  } else {
+    sendResponse(conn, 400, 'BAD REQUEST');
+  }
 };
 
 const app = (conn) => {

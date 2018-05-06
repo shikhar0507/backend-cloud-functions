@@ -1,7 +1,25 @@
+/** {
+  "activityId": "6EDaPe5BNjcJ0qQKLCg1",
+  "timestamp": 1522598642000,
+  "geopoint": [80.2333, 30.3434],
+  "title": "new updated title",
+  "description": "new changed description",
+  "status": "new status ",
+  "deleteAssignTo": [
+      "Drs69n0jAkEPZqSsrQGf",
+      "clLv762LgYskWbvVe5rR"
+  ],
+  "addAssignTo": [
+      "wu1zOnEcNqJFTndBYxH4",
+      "rrrPpzHNz5sDU3wOIzJ5"
+  ]
+}*/
+
 const {
   rootCollections,
   users,
   batch,
+  getGeopointObject,
 } = require('../../admin/admin');
 
 const {
@@ -33,7 +51,7 @@ const {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const commitBatch = (conn) => batch.commit()
-  .then(() => sendResponse(conn, 202, 'ACCEPTED'))
+  .then((data) => sendResponse(conn, 202, 'ACCEPTED'))
   .catch((error) => handleError(conn, error));
 
 /**
@@ -51,7 +69,7 @@ const writeActivityRoot = (conn, result) => {
       result[0].data().description,
     status: result[1].data().ACTIVITYSTATUS
       .indexOf(conn.req.body.status) > -1 ?
-      conn.req.body.status : result[0].data().status,
+      conn.req.body.status : result[0].get('status'),
     schedule: scheduleCreator(
       conn.req.body.schedule,
       conn.templateData.schedule
@@ -62,8 +80,8 @@ const writeActivityRoot = (conn, result) => {
     ),
     timestamp: new Date(conn.req.body.timestamp),
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(updates.doc(conn.creator.uid)
     .collection('Addendum').doc(), conn.addendumData);
@@ -71,15 +89,6 @@ const writeActivityRoot = (conn, result) => {
   commitBatch(conn);
 };
 
-
-const addAddendumForUsersWithAuth = (conn, result) => {
-  conn.usersWithAuth.forEach((uid) => {
-    batch.set(updates.doc(uid).collection('Addendum')
-      .doc(), conn.addendumData);
-  });
-
-  writeActivityRoot(conn, result);
-};
 
 /**
  * Handles the document creation in /Profiles and addition of new documents in
@@ -123,17 +132,20 @@ const processAsigneesList = (conn, result) => {
         timestamp: new Date(conn.req.body.timestamp),
       });
 
-    promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
+    promises.push(profiles.doc(val).get());
   });
 
   conn.usersWithAuth = [];
 
-  Promise.all(promises).then((snapShotsArray) => {
-    snapShotsArray.forEach((snapShot) => {
-      if (!snapShot.empty) conn.usersWithAuth.push(snapShot.docs[0].id);
+  Promise.all(promises).then((snapShots) => {
+    snapShots.forEach((doc) => {
+      if (doc.exists && doc.get('uid') !== null) {
+        batch.set(updates.doc(doc.get('uid')).collection('Addendum')
+          .doc(), conn.addendumData);
+      }
     });
 
-    addAddendumForUsersWithAuth(conn, result);
+    writeActivityRoot(conn, result);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -194,7 +206,7 @@ const fetchDocs = (conn) => {
 
   Promise.all([activityRef, activityStatusRef]).then((result) => {
     if (!result[0].exists) {
-      // the activity-id in the request doesn't exist
+      // the activity-id in the request doesn't exist in the db
       sendResponse(conn, 409, 'CONFLICT');
       return;
     }
@@ -216,6 +228,7 @@ const verifyPermissionToUpdateActivity = (conn) => {
   profiles.doc(conn.creator.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists) {
+        // TODO: forbidden or bad request???
         sendResponse(conn, 403, 'FORBIDDEN');
         return;
       }
@@ -225,9 +238,7 @@ const verifyPermissionToUpdateActivity = (conn) => {
       doc.get('canEdit') ? fetchDocs(conn) :
         sendResponse(conn, 403, 'FORBIDDEN');
       return;
-    }).catch((error) => {
-      handleError(conn, error);
-    });
+    }).catch((error) => handleError(conn, error));
 };
 
 

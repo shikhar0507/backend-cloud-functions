@@ -2,6 +2,7 @@ const {
   rootCollections,
   users,
   batch,
+  getGeopointObject,
 } = require('../../admin/admin');
 
 const {
@@ -23,54 +24,44 @@ const {
 } = rootCollections;
 
 const commitBatch = (conn) => batch.commit()
-  .then(() => sendResponse(conn, 201, 'CREATED'))
+  .then((data) => sendResponse(conn, 201, 'CREATED'))
   .catch((error) => handleError(conn, error));
 
-const addAddendumForUsersWithAuth = (conn) => {
-  conn.usersWithAuth.forEach((uid) => {
-    batch.set(updates.doc(uid).collection('Addendum').doc(), {
-      activityId: conn.req.body.activityId,
-      user: conn.creator.displayName || conn.creator.phoneNumber,
-      comment: conn.req.body.comment,
-      location: admin.getGeopointObject(
-        conn.req.body.geopoint[0],
-        conn.req.body.geopoint[1]
-      ),
-      timestamp: new Date(conn.req.body.timestamp),
-      changes: [], // comment doesn't change the activity
-    });
-  });
-
-  commitBatch(conn);
-};
-
 const queryUpdatesForAsigneesUid = (conn) => {
-  const promises = [];
-
-  conn.assigneesList.forEach((val) => {
-    promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
-  });
-
-  conn.usersWithAuth = [];
-
-  Promise.all(promises).then((snapShotsArray) => {
-    snapShotsArray.forEach((snapShot) => {
-      if (!snapShot.empty) {
-        conn.usersWithAuth.push(snapShot.docs[0].id);
+  Promise.all(conn.assigneeDocPromises).then((snapShots) => {
+    snapShots.forEach((doc) => {
+      /** doc.exists check is redundant here because we are fetching
+      documents from firestore itself.
+      but for the sake of consistency with the create and update
+      function, I'm keeping it here */
+      if (doc.exists && doc.get('uid') !== null) {
+        batch.set(updates.doc(doc.get('uid')).collection('Addendum')
+          .doc(), {
+            activityId: conn.req.body.activityId,
+            user: conn.creator.displayName || conn.creator.phoneNumber,
+            comment: conn.req.body.comment,
+            location: getGeopointObject(
+              conn.req.body.geopoint[0],
+              conn.req.body.geopoint[1]
+            ),
+            timestamp: new Date(conn.req.body.timestamp),
+            changes: [], // comment doesn't change the activity
+          });
       }
     });
 
-    addAddendumForUsersWithAuth(conn);
+    commitBatch(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };
 
-const getActivityAssignees = (conn) => {
-  conn.assigneesList = [];
+const constructActivityAssigneesPromises = (conn) => {
+  conn.assigneeDocPromises = [];
 
   activities.doc(conn.req.body.activityId).collection('AssignTo').get()
     .then((snapShot) => {
-      snapShot.forEach((doc) => conn.assigneesList.push(doc.id));
+      snapShot.forEach((doc) =>
+        conn.assigneeDocPromises.push(profiles.doc(doc.id).get()));
 
       queryUpdatesForAsigneesUid(conn);
       return;
@@ -85,7 +76,7 @@ const checkCommentPermission = (conn) => {
         return;
       }
 
-      getActivityAssignees(conn);
+      constructActivityAssigneesPromises(conn);
       return;
     }).catch((error) => handleError(conn, error));
 };

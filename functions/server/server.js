@@ -79,7 +79,8 @@ const handleUserProfiles = (conn) => {
   const action = parse(conn.req.url).path.split('/')[3];
 
   if (conn.req.method === 'GET') {
-    if (action === 'fetch') {
+    if (action.startsWith('fetch')) {
+      // app/services/users/fetch?q=%2B918527801093&q=%2B918178135274
       authUsers.onRead(conn);
     } else {
       sendResponse(conn, 400, 'BAD REQUEST');
@@ -112,6 +113,8 @@ const servicesHandler = (conn) => {
   const action = parse(conn.req.url).path.split('/')[2];
 
   if (action === 'users') {
+    // console.log('working till user');
+    // sendResponse(conn, 200, 'OK');
     handleUserProfiles(conn);
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');
@@ -150,7 +153,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
       sendResponse(conn, 400, 'BAD REQUEST');
     }
     return;
-  }).catch((error) => sendResponse(conn, 500, 'INTERNAL SERVER ERROR'));
+  }).catch((error) => handleError(conn, error));
 };
 
 /**
