@@ -38,7 +38,7 @@ const queryUpdatesForAsigneesUid = (conn) => {
         batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), {
             activityId: conn.req.body.activityId,
-            user: conn.creator.displayName || conn.creator.phoneNumber,
+            user: conn.requester.displayName || conn.requester.phoneNumber,
             comment: conn.req.body.comment,
             location: getGeopointObject(
               conn.req.body.geopoint[0],
@@ -69,7 +69,7 @@ const constructActivityAssigneesPromises = (conn) => {
 };
 
 const checkCommentPermission = (conn) => {
-  profiles.doc(conn.creator.phoneNumber).collection('Activities')
+  profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists) {
         sendResponse(conn, 403, 'FORBIDDEN');

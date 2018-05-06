@@ -1,6 +1,6 @@
 # Reading updates and activities
 
-**ENDPOINT**: /app/activities/read
+**ENDPOINT**: `/app/activities/read`
 
 **METHOD**: GET
 
@@ -8,90 +8,85 @@
 
 ```json
 {
-    "addendum": {
-        "0": {
+    "addendum": [
+        {
             "activityId": "zE52PotR1u94AmVcnqal",
-            "comment": "+919090909090 created Plan",
-            "timestamp": "Fri, 02 Mar 2018 18:30:00 GMT",
+            "comment": "+919999999999 created Plan",
+            "timestamp": "2018-03-02T18:30:00.000Z",
             "location": [
                 80.2333,
                 30.3434
             ],
-            "user": "+919090909090"
+            "user": "+919999999999"
         },
-        "1": {
-            "activityId": "zE52PotR1u94AmVcnqal",
-            "comment": "create a new doc in addendum with this comment",
-            "timestamp": "Sun, 01 Apr 2018 16:04:02 GMT",
+        {
+            "activityId": "r6saWivwkM5QQZXfLdVg",
+            "comment": "+918000000000 created Plan",
+            "timestamp": "2018-03-02T18:30:00.000Z",
             "location": [
                 80.2333,
                 30.3434
             ],
-            "user": "+919090909090"
-        },
-    },
-    "updates": {
-        "zE52PotR1u94AmVcnqal": {
+            "user": "+918000000000"
+        }
+    ],
+    "activities": {
+        "6EDaPe5BNjcJ0qQKLCg1": {
+            "canEdit": true,
             "status": "PENDING",
             "schedule": {},
             "venue": {},
-            "timestamp": "Fri, 02 Mar 2018 18:30:00 GMT",
+            "timestamp": "2018-04-01T16:04:02.000Z",
             "template": "plan",
-            "title": "NEW TITLE",
-            "description": "Another updated description",
-            "office": "OsUR4ANqFzfKxyWBCS0r"
+            "title": "new updated title",
+            "description": "new changed description",
+            "office": "personal",
+            "assignTo": [
+                "+918000000000",
+                "+918111111111",
+                "+919999999999",
+            ]
         },
-        "nkPYPcCrQH7YN5ORimOc": {
+        "bgDIrjQPi5pN9Ph3qNZf": {
+            "canEdit": true,
             "status": "PENDING",
-            "schedule": {
-                "0": {
-                    "endTime": "2018-04-21T18:30:00.000Z",
-                    "startTime": "2018-04-18T18:30:00.000Z",
-                    "name": "1 schedule"
-                },
-                "1": {
-                    "startTime": "2018-04-20T18:30:00.000Z",
-                    "name": "2 schedule",
-                    "endTime": "2018-04-23T18:30:00.000Z"
-                },
-                "2": {
-                    "startTime": "2018-04-24T18:30:00.000Z",
-                    "name": "3 schedule",
-                    "endTime": "2018-04-24T18:30:00.000Z"
-                }
-            },
-            "venue": {
-                "0": {
-                    "location": "location name",
-                    "venueDescriptor": "venue description",
-                    "geopoint": {
-                        "_latitude": 12.8,
-                        "_longitude": 20
-                    },
-                    "address": "address of the venue"
-                },
-                "1": {
-                    "venueDescriptor": "another venue description",
-                    "geopoint": {
-                        "_latitude": 72.11,
-                        "_longitude": 80.99
-                    },
-                    "address": "address of the venue",
-                    "location": "second location name"
-                }
-            },
-            "timestamp": "Thu, 26 Apr 2018 07:09:51 GMT",
+            "schedule": {},
+            "venue": {},
+            "timestamp": "2018-05-06T17:06:43.718Z",
             "template": "plan",
-            "title": "Second activity",
-            "description": "Another activity",
-            "office": "OsUR4ANqFzfKxyWBCS0r"
+            "title": "Title of the activity",
+            "description": "Description of the activity.",
+            "office": "personal",
+            "assignTo": [
+                "+918000000000",
+                "+918111111111",
+                "+919999999999",
+            ]
         }
     },
-    "allowedTemplates": {
-        "0": "plan",
+    "templates": {
+        "plan": {
+            "schedule": {
+                "endTime": "2018-04-25T06:29:54.401Z",
+                "startTime": "2018-04-25T06:29:54.401Z",
+                "name": "when"
+            },
+            "venue": {
+                "address": "Rajpath Marg, India Gate, New Delhi 110001",
+                "location": "India Gate",
+                "venueDescriptor": "where",
+                "geopoint": {
+                    "_latitude": 28.612912,
+                    "_longitude": 77.227321
+                }
+            },
+            "template": "Plan",
+            "comment": "Default template. Available to all users (group or not).",
+            "status": "PENDING"
+        }
     },
-    "from": "Fri, 31 Dec 1999 18:30:00 GMT",
-    "upto": "Tue, 01 May 2018 07:35:20 GMT"
+    "from": "1999-12-31T18:30:00.000Z",
+    "upto": "2018-05-06T17:06:43.718Z"
 }
 ```
 
@@ -101,23 +96,25 @@ Most of the fields follow the same naming scheme as with `/create`, `/update` an
 
 * **addendum**: An object contianing chronilogically ordered addendums (updates) starting from the time which was passed in the request.
 
-* **from**: UTC timestamp denoting time from which the updates were fetched in the server.
+* **from**: Timestamp denoting time from which the updates were fetched in the server.
 
-* **upto**: UTC timestamp denoting the time up to which the updates were found in the database.
+* **upto**: Timestamp denoting the time up to which the updates were found in the database.
 
-* **allowedTemplates**: An object containing all the templates which the requester is allowed to create activities with.
+* **templates**: An object containing all the templates which the requester is allowed to create activities with.
 
 ## Query Parameters
 
 The `/read` endpoint **requires** you to add a query paramter with with the unix timestamp denoting the time from which you want the updates in the response.
 
-example: `.../read?from=1525170327665`
+**example**: `.../read?from=1525170327665`
 
 ## Responses
 
 Regardless of whether your request was fulfilled or if there was an error, you will receive a response. Here are the ones which you should handle.
 
-* `200`: OK: A comment was successfully added to the activity and there was nothing to send in the response body.
+* `200`: OK: The request for fetching the data was successful.
+
+The endpoint at which you sent the request was not correct or the `from` query parameter does not constitute a valid unix timestamp.
 
 * `400`: BAD REQUEST: The request endpoint was not implemented or the query paramter was omitted.
 

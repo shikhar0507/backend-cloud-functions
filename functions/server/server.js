@@ -113,8 +113,6 @@ const servicesHandler = (conn) => {
   const action = parse(conn.req.url).path.split('/')[2];
 
   if (action === 'users') {
-    // console.log('working till user');
-    // sendResponse(conn, 200, 'OK');
     handleUserProfiles(conn);
   } else {
     sendResponse(conn, 400, 'BAD REQUEST');
@@ -123,17 +121,18 @@ const servicesHandler = (conn) => {
 
 
 /**
- * Fetches the document with id <phoneNumber> of the requester and validates
- * the uid in relation to that.
+ * Fetches the phone number of the requester and verifies
+ * if the document for this phone number inside the /Profiles
+ * has the same uid as the requester.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const verifyUidAndPhoneNumberCombination = (conn) => {
-  profiles.doc(conn.creator.phoneNumber).get().then((doc) => {
+  profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
     if (!doc.exists) {
       sendResponse(conn, 403, 'FORBIDDEN');
       return;
-    } else if (doc.get('uid') !== conn.creator.uid) {
+    } else if (doc.get('uid') !== conn.requester.uid) {
       // this uid & phoneNumber combination is not valid
       // TODO: updatePhoneNumber(conn);
       sendResponse(conn, 403, 'FORBIDDEN');
@@ -162,14 +161,14 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const getCreatorsPhoneNumber = (conn) => {
-  // getUserByUid(conn.creator.uid).then((userRecord) => {
+  // getUserByUid(conn.requester.uid).then((userRecord) => {
   // if (userRecord.disabled) {
   //   sendResponse(conn, 403, 'FORBIDDEN');
   //   return;
   // }
 
-  conn.creator.phoneNumber = '+918178135274';
-  // conn.creator.phoneNumber = userRecord.phoneNumber;
+  conn.requester.phoneNumber = '+918178135274';
+  // conn.requester.phoneNumber = userRecord.phoneNumber;
 
   verifyUidAndPhoneNumberCombination(conn);
   return;
@@ -194,9 +193,9 @@ const checkAuthorizationToken = (conn) => {
     const idToken = conn.req.headers.authorization.split('Bearer ')[1];
 
     // verifyIdToken(idToken).then((decodedIdToken) => {
-    conn.creator = {};
-    conn.creator.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2';
-    // conn.creator.uid = decodedIdToken.uid;
+    conn.requester = {};
+    conn.requester.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2';
+    // conn.requester.uid = decodedIdToken.uid;
 
     getCreatorsPhoneNumber(conn);
     return;

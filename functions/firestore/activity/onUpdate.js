@@ -83,7 +83,7 @@ const writeActivityRoot = (conn, result) => {
     merge: true,
   });
 
-  batch.set(updates.doc(conn.creator.uid)
+  batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
 
   commitBatch(conn);
@@ -174,8 +174,8 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
 
     conn.addendumData = {
       activityId: conn.req.body.activityId,
-      user: conn.creator.displayName || conn.creator.phoneNumber,
-      comment: `${conn.creator.displayName || conn.creator.phoneNumber}
+      user: conn.requester.displayName || conn.requester.phoneNumber,
+      comment: `${conn.requester.displayName || conn.requester.phoneNumber}
         updated ${conn.templateData.name}`,
       location: getGeopointObject(
         conn.req.body.geopoint[0],
@@ -225,7 +225,7 @@ const fetchDocs = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const verifyPermissionToUpdateActivity = (conn) => {
-  profiles.doc(conn.creator.phoneNumber).collection('Activities')
+  profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists) {
         // TODO: forbidden or bad request???

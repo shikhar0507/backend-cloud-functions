@@ -46,7 +46,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
 
 
 const getTemplates = (conn, jsonResult) => {
-  profiles.doc(conn.creator.phoneNumber).collection('Subscriptions')
+  profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
     .where('timestamp', '>=', new Date(conn.req.query.from))
     .get().then((snapShot) => {
       conn.templatesList = [];
@@ -105,7 +105,7 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.activityFetchPromises = [];
   conn.assignToFetchPromises = [];
 
-  profiles.doc(conn.creator.phoneNumber).collection('Activities')
+  profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .where('timestamp', '>=', new Date(conn.req.query.from)).get()
     .then((snapShot) => {
       snapShot.forEach((doc) => {
@@ -136,7 +136,7 @@ const readAddendumsByQuery = (conn) => {
   jsonResult.from = {};
   jsonResult.upto = {};
 
-  updates.doc(conn.creator.uid).collection('Addendum')
+  updates.doc(conn.requester.uid).collection('Addendum')
     .where('timestamp', '>=', new Date(conn.req.query.from))
     .orderBy('timestamp', 'asc').get().then((snapShot) => {
       snapShot.forEach((doc) => {

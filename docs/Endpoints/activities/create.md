@@ -8,9 +8,9 @@
 
 ```json
 {
-    "templateId": "plan",
+    "template": "plan",
     "timestamp": 1520015400000,
-    "officeId": "OsUR4ANqFzfKxyWBCS0r",
+    "office": "OsUR4ANqFzfKxyWBCS0r",
     "geopoint": [80.2333, 30.3434],
     "title": "Title of the activity",
     "description": "Description of the activity.",
@@ -19,19 +19,19 @@
         "+919019191919"
     ],
     "venue": [{
-        "venueDescriptor": "venue description",
+        "venueDescriptor": "where",
         "location": "location name",
         "geopoint": [80.80,90.0],
         "address": "address of the venue"
     },
     {
-        "venueDescriptor": "another venue description",
+        "venueDescriptor": "invalid venue",
         "location": "second location name",
         "geopoint": [72.11,90.99],
         "address": "address of the venue"
     }],
     "schedule": [{
-        "name": "Valid schedule",
+        "name": "when",
         "startTime": 1520015400000,
         "endTime": 1520101800000
     },
@@ -43,6 +43,21 @@
 }
 ```
 
+## Minimal request body
+
+Here's an example of the the least amount of fields that you can use to create an activity.
+
+```json
+    "template": "plan",
+    "timestamp": 1520015400000,
+    "office": "OsUR4ANqFzfKxyWBCS0r",
+    "geopoint": [80.2333, 30.3434],
+```
+
+Such a request will create an activity where the requester will be the only assignee to the activity with no title and description in the activity.
+
+Of course, you can always send a request to `/update` with the activity-id of this activity to update anything in this activity.
+
 ## Fields
 
 * **templateId**: A non-null non-empty string containing the id of the template with which you want to create the activity with.
@@ -53,7 +68,7 @@
 
 * **geopoint**: A non-empty array containing the latitude and longitude of the client at the time of creating the activity.
 
-    * form: [`lat`, `lng`]
+  * form: [`lat`, `lng`]
 
     * lat range: -90 <= `lat` <= 90
 
@@ -65,25 +80,25 @@
 
 * **assignTo**: A nullable array containing the phone numbers of all the participants of the activity.
 
-    * Only valid phone numbers will be added to the activity in creation.
+  * Only valid phone numbers will be added to the activity in creation.
 
-    * Make sure to add a `+` to each of the phone numbers. See notes below for more details.
+  * Make sure to add a `+` to each of the phone numbers. See notes below for more details.
 
 * **venue**: A nullable array containing the venues you want to add to the activity.
 
-    * Venue can be an empty array.
+  * Venue can be an empty array.
 
-    * Only `venueDescriptor`, `location`, `geopoint`, and `address` fields are accepted. Anything else will be discarded.
+  * Only `venueDescriptor`, `location`, `geopoint`, and `address` fields are accepted. Anything else will be discarded.
 
-    * A venue object without the `geopoint` field will be ignored. All other fields are optional.
+  * A venue object without the `geopoint` field will be ignored. All other fields are optional.
 
 * **schedule**: A nullable array containing the schedules ou want to add to the activity.
 
-    * Can be an empty array.
+  * Can be an empty array.
 
-    * Only `name`, `startTime`, and `endTime` fields are accepted. Anything else will be ignored.
+  * Only `name`, `startTime`, and `endTime` fields are accepted. Anything else will be ignored.
 
-    * A schedule without `startTime` will be ignored. All other fields are optional.
+  * A schedule without `startTime` will be ignored. All other fields are optional.
 
 ****
 
@@ -91,7 +106,7 @@
 
 Regardless of whether your request was fulfilled or if there was an error, you will receive a response. Here are the ones which you should handle.
 
-* `201`: CREATED: The activity was created on the server with the request body you sent.
+* `201`: CREATED: The activity was successfully created on the server with the request body you sent.
 
 * `400`: BAD REQUEST: The request endpoint was not implemented or the json payload was non-conformant.
 
@@ -107,27 +122,44 @@ A few things you should consider while creating a request on `/create`:
 
 ### Phone Numbers
 
-If you want to add assignees while creating an activity, please make sure that you properly _filter_ the mobile numbers list so that you don't accidentally waste your request.
+While adding assignees to the request body, please make sure that the phone number you put for each of them follows the [E.164
+](https://en.wikipedia.org/wiki/E.164) standard.
 
-Phone numbers in user devices are generally stored in multiple ways. A few common ways in which you will find them are as follows:
+You don't really need to read the whole standard to make a valid create request. Basically, the gist of the article is in the following points:
 
-eg number: +919090909090
+1. Numbers are limited to a maximum of 15 digits, excluding the international call prefix.
 
-1. +919090909090
+2. Numbers should start with a '+' character.
 
-2. 9090909090
+3. There should be no spaces/dashes or any other special characters in between the digits
 
-3. 09090909090
+And, lastly, just for your convenience, here's are a few examples which you can use to validate the phone numbers in Java and Javascript.
 
-4. 909-090-9090
+* For Javascript
 
-5. 909 090 9090
+    ``` javascript
+    const re = new RegExp(/^\+?[1-9]\d{5,14}$/);
 
-6. 0909 090 9090
+    console.log(re.test('+919810385815')); // true
+    console.log(re.test('919810385815')); // false
+    console.log(re.test('+91 981 038 5815')) // false
+    ```
 
-7. 919090909090
+* For Java
 
+    ```java
+    import java.util.regex.Pattern;
+    import java.util.regex.Matcher;
 
-If you send all of these numbers in the request body, only the first number (+919090909090) will be added to the activity.
+    public class MatcherExample {
+        public void isPhoneNumberValid(phoneNumber) {
+            String patternString = "/^\+?[1-9]\d{5,14}$/";
+            Pattern pattern = Pattern.compile(patternString);
+            return matcher = pattern.matcher(phoneNumber).matches();
+        }
 
-Also please try to make sure to handle duplication in the array.
+        System.out.println(isPhoneNumberValid("+919810385815")) // true;
+        System.out.println(isPhoneNumberValid("919810385815")) // false;
+        System.out.println(isPhoneNumberValid("+91 981 038 5815")) // false;
+    }
+    ```

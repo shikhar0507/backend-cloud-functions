@@ -146,8 +146,8 @@ const createActivity = (conn, result) => {
 
   conn.addendumData = {
     activityId: conn.activityId,
-    user: conn.creator.displayName || conn.creator.phoneNumber,
-    comment: `${conn.creator.displayName || conn.creator.phoneNumber}
+    user: conn.requester.displayName || conn.requester.phoneNumber,
+    comment: `${conn.requester.displayName || conn.requester.phoneNumber}
       created ${result[0].get('name')}`,
     location: getGeopointObject(
       conn.req.body.geopoint[0],
@@ -172,8 +172,8 @@ const fetchDocs = (conn) => {
   const promises = [];
 
   promises.push(activityTemplates.doc(conn.req.body.template).get());
-  promises.push(profiles.doc(conn.creator.phoneNumber).get());
-  promises.push(profiles.doc(conn.creator.phoneNumber)
+  promises.push(profiles.doc(conn.requester.phoneNumber).get());
+  promises.push(profiles.doc(conn.requester.phoneNumber)
     .collection('Subscriptions')
     .where('template', '==', conn.req.body.template).limit(1).get());
 

@@ -20,12 +20,13 @@ const isValidString = (str) => {
 
 const isValidDate = (date) => !isNaN(new Date(date));
 
-const isValidPhoneNumber = (phoneNumber) => {
-  // FIXME: Add logic here
-  // regex: ^\+?[1-9]\d{5,14}$
-  if (!isValidString(phoneNumber)) return false;
-  return true;
-};
+/**
+ * Verifies a phone number based on the E.164 standard.
+ *
+ * @param {string} phoneNumber A valid (E.164) phone number.
+ * @see https://en.wikipedia.org/wiki/E.164
+ */
+const isValidPhoneNumber = (phoneNumber) => new RegExp(/^\+?[1-9]\d{5,14}$/);
 
 const scheduleCreator = (schedule, scheduleDataFromTemplate) => {
   const schedules = {};

@@ -10,10 +10,7 @@
 {
     "activityId": "2k4qI3W39sKIDZedcOaM",
     "timestamp": 1522598642000,
-    "geopoint": [
-        80.2333,
-        30.3434
-    ],
+    "geopoint": [80.2333, 30.343],
     "comment": "An example comment"
 }
 ```
@@ -38,7 +35,7 @@
 
 Regardless of whether your request was fulfilled or if there was an error, you will receive a response. Here are the ones which you should handle.
 
-* `204`: NO CONTENT: A comment was successfully added to the activity and there was nothing to send in the response body.
+* `201`: CREATED: A document with the comment in from the request has been created successfully.
 
 * `400`: BAD REQUEST: The request endpoint was not implemented or the json payload was non-conformant.
 

@@ -1,4 +1,4 @@
-## Getting the server timestamp
+# Getting the server timestamp
 
 **ENDPOINT**: `/app/now`
 
@@ -6,6 +6,7 @@
 
 ```json
 {
+  "code": 200,
   "message": "Fri, 02 Mar 2018 18:30:00 GMT"
 }
 ```

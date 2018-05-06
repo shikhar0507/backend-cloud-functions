@@ -17,29 +17,41 @@
     "deleteAssignTo": ["+919090909909"],
     "addAssignTo": ["+918080808080"],
     "venue": [{
-        "venueDescriptor": "venue description",
+        "venueDescriptor": "where",
         "location": "location name",
         "geopoint": [80.80,90.0],
         "address": "address of the venue"
     },
     {
-        "venueDescriptor": "another venue description",
+        "venueDescriptor": "where",
         "location": "second location name",
         "geopoint": [72.11,90.99],
         "address": "address of the venue"
     }],
     "schedule": [{
-        "name": "Valid schedule",
+        "name": "when",
         "startTime": 1520015400000,
         "endTime": 1520101800000
     },
     {
-        "name": "Invalid Schedule",
-        "startTime": 1520274600000,
+        "name": "when",
+        "startTime": 1520274600000, // startTime > endTime here. This schedule will be ignored
         "endTime": 1520188200000
     }]
 }
 ```
+
+## Minimal request body
+
+Here's an example of the the least amount of fields that you can use to update an activity.
+
+```json
+    "activityId": "gnCuHnQQOvQGsWtFxmqQ",
+    "timestamp": 1522598642000,
+    "geopoint": [80.2333, 30.3434],
+```
+
+This request will only add an addendum to the activity with the updated time and geopoint coords that you send in the request body.
 
 ## Fields
 
@@ -81,7 +93,7 @@
 
   * Can be an empty array.
 
-  * * Only `name`, `startTime`, and `endTime` fields are accepted. Anything else will be ignored.
+  * Only `name`, `startTime`, and `endTime` fields are accepted. Anything else will be ignored.
 
   * A schedule without `startTime` will be ignored. All other fields are optional.
 
@@ -96,5 +108,7 @@ Regardless of whether your request was fulfilled or if there was an error, you w
 * `403`: FORBIDDEN: The requester doesn't have the authority to make the request.
 
 * `405`: METHOD NOT ALLOWED: Only `PATCH` is allowed for `/update`.
+
+* `409`: CONFLICT: A document with the activity-id you sent in the request doesn't exist.
 
 * `500`: INTERNAL SERVER ERROR: Probably an issue with the cloud function. Please create an issue.
