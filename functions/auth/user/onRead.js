@@ -14,9 +14,13 @@ const {
 const app = (conn) => {
   const promises = [];
 
-  conn.req.query.q.forEach((val) => {
-    promises.push(getUserByPhoneNumber(val));
-  });
+  if (Array.isArray(conn.req.query.q)) {
+    conn.req.query.q.forEach((val) => {
+      promises.push(getUserByPhoneNumber(val));
+    });
+  } else {
+    promises.push(conn.req.query.q);
+  }
 
   Promise.all(promises).then((userRecords) => {
     sendResponse(conn, 200, userRecords);

@@ -122,8 +122,7 @@ A few things you should consider while creating a request on `/create`:
 
 ### Phone Numbers
 
-While adding assignees to the request body, please make sure that the phone number you put for each of them follows the [E.164
-](https://en.wikipedia.org/wiki/E.164) standard.
+While adding assignees to the request body, please make sure that the phone number you put for each of them follows the [E.164](https://en.wikipedia.org/wiki/E.164) standard.
 
 You don't really need to read the whole standard to make a valid create request. Basically, the gist of the article is in the following points:
 

@@ -35,7 +35,6 @@ const activity = {
 
 const authUsers = {
   onRead: require('../auth/user/onRead'),
-  // onCreate: require('../auth/user/onCreate'),
   onUpdate: require('../auth/user/onUpdate'),
 };
 
@@ -79,8 +78,7 @@ const handleUserProfiles = (conn) => {
   const action = parse(conn.req.url).path.split('/')[3];
 
   if (conn.req.method === 'GET') {
-    if (action.startsWith('fetch')) {
-      // app/services/users/fetch?q=%2B918527801093&q=%2B918178135274
+    if (action.startsWith('read')) {
       authUsers.onRead(conn);
     } else {
       sendResponse(conn, 400, 'BAD REQUEST');
@@ -92,7 +90,7 @@ const handleUserProfiles = (conn) => {
       sendResponse(conn, 400, 'BAD REQUEST');
     }
   } else {
-    sendResponse(conn, 400, 'BAD REQUEST');
+    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
   }
 };
 

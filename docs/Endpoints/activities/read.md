@@ -114,8 +114,6 @@ Regardless of whether your request was fulfilled or if there was an error, you w
 
 * `200`: OK: The request for fetching the data was successful.
 
-The endpoint at which you sent the request was not correct or the `from` query parameter does not constitute a valid Unix timestamp.
-
 * `400`: BAD REQUEST: The request endpoint was not implemented or the query parameter was omitted.
 
 * `403`: FORBIDDEN: The requester doesn't have the authority to make the request.
