@@ -1,3 +1,27 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
+
 const {
   parse,
 } = require('url');
@@ -74,6 +98,11 @@ const activitiesHandler = (conn) => {
   }
 };
 
+/**
+ * Handles the requests made to /users resource.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const handleUserProfiles = (conn) => {
   const action = parse(conn.req.url).path.split('/')[3];
 
@@ -147,27 +176,27 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
 /**
  * Fetches the requestor's phone number from auth.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const getCreatorsPhoneNumber = (conn) => {
-  // getUserByUid(conn.requester.uid).then((userRecord) => {
-  // if (userRecord.disabled) {
-  //   sendResponse(conn, 403, 'FORBIDDEN');
-  //   return;
-  // }
+  getUserByUid(conn.requester.uid).then((userRecord) => {
+    if (userRecord.disabled) {
+      sendResponse(conn, 403, 'FORBIDDEN');
+      return;
+    }
 
-  conn.requester.phoneNumber = '+918178135274';
-  // conn.requester.phoneNumber = userRecord.phoneNumber;
+    conn.requester.phoneNumber = userRecord.phoneNumber;
 
-  verifyUidAndPhoneNumberCombination(conn);
-  return;
-  // }).catch((error) => {
-  //   console.log(error);
-  //   sendResponse(conn, 403, 'FORBIDDEN');
-  // });
+    verifyUidAndPhoneNumberCombination(conn);
+    return;
+  }).catch((error) => {
+    console.log(error);
+    sendResponse(conn, 403, 'FORBIDDEN');
+  });
 };
 
 /**
@@ -176,31 +205,37 @@ const getCreatorsPhoneNumber = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const checkAuthorizationToken = (conn) => {
-  // if (conn.req.headers['Content-Type'] !== 'application/json') {
-  //   sendResponse(conn, 415, 'UNSUPPORTED MEDIA TYPE');
-  //   return;
-  // }
+  if (conn.req.headers['Content-Type'] !== 'application/json') {
+    sendResponse(conn, 415, 'UNSUPPORTED MEDIA TYPE');
+    return;
+  }
 
   if (conn.req.headers.authorization) {
     const idToken = conn.req.headers.authorization.split('Bearer ')[1];
 
-    // verifyIdToken(idToken).then((decodedIdToken) => {
-    conn.requester = {};
-    conn.requester.uid = '4uwC9a7VZBYMnm6V1vCVCrZnUbx2';
-    // conn.requester.uid = decodedIdToken.uid;
+    verifyIdToken(idToken).then((decodedIdToken) => {
+      conn.requester = {};
+      conn.requester.uid = decodedIdToken.uid;
 
-    getCreatorsPhoneNumber(conn);
-    return;
-    // }).catch((error) => {
-    //   console.log(error);
-    //   sendResponse(conn, 403, 'FORBIDDEN');
-    // });
+      getCreatorsPhoneNumber(conn);
+      return;
+    }).catch((error) => {
+      console.log(error);
+      sendResponse(conn, 403, 'FORBIDDEN');
+    });
   } else {
     conn.headers['WWW-Authenticate'] = 'Bearer ';
     sendResponse(conn, 401, 'UNAUTHORIZED');
   }
 };
 
+
+/**
+ * Handles the routing for the request from the clients.
+ *
+ * @param {*} req Express Request object.
+ * @param {*} res Express Response object.
+ */
 const server = (req, res) => {
   const conn = {
     req,
@@ -219,12 +254,14 @@ const server = (req, res) => {
 
   if (req.method === 'OPTIONS') {
     sendResponse(conn, 200, 'OK');
+    return;
   } else if (req.method === 'GET' || req.method === 'POST' ||
     req.method === 'PATCH') {
     checkAuthorizationToken(conn);
-  } else {
-    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+    return;
   }
+
+  sendResponse(conn, 405, 'METHOD NOT ALLOWED');
 };
 
 module.exports = server;

@@ -1,24 +1,30 @@
-/** {
-  "activityId": "6EDaPe5BNjcJ0qQKLCg1",
-  "timestamp": 1522598642000,
-  "geopoint": [80.2333, 30.3434],
-  "title": "new updated title",
-  "description": "new changed description",
-  "status": "new status ",
-  "deleteAssignTo": [
-      "Drs69n0jAkEPZqSsrQGf",
-      "clLv762LgYskWbvVe5rR"
-  ],
-  "addAssignTo": [
-      "wu1zOnEcNqJFTndBYxH4",
-      "rrrPpzHNz5sDU3wOIzJ5"
-  ]
-}*/
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 
 const {
   rootCollections,
   users,
-  batch,
   getGeopointObject,
   db,
 } = require('../../admin/admin');
@@ -46,6 +52,7 @@ const {
   activityTemplates,
 } = rootCollections;
 
+
 /**
  * Commits the batch and sends a response to the client of the result.
  *
@@ -55,12 +62,13 @@ const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(conn, 202, 'ACCEPTED'))
   .catch((error) => handleError(conn, error));
 
+
 /**
- * Adds the activity root data to the batch.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- * @param {Array} result Array of document data objects fetched from Firestore.
- */
+* Adds the activity root data to the batch.
+*
+* @param {Object} conn Contains Express' Request and Respone objects.
+* @param {Array} result Array of document data objects fetched from Firestore.
+*/
 const writeActivityRoot = (conn, result) => {
   if (!conn.req.body.description) conn.req.body.description = '';
 
@@ -151,6 +159,7 @@ const processAsigneesList = (conn, result) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
 /**
  * Fetches the assignees list and the template from the Activity in context.
  *
@@ -221,6 +230,7 @@ const fetchDocs = (conn) => {
     sendResponse(conn, 400, 'BAD REQUEST');
   });
 };
+
 
 /**
  * Checks whether the user has the permission to update the activity.

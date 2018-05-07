@@ -1,3 +1,27 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
+
 const {
   rootCollections,
 } = require('../../admin/admin');
@@ -61,6 +85,7 @@ const getTemplates = (conn, jsonResult) => {
     }).catch((error) => handleError(conn, error));
 };
 
+
 const fetchAssignToUsers = (conn, jsonResult) => {
   Promise.all(conn.assignToFetchPromises).then((snapShotsArray) => {
     let activityObj;
@@ -77,6 +102,7 @@ const fetchAssignToUsers = (conn, jsonResult) => {
     return;
   }).catch((error) => handleError(conn, error));
 };
+
 
 const fetchActivities = (conn, jsonResult) => {
   Promise.all(conn.activityFetchPromises).then((snapShot) => {
@@ -100,6 +126,7 @@ const fetchActivities = (conn, jsonResult) => {
     return;
   }).catch((error) => handleError(conn, error));
 };
+
 
 const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.activityFetchPromises = [];
@@ -163,6 +190,7 @@ const readAddendumsByQuery = (conn) => {
       return;
     }).catch((error) => handleError(conn, error));
 };
+
 
 const app = (conn) => {
   if (!isValidDate(conn.req.query.from)) {
