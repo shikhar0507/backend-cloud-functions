@@ -39,6 +39,7 @@ const {
   users,
   batch,
   getGeopointObject,
+  db,
 } = require('../../admin/admin');
 
 const {
@@ -89,7 +90,7 @@ const handleAssignedUsers = (conn, result) => {
     // TODO: add a method for verifying a valid mobile
     if (!isValidPhoneNumber(val)) return;
 
-    batch.set(activities.doc(conn.activityId)
+    conn.batch.set(activities.doc(conn.activityId)
       .collection('AssignTo').doc(val), {
         // template --> result[1].data()
         canEdit: handleCanEdit(result[1].get('canEditRule')),
@@ -101,7 +102,7 @@ const handleAssignedUsers = (conn, result) => {
     // promises.push(updates.where('phoneNumber', '==', val).limit(1).get());
     promises.push(profiles.doc(val).get());
 
-    batch.set(profiles.doc(val).collection('Activities')
+    conn.batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.activityId), {
         canEdit: handleCanEdit(result[1].get('canEditRule')),
         timestamp: new Date(conn.req.body.timestamp),
@@ -111,7 +112,7 @@ const handleAssignedUsers = (conn, result) => {
   Promise.all(promises).then((snapShots) => {
     snapShots.forEach((doc) => {
       if (doc.exists && doc.get('uid') !== null) {
-        batch.set(updates.doc(doc.get('uid')).collection('Addendum')
+        conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), conn.addendumData);
       }
     });
@@ -125,7 +126,9 @@ const createActivity = (conn, result) => {
   const activityRef = activities.doc();
   conn.activityId = activityRef.id; // used multiple times
 
-  batch.set(activityRef, {
+  conn.batch = db.batch();
+
+  conn.batch.set(activityRef, {
     title: conn.req.body.title || conn.req.body.description
       .substring(0, 30) || result[1].get('defaultTitle'),
     description: conn.req.body.description || '',
@@ -157,7 +160,7 @@ const createActivity = (conn, result) => {
   };
 
   result[2].docs[0].get('autoIncludeOnCreate').forEach((val) => {
-    batch.set(activities.doc(conn.activityId)
+    conn.batch.set(activities.doc(conn.activityId)
       .collection('AssignTo').doc(val), {
         canEdit: handleCanEdit(result[0].get('canEditRule')),
       });

@@ -15,9 +15,11 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
 const getGeopointObject = (lat, lng) => new admin.firestore.GeoPoint(lat, lng);
 
-const updateUserInAuth = (uid, userRecord) =>
-  auth.updateUser(uid, userRecord);
-
+const updateUserPhoneNumberInAuth = (uid, phoneNumber) => {
+  return auth.updateUser(uid, {
+    phoneNumber,
+  });
+};
 const createUserInAuth = (userRecord) => auth.createUser(userRecord);
 
 
@@ -68,7 +70,7 @@ const users = {
   getUserByUid,
   verifyIdToken,
   createUserInAuth,
-  updateUserInAuth,
+  updateUserPhoneNumberInAuth,
 };
 
 const rootCollections = {
@@ -81,6 +83,7 @@ const rootCollections = {
 };
 
 module.exports = {
+  db,
   users,
   batch,
   runTransaction,

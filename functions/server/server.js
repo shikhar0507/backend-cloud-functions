@@ -35,7 +35,7 @@ const activity = {
 
 const authUsers = {
   onRead: require('../auth/user/onRead'),
-  onCreate: require('../auth/user/onCreate'),
+  // onCreate: require('../auth/user/onCreate'),
   onUpdate: require('../auth/user/onUpdate'),
 };
 
@@ -82,12 +82,6 @@ const handleUserProfiles = (conn) => {
     if (action.startsWith('fetch')) {
       // app/services/users/fetch?q=%2B918527801093&q=%2B918178135274
       authUsers.onRead(conn);
-    } else {
-      sendResponse(conn, 400, 'BAD REQUEST');
-    }
-  } else if (conn.req.method === 'POST') {
-    if (action === 'create') {
-      authUsers.onCreate(conn);
     } else {
       sendResponse(conn, 400, 'BAD REQUEST');
     }
@@ -194,7 +188,7 @@ const checkAuthorizationToken = (conn) => {
 
     // verifyIdToken(idToken).then((decodedIdToken) => {
     conn.requester = {};
-    conn.requester.uid = 'jy2aZkvpflRXGwxLKip7opC1HqM2';
+    conn.requester.uid = '4uwC9a7VZBYMnm6V1vCVCrZnUbx2';
     // conn.requester.uid = decodedIdToken.uid;
 
     getCreatorsPhoneNumber(conn);

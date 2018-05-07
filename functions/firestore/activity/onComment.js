@@ -3,6 +3,7 @@ const {
   users,
   batch,
   getGeopointObject,
+  db,
 } = require('../../admin/admin');
 
 const {
@@ -35,7 +36,7 @@ const queryUpdatesForAsigneesUid = (conn) => {
       but for the sake of consistency with the create and update
       function, I'm keeping it here */
       if (doc.exists && doc.get('uid') !== null) {
-        batch.set(updates.doc(doc.get('uid')).collection('Addendum')
+        conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), {
             activityId: conn.req.body.activityId,
             user: conn.requester.displayName || conn.requester.phoneNumber,
@@ -62,6 +63,8 @@ const constructActivityAssigneesPromises = (conn) => {
     .then((snapShot) => {
       snapShot.forEach((doc) =>
         conn.assigneeDocPromises.push(profiles.doc(doc.id).get()));
+
+      conn.batch = db.batch();
 
       queryUpdatesForAsigneesUid(conn);
       return;

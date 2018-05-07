@@ -20,6 +20,7 @@ const {
   users,
   batch,
   getGeopointObject,
+  db,
 } = require('../../admin/admin');
 
 const {
@@ -50,7 +51,7 @@ const {
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
-const commitBatch = (conn) => batch.commit()
+const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(conn, 202, 'ACCEPTED'))
   .catch((error) => handleError(conn, error));
 
@@ -63,7 +64,7 @@ const commitBatch = (conn) => batch.commit()
 const writeActivityRoot = (conn, result) => {
   if (!conn.req.body.description) conn.req.body.description = '';
 
-  batch.set(activities.doc(conn.req.body.activityId), {
+  conn.batch.set(activities.doc(conn.req.body.activityId), {
     title: conn.req.body.title || result[0].data().title,
     description: conn.req.body.description ||
       result[0].data().description,
@@ -80,10 +81,10 @@ const writeActivityRoot = (conn, result) => {
     ),
     timestamp: new Date(conn.req.body.timestamp),
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
-  batch.set(updates.doc(conn.requester.uid)
+  conn.batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
 
   commitBatch(conn);
@@ -102,10 +103,10 @@ const processAsigneesList = (conn, result) => {
     conn.req.body.deleteAssignTo.forEach((val) => {
       if (!isValidPhoneNumber(val)) return;
 
-      batch.delete(activities.doc(conn.req.body.activityId)
+      conn.batch.delete(activities.doc(conn.req.body.activityId)
         .collection('AssignTo').doc(val));
 
-      batch.delete(profiles.doc(val).collection('Activities')
+      conn.batch.delete(profiles.doc(val).collection('Activities')
         .doc(conn.req.body.activityId));
     });
   }
@@ -121,12 +122,12 @@ const processAsigneesList = (conn, result) => {
   const promises = [];
 
   conn.activityAssignees.forEach((val) => {
-    batch.set(activities.doc(conn.req.body.activityId)
+    conn.batch.set(activities.doc(conn.req.body.activityId)
       .collection('AssignTo').doc(val), {
         canEdit: handleCanEdit(conn.templateData.canEditRule),
       });
 
-    batch.set(profiles.doc(val).collection('Activities')
+    conn.batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.req.body.activityId), {
         canEdit: handleCanEdit(conn.templateData.canEditRule),
         timestamp: new Date(conn.req.body.timestamp),
@@ -140,7 +141,7 @@ const processAsigneesList = (conn, result) => {
   Promise.all(promises).then((snapShots) => {
     snapShots.forEach((doc) => {
       if (doc.exists && doc.get('uid') !== null) {
-        batch.set(updates.doc(doc.get('uid')).collection('Addendum')
+        conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), conn.addendumData);
       }
     });
@@ -183,6 +184,8 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
       ),
       timestamp: new Date(conn.req.body.timestamp),
     };
+
+    conn.batch = db.batch();
 
     if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
       processAsigneesList(conn, result);

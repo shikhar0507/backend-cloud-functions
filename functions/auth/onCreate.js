@@ -2,6 +2,7 @@ const {
   batch,
   rootCollections,
   serverTimestamp,
+  db,
 } = require('../admin/admin');
 
 const {
@@ -14,6 +15,8 @@ const app = (userRecord, context) => {
     uid,
     phoneNumber,
   } = userRecord;
+
+  const batch = db.batch();
 
   batch.set(updates.doc(uid), {
     phoneNumber,
