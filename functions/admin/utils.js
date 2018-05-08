@@ -44,7 +44,7 @@ const sendResponse = (conn, statusCode, message) => {
 
   conn.res.end(JSON.stringify({
     code: statusCode,
-    message,
+    message: typeof message === 'object' ? '' : message,
   }));
 };
 

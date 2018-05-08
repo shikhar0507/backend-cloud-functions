@@ -121,22 +121,28 @@ const getCreatorsPhoneNumber = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const checkAuthorizationToken = (conn) => {
-  if (conn.req.headers.authorization) {
-    const idToken = conn.req.headers.authorization.split('Bearer ')[1];
+  const authorization = conn.req.headers.authorization;
 
-    verifyIdToken(idToken).then((decodedIdToken) => {
-      conn.requester = {};
-      conn.requester.uid = decodedIdToken.uid;
-
-      getCreatorsPhoneNumber(conn);
-      return;
-    }).catch((error) => {
-      console.log(error);
-      sendResponse(conn, 403, 'FORBIDDEN');
-    });
-  } else {
+  if (!authorization) {
     sendResponse(conn, 401, 'UNAUTHORIZED');
+    return;
   }
+
+  if (!authorization.startsWith('Bearer ')) {
+    sendResponse(conn, 401, 'UNAUTHORIZED');
+    return;
+  }
+
+  verifyIdToken(authorization.split('Bearer ')[1]).then((decodedIdToken) => {
+    conn.requester = {};
+    conn.requester.uid = decodedIdToken.uid;
+
+    getCreatorsPhoneNumber(conn);
+    return;
+  }).catch((error) => {
+    console.log(error);
+    sendResponse(conn, 403, 'FORBIDDEN');
+  });
 };
 
 

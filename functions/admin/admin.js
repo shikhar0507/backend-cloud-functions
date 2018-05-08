@@ -101,6 +101,7 @@ const getUserByPhoneNumber = (phoneNumber) => {
  */
 const getUserByUid = (uid) => auth.getUser(uid);
 
+
 /**
  * Verifies the user session and returns the uid in a callback.
  *
