@@ -63,6 +63,10 @@ const authUsers = {
 };
 
 
+const onService = require('./onService');
+const onActivity = require('./onActivity');
+
+
 /**
  * Calls the resource related to an activity depending on the action
  * from the url.
@@ -205,11 +209,6 @@ const getCreatorsPhoneNumber = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const checkAuthorizationToken = (conn) => {
-  if (conn.req.headers['Content-Type'] !== 'application/json') {
-    sendResponse(conn, 415, 'UNSUPPORTED MEDIA TYPE');
-    return;
-  }
-
   if (conn.req.headers.authorization) {
     const idToken = conn.req.headers.authorization.split('Bearer ')[1];
 
@@ -224,7 +223,6 @@ const checkAuthorizationToken = (conn) => {
       sendResponse(conn, 403, 'FORBIDDEN');
     });
   } else {
-    conn.headers['WWW-Authenticate'] = 'Bearer ';
     sendResponse(conn, 401, 'UNAUTHORIZED');
   }
 };
@@ -263,5 +261,6 @@ const server = (req, res) => {
 
   sendResponse(conn, 405, 'METHOD NOT ALLOWED');
 };
+
 
 module.exports = server;
