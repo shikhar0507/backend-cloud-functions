@@ -43,106 +43,12 @@ const {
 } = require('../admin/utils');
 
 const {
-  isValidPhoneNumber,
-} = require('../firestore/activity/helperLib');
-
-const {
   profiles,
 } = rootCollections;
-
-const activity = {
-  onRead: require('../firestore/activity/onRead'),
-  onCreate: require('../firestore/activity/onCreate'),
-  onUpdate: require('../firestore/activity/onUpdate'),
-  onComment: require('../firestore/activity/onComment'),
-};
-
-const authUsers = {
-  onRead: require('../auth/user/onRead'),
-  onUpdate: require('../auth/user/onUpdate'),
-};
 
 
 const onService = require('./onService');
 const onActivity = require('./onActivity');
-
-
-/**
- * Calls the resource related to an activity depending on the action
- * from the url.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- */
-const activitiesHandler = (conn) => {
-  const method = conn.req.method;
-  const action = parse(conn.req.url).path.split('/')[2];
-
-  if (method === 'GET') {
-    if (conn.req.query.from) {
-      activity.onRead(conn);
-    } else {
-      sendResponse(conn, 400, 'BAD REQUEST');
-    }
-  } else if (method === 'POST') {
-    if (action === 'create') {
-      activity.onCreate(conn);
-    } else if (action === 'comment') {
-      activity.onComment(conn);
-    } else {
-      sendResponse(conn, 400, 'BAD REQUEST');
-    }
-  } else if (method === 'PATCH') {
-    if (action === 'update') {
-      activity.onUpdate(conn);
-    } else {
-      sendResponse(conn, 400, 'BAD REQUEST');
-    }
-  } else {
-    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
-  }
-};
-
-/**
- * Handles the requests made to /users resource.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- */
-const handleUserProfiles = (conn) => {
-  const action = parse(conn.req.url).path.split('/')[3];
-
-  if (conn.req.method === 'GET') {
-    if (action.startsWith('read')) {
-      authUsers.onRead(conn);
-    } else {
-      sendResponse(conn, 400, 'BAD REQUEST');
-    }
-  } else if (conn.req.method === 'PATCH') {
-    if (action === 'update') {
-      authUsers.onUpdate(conn);
-    } else {
-      sendResponse(conn, 400, 'BAD REQUEST');
-    }
-  } else {
-    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
-  }
-};
-
-
-/**
- * Calls the resource related to a service depending on the action
- * from the url.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- */
-const servicesHandler = (conn) => {
-  const action = parse(conn.req.url).path.split('/')[2];
-
-  if (action === 'users') {
-    handleUserProfiles(conn);
-  } else {
-    sendResponse(conn, 400, 'BAD REQUEST');
-  }
-};
 
 
 /**
@@ -154,12 +60,7 @@ const servicesHandler = (conn) => {
  */
 const verifyUidAndPhoneNumberCombination = (conn) => {
   profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
-    if (!doc.exists) {
-      sendResponse(conn, 403, 'FORBIDDEN');
-      return;
-    } else if (doc.get('uid') !== conn.requester.uid) {
-      // this uid & phoneNumber combination is not valid
-      // TODO: updatePhoneNumber(conn);
+    if (doc.get('uid') !== conn.requester.uid) {
       sendResponse(conn, 403, 'FORBIDDEN');
       return;
     }
@@ -168,14 +69,21 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
     const action = parse(conn.req.url).path.split('/')[1];
 
     if (action === 'activities') {
-      activitiesHandler(conn);
-    } else if (action === 'services') {
-      servicesHandler(conn);
-    } else if (action === 'now') {
-      now(conn); // server timestamp
-    } else {
-      sendResponse(conn, 400, 'BAD REQUEST');
+      onActivity(conn);
+      return;
     }
+
+    if (action === 'services') {
+      onService(conn);
+      return;
+    }
+
+    if (action === 'now') {
+      now(conn); // server timestamp
+      return;
+    }
+
+    sendResponse(conn, 400, 'BAD REQUEST');
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -189,6 +97,8 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
 const getCreatorsPhoneNumber = (conn) => {
   getUserByUid(conn.requester.uid).then((userRecord) => {
     if (userRecord.disabled) {
+      /** not allowing anyone with a disabled account to
+       do anything with their account. **/
       sendResponse(conn, 403, 'FORBIDDEN');
       return;
     }
@@ -253,7 +163,9 @@ const server = (req, res) => {
   if (req.method === 'OPTIONS') {
     sendResponse(conn, 200, 'OK');
     return;
-  } else if (req.method === 'GET' || req.method === 'POST' ||
+  }
+
+  if (req.method === 'GET' || req.method === 'POST' ||
     req.method === 'PATCH') {
     checkAuthorizationToken(conn);
     return;

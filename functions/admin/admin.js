@@ -25,7 +25,12 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
-admin.initializeApp();
+// admin.initializeApp({
+//   credential: admin.credential.cert(require('./serviceAccountKey.json')),
+//   databaseURL: 'https://contactform-1b262.firebaseio.com',
+// });
+
+admin.initializeApp()
 
 const auth = admin.auth();
 const db = admin.firestore();
