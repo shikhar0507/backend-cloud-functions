@@ -45,6 +45,13 @@ const {
 } = rootCollections;
 
 
+/**
+ * Fetches the template data for each template that the user has subscribed
+ * to and adds that data to the jsonResult object.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {*Object} jsonResult The fetched data from Firestore.
+ */
 const fetchSubscriptions = (conn, jsonResult) => {
   Promise.all(conn.templatesList).then((snapShot) => {
     snapShot.forEach((doc) => {
@@ -69,6 +76,12 @@ const fetchSubscriptions = (conn, jsonResult) => {
 };
 
 
+/**
+ * Fetches the template refs that the user has subscribed to.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {*Object} jsonResult The fetched data from Firestore.
+ */
 const getTemplates = (conn, jsonResult) => {
   profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
     .where('timestamp', '>=', new Date(conn.req.query.from))
@@ -86,6 +99,12 @@ const getTemplates = (conn, jsonResult) => {
 };
 
 
+/**
+ * Fetches the assignees of the activities.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {*Object} jsonResult The fetched data from Firestore.
+ */
 const fetchAssignToUsers = (conn, jsonResult) => {
   Promise.all(conn.assignToFetchPromises).then((snapShotsArray) => {
     let activityObj;
@@ -103,7 +122,12 @@ const fetchAssignToUsers = (conn, jsonResult) => {
   }).catch((error) => handleError(conn, error));
 };
 
-
+/**
+ * Fetches all the activity data in which the user is an assignee of.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {*Object} jsonResult The fetched data from Firestore.
+ */
 const fetchActivities = (conn, jsonResult) => {
   Promise.all(conn.activityFetchPromises).then((snapShot) => {
     let activityObj;
@@ -127,7 +151,12 @@ const fetchActivities = (conn, jsonResult) => {
   }).catch((error) => handleError(conn, error));
 };
 
-
+/**
+ * Fetches the list of activities from the user profile.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {*Object} jsonResult The fetched data from Firestore.
+ */
 const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.activityFetchPromises = [];
   conn.assignToFetchPromises = [];
@@ -152,7 +181,7 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
 /**
  * Fetches the addendums and adds them to a a temporary object in memory.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  */
 const readAddendumsByQuery = (conn) => {
   const jsonResult = {};

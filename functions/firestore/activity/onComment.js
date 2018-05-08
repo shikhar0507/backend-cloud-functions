@@ -47,13 +47,23 @@ const {
   profiles,
 } = rootCollections;
 
-
+/**
+ * Commits the batch to the Firestore and send a response to the client
+ * about the result.
+ *
+ * @param {Object} conn Object with Express Request and Response Objects.
+ */
 const commitBatch = (conn) => batch.commit()
   .then((data) => sendResponse(conn, 201, 'CREATED'))
   .catch((error) => handleError(conn, error));
 
-
-const queryUpdatesForAsigneesUid = (conn) => {
+/**
+ * Adds addendum doc for each assignee of the activity for which the comment
+ * is being created.
+ *
+ * @param {Object} conn Object with Express Request and Response Objects.
+ */
+const setAddendumForAssignees = (conn) => {
   Promise.all(conn.assigneeDocPromises).then((snapShots) => {
     snapShots.forEach((doc) => {
       /** doc.exists check is redundant here because we are fetching
@@ -71,7 +81,6 @@ const queryUpdatesForAsigneesUid = (conn) => {
               conn.req.body.geopoint[1]
             ),
             timestamp: new Date(conn.req.body.timestamp),
-            changes: [], // comment doesn't change the activity
           });
       }
     });
@@ -81,7 +90,12 @@ const queryUpdatesForAsigneesUid = (conn) => {
   }).catch((error) => handleError(conn, error));
 };
 
-
+/**
+ * Fetches all the docs from AssignTo subcollection in the activity
+ * and creates a list of profiles for which the Addendum are to be written.
+ *
+ * @param {Object} conn Object with Express Request and Response Objects.
+ */
 const constructActivityAssigneesPromises = (conn) => {
   conn.assigneeDocPromises = [];
 
@@ -92,15 +106,23 @@ const constructActivityAssigneesPromises = (conn) => {
 
       conn.batch = db.batch();
 
-      queryUpdatesForAsigneesUid(conn);
+      setAddendumForAssignees(conn);
       return;
     }).catch((error) => handleError(conn, error));
 };
 
-
+/**
+ * Checks whether the user is an assignee to an activity which they
+ * have sent a request to add a comment to.
+ *
+ * @param {Object} conn Object with Express Request and Response Objects.
+ */
 const checkCommentPermission = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
+      /** check if a doc with the activity id from the request
+       * body is present in the user profile
+       * */
       if (!doc.exists) {
         sendResponse(conn, 403, 'FORBIDDEN');
         return;

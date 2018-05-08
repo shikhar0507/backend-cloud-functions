@@ -25,9 +25,10 @@
 /**
  * Returns the server timestamp on request.
  *
- * @param conn Object containing Express's Request and Reponse objects.
+ * @param {Object} conn Object containing Express's Request and Reponse objects.
  */
 const now = (conn) => sendResponse(conn, 200, new Date());
+
 
 /**
  * Ends the response of the request after successful completion of the task
@@ -52,7 +53,7 @@ const sendResponse = (conn, statusCode, message) => {
  * Ends the response when there is an error while handling the request.
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
- * @param {Object} error Firebase Error interface.
+ * @param {Object} error Firebase Error object.
  */
 const handleError = (conn, error) => {
   console.log(error);

@@ -25,12 +25,7 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
-// admin.initializeApp({
-//   credential: admin.credential.cert(require('./serviceAccountKey.json')),
-//   databaseURL: 'https://contactform-1b262.firebaseio.com',
-// });
-
-admin.initializeApp()
+admin.initializeApp();
 
 const auth = admin.auth();
 const db = admin.firestore();
@@ -59,6 +54,7 @@ const updateUserPhoneNumberInAuth = (uid, phoneNumber) => {
   });
 };
 
+
 /**
  * Creates a new user in Auth with the given userRecord.
  *
@@ -72,6 +68,8 @@ const createUserInAuth = (userRecord) => auth.createUser(userRecord);
  *
  * @param {string} phoneNumber Firebase user's phone number.
  * @see https://en.wikipedia.org/wiki/E.164
+ * @returns {Object} A userRecord containing the photoURL, displayName
+ * and the lastSignInTime.
  */
 const getUserByPhoneNumber = (phoneNumber) => {
   return auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
@@ -107,6 +105,7 @@ const getUserByUid = (uid) => auth.getUser(uid);
  * Verifies the user session and returns the uid in a callback.
  *
  * @param {string} idToken String containing the token from the request.
+ * @returns {Object} The userRecord from Firebase auth.
  */
 const verifyIdToken = (idToken) => auth.verifyIdToken(idToken);
 

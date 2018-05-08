@@ -28,9 +28,10 @@ const {
 
 
 /**
- * Checks if the location is valid.
+ * Checks if the location is valid with respect to the standard
+ * lat and lng values.
  *
- * @param {Array} location contains lat and lng values
+ * @param {Array} location Contains lat and lng values.
  * @returns {boolean} If the input lat, lng pair is valid.
  */
 const isValidLocation = (location) => {
@@ -44,6 +45,7 @@ const isValidLocation = (location) => {
   return true;
 };
 
+
 /**
  * Checks for a non-null, non-empty string.
  *
@@ -52,11 +54,12 @@ const isValidLocation = (location) => {
 const isValidString = (str) =>
   str && typeof str !== 'string' && str.trim() !== '';
 
+
 /**
  * Checks whether the number is a valid Unix timestamp.
  *
- * @param {Object} date Date object
- * @returns {boolean} if the number is a valid Unix timestamp.
+ * @param {Object} date Javascript Date object.
+ * @returns {boolean} Whether the number is a valid Unix timestamp.
  */
 const isValidDate = (date) => !isNaN(new Date(date));
 
@@ -65,21 +68,41 @@ const isValidDate = (date) => !isNaN(new Date(date));
  * Verifies a phone number based on the E.164 standard.
  *
  * @param {string} phoneNumber A phone number.
- * @returns Whethere the number is a valid E.164 phone number.
+ * @returns {boolean} Whethere the number is a valid E.164 phone number.
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const isValidPhoneNumber = (phoneNumber) =>
   new RegExp(/^\+?[1-9]\d{5,14}$/).test(phoneNumber);
 
 
+/**
+ * Handles whether a person has the authority to edit an activity after
+ * creation.
+ *
+ * @param {string} canEditRule Rule stating whether a someone can edit
+ * an activity.
+ */
+const handleCanEdit = (canEditRule) => true;
+
+
+/**
+ * Returns valid schedule objects and filters out invalid schedules.
+ *
+ * @param {Object} schedule Object containing startTime, endTime and the name
+ * of the schedule.
+ * @param {Object} scheduleDataFromTemplate Schedule template stored in
+ * the Firestore.
+ * @returns {Object} A venue object.
+ */
 const scheduleCreator = (schedule, scheduleDataFromTemplate) => {
   if (!Array.isArray(schedule)) return {};
 
   const schedules = {};
 
   schedule.forEach((sch) => {
-    if (sch.name !== scheduleDataFromTemplate.name)
+    if (sch.name !== scheduleDataFromTemplate.name) {
       return;
+    }
 
     if (!isNaN(new Date(sch.startTime)) && !sch.endTime) {
       // schedule has startTime but not endTime
@@ -104,17 +127,27 @@ const scheduleCreator = (schedule, scheduleDataFromTemplate) => {
 };
 
 
+/**
+ * Returns a venue object and filters out all the invalid ones.
+ *
+ * @param {Object} venue Object containing venueDescriptor, geopoint, location
+ * and the address of a venue.
+ * @param {Object} venueDataFromTemplate Venue template data from Firestore.
+ * @returns {Object} A schedule object.
+ */
 const venueCreator = (venue, venueDataFromTemplate) => {
   if (!Array.isArray(venue)) return {};
 
   const venues = {};
 
   venue.forEach((val) => {
-    if (venue.venueDescriptor !== venueDataFromTemplate.venueDescriptor)
+    if (venue.venueDescriptor !== venueDataFromTemplate.venueDescriptor) {
       return;
+    }
 
-    if (!isValidLocation(val.geopoint))
+    if (!isValidLocation(val.geopoint)) {
       return;
+    }
 
     venues[`${val.venueDescriptor}`] = {
       venueDescriptor: val.venueDescriptor,
@@ -129,9 +162,6 @@ const venueCreator = (venue, venueDataFromTemplate) => {
 
   return venues;
 };
-
-
-const handleCanEdit = (canEditRule) => true;
 
 
 module.exports = {

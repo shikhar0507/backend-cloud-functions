@@ -1,3 +1,7 @@
-# temporary-new-funcs
+# Cloud Functions for Firebase
 
-Temporary repository for the cloud functions based on the new database structure.
+This is the Repository for the cloud functions in Firebase.
+
+## License
+
+All code is licensed under the MIT LICENSE.

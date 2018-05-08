@@ -48,45 +48,11 @@ const {
 } = rootCollections;
 
 /**
+ * Copies the user docs from old profile to the new profile.
  *
- * @param {Object} conn
- * @param {Object} batch
+ * @param {Object} conn Contains Express Request and Response objects.
  */
-const commitBatch = (conn, batch) =>
-  batch.commit().then(() => sendResponse(conn, 202, 'ACCEPTED'))
-    .catch((error) => handleError(conn, error));
-
-/**
- *
- * @param {*} conn
- * @param {*} batch
- */
-const manageSubscriptions = (conn, batch) => {
-  profiles.doc(conn.requester.phoneNumber).collection('Subscriptions').get()
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        batch.set(profiles.doc(conn.req.body.phoneNumber)
-          .collection('Subscriptions').doc(doc.id), {
-            autoIncludeOnCreate: doc.get('autoIncludeOnCreate'),
-            office: doc.get('office'),
-            template: doc.get('template'),
-            timestamp: doc.get('timestamp'),
-          });
-
-        batch.delete(profiles.doc(conn.requester.phoneNumber)
-          .collection('Subscriptions').doc(doc.id));
-      });
-
-      commitBatch(conn, batch);
-      return;
-    }).catch((error) => handleError(conn, error));
-};
-
-/**
- *
- * @param {*} conn
- */
-const updateFirestoreWithNewUser = (conn) => {
+const updateFirestoreWithNewProfile = (conn) => {
   const batch = db.batch();
 
   batch.set(profiles.doc(conn.req.body.phoneNumber), {
@@ -101,39 +67,62 @@ const updateFirestoreWithNewUser = (conn) => {
       merge: true,
     });
 
-  profiles.doc(conn.requester.phoneNumber).collection('Activities').get()
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        batch.set(profiles.doc(conn.req.body.phoneNumber)
-          .collection('Activities').doc(doc.id), doc.data());
+  const personProfile = profiles.doc(conn.requester.phoneNumber);
 
-        batch.delete(profiles.doc(conn.requester.phoneNumber)
-          .collection('Activities').doc(doc.id));
+  Promise.all([
+    personProfile.collection('Activities').get(),
+    personProfile.collection('Subscriptions').get(),
+  ]).then((snapShotsArray) => {
+    snapShotsArray[0].forEach((doc) => {
+      /** copy all activities from old profile to the new one */
+      batch.set(profiles.doc(conn.req.body.phoneNumber)
+        .collection('Activities').doc(doc.id), doc.data());
 
-        batch.set(activities.doc(doc.id).collection('AssignTo')
-          .doc(conn.req.body.phoneNumber), {
-            canEdit: doc.get('canEdit'),
-          });
+      /** delete docs from old profile */
+      batch.delete(profiles.doc(conn.requester.phoneNumber)
+        .collection('Activities').doc(doc.id));
 
-        batch.delete(activities.doc(doc.id).collection('AssignTo')
-          .doc(conn.requester.phoneNumber));
-      });
+      /** create user doc in Activity/AssignTo for new number */
+      batch.set(activities.doc(doc.id).collection('AssignTo')
+        .doc(conn.req.body.phoneNumber), {
+          canEdit: doc.get('canEdit'),
+        });
 
-      manageSubscriptions(conn, batch);
-      return;
-    }).catch((error) => handleError(conn, error));
+      /** delete old user doc in Activity/AssignTo */
+      batch.delete(activities.doc(doc.id).collection('AssignTo')
+        .doc(conn.requester.phoneNumber));
+    });
+
+    snapShotsArray[1].forEach((doc) => {
+      /** copy subscriptions to new profile */
+      batch.set(profiles.doc(conn.req.body.phoneNumber)
+        .collection('Subscriptions').doc(doc.id), {
+          autoIncludeOnCreate: doc.get('autoIncludeOnCreate'),
+          office: doc.get('office'),
+          template: doc.get('template'),
+          timestamp: doc.get('timestamp'),
+        });
+
+      /** delete subscriptions from old profile */
+      batch.delete(profiles.doc(conn.requester.phoneNumber)
+        .collection('Subscriptions').doc(doc.id));
+    });
+
+    return batch.commit();
+  }).then(() => sendResponse(conn, 200, 'ACCEPTED'))
+    .catch((error) => handleError(conn, error));
 };
 
+
 /**
+ * Updates the user's phone number in auth.
  *
- * @param {*} conn
+ * @param {Object} conn Contains Express Request and Response objects.
  */
 const updateUserProfile = (conn) => {
   updateUserPhoneNumberInAuth(conn.requester.uid,
-    conn.req.body.phoneNumber).then(() => {
-      updateFirestoreWithNewUser(conn);
-      return;
-    }).catch((error) => {
+    conn.req.body.phoneNumber).then(() => updateFirestoreWithNewProfile(conn))
+    .catch((error) => {
       if (error.code === 'auth/invalid-phone-number') {
         sendResponse(conn, 400, 'Phone number is not valid');
         return;
@@ -141,6 +130,7 @@ const updateUserProfile = (conn) => {
         sendResponse(conn, 409, 'CONFLICT');
         return;
       }
+
       console.log(error);
       sendResponse(conn, 400, 'BAD REQUEST');
     });
@@ -155,5 +145,6 @@ const app = (conn) => {
 
   updateUserProfile(conn);
 };
+
 
 module.exports = app;

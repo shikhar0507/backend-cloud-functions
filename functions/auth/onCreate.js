@@ -34,8 +34,15 @@ const {
   profiles,
 } = rootCollections;
 
-
-const app = (userRecord, context) => {
+/**
+ * Creates new docs inside Profile and Updates collection in Firestore for
+ * a newly signed up user.
+ *
+ * @param {Object} userRecord Object with user info.
+ * @param {Object} context Object with Event info.
+ * @returns {Promise} Batch object.
+ */
+const createUserUpdatesAndProfileCollections = (userRecord, context) => {
   const {
     uid,
     phoneNumber,
@@ -55,17 +62,20 @@ const app = (userRecord, context) => {
       merge: true,
     });
 
-  batch.set(profiles.doc(phoneNumber).collection('Subscriptions')
-    .doc(), {
-      office: 'personal',
-      template: 'plan',
-      autoIncludeOnCreate: [phoneNumber],
-      timestamp: serverTimestamp,
-    }, {
+  batch.set(profiles.doc(phoneNumber).collection('Subscriptions').doc(), {
+    office: 'personal',
+    template: 'plan',
+    autoIncludeOnCreate: [phoneNumber],
+    timestamp: serverTimestamp,
+  }, {
       merge: true,
     });
 
   return batch.commit().catch((error) => console.log(error));
+};
+
+const app = (userRecord, context) => {
+  return createUserUpdatesAndProfileCollections(userRecord, context);
 };
 
 

@@ -57,3 +57,5 @@ const app = (userRecord, context) => {
 
   return batch.commit().then((error) => console.log(error));
 };
+
+module.exports = app;

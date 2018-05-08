@@ -65,7 +65,9 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
       return;
     }
 
-    const method = conn.req.method;
+    /** probably will be required in multiple places */
+    conn.requester.profileData = doc.data();
+
     const action = parse(conn.req.url).path.split('/')[1];
 
     if (action === 'activities') {
@@ -156,8 +158,8 @@ const server = (req, res) => {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH',
     'Access-Control-Allow-Headers': control,
-    'Content-Type': 'application/json',
     'Access-Control-Max-Age': 2592000, // 30 days
+    'Content-Type': 'application/json',
   };
 
   if (req.method === 'OPTIONS') {
