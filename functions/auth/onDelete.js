@@ -46,16 +46,16 @@ const app = (userRecord, context) => {
   batch.set(profiles.doc(phoneNumber), {
     uid: null,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(updates.doc(uid), {
     phoneNumber: null,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
-  return batch.commit().then((error) => console.log(error));
+  return batch.commit().catch((error) => console.log(error));
 };
 
 module.exports = app;

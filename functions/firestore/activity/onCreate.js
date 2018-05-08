@@ -58,8 +58,9 @@ const {
  * Commits the batch and sends a response to the client.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} batch Firestore batch.
  */
-const commitBatch = (conn) => batch.commit()
+const commitBatch = (conn, batch) => batch.commit()
   .then((result) => sendResponse(conn, 201, 'CREATED'))
   .catch((error) => handleError(conn, error));
 
@@ -75,12 +76,11 @@ const handleAssignedUsers = (conn, result) => {
 
   /** create docs in AssignTo collection if assignTo is in the reqeuest body */
   conn.req.body.assignTo.forEach((val) => {
-    // TODO: add a method for verifying a valid mobile
     if (!isValidPhoneNumber(val)) return;
 
     conn.batch.set(activities.doc(conn.activityId)
       .collection('AssignTo').doc(val), {
-        // template --> result[0]
+        /** template --> result[0] */
         canEdit: handleCanEdit(result[0].get('canEditRule')),
       }, {
         merge: true,
@@ -97,14 +97,30 @@ const handleAssignedUsers = (conn, result) => {
   });
 
   Promise.all(promises).then((snapShots) => {
+    /** doc exists inside /Profile collection */
     snapShots.forEach((doc) => {
+      if (!doc.exists) {
+        /** create profiles for the phone numbers which are not
+         * in the database
+         * */
+        conn.batch.set(profiles.doc(doc.id), {
+          uid: null,
+        });
+
+        conn.batch.set(profiles.doc(doc.id).collection('Activities')
+          .doc(conn.activityId), {
+            canEdit: handleCanEdit(result[0].get('canEditRule')),
+            timestamp: new Date(conn.req.body.timestamp),
+          });
+      }
+
       if (doc.exists && doc.get('uid') !== null) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), conn.addendumData);
       }
     });
 
-    commitBatch(conn);
+    commitBatch(conn, conn.batch);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -164,6 +180,16 @@ const createActivity = (conn, result) => {
       });
   });
 
+  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
+    .collection('Activities').doc(conn.activityId), {
+      canEdit: handleCanEdit(result[0].get('canEditRule')),
+      timestamp: new Date(conn.req.body.timestamp),
+    });
+
+  /** addendum doc is always created for the requester */
+  conn.batch.set(updates.doc(conn.requester.uid)
+    .collection('Addendum').doc(), conn.addendumData);
+
   Array.isArray(conn.req.body.assignTo) ?
     handleAssignedUsers(conn, result) : commitBatch(conn);
 };
@@ -199,7 +225,7 @@ const fetchDocs = (conn) => {
       /** template from the request body and the office do not match
        * the requester probably doesn't have the permission to create
        * an activity with this template.
-      */
+       */
       sendResponse(conn, 403, 'FORBIDDEN');
       return;
     }

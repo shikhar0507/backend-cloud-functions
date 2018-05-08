@@ -64,11 +64,11 @@ const commitBatch = (conn) => conn.batch.commit()
 
 
 /**
-* Adds the activity root data to the batch.
-*
-* @param {Object} conn Contains Express' Request and Respone objects.
-* @param {Array} result Array of document data objects fetched from Firestore.
-*/
+ * Adds the activity root data to the batch.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Array} result Array of document data objects fetched from Firestore.
+ */
 const writeActivityRoot = (conn, result) => {
   if (!conn.req.body.description) conn.req.body.description = '';
 
@@ -89,8 +89,8 @@ const writeActivityRoot = (conn, result) => {
     ),
     timestamp: new Date(conn.req.body.timestamp),
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   conn.batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
@@ -109,6 +109,8 @@ const writeActivityRoot = (conn, result) => {
 const processAsigneesList = (conn, result) => {
   if (Array.isArray(conn.req.body.deleteAssignTo)) {
     conn.req.body.deleteAssignTo.forEach((val) => {
+      // TODO: this check is probably not necessary since adding docs
+      // which do not exist in the db don't throw an error.
       if (!isValidPhoneNumber(val)) return;
 
       conn.batch.delete(activities.doc(conn.req.body.activityId)
@@ -119,32 +121,26 @@ const processAsigneesList = (conn, result) => {
     });
   }
 
+  const promises = [];
+
   if (Array.isArray(conn.req.body.addAssignTo)) {
     conn.req.body.addAssignTo.forEach((val) => {
       if (!isValidPhoneNumber(val)) return;
 
-      conn.activityAssignees.push(val);
+      conn.batch.set(activities.doc(conn.req.body.activityId)
+        .collection('AssignTo').doc(val), {
+          canEdit: handleCanEdit(conn.templateData.canEditRule),
+        });
+
+      conn.batch.set(profiles.doc(val).collection('Activities')
+        .doc(conn.req.body.activityId), {
+          canEdit: handleCanEdit(conn.templateData.canEditRule),
+          timestamp: new Date(conn.req.body.timestamp),
+        });
+
+      promises.push(profiles.doc(val).get());
     });
   }
-
-  const promises = [];
-
-  conn.activityAssignees.forEach((val) => {
-    conn.batch.set(activities.doc(conn.req.body.activityId)
-      .collection('AssignTo').doc(val), {
-        canEdit: handleCanEdit(conn.templateData.canEditRule),
-      });
-
-    conn.batch.set(profiles.doc(val).collection('Activities')
-      .doc(conn.req.body.activityId), {
-        canEdit: handleCanEdit(conn.templateData.canEditRule),
-        timestamp: new Date(conn.req.body.timestamp),
-      });
-
-    promises.push(profiles.doc(val).get());
-  });
-
-  conn.usersWithAuth = [];
 
   Promise.all(promises).then((snapShots) => {
     snapShots.forEach((doc) => {
@@ -171,39 +167,37 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
   const assignToCollectionRef = activities.doc(conn.req.body.activityId)
     .collection('AssignTo').get();
 
-  Promise.all([templateRef, assignToCollectionRef]).then((resultingData) => {
-    conn.templateData = resultingData[0].data();
+  Promise.all([templateRef, assignToCollectionRef])
+    .then((docsFromFirestore) => {
+      conn.templateData = docsFromFirestore[0].data();
 
-    if (!resultingData[1].empty) {
       conn.activityAssignees = [];
-      // list of assignees inside the activity is not empty
-      resultingData[1].forEach((doc) => {
-        conn.activityAssignees.push(doc.id);
-      });
-    }
 
-    conn.addendumData = {
-      activityId: conn.req.body.activityId,
-      user: conn.requester.displayName || conn.requester.phoneNumber,
-      comment: `${conn.requester.displayName || conn.requester.phoneNumber}
+      docsFromFirestore[1].forEach((doc) =>
+        conn.activityAssignees.push(doc.id));
+
+      conn.addendumData = {
+        activityId: conn.req.body.activityId,
+        user: conn.requester.displayName || conn.requester.phoneNumber,
+        comment: `${conn.requester.displayName || conn.requester.phoneNumber}
         updated ${conn.templateData.name}`,
-      location: getGeopointObject(
-        conn.req.body.geopoint[0],
-        conn.req.body.geopoint[1]
-      ),
-      timestamp: new Date(conn.req.body.timestamp),
-    };
+        location: getGeopointObject(
+          conn.req.body.geopoint[0],
+          conn.req.body.geopoint[1]
+        ),
+        timestamp: new Date(conn.req.body.timestamp),
+      };
 
-    conn.batch = db.batch();
+      conn.batch = db.batch();
 
-    if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
-      processAsigneesList(conn, result);
-    } else {
+      if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
+        processAsigneesList(conn, result);
+        return;
+      }
+
       writeActivityRoot(conn, result);
-    }
-
-    return;
-  }).catch((error) => handleError(conn, error));
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -242,6 +236,7 @@ const verifyPermissionToUpdateActivity = (conn) => {
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists) {
         // TODO: forbidden or bad request???
+        console.log('doc doesnt exist');
         sendResponse(conn, 403, 'FORBIDDEN');
         return;
       }
@@ -260,9 +255,10 @@ const app = (conn) => {
     isValidString(conn.req.body.activityId) &&
     isValidLocation(conn.req.body.geopoint)) {
     verifyPermissionToUpdateActivity(conn);
-  } else {
-    sendResponse(conn, 400, 'BAD REQUEST');
+    return;
   }
+
+  sendResponse(conn, 400, 'BAD REQUEST');
 };
 
 module.exports = app;

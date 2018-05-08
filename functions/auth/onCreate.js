@@ -34,6 +34,7 @@ const {
   profiles,
 } = rootCollections;
 
+
 /**
  * Creates new docs inside Profile and Updates collection in Firestore for
  * a newly signed up user.
@@ -53,14 +54,14 @@ const createUserUpdatesAndProfileCollections = (userRecord, context) => {
   batch.set(updates.doc(uid), {
     phoneNumber,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(profiles.doc(phoneNumber), {
     uid,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(profiles.doc(phoneNumber).collection('Subscriptions').doc(), {
     office: 'personal',
@@ -68,11 +69,12 @@ const createUserUpdatesAndProfileCollections = (userRecord, context) => {
     autoIncludeOnCreate: [phoneNumber],
     timestamp: serverTimestamp,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   return batch.commit().catch((error) => console.log(error));
 };
+
 
 const app = (userRecord, context) => {
   return createUserUpdatesAndProfileCollections(userRecord, context);

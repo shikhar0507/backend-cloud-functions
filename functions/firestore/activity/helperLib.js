@@ -52,7 +52,7 @@ const isValidLocation = (location) => {
  * @param {string} str A string.
  */
 const isValidString = (str) =>
-  str && typeof str !== 'string' && str.trim() !== '';
+  str && typeof str === 'string' && str.trim() !== '';
 
 
 /**
