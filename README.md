@@ -81,7 +81,7 @@ This is the repository for cloud functions running on Firebase Growthfile backen
 
 There is a single endpoint which you can hit with your client in order to make a request.
 
-    ```/app```
+```/app```
 
 On this endpoint, you have resources which you can target depending on which type of request you want to make.
 
@@ -153,7 +153,7 @@ These are the resources at the `/app/...` endpoint where you can target your req
 
 * **timestamp**: A non-null non-empty `Number` (`long` for Java) containing the Unix timestamp denoting the time at which you hit the endpoint.
 
-* **geopoint**: A non-empty array containing the latitude and longitude of the client at the time of creating the activity.
+* **geopoint**: A non-empty array containing the latitude and longitude of the client at the time hitting the endpoint.
 
     * form: [`lat`, `lng`]
 
@@ -165,22 +165,25 @@ These are the resources at the `/app/...` endpoint where you can target your req
 
 * **description**: A nullable string (can be empty) with the description of the activity.
 
-* **venue**: A nullable array containing the venues you want to add to the activity.
+* **venue**: A nullable (skippable) array containing the venues you want to add to the activity.
 
     * Venue can be an empty array.
 
-    * Only `venueDescriptor`, `location`, `geopoint`, and `address` fields are accepted. Anything else will be discarded.
+    * Only `venueDescriptor`, `location`, `geopoint`, and `address` fields are accepted. Anything else will be ignored.
 
-    * A venue object without the `geopoint` field will be ignored. All other fields are optional.
+    * A venue without the `geopoint` field will be ignored.
 
-* **schedule**: A nullable array containing the schedules you want to add to the activity.
+    * A venue without `venueDescriptor` with the value `where` will be ignored.
+
+* **schedule**: A nullable (skippable) array containing the schedules you want to add to the activity.
 
     * Can be an empty array.
 
     * Only `name`, `startTime`, and `endTime` fields are accepted. Anything else will be ignored.
 
-    * A schedule without `startTime` will be ignored. All other fields are optional.
+    * A schedule without `startTime` will be ignored.
 
+    * A schedule without `name` with the value `when` will be ignored.
 
 ### `/activities`
 
@@ -233,7 +236,7 @@ All operations related to creating, updating and adding a comment to an activity
 }
 ```
 
-**MINIMUM REQUEST BODY**: Fields which are required in every request
+**MINIMUM REQUEST BODY**:
 
 ```json
 {
