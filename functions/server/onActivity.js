@@ -27,12 +27,10 @@ const onCreate = require('../firestore/activity/onCreate');
 const onUpdate = require('../firestore/activity/onUpdate');
 const onComment = require('../firestore/activity/onComment');
 
-
 const {
   handleError,
   sendResponse,
 } = require('../admin/utils');
-
 
 const {
   parse,
@@ -91,5 +89,6 @@ const activitiesHandler = (conn) => {
 
   sendResponse(conn, 400, 'BAD REQUEST');
 };
+
 
 module.exports = activitiesHandler;

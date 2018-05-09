@@ -42,13 +42,12 @@ const {
   now,
 } = require('../admin/utils');
 
+const onService = require('./onService');
+const onActivity = require('./onActivity');
+
 const {
   profiles,
 } = rootCollections;
-
-
-const onService = require('./onService');
-const onActivity = require('./onActivity');
 
 
 /**

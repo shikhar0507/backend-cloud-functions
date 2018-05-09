@@ -89,8 +89,8 @@ const writeActivityRoot = (conn, result) => {
     ),
     timestamp: new Date(conn.req.body.timestamp),
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
   conn.batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
