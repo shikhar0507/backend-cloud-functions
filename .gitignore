@@ -64,7 +64,7 @@ typings/
 
 # Google account key
 serviceAccountKey.json
-*json
+*.json
 
 # visual studio settings
 .vscode/
