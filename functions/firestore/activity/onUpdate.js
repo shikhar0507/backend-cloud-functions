@@ -73,11 +73,10 @@ const writeActivityRoot = (conn, result) => {
   if (!conn.req.body.description) conn.req.body.description = '';
 
   conn.batch.set(activities.doc(conn.req.body.activityId), {
-    title: conn.req.body.title || result[0].data().title,
+    title: conn.req.body.title || result[0].get('title'),
     description: conn.req.body.description ||
-      result[0].data().description,
-    status: result[1].data().ACTIVITYSTATUS
-      .indexOf(conn.req.body.status) > -1 ?
+      result[0].get('description'),
+    status: result[1].get(ACTIVITYSTATUS).indexOf(conn.req.body.status) > -1 ?
       conn.req.body.status : result[0].get('status'),
     schedule: scheduleCreator(
       conn.req.body.schedule,
@@ -107,12 +106,12 @@ const writeActivityRoot = (conn, result) => {
  * @param {Array} result Array of document data objects fetched from Firestore.
  */
 const processAsigneesList = (conn, result) => {
-  if (Array.isArray(conn.req.body.deleteAssignTo)) {
-    conn.req.body.deleteAssignTo.forEach((val) => {
+  if (Array.isArray(conn.req.body.unassign)) {
+    conn.req.body.unassign.forEach((val) => {
       if (!isValidPhoneNumber(val)) return;
 
       conn.batch.delete(activities.doc(conn.req.body.activityId)
-        .collection('AssignTo').doc(val));
+        .collection('Assignees').doc(val));
 
       conn.batch.delete(profiles.doc(val).collection('Activities')
         .doc(conn.req.body.activityId));
@@ -143,10 +142,9 @@ const processAsigneesList = (conn, result) => {
   Promise.all(promises).then((snapShots) => {
     snapShots.forEach((doc) => {
       /** uid shouldn't be undefined or null and the doc shouldn't be of
-       * a person who has been unassigned from the activity
+       * a person who has been unassigned from the activity during the update
        */
-      if (doc.get('uid') && conn.req.body.deleteAssignTo
-        .indexOf(doc.id) === -1) {
+      if (doc.get('uid') && conn.req.body.unassign.indexOf(doc.id) === -1) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), conn.addendumData);
       }
