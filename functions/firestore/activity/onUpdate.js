@@ -145,7 +145,8 @@ const processAsigneesList = (conn, result) => {
       /** uid shouldn't be undefined or null and the doc shouldn't be of
        * a person who has been unassigned from the activity
        */
-      if (doc.get('uid') && conn.req.body.deleteAssignTo.indexOf(doc) === -1) {
+      if (doc.get('uid') && conn.req.body.deleteAssignTo
+        .indexOf(doc.id) === -1) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), conn.addendumData);
       }
