@@ -135,13 +135,14 @@ const checkCommentPermission = (conn) => {
 
 
 const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp) &&
-    isValidLocation(conn.req.body.geopoint) &&
-    isValidString(conn.req.body.activityId)) {
-    checkCommentPermission(conn);
-  } else {
+  if (!isValidDate(conn.req.body.timestamp)
+    || !isValidLocation(conn.req.body.geopoint)
+    || !isValidString(conn.req.body.activityId)) {
     sendResponse(conn, 400, 'BAD REQUEST');
+    return;
   }
+
+  checkCommentPermission(conn);
 };
 
 

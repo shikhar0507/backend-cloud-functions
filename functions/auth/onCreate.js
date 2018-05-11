@@ -76,9 +76,8 @@ const createUserUpdatesAndProfileCollections = (userRecord, context) => {
 };
 
 
-const app = (userRecord, context) => {
-  return createUserUpdatesAndProfileCollections(userRecord, context);
-};
+const app = (userRecord, context) =>
+  createUserUpdatesAndProfileCollections(userRecord, context);
 
 
 module.exports = app;

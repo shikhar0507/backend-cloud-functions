@@ -35,7 +35,15 @@ const {
 } = rootCollections;
 
 
-const app = (userRecord, context) => {
+/**
+ * Sets the uid and phoneNumber fields of the user being deleted to null inside
+ * the Updates and Profiles collection respectively.
+ *
+ * @param {Object} userRecord Object with user info.
+ * @param {Object} context Object with Event info.
+ * @returns {Promise} Batch object.
+ */
+const deleteUser = (userRecord, context) => {
   const {
     uid,
     phoneNumber,
@@ -57,5 +65,9 @@ const app = (userRecord, context) => {
 
   return batch.commit().catch((error) => console.log(error));
 };
+
+
+const app = (userRecord, context) => deleteUser(userRecord, context);
+
 
 module.exports = app;

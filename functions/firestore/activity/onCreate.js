@@ -237,14 +237,15 @@ const fetchDocs = (conn) => {
 
 
 const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp) &&
-    isValidString(conn.req.body.template) &&
-    isValidString(conn.req.body.office) &&
-    isValidLocation(conn.req.body.geopoint)) {
-    fetchDocs(conn);
-  } else {
+  if (!isValidDate(conn.req.body.timestamp)
+    || !isValidString(conn.req.body.template)
+    || !isValidString(conn.req.body.office)
+    || !isValidLocation(conn.req.body.geopoint)) {
     sendResponse(conn, 400, 'BAD REQUEST');
+    return;
   }
+
+  fetchDocs(conn);
 };
 
 module.exports = app;

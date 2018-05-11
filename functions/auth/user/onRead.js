@@ -35,6 +35,10 @@ const {
   getUserByPhoneNumber,
 } = users;
 
+const {
+  isValidPhoneNumber,
+} = require('../../firestore/activity/helperLib');
+
 
 /**
  * Fetches the userRecords for all the phone numbers from the request param.
@@ -45,8 +49,11 @@ const app = (conn) => {
   const promises = [];
 
   if (Array.isArray(conn.req.query.q)) {
-    conn.req.query.q.forEach((val) =>
-      promises.push(getUserByPhoneNumber(val)));
+    conn.req.query.q.forEach((val) => {
+      if (!isValidPhoneNumber(val)) return;
+
+      promises.push(getUserByPhoneNumber(val))
+    });
   } else {
     promises.push(getUserByPhoneNumber(conn.req.query.q));
   }

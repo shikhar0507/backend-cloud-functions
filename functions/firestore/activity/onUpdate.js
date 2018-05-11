@@ -109,10 +109,6 @@ const writeActivityRoot = (conn, result) => {
 const processAsigneesList = (conn, result) => {
   if (Array.isArray(conn.req.body.deleteAssignTo)) {
     conn.req.body.deleteAssignTo.forEach((val) => {
-      // TODO: this check is probably not necessary since adding docs
-      // which do not exist in the db don't throw an error.
-      if (!isValidPhoneNumber(val)) return;
-
       conn.batch.delete(activities.doc(conn.req.body.activityId)
         .collection('AssignTo').doc(val));
 
@@ -251,14 +247,14 @@ const verifyPermissionToUpdateActivity = (conn) => {
 
 
 const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp) &&
-    isValidString(conn.req.body.activityId) &&
-    isValidLocation(conn.req.body.geopoint)) {
-    verifyPermissionToUpdateActivity(conn);
+  if (!isValidDate(conn.req.body.timestamp)
+    || !isValidString(conn.req.body.activityId)
+    || !isValidLocation(conn.req.body.geopoint)) {
+    sendResponse(conn, 400, 'BAD REQUEST');
     return;
   }
 
-  sendResponse(conn, 400, 'BAD REQUEST');
+  verifyPermissionToUpdateActivity(conn);
 };
 
 module.exports = app;

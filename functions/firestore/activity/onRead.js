@@ -50,7 +50,7 @@ const {
  * to and adds that data to the jsonResult object.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
- * @param {*Object} jsonResult The fetched data from Firestore.
+ * @param {Object} jsonResult The fetched data from Firestore.
  */
 const fetchSubscriptions = (conn, jsonResult) => {
   Promise.all(conn.templatesList).then((snapShot) => {
@@ -89,8 +89,9 @@ const getTemplates = (conn, jsonResult) => {
       conn.templatesList = [];
 
       snapShot.forEach((doc) => {
-        conn.templatesList
-          .push(activityTemplates.doc(doc.get('template')).get());
+        conn.templatesList.push(
+          activityTemplates.doc(doc.get('template')).get()
+        );
       });
 
       fetchSubscriptions(conn, jsonResult);
@@ -103,7 +104,7 @@ const getTemplates = (conn, jsonResult) => {
  * Fetches the assignees of the activities.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
- * @param {*Object} jsonResult The fetched data from Firestore.
+ * @param {Object} jsonResult The fetched data from Firestore.
  */
 const fetchAssignToUsers = (conn, jsonResult) => {
   Promise.all(conn.assignToFetchPromises).then((snapShotsArray) => {
@@ -126,7 +127,7 @@ const fetchAssignToUsers = (conn, jsonResult) => {
  * Fetches all the activity data in which the user is an assignee of.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
- * @param {*Object} jsonResult The fetched data from Firestore.
+ * @param {Object} jsonResult The fetched data from Firestore.
  */
 const fetchActivities = (conn, jsonResult) => {
   Promise.all(conn.activityFetchPromises).then((snapShot) => {
@@ -155,7 +156,7 @@ const fetchActivities = (conn, jsonResult) => {
  * Fetches the list of activities from the user profile.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
- * @param {*Object} jsonResult The fetched data from Firestore.
+ * @param {Object} jsonResult The fetched data from Firestore.
  */
 const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.activityFetchPromises = [];
