@@ -207,7 +207,7 @@ All operations related to creating, updating and adding a comment to an activity
     "geopoint": [80.2333, 30.3434],
     "title": "Title of the activity",
     "description": "Description of the activity.",
-    "assignTo": [
+    "assignees": [
         "+919090909090",
         "+919019191919"
     ],
@@ -256,7 +256,7 @@ Of course, you can always send a request to `.../update` with the activity-id of
 
 * **officeId**: A non-null non-empty string containing the id of the office with which you want to create the activity with.
 
-* **assignTo**: A nullable array containing the phone numbers of all the participants of the activity.
+* **assignees**: A nullable array containing the phone numbers of all the participants of the activity.
 
     * Only valid phone numbers will be added to the activity in creation.
 
@@ -304,8 +304,8 @@ This request will only add an addendum to the activity with the updated time and
     "title": "new updated title",
     "description": "new changed description",
     "status": "a valid status",
-    "deleteAssignTo": ["+919090909909"],
-    "addAssignTo": ["+918080808080"],
+    "unassign": ["+919090909909"],
+    "assign": ["+918080808080"],
     "venue": [{
         "venueDescriptor": "where",
         "location": "location name",
@@ -335,11 +335,11 @@ This request will only add an addendum to the activity with the updated time and
 
 * **activityId**: A non-null non-empty string containing the id of the activity which you want to update.
 
-* **addAssignTo**: A nullable array containing the phone numbers of all the participants of the activity.
+* **assign**: A nullable array containing the phone numbers of all the participants of the activity.
 
     * Only valid phone numbers will be added to the activity in creation.
 
-* **deleteAssignTo**: A nullable array containing the phone numbers of all the participants of the activity which you want to remove.
+* **unassign**: A nullable array containing the phone numbers of all the participants of the activity which you want to remove.
 
 **POSSIBLE RESPONSES**
 
@@ -437,7 +437,7 @@ This request will only add an addendum to the activity with the updated time and
             "title": "new updated title",
             "description": "new changed description",
             "office": "personal",
-            "assignTo": [
+            "assignees": [
                 "+918111111111",
                 "+919999999999",
             ]
@@ -452,7 +452,7 @@ This request will only add an addendum to the activity with the updated time and
             "title": "Title of the activity",
             "description": "Description of the activity.",
             "office": "personal",
-            "assignTo": [
+            "assignees": [
                 "+918000000000",
                 "+918111111111",
                 "+919999999999",

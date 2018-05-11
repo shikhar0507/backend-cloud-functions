@@ -106,15 +106,15 @@ const getTemplates = (conn, jsonResult) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
  */
-const fetchAssignToUsers = (conn, jsonResult) => {
-  Promise.all(conn.assignToFetchPromises).then((snapShotsArray) => {
+const fetchAssignees = (conn, jsonResult) => {
+  Promise.all(conn.assigneeFetchPromises).then((snapShotsArray) => {
     let activityObj;
 
     snapShotsArray.forEach((snapShot) => {
       snapShot.forEach((doc) => {
         // activity-id --> doc.ref.path.split('/')[1]
         activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
-        activityObj.assignTo.push(doc.id);
+        activityObj.assignees.push(doc.id);
       });
     });
 
@@ -133,6 +133,7 @@ const fetchAssignToUsers = (conn, jsonResult) => {
 const fetchActivities = (conn, jsonResult) => {
   Promise.all(conn.activityFetchPromises).then((snapShot) => {
     let activityObj;
+
     snapShot.forEach((doc) => {
       // activity-id --> doc.ref.path.split('/')[1]
       activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
@@ -145,10 +146,10 @@ const fetchActivities = (conn, jsonResult) => {
       activityObj.title = doc.get('title');
       activityObj.description = doc.get('description');
       activityObj.office = doc.get('office');
-      activityObj.assignTo = [];
+      activityObj.assignees = [];
     });
 
-    fetchAssignToUsers(conn, jsonResult);
+    fetchAssignees(conn, jsonResult);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -162,15 +163,15 @@ const fetchActivities = (conn, jsonResult) => {
  */
 const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.activityFetchPromises = [];
-  conn.assignToFetchPromises = [];
+  conn.assigneeFetchPromises = [];
 
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .where('timestamp', '>=', new Date(conn.req.query.from)).get()
     .then((snapShot) => {
       snapShot.forEach((doc) => {
         conn.activityFetchPromises.push(activities.doc(doc.id).get());
-        conn.assignToFetchPromises
-          .push(activities.doc(doc.id).collection('AssignTo').get());
+        conn.assigneeFetchPromises
+          .push(activities.doc(doc.id).collection('Assignees').get());
 
         jsonResult.activities[doc.id] = {};
         jsonResult.activities[doc.id]['canEdit'] = doc.get('canEdit');
@@ -194,7 +195,7 @@ const readAddendumsByQuery = (conn) => {
   jsonResult.activities = {};
   jsonResult.templates = {};
   jsonResult.from = new Date(conn.req.query.from);
-  jsonResult.upto = jsonResult.from; /** when  no docs are found */
+  jsonResult.upto = jsonResult.from; /** when  no docs are found in Addendum */
 
   updates.doc(conn.requester.uid).collection('Addendum')
     .where('timestamp', '>=', new Date(conn.req.query.from))

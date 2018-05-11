@@ -74,12 +74,12 @@ const commitBatch = (conn, batch) => batch.commit()
 const handleAssignedUsers = (conn, result) => {
   const promises = [];
 
-  /** create docs in AssignTo collection if assignTo is in the reqeuest body */
-  conn.req.body.assignTo.forEach((val) => {
+  /** create docs in Assignees collection if assignees is in the reqeuest body */
+  conn.req.body.assignees.forEach((val) => {
     if (!isValidPhoneNumber(val)) return;
 
     conn.batch.set(activities.doc(conn.activityId)
-      .collection('AssignTo').doc(val), {
+      .collection('Assignees').doc(val), {
         /** template --> result[0] */
         canEdit: handleCanEdit(result[0].get('canEditRule')),
       }, {
@@ -175,7 +175,7 @@ const createActivity = (conn, result) => {
    */
   result[1].docs[0].get('include').forEach((val) => {
     conn.batch.set(activities.doc(conn.activityId)
-      .collection('AssignTo').doc(val), {
+      .collection('Assignees').doc(val), {
         canEdit: handleCanEdit(result[0].get('canEditRule')),
       });
   });
@@ -190,7 +190,7 @@ const createActivity = (conn, result) => {
   conn.batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
 
-  Array.isArray(conn.req.body.assignTo) ?
+  Array.isArray(conn.req.body.assignees) ?
     handleAssignedUsers(conn, result) : commitBatch(conn);
 };
 

@@ -99,7 +99,7 @@ const setAddendumForAssignees = (conn) => {
 const constructActivityAssigneesPromises = (conn) => {
   conn.assigneeDocPromises = [];
 
-  activities.doc(conn.req.body.activityId).collection('AssignTo').get()
+  activities.doc(conn.req.body.activityId).collection('Assignees').get()
     .then((snapShot) => {
       snapShot.forEach((doc) =>
         conn.assigneeDocPromises.push(profiles.doc(doc.id).get()));
