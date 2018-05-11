@@ -52,7 +52,7 @@ const app = (conn) => {
     conn.req.query.q.forEach((val) => {
       if (!isValidPhoneNumber(val)) return;
 
-      promises.push(getUserByPhoneNumber(val))
+      promises.push(getUserByPhoneNumber(val));
     });
   } else {
     promises.push(getUserByPhoneNumber(conn.req.query.q));

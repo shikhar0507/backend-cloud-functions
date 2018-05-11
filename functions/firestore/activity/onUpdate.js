@@ -109,6 +109,8 @@ const writeActivityRoot = (conn, result) => {
 const processAsigneesList = (conn, result) => {
   if (Array.isArray(conn.req.body.deleteAssignTo)) {
     conn.req.body.deleteAssignTo.forEach((val) => {
+      if (!isValidPhoneNumber(val)) return;
+
       conn.batch.delete(activities.doc(conn.req.body.activityId)
         .collection('AssignTo').doc(val));
 
@@ -140,7 +142,10 @@ const processAsigneesList = (conn, result) => {
 
   Promise.all(promises).then((snapShots) => {
     snapShots.forEach((doc) => {
-      if (doc.exists && doc.get('uid') !== null) {
+      /** uid shouldn't be undefined or null and the doc shouldn't be of
+       * a person who has been unassigned from the activity
+       */
+      if (doc.get('uid') && conn.req.body.deleteAssignTo.indexOf(doc) === -1) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), conn.addendumData);
       }

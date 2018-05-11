@@ -123,6 +123,7 @@ const fetchAssignToUsers = (conn, jsonResult) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
 /**
  * Fetches all the activity data in which the user is an assignee of.
  *
@@ -152,6 +153,7 @@ const fetchActivities = (conn, jsonResult) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
 /**
  * Fetches the list of activities from the user profile.
  *
@@ -179,6 +181,7 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
     }).catch((error) => handleError(conn, error));
 };
 
+
 /**
  * Fetches the addendums and adds them to a a temporary object in memory.
  *
@@ -190,8 +193,8 @@ const readAddendumsByQuery = (conn) => {
   jsonResult.addendum = [];
   jsonResult.activities = {};
   jsonResult.templates = {};
-  jsonResult.from = {};
-  jsonResult.upto = {};
+  jsonResult.from = new Date(conn.req.query.from);
+  jsonResult.upto = jsonResult.from; /** when  no docs are found */
 
   updates.doc(conn.requester.uid).collection('Addendum')
     .where('timestamp', '>=', new Date(conn.req.query.from))
@@ -208,9 +211,6 @@ const readAddendumsByQuery = (conn) => {
           user: doc.get('user'),
         });
       }); // forEach end
-
-      jsonResult.from = new Date(conn.req.query.from);
-      jsonResult.upto = jsonResult.from;
 
       if (!snapShot.empty) {
         jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');

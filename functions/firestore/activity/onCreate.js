@@ -169,11 +169,11 @@ const createActivity = (conn, result) => {
   };
 
   /**
-   * the autoIncludeOnCreate array will always have the requeter's
+   * the include array will always have the requeter's
    * phone number, so we don't need to explictly add their number
    * in order to add them to a batch.
    */
-  result[1].docs[0].get('autoIncludeOnCreate').forEach((val) => {
+  result[1].docs[0].get('include').forEach((val) => {
     conn.batch.set(activities.doc(conn.activityId)
       .collection('AssignTo').doc(val), {
         canEdit: handleCanEdit(result[0].get('canEditRule')),
@@ -237,15 +237,15 @@ const fetchDocs = (conn) => {
 
 
 const app = (conn) => {
-  if (!isValidDate(conn.req.body.timestamp)
-    || !isValidString(conn.req.body.template)
-    || !isValidString(conn.req.body.office)
-    || !isValidLocation(conn.req.body.geopoint)) {
-    sendResponse(conn, 400, 'BAD REQUEST');
+  if (isValidDate(conn.req.body.timestamp)
+    && isValidString(conn.req.body.template)
+    && isValidString(conn.req.body.office)
+    && isValidLocation(conn.req.body.geopoint)) {
+    fetchDocs(conn);
     return;
   }
 
-  fetchDocs(conn);
+  sendResponse(conn, 400, 'BAD REQUEST');
 };
 
 module.exports = app;
