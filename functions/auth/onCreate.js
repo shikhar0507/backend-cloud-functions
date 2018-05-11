@@ -66,7 +66,9 @@ const createUserUpdatesAndProfileCollections = (userRecord, context) => {
   batch.set(profiles.doc(phoneNumber).collection('Subscriptions').doc(), {
     office: 'personal',
     template: 'plan',
-    autoIncludeOnCreate: [phoneNumber],
+    include: [phoneNumber],
+    activityId: null, /** auth event isn't an activity */
+    status: 'CONFIRMED',
     timestamp: serverTimestamp,
   }, {
       merge: true,
