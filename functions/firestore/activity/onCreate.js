@@ -74,7 +74,9 @@ const commitBatch = (conn, batch) => batch.commit()
 const handleAssignedUsers = (conn, result) => {
   const promises = [];
 
-  /** create docs in Assignees collection if assignees is in the reqeuest body */
+  /** create docs in Assignees collection if assignees is in the
+   * reqeuest body
+   * */
   conn.req.body.assignees.forEach((val) => {
     if (!isValidPhoneNumber(val)) return;
 

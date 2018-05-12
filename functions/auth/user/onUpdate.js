@@ -39,6 +39,7 @@ const {
 
 const {
   updateUserPhoneNumberInAuth,
+  revokeRefreshTokens,
 } = users;
 
 const {
@@ -69,11 +70,11 @@ const updateFirestoreWithNewProfile = (conn) => {
       merge: true,
     });
 
-  const personProfile = profiles.doc(conn.requester.phoneNumber);
+  const userProfile = profiles.doc(conn.requester.phoneNumber);
 
   Promise.all([
-    personProfile.collection('Activities').get(),
-    personProfile.collection('Subscriptions').get(),
+    userProfile.collection('Activities').get(),
+    userProfile.collection('Subscriptions').get(),
   ]).then((snapShotsArray) => {
     snapShotsArray[0].forEach((doc) => {
       /** copy all activities from old profile to the new one */
@@ -122,8 +123,15 @@ const updateFirestoreWithNewProfile = (conn) => {
  * @param {Object} conn Contains Express Request and Response objects.
  */
 const updateUserProfile = (conn) => {
-  updateUserPhoneNumberInAuth(conn.requester.uid,
-    conn.req.body.phoneNumber).then(() => updateFirestoreWithNewProfile(conn))
+  Promise.all([
+    /** signs out the user by revoking their session token */
+    revokeRefreshTokens(conn.requester.uid),
+
+    /** updates their phone number in auth and copies their
+     * data from the old profile to the new one
+     */
+    updateUserPhoneNumberInAuth(conn.requester.uid, conn.req.body.phoneNumber),
+  ]).then((result) => updateFirestoreWithNewProfile(conn))
     .catch((error) => {
       if (error.code === 'auth/invalid-phone-number') {
         sendResponse(conn, 400, 'Phone number is not valid');
@@ -143,7 +151,8 @@ const updateUserProfile = (conn) => {
 
 const app = (conn) => {
   if (!isValidPhoneNumber(conn.req.body.phoneNumber)) {
-    sendResponse(conn, 400, 'Phone number is not valid');
+    sendResponse(conn, 400, `The phone number in the request does not
+    confirm to the E.164 standard.`);
     return;
   }
 

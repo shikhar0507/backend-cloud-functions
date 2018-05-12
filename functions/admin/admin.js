@@ -24,8 +24,14 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const serviceAccountKey = require('./serviceAccountKey.json');
 
-admin.initializeApp();
+// admin.initializeApp();
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccountKey),
+  databaseURL: 'https://growthfilev2-0.firebaseio.com',
+});
 
 const auth = admin.auth();
 const db = admin.firestore();
@@ -64,12 +70,21 @@ const createUserInAuth = (userRecord) => auth.createUser(userRecord);
 
 
 /**
+ * Revokes the token of the a user in order to end their login session.
+ *
+ * @param {string} uid A 30 character alpha-numeric string.
+ * @see https://firebase.google.com/docs/auth/admin/manage-sessions#revoke_refresh_token
+ */
+const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
+
+
+/**
  * Returns the user record object using the phone number.
  *
  * @param {string} phoneNumber Firebase user's phone number.
- * @see https://en.wikipedia.org/wiki/E.164
  * @returns {Object} A userRecord containing the photoURL, displayName
  * and the lastSignInTime.
+ * @see https://en.wikipedia.org/wiki/E.164
  */
 const getUserByPhoneNumber = (phoneNumber) => {
   return auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
@@ -106,9 +121,11 @@ const getUserByUid = (uid) => auth.getUser(uid);
  * Verifies the user session and returns the uid in a callback.
  *
  * @param {string} idToken String containing the token from the request.
+ * @param {boolean} checkRevoked Checks if the token has been revoked recently.
  * @returns {Object} The userRecord from Firebase auth.
  */
-const verifyIdToken = (idToken) => auth.verifyIdToken(idToken);
+const verifyIdToken = (idToken, checkRevoked) =>
+  auth.verifyIdToken(idToken, checkRevoked);
 
 
 const users = {
@@ -117,6 +134,7 @@ const users = {
   verifyIdToken,
   createUserInAuth,
   updateUserPhoneNumberInAuth,
+  revokeRefreshTokens,
 };
 
 

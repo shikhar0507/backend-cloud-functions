@@ -114,6 +114,7 @@ const getCreatorsPhoneNumber = (conn) => {
   });
 };
 
+
 /**
  * Verifies the id-token form the Authorization header in the request.
  *
@@ -132,24 +133,34 @@ const checkAuthorizationToken = (conn) => {
     return;
   }
 
-  verifyIdToken(authorization.split('Bearer ')[1]).then((decodedIdToken) => {
-    conn.requester = {};
-    conn.requester.uid = decodedIdToken.uid;
+  /** checks if the token was revoked recently when set to true */
+  const checkRevoked = true;
 
-    getCreatorsPhoneNumber(conn);
-    return;
-  }).catch((error) => {
-    console.log(error);
-    sendResponse(conn, 403, 'FORBIDDEN');
-  });
+  verifyIdToken(authorization.split('Bearer ')[1], checkRevoked)
+    .then((decodedIdToken) => {
+      conn.requester = {};
+      conn.requester.uid = decodedIdToken.uid;
+
+      getCreatorsPhoneNumber(conn);
+      return;
+    }).catch((error) => {
+      if (error.code === 'auth/id-token-revoked') {
+        sendResponse(conn, 401, `The idToken was revoked recently.
+        Please reauthenticate.`);
+        return;
+      }
+
+      console.log(error);
+      sendResponse(conn, 403, 'FORBIDDEN');
+    });
 };
 
 
 /**
  * Handles the routing for the request from the clients.
  *
- * @param {*} req Express Request object.
- * @param {*} res Express Response object.
+ * @param {Object} req Express Request object.
+ * @param {Object} res Express Response object.
  */
 const server = (req, res) => {
   const conn = {
@@ -159,6 +170,7 @@ const server = (req, res) => {
 
   // preflight headers
   const control = 'X-Requested-With, Authorization, Content-Type, Accept';
+
   conn.headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH',
