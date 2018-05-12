@@ -26,8 +26,6 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const serviceAccountKey = require('./serviceAccountKey.json');
 
-// admin.initializeApp();
-
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccountKey),
   databaseURL: 'https://growthfilev2-0.firebaseio.com',
@@ -102,8 +100,11 @@ const getUserByPhoneNumber = (phoneNumber) => {
         [phoneNumber]: {},
       };
     }
+
     console.log(error);
-    return null;
+    return {
+      [phoneNumber]: {},
+    };
   });
 };
 

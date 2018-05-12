@@ -163,6 +163,10 @@ const venueCreator = (venue, venueDataFromTemplate) => {
   return venues;
 };
 
+const attachmentCreator = (attachment, template) => {
+  return attachment;
+};
+
 
 module.exports = {
   scheduleCreator,
@@ -172,4 +176,5 @@ module.exports = {
   isValidDate,
   isValidLocation,
   isValidPhoneNumber,
+  attachmentCreator,
 };
