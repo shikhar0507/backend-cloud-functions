@@ -88,8 +88,8 @@ const writeActivityRoot = (conn, result) => {
     ),
     timestamp: new Date(conn.req.body.timestamp),
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   conn.batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
@@ -120,12 +120,12 @@ const processAsigneesList = (conn, result) => {
 
   const promises = [];
 
-  if (Array.isArray(conn.req.body.addAssignTo)) {
-    conn.req.body.addAssignTo.forEach((val) => {
+  if (Array.isArray(conn.req.body.assign)) {
+    conn.req.body.assign.forEach((val) => {
       if (!isValidPhoneNumber(val)) return;
 
       conn.batch.set(activities.doc(conn.req.body.activityId)
-        .collection('AssignTo').doc(val), {
+        .collection('Assignees').doc(val), {
           canEdit: handleCanEdit(conn.templateData.canEditRule),
         });
 
@@ -188,8 +188,6 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
         timestamp: new Date(conn.req.body.timestamp),
       };
 
-      conn.batch = db.batch();
-
       if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
         processAsigneesList(conn, result);
         return;
@@ -200,6 +198,74 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
     }).catch((error) => handleError(conn, error));
 };
 
+
+const updateSubscription = (conn, result) => {
+  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
+    .collection('Subscriptions').doc(), {
+      include: [conn.requester.phoneNumber],
+      timestamp: new Date(conn.req.body.timestamp),
+      template: result[1].docs[0].id,
+      office: conn.req.body.office,
+      activityId: conn.req.body.activityId,
+      status: 'CONFIRMED', // ??
+    });
+
+  getTemplateAndAssigneesFromActivity(conn, result);
+};
+
+
+const updateCompany = (conn, result) => {
+  conn.batch.set(offices.doc(conn.req.body.office), {
+    activityId: conn.req.body.activityId,
+    attachment: attachmentCreator(conn.req.body.attachment),
+  });
+
+  getTemplateAndAssigneesFromActivity(conn, result);
+};
+
+
+const addNewEntityInOffice = (conn, result) => {
+  conn.officeChildDocRef = office.doc(conn.req.body.office)
+    .collection(conn.req.body.template).doc();
+
+  conn.batch.set(conn.officeChildDocRef, {
+    attachment: attachmentCreator(conn.req.body.attachment),
+    schedule: scheduleCreator(conn.req.body.schedule),
+    venue: venueCreator(conn.req.body.venue),
+    activityId: conn.req.body.activityId,
+    status: 'PENDING',
+  });
+
+  getTemplateAndAssigneesFromActivity(conn, result);
+};
+
+
+const processRequestType = (conn, result) => {
+  /** reference of the batch and the activity instance will be used
+   * multiple times throughout the activity creation */
+  conn.batch = db.batch();
+
+  if (conn.req.body.office === 'personal' &&
+    conn.req.body.template === 'plan') {
+    sendResponse(conn, 401, 'Editing of the personal \'office\'' +
+      'or the plan \'template\' is not allowed.');
+    return;
+  }
+
+  if (conn.req.body.office !== 'personal') {
+    if (conn.req.body.template === 'subscription') {
+      updateSubscription(conn, result);
+      return;
+    }
+
+    if (conn.req.body.template === 'company') {
+      updateCompany(conn, result);
+      return;
+    }
+  }
+
+  addNewEntityInOffice(conn, result);
+};
 
 /**
  * Fetches the activtiy root and enum/activitytemplates doc.
@@ -217,7 +283,13 @@ const fetchDocs = (conn) => {
       return;
     }
 
+    if (conn.req.body.template || conn.req.body.office) {
+      processRequestType(conn, result);
+      return;
+    }
+
     getTemplateAndAssigneesFromActivity(conn, result);
+
     return;
   }).catch((error) => {
     console.log(error);
@@ -241,8 +313,8 @@ const verifyPermissionToUpdateActivity = (conn) => {
         return;
       }
 
-      // along with having a document in /AssignTo collection,
-      // the user must also have the permission to edit the activity.
+      /** along with having a document in /AssignTo collection,
+       * the user must also have the permission to edit the activity */
       doc.get('canEdit') ? fetchDocs(conn) :
         sendResponse(conn, 403, 'FORBIDDEN');
       return;
@@ -251,9 +323,9 @@ const verifyPermissionToUpdateActivity = (conn) => {
 
 
 const app = (conn) => {
-  if (!isValidDate(conn.req.body.timestamp)
-    || !isValidString(conn.req.body.activityId)
-    || !isValidLocation(conn.req.body.geopoint)) {
+  if (!isValidDate(conn.req.body.timestamp) ||
+    !isValidString(conn.req.body.activityId) ||
+    !isValidLocation(conn.req.body.geopoint)) {
     sendResponse(conn, 400, 'BAD REQUEST');
     return;
   }

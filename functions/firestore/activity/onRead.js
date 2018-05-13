@@ -61,7 +61,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
           template: doc.get('defaultTitle'),
-          comment: doc.get('comment'),
+          // comment: doc.get('comment'),
           status: doc.get('statusOnCreate'),
         };
       }
