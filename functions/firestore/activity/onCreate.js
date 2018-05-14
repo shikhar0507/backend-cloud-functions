@@ -75,7 +75,9 @@ const commitBatch = (conn, batch) => batch.commit()
 const handleAssignedUsers = (conn, result) => {
   const promises = [];
 
-  /** create docs in Assignees collection if assignees is in the
+
+  /**
+   * create docs in Assignees collection if assignees is in the
    * reqeuest body
    * */
   conn.req.body.assignees.forEach((val) => {
@@ -89,7 +91,7 @@ const handleAssignedUsers = (conn, result) => {
         merge: true,
       });
 
-    /** phone numbers exist uniquely in the db */
+    /** phone numbers exist uniquely in the Profiles root collection */
     promises.push(profiles.doc(val).get());
 
     conn.batch.set(profiles.doc(val).collection('Activities')
@@ -128,6 +130,7 @@ const handleAssignedUsers = (conn, result) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
 /**
  * Adds activity root doc to batch.
  *
@@ -151,9 +154,12 @@ const createActivity = (conn, result) => {
       result[0].get('venue')
     ),
     timestamp: new Date(conn.req.body.timestamp),
-    attachment: attachmentCreator(conn.req.body.attachment),
+    attachment: attachmentCreator(
+      conn.req.body.attachment,
+      result[0].docs[0].data()
+    ),
     /** docRef is the the doc which the activity handled in the request */
-    docRef: conn.officeChildDocRef,
+    docRef: conn.docRef,
   });
 
   conn.addendumData = {
@@ -196,24 +202,31 @@ const createActivity = (conn, result) => {
 
 
 const createSubscription = (conn, result) => {
-  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
-    .collection('Subscriptions').doc(), {
-      include: [conn.requester.phoneNumber],
-      timestamp: new Date(conn.req.body.timestamp),
-      template: result[1].docs[0].id,
-      office: conn.req.body.office,
-      activityId: conn.activityRef.id,
-      status: 'CONFIRMED', // ??
-    });
+  conn.docRef = profiles.doc(conn.requester.phoneNumber)
+    .collection('Subscriptions').doc();
+
+  conn.batch.set(conn.docRef, {
+    include: [conn.requester.phoneNumber],
+    timestamp: new Date(conn.req.body.timestamp),
+    template: result[1].docs[0].id,
+    office: conn.req.body.office,
+    activityId: conn.activityRef.id,
+    status: 'CONFIRMED', // ??
+  });
 
   createActivity(conn, result);
 };
 
 
 const createCompany = (conn, result) => {
-  conn.batch.set(offices.doc(conn.req.body.office), {
+  conn.docRef = offices.doc(conn.req.body.office);
+
+  conn.batch.set(conn.docRef, {
     activityId: conn.activityRef.id,
-    attachment: attachmentCreator(conn.req.body.attachment),
+    attachment: attachmentCreator(
+      conn.req.body.attachment,
+      result[0].docs[0].data()
+    ),
   });
 
   createActivity(conn, result);
@@ -221,11 +234,14 @@ const createCompany = (conn, result) => {
 
 
 const addNewEntityInOffice = (conn, result) => {
-  conn.officeChildDocRef = office.doc(conn.req.body.office)
+  conn.docRef = office.doc(conn.req.body.office)
     .collection(conn.req.body.template).doc();
 
-  conn.batch.set(conn.officeChildDocRef, {
-    attachment: attachmentCreator(conn.req.body.attachment),
+  conn.batch.set(conn.docRef, {
+    attachment: attachmentCreator(
+      conn.req.body.attachment,
+      result[0].docs[0].data()
+    ),
     schedule: scheduleCreator(conn.req.body.schedule),
     venue: venueCreator(conn.req.body.venue),
     activityId: conn.activityRef.id,
@@ -238,7 +254,8 @@ const addNewEntityInOffice = (conn, result) => {
 
 const processRequestType = (conn, result) => {
   /** reference of the batch and the activity instance will be used
-   * multiple times throughout the activity creation */
+   * multiple times throughout the activity creation
+   */
   conn.activityRef = activities.doc();
   conn.batch = db.batch();
 
@@ -270,26 +287,26 @@ const processRequestType = (conn, result) => {
  * @param {Object} conn Object containing Express Request and Response objects.
  */
 const fetchDocs = (conn) => {
-  const promises = [];
-
-  promises.push(activityTemplates.where('name', '==', conn.req.body.template)
-    .orderBy('name', 'asc').limit(1).get());
-  promises.push(profiles.doc(conn.requester.phoneNumber)
-    .collection('Subscriptions').where('template', '==', conn.req.body.template)
-    .limit(1).get());
+  const promises = [
+    activityTemplates.where('name', '==', conn.req.body.template)
+      .limit(1).get(),
+    profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
+      .where('template', '==', conn.req.body.template).limit(1).get(),
+  ];
 
   Promise.all(promises).then((result) => {
     /** template sent in the request body is not a doesn't exist */
     if (!result[0].docs[0].exists) {
-      sendResponse(conn, 400, `Template:
-      ${conn.req.body.template} does not exist`);
+      sendResponse(conn, 400, 'Template: ' + conn.req.body.template
+        + ' does not exist');
       return;
     }
 
     if (!result[1].docs[0].exists
-      /** checks if the requester has subscription to this activity */
+      /** checks if the requester has subscription of this activity */
       && result[1].docs[0].get('office') !== conn.req.body.office) {
-      /** template from the request body and the office do not match
+      /**
+       * template from the request body and the office do not match so,
        * the requester probably doesn't have the permission to create
        * an activity with this template.
        */

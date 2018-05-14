@@ -33,7 +33,9 @@
     "eslint-plugin-jsdoc": "^3.6.3",
     "eslint-plugin-promise": "^3.7.0",
     "eslint-plugin-security": "^1.4.0",
-    "husky": "^0.14.3"
+    "firebase-functions-test": "^0.1.2",
+    "husky": "^0.14.3",
+    "mocha": "^5.1.1"
   },
   "private": true
 }

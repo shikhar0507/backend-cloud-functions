@@ -47,6 +47,7 @@ const {
   profiles,
 } = rootCollections;
 
+
 /**
  * Commits the batch to the Firestore and send a response to the client
  * about the result.
@@ -57,6 +58,7 @@ const commitBatch = (conn) => batch.commit()
   .then((data) => sendResponse(conn, 201, 'CREATED'))
   .catch((error) => handleError(conn, error));
 
+
 /**
  * Adds addendum doc for each assignee of the activity for which the comment
  * is being created.
@@ -66,10 +68,11 @@ const commitBatch = (conn) => batch.commit()
 const setAddendumForAssignees = (conn) => {
   Promise.all(conn.assigneeDocPromises).then((snapShots) => {
     snapShots.forEach((doc) => {
-      /** doc.exists check is redundant here because we are fetching
-      documents from firestore itself.
-      but for the sake of consistency with the create and update
-      function, I'm keeping it here */
+      /**
+       * doc.exists check is redundant here because we are fetching documents
+       * from firestore itself. but for the sake of consistency with the create
+       * and update function, I'm keeping it here
+       * */
       if (doc.exists && doc.get('uid') !== null) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), {
@@ -89,6 +92,7 @@ const setAddendumForAssignees = (conn) => {
     return;
   }).catch((error) => handleError(conn, error));
 };
+
 
 /**
  * Fetches all the docs from AssignTo subcollection in the activity
@@ -110,6 +114,7 @@ const constructActivityAssigneesPromises = (conn) => {
       return;
     }).catch((error) => handleError(conn, error));
 };
+
 
 /**
  * Checks whether the user is an assignee to an activity which they
@@ -141,6 +146,7 @@ const app = (conn) => {
     checkCommentPermission(conn);
     return;
   }
+
   sendResponse(conn, 400, 'BAD REQUEST');
 };
 

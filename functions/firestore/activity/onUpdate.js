@@ -87,9 +87,14 @@ const writeActivityRoot = (conn, result) => {
       conn.templateData.venue
     ),
     timestamp: new Date(conn.req.body.timestamp),
+    /** docRef is the the doc which the activity handled in the request */
+    docRef: conn.docRef,
   }, {
-    merge: true,
-  });
+      /** in some requests, the data coming from the request will be
+       * partial, so we are merging instead of overwriting
+       */
+      merge: true,
+    });
 
   conn.batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
@@ -200,21 +205,27 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
 
 
 const updateSubscription = (conn, result) => {
-  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
-    .collection('Subscriptions').doc(), {
-      include: [conn.requester.phoneNumber],
-      timestamp: new Date(conn.req.body.timestamp),
-      template: result[1].docs[0].id,
-      office: conn.req.body.office,
-      activityId: conn.req.body.activityId,
-      status: 'CONFIRMED', // ??
-    });
+  /** docRef is required in the activity root */
+  conn.docRef = profiles.doc(conn.requester.phoneNumber)
+    .collection('Subscriptions').doc();
+
+  conn.batch.set(conn.docRef, {
+    include: [conn.requester.phoneNumber],
+    timestamp: new Date(conn.req.body.timestamp),
+    template: result[1].docs[0].id,
+    office: conn.req.body.office,
+    activityId: conn.req.body.activityId,
+    status: 'CONFIRMED', // ??
+  });
 
   getTemplateAndAssigneesFromActivity(conn, result);
 };
 
 
 const updateCompany = (conn, result) => {
+  /** docRef is required in the activity root */
+  conn.docRef = offices.doc(conn.req.body.office);
+
   conn.batch.set(offices.doc(conn.req.body.office), {
     activityId: conn.req.body.activityId,
     attachment: attachmentCreator(conn.req.body.attachment),
@@ -225,10 +236,11 @@ const updateCompany = (conn, result) => {
 
 
 const addNewEntityInOffice = (conn, result) => {
-  conn.officeChildDocRef = office.doc(conn.req.body.office)
+  /** docRef is required in the activity root */
+  conn.docRef = office.doc(conn.req.body.office)
     .collection(conn.req.body.template).doc();
 
-  conn.batch.set(conn.officeChildDocRef, {
+  conn.batch.set(conn.docRef, {
     attachment: attachmentCreator(conn.req.body.attachment),
     schedule: scheduleCreator(conn.req.body.schedule),
     venue: venueCreator(conn.req.body.venue),
@@ -241,14 +253,14 @@ const addNewEntityInOffice = (conn, result) => {
 
 
 const processRequestType = (conn, result) => {
-  /** reference of the batch and the activity instance will be used
+  /** reference of the batch instance will be used
    * multiple times throughout the activity creation */
   conn.batch = db.batch();
 
   if (conn.req.body.office === 'personal' &&
     conn.req.body.template === 'plan') {
-    sendResponse(conn, 401, 'Editing of the personal \'office\'' +
-      'or the plan \'template\' is not allowed.');
+    sendResponse(conn, 401, 'You can\'t edit the Office: personal' +
+      'and the Template: plan');
     return;
   }
 
@@ -273,12 +285,16 @@ const processRequestType = (conn, result) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const fetchDocs = (conn) => {
-  const activityRef = activities.doc(conn.req.body.activityId).get();
-  const activityStatusRef = enums.doc('ACTIVITYSTATUS').get();
+  const promises = [
+    activities.doc(conn.req.body.activityId).get(),
+    enums.doc('ACTIVITYSTATUS').get(),
+  ];
 
-  Promise.all([activityRef, activityStatusRef]).then((result) => {
+  Promise.all(promises).then((result) => {
     if (!result[0].exists) {
-      // the activity-id in the request doesn't exist in the db
+      /** the activity with the id from the request body doesn't
+       * exist in the Firestore
+       * */
       sendResponse(conn, 409, 'CONFLICT');
       return;
     }
@@ -289,7 +305,6 @@ const fetchDocs = (conn) => {
     }
 
     getTemplateAndAssigneesFromActivity(conn, result);
-
     return;
   }).catch((error) => {
     console.log(error);
@@ -306,17 +321,15 @@ const fetchDocs = (conn) => {
 const verifyPermissionToUpdateActivity = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
-      if (!doc.exists) {
-        // TODO: forbidden or bad request???
-        console.log('doc doesnt exist');
+      if (!doc.exists || !doc.get('canEdit')) {
+        /** along with having a document in /Assignees sub-collection,
+         * the user must also have the permission to edit the activity
+         */
         sendResponse(conn, 403, 'FORBIDDEN');
         return;
       }
 
-      /** along with having a document in /AssignTo collection,
-       * the user must also have the permission to edit the activity */
-      doc.get('canEdit') ? fetchDocs(conn) :
-        sendResponse(conn, 403, 'FORBIDDEN');
+      fetchDocs(conn);
       return;
     }).catch((error) => handleError(conn, error));
 };

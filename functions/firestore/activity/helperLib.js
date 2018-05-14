@@ -163,7 +163,7 @@ const venueCreator = (venue, venueDataFromTemplate) => {
   return venues;
 };
 
-const attachmentCreator = (attachment, template) => {
+const attachmentCreator = (attachment, templateData) => {
   return attachment;
 };
 

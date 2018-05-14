@@ -123,7 +123,7 @@ const getCreatorsPhoneNumber = (conn) => {
 const checkAuthorizationToken = (conn) => {
   const authorization = conn.req.headers.authorization;
 
-  if (!authorization) {
+  if (typeof authorization !== 'string') {
     sendResponse(conn, 401, 'UNAUTHORIZED');
     return;
   }
@@ -138,6 +138,7 @@ const checkAuthorizationToken = (conn) => {
 
   verifyIdToken(authorization.split('Bearer ')[1], checkRevoked)
     .then((decodedIdToken) => {
+      /** object to identify the requester throughout the flow */
       conn.requester = {};
       conn.requester.uid = decodedIdToken.uid;
 
@@ -168,24 +169,24 @@ const server = (req, res) => {
     res,
   };
 
-  // preflight headers
-  const control = 'X-Requested-With, Authorization, Content-Type, Accept';
-
   conn.headers = {
-    'Access-Control-Allow-Origin': '*',
+    /** preflight headers */
+    'Access-Control-Allow-Origin': req.get('origin'),
     'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH',
-    'Access-Control-Allow-Headers': control,
+    'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,'
+      + 'Content-Type, Accept',
     'Access-Control-Max-Age': 2592000, // 30 days
     'Content-Type': 'application/json',
   };
 
   if (req.method === 'OPTIONS') {
-    sendResponse(conn, 200, 'OK');
+    /** no content to send in 204 response */
+    sendResponse(conn, 204, '');
     return;
   }
 
-  if (req.method === 'GET' || req.method === 'POST' ||
-    req.method === 'PATCH') {
+  /** allowed methods */
+  if (['POST', 'GET', 'PATCH'].indexOf(req.method) > -1) {
     checkAuthorizationToken(conn);
     return;
   }
