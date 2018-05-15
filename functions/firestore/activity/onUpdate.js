@@ -42,6 +42,7 @@ const {
   isValidPhoneNumber,
   scheduleCreator,
   venueCreator,
+  attachmentCreator,
 } = require('./helperLib');
 
 const {
@@ -50,6 +51,7 @@ const {
   updates,
   enums,
   activityTemplates,
+  offices,
 } = rootCollections;
 
 
@@ -88,13 +90,13 @@ const writeActivityRoot = (conn, result) => {
     ),
     timestamp: new Date(conn.req.body.timestamp),
     /** docRef is the the doc which the activity handled in the request */
-    docRef: conn.docRef,
+    docRef: conn.docRef || null,
   }, {
-      /** in some requests, the data coming from the request will be
-       * partial, so we are merging instead of overwriting
-       */
-      merge: true,
-    });
+    /** in some requests, the data coming from the request will be
+     * partial, so we are merging instead of overwriting
+     */
+    merge: true,
+  });
 
   conn.batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
@@ -146,7 +148,13 @@ const processAsigneesList = (conn, result) => {
 
   Promise.all(promises).then((snapShots) => {
     snapShots.forEach((doc) => {
-      /** uid shouldn't be undefined or null and the doc shouldn't be of
+      /** if the request does't have unassign array, then the updates
+       * will be written for all the assignees and the users who have
+       * been added in this update
+       */
+      if (!conn.req.body.unassign) conn.req.body.unassign = [];
+
+      /** uid shouldn't be null (or undefined) and the doc shouldn't be of
        * a person who has been unassigned from the activity during the update
        */
       if (doc.get('uid') && conn.req.body.unassign.indexOf(doc.id) === -1) {
@@ -168,39 +176,39 @@ const processAsigneesList = (conn, result) => {
  * @param {Array} result Array of document data objects fetched from Firestore.
  */
 const getTemplateAndAssigneesFromActivity = (conn, result) => {
-  const templateRef = activityTemplates.doc(result[0].get('template')).get();
-  const assignToCollectionRef = activities.doc(conn.req.body.activityId)
-    .collection('AssignTo').get();
+  const promises = [
+    activityTemplates.doc(result[0].get('template')).get(),
+    activities.doc(conn.req.body.activityId).collection('AssignTo').get(),
+  ];
 
-  Promise.all([templateRef, assignToCollectionRef])
-    .then((docsFromFirestore) => {
-      conn.templateData = docsFromFirestore[0].data();
+  Promise.all(promises).then((docsFromFirestore) => {
+    conn.templateData = docsFromFirestore[0].data();
 
-      conn.activityAssignees = [];
+    conn.activityAssignees = [];
 
-      docsFromFirestore[1].forEach((doc) =>
-        conn.activityAssignees.push(doc.id));
+    docsFromFirestore[1].forEach((doc) =>
+      conn.activityAssignees.push(doc.id));
 
-      conn.addendumData = {
-        activityId: conn.req.body.activityId,
-        user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: `${conn.requester.displayName || conn.requester.phoneNumber}
+    conn.addendumData = {
+      activityId: conn.req.body.activityId,
+      user: conn.requester.displayName || conn.requester.phoneNumber,
+      comment: `${conn.requester.displayName || conn.requester.phoneNumber}
         updated ${conn.templateData.name}`,
-        location: getGeopointObject(
-          conn.req.body.geopoint[0],
-          conn.req.body.geopoint[1]
-        ),
-        timestamp: new Date(conn.req.body.timestamp),
-      };
+      location: getGeopointObject(
+        conn.req.body.geopoint[0],
+        conn.req.body.geopoint[1]
+      ),
+      timestamp: new Date(conn.req.body.timestamp),
+    };
 
-      if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
-        processAsigneesList(conn, result);
-        return;
-      }
-
-      writeActivityRoot(conn, result);
+    if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
+      processAsigneesList(conn, result);
       return;
-    }).catch((error) => handleError(conn, error));
+    }
+
+    writeActivityRoot(conn, result);
+    return;
+  }).catch((error) => handleError(conn, error));
 };
 
 
@@ -253,18 +261,27 @@ const addNewEntityInOffice = (conn, result) => {
 
 
 const processRequestType = (conn, result) => {
-  /** reference of the batch instance will be used
-   * multiple times throughout the activity creation */
+  /** reference of the batch instance will be used multiple times throughout
+   * the update flow
+   */
   conn.batch = db.batch();
 
-  if (conn.req.body.office === 'personal' &&
-    conn.req.body.template === 'plan') {
-    sendResponse(conn, 401, 'You can\'t edit the Office: personal' +
-      'and the Template: plan');
-    return;
-  }
+  if (conn.req.body.office === 'personal') {
+    if (conn.req.body.template === 'plan') {
+      sendResponse(conn, 401, 'You can\'t edit the Office: personal' +
+        'and the Template: plan');
+      return;
+    }
 
-  if (conn.req.body.office !== 'personal') {
+    sendResponse(conn, 400, 'The template and office do not have' +
+      ' a valid combination');
+  } else {
+    /** if office is not personal */
+    if (!result[2].exists) {
+      /** office does not exist with the name from the request */
+      sendResponse(conn, 400, 'An office with this name does not exist');
+      return;
+    }
     if (conn.req.body.template === 'subscription') {
       updateSubscription(conn, result);
       return;
@@ -274,9 +291,9 @@ const processRequestType = (conn, result) => {
       updateCompany(conn, result);
       return;
     }
-  }
 
-  addNewEntityInOffice(conn, result);
+    addNewEntityInOffice(conn, result);
+  }
 };
 
 /**
@@ -288,6 +305,7 @@ const fetchDocs = (conn) => {
   const promises = [
     activities.doc(conn.req.body.activityId).get(),
     enums.doc('ACTIVITYSTATUS').get(),
+    offices.doc(conn.req.body.office).get(),
   ];
 
   Promise.all(promises).then((result) => {
@@ -295,7 +313,8 @@ const fetchDocs = (conn) => {
       /** the activity with the id from the request body doesn't
        * exist in the Firestore
        * */
-      sendResponse(conn, 409, 'CONFLICT');
+      sendResponse(conn, 409, 'An activity with the id: ' +
+        conn.req.body.activityId + ' does not exist');
       return;
     }
 
@@ -322,10 +341,11 @@ const verifyPermissionToUpdateActivity = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists || !doc.get('canEdit')) {
-        /** along with having a document in /Assignees sub-collection,
+        /** along with having a document in Assignees sub-collection,
          * the user must also have the permission to edit the activity
          */
-        sendResponse(conn, 403, 'FORBIDDEN');
+        sendResponse(conn, 403, 'You are either not an assignee' +
+          ' if this activity or do not have the edit rights');
         return;
       }
 
@@ -336,14 +356,15 @@ const verifyPermissionToUpdateActivity = (conn) => {
 
 
 const app = (conn) => {
-  if (!isValidDate(conn.req.body.timestamp) ||
-    !isValidString(conn.req.body.activityId) ||
-    !isValidLocation(conn.req.body.geopoint)) {
-    sendResponse(conn, 400, 'BAD REQUEST');
+  if (isValidDate(conn.req.body.timestamp) &&
+    isValidString(conn.req.body.activityId) &&
+    isValidLocation(conn.req.body.geopoint)) {
+    verifyPermissionToUpdateActivity(conn);
     return;
   }
 
-  verifyPermissionToUpdateActivity(conn);
+  sendResponse(conn, 400, 'The request is not valid. Make sure that the' +
+    ' request body has all the fields with valid values.');
 };
 
 module.exports = app;

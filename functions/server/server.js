@@ -100,7 +100,7 @@ const getCreatorsPhoneNumber = (conn) => {
     if (userRecord.disabled) {
       /** not allowing anyone with a disabled account to
        do anything with their account. **/
-      sendResponse(conn, 403, 'FORBIDDEN');
+      sendResponse(conn, 403, 'Your account is disabled');
       return;
     }
 
@@ -146,8 +146,8 @@ const checkAuthorizationToken = (conn) => {
       return;
     }).catch((error) => {
       if (error.code === 'auth/id-token-revoked') {
-        sendResponse(conn, 401, `The idToken was revoked recently.
-        Please reauthenticate.`);
+        sendResponse(conn, 401, 'The idToken was revoked recently' +
+          ' Please reauthenticate.');
         return;
       }
 
@@ -171,10 +171,10 @@ const server = (req, res) => {
 
   conn.headers = {
     /** preflight headers */
-    'Access-Control-Allow-Origin': req.get('origin'),
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH',
-    'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,'
-      + 'Content-Type, Accept',
+    'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
+      'Content-Type, Accept',
     'Access-Control-Max-Age': 2592000, // 30 days
     'Content-Type': 'application/json',
   };

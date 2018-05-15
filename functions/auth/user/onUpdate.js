@@ -61,58 +61,58 @@ const updateFirestoreWithNewProfile = (conn) => {
   batch.set(profiles.doc(conn.req.body.phoneNumber), {
     uid: conn.requester.uid,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(updates.doc(conn.requester.uid), {
     phoneNumber: conn.req.body.phoneNumber,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   const userProfile = profiles.doc(conn.requester.phoneNumber);
 
   Promise.all([
-    userProfile.collection('Activities').get(),
-    userProfile.collection('Subscriptions').get(),
-  ]).then((snapShotsArray) => {
-    snapShotsArray[0].forEach((doc) => {
-      /** copy all activities from old profile to the new one */
-      batch.set(profiles.doc(conn.req.body.phoneNumber)
-        .collection('Activities').doc(doc.id), doc.data());
+      userProfile.collection('Activities').get(),
+      userProfile.collection('Subscriptions').get(),
+    ]).then((docsArray) => {
+      docsArray[0].forEach((doc) => {
+        /** copy all activities from old profile to the new one */
+        batch.set(profiles.doc(conn.req.body.phoneNumber)
+          .collection('Activities').doc(doc.id), doc.data());
 
-      /** delete docs from old profile */
-      batch.delete(profiles.doc(conn.requester.phoneNumber)
-        .collection('Activities').doc(doc.id));
+        /** delete docs from old profile */
+        batch.delete(profiles.doc(conn.requester.phoneNumber)
+          .collection('Activities').doc(doc.id));
 
-      /** create user doc in Activity/AssignTo for the new number */
-      batch.set(activities.doc(doc.id).collection('AssignTo')
-        .doc(conn.req.body.phoneNumber), {
-          canEdit: doc.get('canEdit'),
-        });
+        /** create user doc in Activity/AssignTo for the new number */
+        batch.set(activities.doc(doc.id).collection('Assignees')
+          .doc(conn.req.body.phoneNumber), {
+            canEdit: doc.get('canEdit'),
+          });
 
-      /** delete old user doc in Activity/AssignTo */
-      batch.delete(activities.doc(doc.id).collection('AssignTo')
-        .doc(conn.requester.phoneNumber));
-    });
+        /** delete old user doc in Activity/AssignTo */
+        batch.delete(activities.doc(doc.id).collection('Assignees')
+          .doc(conn.requester.phoneNumber));
+      });
 
-    snapShotsArray[1].forEach((doc) => {
-      /** copy subscriptions to new profile */
-      batch.set(profiles.doc(conn.req.body.phoneNumber)
-        .collection('Subscriptions').doc(doc.id), {
-          autoIncludeOnCreate: doc.get('autoIncludeOnCreate'),
-          office: doc.get('office'),
-          template: doc.get('template'),
-          timestamp: doc.get('timestamp'),
-        });
+      docsArray[1].forEach((doc) => {
+        /** copy subscriptions to new profile */
+        batch.set(profiles.doc(conn.req.body.phoneNumber)
+          .collection('Subscriptions').doc(doc.id), {
+            include: doc.get('include'),
+            office: doc.get('office'),
+            template: doc.get('template'),
+            timestamp: doc.get('timestamp'),
+          });
 
-      /** delete subscriptions from old profile */
-      batch.delete(profiles.doc(conn.requester.phoneNumber)
-        .collection('Subscriptions').doc(doc.id));
-    });
+        /** delete subscriptions from old profile */
+        batch.delete(profiles.doc(conn.requester.phoneNumber)
+          .collection('Subscriptions').doc(doc.id));
+      });
 
-    return batch.commit();
-  }).then(() => sendResponse(conn, 200, 'ACCEPTED'))
+      return batch.commit();
+    }).then(() => sendResponse(conn, 200, 'ACCEPTED'))
     .catch((error) => handleError(conn, error));
 };
 
@@ -124,14 +124,17 @@ const updateFirestoreWithNewProfile = (conn) => {
  */
 const updateUserProfile = (conn) => {
   Promise.all([
-    /** signs out the user by revoking their session token */
-    revokeRefreshTokens(conn.requester.uid),
+      /** signs out the user by revoking their session token */
+      revokeRefreshTokens(conn.requester.uid),
 
-    /** updates their phone number in auth and copies their
-     * data from the old profile to the new one
-     */
-    updateUserPhoneNumberInAuth(conn.requester.uid, conn.req.body.phoneNumber),
-  ]).then((result) => updateFirestoreWithNewProfile(conn))
+      /** updates their phone number in auth and copies their
+       * data from the old profile to the new one
+       */
+      updateUserPhoneNumberInAuth(
+        conn.requester.uid,
+        conn.req.body.phoneNumber
+      ),
+    ]).then((result) => updateFirestoreWithNewProfile(conn))
     .catch((error) => {
       if (error.code === 'auth/invalid-phone-number') {
         sendResponse(conn, 400, 'Phone number is not valid');
@@ -139,7 +142,7 @@ const updateUserProfile = (conn) => {
       }
 
       if (error.code === 'auth/phone-number-already-exists') {
-        sendResponse(conn, 409, 'CONFLICT');
+        sendResponse(conn, 409, 'Phone number is already in use');
         return;
       }
 

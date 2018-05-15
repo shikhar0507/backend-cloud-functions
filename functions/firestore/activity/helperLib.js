@@ -163,10 +163,29 @@ const venueCreator = (venue, venueDataFromTemplate) => {
   return venues;
 };
 
-const attachmentCreator = (attachment, templateData) => {
-  return attachment;
-};
 
+/**
+ * Filters out all the non-essential keys from the attachment object in the
+ * request body using the attachment object from the template.
+ *
+ * @param {Object} attachment Attachment from the request.body.attachment.
+ * @param {Object} attachmentFromTemplate Attachment object from the template
+ * in the firestore.
+ */
+const attachmentCreator = (attachment, attachmentFromTemplate) => {
+  if (!attachmentFromTemplate) return null;
+
+  const filteredAttachment = {};
+
+  Object.keys(attachmentFromTemplate).forEach((key) => {
+    if (typeof attachmentFromTemplate[key] === typeof attachment[key]) {
+      /** filter for each of the value type and their key of the object */
+      filteredAttachment[key] = attachment[key];
+    }
+  });
+
+  return filteredAttachment;
+};
 
 module.exports = {
   scheduleCreator,

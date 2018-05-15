@@ -67,8 +67,8 @@ const createUserDocs = (userRecord, context) => {
     office: 'personal',
     template: 'plan',
     include: [phoneNumber],
-    activityId: null,
     /** auth event isn't an activity */
+    activityId: null,
     status: 'CONFIRMED',
     timestamp: serverTimestamp,
   }, {
