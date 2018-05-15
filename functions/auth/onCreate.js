@@ -43,7 +43,7 @@ const {
  * @param {Object} context Object with Event info.
  * @returns {Promise} Batch object.
  */
-const createUserUpdatesAndProfileCollections = (userRecord, context) => {
+const createUserDocs = (userRecord, context) => {
   const {
     uid,
     phoneNumber,
@@ -54,32 +54,33 @@ const createUserUpdatesAndProfileCollections = (userRecord, context) => {
   batch.set(updates.doc(uid), {
     phoneNumber,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(profiles.doc(phoneNumber), {
     uid,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(profiles.doc(phoneNumber).collection('Subscriptions').doc(), {
     office: 'personal',
     template: 'plan',
     include: [phoneNumber],
-    activityId: null, /** auth event isn't an activity */
+    activityId: null,
+    /** auth event isn't an activity */
     status: 'CONFIRMED',
     timestamp: serverTimestamp,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   return batch.commit().catch((error) => console.log(error));
 };
 
 
 const app = (userRecord, context) =>
-  createUserUpdatesAndProfileCollections(userRecord, context);
+  createUserDocs(userRecord, context);
 
 
 module.exports = app;
