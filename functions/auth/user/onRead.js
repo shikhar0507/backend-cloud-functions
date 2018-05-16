@@ -39,6 +39,10 @@ const {
   isValidPhoneNumber,
 } = require('../../firestore/activity/helperLib');
 
+const {
+  code,
+} = require('../../admin/responses');
+
 
 /**
  * Fetches the userRecords for all the phone numbers from the request param.
@@ -59,7 +63,7 @@ const app = (conn) => {
   }
 
   Promise.all(promises).then((userRecords) => {
-    sendResponse(conn, 200, userRecords);
+    sendResponse(conn, code.ok, userRecords);
     return;
   }).catch((error) => handleError(conn, error));
 };

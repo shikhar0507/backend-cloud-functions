@@ -46,6 +46,10 @@ const {
 } = require('./helperLib');
 
 const {
+  code,
+} = require('../../admin/responses');
+
+const {
   activities,
   profiles,
   updates,
@@ -58,17 +62,20 @@ const {
 /**
  * Commits the batch and sends a response to the client of the result.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  */
 const commitBatch = (conn) => conn.batch.commit()
-  .then((data) => sendResponse(conn, 202, 'ACCEPTED'))
-  .catch((error) => handleError(conn, error));
+  .then((data) => sendResponse(
+    conn,
+    code.accepted,
+    'The activity was successfully updated.')
+  ).catch((error) => handleError(conn, error));
 
 
 /**
  * Adds the activity root data to the batch.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Array} result Array of document data objects fetched from Firestore.
  */
 const writeActivityRoot = (conn, result) => {
@@ -92,11 +99,11 @@ const writeActivityRoot = (conn, result) => {
     /** docRef is the the doc which the activity handled in the request */
     docRef: conn.docRef || null,
   }, {
-    /** in some requests, the data coming from the request will be
-     * partial, so we are merging instead of overwriting
-     */
-    merge: true,
-  });
+      /** in some requests, the data coming from the request will be
+       * partial, so we are merging instead of overwriting
+       */
+      merge: true,
+    });
 
   conn.batch.set(updates.doc(conn.requester.uid)
     .collection('Addendum').doc(), conn.addendumData);
@@ -109,7 +116,7 @@ const writeActivityRoot = (conn, result) => {
  * Handles the document creation in /Profiles and addition of new documents in
  * /Updates/<uid>/Activities collection for the assigned users of the acivity.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Array} result Array of document data objects fetched from Firestore.
  */
 const processAsigneesList = (conn, result) => {
@@ -148,14 +155,14 @@ const processAsigneesList = (conn, result) => {
 
   Promise.all(promises).then((snapShots) => {
     snapShots.forEach((doc) => {
-      /** if the request does't have unassign array, then the updates
+      /** If the request does't have unassign array, then the updates
        * will be written for all the assignees and the users who have
-       * been added in this update
+       * been added in this update.
        */
       if (!conn.req.body.unassign) conn.req.body.unassign = [];
 
-      /** uid shouldn't be null (or undefined) and the doc shouldn't be of
-       * a person who has been unassigned from the activity during the update
+      /** The uid shouldn't be null (or undefined) and the doc shouldn't be of
+       * a person who has been unassigned from the activity during the update.
        */
       if (doc.get('uid') && conn.req.body.unassign.indexOf(doc.id) === -1) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
@@ -172,7 +179,7 @@ const processAsigneesList = (conn, result) => {
 /**
  * Fetches the assignees list and the template from the Activity in context.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Array} result Array of document data objects fetched from Firestore.
  */
 const getTemplateAndAssigneesFromActivity = (conn, result) => {
@@ -213,7 +220,7 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
 
 
 const updateSubscription = (conn, result) => {
-  /** docRef is required in the activity root */
+  /** The docRef is required in the activity root. */
   conn.docRef = profiles.doc(conn.requester.phoneNumber)
     .collection('Subscriptions').doc();
 
@@ -231,7 +238,7 @@ const updateSubscription = (conn, result) => {
 
 
 const updateCompany = (conn, result) => {
-  /** docRef is required in the activity root */
+  /** The docRef is required in the activity root. */
   conn.docRef = offices.doc(conn.req.body.office);
 
   conn.batch.set(offices.doc(conn.req.body.office), {
@@ -244,7 +251,7 @@ const updateCompany = (conn, result) => {
 
 
 const addNewEntityInOffice = (conn, result) => {
-  /** docRef is required in the activity root */
+  /** The docRef is required in the activity root. */
   conn.docRef = office.doc(conn.req.body.office)
     .collection(conn.req.body.template).doc();
 
@@ -261,25 +268,33 @@ const addNewEntityInOffice = (conn, result) => {
 
 
 const processRequestType = (conn, result) => {
-  /** reference of the batch instance will be used multiple times throughout
-   * the update flow
+  /** A reference of the batch instance will be used multiple times throughout
+   * the update flow.
    */
   conn.batch = db.batch();
 
   if (conn.req.body.office === 'personal') {
     if (conn.req.body.template === 'plan') {
-      sendResponse(conn, 401, 'You can\'t edit the Office: personal' +
-        'and the Template: plan');
+      sendResponse(
+        conn,
+        code.unauthorized,
+        `You cannot edit the ${conn.req.body.office} Office or
+        the ${conn.req.body.template} Template.`
+      );
       return;
     }
 
-    sendResponse(conn, 400, 'The template and office do not have' +
-      ' a valid combination');
+    sendResponse(conn, code.badRequest, 'The template and office do not have'
+      + ' a valid combination');
   } else {
     /** if office is not personal */
     if (!result[2].exists) {
       /** office does not exist with the name from the request */
-      sendResponse(conn, 400, 'An office with this name does not exist');
+      sendResponse(
+        conn,
+        code.badRequest,
+        `The office: ${conn.req.body.office} does not exist.`
+      );
       return;
     }
     if (conn.req.body.template === 'subscription') {
@@ -299,7 +314,7 @@ const processRequestType = (conn, result) => {
 /**
  * Fetches the activtiy root and enum/activitytemplates doc.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  */
 const fetchDocs = (conn) => {
   const promises = [
@@ -313,8 +328,11 @@ const fetchDocs = (conn) => {
       /** the activity with the id from the request body doesn't
        * exist in the Firestore
        * */
-      sendResponse(conn, 409, 'An activity with the id: ' +
-        conn.req.body.activityId + ' does not exist');
+      sendResponse(
+        conn,
+        code.conflict,
+        `There is no activity with the id: ${conn.req.body.activityId}.`
+      );
       return;
     }
 
@@ -327,7 +345,12 @@ const fetchDocs = (conn) => {
     return;
   }).catch((error) => {
     console.log(error);
-    sendResponse(conn, 400, 'BAD REQUEST');
+    sendResponse(
+      conn,
+      code.badRequest,
+      'Either of the activityId or the office names are invalid in the'
+      + ' request body'
+    );
   });
 };
 
@@ -335,7 +358,7 @@ const fetchDocs = (conn) => {
 /**
  * Checks whether the user has the permission to update the activity.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  */
 const verifyPermissionToUpdateActivity = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
@@ -344,8 +367,13 @@ const verifyPermissionToUpdateActivity = (conn) => {
         /** along with having a document in Assignees sub-collection,
          * the user must also have the permission to edit the activity
          */
-        sendResponse(conn, 403, 'You are either not an assignee' +
-          ' if this activity or do not have the edit rights');
+        sendResponse(
+          conn,
+          code.forbidden,
+          'You need to be either an assignee of the activity or have'
+          + ' the edit rights to make a successful update request'
+          + ' to an activity.'
+        );
         return;
       }
 
@@ -356,15 +384,21 @@ const verifyPermissionToUpdateActivity = (conn) => {
 
 
 const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp) &&
-    isValidString(conn.req.body.activityId) &&
-    isValidLocation(conn.req.body.geopoint)) {
+  if (isValidDate(conn.req.body.timestamp)
+    && isValidString(conn.req.body.activityId)
+    && isValidString(conn.req.body.office)
+    && isValidLocation(conn.req.body.geopoint)) {
     verifyPermissionToUpdateActivity(conn);
     return;
   }
 
-  sendResponse(conn, 400, 'The request is not valid. Make sure that the' +
-    ' request body has all the fields with valid values.');
+  sendResponse(
+    conn,
+    code.badRequest,
+    'The request body does not have all the necessary fields with proper'
+    + ' values. Please make sure that the timestamp, activityId, office'
+    + ' and the geopoint are included in the request with appropriate values.'
+  );
 };
 
 module.exports = app;

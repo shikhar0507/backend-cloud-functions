@@ -61,7 +61,6 @@ const fetchSubscriptions = (conn, jsonResult) => {
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
           template: doc.get('defaultTitle'),
-          // comment: doc.get('comment'),
           status: doc.get('statusOnCreate'),
         };
       }
@@ -225,7 +224,8 @@ const readAddendumsByQuery = (conn) => {
 
 const app = (conn) => {
   if (!isValidDate(conn.req.query.from)) {
-    sendResponse(conn, 400, 'BAD REQUEST');
+    sendResponse(conn, 400, conn.req.query.from +
+      ' is not a valid timestamp');
     return;
   }
 

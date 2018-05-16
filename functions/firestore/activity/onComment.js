@@ -42,6 +42,10 @@ const {
 } = require('./helperLib');
 
 const {
+  code,
+} = require('../../admin/responses');
+
+const {
   activities,
   updates,
   profiles,
@@ -55,8 +59,11 @@ const {
  * @param {Object} conn Object with Express Request and Response Objects.
  */
 const commitBatch = (conn) => batch.commit()
-  .then((data) => sendResponse(conn, 201, 'CREATED'))
-  .catch((error) => handleError(conn, error));
+  .then((data) => sendResponse(
+    conn,
+    code.created,
+    'The comment was successfully added to the activity.')
+  ).catch((error) => handleError(conn, error));
 
 
 /**
@@ -129,7 +136,11 @@ const checkCommentPermission = (conn) => {
        * body is present in the user profile
        * */
       if (!doc.exists) {
-        sendResponse(conn, 403, 'FORBIDDEN');
+        sendResponse(conn,
+          code.forbidden,
+          'You are either not an assignee of this activity, or the activity'
+          + 'with the id: ' + conn.req.body.activityId + ' does not exist.'
+        );
         return;
       }
 
@@ -147,7 +158,13 @@ const app = (conn) => {
     return;
   }
 
-  sendResponse(conn, 400, 'BAD REQUEST');
+  sendResponse(
+    conn,
+    code.badRequest,
+    'The request body does not have all the necessary fields with proper'
+    + ' values. Please make sure that the timestamp, activityId  and the '
+    + 'geopoint are included in the request body.'
+  );
 };
 
 

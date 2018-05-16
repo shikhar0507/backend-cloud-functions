@@ -34,6 +34,10 @@ const {
   sendResponse,
 } = require('../admin/utils');
 
+const {
+  code,
+} = require('../admin/responses');
+
 
 /**
  * Handles the requests made to /users resource.
@@ -46,7 +50,11 @@ const handleUserProfiles = (conn) => {
 
   if (action.startsWith('read')) {
     if (method !== 'GET') {
-      sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
       return;
     }
 
@@ -56,7 +64,11 @@ const handleUserProfiles = (conn) => {
 
   if (action === 'update') {
     if (method !== 'PATCH') {
-      sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
       return;
     }
 
@@ -64,7 +76,7 @@ const handleUserProfiles = (conn) => {
     return;
   }
 
-  sendResponse(conn, 400, 'BAD REQUEST');
+  sendResponse(conn, code.badRequest, 'The request path is not valid.');
 };
 
 
@@ -82,7 +94,7 @@ const servicesHandler = (conn) => {
     return;
   }
 
-  sendResponse(conn, 400, 'BAD REQUEST');
+  sendResponse(conn, code.badRequest, 'The request path is not valid.');
 };
 
 

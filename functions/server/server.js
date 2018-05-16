@@ -42,6 +42,10 @@ const {
   now,
 } = require('../admin/utils');
 
+const {
+  code,
+} = require('../admin/responses');
+
 const onService = require('./onService');
 const onActivity = require('./onActivity');
 
@@ -60,12 +64,16 @@ const {
 const verifyUidAndPhoneNumberCombination = (conn) => {
   profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
     if (doc.get('uid') !== conn.requester.uid) {
-      sendResponse(conn, 403, 'FORBIDDEN');
+      sendResponse(
+        conn,
+        code.forbidden,
+        'The uid and phone number do not match.'
+      );
       return;
     }
 
     /** probably will be required in multiple places */
-    conn.requester.profileData = doc.data();
+    conn.requester.profile = doc.data();
 
     const action = parse(conn.req.url).path.split('/')[1];
 
@@ -84,7 +92,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
       return;
     }
 
-    sendResponse(conn, 400, 'BAD REQUEST');
+    sendResponse(conn, code.badRequest, 'The request path is not valid');
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -98,9 +106,8 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
 const getCreatorsPhoneNumber = (conn) => {
   getUserByUid(conn.requester.uid).then((userRecord) => {
     if (userRecord.disabled) {
-      /** not allowing anyone with a disabled account to
-       do anything with their account. **/
-      sendResponse(conn, 403, 'Your account is disabled');
+      /** users with disabled accounts cannot request any operation **/
+      sendResponse(conn, code.forbidden, 'Your account is disabled');
       return;
     }
 
@@ -110,7 +117,7 @@ const getCreatorsPhoneNumber = (conn) => {
     return;
   }).catch((error) => {
     console.log(error);
-    sendResponse(conn, 403, 'FORBIDDEN');
+    sendResponse(conn, code.forbidden, 'FORBIDDEN');
   });
 };
 
@@ -124,12 +131,22 @@ const checkAuthorizationToken = (conn) => {
   const authorization = conn.req.headers.authorization;
 
   if (typeof authorization !== 'string') {
-    sendResponse(conn, 401, 'UNAUTHORIZED');
+    sendResponse(
+      conn,
+      code.unauthorized,
+      'The authorization header is not valid'
+    );
+
     return;
   }
 
   if (!authorization.startsWith('Bearer ')) {
-    sendResponse(conn, 401, 'UNAUTHORIZED');
+    sendResponse(
+      conn,
+      code.unauthorized,
+      'Authorization type is not "Bearer"'
+    );
+
     return;
   }
 
@@ -146,13 +163,20 @@ const checkAuthorizationToken = (conn) => {
       return;
     }).catch((error) => {
       if (error.code === 'auth/id-token-revoked') {
-        sendResponse(conn, 401, 'The idToken was revoked recently' +
-          ' Please reauthenticate.');
+        sendResponse(
+          conn,
+          code.unauthorized,
+          'The idToken was revoked recently. Please reauthenticate.'
+        );
         return;
       }
 
       console.log(error);
-      sendResponse(conn, 403, 'FORBIDDEN');
+      sendResponse(
+        conn,
+        code.forbidden,
+        'There was an error processing the idToken sent in the request.'
+      );
     });
 };
 
@@ -180,8 +204,8 @@ const server = (req, res) => {
   };
 
   if (req.method === 'OPTIONS') {
-    /** no content to send in 204 response */
-    sendResponse(conn, 204, '');
+    /** no content to send in options response */
+    sendResponse(conn, code.noContent, '');
     return;
   }
 
@@ -191,7 +215,11 @@ const server = (req, res) => {
     return;
   }
 
-  sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+  sendResponse(
+    conn,
+    code.methodNotAllowed,
+    `${req.method} is not allowed for any request.`
+  );
 };
 
 

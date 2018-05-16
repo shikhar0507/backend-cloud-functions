@@ -21,13 +21,16 @@
  *
  */
 
+const {
+  code,
+} = require('./responses');
 
 /**
  * Returns the server timestamp on request.
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  */
-const now = (conn) => sendResponse(conn, 200, new Date());
+const now = (conn) => sendResponse(conn, code.ok, new Date());
 
 
 /**
@@ -57,7 +60,12 @@ const sendResponse = (conn, statusCode, message) => {
  */
 const handleError = (conn, error) => {
   console.log(error);
-  sendResponse(conn, 500, 'INTERNAL SERVER ERROR', error);
+  sendResponse(
+    conn,
+    code.internalServerError,
+    'There was an error handling the request. Please try again later.',
+    error
+  );
 };
 
 

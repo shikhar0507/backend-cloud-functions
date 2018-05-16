@@ -36,6 +36,10 @@ const {
   parse,
 } = require('url');
 
+const {
+  code,
+} = require('../admin/responses');
+
 
 /**
  * Calls the resource related to an activity depending on the action
@@ -47,19 +51,36 @@ const activitiesHandler = (conn) => {
   const method = conn.req.method;
   const action = parse(conn.req.url).path.split('/')[2];
 
-  if (action.startsWith('read') && conn.req.query.from) {
-    if (method === 'GET') {
-      onRead(conn);
+  if (action.startsWith('read')) {
+    if (method !== 'GET') {
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
       return;
     }
 
-    sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+    if (!conn.req.query.from) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        'No query parameter found in the request URL.'
+      );
+      return;
+    }
+
+    onRead(conn);
     return;
   }
 
   if (action === 'create') {
     if (method !== 'POST') {
-      sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+      sendResponse(
+        conn,
+        405,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
       return;
     }
 
@@ -69,7 +90,11 @@ const activitiesHandler = (conn) => {
 
   if (action === 'comment') {
     if (method !== 'POST') {
-      sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
       return;
     }
 
@@ -79,7 +104,11 @@ const activitiesHandler = (conn) => {
 
   if (action === 'update') {
     if (method !== 'PATCH') {
-      sendResponse(conn, 405, 'METHOD NOT ALLOWED');
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
       return;
     }
 
@@ -87,7 +116,7 @@ const activitiesHandler = (conn) => {
     return;
   }
 
-  sendResponse(conn, 400, 'BAD REQUEST');
+  sendResponse(conn, code.badRequest, 'The request path is not valid.');
 };
 
 
