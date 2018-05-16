@@ -81,8 +81,12 @@ const isValidPhoneNumber = (phoneNumber) =>
  *
  * @param {string} canEditRule Rule stating whether a someone can edit
  * an activity.
+ * @param {Object} ruleEnumFromDB Object containing the enum array.
+ * @returns {boolean} If a person can edit the activity after creation.
  */
-const handleCanEdit = (canEditRule) => true;
+const handleCanEdit = (canEditRule, ruleEnumFromDB) => {
+  return true;
+};
 
 
 /**
@@ -90,17 +94,17 @@ const handleCanEdit = (canEditRule) => true;
  *
  * @param {Object} schedule Object containing startTime, endTime and the name
  * of the schedule.
- * @param {Object} scheduleDataFromTemplate Schedule template stored in
+ * @param {Object} scheduleDataFromDB Schedule template stored in
  * the Firestore.
  * @returns {Object} A venue object.
  */
-const scheduleCreator = (schedule, scheduleDataFromTemplate) => {
+const scheduleCreator = (schedule, scheduleDataFromDB) => {
   if (!Array.isArray(schedule)) return {};
 
   const schedules = {};
 
   schedule.forEach((sch) => {
-    if (sch.name !== scheduleDataFromTemplate.name) {
+    if (sch.name !== scheduleDataFromDB.name) {
       return;
     }
 
@@ -123,6 +127,17 @@ const scheduleCreator = (schedule, scheduleDataFromTemplate) => {
     }
   });
 
+  /** In cases where there is no valid schedule in
+   * the request body, we create an object with null values.
+   */
+  if (Object.keys(schedules).length === 0) {
+    schedules[scheduleDataFromDB.name] = {
+      name: scheduleDataFromDB.name,
+      startTime: null,
+      endTime: null,
+    };
+  }
+
   return schedules;
 };
 
@@ -132,16 +147,16 @@ const scheduleCreator = (schedule, scheduleDataFromTemplate) => {
  *
  * @param {Object} venue Object containing venueDescriptor, geopoint, location
  * and the address of a venue.
- * @param {Object} venueDataFromTemplate Venue template data from Firestore.
+ * @param {Object} venueDataFromDB Venue template data from Firestore.
  * @returns {Object} A schedule object.
  */
-const venueCreator = (venue, venueDataFromTemplate) => {
+const venueCreator = (venue, venueDataFromDB) => {
   if (!Array.isArray(venue)) return {};
 
   const venues = {};
 
   venue.forEach((val) => {
-    if (venue.venueDescriptor !== venueDataFromTemplate.venueDescriptor) {
+    if (venue.venueDescriptor !== venueDataFromDB.venueDescriptor) {
       return;
     }
 
@@ -159,6 +174,18 @@ const venueCreator = (venue, venueDataFromTemplate) => {
       address: val.address || '',
     };
   });
+
+  /** In cases where there is no valid venue in the request body we
+   * create an object with all null values except the name
+   */
+  if (Object.keys(venues).length === 0) {
+    venues[venueDataFromDB.venueDescriptor] = {
+      venueDescriptor: val.venueDescriptor,
+      location: null,
+      geopoint: null,
+      address: null,
+    };
+  }
 
   return venues;
 };

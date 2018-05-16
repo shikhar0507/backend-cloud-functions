@@ -72,9 +72,6 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
       return;
     }
 
-    /** probably will be required in multiple places */
-    conn.requester.profile = doc.data();
-
     const action = parse(conn.req.url).path.split('/')[1];
 
     if (action === 'activities') {

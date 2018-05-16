@@ -68,8 +68,8 @@ const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(
     conn,
     code.accepted,
-    'The activity was successfully updated.')
-  ).catch((error) => handleError(conn, error));
+    'The activity was successfully updated.'
+  )).catch((error) => handleError(conn, error));
 
 
 /**
@@ -85,22 +85,23 @@ const writeActivityRoot = (conn, result) => {
     title: conn.req.body.title || result[0].get('title'),
     description: conn.req.body.description ||
       result[0].get('description'),
-    status: result[1].get(ACTIVITYSTATUS).indexOf(conn.req.body.status) > -1 ?
+    status: result[1].get('ACTIVITYSTATUS')
+      .indexOf(conn.req.body.status) > -1 ?
       conn.req.body.status : result[0].get('status'),
     schedule: scheduleCreator(
       conn.req.body.schedule,
-      conn.templateData.schedule
+      /** schedule from activity root */
+      result[0].get('schedule')
     ),
     venue: venueCreator(
       conn.req.body.schedule,
-      conn.templateData.venue
+      /** venue from activity root */
+      result[0].get('venue')
     ),
     timestamp: new Date(conn.req.body.timestamp),
-    /** docRef is the the doc which the activity handled in the request */
-    docRef: conn.docRef || null,
   }, {
-      /** in some requests, the data coming from the request will be
-       * partial, so we are merging instead of overwriting
+      /** In some requests, the data coming from the request will be
+       * partial, so we are merging instead of overwriting the whole thing.
        */
       merge: true,
     });
@@ -140,12 +141,18 @@ const processAsigneesList = (conn, result) => {
 
       conn.batch.set(activities.doc(conn.req.body.activityId)
         .collection('Assignees').doc(val), {
-          canEdit: handleCanEdit(conn.templateData.canEditRule),
+          canEdit: handleCanEdit(
+            conn.templateData.canEditRule,
+            result[3].data() /** CANEDITRULES DOC DATA */
+          ),
         });
 
       conn.batch.set(profiles.doc(val).collection('Activities')
         .doc(conn.req.body.activityId), {
-          canEdit: handleCanEdit(conn.templateData.canEditRule),
+          canEdit: handleCanEdit(
+            conn.templateData.canEditRule,
+            result[3].data() /** CANEDITRULES DOC DATA */
+          ),
           timestamp: new Date(conn.req.body.timestamp),
         });
 
@@ -155,7 +162,7 @@ const processAsigneesList = (conn, result) => {
 
   Promise.all(promises).then((snapShots) => {
     snapShots.forEach((doc) => {
-      /** If the request does't have unassign array, then the updates
+      /** If the request does't have the unassign array, then the updates
        * will be written for all the assignees and the users who have
        * been added in this update.
        */
@@ -199,8 +206,9 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
     conn.addendumData = {
       activityId: conn.req.body.activityId,
       user: conn.requester.displayName || conn.requester.phoneNumber,
-      comment: `${conn.requester.displayName || conn.requester.phoneNumber}
-        updated ${conn.templateData.name}`,
+      comment: conn.requester.displayName || conn.requester.phoneNumber
+        /** template name from activity root */
+        + ' updated ' + result[0].get('template'),
       location: getGeopointObject(
         conn.req.body.geopoint[0],
         conn.req.body.geopoint[1]
@@ -219,98 +227,6 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
 };
 
 
-const updateSubscription = (conn, result) => {
-  /** The docRef is required in the activity root. */
-  conn.docRef = profiles.doc(conn.requester.phoneNumber)
-    .collection('Subscriptions').doc();
-
-  conn.batch.set(conn.docRef, {
-    include: [conn.requester.phoneNumber],
-    timestamp: new Date(conn.req.body.timestamp),
-    template: result[1].docs[0].id,
-    office: conn.req.body.office,
-    activityId: conn.req.body.activityId,
-    status: 'CONFIRMED', // ??
-  });
-
-  getTemplateAndAssigneesFromActivity(conn, result);
-};
-
-
-const updateCompany = (conn, result) => {
-  /** The docRef is required in the activity root. */
-  conn.docRef = offices.doc(conn.req.body.office);
-
-  conn.batch.set(offices.doc(conn.req.body.office), {
-    activityId: conn.req.body.activityId,
-    attachment: attachmentCreator(conn.req.body.attachment),
-  });
-
-  getTemplateAndAssigneesFromActivity(conn, result);
-};
-
-
-const addNewEntityInOffice = (conn, result) => {
-  /** The docRef is required in the activity root. */
-  conn.docRef = office.doc(conn.req.body.office)
-    .collection(conn.req.body.template).doc();
-
-  conn.batch.set(conn.docRef, {
-    attachment: attachmentCreator(conn.req.body.attachment),
-    schedule: scheduleCreator(conn.req.body.schedule),
-    venue: venueCreator(conn.req.body.venue),
-    activityId: conn.req.body.activityId,
-    status: 'PENDING',
-  });
-
-  getTemplateAndAssigneesFromActivity(conn, result);
-};
-
-
-const processRequestType = (conn, result) => {
-  /** A reference of the batch instance will be used multiple times throughout
-   * the update flow.
-   */
-  conn.batch = db.batch();
-
-  if (conn.req.body.office === 'personal') {
-    if (conn.req.body.template === 'plan') {
-      sendResponse(
-        conn,
-        code.unauthorized,
-        `You cannot edit the ${conn.req.body.office} Office or
-        the ${conn.req.body.template} Template.`
-      );
-      return;
-    }
-
-    sendResponse(conn, code.badRequest, 'The template and office do not have'
-      + ' a valid combination');
-  } else {
-    /** if office is not personal */
-    if (!result[2].exists) {
-      /** office does not exist with the name from the request */
-      sendResponse(
-        conn,
-        code.badRequest,
-        `The office: ${conn.req.body.office} does not exist.`
-      );
-      return;
-    }
-    if (conn.req.body.template === 'subscription') {
-      updateSubscription(conn, result);
-      return;
-    }
-
-    if (conn.req.body.template === 'company') {
-      updateCompany(conn, result);
-      return;
-    }
-
-    addNewEntityInOffice(conn, result);
-  }
-};
-
 /**
  * Fetches the activtiy root and enum/activitytemplates doc.
  *
@@ -321,6 +237,7 @@ const fetchDocs = (conn) => {
     activities.doc(conn.req.body.activityId).get(),
     enums.doc('ACTIVITYSTATUS').get(),
     offices.doc(conn.req.body.office).get(),
+    enums.doc('CANEDITRULES').get(),
   ];
 
   Promise.all(promises).then((result) => {
@@ -336,10 +253,10 @@ const fetchDocs = (conn) => {
       return;
     }
 
-    if (conn.req.body.template || conn.req.body.office) {
-      processRequestType(conn, result);
-      return;
-    }
+    /** A reference of the batch instance will be used multiple times
+      * throughout the update flow.
+      */
+    conn.batch = db.batch();
 
     getTemplateAndAssigneesFromActivity(conn, result);
     return;
@@ -386,7 +303,6 @@ const verifyPermissionToUpdateActivity = (conn) => {
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp)
     && isValidString(conn.req.body.activityId)
-    && isValidString(conn.req.body.office)
     && isValidLocation(conn.req.body.geopoint)) {
     verifyPermissionToUpdateActivity(conn);
     return;
@@ -396,7 +312,7 @@ const app = (conn) => {
     conn,
     code.badRequest,
     'The request body does not have all the necessary fields with proper'
-    + ' values. Please make sure that the timestamp, activityId, office'
+    + ' values. Please make sure that the timestamp, activityId'
     + ' and the geopoint are included in the request with appropriate values.'
   );
 };

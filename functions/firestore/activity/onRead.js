@@ -38,10 +38,15 @@ const {
 } = require('./helperLib');
 
 const {
+  code,
+} = require('../../admin/responses');
+
+const {
   activities,
   profiles,
   updates,
   activityTemplates,
+  enums,
 } = rootCollections;
 
 
@@ -67,7 +72,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
     });
 
     conn.headers['Content-Type'] = 'application/json';
-    conn.res.writeHead(200, conn.headers);
+    conn.res.writeHead(code.ok, conn.headers);
     conn.res.end(JSON.stringify(jsonResult));
 
     return;
@@ -93,6 +98,7 @@ const getTemplates = (conn, jsonResult) => {
         );
       });
 
+      // getAllowedStatuses(conn, jsonResult);
       fetchSubscriptions(conn, jsonResult);
       return;
     }).catch((error) => handleError(conn, error));
@@ -124,6 +130,26 @@ const fetchAssignees = (conn, jsonResult) => {
 
 
 /**
+ *  Fetches all the attachments using the activity root docRef field.
+ *
+ * @param {Object} conn Contains Express Request and Response Objects.
+ * @param {*} jsonResult The fetched data from Firestore.
+ */
+const fetchAttachments = (conn, jsonResult) => {
+  Promise.all(conn.docRefsArray).then((snapShots) => {
+    snapShots.forEach((doc) => {
+      if (doc.exists) {
+        jsonResult.activities[doc.get('activityId')].attachment = doc.data();
+      }
+    });
+
+    fetchAssignees(conn, jsonResult);
+    return;
+  }).catch((error) => handleError(conn, error));
+};
+
+
+/**
  * Fetches all the activity data in which the user is an assignee of.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
@@ -132,6 +158,7 @@ const fetchAssignees = (conn, jsonResult) => {
 const fetchActivities = (conn, jsonResult) => {
   Promise.all(conn.activityFetchPromises).then((snapShot) => {
     let activityObj;
+    conn.docRefsArray = [];
 
     snapShot.forEach((doc) => {
       // activity-id --> doc.ref.path.split('/')[1]
@@ -146,9 +173,13 @@ const fetchActivities = (conn, jsonResult) => {
       activityObj.description = doc.get('description');
       activityObj.office = doc.get('office');
       activityObj.assignees = [];
+      activityObj.attachment = {};
+
+      conn.docRefsArray.push(doc.get(docRef).get());
     });
 
-    fetchAssignees(conn, jsonResult);
+    // fetchAssignees(conn, jsonResult);
+    fetchAttachments(conn, jsonResult);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -213,6 +244,7 @@ const readAddendumsByQuery = (conn) => {
       }); // forEach end
 
       if (!snapShot.empty) {
+        /** timestamp value of the last addendum sorted on timestamp */
         jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
       }
 
@@ -224,8 +256,11 @@ const readAddendumsByQuery = (conn) => {
 
 const app = (conn) => {
   if (!isValidDate(conn.req.query.from)) {
-    sendResponse(conn, 400, conn.req.query.from +
-      ' is not a valid timestamp');
+    sendResponse(
+      conn,
+      code.badRequest,
+      conn.req.query.from + ' is not a valid timestamp'
+    );
     return;
   }
 

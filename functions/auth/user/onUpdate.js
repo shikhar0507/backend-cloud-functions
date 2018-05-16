@@ -101,10 +101,16 @@ const updateFirestoreWithNewProfile = (conn) => {
     });
 
     docsArray[1].forEach((doc) => {
+      let include = doc.get('include');
+
+      if (doc.get('template') === 'plan' && doc.get('office') === 'personal') {
+        include = [conn.req.body.phoneNumber];
+      }
+
       /** copy subscriptions to new profile */
       batch.set(profiles.doc(conn.req.body.phoneNumber)
         .collection('Subscriptions').doc(doc.id), {
-          include: doc.get('include'),
+          include,
           office: doc.get('office'),
           template: doc.get('template'),
           timestamp: doc.get('timestamp'),

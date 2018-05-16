@@ -44,6 +44,10 @@ const {
 } = require('../../admin/utils');
 
 const {
+  code,
+} = require('../../admin/responses');
+
+const {
   handleCanEdit,
   isValidDate,
   isValidString,
@@ -84,7 +88,10 @@ const handleAssignedUsers = (conn, result) => {
     conn.batch.set(activities.doc(conn.activityRef.id)
       .collection('Assignees').doc(val), {
         /** template --> result[0] */
-        canEdit: handleCanEdit(result[0].docs[0].get('canEditRule')),
+        canEdit: handleCanEdit(
+          result[0].docs[0].get('canEditRule'),
+          result[3].data() /** CANEDITRULES ENUM DOC */
+        ),
       }, {
         merge: true,
       });
@@ -94,7 +101,10 @@ const handleAssignedUsers = (conn, result) => {
 
     conn.batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.activityRef.id), {
-        canEdit: handleCanEdit(result[0].docs[0].get('canEditRule')),
+        canEdit: handleCanEdit(
+          result[0].docs[0].get('canEditRule'),
+          result[3].data() /** CANEDITRULES ENUM DOC */
+        ),
         timestamp: new Date(conn.req.body.timestamp),
       });
   });
@@ -112,7 +122,10 @@ const handleAssignedUsers = (conn, result) => {
 
         conn.batch.set(profiles.doc(doc.id).collection('Activities')
           .doc(conn.activityRef.id), {
-            canEdit: handleCanEdit(result[0].docs[0].get('canEditRule')),
+            canEdit: handleCanEdit(
+              result[0].docs[0].get('canEditRule'),
+              result[3].data() /** CANEDITRULES ENUM DOC */
+            ),
             timestamp: new Date(conn.req.body.timestamp),
           });
       }
@@ -155,11 +168,6 @@ const createActivity = (conn, result) => {
       result[0].docs[0].get('venue')
     ),
     timestamp: new Date(conn.req.body.timestamp),
-    attachment: attachmentCreator(
-      conn.req.body.attachment,
-      /** attachment from template in the Firestore */
-      result[0].docs[0].get('attachment')
-    ),
     /** docRef is the the doc which the activity handled in the request.
      * It is set to null when the office is personal and the tempalate
      * is plan.
@@ -180,20 +188,26 @@ const createActivity = (conn, result) => {
   };
 
   /**
-   * the include array will always have the requeter's
+   * the include array will always have the requester's
    * phone number, so we don't need to explictly add their number
    * in order to add them to a batch.
    */
   result[1].docs[0].get('include').forEach((val) => {
     conn.batch.set(activities.doc(conn.activityRef.id)
       .collection('Assignees').doc(val), {
-        canEdit: handleCanEdit(result[0].docs[0].get('canEditRule')),
+        canEdit: handleCanEdit(
+          result[0].docs[0].get('canEditRule'),
+          result[3].data() /** CANEDITRULES ENUM DOC */
+        ),
       });
   });
 
   conn.batch.set(profiles.doc(conn.requester.phoneNumber)
     .collection('Activities').doc(conn.activityRef.id), {
-      canEdit: handleCanEdit(result[0].docs[0].get('canEditRule')),
+      canEdit: handleCanEdit(
+        result[0].docs[0].get('canEditRule'),
+        result[3].data() /** CANEDITRULES ENUM DOC */
+      ),
       timestamp: new Date(conn.req.body.timestamp),
     });
 
@@ -220,7 +234,7 @@ const createSubscription = (conn, result) => {
     template: result[1].docs[0].id,
     office: conn.req.body.office,
     activityId: conn.activityRef.id,
-    status: 'CONFIRMED', // ??
+    status: result[0].docs[0].get('statusOnCreate'),
   });
 
   createActivity(conn, result);
@@ -315,10 +329,11 @@ const processRequestType = (conn, result) => {
 const fetchDocs = (conn) => {
   const promises = [
     activityTemplates.where('name', '==', conn.req.body.template)
-    .limit(1).get(),
+      .limit(1).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-    .where('template', '==', conn.req.body.template).limit(1).get(),
+      .where('template', '==', conn.req.body.template).limit(1).get(),
     offices.where('name', '==', conn.req.body.office).limit(1).get(),
+    enums.doc('CANEDITRULES').get(),
   ];
 
   Promise.all(promises).then((result) => {
@@ -357,7 +372,13 @@ const app = (conn) => {
     return;
   }
 
-  sendResponse(conn, 400, 'BAD REQUEST');
+  sendResponse(
+    conn,
+    code.badRequest,
+    'The request body does not have all the necessary fields with proper'
+    + ' values. Please make sure that the timestamp, template, office'
+    + ' and the geopoint are included in the request with appropriate values.'
+  );
 };
 
 module.exports = app;
