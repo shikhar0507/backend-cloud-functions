@@ -43,7 +43,7 @@ const {
   scheduleCreator,
   venueCreator,
   attachmentCreator,
-} = require('./helperLib');
+} = require('./helper');
 
 const {
   code,

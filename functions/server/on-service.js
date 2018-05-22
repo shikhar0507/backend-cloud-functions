@@ -22,8 +22,8 @@
  */
 
 
-const onRead = require('../auth/user/onRead');
-const onUpdate = require('../auth/user/onUpdate');
+const onRead = require('../auth/user/on-read');
+const onUpdate = require('../auth/user/on-update');
 
 const {
   parse,

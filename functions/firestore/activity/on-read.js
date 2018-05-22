@@ -35,7 +35,7 @@ const {
   isValidDate,
   isValidLocation,
   isValidString,
-} = require('./helperLib');
+} = require('./helper');
 
 const {
   code,

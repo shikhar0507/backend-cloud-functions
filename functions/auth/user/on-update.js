@@ -35,7 +35,7 @@ const {
 
 const {
   isValidPhoneNumber,
-} = require('../../firestore/activity/helperLib');
+} = require('../../firestore/activity/helper');
 
 const {
   code,

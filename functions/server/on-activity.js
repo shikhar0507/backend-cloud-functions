@@ -22,10 +22,10 @@
  */
 
 
-const onRead = require('../firestore/activity/onRead');
-const onCreate = require('../firestore/activity/onCreate');
-const onUpdate = require('../firestore/activity/onUpdate');
-const onComment = require('../firestore/activity/onComment');
+const onRead = require('../firestore/activity/on-read');
+const onCreate = require('../firestore/activity/on-create');
+const onUpdate = require('../firestore/activity/on-update');
+const onComment = require('../firestore/activity/on-comment');
 
 const {
   handleError,

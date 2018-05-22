@@ -24,8 +24,8 @@
 
 const functions = require('firebase-functions');
 
-const authOnCreate = require('./auth/onCreate');
-const authOnDelete = require('./auth/onDelete');
+const authOnCreate = require('./auth/on-create');
+const authOnDelete = require('./auth/on-delete');
 
 const appServer = require('./server/server');
 

@@ -39,7 +39,7 @@ const {
   isValidString,
   isValidLocation,
   isValidPhoneNumber,
-} = require('./helperLib');
+} = require('./helper');
 
 const {
   code,

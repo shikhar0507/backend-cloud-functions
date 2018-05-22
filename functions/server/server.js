@@ -46,8 +46,8 @@ const {
   code,
 } = require('../admin/responses');
 
-const onService = require('./onService');
-const onActivity = require('./onActivity');
+const onService = require('./on-service');
+const onActivity = require('./on-activity');
 
 const {
   profiles,
