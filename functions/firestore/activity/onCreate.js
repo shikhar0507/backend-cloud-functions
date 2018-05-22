@@ -180,10 +180,7 @@ const createActivity = (conn, result) => {
     user: conn.requester.displayName || conn.requester.phoneNumber,
     comment: `${conn.requester.displayName || conn.requester.phoneNumber}
       created ${result[0].docs[0].get('name')}`,
-    location: getGeopointObject(
-      conn.req.body.geopoint[0],
-      conn.req.body.geopoint[1]
-    ),
+    location: getGeopointObject(conn.req.body.geopoint),
     timestamp: new Date(conn.req.body.timestamp),
   };
 

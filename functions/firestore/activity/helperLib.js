@@ -31,14 +31,14 @@ const {
  * Checks if the location is valid with respect to the standard
  * lat and lng values.
  *
- * @param {Array} location Contains lat and lng values.
+ * @param {Object} location Contains lat and lng values.
  * @returns {boolean} If the input lat, lng pair is valid.
  */
 const isValidLocation = (location) => {
-  if (!Array.isArray(location)) return false;
+  if (typeof location !== 'object') return false;
 
-  const lat = location[0];
-  const lng = location[1];
+  const lat = location.latitude;
+  const lng = location.longitude;
 
   if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return false;
 
@@ -167,10 +167,7 @@ const venueCreator = (venue, venueDataFromDB) => {
     venues[`${val.venueDescriptor}`] = {
       venueDescriptor: val.venueDescriptor,
       location: val.location || '',
-      geopoint: getGeopointObject(
-        val.geopoint[0],
-        val.geopoint[1]
-      ),
+      geopoint: getGeopointObject(val.geopoint),
       address: val.address || '',
     };
   });

@@ -40,10 +40,10 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
  * Returns a sentinel containing the GeoPoint object for writing a
  * geopoint type in Firestore.
  *
- * @param {number} lat A valid latitude.
- * @param {number} lng A valid longitude.
+ * @param {Object} geopoint Contains lat, lng value pair.
  */
-const getGeopointObject = (lat, lng) => new admin.firestore.GeoPoint(lat, lng);
+const getGeopointObject = (geopoint) =>
+  new admin.firestore.GeoPoint(geopoint.latutude, geopoint.longitude);
 
 
 /**

@@ -209,10 +209,7 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
       comment: conn.requester.displayName || conn.requester.phoneNumber
         /** template name from activity root */
         + ' updated ' + result[0].get('template'),
-      location: getGeopointObject(
-        conn.req.body.geopoint[0],
-        conn.req.body.geopoint[1]
-      ),
+      location: getGeopointObject(conn.req.body.geopoint),
       timestamp: new Date(conn.req.body.timestamp),
     };
 

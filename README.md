@@ -153,9 +153,9 @@ These are the resources at the `/app/...` endpoint where you can target your req
 
 * **timestamp**: A non-null non-empty `Number` (`long` for Java) containing the Unix timestamp denoting the time at which you hit the endpoint.
 
-* **geopoint**: A non-empty array containing the latitude and longitude of the client at the time hitting the endpoint.
+* **geopoint**: A non-empty Object containing the latitude and longitude of the client at the time hitting the endpoint.
 
-    * form: [`lat`, `lng`]
+    * form: {latitude: number, longitude: number}
 
     * lat range: -90 <= `lat` <= 90
 
@@ -204,7 +204,7 @@ All operations related to creating, updating and adding a comment to an activity
     "template": "plan",
     "timestamp": 1520015400000,
     "office": "personal",
-    "geopoint": [80.2333, 30.3434],
+    "geopoint": {latitude: 80.2333, longitude: 30.3434},
     "title": "Title of the activity",
     "description": "Description of the activity.",
     "assignees": [
@@ -214,13 +214,13 @@ All operations related to creating, updating and adding a comment to an activity
     "venue": [{
         "venueDescriptor": "where",
         "location": "location name",
-        "geopoint": [80.80,90.0],
+        "geopoint": {latitude: 80.80, longitude: 90.0},
         "address": "address of the venue"
     },
     {
         "venueDescriptor": "invalid venue",
         "location": "second location name",
-        "geopoint": [72.11,90.99],
+        "geopoint": {longitude: 72.11, latitude: 90.99},
         "address": "address of the venue"
     }],
     "schedule": [{
@@ -243,7 +243,7 @@ All operations related to creating, updating and adding a comment to an activity
     "template": "plan",
     "timestamp": 1520015400000,
     "office": "OsUR4ANqFzfKxyWBCS0r",
-    "geopoint": [80.2333, 30.3434]
+    "geopoint": {latitude: 80.2333, longitude: 30.3434}
 }
 ```
 Such a request will create an activity where the requester will be the only assignee to the activity with no title and description in the activity.
@@ -288,7 +288,7 @@ Of course, you can always send a request to `.../update` with the activity-id of
 {
     "activityId": "gnCuHnQQOvQGsWtFxmqQ",
     "timestamp": 1522598642000,
-    "geopoint": [80.2333, 30.3434]
+    "geopoint": {latitude: 80.2333, longitude: 30.3434}
 }
 ```
 
@@ -300,7 +300,7 @@ This request will only add an addendum to the activity with the updated time and
 {
     "activityId": "gnCuHnQQOvQGsWtFxmqQ",
     "timestamp": 1522598642000,
-    "geopoint": [80.2333, 30.3434],
+    "geopoint": {latitude: 80.2333, longitude: 30.3434},
     "title": "new updated title",
     "description": "new changed description",
     "status": "a valid status",
@@ -309,13 +309,13 @@ This request will only add an addendum to the activity with the updated time and
     "venue": [{
         "venueDescriptor": "where",
         "location": "location name",
-        "geopoint": [80.80,90.0],
+        "geopoint": {latitude: 80.80, longitude:90.0},
         "address": "address of the venue"
     },
     {
         "venueDescriptor": "where",
         "location": "second location name",
-        "geopoint": [72.11,90.99],
+        "geopoint": {latitude: 72.11, longitude: 90.99},
         "address": "address of the venue"
     }],
     "schedule": [{
@@ -369,7 +369,7 @@ This request will only add an addendum to the activity with the updated time and
 {
     "activityId": "2k4qI3W39sKIDZedcOaM",
     "timestamp": 1522598642000,
-    "geopoint": [80.2333, 30.343],
+    "geopoint": {latitude: 80.2333, longitude: 30.343},
     "comment": "An example comment"
 }
 ```

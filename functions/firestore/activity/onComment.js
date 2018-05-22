@@ -86,10 +86,7 @@ const setAddendumForAssignees = (conn) => {
             activityId: conn.req.body.activityId,
             user: conn.requester.displayName || conn.requester.phoneNumber,
             comment: conn.req.body.comment,
-            location: getGeopointObject(
-              conn.req.body.geopoint[0],
-              conn.req.body.geopoint[1]
-            ),
+            location: getGeopointObject(conn.req.body.geopoint),
             timestamp: new Date(conn.req.body.timestamp),
           });
       }
