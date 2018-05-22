@@ -81,17 +81,17 @@ This is the repository for cloud functions running on Firebase Growthfile backen
 
 There is a single endpoint which you can hit with your client in order to make a request.
 
-```/app```
+```/api```
 
 On this endpoint, you have resources which you can target depending on which type of request you want to make.
 
 Listed below, are the main resources where you can hit your request.
 
-* `/app/activities`: contains action related to creating, updating and adding a comment to an activity.
+* `/api/activities`: contains action related to creating, updating and adding a comment to an activity.
 
-* `/app/services`: contains helper services like getting a contact from the database for the client.
+* `/api/services`: contains helper services like getting a contact from the database for the client.
 
-* `/app/now`: returns the server timestamp in a `GET` request.
+* `/api/now`: returns the server timestamp in a `GET` request.
 
 ## Sending Requests
 
@@ -147,7 +147,7 @@ xhr.send(data);
 
 ## Collections
 
-These are the resources at the `/app/...` endpoint where you can target your request.
+These are the resources at the `/api/...` endpoint where you can target your request.
 
 **COMMON FIELDS IN REQUEST BODY**: There are many fields which are common among the accepted requests.
 
@@ -191,7 +191,7 @@ All operations related to creating, updating and adding a comment to an activity
 
 #### Creating an Activity
 
-**ENDPOINT**: `/app/activities/create`
+**ENDPOINT**: `/api/activities/create`
 
 **Method**: POST
 
@@ -276,7 +276,7 @@ Of course, you can always send a request to `.../update` with the activity-id of
 
 #### Updating an Activity
 
-**Endpoint**: `/app/activities/update`
+**Endpoint**: `/api/activities/update`
 
 **Method**: PATCH
 
@@ -357,7 +357,7 @@ This request will only add an addendum to the activity with the updated time and
 
 #### Adding a New Comment.
 
-**ENDPOINT**: `/app/activities/comment`
+**ENDPOINT**: `/api/activities/comment`
 
 **METHOD**: POST
 
@@ -392,7 +392,7 @@ This request will only add an addendum to the activity with the updated time and
 
 #### Reading the Activities
 
-**ENDPOINT**: `/app/activities/read`
+**ENDPOINT**: `/api/activities/read`
 
 **METHOD**: GET
 
@@ -515,7 +515,7 @@ Anything that is not related to activities is present in the `/services` collect
 
 #### Fetching multiple user profiles from Firebase auth
 
-**ENDPOINT**: `/app/services/users/read`
+**ENDPOINT**: `/api/services/users/read`
 
 **METHOD**: GET
 
@@ -523,7 +523,7 @@ The `/read` endpoint accepts an argument `q` which can either be an array or a s
 
 **Note**: The `+` character is represented by %2B in url encoded characters. Check out [W3Schools URL Encoding](https://www.w3schools.com/tags/ref_urlencode.asp) for more details.
 
-**Request**: single phone number `.../app/services/users/read?q=%2B9090909090`
+**Request**: single phone number `.../api/services/users/read?q=%2B9090909090`
 
 **EXAMPLE RESPONSE BODY**
 
@@ -542,7 +542,7 @@ The `/read` endpoint accepts an argument `q` which can either be an array or a s
 }
 ```
 
-**REQUEST**: multiple phone numbers `.../app/services/users/read?q=%2B9090909090&q=%2B8010101010`
+**REQUEST**: multiple phone numbers `.../api/services/users/read?q=%2B9090909090&q=%2B8010101010`
 
 **RESPONSE**:
 
@@ -576,7 +576,7 @@ The `/read` endpoint accepts an argument `q` which can either be an array or a s
 
 #### Updating your own auth (phone number)
 
-**ENDPOINT**: `/app/services/users/update`
+**ENDPOINT**: `/api/services/users/update`
 
 **METHOD**: PATCH
 
@@ -610,7 +610,7 @@ This phone number should be a valid [E.164](https://en.wikipedia.org/wiki/E.164)
 
 Returns the server timestamp
 
-**ENDPOINT**: `/app/now`
+**ENDPOINT**: `/api/now`
 
 **METHOD**: GET
 

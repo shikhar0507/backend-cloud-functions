@@ -32,5 +32,5 @@ const appServer = require('./server/server');
 module.exports = {
   authOnCreate: functions.auth.user().onCreate(authOnCreate),
   authOnDelete: functions.auth.user().onDelete(authOnDelete),
-  app: functions.https.onRequest(appServer),
+  api: functions.https.onRequest(appServer),
 };
