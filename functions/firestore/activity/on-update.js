@@ -79,6 +79,7 @@ const commitBatch = (conn) => conn.batch.commit()
  * @param {Array} result Array of document data objects fetched from Firestore.
  */
 const writeActivityRoot = (conn, result) => {
+  /** description is a nullable field in the request body */
   if (!conn.req.body.description) conn.req.body.description = '';
 
   conn.batch.set(activities.doc(conn.req.body.activityId), {
@@ -90,24 +91,22 @@ const writeActivityRoot = (conn, result) => {
       conn.req.body.status : result[0].get('status'),
     schedule: scheduleCreator(
       conn.req.body.schedule,
-      /** schedule from activity root */
+      /** Schedule from activity root. */
       result[0].get('schedule')
     ),
     venue: venueCreator(
       conn.req.body.schedule,
-      /** venue from activity root */
+      /** Venue from activity root. */
       result[0].get('venue')
     ),
     timestamp: new Date(conn.req.body.timestamp),
   }, {
       /** In some requests, the data coming from the request will be
-       * partial, so we are merging instead of overwriting the whole thing.
+       * partial, so we are merging instead of overwriting the
+       * whole activity root.
        */
       merge: true,
     });
-
-  conn.batch.set(updates.doc(conn.requester.uid)
-    .collection('Addendum').doc(), conn.addendumData);
 
   commitBatch(conn);
 };
@@ -168,7 +167,7 @@ const processAsigneesList = (conn, result) => {
        */
       if (!conn.req.body.unassign) conn.req.body.unassign = [];
 
-      /** The uid shouldn't be null (or undefined) and the doc shouldn't be of
+      /** The uid shouldn't be null OR undefined. And, the doc shouldn't be of
        * a person who has been unassigned from the activity during the update.
        */
       if (doc.get('uid') && conn.req.body.unassign.indexOf(doc.id) === -1) {
@@ -176,6 +175,9 @@ const processAsigneesList = (conn, result) => {
           .doc(), conn.addendumData);
       }
     });
+
+    conn.batch.set(updates.doc(conn.requester.uid)
+      .collection('Addendum').doc(), conn.addendumData);
 
     writeActivityRoot(conn, result);
     return;
@@ -239,8 +241,8 @@ const fetchDocs = (conn) => {
 
   Promise.all(promises).then((result) => {
     if (!result[0].exists) {
-      /** the activity with the id from the request body doesn't
-       * exist in the Firestore
+      /** The activity with the id from the request body doesn't
+       * exist in the Firestore.
        * */
       sendResponse(
         conn,
@@ -278,8 +280,8 @@ const verifyPermissionToUpdateActivity = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists || !doc.get('canEdit')) {
-        /** along with having a document in Assignees sub-collection,
-         * the user must also have the permission to edit the activity
+        /** Along with having a document in Assignees sub-collection,
+         * the user must also have the permission to edit the activity.
          */
         sendResponse(
           conn,

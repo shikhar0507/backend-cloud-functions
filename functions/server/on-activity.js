@@ -78,7 +78,7 @@ const activitiesHandler = (conn) => {
     if (method !== 'POST') {
       sendResponse(
         conn,
-        405,
+        code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /${action} endpoint.`
       );
       return;

@@ -56,7 +56,7 @@ const {
   scheduleCreator,
   venueCreator,
   attachmentCreator,
-} = require('./helperLib');
+} = require('./helper');
 
 
 /**
@@ -65,7 +65,7 @@ const {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const commitBatch = (conn) => conn.batch.commit()
-  .then((result) => sendResponse(conn, 201, 'CREATED'))
+  .then((result) => sendResponse(conn, code.created, 'CREATED'))
   .catch((error) => handleError(conn, error));
 
 
@@ -89,8 +89,9 @@ const handleAssignedUsers = (conn, result) => {
       .collection('Assignees').doc(val), {
         /** template --> result[0] */
         canEdit: handleCanEdit(
-          result[0].docs[0].get('canEditRule'),
-          result[3].data() /** CANEDITRULES ENUM DOC */
+          result[1].docs[0].get('canEditRule'),
+          val,
+          conn.requester.phoneNumber
         ),
       }, {
         merge: true,
@@ -102,20 +103,19 @@ const handleAssignedUsers = (conn, result) => {
     conn.batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.activityRef.id), {
         canEdit: handleCanEdit(
-          result[0].docs[0].get('canEditRule'),
-          result[3].data() /** CANEDITRULES ENUM DOC */
+          result[1].docs[0].get('canEditRule'),
+          val,
+          conn.requester.phoneNumber
         ),
         timestamp: new Date(conn.req.body.timestamp),
       });
   });
 
   Promise.all(promises).then((snapShots) => {
-    /** doc exists inside /Profile collection */
+    /** The doc exists inside Profiles collection. */
     snapShots.forEach((doc) => {
       if (!doc.exists) {
-        /** create profiles for the phone numbers which are not
-         * in the database
-         * */
+        /** Create profiles for the phone numbers which are not in the DB. */
         conn.batch.set(profiles.doc(doc.id), {
           uid: null,
         });
@@ -123,14 +123,16 @@ const handleAssignedUsers = (conn, result) => {
         conn.batch.set(profiles.doc(doc.id).collection('Activities')
           .doc(conn.activityRef.id), {
             canEdit: handleCanEdit(
-              result[0].docs[0].get('canEditRule'),
-              result[3].data() /** CANEDITRULES ENUM DOC */
+              result[1].docs[0].get('canEditRule'),
+              doc.id,
+              conn.requester.phoneNumber
             ),
             timestamp: new Date(conn.req.body.timestamp),
           });
       }
 
-      if (doc.exists && doc.get('uid') !== null) {
+      /** uid shouldn't be null OR undefined */
+      if (doc.exists && doc.get('uid')) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), conn.addendumData);
       }
@@ -161,16 +163,18 @@ const createActivity = (conn, result) => {
     template: conn.req.body.template,
     schedule: scheduleCreator(
       conn.req.body.schedule,
+      /** schedule object from the template */
       result[0].docs[0].get('schedule')
     ),
     venue: venueCreator(
       conn.req.body.venue,
+      /** venue object from the template */
       result[0].docs[0].get('venue')
     ),
     timestamp: new Date(conn.req.body.timestamp),
-    /** docRef is the the doc which the activity handled in the request.
-     * It is set to null when the office is personal and the tempalate
-     * is plan.
+    /** The docRef is the reference to the document which the
+     * activity handled in the request. It will ne null for an
+     * activity with the template 'plan' with office 'personal'.
      */
     docRef: conn.docRef || null,
   });
@@ -184,8 +188,11 @@ const createActivity = (conn, result) => {
     timestamp: new Date(conn.req.body.timestamp),
   };
 
-  /**
-   * the include array will always have the requester's
+  /** The addendum doc is always created for the requester */
+  conn.batch.set(updates.doc(conn.requester.uid)
+    .collection('Addendum').doc(), conn.addendumData);
+
+  /** The 'include' array will always have the requester's
    * phone number, so we don't need to explictly add their number
    * in order to add them to a batch.
    */
@@ -193,8 +200,9 @@ const createActivity = (conn, result) => {
     conn.batch.set(activities.doc(conn.activityRef.id)
       .collection('Assignees').doc(val), {
         canEdit: handleCanEdit(
-          result[0].docs[0].get('canEditRule'),
-          result[3].data() /** CANEDITRULES ENUM DOC */
+          result[1].docs[0].get('canEditRule'),
+          val,
+          conn.requester.phoneNumber
         ),
       });
   });
@@ -202,15 +210,16 @@ const createActivity = (conn, result) => {
   conn.batch.set(profiles.doc(conn.requester.phoneNumber)
     .collection('Activities').doc(conn.activityRef.id), {
       canEdit: handleCanEdit(
-        result[0].docs[0].get('canEditRule'),
-        result[3].data() /** CANEDITRULES ENUM DOC */
+        result[1].docs[0].get('canEditRule'),
+        /** The phone Number to check and the one with which we are
+         * going to verify the edit rule with are same because this
+         * block is writing the doc for the user themselves.
+         */
+        conn.requester.phoneNumber,
+        conn.requester.phoneNumber
       ),
       timestamp: new Date(conn.req.body.timestamp),
     });
-
-  /** addendum doc is always created for the requester */
-  conn.batch.set(updates.doc(conn.requester.uid)
-    .collection('Addendum').doc(), conn.addendumData);
 
   if (Array.isArray(conn.req.body.assignees)) {
     handleAssignedUsers(conn, result);
@@ -221,6 +230,12 @@ const createActivity = (conn, result) => {
 };
 
 
+/**
+ * Adds subscription to the user's profile based on the request body.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Array} result Fetched docs from Firestore.
+ */
 const createSubscription = (conn, result) => {
   conn.docRef = profiles.doc(conn.requester.phoneNumber)
     .collection('Subscriptions').doc();
@@ -238,6 +253,13 @@ const createSubscription = (conn, result) => {
 };
 
 
+/**
+ * Creates a new document inside Office root collection based on the
+ * attachment, template, and the request body.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Array} result Fetched docs from Firestore.
+ */
 const createCompany = (conn, result) => {
   conn.docRef = offices.doc(conn.req.body.office);
 
@@ -253,6 +275,13 @@ const createCompany = (conn, result) => {
 };
 
 
+/**
+ * Creates a new document inside the specified Office from the
+ * attachment based on the attachment, template and, the request body.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Array} result Fetched docs from Firestore.
+ */
 const addNewEntityInOffice = (conn, result) => {
   conn.docRef = office.doc(conn.req.body.office)
     .collection(conn.req.body.template).doc();
@@ -265,7 +294,7 @@ const addNewEntityInOffice = (conn, result) => {
     schedule: scheduleCreator(conn.req.body.schedule),
     venue: venueCreator(conn.req.body.venue),
     activityId: conn.activityRef.id,
-    status: 'PENDING',
+    status: result[0].docs[0].get('statusOnCreate'),
   });
 
   createActivity(conn, result);
@@ -292,14 +321,20 @@ const processRequestType = (conn, result) => {
       return;
     }
 
-    sendResponse(conn, 400, 'The template and office do not have' +
-      ' a valid combination');
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The template and office do not have' + ' a valid combination');
     return;
   } else {
     /** if office is not personal */
     if (result[2].empty) {
       /** office does not exist with the name from the request */
-      sendResponse(conn, 400, 'An office with this name does not exist');
+      sendResponse(
+        conn,
+        code.badRequest,
+        'An office with this name does not exist'
+      );
       return;
     }
 
@@ -330,27 +365,34 @@ const fetchDocs = (conn) => {
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
       .where('template', '==', conn.req.body.template).limit(1).get(),
     offices.where('name', '==', conn.req.body.office).limit(1).get(),
+    /** The enums doc will always exist. */
     enums.doc('CANEDITRULES').get(),
   ];
 
   Promise.all(promises).then((result) => {
     /** template sent in the request body is not a doesn't exist */
     if (result[0].empty) {
-      sendResponse(conn, 400, 'Template: ' + conn.req.body.template +
-        ' does not exist');
+      sendResponse(
+        conn,
+        code.badRequest,
+        'Template: ' + conn.req.body.template + ' does not exist'
+      );
       return;
     }
 
     if (!result[1].docs[0].exists
-      /** checks if the requester has subscription of this activity */
+      /** Checks if the requester has subscription of this activity. */
       &&
       result[1].docs[0].get('office') !== conn.req.body.office) {
-      /** template from the request body and the office do not match so,
+      /** Template from the request body and the office do not match so,
        * the requester probably doesn't have the permission to create
        * an activity with this template.
        */
-      sendResponse(conn, 403, 'You do not have the permission to create' +
-        ' an activity with this template');
+      sendResponse(
+        conn,
+        code.forbidden,
+        'You do not have the permission to create'
+        + ' an activity with this template');
       return;
     }
 

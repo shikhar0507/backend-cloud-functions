@@ -75,12 +75,8 @@ const commitBatch = (conn) => batch.commit()
 const setAddendumForAssignees = (conn) => {
   Promise.all(conn.assigneeDocPromises).then((snapShots) => {
     snapShots.forEach((doc) => {
-      /**
-       * doc.exists check is redundant here because we are fetching documents
-       * from firestore itself. but for the sake of consistency with the create
-       * and update function, I'm keeping it here
-       * */
-      if (doc.exists && doc.get('uid') !== null) {
+      /** uid shouldn't be null OR undefined */
+      if (doc.exists && doc.get('uid')) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), {
             activityId: conn.req.body.activityId,

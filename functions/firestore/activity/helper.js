@@ -74,17 +74,35 @@ const isValidDate = (date) => !isNaN(new Date(date));
 const isValidPhoneNumber = (phoneNumber) =>
   new RegExp(/^\+?[1-9]\d{5,14}$/).test(phoneNumber);
 
-
 /**
- * Handles whether a person has the authority to edit an activity after
- * creation.
+ * Handles whether a person has the authority to edit an activity after it is
+ * created.
  *
- * @param {string} canEditRule Rule stating whether a someone can edit
- * an activity.
- * @param {Object} ruleEnumFromDB Object containing the enum array.
- * @returns {boolean} If a person can edit the activity after creation.
+ * @param {string} canEditRule Identifier for setting up the permission with.
+ * @param {*} phoneNumber E.164 phone number.
+ * @param {*} requesterPhoneNumber Phone number of the requester.
  */
-const handleCanEdit = (canEditRule, ruleEnumFromDB) => {
+const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber) => {
+  /** rules will have one of the following values
+   * ALL
+   * NONE
+   * FROM_INCLUDE
+   * CREATOR
+   * PEOPLE_TYPE
+   */
+
+  if (canEditRule === 'ALL') return true;
+  if (canEditRule === 'NONE') return false;
+  if (canEditRule === 'FROM_INCLUDE') return true;
+  if (canEditRule === 'PEOPLE_TYPE') return true;
+
+  if (canEditRule === 'CREATOR') {
+    if (phoneNumber === requesterPhoneNumber) {
+      return true;
+    }
+    return false;
+  }
+
   return true;
 };
 
