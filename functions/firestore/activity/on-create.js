@@ -65,7 +65,7 @@ const {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const commitBatch = (conn) => conn.batch.commit()
-  .then((result) => sendResponse(conn, code.created, 'CREATED'))
+  .then((metadata) => sendResponse(conn, code.created, 'CREATED'))
   .catch((error) => handleError(conn, error));
 
 
@@ -73,9 +73,8 @@ const commitBatch = (conn) => conn.batch.commit()
  * Adds docs for each assignee of the activity to the batch.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} result Contains the fetched documents from Firestore.
  */
-const handleAssignedUsers = (conn, result) => {
+const handleAssignedUsers = (conn) => {
   const promises = [];
 
   /**
@@ -87,11 +86,11 @@ const handleAssignedUsers = (conn, result) => {
 
     conn.batch.set(activities.doc(conn.activityRef.id)
       .collection('Assignees').doc(val), {
-        /** template --> result[0] */
         canEdit: handleCanEdit(
-          result[1].docs[0].get('canEditRule'),
+          conn.data.subscription.get('canEditRule'),
           val,
-          conn.requester.phoneNumber
+          conn.requester.phoneNumber,
+          conn.data.subscription.get('include')
         ),
       }, {
         merge: true,
@@ -103,9 +102,10 @@ const handleAssignedUsers = (conn, result) => {
     conn.batch.set(profiles.doc(val).collection('Activities')
       .doc(conn.activityRef.id), {
         canEdit: handleCanEdit(
-          result[1].docs[0].get('canEditRule'),
+          conn.data.subscription.get('canEditRule'),
           val,
-          conn.requester.phoneNumber
+          conn.requester.phoneNumber,
+          conn.data.subscription.get('include')
         ),
         timestamp: new Date(conn.req.body.timestamp),
       });
@@ -123,9 +123,10 @@ const handleAssignedUsers = (conn, result) => {
         conn.batch.set(profiles.doc(doc.id).collection('Activities')
           .doc(conn.activityRef.id), {
             canEdit: handleCanEdit(
-              result[1].docs[0].get('canEditRule'),
+              conn.data.subscription.get('canEditRule'),
               doc.id,
-              conn.requester.phoneNumber
+              conn.requester.phoneNumber,
+              conn.data.subscription.get('include')
             ),
             timestamp: new Date(conn.req.body.timestamp),
           });
@@ -148,28 +149,27 @@ const handleAssignedUsers = (conn, result) => {
  * Adds activity root doc to batch.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Array} result Fetched docs from Firestore.
  */
-const createActivity = (conn, result) => {
+const createActivity = (conn) => {
   /** description is a non-essential field */
   if (!conn.req.body.description) conn.req.body.description = '';
 
   conn.batch.set(conn.activityRef, {
     title: conn.req.body.title || conn.req.body.description
-      .substring(0, 30) || result[0].docs[0].get('defaultTitle'),
+      .substring(0, 30) || conn.data.template.get('defaultTitle'),
     description: conn.req.body.description,
-    status: result[0].docs[0].get('statusOnCreate'),
+    status: conn.data.template.get('statusOnCreate'),
     office: conn.req.body.office,
     template: conn.req.body.template,
     schedule: scheduleCreator(
       conn.req.body.schedule,
       /** schedule object from the template */
-      result[0].docs[0].get('schedule')
+      conn.data.template.get('schedule')
     ),
     venue: venueCreator(
       conn.req.body.venue,
       /** venue object from the template */
-      result[0].docs[0].get('venue')
+      conn.data.template.get('venue')
     ),
     timestamp: new Date(conn.req.body.timestamp),
     /** The docRef is the reference to the document which the
@@ -183,7 +183,7 @@ const createActivity = (conn, result) => {
     activityId: conn.activityRef.id,
     user: conn.requester.displayName || conn.requester.phoneNumber,
     comment: `${conn.requester.displayName || conn.requester.phoneNumber}
-      created ${result[0].docs[0].get('name')}`,
+      created ${conn.data.template.get('name')}`,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: new Date(conn.req.body.timestamp),
   };
@@ -196,13 +196,14 @@ const createActivity = (conn, result) => {
    * phone number, so we don't need to explictly add their number
    * in order to add them to a batch.
    */
-  result[1].docs[0].get('include').forEach((val) => {
+  conn.data.subscription.get('include').forEach((val) => {
     conn.batch.set(activities.doc(conn.activityRef.id)
       .collection('Assignees').doc(val), {
         canEdit: handleCanEdit(
-          result[1].docs[0].get('canEditRule'),
+          conn.data.subscription.get('canEditRule'),
           val,
-          conn.requester.phoneNumber
+          conn.requester.phoneNumber,
+          conn.data.subscription.get('include')
         ),
       });
   });
@@ -210,19 +211,20 @@ const createActivity = (conn, result) => {
   conn.batch.set(profiles.doc(conn.requester.phoneNumber)
     .collection('Activities').doc(conn.activityRef.id), {
       canEdit: handleCanEdit(
-        result[1].docs[0].get('canEditRule'),
+        conn.data.subscription.get('canEditRule'),
         /** The phone Number to check and the one with which we are
          * going to verify the edit rule with are same because this
          * block is writing the doc for the user themselves.
          */
         conn.requester.phoneNumber,
-        conn.requester.phoneNumber
+        conn.requester.phoneNumber,
+        conn.data.subscription.get('include')
       ),
       timestamp: new Date(conn.req.body.timestamp),
     });
 
   if (Array.isArray(conn.req.body.assignees)) {
-    handleAssignedUsers(conn, result);
+    handleAssignedUsers(conn);
     return;
   }
 
@@ -234,22 +236,21 @@ const createActivity = (conn, result) => {
  * Adds subscription to the user's profile based on the request body.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Array} result Fetched docs from Firestore.
  */
-const createSubscription = (conn, result) => {
+const createSubscription = (conn) => {
   conn.docRef = profiles.doc(conn.requester.phoneNumber)
     .collection('Subscriptions').doc();
 
   conn.batch.set(conn.docRef, {
     include: [conn.requester.phoneNumber],
     timestamp: new Date(conn.req.body.timestamp),
-    template: result[1].docs[0].id,
+    template: conn.data.subscription.id,
     office: conn.req.body.office,
     activityId: conn.activityRef.id,
-    status: result[0].docs[0].get('statusOnCreate'),
+    status: conn.data.template.get('statusOnCreate'),
   });
 
-  createActivity(conn, result);
+  createActivity(conn);
 };
 
 
@@ -258,20 +259,19 @@ const createSubscription = (conn, result) => {
  * attachment, template, and the request body.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Array} result Fetched docs from Firestore.
  */
-const createCompany = (conn, result) => {
+const createCompany = (conn) => {
   conn.docRef = offices.doc(conn.req.body.office);
 
   conn.batch.set(conn.docRef, {
     activityId: conn.activityRef.id,
     attachment: attachmentCreator(
       conn.req.body.attachment,
-      result[0].docs[0].get('attachment')
+      conn.data.template.get('attachment')
     ),
   });
 
-  createActivity(conn, result);
+  createActivity(conn);
 };
 
 
@@ -280,24 +280,23 @@ const createCompany = (conn, result) => {
  * attachment based on the attachment, template and, the request body.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Array} result Fetched docs from Firestore.
  */
-const addNewEntityInOffice = (conn, result) => {
+const addNewEntityInOffice = (conn) => {
   conn.docRef = office.doc(conn.req.body.office)
     .collection(conn.req.body.template).doc();
 
   conn.batch.set(conn.docRef, {
     attachment: attachmentCreator(
       conn.req.body.attachment,
-      result[0].docs[0].get('attachment')
+      conn.data.template.get('attachment')
     ),
     schedule: scheduleCreator(conn.req.body.schedule),
     venue: venueCreator(conn.req.body.venue),
     activityId: conn.activityRef.id,
-    status: result[0].docs[0].get('statusOnCreate'),
+    status: conn.data.template.get('statusOnCreate'),
   });
 
-  createActivity(conn, result);
+  createActivity(conn);
 };
 
 
@@ -306,9 +305,8 @@ const addNewEntityInOffice = (conn, result) => {
  * based on that.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Array} result Fetched docs from Firestore.
  */
-const processRequestType = (conn, result) => {
+const processRequestType = (conn) => {
   /** reference of the batch and the activity instance will be used
    * multiple times throughout the activity creation
    */
@@ -317,7 +315,7 @@ const processRequestType = (conn, result) => {
 
   if (conn.req.body.office === 'personal') {
     if (conn.req.body.template === 'plan') {
-      createActivity(conn, result);
+      createActivity(conn);
       return;
     }
 
@@ -328,7 +326,7 @@ const processRequestType = (conn, result) => {
     return;
   } else {
     /** if office is not personal */
-    if (result[2].empty) {
+    if (!conn.data.office.exists) {
       /** office does not exist with the name from the request */
       sendResponse(
         conn,
@@ -339,16 +337,16 @@ const processRequestType = (conn, result) => {
     }
 
     if (conn.req.body.template === 'subscription') {
-      createSubscription(conn, result);
+      createSubscription(conn);
       return;
     }
 
     if (conn.req.body.template === 'company') {
-      createCompany(conn, result);
+      createCompany(conn);
       return;
     }
 
-    addNewEntityInOffice(conn, result);
+    addNewEntityInOffice(conn);
   }
 };
 
@@ -361,12 +359,10 @@ const processRequestType = (conn, result) => {
 const fetchDocs = (conn) => {
   const promises = [
     activityTemplates.where('name', '==', conn.req.body.template)
-      .limit(1).get(),
+    .limit(1).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-      .where('template', '==', conn.req.body.template).limit(1).get(),
+    .where('template', '==', conn.req.body.template).limit(1).get(),
     offices.where('name', '==', conn.req.body.office).limit(1).get(),
-    /** The enums doc will always exist. */
-    enums.doc('CANEDITRULES').get(),
   ];
 
   Promise.all(promises).then((result) => {
@@ -391,12 +387,17 @@ const fetchDocs = (conn) => {
       sendResponse(
         conn,
         code.forbidden,
-        'You do not have the permission to create'
-        + ' an activity with this template');
+        'You do not have the permission to create' +
+        ' an activity with this template');
       return;
     }
 
-    processRequestType(conn, result);
+    conn.data = {};
+    conn.data.template = result[0].docs[0];
+    conn.data.subscription = result[1].docs[0];
+    conn.data.office = result[2].docs[0];
+
+    processRequestType(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -414,9 +415,9 @@ const app = (conn) => {
   sendResponse(
     conn,
     code.badRequest,
-    'The request body does not have all the necessary fields with proper'
-    + ' values. Please make sure that the timestamp, template, office'
-    + ' and the geopoint are included in the request with appropriate values.'
+    'The request body does not have all the necessary fields with proper' +
+    ' values. Please make sure that the timestamp, template, office' +
+    ' and the geopoint are included in the request with appropriate values.'
   );
 };
 

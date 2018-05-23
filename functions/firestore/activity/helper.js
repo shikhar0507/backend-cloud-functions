@@ -79,11 +79,13 @@ const isValidPhoneNumber = (phoneNumber) =>
  * created.
  *
  * @param {string} canEditRule Identifier for setting up the permission with.
- * @param {*} phoneNumber E.164 phone number.
- * @param {*} requesterPhoneNumber Phone number of the requester.
+ * @param {string} phoneNumber E.164 phone number.
+ * @param {string} requesterPhoneNumber Phone number of the requester.
+ * @param {Array} include The phone numbers from user's susbcription document.
  */
-const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber) => {
-  /** rules will have one of the following values
+const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber,
+  include) => {
+  /** The rules will have one of the following values
    * ALL
    * NONE
    * FROM_INCLUDE
@@ -92,8 +94,17 @@ const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber) => {
    */
 
   if (canEditRule === 'ALL') return true;
+
   if (canEditRule === 'NONE') return false;
-  if (canEditRule === 'FROM_INCLUDE') return true;
+
+  if (canEditRule === 'FROM_INCLUDE') {
+    if (include.indexOf(phoneNumber) > -1) {
+      return true;
+    }
+    return false;
+  }
+
+  /** TODO: this needs to be implemented. */
   if (canEditRule === 'PEOPLE_TYPE') return true;
 
   if (canEditRule === 'CREATOR') {
@@ -103,7 +114,7 @@ const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber) => {
     return false;
   }
 
-  return true;
+  return false;
 };
 
 
