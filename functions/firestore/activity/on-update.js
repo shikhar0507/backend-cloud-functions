@@ -129,6 +129,12 @@ const processAsigneesList = (conn, result) => {
 
       conn.batch.delete(profiles.doc(val).collection('Activities')
         .doc(conn.req.body.activityId));
+
+      let index = conn.activityAssignees.indexOf(val);
+
+      if (index > -1) {
+        conn.activityAssignees.splice(index, 1);
+      }
     });
   }
 
@@ -140,18 +146,12 @@ const processAsigneesList = (conn, result) => {
 
       conn.batch.set(activities.doc(conn.req.body.activityId)
         .collection('Assignees').doc(val), {
-          canEdit: handleCanEdit(
-            conn.templateData.canEditRule,
-            result[3].data() /** CANEDITRULES DOC DATA */
-          ),
+          canEdit: handleCanEdit(/** TODO: add stuff*/),
         });
 
       conn.batch.set(profiles.doc(val).collection('Activities')
         .doc(conn.req.body.activityId), {
-          canEdit: handleCanEdit(
-            conn.templateData.canEditRule,
-            result[3].data() /** CANEDITRULES DOC DATA */
-          ),
+          canEdit: handleCanEdit(/** TODO: add stuff*/),
           timestamp: new Date(conn.req.body.timestamp),
         });
 
@@ -160,13 +160,13 @@ const processAsigneesList = (conn, result) => {
   }
 
   Promise.all(promises).then((snapShots) => {
-    snapShots.forEach((doc) => {
-      /** If the request does't have the unassign array, then the updates
-       * will be written for all the assignees and the users who have
-       * been added in this update.
-       */
-      if (!conn.req.body.unassign) conn.req.body.unassign = [];
+    /** If the request does't have the unassign array, then the updates
+     * will be written for all the assignees and the users who have
+     * been added in this update.
+     */
+    if (!conn.req.body.unassign) conn.req.body.unassign = [];
 
+    snapShots.forEach((doc) => {
       /** The uid shouldn't be null OR undefined. And, the doc shouldn't be of
        * a person who has been unassigned from the activity during the update.
        */
@@ -215,7 +215,7 @@ const getTemplateAndAssigneesFromActivity = (conn, result) => {
       timestamp: new Date(conn.req.body.timestamp),
     };
 
-    if (conn.req.body.addAssignTo || conn.req.body.deleteAssignTo) {
+    if (conn.req.body.assign || conn.req.body.unassign) {
       processAsigneesList(conn, result);
       return;
     }
@@ -279,16 +279,22 @@ const fetchDocs = (conn) => {
 const verifyPermissionToUpdateActivity = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
-      if (!doc.exists || !doc.get('canEdit')) {
-        /** Along with having a document in Assignees sub-collection,
-         * the user must also have the permission to edit the activity.
-         */
+      if (!doc.exists) {
+        /** The activity doesn't exist for the user */
+        sendResponse(
+          conn,
+          conn.forbidden,
+          `An activity with the id: ${conn.req.body.activityId} does not exist.`
+        );
+        return;
+      }
+
+      if (!doc.get('canEdit')) {
+        /** The canEdit flag is false so updating is not allowed */
         sendResponse(
           conn,
           code.forbidden,
-          'You need to be either an assignee of the activity or have'
-          + ' the edit rights to make a successful update request'
-          + ' to an activity.'
+          'You do not have the permission to edit this activity.'
         );
         return;
       }

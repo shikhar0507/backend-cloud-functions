@@ -78,10 +78,9 @@ const handleAssignedUsers = (conn) => {
   const promises = [];
 
   /**
-   * create docs in Assignees collection if assignees is in the
-   * reqeuest body
+   * create docs in Assignees collection if assign is in the reqeuest body.
    * */
-  conn.req.body.assignees.forEach((val) => {
+  conn.req.body.assign.forEach((val) => {
     if (!isValidPhoneNumber(val)) return;
 
     conn.batch.set(activities.doc(conn.activityRef.id)
@@ -177,6 +176,7 @@ const createActivity = (conn) => {
      * activity with the template 'plan' with office 'personal'.
      */
     docRef: conn.docRef || null,
+    canEditRule: conn.data.subscription.get('canEditRule'),
   });
 
   conn.addendumData = {
@@ -223,7 +223,7 @@ const createActivity = (conn) => {
       timestamp: new Date(conn.req.body.timestamp),
     });
 
-  if (Array.isArray(conn.req.body.assignees)) {
+  if (Array.isArray(conn.req.body.assign)) {
     handleAssignedUsers(conn);
     return;
   }
@@ -290,8 +290,14 @@ const addNewEntityInOffice = (conn) => {
       conn.req.body.attachment,
       conn.data.template.get('attachment')
     ),
-    schedule: scheduleCreator(conn.req.body.schedule),
-    venue: venueCreator(conn.req.body.venue),
+    schedule: scheduleCreator(
+      conn.req.body.schedule,
+      conn.data.template.get('schedule')
+    ),
+    venue: venueCreator(
+      conn.req.body.venue,
+      conn.data.template.get('venue')
+    ),
     activityId: conn.activityRef.id,
     status: conn.data.template.get('statusOnCreate'),
   });
@@ -322,7 +328,10 @@ const processRequestType = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The template and office do not have' + ' a valid combination');
+      `This combination of office: ${conn.req.body.office} and`
+      + `template: ${conn.req.body.template} does not exist in`
+      + ' your subscriptions'
+    );
     return;
   } else {
     /** if office is not personal */
@@ -331,7 +340,8 @@ const processRequestType = (conn) => {
       sendResponse(
         conn,
         code.badRequest,
-        'An office with this name does not exist'
+        `An office with the name: ${conn.data.office.get('name')}`
+        + 'does not exist.'
       );
       return;
     }
@@ -359,9 +369,9 @@ const processRequestType = (conn) => {
 const fetchDocs = (conn) => {
   const promises = [
     activityTemplates.where('name', '==', conn.req.body.template)
-    .limit(1).get(),
+      .limit(1).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-    .where('template', '==', conn.req.body.template).limit(1).get(),
+      .where('template', '==', conn.req.body.template).limit(1).get(),
     offices.where('name', '==', conn.req.body.office).limit(1).get(),
   ];
 
@@ -376,10 +386,22 @@ const fetchDocs = (conn) => {
       return;
     }
 
-    if (!result[1].docs[0].exists
-      /** Checks if the requester has subscription of this activity. */
-      &&
-      result[1].docs[0].get('office') !== conn.req.body.office) {
+    if (result[1].empty) {
+      /** The template with that field does not exist in the user's
+       * subscriptions. This probably means that they are either not subscribed
+       *  to the template that they requested to create the activity
+       * with, OR the template with that name simply does not exist.
+       */
+      sendResponse(
+        conn,
+        code.forbidden,
+        `A template with the name: ${conn.req.body.template}`
+        + ' does not exist in your subscriptions.'
+      );
+      return;
+    }
+
+    if (result[1].docs[0].get('office') !== conn.req.body.office) {
       /** Template from the request body and the office do not match so,
        * the requester probably doesn't have the permission to create
        * an activity with this template.
@@ -388,7 +410,7 @@ const fetchDocs = (conn) => {
         conn,
         code.forbidden,
         'You do not have the permission to create' +
-        ' an activity with this template');
+        ` an activity with the template ${conn.req.body.template}.`);
       return;
     }
 
@@ -407,7 +429,8 @@ const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp) &&
     isValidString(conn.req.body.template) &&
     isValidString(conn.req.body.office) &&
-    isValidLocation(conn.req.body.geopoint)) {
+    isValidLocation(conn.req.body.geopoint) &&
+    typeof conn.req.body.template === 'object') {
     fetchDocs(conn);
     return;
   }

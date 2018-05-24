@@ -34,6 +34,7 @@ const {
 const {
   getUserByUid,
   verifyIdToken,
+  disableUser,
 } = users;
 
 const {
@@ -55,6 +56,34 @@ const {
 
 
 /**
+ * Disables the user account in auth based on uid and writes the reason to
+ * the document in the profiles collection for which the account was disabled.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
+const disableAccount = (conn) => {
+  const reason = 'The uid and phone number of the requester does not match.';
+
+  Promise.all([
+    profiles.doc(conn.requester.phoneNumber).set({
+      disabled: reason,
+    }, {
+        merge: true,
+      }),
+    disableUser(conn.requester.uid),
+  ]).then((result) => {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'The uid and phone number do not match.'
+    );
+
+    return;
+  }).catch((error) => handleError(conn, error));
+};
+
+
+/**
  * Fetches the phone number of the requester and verifies
  * if the document for this phone number inside the /Profiles
  * has the same uid as the requester.
@@ -64,11 +93,11 @@ const {
 const verifyUidAndPhoneNumberCombination = (conn) => {
   profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
     if (doc.get('uid') !== conn.requester.uid) {
-      sendResponse(
-        conn,
-        code.forbidden,
-        'The uid and phone number do not match.'
-      );
+      /** The user probably managed to change their phone number by something
+       * other than out provided endpoint for updating the auth.
+       * Disabling their account because this is not allowed.
+       */
+      endResponseByDisablingUser(conn);
       return;
     }
 
@@ -201,7 +230,7 @@ const server = (req, res) => {
   };
 
   if (req.method === 'OPTIONS') {
-    /** no content to send in options response */
+    /** no content to send in response to the  OPTIONS request */
     sendResponse(conn, code.noContent, '');
     return;
   }

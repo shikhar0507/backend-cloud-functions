@@ -26,6 +26,10 @@ const onRead = require('../firestore/activity/on-read');
 const onCreate = require('../firestore/activity/on-create');
 const onUpdate = require('../firestore/activity/on-update');
 const onComment = require('../firestore/activity/on-comment');
+const onShare = require('../firestore/activity/on-share');
+const onRemove = require('../firestore/activity/on-remove');
+const onStatusChange = require('../firestore/activity/on-status-change');
+
 
 const {
   handleError,
@@ -113,6 +117,48 @@ const activitiesHandler = (conn) => {
     }
 
     onUpdate(conn);
+    return;
+  }
+
+  if (action === 'share') {
+    if (method !== 'PATCH') {
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
+      return;
+    }
+
+    onShare(conn);
+    return;
+  }
+
+  if (action === 'change-status') {
+    if (method !== 'PATCH') {
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
+      return;
+    }
+
+    onStatusChange(conn);
+    return;
+  }
+
+  if (action === 'remove') {
+    if (method !== 'PATCH') {
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+      );
+      return;
+    }
+
+    onRemove(conn);
     return;
   }
 

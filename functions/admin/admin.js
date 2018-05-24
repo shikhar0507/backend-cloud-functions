@@ -108,6 +108,16 @@ const getUserByPhoneNumber = (phoneNumber) => {
   });
 };
 
+/**
+ * Disables the user account in auth.
+ *
+ * @param {string} uid A 30 character alpha-numeric string.
+ * @returns {Promise} Resolving to a userRecord object.
+ */
+const disableUser = (uid) => auth.updateUser({
+  disabled: true,
+});
+
 
 /**
  * Returns the user record by using the uid.
@@ -136,6 +146,7 @@ const users = {
   createUserInAuth,
   updateUserPhoneNumberInAuth,
   revokeRefreshTokens,
+  disableUser,
 };
 
 

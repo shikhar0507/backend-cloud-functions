@@ -66,6 +66,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
           template: doc.get('defaultTitle'),
+          office: doc.get('office'),
           status: doc.get('statusOnCreate'),
         };
       }
@@ -88,7 +89,8 @@ const fetchSubscriptions = (conn, jsonResult) => {
  */
 const getTemplates = (conn, jsonResult) => {
   profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-    .where('timestamp', '>=', new Date(conn.req.query.from))
+    .where('timestamp', '>', new Date(conn.req.query.from))
+    .where('timestamp', '<=', jsonResult.upto)
     .get().then((snapShot) => {
       conn.templatesList = [];
 
@@ -133,7 +135,7 @@ const fetchAssignees = (conn, jsonResult) => {
  *  Fetches all the attachments using the activity root docRef field.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
- * @param {*} jsonResult The fetched data from Firestore.
+ * @param {Object} jsonResult The fetched data from Firestore.
  */
 const fetchAttachments = (conn, jsonResult) => {
   Promise.all(conn.docRefsArray).then((snapShots) => {
@@ -196,8 +198,8 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.assigneeFetchPromises = [];
 
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
-    .where('timestamp', '>=', new Date(conn.req.query.from)).get()
-    .then((snapShot) => {
+    .where('timestamp', '>', new Date(conn.req.query.from))
+    .where('timestamp', '<=', jsonResult.upto).get().then((snapShot) => {
       snapShot.forEach((doc) => {
         conn.activityFetchPromises.push(activities.doc(doc.id).get());
         conn.assigneeFetchPromises
@@ -228,17 +230,14 @@ const readAddendumsByQuery = (conn) => {
   jsonResult.upto = jsonResult.from; /** when  no docs are found in Addendum */
 
   updates.doc(conn.requester.uid).collection('Addendum')
-    .where('timestamp', '>=', new Date(conn.req.query.from))
+    .where('timestamp', '>', new Date(conn.req.query.from))
     .orderBy('timestamp', 'asc').get().then((snapShot) => {
       snapShot.forEach((doc) => {
         jsonResult.addendum.push({
           activityId: doc.get('activityId'),
           comment: doc.get('comment'),
           timestamp: doc.get('timestamp'),
-          location: [
-            doc.get('location')._latitude,
-            doc.get('location')._longitude,
-          ],
+          location: doc.get('location'),
           user: doc.get('user'),
         });
       }); // forEach end
