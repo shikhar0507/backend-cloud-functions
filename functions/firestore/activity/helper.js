@@ -68,7 +68,7 @@ const isValidDate = (date) => !isNaN(new Date(date));
  * Verifies a phone number based on the E.164 standard.
  *
  * @param {string} phoneNumber A phone number.
- * @returns {boolean} Whethere the number is a valid E.164 phone number.
+ * @returns {boolean} If the number is a valid E.164 phone number.
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const isValidPhoneNumber = (phoneNumber) =>
@@ -78,10 +78,10 @@ const isValidPhoneNumber = (phoneNumber) =>
  * Handles whether a person has the authority to edit an activity after it is
  * created.
  *
- * @param {string} canEditRule Identifier for setting up the permission with.
- * @param {string} phoneNumber E.164 phone number.
+ * @param {string} canEditRule From user's subscriptions.
+ * @param {string} phoneNumber Number to check the canEdir rule for.
  * @param {string} requesterPhoneNumber Phone number of the requester.
- * @param {Array} include The phone numbers from user's susbcription document.
+ * @param {Array} include The 'include' array from Subscriptions.
  */
 const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber,
   include) => {
@@ -91,6 +91,12 @@ const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber,
    * FROM_INCLUDE
    * CREATOR
    * PEOPLE_TYPE
+   */
+  /**
+   * 1. 'canEditRule' from subscriptions
+   * 2. phone number to check the canEdit rule for
+   * 3. requester phone number
+   * 4. 'include' from subscriptions
    */
 
   if (canEditRule === 'ALL') return true;
@@ -127,10 +133,18 @@ const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber,
  * the Firestore.
  * @returns {Object} A venue object.
  */
-const scheduleCreator = (schedule, scheduleDataFromDB) => {
-  if (!Array.isArray(schedule)) return {};
+const filterSchedules = (schedule, scheduleDataFromDB) => {
+  let schedules = {};
 
-  const schedules = {};
+  const defaultSchedule = schedules[scheduleDataFromDB.name] = {
+    name: scheduleDataFromDB.name,
+    startTime: null,
+    endTime: null,
+  };
+
+  if (!Array.isArray(schedule)) {
+    return defaultSchedule;
+  }
 
   schedule.forEach((sch) => {
     if (sch.name !== scheduleDataFromDB.name) {
@@ -139,7 +153,7 @@ const scheduleCreator = (schedule, scheduleDataFromDB) => {
 
     if (!isNaN(new Date(sch.startTime)) && !sch.endTime) {
       // schedule has startTime but not endTime
-      schedules[`${sch.name}`] = {
+      schedules[sch.name] = {
         name: sch.name,
         startTime: new Date(sch.startTime),
         endTime: new Date(sch.startTime),
@@ -148,7 +162,7 @@ const scheduleCreator = (schedule, scheduleDataFromDB) => {
       !isNaN(new Date(sch.endTime)) &&
       sch.endTime >= sch.startTime) {
       // schedule has both startTime, endTime & endTime  >= startTime
-      schedules[`${sch.name}`] = {
+      schedules[sch.name] = {
         name: sch.name,
         startTime: new Date(sch.startTime),
         endTime: new Date(sch.endTime),
@@ -160,11 +174,7 @@ const scheduleCreator = (schedule, scheduleDataFromDB) => {
    * the request body, we create an object with null values.
    */
   if (Object.keys(schedules).length === 0) {
-    schedules[scheduleDataFromDB.name] = {
-      name: scheduleDataFromDB.name,
-      startTime: null,
-      endTime: null,
-    };
+    return defaultSchedule;
   }
 
   return schedules;
@@ -179,13 +189,22 @@ const scheduleCreator = (schedule, scheduleDataFromDB) => {
  * @param {Object} venueDataFromDB Venue template data from Firestore.
  * @returns {Object} A schedule object.
  */
-const venueCreator = (venue, venueDataFromDB) => {
-  if (!Array.isArray(venue)) return {};
+const filterVenues = (venue, venueDataFromDB) => {
+  let venues = {};
 
-  const venues = {};
+  const defaultVenue = venues[venueDataFromDB.venueDescriptor] = {
+    venueDescriptor: venueDataFromDB.venueDescriptor,
+    location: null,
+    geopoint: null,
+    address: null,
+  };
+
+  if (!Array.isArray(venues)) {
+    return defaultVenue;
+  }
 
   venue.forEach((val) => {
-    if (venue.venueDescriptor !== venueDataFromDB.venueDescriptor) {
+    if (val.venueDescriptor !== venueDataFromDB.venueDescriptor) {
       return;
     }
 
@@ -205,12 +224,7 @@ const venueCreator = (venue, venueDataFromDB) => {
    * create an object with all null values except the name
    */
   if (Object.keys(venues).length === 0) {
-    venues[venueDataFromDB.venueDescriptor] = {
-      venueDescriptor: val.venueDescriptor,
-      location: null,
-      geopoint: null,
-      address: null,
-    };
+    return defaultVenue;
   }
 
   return venues;
@@ -241,8 +255,8 @@ const attachmentCreator = (attachment, attachmentFromTemplate) => {
 };
 
 module.exports = {
-  scheduleCreator,
-  venueCreator,
+  filterSchedules,
+  filterVenues,
   handleCanEdit,
   isValidString,
   isValidDate,

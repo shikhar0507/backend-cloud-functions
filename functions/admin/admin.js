@@ -43,7 +43,7 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
  * @param {Object} geopoint Contains lat, lng value pair.
  */
 const getGeopointObject = (geopoint) =>
-  new admin.firestore.GeoPoint(geopoint.latutude, geopoint.longitude);
+  new admin.firestore.GeoPoint(geopoint.latitude, geopoint.longitude);
 
 
 /**

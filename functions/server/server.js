@@ -75,13 +75,49 @@ const disableAccount = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      'The uid and phone number do not match.'
+      'The uid and phone number do not match.',
+      false
     );
 
     return;
   }).catch((error) => handleError(conn, error));
 };
 
+/**
+ * Checks the path of the URL in the reuqest and handles the execution flow.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
+const handleRequestPath = (conn) => {
+  const action = parse(conn.req.url).path.split('/')[1];
+
+  if (action === 'activities') {
+    onActivity(conn);
+    return;
+  }
+
+  if (action === 'services') {
+    onService(conn);
+    return;
+  }
+
+  if (action === 'now') {
+    if (conn.req.method !== 'GET') {
+      sendResponse(
+        conn,
+        code.methodNotAllowed,
+        `${conn.req.method} is not allowed for the /${action} endpoint.`,
+        false
+      );
+      return;
+    }
+
+    now(conn); // server timestamp
+    return;
+  }
+
+  sendResponse(conn, code.badRequest, 'The request path is not valid', false);
+};
 
 /**
  * Fetches the phone number of the requester and verifies
@@ -101,24 +137,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
       return;
     }
 
-    const action = parse(conn.req.url).path.split('/')[1];
-
-    if (action === 'activities') {
-      onActivity(conn);
-      return;
-    }
-
-    if (action === 'services') {
-      onService(conn);
-      return;
-    }
-
-    if (action === 'now') {
-      now(conn); // server timestamp
-      return;
-    }
-
-    sendResponse(conn, code.badRequest, 'The request path is not valid');
+    handleRequestPath(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -133,7 +152,7 @@ const getCreatorsPhoneNumber = (conn) => {
   getUserByUid(conn.requester.uid).then((userRecord) => {
     if (userRecord.disabled) {
       /** users with disabled accounts cannot request any operation **/
-      sendResponse(conn, code.forbidden, 'Your account is disabled');
+      sendResponse(conn, code.forbidden, 'Your account is disabled', false);
       return;
     }
 
@@ -143,7 +162,7 @@ const getCreatorsPhoneNumber = (conn) => {
     return;
   }).catch((error) => {
     console.log(error);
-    sendResponse(conn, code.forbidden, 'FORBIDDEN');
+    sendResponse(conn, code.forbidden, 'FORBIDDEN', false);
   });
 };
 
@@ -160,7 +179,8 @@ const checkAuthorizationToken = (conn) => {
     sendResponse(
       conn,
       code.unauthorized,
-      'The authorization header is not valid'
+      'The authorization header is not valid',
+      false
     );
 
     return;
@@ -170,7 +190,8 @@ const checkAuthorizationToken = (conn) => {
     sendResponse(
       conn,
       code.unauthorized,
-      'Authorization type is not "Bearer"'
+      'Authorization type is not "Bearer"',
+      false
     );
 
     return;
@@ -192,7 +213,18 @@ const checkAuthorizationToken = (conn) => {
         sendResponse(
           conn,
           code.unauthorized,
-          'The idToken was revoked recently. Please reauthenticate.'
+          'The idToken was revoked recently. Please reauthenticate.',
+          false
+        );
+        return;
+      }
+
+      if (error.code === 'auth/argument-error') {
+        sendResponse(
+          conn,
+          code.unauthorized,
+          'The idToken is invalid/expired.',
+          false
         );
         return;
       }
@@ -201,7 +233,8 @@ const checkAuthorizationToken = (conn) => {
       sendResponse(
         conn,
         code.forbidden,
-        'There was an error processing the idToken sent in the request.'
+        'There was an error processing the idToken sent in the request.',
+        false
       );
     });
 };
@@ -231,20 +264,26 @@ const server = (req, res) => {
 
   if (req.method === 'OPTIONS') {
     /** no content to send in response to the  OPTIONS request */
-    sendResponse(conn, code.noContent, '');
+    sendResponse(conn, code.noContent, '', true);
     return;
   }
 
   /** allowed methods */
   if (['POST', 'GET', 'PATCH'].indexOf(req.method) > -1) {
-    checkAuthorizationToken(conn);
+    // checkAuthorizationToken(conn);
+    conn.requester = {};
+    conn.requester.phoneNumber = '+918527801093';
+    conn.requester.uid = 'Goy3Y42Ef7Pq0dGMSZwm2lb5aaN2';
+
+    handleRequestPath(conn);
     return;
   }
 
   sendResponse(
     conn,
     code.methodNotAllowed,
-    `${req.method} is not allowed for any request.`
+    `${req.method} is not allowed for any request.`,
+    false
   );
 };
 

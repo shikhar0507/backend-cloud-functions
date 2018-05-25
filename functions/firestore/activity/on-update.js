@@ -1,27 +1,3 @@
-/**
- * Copyright (c) 2018 GrowthFile
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- *
- */
-
-
 const {
   rootCollections,
   users,
@@ -40,8 +16,8 @@ const {
   isValidString,
   isValidLocation,
   isValidPhoneNumber,
-  scheduleCreator,
-  venueCreator,
+  filterSchedules,
+  filterVenues,
   attachmentCreator,
 } = require('./helper');
 
@@ -58,225 +34,140 @@ const {
   offices,
 } = rootCollections;
 
-
-/**
- * Commits the batch and sends a response to the client of the result.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- */
 const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(
     conn,
     code.accepted,
-    'The activity was successfully updated.'
+    'The activity was successfully updated.',
+    true
   )).catch((error) => handleError(conn, error));
 
 
-/**
- * Adds the activity root data to the batch.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Array} result Array of document data objects fetched from Firestore.
- */
-const writeActivityRoot = (conn, result) => {
-  /** description is a nullable field in the request body */
-  if (!conn.req.body.description) conn.req.body.description = '';
+const updateActivityDoc = (conn) => {
+  conn.update.description = conn.req.body.description;
 
-  conn.batch.set(activities.doc(conn.req.body.activityId), {
-    title: conn.req.body.title || result[0].get('title'),
-    description: conn.req.body.description ||
-      result[0].get('description'),
-    status: result[1].get('ACTIVITYSTATUS')
-      .indexOf(conn.req.body.status) > -1 ?
-      conn.req.body.status : result[0].get('status'),
-    schedule: scheduleCreator(
+  if (!conn.update.description || typeof conn.update.description !== 'string') {
+    conn.update.description = '';
+  }
+
+  conn.update.title = conn.req.body.title;
+
+  if (!conn.update.title || typeof conn.update.title !== 'string') {
+    conn.update.title = conn.req.body.description
+      .substring(0, 30) || conn.data.template.get('defaultTitle');
+  }
+
+  if (conn.req.body.schedule) {
+    conn.update.schedule = filterSchedules(
       conn.req.body.schedule,
-      /** Schedule from activity root. */
-      result[0].get('schedule')
-    ),
-    venue: venueCreator(
-      conn.req.body.schedule,
-      /** Venue from activity root. */
-      result[0].get('venue')
-    ),
-    timestamp: new Date(conn.req.body.timestamp),
-  }, {
-      /** In some requests, the data coming from the request will be
-       * partial, so we are merging instead of overwriting the
-       * whole activity root.
-       */
-      merge: true,
-    });
+      conn.data.activity.get('schedule')
+    );
+  }
+
+  if (conn.req.body.venue) {
+    conn.update.venue = filterVenues(
+      conn.req.body.venue,
+      conn.data.activity.get('venue')
+    );
+  }
+
+  conn.update.timestamp = new Date(conn.req.body.timestamp);
+
+  conn.batch.set(activities.doc(conn.req.body.activityId), conn.update, {
+    merge: true,
+  });
 
   commitBatch(conn);
 };
 
+const handleAttachment = (conn) => {
+  /** do stuff */
 
-/**
- * Handles the document creation in /Profiles and addition of new documents in
- * /Updates/<uid>/Activities collection for the assigned users of the acivity.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Array} result Array of document data objects fetched from Firestore.
- */
-const processAsigneesList = (conn, result) => {
-  if (Array.isArray(conn.req.body.unassign)) {
-    conn.req.body.unassign.forEach((val) => {
-      if (!isValidPhoneNumber(val)) return;
-
-      conn.batch.delete(activities.doc(conn.req.body.activityId)
-        .collection('Assignees').doc(val));
-
-      conn.batch.delete(profiles.doc(val).collection('Activities')
-        .doc(conn.req.body.activityId));
-
-      let index = conn.activityAssignees.indexOf(val);
-
-      if (index > -1) {
-        conn.activityAssignees.splice(index, 1);
-      }
-    });
-  }
-
-  const promises = [];
-
-  if (Array.isArray(conn.req.body.assign)) {
-    conn.req.body.assign.forEach((val) => {
-      if (!isValidPhoneNumber(val)) return;
-
-      conn.batch.set(activities.doc(conn.req.body.activityId)
-        .collection('Assignees').doc(val), {
-          canEdit: handleCanEdit(/** TODO: add stuff*/),
-        });
-
-      conn.batch.set(profiles.doc(val).collection('Activities')
-        .doc(conn.req.body.activityId), {
-          canEdit: handleCanEdit(/** TODO: add stuff*/),
-          timestamp: new Date(conn.req.body.timestamp),
-        });
-
-      promises.push(profiles.doc(val).get());
-    });
-  }
-
-  Promise.all(promises).then((snapShots) => {
-    /** If the request does't have the unassign array, then the updates
-     * will be written for all the assignees and the users who have
-     * been added in this update.
-     */
-    if (!conn.req.body.unassign) conn.req.body.unassign = [];
-
-    snapShots.forEach((doc) => {
-      /** The uid shouldn't be null OR undefined. And, the doc shouldn't be of
-       * a person who has been unassigned from the activity during the update.
-       */
-      if (doc.get('uid') && conn.req.body.unassign.indexOf(doc.id) === -1) {
-        conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
-          .doc(), conn.addendumData);
-      }
-    });
-
-    conn.batch.set(updates.doc(conn.requester.uid)
-      .collection('Addendum').doc(), conn.addendumData);
-
-    writeActivityRoot(conn, result);
-    return;
-  }).catch((error) => handleError(conn, error));
+  updateActivityDoc(conn);
 };
 
 
-/**
- * Fetches the assignees list and the template from the Activity in context.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Array} result Array of document data objects fetched from Firestore.
- */
-const getTemplateAndAssigneesFromActivity = (conn, result) => {
-  const promises = [
-    activityTemplates.doc(result[0].get('template')).get(),
-    activities.doc(conn.req.body.activityId).collection('AssignTo').get(),
-  ];
+const addAddendumForAssignees = (conn) => {
+  Promise.all(conn.data.assigneesArray).then((snapShot) => {
+    snapShot.forEach((doc) => {
+      if (doc.get('uid')) {
+        conn.batch.set(updates.doc(doc.get('uid'))
+          .collection('Addendum').doc(), conn.addendum);
+      }
+    });
 
-  Promise.all(promises).then((docsFromFirestore) => {
-    conn.templateData = docsFromFirestore[0].data();
+    /** Stores the objects that are to be updated in the activity root. */
+    conn.update = {};
 
-    conn.activityAssignees = [];
-
-    docsFromFirestore[1].forEach((doc) =>
-      conn.activityAssignees.push(doc.id));
-
-    conn.addendumData = {
-      activityId: conn.req.body.activityId,
-      user: conn.requester.displayName || conn.requester.phoneNumber,
-      comment: conn.requester.displayName || conn.requester.phoneNumber
-        /** template name from activity root */
-        + ' updated ' + result[0].get('template'),
-      location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: new Date(conn.req.body.timestamp),
-    };
-
-    if (conn.req.body.assign || conn.req.body.unassign) {
-      processAsigneesList(conn, result);
+    if (conn.req.body.attachment) {
+      handleAttachment(conn);
       return;
     }
 
-    writeActivityRoot(conn, result);
+    updateActivityDoc(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };
 
 
-/**
- * Fetches the activtiy root and enum/activitytemplates doc.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- */
-const fetchDocs = (conn) => {
-  const promises = [
-    activities.doc(conn.req.body.activityId).get(),
-    enums.doc('ACTIVITYSTATUS').get(),
-    offices.doc(conn.req.body.office).get(),
-    enums.doc('CANEDITRULES').get(),
-  ];
+const fetchTemplate = (conn) => {
+  activityTemplates.doc(conn.data.activity.get('template')).get()
+    .then((doc) => {
+      conn.addendum = {
+        activityId: conn.req.body.activityId,
+        user: conn.requester.displayName || conn.requester.phoneNumber,
+        comment: conn.requester.displayName || conn.requester.phoneNumber
+          + ' updated ' + doc.get('defaultTitle'),
+        location: getGeopointObject(conn.req.body.geopoint),
+        timestamp: new Date(conn.req.body.timestamp),
+      };
 
-  Promise.all(promises).then((result) => {
+      conn.data.template = doc;
+      addAddendumForAssignees(conn);
+
+      return;
+    }).catch((error) => handleError(conn, error));
+};
+
+
+const fetchDocs = (conn) => {
+  Promise.all([
+    activities.doc(conn.req.body.activityId).get(),
+    activities.doc(conn.req.body.activityId).collection('Assignees').get(),
+  ]).then((result) => {
     if (!result[0].exists) {
-      /** The activity with the id from the request body doesn't
-       * exist in the Firestore.
-       * */
+      /** This case should probably never execute becase there is provision
+       * for deleting an activity anywhere. AND, for reaching the fetchDocs()
+       * function, the check for the existance of the activity has already
+       * been performed in the User's profile.
+       */
       sendResponse(
         conn,
         code.conflict,
-        `There is no activity with the id: ${conn.req.body.activityId}.`
+        `There is no activity with the id: ${conn.req.body.activityId}`,
+        false
       );
       return;
     }
 
-    /** A reference of the batch instance will be used multiple times
-      * throughout the update flow.
-      */
     conn.batch = db.batch();
+    conn.data = {};
+    conn.data.activity = result[0];
 
-    getTemplateAndAssigneesFromActivity(conn, result);
+    conn.data.assigneesArray = [];
+
+    result[1].forEach((doc) => {
+      /** The assigneesArray is required to add addendum. */
+      conn.data.assigneesArray.push(profiles.doc(doc.id).get());
+    });
+
+    fetchTemplate(conn);
     return;
-  }).catch((error) => {
-    console.log(error);
-    sendResponse(
-      conn,
-      code.badRequest,
-      'Either of the activityId or the office names are invalid in the'
-      + ' request body'
-    );
-  });
+  }).catch((error) => handleError(conn, error));
 };
 
 
-/**
- * Checks whether the user has the permission to update the activity.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- */
-const verifyPermissionToUpdateActivity = (conn) => {
+const verifyEditPermission = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists) {
@@ -284,7 +175,8 @@ const verifyPermissionToUpdateActivity = (conn) => {
         sendResponse(
           conn,
           conn.forbidden,
-          `An activity with the id: ${conn.req.body.activityId} does not exist.`
+          `An activity with the id: ${conn.req.body.activityId} doesn't exist.`,
+          false
         );
         return;
       }
@@ -294,7 +186,8 @@ const verifyPermissionToUpdateActivity = (conn) => {
         sendResponse(
           conn,
           code.forbidden,
-          'You do not have the permission to edit this activity.'
+          'You do not have the permission to edit this activity.',
+          false
         );
         return;
       }
@@ -309,7 +202,7 @@ const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp)
     && isValidString(conn.req.body.activityId)
     && isValidLocation(conn.req.body.geopoint)) {
-    verifyPermissionToUpdateActivity(conn);
+    verifyEditPermission(conn);
     return;
   }
 
@@ -318,8 +211,10 @@ const app = (conn) => {
     code.badRequest,
     'The request body does not have all the necessary fields with proper'
     + ' values. Please make sure that the timestamp, activityId'
-    + ' and the geopoint are included in the request with appropriate values.'
+    + ' and the geopoint are included in the request with appropriate values.',
+    false
   );
 };
+
 
 module.exports = app;

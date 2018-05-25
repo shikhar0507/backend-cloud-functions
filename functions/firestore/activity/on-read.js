@@ -177,7 +177,9 @@ const fetchActivities = (conn, jsonResult) => {
       activityObj.assignees = [];
       activityObj.attachment = {};
 
-      conn.docRefsArray.push(doc.get(docRef).get());
+      if (doc.get('docRef')) {
+        conn.docRefsArray.push(doc.get('docRef').get());
+      }
     });
 
     // fetchAssignees(conn, jsonResult);
@@ -258,7 +260,8 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      conn.req.query.from + ' is not a valid timestamp'
+      conn.req.query.from + ' is not a valid timestamp',
+      false
     );
     return;
   }

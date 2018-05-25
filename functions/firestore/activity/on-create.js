@@ -53,8 +53,8 @@ const {
   isValidString,
   isValidPhoneNumber,
   isValidLocation,
-  scheduleCreator,
-  venueCreator,
+  filterSchedules,
+  filterVenues,
   attachmentCreator,
 } = require('./helper');
 
@@ -65,8 +65,12 @@ const {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const commitBatch = (conn) => conn.batch.commit()
-  .then((metadata) => sendResponse(conn, code.created, 'CREATED'))
-  .catch((error) => handleError(conn, error));
+  .then((metadata) => sendResponse(
+    conn,
+    code.created,
+    'The activity was successfully created.',
+    true
+  )).catch((error) => handleError(conn, error));
 
 
 /**
@@ -160,12 +164,12 @@ const createActivity = (conn) => {
     status: conn.data.template.get('statusOnCreate'),
     office: conn.req.body.office,
     template: conn.req.body.template,
-    schedule: scheduleCreator(
+    schedule: filterSchedules(
       conn.req.body.schedule,
       /** schedule object from the template */
       conn.data.template.get('schedule')
     ),
-    venue: venueCreator(
+    venue: filterVenues(
       conn.req.body.venue,
       /** venue object from the template */
       conn.data.template.get('venue')
@@ -290,11 +294,11 @@ const addNewEntityInOffice = (conn) => {
       conn.req.body.attachment,
       conn.data.template.get('attachment')
     ),
-    schedule: scheduleCreator(
+    schedule: filterSchedules(
       conn.req.body.schedule,
       conn.data.template.get('schedule')
     ),
-    venue: venueCreator(
+    venue: filterVenues(
       conn.req.body.venue,
       conn.data.template.get('venue')
     ),
@@ -330,7 +334,8 @@ const processRequestType = (conn) => {
       code.badRequest,
       `This combination of office: ${conn.req.body.office} and`
       + `template: ${conn.req.body.template} does not exist in`
-      + ' your subscriptions'
+      + ' your subscriptions',
+      false
     );
     return;
   } else {
@@ -341,7 +346,19 @@ const processRequestType = (conn) => {
         conn,
         code.badRequest,
         `An office with the name: ${conn.data.office.get('name')}`
-        + 'does not exist.'
+        + 'does not exist.',
+        false
+      );
+      return;
+    }
+
+    /** For creating a subscription or company, an attachment is required */
+    if (!conn.req.body.attachment) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        'Template is not present in the request body',
+        false
       );
       return;
     }
@@ -381,7 +398,8 @@ const fetchDocs = (conn) => {
       sendResponse(
         conn,
         code.badRequest,
-        'Template: ' + conn.req.body.template + ' does not exist'
+        'Template: ' + conn.req.body.template + ' does not exist',
+        false
       );
       return;
     }
@@ -396,7 +414,8 @@ const fetchDocs = (conn) => {
         conn,
         code.forbidden,
         `A template with the name: ${conn.req.body.template}`
-        + ' does not exist in your subscriptions.'
+        + ' does not exist in your subscriptions.',
+        false
       );
       return;
     }
@@ -410,7 +429,9 @@ const fetchDocs = (conn) => {
         conn,
         code.forbidden,
         'You do not have the permission to create' +
-        ` an activity with the template ${conn.req.body.template}.`);
+        ` an activity with the template ${conn.req.body.template}.`,
+        false
+      );
       return;
     }
 
@@ -429,8 +450,8 @@ const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp) &&
     isValidString(conn.req.body.template) &&
     isValidString(conn.req.body.office) &&
-    isValidLocation(conn.req.body.geopoint) &&
-    typeof conn.req.body.template === 'object') {
+    isValidLocation(conn.req.body.geopoint)
+    && conn.req.body.template) {
     fetchDocs(conn);
     return;
   }
@@ -440,7 +461,8 @@ const app = (conn) => {
     code.badRequest,
     'The request body does not have all the necessary fields with proper' +
     ' values. Please make sure that the timestamp, template, office' +
-    ' and the geopoint are included in the request with appropriate values.'
+    ' and the geopoint are included in the request with appropriate values.',
+    false
   );
 };
 

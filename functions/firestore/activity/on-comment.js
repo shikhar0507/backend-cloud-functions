@@ -58,12 +58,13 @@ const {
  *
  * @param {Object} conn Object with Express Request and Response Objects.
  */
-const commitBatch = (conn) => batch.commit()
+const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(
     conn,
     code.created,
-    'The comment was successfully added to the activity.')
-  ).catch((error) => handleError(conn, error));
+    'The comment was successfully added to the activity.',
+    true
+  )).catch((error) => handleError(conn, error));
 
 
 /**
@@ -131,8 +132,8 @@ const checkCommentPermission = (conn) => {
       if (!doc.exists) {
         sendResponse(conn,
           code.forbidden,
-          'You are either not an assignee of this activity, or the activity'
-          + 'with the id: ' + conn.req.body.activityId + ' does not exist.'
+          'An activity' + 'with the id: '
+          + conn.req.body.activityId + ' does not exist.'
         );
         return;
       }
@@ -146,7 +147,8 @@ const checkCommentPermission = (conn) => {
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp)
     && isValidLocation(conn.req.body.geopoint)
-    && isValidString(conn.req.body.activityId)) {
+    && isValidString(conn.req.body.activityId)
+    && typeof conn.req.body.comment === 'string') {
     checkCommentPermission(conn);
     return;
   }
@@ -156,7 +158,8 @@ const app = (conn) => {
     code.badRequest,
     'The request body does not have all the necessary fields with proper'
     + ' values. Please make sure that the timestamp, activityId  and the '
-    + 'geopoint are included in the request body.'
+    + 'geopoint are included in the request body.',
+    false
   );
 };
 

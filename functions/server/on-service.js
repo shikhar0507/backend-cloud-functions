@@ -53,7 +53,8 @@ const handleUserProfiles = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /${action} endpoint.`,
+        false
       );
       return;
     }
@@ -67,7 +68,8 @@ const handleUserProfiles = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /${action} endpoint.`,
+        false
       );
       return;
     }
@@ -76,7 +78,7 @@ const handleUserProfiles = (conn) => {
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid.');
+  sendResponse(conn, code.badRequest, 'The request path is not valid.', false);
 };
 
 
@@ -94,7 +96,7 @@ const servicesHandler = (conn) => {
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid.');
+  sendResponse(conn, code.badRequest, 'The request path is not valid.', false);
 };
 
 

@@ -63,7 +63,7 @@ const app = (conn) => {
   }
 
   Promise.all(promises).then((userRecords) => {
-    sendResponse(conn, code.ok, userRecords);
+    sendResponse(conn, code.ok, userRecords, true);
     return;
   }).catch((error) => handleError(conn, error));
 };

@@ -125,8 +125,9 @@ const updateFirestoreWithNewProfile = (conn) => {
   }).then(() => sendResponse(
     conn,
     code.ok,
-    'The phone number update was successful.')
-  ).catch((error) => handleError(conn, error));
+    'The phone number update was successful.',
+    true
+  )).catch((error) => handleError(conn, error));
 };
 
 
@@ -150,12 +151,22 @@ const updateUserProfile = (conn) => {
   ]).then((result) => updateFirestoreWithNewProfile(conn))
     .catch((error) => {
       if (error.code === 'auth/invalid-phone-number') {
-        sendResponse(conn, code.badReqWuest, 'Phone number is not valid');
+        sendResponse(
+          conn,
+          code.badRequest,
+          'Phone number is not valid',
+          false
+        );
         return;
       }
 
       if (error.code === 'auth/phone-number-already-exists') {
-        sendResponse(conn, code.conflict, 'Phone number is already in use');
+        sendResponse(
+          conn,
+          code.conflict,
+          'Phone number is already in use',
+          false
+        );
         return;
       }
 
@@ -164,7 +175,8 @@ const updateUserProfile = (conn) => {
         conn,
         code.badRequest,
         'The phone number in the request does not confirm to the E.164'
-        + 'standard.'
+        + 'standard.',
+        false
       );
     });
 };
@@ -175,7 +187,8 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The phone number in the request does not confirm to the E.164 standard.'
+      'The phone number in the request does not confirm to the E.164 standard.',
+      false
     );
     return;
   }

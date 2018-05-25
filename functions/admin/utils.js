@@ -30,7 +30,7 @@ const {
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  */
-const now = (conn) => sendResponse(conn, code.ok, new Date());
+const now = (conn) => sendResponse(conn, code.ok, new Date().toString(), true);
 
 
 /**
@@ -40,14 +40,16 @@ const now = (conn) => sendResponse(conn, code.ok, new Date());
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  * @param {number} statusCode A standard HTTP status code.
  * @param {string} message Response message for the request.
+ * @param {boolean} isSuccessful If the response was successful.
  */
-const sendResponse = (conn, statusCode, message) => {
+const sendResponse = (conn, statusCode, message, isSuccessful = true) => {
   conn.headers['Content-Type'] = 'application/json';
   conn.res.writeHead(statusCode, conn.headers);
 
   conn.res.end(JSON.stringify({
+    isSuccessful,
+    message,
     code: statusCode,
-    message: typeof message === 'object' ? '' : message,
   }));
 };
 
@@ -64,7 +66,8 @@ const handleError = (conn, error) => {
     conn,
     code.internalServerError,
     'There was an error handling the request. Please try again later.',
-    error
+    '',
+    false
   );
 };
 
