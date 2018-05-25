@@ -116,8 +116,8 @@ const fetchTemplate = (conn) => {
       conn.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: conn.requester.displayName || conn.requester.phoneNumber
-          + ' updated ' + doc.get('defaultTitle'),
+        comment: conn.requester.displayName || conn.requester.phoneNumber +
+          ' updated ' + doc.get('defaultTitle'),
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: new Date(conn.req.body.timestamp),
       };
@@ -199,9 +199,9 @@ const verifyEditPermission = (conn) => {
 
 
 const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp)
-    && isValidString(conn.req.body.activityId)
-    && isValidLocation(conn.req.body.geopoint)) {
+  if (isValidDate(conn.req.body.timestamp) &&
+    isValidString(conn.req.body.activityId) &&
+    isValidLocation(conn.req.body.geopoint)) {
     verifyEditPermission(conn);
     return;
   }
@@ -209,9 +209,9 @@ const app = (conn) => {
   sendResponse(
     conn,
     code.badRequest,
-    'The request body does not have all the necessary fields with proper'
-    + ' values. Please make sure that the timestamp, activityId'
-    + ' and the geopoint are included in the request with appropriate values.',
+    'The request body does not have all the necessary fields with proper' +
+    ' values. Please make sure that the timestamp, activityId' +
+    ' and the geopoint are included in the request with appropriate values.',
     false
   );
 };

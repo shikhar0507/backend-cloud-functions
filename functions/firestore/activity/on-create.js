@@ -84,7 +84,7 @@ const handleAssignedUsers = (conn) => {
   /**
    * create docs in Assignees collection if assign is in the reqeuest body.
    * */
-  conn.req.body.assign.forEach((val) => {
+  conn.req.body.share.forEach((val) => {
     if (!isValidPhoneNumber(val)) return;
 
     conn.batch.set(activities.doc(conn.activityRef.id)
@@ -227,7 +227,7 @@ const createActivity = (conn) => {
       timestamp: new Date(conn.req.body.timestamp),
     });
 
-  if (Array.isArray(conn.req.body.assign)) {
+  if (Array.isArray(conn.req.body.share)) {
     handleAssignedUsers(conn);
     return;
   }
@@ -332,9 +332,9 @@ const processRequestType = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `This combination of office: ${conn.req.body.office} and`
-      + `template: ${conn.req.body.template} does not exist in`
-      + ' your subscriptions',
+      `This combination of office: ${conn.req.body.office} and` +
+      `template: ${conn.req.body.template} does not exist in` +
+      ' your subscriptions',
       false
     );
     return;
@@ -345,8 +345,8 @@ const processRequestType = (conn) => {
       sendResponse(
         conn,
         code.badRequest,
-        `An office with the name: ${conn.data.office.get('name')}`
-        + 'does not exist.',
+        `An office with the name: ${conn.data.office.get('name')}` +
+        'does not exist.',
         false
       );
       return;
@@ -386,9 +386,9 @@ const processRequestType = (conn) => {
 const fetchDocs = (conn) => {
   const promises = [
     activityTemplates.where('name', '==', conn.req.body.template)
-      .limit(1).get(),
+    .limit(1).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-      .where('template', '==', conn.req.body.template).limit(1).get(),
+    .where('template', '==', conn.req.body.template).limit(1).get(),
     offices.where('name', '==', conn.req.body.office).limit(1).get(),
   ];
 
@@ -413,8 +413,8 @@ const fetchDocs = (conn) => {
       sendResponse(
         conn,
         code.forbidden,
-        `A template with the name: ${conn.req.body.template}`
-        + ' does not exist in your subscriptions.',
+        `A template with the name: ${conn.req.body.template}` +
+        ' does not exist in your subscriptions.',
         false
       );
       return;
@@ -450,8 +450,8 @@ const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp) &&
     isValidString(conn.req.body.template) &&
     isValidString(conn.req.body.office) &&
-    isValidLocation(conn.req.body.geopoint)
-    && conn.req.body.template) {
+    isValidLocation(conn.req.body.geopoint) &&
+    conn.req.body.template) {
     fetchDocs(conn);
     return;
   }
