@@ -1,6 +1,5 @@
 const {
   rootCollections,
-  users,
   getGeopointObject,
   db,
 } = require('../../admin/admin');
@@ -11,14 +10,11 @@ const {
 } = require('../../admin/utils');
 
 const {
-  handleCanEdit,
   isValidDate,
   isValidString,
   isValidLocation,
-  isValidPhoneNumber,
   filterSchedules,
   filterVenues,
-  attachmentCreator,
 } = require('./helper');
 
 const {
@@ -34,6 +30,11 @@ const {
   offices,
 } = rootCollections;
 
+
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(
     conn,
@@ -43,6 +44,10 @@ const commitBatch = (conn) => conn.batch.commit()
   )).catch((error) => handleError(conn, error));
 
 
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const updateActivityDoc = (conn) => {
   conn.update.description = conn.req.body.description;
 
@@ -73,6 +78,13 @@ const updateActivityDoc = (conn) => {
 
   conn.update.timestamp = new Date(conn.req.body.timestamp);
 
+  if (conn.docRef) {
+    /** If a document has been modified, only then
+     * this field will be updated.
+     */
+    updates.docRef = conn.docRef || null;
+  }
+
   conn.batch.set(activities.doc(conn.req.body.activityId), conn.update, {
     merge: true,
   });
@@ -80,6 +92,11 @@ const updateActivityDoc = (conn) => {
   commitBatch(conn);
 };
 
+
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const handleAttachment = (conn) => {
   /** do stuff */
 
@@ -87,6 +104,10 @@ const handleAttachment = (conn) => {
 };
 
 
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const addAddendumForAssignees = (conn) => {
   Promise.all(conn.data.assigneesArray).then((snapShot) => {
     snapShot.forEach((doc) => {
@@ -110,6 +131,10 @@ const addAddendumForAssignees = (conn) => {
 };
 
 
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const fetchTemplate = (conn) => {
   activityTemplates.doc(conn.data.activity.get('template')).get()
     .then((doc) => {
@@ -130,6 +155,10 @@ const fetchTemplate = (conn) => {
 };
 
 
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const fetchDocs = (conn) => {
   Promise.all([
     activities.doc(conn.req.body.activityId).get(),
@@ -167,6 +196,10 @@ const fetchDocs = (conn) => {
 };
 
 
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const verifyEditPermission = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
@@ -182,7 +215,6 @@ const verifyEditPermission = (conn) => {
       }
 
       if (!doc.get('canEdit')) {
-        /** The canEdit flag is false so updating is not allowed */
         sendResponse(
           conn,
           code.forbidden,
@@ -198,6 +230,10 @@ const verifyEditPermission = (conn) => {
 };
 
 
+/**
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp) &&
     isValidString(conn.req.body.activityId) &&

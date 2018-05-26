@@ -153,7 +153,38 @@ postData(url, body).then((data) => {
 
 * Javascript
 
+    * Current timestamp:
+
+    ```javascript
+    const ts = Date.now();
+    console.log(ts); // 1527311424251
+    ```
+
+    * Date timestamp
+
+    ```javascript
+    const ts = Date.parse(new Date('DD MM YYYY'));
+    console.log(ts);
+    ```
+
 * Java
+
+    * Current timestamp
+
+    ```java
+    final long ts = System.currentTimeMillis() / 1000L;
+    System.out.println(ts);
+    ```
+
+    * Date timestamp
+
+    ```java
+    final String dateString = "Fri, 09 Nov 2012 23:40:18 GMT";
+    final DateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy hh:mm:ss z");
+    final Date date = dateFormat.parse(dateString);
+    final long ts = (long) date.getTime() / 1000;
+    System.out.println(ts);
+    ```
 
 ## License
 

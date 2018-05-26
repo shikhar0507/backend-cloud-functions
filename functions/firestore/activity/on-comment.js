@@ -24,7 +24,6 @@
 
 const {
   rootCollections,
-  users,
   getGeopointObject,
   db,
 } = require('../../admin/admin');
@@ -38,7 +37,6 @@ const {
   isValidDate,
   isValidString,
   isValidLocation,
-  isValidPhoneNumber,
 } = require('./helper');
 
 const {

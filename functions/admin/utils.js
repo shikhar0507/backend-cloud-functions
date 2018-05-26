@@ -40,14 +40,14 @@ const now = (conn) => sendResponse(conn, code.ok, new Date().toString(), true);
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  * @param {number} statusCode A standard HTTP status code.
  * @param {string} message Response message for the request.
- * @param {boolean} isSuccessful If the response was successful.
+ * @param {boolean} success If the response was successful.
  */
-const sendResponse = (conn, statusCode, message, isSuccessful = true) => {
+const sendResponse = (conn, statusCode, message, success = true) => {
   conn.headers['Content-Type'] = 'application/json';
   conn.res.writeHead(statusCode, conn.headers);
 
   conn.res.end(JSON.stringify({
-    isSuccessful,
+    success,
     message,
     code: statusCode,
   }));

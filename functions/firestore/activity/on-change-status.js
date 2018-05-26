@@ -1,6 +1,5 @@
 const {
   rootCollections,
-  users,
   getGeopointObject,
   db,
 } = require('../../admin/admin');
@@ -11,14 +10,9 @@ const {
 } = require('../../admin/utils');
 
 const {
-  handleCanEdit,
   isValidDate,
   isValidString,
   isValidLocation,
-  isValidPhoneNumber,
-  scheduleCreator,
-  venueCreator,
-  attachmentCreator,
 } = require('./helper');
 
 const {
@@ -29,9 +23,7 @@ const {
   activities,
   profiles,
   updates,
-  enums,
   activityTemplates,
-  offices,
 } = rootCollections;
 
 

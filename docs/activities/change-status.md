@@ -16,7 +16,7 @@ method: `PATCH`
 }
 ```
 
-## Precondition
+## Preconditions
 
 * An activity with the `activityId` from the request body must exist.
 

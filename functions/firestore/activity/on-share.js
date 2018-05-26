@@ -16,9 +16,6 @@ const {
   isValidString,
   isValidLocation,
   isValidPhoneNumber,
-  scheduleCreator,
-  venueCreator,
-  attachmentCreator,
 } = require('./helper');
 
 const {
@@ -29,9 +26,7 @@ const {
   activities,
   profiles,
   updates,
-  enums,
   activityTemplates,
-  offices,
 } = rootCollections;
 
 
@@ -64,6 +59,14 @@ const setAddendumForUsersWithUid = (conn) => {
 
   Promise.all(promises).then((snapShot) => {
     snapShot.forEach((doc) => {
+      /** Create Profiles for the users who don't have a profile already. */
+      if (!doc.exists) {
+        /** doc.id is the phoneNumber that doesn't exist */
+        conn.batch.set(profiles.doc(doc.id), {
+          uid: null,
+        });
+      }
+
       if (doc.get('uid')) {
         /** uid is NOT null OR undefined */
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')

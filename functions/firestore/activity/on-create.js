@@ -65,7 +65,7 @@ const {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const commitBatch = (conn) => conn.batch.commit()
-  .then((metadata) => sendResponse(
+  .then(() => sendResponse(
     conn,
     code.created,
     'The activity was successfully created.',
@@ -386,9 +386,9 @@ const processRequestType = (conn) => {
 const fetchDocs = (conn) => {
   const promises = [
     activityTemplates.where('name', '==', conn.req.body.template)
-    .limit(1).get(),
+      .limit(1).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-    .where('template', '==', conn.req.body.template).limit(1).get(),
+      .where('template', '==', conn.req.body.template).limit(1).get(),
     offices.where('name', '==', conn.req.body.office).limit(1).get(),
   ];
 
