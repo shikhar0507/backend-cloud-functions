@@ -157,7 +157,7 @@ postData(url, body).then((data) => {
 
     ```javascript
     const ts = Date.now();
-    console.log(ts); // 1527311424251
+    console.log(ts); // output --> 1527311424251
     ```
 
     * Date timestamp
@@ -183,7 +183,7 @@ postData(url, body).then((data) => {
     final DateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy hh:mm:ss z");
     final Date date = dateFormat.parse(dateString);
     final long ts = (long) date.getTime() / 1000;
-    System.out.println(ts);
+    System.out.println(ts); // output --> 1527311424251
     ```
 
 ## License

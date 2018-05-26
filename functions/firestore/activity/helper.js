@@ -72,7 +72,7 @@ const isValidDate = (date) => !isNaN(new Date(date));
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const isValidPhoneNumber = (phoneNumber) =>
-  new RegExp(/^\+?[1-9]\d{5,14}$/).test(phoneNumber);
+  new RegExp(/^\+[1-9]\d{5,14}$/).test(phoneNumber);
 
 /**
  * Handles whether a person has the authority to edit an activity after it is
