@@ -39,15 +39,15 @@ example: `/api/activities/read?from=1522598642000`
           "canEdit": true,
           "status": "CONFIRMED",
           "schedule": {
-              "endTime": null,
-              "startTime": null,
+              "endTime": string timestamp,
+              "startTime": string timestamp,
               "name": "when"
           },
           "venue": {
               "venueDescriptor": "where",
-              "geopoint": null,
-              "address": null,
-              "location": null
+              "geopoint": geopoint object,
+              "address": string,
+              "location": string
           },
           "timestamp": "2018-05-25T07:09:39.896Z",
           "template": "plan",
