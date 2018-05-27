@@ -270,11 +270,7 @@ const server = (req, res) => {
 
   /** allowed methods */
   if (['POST', 'GET', 'PATCH'].indexOf(req.method) > -1) {
-    conn.requester = {};
-    conn.requester.uid = '8AMsirnglUQAOpgzX57Ig9LGjEJ3';
-    conn.requester.phoneNumber = '+918588811867';
-    handleRequestPath(conn);
-    // checkAuthorizationToken(conn);
+    checkAuthorizationToken(conn);
     return;
   }
 

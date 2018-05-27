@@ -14,7 +14,7 @@
     "no-console": 1,
     "no-regex-spaces": 1,
     "no-debugger": 1,
-    "no-unused-vars": 1,
+    "no-unused-vars": 2,
     "no-mixed-spaces-and-tabs": 2,
     "no-undef": "off",
     "no-template-curly-in-string": 1,
