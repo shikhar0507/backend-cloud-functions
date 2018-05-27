@@ -11,11 +11,11 @@
     "google"
   ],
   "rules": {
-    "no-console": "off",
-    "no-regex-spaces": "off",
-    "no-debugger": "off",
-    "no-unused-vars": "off",
-    "no-mixed-spaces-and-tabs": "off",
+    "no-console": 1,
+    "no-regex-spaces": 1,
+    "no-debugger": 1,
+    "no-unused-vars": 1,
+    "no-mixed-spaces-and-tabs": 2,
     "no-undef": "off",
     "no-template-curly-in-string": 1,
     "consistent-return": 1,

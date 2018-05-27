@@ -61,7 +61,7 @@ const isValidString = (str) =>
  * @param {Object} date Javascript Date object.
  * @returns {boolean} Whether the number is a valid Unix timestamp.
  */
-const isValidDate = (date) => !isNaN(new Date(date));
+const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
 
 
 /**

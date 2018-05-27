@@ -30,7 +30,6 @@ const {
 } = require('url');
 
 const {
-  handleError,
   sendResponse,
 } = require('../admin/utils');
 

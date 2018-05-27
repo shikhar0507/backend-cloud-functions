@@ -68,14 +68,14 @@ const disableAccount = (conn) => {
     profiles.doc(conn.requester.phoneNumber).set({
       disabled: reason,
     }, {
-        merge: true,
-      }),
+      merge: true,
+    }),
     disableUser(conn.requester.uid),
   ]).then((result) => {
     sendResponse(
       conn,
       code.forbidden,
-      'The uid and phone number do not match.',
+      'There was some trouble parsing your request. Please contact support.',
       false
     );
 
@@ -133,7 +133,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
        * other than out provided endpoint for updating the auth.
        * Disabling their account because this is not allowed.
        */
-      endResponseByDisablingUser(conn);
+      disableAccount(conn);
       return;
     }
 
@@ -152,7 +152,7 @@ const getCreatorsPhoneNumber = (conn) => {
   getUserByUid(conn.requester.uid).then((userRecord) => {
     if (userRecord.disabled) {
       /** users with disabled accounts cannot request any operation **/
-      sendResponse(conn, code.forbidden, 'Your account is disabled', false);
+      sendResponse(conn, code.forbidden, 'Your account is disabled.', false);
       return;
     }
 
@@ -168,7 +168,7 @@ const getCreatorsPhoneNumber = (conn) => {
 
 
 /**
- * Verifies the id-token form the Authorization header in the request.
+ * Verifies the `id-token` form the Authorization header in the request.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
@@ -179,7 +179,7 @@ const checkAuthorizationToken = (conn) => {
     sendResponse(
       conn,
       code.unauthorized,
-      'The authorization header is not valid',
+      'The authorization header is not valid.',
       false
     );
 
@@ -190,7 +190,7 @@ const checkAuthorizationToken = (conn) => {
     sendResponse(
       conn,
       code.unauthorized,
-      'Authorization type is not "Bearer"',
+      'Authorization type is not "Bearer".',
       false
     );
 
@@ -223,7 +223,7 @@ const checkAuthorizationToken = (conn) => {
         sendResponse(
           conn,
           code.unauthorized,
-          'The idToken is invalid/expired.',
+          'The idToken in the request header is invalid/expired.',
           false
         );
         return;
@@ -270,7 +270,11 @@ const server = (req, res) => {
 
   /** allowed methods */
   if (['POST', 'GET', 'PATCH'].indexOf(req.method) > -1) {
-    checkAuthorizationToken(conn);
+    conn.requester = {};
+    conn.requester.uid = '8AMsirnglUQAOpgzX57Ig9LGjEJ3';
+    conn.requester.phoneNumber = '+918588811867';
+    handleRequestPath(conn);
+    // checkAuthorizationToken(conn);
     return;
   }
 

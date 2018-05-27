@@ -23,9 +23,7 @@
 
 
 const {
-  batch,
   rootCollections,
-  serverTimestamp,
   db,
 } = require('../admin/admin');
 
@@ -34,6 +32,9 @@ const {
   profiles,
 } = rootCollections;
 
+const {
+  batch,
+} = db;
 
 /**
  * Sets the uid and phoneNumber fields of the user being deleted to null inside
@@ -49,19 +50,17 @@ const deleteUser = (userRecord, context) => {
     phoneNumber,
   } = userRecord;
 
-  const batch = db.batch();
-
   batch.set(profiles.doc(phoneNumber), {
     uid: null,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(updates.doc(uid), {
     phoneNumber: null,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   return batch.commit().catch((error) => console.log(error));
 };

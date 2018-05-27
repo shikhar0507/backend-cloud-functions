@@ -65,14 +65,14 @@ const updateFirestoreWithNewProfile = (conn) => {
   batch.set(profiles.doc(conn.req.body.phoneNumber), {
     uid: conn.requester.uid,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   batch.set(updates.doc(conn.requester.uid), {
     phoneNumber: conn.req.body.phoneNumber,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   const userProfile = profiles.doc(conn.requester.phoneNumber);
 
@@ -138,17 +138,17 @@ const updateFirestoreWithNewProfile = (conn) => {
  */
 const updateUserProfile = (conn) => {
   Promise.all([
-    /** signs out the user by revoking their session token */
-    revokeRefreshTokens(conn.requester.uid),
+      /** signs out the user by revoking their session token */
+      revokeRefreshTokens(conn.requester.uid),
 
-    /** updates their phone number in auth and copies their
-     * data from the old profile to the new one
-     */
-    updateUserPhoneNumberInAuth(
-      conn.requester.uid,
-      conn.req.body.phoneNumber
-    ),
-  ]).then((result) => updateFirestoreWithNewProfile(conn))
+      /** updates their phone number in auth and copies their
+       * data from the old profile to the new one
+       */
+      updateUserPhoneNumberInAuth(
+        conn.requester.uid,
+        conn.req.body.phoneNumber
+      ),
+    ]).then((result) => updateFirestoreWithNewProfile(conn))
     .catch((error) => {
       if (error.code === 'auth/invalid-phone-number') {
         sendResponse(
@@ -174,8 +174,8 @@ const updateUserProfile = (conn) => {
       sendResponse(
         conn,
         code.badRequest,
-        'The phone number in the request does not confirm to the E.164'
-        + 'standard.',
+        'The phone number in the request does not confirm to the E.164' +
+        'standard.',
         false
       );
     });

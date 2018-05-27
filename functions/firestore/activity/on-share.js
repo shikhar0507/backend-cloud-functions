@@ -1,6 +1,5 @@
 const {
   rootCollections,
-  users,
   getGeopointObject,
   db,
 } = require('../../admin/admin');
@@ -43,8 +42,8 @@ const updateActivityDoc = (conn) => {
   conn.batch.set(activities.doc(conn.req.body.activityId), {
     timestamp: new Date(conn.req.body.timestamp),
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   commitBatch(conn);
 };
@@ -126,15 +125,15 @@ const fetchTemplateAndSubscriptions = (conn) => {
   Promise.all([
     activityTemplates.doc(conn.data.activity.get('template')).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-      .where('office', '==', conn.data.activity.get('office'))
-      .where('template', '==', conn.data.activity.get('template'))
-      .limit(1).get(),
+    .where('office', '==', conn.data.activity.get('office'))
+    .where('template', '==', conn.data.activity.get('template'))
+    .limit(1).get(),
   ]).then((docsArray) => {
     conn.addendum = {
       activityId: conn.req.body.activityId,
       user: conn.requester.displayName || conn.requester.phoneNumber,
-      comment: conn.requester.displayName || conn.requester.phoneNumber
-        + ' updated ' + docsArray[0].get('defaultTitle'),
+      comment: conn.requester.displayName || conn.requester.phoneNumber +
+        ' updated ' + docsArray[0].get('defaultTitle'),
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: new Date(conn.req.body.timestamp),
     };
@@ -219,10 +218,10 @@ const verifyEditPermission = (conn) => {
 
 
 const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp)
-    && isValidString(conn.req.body.activityId)
-    && Array.isArray(conn.req.body.share)
-    && isValidLocation(conn.req.body.geopoint)) {
+  if (isValidDate(conn.req.body.timestamp) &&
+    isValidString(conn.req.body.activityId) &&
+    Array.isArray(conn.req.body.share) &&
+    isValidLocation(conn.req.body.geopoint)) {
     verifyEditPermission(conn);
     return;
   }
@@ -230,9 +229,9 @@ const app = (conn) => {
   sendResponse(
     conn,
     code.badRequest,
-    'The request body does not have all the necessary fields with proper'
-    + ' values. Please make sure that the timestamp, activityId, geopoint'
-    + ' and the assign array are included in the request body.',
+    'The request body does not have all the necessary fields with proper' +
+    ' values. Please make sure that the timestamp, activityId, geopoint' +
+    ' and the assign array are included in the request body.',
     false
   );
 };

@@ -25,9 +25,7 @@ const {
   activities,
   profiles,
   updates,
-  enums,
   activityTemplates,
-  offices,
 } = rootCollections;
 
 
@@ -79,10 +77,11 @@ const updateActivityDoc = (conn) => {
   conn.update.timestamp = new Date(conn.req.body.timestamp);
 
   if (conn.docRef) {
-    /** If a document has been modified, only then
-     * this field will be updated.
+    /**
+     * docRef is not undefined only when a document is updated during
+     * the update operation.
      */
-    updates.docRef = conn.docRef || null;
+    updates.docRef = conn.docRef;
   }
 
   conn.batch.set(activities.doc(conn.req.body.activityId), conn.update, {

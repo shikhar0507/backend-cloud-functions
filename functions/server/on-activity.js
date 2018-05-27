@@ -32,7 +32,6 @@ const onStatusChange = require('../firestore/activity/on-change-status');
 
 
 const {
-  handleError,
   sendResponse,
 } = require('../admin/utils');
 

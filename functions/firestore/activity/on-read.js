@@ -33,8 +33,6 @@ const {
 
 const {
   isValidDate,
-  isValidLocation,
-  isValidString,
 } = require('./helper');
 
 const {
@@ -46,8 +44,20 @@ const {
   profiles,
   updates,
   activityTemplates,
-  enums,
 } = rootCollections;
+
+
+/**
+ * Ends the response by sending the JSON to the client.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} jsonResult The fetched data from Firestore.
+ */
+const sendJSON = (conn, jsonResult) => {
+  conn.headers['Content-Type'] = 'application/json';
+  conn.res.writeHead(code.ok, conn.headers);
+  conn.res.end(JSON.stringify(jsonResult));
+};
 
 
 /**
@@ -61,21 +71,18 @@ const fetchSubscriptions = (conn, jsonResult) => {
   Promise.all(conn.templatesList).then((snapShot) => {
     snapShot.forEach((doc) => {
       if (doc.exists) {
-        // template name: doc.ref.path.split('/')[1])
-        jsonResult.templates[doc.ref.path.split('/')[1]] = {
+        jsonResult.templates.push({
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
           template: doc.get('defaultTitle'),
           office: doc.get('office'),
           status: doc.get('statusOnCreate'),
-        };
+          attachment: doc.get('attachment') || null,
+        });
       }
     });
 
-    conn.headers['Content-Type'] = 'application/json';
-    conn.res.writeHead(code.ok, conn.headers);
-    conn.res.end(JSON.stringify(jsonResult));
-
+    sendJSON(conn, jsonResult);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -89,7 +96,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
  */
 const getTemplates = (conn, jsonResult) => {
   profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-    .where('timestamp', '>', new Date(conn.req.query.from))
+    .where('timestamp', '>', conn.from)
     .where('timestamp', '<=', jsonResult.upto)
     .get().then((snapShot) => {
       conn.templatesList = [];
@@ -100,7 +107,6 @@ const getTemplates = (conn, jsonResult) => {
         );
       });
 
-      // getAllowedStatuses(conn, jsonResult);
       fetchSubscriptions(conn, jsonResult);
       return;
     }).catch((error) => handleError(conn, error));
@@ -163,7 +169,8 @@ const fetchActivities = (conn, jsonResult) => {
     conn.docRefsArray = [];
 
     snapShot.forEach((doc) => {
-      // activity-id --> doc.ref.path.split('/')[1]
+      activityId = doc.ref.path.split('/')[1];
+
       activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
 
       activityObj.status = doc.get('status');
@@ -182,7 +189,6 @@ const fetchActivities = (conn, jsonResult) => {
       }
     });
 
-    // fetchAssignees(conn, jsonResult);
     fetchAttachments(conn, jsonResult);
     return;
   }).catch((error) => handleError(conn, error));
@@ -198,15 +204,19 @@ const fetchActivities = (conn, jsonResult) => {
 const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.activityFetchPromises = [];
   conn.assigneeFetchPromises = [];
+  conn.activityData = {};
 
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
-    .where('timestamp', '>', new Date(conn.req.query.from))
+    .where('timestamp', '>', conn.from)
     .where('timestamp', '<=', jsonResult.upto).get().then((snapShot) => {
       snapShot.forEach((doc) => {
         conn.activityFetchPromises.push(activities.doc(doc.id).get());
         conn.assigneeFetchPromises
           .push(activities.doc(doc.id).collection('Assignees').get());
 
+        // conn.activityData['activityId'] = doc.id;
+        // conn.activityData['canEdit'] = doc.get('canEdit');
+        // jsonResult.activities.push(conn.activityData);
         jsonResult.activities[doc.id] = {};
         jsonResult.activities[doc.id]['canEdit'] = doc.get('canEdit');
       });
@@ -227,12 +237,12 @@ const readAddendumsByQuery = (conn) => {
 
   jsonResult.addendum = [];
   jsonResult.activities = {};
-  jsonResult.templates = {};
-  jsonResult.from = new Date(conn.req.query.from);
+  jsonResult.templates = [];
+  jsonResult.from = conn.from;
   jsonResult.upto = jsonResult.from; /** when  no docs are found in Addendum */
 
   updates.doc(conn.requester.uid).collection('Addendum')
-    .where('timestamp', '>', new Date(conn.req.query.from))
+    .where('timestamp', '>', conn.from)
     .orderBy('timestamp', 'asc').get().then((snapShot) => {
       snapShot.forEach((doc) => {
         jsonResult.addendum.push({
@@ -266,6 +276,7 @@ const app = (conn) => {
     return;
   }
 
+  conn.from = new Date(parseInt(conn.req.query.from));
   readAddendumsByQuery(conn);
 };
 
