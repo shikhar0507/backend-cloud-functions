@@ -61,6 +61,46 @@ const sendJSON = (conn, jsonResult) => {
 
 
 /**
+ * Converts the jsonResult.activities object to an array in the final response.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} jsonResult The fetched data from Firestore.
+ */
+const convertActivityObjectToArray = (conn, jsonResult) => {
+  jsonResult.activitiesArr = [];
+  let activityObj;
+
+  Object.keys(jsonResult.activities).forEach((activityId) => {
+    activityObj = jsonResult.activities[activityId];
+
+    jsonResult.activitiesArr.push({
+      activityId,
+      canEdit: activityObj.canEdit,
+      schedule: activityObj.schedule,
+      venue: activityObj.venue,
+      timestamp: activityObj.timestamp,
+      template: activityObj.template,
+      title: activityObj.title,
+      description: activityObj.description,
+      office: activityObj.office,
+      assignees: activityObj.assignees,
+      attachment: activityObj.attachment,
+    });
+  });
+
+  jsonResult.activities = jsonResult.activitiesArr;
+
+  /** jsonResult.activitiesArr is temporary object for storing
+   * the array with the activity objects. This is not in the final
+   * response.
+   */
+  delete jsonResult.activitiesArr;
+
+  sendJSON(conn, jsonResult);
+};
+
+
+/**
  * Fetches the template data for each template that the user has subscribed
  * to and adds that data to the jsonResult object.
  *
@@ -82,7 +122,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
       }
     });
 
-    sendJSON(conn, jsonResult);
+    convertActivityObjectToArray(conn, jsonResult);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -214,9 +254,6 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
         conn.assigneeFetchPromises
           .push(activities.doc(doc.id).collection('Assignees').get());
 
-        // conn.activityData['activityId'] = doc.id;
-        // conn.activityData['canEdit'] = doc.get('canEdit');
-        // jsonResult.activities.push(conn.activityData);
         jsonResult.activities[doc.id] = {};
         jsonResult.activities[doc.id]['canEdit'] = doc.get('canEdit');
       });

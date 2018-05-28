@@ -59,7 +59,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
+        `${conn.req.method} is not allowed for the /read endpoint.`,
         false
       );
       return;

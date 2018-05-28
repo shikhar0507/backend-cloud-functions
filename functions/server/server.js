@@ -68,8 +68,8 @@ const disableAccount = (conn) => {
     profiles.doc(conn.requester.phoneNumber).set({
       disabled: reason,
     }, {
-      merge: true,
-    }),
+        merge: true,
+      }),
     disableUser(conn.requester.uid),
   ]).then((result) => {
     sendResponse(
