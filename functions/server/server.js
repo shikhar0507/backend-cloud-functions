@@ -255,7 +255,7 @@ const server = (req, res) => {
   conn.headers = {
     /** preflight headers */
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH',
+    'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH, PUT',
     'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
       'Content-Type, Accept',
     'Access-Control-Max-Age': 2592000, // 30 days
@@ -269,7 +269,7 @@ const server = (req, res) => {
   }
 
   /** allowed methods */
-  if (['POST', 'GET', 'PATCH'].indexOf(req.method) > -1) {
+  if (['POST', 'GET', 'PATCH', 'PUT'].indexOf(req.method) > -1) {
     checkAuthorizationToken(conn);
     return;
   }

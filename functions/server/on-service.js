@@ -22,9 +22,6 @@
  */
 
 
-const onRead = require('../auth/user/on-read');
-const onUpdate = require('../auth/user/on-update');
-
 const {
   parse,
 } = require('url');
@@ -37,48 +34,8 @@ const {
   code,
 } = require('../admin/responses');
 
-
-/**
- * Handles the requests made to /users resource.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- */
-const handleUserProfiles = (conn) => {
-  const method = conn.req.method;
-  const action = parse(conn.req.url).path.split('/')[3];
-
-  if (action.startsWith('read')) {
-    if (method !== 'GET') {
-      sendResponse(
-        conn,
-        code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
-      );
-      return;
-    }
-
-    onRead(conn);
-    return;
-  }
-
-  if (action === 'update') {
-    if (method !== 'PATCH') {
-      sendResponse(
-        conn,
-        code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
-      );
-      return;
-    }
-
-    onUpdate(conn);
-    return;
-  }
-
-  sendResponse(conn, code.badRequest, 'The request path is not valid.', false);
-};
+const onUsers = require('../services/on-users');
+const onManage = require('../services/on-manage');
 
 
 /**
@@ -91,11 +48,16 @@ const servicesHandler = (conn) => {
   const action = parse(conn.req.url).path.split('/')[2];
 
   if (action === 'users') {
-    handleUserProfiles(conn);
+    onUsers(conn);
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid.', false);
+  if (action === 'manage') {
+    onManage(conn);
+    return;
+  }
+
+  sendResponse(conn, code.badRequest, 'The request path is not valid.');
 };
 
 

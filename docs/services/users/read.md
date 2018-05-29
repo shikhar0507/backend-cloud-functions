@@ -1,6 +1,6 @@
 # Reading User Profiles
 
-endpoint: `/api/services/read`
+endpoint: `/api/services/users/read`
 
 method: `GET`
 
@@ -10,45 +10,35 @@ The `.../read` endpoint accepts an argument `q` which can either be an array or 
 
 Note: The `+` character is represented by `%2B` in url encoded characters. Check out [W3Schools URL Encoding](https://www.w3schools.com/tags/ref_urlencode.asp) for more details.
 
-example: single phone number `.../api/services/users/read?q=%2B9090909090`
+example: single phone number `.../api/services/users/read?q=%2B919090909090`
 
 ## Response For A Single Phone Number
 
 ```json
 {
-    {
-        "code": 200,
-        "isSuccessful": true,
-        "message": [{
-                "+918090909090": {
-                    "photoUrl": "https://example.com/profile.png",
-                    "displayName": string --> first + last name,
-                    "lastSignInTime": string --> timestamp
-                }
-            }
-        ]
+    "+919090909090": {
+        "photoURL": "https://firebasestorage.googleapis.com/v0/b/growthfilev2-0.appspot.com/o/ARMXkaszqie4vK4w997M1hVYJiP2%2FprofilePicture?alt=media&token=771c58e2-8a55-4dce-9fed-862199818afd",
+        "displayName": "metallica",
+        "lastSignInTime": null
     }
 }
 ```
 
-example: multiple phone numbers: `.../api/services/users/read?q=%2B9090909090&q=%2B8010101010`
+example: multiple phone numbers: `.../api/services/users/read?q=%2B919090909090&q=%2B918080808080`
 
 ## Response For Multiple Phone Numbers
 
 ```json
 {
-    "code": 200,
-    "message": [
-        {
-            "+918090909090": { // user who exists
-                "photoUrl": "https://example.com/profile.png",
-                "displayName": string --> first + last name,
-                "lastSignInTime": string --> timestamp
-            }
-        },
-        {
-            "+919191919191": {} // a user who doesn't exist in the system
-        }
-    ]
+    "+919090909090": {
+        "photoURL": "https://firebasestorage.googleapis.com/v0/b/growthfilev2-0.appspot.com/o/ARMXkaszqie4vK4w997M1hVYJiP2%2FprofilePicture?alt=media&token=771c58e2-8a55-4dce-9fed-862199818afd",
+        "displayName": "metallica",
+        "lastSignInTime": null
+    },
+    "+918080808080": {
+        "photoURL": null,
+        "displayName": null,
+        "lastSignInTime": null
+    }
 }
 ```

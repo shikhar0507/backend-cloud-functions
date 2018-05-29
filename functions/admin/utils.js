@@ -40,12 +40,16 @@ const now = (conn) => sendResponse(conn, code.ok, new Date().toString(), true);
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  * @param {number} statusCode A standard HTTP status code.
  * @param {string} message Response message for the request.
- * @param {boolean} success If the response was successful.
  */
-const sendResponse = (conn, statusCode, message, success = true) => {
+const sendResponse = (conn, statusCode, message) => {
+  let success = true;
+
+  if ([200, 201, 202].indexOf(statusCode) === -1) {
+    success = false;
+  }
+
   conn.headers['Content-Type'] = 'application/json';
   conn.res.writeHead(statusCode, conn.headers);
-
   conn.res.end(JSON.stringify({
     success,
     message,
@@ -62,12 +66,12 @@ const sendResponse = (conn, statusCode, message, success = true) => {
  */
 const handleError = (conn, error) => {
   console.log(error);
+
   sendResponse(
     conn,
     code.internalServerError,
     'There was an error handling the request. Please try again later.',
-    '',
-    false
+    ''
   );
 };
 

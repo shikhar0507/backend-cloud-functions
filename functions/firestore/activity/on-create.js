@@ -66,8 +66,7 @@ const commitBatch = (conn) => conn.batch.commit()
   .then(() => sendResponse(
     conn,
     code.created,
-    'The activity was successfully created.',
-    true
+    'The activity was successfully created.'
   )).catch((error) => handleError(conn, error));
 
 
@@ -332,8 +331,7 @@ const processRequestType = (conn) => {
       code.badRequest,
       `This combination of office: ${conn.req.body.office} and` +
       `template: ${conn.req.body.template} does not exist in` +
-      ' your subscriptions',
-      false
+      ' your subscriptions'
     );
     return;
   } else {
@@ -344,8 +342,7 @@ const processRequestType = (conn) => {
         conn,
         code.badRequest,
         `An office with the name: ${conn.data.office.get('name')}` +
-        'does not exist.',
-        false
+        'does not exist.'
       );
       return;
     }
@@ -355,8 +352,7 @@ const processRequestType = (conn) => {
       sendResponse(
         conn,
         code.badRequest,
-        'Template is not present in the request body',
-        false
+        'Template is not present in the request body'
       );
       return;
     }
@@ -382,22 +378,19 @@ const processRequestType = (conn) => {
  * @param {Object} conn Object containing Express Request and Response objects.
  */
 const fetchDocs = (conn) => {
-  const promises = [
+  Promise.all([
     activityTemplates.where('name', '==', conn.req.body.template)
-    .limit(1).get(),
+      .limit(1).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-    .where('template', '==', conn.req.body.template).limit(1).get(),
+      .where('template', '==', conn.req.body.template).limit(1).get(),
     offices.where('name', '==', conn.req.body.office).limit(1).get(),
-  ];
-
-  Promise.all(promises).then((result) => {
+  ]).then((result) => {
     /** template sent in the request body is not a doesn't exist */
     if (result[0].empty) {
       sendResponse(
         conn,
         code.badRequest,
-        'Template: ' + conn.req.body.template + ' does not exist',
-        false
+        'Template: ' + conn.req.body.template + ' does not exist'
       );
       return;
     }
@@ -412,8 +405,7 @@ const fetchDocs = (conn) => {
         conn,
         code.forbidden,
         `A template with the name: ${conn.req.body.template}` +
-        ' does not exist in your subscriptions.',
-        false
+        ' does not exist in your subscriptions.'
       );
       return;
     }
@@ -427,8 +419,7 @@ const fetchDocs = (conn) => {
         conn,
         code.forbidden,
         'You do not have the permission to create' +
-        ` an activity with the template ${conn.req.body.template}.`,
-        false
+        ` an activity with the template ${conn.req.body.template}.`
       );
       return;
     }
@@ -459,8 +450,7 @@ const app = (conn) => {
     code.badRequest,
     'The request body does not have all the necessary fields with proper' +
     ' values. Please make sure that the timestamp, template, office' +
-    ' and the geopoint are included in the request with appropriate values.',
-    false
+    ' and the geopoint are included in the request with appropriate values.'
   );
 };
 

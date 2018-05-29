@@ -33,6 +33,14 @@ const auth = admin.auth();
 const db = admin.firestore();
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
+/**
+ * Sets claims for a user based on `uid`.
+ *
+ * @param {string} uid A 30 character alpha-numeric string.
+ * @param {Object} claims Contains Claims object.
+ */
+const setCustomUserClaims = (uid, claims) =>
+  auth.setCustomUserClaims(uid, claims);
 
 /**
  * Returns a sentinel containing the GeoPoint object for writing a
@@ -85,15 +93,12 @@ const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
 const getUserByPhoneNumber = (phoneNumber) => {
   return auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
     return {
-      [phoneNumber]: {
-        photoURL: userRecord.photoURL || null,
-        displayName: userRecord.displayName || null,
-        lastSignInTime: userRecord.metadata.lastSignInTime,
-      },
+      [phoneNumber]: userRecord,
     };
   }).catch((error) => {
     if (error.code === 'auth/user-not-found' ||
-      error.code === 'auth/invalid-phone-number') {
+      error.code === 'auth/invalid-phone-number' ||
+      error.code === 'auth/internal-error') {
       return {
         [phoneNumber]: {},
       };
@@ -145,6 +150,7 @@ const users = {
   updateUserPhoneNumberInAuth,
   revokeRefreshTokens,
   disableUser,
+  setCustomUserClaims,
 };
 
 

@@ -28,7 +28,6 @@ const {
 
 const {
   handleError,
-  sendResponse,
 } = require('../../admin/utils');
 
 const {
@@ -42,6 +41,19 @@ const {
 const {
   code,
 } = require('../../admin/responses');
+
+
+/**
+ * Ends the response by sending the JSON to the client.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} jsonResult The fetched data from Firestore.
+ */
+const sendJSON = (conn, jsonResult) => {
+  conn.headers['Content-Type'] = 'application/json';
+  conn.res.writeHead(code.ok, conn.headers);
+  conn.res.end(JSON.stringify(jsonResult));
+};
 
 
 /**
@@ -62,8 +74,24 @@ const app = (conn) => {
     promises.push(getUserByPhoneNumber(conn.req.query.q));
   }
 
+  const jsonResponse = {};
+  let phoneNumber;
+  let record;
+
   Promise.all(promises).then((userRecords) => {
-    sendResponse(conn, code.ok, userRecords, true);
+    userRecords.forEach((userRecord) => {
+      phoneNumber = Object.keys(userRecord)[0];
+
+      record = userRecord[phoneNumber];
+
+      jsonResponse[phoneNumber] = {
+        photoURL: record.photoURL || null,
+        displayName: record.displayName || null,
+        lastSignInTime: record.lastSignInTime || null,
+      };
+    });
+
+    sendJSON(conn, jsonResponse);
     return;
   }).catch((error) => handleError(conn, error));
 };

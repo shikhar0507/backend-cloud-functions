@@ -60,8 +60,7 @@ const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(
     conn,
     code.created,
-    'The comment was successfully added to the activity.',
-    true
+    'The comment was successfully added to the activity.'
   )).catch((error) => handleError(conn, error));
 
 
@@ -156,8 +155,7 @@ const app = (conn) => {
     code.badRequest,
     'The request body does not have all the necessary fields with proper'
     + ' values. Please make sure that the timestamp, activityId  and the '
-    + 'geopoint are included in the request body.',
-    false
+    + 'geopoint are included in the request body.'
   );
 };
 

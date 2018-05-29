@@ -59,8 +59,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /read endpoint.`,
-        false
+        `${conn.req.method} is not allowed for the /read endpoint.`
       );
       return;
     }
@@ -69,8 +68,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.badRequest,
-        'No query parameter found in the request URL.',
-        false
+        'No query parameter found in the request URL.'
       );
       return;
     }
@@ -84,8 +82,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
       );
       return;
     }
@@ -99,8 +96,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
       );
       return;
     }
@@ -114,8 +110,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
       );
       return;
     }
@@ -129,8 +124,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
       );
       return;
     }
@@ -144,8 +138,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
       );
       return;
     }
@@ -159,8 +152,7 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
       );
       return;
     }
@@ -169,7 +161,7 @@ const activitiesHandler = (conn) => {
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid.', false);
+  sendResponse(conn, code.badRequest, 'The request path is not valid.');
 };
 
 

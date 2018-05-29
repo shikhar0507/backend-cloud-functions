@@ -52,14 +52,14 @@ const createUserDocs = (userRecord, context) => {
   batch.set(updates.doc(uid), {
     phoneNumber,
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
   batch.set(profiles.doc(phoneNumber), {
     uid,
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
   batch.set(profiles.doc(phoneNumber).collection('Subscriptions').doc(), {
     office: 'personal',
@@ -71,8 +71,8 @@ const createUserDocs = (userRecord, context) => {
     canEditRule: 'true',
     timestamp: serverTimestamp,
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
   return batch.commit().catch((error) => console.log(error));
 };

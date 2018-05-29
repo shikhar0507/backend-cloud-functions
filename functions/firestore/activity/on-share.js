@@ -1,3 +1,27 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
+
 const {
   rootCollections,
   getGeopointObject,
@@ -33,8 +57,7 @@ const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(
     conn,
     code.accepted,
-    'The activity was successfully updated.',
-    true
+    'The activity was successfully updated.'
   )).catch((error) => handleError(conn, error));
 
 
@@ -42,8 +65,8 @@ const updateActivityDoc = (conn) => {
   conn.batch.set(activities.doc(conn.req.body.activityId), {
     timestamp: new Date(conn.req.body.timestamp),
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
   commitBatch(conn);
 };
@@ -125,9 +148,9 @@ const fetchTemplateAndSubscriptions = (conn) => {
   Promise.all([
     activityTemplates.doc(conn.data.activity.get('template')).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-    .where('office', '==', conn.data.activity.get('office'))
-    .where('template', '==', conn.data.activity.get('template'))
-    .limit(1).get(),
+      .where('office', '==', conn.data.activity.get('office'))
+      .where('template', '==', conn.data.activity.get('template'))
+      .limit(1).get(),
   ]).then((docsArray) => {
     conn.addendum = {
       activityId: conn.req.body.activityId,
@@ -161,8 +184,7 @@ const fetchDocs = (conn) => {
       sendResponse(
         conn,
         code.conflict,
-        `There is no activity with the id: ${conn.req.body.activityId}`,
-        false
+        `There is no activity with the id: ${conn.req.body.activityId}`
       );
       return;
     }
@@ -194,8 +216,7 @@ const verifyEditPermission = (conn) => {
         sendResponse(
           conn,
           conn.forbidden,
-          `An activity with the id: ${conn.req.body.activityId} doesn't exist.`,
-          false
+          `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
         return;
       }
@@ -205,8 +226,7 @@ const verifyEditPermission = (conn) => {
         sendResponse(
           conn,
           code.forbidden,
-          'You do not have the permission to edit this activity.',
-          false
+          'You do not have the permission to edit this activity.'
         );
         return;
       }
@@ -231,8 +251,7 @@ const app = (conn) => {
     code.badRequest,
     'The request body does not have all the necessary fields with proper' +
     ' values. Please make sure that the timestamp, activityId, geopoint' +
-    ' and the assign array are included in the request body.',
-    false
+    ' and the assign array are included in the request body.'
   );
 };
 

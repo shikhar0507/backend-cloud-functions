@@ -1,6 +1,6 @@
 # Updating your own auth (phone number)
 
-endpoint: `/api/services/update`
+endpoint: `/api/services/users/update`
 
 method: `PATCH`
 
