@@ -26,7 +26,6 @@ const setClaims = (conn, userRecord) => {
   setCustomUserClaims(userRecord.uid, {
     support: conn.req.body.permissions.support || false,
     templatesManager: conn.req.body.permissions.manageTemplates || false,
-    superUser: true,
   }).then(() => {
     sendResponse(
       conn,
