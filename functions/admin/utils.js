@@ -44,12 +44,13 @@ const now = (conn) => sendResponse(conn, code.ok, new Date().toString(), true);
 const sendResponse = (conn, statusCode, message) => {
   let success = true;
 
-  if ([200, 201, 202].indexOf(statusCode) === -1) {
+  if ([code.ok, code.created, code.accepted, code.noContent]
+    .indexOf(statusCode) === -1) {
     success = false;
   }
 
-  conn.headers['Content-Type'] = 'application/json';
   conn.res.writeHead(statusCode, conn.headers);
+
   conn.res.end(JSON.stringify({
     success,
     message,
@@ -76,8 +77,21 @@ const handleError = (conn, error) => {
 };
 
 
+/**
+ * Ends the response by sending the JSON to the client with 200 OK response.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} json The response object to send to the client.
+ */
+const sendJSON = (conn, json) => {
+  conn.res.writeHead(code.ok, conn.headers);
+  conn.res.end(JSON.stringify(json));
+};
+
+
 module.exports = {
   sendResponse,
   handleError,
+  sendJSON,
   now,
 };

@@ -28,6 +28,7 @@ const {
 
 const {
   handleError,
+  sendJSON,
 } = require('../../admin/utils');
 
 const {
@@ -41,19 +42,6 @@ const {
 const {
   code,
 } = require('../../admin/responses');
-
-
-/**
- * Ends the response by sending the JSON to the client.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} jsonResult The fetched data from Firestore.
- */
-const sendJSON = (conn, jsonResult) => {
-  conn.headers['Content-Type'] = 'application/json';
-  conn.res.writeHead(code.ok, conn.headers);
-  conn.res.end(JSON.stringify(jsonResult));
-};
 
 
 /**

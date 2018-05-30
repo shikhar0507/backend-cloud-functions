@@ -18,7 +18,6 @@ const {
 const {
   setCustomUserClaims,
   getUserByPhoneNumber,
-  getUserByUid,
 } = users;
 
 
@@ -120,25 +119,21 @@ const validateRequestBody = (conn) => {
 
 
 const app = (conn) => {
-  getUserByUid(conn.requester.uid).then((userRecord) => {
-    if (!userRecord.customClaims) {
-      sendResponse(conn, code.forbidden, 'You cannot perform this operation');
-      return;
-    }
-
-
-    /** The superUser field can be `undefined', true` or `false`. So, we are
-     * explictly checking its value against a boolean. Only a `truthy`/`falsey`
-     * check will fail here.
+  /** The superUser field can be `undefined', true` or `false`. So, we are
+    * explictly checking its value against a boolean. Only a `truthy`/`falsey`
+    * check will probably not work here.
     */
-    if (userRecord.customClaims.superUser !== true) {
-      sendResponse(conn, code.forbidden, 'You cannot perform this operation');
-      return;
-    }
-
-    validateRequestBody(conn);
+  if (conn.requester.customClaims.superUser !== true) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You are unauthorized from changing permissions.'
+    );
     return;
-  }).catch((error) => handleError(conn, error));
+  }
+
+  validateRequestBody(conn);
 };
+
 
 module.exports = app;

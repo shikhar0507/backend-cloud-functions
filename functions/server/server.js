@@ -116,8 +116,9 @@ const handleRequestPath = (conn) => {
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid', false);
+  sendResponse(conn, code.badRequest, 'The request path is not valid');
 };
+
 
 /**
  * Fetches the phone number of the requester and verifies
@@ -152,18 +153,19 @@ const getCreatorsPhoneNumber = (conn) => {
   getUserByUid(conn.requester.uid).then((userRecord) => {
     if (userRecord.disabled) {
       /** users with disabled accounts cannot request any operation **/
-      sendResponse(conn, code.forbidden, 'Your account is disabled.', false);
+      sendResponse(conn, code.forbidden, 'Your account is disabled.');
       return;
+    }
+
+    if (userRecord.customClaims) {
+      conn.requester.customClaims = userRecord.customClaims;
     }
 
     conn.requester.phoneNumber = userRecord.phoneNumber;
 
     verifyUidAndPhoneNumberCombination(conn);
     return;
-  }).catch((error) => {
-    console.log(error);
-    sendResponse(conn, code.forbidden, 'FORBIDDEN', false);
-  });
+  }).catch((error) => handleError(conn, error));
 };
 
 
