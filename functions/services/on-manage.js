@@ -7,8 +7,8 @@ const {
   code,
 } = require('../admin/responses');
 
-const onPermissions = require('./manage/permissions');
-const onTemplates = require('./manage/templates');
+const onPermissions = require('./manage/on-permissions');
+const onTemplates = require('./manage/on-templates');
 
 const {
   parse,
