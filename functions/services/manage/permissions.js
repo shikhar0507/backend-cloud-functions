@@ -23,10 +23,29 @@ const {
 
 
 const setClaims = (conn, userRecord) => {
-  setCustomUserClaims(userRecord.uid, {
-    support: conn.req.body.permissions.support || false,
-    templatesManager: conn.req.body.permissions.manageTemplates || false,
-  }).then(() => {
+  const permissions = {};
+
+  if (typeof conn.req.body.permissions.support === 'boolean') {
+    permissions.support = conn.req.body.permissions.support;
+  }
+
+  if (typeof conn.req.body.permissions.manageTemplates === 'boolean') {
+    permissions.manageTemplates = conn.req.body.permissions.manageTemplates;
+  }
+
+  /** Both keys are not present in the request body. Skip giving
+   * the permissions.
+   * */
+  if (Object.keys(permissions).length < 1) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The "permissions" object in the request body is invalid.'
+    );
+    return;
+  }
+
+  setCustomUserClaims(userRecord.uid, permissions).then(() => {
     sendResponse(
       conn,
       code.ok,
