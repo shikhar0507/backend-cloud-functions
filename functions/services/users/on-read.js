@@ -39,10 +39,6 @@ const {
   isValidPhoneNumber,
 } = require('../../firestore/activity/helper');
 
-const {
-  code,
-} = require('../../admin/responses');
-
 
 /**
  * Fetches the userRecords for all the phone numbers from the request param.

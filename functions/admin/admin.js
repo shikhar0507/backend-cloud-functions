@@ -27,6 +27,7 @@ const serviceAccountKey = require('./key.json');
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccountKey),
   databaseURL: 'https://growthfilev2-0.firebaseio.com',
+  storageBucket: 'growthfilev2-0.appspot.com',
 });
 
 const auth = admin.auth();

@@ -35,8 +35,6 @@ const {
  * @returns {boolean} If the input lat, lng pair is valid.
  */
 const isValidLocation = (location) => {
-  if (typeof location !== 'object') return false;
-
   const lat = location.latitude;
   const lng = location.longitude;
 
@@ -51,8 +49,13 @@ const isValidLocation = (location) => {
  *
  * @param {string} str A string.
  */
-const isValidString = (str) =>
-  str && typeof str === 'string' && str.trim() !== '';
+const isValidString = (str) => {
+  if (typeof str !== 'string') return false;
+  // TODO: This `re` doesn't like `-` in the string.
+  /** Checks for empty (or whitespace) string */
+  const re = /^$|\s+/;
+  return !re.test(str);
+};
 
 
 /**
@@ -71,8 +74,12 @@ const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
  * @returns {boolean} If the number is a valid E.164 phone number.
  * @see https://en.wikipedia.org/wiki/E.164
  */
-const isValidPhoneNumber = (phoneNumber) =>
-  new RegExp(/^\+[1-9]\d{5,14}$/).test(phoneNumber);
+const isValidPhoneNumber = (phoneNumber) => {
+  if (!phoneNumber) return false;
+
+  const re = /^\+[1-9]\d{5,14}$/;
+  return re.test(phoneNumber);
+};
 
 /**
  * Handles whether a person has the authority to edit an activity after it is
