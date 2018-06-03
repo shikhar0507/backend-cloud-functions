@@ -33,6 +33,7 @@ const {
   profiles,
 } = rootCollections;
 
+
 /**
  * Creates new docs inside Profile and Updates collection in Firestore for
  * a newly signed up user.

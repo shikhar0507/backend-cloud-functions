@@ -37,7 +37,6 @@ const {
 const onUsers = require('../services/on-users');
 const onManage = require('../services/on-manage');
 
-
 /**
  * Calls the resource related to a service depending on the action
  * from the url.

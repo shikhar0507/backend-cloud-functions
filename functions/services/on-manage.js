@@ -1,4 +1,3 @@
-
 const {
   sendResponse,
 } = require('../admin/utils');
@@ -7,12 +6,12 @@ const {
   code,
 } = require('../admin/responses');
 
-const onPermissions = require('./manage/on-permissions');
-const onTemplates = require('./manage/on-templates');
-
 const {
   parse,
 } = require('url');
+
+const onPermissions = require('./manage/on-permissions');
+const onTemplates = require('./manage/on-templates');
 
 
 const app = (conn) => {
@@ -25,15 +24,15 @@ const app = (conn) => {
     return;
   }
 
-  const method = conn.req.method;
   const action = parse(conn.req.url).path.split('/')[3];
 
   if (action === 'permissions') {
-    if (method !== 'PUT') {
+    if (conn.req.method !== 'PUT') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for /${action} endpoint.`
+        `${conn.req.method} is not allowed for /${action}`
+        + ' endpoint. Use PUT.'
       );
       return;
     }
@@ -44,7 +43,7 @@ const app = (conn) => {
 
   if (action.startsWith('templates')) {
     /** GET, POST, PUT are allowed */
-    if (method === 'PATCH') {
+    if (conn.req.method === 'PATCH') {
       sendResponse(
         conn,
         code.methodNotAllowed,
@@ -52,7 +51,9 @@ const app = (conn) => {
          * requests which have a query string in the url, the endpoint
          * name in the response will show up with the query string.
          */
-        `${method} is not allowed for /templates endpoint.`
+        `${conn.req.method} is not allowed for /templates endpoint.`
+        + ' Use GET (reading), POST (creating),'
+        + ' or PUT (updating)  for /templates.'
       );
       return;
     }
@@ -61,7 +62,11 @@ const app = (conn) => {
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid.');
+  sendResponse(
+    conn,
+    code.notImplemented,
+    'This request path is invalid for /manage.'
+  );
 };
 
 

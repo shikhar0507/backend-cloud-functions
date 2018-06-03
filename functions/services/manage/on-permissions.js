@@ -119,11 +119,7 @@ const validateRequestBody = (conn) => {
 
 
 const app = (conn) => {
-  /** The superUser field can be `undefined', true` or `false`. So, we are
-    * explictly checking its value against a boolean. Only a `truthy`/`falsey`
-    * check will probably not work here.
-    */
-  if (conn.requester.customClaims.superUser !== true) {
+  if (!conn.requester.customClaims.superUser) {
     sendResponse(
       conn,
       code.forbidden,

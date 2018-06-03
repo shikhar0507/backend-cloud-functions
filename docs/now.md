@@ -10,8 +10,8 @@ query parameter: none
 
 ```json
 {
-  "code": 200,
-  "isSuccessful": true
-  "message": string --> timestamp
+    "success": true,
+    "timestamp": 1528052219332,
+    "code": 200
 }
 ```

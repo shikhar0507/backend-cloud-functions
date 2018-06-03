@@ -13,7 +13,7 @@ const onUpdate = require('../../firestore/activityTemplates/on-update');
 
 
 const app = (conn) => {
-  if (conn.requester.customClaims.manageTemplates !== true) {
+  if (!conn.requester.customClaims.manageTemplates) {
     sendResponse(
       conn,
       code.forbidden,
@@ -22,23 +22,20 @@ const app = (conn) => {
     return;
   }
 
-  const method = conn.req.method;
-
-  if (method === 'GET') {
+  if (conn.req.method === 'GET') {
     onRead(conn);
     return;
   }
 
-  if (method === 'POST') {
+  if (conn.req.method === 'POST') {
     onCreate(conn);
     return;
   }
 
-  if (method === 'PATCH') {
+  if (conn.req.method === 'PUT') {
     onUpdate(conn);
     return;
   }
-
 
   sendResponse(
     conn,

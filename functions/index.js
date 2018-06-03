@@ -27,10 +27,10 @@ const functions = require('firebase-functions');
 const authOnCreate = require('./auth/on-create');
 const authOnDelete = require('./auth/on-delete');
 
-const appServer = require('./server/server');
+const apiServer = require('./server/server');
 
 module.exports = {
   authOnCreate: functions.auth.user().onCreate(authOnCreate),
   authOnDelete: functions.auth.user().onDelete(authOnDelete),
-  api: functions.https.onRequest(appServer),
+  api: functions.https.onRequest(apiServer),
 };

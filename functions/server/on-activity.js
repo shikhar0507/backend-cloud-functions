@@ -51,15 +51,15 @@ const {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const activitiesHandler = (conn) => {
-  const method = conn.req.method;
   const action = parse(conn.req.url).path.split('/')[2];
 
   if (action.startsWith('read')) {
-    if (method !== 'GET') {
+    if (conn.req.method !== 'GET') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /read endpoint.`
+        `${conn.req.method}`
+        + ' is not allowed for the /read endpoint. Use "GET".'
       );
       return;
     }
@@ -78,11 +78,12 @@ const activitiesHandler = (conn) => {
   }
 
   if (action === 'create') {
-    if (method !== 'POST') {
+    if (conn.req.method !== 'POST') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /${action}`
+        + ' endpoint. Use "POST".'
       );
       return;
     }
@@ -92,11 +93,12 @@ const activitiesHandler = (conn) => {
   }
 
   if (action === 'comment') {
-    if (method !== 'POST') {
+    if (conn.req.method !== 'POST') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /${action}`
+        + ' endpoint. Use "POST"'
       );
       return;
     }
@@ -106,12 +108,12 @@ const activitiesHandler = (conn) => {
   }
 
   if (action === 'update') {
-    if (method !== 'PATCH') {
+    if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /${action} endpoint.`
-      );
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+        + ' Use "PATCH".');
       return;
     }
 
@@ -124,7 +126,8 @@ const activitiesHandler = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /${action} endpoint.`
+        + ' Use "PATCH".'
       );
       return;
     }
@@ -134,11 +137,12 @@ const activitiesHandler = (conn) => {
   }
 
   if (action === 'change-status') {
-    if (method !== 'PATCH') {
+    if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /${action}`
+        + ' endpoint. Use "PATCH".'
       );
       return;
     }
@@ -148,11 +152,12 @@ const activitiesHandler = (conn) => {
   }
 
   if (action === 'remove') {
-    if (method !== 'PATCH') {
+    if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /${action}`
+        + ' endpoint. Use "PATCH".'
       );
       return;
     }

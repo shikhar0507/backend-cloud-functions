@@ -136,15 +136,15 @@ const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber,
  *
  * @param {Object} schedule Object containing startTime, endTime and the name
  * of the schedule.
- * @param {Object} scheduleDataFromDB Schedule template stored in
+ * @param {Object} scheduleFromTemplate Schedule template stored in
  * the Firestore.
  * @returns {Object} A venue object.
  */
-const filterSchedules = (schedule, scheduleDataFromDB) => {
+const filterSchedules = (schedule, scheduleFromTemplate) => {
   let schedules = {};
 
-  const defaultSchedule = schedules[scheduleDataFromDB.name] = {
-    name: scheduleDataFromDB.name,
+  const defaultSchedule = schedules[scheduleFromTemplate.name] = {
+    name: scheduleFromTemplate.name,
     startTime: null,
     endTime: null,
   };
@@ -154,7 +154,7 @@ const filterSchedules = (schedule, scheduleDataFromDB) => {
   }
 
   schedule.forEach((sch) => {
-    if (sch.name !== scheduleDataFromDB.name) {
+    if (sch.name !== scheduleFromTemplate.name) {
       return;
     }
 

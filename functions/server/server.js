@@ -75,13 +75,13 @@ const disableAccount = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      'There was some trouble parsing your request. Please contact support.',
-      false
+      'There was some trouble parsing your request. Please contact support.'
     );
 
     return;
   }).catch((error) => handleError(conn, error));
 };
+
 
 /**
  * Checks the path of the URL in the reuqest and handles the execution flow.
@@ -102,16 +102,6 @@ const handleRequestPath = (conn) => {
   }
 
   if (action === 'now') {
-    if (conn.req.method !== 'GET') {
-      sendResponse(
-        conn,
-        code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`,
-        false
-      );
-      return;
-    }
-
     now(conn); // server timestamp
     return;
   }
@@ -181,8 +171,7 @@ const checkAuthorizationToken = (conn) => {
     sendResponse(
       conn,
       code.unauthorized,
-      'The authorization header is not valid.',
-      false
+      'The authorization header is not valid.'
     );
 
     return;
@@ -192,8 +181,7 @@ const checkAuthorizationToken = (conn) => {
     sendResponse(
       conn,
       code.unauthorized,
-      'Authorization type is not "Bearer".',
-      false
+      'Authorization type is not "Bearer".'
     );
 
     return;
@@ -215,8 +203,7 @@ const checkAuthorizationToken = (conn) => {
         sendResponse(
           conn,
           code.unauthorized,
-          'The idToken was revoked recently. Please reauthenticate.',
-          false
+          'The idToken was revoked recently. Please reauthenticate.'
         );
         return;
       }
@@ -225,8 +212,7 @@ const checkAuthorizationToken = (conn) => {
         sendResponse(
           conn,
           code.unauthorized,
-          'The idToken in the request header is invalid/expired.',
-          false
+          'The idToken in the request header is invalid/expired.'
         );
         return;
       }
@@ -235,8 +221,7 @@ const checkAuthorizationToken = (conn) => {
       sendResponse(
         conn,
         code.forbidden,
-        'There was an error processing the idToken sent in the request.',
-        false
+        'There was an error processing the idToken sent in the request.'
       );
     });
 };
@@ -264,23 +249,23 @@ const server = (req, res) => {
     'Content-Type': 'application/json',
   };
 
-  if (req.method === 'OPTIONS') {
-    /** no content to send in response to the  OPTIONS request */
-    sendResponse(conn, code.noContent, '', true);
+  if (req.method === 'OPTIONS' || req.method === 'HEAD') {
+    /** no content to send in response to the  OPTIONS OR GET request */
+    sendResponse(conn, code.noContent);
     return;
   }
 
   /** allowed methods */
-  if (['POST', 'GET', 'PATCH', 'PUT'].indexOf(req.method) > -1) {
+  if (['GET', 'POST', 'PATCH', 'PUT'].indexOf(req.method) > -1) {
     checkAuthorizationToken(conn);
     return;
   }
 
   sendResponse(
     conn,
-    code.methodNotAllowed,
-    `${req.method} is not allowed for any request.`,
-    false
+    code.notImplemented,
+    `${req.method} has not been implemented.`
+    + 'Please use GET, POST, PATCH, or PUT methods to make your request.'
   );
 };
 

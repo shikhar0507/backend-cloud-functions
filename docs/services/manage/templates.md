@@ -1,4 +1,6 @@
-# Creating New Templates
+# Managing Templates in the DB (for admins)
+
+## Creating A Template
 
 endpoint: `/api/services/manage/templates`
 

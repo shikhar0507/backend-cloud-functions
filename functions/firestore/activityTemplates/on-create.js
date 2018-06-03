@@ -12,33 +12,15 @@ const {
 } = require('../../admin/responses');
 
 const {
-  isValidLocation,
-  isValidDate,
-} = require('../activity/helper');
+  validateSchedule,
+  validateVenue,
+} = require('./helpers');
+
 
 const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
-
-
-const validateSchedule = (schedule) => {
-  if (typeof schedule.name !== 'string') return false;
-  if (!isValidDate(schedule.startTime)) return false;
-  if (!isValidDate(schedule.endTime)) return false;
-  if (schedule.endTime < schedule.startTime) return false;
-
-  return true;
-};
-
-const validateVenue = (venue) => {
-  if (typeof venue.venueDescriptor !== 'string') return false;
-  if (typeof venue.address !== 'string') return false;
-  if (typeof venue.location !== 'string') return false;
-  if (!isValidLocation(venue.geopoint)) return false;
-
-  return true;
-};
 
 
 const createTemplate = (conn, data) => {
@@ -83,7 +65,7 @@ const getTemplateByName = (conn) => {
         sendResponse(
           conn,
           code.conflict,
-          `A template with the name: ${conn.req.body.name} already exists.`
+          `A template with the name: "${conn.req.body.name}" already exists.`
         );
         return;
       }
@@ -94,7 +76,7 @@ const getTemplateByName = (conn) => {
 };
 
 
-const validateRequestBody = (conn) => {
+const app = (conn) => {
   /** true for empty string. */
   const re = /^$|\s+/;
 
@@ -103,8 +85,21 @@ const validateRequestBody = (conn) => {
     return;
   }
 
+  if (conn.req.body.name === 'plan') {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You cannot update the template "plan".'
+    );
+    return;
+  }
+
   if (!re.test(conn.req.body.defaultTitle)) {
-    sendResponse(conn, code.badRequest, 'The "description" is invalid/missing');
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The "defaultTitle" is invalid/missing'
+    );
     return;
   }
 
@@ -118,7 +113,7 @@ const validateRequestBody = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The "template" in invalid/missing'
+      'The "attachment" in invalid/missing'
     );
     return;
   }
@@ -162,11 +157,6 @@ const validateRequestBody = (conn) => {
   }
 
   getTemplateByName(conn);
-};
-
-
-const app = (conn) => {
-  validateRequestBody(conn);
 };
 
 

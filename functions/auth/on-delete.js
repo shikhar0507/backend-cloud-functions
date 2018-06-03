@@ -36,6 +36,7 @@ const {
   batch,
 } = db;
 
+
 /**
  * Sets the uid and phoneNumber fields of the user being deleted to null inside
  * the Updates and Profiles collection respectively.
@@ -53,14 +54,14 @@ const deleteUser = (userRecord, context) => {
   batch.set(profiles.doc(phoneNumber), {
     uid: null,
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
   batch.set(updates.doc(uid), {
     phoneNumber: null,
   }, {
-    merge: true,
-  });
+      merge: true,
+    });
 
   return batch.commit().catch((error) => console.log(error));
 };

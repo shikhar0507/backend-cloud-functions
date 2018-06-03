@@ -21,16 +21,33 @@
  *
  */
 
+
 const {
   code,
 } = require('./responses');
+
 
 /**
  * Returns the server timestamp on request.
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  */
-const now = (conn) => sendResponse(conn, code.ok, new Date().toString(), true);
+const now = (conn) => {
+  if (conn.req.method !== 'GET') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for the /now endpoint.`
+    );
+    return;
+  }
+
+  sendJSON(conn, {
+    success: true,
+    timestamp: Date.now(),
+    code: code.ok,
+  });
+};
 
 
 /**
@@ -41,7 +58,7 @@ const now = (conn) => sendResponse(conn, code.ok, new Date().toString(), true);
  * @param {number} statusCode A standard HTTP status code.
  * @param {string} message Response message for the request.
  */
-const sendResponse = (conn, statusCode, message) => {
+const sendResponse = (conn, statusCode, message = '') => {
   let success = true;
 
   if ([code.ok, code.created, code.accepted, code.noContent]
@@ -71,8 +88,7 @@ const handleError = (conn, error) => {
   sendResponse(
     conn,
     code.internalServerError,
-    'There was an error handling the request. Please try again later.',
-    ''
+    'There was an error handling the request. Please try again later.'
   );
 };
 
