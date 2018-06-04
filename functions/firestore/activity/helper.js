@@ -85,13 +85,11 @@ const isValidPhoneNumber = (phoneNumber) => {
  * Handles whether a person has the authority to edit an activity after it is
  * created.
  *
- * @param {string} canEditRule From user's subscriptions.
+ * @param {Object} subscription User's subscription.
  * @param {string} phoneNumber Number to check the canEdir rule for.
  * @param {string} requesterPhoneNumber Phone number of the requester.
- * @param {Array} include The 'include' array from Subscriptions.
  */
-const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber,
-  include) => {
+const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber) => {
   /** The rules will have one of the following values
    * ALL
    * NONE
@@ -99,28 +97,22 @@ const handleCanEdit = (canEditRule, phoneNumber, requesterPhoneNumber,
    * CREATOR
    * PEOPLE_TYPE
    */
-  /**
-   * 1. 'canEditRule' from subscriptions
-   * 2. phone number to check the canEdit rule for
-   * 3. requester phone number
-   * 4. 'include' from subscriptions
-   */
 
-  if (canEditRule === 'ALL') return true;
+  if (subscription.canEditRule === 'ALL') return true;
 
-  if (canEditRule === 'NONE') return false;
+  if (subscription.canEditRule === 'NONE') return false;
 
-  if (canEditRule === 'FROM_INCLUDE') {
-    if (include.indexOf(phoneNumber) > -1) {
+  if (subscription.canEditRule === 'FROM_INCLUDE') {
+    if (subscription.include.indexOf(phoneNumber) > -1) {
       return true;
     }
     return false;
   }
 
   /** TODO: this needs to be implemented. */
-  if (canEditRule === 'PEOPLE_TYPE') return true;
+  if (subscription.canEditRule === 'PEOPLE_TYPE') return true;
 
-  if (canEditRule === 'CREATOR') {
+  if (subscription.canEditRule === 'CREATOR') {
     if (phoneNumber === requesterPhoneNumber) {
       return true;
     }

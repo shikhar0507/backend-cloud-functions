@@ -4,19 +4,30 @@
   },
   "plugins": [
     "promise",
-    "jsdoc"
+    "jsdoc",
+    "security"
   ],
   "extends": [
     "eslint:recommended",
-    "google"
+    "google",
+    "plugin:security/recommended"
   ],
+  "env": {
+    "amd": true,
+    "es6": true,
+    "node": true
+  },
+  // "globals": {
+  //   "module": true,
+  //   "console": true
+  // },
   "rules": {
-    "no-console": 1,
+    "no-console": 0,
     "no-regex-spaces": 1,
     "no-debugger": 1,
     "no-unused-vars": 1,
     "no-mixed-spaces-and-tabs": 2,
-    "no-undef": "off",
+    "no-undef": 1,
     "no-template-curly-in-string": 1,
     "consistent-return": 1,
     "array-callback-return": 1,

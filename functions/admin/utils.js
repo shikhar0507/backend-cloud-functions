@@ -26,6 +26,60 @@ const {
   code,
 } = require('./responses');
 
+const {
+  rootCollections,
+  disableUser,
+} = require('./admin');
+
+const {
+  profiles,
+} = rootCollections;
+
+
+/**
+ * Disables the user account in auth based on uid and writes the reason to
+ * the document in the profiles collection for which the account was disabled.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {string} reason For which the account is being disabled.
+ */
+const disableAccount = (conn, reason) => {
+  Promise.all([
+    profiles.doc(conn.requester.phoneNumber).set({
+      disabled: reason,
+    }, {
+        merge: true,
+      }),
+    disableUser(conn.requester.uid),
+  ]).then((result) => {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'There was some trouble parsing your request. Please contact support.'
+    );
+
+    return;
+  }).catch((error) => handleError(conn, error));
+};
+
+
+const hasSupportClaims = (customClaims) => {
+  if (!customClaims) return false;
+  return customClaims.support === true;
+};
+
+
+const hasManageTemplateClaims = (customClaims) => {
+  if (!customClaims) return false;
+  return customClaims.manageTemplates === true;
+};
+
+
+const hasSuperUserClaims = (customClaims) => {
+  if (!customClaims) return false;
+  return customClaims.superUser === true;
+};
+
 
 /**
  * Returns the server timestamp on request.
@@ -106,6 +160,10 @@ const sendJSON = (conn, json) => {
 
 
 module.exports = {
+  hasSupportClaims,
+  hasSuperUserClaims,
+  hasManageTemplateClaims,
+  disableAccount,
   sendResponse,
   handleError,
   sendJSON,

@@ -7,9 +7,9 @@ const {
 } = require('../../admin/utils');
 
 
-const onRead = require('../../firestore/activityTemplates/on-read');
-const onCreate = require('../../firestore/activityTemplates/on-create');
-const onUpdate = require('../../firestore/activityTemplates/on-update');
+const onRead = require('../../firestore/activity-templates/on-read');
+const onCreate = require('../../firestore/activity-templates/on-create');
+const onUpdate = require('../../firestore/activity-templates/on-update');
 
 
 const app = (conn) => {

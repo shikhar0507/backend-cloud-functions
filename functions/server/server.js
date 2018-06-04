@@ -34,13 +34,13 @@ const {
 const {
   getUserByUid,
   verifyIdToken,
-  disableUser,
 } = users;
 
 const {
   handleError,
   sendResponse,
   now,
+  disableAccount,
 } = require('../admin/utils');
 
 const {
@@ -53,34 +53,6 @@ const onActivity = require('./on-activity');
 const {
   profiles,
 } = rootCollections;
-
-
-/**
- * Disables the user account in auth based on uid and writes the reason to
- * the document in the profiles collection for which the account was disabled.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- */
-const disableAccount = (conn) => {
-  const reason = 'The uid and phone number of the requester does not match.';
-
-  Promise.all([
-    profiles.doc(conn.requester.phoneNumber).set({
-      disabled: reason,
-    }, {
-        merge: true,
-      }),
-    disableUser(conn.requester.uid),
-  ]).then((result) => {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'There was some trouble parsing your request. Please contact support.'
-    );
-
-    return;
-  }).catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -124,7 +96,10 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
        * other than out provided endpoint for updating the auth.
        * Disabling their account because this is not allowed.
        */
-      disableAccount(conn);
+      disableAccount(
+        conn,
+        'The uid and phone number of the requester does not match.'
+      );
       return;
     }
 

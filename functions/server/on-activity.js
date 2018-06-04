@@ -33,6 +33,7 @@ const onStatusChange = require('../firestore/activity/on-change-status');
 
 const {
   sendResponse,
+  hasSupportClaims,
 } = require('../admin/utils');
 
 const {
@@ -52,6 +53,24 @@ const {
  */
 const activitiesHandler = (conn) => {
   const action = parse(conn.req.url).path.split('/')[2];
+  /** Can be used to verify in the activity flow to see if the request
+   * is of type support.
+   */
+  conn.requester.isSupportRequest = false;
+
+  if (conn.req.query.type === 'support') {
+    conn.requester.isSupportRequest = true;
+  }
+
+  if (conn.requester.isSupportRequest
+    && !hasSupportClaims(conn.requester.customClaims)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You do not have the permission to make support requests for activities.'
+    );
+    return;
+  }
 
   if (action.startsWith('read')) {
     if (conn.req.method !== 'GET') {
@@ -77,13 +96,13 @@ const activitiesHandler = (conn) => {
     return;
   }
 
-  if (action === 'create') {
+  if (action.startsWith('create')) {
     if (conn.req.method !== 'POST') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action}`
-        + ' endpoint. Use "POST".'
+        `${conn.req.method} is not allowed for the /create`
+        + ' endpoint. Use POST.'
       );
       return;
     }
@@ -98,7 +117,7 @@ const activitiesHandler = (conn) => {
         conn,
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /${action}`
-        + ' endpoint. Use "POST"'
+        + ' endpoint. Use POST.'
       );
       return;
     }
@@ -107,13 +126,13 @@ const activitiesHandler = (conn) => {
     return;
   }
 
-  if (action === 'update') {
+  if (action.startsWith('update')) {
     if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`
-        + ' Use "PATCH".');
+        `${conn.req.method} is not allowed for the /update endpoint.`
+        + ' Use PATCH.');
       return;
     }
 
@@ -122,12 +141,12 @@ const activitiesHandler = (conn) => {
   }
 
   if (action === 'share') {
-    if (method !== 'PATCH') {
+    if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /${action} endpoint.`
-        + ' Use "PATCH".'
+        + ' Use PATCH.'
       );
       return;
     }
@@ -142,7 +161,7 @@ const activitiesHandler = (conn) => {
         conn,
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /${action}`
-        + ' endpoint. Use "PATCH".'
+        + ' endpoint. Use PATCH.'
       );
       return;
     }
@@ -157,7 +176,7 @@ const activitiesHandler = (conn) => {
         conn,
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /${action}`
-        + ' endpoint. Use "PATCH".'
+        + ' endpoint. Use PATCH.'
       );
       return;
     }
