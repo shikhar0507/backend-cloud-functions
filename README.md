@@ -5,42 +5,87 @@ This is the repository for cloud functions running on Firebase Growthfile backen
 ## File Structure
 
 ```bash
-|   .firebaserc
-|   .gitignore
-|   firebase.json
-|   LICENSE
-|   README.md
-|
-\---functions
-    |   .eslintrc.json
-    |   index.js
-    |   package-lock.json
-    |   package.json
-    |
-    +---admin
-    |       admin.js
-    |       utils.js
-    |
-    +---auth
-    |   |   onCreate.js
-    |   |   onDelete.js
-    |   |
-    |   \---user
-    |           onRead.js
-    |           onUpdate.js
-    |
-    +---firestore
-    |   \---activity
-    |           helperLib.js
-    |           onComment.js
-    |           onCreate.js
-    |           onRead.js
-    |           onUpdate.js
-    |
-    \---server
-            onActivity.js
-            onService.js
-            server.js
+│   .firebaserc
+│   .gitignore
+│   firebase.json
+│   LICENSE
+│   README.md
+│
+├───docs
+│   │   now.md
+│   │
+│   ├───activities
+│   │       change-status.md
+│   │       comment.md
+│   │       create.md
+│   │       read.md
+│   │       remove.md
+│   │       share.md
+│   │       update.md
+│   │
+│   ├───services
+│   │   ├───manage
+│   │   │       permissions.md
+│   │   │       templates.md
+│   │   │
+│   │   └───users
+│   │           read.md
+│   │           update.md
+│   │
+│   └───support-requests
+│           README.md
+│
+├───functions
+│   │   .eslintrc.json
+│   │   index.js
+│   │   package-lock.json
+│   │   package.json
+│   │
+│   ├───admin
+│   │       admin.js
+│   │       responses.js
+│   │       utils.js
+│   │
+│   ├───auth
+│   │       on-create.js
+│   │       on-delete.js
+│   │
+│   ├───firestore
+│   │   ├───activity
+│   │   │       helper.js
+│   │   │       on-change-status.js
+│   │   │       on-comment.js
+│   │   │       on-create.js
+│   │   │       on-read.js
+│   │   │       on-remove.js
+│   │   │       on-share.js
+│   │   │       on-update.js
+│   │   │
+│   │   └───activity-templates
+│   │           helpers.js
+│   │           on-create.js
+│   │           on-read.js
+│   │           on-update.js
+│   │
+│   ├───server
+│   │       on-activity.js
+│   │       on-service.js
+│   │       server.js
+│   │
+│   └───services
+│       │   on-manage.js
+│       │   on-users.js
+│       │
+│       ├───manage
+│       │       on-permissions.js
+│       │       on-templates.js
+│       │
+│       └───users
+│               on-read.js
+│               on-update.js
+│
+└───schema
+        schema.graphql
 ```
 
 ## Installation
@@ -56,13 +101,13 @@ This is the repository for cloud functions running on Firebase Growthfile backen
 * Clone this repository
 
     ```bash
-    git clone https://github.com/Growthfilev2/cloud-functions
+    git clone https://github.com/Growthfilev2/backend-cloud-functions
     ```
 
 * `cd` into the functions directory.
 
     ```bash
-    cd cloud-functions
+    cd backend-cloud-functions
     ```
 
 * Install the dependencies
@@ -70,6 +115,8 @@ This is the repository for cloud functions running on Firebase Growthfile backen
     ```bash
     npm install
     ```
+
+* Add the service account key from Firebase console to `/functions/admin/`
 
 * Deploy the functions
 
