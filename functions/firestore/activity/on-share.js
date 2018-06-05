@@ -112,10 +112,9 @@ const addAddendumForAssignees = (conn) => {
     conn.batch.set(activities.doc(conn.req.body.activityId)
       .collection('Assignees').doc(phoneNumber), {
         canEdit: handleCanEdit(
-          conn.data.subscription.get('canEditRule'),
+          conn.data.subscription,
           phoneNumber,
-          conn.requester.phoneNumber,
-          conn.data.subscription.get('include')
+          conn.requester.phoneNumber
         ),
       }, {
         merge: true,
@@ -127,10 +126,9 @@ const addAddendumForAssignees = (conn) => {
     conn.batch.set(profiles.doc(phoneNumber).collection('Activities')
       .doc(conn.req.body.activityId), {
         canEdit: handleCanEdit(
-          conn.data.subscription.get('canEditRule'),
+          conn.data.subscription,
           phoneNumber,
-          conn.requester.phoneNumber,
-          conn.data.subscription.get('include')
+          conn.requester.phoneNumber
         ),
         timestamp: new Date(conn.req.body.timestamp),
       }, {
@@ -149,8 +147,8 @@ const fetchTemplateAndSubscriptions = (conn) => {
     activityTemplates.doc(conn.data.activity.get('template')).get(),
     profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
       .where('office', '==', conn.data.activity.get('office'))
-      .where('template', '==', conn.data.activity.get('template'))
-      .limit(1).get(),
+      .where('template', '==', conn.data.activity.get('template')).limit(1)
+      .get(),
   ]).then((docsArray) => {
     conn.addendum = {
       activityId: conn.req.body.activityId,
@@ -163,6 +161,13 @@ const fetchTemplateAndSubscriptions = (conn) => {
 
     conn.data.template = docsArray[0];
     conn.data.subscription = docsArray[1].docs[0];
+
+    if (conn.requester.isSupportRequest) {
+      conn.data.subscription = {};
+
+      conn.data.subscription.canEditRule
+        = conn.data.activity.get('canEditRule');
+    }
 
     addAddendumForAssignees(conn);
     return;
@@ -237,12 +242,22 @@ const verifyEditPermission = (conn) => {
 };
 
 
+const verifyRequestType = (conn) => {
+  if (conn.requester.isSupportRequest) {
+    fetchDocs(conn);
+    return;
+  }
+
+  verifyEditPermission(conn);
+};
+
+
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp) &&
     isValidString(conn.req.body.activityId) &&
     Array.isArray(conn.req.body.share) &&
     isValidLocation(conn.req.body.geopoint)) {
-    verifyEditPermission(conn);
+    verifyRequestType(conn);
     return;
   }
 

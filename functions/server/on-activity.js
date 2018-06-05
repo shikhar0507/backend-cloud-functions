@@ -96,7 +96,7 @@ const activitiesHandler = (conn) => {
     return;
   }
 
-  if (action.startsWith('create')) {
+  if (action === 'create') {
     if (conn.req.method !== 'POST') {
       sendResponse(
         conn,
@@ -140,12 +140,12 @@ const activitiesHandler = (conn) => {
     return;
   }
 
-  if (action === 'share') {
+  if (action.startsWith('share')) {
     if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /share endpoint.`
         + ' Use PATCH.'
       );
       return;

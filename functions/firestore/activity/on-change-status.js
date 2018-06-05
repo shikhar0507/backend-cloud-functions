@@ -48,6 +48,7 @@ const {
   profiles,
   updates,
   activityTemplates,
+  enums,
 } = rootCollections;
 
 

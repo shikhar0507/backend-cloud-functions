@@ -48,6 +48,7 @@ const {
   activities,
   profiles,
   updates,
+  activityTemplates,
 } = rootCollections;
 
 

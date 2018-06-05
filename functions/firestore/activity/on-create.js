@@ -187,6 +187,9 @@ const createActivity = (conn) => {
 
   root.docRef = conn.docRef || null;
 
+  /** The rule is stored here to avoid reading subscriptions during
+   * updates.
+   */
   root.canEditRule = conn.data.subscription.canEditRule;
 
   conn.batch.set(conn.activityRef, root);

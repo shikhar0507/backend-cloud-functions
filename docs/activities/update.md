@@ -36,10 +36,13 @@ query parameter: none
 
 ```json
 {
-    "template": string --> template name,
+
+    "activityId": string --> activityId,
     "timestamp": number --> unix timestamp,
-    "office": string --> office name,
-    "geopoint": latitude: number, longitude: number,
+    "geopoint": {
+        latitude: number,
+        longitude: number
+    },
 }
 ```
 

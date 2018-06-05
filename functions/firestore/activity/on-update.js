@@ -72,17 +72,12 @@ const commitBatch = (conn) => conn.batch.commit()
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const updateActivityDoc = (conn) => {
-  conn.update.description = conn.req.body.description;
-
-  if (!conn.update.description || typeof conn.update.description !== 'string') {
-    conn.update.description = '';
+  if (typeof conn.req.body.description === 'string') {
+    conn.update.description = conn.req.body.description;
   }
 
-  conn.update.title = conn.req.body.title;
-
-  if (!conn.update.title || typeof conn.update.title !== 'string') {
-    conn.update.title = conn.req.body.description
-      .substring(0, 30) || conn.data.template.get('defaultTitle');
+  if (typeof conn.req.body.title === 'string') {
+    conn.update.title = conn.req.body.title;
   }
 
   if (conn.req.body.schedule) {
@@ -101,6 +96,7 @@ const updateActivityDoc = (conn) => {
 
   conn.update.timestamp = new Date(conn.req.body.timestamp);
 
+  /** Imeplementing the handleAttachment() method will make this work. */
   if (conn.docRef) {
     /**
      * docRef is not undefined only when a document is updated during
