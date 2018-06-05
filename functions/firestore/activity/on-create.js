@@ -198,7 +198,7 @@ const createActivity = (conn) => {
     activityId: conn.activityRef.id,
     user: conn.requester.displayName || conn.requester.phoneNumber,
     comment: `${conn.requester.displayName || conn.requester.phoneNumber}` +
-      `created ${conn.data.template.defaultTitle}`,
+      ` created ${conn.data.template.defaultTitle}`,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: new Date(conn.req.body.timestamp),
   };
@@ -386,9 +386,10 @@ const processRequestType = (conn) => {
 
 
 const handleSupportRequest = (conn, result) => {
+  /** For support requests, the canEditRule will be used from the
+   * request body and not from the user's subscription.
+   */
   conn.data.subscription.canEditRule = conn.req.body.canEditRule;
-  conn.data.subscription.include = [];
-
   processRequestType(conn);
 };
 

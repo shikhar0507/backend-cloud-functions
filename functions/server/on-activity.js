@@ -96,7 +96,7 @@ const activitiesHandler = (conn) => {
     return;
   }
 
-  if (action === 'create') {
+  if (action.startsWith('create')) {
     if (conn.req.method !== 'POST') {
       sendResponse(
         conn,

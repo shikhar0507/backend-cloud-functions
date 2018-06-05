@@ -126,45 +126,43 @@ const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber) => {
 /**
  * Returns valid schedule objects and filters out invalid schedules.
  *
- * @param {Object} schedule Object containing startTime, endTime and the name
- * of the schedule.
- * @param {Object} scheduleFromTemplate Schedule template stored in
- * the Firestore.
- * @returns {Object} A venue object.
+ * @param {Array} schedules Array of scheule objects.
+ * @param {Object} scheduleFromTemplate Single schedule from template.
  */
-const filterSchedules = (schedule, scheduleFromTemplate) => {
-  let schedules = {};
+const filterSchedules = (schedules, scheduleFromTemplate) => {
+  const schedulesArray = [];
 
-  const defaultSchedule = schedules[scheduleFromTemplate.name] = {
+  const defaultSchedule = {
     name: scheduleFromTemplate.name,
     startTime: null,
     endTime: null,
   };
 
-  if (!Array.isArray(schedule)) {
-    return defaultSchedule;
+  if (!Array.isArray(schedules)) {
+    schedulesArray.push(defaultSchedule);
+    return schedulesArray;
   }
 
-  schedule.forEach((sch) => {
-    if (sch.name !== scheduleFromTemplate.name) {
+  schedules.forEach((schedule) => {
+    if (schedule.name !== scheduleFromTemplate.name) {
       return;
     }
 
-    if (!isNaN(new Date(sch.startTime)) && !sch.endTime) {
-      // schedule has startTime but not endTime
-      schedules[sch.name] = {
-        name: sch.name,
-        startTime: new Date(sch.startTime),
-        endTime: new Date(sch.startTime),
+    if (!isNaN(new Date(schedule.startTime)) && !schedule.endTime) {
+      /** schedule has startTime but not endTime */
+      schedules[schedule.name] = {
+        name: schedule.name,
+        startTime: new Date(schedule.startTime),
+        endTime: new Date(schedule.startTime),
       };
-    } else if (!isNaN(new Date(sch.startTime)) &&
-      !isNaN(new Date(sch.endTime)) &&
-      sch.endTime >= sch.startTime) {
+    } else if (!isNaN(new Date(schedule.startTime)) &&
+      !isNaN(new Date(schedule.endTime)) &&
+      schedule.endTime >= schedule.startTime) {
       // schedule has both startTime, endTime & endTime  >= startTime
-      schedules[sch.name] = {
-        name: sch.name,
-        startTime: new Date(sch.startTime),
-        endTime: new Date(sch.endTime),
+      schedules[schedule.name] = {
+        name: schedule.name,
+        startTime: new Date(schedule.startTime),
+        endTime: new Date(schedule.endTime),
       };
     }
   });
@@ -172,61 +170,62 @@ const filterSchedules = (schedule, scheduleFromTemplate) => {
   /** In cases where there is no valid schedule in
    * the request body, we create an object with null values.
    */
-  if (Object.keys(schedules).length === 0) {
-    return defaultSchedule;
+  if (schedulesArray.length === 0) {
+    schedulesArray.push(defaultSchedule);
   }
 
-  return schedules;
+  return schedulesArray;
 };
 
 
 /**
  * Returns a venue object and filters out all the invalid ones.
  *
- * @param {Object} venue Object containing venueDescriptor, geopoint, location
- * and the address of a venue.
- * @param {Object} venueDataFromDB Venue template data from Firestore.
- * @returns {Object} A schedule object.
+ * @param {Object} venues Venues from the request body.
+ * @param {Object} venueFromTemplate Venue object from template.
+ * @returns {Array} Containing all the valid venues.
  */
-const filterVenues = (venue, venueDataFromDB) => {
-  let venues = {};
+const filterVenues = (venues, venueFromTemplate) => {
+  const venueArray = [];
 
-  const defaultVenue = venues[venueDataFromDB.venueDescriptor] = {
-    venueDescriptor: venueDataFromDB.venueDescriptor,
+  const defaultVenue = {
+    venueDescriptor: venueFromTemplate.venueDescriptor,
     location: null,
     geopoint: null,
     address: null,
   };
 
   if (!Array.isArray(venues)) {
-    return defaultVenue;
+    venueArray.push(defaultVenue);
+    return venueArray;
   }
 
-  venue.forEach((val) => {
-    if (val.venueDescriptor !== venueDataFromDB.venueDescriptor) {
+  venues.forEach((venue) => {
+    if (venue.venueDescriptor !== venueFromTemplate.venueDescriptor) {
       return;
     }
 
-    if (!isValidLocation(val.geopoint)) {
+    if (!isValidLocation(venue.geopoint)) {
       return;
     }
 
-    venues[`${val.venueDescriptor}`] = {
-      venueDescriptor: val.venueDescriptor,
-      location: val.location || '',
-      geopoint: getGeopointObject(val.geopoint),
-      address: val.address || '',
+    venues[`${venue.venueDescriptor}`] = {
+      venueDescriptor: venue.venueDescriptor,
+      location: venue.location || '',
+      geopoint: getGeopointObject(venue.geopoint),
+      address: venue.address || '',
     };
   });
 
   /** In cases where there is no valid venue in the request body we
-   * create an object with all null values except the name
+   * create an array with all null values except the descriptor
    */
-  if (Object.keys(venues).length === 0) {
-    return defaultVenue;
+  if (venueArray.length === 0) {
+    venueArray.push(defaultVenue);
+    return venueArray;
   }
 
-  return venues;
+  return venueArray;
 };
 
 

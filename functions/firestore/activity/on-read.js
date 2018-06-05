@@ -186,6 +186,41 @@ const fetchAttachments = (conn, jsonResult) => {
 
 
 /**
+ * Converts the schedule and venue objects from activity to
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} jsonResult The fetched data from Firestore.
+ */
+const restructureVenueAndSchedule = (conn, jsonResult) => {
+  let scheduleObject = {};
+  let venueObject = {};
+
+  Object.keys(jsonResult.activities).forEach((id) => {
+    Object.keys(conn.schedule).forEach((schedule) => {
+      scheduleObject[schedule.name] = {
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+      };
+
+      jsonResult.activities[`${id}`].schedule.push(scheduleObject);
+    });
+
+    Object.keys(conn.venue).forEach((venue) => {
+      venueObject[venue.venueDescriptor] = {
+        geopoint: venue.geopoint,
+        address: venue.address,
+        location: venue.location,
+      };
+      jsonResult.activities[`${id}`].venue.push(venueObject);
+    });
+  });
+
+
+  fetchAttachments(conn, jsonResult);
+};
+
+
+/**
  * Fetches all the activity data in which the user is an assignee of.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
@@ -195,15 +230,16 @@ const fetchActivities = (conn, jsonResult) => {
   Promise.all(conn.activityFetchPromises).then((snapShot) => {
     let activityObj;
     conn.docRefsArray = [];
+    conn.schedule = [];
+    conn.venue = [];
 
     snapShot.forEach((doc) => {
-      activityId = doc.ref.path.split('/')[1];
-
+      /** doc.ref.path.split('/')[1] is the activityId */
       activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
 
       activityObj.status = doc.get('status');
-      activityObj.schedule = doc.get('schedule');
-      activityObj.venue = doc.get('venue');
+      activityObj.schedule = [];
+      activityObj.venue = [];
       activityObj.timestamp = doc.get('timestamp');
       activityObj.template = doc.get('template');
       activityObj.title = doc.get('title');
@@ -215,9 +251,13 @@ const fetchActivities = (conn, jsonResult) => {
       if (doc.get('docRef')) {
         conn.docRefsArray.push(doc.get('docRef').get());
       }
+
+      conn.schedule.push(doc.get('schedule'));
+      conn.venue.push(doc.get('venue'));
     });
 
-    fetchAttachments(conn, jsonResult);
+    // fetchAttachments(conn, jsonResult);
+    restructureVenueAndSchedule(conn, jsonResult);
     return;
   }).catch((error) => handleError(conn, error));
 };
