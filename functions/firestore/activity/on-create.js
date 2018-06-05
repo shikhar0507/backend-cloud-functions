@@ -79,7 +79,7 @@ const handleAssignedUsers = (conn) => {
   const promises = [];
 
   /**
-   * create docs in Assignees collection if assign is in the reqeuest body.
+   * create docs in Assignees collection if share is in the request body.
    * */
   conn.req.body.share.forEach((val) => {
     if (!isValidPhoneNumber(val)) return;
@@ -89,7 +89,8 @@ const handleAssignedUsers = (conn) => {
         canEdit: handleCanEdit(
           conn.data.subscription,
           val,
-          conn.requester.phoneNumber
+          conn.requester.phoneNumber,
+          conn.req.body.share
         ),
       }, {
         merge: true,
@@ -103,7 +104,8 @@ const handleAssignedUsers = (conn) => {
         canEdit: handleCanEdit(
           conn.data.subscription,
           val,
-          conn.requester.phoneNumber
+          conn.requester.phoneNumber,
+          conn.req.body.share
         ),
         timestamp: new Date(conn.req.body.timestamp),
       });
@@ -123,7 +125,8 @@ const handleAssignedUsers = (conn) => {
             canEdit: handleCanEdit(
               conn.data.subscription,
               doc.id,
-              conn.requester.phoneNumber
+              conn.requester.phoneNumber,
+              conn.req.body.share
             ),
             timestamp: new Date(conn.req.body.timestamp),
           });
@@ -211,14 +214,14 @@ const createActivity = (conn) => {
    * phone number, so we don't need to explictly add their number
    * in order to add them to a batch.
    */
-
   conn.data.subscription.include.forEach((val) => {
     conn.batch.set(activities.doc(conn.activityRef.id)
       .collection('Assignees').doc(val), {
         canEdit: handleCanEdit(
           conn.data.subscription,
           val,
-          conn.requester.phoneNumber
+          conn.requester.phoneNumber,
+          conn.req.body.share
         ),
       });
   });
@@ -232,7 +235,8 @@ const createActivity = (conn) => {
          * block is writing the doc for the user themselves.
          */
         conn.requester.phoneNumber,
-        conn.requester.phoneNumber
+        conn.requester.phoneNumber,
+        conn.req.body.share
       ),
       timestamp: new Date(conn.req.body.timestamp),
     });

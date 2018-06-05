@@ -85,11 +85,13 @@ const isValidPhoneNumber = (phoneNumber) => {
  * Handles whether a person has the authority to edit an activity after it is
  * created.
  *
- * @param {Object} subscription User's subscription.
- * @param {string} phoneNumber Number to check the canEdir rule for.
+ * @param {Object} subscription User's subscription document.
+ * @param {string} phoneNumber Number to check the canEdit rule for.
  * @param {string} requesterPhoneNumber Phone number of the requester.
+ * @param {Array} assignees Array of people who are assignees of the activity.
  */
-const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber) => {
+const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber,
+  assignees = []) => {
   /** The rules will have one of the following values
    * ALL
    * NONE
@@ -103,7 +105,8 @@ const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber) => {
   if (subscription.canEditRule === 'NONE') return false;
 
   if (subscription.canEditRule === 'FROM_INCLUDE') {
-    if (subscription.include.indexOf(phoneNumber) > -1) {
+    if (subscription.include.indexOf(phoneNumber) > -1
+      || assignees.indexOf(phoneNumber) > -1) {
       return true;
     }
     return false;
