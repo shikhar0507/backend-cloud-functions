@@ -148,22 +148,22 @@ const filterSchedules = (schedules, scheduleFromTemplate) => {
       return;
     }
 
+    /** schedule has startTime but not endTime */
     if (!isNaN(new Date(schedule.startTime)) && !schedule.endTime) {
-      /** schedule has startTime but not endTime */
-      schedules[schedule.name] = {
+      schedulesArray.push({
         name: schedule.name,
         startTime: new Date(schedule.startTime),
         endTime: new Date(schedule.startTime),
-      };
+      });
     } else if (!isNaN(new Date(schedule.startTime)) &&
       !isNaN(new Date(schedule.endTime)) &&
       schedule.endTime >= schedule.startTime) {
-      // schedule has both startTime, endTime & endTime  >= startTime
-      schedules[schedule.name] = {
+      /** schedule has both startTime, endTime & endTime  >= startTime */
+      schedulesArray.push({
         name: schedule.name,
         startTime: new Date(schedule.startTime),
         endTime: new Date(schedule.endTime),
-      };
+      });
     }
   });
 
@@ -209,12 +209,12 @@ const filterVenues = (venues, venueFromTemplate) => {
       return;
     }
 
-    venues[`${venue.venueDescriptor}`] = {
+    venueArray.push({
       venueDescriptor: venue.venueDescriptor,
       location: venue.location || '',
       geopoint: getGeopointObject(venue.geopoint),
       address: venue.address || '',
-    };
+    });
   });
 
   /** In cases where there is no valid venue in the request body we
