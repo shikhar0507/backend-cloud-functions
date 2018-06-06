@@ -86,6 +86,7 @@ const hasManageTemplateClaims = (customClaims) => {
 
 /**
  * Helper function to check `superUser` claims.
+ *
  * @param {Object} customClaims Contains boolean custom claims.
  */
 const hasSuperUserClaims = (customClaims) => {

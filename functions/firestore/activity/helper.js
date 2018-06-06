@@ -51,10 +51,8 @@ const isValidLocation = (location) => {
  */
 const isValidString = (str) => {
   if (typeof str !== 'string') return false;
-  // TODO: This `re` doesn't like `-` in the string.
-  /** Checks for empty (or whitespace) string */
-  const re = /^$|\s+/;
-  return !re.test(str);
+  if (str.trim() === '') false;
+  return true;
 };
 
 
@@ -80,6 +78,7 @@ const isValidPhoneNumber = (phoneNumber) => {
   const re = /^\+[1-9]\d{5,14}$/;
   return re.test(phoneNumber);
 };
+
 
 /**
  * Handles whether a person has the authority to edit an activity after it is
@@ -246,14 +245,16 @@ const attachmentCreator = (attachment, attachmentFromTemplate) => {
   const filteredAttachment = {};
 
   Object.keys(attachmentFromTemplate).forEach((key) => {
-    if (typeof attachmentFromTemplate[key] === typeof attachment[key]) {
+    if (typeof attachmentFromTemplate[`${key}`]
+      === typeof attachment[`${key}`]) {
       /** filter for each of the value type and their key of the object */
-      filteredAttachment[key] = attachment[key];
+      filteredAttachment[`${key}`] = attachment[`${key}`];
     }
   });
 
   return filteredAttachment;
 };
+
 
 module.exports = {
   filterSchedules,

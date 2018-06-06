@@ -65,11 +65,11 @@ const createTemplateDocument = (conn) => {
   /** TODO: Verify if updating the name of the template is allowed?? */
   const templateData = {};
 
-  if (typeof conn.req.body.comment === 'string') {
+  if (isValidString(conn.req.body.comment)) {
     templateData.comment = conn.req.body.comment;
   }
 
-  if (typeof conn.req.body.defaultTitle === 'string') {
+  if (isValidString(conn.req.body.defaultTitle)) {
     templateData.defaultTitle = conn.req.body.defaultTitle;
   }
 
@@ -113,7 +113,7 @@ const app = (conn) => {
   /** We query the template by name, so name is a required
    * field in the request body.
    */
-  if (typeof conn.req.body.name !== 'string') {
+  if (isValidString(conn.req.body.name)) {
     sendResponse(
       conn,
       code.badRequest,
@@ -122,7 +122,7 @@ const app = (conn) => {
     return;
   }
 
-  if (conn.req.body.name === 'plan') {
+  if (isValidString(conn.req.body.name)) {
     sendResponse(
       conn,
       code.unauthorized,
