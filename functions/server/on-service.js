@@ -43,7 +43,7 @@ const onManage = require('../services/on-manage');
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
-const servicesHandler = (conn) => {
+const app = (conn) => {
   const action = parse(conn.req.url).path.split('/')[2];
 
   if (action === 'users') {
@@ -60,4 +60,4 @@ const servicesHandler = (conn) => {
 };
 
 
-module.exports = servicesHandler;
+module.exports = app;

@@ -62,19 +62,32 @@ const disableAccount = (conn, reason) => {
   }).catch((error) => handleError(conn, error));
 };
 
-
+/**
+ * Helper function to check `support` custom claims.
+ *
+ * @param {Object} customClaims Contains boolean custom claims.
+ */
 const hasSupportClaims = (customClaims) => {
   if (!customClaims) return false;
   return customClaims.support === true;
 };
 
 
+/**
+ * Helper function to check `manageTemplates` custom claims.
+ *
+ * @param {Object} customClaims Contains boolean custom claims.
+ */
 const hasManageTemplateClaims = (customClaims) => {
   if (!customClaims) return false;
   return customClaims.manageTemplates === true;
 };
 
 
+/**
+ * Helper function to check `superUser` claims.
+ * @param {Object} customClaims Contains boolean custom claims.
+ */
 const hasSuperUserClaims = (customClaims) => {
   if (!customClaims) return false;
   return customClaims.superUser === true;
@@ -148,7 +161,7 @@ const handleError = (conn, error) => {
 
 
 /**
- * Ends the response by sending the JSON to the client with 200 OK response.
+ * Ends the response by sending the JSON to the client with `200 OK` response.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} json The response object to send to the client.

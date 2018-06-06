@@ -70,6 +70,7 @@ const updateActivityDoc = (conn) => {
   commitBatch(conn);
 };
 
+
 const setAddendumForUsersWithUid = (conn) => {
   let promises = [];
 
@@ -137,6 +138,7 @@ const fetchTemplate = (conn) => {
     }).catch((error) => handleError(conn, error));
 };
 
+
 const fetchDocs = (conn) => {
   Promise.all([
     activities.doc(conn.req.body.activityId).get(),
@@ -202,6 +204,7 @@ const verifyEditPermission = (conn) => {
     }).catch((error) => handleError(conn, error));
 };
 
+
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp)
     && isValidString(conn.req.body.activityId)
@@ -219,5 +222,6 @@ const app = (conn) => {
     + ' and the unassign array are included in the request body.'
   );
 };
+
 
 module.exports = app;

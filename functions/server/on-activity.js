@@ -51,7 +51,7 @@ const {
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
-const activitiesHandler = (conn) => {
+const app = (conn) => {
   const action = parse(conn.req.url).path.split('/')[2];
   /** Can be used to verify in the activity flow to see if the request
    * is of type support.
@@ -189,4 +189,4 @@ const activitiesHandler = (conn) => {
 };
 
 
-module.exports = activitiesHandler;
+module.exports = app;

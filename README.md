@@ -235,4 +235,4 @@ postData(url, body).then((data) => {
 
 ## License
 
-All the code and documentation is covered by the MIT License.
+All the code and documentation is covered by the [MIT License](./LICENSE).

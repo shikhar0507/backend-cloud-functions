@@ -13,6 +13,7 @@ const {
 const onRead = require('../services/users/on-read');
 const onUpdate = require('../services/users/on-update');
 
+
 /**
  * Handles the requests made to /users resource.
  *
@@ -52,5 +53,6 @@ const app = (conn) => {
 
   sendResponse(conn, code.badRequest, 'The request path is not valid.');
 };
+
 
 module.exports = app;

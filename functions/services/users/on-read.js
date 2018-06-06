@@ -66,9 +66,9 @@ const app = (conn) => {
     userRecords.forEach((userRecord) => {
       phoneNumber = Object.keys(userRecord)[0];
 
-      record = userRecord[phoneNumber];
+      record = userRecord[`${phoneNumber}`];
 
-      jsonResponse[phoneNumber] = {
+      jsonResponse[`${phoneNumber}`] = {
         photoURL: record.photoURL || null,
         displayName: record.displayName || null,
         lastSignInTime: record.lastSignInTime || null,

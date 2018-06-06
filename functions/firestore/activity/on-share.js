@@ -53,14 +53,24 @@ const {
 } = rootCollections;
 
 
+/**
+ * Commits the batch to the DB.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const commitBatch = (conn) => conn.batch.commit()
-  .then((data) => sendResponse(
+  .then(() => sendResponse(
     conn,
     code.accepted,
     'The activity was successfully updated.'
   )).catch((error) => handleError(conn, error));
 
 
+/**
+ * Updates the timestamp in the activity root document.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const updateActivityDoc = (conn) => {
   conn.batch.set(activities.doc(conn.req.body.activityId), {
     timestamp: new Date(conn.req.body.timestamp),
@@ -71,6 +81,12 @@ const updateActivityDoc = (conn) => {
   commitBatch(conn);
 };
 
+/**
+ * Adds the documents to batch for the users who have their `uid` populated
+ * inside their profiles.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
 const setAddendumForUsersWithUid = (conn) => {
   const arrayWithoutDuplicates = Array.from(new Set(conn.data.assigneeArray));
   let promises = [];
@@ -107,7 +123,7 @@ const addAddendumForAssignees = (conn) => {
     if (!isValidPhoneNumber(phoneNumber)) return;
 
     /** Adding a doc with the id = phoneNumber in
-     * Activities/(activityId)/Assignees
+     * `Activities/(activityId)/Assignees`
      * */
     conn.batch.set(activities.doc(conn.req.body.activityId)
       .collection('Assignees').doc(phoneNumber), {
@@ -269,5 +285,6 @@ const app = (conn) => {
     ' and the assign array are included in the request body.'
   );
 };
+
 
 module.exports = app;

@@ -45,7 +45,7 @@ const {
  * @param {Object} context Object with Event info.
  * @returns {Promise} Batch object.
  */
-const deleteUser = (userRecord, context) => {
+const app = (userRecord, context) => {
   const {
     uid,
     phoneNumber,
@@ -65,9 +65,6 @@ const deleteUser = (userRecord, context) => {
 
   return batch.commit().catch((error) => console.log(error));
 };
-
-
-const app = (userRecord, context) => deleteUser(userRecord, context);
 
 
 module.exports = app;

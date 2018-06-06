@@ -29,6 +29,7 @@ const authOnDelete = require('./auth/on-delete');
 
 const apiServer = require('./server/server');
 
+
 module.exports = {
   authOnCreate: functions.auth.user().onCreate(authOnCreate),
   authOnDelete: functions.auth.user().onDelete(authOnDelete),

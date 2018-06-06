@@ -21,6 +21,7 @@
  *
  */
 
+
 const admin = require('firebase-admin');
 const serviceAccountKey = require('./key.json');
 
@@ -34,6 +35,7 @@ const auth = admin.auth();
 const db = admin.firestore();
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
+
 /**
  * Sets claims for a user based on `uid`.
  *
@@ -42,6 +44,7 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
  */
 const setCustomUserClaims = (uid, claims) =>
   auth.setCustomUserClaims(uid, claims);
+
 
 /**
  * Returns a sentinel containing the GeoPoint object for writing a
@@ -111,6 +114,7 @@ const getUserByPhoneNumber = (phoneNumber) => {
     };
   });
 };
+
 
 /**
  * Disables the user account in auth.

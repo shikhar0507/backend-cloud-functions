@@ -1,3 +1,27 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
+
 const {
   rootCollections,
 } = require('../../admin/admin');
@@ -64,6 +88,7 @@ const createTemplateDocument = (conn) => {
   updateTemplate(conn, templateData);
 };
 
+
 const checkTemplateExists = (conn) => {
   activityTemplates.where('name', '==', conn.req.body.name).limit(1)
     .get().then((snapShot) => {
@@ -83,11 +108,11 @@ const checkTemplateExists = (conn) => {
     }).catch((error) => handleError(conn, error));
 };
 
+
 const app = (conn) => {
   /** We query the template by name, so name is a required
    * field in the request body.
    */
-  // if (!isValidString(conn.req.body.name)) {
   if (typeof conn.req.body.name !== 'string') {
     sendResponse(
       conn,
@@ -108,5 +133,6 @@ const app = (conn) => {
 
   checkTemplateExists(conn);
 };
+
 
 module.exports = app;
