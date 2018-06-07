@@ -58,7 +58,7 @@ const {
 /**
  * Checks the path of the URL in the reuqest and handles the execution flow.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  */
 const handleRequestPath = (conn) => {
   const action = parse(conn.req.url).path.split('/')[1];
@@ -87,7 +87,7 @@ const handleRequestPath = (conn) => {
  * if the document for this phone number inside the /Profiles
  * has the same uid as the requester.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  */
 const verifyUidAndPhoneNumberCombination = (conn) => {
   profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
@@ -112,7 +112,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
 /**
  * Fetches the requestor's phone number from auth.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  */
 const getCreatorsPhoneNumber = (conn) => {
   getUserByUid(conn.requester.uid).then((userRecord) => {
@@ -137,7 +137,7 @@ const getCreatorsPhoneNumber = (conn) => {
 /**
  * Verifies the `id-token` form the Authorization header in the request.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  */
 const checkAuthorizationToken = (conn) => {
   const authorization = conn.req.headers.authorization;

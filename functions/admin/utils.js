@@ -32,6 +32,10 @@ const {
 } = require('./admin');
 
 const {
+  serverTimestamp,
+} = require('./admin');
+
+const {
   profiles,
 } = rootCollections;
 
@@ -42,16 +46,22 @@ const {
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @param {string} reason For which the account is being disabled.
+ * @param {Date} [timestamp] Time at which the disable user request was made.
  */
-const disableAccount = (conn, reason) => {
-  Promise.all([
-    profiles.doc(conn.requester.phoneNumber).set({
-      disabled: reason,
-    }, {
-        merge: true,
-      }),
+const disableAccount = (conn, reason, timestamp) => {
+  const obj = {
+    disabledFor: reason,
+    disabledWhen: timestamp || serverTimestamp,
+  };
+
+  const promises = [
+    profiles.doc(conn.requester.phoneNumber).set(obj, {
+      merge: true,
+    }),
     disableUser(conn.requester.uid),
-  ]).then((result) => {
+  ];
+
+  Promise.all(promises).then((result) => {
     sendResponse(
       conn,
       code.forbidden,
@@ -69,6 +79,9 @@ const disableAccount = (conn, reason) => {
  */
 const hasSupportClaims = (customClaims) => {
   if (!customClaims) return false;
+  /** A custom claim can be undefined or a boolean, so an explicit
+   * check is used.
+   */
   return customClaims.support === true;
 };
 
@@ -80,6 +93,9 @@ const hasSupportClaims = (customClaims) => {
  */
 const hasManageTemplateClaims = (customClaims) => {
   if (!customClaims) return false;
+  /** A custom claim can be undefined or a boolean, so an explicit
+   * check is used.
+   */
   return customClaims.manageTemplates === true;
 };
 
@@ -91,6 +107,9 @@ const hasManageTemplateClaims = (customClaims) => {
  */
 const hasSuperUserClaims = (customClaims) => {
   if (!customClaims) return false;
+  /** A custom claim can be undefined or a boolean, so an explicit
+   * check is used.
+   */
   return customClaims.superUser === true;
 };
 
@@ -124,7 +143,7 @@ const now = (conn) => {
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  * @param {number} statusCode A standard HTTP status code.
- * @param {string} message Response message for the request.
+ * @param {string} [message] Response message for the request.
  */
 const sendResponse = (conn, statusCode, message = '') => {
   let success = true;
