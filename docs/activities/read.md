@@ -28,166 +28,133 @@ This is the response that you will get when there are no activities found for th
 {
     "addendum": [
         {
-            "activityId": "PjpM6B72sTb237BSvCbn",
+            "activityId": "rthbw93Sc3YpAHbRAYFL",
             "comment": "+919090909090 created plan",
-            "timestamp": "2018-05-26T11:57:55.126Z",
+            "timestamp": "2018-06-05T16:46:09.484Z",
             "location": {
-                "_latitude": 88,
+                "_latitude": 20,
                 "_longitude": 100
             },
             "user": "+919090909090"
         },
         {
-            "activityId": "X9aeGH7aXbjrn0T78CZy",
+            "activityId": "PT9CZbAlV2dKxRBILBYX",
             "comment": "+919090909090 created plan",
-            "timestamp": "2018-05-26T11:57:55.126Z",
+            "timestamp": "2018-06-05T16:46:09.484Z",
             "location": {
-                "_latitude": 0,
-                "_longitude": 0
+                "_latitude": 20,
+                "_longitude": 100
             },
             "user": "+919090909090"
         },
         {
-            "activityId": "QbfQlx6Cqu0hrbMughNm",
-            "comment": "Hello, this is a comment to the activity.",
-            "timestamp": "2018-05-28T06:18:56.784Z",
+            "activityId": "PT9CZbAlV2dKxRBILBYX",
+            "comment": "+919090909090 updated plan",
+            "timestamp": "2018-06-05T16:46:09.484Z",
             "location": {
-                "_latitude": 20.232323,
-                "_longitude": 22.23232
+                "_latitude": 20,
+                "_longitude": 100
             },
             "user": "+919090909090"
         },
         {
-            "activityId": "QbfQlx6Cqu0hrbMughNm",
-            "comment": "+919090909090created plan",
-            "timestamp": "2018-05-28T06:18:56.784Z",
+            "activityId": "PT9CZbAlV2dKxRBILBYX",
+            "comment": "+919090909090 updated plan",
+            "timestamp": "2018-06-05T17:13:47.569Z",
             "location": {
-                "_latitude": 20.232323,
-                "_longitude": 22.23232
+                "_latitude": 80,
+                "_longitude": 90
             },
             "user": "+919090909090"
         },
         {
-            "activityId": "QbfQlx6Cqu0hrbMughNm",
-            "comment": "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s",
-            "timestamp": "2018-05-28T06:26:34.616Z",
+            "activityId": "rthbw93Sc3YpAHbRAYFL",
+            "comment": "+919090909090 updated plan",
+            "timestamp": "2018-06-05T17:19:51.032Z",
             "location": {
-                "_latitude": 40.1395,
-                "_longitude": 100.1213435
-            },
-            "user": "+919090909090"
-        },
-        {
-            "activityId": "QbfQlx6Cqu0hrbMughNm",
-            "comment": "It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.",
-            "timestamp": "2018-05-28T06:27:22.504Z",
-            "location": {
-                "_latitude": 10.10101,
-                "_longitude": 44.55443
-            },
-            "user": "+919090909090"
-        },
-        {
-            "activityId": "QbfQlx6Cqu0hrbMughNm",
-            "comment": "If you are going to use a passage of Lorem Ipsum, you need to be sure there isn't anything embarrassing hidden in the middle of text.",
-            "timestamp": "2018-05-28T06:30:28.943Z",
-            "location": {
-                "_latitude": 88.909,
-                "_longitude": 70.101
-            },
-            "user": "+919090909090"
-        },
-        {
-            "activityId": "QbfQlx6Cqu0hrbMughNm",
-            "comment": "The standard chunk of Lorem Ipsum used since the 1500s is reproduced below for those interested. Sections 1.10.32 and 1.10.33 from de Finibus Bonorum et Malorum by Cicero are also reproduced in their exact original form, accompanied by English versions from the 1914 translation by H. Rackham.",
-            "timestamp": "2018-05-28T06:32:49.672Z",
-            "location": {
-                "_latitude": 70.101833,
-                "_longitude": 22.23234
+                "_latitude": 80,
+                "_longitude": 90
             },
             "user": "+919090909090"
         }
     ],
     "activities": [
         {
-            "activityId": "PjpM6B72sTb237BSvCbn",
+            "activityId": "PT9CZbAlV2dKxRBILBYX",
             "canEdit": true,
-            "schedule": {
-                "when": {
-                    "startTime": "2018-05-26T11:57:55.126Z",
-                    "name": "when",
-                    "endTime": "2018-05-26T12:14:01.135Z"
-                }
-            },
-            "venue": {
-                "venueDescriptor": "where",
-                "geopoint": null,
-                "address": null,
-                "location": null
-            },
-            "timestamp": "2018-05-26T11:57:55.126Z",
-            "template": "plan",
-            "title": "activity without title",
-            "description": "activity without title",
-            "office": "personal",
-            "assignees": [
-                "+919090909090",
-                "+919111119191",
-                "+91990092900"
-            ],
-            "attachment": {}
-        },
-        {
-            "activityId": "X9aeGH7aXbjrn0T78CZy",
-            "canEdit": true,
-            "schedule": {
-                "endTime": null,
-                "startTime": null,
-                "name": "when"
-            },
-            "venue": {
-                "venueDescriptor": "where",
-                "geopoint": null,
-                "address": null,
-                "location": null
-            },
-            "timestamp": "2018-05-26T11:57:55.126Z",
-            "template": "plan",
-            "title": "activity 1",
-            "description": "description of activity 1",
-            "office": "personal",
-            "assignees": [
-                "+918527801093",
-                "+919090909090",
-                "+9199009900"
-            ],
-            "attachment": {}
-        },
-        {
-            "activityId": "QbfQlx6Cqu0hrbMughNm",
-            "canEdit": true,
-            "schedule": {
-                "when": {
-                    "endTime": "2018-05-28T06:19:12.969Z",
-                    "startTime": "2018-05-28T06:18:56.784Z",
+            "schedule": [
+                {
+                    "endTime": "2018-06-05T16:57:31.435Z",
+                    "startTime": "2018-06-05T16:57:20.557Z",
                     "name": "when"
                 }
-            },
-            "venue": {
-                "location": null,
-                "venueDescriptor": "where",
-                "geopoint": null,
-                "address": null
-            },
-            "timestamp": "2018-05-28T06:18:56.784Z",
+            ],
+            "venue": [
+                {
+                    "venueDescriptor": "where",
+                    "geopoint": null,
+                    "address": null,
+                    "location": null
+                },
+                {
+                    "venueDescriptor": "where",
+                    "geopoint": {
+                        "_latitude": 28.5482662,
+                        "_longitude": 77.2117732
+                    },
+                    "address": "4/2, PHD House, August Kranti Marg, Siri Institutional Area, Block A, Nipccd Campus, Siri Institutional Area, New Delhi, Delhi 110016",
+                    "location": "New Delhi, Delhi 110016"
+                }
+            ],
+            "timestamp": "2018-06-05T17:13:47.569Z",
             "template": "plan",
-            "title": "Meeting title",
-            "description": "Meeting description",
+            "title": "an activity with title.",
+            "description": "activity with description",
             "office": "personal",
             "assignees": [
-                "+393512556080",
-                "+4915224759336",
+                "+918101010101",
                 "+919090909090"
+            ],
+            "attachment": {}
+        },
+        {
+            "activityId": "rthbw93Sc3YpAHbRAYFL",
+            "canEdit": true,
+            "schedule": [
+                {
+                    "endTime": "2018-06-05T16:57:31.435Z",
+                    "startTime": "2018-06-05T16:57:20.557Z",
+                    "name": "when"
+                }
+            ],
+            "venue": [
+                {
+                    "location": "location name",
+                    "venueDescriptor": "where",
+                    "geopoint": {
+                        "_latitude": 20,
+                        "_longitude": 100
+                    },
+                    "address": "address string"
+                },
+                {
+                    "venueDescriptor": "where",
+                    "geopoint": {
+                        "_latitude": 22,
+                        "_longitude": 90
+                    },
+                    "address": "1 address string",
+                    "location": "2 location name"
+                }
+            ],
+            "timestamp": "2018-06-05T17:19:51.032Z",
+            "template": "plan",
+            "description": "",
+            "office": "personal",
+            "assignees": [
+                "+918101010101",
+                "+919090909090",
+                "+918787878787"
             ],
             "attachment": {}
         }
@@ -200,13 +167,13 @@ This is the response that you will get when there are no activities found for th
                 "name": "when"
             },
             "venue": {
+                "location": "India Gate",
                 "venueDescriptor": "where",
                 "geopoint": {
                     "_latitude": 28.612912,
                     "_longitude": 77.227321
                 },
-                "address": "Rajpath Marg, India Gate, New Delhi, Delhi 110001",
-                "location": "India Gate"
+                "address": "Rajpath Marg, India Gate, New Delhi, Delhi 110001"
             },
             "template": "plan",
             "status": "PENDING",
@@ -214,7 +181,7 @@ This is the response that you will get when there are no activities found for th
         }
     ],
     "from": "1970-01-01T00:00:00.000Z",
-    "upto": "2018-05-28T06:32:49.672Z"
+    "upto": "2018-06-05T17:19:51.032Z"
 }
 ```
 

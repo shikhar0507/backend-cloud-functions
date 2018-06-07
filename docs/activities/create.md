@@ -6,7 +6,11 @@ endpoint: `/api/activities/create`
 
 method: `POST`
 
-query parameters: none
+query parameters: `type` (optional)
+
+> The `type` query parameter can be used by a privilidged user to make a support request for creating an activity.
+> The URL for the support request should look like this: `/api/activities/create?type=support`
+> For support requests, you don't need to be an assignee of the activity.
 
 ## Full Request Body
 
