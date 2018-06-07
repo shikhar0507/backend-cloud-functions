@@ -51,18 +51,9 @@ const {
  *
  * @param {Object} conn Contains Express Request and Response objects.
  * @param {Object} user Contains data from Auth of the user.
+ * @param {Object} claims Custom claims object for the userRecord.
  */
-const setClaims = (conn, user) => {
-  const claims = {};
-
-  if (conn.req.body.suport) {
-    claims.support = conn.req.body.support;
-  }
-
-  if (conn.req.body.manageTemplates) {
-    claims.manageTemplates = conn.req.body.manageTemplates;
-  }
-
+const setClaims = (conn, user, claims) => {
   setCustomUserClaims(user.uid, claims).then(() => {
     sendResponse(
       conn,
@@ -82,6 +73,16 @@ const setClaims = (conn, user) => {
 const fetchUserRecord = (conn) => {
   getUserByPhoneNumber(conn.req.body.phoneNumber).then((userRecord) => {
     const user = userRecord[conn.req.body.phoneNumber];
+    console.log(user);
+    const claims = {};
+
+    if (conn.req.body.support) {
+      claims.support = conn.req.body.support;
+    }
+
+    if (conn.req.body.manageTemplates) {
+      claims.manageTemplates = conn.req.body.manageTemplates;
+    }
 
     if (!user.uid) {
       sendResponse(
@@ -92,22 +93,40 @@ const fetchUserRecord = (conn) => {
       return;
     }
 
+    /** Since the user doesn't have any customClaims already,
+     * a check for the permissions in their userRecord is not
+     * required.
+     */
     if (!user.customClaims) {
-      setClaims(conn, user);
+      setClaims(conn, user, claims);
       return;
     }
 
-    if (user.customClaims.support || user.customClaims.manageTemplates) {
+    /** User already has the support permission, so they cannot
+     * have another one.
+     * */
+    if (user.customClaims.support && conn.req.body.manageTemplates) {
       sendResponse(
         conn,
         code.conflict,
-        `${conn.req.body.phoneNumber} already has the following permissions:`
-        + ` ${JSON.stringify(user.customClaims)}`
+        'The user already has support permission.'
       );
       return;
     }
 
-    setClaims(conn, user);
+    /** User already has the manageTemplates permission, so they
+     * cannot have another one.
+     * */
+    if (user.customClaims.manageTemplates && conn.req.body.support) {
+      sendResponse(
+        conn,
+        code.conflict,
+        'The user already has manageTemplates permission.'
+      );
+      return;
+    }
+
+    setClaims(conn, user, claims);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -119,7 +138,7 @@ const fetchUserRecord = (conn) => {
  * @param {Object} conn Contains Express Request and Response objects.
  */
 const validateRequestBody = (conn) => {
-  if (!conn.req.body.phoneNumber) {
+  if (!conn.req.body.hasOwnProperty('phoneNumber')) {
     sendResponse(
       conn,
       code.badRequest,
@@ -137,19 +156,19 @@ const validateRequestBody = (conn) => {
     return;
   }
 
+  /** A person can't change their own permissions. */
   if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
-    /** Can't change their own permissions. */
     sendResponse(
       conn,
       code.forbidden,
-      'You cannot set your own permissions'
+      'You cannot set your own permissions.'
     );
     return;
   }
 
-  if (!conn.req.body.support && !conn.req.body.manageTemplates) {
-    /** Both fields can't be skipped together.
-     */
+  /** Both the fields are missing from the request body. */
+  if (!conn.req.body.hasOwnProperty('support')
+    && !conn.req.body.hasOwnProperty('manageTemplates')) {
     sendResponse(
       conn,
       code.badRequest,
@@ -158,8 +177,11 @@ const validateRequestBody = (conn) => {
     return;
   }
 
-  if (conn.req.body.support && conn.req.body.manageTemplates) {
-    /** Only one permission can be set at a time. */
+  /** Both the fields are present in the request body. This is not allowed
+   * because the user can have only one permission at a time.
+   */
+  if (conn.req.body.hasOwnProperty('support')
+    && conn.req.body.hasOwnProperty('manageTemplates')) {
     sendResponse(
       conn,
       code.forbidden,
@@ -201,7 +223,7 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      'You are unauthorized to grant permissions.'
+      'You are forbidden from granting permissions.'
     );
     return;
   }
