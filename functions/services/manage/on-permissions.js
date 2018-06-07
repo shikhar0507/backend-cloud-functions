@@ -46,7 +46,7 @@ const {
 
 
 /**
- *  Sets customClaims for the user who's phoneNumber has been sent in the
+ *  Sets `customClaims` for the user who's `phoneNumber` has been sent in the
  * request.
  *
  * @param {Object} conn Contains Express Request and Response objects.
@@ -74,7 +74,7 @@ const setClaims = (conn, user) => {
 
 
 /**
- * Reads the user from Auth to verify if they already exist and have
+ * Reads the user from `Auth` to verify if they already exist and have
  * some permission allocated.
  *
  * @param {Object} conn Contains Express Request and Response objects.
@@ -138,6 +138,7 @@ const validateRequestBody = (conn) => {
   }
 
   if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
+    /** Can't change their own permissions. */
     sendResponse(
       conn,
       code.forbidden,
@@ -200,7 +201,7 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      'You are unauthorized from setting up permissions.'
+      'You are unauthorized to grant permissions.'
     );
     return;
   }
