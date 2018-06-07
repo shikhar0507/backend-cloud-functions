@@ -166,6 +166,18 @@ const rootCollections = {
   enums: db.collection('Enum'),
   activityTemplates: db.collection('ActivityTemplates'),
   offices: db.collection('Offices'),
+  /** `Instant` is a collection which stores the document temporarily for
+   * collecting the data required for an instant notification.
+   * Once the notification is sent successfully, the document in context
+   * is deleted by an auto-triggering function in Firestore.
+   */
+  instant: db.collection('Instant'),
+  /** Similar to Instant, the `Daily` collection stores documents required for
+   * storing the analytics for the important operations being performed
+   * by the users each day. Unlike `Instant, the document in `Daily`
+   * collection are not deleted by anyone.
+  */
+  daily: db.collection('Daily'),
 };
 
 

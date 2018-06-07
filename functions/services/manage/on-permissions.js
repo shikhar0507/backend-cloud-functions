@@ -45,59 +45,89 @@ const {
 } = users;
 
 
-const setClaims = (conn, userRecord) => {
-  const permissions = {};
+/**
+ *  Sets customClaims for the user who's phoneNumber has been sent in the
+ * request.
+ *
+ * @param {Object} conn Contains Express Request and Response objects.
+ * @param {Object} user Contains data from Auth of the user.
+ */
+const setClaims = (conn, user) => {
+  const claims = {};
 
-  if (typeof conn.req.body.permissions.support === 'boolean') {
-    permissions.support = conn.req.body.permissions.support;
+  if (conn.req.body.suport) {
+    claims.support = conn.req.body.support;
   }
 
-  if (typeof conn.req.body.permissions.manageTemplates === 'boolean') {
-    permissions.manageTemplates = conn.req.body.permissions.manageTemplates;
+  if (conn.req.body.manageTemplates) {
+    claims.manageTemplates = conn.req.body.manageTemplates;
   }
 
-  /** Both keys are not present in the request body. Skip giving
-   * the permissions.
-   * */
-  if (Object.keys(permissions).length < 1) {
+  setCustomUserClaims(user.uid, claims).then(() => {
     sendResponse(
       conn,
-      code.badRequest,
-      'The "permissions" object in the request body is invalid.'
-    );
-    return;
-  }
-
-  setCustomUserClaims(userRecord.uid, permissions).then(() => {
-    sendResponse(
-      conn,
-      code.ok,
-      `Updated permissions for ${conn.req.body.phoneNumber} successfully.`
+      code.noContent
     );
     return;
   }).catch((error) => handleError(conn, error));
 };
 
 
-const getUserRecordFromPhoneNumber = (conn) => {
+/**
+ * Reads the user from Auth to verify if they already exist and have
+ * some permission allocated.
+ *
+ * @param {Object} conn Contains Express Request and Response objects.
+ */
+const fetchUserRecord = (conn) => {
   getUserByPhoneNumber(conn.req.body.phoneNumber).then((userRecord) => {
-    if (!userRecord[conn.req.body.phoneNumber].uid) {
+    const user = userRecord[conn.req.body.phoneNumber];
+
+    if (!user.uid) {
       sendResponse(
         conn,
-        code.badRequest,
-        `No user with phone number ${conn.req.body.phoneNumber} exists.`);
+        code.conflict,
+        `${conn.req.body.phoneNumber} does not exist.`
+      );
       return;
     }
 
-    setClaims(conn, {
-      uid: userRecord[conn.req.body.phoneNumber].uid,
-    });
+    if (!user.customClaims) {
+      setClaims(conn, user);
+      return;
+    }
+
+    if (user.customClaims.support || user.customClaims.manageTemplates) {
+      sendResponse(
+        conn,
+        code.conflict,
+        `${conn.req.body.phoneNumber} already has the following permissions:`
+        + ` ${JSON.stringify(user.customClaims)}`
+      );
+      return;
+    }
+
+    setClaims(conn, user);
     return;
   }).catch((error) => handleError(conn, error));
 };
 
 
+/**
+ * Checks of the `request` body is in the correct form.
+ *
+ * @param {Object} conn Contains Express Request and Response objects.
+ */
 const validateRequestBody = (conn) => {
+  if (!conn.req.body.phoneNumber) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The phoneNumber field is missing from the request body.'
+    );
+    return;
+  }
+
   if (!isValidPhoneNumber(conn.req.body.phoneNumber)) {
     sendResponse(
       conn,
@@ -111,43 +141,66 @@ const validateRequestBody = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      'You cannot change your own permissions.'
+      'You cannot set your own permissions'
     );
     return;
   }
 
-  if (!conn.req.body.permissions) {
+  if (!conn.req.body.support && !conn.req.body.manageTemplates) {
+    /** Both fields can't be skipped together.
+     */
     sendResponse(
       conn,
       code.badRequest,
-      'The "permisssions" object is missing from the request body.'
+      'There are no valid fields in the request body.'
     );
     return;
   }
 
-  /** The only object we need here is {...}. Anything else like an `Array`
-   * is should is not allowed.
-   */
-  if (Object.prototype.toString
-    .call(conn.req.body.permissions) !== '[object Object]') {
+  if (conn.req.body.support && conn.req.body.manageTemplates) {
+    /** Only one permission can be set at a time. */
+    sendResponse(
+      conn,
+      code.forbidden,
+      'Granting more than one permission is not allowed for a single user.'
+    );
+    return;
+  }
+
+  if (conn.req.body.support && typeof conn.req.body.support !== 'boolean') {
     sendResponse(
       conn,
       code.badRequest,
-      'The "permissions" object in request body is invalid.'
+      'The \'support\' field should be a boolean.'
     );
     return;
   }
 
-  getUserRecordFromPhoneNumber(conn);
+  if (conn.req.body.manageTemplates
+    && typeof conn.req.body.manageTemplates !== 'boolean') {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The \'manageTemplates\' field should be a boolean.'
+    );
+    return;
+  }
+
+  fetchUserRecord(conn);
 };
 
 
+/**
+ * Checks if the requester is a `superUser`.
+ *
+ * @param {Object} conn Contains Express Request and Response objects.
+ */
 const app = (conn) => {
   if (!conn.requester.customClaims.superUser) {
     sendResponse(
       conn,
       code.forbidden,
-      'You are unauthorized from changing permissions.'
+      'You are unauthorized from setting up permissions.'
     );
     return;
   }
