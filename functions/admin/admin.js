@@ -172,10 +172,10 @@ const rootCollections = {
    * is deleted by an auto-triggering function in Firestore.
    */
   instant: db.collection('Instant'),
-  /** Similar to Instant, the `Daily` collection stores documents required for
-   * storing the analytics for the important operations being performed
-   * by the users each day. Unlike `Instant, the document in `Daily`
-   * collection are not deleted by anyone.
+  /** Similar to the `Instant` collection, the `Daily` collection stores
+   *  documents required for storing the analytics for the important
+   * operations being performed by the users each day. Unlike `Instant,
+   * the document in `Daily` collection are not deleted.
   */
   daily: db.collection('Daily'),
 };

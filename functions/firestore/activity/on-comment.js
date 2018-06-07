@@ -73,7 +73,7 @@ const commitBatch = (conn) => conn.batch.commit()
 const setAddendumForAssignees = (conn) => {
   Promise.all(conn.assigneeDocPromises).then((snapShots) => {
     snapShots.forEach((doc) => {
-      /** uid shouldn't be null OR undefined */
+      /** `uid` shouldn't be `null` OR `undefined` */
       if (doc.exists && doc.get('uid')) {
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), {

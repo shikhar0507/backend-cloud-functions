@@ -32,7 +32,7 @@ const {
  * lat and lng values.
  *
  * @param {Object} location Contains lat and lng values.
- * @returns {boolean} If the input lat, lng pair is valid.
+ * @returns {boolean} If the input `latitude` & `longitude` pair is valid.
  */
 const isValidLocation = (location) => {
   const lat = location.latitude;
@@ -48,6 +48,7 @@ const isValidLocation = (location) => {
  * Checks for a non-null, non-empty string.
  *
  * @param {string} str A string.
+ * @returns {boolean} If `str` is a non-empty string.
  */
 const isValidString = (str) => {
   if (typeof str !== 'string') return false;

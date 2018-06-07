@@ -38,8 +38,8 @@ const {
 
 
 /**
- * Sets the uid and phoneNumber fields of the user being deleted to null inside
- * the Updates and Profiles collection respectively.
+ * Sets the `uid` and `phoneNumber` fields of the user being deleted to
+ * null inside the Updates and Profiles collection respectively.
  *
  * @param {Object} userRecord Object with user info.
  * @param {Object} context Object with Event info.
@@ -63,7 +63,7 @@ const app = (userRecord, context) => {
       merge: true,
     });
 
-  return batch.commit().catch((error) => console.log(error));
+  return batch.commit().catch(console.error);
 };
 
 

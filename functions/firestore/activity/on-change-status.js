@@ -74,6 +74,7 @@ const addAddendumForAssignees = (conn) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
 const updateActivityStatus = (conn) => {
   conn.batch.set(activities.doc(conn.req.body.activityId), {
     status: conn.req.body.status,
@@ -84,6 +85,7 @@ const updateActivityStatus = (conn) => {
 
   addAddendumForAssignees(conn);
 };
+
 
 const fetchTemplate = (conn) => {
   activityTemplates.doc(conn.data.activity.get('template')).get()
@@ -161,6 +163,7 @@ const fetchDocs = (conn) => {
   }).catch((error) => handleError(conn, error));
 };
 
+
 const verifyEditPermission = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
@@ -189,7 +192,7 @@ const verifyEditPermission = (conn) => {
     }).catch((error) => handleError(conn, error));
 };
 
-// share --> assign
+
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp)
     && isValidString(conn.req.body.activityId)

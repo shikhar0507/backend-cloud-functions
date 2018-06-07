@@ -20,15 +20,14 @@ const onUpdate = require('../services/users/on-update');
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const app = (conn) => {
-  const method = conn.req.method;
   const action = parse(conn.req.url).path.split('/')[3];
 
   if (action.startsWith('read')) {
-    if (method !== 'GET') {
+    if (conn.req.method !== 'GET') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /read endpoint.`
+        `${conn.req.method} is not allowed for the /read endpoint.`
       );
       return;
     }
@@ -38,11 +37,11 @@ const app = (conn) => {
   }
 
   if (action === 'update') {
-    if (method !== 'PATCH') {
+    if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${method} is not allowed for the /${action} endpoint.`
+        `${conn.req.method} is not allowed for the /update endpoint.`
       );
       return;
     }

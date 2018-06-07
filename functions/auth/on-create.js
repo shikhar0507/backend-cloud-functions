@@ -35,14 +35,14 @@ const {
 
 
 /**
- * Creates new docs inside Profile and Updates collection in Firestore for
+ * Creates new docs inside `Profile` and `Updates` collection in Firestore for
  * a newly signed up user.
  *
  * @param {Object} userRecord Object with user info.
  * @param {Object} context Object with Event info.
  * @returns {Promise} Batch object.
  */
-const createUserDocs = (userRecord, context) => {
+const app = (userRecord, context) => {
   const {
     uid,
     phoneNumber,
@@ -62,6 +62,7 @@ const createUserDocs = (userRecord, context) => {
       merge: true,
     });
 
+  /** Default subscription for everyone who signs up */
   batch.set(profiles.doc(phoneNumber).collection('Subscriptions').doc(), {
     office: 'personal',
     template: 'plan',
@@ -75,12 +76,8 @@ const createUserDocs = (userRecord, context) => {
       merge: true,
     });
 
-  return batch.commit().catch((error) => console.log(error));
+  return batch.commit().catch(console.error);
 };
-
-
-const app = (userRecord, context) =>
-  createUserDocs(userRecord, context);
 
 
 module.exports = app;

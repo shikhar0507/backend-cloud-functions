@@ -18,7 +18,7 @@ The endpoints which employ a support request are the following:
 
 * A person with support privilidge can create an activity without the need of subsciption to the template required to create the activity.
 
-> The same conditions apply to /share too.
+> The same conditions apply to `/share` too.
 
 To distinguish a normal request from a support request, you have to add a query parameter `type` to your request URL.
 

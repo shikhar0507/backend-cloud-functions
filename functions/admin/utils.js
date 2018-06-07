@@ -107,7 +107,7 @@ const hasManageTemplateClaims = (customClaims) => {
  */
 const hasSuperUserClaims = (customClaims) => {
   if (!customClaims) return false;
-  /** A custom claim can be undefined or a boolean, so an explicit
+  /** A custom claim can be `undefined` or a `boolean`, so an explicit
    * check is used.
    */
   return customClaims.superUser === true;
