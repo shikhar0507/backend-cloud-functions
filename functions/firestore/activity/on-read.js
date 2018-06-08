@@ -63,6 +63,7 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
 
     jsonResult.activitiesArr.push({
       activityId,
+      status: activityObj.status,
       canEdit: activityObj.canEdit,
       schedule: activityObj.schedule,
       venue: activityObj.venue,
