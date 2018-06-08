@@ -225,7 +225,7 @@ const server = (req, res) => {
   };
 
   if (req.method === 'OPTIONS' || req.method === 'HEAD') {
-    /** no content to send in response to the  OPTIONS OR GET request */
+    /** no content to send in response to the OPTIONS OR HEAD request */
     sendResponse(conn, code.noContent);
     return;
   }

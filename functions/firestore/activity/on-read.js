@@ -196,8 +196,6 @@ const fetchActivities = (conn, jsonResult) => {
   Promise.all(conn.activityFetchPromises).then((snapShot) => {
     let activityObj;
     conn.docRefsArray = [];
-    conn.schedule = [];
-    conn.venue = [];
 
     snapShot.forEach((doc) => {
       /** doc.ref.path.split('/')[1] is the activityId */
@@ -217,9 +215,6 @@ const fetchActivities = (conn, jsonResult) => {
       if (doc.get('docRef')) {
         conn.docRefsArray.push(doc.get('docRef').get());
       }
-
-      conn.schedule.push(doc.get('schedule'));
-      conn.venue.push(doc.get('venue'));
     });
 
     fetchAttachments(conn, jsonResult);
@@ -269,7 +264,10 @@ const readAddendumsByQuery = (conn) => {
   jsonResult.activities = {};
   jsonResult.templates = [];
   jsonResult.from = conn.from;
-  jsonResult.upto = jsonResult.from; /** when  no docs are found in Addendum */
+  /** when  no docs are found in Addendum for the given timestamp,
+   * the from and upto time will remain same.
+   */
+  jsonResult.upto = jsonResult.from;
 
   updates.doc(conn.requester.uid).collection('Addendum')
     .where('timestamp', '>', conn.from)
@@ -305,6 +303,10 @@ const app = (conn) => {
     return;
   }
 
+  /** Converting "from" query string to a date multiple times
+   * is wasteful. Storing it here by calculating it once for use
+   * throughout the flow.
+   */
   conn.from = new Date(parseInt(conn.req.query.from));
   readAddendumsByQuery(conn);
 };

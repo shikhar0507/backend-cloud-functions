@@ -51,12 +51,12 @@ const app = (conn) => {
   const action = parse(conn.req.url).path.split('/')[3];
 
   if (action === 'permissions') {
-    if (conn.req.method !== 'POST') {
+    if (conn.req.method !== 'PUT') {
       sendResponse(
         conn,
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for /${action}`
-        + ' endpoint. Use POST.'
+        + ' endpoint. Use PUT.'
       );
       return;
     }

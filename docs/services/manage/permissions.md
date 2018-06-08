@@ -2,7 +2,7 @@
 
 endpoint: `/api/services/manage/permissions`
 
-method: `POST`
+method: `PUT`
 
 query parameters: none
 
@@ -11,7 +11,7 @@ query parameters: none
 ```json
 {
     "phoneNumber": "+919090909090",
-    "field": 'boolean'
+    "field": "value"
 }
 ```
 
