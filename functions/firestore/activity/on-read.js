@@ -105,8 +105,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
           venue: doc.get('venue'),
           template: doc.get('defaultTitle'),
           office: doc.get('office'),
-          status: doc.get('statusOnCreate'),
-          attachment: doc.get('attachment') || null,
+          attachment: doc.get('attachment') || {},
         });
       }
     });
@@ -294,6 +293,15 @@ const readAddendumsByQuery = (conn) => {
 
 
 const app = (conn) => {
+  if (!conn.req.query.from) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'No query parameter found in the request URL.'
+    );
+    return;
+  }
+
   if (!isValidDate(conn.req.query.from)) {
     sendResponse(
       conn,
