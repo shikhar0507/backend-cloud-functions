@@ -36,6 +36,7 @@ const {
 
 const onUsers = require('../services/on-users');
 const onManage = require('../services/on-manage');
+const onTemplates = require('../services/on-templates');
 
 /**
  * Calls the resource related to a service depending on the action
@@ -53,6 +54,11 @@ const app = (conn) => {
 
   if (action === 'manage') {
     onManage(conn);
+    return;
+  }
+
+  if (action === 'templates') {
+    onTemplates(conn);
     return;
   }
 
