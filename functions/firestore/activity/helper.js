@@ -52,7 +52,7 @@ const isValidLocation = (location) => {
  */
 const isValidString = (str) => {
   if (typeof str !== 'string') return false;
-  if (str.trim() === '') false;
+  if (str.trim() === '') return false;
   return true;
 };
 
@@ -86,20 +86,12 @@ const isValidPhoneNumber = (phoneNumber) => {
  * created.
  *
  * @param {Object} subscription User's subscription document.
- * @param {string} phoneNumber Number to check the canEdit rule for.
+ * @param {string} phoneNumber Number to check the `canEdit` rule for.
  * @param {string} requesterPhoneNumber Phone number of the requester.
  * @param {Array} assignees Array of people who are assignees of the activity.
  */
 const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber,
   assignees = []) => {
-  /** The rules will have one of the following values
-   * ALL
-   * NONE
-   * FROM_INCLUDE
-   * CREATOR
-   * PEOPLE_TYPE
-   */
-
   if (subscription.canEditRule === 'ALL') return true;
 
   if (subscription.canEditRule === 'NONE') return false;
@@ -208,6 +200,7 @@ const filterVenues = (venues, venueFromTemplate) => {
       return;
     }
 
+    /** The `geopoint` is a required field for a venue. */
     if (!isValidLocation(venue.geopoint)) {
       return;
     }
@@ -241,7 +234,7 @@ const filterVenues = (venues, venueFromTemplate) => {
  * in the firestore.
  */
 const attachmentCreator = (attachment, attachmentFromTemplate) => {
-  if (!attachmentFromTemplate) return null;
+  if (!attachmentFromTemplate) return {};
 
   const filteredAttachment = {};
 
