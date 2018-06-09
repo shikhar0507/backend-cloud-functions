@@ -41,16 +41,33 @@ const {
 } = require('../../admin/responses');
 
 
-const app = (conn) => {
-  if (!conn.req.query.name) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'No argument found in the query string. Please add one.'
-    );
-    return;
-  }
+/**
+ * Fetches all the docs from `/ActivityTemplates` collection and sends
+ * the response in a JSON object.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
+const fetchAllTemplates = (conn) => {
+  const jsonObject = {};
 
+  activityTemplates.get().then((snapShot) => {
+    snapShot.forEach((doc) => {
+      jsonObject[doc.get('name')] = doc.data();
+    });
+
+    sendJSON(conn, jsonObject);
+    return;
+  }).catch((error) => handleError(conn, error));
+};
+
+
+/**
+ * Fetches the template based on `name` from the query parameter in the
+ * request URL.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
+const fetchSingleTemplate = (conn) => {
   activityTemplates.where('name', '==', conn.req.query.name).limit(1).get()
     .then((snapShot) => {
       if (snapShot.empty) {
@@ -65,6 +82,21 @@ const app = (conn) => {
       sendJSON(conn, snapShot.docs[0].data());
       return;
     }).catch((error) => handleError(conn, error));
+};
+
+
+/**
+ * Checks if the query string is present in the request URL.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ */
+const app = (conn) => {
+  if (conn.req.query.name) {
+    fetchSingleTemplate(conn);
+    return;
+  }
+
+  fetchAllTemplates(conn);
 };
 
 
