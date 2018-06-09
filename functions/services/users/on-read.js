@@ -42,7 +42,6 @@ const {
 
 const {
   isValidPhoneNumber,
-  isValidString,
 } = require('../../firestore/activity/helper');
 
 
@@ -52,13 +51,26 @@ const {
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  */
 const app = (conn) => {
+  console.log(conn.req.query);
+
   if (!conn.req.query.q) {
     sendResponse(
       conn,
       code.badRequest,
-      'No query parameter found in the request URL Please use ?q=value.'
+      'No query parameter found in the request URL. Please use ?q=value.'
     );
     return;
+  }
+
+  if (conn.req.query.as === 'su') {
+    if (!conn.requester.customClaims.superUser) {
+      sendResponse(
+        conn,
+        code.forbidden,
+        'You are not authorized to view user records as a super user.'
+      );
+      return;
+    }
   }
 
   const promises = [];
@@ -80,8 +92,19 @@ const app = (conn) => {
   Promise.all(promises).then((userRecords) => {
     userRecords.forEach((userRecord) => {
       phoneNumber = Object.keys(userRecord)[0];
-
       record = userRecord[`${phoneNumber}`];
+
+      /** The `superUser` can access user's metadata and customClaims. */
+      if (conn.req.query.as === 'su') {
+        jsonResponse[`${phoneNumber}`] = {
+          displayName: record.displayName || null,
+          photoURL: record.photoURL || null,
+          disabled: record.disabled || null,
+          metadata: record.metadata || null,
+          customClaims: record.customClaims || null,
+        };
+        return;
+      }
 
       jsonResponse[`${phoneNumber}`] = {
         photoURL: record.photoURL || null,
