@@ -58,7 +58,7 @@ const app = (conn) => {
    */
   conn.requester.isSupportRequest = false;
 
-  if (conn.req.query.type === 'support') {
+  if (conn.req.query.as === 'support') {
     conn.requester.isSupportRequest = true;
   }
 
@@ -79,15 +79,6 @@ const app = (conn) => {
         code.methodNotAllowed,
         `${conn.req.method}`
         + ' is not allowed for the /read endpoint. Use "GET".'
-      );
-      return;
-    }
-
-    if (!conn.req.query.from) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        'No query parameter found in the request URL.'
       );
       return;
     }
@@ -185,7 +176,11 @@ const app = (conn) => {
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid.');
+  sendResponse(
+    conn,
+    code.notImplemented,
+    'The request path is not valid for /activity.'
+  );
 };
 
 
