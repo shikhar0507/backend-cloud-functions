@@ -35,8 +35,6 @@ const {
 } = require('url');
 
 const onPermissions = require('./manage/on-permissions');
-const onTemplates = require('./manage/on-templates');
-
 
 const app = (conn) => {
   if (!conn.requester.customClaims) {
@@ -62,27 +60,6 @@ const app = (conn) => {
     }
 
     onPermissions(conn);
-    return;
-  }
-
-  if (action.startsWith('templates')) {
-    /** GET, POST, PUT are allowed */
-    if (conn.req.method === 'PATCH') {
-      sendResponse(
-        conn,
-        code.methodNotAllowed,
-        /** not templating the `action` here because for all the
-         * requests which have a query string in the url, the endpoint
-         * name in the response will show up with the query string.
-         */
-        `${conn.req.method} is not allowed for /templates endpoint.`
-        + ' Use GET (reading), POST (creating),'
-        + ' or PUT (updating)  for /templates.'
-      );
-      return;
-    }
-
-    onTemplates(conn);
     return;
   }
 
