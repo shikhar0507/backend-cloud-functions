@@ -62,7 +62,6 @@ const updateTemplate = (conn, templateData) => {
 
 
 const createTemplateDocument = (conn) => {
-  /** TODO: Verify if updating the name of the template is allowed?? */
   const templateData = {};
 
   if (isValidString(conn.req.body.comment)) {
