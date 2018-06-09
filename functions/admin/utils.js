@@ -30,71 +30,11 @@ const {
   rootCollections,
   serverTimestamp,
   disableUser,
-  users,
 } = require('./admin');
-
-const {
-  isValidPhoneNumber,
-} = require('../firestore/activity/helper');
-
-const {
-  getUserByPhoneNumber,
-} = users;
 
 const {
   profiles,
 } = rootCollections;
-
-
-const getUserRecordAsAdmin = (conn) => {
-  /** TODO: Test this function throughly. */
-  if (!conn.requester.customClaims.superUser) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'You cannot read user records.'
-    );
-    return;
-  }
-
-  if (!conn.req.query.q) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'No query parameter found in the request URL. Please add one.'
-    );
-    return;
-  }
-
-  if (!isValidPhoneNumber(conn.req.query.q)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `${conn.req.body.q} is not a valid phone number`
-    );
-    return;
-  }
-
-  const user = getUserByPhoneNumber(conn.req.body.q);
-
-  if (!user[conn.req.query.q].uid) {
-    sendResponse(
-      conn,
-      code.notFound,
-      `No user found with the phone number: ${conn.req.query.q}`
-    );
-    return;
-  }
-
-  sendJSON(conn, {
-    displayName: user.displayName,
-    photoURL: user.photoURL,
-    disabled: user.disabled,
-    creationTime: user.metadata.creationTime,
-    lastSignInTime: user.metadata.lastSignInTime,
-    customClaims: user.customClaims,
-  });
-};
 
 
 /**
@@ -254,7 +194,6 @@ module.exports = {
   hasSupportClaims,
   hasSuperUserClaims,
   hasManageTemplateClaims,
-  getUserRecordAsAdmin,
   disableAccount,
   sendResponse,
   handleError,
