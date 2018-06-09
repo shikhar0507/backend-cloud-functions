@@ -10,9 +10,6 @@ const {
   code,
 } = require('../admin/responses');
 
-const onRead = require('../services/users/on-read');
-const onUpdate = require('../services/users/on-update');
-
 
 /**
  * Handles the requests made to /users resource.
@@ -32,6 +29,7 @@ const app = (conn) => {
       return;
     }
 
+    const onRead = require('../services/users/on-read');
     onRead(conn);
     return;
   }
@@ -46,11 +44,16 @@ const app = (conn) => {
       return;
     }
 
+    const onUpdate = require('../services/users/on-update');
     onUpdate(conn);
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid.');
+  sendResponse(
+    conn,
+    code.badRequest,
+    'The request path is not valid for /users.'
+  );
 };
 
 
