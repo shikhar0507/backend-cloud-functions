@@ -27,8 +27,13 @@ const {
 } = require('../../admin/admin');
 
 const {
+  code,
+} = require('../../admin/responses');
+
+const {
   handleError,
   sendJSON,
+  sendResponse,
 } = require('../../admin/utils');
 
 const {
@@ -37,6 +42,7 @@ const {
 
 const {
   isValidPhoneNumber,
+  isValidString,
 } = require('../../firestore/activity/helper');
 
 
@@ -46,6 +52,15 @@ const {
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  */
 const app = (conn) => {
+  if (!conn.req.query.q) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'No query parameter found in the request URL Please use ?q=value.'
+    );
+    return;
+  }
+
   const promises = [];
 
   if (Array.isArray(conn.req.query.q)) {
