@@ -193,7 +193,7 @@ const validateRequestBody = (conn) => {
 
 
 /**
- * Checks if the requester is a `superUser`.
+ * Checks if the `requester` is a `superUser`.
  *
  * @param {Object} conn Contains Express Request and Response objects.
  */

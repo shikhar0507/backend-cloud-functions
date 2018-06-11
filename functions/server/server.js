@@ -217,11 +217,13 @@ const server = (req, res) => {
   conn.headers = {
     /** preflight headers */
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'OPTIONS, POST, GET, PATCH, PUT',
+    'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
     'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
       'Content-Type, Accept',
     'Access-Control-Max-Age': 2592000, // 30 days
     'Content-Type': 'application/json',
+    'Content-Language': 'en',
+    'Cache-Control': 'no-cache',
   };
 
   if (req.method === 'OPTIONS' || req.method === 'HEAD') {

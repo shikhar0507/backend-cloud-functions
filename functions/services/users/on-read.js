@@ -46,13 +46,11 @@ const {
 
 
 /**
- * Fetches the userRecords for all the phone numbers from the request param.
+ * Fetches the `userRecords` for all the phone numbers from the request param.
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  */
 const app = (conn) => {
-  console.log(conn.req.query);
-
   if (!conn.req.query.q) {
     sendResponse(
       conn,

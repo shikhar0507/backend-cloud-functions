@@ -17,10 +17,6 @@
     "es6": true,
     "node": true
   },
-  // "globals": {
-  //   "module": true,
-  //   "console": true
-  // },
   "rules": {
     "no-console": 0,
     "no-regex-spaces": 1,

@@ -28,7 +28,6 @@ const serviceAccountKey = require('./key.json');
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccountKey),
   databaseURL: 'https://growthfilev2-0.firebaseio.com',
-  storageBucket: 'growthfilev2-0.appspot.com',
 });
 
 const auth = admin.auth();
@@ -41,6 +40,7 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
  *
  * @param {string} uid A 30 character alpha-numeric string.
  * @param {Object} claims Contains Claims object.
+ * @returns {Promise} A `userRecord` or an `error` object.
  */
 const setCustomUserClaims = (uid, claims) =>
   auth.setCustomUserClaims(uid, claims);
@@ -51,6 +51,7 @@ const setCustomUserClaims = (uid, claims) =>
  * geopoint type in Firestore.
  *
  * @param {Object} geopoint Contains lat, lng value pair.
+ * @returns {Object} Firestore `sentinel` which maps to the server timestamp.
  */
 const getGeopointObject = (geopoint) =>
   new admin.firestore.GeoPoint(geopoint.latitude, geopoint.longitude);
@@ -61,6 +62,8 @@ const getGeopointObject = (geopoint) =>
  *
  * @param {string} uid A 30 character alpha-numeric string.
  * @param {string} phoneNumber A E.164 phone number.
+ * @returns {Object} An updated `userRecord`.
+ * @see https://en.wikipedia.org/wiki/E.164
  */
 const updateUserPhoneNumberInAuth = (uid, phoneNumber) => {
   return auth.updateUser(uid, {
@@ -90,11 +93,12 @@ const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
  * Returns the user record object using the phone number.
  *
  * @param {string} phoneNumber Firebase user's phone number.
- * @returns {Object} A userRecord containing the photoURL, displayName
- * and the lastSignInTime.
+ * @returns {Object} A `userRecord` containing the `photoURL`, `displayName`
+ * and the `lastSignInTime`.
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const getUserByPhoneNumber = (phoneNumber) => {
+  /** getUserByPhoneNumber is used multiple times throughout the codebase.*/
   return auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
     return {
       [phoneNumber]: userRecord,
@@ -128,7 +132,7 @@ const disableUser = (uid) => auth.updateUser({
 
 
 /**
- * Returns the user record by using the uid.
+ * Returns the `userRecord` by using the `uid`.
  *
  * @param {string} uid Firebase uid string.
  * @returns {Object} Object containing the user record.
@@ -160,23 +164,49 @@ const users = {
 
 
 const rootCollections = {
+  /** Collection which contains `docs` of the users with their
+   * `activities` and `subscriptions` in a `subcollection` inside it.
+   * @example /Profiles/(phoneNumber)/
+   */
   profiles: db.collection('Profiles'),
+  /** Collection which contains the `activity` docs. It also has a
+   * subcollection called `Assignees` which has the docs of the users
+   * who are the assignees of the activity.
+   * @example /Activities/(auto-id)/
+   */
   activities: db.collection('Activities'),
+  /** Collection containing the `Addendum` for each time an operation
+   * is performed related to the activity like `comment`, `share`, `remove`,
+   * or `update`.
+   * @example /Updates/(uid)/Addendum/(auto-id)
+   */
   updates: db.collection('Updates'),
+  /** Contains contstants used throughout the system.
+   * @example /ENUM/(doc-id)/
+   */
   enums: db.collection('Enum'),
+  /** Contains Templates used for creating activity.
+   * @example /ActivityTemplates/(auto-id)/
+   */
   activityTemplates: db.collection('ActivityTemplates'),
+  /** Contains a _unique_ doc for *each* `office` which has signed up for
+   * the platform.
+   */
   offices: db.collection('Offices'),
-  /** `Instant` is a collection which stores the document temporarily for
+  /** This collection stores a document temporarily for
    * collecting the data required for an instant notification.
    * Once the notification is sent successfully, the document in context
    * is deleted by an auto-triggering function in Firestore.
+   * @example /Instant(auto-id)/
    */
   instant: db.collection('Instant'),
-  /** Similar to the `Instant` collection, the `Daily` collection stores
-   *  documents required for storing the analytics for the important
-   * operations being performed by the users each day. Unlike `Instant,
-   * the document in `Daily` collection are not deleted.
-  */
+  /** This Collection stores documents required for storing
+   * the analytics for the important operations being performed
+   * by the users each day. Unlike `Instant, the document in the Daily
+   * collection are not deleted.
+   * Check out: `functions/admin/utils` --> `getFormattedDate()` method.
+   * @example /Daily/(formatted-date)/
+   */
   daily: db.collection('Daily'),
 };
 

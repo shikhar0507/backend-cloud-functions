@@ -52,6 +52,12 @@ const validateVenue = (venue) => {
 };
 
 
+/**
+ * Validates the attachment object.
+ *
+ * @param {Object} attachment Extra data for activity.
+ * @returns {boolean} If the attachment is valid.
+ */
 const validateAttachment = (attachment) => {
   if (!attachment) return false;
   /** TODO: implement this */

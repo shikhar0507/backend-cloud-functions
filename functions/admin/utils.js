@@ -43,12 +43,11 @@ const {
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @param {string} reason For which the account is being disabled.
- * @param {Date} [timestamp] Time at which the disable user request was made.
  */
-const disableAccount = (conn, reason, timestamp) => {
+const disableAccount = (conn, reason) => {
   const obj = {
     disabledFor: reason,
-    disabledWhen: timestamp || serverTimestamp,
+    disabledWhen: serverTimestamp,
   };
 
   const promises = [
@@ -190,10 +189,30 @@ const sendJSON = (conn, json) => {
 };
 
 
+/**
+ * Returns the timestamp in the format `dd-mm-yyyy hh:mm:ss`.
+ *
+ * @returns {string} Timestamp in the format `dd-mm-yyyy hh:mm:ss`.
+ * @example 11-6-2018 12:24PM
+ */
+const getFormattedDate = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1; // months start from 0
+  const day = date.getDate();
+  const hour = date.getHours();
+  const minutes = date.getMinutes();
+  const meridiem = hour >= 12 ? 'PM' : 'AM';
+
+  return `${day}-${month}-${year} ${hour}:${minutes}${meridiem}`;
+};
+
+
 module.exports = {
   hasSupportClaims,
   hasSuperUserClaims,
   hasManageTemplateClaims,
+  getFormattedDate,
   disableAccount,
   sendResponse,
   handleError,
