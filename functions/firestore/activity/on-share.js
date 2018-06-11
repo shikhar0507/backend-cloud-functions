@@ -59,11 +59,8 @@ const {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const commitBatch = (conn) => conn.batch.commit()
-  .then(() => sendResponse(
-    conn,
-    code.accepted,
-    'The activity was successfully updated.'
-  )).catch((error) => handleError(conn, error));
+  .then(() => sendResponse(conn, code.noContent))
+  .catch((error) => handleError(conn, error));
 
 
 /**
@@ -89,7 +86,7 @@ const updateActivityDoc = (conn) => {
  */
 const setAddendumForUsersWithUid = (conn) => {
   const arrayWithoutDuplicates = Array.from(new Set(conn.data.assigneeArray));
-  let promises = [];
+  const promises = [];
 
   arrayWithoutDuplicates.forEach((phoneNumber) => {
     promises.push(profiles.doc(phoneNumber).get());

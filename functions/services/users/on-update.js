@@ -81,21 +81,21 @@ const updateFirestoreWithNewProfile = (conn) => {
     userProfile.collection('Subscriptions').get(),
   ]).then((docsArray) => {
     docsArray[0].forEach((doc) => {
-      /** copy all activities from old profile to the new one */
+      /** Copy all activities from old profile to the new one */
       batch.set(profiles.doc(conn.req.body.phoneNumber)
         .collection('Activities').doc(doc.id), doc.data());
 
-      /** delete docs from old profile */
+      /** Delete docs from old profile */
       batch.delete(profiles.doc(conn.requester.phoneNumber)
         .collection('Activities').doc(doc.id));
 
-      /** create user doc in Activity/AssignTo for the new number */
+      /** Create user doc in Activity/AssignTo for the new number */
       batch.set(activities.doc(doc.id).collection('Assignees')
         .doc(conn.req.body.phoneNumber), {
           canEdit: doc.get('canEdit'),
         });
 
-      /** delete old user doc in Activity/AssignTo */
+      /** Delete old user doc in Activity/AssignTo */
       batch.delete(activities.doc(doc.id).collection('Assignees')
         .doc(conn.requester.phoneNumber));
     });
@@ -107,7 +107,7 @@ const updateFirestoreWithNewProfile = (conn) => {
         include = [conn.req.body.phoneNumber];
       }
 
-      /** copy subscriptions to new profile */
+      /** Copy subscriptions to new profile */
       batch.set(profiles.doc(conn.req.body.phoneNumber)
         .collection('Subscriptions').doc(doc.id), {
           include,
@@ -116,17 +116,14 @@ const updateFirestoreWithNewProfile = (conn) => {
           timestamp: doc.get('timestamp'),
         });
 
-      /** delete subscriptions from old profile */
+      /** Delete subscriptions from old profile */
       batch.delete(profiles.doc(conn.requester.phoneNumber)
         .collection('Subscriptions').doc(doc.id));
     });
 
     return batch.commit();
-  }).then(() => sendResponse(
-    conn,
-    code.ok,
-    'The phone number update was successful.'
-  )).catch((error) => handleError(conn, error));
+  }).then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -137,23 +134,23 @@ const updateFirestoreWithNewProfile = (conn) => {
  */
 const updateUserProfile = (conn) => {
   Promise.all([
-    /** signs out the user by revoking their session token */
+    /** Signs out the user by revoking their session token */
     revokeRefreshTokens(conn.requester.uid),
 
-    /** updates their phone number in auth and copies their
+    /** Updates their phone number in auth and copies their
      * data from the old profile to the new one
      */
     updateUserPhoneNumberInAuth(
       conn.requester.uid,
       conn.req.body.phoneNumber
     ),
-  ]).then((result) => updateFirestoreWithNewProfile(conn))
+  ]).then(() => updateFirestoreWithNewProfile(conn))
     .catch((error) => {
       if (error.code === 'auth/invalid-phone-number') {
         sendResponse(
           conn,
           code.badRequest,
-          'Phone number is not valid'
+          `${conn.req.body.phoneNumber} is not a valid phone number.`
         );
         return;
       }
@@ -162,7 +159,7 @@ const updateUserProfile = (conn) => {
         sendResponse(
           conn,
           code.conflict,
-          'Phone number is already in use',
+          'The Phone number is already in use.',
           false
         );
         return;
@@ -180,11 +177,20 @@ const updateUserProfile = (conn) => {
 
 
 const app = (conn) => {
+  if (!conn.req.body.hasOwnProperty('phoneNumber')) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The phoneNumber field is missing from the request body.'
+    );
+    return;
+  }
+
   if (!isValidPhoneNumber(conn.req.body.phoneNumber)) {
     sendResponse(
       conn,
       code.badRequest,
-      'The phone number in the request does not confirm to the E.164 standard.'
+      `${conn.req.body.phoneNumber} is not a valid phone number.`
     );
     return;
   }

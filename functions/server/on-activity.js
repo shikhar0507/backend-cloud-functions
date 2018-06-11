@@ -78,7 +78,7 @@ const app = (conn) => {
         conn,
         code.methodNotAllowed,
         `${conn.req.method}`
-        + ' is not allowed for the /read endpoint. Use "GET".'
+        + ' is not allowed for the /read endpoint. Use GET.'
       );
       return;
     }
@@ -179,7 +179,7 @@ const app = (conn) => {
   sendResponse(
     conn,
     code.notImplemented,
-    'The request path is not valid for /activity.'
+    'The request path is not valid for /activities.'
   );
 };
 

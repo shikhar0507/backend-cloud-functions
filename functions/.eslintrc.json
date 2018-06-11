@@ -67,6 +67,10 @@
     "jsdoc/require-param-name": 1,
     "jsdoc/require-param-type": 1,
     "jsdoc/require-returns-description": 1,
-    "jsdoc/require-returns-type": 1
+    "jsdoc/require-returns-type": 1,
+    "prefer-const": 1,
+    // "capitalized-comments": 1,
+    "guard-for-in": 1,
+    "camelcase": 1
   }
 }

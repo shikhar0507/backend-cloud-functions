@@ -23,10 +23,6 @@
 
 
 const {
-  parse,
-} = require('url');
-
-const {
   rootCollections,
   users,
 } = require('../admin/admin');
@@ -47,9 +43,6 @@ const {
   code,
 } = require('../admin/responses');
 
-const onService = require('./on-service');
-const onActivity = require('./on-activity');
-
 const {
   profiles,
 } = rootCollections;
@@ -61,14 +54,16 @@ const {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const handleRequestPath = (conn) => {
-  const action = parse(conn.req.url).path.split('/')[1];
+  const action = require('url').parse(conn.req.url).path.split('/')[1];
 
   if (action === 'activities') {
+    const onActivity = require('./on-activity');
     onActivity(conn);
     return;
   }
 
   if (action === 'services') {
+    const onService = require('./on-service');
     onService(conn);
     return;
   }
@@ -78,7 +73,11 @@ const handleRequestPath = (conn) => {
     return;
   }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid');
+  sendResponse(
+    conn,
+    code.notImplemented,
+    'The request path is not valid for /api.'
+  );
 };
 
 

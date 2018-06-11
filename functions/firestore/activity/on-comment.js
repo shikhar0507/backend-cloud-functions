@@ -57,7 +57,7 @@ const {
  * @param {Object} conn Object with Express Request and Response Objects.
  */
 const commitBatch = (conn) => conn.batch.commit()
-  .then((data) => sendResponse(
+  .then(() => sendResponse(
     conn,
     code.created,
     'The comment was successfully added to the activity.'

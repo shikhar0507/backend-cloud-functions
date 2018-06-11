@@ -25,12 +25,13 @@
 const {
   isValidLocation,
   isValidDate,
+  isValidString,
 } = require('../activity/helper');
 
 
 const validateSchedule = (schedule) => {
   if (!schedule) return false;
-  if (typeof schedule.name !== 'string') return false;
+  if (!isValidString(schedule.name)) return false;
   if (!isValidDate(schedule.startTime)) return false;
   if (!isValidDate(schedule.endTime)) return false;
   if (schedule.endTime < schedule.startTime) return false;
@@ -41,11 +42,9 @@ const validateSchedule = (schedule) => {
 
 const validateVenue = (venue) => {
   if (!venue) return false;
-  if (typeof venue.venueDescriptor !== 'string') return false;
-  if (typeof venue.address !== 'string') return false;
-  if (typeof venue.location !== 'string') return false;
-  if (Object.prototype.toString
-    .call(venue.geopoint) !== '[object Object]') return false;
+  if (!isValidString(venue.venueDescriptor)) return false;
+  if (!isValidString(venue.address)) return false;
+  if (!isValidString(venue.location)) return false;
   if (!isValidLocation(venue.geopoint)) return false;
 
   return true;
@@ -60,7 +59,7 @@ const validateVenue = (venue) => {
  */
 const validateAttachment = (attachment) => {
   if (!attachment) return false;
-  /** TODO: implement this */
+  // TODO: Implement this...
   return true;
 };
 

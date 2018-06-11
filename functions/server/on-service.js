@@ -21,22 +21,14 @@
  *
  */
 
-
 const {
-  parse,
-} = require('url');
-
-const {
-  sendResponse,
+    sendResponse,
 } = require('../admin/utils');
 
 const {
-  code,
+    code,
 } = require('../admin/responses');
 
-const onUsers = require('../services/on-users');
-const onManage = require('../services/on-manage');
-const onTemplates = require('../services/on-templates');
 
 /**
  * Calls the resource related to a service depending on the action
@@ -45,24 +37,31 @@ const onTemplates = require('../services/on-templates');
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const app = (conn) => {
-  const action = parse(conn.req.url).path.split('/')[2];
+    const action = require('url').parse(conn.req.url).path.split('/')[2];
 
-  if (action === 'users') {
-    onUsers(conn);
-    return;
-  }
+    if (action === 'users') {
+        const onUsers = require('../services/on-users');
+        onUsers(conn);
+        return;
+    }
 
-  if (action === 'manage') {
-    onManage(conn);
-    return;
-  }
+    if (action === 'manage') {
+        const onManage = require('../services/on-manage');
+        onManage(conn);
+        return;
+    }
 
-  if (action === 'templates') {
-    onTemplates(conn);
-    return;
-  }
+    if (action === 'templates') {
+        const onTemplates = require('../services/on-templates');
+        onTemplates(conn);
+        return;
+    }
 
-  sendResponse(conn, code.badRequest, 'The request path is not valid.');
+    sendResponse(
+        conn,
+        code.badRequest,
+        'The request path is not valid for /services.'
+    );
 };
 
 

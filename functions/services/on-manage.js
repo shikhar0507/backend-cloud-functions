@@ -34,8 +34,6 @@ const {
   parse,
 } = require('url');
 
-const onPermissions = require('./manage/on-permissions');
-
 const app = (conn) => {
   if (!conn.requester.customClaims) {
     sendResponse(
@@ -59,6 +57,7 @@ const app = (conn) => {
       return;
     }
 
+    const onPermissions = require('./manage/on-permissions');
     onPermissions(conn);
     return;
   }

@@ -98,7 +98,12 @@ const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const getUserByPhoneNumber = (phoneNumber) => {
-  /** getUserByPhoneNumber is used multiple times throughout the codebase.*/
+  /** Could've simply returned the userRecord with this function, but
+   * in some cases, this function is called inside a loop. So, whenever
+   * there is an error, the function would crash the cloud function.
+   * To avoid that, the catch() clause now handles the response in
+   * a different way.
+   */
   return auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
     return {
       [phoneNumber]: userRecord,
@@ -126,7 +131,7 @@ const getUserByPhoneNumber = (phoneNumber) => {
  * @param {string} uid A 30 character alpha-numeric string.
  * @returns {Promise} Resolving to a userRecord object.
  */
-const disableUser = (uid) => auth.updateUser({
+const disableUser = (uid) => auth.updateUser(uid, {
   disabled: true,
 });
 
@@ -145,7 +150,7 @@ const getUserByUid = (uid) => auth.getUser(uid);
  *
  * @param {string} idToken String containing the token from the request.
  * @param {boolean} checkRevoked Checks if the token has been revoked recently.
- * @returns {Object} The userRecord from Firebase auth.
+ * @returns {Object} The `userRecord` from Firebase auth.
  */
 const verifyIdToken = (idToken, checkRevoked) =>
   auth.verifyIdToken(idToken, checkRevoked);
@@ -163,6 +168,10 @@ const users = {
 };
 
 
+/**
+ * Contains the references to all the collections which are in the
+ * root of the Firestore.
+ */
 const rootCollections = {
   /** Collection which contains `docs` of the users with their
    * `activities` and `subscriptions` in a `subcollection` inside it.
@@ -202,7 +211,7 @@ const rootCollections = {
   instant: db.collection('Instant'),
   /** This Collection stores documents required for storing
    * the analytics for the important operations being performed
-   * by the users each day. Unlike `Instant, the document in the Daily
+   * by the users each day. Unlike `Instant`, the document in the Daily
    * collection are not deleted.
    * Check out: `functions/admin/utils` --> `getFormattedDate()` method.
    * @example /Daily/(formatted-date)/

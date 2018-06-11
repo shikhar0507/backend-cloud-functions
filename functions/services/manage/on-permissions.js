@@ -54,18 +54,15 @@ const {
  * @param {Object} claims Custom claims object for the userRecord.
  */
 const setClaims = (conn, user, claims) => {
-  setCustomUserClaims(user.uid, claims).then(() => {
-    sendResponse(
-      conn,
-      code.noContent
-    );
-    return;
-  }).catch((error) => handleError(conn, error));
+  setCustomUserClaims(user.uid, claims)
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };
 
 
 /**
- * Creates the `customClaims` object to set in the auth for `user`.
+ * Creates the `customClaims` object to set in the auth for `user`
+ * from the request body.
  *
  * @param {Object} conn Contains Express Request and Response objects.
  * @param {Object} user Firebase Auth `userRecord` object.
@@ -111,7 +108,7 @@ const fetchUserRecord = (conn) => {
 
 
 /**
- * Checks of the `request` body is in the correct form.
+ * Checks if the `request` body is in the correct form.
  *
  * @param {Object} conn Contains Express Request and Response objects.
  */

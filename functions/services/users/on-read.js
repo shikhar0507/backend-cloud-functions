@@ -92,7 +92,7 @@ const app = (conn) => {
       phoneNumber = Object.keys(userRecord)[0];
       record = userRecord[`${phoneNumber}`];
 
-      /** The `superUser` can access user's metadata and customClaims. */
+      /** The `superUser` can access user's `metadata` and `customClaims`. */
       if (conn.req.query.as === 'su') {
         jsonResponse[`${phoneNumber}`] = {
           displayName: record.displayName || null,

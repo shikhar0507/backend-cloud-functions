@@ -22,11 +22,6 @@
  */
 
 
-const {
-  getGeopointObject,
-} = require('../../admin/admin');
-
-
 /**
  * Checks if the location is valid with respect to the standard
  * lat and lng values.
@@ -35,6 +30,9 @@ const {
  * @returns {boolean} If the input `latitude` & `longitude` pair is valid.
  */
 const isValidLocation = (location) => {
+  if (Object.prototype.toString
+    .call(location) !== '[object Object]') return false;
+
   const lat = location.latitude;
   const lng = location.longitude;
 
@@ -181,6 +179,7 @@ const filterSchedules = (schedules, scheduleFromTemplate) => {
  * @returns {Array} Containing all the valid venues.
  */
 const filterVenues = (venues, venueFromTemplate) => {
+  const getGeopointObject = require('../../admin/admin').getGeopointObject;
   const venueArray = [];
 
   const defaultVenue = {

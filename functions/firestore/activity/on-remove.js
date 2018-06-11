@@ -53,10 +53,9 @@ const {
 
 
 const commitBatch = (conn) => conn.batch.commit()
-  .then((data) => sendResponse(
+  .then(() => sendResponse(
     conn,
-    code.noContent,
-    'The activity was successfully updated.'
+    code.noContent
   )).catch((error) => handleError(conn, error));
 
 
@@ -72,7 +71,7 @@ const updateActivityDoc = (conn) => {
 
 
 const setAddendumForUsersWithUid = (conn) => {
-  let promises = [];
+  const promises = [];
 
   conn.data.assigneeArray.forEach((phoneNumber) => {
     promises.push(profiles.doc(phoneNumber).get());
@@ -148,7 +147,7 @@ const fetchDocs = (conn) => {
       /** This case should probably never execute becase there is NO provision
        * for deleting an activity anywhere. AND, for reaching the fetchDocs()
        * function, the check for the existance of the activity has already
-       * been performed in the User's profile.
+       * been performed in the `Profiles/(phoneNumber)/Activities(activity-id)`.
        */
       sendResponse(
         conn,
@@ -164,9 +163,9 @@ const fetchDocs = (conn) => {
     conn.data.activity = result[0];
     conn.data.assigneeArray = [];
 
-    /** The assigneeArray is required to add addendum. */
+    /** The `assigneeArray` is required to add addendum. */
     result[1].forEach((doc) => {
-      /** The doc.id is the phoneNumber of the assignee. */
+      /** The `doc.id` is the phoneNumber of the assignee. */
       conn.data.assigneeArray.push(doc.id);
     });
 
@@ -180,7 +179,8 @@ const verifyEditPermission = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
       if (!doc.exists) {
-        /** The activity doesn't exist for the user */
+        /** The activity does not exist in the system (OR probably
+         * only for the user). */
         sendResponse(
           conn,
           conn.forbidden,
@@ -190,7 +190,7 @@ const verifyEditPermission = (conn) => {
       }
 
       if (!doc.get('canEdit')) {
-        /** The canEdit flag is false so updating is not allowed */
+        /** The `canEdit` flag is false so update is forbidden. */
         sendResponse(
           conn,
           code.forbidden,

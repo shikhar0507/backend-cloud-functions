@@ -49,12 +49,19 @@ const {
 
 
 /**
- * Converts the jsonResult.activities object to an array in the final response.
+ * Converts the `jsonResult.activities` object to an array in the
+ * final response.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const convertActivityObjectToArray = (conn, jsonResult) => {
+  /** Amardeep was having problem parsing Activity objects when they
+   * were inside an object. This function is made on his request.
+   * It takes each activity object and restructures
+   * it in order to push them in an array.
+   * @see https://github.com/Growthfilev2/backend-cloud-functions/blob/master/docs/activities/read.md
+   */
   jsonResult.activitiesArr = [];
   let activityObj;
 
@@ -79,9 +86,9 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
 
   jsonResult.activities = jsonResult.activitiesArr;
 
-  /** jsonResult.activitiesArr is temporary object for storing
-   * the array with the activity objects. This is not in the final
-   * response.
+  /** `jsonResult.activitiesArr` is temporary object for storing
+   * the array with the activity objects. This object is not required
+   * in the response body.
    */
   delete jsonResult.activitiesArr;
 
@@ -120,7 +127,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
  * Fetches the template refs that the user has subscribed to.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
- * @param {*Object} jsonResult The fetched data from Firestore.
+ * @param {Object} jsonResult The fetched data from Firestore.
  */
 const getTemplates = (conn, jsonResult) => {
   profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
@@ -293,7 +300,7 @@ const readAddendumsByQuery = (conn) => {
 
 
 const app = (conn) => {
-  if (!conn.req.query.from) {
+  if (!conn.req.query.hasOwnProperty('from')) {
     sendResponse(
       conn,
       code.badRequest,
@@ -313,7 +320,7 @@ const app = (conn) => {
 
   /** Converting "from" query string to a date multiple times
    * is wasteful. Storing it here by calculating it once for use
-   * throughout the flow.
+   * throughout the instance.
    */
   conn.from = new Date(parseInt(conn.req.query.from));
   readAddendumsByQuery(conn);

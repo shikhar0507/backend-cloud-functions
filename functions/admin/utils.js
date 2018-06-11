@@ -57,7 +57,7 @@ const disableAccount = (conn, reason) => {
     disableUser(conn.requester.uid),
   ];
 
-  Promise.all(promises).then((result) => {
+  Promise.all(promises).then(() => {
     sendResponse(
       conn,
       code.forbidden,

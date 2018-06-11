@@ -389,7 +389,7 @@ const processRequestType = (conn) => {
 };
 
 
-const handleSupportRequest = (conn, result) => {
+const handleSupportRequest = (conn) => {
   /** For support requests, the canEditRule will be used from the
    * request body and not from the user's subscription.
    */
@@ -433,7 +433,7 @@ const fetchDocs = (conn) => {
 
     /** Handle support requests from here. */
     if (conn.requester.isSupportRequest) {
-      handleSupportRequest(conn, result);
+      handleSupportRequest(conn);
       return;
     }
 

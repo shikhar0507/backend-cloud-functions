@@ -53,11 +53,8 @@ const {
 
 
 const commitBatch = (conn) => conn.batch.commit()
-  .then((data) => sendResponse(
-    conn,
-    code.noContent,
-    'Activity status was updated successfully.'
-  )).catch((error) => handleError(conn, error));
+  .then(() => sendResponse(conn, code.noContent))
+  .catch((error) => handleError(conn, error));
 
 
 const addAddendumForAssignees = (conn) => {
