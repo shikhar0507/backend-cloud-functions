@@ -65,6 +65,27 @@ const setClaims = (conn, user, claims) => {
 
 
 /**
+ * Creates the `customClaims` object to set in the auth for `user`.
+ *
+ * @param {Object} conn Contains Express Request and Response objects.
+ * @param {Object} user Firebase Auth `userRecord` object.
+ */
+const createClaimsObject = (conn, user) => {
+  const claims = {};
+
+  if (conn.req.body.support) {
+    claims.support = conn.req.body.support;
+  }
+
+  if (conn.req.body.manageTemplates) {
+    claims.manageTemplates = conn.req.body.manageTemplates;
+  }
+
+  setClaims(conn, user, claims);
+};
+
+
+/**
  * Reads the user from `Auth` to verify if they already exist and have
  * some permission allocated.
  *
@@ -73,16 +94,6 @@ const setClaims = (conn, user, claims) => {
 const fetchUserRecord = (conn) => {
   getUserByPhoneNumber(conn.req.body.phoneNumber).then((userRecord) => {
     const user = userRecord[conn.req.body.phoneNumber];
-    console.log(user);
-    const claims = {};
-
-    if (conn.req.body.support) {
-      claims.support = conn.req.body.support;
-    }
-
-    if (conn.req.body.manageTemplates) {
-      claims.manageTemplates = conn.req.body.manageTemplates;
-    }
 
     if (!user.uid) {
       sendResponse(
@@ -93,40 +104,7 @@ const fetchUserRecord = (conn) => {
       return;
     }
 
-    /** Since the user doesn't have any customClaims already,
-     * a check for the permissions in their userRecord is not
-     * required.
-     */
-    if (!user.customClaims) {
-      setClaims(conn, user, claims);
-      return;
-    }
-
-    /** User already has the support permission, so they cannot
-     * have another one.
-     * */
-    if (user.customClaims.support && conn.req.body.manageTemplates) {
-      sendResponse(
-        conn,
-        code.conflict,
-        'The user already has support permission.'
-      );
-      return;
-    }
-
-    /** User already has the manageTemplates permission, so they
-     * cannot have another one.
-     * */
-    if (user.customClaims.manageTemplates && conn.req.body.support) {
-      sendResponse(
-        conn,
-        code.conflict,
-        'The user already has manageTemplates permission.'
-      );
-      return;
-    }
-
-    setClaims(conn, user, claims);
+    createClaimsObject(conn, user);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -172,7 +150,7 @@ const validateRequestBody = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'There are no valid fields in the request body.'
+      'There are no valid "permission" fields in the request body.'
     );
     return;
   }
@@ -185,26 +163,27 @@ const validateRequestBody = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      'Granting more than one permission is not allowed for a single user.'
+      'Granting more than one permission is not allowed for a user.'
     );
     return;
   }
 
-  if (conn.req.body.support && typeof conn.req.body.support !== 'boolean') {
+  if (conn.req.body.hasOwnProperty('support')
+    && conn.req.body.support !== true) {
     sendResponse(
       conn,
       code.badRequest,
-      'The \'support\' field should be a boolean.'
+      'The \'support\' field should be a boolean value \'true\'.'
     );
     return;
   }
 
-  if (conn.req.body.manageTemplates
-    && typeof conn.req.body.manageTemplates !== 'boolean') {
+  if (conn.req.body.hasOwnProperty('manageTemplates')
+    && conn.req.body.manageTemplates !== true) {
     sendResponse(
       conn,
       code.badRequest,
-      'The \'manageTemplates\' field should be a boolean.'
+      'The \'manageTemplates\' field should be a boolean value \'true\'.'
     );
     return;
   }
