@@ -27,7 +27,6 @@ const {
 } = require('../../admin/admin');
 
 const {
-  sendResponse,
   handleError,
 } = require('../../admin/utils');
 
@@ -40,9 +39,8 @@ const {
 } = require('../../admin/responses');
 
 const {
-  setCustomUserClaims,
-  getUserByPhoneNumber,
-} = users;
+  createInstantLog,
+} = require('../../admin/logger');
 
 
 /**
@@ -52,11 +50,15 @@ const {
  * @param {Object} conn Contains Express Request and Response objects.
  * @param {Object} user Contains data from Auth of the user.
  * @param {Object} claims Custom claims object for the userRecord.
+ * @param {Object} response Object to store the logging data.
  */
-const setClaims = (conn, user, claims) => {
-  setCustomUserClaims(user.uid, claims)
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
+const setClaims = (conn, user, claims, response) => {
+  users.setCustomUserClaims(user.uid, claims)
+    .then(() => {
+      response.code = code.noContent;
+      createInstantLog(conn, response);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -65,9 +67,10 @@ const setClaims = (conn, user, claims) => {
  * from the request body.
  *
  * @param {Object} conn Contains Express Request and Response objects.
- * @param {Object} user Firebase Auth `userRecord` object.
+ * @param {Object} user Contains the `userRecord`.
+ * @param {Object} response Object to store the logging data.
  */
-const createClaimsObject = (conn, user) => {
+const createClaimsObject = (conn, user, response) => {
   const claims = {};
 
   if (conn.req.body.support) {
@@ -78,7 +81,7 @@ const createClaimsObject = (conn, user) => {
     claims.manageTemplates = conn.req.body.manageTemplates;
   }
 
-  setClaims(conn, user, claims);
+  setClaims(conn, user, claims, response);
 };
 
 
@@ -87,21 +90,21 @@ const createClaimsObject = (conn, user) => {
  * some permission allocated.
  *
  * @param {Object} conn Contains Express Request and Response objects.
+ * @param {Object} response Object to store the logging data.
  */
-const fetchUserRecord = (conn) => {
-  getUserByPhoneNumber(conn.req.body.phoneNumber).then((userRecord) => {
+const fetchUserRecord = (conn, response) => {
+  users.getUserByPhoneNumber(conn.req.body.phoneNumber).then((userRecord) => {
     const user = userRecord[conn.req.body.phoneNumber];
 
     if (!user.uid) {
-      sendResponse(
-        conn,
-        code.conflict,
-        `${conn.req.body.phoneNumber} does not exist.`
-      );
+      response.code = code.conflict;
+      response.message = `${conn.req.body.phoneNumber} does not exist.`;
+      response.resourcesAccessed.push('user record');
+      createInstantLog(conn, response);
       return;
     }
 
-    createClaimsObject(conn, user);
+    createClaimsObject(conn, user, response);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -111,44 +114,40 @@ const fetchUserRecord = (conn) => {
  * Checks if the `request` body is in the correct form.
  *
  * @param {Object} conn Contains Express Request and Response objects.
+ * @param {Object} response Object to store the logging data.
  */
-const validateRequestBody = (conn) => {
+const validateRequestBody = (conn, response) => {
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The phoneNumber field is missing from the request body.'
-    );
+    response.code = code.badRequest;
+    response.message = 'The phoneNumber field is missing from the'
+      + ' request body.';
+    createInstantLog(conn, response);
     return;
   }
 
   if (!isValidPhoneNumber(conn.req.body.phoneNumber)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `${conn.req.body.phoneNumber} is not a valid phone number.`
-    );
+    response.code = code.badRequest;
+    response.message = `${conn.req.body.phoneNumber} is not a valid'
+    +' phone number.`;
+    createInstantLog(conn, response);
     return;
   }
 
   /** A person can't change their own permissions. */
   if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'You cannot set your own permissions.'
-    );
+    response.code = code.forbidden;
+    response.message = 'You cannot set your own permissions.';
+    createInstantLog(conn, response);
     return;
   }
 
   /** Both the fields are missing from the request body. */
   if (!conn.req.body.hasOwnProperty('support')
     && !conn.req.body.hasOwnProperty('manageTemplates')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'There are no valid "permission" fields in the request body.'
-    );
+    response.code = code.badRequest;
+    response.message = 'There are no valid "permission"'
+      + ' fields in the request body.';
+    createInstantLog(conn, response);
     return;
   }
 
@@ -157,35 +156,32 @@ const validateRequestBody = (conn) => {
    */
   if (conn.req.body.hasOwnProperty('support')
     && conn.req.body.hasOwnProperty('manageTemplates')) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'Granting more than one permission is not allowed for a user.'
-    );
+    response.code = code.forbidden;
+    response.message = 'Granting more than one permission'
+      + ' is not allowed for a user.';
+    createInstantLog(conn, response);
     return;
   }
 
   if (conn.req.body.hasOwnProperty('support')
     && conn.req.body.support !== true) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The \'support\' field should be a boolean value \'true\'.'
-    );
+    response.code = code.badRequest;
+    response.message = 'The \'support\' field should be a'
+      + ' boolean value \'true\'.';
+    createInstantLog(conn, response);
     return;
   }
 
   if (conn.req.body.hasOwnProperty('manageTemplates')
     && conn.req.body.manageTemplates !== true) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The \'manageTemplates\' field should be a boolean value \'true\'.'
-    );
+    response.code = code.badRequest;
+    response.message = 'The \'manageTemplates\' field should be'
+      + ' a boolean value \'true\'.';
+    createInstantLog(conn, response);
     return;
   }
 
-  fetchUserRecord(conn);
+  fetchUserRecord(conn, response);
 };
 
 
@@ -195,16 +191,18 @@ const validateRequestBody = (conn) => {
  * @param {Object} conn Contains Express Request and Response objects.
  */
 const app = (conn) => {
+  /** Object to store the logging data. */
+  const response = {};
+  response.resourcesAccessed = [];
+
   if (!conn.requester.customClaims.superUser) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'You are forbidden from granting permissions.'
-    );
+    response.code = code.forbidden;
+    response.message = 'You are forbidden from granting permissions.';
+    createInstantLog(conn, response);
     return;
   }
 
-  validateRequestBody(conn);
+  validateRequestBody(conn, response);
 };
 
 
