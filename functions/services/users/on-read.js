@@ -95,19 +95,19 @@ const app = (conn) => {
       /** The `superUser` can access user's `metadata` and `customClaims`. */
       if (conn.req.query.as === 'su') {
         jsonResponse[`${phoneNumber}`] = {
-          displayName: record.displayName || null,
-          photoURL: record.photoURL || null,
-          disabled: record.disabled || null,
-          metadata: record.metadata || null,
-          customClaims: record.customClaims || null,
+          displayName: record.displayName || '',
+          photoURL: record.photoURL || '',
+          disabled: record.disabled || '',
+          metadata: record.metadata || '',
+          customClaims: record.customClaims || {},
         };
         return;
       }
 
       jsonResponse[`${phoneNumber}`] = {
-        photoURL: record.photoURL || null,
-        displayName: record.displayName || null,
-        lastSignInTime: record.lastSignInTime || null,
+        photoURL: record.photoURL || '',
+        displayName: record.displayName || '',
+        lastSignInTime: record.lastSignInTime || '',
       };
     });
 
