@@ -56,6 +56,10 @@ const {
   attachmentCreator,
 } = require('./helper');
 
+// const {
+//   // createDailyLog,
+// } = require('../../admin/logger');
+
 
 /**
  * Commits the batch and sends a response to the client.

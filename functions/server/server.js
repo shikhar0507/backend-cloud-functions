@@ -28,11 +28,6 @@ const {
 } = require('../admin/admin');
 
 const {
-  getUserByUid,
-  verifyIdToken,
-} = users;
-
-const {
   handleError,
   sendResponse,
   now,
@@ -42,10 +37,6 @@ const {
 const {
   code,
 } = require('../admin/responses');
-
-const {
-  profiles,
-} = rootCollections;
 
 
 /**
@@ -89,7 +80,7 @@ const handleRequestPath = (conn) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const verifyUidAndPhoneNumberCombination = (conn) => {
-  profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
+  rootCollections.profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
     if (doc.get('uid') !== conn.requester.uid) {
       /** The user probably managed to change their phone number by something
        * other than out provided endpoint for updating the auth.
@@ -114,7 +105,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const getCreatorsPhoneNumber = (conn) => {
-  getUserByUid(conn.requester.uid).then((userRecord) => {
+  users.getUserByUid(conn.requester.uid).then((userRecord) => {
     if (userRecord.disabled) {
       /** users with disabled accounts cannot request any operation **/
       sendResponse(conn, code.forbidden, 'Your account is disabled.');
@@ -139,6 +130,7 @@ const getCreatorsPhoneNumber = (conn) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const checkAuthorizationToken = (conn) => {
+  /** The `Authorization` header sent in the request headers. */
   const authorization = conn.req.headers.authorization;
 
   if (typeof authorization !== 'string') {
@@ -161,12 +153,12 @@ const checkAuthorizationToken = (conn) => {
     return;
   }
 
-  /** checks if the token was revoked recently when set to true */
+  /** Checks if the token was revoked recently when set to true */
   const checkRevoked = true;
 
-  verifyIdToken(authorization.split('Bearer ')[1], checkRevoked)
+  users.verifyIdToken(authorization.split('Bearer ')[1], checkRevoked)
     .then((decodedIdToken) => {
-      /** object to identify the requester throughout the flow */
+      /** Object to identify the requester throughout the flow. */
       conn.requester = {};
       conn.requester.uid = decodedIdToken.uid;
 
@@ -214,24 +206,26 @@ const server = (req, res) => {
   };
 
   conn.headers = {
-    /** preflight headers */
+    /** Preflight headers */
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
     'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
       'Content-Type, Accept',
     'Access-Control-Max-Age': 2592000, // 30 days
     'Content-Type': 'application/json',
-    'Content-Language': 'en',
+    'Content-Language': 'en-US',
     'Cache-Control': 'no-cache',
   };
 
   if (req.method === 'OPTIONS' || req.method === 'HEAD') {
-    /** no content to send in response to the OPTIONS OR HEAD request */
+    /** There's no content to send in response to the
+     * `OPTIONS` OR `HEAD` request.
+     * */
     sendResponse(conn, code.noContent);
     return;
   }
 
-  /** allowed methods */
+  /** Allowed methods */
   if (['GET', 'POST', 'PATCH', 'PUT'].indexOf(req.method) > -1) {
     checkAuthorizationToken(conn);
     return;
@@ -241,7 +235,7 @@ const server = (req, res) => {
     conn,
     code.notImplemented,
     `${req.method} has not been implemented.`
-    + 'Please use GET, POST, PATCH, or PUT methods to make your request.'
+    + 'Please use GET, POST, PATCH, or PUT methods to make your requests.'
   );
 };
 

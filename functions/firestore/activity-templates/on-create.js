@@ -28,10 +28,6 @@ const {
 } = require('../../admin/admin');
 
 const {
-  activityTemplates,
-} = rootCollections;
-
-const {
   code,
 } = require('../../admin/responses');
 
@@ -48,7 +44,7 @@ const {
 
 
 const createTemplate = (conn, data) => {
-  activityTemplates.doc().set(data).then(() => {
+  rootCollections.activityTemplates.doc().set(data).then(() => {
     sendResponse(
       conn,
       code.created,
@@ -83,7 +79,8 @@ const createTemplateObject = (conn) => {
 
 
 const getTemplateByName = (conn) => {
-  activityTemplates.where('name', '==', conn.req.body.name).limit(1)
+  rootCollections.activityTemplates
+    .where('name', '==', conn.req.body.name).limit(1)
     .get().then((snapShot) => {
       if (!snapShot.empty) {
         sendResponse(
@@ -105,7 +102,7 @@ const app = (conn) => {
   const re = /^$|\s+/;
 
   if (!re.test(conn.req.body.name)) {
-    sendResponse(conn, code.badRequest, 'The "name" is invalid/missing');
+    sendResponse(conn, code.badRequest, 'The "name" is invalid/missing.');
     return;
   }
 
@@ -122,13 +119,13 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The "defaultTitle" is invalid/missing'
+      'The "defaultTitle" is invalid/missing.'
     );
     return;
   }
 
   if (!re.test(conn.req.body.comment)) {
-    sendResponse(conn, code.badRequest, 'The "comment" is invalid/missing');
+    sendResponse(conn, code.badRequest, 'The "comment" is invalid/missing.');
     return;
   }
 
@@ -137,7 +134,7 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The "attachment" in invalid/missing'
+      'The "attachment" in invalid/missing.'
     );
     return;
   }
@@ -147,7 +144,7 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The "schedule" is missing/invalid'
+      'The "schedule" is missing/invalid.'
     );
     return;
   }
@@ -157,7 +154,7 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The "venue" is invalid/missing'
+      'The "venue" is invalid/missing.'
     );
     return;
   }
@@ -166,7 +163,7 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The "schedule" object is invalid'
+      'The "schedule" object is invalid.'
     );
     return;
   }
@@ -175,7 +172,7 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The "venue" object is invalid'
+      'The "venue" object is invalid.'
     );
     return;
   }
