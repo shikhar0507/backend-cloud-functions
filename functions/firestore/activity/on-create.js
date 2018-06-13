@@ -56,10 +56,6 @@ const {
   attachmentCreator,
 } = require('./helper');
 
-// const {
-//   // createDailyLog,
-// } = require('../../admin/logger');
-
 
 /**
  * Commits the batch and sends a response to the client.
@@ -72,6 +68,25 @@ const commitBatch = (conn) => conn.batch.commit()
     code.created,
     'The activity was successfully created.'
   )).catch((error) => handleError(conn, error));
+
+
+/**
+ * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
+ * history of the user.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ */
+const logLocation = (conn) => {
+  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
+    .collection('Map').doc(), {
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+      timestamp: new Date(conn.req.body.timestamp),
+      office: conn.req.body.office,
+      template: conn.req.body.template,
+    });
+
+  commitBatch(conn);
+};
 
 
 /**
@@ -143,7 +158,7 @@ const handleAssignedUsers = (conn) => {
       }
     });
 
-    commitBatch(conn, conn.batch);
+    logLocation(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };

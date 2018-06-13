@@ -61,6 +61,26 @@ const commitBatch = (conn) => conn.batch.commit()
   .then(() => sendResponse(conn, code.noContent))
   .catch((error) => handleError(conn, error));
 
+
+/**
+* Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
+* history of the user.
+*
+* @param {Object} conn Contains Express' Request and Response objects.
+*/
+const logLocation = (conn) => {
+  conn.batch.set(profiles.doc(conn.requester.phoneNumber).collection('Map')
+    .doc(), {
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+      timestamp: new Date(conn.req.body.timestamp),
+      office: conn.data.activity.get('office'),
+      template: conn.data.activity.get('template'),
+    });
+
+  commitBatch(conn);
+};
+
+
 /**
  * Writes the `addendum` for all the `assignees` of the activity who have
  * signed up.
@@ -76,7 +96,7 @@ const addAddendumForAssignees = (conn) => {
       }
     });
 
-    commitBatch(conn);
+    logLocation(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };

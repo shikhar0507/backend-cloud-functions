@@ -64,6 +64,25 @@ const commitBatch = (conn) => conn.batch.commit()
 
 
 /**
+ * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
+ * history of the user.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ */
+const logLocation = (conn) => {
+  conn.batch.set(profiles.doc(conn.requester.phoneNumber).collection('Map')
+    .doc(), {
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+      timestamp: new Date(conn.req.body.timestamp),
+      office: conn.data.activity.get('office'),
+      template: conn.data.activity.get('template'),
+    });
+
+  commitBatch(conn);
+};
+
+
+/**
  * Updates the activity root and adds the data to the batch.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
@@ -93,7 +112,7 @@ const updateActivityDoc = (conn) => {
 
   conn.update.timestamp = new Date(conn.req.body.timestamp);
 
-  /** Imeplementing the handleAttachment() method will make this work. */
+  /** Imeplementing the `handleAttachment()` method will make this work. */
   if (conn.docRef) {
     /**
      * docRef is not undefined only when a document is updated during
@@ -106,7 +125,7 @@ const updateActivityDoc = (conn) => {
     merge: true,
   });
 
-  commitBatch(conn);
+  logLocation(conn);
 };
 
 

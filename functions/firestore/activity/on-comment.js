@@ -65,6 +65,25 @@ const commitBatch = (conn) => conn.batch.commit()
 
 
 /**
+* Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
+* history of the user.
+*
+* @param {Object} conn Contains Express' Request and Response objects.
+*/
+const logLocation = (conn) => {
+  conn.batch.set(profiles.doc(conn.requester.phoneNumber).collection('Map')
+    .doc(), {
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+      timestamp: new Date(conn.req.body.timestamp),
+      office: conn.data.activity.get('office'),
+      template: conn.data.activity.get('template'),
+    });
+
+  commitBatch(conn);
+};
+
+
+/**
  * Adds addendum doc for each assignee of the activity for which the comment
  * is being created.
  *
@@ -86,7 +105,7 @@ const setAddendumForAssignees = (conn) => {
       }
     });
 
-    commitBatch(conn);
+    logLocation(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -121,23 +140,31 @@ const constructActivityAssigneesPromises = (conn) => {
  * @param {Object} conn Object with Express Request and Response Objects.
  */
 const checkCommentPermission = (conn) => {
-  profiles.doc(conn.requester.phoneNumber).collection('Activities')
-    .doc(conn.req.body.activityId).get().then((doc) => {
-      /** check if a doc with the activity id from the request
-       * body is present in the user profile
-       * */
-      if (!doc.exists) {
-        sendResponse(conn,
-          code.forbidden,
-          'An activity' + 'with the id: '
-          + conn.req.body.activityId + ' does not exist.'
-        );
-        return;
-      }
+  if (!conn.data.profileActivityDoc.exists) {
+    sendResponse(
+      conn,
+      code.notFound,
+      `No acivity found with the id: ${conn.req.body.activityId}`
+    );
+    return;
+  }
+  constructActivityAssigneesPromises(conn);
+};
 
-      constructActivityAssigneesPromises(conn);
-      return;
-    }).catch((error) => handleError(conn, error));
+
+const fetchDocs = (conn) => {
+  Promise.all([
+    profiles.doc(conn.requester.phoneNumber).collection('Activities')
+      .doc(conn.req.body.activityId).get(),
+    activities.doc(conn.req.body.activityId).get(),
+  ]).then((docsArray) => {
+    conn.data = {};
+    conn.data.profileActivityDoc = docsArray[0];
+    conn.data.activity = docsArray[1];
+
+    checkCommentPermission(conn);
+    return;
+  }).catch((error) => handleError(conn, error));
 };
 
 
@@ -146,7 +173,7 @@ const app = (conn) => {
     && isValidLocation(conn.req.body.geopoint)
     && isValidString(conn.req.body.activityId)
     && typeof conn.req.body.comment === 'string') {
-    checkCommentPermission(conn);
+    fetchDocs(conn);
     return;
   }
 
