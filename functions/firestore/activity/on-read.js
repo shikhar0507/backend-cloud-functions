@@ -49,17 +49,35 @@ const {
 
 
 /**
+ * Adds the `office` field to the template based on the document
+ * where the subcription was found.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} jsonResult The fetched data from Firestore.
+ */
+const addOfficeToTemplates = (conn, jsonResult) => {
+  jsonResult.templates.forEach((templateObject, index) => {
+    templateObject.office = conn.officesArray[`${index}`];
+  });
+
+  /** Response ends here */
+  sendJSON(conn, jsonResult);
+};
+
+
+/**
  * Converts the `jsonResult.activities` object to an array in the
  * final response.
  *
- * @description `Amardeep` was having problem parsing Activity objects
-   * when they were inside an `Object`. This function is made on his request.
-   * It takes each activity object and restructures it in order to *push*
-   * them in an array.
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const convertActivityObjectToArray = (conn, jsonResult) => {
+  /** @description `Amardeep` was having problem parsing Activity objects
+   * when they were inside an `Object`. This function is made on his request.
+   * It takes each activity object and restructures it in order to push
+   * them in an array.
+   */
   jsonResult.activitiesArr = [];
   let activityObj;
 
@@ -90,7 +108,7 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
    */
   delete jsonResult.activitiesArr;
 
-  sendJSON(conn, jsonResult);
+  addOfficeToTemplates(conn, jsonResult);
 };
 
 
@@ -109,7 +127,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
           template: doc.get('defaultTitle'),
-          office: doc.get('office'),
+          // office: doc.get('office'),
           attachment: doc.get('attachment') || {},
         });
       }
@@ -133,8 +151,11 @@ const getTemplates = (conn, jsonResult) => {
     .where('timestamp', '<=', jsonResult.upto)
     .get().then((snapShot) => {
       conn.templatesList = [];
+      conn.officesArray = [];
 
       snapShot.forEach((doc) => {
+        /** The `office` is required inside each template. */
+        conn.officesArray.push(doc.get('office'));
         conn.templatesList.push(
           activityTemplates.doc(doc.get('template')).get()
         );
@@ -287,7 +308,9 @@ const readAddendumsByQuery = (conn) => {
       }); // forEach end
 
       if (!snapShot.empty) {
-        /** timestamp value of the last addendum sorted on timestamp */
+        /** The `timestamp` of the last addendum sorted sorted based
+         * on `timestamp`.
+         * */
         jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
       }
 
