@@ -71,13 +71,12 @@ const addOfficeToTemplates = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
- */
-const convertActivityObjectToArray = (conn, jsonResult) => {
-  /** @description `Amardeep` was having problem parsing Activity objects
+ * @description `Amardeep` was having problem parsing Activity objects
    * when they were inside an `Object`. This function is made on his request.
    * It takes each activity object and restructures it in order to push
    * them in an array.
-   */
+ */
+const convertActivityObjectToArray = (conn, jsonResult) => {
   jsonResult.activitiesArr = [];
   let activityObj;
 
@@ -127,7 +126,6 @@ const fetchSubscriptions = (conn, jsonResult) => {
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
           template: doc.get('defaultTitle'),
-          // office: doc.get('office'),
           attachment: doc.get('attachment') || {},
         });
       }
