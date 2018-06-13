@@ -4,87 +4,93 @@ This is the repository for cloud functions running on Firebase Growthfile backen
 
 ## File Structure
 
-```bash
-│   .firebaserc
-│   .gitignore
-│   firebase.json
-│   LICENSE
-│   README.md
-│
-├───docs
-│   │   now.md
-│   │
-│   ├───activities
-│   │       change-status.md
-│   │       comment.md
-│   │       create.md
-│   │       read.md
-│   │       remove.md
-│   │       share.md
-│   │       update.md
-│   │
-│   ├───services
-│   │   ├───manage
-│   │   │       permissions.md
-│   │   │       templates.md
-│   │   │
-│   │   └───users
-│   │           read.md
-│   │           update.md
-│   │
-│   └───support-requests
-│           README.md
-│
-├───functions
-│   │   .eslintrc.json
-│   │   index.js
-│   │   package-lock.json
-│   │   package.json
-│   │
-│   ├───admin
-│   │       admin.js
-│   │       responses.js
-│   │       utils.js
-│   │
-│   ├───auth
-│   │       on-create.js
-│   │       on-delete.js
-│   │
-│   ├───firestore
-│   │   ├───activity
-│   │   │       helper.js
-│   │   │       on-change-status.js
-│   │   │       on-comment.js
-│   │   │       on-create.js
-│   │   │       on-read.js
-│   │   │       on-remove.js
-│   │   │       on-share.js
-│   │   │       on-update.js
-│   │   │
-│   │   └───activity-templates
-│   │           helpers.js
-│   │           on-create.js
-│   │           on-read.js
-│   │           on-update.js
-│   │
-│   ├───server
-│   │       on-activity.js
-│   │       on-service.js
-│   │       server.js
-│   │
-│   └───services
-│       │   on-manage.js
-│       │   on-users.js
-│       │
-│       ├───manage
-│       │       on-permissions.js
-│       │       on-templates.js
-│       │
-│       └───users
-│               on-read.js
-│               on-update.js
-│
-└───schema
+```
+|   .firebaserc
+|   .gitignore
+|   file.txt
+|   firebase.json
+|   LICENSE
+|   README.md
+|
++---docs
+|   |   now.md
+|   |
+|   +---activities
+|   |       change-status.md
+|   |       comment.md
+|   |       create.md
+|   |       read.md
+|   |       remove.md
+|   |       share.md
+|   |       update.md
+|   |
+|   +---services
+|   |   +---manage
+|   |   |       permissions.md
+|   |   |
+|   |   +---templates
+|   |   |       create.md
+|   |   |       read.md
+|   |   |       update.md
+|   |   |
+|   |   \---users
+|   |           read.md
+|   |           update.md
+|   |
+|   \---support-requests
+|           README.md
+|
++---functions
+|   |   .eslintrc.json
+|   |   index.js
+|   |   package-lock.json
+|   |   package.json
+|   |
+|   +---admin
+|   |       admin.js
+|   |       logger.js
+|   |       responses.js
+|   |       utils.js
+|   |
+|   +---auth
+|   |       on-create.js
+|   |       on-delete.js
+|   |
+|   +---firestore
+|   |   +---activity
+|   |   |       helper.js
+|   |   |       on-change-status.js
+|   |   |       on-comment.js
+|   |   |       on-create.js
+|   |   |       on-read.js
+|   |   |       on-remove.js
+|   |   |       on-share.js
+|   |   |       on-update.js
+|   |   |
+|   |   \---activity-templates
+|   |           helpers.js
+|   |           on-create.js
+|   |           on-read.js
+|   |           on-update.js
+|   |
+|   +---server
+|   |       on-activity.js
+|   |       on-service.js
+|   |       server.js
+|   |
+|   \---services
+|       |   on-manage.js
+|       |   on-templates.js
+|       |   on-users.js
+|       |
+|       +---manage
+|       |       on-permissions.js
+|       |
+|       \---users
+|               on-read.js
+|               on-update.js
+|
+\---schema
         schema.graphql
 ```
 
@@ -165,7 +171,6 @@ xhr.setRequestHeader('Content-Type', 'application/json');
 xhr.setRequestHeader('Authorization', '/* auth token string */');
 xhr.setRequestHeader('Cache-Control', 'no-cache');
 xhr.send(data);
-
 ```
 
 * Using Javascript fetch
