@@ -32,6 +32,9 @@ admin.initializeApp({
 
 const auth = admin.auth();
 const db = admin.firestore();
+/** A sentinel which maps to the Firestore server timestamp when written to
+ * a field in a document.
+ */
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
 
@@ -51,7 +54,8 @@ const setCustomUserClaims = (uid, claims) =>
  * geopoint type in Firestore.
  *
  * @param {Object} geopoint Contains lat, lng value pair.
- * @returns {Object} Firestore `sentinel` which *maps* to the server timestamp.
+ * @returns {Object} A `sentinel` which *maps* to a `geopoint` object
+ * on writing to the Firestore.
  */
 const getGeopointObject = (geopoint) =>
   new admin.firestore.GeoPoint(geopoint.latitude, geopoint.longitude);

@@ -30,8 +30,7 @@
  * @returns {boolean} If the input `latitude` & `longitude` pair is valid.
  */
 const isValidLocation = (location) => {
-  if (Object.prototype.toString
-    .call(location) !== '[object Object]') return false;
+  if (!location) return false;
 
   const lat = location.latitude;
   const lng = location.longitude;
