@@ -24,6 +24,7 @@
 
 const {
   rootCollections,
+  serverTimestamp,
 } = require('../../admin/admin');
 
 const {
@@ -49,6 +50,29 @@ const {
 
 
 /**
+ * Writes the log to `/DailyReads` about the user, timestamp and the
+ * query string they provided in the request.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} jsonResult The fetched data from Firestore.
+ */
+const updateDailyCollection = (conn, jsonResult) => {
+  const data = {
+    [conn.requester.phoneNumber]: {
+      timestamp: serverTimestamp,
+      from: conn.req.query.from,
+    },
+  };
+
+  rootCollections.dailyReads.doc(new Date().toDateString())
+    .set(data, {
+      merge: true,
+    }).then(() => sendJSON(conn, jsonResult))
+    .catch((error) => handleError(conn, error));
+};
+
+
+/**
  * Adds the `office` field to the template based on the document
  * where the subcription was found.
  *
@@ -60,8 +84,7 @@ const addOfficeToTemplates = (conn, jsonResult) => {
     templateObject.office = conn.officesArray[`${index}`];
   });
 
-  /** Response ends here */
-  sendJSON(conn, jsonResult);
+  updateDailyCollection(conn, jsonResult);
 };
 
 

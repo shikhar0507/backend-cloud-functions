@@ -34,6 +34,7 @@ const {
 
 const {
   profiles,
+  dailyDisabled,
 } = rootCollections;
 
 
@@ -45,15 +46,23 @@ const {
  * @param {string} reason For which the account is being disabled.
  */
 const disableAccount = (conn, reason) => {
-  const obj = {
-    disabledFor: reason,
-    disabledWhen: serverTimestamp,
-  };
-
   const promises = [
-    profiles.doc(conn.requester.phoneNumber).set(obj, {
-      merge: true,
-    }),
+    dailyDisabled.doc(new Date().toDateString()).set({
+      [conn.requester.phoneNumber]: {
+        reason,
+        timestamp: serverTimestamp,
+      },
+    }, {
+        /** This doc may have other fields too. */
+        merge: true,
+      }),
+    profiles.doc(conn.requester.phoneNumber).set({
+      disabledFor: reason,
+      disabledTimestamp: serverTimestamp,
+    }, {
+        /** This doc may have other fields too. */
+        merge: true,
+      }),
     disableUser(conn.requester.uid),
   ];
 

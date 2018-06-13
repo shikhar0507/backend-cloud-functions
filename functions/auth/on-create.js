@@ -31,7 +31,26 @@ const {
 const {
   updates,
   profiles,
+  dailySignUps,
 } = rootCollections;
+
+/**
+ * Adds the user's `phoneNumber` to the log for the day.
+ *
+ * @param {Object} userRecord Object with user info.
+ * @param {Object} batch Batch object.
+ * @returns {Promise} Batch object.
+ */
+const updateDailyCollection = (userRecord, batch) => {
+  return dailySignUps.doc(new Date().toDateString()).set({
+    [userRecord.phoneNumber]: {
+      timestamp: serverTimestamp,
+    },
+  }, {
+      /** Doc will have other phone numbers too. */
+      merge: true,
+    }).then(() => batch.commit()).catch((console.error));
+};
 
 
 /**
@@ -79,7 +98,7 @@ const app = (userRecord, context) => {
       merge: true,
     });
 
-  return batch.commit().catch(console.error);
+  return updateDailyCollection(userRecord, batch);
 };
 
 

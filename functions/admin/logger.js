@@ -1,12 +1,10 @@
 const {
   sendResponse,
-  getFormattedDate,
   handleError,
 } = require('./utils');
 
 const {
   rootCollections,
-  db,
 } = require('./admin');
 
 
@@ -48,23 +46,6 @@ const createInstantLog = (conn, response) => {
     .catch((error) => handleError(conn, error));
 };
 
-
-/**
- * Creates a document in the `/Daily` collection with the
- * timestamp as its `doc-id`.
- *
- * @param {Object} conn Express's Request and Response Object.
- * @param {Object} response Contains Response code and message.
- * @param {Object} log Doc containing the partial document for log.
- */
-const createDailyLog = (conn, response, log) => {
-  const date = new Date().toDateString();
-  const docRef = rootCollections.daily.doc(date);
-  // TODO: Implement this...
-};
-
-
 module.exports = {
-  createDailyLog,
   createInstantLog,
 };
