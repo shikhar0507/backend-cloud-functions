@@ -59,7 +59,7 @@ const isValidString = (str) => {
  * Checks whether the number is a valid Unix timestamp.
  *
  * @param {Object} date Javascript Date object.
- * @returns {boolean} Whether the number is a valid Unix timestamp.
+ * @returns {boolean} Whether the number is a *valid* Unix timestamp.
  */
 const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
 
@@ -68,7 +68,7 @@ const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
  * Verifies a phone number based on the E.164 standard.
  *
  * @param {string} phoneNumber A phone number.
- * @returns {boolean} If the number is a valid E.164 phone number.
+ * @returns {boolean} If the number is a *valid* __E.164__ phone number.
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const isValidPhoneNumber = (phoneNumber) => {
@@ -87,6 +87,7 @@ const isValidPhoneNumber = (phoneNumber) => {
  * @param {string} phoneNumber Number to check the `canEdit` rule for.
  * @param {string} requesterPhoneNumber Phone number of the requester.
  * @param {Array} assignees Array of people who are assignees of the activity.
+ * @returns {boolean} Depends on the subscription and the phoneNumber in args.
  */
 const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber,
   assignees = []) => {
@@ -151,7 +152,7 @@ const filterSchedules = (schedules, scheduleFromTemplate) => {
     } else if (!isNaN(new Date(schedule.startTime)) &&
       !isNaN(new Date(schedule.endTime)) &&
       schedule.endTime >= schedule.startTime) {
-      /** schedule has both startTime, endTime & endTime  >= startTime */
+      /** schedule has both `startTime`, `endTime` & `endTime` >= `startTime` */
       schedulesArray.push({
         name: schedule.name,
         startTime: new Date(schedule.startTime),
@@ -161,7 +162,7 @@ const filterSchedules = (schedules, scheduleFromTemplate) => {
   });
 
   /** In cases where there is no valid schedule in
-   * the request body, we create an object with null values.
+   * the request `body`, we create an object with null values.
    */
   if (schedulesArray.length === 0) {
     schedulesArray.push(defaultSchedule);

@@ -40,7 +40,7 @@ const {
 
 
 /**
- * Checks the path of the URL in the reuqest and handles the execution flow.
+ * Checks the `path` of the URL in the reuqest and handles the execution flow.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  */
@@ -66,8 +66,8 @@ const handleRequestPath = (conn) => {
 
   sendResponse(
     conn,
-    code.notImplemented,
-    'The request path is not valid for /api.'
+    code.notFound,
+    'No resource found at this path.'
   );
 };
 
@@ -83,7 +83,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
   rootCollections.profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
     if (doc.get('uid') !== conn.requester.uid) {
       /** The user probably managed to change their phone number by something
-       * other than out provided endpoint for updating the auth.
+       * other than out provided endpoint for updating the `auth`.
        * Disabling their account because this is not allowed.
        */
       disableAccount(
@@ -153,7 +153,7 @@ const checkAuthorizationToken = (conn) => {
     return;
   }
 
-  /** Checks if the token was revoked recently when set to true */
+  /** Checks if the token was revoked recently when set to `true` */
   const checkRevoked = true;
 
   users.verifyIdToken(authorization.split('Bearer ')[1], checkRevoked)
@@ -234,8 +234,8 @@ const server = (req, res) => {
   sendResponse(
     conn,
     code.notImplemented,
-    `${req.method} has not been implemented.`
-    + 'Please use GET, POST, PATCH, or PUT methods to make your requests.'
+    `${req.method} is not supported for any request.`
+    + ' Please use GET, POST, PATCH, or PUT to make your requests.'
   );
 };
 

@@ -133,7 +133,7 @@ const validateRequestBody = (conn, response) => {
     return;
   }
 
-  /** A person can't change their own permissions. */
+  /** A person *can't* change their own permissions. */
   if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
     response.code = code.forbidden;
     response.message = 'You cannot set your own permissions.';

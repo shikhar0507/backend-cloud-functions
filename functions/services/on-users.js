@@ -71,8 +71,8 @@ const app = (conn) => {
 
   sendResponse(
     conn,
-    code.badRequest,
-    'The request path is not valid for /users.'
+    code.notFound,
+    `No resource found at the path: ${(conn.req.url)}.`
   );
 };
 

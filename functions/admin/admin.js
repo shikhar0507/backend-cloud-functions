@@ -51,7 +51,7 @@ const setCustomUserClaims = (uid, claims) =>
  * geopoint type in Firestore.
  *
  * @param {Object} geopoint Contains lat, lng value pair.
- * @returns {Object} Firestore `sentinel` which maps to the server timestamp.
+ * @returns {Object} Firestore `sentinel` which *maps* to the server timestamp.
  */
 const getGeopointObject = (geopoint) =>
   new admin.firestore.GeoPoint(geopoint.latitude, geopoint.longitude);
@@ -76,6 +76,7 @@ const updateUserPhoneNumberInAuth = (uid, phoneNumber) => {
  * Creates a new user in Auth with the given userRecord.
  *
  * @param {Object} userRecord Contains the fields with user data.
+ * @returns {Promise} New `userRecord` for the created user.
  */
 const createUserInAuth = (userRecord) => auth.createUser(userRecord);
 
@@ -84,6 +85,7 @@ const createUserInAuth = (userRecord) => auth.createUser(userRecord);
  * Revokes the token of the a user in order to end their login session.
  *
  * @param {string} uid A 30 character alpha-numeric string.
+ * @returns {Promise} The `userRecord` of user who's `idToken` was revoked.
  * @see https://firebase.google.com/docs/auth/admin/manage-sessions#revoke_refresh_token
  */
 const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);

@@ -52,11 +52,21 @@ const {
 } = rootCollections;
 
 
+/**
+ * Commits the batch to write the documents added to the batch atomically.
+ *
+ * @param {Object} conn Contains Express Request and Response Objects.
+ */
 const commitBatch = (conn) => conn.batch.commit()
   .then(() => sendResponse(conn, code.noContent))
   .catch((error) => handleError(conn, error));
 
-
+/**
+ * Writes the `addendum` for all the `assignees` of the activity who have
+ * signed up.
+ *
+ * @param {Object} conn Contains Express Request and Response Objects.
+ */
 const addAddendumForAssignees = (conn) => {
   Promise.all(conn.data.Assignees).then((docsArray) => {
     docsArray.forEach((doc) => {
@@ -72,6 +82,11 @@ const addAddendumForAssignees = (conn) => {
 };
 
 
+/**
+ * Updates the `status` field in the activity root.
+ *
+ * @param {Object} conn Contains Express Request and Response Objects.
+ */
 const updateActivityStatus = (conn) => {
   conn.batch.set(activities.doc(conn.req.body.activityId), {
     status: conn.req.body.status,
@@ -84,6 +99,12 @@ const updateActivityStatus = (conn) => {
 };
 
 
+/**
+ * Fetches the template from reading the name from the activity root
+ * document.
+ *
+ * @param {Object} conn Contains Express Request and Response Objects.
+ */
 const fetchTemplate = (conn) => {
   activityTemplates.doc(conn.data.activity.get('template')).get()
     .then((doc) => {
@@ -96,7 +117,6 @@ const fetchTemplate = (conn) => {
         timestamp: new Date(conn.req.body.timestamp),
       };
 
-      conn.data.template = doc;
       updateActivityStatus(conn);
 
       return;
@@ -104,6 +124,12 @@ const fetchTemplate = (conn) => {
 };
 
 
+/**
+ * Fetches the activity, assignees and the activity status docs from
+ * the Firestore.
+ *
+ * @param {Object} conn Contains Express Request and Response Objects.
+ */
 const fetchDocs = (conn) => {
   Promise.all([
     activities.doc(conn.req.body.activityId).get(),
@@ -144,9 +170,7 @@ const fetchDocs = (conn) => {
       conn.data.Assignees.push(profiles.doc(doc.id).get());
     });
 
-    conn.data.statusEnum = result[2].get('ACTIVITYSTATUS');
-
-    if (conn.data.statusEnum.indexOf(conn.req.body.status) === -1) {
+    if (result[2].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {
       sendResponse(
         conn,
         code.badRequest,
@@ -161,6 +185,12 @@ const fetchDocs = (conn) => {
 };
 
 
+/**
+ * Checks if the *requester* has the *permission* to *edit* the activity
+ * during an update.
+ *
+ * @param {Object } conn Contains Express Request and Response Objects.
+ */
 const verifyEditPermission = (conn) => {
   profiles.doc(conn.requester.phoneNumber).collection('Activities')
     .doc(conn.req.body.activityId).get().then((doc) => {
@@ -168,14 +198,14 @@ const verifyEditPermission = (conn) => {
         /** The activity doesn't exist for the user */
         sendResponse(
           conn,
-          conn.forbidden,
+          code.notFound,
           `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
         return;
       }
 
       if (!doc.get('canEdit')) {
-        /** The canEdit flag is false so updating is not allowed */
+        /** The `canEdit` flag is false so updating is not allowed */
         sendResponse(
           conn,
           code.forbidden,
@@ -190,6 +220,12 @@ const verifyEditPermission = (conn) => {
 };
 
 
+/**
+ * Validates the request body to check if it contains a valid `timestamp`,
+ * `activityId`, `status` and the `geopoint`.
+ *
+ * @param {Object } conn Contains Express Request and Response Objects.
+ */
 const app = (conn) => {
   if (isValidDate(conn.req.body.timestamp)
     && isValidString(conn.req.body.activityId)

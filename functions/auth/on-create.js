@@ -67,12 +67,15 @@ const app = (userRecord, context) => {
     office: 'personal',
     template: 'plan',
     include: [phoneNumber],
-    /** auth event isn't an activity */
+    /** The auth event isn't an activity */
     activityId: null,
     status: 'CONFIRMED',
     canEditRule: 'true',
     timestamp: serverTimestamp,
   }, {
+      /** The profile *may* have old data for the user, so
+       * replacing the whole document *can* be destructive.
+       */
       merge: true,
     });
 

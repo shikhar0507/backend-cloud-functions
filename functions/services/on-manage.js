@@ -64,8 +64,8 @@ const app = (conn) => {
 
   sendResponse(
     conn,
-    code.notImplemented,
-    'This request path is invalid for /manage.'
+    code.notFound,
+    `No resource found at the path: ${(conn.req.url)}.`
   );
 };
 

@@ -22,46 +22,46 @@
  */
 
 const {
-    sendResponse,
+  sendResponse,
 } = require('../admin/utils');
 
 const {
-    code,
+  code,
 } = require('../admin/responses');
 
 
 /**
  * Calls the resource related to a service depending on the action
- * from the url.
+ * from the `URL`.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const app = (conn) => {
-    const action = require('url').parse(conn.req.url).path.split('/')[2];
+  const action = require('url').parse(conn.req.url).path.split('/')[2];
 
-    if (action === 'users') {
-        const onUsers = require('../services/on-users');
-        onUsers(conn);
-        return;
-    }
+  if (action === 'users') {
+    const onUsers = require('../services/on-users');
+    onUsers(conn);
+    return;
+  }
 
-    if (action === 'manage') {
-        const onManage = require('../services/on-manage');
-        onManage(conn);
-        return;
-    }
+  if (action === 'manage') {
+    const onManage = require('../services/on-manage');
+    onManage(conn);
+    return;
+  }
 
-    if (action === 'templates') {
-        const onTemplates = require('../services/on-templates');
-        onTemplates(conn);
-        return;
-    }
+  if (action === 'templates') {
+    const onTemplates = require('../services/on-templates');
+    onTemplates(conn);
+    return;
+  }
 
-    sendResponse(
-        conn,
-        code.badRequest,
-        'The request path is not valid for /services.'
-    );
+  sendResponse(
+    conn,
+    code.notFound,
+    `No resource found at the path: ${(conn.req.url)}.`
+  );
 };
 
 

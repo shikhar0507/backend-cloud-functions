@@ -90,8 +90,8 @@ const app = (conn) => {
 
   sendResponse(
     conn,
-    code.notImplemented,
-    'This request path is invalid for /templates.'
+    code.notFound,
+    `No resource found at the path: ${(conn.req.url)}.`
   );
 };
 

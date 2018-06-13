@@ -98,7 +98,7 @@ const hasManageTemplateClaims = (customClaims) => {
 
 
 /**
- * Helper function to check `superUser` claims.
+ * Helper function to check `superUser` custom claims.
  *
  * @param {Object} customClaims Contains boolean custom claims.
  */
@@ -112,7 +112,7 @@ const hasSuperUserClaims = (customClaims) => {
 
 
 /**
- * Returns the server timestamp on request.
+ * Returns the server timestamp on a `GET` request.
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  */
@@ -126,6 +126,7 @@ const now = (conn) => {
     return;
   }
 
+  /** Ends response. */
   sendJSON(conn, {
     success: true,
     timestamp: Date.now(),
@@ -178,7 +179,7 @@ const handleError = (conn, error) => {
 
 
 /**
- * Ends the response by sending the JSON to the client with `200 OK` response.
+ * Ends the response by sending the `JSON` to the client with `200 OK` response.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} json The response object to send to the client.

@@ -176,6 +176,11 @@ const updateUserProfile = (conn) => {
 };
 
 
+/**
+ * Validates the `phoneNumber` field form the request body.
+ *
+ * @param {Object} conn Contains Express Request and Response Objects.
+ */
 const app = (conn) => {
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {
     sendResponse(

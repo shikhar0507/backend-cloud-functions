@@ -233,14 +233,14 @@ const verifyEditPermission = (conn) => {
         /** The activity doesn't exist for the user */
         sendResponse(
           conn,
-          conn.forbidden,
+          code.notFound,
           `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
         return;
       }
 
       if (!doc.get('canEdit')) {
-        /** The canEdit flag is false so updating is not allowed */
+        /** The `canEdit` flag is false so updating is not allowed */
         sendResponse(
           conn,
           code.forbidden,

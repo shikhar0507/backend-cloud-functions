@@ -30,7 +30,6 @@ const onShare = require('../firestore/activity/on-share');
 const onRemove = require('../firestore/activity/on-remove');
 const onStatusChange = require('../firestore/activity/on-change-status');
 
-
 const {
   sendResponse,
   hasSupportClaims,
@@ -87,6 +86,7 @@ const app = (conn) => {
     return;
   }
 
+  /** `/api/activities/create` can have a query string. */
   if (action.startsWith('create')) {
     if (conn.req.method !== 'POST') {
       sendResponse(
@@ -117,6 +117,7 @@ const app = (conn) => {
     return;
   }
 
+  /** `/api/activities/update` can have a query string. */
   if (action.startsWith('update')) {
     if (conn.req.method !== 'PATCH') {
       sendResponse(
@@ -131,6 +132,7 @@ const app = (conn) => {
     return;
   }
 
+  /** `/api/activities/share` can have a query string. */
   if (action.startsWith('share')) {
     if (conn.req.method !== 'PATCH') {
       sendResponse(
@@ -178,8 +180,8 @@ const app = (conn) => {
 
   sendResponse(
     conn,
-    code.notImplemented,
-    'The request path is not valid for /activities.'
+    code.notFound,
+    `No resource found at the path: ${(conn.req.url)}.`
   );
 };
 

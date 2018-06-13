@@ -183,7 +183,7 @@ const verifyEditPermission = (conn) => {
          * only for the user). */
         sendResponse(
           conn,
-          conn.forbidden,
+          code.notFound,
           `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
         return;
