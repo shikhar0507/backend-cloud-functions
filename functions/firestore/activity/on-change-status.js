@@ -224,24 +224,82 @@ const verifyEditPermission = (conn) => {
  * Validates the request body to check if it contains a valid `timestamp`,
  * `activityId`, `status` and the `geopoint`.
  *
- * @param {Object } conn Contains Express Request and Response Objects.
+ * @param {Object} conn Contains Express Request and Response Objects.
  */
 const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp)
-    && isValidString(conn.req.body.activityId)
-    && isValidString(conn.req.body.status)
-    && isValidLocation(conn.req.body.geopoint)) {
-    verifyEditPermission(conn);
+  if (!conn.req.body.timestamp) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The request body is missing the timestamp field.'
+    );
     return;
   }
 
-  sendResponse(
-    conn,
-    code.badRequest,
-    'The request body does not have all the necessary fields with proper'
-    + ' values. Please make sure that the timestamp, activityId, status'
-    + ' and the geopoint are included in the request with appropriate values.'
-  );
+  if (!conn.req.body.activityId) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The request body is missing the activityId.'
+    );
+    return;
+  }
+
+  if (!conn.req.body.status) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The request body is missing the status field.'
+    );
+    return;
+  }
+
+  if (!conn.req.body.geopoint) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The request body is missing the geopoint field.'
+    );
+    return;
+  }
+
+  if (!isValidDate(conn.req.body.timestamp)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `${conn.req.body.timestamp} is not a valid timestamp.`
+    );
+    return;
+  }
+
+  if (!isValidString(conn.req.body.activityId)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `${conn.req.body.activityId} is not a valid activity-id.`
+    );
+    return;
+  }
+
+  if (!isValidString(conn.req.body.status)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `${conn.req.body.status} is not a valid status.`
+    );
+    return;
+  }
+
+  if (!isValidLocation(conn.req.body.geopoint)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `${conn.req.body.geopoint} is not a valid geopoint.`
+    );
+    return;
+  }
+
+  verifyEditPermission(conn);
 };
 
 

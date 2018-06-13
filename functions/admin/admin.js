@@ -215,14 +215,11 @@ const rootCollections = {
    * @example /Instant(auto-id)/
    */
   instant: db.collection('Instant'),
-  /** This Collection stores documents required for storing
-   * the analytics for the important operations being performed
-   * by the users each day. Unlike `Instant`, the document in the Daily
-   * collection are not deleted.
-   * Check out: `functions/admin/utils` --> `getFormattedDate()` method.
-   * @example /Daily/(formatted-date)/
-   */
-  daily: db.collection('Daily'),
+  dailySignUps: db.collection('DailySignUps'),
+  dailyReads: db.collection('DailyReads'),
+  dailyActivities: db.collection('DailyActivities'),
+  dailyDisabled: db.collection('DailyDisabled'),
+  dailyPhoneNumberUpdates: db.collection('DailyPhoneNumberUpdates'),
 };
 
 
