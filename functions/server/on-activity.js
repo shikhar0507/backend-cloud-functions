@@ -22,22 +22,10 @@
  */
 
 
-const onRead = require('../firestore/activity/on-read');
-const onCreate = require('../firestore/activity/on-create');
-const onUpdate = require('../firestore/activity/on-update');
-const onComment = require('../firestore/activity/on-comment');
-const onShare = require('../firestore/activity/on-share');
-const onRemove = require('../firestore/activity/on-remove');
-const onStatusChange = require('../firestore/activity/on-change-status');
-
 const {
   sendResponse,
   hasSupportClaims,
 } = require('../admin/utils');
-
-const {
-  parse,
-} = require('url');
 
 const {
   code,
@@ -51,7 +39,7 @@ const {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const app = (conn) => {
-  const action = parse(conn.req.url).path.split('/')[2];
+  const action = require('url').parse(conn.req.url).path.split('/')[2];
   /** Can be used to verify in the activity flow to see if the request
    * is of type support.
    */
@@ -82,6 +70,7 @@ const app = (conn) => {
       return;
     }
 
+    const onRead = require('../firestore/activity/on-read');
     onRead(conn);
     return;
   }
@@ -98,6 +87,7 @@ const app = (conn) => {
       return;
     }
 
+    const onCreate = require('../firestore/activity/on-create');
     onCreate(conn);
     return;
   }
@@ -113,6 +103,7 @@ const app = (conn) => {
       return;
     }
 
+    const onComment = require('../firestore/activity/on-comment');
     onComment(conn);
     return;
   }
@@ -123,11 +114,12 @@ const app = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /update endpoint.`
+        `${conn.req.method} is not allowed for the /update endpoint. Use PATCH.`
         + ' Use PATCH.');
       return;
     }
 
+    const onUpdate = require('../firestore/activity/on-update');
     onUpdate(conn);
     return;
   }
@@ -138,12 +130,13 @@ const app = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /share endpoint.`
+        `${conn.req.method} is not allowed for the /share endpoint. Use PATCH.`
         + ' Use PATCH.'
       );
       return;
     }
 
+    const onShare = require('../firestore/activity/on-share');
     onShare(conn);
     return;
   }
@@ -159,6 +152,7 @@ const app = (conn) => {
       return;
     }
 
+    const onStatusChange = require('../firestore/activity/on-change-status');
     onStatusChange(conn);
     return;
   }
@@ -174,6 +168,7 @@ const app = (conn) => {
       return;
     }
 
+    const onRemove = require('../firestore/activity/on-remove');
     onRemove(conn);
     return;
   }

@@ -42,10 +42,10 @@ const validateSchedule = (schedule) => {
 
 const validateVenue = (venue) => {
   if (!venue) return false;
-  if (!isValidString(venue.venueDescriptor)) return false;
-  if (!isValidString(venue.address)) return false;
-  if (!isValidString(venue.location)) return false;
-  if (!isValidLocation(venue.geopoint)) return false;
+  if (!isValidString(!venue.hasOwnProperty('venueDescriptor'))) return false;
+  if (!isValidString(!venue.hasOwnProperty('address'))) return false;
+  if (!isValidString(!venue.hasOwnProperty('location'))) return false;
+  if (!isValidLocation(!venue.hasOwnProperty('geopoint'))) return false;
 
   return true;
 };

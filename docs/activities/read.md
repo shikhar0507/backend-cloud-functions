@@ -179,8 +179,9 @@ This is the response that you will get when there are no activities found for th
                 "location": "India Gate"
             },
             "template": "plan",
+            "office": "personal",
             "status": "PENDING",
-            "attachment": null
+            "attachment": {}
         }
     ],
     "from": "1970-01-01T00:00:00.000Z",

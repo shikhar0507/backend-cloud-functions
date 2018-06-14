@@ -173,13 +173,13 @@ const createActivity = (conn) => {
   root.template = conn.req.body.template;
   root.schedule = filterSchedules(
     conn.req.body.schedule,
-    /** schedule object from the template */
+    /** The `schedule` object from the template. */
     conn.data.template.schedule
   );
 
   root.venue = filterVenues(
     conn.req.body.venue,
-    /** venue object from the template */
+    /** The `venue` object from the template. */
     conn.data.template.venue
   );
 
@@ -393,7 +393,7 @@ const processRequestType = (conn) => {
     );
     return;
   } else {
-    /** If office is not personal */
+    /** If office is not personal. */
     if (!conn.data.office.empty) {
       sendResponse(
         conn,
@@ -404,7 +404,7 @@ const processRequestType = (conn) => {
       return;
     }
 
-    /** For creating a subscription or company, an attachment is required */
+    /** For creating a subscription or company, an attachment is required. */
     if (!conn.req.body.hasOwnProperty('attachment')) {
       sendResponse(
         conn,

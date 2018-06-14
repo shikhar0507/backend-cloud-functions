@@ -10,14 +10,28 @@ query parameter: none
 
 ```json
 {
-    "activityId": string --> activityId,
-    "timestamp": number --> unix timestamp,
+    "activityId": "rthbw93Sc3YpAHbRAYFL",
+    "timestamp": 0,
     "geopoint": {
-        latitude: number,
-        longitude: number
+        latitude: 0,
+        longitude: 0
     },
-    "comment": string --> whatever the comment is
+    "comment": "A comment string."
 }
+```
+
+## JS Object for this JSON
+
+```js
+const body = {
+    activityId: 'rthbw93Sc3YpAHbRAYFL',
+    timestamp: 0,
+    geopoint: {
+        latitude: 0,
+        longitude: 0,
+    },
+    comment: 'A comment string.',
+};
 ```
 
 * An activity with the `activityId` from the request body must exist.

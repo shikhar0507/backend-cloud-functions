@@ -31,6 +31,8 @@
  */
 const isValidLocation = (location) => {
   if (!location) return false;
+  if (!location.hasOwnProperty('latitude')
+    || !location.hasOwnProperty('longitude')) return false;
 
   const lat = location.latitude;
   const lng = location.longitude;
