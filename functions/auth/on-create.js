@@ -34,6 +34,7 @@ const {
   dailySignUps,
 } = rootCollections;
 
+
 /**
  * Adds the user's `phoneNumber` to the log for the day.
  *

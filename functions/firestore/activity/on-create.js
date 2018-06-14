@@ -34,6 +34,7 @@ const {
   updates,
   activityTemplates,
   offices,
+  dailyActivities,
 } = rootCollections;
 
 const {
@@ -71,25 +72,6 @@ const commitBatch = (conn) => conn.batch.commit()
 
 
 /**
- * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
- * history of the user.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- */
-const logLocation = (conn) => {
-  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
-    .collection('Map').doc(), {
-      geopoint: getGeopointObject(conn.req.body.geopoint),
-      timestamp: new Date(conn.req.body.timestamp),
-      office: conn.req.body.office,
-      template: conn.req.body.template,
-    });
-
-  commitBatch(conn);
-};
-
-
-/**
  * Adds docs for each assignee of the activity to the batch.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
@@ -115,7 +97,7 @@ const handleAssignedUsers = (conn) => {
         merge: true,
       });
 
-    /** phone numbers exist uniquely in the Profiles root collection */
+    /** The phone numbers exist uniquely in the `/Profiles` collection. */
     promises.push(profiles.doc(val).get());
 
     conn.batch.set(profiles.doc(val).collection('Activities')
@@ -158,7 +140,7 @@ const handleAssignedUsers = (conn) => {
       }
     });
 
-    logLocation(conn);
+    commitBatch(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -171,6 +153,7 @@ const handleAssignedUsers = (conn) => {
  */
 const createActivity = (conn) => {
   const root = {};
+  root.title === '';
 
   if (typeof conn.req.body.description !== 'string') {
     root.description = '';
@@ -270,6 +253,45 @@ const createActivity = (conn) => {
 
 
 /**
+ * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
+ * history of the user.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ */
+const logLocation = (conn) => {
+  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
+    .collection('Map').doc(), {
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+      timestamp: new Date(conn.req.body.timestamp),
+      office: conn.req.body.office,
+      template: conn.req.body.template,
+    });
+
+  createActivity(conn);
+};
+
+
+/**
+ * Adds a doc in `/DailyActivities` collection in the path:
+ * `/(office name)/(template name)` with the user's phone number,
+ * timestamp of the request and the api used.
+ *
+* @param {Object} conn Contains Express' Request and Response objects.
+ */
+const updateDailyActivities = (conn) => {
+  conn.batch.set(dailyActivities.doc(new Date().toDateString())
+    .collection(conn.req.body.office).doc(conn.req.body.template), {
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      timestamp: new Date(),
+      activityId: conn.activityRef.id,
+    });
+
+  logLocation(conn);
+};
+
+
+/**
  * Adds subscription to the user's profile based on the request body.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
@@ -287,7 +309,7 @@ const createSubscription = (conn) => {
     status: conn.data.template.statusOnCreate,
   });
 
-  createActivity(conn);
+  updateDailyActivities(conn);
 };
 
 
@@ -308,7 +330,7 @@ const createCompany = (conn) => {
     ),
   });
 
-  createActivity(conn);
+  updateDailyActivities(conn);
 };
 
 
@@ -339,7 +361,7 @@ const addNewEntityInOffice = (conn) => {
     status: conn.data.template.statusOnCreate,
   });
 
-  createActivity(conn);
+  updateDailyActivities(conn);
 };
 
 
@@ -350,15 +372,15 @@ const addNewEntityInOffice = (conn) => {
  * @param {Object} conn Object containing Express Request and Response objects.
  */
 const processRequestType = (conn) => {
-  /** reference of the batch and the activity instance will be used
-   * multiple times throughout the activity creation
+  /** A reference of the batch and the activity instance will be used
+   * multiple times throughout the activity creation.
    */
   conn.activityRef = activities.doc();
   conn.batch = db.batch();
 
   if (conn.req.body.office === 'personal') {
     if (conn.req.body.template === 'plan') {
-      createActivity(conn);
+      updateDailyActivities(conn);
       return;
     }
 
@@ -367,13 +389,12 @@ const processRequestType = (conn) => {
       code.badRequest,
       `This combination of office: ${conn.req.body.office} and` +
       `template: ${conn.req.body.template} does not exist in` +
-      ' your subscriptions'
+      ' your subscriptions.'
     );
     return;
   } else {
-    /** if office is not personal */
+    /** If office is not personal */
     if (!conn.data.office.empty) {
-      /** office does not exist with the name from the request */
       sendResponse(
         conn,
         code.badRequest,
@@ -384,7 +405,7 @@ const processRequestType = (conn) => {
     }
 
     /** For creating a subscription or company, an attachment is required */
-    if (!conn.req.body.attachment) {
+    if (!conn.req.body.hasOwnProperty('attachment')) {
       sendResponse(
         conn,
         code.badRequest,
@@ -432,12 +453,12 @@ const fetchDocs = (conn) => {
   ]).then((result) => {
     conn.data = {};
 
-    /** template sent in the request body is not a doesn't exist */
+    /** A template with the name from the request body doesn't exist. */
     if (result[0].empty) {
       sendResponse(
         conn,
         code.badRequest,
-        'Template: ' + conn.req.body.template + ' does not exist'
+        `Template: ${conn.req.body.template} does not exist.`
       );
       return;
     }

@@ -50,6 +50,7 @@ const {
   profiles,
   activities,
   updates,
+  dailyPhoneNumberChanges,
 } = rootCollections;
 
 
@@ -120,6 +121,17 @@ const updateFirestoreWithNewProfile = (conn) => {
       batch.delete(profiles.doc(conn.requester.phoneNumber)
         .collection('Subscriptions').doc(doc.id));
     });
+
+    batch.set(dailyPhoneNumberChanges.doc(new Date().toDateString()), {
+      [conn.requester.phoneNumber]: {
+        timestamp: new Date(),
+      },
+    }, {
+        /** This doc *may* contain fields with other phone numbers of the
+         * users who `disabled` the same day.
+         */
+        merge: true,
+      });
 
     return batch.commit();
   }).then(() => sendResponse(conn, code.noContent))

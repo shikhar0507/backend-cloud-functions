@@ -44,7 +44,7 @@ const app = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /read endpoint.`
+        `${conn.req.method} is not allowed for the /read endpoint. Use GET.`
       );
       return;
     }
@@ -59,7 +59,7 @@ const app = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /update endpoint.`
+        `${conn.req.method} is not allowed for the /update endpoint. Use PATCH.`
       );
       return;
     }

@@ -28,7 +28,6 @@ const {
 
 const {
   rootCollections,
-  serverTimestamp,
   disableUser,
 } = require('./admin');
 
@@ -50,7 +49,7 @@ const disableAccount = (conn, reason) => {
     dailyDisabled.doc(new Date().toDateString()).set({
       [conn.requester.phoneNumber]: {
         reason,
-        timestamp: serverTimestamp,
+        timestamp: new Date(),
       },
     }, {
         /** This doc may have other fields too. */
@@ -58,7 +57,7 @@ const disableAccount = (conn, reason) => {
       }),
     profiles.doc(conn.requester.phoneNumber).set({
       disabledFor: reason,
-      disabledTimestamp: serverTimestamp,
+      disabledTimestamp: new Date(),
     }, {
         /** This doc may have other fields too. */
         merge: true,

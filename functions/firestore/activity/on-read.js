@@ -24,7 +24,6 @@
 
 const {
   rootCollections,
-  serverTimestamp,
 } = require('../../admin/admin');
 
 const {
@@ -57,16 +56,9 @@ const {
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const updateDailyCollection = (conn, jsonResult) => {
-  const data = {
-    [conn.requester.phoneNumber]: {
-      timestamp: serverTimestamp,
-      from: conn.req.query.from,
-    },
-  };
-
-  rootCollections.dailyReads.doc(new Date().toDateString())
-    .set(data, {
-      merge: true,
+  rootCollections.dailyInits.doc(new Date().toDateString())
+    .collection(conn.requester.phoneNumber).doc().set({
+      timestamp: new Date(),
     }).then(() => sendJSON(conn, jsonResult))
     .catch((error) => handleError(conn, error));
 };
@@ -84,7 +76,16 @@ const addOfficeToTemplates = (conn, jsonResult) => {
     templateObject.office = conn.officesArray[`${index}`];
   });
 
-  updateDailyCollection(conn, jsonResult);
+  /** Anyone who sends the `from` query pram as `0`, must be
+   * initializing the app first time, so this function logs
+   * their request in `/DailyInits/(Date)/(phoneNumber)/(auto-id)`.
+   */
+  if (conn.req.query.from === '0') {
+    updateDailyCollection(conn, jsonResult);
+    return;
+  }
+
+  sendJSON(conn, jsonResult);
 };
 
 
@@ -144,14 +145,14 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
 const fetchSubscriptions = (conn, jsonResult) => {
   Promise.all(conn.templatesList).then((snapShot) => {
     snapShot.forEach((doc) => {
-      if (doc.exists) {
-        jsonResult.templates.push({
-          schedule: doc.get('schedule'),
-          venue: doc.get('venue'),
-          template: doc.get('defaultTitle'),
-          attachment: doc.get('attachment') || {},
-        });
-      }
+      if (!doc.exists) return;
+
+      jsonResult.templates.push({
+        schedule: doc.get('schedule'),
+        venue: doc.get('venue'),
+        template: doc.get('defaultTitle'),
+        attachment: doc.get('attachment') || {},
+      });
     });
 
     convertActivityObjectToArray(conn, jsonResult);
@@ -177,9 +178,9 @@ const getTemplates = (conn, jsonResult) => {
       snapShot.forEach((doc) => {
         /** The `office` is required inside each template. */
         conn.officesArray.push(doc.get('office'));
-        conn.templatesList.push(
-          activityTemplates.doc(doc.get('template')).get()
-        );
+
+        conn.templatesList
+          .push(activityTemplates.doc(doc.get('template')).get());
       });
 
       fetchSubscriptions(conn, jsonResult);
@@ -221,9 +222,9 @@ const fetchAssignees = (conn, jsonResult) => {
 const fetchAttachments = (conn, jsonResult) => {
   Promise.all(conn.docRefsArray).then((snapShots) => {
     snapShots.forEach((doc) => {
-      if (doc.exists) {
-        jsonResult.activities[doc.get('activityId')].attachment = doc.data();
-      }
+      if (!doc.exists) return;
+
+      jsonResult.activities[doc.get('activityId')].attachment = doc.data();
     });
 
     fetchAssignees(conn, jsonResult);
@@ -244,7 +245,7 @@ const fetchActivities = (conn, jsonResult) => {
     conn.docRefsArray = [];
 
     snapShot.forEach((doc) => {
-      /** doc.ref.path.split('/')[1] is the activityId */
+      /** Activity-id: doc.ref.path.split('/')[1] */
       activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
 
       activityObj.status = doc.get('status');
@@ -310,7 +311,7 @@ const readAddendumsByQuery = (conn) => {
   jsonResult.activities = {};
   jsonResult.templates = [];
   jsonResult.from = conn.from;
-  /** when  no docs are found in Addendum for the given timestamp,
+  /** When  no docs are found in Addendum for the given timestamp,
    * the from and upto time will remain same.
    */
   jsonResult.upto = jsonResult.from;
@@ -318,6 +319,13 @@ const readAddendumsByQuery = (conn) => {
   updates.doc(conn.requester.uid).collection('Addendum')
     .where('timestamp', '>', conn.from)
     .orderBy('timestamp', 'asc').get().then((snapShot) => {
+      if (!snapShot.empty) {
+        /** The `timestamp` of the last addendum sorted sorted based
+         * on `timestamp`.
+         * */
+        jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
+      }
+
       snapShot.forEach((doc) => {
         jsonResult.addendum.push({
           activityId: doc.get('activityId'),
@@ -327,13 +335,6 @@ const readAddendumsByQuery = (conn) => {
           user: doc.get('user'),
         });
       }); // forEach end
-
-      if (!snapShot.empty) {
-        /** The `timestamp` of the last addendum sorted sorted based
-         * on `timestamp`.
-         * */
-        jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
-      }
 
       getActivityIdsFromProfileCollection(conn, jsonResult);
       return;

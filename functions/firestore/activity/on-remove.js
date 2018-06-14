@@ -49,6 +49,7 @@ const {
   profiles,
   updates,
   activityTemplates,
+  dailyActivities,
 } = rootCollections;
 
 
@@ -57,6 +58,27 @@ const commitBatch = (conn) => conn.batch.commit()
     conn,
     code.noContent
   )).catch((error) => handleError(conn, error));
+
+
+/**
+ * Adds a doc in `/DailyActivities` collection in the path:
+ * `/(office name)/(template name)` with the user's phone number,
+ * timestamp of the request and the api used.
+ *
+* @param {Object} conn Contains Express' Request and Response objects.
+ */
+const updateDailyActivities = (conn) => {
+  conn.batch.set(dailyActivities.doc(new Date().toDateString())
+    .collection(conn.data.activity.get('office'))
+    .doc(conn.data.activity.get('template')), {
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      timestamp: new Date(),
+      activityId: conn.req.body.activityId,
+    });
+
+  commitBatch(conn);
+};
 
 
 /**
@@ -74,7 +96,7 @@ const logLocation = (conn) => {
       template: conn.data.activity.get('template'),
     });
 
-  commitBatch(conn);
+  updateDailyActivities(conn);
 };
 
 

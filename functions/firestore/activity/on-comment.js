@@ -47,6 +47,7 @@ const {
   activities,
   updates,
   profiles,
+  dailyActivities,
 } = rootCollections;
 
 
@@ -65,6 +66,27 @@ const commitBatch = (conn) => conn.batch.commit()
 
 
 /**
+ * Adds a doc in `/DailyActivities` collection in the path:
+ * `/(office name)/(template name)` with the user's phone number,
+ * timestamp of the request and the api used.
+ *
+* @param {Object} conn Contains Express' Request and Response objects.
+ */
+const updateDailyActivities = (conn) => {
+  conn.batch.set(dailyActivities.doc(new Date().toDateString())
+    .collection(conn.data.activity.get('office'))
+    .doc(conn.data.activity.get('template')), {
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      timestamp: new Date(),
+      activityId: conn.req.body.activityId,
+    });
+
+  commitBatch(conn);
+};
+
+
+/**
 * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
 * history of the user.
 *
@@ -79,7 +101,7 @@ const logLocation = (conn) => {
       template: conn.data.activity.get('template'),
     });
 
-  commitBatch(conn);
+  updateDailyActivities(conn);
 };
 
 
@@ -112,7 +134,7 @@ const setAddendumForAssignees = (conn) => {
 
 
 /**
- * Fetches all the docs from AssignTo subcollection in the activity
+ * Fetches all the docs from '/Assignees' subcollection in the activity
  * and creates a list of profiles for which the Addendum are to be written.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
@@ -148,6 +170,7 @@ const checkCommentPermission = (conn) => {
     );
     return;
   }
+
   constructActivityAssigneesPromises(conn);
 };
 

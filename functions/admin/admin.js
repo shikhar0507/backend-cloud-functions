@@ -216,10 +216,10 @@ const rootCollections = {
    */
   instant: db.collection('Instant'),
   dailySignUps: db.collection('DailySignUps'),
-  dailyReads: db.collection('DailyReads'),
+  dailyInits: db.collection('DailyInits'),
   dailyActivities: db.collection('DailyActivities'),
   dailyDisabled: db.collection('DailyDisabled'),
-  dailyPhoneNumberUpdates: db.collection('DailyPhoneNumberUpdates'),
+  dailyPhoneNumberChanges: db.collection('DailyPhoneNumberChanges'),
 };
 
 
