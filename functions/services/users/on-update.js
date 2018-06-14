@@ -125,6 +125,7 @@ const updateFirestoreWithNewProfile = (conn) => {
     batch.set(dailyPhoneNumberChanges.doc(new Date().toDateString()), {
       [conn.requester.phoneNumber]: {
         timestamp: new Date(),
+        newPhoneNumber: conn.req.body.phoneNumber,
       },
     }, {
         /** This doc *may* contain fields with other phone numbers of the
