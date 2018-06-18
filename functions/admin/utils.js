@@ -154,10 +154,8 @@ const now = (conn) => {
 const sendResponse = (conn, statusCode, message = '') => {
   let success = true;
 
-  if ([code.ok, code.created, code.accepted, code.noContent]
-    .indexOf(statusCode) === -1) {
-    success = false;
-  }
+  /** 2xx codes denote success. */
+  if (!statusCode.toString().startsWith('2')) success = false;
 
   conn.res.writeHead(statusCode, conn.headers);
 
