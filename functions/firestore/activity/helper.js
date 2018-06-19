@@ -122,13 +122,13 @@ const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber,
  * Returns valid schedule objects and filters out invalid schedules.
  *
  * @param {Array} schedules Array of scheule objects.
- * @param {Object} scheduleFromTemplate Single schedule from template.
+ * @param {Object} scheduleObject Single schedule from template.
  */
-const filterSchedules = (schedules, scheduleFromTemplate) => {
+const filterSchedules = (schedules, scheduleObject) => {
   const schedulesArray = [];
 
   const defaultSchedule = {
-    name: scheduleFromTemplate.name,
+    name: scheduleObject.name,
     startTime: null,
     endTime: null,
   };
@@ -139,11 +139,11 @@ const filterSchedules = (schedules, scheduleFromTemplate) => {
   }
 
   schedules.forEach((schedule) => {
-    if (schedule.name !== scheduleFromTemplate.name) {
+    if (schedule.name !== scheduleObject.name) {
       return;
     }
 
-    /** schedule has startTime but not endTime */
+    /** The schedule has `startTime` but not `endTime` */
     if (!isNaN(new Date(schedule.startTime)) && !schedule.endTime) {
       schedulesArray.push({
         name: schedule.name,

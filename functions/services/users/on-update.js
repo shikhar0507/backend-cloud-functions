@@ -101,9 +101,13 @@ const updateFirestoreWithNewProfile = (conn) => {
         .doc(conn.requester.phoneNumber));
     });
 
+    let include;
     docsArray[1].forEach((doc) => {
-      let include = doc.get('include');
+      include = doc.get('include');
 
+      /** Handling for the special case with the default subscription for
+       * the user.
+       */
       if (doc.get('template') === 'plan' && doc.get('office') === 'personal') {
         include = [conn.req.body.phoneNumber];
       }
@@ -122,6 +126,7 @@ const updateFirestoreWithNewProfile = (conn) => {
         .collection('Subscriptions').doc(doc.id));
     });
 
+    /** Create log of this change. */
     batch.set(dailyPhoneNumberChanges.doc(new Date().toDateString()), {
       [conn.requester.phoneNumber]: {
         timestamp: new Date(),

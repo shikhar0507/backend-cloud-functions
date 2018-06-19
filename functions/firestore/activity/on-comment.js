@@ -121,24 +121,25 @@ const setAddendumForAssignees = (conn) => {
       });
   });
 
-  Promise.all(conn.assigneeDocPromises).then((snapShots) => {
-    snapShots.forEach((doc) => {
-      /** `uid` shouldn't be `null` OR `undefined` */
-      if (doc.exists && doc.get('uid')) {
-        conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
-          .doc(), {
-            activityId: conn.req.body.activityId,
-            user: conn.requester.displayName || conn.requester.phoneNumber,
-            comment: conn.req.body.comment,
-            location: getGeopointObject(conn.req.body.geopoint),
-            timestamp: new Date(conn.req.body.timestamp),
-          });
-      }
-    });
+  Promise.all(conn.assigneeDocPromises)
+    .then((snapShots) => {
+      snapShots.forEach((doc) => {
+        /** `uid` shouldn't be `null` OR `undefined` */
+        if (doc.exists && doc.get('uid')) {
+          conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
+            .doc(), {
+              activityId: conn.req.body.activityId,
+              user: conn.requester.displayName || conn.requester.phoneNumber,
+              comment: conn.req.body.comment,
+              location: getGeopointObject(conn.req.body.geopoint),
+              timestamp: new Date(conn.req.body.timestamp),
+            });
+        }
+      });
 
-    logLocation(conn);
-    return;
-  }).catch((error) => handleError(conn, error));
+      logLocation(conn);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -152,7 +153,10 @@ const constructActivityAssigneesPromises = (conn) => {
   conn.assigneeDocPromises = [];
   conn.assigneesPhoneNumberList = [];
 
-  activities.doc(conn.req.body.activityId).collection('Assignees').get()
+  activities
+    .doc(conn.req.body.activityId)
+    .collection('Assignees')
+    .get()
     .then((snapShot) => {
       snapShot.forEach((doc) => {
         conn.assigneeDocPromises.push(profiles.doc(doc.id).get());

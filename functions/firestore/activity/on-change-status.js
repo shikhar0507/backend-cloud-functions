@@ -110,18 +110,19 @@ const logLocation = (conn) => {
  * @param {Object} conn Contains Express Request and Response Objects.
  */
 const addAddendumForAssignees = (conn) => {
-  Promise.all(conn.data.Assignees).then((docsArray) => {
-    /** Adds addendum for all the users who have signed up via auth. */
-    docsArray.forEach((doc) => {
-      if (doc.get('uid')) {
-        conn.batch.set(updates.doc(doc.get('uid'))
-          .collection('Addendum').doc(), conn.addendum);
-      }
-    });
+  Promise.all(conn.data.Assignees)
+    .then((docsArray) => {
+      /** Adds addendum for all the users who have signed up via auth. */
+      docsArray.forEach((doc) => {
+        if (doc.get('uid')) {
+          conn.batch.set(updates.doc(doc.get('uid'))
+            .collection('Addendum').doc(), conn.addendum);
+        }
+      });
 
-    logLocation(conn);
-    return;
-  }).catch((error) => handleError(conn, error));
+      logLocation(conn);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -149,7 +150,9 @@ const updateActivityStatus = (conn) => {
  * @param {Object} conn Contains Express Request and Response Objects.
  */
 const fetchTemplate = (conn) => {
-  activityTemplates.doc(conn.data.activity.get('template')).get()
+  activityTemplates
+    .doc(conn.data.activity.get('template'))
+    .get()
     .then((doc) => {
       conn.addendum = {
         activityId: conn.req.body.activityId,
@@ -242,8 +245,12 @@ const fetchDocs = (conn) => {
  * @param {Object } conn Contains Express Request and Response Objects.
  */
 const verifyEditPermission = (conn) => {
-  profiles.doc(conn.requester.phoneNumber).collection('Activities')
-    .doc(conn.req.body.activityId).get().then((doc) => {
+  profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Activities')
+    .doc(conn.req.body.activityId)
+    .get()
+    .then((doc) => {
       if (!doc.exists) {
         /** The activity doesn't exist for the user */
         sendResponse(

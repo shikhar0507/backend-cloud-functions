@@ -56,8 +56,11 @@ const {
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const updateDailyCollection = (conn, jsonResult) => {
-  rootCollections.dailyInits.doc(new Date().toDateString())
-    .collection(conn.requester.phoneNumber).doc().set({
+  rootCollections.dailyInits
+    .doc(new Date().toDateString())
+    .collection(conn.requester.phoneNumber)
+    .doc()
+    .set({
       timestamp: new Date(),
     }).then(() => sendJSON(conn, jsonResult))
     .catch((error) => handleError(conn, error));
@@ -143,21 +146,22 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const fetchSubscriptions = (conn, jsonResult) => {
-  Promise.all(conn.templatesList).then((snapShot) => {
-    snapShot.forEach((doc) => {
-      if (!doc.exists) return;
+  Promise.all(conn.templatesList)
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        if (!doc.exists) return;
 
-      jsonResult.templates.push({
-        schedule: doc.get('schedule'),
-        venue: doc.get('venue'),
-        template: doc.get('defaultTitle'),
-        attachment: doc.get('attachment') || {},
+        jsonResult.templates.push({
+          schedule: doc.get('schedule'),
+          venue: doc.get('venue'),
+          template: doc.get('defaultTitle'),
+          attachment: doc.get('attachment') || {},
+        });
       });
-    });
 
-    convertActivityObjectToArray(conn, jsonResult);
-    return;
-  }).catch((error) => handleError(conn, error));
+      convertActivityObjectToArray(conn, jsonResult);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -168,10 +172,13 @@ const fetchSubscriptions = (conn, jsonResult) => {
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const getTemplates = (conn, jsonResult) => {
-  profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
+  profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Subscriptions')
     .where('timestamp', '>', conn.from)
     .where('timestamp', '<=', jsonResult.upto)
-    .get().then((snapShot) => {
+    .get()
+    .then((snapShot) => {
       conn.templatesList = [];
       conn.officesArray = [];
 
@@ -196,20 +203,21 @@ const getTemplates = (conn, jsonResult) => {
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const fetchAssignees = (conn, jsonResult) => {
-  Promise.all(conn.assigneeFetchPromises).then((snapShotsArray) => {
-    let activityObj;
+  Promise.all(conn.assigneeFetchPromises)
+    .then((snapShotsArray) => {
+      let activityObj;
 
-    snapShotsArray.forEach((snapShot) => {
-      snapShot.forEach((doc) => {
-        /** Activity-id: `doc.ref.path.split('/')[1]` */
-        activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
-        activityObj.assignees.push(doc.id);
+      snapShotsArray.forEach((snapShot) => {
+        snapShot.forEach((doc) => {
+          /** Activity-id: `doc.ref.path.split('/')[1]` */
+          activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
+          activityObj.assignees.push(doc.id);
+        });
       });
-    });
 
-    getTemplates(conn, jsonResult);
-    return;
-  }).catch((error) => handleError(conn, error));
+      getTemplates(conn, jsonResult);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -220,16 +228,17 @@ const fetchAssignees = (conn, jsonResult) => {
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const fetchAttachments = (conn, jsonResult) => {
-  Promise.all(conn.docRefsArray).then((snapShots) => {
-    snapShots.forEach((doc) => {
-      if (!doc.exists) return;
+  Promise.all(conn.docRefsArray)
+    .then((snapShots) => {
+      snapShots.forEach((doc) => {
+        if (!doc.exists) return;
 
-      jsonResult.activities[doc.get('activityId')].attachment = doc.data();
-    });
+        jsonResult.activities[doc.get('activityId')].attachment = doc.data();
+      });
 
-    fetchAssignees(conn, jsonResult);
-    return;
-  }).catch((error) => handleError(conn, error));
+      fetchAssignees(conn, jsonResult);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -240,33 +249,34 @@ const fetchAttachments = (conn, jsonResult) => {
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const fetchActivities = (conn, jsonResult) => {
-  Promise.all(conn.activityFetchPromises).then((snapShot) => {
-    let activityObj;
-    conn.docRefsArray = [];
+  Promise.all(conn.activityFetchPromises)
+    .then((snapShot) => {
+      let activityObj;
+      conn.docRefsArray = [];
 
-    snapShot.forEach((doc) => {
-      /** Activity-id: doc.ref.path.split('/')[1] */
-      activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
+      snapShot.forEach((doc) => {
+        /** Activity-id: doc.ref.path.split('/')[1] */
+        activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
 
-      activityObj.status = doc.get('status');
-      activityObj.schedule = doc.get('schedule');
-      activityObj.venue = doc.get('venue');
-      activityObj.timestamp = doc.get('timestamp');
-      activityObj.template = doc.get('template');
-      activityObj.title = doc.get('title');
-      activityObj.description = doc.get('description');
-      activityObj.office = doc.get('office');
-      activityObj.assignees = [];
-      activityObj.attachment = {};
+        activityObj.status = doc.get('status');
+        activityObj.schedule = doc.get('schedule');
+        activityObj.venue = doc.get('venue');
+        activityObj.timestamp = doc.get('timestamp');
+        activityObj.template = doc.get('template');
+        activityObj.title = doc.get('title');
+        activityObj.description = doc.get('description');
+        activityObj.office = doc.get('office');
+        activityObj.assignees = [];
+        activityObj.attachment = {};
 
-      if (doc.get('docRef')) {
-        conn.docRefsArray.push(doc.get('docRef').get());
-      }
-    });
+        if (doc.get('docRef')) {
+          conn.docRefsArray.push(doc.get('docRef').get());
+        }
+      });
 
-    fetchAttachments(conn, jsonResult);
-    return;
-  }).catch((error) => handleError(conn, error));
+      fetchAttachments(conn, jsonResult);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -281,9 +291,13 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.assigneeFetchPromises = [];
   conn.activityData = {};
 
-  profiles.doc(conn.requester.phoneNumber).collection('Activities')
+  profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Activities')
     .where('timestamp', '>', conn.from)
-    .where('timestamp', '<=', jsonResult.upto).get().then((snapShot) => {
+    .where('timestamp', '<=', jsonResult.upto)
+    .get()
+    .then((snapShot) => {
       snapShot.forEach((doc) => {
         conn.activityFetchPromises.push(activities.doc(doc.id).get());
         conn.assigneeFetchPromises
@@ -316,9 +330,13 @@ const readAddendumsByQuery = (conn) => {
    */
   jsonResult.upto = jsonResult.from;
 
-  updates.doc(conn.requester.uid).collection('Addendum')
+  updates
+    .doc(conn.requester.uid)
+    .collection('Addendum')
     .where('timestamp', '>', conn.from)
-    .orderBy('timestamp', 'asc').get().then((snapShot) => {
+    .orderBy('timestamp', 'asc')
+    .get()
+    .then((snapShot) => {
       if (!snapShot.empty) {
         /** The `timestamp` of the last addendum sorted sorted based
          * on `timestamp`.

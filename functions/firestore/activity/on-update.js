@@ -121,14 +121,20 @@ const updateActivityDoc = (conn) => {
   if (conn.req.body.schedule) {
     conn.update.schedule = filterSchedules(
       conn.req.body.schedule,
-      conn.data.activity.get('schedule')
+      /** The schedule is an array of objects in Firestore.
+       * For comparing the venues, we only need a single object.
+      */
+      conn.data.activity.get('schedule')[0]
     );
   }
 
   if (conn.req.body.venue) {
     conn.update.venue = filterVenues(
       conn.req.body.venue,
-      conn.data.activity.get('venue')
+      /** The venue is an array of objects in Firestore. For
+       * comparing the venues, we only need a single object.
+       */
+      conn.data.activity.get('venue')[0]
     );
   }
 
@@ -142,6 +148,8 @@ const updateActivityDoc = (conn) => {
      */
     updates.docRef = conn.docRef;
   }
+
+  console.log(conn.update);
 
   conn.batch.set(activities.doc(conn.req.body.activityId), conn.update, {
     merge: true,

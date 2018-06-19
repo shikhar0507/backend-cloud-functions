@@ -171,6 +171,7 @@ const createActivity = (conn) => {
   root.status = conn.data.template.statusOnCreate;
   root.office = conn.req.body.office;
   root.template = conn.req.body.template;
+
   root.schedule = filterSchedules(
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
@@ -398,8 +399,7 @@ const processRequestType = (conn) => {
       sendResponse(
         conn,
         code.badRequest,
-        `An office with the name: ${conn.req.body.office}`
-        + ' does not exist.'
+        `An office with the name: ${conn.req.body.office} does not exist.`
       );
       return;
     }
