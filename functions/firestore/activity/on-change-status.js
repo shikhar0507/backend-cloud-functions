@@ -111,6 +111,7 @@ const logLocation = (conn) => {
  */
 const addAddendumForAssignees = (conn) => {
   Promise.all(conn.data.Assignees).then((docsArray) => {
+    /** Adds addendum for all the users who have signed up via auth. */
     docsArray.forEach((doc) => {
       if (doc.get('uid')) {
         conn.batch.set(updates.doc(doc.get('uid'))
@@ -210,6 +211,13 @@ const fetchDocs = (conn) => {
     /** The Assignees list is required to add addendum. */
     result[1].forEach((doc) => {
       conn.data.Assignees.push(profiles.doc(doc.id).get());
+
+      conn.batch.set(profiles.doc(doc.id).collection('Activities')
+        .doc(conn.req.body.activityId), {
+          timestamp: new Date(conn.req.body.timestamp),
+        }, {
+          merge: true,
+        });
     });
 
     if (result[2].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {

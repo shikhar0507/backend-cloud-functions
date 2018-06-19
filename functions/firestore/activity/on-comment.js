@@ -112,6 +112,15 @@ const logLocation = (conn) => {
  * @param {Object} conn Object with Express Request and Response Objects.
  */
 const setAddendumForAssignees = (conn) => {
+  conn.assigneesPhoneNumberList.forEach((phoneNumber) => {
+    conn.batch.set(profiles.doc(phoneNumber).collection('Activities')
+      .doc(conn.req.body.activityId), {
+        timestamp: new Date(conn.req.body.timestamp),
+      }, {
+        merge: true,
+      });
+  });
+
   Promise.all(conn.assigneeDocPromises).then((snapShots) => {
     snapShots.forEach((doc) => {
       /** `uid` shouldn't be `null` OR `undefined` */
@@ -141,11 +150,14 @@ const setAddendumForAssignees = (conn) => {
  */
 const constructActivityAssigneesPromises = (conn) => {
   conn.assigneeDocPromises = [];
+  conn.assigneesPhoneNumberList = [];
 
   activities.doc(conn.req.body.activityId).collection('Assignees').get()
     .then((snapShot) => {
-      snapShot.forEach((doc) =>
-        conn.assigneeDocPromises.push(profiles.doc(doc.id).get()));
+      snapShot.forEach((doc) => {
+        conn.assigneeDocPromises.push(profiles.doc(doc.id).get());
+        conn.assigneesPhoneNumberList.push(doc.id);
+      });
 
       conn.batch = db.batch();
 

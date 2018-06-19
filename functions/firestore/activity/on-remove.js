@@ -116,6 +116,13 @@ const setAddendumForUsersWithUid = (conn) => {
 
   conn.data.assigneeArray.forEach((phoneNumber) => {
     promises.push(profiles.doc(phoneNumber).get());
+
+    conn.batch.set(profiles.doc(phoneNumber).collection('Activities')
+      .doc(conn.req.body.activityId), {
+        timestamp: new Date(conn.req.body.timestamp),
+      }, {
+        merge: true,
+      });
   });
 
   Promise.all(promises).then((snapShot) => {

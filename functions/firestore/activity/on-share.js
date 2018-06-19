@@ -126,11 +126,19 @@ const updateActivityDoc = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const setAddendumForUsersWithUid = (conn) => {
-  const arrayWithoutDuplicates = Array.from(new Set(conn.data.assigneeArray));
+  /** Assignee array can have duplicate elements. */
+  const assigneeListWithUniques = Array.from(new Set(conn.data.assigneeArray));
   const promises = [];
 
-  arrayWithoutDuplicates.forEach((phoneNumber) => {
+  assigneeListWithUniques.forEach((phoneNumber) => {
     promises.push(profiles.doc(phoneNumber).get());
+
+    conn.batch.set(profiles.doc(phoneNumber).collection('Activities')
+      .doc(conn.req.body.activityId), {
+        timestamp: new Date(conn.req.body.timestamp),
+      }, {
+        merge: true,
+      });
   });
 
   Promise.all(promises).then((snapShot) => {
@@ -143,7 +151,7 @@ const setAddendumForUsersWithUid = (conn) => {
         });
       }
 
-      if (doc.get('uid')) {
+      if (doc.exists && doc.get('uid')) {
         /** uid is NOT null OR undefined */
         conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
           .doc(), conn.addendum);

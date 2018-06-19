@@ -169,6 +169,15 @@ const handleAttachment = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const addAddendumForAssignees = (conn) => {
+  conn.data.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
+    conn.batch.set(profiles.doc(phoneNumber).collection('Activities')
+      .doc(conn.req.body.activityId), {
+        timestamp: new Date(conn.req.body.timestamp),
+      }, {
+        merge: true,
+      });
+  });
+
   Promise.all(conn.data.assigneesArray).then((snapShot) => {
     snapShot.forEach((doc) => {
       if (doc.get('uid')) {
@@ -245,10 +254,12 @@ const fetchDocs = (conn) => {
     conn.data.activity = result[0];
 
     conn.data.assigneesArray = [];
+    conn.data.assigneesPhoneNumbersArray = [];
 
     result[1].forEach((doc) => {
       /** The assigneesArray is required to add addendum. */
       conn.data.assigneesArray.push(profiles.doc(doc.id).get());
+      conn.data.assigneesPhoneNumbersArray.push(doc.id);
     });
 
     fetchTemplate(conn);
