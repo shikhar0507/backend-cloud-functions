@@ -78,8 +78,12 @@ const updateFirestoreWithNewProfile = (conn) => {
   const userProfile = profiles.doc(conn.requester.phoneNumber);
 
   Promise.all([
-    userProfile.collection('Activities').get(),
-    userProfile.collection('Subscriptions').get(),
+    userProfile
+      .collection('Activities')
+      .get(),
+    userProfile
+      .collection('Subscriptions')
+      .get(),
   ]).then((docsArray) => {
     docsArray[0].forEach((doc) => {
       /** Copy all activities from old profile to the new one */

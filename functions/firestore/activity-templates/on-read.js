@@ -50,14 +50,16 @@ const {
 const fetchAllTemplates = (conn) => {
   const jsonObject = {};
 
-  activityTemplates.get().then((snapShot) => {
-    snapShot.forEach((doc) => {
-      jsonObject[doc.get('name')] = doc.data();
-    });
+  activityTemplates
+    .get()
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        jsonObject[doc.get('name')] = doc.data();
+      });
 
-    sendJSON(conn, jsonObject);
-    return;
-  }).catch((error) => handleError(conn, error));
+      sendJSON(conn, jsonObject);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -68,7 +70,10 @@ const fetchAllTemplates = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const fetchSingleTemplate = (conn) => {
-  activityTemplates.where('name', '==', conn.req.query.name).limit(1).get()
+  activityTemplates
+    .where('name', '==', conn.req.query.name)
+    .limit(1)
+    .get()
     .then((snapShot) => {
       if (snapShot.empty) {
         sendResponse(

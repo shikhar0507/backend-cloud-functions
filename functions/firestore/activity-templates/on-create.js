@@ -44,14 +44,18 @@ const {
 
 
 const createTemplate = (conn, data) => {
-  rootCollections.activityTemplates.doc().set(data).then(() => {
-    sendResponse(
-      conn,
-      code.created,
-      'The template was created successfully.'
-    );
-    return;
-  }).catch((error) => handleError(conn, error));
+  rootCollections
+    .activityTemplates
+    .doc()
+    .set(data)
+    .then(() => {
+      sendResponse(
+        conn,
+        code.created,
+        'The template was created successfully.'
+      );
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -79,9 +83,12 @@ const createTemplateObject = (conn) => {
 
 
 const getTemplateByName = (conn) => {
-  rootCollections.activityTemplates
-    .where('name', '==', conn.req.body.name).limit(1)
-    .get().then((snapShot) => {
+  rootCollections
+    .activityTemplates
+    .where('name', '==', conn.req.body.name)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
       if (!snapShot.empty) {
         sendResponse(
           conn,

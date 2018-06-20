@@ -56,7 +56,8 @@ const {
  * @param {Object} jsonResult The fetched data from Firestore.
  */
 const updateDailyCollection = (conn, jsonResult) => {
-  rootCollections.dailyInits
+  rootCollections
+    .dailyInits
     .doc(new Date().toDateString())
     .collection(conn.requester.phoneNumber)
     .doc()
@@ -230,10 +231,13 @@ const fetchAssignees = (conn, jsonResult) => {
 const fetchAttachments = (conn, jsonResult) => {
   Promise.all(conn.docRefsArray)
     .then((snapShots) => {
+      let activityObj;
+
       snapShots.forEach((doc) => {
         if (!doc.exists) return;
 
-        jsonResult.activities[doc.get('activityId')].attachment = doc.data();
+        activityObj = jsonResult.activities[doc.get('activityId')];
+        activityObj.attachment = doc.data();
       });
 
       fetchAssignees(conn, jsonResult);

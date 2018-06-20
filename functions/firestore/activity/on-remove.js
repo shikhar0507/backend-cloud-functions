@@ -68,14 +68,23 @@ const commitBatch = (conn) => conn.batch.commit()
 * @param {Object} conn Contains Express' Request and Response objects.
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(dailyActivities.doc(new Date().toDateString())
-    .collection(conn.data.activity.get('office'))
-    .doc(conn.data.activity.get('template')), {
-      phoneNumber: conn.requester.phoneNumber,
-      url: conn.req.url,
-      timestamp: new Date(),
-      activityId: conn.req.body.activityId,
-    });
+  const date = new Date();
+  const office = conn.data.activity.get('office');
+  const template = conn.data.activity.get('template');
+
+  const dailyActivitiesDoc = dailyActivities
+    .doc(date.toDateString())
+    .collection(office)
+    .doc(template);
+
+  const data = {
+    phoneNumber: conn.requester.phoneNumber,
+    url: conn.req.url,
+    timestamp: date,
+    activityId: conn.req.body.activityId,
+  };
+
+  conn.batch.set(dailyActivitiesDoc, data);
 
   commitBatch(conn);
 };
@@ -88,24 +97,31 @@ const updateDailyActivities = (conn) => {
 * @param {Object} conn Contains Express' Request and Response objects.
 */
 const logLocation = (conn) => {
-  conn.batch.set(profiles.doc(conn.requester.phoneNumber).collection('Map')
-    .doc(), {
+  conn.batch.set(
+    profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Map')
+      .doc(), {
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: new Date(conn.req.body.timestamp),
       office: conn.data.activity.get('office'),
       template: conn.data.activity.get('template'),
-    });
+    }
+  );
 
   updateDailyActivities(conn);
 };
 
 
 const updateActivityDoc = (conn) => {
-  conn.batch.set(activities.doc(conn.req.body.activityId), {
-    timestamp: new Date(conn.req.body.timestamp),
-  }, {
+  conn.batch.set(
+    activities
+      .doc(conn.req.body.activityId), {
+      timestamp: new Date(conn.req.body.timestamp),
+    }, {
       merge: true,
-    });
+    }
+  );
 
   logLocation(conn);
 };
@@ -115,22 +131,35 @@ const setAddendumForUsersWithUid = (conn) => {
   const promises = [];
 
   conn.data.assigneeArray.forEach((phoneNumber) => {
-    promises.push(profiles.doc(phoneNumber).get());
+    promises.push(
+      profiles
+        .doc(phoneNumber)
+        .get()
+    );
 
-    conn.batch.set(profiles.doc(phoneNumber).collection('Activities')
-      .doc(conn.req.body.activityId), {
+    conn.batch.set(
+      profiles
+        .doc(phoneNumber)
+        .collection('Activities')
+        .doc(conn.req.body.activityId), {
         timestamp: new Date(conn.req.body.timestamp),
       }, {
         merge: true,
-      });
+      }
+    );
   });
 
   Promise.all(promises).then((snapShot) => {
     snapShot.forEach((doc) => {
       if (doc.get('uid')) {
         /** uid is NOT null OR undefined */
-        conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
-          .doc(), conn.addendum);
+        conn.batch.set(
+          updates
+            .doc(doc.get('uid'))
+            .collection('Addendum')
+            .doc(),
+          conn.addendum
+        );
       }
     });
 
@@ -147,12 +176,20 @@ const unassignFromTheActivity = (conn) => {
     if (!isValidPhoneNumber(phoneNumber)) return;
 
     /** Deleting from Assignees collection inside activity doc */
-    conn.batch.delete(activities.doc(conn.req.body.activityId)
-      .collection('Assignees').doc(phoneNumber));
+    conn.batch.delete(
+      activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(phoneNumber)
+    );
 
     /** Deleting from Activities collection inside user Profile */
-    conn.batch.delete(profiles.doc(phoneNumber)
-      .collection('Activities').doc(conn.req.body.activityId));
+    conn.batch.delete(
+      profiles
+        .doc(phoneNumber)
+        .collection('Activities')
+        .doc(conn.req.body.activityId)
+    );
 
     index = conn.data.assigneeArray.indexOf(phoneNumber);
 
@@ -167,7 +204,11 @@ const unassignFromTheActivity = (conn) => {
 
 
 const fetchTemplate = (conn) => {
-  activityTemplates.doc(conn.data.activity.get('template')).get()
+  const template = conn.data.activity.get('template');
+
+  activityTemplates
+    .doc(template)
+    .get()
     .then((doc) => {
       conn.addendum = {
         activityId: conn.req.body.activityId,
@@ -188,8 +229,13 @@ const fetchTemplate = (conn) => {
 
 const fetchDocs = (conn) => {
   Promise.all([
-    activities.doc(conn.req.body.activityId).get(),
-    activities.doc(conn.req.body.activityId).collection('Assignees').get(),
+    activities
+      .doc(conn.req.body.activityId)
+      .get(),
+    activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .get(),
   ]).then((result) => {
     if (!result[0].exists) {
       /** This case should probably never execute becase there is NO provision
@@ -224,8 +270,12 @@ const fetchDocs = (conn) => {
 
 
 const verifyEditPermission = (conn) => {
-  profiles.doc(conn.requester.phoneNumber).collection('Activities')
-    .doc(conn.req.body.activityId).get().then((doc) => {
+  profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Activities')
+    .doc(conn.req.body.activityId)
+    .get()
+    .then((doc) => {
       if (!doc.exists) {
         /** The activity does not exist in the system (OR probably
          * only for the user). */

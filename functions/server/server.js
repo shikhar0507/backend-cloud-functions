@@ -80,22 +80,26 @@ const handleRequestPath = (conn) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const verifyUidAndPhoneNumberCombination = (conn) => {
-  rootCollections.profiles.doc(conn.requester.phoneNumber).get().then((doc) => {
-    if (doc.get('uid') !== conn.requester.uid) {
-      /** The user probably managed to change their phone number by something
-       * other than out provided endpoint for updating the `auth`.
-       * Disabling their account because this is not allowed.
-       */
-      disableAccount(
-        conn,
-        'The uid and phone number of the requester does not match.'
-      );
-      return;
-    }
+  rootCollections
+    .profiles
+    .doc(conn.requester.phoneNumber)
+    .get()
+    .then((doc) => {
+      if (doc.get('uid') !== conn.requester.uid) {
+        /** The user probably managed to change their phone number by something
+         * other than out provided endpoint for updating the `auth`.
+         * Disabling their account because this is not allowed.
+         */
+        disableAccount(
+          conn,
+          'The uid and phone number of the requester does not match.'
+        );
+        return;
+      }
 
-    handleRequestPath(conn);
-    return;
-  }).catch((error) => handleError(conn, error));
+      handleRequestPath(conn);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -105,22 +109,24 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const getCreatorsPhoneNumber = (conn) => {
-  users.getUserByUid(conn.requester.uid).then((userRecord) => {
-    if (userRecord.disabled) {
-      /** users with disabled accounts cannot request any operation **/
-      sendResponse(conn, code.forbidden, 'Your account is disabled.');
+  users
+    .getUserByUid(conn.requester.uid)
+    .then((userRecord) => {
+      if (userRecord.disabled) {
+        /** users with disabled accounts cannot request any operation **/
+        sendResponse(conn, code.forbidden, 'Your account is disabled.');
+        return;
+      }
+
+      if (userRecord.customClaims) {
+        conn.requester.customClaims = userRecord.customClaims;
+      }
+
+      conn.requester.phoneNumber = userRecord.phoneNumber;
+
+      verifyUidAndPhoneNumberCombination(conn);
       return;
-    }
-
-    if (userRecord.customClaims) {
-      conn.requester.customClaims = userRecord.customClaims;
-    }
-
-    conn.requester.phoneNumber = userRecord.phoneNumber;
-
-    verifyUidAndPhoneNumberCombination(conn);
-    return;
-  }).catch((error) => handleError(conn, error));
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -156,7 +162,8 @@ const checkAuthorizationToken = (conn) => {
   /** Checks if the token was revoked recently when set to `true` */
   const checkRevoked = true;
 
-  users.verifyIdToken(authorization.split('Bearer ')[1], checkRevoked)
+  users
+    .verifyIdToken(authorization.split('Bearer ')[1], checkRevoked)
     .then((decodedIdToken) => {
       /** Object to identify the requester throughout the flow. */
       conn.requester = {};

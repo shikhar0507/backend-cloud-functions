@@ -30,9 +30,6 @@ const {
   code,
 } = require('../admin/responses');
 
-const {
-  parse,
-} = require('url');
 
 const app = (conn) => {
   if (!conn.requester.customClaims) {
@@ -44,7 +41,7 @@ const app = (conn) => {
     return;
   }
 
-  const action = parse(conn.req.url).path.split('/')[3];
+  const action = require('url').parse(conn.req.url).path.split('/')[3];
 
   if (action === 'permissions') {
     if (conn.req.method !== 'PUT') {

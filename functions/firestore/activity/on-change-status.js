@@ -71,14 +71,20 @@ const commitBatch = (conn) => conn.batch.commit()
 * @param {Object} conn Contains Express' Request and Response objects.
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(dailyActivities.doc(new Date().toDateString())
+  const date = new Date();
+  const dailyActivitiesDoc = dailyActivities
+    .doc(date.toDateString())
     .collection(conn.data.activity.get('office'))
-    .doc(conn.data.activity.get('template')), {
-      phoneNumber: conn.requester.phoneNumber,
-      url: conn.req.url,
-      timestamp: new Date(),
-      activityId: conn.req.body.activityId,
-    });
+    .doc(conn.data.activity.get('template'));
+
+  const data = {
+    phoneNumber: conn.requester.phoneNumber,
+    url: conn.req.url,
+    timestamp: date,
+    activityId: conn.req.body.activityId,
+  };
+
+  conn.batch.set(dailyActivitiesDoc, data);
 
   commitBatch(conn);
 };
@@ -91,13 +97,17 @@ const updateDailyActivities = (conn) => {
 * @param {Object} conn Contains Express' Request and Response objects.
 */
 const logLocation = (conn) => {
-  conn.batch.set(profiles.doc(conn.requester.phoneNumber).collection('Map')
-    .doc(), {
+  conn.batch.set(
+    profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Map')
+      .doc(), {
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: new Date(conn.req.body.timestamp),
       office: conn.data.activity.get('office'),
       template: conn.data.activity.get('template'),
-    });
+    }
+  );
 
   updateDailyActivities(conn);
 };
@@ -115,8 +125,13 @@ const addAddendumForAssignees = (conn) => {
       /** Adds addendum for all the users who have signed up via auth. */
       docsArray.forEach((doc) => {
         if (doc.get('uid')) {
-          conn.batch.set(updates.doc(doc.get('uid'))
-            .collection('Addendum').doc(), conn.addendum);
+          conn.batch.set(
+            updates
+              .doc(doc.get('uid'))
+              .collection('Addendum')
+              .doc(),
+            conn.addendum
+          );
         }
       });
 
@@ -132,12 +147,15 @@ const addAddendumForAssignees = (conn) => {
  * @param {Object} conn Contains Express Request and Response Objects.
  */
 const updateActivityStatus = (conn) => {
-  conn.batch.set(activities.doc(conn.req.body.activityId), {
-    status: conn.req.body.status,
-    timestamp: new Date(conn.req.body.timestamp),
-  }, {
+  conn.batch.set(
+    activities
+      .doc(conn.req.body.activityId), {
+      status: conn.req.body.status,
+      timestamp: new Date(conn.req.body.timestamp),
+    }, {
       merge: true,
-    });
+    }
+  );
 
   addAddendumForAssignees(conn);
 };
@@ -164,7 +182,6 @@ const fetchTemplate = (conn) => {
       };
 
       updateActivityStatus(conn);
-
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -178,9 +195,16 @@ const fetchTemplate = (conn) => {
  */
 const fetchDocs = (conn) => {
   Promise.all([
-    activities.doc(conn.req.body.activityId).get(),
-    activities.doc(conn.req.body.activityId).collection('Assignees').get(),
-    enums.doc('ACTIVITYSTATUS').get(),
+    activities
+      .doc(conn.req.body.activityId)
+      .get(),
+    activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .get(),
+    enums
+      .doc('ACTIVITYSTATUS')
+      .get(),
   ]).then((result) => {
     if (!result[0].exists) {
       /** This case should probably never execute becase there is provision
@@ -215,12 +239,16 @@ const fetchDocs = (conn) => {
     result[1].forEach((doc) => {
       conn.data.Assignees.push(profiles.doc(doc.id).get());
 
-      conn.batch.set(profiles.doc(doc.id).collection('Activities')
-        .doc(conn.req.body.activityId), {
+      conn.batch.set(
+        profiles
+          .doc(doc.id)
+          .collection('Activities')
+          .doc(conn.req.body.activityId), {
           timestamp: new Date(conn.req.body.timestamp),
         }, {
           merge: true,
-        });
+        }
+      );
     });
 
     if (result[2].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {

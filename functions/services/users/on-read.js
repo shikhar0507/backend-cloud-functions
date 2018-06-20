@@ -87,34 +87,35 @@ const app = (conn) => {
   let phoneNumber;
   let record;
 
-  Promise.all(promises).then((userRecords) => {
-    userRecords.forEach((userRecord) => {
-      phoneNumber = Object.keys(userRecord)[0];
-      record = userRecord[`${phoneNumber}`];
+  Promise.all(promises)
+    .then((userRecords) => {
+      userRecords.forEach((userRecord) => {
+        phoneNumber = Object.keys(userRecord)[0];
+        record = userRecord[`${phoneNumber}`];
 
-      /** The `superUser` can access user's `metadata` and `customClaims`. */
-      if (conn.req.query.as === 'su') {
+        /** The `superUser` can access user's `metadata` and `customClaims`. */
+        if (conn.req.query.as === 'su') {
+          jsonResponse[`${phoneNumber}`] = {
+            displayName: record.displayName || '',
+            photoURL: record.photoURL || '',
+            disabled: record.disabled || '',
+            metadata: record.metadata || '',
+            customClaims: record.customClaims || {},
+          };
+          return;
+        }
+
         jsonResponse[`${phoneNumber}`] = {
-          displayName: record.displayName || '',
           photoURL: record.photoURL || '',
-          disabled: record.disabled || '',
-          metadata: record.metadata || '',
-          customClaims: record.customClaims || {},
+          displayName: record.displayName || '',
+          lastSignInTime: record.lastSignInTime || '',
         };
-        return;
-      }
+      });
 
-      jsonResponse[`${phoneNumber}`] = {
-        photoURL: record.photoURL || '',
-        displayName: record.displayName || '',
-        lastSignInTime: record.lastSignInTime || '',
-      };
-    });
-
-    /** Response ends here. */
-    sendJSON(conn, jsonResponse);
-    return;
-  }).catch((error) => handleError(conn, error));
+      /** Response ends here. */
+      sendJSON(conn, jsonResponse);
+      return;
+    }).catch((error) => handleError(conn, error));
 };
 
 

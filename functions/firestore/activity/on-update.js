@@ -72,14 +72,20 @@ const commitBatch = (conn) => conn.batch.commit()
 * @param {Object} conn Contains Express' Request and Response objects.
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(dailyActivities.doc(new Date().toDateString())
-    .collection(conn.data.activity.get('office'))
-    .doc(conn.data.activity.get('template')), {
-      phoneNumber: conn.requester.phoneNumber,
-      url: conn.req.url,
-      timestamp: new Date(),
-      activityId: conn.req.body.activityId,
-    });
+  const dailyActivitiesDoc =
+    dailyActivities
+      .doc(new Date().toDateString())
+      .collection(conn.data.activity.get('office'))
+      .doc(conn.data.activity.get('template'));
+
+  const data = {
+    phoneNumber: conn.requester.phoneNumber,
+    url: conn.req.url,
+    timestamp: new Date(),
+    activityId: conn.req.body.activityId,
+  };
+
+  conn.batch.set(dailyActivitiesDoc, data);
 
   commitBatch(conn);
 };
@@ -92,13 +98,20 @@ const updateDailyActivities = (conn) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const logLocation = (conn) => {
-  conn.batch.set(profiles.doc(conn.requester.phoneNumber).collection('Map')
-    .doc(), {
-      geopoint: getGeopointObject(conn.req.body.geopoint),
-      timestamp: new Date(conn.req.body.timestamp),
-      office: conn.data.activity.get('office'),
-      template: conn.data.activity.get('template'),
-    });
+  const locationDoc =
+    profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Map')
+      .doc();
+
+  const data = {
+    geopoint: getGeopointObject(conn.req.body.geopoint),
+    timestamp: new Date(conn.req.body.timestamp),
+    office: conn.data.activity.get('office'),
+    template: conn.data.activity.get('template'),
+  };
+
+  conn.batch.set(locationDoc, data);
 
   updateDailyActivities(conn);
 };
@@ -149,11 +162,13 @@ const updateActivityDoc = (conn) => {
     updates.docRef = conn.docRef;
   }
 
-  console.log(conn.update);
-
-  conn.batch.set(activities.doc(conn.req.body.activityId), conn.update, {
-    merge: true,
-  });
+  conn.batch.set(
+    activities
+      .doc(conn.req.body.activityId),
+    conn.update, {
+      merge: true,
+    }
+  );
 
   logLocation(conn);
 };
@@ -178,19 +193,28 @@ const handleAttachment = (conn) => {
  */
 const addAddendumForAssignees = (conn) => {
   conn.data.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
-    conn.batch.set(profiles.doc(phoneNumber).collection('Activities')
-      .doc(conn.req.body.activityId), {
+    conn.batch.set(
+      profiles
+        .doc(phoneNumber)
+        .collection('Activities')
+        .doc(conn.req.body.activityId), {
         timestamp: new Date(conn.req.body.timestamp),
       }, {
         merge: true,
-      });
+      }
+    );
   });
 
   Promise.all(conn.data.assigneesArray).then((snapShot) => {
     snapShot.forEach((doc) => {
       if (doc.get('uid')) {
-        conn.batch.set(updates.doc(doc.get('uid'))
-          .collection('Addendum').doc(), conn.addendum);
+        conn.batch.set(
+          updates
+            .doc(doc.get('uid'))
+            .collection('Addendum')
+            .doc(),
+          conn.addendum
+        );
       }
     });
 
@@ -214,13 +238,15 @@ const addAddendumForAssignees = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const fetchTemplate = (conn) => {
-  activityTemplates.doc(conn.data.activity.get('template')).get()
+  activityTemplates
+    .doc(conn.data.activity.get('template'))
+    .get()
     .then((doc) => {
       conn.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: conn.requester.displayName || conn.requester.phoneNumber +
-          ' updated ' + doc.get('defaultTitle'),
+        comment: conn.requester.displayName || conn.requester.phoneNumber
+          + ' updated ' + doc.get('defaultTitle'),
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: new Date(conn.req.body.timestamp),
       };
@@ -240,8 +266,13 @@ const fetchTemplate = (conn) => {
  */
 const fetchDocs = (conn) => {
   Promise.all([
-    activities.doc(conn.req.body.activityId).get(),
-    activities.doc(conn.req.body.activityId).collection('Assignees').get(),
+    activities
+      .doc(conn.req.body.activityId)
+      .get(),
+    activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .get(),
   ]).then((result) => {
     if (!result[0].exists) {
       /** This case should probably never execute becase there is provision
@@ -282,8 +313,12 @@ const fetchDocs = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  */
 const verifyEditPermission = (conn) => {
-  profiles.doc(conn.requester.phoneNumber).collection('Activities')
-    .doc(conn.req.body.activityId).get().then((doc) => {
+  profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Activities')
+    .doc(conn.req.body.activityId)
+    .get()
+    .then((doc) => {
       if (!doc.exists) {
         /** The activity doesn't exist for the user */
         sendResponse(

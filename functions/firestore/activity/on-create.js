@@ -21,6 +21,7 @@
  *
  */
 
+// TODO: Refactor this file fully.
 
 const {
   rootCollections,
@@ -85,8 +86,11 @@ const handleAssignedUsers = (conn) => {
   conn.req.body.share.forEach((val) => {
     if (!isValidPhoneNumber(val)) return;
 
-    conn.batch.set(activities.doc(conn.activityRef.id)
-      .collection('Assignees').doc(val), {
+    conn.batch.set(
+      activities
+        .doc(conn.activityRef.id)
+        .collection('Assignees')
+        .doc(val), {
         canEdit: handleCanEdit(
           conn.data.subscription,
           val,
@@ -100,8 +104,11 @@ const handleAssignedUsers = (conn) => {
     /** The phone numbers exist uniquely in the `/Profiles` collection. */
     promises.push(profiles.doc(val).get());
 
-    conn.batch.set(profiles.doc(val).collection('Activities')
-      .doc(conn.activityRef.id), {
+    conn.batch.set(
+      profiles
+        .doc(val)
+        .collection('Activities')
+        .doc(conn.activityRef.id), {
         canEdit: handleCanEdit(
           conn.data.subscription,
           val,
@@ -121,8 +128,11 @@ const handleAssignedUsers = (conn) => {
           uid: null,
         });
 
-        conn.batch.set(profiles.doc(doc.id).collection('Activities')
-          .doc(conn.activityRef.id), {
+        conn.batch.set(
+          profiles
+            .doc(doc.id)
+            .collection('Activities')
+            .doc(conn.activityRef.id), {
             canEdit: handleCanEdit(
               conn.data.subscription,
               doc.id,
@@ -135,8 +145,13 @@ const handleAssignedUsers = (conn) => {
 
       /** uid shouldn't be null OR undefined */
       if (doc.exists && doc.get('uid')) {
-        conn.batch.set(updates.doc(doc.get('uid')).collection('Addendum')
-          .doc(), conn.addendumData);
+        conn.batch.set(
+          updates
+            .doc(doc.get('uid'))
+            .collection('Addendum')
+            .doc(),
+          conn.addendumData
+        );
       }
     });
 
@@ -153,7 +168,7 @@ const handleAssignedUsers = (conn) => {
  */
 const createActivity = (conn) => {
   const root = {};
-  root.title === '';
+  root.title === conn.req.body.title || '';
 
   if (typeof conn.req.body.description !== 'string') {
     root.description = '';
@@ -172,17 +187,19 @@ const createActivity = (conn) => {
   root.office = conn.req.body.office;
   root.template = conn.req.body.template;
 
-  root.schedule = filterSchedules(
-    conn.req.body.schedule,
-    /** The `schedule` object from the template. */
-    conn.data.template.schedule
-  );
+  root
+    .schedule = filterSchedules(
+      conn.req.body.schedule,
+      /** The `schedule` object from the template. */
+      conn.data.template.schedule
+    );
 
-  root.venue = filterVenues(
-    conn.req.body.venue,
-    /** The `venue` object from the template. */
-    conn.data.template.venue
-  );
+  root
+    .venue = filterVenues(
+      conn.req.body.venue,
+      /** The `venue` object from the template. */
+      conn.data.template.venue
+    );
 
   root.timestamp = new Date(conn.req.body.timestamp);
 
@@ -210,16 +227,24 @@ const createActivity = (conn) => {
   };
 
   /** The addendum doc is always created for the requester */
-  conn.batch.set(updates.doc(conn.requester.uid)
-    .collection('Addendum').doc(), conn.addendumData);
+  conn.batch.set(
+    updates
+      .doc(conn.requester.uid)
+      .collection('Addendum')
+      .doc(),
+    conn.addendumData
+  );
 
   /** The 'include' array will always have the requester's
    * phone number, so we don't need to explictly add their number
    * in order to add them to a batch.
    */
   conn.data.subscription.include.forEach((val) => {
-    conn.batch.set(activities.doc(conn.activityRef.id)
-      .collection('Assignees').doc(val), {
+    conn.batch.set(
+      activities
+        .doc(conn.activityRef.id)
+        .collection('Assignees')
+        .doc(val), {
         canEdit: handleCanEdit(
           conn.data.subscription,
           val,
@@ -229,8 +254,11 @@ const createActivity = (conn) => {
       });
   });
 
-  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
-    .collection('Activities').doc(conn.activityRef.id), {
+  conn.batch.set(
+    profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Activities')
+      .doc(conn.activityRef.id), {
       canEdit: handleCanEdit(
         conn.data.subscription,
         /** The phone Number to check and the one with which we are
@@ -260,8 +288,11 @@ const createActivity = (conn) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  */
 const logLocation = (conn) => {
-  conn.batch.set(profiles.doc(conn.requester.phoneNumber)
-    .collection('Map').doc(), {
+  conn.batch.set(
+    profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Map')
+      .doc(), {
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: new Date(conn.req.body.timestamp),
       office: conn.req.body.office,
@@ -280,13 +311,21 @@ const logLocation = (conn) => {
 * @param {Object} conn Contains Express' Request and Response objects.
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(dailyActivities.doc(new Date().toDateString())
-    .collection(conn.req.body.office).doc(conn.req.body.template), {
-      phoneNumber: conn.requester.phoneNumber,
-      url: conn.req.url,
-      timestamp: new Date(),
-      activityId: conn.activityRef.id,
-    });
+  const date = new Date();
+  const data = {
+    phoneNumber: conn.requester.phoneNumber,
+    url: conn.req.url,
+    timestamp: date,
+    activityId: conn.activityRef.id,
+  };
+
+  conn.batch.set(
+    dailyActivities
+      .doc(date.toDateString())
+      .collection(conn.req.body.office)
+      .doc(conn.req.body.template),
+    data
+  );
 
   logLocation(conn);
 };
@@ -298,17 +337,50 @@ const updateDailyActivities = (conn) => {
  * @param {Object} conn Object containing Express Request and Response objects.
  */
 const createSubscription = (conn) => {
-  conn.docRef = profiles.doc(conn.requester.phoneNumber)
-    .collection('Subscriptions').doc();
+  conn.docRef = profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Subscriptions')
+    .doc();
 
-  conn.batch.set(conn.docRef, {
-    include: [conn.requester.phoneNumber],
-    timestamp: new Date(conn.req.body.timestamp),
-    template: conn.data.subscription.id,
-    office: conn.req.body.office,
-    activityId: conn.activityRef.id,
-    status: conn.data.template.statusOnCreate,
-  });
+  const tempDoc = {};
+
+  const attachment = attachmentCreator(
+    conn.req.body.attachment,
+    conn.data.template.attachment
+  );
+
+  /** Add `ALL` fields from attachment to the subscription document. */
+  Object
+    .keys(attachment)
+    .forEach((key) => tempDoc[`${key}`] = attachment[`${key}`]);
+
+  const schedule = filterSchedules(
+    conn.req.body.schedule,
+    /** The `schedule` object from the template. */
+    conn.data.template.schedule
+  )[0]; /** Only one schedule is required. */
+
+  const venue = filterVenues(
+    conn.req.body.venue,
+    /** The `venue` object from the template. */
+    conn.data.template.venue
+  )[0]; /** Only one venue is required. */
+
+  tempDoc[`${schedule.name}`] = {
+    startTime: schedule.startTime,
+    endTime: schedule.endTime,
+  };
+
+  tempDoc[`${venue.venueDescriptor}`] = {
+    address: venue.address,
+    location: venue.location,
+    geopoint: getGeopointObject(venue.geopoint),
+  };
+
+  tempDoc.status = conn.data.template.statusOnCreate;
+  tempDoc.office = conn.req.body.office;
+
+  conn.batch.set(conn.docRef, tempDoc);
 
   updateDailyActivities(conn);
 };
@@ -321,15 +393,51 @@ const createSubscription = (conn) => {
  * @param {Object} conn Object containing Express Request and Response objects.
  */
 const createCompany = (conn) => {
-  conn.docRef = offices.doc(conn.req.body.office);
+  conn.docRef = offices.doc(conn.activityRef.id);
 
-  conn.batch.set(conn.docRef, {
-    activityId: conn.activityRef.id,
-    attachment: attachmentCreator(
-      conn.req.body.attachment,
-      conn.data.template.attachment
-    ),
-  });
+  const tempDoc = {};
+
+  const attachment = attachmentCreator(
+    conn.req.body.attachment,
+    conn.data.template.attachment
+  );
+
+  /** Add `ALL` fields from attachment to the company (office) document. */
+  Object
+    .keys(attachment)
+    .forEach((key) => tempDoc[`${key}`] = attachment[`${key}`]);
+
+  tempDoc.name = conn.req.body.office;
+
+  const schedule = filterSchedules(
+    conn.req.body.schedule,
+    /** The `schedule` object from the template. */
+    conn.data.template.schedule
+  )[0]; /** Only one schedule is required. */
+
+  const venue = filterVenues(
+    conn.req.body.venue,
+    /** The `venue` object from the template. */
+    conn.data.template.venue
+  )[0]; /** Only one venue is required. */
+
+  tempDoc[`${schedule.name}`] = {
+    startTime: schedule.startTime,
+    endTime: schedule.endTime,
+  };
+
+  tempDoc[`${venue.venueDescriptor}`] = {
+    address: venue.address,
+    location: venue.location,
+    geopoint: getGeopointObject(venue.geopoint),
+  };
+
+  tempDoc.status = conn.data.template.statusOnCreate;
+  tempDoc.name = conn.req.body.office;
+  /** Template field is set in office. */
+  tempDoc.template = conn.req.body.template;
+
+  conn.batch.set(conn.docRef, tempDoc);
 
   updateDailyActivities(conn);
 };
@@ -342,25 +450,56 @@ const createCompany = (conn) => {
  * @param {Object} conn Object containing Express Request and Response objects.
  */
 const addNewEntityInOffice = (conn) => {
-  conn.docRef = offices.doc(conn.req.body.office)
-    .collection(conn.req.body.template).doc();
+  /** Office ID: conn.data.office.docs[0].id */
+  conn.docRef = offices
+    .doc(conn.data.office.docs[0].id)
+    /** Collection names are `ALWAYS` plural. */
+    .collection(conn.req.body.template + 's')
+    .doc(conn.activityRef.id);
 
-  conn.batch.set(conn.docRef, {
-    attachment: attachmentCreator(
-      conn.req.body.attachment,
-      conn.data.template.attachment
-    ),
-    schedule: filterSchedules(
-      conn.req.body.schedule,
-      conn.data.template.schedule
-    ),
-    venue: filterVenues(
-      conn.req.body.venue,
-      conn.data.template.venue
-    ),
-    activityId: conn.activityRef.id,
-    status: conn.data.template.statusOnCreate,
-  });
+  const tempDoc = {};
+
+  const attachment = attachmentCreator(
+    conn.req.body.attachment,
+    conn.data.template.attachment
+  );
+
+  /** Add `ALL` fields from attachment to the company (office) document. */
+  Object
+    .keys(attachment)
+    .forEach((key) => tempDoc[`${key}`] = attachment[`${key}`]);
+
+  tempDoc.name = conn.req.body.office;
+
+  const schedule = filterSchedules(
+    conn.req.body.schedule,
+    /** The `schedule` object from the template. */
+    conn.data.template.schedule
+  )[0]; /** Only one schedule is required. */
+
+  const venue = filterVenues(
+    conn.req.body.venue,
+    /** The `venue` object from the template. */
+    conn.data.template.venue
+  )[0]; /** Only one venue is required. */
+
+  tempDoc[`${schedule.name}`] = {
+    startTime: schedule.startTime,
+    endTime: schedule.endTime,
+  };
+
+  tempDoc[`${venue.venueDescriptor}`] = {
+    address: venue.address,
+    location: venue.location,
+    geopoint: getGeopointObject(venue.geopoint),
+  };
+
+  tempDoc.status = conn.data.template.statusOnCreate;
+  tempDoc.name = conn.req.body.office;
+  /** Template field is set in office. */
+  tempDoc.template = conn.req.body.template;
+
+  conn.batch.set(conn.docRef, tempDoc);
 
   updateDailyActivities(conn);
 };
@@ -388,47 +527,52 @@ const processRequestType = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `This combination of office: ${conn.req.body.office} and` +
-      `template: ${conn.req.body.template} does not exist in` +
-      ' your subscriptions.'
+      `This combination of office: ${conn.req.body.office} and`
+      + ` template: ${conn.req.body.template} does not exist in`
+      + ' your subscriptions.'
     );
     return;
-  } else {
-    /** If office is not personal. */
-    if (!conn.data.office.empty) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `An office with the name: ${conn.req.body.office} does not exist.`
-      );
-      return;
-    }
-
-    /** For creating a subscription or company, an attachment is required. */
-    if (!conn.req.body.hasOwnProperty('attachment')) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        'Attachment is not present in the request body'
-      );
-      return;
-    }
-
-    if (conn.req.body.template === 'subscription') {
-      createSubscription(conn);
-      return;
-    }
-
-    if (conn.req.body.template === 'company') {
-      createCompany(conn);
-      return;
-    }
-
-    addNewEntityInOffice(conn);
   }
+
+  if (!conn.data.office.empty) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `An office with the name: ${conn.req.body.office} does not exist.`
+    );
+    return;
+  }
+
+  /** For creating a subscription or company, an attachment is required. */
+  if (!conn.req.body.hasOwnProperty('attachment')) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'Attachment is not present in the request body'
+    );
+    return;
+  }
+
+  if (conn.req.body.template === 'subscription') {
+    createSubscription(conn);
+    return;
+  }
+
+  if (conn.req.body.template === 'company') {
+    createCompany(conn);
+    return;
+  }
+
+  addNewEntityInOffice(conn);
 };
 
 
+/**
+ * Adds the `canEditRule` from the request body to a temporary
+ * object in `conn.data`.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ */
 const handleSupportRequest = (conn) => {
   /** For support requests, the canEditRule will be used from the
    * request body and not from the user's subscription.
@@ -445,12 +589,22 @@ const handleSupportRequest = (conn) => {
  */
 const fetchDocs = (conn) => {
   Promise.all([
-    activityTemplates.where('name', '==', conn.req.body.template)
-      .limit(1).get(),
-    profiles.doc(conn.requester.phoneNumber).collection('Subscriptions')
-      .where('template', '==', conn.req.body.template).limit(1).get(),
-    offices.where('name', '==', conn.req.body.office).limit(1).get(),
+    activityTemplates
+      .where('name', '==', conn.req.body.template)
+      .limit(1)
+      .get(),
+    profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Subscriptions')
+      .where('template', '==', conn.req.body.template)
+      .limit(1)
+      .get(),
+    offices
+      .where('name', '==', conn.req.body.office)
+      .limit(1)
+      .get(),
   ]).then((result) => {
+    /** Stores all the temporary data for creating the activity. */
     conn.data = {};
 
     /** A template with the name from the request body doesn't exist. */
@@ -479,9 +633,10 @@ const fetchDocs = (conn) => {
 
     if (result[1].empty) {
       /** The template with that field does not exist in the user's
-       * subscriptions. This probably means that they are either not subscribed
-       *  to the template that they requested to create the activity
-       * with, OR the template with that name simply does not exist.
+       * subscriptions. This probably means that they are either
+       * not subscribed to the template that they requested
+       * to create the activity with, OR the template with
+       * that name simply does not exist.
        */
       sendResponse(
         conn,
@@ -501,7 +656,7 @@ const fetchDocs = (conn) => {
         conn,
         code.forbidden,
         'You do not have the permission to create' +
-        ` an activity with the template ${conn.req.body.template}.`
+        ` an activity with the template: ${conn.req.body.template}.`
       );
       return;
     }
@@ -512,6 +667,12 @@ const fetchDocs = (conn) => {
 };
 
 
+/**
+ * Checks if the request body has `ALL` the *required* fields like `timestamp`,
+ * `geopoint`, `office`, and the `template`.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ */
 const isValidRequestBody = (conn) => {
   if (isValidDate(conn.req.body.timestamp)
     && isValidString(conn.req.body.template)
@@ -533,12 +694,21 @@ const isValidRequestBody = (conn) => {
 
 
 const verifyCanEditRuleFromRequestBody = (conn) => {
+  if (!conn.req.body.hasOwnProperty('canEditRule')) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The canEditRule is missing from the request body.'
+    );
+    return;
+  }
+
   if (['ALL', 'NONE', 'FROM_INCLUDE', 'PEOPLE_TYPE', 'CREATOR']
     .indexOf(conn.req.body.canEditRule) === -1) {
     sendResponse(
       conn,
       code.badRequest,
-      'The canEditRule is invalid/missing from the request body.'
+      'The canEditRule is invalid in the request body.'
     );
     return;
   }

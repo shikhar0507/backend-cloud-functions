@@ -53,7 +53,8 @@ const {
  * @param {Object} response Object to store the logging data.
  */
 const setClaims = (conn, user, claims, response) => {
-  users.setCustomUserClaims(user.uid, claims)
+  users
+    .setCustomUserClaims(user.uid, claims)
     .then(() => {
       response.code = code.noContent;
       createInstantLog(conn, response);
@@ -93,20 +94,22 @@ const createClaimsObject = (conn, user, response) => {
  * @param {Object} response Object to store the logging data.
  */
 const fetchUserRecord = (conn, response) => {
-  users.getUserByPhoneNumber(conn.req.body.phoneNumber).then((userRecord) => {
-    const user = userRecord[conn.req.body.phoneNumber];
+  users
+    .getUserByPhoneNumber(conn.req.body.phoneNumber)
+    .then((userRecord) => {
+      const user = userRecord[conn.req.body.phoneNumber];
 
-    if (!user.uid) {
-      response.code = code.conflict;
-      response.message = `${conn.req.body.phoneNumber} does not exist.`;
-      response.resourcesAccessed.push('user record');
-      createInstantLog(conn, response);
+      if (!user.uid) {
+        response.code = code.conflict;
+        response.message = `${conn.req.body.phoneNumber} does not exist.`;
+        response.resourcesAccessed.push('user record');
+        createInstantLog(conn, response);
+        return;
+      }
+
+      createClaimsObject(conn, user, response);
       return;
-    }
-
-    createClaimsObject(conn, user, response);
-    return;
-  }).catch((error) => handleError(conn, error));
+    }).catch((error) => handleError(conn, error));
 };
 
 

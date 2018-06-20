@@ -51,12 +51,14 @@ const {
 
 
 const updateTemplate = (conn, templateData) => {
-  activityTemplates.doc(conn.data.docId).set(templateData, {
-    /** The request body can contain a partial update, so merging
-     * is a safe way to handle this document.
-     */
-    merge: true,
-  }).then(() => sendResponse(conn, code.noContent))
+  activityTemplates
+    .doc(conn.data.docId)
+    .set(templateData, {
+      /** The request body can contain a partial update, so merging
+       * is a safe way to handle this document.
+       */
+      merge: true,
+    }).then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
 
@@ -89,8 +91,11 @@ const createTemplateDocument = (conn) => {
 
 
 const checkTemplateExists = (conn) => {
-  activityTemplates.where('name', '==', conn.req.body.name).limit(1)
-    .get().then((snapShot) => {
+  activityTemplates
+    .where('name', '==', conn.req.body.name)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
       if (snapShot.empty) {
         sendResponse(
           conn,
