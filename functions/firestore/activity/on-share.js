@@ -58,6 +58,7 @@ const {
  * Commits the batch to the DB.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {Promise} Batch Object.
  */
 const commitBatch = (conn) => conn.batch.commit()
   .then(() => sendResponse(conn, code.noContent))
@@ -69,7 +70,8 @@ const commitBatch = (conn) => conn.batch.commit()
  * `/(office name)/(template name)` with the user's phone number,
  * timestamp of the request and the api used.
  *
-* @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const updateDailyActivities = (conn) => {
   const date = new Date();
@@ -98,6 +100,7 @@ const updateDailyActivities = (conn) => {
  * history of the user.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const logLocation = (conn) => {
   const locationDoc =
@@ -123,6 +126,7 @@ const logLocation = (conn) => {
  * Updates the timestamp in the activity root document.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const updateActivityDoc = (conn) => {
   conn.batch.set(
@@ -137,11 +141,13 @@ const updateActivityDoc = (conn) => {
   logLocation(conn);
 };
 
+
 /**
  * Adds the documents to batch for the users who have their `uid` populated
  * inside their profiles.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const setAddendumForUsersWithUid = (conn) => {
   /** Assignee array can have duplicate elements. */
@@ -167,14 +173,14 @@ const setAddendumForUsersWithUid = (conn) => {
     snapShot.forEach((doc) => {
       /** Create Profiles for the users who don't have a profile already. */
       if (!doc.exists) {
-        /** doc.id is the phoneNumber that doesn't exist */
+        /** The `doc.id` is the `phoneNumber` that doesn't exist */
         conn.batch.set(profiles.doc(doc.id), {
           uid: null,
         });
       }
 
       if (doc.exists && doc.get('uid')) {
-        /** uid is NOT null OR undefined */
+        /** The `uid` is NOT `null` OR `undefined` */
         conn.batch.set(
           updates
             .doc(doc.get('uid'))
@@ -255,8 +261,8 @@ const fetchTemplateAndSubscriptions = (conn) => {
     conn.addendum = {
       activityId: conn.req.body.activityId,
       user: conn.requester.displayName || conn.requester.phoneNumber,
-      comment: conn.requester.displayName || conn.requester.phoneNumber +
-        ' updated ' + docsArray[0].get('defaultTitle'),
+      comment: `${conn.requester.displayName} || ${conn.requester.phoneNumber}`
+        + ` updated ${docsArray[0].get('defaultTitle')}`,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: new Date(conn.req.body.timestamp),
     };
@@ -310,7 +316,6 @@ const fetchDocs = (conn) => {
     /** The assigneeArray is required to add addendum. */
     result[1].forEach((doc) => {
       /** The `doc.id` is the phoneNumber of the assignee. */
-      // conn.data.assigneeArray.push(profiles.doc(doc.id).get());
       conn.data.assigneeArray.push(doc.id);
     });
 

@@ -63,17 +63,23 @@ const {
 const updateFirestoreWithNewProfile = (conn) => {
   const batch = db.batch();
 
-  batch.set(profiles.doc(conn.req.body.phoneNumber), {
-    uid: conn.requester.uid,
-  }, {
+  batch.set(
+    profiles
+      .doc(conn.req.body.phoneNumber), {
+      uid: conn.requester.uid,
+    }, {
       merge: true,
-    });
+    }
+  );
 
-  batch.set(updates.doc(conn.requester.uid), {
-    phoneNumber: conn.req.body.phoneNumber,
-  }, {
+  batch.set(
+    updates
+      .doc(conn.requester.uid), {
+      phoneNumber: conn.req.body.phoneNumber,
+    }, {
       merge: true,
-    });
+    }
+  );
 
   const userProfile = profiles.doc(conn.requester.phoneNumber);
 
@@ -87,25 +93,43 @@ const updateFirestoreWithNewProfile = (conn) => {
   ]).then((docsArray) => {
     docsArray[0].forEach((doc) => {
       /** Copy all activities from old profile to the new one */
-      batch.set(profiles.doc(conn.req.body.phoneNumber)
-        .collection('Activities').doc(doc.id), doc.data());
+      batch.set(
+        profiles
+          .doc(conn.req.body.phoneNumber)
+          .collection('Activities')
+          .doc(doc.id),
+        doc.data()
+      );
 
       /** Delete docs from old profile */
-      batch.delete(profiles.doc(conn.requester.phoneNumber)
-        .collection('Activities').doc(doc.id));
+      batch.delete(
+        profiles
+          .doc(conn.requester.phoneNumber)
+          .collection('Activities')
+          .doc(doc.id)
+      );
 
       /** Create user doc in Activity/AssignTo for the new number */
-      batch.set(activities.doc(doc.id).collection('Assignees')
-        .doc(conn.req.body.phoneNumber), {
+      batch.set(
+        activities
+          .doc(doc.id)
+          .collection('Assignees')
+          .doc(conn.req.body.phoneNumber), {
           canEdit: doc.get('canEdit'),
-        });
+        }
+      );
 
       /** Delete old user doc in Activity/AssignTo */
-      batch.delete(activities.doc(doc.id).collection('Assignees')
-        .doc(conn.requester.phoneNumber));
+      batch.delete(
+        activities
+          .doc(doc.id)
+          .collection('Assignees')
+          .doc(conn.requester.phoneNumber)
+      );
     });
 
     let include;
+
     docsArray[1].forEach((doc) => {
       include = doc.get('include');
 
@@ -113,35 +137,48 @@ const updateFirestoreWithNewProfile = (conn) => {
        * the user.
        */
       if (doc.get('template') === 'plan' && doc.get('office') === 'personal') {
-        include = [conn.req.body.phoneNumber];
+        include = [
+          conn.req.body.phoneNumber,
+        ];
       }
 
       /** Copy subscriptions to new profile */
-      batch.set(profiles.doc(conn.req.body.phoneNumber)
-        .collection('Subscriptions').doc(doc.id), {
+      batch.set(
+        profiles
+          .doc(conn.req.body.phoneNumber)
+          .collection('Subscriptions')
+          .doc(doc.id), {
           include,
           office: doc.get('office'),
           template: doc.get('template'),
           timestamp: doc.get('timestamp'),
-        });
+        }
+      );
 
       /** Delete subscriptions from old profile */
-      batch.delete(profiles.doc(conn.requester.phoneNumber)
-        .collection('Subscriptions').doc(doc.id));
+      batch.delete(
+        profiles
+          .doc(conn.requester.phoneNumber)
+          .collection('Subscriptions')
+          .doc(doc.id)
+      );
     });
 
     /** Create log of this change. */
-    batch.set(dailyPhoneNumberChanges.doc(new Date().toDateString()), {
-      [conn.requester.phoneNumber]: {
-        timestamp: new Date(),
-        newPhoneNumber: conn.req.body.phoneNumber,
-      },
-    }, {
+    batch.set(
+      dailyPhoneNumberChanges
+        .doc(new Date().toDateString()), {
+        [conn.requester.phoneNumber]: {
+          timestamp: new Date(),
+          newPhoneNumber: conn.req.body.phoneNumber,
+        },
+      }, {
         /** This doc *may* contain fields with other phone numbers of the
          * users who `disabled` the same day.
          */
         merge: true,
-      });
+      }
+    );
 
     return batch.commit();
   }).then(() => sendResponse(conn, code.noContent))
@@ -153,6 +190,7 @@ const updateFirestoreWithNewProfile = (conn) => {
  * Updates the user's phone number in auth.
  *
  * @param {Object} conn Contains Express Request and Response objects.
+ * @returns {void}
  */
 const updateUserProfile = (conn) => {
   Promise.all([
@@ -202,6 +240,7 @@ const updateUserProfile = (conn) => {
  * Validates the `phoneNumber` field form the request body.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {void}
  */
 const app = (conn) => {
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {

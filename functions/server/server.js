@@ -43,6 +43,7 @@ const {
  * Checks the `path` of the URL in the reuqest and handles the execution flow.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const handleRequestPath = (conn) => {
   const action = require('url').parse(conn.req.url).path.split('/')[1];
@@ -60,7 +61,7 @@ const handleRequestPath = (conn) => {
   }
 
   if (action === 'now') {
-    now(conn); // server timestamp
+    now(conn);
     return;
   }
 
@@ -78,6 +79,7 @@ const handleRequestPath = (conn) => {
  * has the same uid as the requester.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const verifyUidAndPhoneNumberCombination = (conn) => {
   rootCollections
@@ -107,13 +109,14 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
  * Fetches the requestor's phone number from auth.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const getCreatorsPhoneNumber = (conn) => {
   users
     .getUserByUid(conn.requester.uid)
     .then((userRecord) => {
       if (userRecord.disabled) {
-        /** users with disabled accounts cannot request any operation **/
+        /** Users with disabled accounts cannot request any operation **/
         sendResponse(conn, code.forbidden, 'Your account is disabled.');
         return;
       }
@@ -134,6 +137,7 @@ const getCreatorsPhoneNumber = (conn) => {
  * Verifies the `id-token` form the Authorization header in the request.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const checkAuthorizationToken = (conn) => {
   /** The `Authorization` header sent in the request headers. */
@@ -163,7 +167,10 @@ const checkAuthorizationToken = (conn) => {
   const checkRevoked = true;
 
   users
-    .verifyIdToken(authorization.split('Bearer ')[1], checkRevoked)
+    .verifyIdToken(
+      authorization.split('Bearer ')[1],
+      checkRevoked
+    )
     .then((decodedIdToken) => {
       /** Object to identify the requester throughout the flow. */
       conn.requester = {};
@@ -205,6 +212,7 @@ const checkAuthorizationToken = (conn) => {
  *
  * @param {Object} req Express Request object.
  * @param {Object} res Express Response object.
+ * @returns {void}
  */
 const server = (req, res) => {
   const conn = {
@@ -224,16 +232,22 @@ const server = (req, res) => {
     'Cache-Control': 'no-cache',
   };
 
-  if (req.method === 'OPTIONS' || req.method === 'HEAD') {
-    /** There's no content to send in response to the
-     * `OPTIONS` OR `HEAD` request.
-     * */
+  if ([
+    'OPTIONS',
+    'HEAD',
+  ].indexOf(req.method) > -1) {
+    /** FOR handling CORS... */
     sendResponse(conn, code.noContent);
     return;
   }
 
   /** Allowed methods */
-  if (['GET', 'POST', 'PATCH', 'PUT'].indexOf(req.method) > -1) {
+  if ([
+    'GET',
+    'POST',
+    'PATCH',
+    'PUT',
+  ].indexOf(req.method) > -1) {
     checkAuthorizationToken(conn);
     return;
   }

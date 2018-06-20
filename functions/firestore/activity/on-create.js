@@ -63,6 +63,7 @@ const {
  * Commits the batch and sends a response to the client.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {Promise} Doc metadata or error object.
  */
 const commitBatch = (conn) => conn.batch.commit()
   .then(() => sendResponse(
@@ -76,12 +77,14 @@ const commitBatch = (conn) => conn.batch.commit()
  * Adds docs for each assignee of the activity to the batch.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const handleAssignedUsers = (conn) => {
+  /** @constant promises List of promises. */
   const promises = [];
 
   /**
-   * create docs in Assignees collection if share is in the request body.
+   * Create docs in Assignees collection if share is in the request body.
    * */
   conn.req.body.share.forEach((val) => {
     if (!isValidPhoneNumber(val)) return;
@@ -120,7 +123,7 @@ const handleAssignedUsers = (conn) => {
   });
 
   Promise.all(promises).then((snapShots) => {
-    /** The doc exists inside Profiles collection. */
+    /** The doc exists inside `Profiles` collection. */
     snapShots.forEach((doc) => {
       if (!doc.exists) {
         /** Create profiles for the phone numbers which are not in the DB. */
@@ -143,7 +146,7 @@ const handleAssignedUsers = (conn) => {
           });
       }
 
-      /** uid shouldn't be null OR undefined */
+      /** The `uid` shouldn't be `null` OR `undefined` */
       if (doc.exists && doc.get('uid')) {
         conn.batch.set(
           updates
@@ -165,6 +168,7 @@ const handleAssignedUsers = (conn) => {
  * Adds activity root doc to batch.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
  */
 const createActivity = (conn) => {
   const root = {};
@@ -286,6 +290,7 @@ const createActivity = (conn) => {
  * history of the user.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const logLocation = (conn) => {
   conn.batch.set(
@@ -308,7 +313,8 @@ const logLocation = (conn) => {
  * `/(office name)/(template name)` with the user's phone number,
  * timestamp of the request and the api used.
  *
-* @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const updateDailyActivities = (conn) => {
   const date = new Date();
@@ -335,6 +341,7 @@ const updateDailyActivities = (conn) => {
  * Adds subscription to the user's profile based on the request body.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
  */
 const createSubscription = (conn) => {
   conn.docRef = profiles
@@ -391,6 +398,7 @@ const createSubscription = (conn) => {
  * attachment, template, and the request body.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
  */
 const createCompany = (conn) => {
   conn.docRef = offices.doc(conn.activityRef.id);
@@ -448,13 +456,14 @@ const createCompany = (conn) => {
  * attachment based on the attachment, template and, the request body.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
  */
 const addNewEntityInOffice = (conn) => {
   /** Office ID: conn.data.office.docs[0].id */
   conn.docRef = offices
     .doc(conn.data.office.docs[0].id)
     /** Collection names are `ALWAYS` plural. */
-    .collection(conn.req.body.template + 's')
+    .collection(`${conn.req.body.template}s`)
     .doc(conn.activityRef.id);
 
   const tempDoc = {};
@@ -510,6 +519,7 @@ const addNewEntityInOffice = (conn) => {
  * based on that.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
  */
 const processRequestType = (conn) => {
   /** A reference of the batch and the activity instance will be used
@@ -572,6 +582,7 @@ const processRequestType = (conn) => {
  * object in `conn.data`.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
  */
 const handleSupportRequest = (conn) => {
   /** For support requests, the canEditRule will be used from the
@@ -586,6 +597,7 @@ const handleSupportRequest = (conn) => {
  * Fetches the template and the subscriptions of the requester form Firestore.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
  */
 const fetchDocs = (conn) => {
   Promise.all([
@@ -672,6 +684,7 @@ const fetchDocs = (conn) => {
  * `geopoint`, `office`, and the `template`.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
  */
 const isValidRequestBody = (conn) => {
   if (isValidDate(conn.req.body.timestamp)
@@ -703,8 +716,13 @@ const verifyCanEditRuleFromRequestBody = (conn) => {
     return;
   }
 
-  if (['ALL', 'NONE', 'FROM_INCLUDE', 'PEOPLE_TYPE', 'CREATOR']
-    .indexOf(conn.req.body.canEditRule) === -1) {
+  if ([
+    'ALL',
+    'NONE',
+    'FROM_INCLUDE',
+    'PEOPLE_TYPE',
+    'CREATOR',
+  ].indexOf(conn.req.body.canEditRule) === -1) {
     sendResponse(
       conn,
       code.badRequest,

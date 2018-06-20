@@ -58,7 +58,12 @@ const setCustomUserClaims = (uid, claims) =>
  * on writing to the Firestore.
  */
 const getGeopointObject = (geopoint) =>
-  new admin.firestore.GeoPoint(geopoint.latitude, geopoint.longitude);
+  new admin
+    .firestore
+    .GeoPoint(
+      geopoint.latitude,
+      geopoint.longitude
+    );
 
 
 /**
@@ -69,11 +74,10 @@ const getGeopointObject = (geopoint) =>
  * @returns {Object} An updated `userRecord`.
  * @see https://en.wikipedia.org/wiki/E.164
  */
-const updateUserPhoneNumberInAuth = (uid, phoneNumber) => {
-  return auth.updateUser(uid, {
+const updateUserPhoneNumberInAuth = (uid, phoneNumber) =>
+  auth.updateUser(uid, {
     phoneNumber,
   });
-};
 
 
 /**
@@ -104,7 +108,7 @@ const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const getUserByPhoneNumber = (phoneNumber) => {
-  /** Could've simply returned the userRecord with this function, but
+  /** Could've simply returned the `userRecord` with this function, but
    * in some cases, this function is called inside a loop. So, whenever
    * there is an error, the function would crash the cloud function.
    * To avoid that, the catch() clause now handles the response in
@@ -137,9 +141,10 @@ const getUserByPhoneNumber = (phoneNumber) => {
  * @param {string} uid A 30 character alpha-numeric string.
  * @returns {Promise} Resolving to a userRecord object.
  */
-const disableUser = (uid) => auth.updateUser(uid, {
-  disabled: true,
-});
+const disableUser = (uid) =>
+  auth.updateUser(uid, {
+    disabled: true,
+  });
 
 
 /**

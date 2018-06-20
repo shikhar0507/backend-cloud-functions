@@ -42,10 +42,13 @@ const {
   sendResponse,
 } = require('../../admin/utils');
 
+const {
+  activityTemplates,
+} = rootCollections;
+
 
 const createTemplate = (conn, data) => {
-  rootCollections
-    .activityTemplates
+  activityTemplates
     .doc()
     .set(data)
     .then(() => {
@@ -83,8 +86,7 @@ const createTemplateObject = (conn) => {
 
 
 const getTemplateByName = (conn) => {
-  rootCollections
-    .activityTemplates
+  activityTemplates
     .where('name', '==', conn.req.body.name)
     .limit(1)
     .get()
@@ -105,7 +107,7 @@ const getTemplateByName = (conn) => {
 
 
 const app = (conn) => {
-  /** true for empty string. */
+  /** Is `true` for empty strings. */
   const re = /^$|\s+/;
 
   if (!re.test(conn.req.body.name)) {

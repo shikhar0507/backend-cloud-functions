@@ -51,6 +51,7 @@ const {
  * @param {Object} user Contains data from Auth of the user.
  * @param {Object} claims Custom claims object for the userRecord.
  * @param {Object} response Object to store the logging data.
+ * @returns {void}
  */
 const setClaims = (conn, user, claims, response) => {
   users
@@ -70,6 +71,7 @@ const setClaims = (conn, user, claims, response) => {
  * @param {Object} conn Contains Express Request and Response objects.
  * @param {Object} user Contains the `userRecord`.
  * @param {Object} response Object to store the logging data.
+ * @returns {void}
  */
 const createClaimsObject = (conn, user, response) => {
   const claims = {};
@@ -92,6 +94,7 @@ const createClaimsObject = (conn, user, response) => {
  *
  * @param {Object} conn Contains Express Request and Response objects.
  * @param {Object} response Object to store the logging data.
+ * @returns {void}
  */
 const fetchUserRecord = (conn, response) => {
   users
@@ -118,6 +121,7 @@ const fetchUserRecord = (conn, response) => {
  *
  * @param {Object} conn Contains Express Request and Response objects.
  * @param {Object} response Object to store the logging data.
+ * @returns {void}
  */
 const validateRequestBody = (conn, response) => {
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {
@@ -192,6 +196,7 @@ const validateRequestBody = (conn, response) => {
  * Checks if the `requester` is a `superUser`.
  *
  * @param {Object} conn Contains Express Request and Response objects.
+ * @returns {void}
  */
 const app = (conn) => {
   /** Object to store the logging data. */

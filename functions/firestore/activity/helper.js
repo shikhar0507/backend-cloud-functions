@@ -123,6 +123,7 @@ const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber,
  *
  * @param {Array} schedules Array of scheule objects.
  * @param {Object} scheduleObject Single schedule from template.
+ * @returns {Array} Schedule objects in Array
  */
 const filterSchedules = (schedules, scheduleObject) => {
   const schedulesArray = [];
@@ -153,7 +154,7 @@ const filterSchedules = (schedules, scheduleObject) => {
     } else if (!isNaN(new Date(schedule.startTime)) &&
       !isNaN(new Date(schedule.endTime)) &&
       schedule.endTime >= schedule.startTime) {
-      /** schedule has both `startTime`, `endTime` & `endTime` >= `startTime` */
+      /** Schedule has both `startTime`, `endTime` & `endTime` >= `startTime` */
       schedulesArray.push({
         name: schedule.name,
         startTime: new Date(schedule.startTime),
@@ -233,19 +234,22 @@ const filterVenues = (venues, venueFromTemplate) => {
  * @param {Object} attachment Attachment from the request.body.attachment.
  * @param {Object} attachmentFromTemplate Attachment object from the template
  * in the firestore.
+ * @returns {Array} Venue Objects.
  */
 const attachmentCreator = (attachment, attachmentFromTemplate) => {
   if (!attachmentFromTemplate) return {};
 
   const filteredAttachment = {};
 
-  Object.keys(attachmentFromTemplate).forEach((key) => {
-    if (typeof attachmentFromTemplate[`${key}`]
-      === typeof attachment[`${key}`]) {
-      /** filter for each of the value type and their key of the object */
-      filteredAttachment[`${key}`] = attachment[`${key}`];
-    }
-  });
+  Object
+    .keys(attachmentFromTemplate)
+    .forEach((key) => {
+      if (typeof attachmentFromTemplate[`${key}`]
+        === typeof attachment[`${key}`]) {
+        /** Filter for each of the value type and their key of the object */
+        filteredAttachment[`${key}`] = attachment[`${key}`];
+      }
+    });
 
   return filteredAttachment;
 };

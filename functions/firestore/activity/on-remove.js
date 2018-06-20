@@ -65,7 +65,8 @@ const commitBatch = (conn) => conn.batch.commit()
  * `/(office name)/(template name)` with the user's phone number,
  * timestamp of the request and the api used.
  *
-* @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const updateDailyActivities = (conn) => {
   const date = new Date();
@@ -91,11 +92,12 @@ const updateDailyActivities = (conn) => {
 
 
 /**
-* Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
-* history of the user.
-*
-* @param {Object} conn Contains Express' Request and Response objects.
-*/
+ * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
+ * history of the user.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
+ */
 const logLocation = (conn) => {
   conn.batch.set(
     profiles
@@ -151,16 +153,17 @@ const setAddendumForUsersWithUid = (conn) => {
 
   Promise.all(promises).then((snapShot) => {
     snapShot.forEach((doc) => {
-      if (doc.get('uid')) {
-        /** uid is NOT null OR undefined */
-        conn.batch.set(
-          updates
-            .doc(doc.get('uid'))
-            .collection('Addendum')
-            .doc(),
-          conn.addendum
-        );
-      }
+      /** `uid` is NOT `null` OR `undefined` */
+      if (!doc.get('uid')) return;
+
+      conn.batch.set(
+        updates
+          .doc(doc.get('uid'))
+          .collection('Addendum')
+          .doc(),
+        conn.addendum
+      );
+
     });
 
     updateActivityDoc(conn);
@@ -213,8 +216,8 @@ const fetchTemplate = (conn) => {
       conn.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: conn.requester.displayName || conn.requester.phoneNumber
-          + ' updated ' + doc.get('defaultTitle'),
+        comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
+          + ` updated ${doc.get('defaultTitle')}`,
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: new Date(conn.req.body.timestamp),
       };

@@ -57,6 +57,7 @@ const {
  * Commits the batch to write the documents added to the batch atomically.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {Promise} Batch object
  */
 const commitBatch = (conn) => conn.batch.commit()
   .then(() => sendResponse(conn, code.noContent))
@@ -68,10 +69,12 @@ const commitBatch = (conn) => conn.batch.commit()
  * `/(office name)/(template name)` with the user's phone number,
  * timestamp of the request and the api used.
  *
-* @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const updateDailyActivities = (conn) => {
   const date = new Date();
+
   const dailyActivitiesDoc = dailyActivities
     .doc(date.toDateString())
     .collection(conn.data.activity.get('office'))
@@ -91,10 +94,11 @@ const updateDailyActivities = (conn) => {
 
 
 /**
-* Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
-* history of the user.
-*
-* @param {Object} conn Contains Express' Request and Response objects.
+ * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
+ * history of the user.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
 */
 const logLocation = (conn) => {
   conn.batch.set(
@@ -118,21 +122,22 @@ const logLocation = (conn) => {
  * signed up.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {void}
  */
 const addAddendumForAssignees = (conn) => {
-  Promise.all(conn.data.Assignees)
+  Promise.all(conn.data.assignees)
     .then((docsArray) => {
       /** Adds addendum for all the users who have signed up via auth. */
       docsArray.forEach((doc) => {
-        if (doc.get('uid')) {
-          conn.batch.set(
-            updates
-              .doc(doc.get('uid'))
-              .collection('Addendum')
-              .doc(),
-            conn.addendum
-          );
-        }
+        if (!doc.get('uid')) return;
+
+        conn.batch.set(
+          updates
+            .doc(doc.get('uid'))
+            .collection('Addendum')
+            .doc(),
+          conn.addendum
+        );
       });
 
       logLocation(conn);
@@ -145,6 +150,7 @@ const addAddendumForAssignees = (conn) => {
  * Updates the `status` field in the activity root.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {void}
  */
 const updateActivityStatus = (conn) => {
   conn.batch.set(
@@ -166,6 +172,7 @@ const updateActivityStatus = (conn) => {
  * document.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {void}
  */
 const fetchTemplate = (conn) => {
   activityTemplates
@@ -175,8 +182,8 @@ const fetchTemplate = (conn) => {
       conn.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: conn.requester.displayName || conn.requester.phoneNumber
-          + ' updated ' + doc.get('defaultTitle'),
+        comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
+          + ` updated ${doc.get('defaultTitle')}`,
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: new Date(conn.req.body.timestamp),
       };
@@ -192,6 +199,7 @@ const fetchTemplate = (conn) => {
  * the Firestore.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {void}
  */
 const fetchDocs = (conn) => {
   Promise.all([
@@ -223,7 +231,7 @@ const fetchDocs = (conn) => {
     conn.batch = db.batch();
     conn.data = {};
 
-    conn.data.Assignees = [];
+    conn.data.assignees = [];
     conn.data.activity = result[0];
 
     if (conn.req.body.status === conn.data.activity.get('status')) {
@@ -237,7 +245,7 @@ const fetchDocs = (conn) => {
 
     /** The Assignees list is required to add addendum. */
     result[1].forEach((doc) => {
-      conn.data.Assignees.push(profiles.doc(doc.id).get());
+      conn.data.assignees.push(profiles.doc(doc.id).get());
 
       conn.batch.set(
         profiles
@@ -270,7 +278,8 @@ const fetchDocs = (conn) => {
  * Checks if the *requester* has the *permission* to *edit* the activity
  * during an update.
  *
- * @param {Object } conn Contains Express Request and Response Objects.
+ * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {void}
  */
 const verifyEditPermission = (conn) => {
   profiles
@@ -310,6 +319,7 @@ const verifyEditPermission = (conn) => {
  * `activityId`, `status` and the `geopoint`.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {void}
  */
 const app = (conn) => {
   if (!conn.req.body.timestamp) {

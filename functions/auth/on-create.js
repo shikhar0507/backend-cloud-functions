@@ -43,14 +43,17 @@ const {
  * @returns {Promise} Batch object.
  */
 const updateDailyCollection = (userRecord, batch) => {
-  return dailySignUps.doc(new Date().toDateString()).set({
-    [userRecord.phoneNumber]: {
-      timestamp: serverTimestamp,
-    },
-  }, {
-      /** Doc will have other phone numbers too. */
-      merge: true,
-    }).then(() => batch.commit()).catch((console.error));
+  return dailySignUps
+    .doc(new Date().toDateString())
+    .set({
+      [userRecord.phoneNumber]: {
+        timestamp: serverTimestamp,
+      },
+    }, {
+        /** Doc will have other phone numbers too. */
+        merge: true,
+      })
+    .then(() => batch.commit()).catch(console.error);
 };
 
 
@@ -70,34 +73,45 @@ const app = (userRecord, context) => {
 
   const batch = db.batch();
 
-  batch.set(updates.doc(uid), {
-    phoneNumber,
-  }, {
+  batch.set(
+    updates.doc(uid), {
+      phoneNumber,
+    }, {
       merge: true,
-    });
+    }
+  );
 
-  batch.set(profiles.doc(phoneNumber), {
-    uid,
-  }, {
+  batch.set(
+    profiles.doc(phoneNumber), {
+      uid,
+    }, {
       merge: true,
-    });
+    }
+  );
 
   /** Default subscription for everyone who signs up */
-  batch.set(profiles.doc(phoneNumber).collection('Subscriptions').doc(), {
-    office: 'personal',
-    template: 'plan',
-    include: [phoneNumber],
-    /** The auth event isn't an activity */
-    activityId: null,
-    status: 'CONFIRMED',
-    canEditRule: 'true',
-    timestamp: serverTimestamp,
-  }, {
+  batch.set(
+    profiles
+      .doc(phoneNumber)
+      .collection('Subscriptions')
+      .doc(), {
+      office: 'personal',
+      template: 'plan',
+      include: [
+        phoneNumber,
+      ],
+      /** The auth event isn't an activity */
+      activityId: null,
+      status: 'CONFIRMED',
+      canEditRule: 'ALL',
+      timestamp: serverTimestamp,
+    }, {
       /** The profile *may* have old data for the user, so
        * replacing the whole document *can* be destructive.
        */
       merge: true,
-    });
+    }
+  );
 
   return updateDailyCollection(userRecord, batch);
 };

@@ -107,6 +107,7 @@ const checkTemplateExists = (conn) => {
 
       conn.data = {};
       conn.data.docId = snapShot.docs[0].id;
+
       createTemplateDocument(conn);
       return;
     }).catch((error) => handleError(conn, error));
@@ -126,10 +127,11 @@ const app = (conn) => {
     return;
   }
 
-  if (isValidString(conn.req.body.name)) {
+  /** Plan is the default template. Can't be allowed to update. */
+  if (conn.req.body.name === 'plan') {
     sendResponse(
       conn,
-      code.unauthorized,
+      code.forbidden,
       'You cannot update the template "plan".'
     );
     return;

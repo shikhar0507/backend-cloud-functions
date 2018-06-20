@@ -45,7 +45,8 @@ const validateVenue = (venue) => {
   if (!isValidString(!venue.hasOwnProperty('venueDescriptor'))) return false;
   if (!isValidString(!venue.hasOwnProperty('address'))) return false;
   if (!isValidString(!venue.hasOwnProperty('location'))) return false;
-  if (!isValidLocation(!venue.hasOwnProperty('geopoint'))) return false;
+  if (!venue.hasOwnProperty('geopoint')) return false;
+  if (!isValidLocation(venue.geopoint)) return false;
 
   return true;
 };

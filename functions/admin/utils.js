@@ -43,25 +43,30 @@ const {
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @param {string} reason For which the account is being disabled.
+ * @returns {void}
  */
 const disableAccount = (conn, reason) => {
   const promises = [
-    dailyDisabled.doc(new Date().toDateString()).set({
-      [conn.requester.phoneNumber]: {
-        reason,
-        timestamp: new Date(),
-      },
-    }, {
-        /** This doc may have other fields too. */
-        merge: true,
-      }),
-    profiles.doc(conn.requester.phoneNumber).set({
-      disabledFor: reason,
-      disabledTimestamp: new Date(),
-    }, {
-        /** This doc may have other fields too. */
-        merge: true,
-      }),
+    dailyDisabled
+      .doc(new Date().toDateString())
+      .set({
+        [conn.requester.phoneNumber]: {
+          reason,
+          timestamp: new Date(),
+        },
+      }, {
+          /** This doc may have other fields too. */
+          merge: true,
+        }),
+    profiles
+      .doc(conn.requester.phoneNumber)
+      .set({
+        disabledFor: reason,
+        disabledTimestamp: new Date(),
+      }, {
+          /** This doc may have other fields too. */
+          merge: true,
+        }),
     disableUser(conn.requester.uid),
   ];
 
@@ -81,6 +86,7 @@ const disableAccount = (conn, reason) => {
  * Helper function to check `support` custom claims.
  *
  * @param {Object} customClaims Contains boolean custom claims.
+ * @returns {boolean} If the user has `support` claims.
  */
 const hasSupportClaims = (customClaims) => {
   if (!customClaims) return false;
@@ -95,6 +101,7 @@ const hasSupportClaims = (customClaims) => {
  * Helper function to check `manageTemplates` custom claims.
  *
  * @param {Object} customClaims Contains boolean custom claims.
+ * @returns {boolean} If the user has `ManageTemplate` claims.
  */
 const hasManageTemplateClaims = (customClaims) => {
   if (!customClaims) return false;
@@ -109,6 +116,7 @@ const hasManageTemplateClaims = (customClaims) => {
  * Helper function to check `superUser` custom claims.
  *
  * @param {Object} customClaims Contains boolean custom claims.
+ * @returns {boolean} If the user has `superUser` claims.
  */
 const hasSuperUserClaims = (customClaims) => {
   if (!customClaims) return false;
@@ -123,6 +131,7 @@ const hasSuperUserClaims = (customClaims) => {
  * Returns the server timestamp on a `GET` request.
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
+ * @returns {void}
  */
 const now = (conn) => {
   if (conn.req.method !== 'GET') {
@@ -150,6 +159,8 @@ const now = (conn) => {
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  * @param {number} statusCode A standard HTTP status code.
  * @param {string} [message] Response message for the request.
+ * @returns {void}
+ * 
  */
 const sendResponse = (conn, statusCode, message = '') => {
   let success = true;
@@ -172,6 +183,7 @@ const sendResponse = (conn, statusCode, message = '') => {
  *
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  * @param {Object} error Firebase Error object.
+ * @returns {void}
  */
 const handleError = (conn, error) => {
   console.log(error);
@@ -189,6 +201,7 @@ const handleError = (conn, error) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} json The response object to send to the client.
+ * @returns {void}
  */
 const sendJSON = (conn, json) => {
   conn.res.writeHead(code.ok, conn.headers);

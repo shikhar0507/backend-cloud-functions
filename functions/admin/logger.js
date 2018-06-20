@@ -7,6 +7,9 @@ const {
   rootCollections,
 } = require('./admin');
 
+const {
+  instant,
+} = rootCollections;
 
 /**
  * Creates a document in the `/Instant` collection with the
@@ -14,6 +17,7 @@ const {
  *
  * @param {Object} conn Express's Request and Response Object.
  * @param {Object} response Contains Response code and message.
+ * @returns {void}
  */
 const createInstantLog = (conn, response) => {
   const {
@@ -31,18 +35,21 @@ const createInstantLog = (conn, response) => {
     successful = false;
   }
 
-  rootCollections.instant.doc().set({
-    successful,
-    requestBody: JSON.stringify(conn.req.body),
-    requester: JSON.stringify(conn.requester),
-    responseCode: response.code,
-    /** @see https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html */
-    responseCodeValue: STATUS_CODES[`${response.code}`],
-    responseMessage: response.message,
-    resourcesAccessed: response.resourcesAccessed || null,
-    url: conn.req.url,
-    timestamp: new Date(),
-  }).then(() => sendResponse(conn, response.code, response.message))
+  instant
+    .doc()
+    .set({
+      successful,
+      requestBody: JSON.stringify(conn.req.body),
+      requester: JSON.stringify(conn.requester),
+      responseCode: response.code,
+      /** @see https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html */
+      responseCodeValue: STATUS_CODES[`${response.code}`],
+      responseMessage: response.message,
+      resourcesAccessed: response.resourcesAccessed || null,
+      url: conn.req.url,
+      timestamp: new Date(),
+    })
+    .then(() => sendResponse(conn, response.code, response.message))
     .catch((error) => handleError(conn, error));
 };
 

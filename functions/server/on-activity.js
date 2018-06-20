@@ -37,6 +37,7 @@ const {
  * from the url.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const app = (conn) => {
   const action = require('url').parse(conn.req.url).path.split('/')[2];

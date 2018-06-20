@@ -46,6 +46,7 @@ const {
  * the response in a JSON object.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const fetchAllTemplates = (conn) => {
   const jsonObject = {};
@@ -68,6 +69,7 @@ const fetchAllTemplates = (conn) => {
  * request URL.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const fetchSingleTemplate = (conn) => {
   activityTemplates
@@ -94,6 +96,7 @@ const fetchSingleTemplate = (conn) => {
  * Checks if the query string is present in the request URL.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const app = (conn) => {
   if (conn.req.query.name) {

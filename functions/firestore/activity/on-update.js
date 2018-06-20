@@ -58,6 +58,7 @@ const {
  * Commits the batch to the DB.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {Promise} Batch Object.
  */
 const commitBatch = (conn) => conn.batch.commit()
   .then((data) => sendResponse(conn, code.noContent))
@@ -69,7 +70,8 @@ const commitBatch = (conn) => conn.batch.commit()
  * `/(office name)/(template name)` with the user's phone number,
  * timestamp of the request and the api used.
  *
-* @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const updateDailyActivities = (conn) => {
   const dailyActivitiesDoc =
@@ -96,6 +98,7 @@ const updateDailyActivities = (conn) => {
  * history of the user.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const logLocation = (conn) => {
   const locationDoc =
@@ -121,6 +124,7 @@ const logLocation = (conn) => {
  * Updates the activity root and adds the data to the batch.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const updateActivityDoc = (conn) => {
   if (typeof conn.req.body.description === 'string') {
@@ -156,7 +160,7 @@ const updateActivityDoc = (conn) => {
   /** Imeplementing the `handleAttachment()` method will make this work. */
   if (conn.docRef) {
     /**
-     * docRef is not undefined only when a document is updated during
+     * The `docRef` is not `undefined` only when a document is updated during
      * the update operation.
      */
     updates.docRef = conn.docRef;
@@ -178,9 +182,10 @@ const updateActivityDoc = (conn) => {
  * Manages the attachment object.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const handleAttachment = (conn) => {
-  /** do stuff */
+  /** Do stuff */
 
   updateActivityDoc(conn);
 };
@@ -190,6 +195,7 @@ const handleAttachment = (conn) => {
  * Adds addendum data for all the assignees in the activity.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const addAddendumForAssignees = (conn) => {
   conn.data.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
@@ -207,15 +213,19 @@ const addAddendumForAssignees = (conn) => {
 
   Promise.all(conn.data.assigneesArray).then((snapShot) => {
     snapShot.forEach((doc) => {
-      if (doc.get('uid')) {
-        conn.batch.set(
-          updates
-            .doc(doc.get('uid'))
-            .collection('Addendum')
-            .doc(),
-          conn.addendum
-        );
-      }
+      if (!doc.get('uid')) return;
+
+      /** Users without `uid` are the ones who don't have 
+       * signed up. Addemdum is added only for the users who
+       * have an account in auth.
+       */
+      conn.batch.set(
+        updates
+          .doc(doc.get('uid'))
+          .collection('Addendum')
+          .doc(),
+        conn.addendum
+      );
     });
 
     /** Stores the objects that are to be updated in the activity root. */
@@ -236,6 +246,7 @@ const addAddendumForAssignees = (conn) => {
  * Gets the template from the activity root.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const fetchTemplate = (conn) => {
   activityTemplates
@@ -245,8 +256,8 @@ const fetchTemplate = (conn) => {
       conn.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: conn.requester.displayName || conn.requester.phoneNumber
-          + ' updated ' + doc.get('defaultTitle'),
+        comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
+          + ` updated ${doc.get('defaultTitle')}`,
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: new Date(conn.req.body.timestamp),
       };
@@ -263,6 +274,7 @@ const fetchTemplate = (conn) => {
  * Fetches the activity, and its assignees from the DB.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const fetchDocs = (conn) => {
   Promise.all([
@@ -311,6 +323,7 @@ const fetchDocs = (conn) => {
  * Checks if the user has permission to update the activity data.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
  */
 const verifyEditPermission = (conn) => {
   profiles

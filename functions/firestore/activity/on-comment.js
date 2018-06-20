@@ -56,6 +56,7 @@ const {
  * about the result.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @returns {Promise} Batch object.
  */
 const commitBatch = (conn) => conn.batch.commit()
   .then(() => sendResponse(
@@ -70,7 +71,8 @@ const commitBatch = (conn) => conn.batch.commit()
  * `/(office name)/(template name)` with the user's phone number,
  * timestamp of the request and the api used.
  *
-* @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const updateDailyActivities = (conn) => {
   const office = conn.data.activity.get('office');
@@ -96,11 +98,12 @@ const updateDailyActivities = (conn) => {
 
 
 /**
-* Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
-* history of the user.
-*
-* @param {Object} conn Contains Express' Request and Response objects.
-*/
+ * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
+ * history of the user.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
+ */
 const logLocation = (conn) => {
   conn.batch.set(
     profiles
@@ -122,6 +125,7 @@ const logLocation = (conn) => {
  * is being created.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @returns {void}
  */
 const setAddendumForAssignees = (conn) => {
   conn.assigneesPhoneNumberList.forEach((phoneNumber) => {
@@ -166,6 +170,7 @@ const setAddendumForAssignees = (conn) => {
  * and creates a list of profiles for which the Addendum are to be written.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @returns {void}
  */
 const constructActivityAssigneesPromises = (conn) => {
   conn.assigneeDocPromises = [];
@@ -198,6 +203,7 @@ const constructActivityAssigneesPromises = (conn) => {
  * have sent a request to add a comment to.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @returns {void}
  */
 const checkCommentPermission = (conn) => {
   if (!conn.data.profileActivityDoc.exists) {

@@ -54,6 +54,7 @@ const {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  */
 const updateDailyCollection = (conn, jsonResult) => {
   rootCollections
@@ -74,6 +75,7 @@ const updateDailyCollection = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  */
 const addOfficeToTemplates = (conn, jsonResult) => {
   jsonResult.templates.forEach((templateObject, index) => {
@@ -99,6 +101,7 @@ const addOfficeToTemplates = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  * @description `Amardeep` was having problem parsing Activity objects
    * when they were inside an `Object`. This function is made on his request.
    * It takes each activity object and restructures it in order to push
@@ -145,6 +148,7 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  */
 const fetchSubscriptions = (conn, jsonResult) => {
   Promise.all(conn.templatesList)
@@ -171,6 +175,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  */
 const getTemplates = (conn, jsonResult) => {
   profiles
@@ -202,6 +207,7 @@ const getTemplates = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  */
 const fetchAssignees = (conn, jsonResult) => {
   Promise.all(conn.assigneeFetchPromises)
@@ -227,6 +233,7 @@ const fetchAssignees = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express Request and Response Objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  */
 const fetchAttachments = (conn, jsonResult) => {
   Promise.all(conn.docRefsArray)
@@ -251,6 +258,7 @@ const fetchAttachments = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  */
 const fetchActivities = (conn, jsonResult) => {
   Promise.all(conn.activityFetchPromises)
@@ -289,6 +297,7 @@ const fetchActivities = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @returns {void}
  */
 const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.activityFetchPromises = [];
@@ -321,6 +330,7 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
  * Fetches the addendums and adds them to a a temporary object in memory.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
  */
 const readAddendumsByQuery = (conn) => {
   const jsonResult = {};
@@ -356,7 +366,7 @@ const readAddendumsByQuery = (conn) => {
           location: doc.get('location'),
           user: doc.get('user'),
         });
-      }); // forEach end
+      });
 
       getActivityIdsFromProfileCollection(conn, jsonResult);
       return;
@@ -378,7 +388,7 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      conn.req.query.from + ' is not a valid timestamp'
+      `${conn.req.query.from} is not a valid timestamp`
     );
     return;
   }
