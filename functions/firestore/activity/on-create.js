@@ -388,7 +388,10 @@ const createSubscription = (conn) => {
 
   tempDoc.status = conn.data.template.statusOnCreate;
   tempDoc.office = conn.req.body.office;
-
+  /** Skipped adding the `template` field to the `tempDoc`
+   * because `Subscription` template is not to be given to
+   * anyone.
+   */
   conn.batch.set(conn.docRef, tempDoc);
 
   updateDailyActivities(conn);
@@ -546,7 +549,7 @@ const processRequestType = (conn) => {
     return;
   }
 
-  if (!conn.data.office.empty) {
+  if (conn.data.office.empty) {
     sendResponse(
       conn,
       code.badRequest,
