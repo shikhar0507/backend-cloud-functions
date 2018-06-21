@@ -55,6 +55,7 @@ const app = (conn) => {
 
   if (conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims)) {
+    // TODO: Probably disable user account here too. Not sure.
     sendResponse(
       conn,
       code.forbidden,

@@ -167,6 +167,11 @@
       }
     ],
     "no-unused-expressions": "warn",
-    "no-loops/no-loops": "warn"
+    "no-loops/no-loops": "warn",
+    "no-inline-comments": "warn",
+    "spaced-comment": [
+      "warn",
+      "always"
+    ]
   }
 }

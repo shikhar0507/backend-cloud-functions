@@ -372,22 +372,27 @@ const verifyRequestType = (conn) => {
 };
 
 
-const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp) &&
+const isValidRequestBody = (conn) => {
+  return isValidDate(conn.req.body.timestamp) &&
     isValidString(conn.req.body.activityId) &&
     Array.isArray(conn.req.body.share) &&
-    isValidLocation(conn.req.body.geopoint)) {
-    verifyRequestType(conn);
+    isValidLocation(conn.req.body.geopoint);
+};
+
+
+const app = (conn) => {
+  if (!isValidRequestBody(conn)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The request body does not have all the necessary fields with proper' +
+      ' values. Please make sure that the timestamp, activityId, geopoint' +
+      ' and the assign array are included in the request body.'
+    );
     return;
   }
 
-  sendResponse(
-    conn,
-    code.badRequest,
-    'The request body does not have all the necessary fields with proper' +
-    ' values. Please make sure that the timestamp, activityId, geopoint' +
-    ' and the assign array are included in the request body.'
-  );
+  verifyRequestType(conn);
 };
 
 

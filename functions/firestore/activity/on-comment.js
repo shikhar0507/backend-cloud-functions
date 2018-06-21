@@ -244,22 +244,34 @@ const fetchDocs = (conn) => {
 };
 
 
-const app = (conn) => {
-  if (isValidDate(conn.req.body.timestamp)
+/**
+ * Checks for `timestamp`, `geopoint`, `activityId` and the `comment` from the
+ * request body.
+ * 
+ * @param {Object} conn Object with Express Request and Response Objects.
+ * @returns {boolean} If the request body is valid.
+ */
+const isValidRequestBody = (conn) => {
+  return isValidDate(conn.req.body.timestamp)
     && isValidLocation(conn.req.body.geopoint)
     && isValidString(conn.req.body.activityId)
-    && typeof conn.req.body.comment === 'string') {
-    fetchDocs(conn);
+    && typeof conn.req.body.comment === 'string';
+};
+
+
+const app = (conn) => {
+  if (!isValidRequestBody(conn)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The request body does not have all the necessary fields with proper'
+      + ' values. Please make sure that the timestamp, activityId, '
+      + 'geopoint and the comment are included in the request body.'
+    );
     return;
   }
 
-  sendResponse(
-    conn,
-    code.badRequest,
-    'The request body does not have all the necessary fields with proper'
-    + ' values. Please make sure that the timestamp, activityId  and the '
-    + 'geopoint are included in the request body.'
-  );
+  fetchDocs(conn);
 };
 
 

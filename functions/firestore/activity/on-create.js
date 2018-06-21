@@ -363,17 +363,19 @@ const createSubscription = (conn) => {
     .keys(attachment)
     .forEach((key) => tempDoc[`${key}`] = attachment[`${key}`]);
 
+  /** Only one schedule is required. */
   const schedule = filterSchedules(
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     conn.data.template.schedule
-  )[0]; /** Only one schedule is required. */
+  )[0];
 
+  /** Only one venue is required. */
   const venue = filterVenues(
     conn.req.body.venue,
     /** The `venue` object from the template. */
     conn.data.template.venue
-  )[0]; /** Only one venue is required. */
+  )[0];
 
   tempDoc[`${schedule.name}`] = {
     startTime: schedule.startTime,
@@ -422,17 +424,19 @@ const createCompany = (conn) => {
 
   tempDoc.name = conn.req.body.office;
 
+  /** Only one schedule is required. */
   const schedule = filterSchedules(
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     conn.data.template.schedule
-  )[0]; /** Only one schedule is required. */
+  )[0];
 
+  /** Only one venue is required. */
   const venue = filterVenues(
     conn.req.body.venue,
     /** The `venue` object from the template. */
     conn.data.template.venue
-  )[0]; /** Only one venue is required. */
+  )[0];
 
   tempDoc[`${schedule.name}`] = {
     startTime: schedule.startTime,
@@ -485,17 +489,19 @@ const addNewEntityInOffice = (conn) => {
 
   tempDoc.name = conn.req.body.office;
 
+  /** Only one schedule is required. */
   const schedule = filterSchedules(
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     conn.data.template.schedule
-  )[0]; /** Only one schedule is required. */
+  )[0];
 
+  /** Only one venue is required. */
   const venue = filterVenues(
     conn.req.body.venue,
     /** The `venue` object from the template. */
     conn.data.template.venue
-  )[0]; /** Only one venue is required. */
+  )[0];
 
   tempDoc[`${schedule.name}`] = {
     startTime: schedule.startTime,

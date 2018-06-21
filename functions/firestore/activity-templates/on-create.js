@@ -110,6 +110,7 @@ const getTemplateByName = (conn) => {
 };
 
 
+
 const app = (conn) => {
   /** Is `true` for empty strings. */
   const re = /^$|\s+/;
@@ -120,11 +121,7 @@ const app = (conn) => {
   }
 
   if (conn.req.body.name === 'plan') {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'You cannot update the template "plan".'
-    );
+    sendResponse(conn, code.forbidden, 'You cannot update the template "plan".');
     return;
   }
 
