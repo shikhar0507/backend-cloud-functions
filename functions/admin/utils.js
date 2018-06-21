@@ -22,6 +22,8 @@
  */
 
 
+'use strict';
+
 const {
   code,
 } = require('./responses');
@@ -35,6 +37,63 @@ const {
   profiles,
   dailyDisabled,
 } = rootCollections;
+
+
+/**
+ * Ends the response by sending the `JSON` to the client with `200 OK` response.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} json The response object to send to the client.
+ * @returns {void}
+ */
+const sendJSON = (conn, json) => {
+  conn.res.writeHead(code.ok, conn.headers);
+  conn.res.end(JSON.stringify(json));
+};
+
+
+/**
+ * Ends the response of the request after successful completion of the task
+ * or on an error.
+ *
+ * @param {Object} conn Object containing Express's Request and Reponse objects.
+ * @param {number} statusCode A standard HTTP status code.
+ * @param {string} [message] Response message for the request.
+ * @returns {void}
+ *
+ */
+const sendResponse = (conn, statusCode, message = '') => {
+  let success = true;
+
+  /** 2xx codes denote success. */
+  if (!statusCode.toString().startsWith('2')) success = false;
+
+  conn.res.writeHead(statusCode, conn.headers);
+
+  conn.res.end(JSON.stringify({
+    success,
+    message,
+    code: statusCode,
+  }));
+};
+
+
+/**
+ * Ends the response when there is an error while handling the request.
+ *
+ * @param {Object} conn Object containing Express's Request and Reponse objects.
+ * @param {Object} error Firebase Error object.
+ * @returns {void}
+ */
+const handleError = (conn, error) => {
+  console.log(error);
+
+  sendResponse(
+    conn,
+    code.internalServerError,
+    'There was an error handling the request. Please try again later.'
+  );
+};
 
 
 /**
@@ -149,63 +208,6 @@ const now = (conn) => {
     timestamp: Date.now(),
     code: code.ok,
   });
-};
-
-
-/**
- * Ends the response of the request after successful completion of the task
- * or on an error.
- *
- * @param {Object} conn Object containing Express's Request and Reponse objects.
- * @param {number} statusCode A standard HTTP status code.
- * @param {string} [message] Response message for the request.
- * @returns {void}
- * 
- */
-const sendResponse = (conn, statusCode, message = '') => {
-  let success = true;
-
-  /** 2xx codes denote success. */
-  if (!statusCode.toString().startsWith('2')) success = false;
-
-  conn.res.writeHead(statusCode, conn.headers);
-
-  conn.res.end(JSON.stringify({
-    success,
-    message,
-    code: statusCode,
-  }));
-};
-
-
-/**
- * Ends the response when there is an error while handling the request.
- *
- * @param {Object} conn Object containing Express's Request and Reponse objects.
- * @param {Object} error Firebase Error object.
- * @returns {void}
- */
-const handleError = (conn, error) => {
-  console.log(error);
-
-  sendResponse(
-    conn,
-    code.internalServerError,
-    'There was an error handling the request. Please try again later.'
-  );
-};
-
-
-/**
- * Ends the response by sending the `JSON` to the client with `200 OK` response.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} json The response object to send to the client.
- * @returns {void}
- */
-const sendJSON = (conn, json) => {
-  conn.res.writeHead(code.ok, conn.headers);
-  conn.res.end(JSON.stringify(json));
 };
 
 

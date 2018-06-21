@@ -21,6 +21,10 @@
  *
  */
 
+
+'use strict';
+
+
 const {
   sendResponse,
 } = require('../admin/utils');

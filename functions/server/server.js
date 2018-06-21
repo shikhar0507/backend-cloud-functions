@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   rootCollections,
   users,
@@ -226,7 +229,8 @@ const server = (req, res) => {
     'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
     'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
       'Content-Type, Accept',
-    'Access-Control-Max-Age': 2592000, // 30 days
+    // 30 days
+    'Access-Control-Max-Age': 2592000,
     'Content-Type': 'application/json',
     'Content-Language': 'en-US',
     'Cache-Control': 'no-cache',

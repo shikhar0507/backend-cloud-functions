@@ -21,6 +21,8 @@
  *
  */
 
+'use strict';
+
 
 const code = {
   ok: 200,

@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   rootCollections,
   getGeopointObject,
@@ -194,7 +197,8 @@ const constructActivityAssigneesPromises = (conn) => {
 
       setAddendumForAssignees(conn);
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

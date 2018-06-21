@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const admin = require('firebase-admin');
 const serviceAccountKey = require('./key.json');
 
@@ -106,15 +109,14 @@ const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
  * @returns {Object} A `userRecord` containing the `photoURL`, `displayName`
  * and the `lastSignInTime`.
  * @see https://en.wikipedia.org/wiki/E.164
+ * @description Could've simply returned the `userRecord` with this function, but
+ * in some cases, this function is called inside a loop. So, whenever
+ * there is an error, the function would crash the cloud function.
+ * To avoid that, the catch() clause now handles the response in
+ * a different way.
  */
-const getUserByPhoneNumber = (phoneNumber) => {
-  /** Could've simply returned the `userRecord` with this function, but
-   * in some cases, this function is called inside a loop. So, whenever
-   * there is an error, the function would crash the cloud function.
-   * To avoid that, the catch() clause now handles the response in
-   * a different way.
-   */
-  return auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
+const getUserByPhoneNumber = (phoneNumber) =>
+  auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
     return {
       [phoneNumber]: userRecord,
     };
@@ -132,7 +134,6 @@ const getUserByPhoneNumber = (phoneNumber) => {
       [phoneNumber]: {},
     };
   });
-};
 
 
 /**
@@ -217,13 +218,17 @@ const rootCollections = {
    * collecting the data required for an instant notification.
    * Once the notification is sent successfully, the document in context
    * is deleted by an auto-triggering function in Firestore.
-   * @example /Instant(auto-id)/
+   * @example `/Instant(auto-id)/`
    */
   instant: db.collection('Instant'),
   dailySignUps: db.collection('DailySignUps'),
   dailyInits: db.collection('DailyInits'),
   dailyActivities: db.collection('DailyActivities'),
   dailyDisabled: db.collection('DailyDisabled'),
+  /** Contains the list of users who have changed their phone numbers
+   * for each day.
+   * @example `/DailyPhoneNumberChanges/day mon dd yyyy/`
+   */
   dailyPhoneNumberChanges: db.collection('DailyPhoneNumberChanges'),
 };
 

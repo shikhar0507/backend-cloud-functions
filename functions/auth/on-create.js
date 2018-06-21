@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   rootCollections,
   serverTimestamp,
@@ -42,19 +45,20 @@ const {
  * @param {Object} batch Batch object.
  * @returns {Promise} Batch object.
  */
-const updateDailyCollection = (userRecord, batch) => {
-  return dailySignUps
+const updateDailyCollection = (userRecord, batch) =>
+  dailySignUps
     .doc(new Date().toDateString())
     .set({
       [userRecord.phoneNumber]: {
         timestamp: serverTimestamp,
       },
-    }, {
+    },
+      {
         /** Doc will have other phone numbers too. */
         merge: true,
       })
     .then(() => batch.commit()).catch(console.error);
-};
+
 
 
 /**

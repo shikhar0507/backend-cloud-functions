@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   isValidLocation,
   isValidDate,

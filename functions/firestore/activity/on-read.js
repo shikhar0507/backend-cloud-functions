@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   rootCollections,
 } = require('../../admin/admin');
@@ -64,7 +67,8 @@ const updateDailyCollection = (conn, jsonResult) => {
     .doc()
     .set({
       timestamp: new Date(),
-    }).then(() => sendJSON(conn, jsonResult))
+    })
+    .then(() => sendJSON(conn, jsonResult))
     .catch((error) => handleError(conn, error));
 };
 
@@ -198,7 +202,8 @@ const getTemplates = (conn, jsonResult) => {
 
       fetchSubscriptions(conn, jsonResult);
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -322,7 +327,8 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
 
       fetchActivities(conn, jsonResult);
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -370,7 +376,8 @@ const readAddendumsByQuery = (conn) => {
 
       getActivityIdsFromProfileCollection(conn, jsonResult);
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

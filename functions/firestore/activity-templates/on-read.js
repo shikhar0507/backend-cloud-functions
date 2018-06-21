@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   rootCollections,
 } = require('../../admin/admin');
@@ -88,7 +91,8 @@ const fetchSingleTemplate = (conn) => {
 
       sendJSON(conn, snapShot.docs[0].data());
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

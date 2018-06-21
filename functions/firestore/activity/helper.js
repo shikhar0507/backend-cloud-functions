@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 /**
  * Checks if the location is valid with respect to the standard
  * lat and lng values.
@@ -104,7 +107,7 @@ const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber,
     return false;
   }
 
-  /** TODO: this needs to be implemented. */
+  // TODO: this needs to be implemented.
   if (subscription.canEditRule === 'PEOPLE_TYPE') return true;
 
   if (subscription.canEditRule === 'CREATOR') {
@@ -178,15 +181,15 @@ const filterSchedules = (schedules, scheduleObject) => {
  * Returns a venue object and filters out all the invalid ones.
  *
  * @param {Object} venues Venues from the request body.
- * @param {Object} venueFromTemplate Venue object from template.
+ * @param {Object} venueObject Venue object from template.
  * @returns {Array} Containing all the valid venues.
  */
-const filterVenues = (venues, venueFromTemplate) => {
+const filterVenues = (venues, venueObject) => {
   const getGeopointObject = require('../../admin/admin').getGeopointObject;
   const venueArray = [];
 
   const defaultVenue = {
-    venueDescriptor: venueFromTemplate.venueDescriptor,
+    venueDescriptor: venueObject.venueDescriptor,
     location: null,
     geopoint: null,
     address: null,
@@ -198,7 +201,7 @@ const filterVenues = (venues, venueFromTemplate) => {
   }
 
   venues.forEach((venue) => {
-    if (venue.venueDescriptor !== venueFromTemplate.venueDescriptor) {
+    if (venue.venueDescriptor !== venueObject.venueDescriptor) {
       return;
     }
 
@@ -232,19 +235,19 @@ const filterVenues = (venues, venueFromTemplate) => {
  * request body using the attachment object from the template.
  *
  * @param {Object} attachment Attachment from the request.body.attachment.
- * @param {Object} attachmentFromTemplate Attachment object from the template
+ * @param {Object} attachmentObject Attachment object from the template
  * in the firestore.
  * @returns {Array} Venue Objects.
  */
-const attachmentCreator = (attachment, attachmentFromTemplate) => {
-  if (!attachmentFromTemplate) return {};
+const attachmentCreator = (attachment, attachmentObject) => {
+  if (!attachmentObject) return {};
 
   const filteredAttachment = {};
 
   Object
-    .keys(attachmentFromTemplate)
+    .keys(attachmentObject)
     .forEach((key) => {
-      if (typeof attachmentFromTemplate[`${key}`]
+      if (typeof attachmentObject[`${key}`]
         === typeof attachment[`${key}`]) {
         /** Filter for each of the value type and their key of the object */
         filteredAttachment[`${key}`] = attachment[`${key}`];

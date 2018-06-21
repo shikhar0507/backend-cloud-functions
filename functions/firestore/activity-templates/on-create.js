@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   getGeopointObject,
   rootCollections,
@@ -102,7 +105,8 @@ const getTemplateByName = (conn) => {
 
       createTemplateObject(conn);
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

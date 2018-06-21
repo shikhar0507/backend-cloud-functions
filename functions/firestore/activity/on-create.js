@@ -21,7 +21,9 @@
  *
  */
 
-// TODO: Refactor this file fully.
+
+'use strict';
+
 
 const {
   rootCollections,
@@ -172,7 +174,7 @@ const handleAssignedUsers = (conn) => {
  */
 const createActivity = (conn) => {
   const root = {};
-  root.title === conn.req.body.title || '';
+  root.title = conn.req.body.title || '';
 
   if (typeof conn.req.body.description !== 'string') {
     root.description = '';
@@ -356,7 +358,7 @@ const createSubscription = (conn) => {
     conn.data.template.attachment
   );
 
-  /** Add `ALL` fields from attachment to the subscription document. */
+  /** Add `ALL` fields from the `attachment` to the subscription document. */
   Object
     .keys(attachment)
     .forEach((key) => tempDoc[`${key}`] = attachment[`${key}`]);

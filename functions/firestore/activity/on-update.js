@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   rootCollections,
   getGeopointObject,
@@ -215,7 +218,7 @@ const addAddendumForAssignees = (conn) => {
     snapShot.forEach((doc) => {
       if (!doc.get('uid')) return;
 
-      /** Users without `uid` are the ones who don't have 
+      /** Users without `uid` are the ones who don't have
        * signed up. Addemdum is added only for the users who
        * have an account in auth.
        */
@@ -353,7 +356,8 @@ const verifyEditPermission = (conn) => {
 
       fetchDocs(conn);
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

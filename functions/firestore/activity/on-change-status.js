@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const {
   rootCollections,
   getGeopointObject,
@@ -310,7 +313,8 @@ const verifyEditPermission = (conn) => {
 
       fetchDocs(conn);
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

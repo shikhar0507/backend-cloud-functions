@@ -22,6 +22,9 @@
  */
 
 
+'use strict';
+
+
 const functions = require('firebase-functions');
 
 const authOnCreate = require('./auth/on-create');
