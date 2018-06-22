@@ -10,7 +10,6 @@ query parameters: none
 
 ```json
 {
-    "phoneNumber": string --> new number
+    "phoneNumber": "+919090909090"
 }
 ```
-

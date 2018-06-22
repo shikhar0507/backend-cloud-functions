@@ -21,7 +21,7 @@ example: single phone number `.../api/services/users/read?q=%2B919090909090`
 ```json
 {
     "+919090909090": {
-        "photoURL": "https://firebasestorage.googleapis.com/v0/b/growthfilev2-0.appspot.com/o/ARMXkaszqie4vK4w997M1hVYJiP2%2FprofilePicture?alt=media&token=771c58e2-8a55-4dce-9fed-862199818afd",
+        "photoURL": "https://example.com/photo.png",
         "displayName": "metallica",
         "lastSignInTime": null
     }
@@ -35,7 +35,7 @@ example: multiple phone numbers: `.../api/services/users/read?q=%2B919090909090&
 ```json
 {
     "+919090909090": {
-        "photoURL": "https://firebasestorage.googleapis.com/v0/b/growthfilev2-0.appspot.com/o/ARMXkaszqie4vK4w997M1hVYJiP2%2FprofilePicture?alt=media&token=771c58e2-8a55-4dce-9fed-862199818afd",
+        "photoURL": "https://example.com/photo.png",
         "displayName": "metallica",
         "lastSignInTime": null
     },
@@ -61,7 +61,7 @@ The response body in such a case will look as follows:
 {
     "+919090909090": {
         "displayName": "metallica",
-        "photoURL": "https://firebasestorage.googleapis.com/v0/b/growthfilev2-0.appspot.com/o/ARMXkaszqie4vK4w997M1hVYJiP2%2FprofilePicture?alt=media&token=771c58e2-8a55-4dce-9fed-862199818afd",
+        "photoURL": "photoURL": "https://example.com/photo.png",
         "disabled": false,
         "metadata": {
             "lastSignInTime": "Sat, 09 Jun 2018 06:17:05 GMT",

@@ -147,19 +147,21 @@ const setAddendumForAssignees = (conn) => {
     .then((snapShots) => {
       snapShots.forEach((doc) => {
         /** `uid` shouldn't be `null` OR `undefined` */
-        if (doc.exists && doc.get('uid')) {
-          conn.batch.set(
-            updates
-              .doc(doc.get('uid'))
-              .collection('Addendum')
-              .doc(), {
-              activityId: conn.req.body.activityId,
-              user: conn.requester.displayName || conn.requester.phoneNumber,
-              comment: conn.req.body.comment,
-              location: getGeopointObject(conn.req.body.geopoint),
-              timestamp: new Date(conn.req.body.timestamp),
-            });
-        }
+        if (!doc.exists) return;
+
+        if (!doc.get('uid')) return;
+
+        conn.batch.set(
+          updates
+            .doc(doc.get('uid'))
+            .collection('Addendum')
+            .doc(), {
+            activityId: conn.req.body.activityId,
+            user: conn.requester.displayName || conn.requester.phoneNumber,
+            comment: conn.req.body.comment,
+            location: getGeopointObject(conn.req.body.geopoint),
+            timestamp: new Date(conn.req.body.timestamp),
+          });
       });
 
       logLocation(conn);
@@ -185,11 +187,7 @@ const createAssigneePromises = (conn) => {
     .get()
     .then((snapShot) => {
       snapShot.forEach((doc) => {
-        conn.assigneeDocPromises.push(
-          profiles
-            .doc(doc.id)
-            .get()
-        );
+        conn.assigneeDocPromises.push(profiles.doc(doc.id).get());
         conn.assigneesPhoneNumberList.push(doc.id);
       });
 

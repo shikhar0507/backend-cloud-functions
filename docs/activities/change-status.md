@@ -6,15 +6,21 @@ method: `PATCH`
 
 ```json
 {
-    "activityId": string --> activityId,
-    "timestamp": number --> unix timestamp,
+    "activityId": "z8ifrds0uSeWQoWuWJoX",
+    "timestamp": 1529650294688,
     "geopoint": {
-        latitude: number,
-        longitude: number
+        "latitude": 28.5482662,
+        "longitude": 77.2030614
     },
-    "status": string --> a valid status
+    "status": "VALUE"
 }
 ```
+
+## Valid Values for the Status
+
+* `PENDING`
+* `CONFIRMED`
+* `CANCELLED`
 
 ## Preconditions
 
@@ -22,4 +28,4 @@ method: `PATCH`
 
 * You must have edit rights to the activity.
 
-* You must be an assignee of the activity.
+* You must be an `assignee` of the activity.

@@ -21,6 +21,7 @@
  *
  */
 
+
 'use strict';
 
 
@@ -36,6 +37,7 @@ const {
 const {
   instant,
 } = rootCollections;
+
 
 /**
  * Creates a document in the `/Instant` collection with the
@@ -78,6 +80,7 @@ const createInstantLog = (conn, response) => {
     .then(() => sendResponse(conn, response.code, response.message))
     .catch((error) => handleError(conn, error));
 };
+
 
 module.exports = {
   createInstantLog,
