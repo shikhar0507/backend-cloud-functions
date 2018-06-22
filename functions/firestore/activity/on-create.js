@@ -359,17 +359,15 @@ const updateDailyActivities = (conn) => {
 
 
 /**
- * Adds subscription to the user's profile based on the request body.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
+ * Handles the cases where the template is of `subcription` or `office`.
+ * 
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
-const createSubscription = (conn) => {
-  conn.docRef = profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Subscriptions')
-    .doc();
-
+const handleSpecialTemplates = (conn) => {
+  /** A temp object storing all the fields for the doc to 
+   * write from the attachment.
+   */
   const docData = {};
 
   const attachment = attachmentCreator(
@@ -409,84 +407,35 @@ const createSubscription = (conn) => {
 
   docData.status = conn.data.template.statusOnCreate;
   docData.office = conn.req.body.office;
-  /** Skipped adding the `template` field to the `tempDoc`
-   * because `Subscription` template is not to be given to
-   * anyone.
-   */
-  conn.batch.set(conn.docRef, docData);
 
-  updateDailyActivities(conn);
-};
+  docData.template = conn.req.body.template;
 
+  if (conn.req.body.template === 'subscription') {
+    conn.docRef = profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Subscriptions')
+      .doc();
 
-/**
- * Creates a new document inside Office root collection based on the
- * attachment, template, and the request body.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @returns {void}
- */
-const createCompany = (conn) => {
-  conn.docRef = offices.doc(conn.activityRef.id);
+    /** Subscription to the `subscription` template
+     * is not to be given to anyone.
+     */
+    delete docData.template;
+    conn.batch.set(conn.docRef, docData);
 
-  const tempDoc = {};
+    updateDailyActivities(conn);
+    return;
+  }
 
-  const attachment = attachmentCreator(
-    conn.req.body.attachment,
-    conn.data.template.attachment
-  );
+  if (conn.req.body.template === 'company') {
+    conn.docRef = offices
+      .doc(conn.activityRef.id);
 
-  /** Add `ALL` fields from attachment to the company (office) document. */
-  Object
-    .keys(attachment)
-    .forEach((key) => tempDoc[`${key}`] = attachment[`${key}`]);
+    conn.batch.set(conn.docRef, docData);
 
-  tempDoc.name = conn.req.body.office;
+    updateDailyActivities(conn);
+    return;
+  }
 
-  /** Only one schedule is required. */
-  const schedule = filterSchedules(
-    conn.req.body.schedule,
-    /** The `schedule` object from the template. */
-    conn.data.template.schedule
-  )[0];
-
-  /** Only one venue is required. */
-  const venue = filterVenues(
-    conn.req.body.venue,
-    /** The `venue` object from the template. */
-    conn.data.template.venue
-  )[0];
-
-  tempDoc[`${schedule.name}`] = {
-    startTime: schedule.startTime,
-    endTime: schedule.endTime,
-  };
-
-  tempDoc[`${venue.venueDescriptor}`] = {
-    address: venue.address,
-    location: venue.location,
-    geopoint: getGeopointObject(venue.geopoint),
-  };
-
-  tempDoc.status = conn.data.template.statusOnCreate;
-  tempDoc.name = conn.req.body.office;
-  /** Template field is set in office. */
-  tempDoc.template = conn.req.body.template;
-
-  conn.batch.set(conn.docRef, tempDoc);
-
-  updateDailyActivities(conn);
-};
-
-
-/**
- * Creates a new document inside the specified Office from the
- * attachment based on the attachment, template and, the request body.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @returns {void}
- */
-const addNewEntityInOffice = (conn) => {
   /** Office ID: conn.data.office.docs[0].id */
   conn.docRef = offices
     .doc(conn.data.office.docs[0].id)
@@ -494,51 +443,7 @@ const addNewEntityInOffice = (conn) => {
     .collection(`${conn.req.body.template}s`)
     .doc(conn.activityRef.id);
 
-  const tempDoc = {};
-
-  const attachment = attachmentCreator(
-    conn.req.body.attachment,
-    conn.data.template.attachment
-  );
-
-  /** Add `ALL` fields from attachment to the company (office) document. */
-  Object
-    .keys(attachment)
-    .forEach((key) => tempDoc[`${key}`] = attachment[`${key}`]);
-
-  tempDoc.name = conn.req.body.office;
-
-  /** Only one schedule is required. */
-  const schedule = filterSchedules(
-    conn.req.body.schedule,
-    /** The `schedule` object from the template. */
-    conn.data.template.schedule
-  )[0];
-
-  /** Only one venue is required. */
-  const venue = filterVenues(
-    conn.req.body.venue,
-    /** The `venue` object from the template. */
-    conn.data.template.venue
-  )[0];
-
-  tempDoc[`${schedule.name}`] = {
-    startTime: schedule.startTime,
-    endTime: schedule.endTime,
-  };
-
-  tempDoc[`${venue.venueDescriptor}`] = {
-    address: venue.address,
-    location: venue.location,
-    geopoint: getGeopointObject(venue.geopoint),
-  };
-
-  tempDoc.status = conn.data.template.statusOnCreate;
-  tempDoc.name = conn.req.body.office;
-  /** Template field is set in office. */
-  tempDoc.template = conn.req.body.template;
-
-  conn.batch.set(conn.docRef, tempDoc);
+  conn.batch.set(conn.docRef, docData);
 
   updateDailyActivities(conn);
 };
@@ -593,17 +498,7 @@ const processRequestType = (conn) => {
     return;
   }
 
-  if (conn.req.body.template === 'subscription') {
-    createSubscription(conn);
-    return;
-  }
-
-  if (conn.req.body.template === 'company') {
-    createCompany(conn);
-    return;
-  }
-
-  addNewEntityInOffice(conn);
+  handleSpecialTemplates(conn);
 };
 
 
@@ -619,6 +514,76 @@ const handleSupportRequest = (conn) => {
    * request body and not from the user's subscription.
    */
   conn.data.subscription.canEditRule = conn.req.body.canEditRule;
+  processRequestType(conn);
+};
+
+
+/**
+ * Processes the `result` from the Firestore and saves the data to variables
+ * for use in the function flow.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Array} result Array of Documents fetched from Firestore.
+ * @returns {void}
+ */
+const handleResult = (conn, result) => {
+  /** Stores all the temporary data for creating the activity. */
+  conn.data = {};
+
+  /** A template with the name from the request body doesn't exist. */
+  if (result[0].empty) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `Template: ${conn.req.body.template} does not exist.`
+    );
+    return;
+  }
+
+  conn.data.subscription = result[1].docs[0].data();
+  conn.data.subscription.id = result[1].docs[0].id;
+  conn.data.template = result[0].docs[0].data();
+  /** Storing office as a reference when the office is not personal,
+   * the data and its reference is required fof creating an office.
+   */
+  conn.data.office = result[2];
+
+  /** Handle support requests from here. */
+  if (conn.requester.isSupportRequest) {
+    handleSupportRequest(conn);
+    return;
+  }
+
+  if (result[1].empty) {
+    /** The template with that field does not exist in the user's
+     * subscriptions. This probably means that they are either
+     * not subscribed to the template that they requested
+     * to create the activity with, OR the template with
+     * that name simply does not exist.
+     */
+    sendResponse(
+      conn,
+      code.forbidden,
+      `A template with the name: ${conn.req.body.template}` +
+      ' does not exist in your subscriptions.'
+    );
+    return;
+  }
+
+  if (result[1].docs[0].get('office') !== conn.req.body.office) {
+    /** Template from the request body and the office do not match so,
+     * the requester probably doesn't have the permission to create
+     * an activity with this template.
+     */
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You do not have the permission to create' +
+      ` an activity with the template: ${conn.req.body.template}.`
+    );
+    return;
+  }
+
   processRequestType(conn);
 };
 
@@ -645,67 +610,9 @@ const fetchDocs = (conn) => {
       .where('name', '==', conn.req.body.office)
       .limit(1)
       .get(),
-  ]).then((result) => {
-    /** Stores all the temporary data for creating the activity. */
-    conn.data = {};
-
-    /** A template with the name from the request body doesn't exist. */
-    if (result[0].empty) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `Template: ${conn.req.body.template} does not exist.`
-      );
-      return;
-    }
-
-    conn.data.subscription = result[1].docs[0].data();
-    conn.data.subscription.id = result[1].docs[0].id;
-    conn.data.template = result[0].docs[0].data();
-    /** Storing office as a reference when the office is not personal,
-     * the data and its reference is required fof creating an office.
-     */
-    conn.data.office = result[2];
-
-    /** Handle support requests from here. */
-    if (conn.requester.isSupportRequest) {
-      handleSupportRequest(conn);
-      return;
-    }
-
-    if (result[1].empty) {
-      /** The template with that field does not exist in the user's
-       * subscriptions. This probably means that they are either
-       * not subscribed to the template that they requested
-       * to create the activity with, OR the template with
-       * that name simply does not exist.
-       */
-      sendResponse(
-        conn,
-        code.forbidden,
-        `A template with the name: ${conn.req.body.template}` +
-        ' does not exist in your subscriptions.'
-      );
-      return;
-    }
-
-    if (result[1].docs[0].get('office') !== conn.req.body.office) {
-      /** Template from the request body and the office do not match so,
-       * the requester probably doesn't have the permission to create
-       * an activity with this template.
-       */
-      sendResponse(
-        conn,
-        code.forbidden,
-        'You do not have the permission to create' +
-        ` an activity with the template: ${conn.req.body.template}.`
-      );
-      return;
-    }
-
-    processRequestType(conn);
-    return;
-  }).catch((error) => handleError(conn, error));
+  ])
+    .then((result) => handleResult(conn, result))
+    .catch((error) => handleError(conn, error));
 };
 
 
