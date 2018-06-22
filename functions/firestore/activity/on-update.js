@@ -77,16 +77,18 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
+  const date = new Date();
+
   const dailyActivitiesDoc =
     dailyActivities
-      .doc(new Date().toDateString())
+      .doc(date.toDateString())
       .collection(conn.data.activity.get('office'))
       .doc(conn.data.activity.get('template'));
 
   const data = {
     phoneNumber: conn.requester.phoneNumber,
     url: conn.req.url,
-    timestamp: new Date(),
+    timestamp: date,
     activityId: conn.req.body.activityId,
   };
 
@@ -362,9 +364,9 @@ const verifyEditPermission = (conn) => {
 
 
 const isValidRequestBody = (conn) => {
-  return isValidDate(conn.req.body.timestamp) &&
-    isValidString(conn.req.body.activityId) &&
-    isValidLocation(conn.req.body.geopoint);
+  return isValidDate(conn.req.body.timestamp)
+    && isValidString(conn.req.body.activityId)
+    && isValidLocation(conn.req.body.geopoint);
 };
 
 
@@ -377,6 +379,11 @@ const app = (conn) => {
       ' values. Please make sure that the timestamp, activityId' +
       ' and the geopoint are included in the request with appropriate values.'
     );
+    return;
+  }
+
+  if (conn.requester.isSupportRequest) {
+    fetchDocs(conn);
     return;
   }
 

@@ -82,23 +82,28 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const handleAssignedUsers = (conn) => {
-  /** @constant promises List of promises. */
   const promises = [];
 
   /**
    * Create docs in Assignees collection if share is in the request body.
    * */
-  conn.req.body.share.forEach((val) => {
-    if (!isValidPhoneNumber(val)) return;
+  conn.req.body.share.forEach((phoneNumber) => {
+    if (!isValidPhoneNumber(phoneNumber)) return;
+
+    /** The requester shouldn't be added to the activity assignee list
+     * if the request is of `support` type.
+     */
+    if (phoneNumber === conn.requester.phoneNumber
+      && conn.requester.isSupportRequest) return;
 
     conn.batch.set(
       activities
         .doc(conn.activityRef.id)
         .collection('Assignees')
-        .doc(val), {
+        .doc(phoneNumber), {
         canEdit: handleCanEdit(
           conn.data.subscription,
-          val,
+          phoneNumber,
           conn.requester.phoneNumber,
           conn.req.body.share
         ),
@@ -107,16 +112,16 @@ const handleAssignedUsers = (conn) => {
       });
 
     /** The phone numbers exist uniquely in the `/Profiles` collection. */
-    promises.push(profiles.doc(val).get());
+    promises.push(profiles.doc(phoneNumber).get());
 
     conn.batch.set(
       profiles
-        .doc(val)
+        .doc(phoneNumber)
         .collection('Activities')
         .doc(conn.activityRef.id), {
         canEdit: handleCanEdit(
           conn.data.subscription,
-          val,
+          phoneNumber,
           conn.requester.phoneNumber,
           conn.req.body.share
         ),
@@ -160,6 +165,8 @@ const handleAssignedUsers = (conn) => {
       }
     });
 
+    console.log('actId:', conn.activityRef.id);
+
     commitBatch(conn);
     return;
   }).catch((error) => handleError(conn, error));
@@ -174,14 +181,18 @@ const handleAssignedUsers = (conn) => {
  */
 const createActivity = (conn) => {
   const root = {};
-  root.title = conn.req.body.title || '';
 
-  if (typeof conn.req.body.description !== 'string') {
+  root.title = conn.req.body.title;
+
+  if (!isValidString(conn.req.body.title)) {
+    root.title = '';
+  }
+
+  if (!isValidString(conn.req.body.description)) {
     root.description = '';
   }
 
-  if (typeof conn.req.body.title !== 'string'
-    && typeof conn.req.body.description === 'string') {
+  if (root.title === '' && root.description !== '') {
     root.title = conn.req.body.description.substring(0, 30);
   }
 
@@ -193,19 +204,17 @@ const createActivity = (conn) => {
   root.office = conn.req.body.office;
   root.template = conn.req.body.template;
 
-  root
-    .schedule = filterSchedules(
-      conn.req.body.schedule,
-      /** The `schedule` object from the template. */
-      conn.data.template.schedule
-    );
+  root.schedule = filterSchedules(
+    conn.req.body.schedule,
+    /** The `schedule` object from the template. */
+    conn.data.template.schedule
+  );
 
-  root
-    .venue = filterVenues(
-      conn.req.body.venue,
-      /** The `venue` object from the template. */
-      conn.data.template.venue
-    );
+  root.venue = filterVenues(
+    conn.req.body.venue,
+    /** The `venue` object from the template. */
+    conn.data.template.venue
+  );
 
   root.timestamp = new Date(conn.req.body.timestamp);
 
@@ -245,15 +254,21 @@ const createActivity = (conn) => {
    * phone number, so we don't need to explictly add their number
    * in order to add them to a batch.
    */
-  conn.data.subscription.include.forEach((val) => {
+  conn.data.subscription.include.forEach((phoneNumber) => {
+    /** The requester shouldn't be added to the activity assignee list
+     * if the request is of `support` type.
+     */
+    if (phoneNumber === conn.requester.phoneNumber
+      && conn.requester.isSupportRequest) return;
+
     conn.batch.set(
       activities
         .doc(conn.activityRef.id)
         .collection('Assignees')
-        .doc(val), {
+        .doc(phoneNumber), {
         canEdit: handleCanEdit(
           conn.data.subscription,
-          val,
+          phoneNumber,
           conn.requester.phoneNumber,
           conn.req.body.share
         ),
@@ -295,16 +310,19 @@ const createActivity = (conn) => {
  * @returns {void}
  */
 const logLocation = (conn) => {
-  conn.batch.set(
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Map')
-      .doc(), {
-      geopoint: getGeopointObject(conn.req.body.geopoint),
-      timestamp: new Date(conn.req.body.timestamp),
-      office: conn.req.body.office,
-      template: conn.req.body.template,
-    });
+  const locationDoc = profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Map')
+    .doc();
+
+  const data = {
+    geopoint: getGeopointObject(conn.req.body.geopoint),
+    timestamp: new Date(conn.req.body.timestamp),
+    office: conn.req.body.office,
+    template: conn.req.body.template,
+  };
+
+  conn.batch.set(locationDoc, data);
 
   createActivity(conn);
 };
@@ -320,6 +338,7 @@ const logLocation = (conn) => {
  */
 const updateDailyActivities = (conn) => {
   const date = new Date();
+
   const data = {
     phoneNumber: conn.requester.phoneNumber,
     url: conn.req.url,
@@ -351,7 +370,7 @@ const createSubscription = (conn) => {
     .collection('Subscriptions')
     .doc();
 
-  const tempDoc = {};
+  const docData = {};
 
   const attachment = attachmentCreator(
     conn.req.body.attachment,
@@ -361,7 +380,7 @@ const createSubscription = (conn) => {
   /** Add `ALL` fields from the `attachment` to the subscription document. */
   Object
     .keys(attachment)
-    .forEach((key) => tempDoc[`${key}`] = attachment[`${key}`]);
+    .forEach((key) => docData[`${key}`] = attachment[`${key}`]);
 
   /** Only one schedule is required. */
   const schedule = filterSchedules(
@@ -377,24 +396,24 @@ const createSubscription = (conn) => {
     conn.data.template.venue
   )[0];
 
-  tempDoc[`${schedule.name}`] = {
+  docData[`${schedule.name}`] = {
     startTime: schedule.startTime,
     endTime: schedule.endTime,
   };
 
-  tempDoc[`${venue.venueDescriptor}`] = {
+  docData[`${venue.venueDescriptor}`] = {
     address: venue.address,
     location: venue.location,
     geopoint: getGeopointObject(venue.geopoint),
   };
 
-  tempDoc.status = conn.data.template.statusOnCreate;
-  tempDoc.office = conn.req.body.office;
+  docData.status = conn.data.template.statusOnCreate;
+  docData.office = conn.req.body.office;
   /** Skipped adding the `template` field to the `tempDoc`
    * because `Subscription` template is not to be given to
    * anyone.
    */
-  conn.batch.set(conn.docRef, tempDoc);
+  conn.batch.set(conn.docRef, docData);
 
   updateDailyActivities(conn);
 };

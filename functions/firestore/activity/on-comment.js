@@ -175,7 +175,7 @@ const setAddendumForAssignees = (conn) => {
  * @param {Object} conn Object with Express Request and Response Objects.
  * @returns {void}
  */
-const constructActivityAssigneesPromises = (conn) => {
+const createAssigneePromises = (conn) => {
   conn.assigneeDocPromises = [];
   conn.assigneesPhoneNumberList = [];
 
@@ -203,6 +203,40 @@ const constructActivityAssigneesPromises = (conn) => {
 
 
 /**
+ * Fetches the activity doc from inside the `Activities` root collection.
+ *
+ * @param {Object} conn Object with Express Request and Response Objects.
+ * @returns {void}
+ */
+const checkIfActivityExists = (conn) => {
+  activities
+    .doc(conn.req.body.activityId)
+    .get()
+    .then((doc) => {
+      if (!doc.exists) {
+        sendResponse(
+          conn,
+          code.conflict,
+          `No acivity found with the id: ${conn.req.body.activityId}.`
+        );
+        return;
+      }
+
+      /** Resetting the activity doc data here again for the
+       * cases where the activity doc doesn't exist for the
+       * support person, but actually exists in the `/Activities`
+       * collection.
+       */
+      conn.data.activity = doc;
+
+      createAssigneePromises(conn);
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+/**
  * Checks whether the user is an assignee to an activity which they
  * have sent a request to add a comment to.
  *
@@ -210,16 +244,25 @@ const constructActivityAssigneesPromises = (conn) => {
  * @returns {void}
  */
 const checkCommentPermission = (conn) => {
+  if (conn.requester.isSupportRequest) {
+    /** The activity may not exist in the `Profiles/(phoneNumber)/Activities`
+     * collection, so for the support requests, another check inside the
+     * `/Activities` root collection is required.
+     */
+    checkIfActivityExists(conn);
+    return;
+  }
+
   if (!conn.data.profileActivityDoc.exists) {
     sendResponse(
       conn,
-      code.notFound,
-      `No acivity found with the id: ${conn.req.body.activityId}`
+      code.conflict,
+      `No acivity found with the id: ${conn.req.body.activityId}.`
     );
     return;
   }
 
-  constructActivityAssigneesPromises(conn);
+  createAssigneePromises(conn);
 };
 
 
@@ -247,7 +290,7 @@ const fetchDocs = (conn) => {
 /**
  * Checks for `timestamp`, `geopoint`, `activityId` and the `comment` from the
  * request body.
- * 
+ *
  * @param {Object} conn Object with Express Request and Response Objects.
  * @returns {boolean} If the request body is valid.
  */

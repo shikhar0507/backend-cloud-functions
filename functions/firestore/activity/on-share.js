@@ -204,6 +204,12 @@ const addAddendumForAssignees = (conn) => {
   conn.req.body.share.forEach((phoneNumber) => {
     if (!isValidPhoneNumber(phoneNumber)) return;
 
+    /** The requester shouldn't be added to the activity assignee list
+     * if the request is of `support` type.
+     */
+    if (phoneNumber === conn.requester.phoneNumber
+      && conn.requester.isSupportRequest) return;
+
     /** Adding a doc with the id = phoneNumber in
      * `Activities/(activityId)/Assignees`
      * */
@@ -362,16 +368,6 @@ const verifyEditPermission = (conn) => {
 };
 
 
-const verifyRequestType = (conn) => {
-  if (conn.requester.isSupportRequest) {
-    fetchDocs(conn);
-    return;
-  }
-
-  verifyEditPermission(conn);
-};
-
-
 const isValidRequestBody = (conn) => {
   return isValidDate(conn.req.body.timestamp) &&
     isValidString(conn.req.body.activityId) &&
@@ -392,7 +388,15 @@ const app = (conn) => {
     return;
   }
 
-  verifyRequestType(conn);
+  /** The support person doesn't need to be an assignee
+   * of the activity to make changes.
+   */
+  if (conn.requester.isSupportRequest) {
+    fetchDocs(conn);
+    return;
+  }
+
+  verifyEditPermission(conn);
 };
 
 

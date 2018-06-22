@@ -78,6 +78,15 @@ const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
 const isValidPhoneNumber = (phoneNumber) => {
   if (!phoneNumber) return false;
 
+  /**
+   * RegExp Explained...
+   * * ^: Matches the beginning of the string, or the beginning of a line if the multiline flag (m) is enabled.
+   * * \+: Matches the `+` character
+   * *[1-9]: Matches the character in range `1` to `9`
+   * *\d: Matches any digit character
+   * * *{5-14}: Match between 5 and 14 characters after the preceeding `+` token
+   * *$: Matches the end of the string, or the end of a line if the multiple flag (m) is enabled.
+   */
   const re = /^\+[1-9]\d{5,14}$/;
   return re.test(phoneNumber);
 };
@@ -93,12 +102,17 @@ const isValidPhoneNumber = (phoneNumber) => {
  * @param {Array} assignees Array of people who are assignees of the activity.
  * @returns {boolean} Depends on the subscription and the phoneNumber in args.
  */
-const handleCanEdit = (subscription, phoneNumber, requesterPhoneNumber,
-  assignees = []) => {
+const handleCanEdit = (
+  subscription,
+  phoneNumber,
+  requesterPhoneNumber,
+  assignees = []
+) => {
   if (subscription.canEditRule === 'ALL') return true;
 
   if (subscription.canEditRule === 'NONE') return false;
 
+  /** List of assignees... */
   if (subscription.canEditRule === 'FROM_INCLUDE') {
     if (subscription.include.indexOf(phoneNumber) > -1
       || assignees.indexOf(phoneNumber) > -1) {

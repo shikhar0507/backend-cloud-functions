@@ -317,7 +317,8 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
     .get()
     .then((snapShot) => {
       snapShot.forEach((doc) => {
-        conn.activityFetchPromises.push(activities.doc(doc.id).get());
+        conn.activityFetchPromises
+          .push(activities.doc(doc.id).get());
         conn.assigneeFetchPromises
           .push(activities.doc(doc.id).collection('Assignees').get());
 

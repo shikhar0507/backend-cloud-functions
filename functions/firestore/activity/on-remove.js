@@ -330,6 +330,14 @@ const app = (conn) => {
     return;
   }
 
+  /** The support person doesn't need to be an assignee
+   * of the activity to make changes.
+   */
+  if (conn.requester.isSupportRequest) {
+    fetchDocs(conn);
+    return;
+  }
+
   verifyEditPermission(conn);
 };
 

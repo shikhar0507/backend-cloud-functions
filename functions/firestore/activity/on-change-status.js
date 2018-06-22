@@ -104,17 +104,19 @@ const updateDailyActivities = (conn) => {
  * @returns {void}
 */
 const logLocation = (conn) => {
-  conn.batch.set(
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Map')
-      .doc(), {
-      geopoint: getGeopointObject(conn.req.body.geopoint),
-      timestamp: new Date(conn.req.body.timestamp),
-      office: conn.data.activity.get('office'),
-      template: conn.data.activity.get('template'),
-    }
-  );
+  const mapDoc = profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Map')
+    .doc();
+
+  const data = {
+    geopoint: getGeopointObject(conn.req.body.geopoint),
+    timestamp: new Date(conn.req.body.timestamp),
+    office: conn.data.activity.get('office'),
+    template: conn.data.activity.get('template'),
+  };
+
+  conn.batch.set(mapDoc, data);
 
   updateDailyActivities(conn);
 };
@@ -398,8 +400,8 @@ const app = (conn) => {
     return;
   }
 
-  /** Person with support request doesn't need to be 
-   * an assignee of the activity.
+  /** The `support` person doesn't need to be an assignee
+   * of the activity to make changes.
    */
   if (conn.requester.isSupportRequest) {
     fetchDocs(conn);
