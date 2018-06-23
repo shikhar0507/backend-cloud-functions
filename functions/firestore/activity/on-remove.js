@@ -82,10 +82,11 @@ const updateDailyActivities = (conn) => {
     .doc(template);
 
   const data = {
-    phoneNumber: conn.requester.phoneNumber,
-    url: conn.req.url,
-    timestamp: date,
-    activityId: conn.req.body.activityId,
+    [`${date.toLocaleString().split(', ')[1]}`]: {
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      activityId: conn.activityRef.id,
+    },
   };
 
   conn.batch.set(dailyActivitiesDoc, data);

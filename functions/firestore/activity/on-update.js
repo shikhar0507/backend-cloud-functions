@@ -78,18 +78,21 @@ const commitBatch = (conn) => conn.batch.commit()
  */
 const updateDailyActivities = (conn) => {
   const date = new Date();
+  const office = conn.data.activity.get('office');
+  const template = conn.data.activity.get('template');
 
   const dailyActivitiesDoc =
     dailyActivities
       .doc(date.toDateString())
-      .collection(conn.data.activity.get('office'))
-      .doc(conn.data.activity.get('template'));
+      .collection(office)
+      .doc(template);
 
   const data = {
-    phoneNumber: conn.requester.phoneNumber,
-    url: conn.req.url,
-    timestamp: date,
-    activityId: conn.req.body.activityId,
+    [`${date.toLocaleString().split(', ')[1]}`]: {
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      activityId: conn.activityRef.id,
+    },
   };
 
   conn.batch.set(dailyActivitiesDoc, data);

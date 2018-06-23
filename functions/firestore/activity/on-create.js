@@ -82,6 +82,12 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const handleAssignedUsers = (conn) => {
+  /** The list of assignees *NEEDS* to be an array. */
+  if (!Array.isArray(conn.req.body.share)) {
+    commitBatch(conn);
+    return;
+  }
+
   const promises = [];
 
   /**
@@ -95,6 +101,9 @@ const handleAssignedUsers = (conn) => {
      */
     if (phoneNumber === conn.requester.phoneNumber
       && conn.requester.isSupportRequest) return;
+
+    /** The phone numbers exist uniquely in the `/Profiles` collection. */
+    promises.push(profiles.doc(phoneNumber).get());
 
     conn.batch.set(
       activities
@@ -110,9 +119,6 @@ const handleAssignedUsers = (conn) => {
       }, {
         merge: true,
       });
-
-    /** The phone numbers exist uniquely in the `/Profiles` collection. */
-    promises.push(profiles.doc(phoneNumber).get());
 
     conn.batch.set(
       profiles
@@ -165,8 +171,6 @@ const handleAssignedUsers = (conn) => {
       }
     });
 
-    console.log('actId:', conn.activityRef.id);
-
     commitBatch(conn);
     return;
   }).catch((error) => handleError(conn, error));
@@ -180,57 +184,58 @@ const handleAssignedUsers = (conn) => {
  * @returns {void}
  */
 const createActivity = (conn) => {
-  const root = {};
+  const activityRoot = {};
 
-  root.title = conn.req.body.title;
+  activityRoot.title = conn.req.body.title;
+  activityRoot.description = conn.req.body.description;
 
-  if (!isValidString(conn.req.body.title)) {
-    root.title = '';
+  if (!isValidString(activityRoot.title)) {
+    activityRoot.title = '';
   }
 
-  if (!isValidString(conn.req.body.description)) {
-    root.description = '';
+  if (!isValidString(activityRoot.description)) {
+    activityRoot.description = '';
   }
 
-  if (root.title === '' && root.description !== '') {
-    root.title = conn.req.body.description.substring(0, 30);
+  if (activityRoot.title === '' && activityRoot.description !== '') {
+    activityRoot.title = conn.req.body.description.substring(0, 30);
   }
 
-  if (root.title === '') {
-    root.tile = conn.data.template.defaultTitle;
+  if (activityRoot.title === '') {
+    activityRoot.tile = conn.data.template.defaultTitle;
   }
 
-  root.status = conn.data.template.statusOnCreate;
-  root.office = conn.req.body.office;
-  root.template = conn.req.body.template;
+  activityRoot.status = conn.data.template.statusOnCreate;
+  activityRoot.office = conn.req.body.office;
+  activityRoot.template = conn.req.body.template;
 
-  root.schedule = filterSchedules(
+  activityRoot.schedule = filterSchedules(
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     conn.data.template.schedule
   );
 
-  root.venue = filterVenues(
+  activityRoot.venue = filterVenues(
     conn.req.body.venue,
     /** The `venue` object from the template. */
     conn.data.template.venue
   );
 
-  root.timestamp = new Date(conn.req.body.timestamp);
+  activityRoot.timestamp = new Date(conn.req.body.timestamp);
 
   /** The docRef is the reference to the document which the
     * activity handled in the request. It will ne null for an
     * activity with the template 'plan' with office 'personal'.
     */
 
-  root.docRef = conn.docRef || null;
+  activityRoot.docRef = conn.docRef || null;
 
   /** The rule is stored here to avoid reading subscriptions during
    * updates.
    */
-  root.canEditRule = conn.data.subscription.canEditRule;
+  activityRoot.canEditRule = conn.data.subscription.canEditRule;
 
-  conn.batch.set(conn.activityRef, root);
+  conn.batch.set(conn.activityRef, activityRoot);
 
   conn.addendumData = {
     activityId: conn.activityRef.id,
@@ -293,12 +298,7 @@ const createActivity = (conn) => {
       timestamp: new Date(conn.req.body.timestamp),
     });
 
-  if (Array.isArray(conn.req.body.share)) {
-    handleAssignedUsers(conn);
-    return;
-  }
-
-  commitBatch(conn);
+  handleAssignedUsers(conn);
 };
 
 
@@ -339,11 +339,12 @@ const logLocation = (conn) => {
 const updateDailyActivities = (conn) => {
   const date = new Date();
 
-  const data = {
-    phoneNumber: conn.requester.phoneNumber,
-    url: conn.req.url,
-    timestamp: date,
-    activityId: conn.activityRef.id,
+  const doc = {
+    [`${date.toLocaleString().split(', ')[1]}`]: {
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      activityId: conn.activityRef.id,
+    },
   };
 
   conn.batch.set(
@@ -351,7 +352,9 @@ const updateDailyActivities = (conn) => {
       .doc(date.toDateString())
       .collection(conn.req.body.office)
       .doc(conn.req.body.template),
-    data
+    doc, {
+      merge: true,
+    }
   );
 
   logLocation(conn);
@@ -360,12 +363,12 @@ const updateDailyActivities = (conn) => {
 
 /**
  * Handles the cases where the template is of `subcription` or `office`.
- * 
+ *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 const handleSpecialTemplates = (conn) => {
-  /** A temp object storing all the fields for the doc to 
+  /** A temp object storing all the fields for the doc to
    * write from the attachment.
    */
   const docData = {};
