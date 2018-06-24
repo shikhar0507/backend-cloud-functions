@@ -38,6 +38,7 @@ const {
   activityTemplates,
   offices,
   dailyActivities,
+  enums,
 } = rootCollections;
 
 const {
@@ -517,7 +518,31 @@ const processRequestType = (conn) => {
  * @returns {void}
  */
 const handleSupportRequest = (conn) => {
-  /** For support requests, the canEditRule will be used from the
+  if (!conn.req.body.hasOwnProperty('canEditRule')) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The canEditRule is missing from the request body.'
+    );
+    return;
+  }
+
+  if (
+    conn
+      .data
+      .canEditRules
+      .get('CANEDITRULES')
+      .indexOf(conn.req.body.canEditRule) === -1
+  ) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The canEditRule in the request body is invalid.'
+    );
+    return;
+  }
+
+  /** For support requests, the `canEditRule` will be used from the
    * request body and not from the user's subscription.
    */
   conn.data.subscription.canEditRule = conn.req.body.canEditRule;
@@ -555,8 +580,15 @@ const handleResult = (conn, result) => {
    */
   conn.data.office = result[2];
 
+  conn.data.canEditRules = result[3];
+
   /** Handle support requests from here. */
   if (conn.requester.isSupportRequest) {
+    /** A person with support privilidge, doesn't need to 
+     * have the subscription to the template that they want
+     * to create the activity with.
+     * @see https://github.com/Growthfilev2/backend-cloud-functions/blob/master/docs/support-requests/README.md
+     */
     handleSupportRequest(conn);
     return;
   }
@@ -585,8 +617,9 @@ const handleResult = (conn, result) => {
     sendResponse(
       conn,
       code.forbidden,
-      'You do not have the permission to create' +
-      ` an activity with the template: ${conn.req.body.template}.`
+      'You do not have the permission to create'
+      + ` an activity with the template: ${conn.req.body.template}`
+      + ` for the office: ${conn.req.body.office}.`
     );
     return;
   }
@@ -617,6 +650,9 @@ const fetchDocs = (conn) => {
       .where('name', '==', conn.req.body.office)
       .limit(1)
       .get(),
+    enums
+      .doc('CANEDITRULES')
+      .get(),
   ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
@@ -627,65 +663,29 @@ const fetchDocs = (conn) => {
  * Checks if the request body has `ALL` the *required* fields like `timestamp`,
  * `geopoint`, `office`, and the `template`.
  *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @returns {void}
+ * @param {Object} body The request body.
+* @returns {boolean} If the request body has valid fields.
  */
-const isValidRequestBody = (conn) => {
-  if (isValidDate(conn.req.body.timestamp)
-    && isValidString(conn.req.body.template)
-    && isValidString(conn.req.body.office)
-    && isValidLocation(conn.req.body.geopoint)
-    && conn.req.body.template) {
-    fetchDocs(conn);
-    return;
-  }
-
-  sendResponse(
-    conn,
-    code.badRequest,
-    'The request body does not have all the necessary fields with proper' +
-    ' values. Please make sure that the timestamp, template, office' +
-    ' and the geopoint are included in the request with appropriate values.'
-  );
-};
-
-
-const verifyCanEditRuleFromRequestBody = (conn) => {
-  if (!conn.req.body.hasOwnProperty('canEditRule')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The canEditRule is missing from the request body.'
-    );
-    return;
-  }
-
-  if ([
-    'ALL',
-    'NONE',
-    'FROM_INCLUDE',
-    'PEOPLE_TYPE',
-    'CREATOR',
-  ].indexOf(conn.req.body.canEditRule) === -1) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The canEditRule is invalid in the request body.'
-    );
-    return;
-  }
-
-  isValidRequestBody(conn);
+const isValidRequestBody = (body) => {
+  return isValidString(body.template)
+    && isValidDate(body.timestamp)
+    && isValidString(body.office)
+    && isValidLocation(body.geopoint);
 };
 
 
 const app = (conn) => {
-  if (conn.requester.isSupportRequest) {
-    verifyCanEditRuleFromRequestBody(conn);
+  if (!isValidRequestBody(conn.req.body)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `Request body is invalid. Make sure that template, timestamp, office,`
+      + ` and the geopoint fields are present.`
+    );
     return;
   }
 
-  isValidRequestBody(conn);
+  fetchDocs(conn);
 };
 
 
