@@ -4,6 +4,8 @@ endpoint: `/api/activities/change-status`
 
 method: `PATCH`
 
+## Full Request Body
+
 ```json
 {
     "activityId": "z8ifrds0uSeWQoWuWJoX",

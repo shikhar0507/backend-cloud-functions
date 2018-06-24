@@ -13,8 +13,8 @@ query parameter: none
     "activityId": "rthbw93Sc3YpAHbRAYFL",
     "timestamp": 0,
     "geopoint": {
-        latitude: 0,
-        longitude: 0
+        "latitude": 0,
+        "longitude": 0
     },
     "comment": "A comment string."
 }

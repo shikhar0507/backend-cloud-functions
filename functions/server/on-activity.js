@@ -49,7 +49,8 @@ const app = (conn) => {
    */
   conn.requester.isSupportRequest = false;
 
-  if (conn.req.query.as === 'support') {
+  /** URL query params are of type `string`. */
+  if (conn.req.query.support === 'true') {
     conn.requester.isSupportRequest = true;
   }
 

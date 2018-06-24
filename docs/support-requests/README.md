@@ -4,9 +4,11 @@ There are no special endpoints for support requests. Instead, `support` is a spe
 
 ## Support Privilidges
 
-A person belonging`support` has the following privilidges:
+A person with `support` has the following privilidges:
 
-* Can edit activities where they are not an assignee of.
+* Can create activities without them being asignees of the activity themselves.
+
+* Can edit the activity without being an assignee.
 
 ## Sending A Support Request
 
@@ -21,13 +23,12 @@ The endpoints which employ a support request are the following:
 
 * A person with support privilidge can create an activity without the need of subsciption to the template required to create the activity.
 
-> The same conditions apply to `/share` too.
+To distinguish a normal request from a support request, you have to add a query parameter `support` to your request URL.
 
-To distinguish a normal request from a support request, you have to add a query parameter `as` to your request URL.
+*example*: `/api/activities/create?support=true`
 
-`/api/activities/create?as=support`
-
-With such a request, you will also need to include a field `canEditRule` to the request body.
+For the `/create` endpoint , you also need to add the
+`canEditRule` in the request body in the support requests.
 
 * Example Request Body:
 
