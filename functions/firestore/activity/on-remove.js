@@ -329,9 +329,8 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The request body does not have all the necessary fields with proper'
-      + ' values. Please make sure that the timestamp, activityId, geopoint'
-      + ' and the unassign array are included in the request body.'
+      `The request body is invalid. Make sure that the activityId, timestamp,`
+      + ` geopoint and the remove fields are present.`
     );
     return;
   }

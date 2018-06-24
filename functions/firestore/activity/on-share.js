@@ -360,7 +360,6 @@ const verifyEditPermission = (conn) => {
       }
 
       if (!doc.get('canEdit')) {
-        /** The `canEdit` flag is false so updating is not allowed */
         sendResponse(
           conn,
           code.forbidden,
@@ -376,22 +375,21 @@ const verifyEditPermission = (conn) => {
 };
 
 
-const isValidRequestBody = (conn) => {
-  return isValidDate(conn.req.body.timestamp) &&
-    isValidString(conn.req.body.activityId) &&
-    Array.isArray(conn.req.body.share) &&
-    isValidLocation(conn.req.body.geopoint);
+const isValidRequestBody = (body) => {
+  return isValidDate(body.timestamp) &&
+    isValidString(body.activityId) &&
+    Array.isArray(body.share) &&
+    isValidLocation(body.geopoint);
 };
 
 
 const app = (conn) => {
-  if (!isValidRequestBody(conn)) {
+  if (!isValidRequestBody(conn.req.body)) {
     sendResponse(
       conn,
       code.badRequest,
-      'The request body does not have all the necessary fields with proper' +
-      ' values. Please make sure that the timestamp, activityId, geopoint' +
-      ' and the assign array are included in the request body.'
+      `The request body is invalid. Make sure that the activityId, timestamp`
+      + ` geopoint and the share fields are present.`
     );
     return;
   }

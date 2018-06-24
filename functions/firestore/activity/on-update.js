@@ -191,6 +191,7 @@ const updateActivityDoc = (conn) => {
 };
 
 
+
 /**
  * Manages the attachment object.
  *
@@ -198,10 +199,15 @@ const updateActivityDoc = (conn) => {
  * @returns {void}
  */
 const handleAttachment = (conn) => {
-  /** Do stuff */
+  if (!conn.req.body.hasOwnProperty('attachment')) {
+    updateActivityDoc(conn);
+    return;
+  }
 
+  /** Do stuff */
   updateActivityDoc(conn);
 };
+
 
 
 /**
@@ -244,12 +250,7 @@ const addAddendumForAssignees = (conn) => {
     /** Stores the objects that are to be updated in the activity root. */
     conn.update = {};
 
-    if (conn.req.body.attachment) {
-      handleAttachment(conn);
-      return;
-    }
-
-    updateActivityDoc(conn);
+    handleAttachment(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -383,9 +384,8 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The request body does not have all the necessary fields with proper' +
-      ' values. Please make sure that the timestamp, activityId' +
-      ' and the geopoint are included in the request with appropriate values.'
+      `The request body is invalid. Make sure that the activityId, timestamp`
+      + ` and the geopoint are included.`
     );
     return;
   }

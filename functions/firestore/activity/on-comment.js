@@ -295,25 +295,24 @@ const fetchDocs = (conn) => {
  * Checks for `timestamp`, `geopoint`, `activityId` and the `comment` from the
  * request body.
  *
- * @param {Object} conn Object with Express Request and Response Objects.
+ * @param {Object} body The request body.
  * @returns {boolean} If the request body is valid.
  */
-const isValidRequestBody = (conn) => {
-  return isValidDate(conn.req.body.timestamp)
-    && isValidLocation(conn.req.body.geopoint)
-    && isValidString(conn.req.body.activityId)
-    && typeof conn.req.body.comment === 'string';
+const isValidRequestBody = (body) => {
+  return isValidString(body.activityId)
+    && isValidDate(body.timestamp)
+    && isValidLocation(body.geopoint)
+    && isValidString(body.comment);
 };
 
 
 const app = (conn) => {
-  if (!isValidRequestBody(conn)) {
+  if (!isValidRequestBody(conn.req.body)) {
     sendResponse(
       conn,
       code.badRequest,
-      'The request body does not have all the necessary fields with proper'
-      + ' values. Please make sure that the timestamp, activityId, '
-      + 'geopoint and the comment are included in the request body.'
+      `The request body is invalid. Make sure that the activityId, timestamp,`
+      + ` geopoint and the comment are present.`
     );
     return;
   }
