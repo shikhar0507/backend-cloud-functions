@@ -339,8 +339,12 @@ const logLocation = (conn) => {
 const updateDailyActivities = (conn) => {
   const date = new Date();
 
+  const hour = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
+
   const doc = {
-    [`${date.toLocaleString().split(', ')[1]}`]: {
+    [`${hour}h:${minutes}m:${seconds}s`]: {
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.activityRef.id,

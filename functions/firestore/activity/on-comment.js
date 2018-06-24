@@ -78,9 +78,14 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
+  const date = new Date();
+
+  const hour = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
+
   const office = conn.data.activity.get('office');
   const template = conn.data.activity.get('template');
-  const date = new Date();
 
   const dailyActivitiesDoc = dailyActivities
     .doc(date.toDateString())
@@ -88,7 +93,7 @@ const updateDailyActivities = (conn) => {
     .doc(template);
 
   const data = {
-    [`${date.toLocaleString().split(', ')[1]}`]: {
+    [`${hour}h:${minutes}m:${seconds}s`]: {
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.activityRef.id,
