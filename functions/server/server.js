@@ -114,7 +114,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
-const getCreatorsPhoneNumber = (conn) => {
+const fetchRequesterPhoneNumber = (conn) => {
   users
     .getUserByUid(conn.requester.uid)
     .then((userRecord) => {
@@ -132,7 +132,8 @@ const getCreatorsPhoneNumber = (conn) => {
 
       verifyUidAndPhoneNumberCombination(conn);
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -143,10 +144,16 @@ const getCreatorsPhoneNumber = (conn) => {
  * @returns {void}
  */
 const checkAuthorizationToken = (conn) => {
-  /** The `Authorization` header sent in the request headers. */
-  const authorization = conn.req.headers.authorization;
+  if (!conn.req.headers.hasOwnProperty('authorization')) {
+    sendResponse(
+      conn,
+      code.unauthorized,
+      'The authorization header is missing from the headers.'
+    );
+    return;
+  }
 
-  if (typeof authorization !== 'string') {
+  if (typeof conn.req.headers.authorization !== 'string') {
     sendResponse(
       conn,
       code.unauthorized,
@@ -156,7 +163,7 @@ const checkAuthorizationToken = (conn) => {
     return;
   }
 
-  if (!authorization.startsWith('Bearer ')) {
+  if (!conn.req.headers.authorization.startsWith('Bearer ')) {
     sendResponse(
       conn,
       code.unauthorized,
@@ -171,7 +178,7 @@ const checkAuthorizationToken = (conn) => {
 
   users
     .verifyIdToken(
-      authorization.split('Bearer ')[1],
+      conn.req.headers.authorization.split('Bearer ')[1],
       checkRevoked
     )
     .then((decodedIdToken) => {
@@ -179,9 +186,10 @@ const checkAuthorizationToken = (conn) => {
       conn.requester = {};
       conn.requester.uid = decodedIdToken.uid;
 
-      getCreatorsPhoneNumber(conn);
+      fetchRequesterPhoneNumber(conn);
       return;
-    }).catch((error) => {
+    })
+    .catch((error) => {
       if (error.code === 'auth/id-token-revoked') {
         sendResponse(
           conn,
@@ -201,6 +209,7 @@ const checkAuthorizationToken = (conn) => {
       }
 
       console.log(error);
+
       sendResponse(
         conn,
         code.forbidden,
