@@ -137,19 +137,22 @@ const logLocation = (conn) => {
  * Updates the activity root and adds the data to the batch.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} update Fields for the activity root object.
  * @returns {void}
  */
-const updateActivityDoc = (conn) => {
-  if (typeof conn.req.body.description === 'string') {
-    conn.update.description = conn.req.body.description;
+const updateActivityDoc = (conn, update) => {
+  if (conn.req.body.hasOwnProperty('title')
+    && isValidString(conn.req.body.title)) {
+    update.title = conn.req.body.title;
   }
 
-  if (typeof conn.req.body.title === 'string') {
-    conn.update.title = conn.req.body.title;
+  if (conn.req.body.hasOwnProperty('description')
+    && isValidString(conn.req.body.dailyActivitiesDoc)) {
+    update.description = conn.req.body.description;
   }
 
-  if (conn.req.body.schedule) {
-    conn.update.schedule = filterSchedules(
+  if (conn.req.body.hasOwnProperty('schedule')) {
+    update.schedule = filterSchedules(
       conn.req.body.schedule,
       /** The schedule is an array of objects in Firestore.
        * For comparing the venues, we only need a single object.
@@ -158,8 +161,8 @@ const updateActivityDoc = (conn) => {
     );
   }
 
-  if (conn.req.body.venue) {
-    conn.update.venue = filterVenues(
+  if (conn.req.body.hasOwnProperty('venue')) {
+    update.venue = filterVenues(
       conn.req.body.venue,
       /** The venue is an array of objects in Firestore. For
        * comparing the venues, we only need a single object.
@@ -168,10 +171,10 @@ const updateActivityDoc = (conn) => {
     );
   }
 
-  conn.update.timestamp = new Date(conn.req.body.timestamp);
+  update.timestamp = new Date(conn.req.body.timestamp);
 
   /** Imeplementing the `handleAttachment()` method will make this work. */
-  if (conn.docRef) {
+  if (conn.hasOwnProperty('docRef')) {
     /**
      * The `docRef` is not `undefined` only when a document is updated during
      * the update operation.
@@ -180,9 +183,9 @@ const updateActivityDoc = (conn) => {
   }
 
   conn.batch.set(
-    activities
-      .doc(conn.req.body.activityId),
-    conn.update, {
+    activities.doc(conn.req.body.activityId),
+    update, {
+      /** The activity doc *will* have some of these fields by default. */
       merge: true,
     }
   );
@@ -196,16 +199,17 @@ const updateActivityDoc = (conn) => {
  * Manages the attachment object.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} update Fields for the activity root object.
  * @returns {void}
  */
-const handleAttachment = (conn) => {
+const handleAttachment = (conn, update) => {
   if (!conn.req.body.hasOwnProperty('attachment')) {
-    updateActivityDoc(conn);
+    updateActivityDoc(conn, update);
     return;
   }
 
   /** Do stuff */
-  updateActivityDoc(conn);
+  updateActivityDoc(conn, update);
 };
 
 
@@ -243,14 +247,14 @@ const addAddendumForAssignees = (conn) => {
           .doc(doc.get('uid'))
           .collection('Addendum')
           .doc(),
-        conn.addendum
+        conn.data.addendum
       );
     });
 
     /** Stores the objects that are to be updated in the activity root. */
-    conn.update = {};
+    const update = {};
 
-    handleAttachment(conn);
+    handleAttachment(conn, update);
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -267,7 +271,7 @@ const fetchTemplate = (conn) => {
     .doc(conn.data.activity.get('template'))
     .get()
     .then((doc) => {
-      conn.addendum = {
+      conn.data.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
         comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
@@ -280,7 +284,8 @@ const fetchTemplate = (conn) => {
       addAddendumForAssignees(conn);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -315,6 +320,7 @@ const fetchDocs = (conn) => {
     }
 
     conn.batch = db.batch();
+
     conn.data = {};
     conn.data.activity = result[0];
 
