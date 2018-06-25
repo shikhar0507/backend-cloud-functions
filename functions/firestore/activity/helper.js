@@ -139,16 +139,24 @@ const handleCanEdit = (
  * Returns valid schedule objects and filters out invalid schedules.
  *
  * @param {Array} schedules Array of scheule objects.
- * @param {Object} scheduleObject Single schedule from template.
+ * @param {Array} schedulesFromUserSubscriptions Array of allowed schedules for the template.
  * @returns {Array} Schedule objects in Array
  */
-const filterSchedules = (schedules, scheduleObject) => {
+const filterSchedules = (schedules, schedulesFromUserSubscriptions) => {
   const schedulesArray = [];
 
+  schedulesFromUserSubscriptions.forEach((scheduleObject, index) => {
+    schedulesArray.push({
+      name: schedulesFromUserSubscriptions[index].name,
+      startTime: schedulesFromUserSubscriptions[index].startTime || '',
+      endTime: schedulesFromUserSubscriptions[index].endTime || '',
+    });
+  });
+
   const defaultSchedule = {
-    name: scheduleObject.name,
-    startTime: null,
-    endTime: null,
+    name: schedulesFromUserSubscriptions.name,
+    startTime: '',
+    endTime: '',
   };
 
   if (!Array.isArray(schedules)) {
@@ -157,7 +165,7 @@ const filterSchedules = (schedules, scheduleObject) => {
   }
 
   schedules.forEach((schedule) => {
-    if (schedule.name !== scheduleObject.name) {
+    if (schedule.name !== schedulesFromUserSubscriptions.name) {
       return;
     }
 
