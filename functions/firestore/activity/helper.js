@@ -138,11 +138,11 @@ const handleCanEdit = (
 /**
  * Returns valid schedule objects and filters out invalid schedules.
  *
- * @param {Array} schedules Array of scheule objects.
+ * @param {Array} schedulesFromRequestBody Array of scheule objects.
  * @param {Array} schedulesFromUserSubscriptions Array of allowed schedules for the template.
  * @returns {Array} Schedule objects in Array
  */
-const filterSchedules = (schedules, schedulesFromUserSubscriptions) => {
+const filterSchedules = (schedulesFromRequestBody, schedulesFromUserSubscriptions) => {
   const schedulesArray = [];
 
   schedulesFromUserSubscriptions.forEach((scheduleObject, index) => {
@@ -159,12 +159,12 @@ const filterSchedules = (schedules, schedulesFromUserSubscriptions) => {
     endTime: '',
   };
 
-  if (!Array.isArray(schedules)) {
+  if (!Array.isArray(schedulesFromRequestBody)) {
     schedulesArray.push(defaultSchedule);
     return schedulesArray;
   }
 
-  schedules.forEach((schedule) => {
+  schedulesFromRequestBody.forEach((schedule) => {
     if (schedule.name !== schedulesFromUserSubscriptions.name) {
       return;
     }
@@ -202,28 +202,28 @@ const filterSchedules = (schedules, schedulesFromUserSubscriptions) => {
 /**
  * Returns a venue object and filters out all the invalid ones.
  *
- * @param {Object} venues Venues from the request body.
- * @param {Object} venueObject Venue object from template.
+ * @param {Object} venuesFromRequestBody Venues from the request body.
+ * @param {Object} venuesFromTemplate Venue object from template.
  * @returns {Array} Containing all the valid venues.
  */
-const filterVenues = (venues, venueObject) => {
+const filterVenues = (venuesFromRequestBody, venuesFromTemplate) => {
   const getGeopointObject = require('../../admin/admin').getGeopointObject;
   const venueArray = [];
 
   const defaultVenue = {
-    venueDescriptor: venueObject.venueDescriptor,
+    venueDescriptor: venuesFromTemplate.venueDescriptor,
     location: null,
     geopoint: null,
     address: null,
   };
 
-  if (!Array.isArray(venues)) {
+  if (!Array.isArray(venuesFromRequestBody)) {
     venueArray.push(defaultVenue);
     return venueArray;
   }
 
-  venues.forEach((venue) => {
-    if (venue.venueDescriptor !== venueObject.venueDescriptor) {
+  venuesFromRequestBody.forEach((venue) => {
+    if (venue.venueDescriptor !== venuesFromTemplate.venueDescriptor) {
       return;
     }
 
@@ -256,23 +256,23 @@ const filterVenues = (venues, venueObject) => {
  * Filters out all the non-essential keys from the attachment object in the
  * request body using the attachment object from the template.
  *
- * @param {Object} attachment Attachment from the request.body.attachment.
- * @param {Object} attachmentObject Attachment object from the template
+ * @param {Object} attachmentFromRequestBody Attachment from the request.body.attachment.
+ * @param {Object} attachmentFromTemplate Attachment object from the template
  * in the firestore.
  * @returns {Array} Venue Objects.
  */
-const attachmentCreator = (attachment, attachmentObject) => {
-  if (!attachmentObject) return {};
+const attachmentCreator = (attachmentFromRequestBody, attachmentFromTemplate) => {
+  if (!attachmentFromTemplate) return {};
 
   const filteredAttachment = {};
 
   Object
-    .keys(attachmentObject)
+    .keys(attachmentFromTemplate)
     .forEach((key) => {
-      if (typeof attachmentObject[`${key}`]
-        === typeof attachment[`${key}`]) {
+      if (typeof attachmentFromTemplate[`${key}`]
+        === typeof attachmentFromRequestBody[`${key}`]) {
         /** Filter for each of the value type and their key of the object */
-        filteredAttachment[`${key}`] = attachment[`${key}`];
+        filteredAttachment[`${key}`] = attachmentFromRequestBody[`${key}`];
       }
     });
 
