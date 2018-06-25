@@ -196,8 +196,9 @@ const getTemplates = (conn, jsonResult) => {
         /** The `office` is required inside each template. */
         conn.officesArray.push(doc.get('office'));
 
-        conn.templatesList
-          .push(activityTemplates.doc(doc.get('template')).get());
+        conn.templatesList.push(
+          activityTemplates.doc(doc.get('template')).get()
+        );
       });
 
       fetchSubscriptions(conn, jsonResult);
