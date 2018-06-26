@@ -94,7 +94,7 @@ const updateDailyActivities = (conn) => {
     [`${hour}h:${minutes}m:${seconds}s`]: {
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
-      activityId: conn.activityRef.id,
+      activityId: conn.req.body.activityId,
     },
   };
 
