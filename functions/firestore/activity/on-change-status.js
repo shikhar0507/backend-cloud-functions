@@ -118,6 +118,7 @@ const logLocation = (conn) => {
     .doc();
 
   const data = {
+    activityId: conn.req.body.activityId,
     geopoint: getGeopointObject(conn.req.body.geopoint),
     timestamp: new Date(conn.req.body.timestamp),
     office: conn.data.activity.get('office'),

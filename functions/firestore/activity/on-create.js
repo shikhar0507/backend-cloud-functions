@@ -317,6 +317,7 @@ const logLocation = (conn) => {
     .doc();
 
   const data = {
+    activityId: conn.activityRef.id,
     geopoint: getGeopointObject(conn.req.body.geopoint),
     timestamp: new Date(conn.req.body.timestamp),
     office: conn.req.body.office,
@@ -584,7 +585,7 @@ const handleResult = (conn, result) => {
 
   /** Handle support requests from here. */
   if (conn.requester.isSupportRequest) {
-    /** A person with support privilidge, doesn't need to 
+    /** A person with support privilidge, doesn't need to
      * have the subscription to the template that they want
      * to create the activity with.
      * @see https://github.com/Growthfilev2/backend-cloud-functions/blob/master/docs/support-requests/README.md

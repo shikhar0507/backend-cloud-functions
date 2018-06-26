@@ -113,6 +113,7 @@ const logLocation = (conn) => {
       .doc(conn.requester.phoneNumber)
       .collection('Map')
       .doc(), {
+      activityId: conn.req.body.activityId,
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: new Date(conn.req.body.timestamp),
       office: conn.data.activity.get('office'),
