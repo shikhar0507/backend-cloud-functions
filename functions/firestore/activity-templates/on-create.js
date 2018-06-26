@@ -26,19 +26,16 @@
 
 
 const {
-  getGeopointObject,
   rootCollections,
 } = require('../../admin/admin');
 
 const {
-  code,
-} = require('../../admin/responses');
+  isValidString,
+} = require('../activity/helper');
 
 const {
-  validateSchedule,
-  validateVenue,
-} = require('./helpers');
-
+  code,
+} = require('../../admin/responses');
 
 const {
   handleError,
@@ -46,148 +43,241 @@ const {
 } = require('../../admin/utils');
 
 const {
+  enums,
   activityTemplates,
 } = rootCollections;
 
 
-const createTemplate = (conn, data) => {
+/**
+ * Adds a new document to the ActivityTemplates collection with
+ * the doc-id as the template name.
+ *
+ * @param {Object} conn Express Request and Response Objects.
+ * @returns {void}
+ */
+const createTemplate = (conn) => {
   activityTemplates
-    .doc()
-    .set(data)
+    .doc(conn.req.body.name)
+    .set({
+      name: conn.req.body.name,
+      defaultTitle: conn.req.body.defaultTitle,
+      comment: conn.req.body.comment,
+      statusOnCreate: conn.req.body.statusOnCreate,
+      attachment: conn.req.body.attachment || {},
+      schedule: conn.req.body.schedule || [],
+      venue: conn.req.body.venue || [],
+    })
     .then(() => {
       sendResponse(
         conn,
         code.created,
         'The template was created successfully.'
       );
+
       return;
     }).catch((error) => handleError(conn, error));
 };
 
 
-const createTemplateObject = (conn) => {
-  const data = {
-    comment: conn.req.body.comment,
-    name: conn.req.body.name,
-    defaultTitle: conn.req.body.defaultTitle,
-    venue: {
-      address: conn.req.body.venue.address,
-      geopoint: getGeopointObject(conn.req.body.venue.geopoint),
-      location: conn.req.body.venue.location,
-      venueDescriptor: conn.req.body.venue.venueDescriptor,
-    },
-    schedule: {
-      name: conn.req.body.schedule.name,
-      startTime: new Date(conn.req.body.schedule.startTime),
-      endTime: new Date(conn.req.body.schedule.endTime),
-    },
-    attachment: conn.req.body.attachment,
-  };
+/**
+ * Validates if the the template already exists with the name sent in
+ * the request body. Rejects the request if it does.
+ *
+ * @param {Object} conn Express Request and Response Objects.
+ * @param {Array} result Contains the object of documents fetched from Firestore.
+ * @returns {void}
+ */
+const handleResult = (conn, result) => {
+  const templateDoc = result[0];
+  const enumDoc = result[1];
 
-  createTemplate(conn, data);
+  if (!templateDoc.empty) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `The ${conn.req.body.name} template already exists.`
+      + ` Use the templates update API to make changes.`
+    );
+
+    return;
+  }
+
+  if (
+    enumDoc
+      .get('ACTIVITYSTATUS')
+      .indexOf(conn.req.body.statusOnCreate) === -1
+  ) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'Value of the statusOnCreate field is not valid.'
+      + ` Please use one of the following values: ${enumDoc.get('ACTIVITYSTATUS')}.`
+    );
+
+    return;
+  }
+
+  createTemplate(conn);
 };
 
 
-const getTemplateByName = (conn) => {
-  activityTemplates
-    .where('name', '==', conn.req.body.name)
-    .limit(1)
-    .get()
-    .then((snapShot) => {
-      if (!snapShot.empty) {
-        sendResponse(
-          conn,
-          code.conflict,
-          `A template with the name: "${conn.req.body.name}" already exists.`
-        );
-        return;
-      }
-
-      createTemplateObject(conn);
-      return;
-    })
+/**
+ * Fetches the `template` with the `name` from the request body
+ * and the `ACTIVITYSTATUS` doc from Enums collection.
+ *
+ * @param {Object} conn Express Request and Response Objects.
+ * @returns {void}
+ */
+const fetchDocs = (conn) => {
+  Promise.all([
+    activityTemplates
+      .where('name', '==', conn.req.body.name)
+      .limit(1)
+      .get(),
+    enums.doc('ACTIVITYSTATUS').get(),
+  ])
+    .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
 };
 
 
-
+/**
+ * Validates the request body for the fields such as name, defaultTitle,
+ * comment, schedule, venue and the attachment.
+ *
+ * @param {Object} conn Express Request and Response Objects.
+ * @returns {void}
+ */
 const app = (conn) => {
-  /** Is `true` for empty strings. */
-  const re = /^$|\s+/;
+  if (!conn.req.body.hasOwnProperty('name')) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'Missing the name field in the request body.'
+    );
 
-  if (!re.test(conn.req.body.name)) {
-    sendResponse(conn, code.badRequest, 'The "name" is invalid/missing.');
     return;
   }
 
+  if (!isValidString(conn.req.body.name)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The name field needs to be a non-empty string.'
+    );
+
+    return;
+  }
+
+  /** Default template `plan` cannot be modified. */
   if (conn.req.body.name === 'plan') {
-    sendResponse(conn, code.forbidden, 'You cannot update the template "plan".');
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You can\'t update the template "plan".'
+    );
+
     return;
   }
 
-  if (!re.test(conn.req.body.defaultTitle)) {
+  if (!conn.req.body.hasOwnProperty('defaultTitle')) {
     sendResponse(
       conn,
       code.badRequest,
-      'The "defaultTitle" is invalid/missing.'
+      'Can\'t create a template without a defaultTitle.'
     );
+
     return;
   }
 
-  if (!re.test(conn.req.body.comment)) {
-    sendResponse(conn, code.badRequest, 'The "comment" is invalid/missing.');
-    return;
-  }
-
-  if (Object.prototype.toString
-    .call(conn.req.body.attachment) !== '[object Object]') {
+  if (!isValidString(conn.req.body.defaultTitle)) {
     sendResponse(
       conn,
       code.badRequest,
-      'The "attachment" in invalid/missing.'
+      'The defaultTitle field needs to be a non-empty string.'
     );
+
     return;
   }
 
-  if (Object.prototype.toString
-    .call(conn.req.body.schedule) !== '[object Object]') {
+  if (!conn.req.body.hasOwnProperty('comment')) {
     sendResponse(
       conn,
       code.badRequest,
-      'The "schedule" is missing/invalid.'
+      'Can\'t create a template without a comment.'
     );
+
     return;
   }
 
-  if (Object.prototype.toString
-    .call(conn.req.body.venue) !== '[object Object]') {
+  if (!isValidString(conn.req.body.comment)) {
     sendResponse(
       conn,
       code.badRequest,
-      'The "venue" is invalid/missing.'
+      'The comment field needs to be a non-empty string.'
     );
+
     return;
   }
 
-  if (!validateSchedule(conn.req.body.schedule)) {
+  if (!conn.req.body.hasOwnProperty('statusOnCreate')) {
     sendResponse(
       conn,
       code.badRequest,
-      'The "schedule" object is invalid.'
+      'Can\'t create a template without the statusOnCreate field.'
     );
+
     return;
   }
 
-  if (!validateVenue(conn.req.body.venue)) {
+  if (!isValidString(conn.req.body.statusOnCreate)) {
     sendResponse(
       conn,
       code.badRequest,
-      'The "venue" object is invalid.'
+      'The statusOnCreate field needs to be a non-empty string.'
     );
+
     return;
   }
 
-  getTemplateByName(conn);
+  if (conn.req.body.hasOwnProperty('schedule')) {
+    if (!Array.isArray(conn.req.body.schedule)) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `The schedule needs to be an array of strings.`
+      );
+
+      return;
+    }
+  }
+
+  if (conn.req.body.hasOwnProperty('venue')) {
+    if (!Array.isArray(conn.req.body.venue)) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `The venue needs to be an array of strings.`
+      );
+
+      return;
+    }
+  }
+
+  if (conn.req.body.hasOwnProperty('attachment')) {
+    if (Object.prototype.toString
+      .call(conn.req.body.attachment) !== '[object Object]') {
+      sendResponse(
+        conn,
+        code.badRequest,
+        'The attachment needs to be an object.'
+      );
+
+      return;
+    }
+  }
+
+  fetchDocs(conn);
 };
 
 
