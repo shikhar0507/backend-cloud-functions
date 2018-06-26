@@ -79,7 +79,7 @@ const isValidPhoneNumber = (phoneNumber) => {
   if (!phoneNumber) return false;
 
   /**
-   * RegExp Explained...
+   * RegExp *Explained*...
    * * ^: Matches the beginning of the string, or the beginning of a line if the multiline flag (m) is enabled.
    * * \+: Matches the `+` character
    * *[1-9]: Matches the character in range `1` to `9`
@@ -136,119 +136,135 @@ const handleCanEdit = (
 
 
 /**
- * Returns valid schedule objects and filters out invalid schedules.
+ * Validates the schedules where the there is a name field present,
+ * along with the condition that the endTime >= startTime.
  *
- * @param {Array} schedulesFromRequestBody Array of scheule objects.
- * @param {Array} schedulesFromUserSubscriptions Array of allowed schedules for the template.
- * @returns {Array} Schedule objects in Array
+ * @param {Object} conn Express Request and Response Objects.
+ * @param {Array} requestBodySchedule Schedules from request body.
+ * @param {Array} scheduleNames Schedules from template.
+ * @returns {Array} Of valid schedules.
  */
-const filterSchedules = (schedulesFromRequestBody, schedulesFromUserSubscriptions) => {
-  const schedulesArray = [];
+const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
+  /** If filterSchedules has been called once, return the cached values. */
+  if (conn.data.hasOwnProperty('schedule')) return conn.data.schedule;
 
-  schedulesFromUserSubscriptions.forEach((scheduleObject, index) => {
-    schedulesArray.push({
-      name: schedulesFromUserSubscriptions[index].name,
-      startTime: schedulesFromUserSubscriptions[index].startTime || '',
-      endTime: schedulesFromUserSubscriptions[index].endTime || '',
+  const defaultSchedules = [];
+
+  scheduleNames.forEach((schedule) => {
+    defaultSchedules.push({
+      name: schedule,
+      startTime: '',
+      endTime: '',
     });
   });
 
-  const defaultSchedule = {
-    name: schedulesFromUserSubscriptions.name,
-    startTime: '',
-    endTime: '',
-  };
+  if (scheduleNames.length === 0) return defaultSchedules;
 
-  if (!Array.isArray(schedulesFromRequestBody)) {
-    schedulesArray.push(defaultSchedule);
-    return schedulesArray;
-  }
+  if (!Array.isArray(requestBodySchedule)) return defaultSchedules;
 
-  schedulesFromRequestBody.forEach((schedule) => {
-    if (schedule.name !== schedulesFromUserSubscriptions.name) {
-      return;
-    }
+  let validSchedules = [];
 
-    /** The schedule has `startTime` but not `endTime` */
-    if (!isNaN(new Date(schedule.startTime)) && !schedule.endTime) {
-      schedulesArray.push({
-        name: schedule.name,
-        startTime: new Date(schedule.startTime),
-        endTime: new Date(schedule.startTime),
-      });
-    } else if (!isNaN(new Date(schedule.startTime)) &&
-      !isNaN(new Date(schedule.endTime)) &&
-      schedule.endTime >= schedule.startTime) {
-      /** Schedule has both `startTime`, `endTime` & `endTime` >= `startTime` */
-      schedulesArray.push({
-        name: schedule.name,
-        startTime: new Date(schedule.startTime),
-        endTime: new Date(schedule.endTime),
-      });
-    }
+  scheduleNames.forEach((name) => {
+    requestBodySchedule.forEach((schedule) => {
+      if (schedule.name !== name) return;
+
+      if (!schedule.hasOwnProperty('startTime')) return;
+
+      /** Both `startTime` and `endTime` are absent. */
+      if (!isValidDate(schedule.startTime) && !isValidDate(schedule.endTime)) return;
+
+      /** Schedule has valid `startTime` */
+      if (isValidDate(schedule.startTime) && !schedule.hasOwnProperty('endTime')) {
+        validSchedules.push({
+          name: schedule.name,
+          startTime: new Date(schedule.startTime),
+          endTime: new Date(schedule.startTime),
+        });
+
+        return;
+      }
+
+      if (schedule.endTime >= schedule.startTime) {
+        validSchedules.push({
+          name: schedule.name,
+          startTime: new Date(schedule.startTime),
+          endTime: new Date(schedule.endTime),
+        });
+      }
+    });
   });
 
-  /** In cases where there is no valid schedule in
-   * the request `body`, we create an object with null values.
-   */
-  if (schedulesArray.length === 0) {
-    schedulesArray.push(defaultSchedule);
+  if (validSchedules.length === 0) {
+    validSchedules = defaultSchedules;
   }
 
-  return schedulesArray;
+  /** Set up the cache for avoiding subsequent calculations on next function
+   * calls to filterSchedules function.
+   */
+  conn.data.schedule = validSchedules;
+
+  return validSchedules;
 };
 
+const getGeopointObject = require('../../admin/admin').getGeopointObject;
 
 /**
- * Returns a venue object and filters out all the invalid ones.
- *
- * @param {Object} venuesFromRequestBody Venues from the request body.
- * @param {Object} venuesFromTemplate Venue object from template.
- * @returns {Array} Containing all the valid venues.
+ * Validates the venues based on the `venueDescriptors` and 
+ * valid geopoint object.
+ * 
+ * @param {Object} conn Express Request and Response object.
+ * @param {Array} requestBodyVenue Venue objects from request.
+ * @param {Array} venueDescriptors Venue descriptors from template.
+ * @returns {Array} Valid venues based on template.
  */
-const filterVenues = (venuesFromRequestBody, venuesFromTemplate) => {
+const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
+  /** If filterVenues has been called once, return the cached values. */
+  if (conn.data.hasOwnProperty('venue')) return conn.data.venue;
+
+  let validVenues = [];
+  const defaultVenues = [];
+
   const getGeopointObject = require('../../admin/admin').getGeopointObject;
-  const venueArray = [];
 
-  const defaultVenue = {
-    venueDescriptor: venuesFromTemplate.venueDescriptor,
-    location: null,
-    geopoint: null,
-    address: null,
-  };
-
-  if (!Array.isArray(venuesFromRequestBody)) {
-    venueArray.push(defaultVenue);
-    return venueArray;
-  }
-
-  venuesFromRequestBody.forEach((venue) => {
-    if (venue.venueDescriptor !== venuesFromTemplate.venueDescriptor) {
-      return;
-    }
-
-    /** The `geopoint` is a required field for a venue. */
-    if (!isValidLocation(venue.geopoint)) {
-      return;
-    }
-
-    venueArray.push({
-      venueDescriptor: venue.venueDescriptor,
-      location: venue.location || '',
-      geopoint: getGeopointObject(venue.geopoint),
-      address: venue.address || '',
+  venueDescriptors.forEach((venueDescriptor) => {
+    defaultVenues.push({
+      venueDescriptor,
+      location: '',
+      address: '',
+      geopoint: getGeopointObject({
+        latitude: 0,
+        longitude: 0,
+      }),
     });
   });
 
-  /** In cases where there is no valid venue in the request body we
-   * create an array with all null values except the descriptor
-   */
-  if (venueArray.length === 0) {
-    venueArray.push(defaultVenue);
-    return venueArray;
+  if (!Array.isArray(requestBodyVenue)) return defaultVenues;
+
+  if (requestBodyVenue.length === 0) return defaultVenues;
+
+  venueDescriptors.forEach((venueDescriptor) => {
+    requestBodyVenue.forEach((venue) => {
+      if (!isValidLocation(venue.geopoint)) return;
+
+      validVenues.push({
+        geopoint: getGeopointObject(venue.geopoint),
+        venueDescriptor: venue.venueDescriptor,
+        location: venue.location || '',
+        adddress: venue.address || '',
+      });
+    });
+  });
+
+  if (validVenues.length === 0) {
+    validVenues = defaultVenues;
   }
 
-  return venueArray;
+  /** Set up the cache for avoiding subsequent calculations on next function
+   * calls to filterVenues function.
+   */
+  conn.data.venue = validVenues;
+
+  return validVenues;
 };
 
 
