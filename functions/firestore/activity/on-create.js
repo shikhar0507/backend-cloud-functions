@@ -211,12 +211,14 @@ const createActivity = (conn) => {
   activityRoot.template = conn.req.body.template;
 
   activityRoot.schedule = filterSchedules(
+    conn,
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     conn.data.template.schedule
   );
 
   activityRoot.venue = filterVenues(
+    conn,
     conn.req.body.venue,
     /** The `venue` object from the template. */
     conn.data.template.venue
@@ -389,30 +391,34 @@ const handleSpecialTemplates = (conn) => {
     .keys(attachment)
     .forEach((key) => docData[`${key}`] = attachment[`${key}`]);
 
-  /** Only one schedule is required. */
-  const schedule = filterSchedules(
+  const schedules = filterSchedules(
+    conn,
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     conn.data.template.schedule
-  )[0];
+  );
 
-  /** Only one venue is required. */
-  const venue = filterVenues(
+  schedules.forEach((schedule) => {
+    docData[`${schedule.name}`] = {
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+    };
+  });
+
+  const venues = filterVenues(
+    conn,
     conn.req.body.venue,
     /** The `venue` object from the template. */
     conn.data.template.venue
-  )[0];
+  );
 
-  docData[`${schedule.name}`] = {
-    startTime: schedule.startTime,
-    endTime: schedule.endTime,
-  };
-
-  docData[`${venue.venueDescriptor}`] = {
-    address: venue.address,
-    location: venue.location,
-    geopoint: getGeopointObject(venue.geopoint),
-  };
+  venues.forEach((venue) => {
+    docData[`${venue.venueDescriptor}`] = {
+      address: venue.address,
+      location: venue.location,
+      geopoint: getGeopointObject(venue.geopoint),
+    };
+  });
 
   docData.status = conn.data.template.statusOnCreate;
   docData.office = conn.req.body.office;
@@ -445,9 +451,10 @@ const handleSpecialTemplates = (conn) => {
     return;
   }
 
-  /** Office ID: conn.data.office.docs[0].id */
+  const officeId = conn.data.office.docs[0].id;
+
   conn.docRef = offices
-    .doc(conn.data.office.docs[0].id)
+    .doc(officeId)
     /** Collection names are `ALWAYS` plural. */
     .collection(`${conn.req.body.template}s`)
     .doc(conn.activityRef.id);

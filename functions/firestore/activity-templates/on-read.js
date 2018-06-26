@@ -30,10 +30,6 @@ const {
 } = require('../../admin/admin');
 
 const {
-  activityTemplates,
-} = rootCollections;
-
-const {
   sendJSON,
   handleError,
   sendResponse,
@@ -42,6 +38,14 @@ const {
 const {
   code,
 } = require('../../admin/responses');
+
+const {
+  isValidString,
+} = require('../activity/helper');
+
+const {
+  activityTemplates,
+} = rootCollections;
 
 
 /**
@@ -57,10 +61,9 @@ const fetchAllTemplates = (conn) => {
   activityTemplates
     .get()
     .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        jsonObject[doc.get('name')] = doc.data();
-      });
+      snapShot.forEach((doc) => jsonObject[doc.get('name')] = doc.data());
 
+      /** Response ends here... */
       sendJSON(conn, jsonObject);
       return;
     }).catch((error) => handleError(conn, error));
@@ -75,6 +78,16 @@ const fetchAllTemplates = (conn) => {
  * @returns {void}
  */
 const fetchSingleTemplate = (conn) => {
+  if (!isValidString(conn.req.body.name)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'The name should be a non-empty string.'
+    );
+
+    return;
+  }
+
   activityTemplates
     .where('name', '==', conn.req.query.name)
     .limit(1)
@@ -86,6 +99,7 @@ const fetchSingleTemplate = (conn) => {
           code.notFound,
           `No template found with the name: ${conn.req.query.name}`
         );
+
         return;
       }
 
@@ -103,7 +117,7 @@ const fetchSingleTemplate = (conn) => {
  * @returns {void}
  */
 const app = (conn) => {
-  if (conn.req.query.name) {
+  if (conn.req.query.hasOwnProperty('name')) {
     fetchSingleTemplate(conn);
     return;
   }
