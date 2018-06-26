@@ -368,6 +368,7 @@ const readAddendumsByQuery = (conn) => {
 
       snapShot.forEach((doc) => {
         jsonResult.addendum.push({
+          addendumId: doc.id,
           activityId: doc.get('activityId'),
           comment: doc.get('comment'),
           timestamp: doc.get('timestamp'),
