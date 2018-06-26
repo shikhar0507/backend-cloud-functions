@@ -28,10 +28,12 @@
 const {
   rootCollections,
   serverTimestamp,
+  getGeopointObject,
   db,
 } = require('../admin/admin');
 
 const {
+  activities,
   updates,
   profiles,
   dailySignUps,
@@ -60,49 +62,25 @@ const updateDailyCollection = (userRecord, batch) =>
     .then(() => batch.commit()).catch(console.error);
 
 
-
 /**
- * Creates new docs inside `Profile` and `Updates` collection in Firestore for
- * a newly signed up user.
- *
+ * Adds a _default_ subscription to the user with the template: `plan` and
+ * the office: `personal`.
+ * 
  * @param {Object} userRecord Object with user info.
- * @param {Object} context Object with Event info.
+ * @param {Object} batch Batch object.
  * @returns {Promise} Batch object.
  */
-const app = (userRecord, context) => {
-  const {
-    uid,
-    phoneNumber,
-  } = userRecord;
-
-  const batch = db.batch();
-
-  batch.set(
-    updates.doc(uid), {
-      phoneNumber,
-    }, {
-      merge: true,
-    }
-  );
-
-  batch.set(
-    profiles.doc(phoneNumber), {
-      uid,
-    }, {
-      merge: true,
-    }
-  );
-
+const createSubscription = (userRecord, batch) => {
   /** Default subscription for everyone who signs up */
   batch.set(
     profiles
-      .doc(phoneNumber)
+      .doc(userRecord.phoneNumber)
       .collection('Subscriptions')
       .doc(), {
       office: 'personal',
       template: 'plan',
       include: [
-        phoneNumber,
+        userRecord.phoneNumber,
       ],
       /** The auth event isn't an activity */
       activityId: null,
@@ -118,6 +96,90 @@ const app = (userRecord, context) => {
   );
 
   return updateDailyCollection(userRecord, batch);
+};
+
+
+/**
+ * Adds an addendum to the the user's `Updates` collection inside the
+ * `Addendum` subcollection.
+ * 
+ * @param {Object} userRecord Object with user info.
+ * @param {Object} batch Batch object.
+ * @param {Object} activityDoc Reference to the Activity doc.
+ * @returns {Promise} Batch object.
+ */
+const createAddendum = (userRecord, batch, activityDoc) => {
+  batch.set(updates.doc(userRecord.uid).collection('Addendum').doc(), {
+    activityId: activityDoc.id,
+    comment: 'You signed up.',
+    timestamp: serverTimestamp,
+    user: userRecord.phoneNumber,
+    location: getGeopointObject({
+      latitude: 0,
+      longitude: 0,
+    }),
+  });
+
+  return createSubscription(userRecord, batch);
+};
+
+
+/**
+ * Adds a document to the batch for creating a doc in
+ * `/Activities` collection for user signup.
+ * 
+ * @param {Object} userRecord Object with user info.
+ * @param {Object} batch Batch object.
+ * @returns {Promise} Batch object.
+ */
+const createActivity = (userRecord, batch) => {
+  const activityDoc = activities.doc();
+
+  batch.set(activityDoc, {
+    canEditRule: 'NONE',
+    description: `${userRecord.phoneNumber} signed up.`,
+    docRef: null,
+    office: 'personal',
+    schedule: [],
+    status: 'CONFIRMED',
+    title: 'User Signup',
+    template: 'plan',
+    timestamp: serverTimestamp,
+    venue: [],
+  });
+
+  return createAddendum(userRecord, batch, activityDoc);
+};
+
+
+/**
+ * Creates new docs inside `Profile` and `Updates` collection in Firestore for
+ * a newly signed up user.
+ *
+ * @param {Object} userRecord Object with user info.
+ * @param {Object} context Object with Event info.
+ * @returns {Promise} Batch object.
+ */
+const app = (userRecord, context) => {
+  const batch = db.batch();
+
+  batch.set(
+    updates.doc(userRecord.uid), {
+      phoneNumber: userRecord.phoneNumber,
+    }, {
+      merge: true,
+    }
+  );
+
+  batch.set(
+    profiles.doc(userRecord.phoneNumber), {
+      uid: userRecord.uid,
+    }, {
+      merge: true,
+    }
+  );
+
+  return createActivity(userRecord, batch);
 };
 
 
