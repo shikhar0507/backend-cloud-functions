@@ -246,7 +246,7 @@ const addAddendumForAssignees = (conn) => {
       );
     });
 
-    /** Attachment absent. Skip */
+    /** Attachment absent. Skip it. */
     if (!conn.req.body.hasOwnProperty('attachment')) {
       updateActivityDoc(conn);
       return;
