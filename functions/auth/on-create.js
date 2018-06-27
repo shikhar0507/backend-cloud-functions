@@ -65,7 +65,7 @@ const updateDailyCollection = (userRecord, batch) =>
 /**
  * Adds a _default_ subscription to the user with the template: `plan` and
  * the office: `personal`.
- * 
+ *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
  * @returns {Promise} Batch object.
@@ -102,7 +102,7 @@ const createSubscription = (userRecord, batch) => {
 /**
  * Adds an addendum to the the user's `Updates` collection inside the
  * `Addendum` subcollection.
- * 
+ *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
  * @param {Object} activityDoc Reference to the Activity doc.
@@ -127,7 +127,7 @@ const createAddendum = (userRecord, batch, activityDoc) => {
 /**
  * Adds a document to the batch for creating a doc in
  * `/Activities` collection for user signup.
- * 
+ *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
  * @returns {Promise} Batch object.
@@ -147,6 +147,13 @@ const createActivity = (userRecord, batch) => {
     timestamp: serverTimestamp,
     venue: [],
   });
+
+  batch.set(
+    activityDoc
+      .collection('Assignees')
+      .doc(userRecord.phoneNumber), {
+      canEdit: false,
+    });
 
   return createAddendum(userRecord, batch, activityDoc);
 };
