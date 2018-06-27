@@ -63,6 +63,12 @@ const handleRequestPath = (conn) => {
     return;
   }
 
+  if (action.startsWith('read')) {
+    const onRead = require('../firestore/on-read');
+    onRead(conn);
+    return;
+  }
+
   if (action === 'now') {
     now(conn);
     return;

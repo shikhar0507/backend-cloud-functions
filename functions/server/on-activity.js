@@ -65,22 +65,6 @@ const app = (conn) => {
     return;
   }
 
-  if (action.startsWith('read')) {
-    if (conn.req.method !== 'GET') {
-      sendResponse(
-        conn,
-        code.methodNotAllowed,
-        `${conn.req.method}`
-        + ' is not allowed for the /read endpoint. Use GET.'
-      );
-      return;
-    }
-
-    const onRead = require('../firestore/activity/on-read');
-    onRead(conn);
-    return;
-  }
-
   /** `/api/activities/create` can have a query string. */
   if (action.startsWith('create')) {
     if (conn.req.method !== 'POST') {

@@ -27,21 +27,21 @@
 
 const {
   rootCollections,
-} = require('../../admin/admin');
+} = require('../admin/admin');
 
 const {
   handleError,
   sendResponse,
   sendJSON,
-} = require('../../admin/utils');
+} = require('../admin/utils');
 
 const {
   isValidDate,
-} = require('./helper');
+} = require('./activity/helper');
 
 const {
   code,
-} = require('../../admin/responses');
+} = require('../admin/responses');
 
 const {
   activities,
