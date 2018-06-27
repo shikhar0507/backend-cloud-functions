@@ -27,23 +27,24 @@
 
 const {
   users,
-} = require('../../admin/admin');
+} = require('../admin/admin');
 
 const {
   handleError,
-} = require('../../admin/utils');
+  sendResponse,
+} = require('../admin/utils');
 
 const {
   isValidPhoneNumber,
-} = require('../../firestore/activity/helper');
+} = require('../firestore/activity/helper');
 
 const {
   code,
-} = require('../../admin/responses');
+} = require('../admin/responses');
 
 const {
   createInstantLog,
-} = require('../../admin/logger');
+} = require('../admin/logger');
 
 
 /**
@@ -202,6 +203,25 @@ const validateRequestBody = (conn, response) => {
  * @returns {void}
  */
 const app = (conn) => {
+  if (!conn.requester.customClaims) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You are forbidden from accessing this resource.'
+    );
+    return;
+  }
+
+  if (conn.req.method !== 'PUT') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for /api/services/permissions`
+      + ' endpoint. Use PUT.'
+    );
+    return;
+  }
+
   /** Object to store the logging data. */
   const response = {};
   response.resourcesAccessed = [];

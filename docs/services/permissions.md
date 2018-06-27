@@ -1,6 +1,6 @@
 # Manage Administration Permissions for Users
 
-endpoint: `/api/services/manage/permissions`
+endpoint: `/api/services/permissions`
 
 method: `PUT`
 
@@ -15,7 +15,9 @@ query parameters: none
 }
 ```
 
-> A user can only have one permission, at most. This means that if the person that you are trying to grant a permission to already has one permission, your request will be rejected.
+> A user can only have one permission, at most. 
+
+On every successful permission update, the last permission is overwritten.
 
 ## Supported Permissions (field)
 

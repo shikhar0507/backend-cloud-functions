@@ -50,9 +50,9 @@ const app = (conn) => {
     return;
   }
 
-  if (action === 'manage') {
-    const onManage = require('../services/on-manage');
-    onManage(conn);
+  if (action === 'permissions') {
+    const onPermissions = require('../services/on-permissions');
+    onPermissions(conn);
     return;
   }
 
