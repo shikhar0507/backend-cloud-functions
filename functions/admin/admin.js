@@ -26,12 +26,8 @@
 
 
 const admin = require('firebase-admin');
-const serviceAccountKey = require('./key.json');
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccountKey),
-  databaseURL: 'https://growthfilev2-0.firebaseio.com',
-});
+admin.initializeApp();
 
 const auth = admin.auth();
 const db = admin.firestore();
