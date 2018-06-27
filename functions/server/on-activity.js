@@ -82,7 +82,7 @@ const app = (conn) => {
     return;
   }
 
-  if (action === 'comment') {
+  if (action.startsWith('comment')) {
     if (conn.req.method !== 'POST') {
       sendResponse(
         conn,
@@ -131,7 +131,7 @@ const app = (conn) => {
     return;
   }
 
-  if (action === 'change-status') {
+  if (action.startsWith('change-status')) {
     if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
@@ -147,7 +147,7 @@ const app = (conn) => {
     return;
   }
 
-  if (action === 'remove') {
+  if (action.startsWith('remove')) {
     if (conn.req.method !== 'PATCH') {
       sendResponse(
         conn,
