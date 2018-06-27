@@ -141,7 +141,10 @@ const logLocation = (conn) => {
  * @param {Object} update Fields for the activity root object.
  * @returns {void}
  */
-const updateActivityDoc = (conn, update) => {
+const updateActivityDoc = (conn) => {
+  /** Stores the objects that are to be updated in the activity root. */
+  const update = {};
+
   if (conn.req.body.hasOwnProperty('title')
     && isValidString(conn.req.body.title)) {
     update.title = conn.req.body.title;
@@ -154,21 +157,17 @@ const updateActivityDoc = (conn, update) => {
 
   if (conn.req.body.hasOwnProperty('schedule')) {
     update.schedule = filterSchedules(
+      conn,
       conn.req.body.schedule,
-      /** The schedule is an array of objects in Firestore.
-       * For comparing the venues, we only need a single object.
-      */
-      conn.data.activity.get('schedule')[0]
+      conn.data.template.get('schedule')
     );
   }
 
   if (conn.req.body.hasOwnProperty('venue')) {
     update.venue = filterVenues(
+      conn,
       conn.req.body.venue,
-      /** The venue is an array of objects in Firestore. For
-       * comparing the venues, we only need a single object.
-       */
-      conn.data.activity.get('venue')[0]
+      conn.data.template.get('venue')
     );
   }
 
@@ -203,14 +202,9 @@ const updateActivityDoc = (conn, update) => {
  * @param {Object} update Fields for the activity root object.
  * @returns {void}
  */
-const handleAttachment = (conn, update) => {
-  if (!conn.req.body.hasOwnProperty('attachment')) {
-    updateActivityDoc(conn, update);
-    return;
-  }
-
+const handleAttachment = (conn) => {
   /** Do stuff */
-  updateActivityDoc(conn, update);
+  updateActivityDoc(conn);
 };
 
 
@@ -252,10 +246,13 @@ const addAddendumForAssignees = (conn) => {
       );
     });
 
-    /** Stores the objects that are to be updated in the activity root. */
-    const update = {};
+    /** Attachment absent. Skip */
+    if (!conn.req.body.hasOwnProperty('attachment')) {
+      updateActivityDoc(conn);
+      return;
+    }
 
-    handleAttachment(conn, update);
+    handleAttachment(conn);
     return;
   }).catch((error) => handleError(conn, error));
 };

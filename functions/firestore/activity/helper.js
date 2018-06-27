@@ -209,9 +209,9 @@ const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
 const getGeopointObject = require('../../admin/admin').getGeopointObject;
 
 /**
- * Validates the venues based on the `venueDescriptors` and 
+ * Validates the venues based on the `venueDescriptors` and
  * valid geopoint object.
- * 
+ *
  * @param {Object} conn Express Request and Response object.
  * @param {Array} requestBodyVenue Venue objects from request.
  * @param {Array} venueDescriptors Venue descriptors from template.
@@ -244,6 +244,8 @@ const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
 
   venueDescriptors.forEach((venueDescriptor) => {
     requestBodyVenue.forEach((venue) => {
+      if (venue.venueDescriptor !== venueDescriptor) return;
+
       if (!isValidLocation(venue.geopoint)) return;
 
       validVenues.push({
