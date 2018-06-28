@@ -210,6 +210,7 @@ const checkAuthorizationToken = (conn) => {
           conn,
           code.unauthorized,
           'The idToken in the request header is invalid/expired.'
+          + ' Please reauthenticate.'
         );
         return;
       }
@@ -220,6 +221,7 @@ const checkAuthorizationToken = (conn) => {
         conn,
         code.forbidden,
         'There was an error processing the idToken sent in the request.'
+        + ' Please reauthenticate.'
       );
     });
 };

@@ -532,6 +532,7 @@ const handleSupportRequest = (conn) => {
       code.badRequest,
       'The canEditRule is missing from the request body.'
     );
+
     return;
   }
 
@@ -545,8 +546,10 @@ const handleSupportRequest = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The canEditRule in the request body is invalid.'
+      `The canEditRule in the request body is invalid. Use one of`
+      + ` the following: ${conn.data.canEditRules.get('CANEDITRULES')}`
     );
+
     return;
   }
 
@@ -606,13 +609,12 @@ const handleResult = (conn, result) => {
      * subscriptions. This probably means that they are either
      * not subscribed to the template that they requested
      * to create the activity with, OR the template with
-     * that name simply does not exist.
+     * that `name` simply does not exist.
      */
     sendResponse(
       conn,
       code.forbidden,
-      `A template with the name: ${conn.req.body.template}` +
-      ' does not exist in your subscriptions.'
+      `Template: ${conn.req.body.template} doesn't exist.`
     );
     return;
   }
