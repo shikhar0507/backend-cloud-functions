@@ -23,7 +23,7 @@ example: single phone number `.../api/services/users/read?q=%2B919090909090`
     "+919090909090": {
         "photoURL": "https://example.com/photo.png",
         "displayName": "metallica",
-        "lastSignInTime": null
+        "lastSignInTime": ''
     }
 }
 ```
@@ -37,12 +37,12 @@ example: multiple phone numbers: `.../api/services/users/read?q=%2B919090909090&
     "+919090909090": {
         "photoURL": "https://example.com/photo.png",
         "displayName": "metallica",
-        "lastSignInTime": null
+        "lastSignInTime": ''
     },
     "+918080808080": {
-        "photoURL": null,
-        "displayName": null,
-        "lastSignInTime": null
+        "photoURL": '',
+        "displayName": '',
+        "lastSignInTime": ''
     }
 }
 ```
@@ -51,9 +51,9 @@ example: multiple phone numbers: `.../api/services/users/read?q=%2B919090909090&
 
 > The `superUser` can also request the user's `metadata` and `customClaims`.
 
-To create a request as a `superUser`, you can add the `as` query parameter along with the value `su` in the request URL.
+To create a request as a `superUser`, you can add the `superUser` query parameter along with the value `true` in the request URL.
 
-example URL: `api/services/users/read?as=su&q=%2B919090909090&q=%2B918080808080`
+example URL: `api/services/users/read?superUser=true&q=%2B919090909090&q=%2B918080808080`
 
 The response body in such a case will look as follows:
 
@@ -74,11 +74,11 @@ The response body in such a case will look as follows:
         }
     },
     "+918080808080": {
-        "displayName": null,
-        "photoURL": null,
-        "disabled": null,
-        "metadata": null,
-        "customClaims": null
+        "displayName": '',
+        "photoURL": '',
+        "disabled": false,
+        "metadata": '',
+        "customClaims": {}
     }
 }
 ```

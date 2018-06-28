@@ -126,7 +126,12 @@ const fetchRequesterPhoneNumber = (conn) => {
     .then((userRecord) => {
       if (userRecord.disabled) {
         /** Users with disabled accounts cannot request any operation **/
-        sendResponse(conn, code.forbidden, 'Your account is disabled.');
+        sendResponse(
+          conn,
+          code.forbidden,
+          'Your account is disabled. Please contact support.'
+        );
+
         return;
       }
 

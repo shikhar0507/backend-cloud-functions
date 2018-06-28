@@ -64,13 +64,14 @@ const app = (conn) => {
     return;
   }
 
-  if (conn.req.query.as === 'su') {
+  if (conn.req.query.superUser === 'true') {
     if (!conn.requester.customClaims.superUser) {
       sendResponse(
         conn,
         code.forbidden,
         'You are not authorized to view user records as a super user.'
       );
+
       return;
     }
   }
@@ -98,7 +99,7 @@ const app = (conn) => {
         record = userRecord[`${phoneNumber}`];
 
         /** The `superUser` can access user's `metadata` and `customClaims`. */
-        if (conn.req.query.as === 'su') {
+        if (conn.req.query.superUser === 'true') {
           jsonResponse[`${phoneNumber}`] = {
             displayName: record.displayName || '',
             photoURL: record.photoURL || '',
