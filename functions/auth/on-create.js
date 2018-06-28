@@ -59,7 +59,8 @@ const updateDailyCollection = (userRecord, batch) =>
         /** Doc will have other phone numbers too. */
         merge: true,
       })
-    .then(() => batch.commit()).catch(console.error);
+    .then(() => batch.commit())
+    .catch(console.error);
 
 
 /**
@@ -68,9 +69,10 @@ const updateDailyCollection = (userRecord, batch) =>
  *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
+ * @param {Object} activityDocRef Reference to the Activity doc.
  * @returns {Promise} Batch object.
  */
-const createSubscription = (userRecord, batch) => {
+const createSubscription = (userRecord, batch, activityDocRef) => {
   /** Default subscription for everyone who signs up */
   batch.set(
     profiles
@@ -83,7 +85,7 @@ const createSubscription = (userRecord, batch) => {
         userRecord.phoneNumber,
       ],
       /** The auth event isn't an activity */
-      activityId: null,
+      activityId: activityDocRef.id,
       status: 'CONFIRMED',
       canEditRule: 'ALL',
       timestamp: serverTimestamp,
@@ -105,22 +107,25 @@ const createSubscription = (userRecord, batch) => {
  *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
- * @param {Object} activityDoc Reference to the Activity doc.
+ * @param {Object} activityDocRef Reference to the Activity doc.
  * @returns {Promise} Batch object.
  */
-const createAddendum = (userRecord, batch, activityDoc) => {
-  batch.set(updates.doc(userRecord.uid).collection('Addendum').doc(), {
-    activityId: activityDoc.id,
-    comment: 'You signed up.',
-    timestamp: serverTimestamp,
-    user: userRecord.phoneNumber,
-    location: getGeopointObject({
-      latitude: 0,
-      longitude: 0,
-    }),
-  });
+const createAddendum = (userRecord, batch, activityDocRef) => {
+  batch.set(updates
+    .doc(userRecord.uid)
+    .collection('Addendum')
+    .doc(), {
+      activityId: activityDocRef.id,
+      comment: 'You signed up.',
+      timestamp: serverTimestamp,
+      user: userRecord.phoneNumber,
+      location: getGeopointObject({
+        latitude: 0,
+        longitude: 0,
+      }),
+    });
 
-  return createSubscription(userRecord, batch);
+  return createSubscription(userRecord, batch, activityDocRef);
 };
 
 
@@ -133,29 +138,32 @@ const createAddendum = (userRecord, batch, activityDoc) => {
  * @returns {Promise} Batch object.
  */
 const createActivity = (userRecord, batch) => {
-  const activityDoc = activities.doc();
+  const activityDocRef = activities.doc();
 
-  batch.set(activityDoc, {
+  batch.set(activityDocRef, {
     canEditRule: 'NONE',
     description: `${userRecord.phoneNumber} signed up.`,
     docRef: null,
     office: 'personal',
     schedule: [],
     status: 'CONFIRMED',
-    title: 'User Signup',
+    title: 'Welcome to Growthfile.',
     template: 'plan',
     timestamp: serverTimestamp,
     venue: [],
   });
 
-  batch.set(
-    activityDoc
-      .collection('Assignees')
-      .doc(userRecord.phoneNumber), {
+  /** Not creating the `dailyActivities` doc because on-auth is
+   * not a user action.
+   */
+
+  batch.set(activityDocRef
+    .collection('Assignees')
+    .doc(userRecord.phoneNumber), {
       canEdit: false,
     });
 
-  return createAddendum(userRecord, batch, activityDoc);
+  return createAddendum(userRecord, batch, activityDocRef);
 };
 
 
@@ -170,21 +178,18 @@ const createActivity = (userRecord, batch) => {
 const app = (userRecord, context) => {
   const batch = db.batch();
 
-  batch.set(
-    updates.doc(userRecord.uid), {
-      phoneNumber: userRecord.phoneNumber,
-    }, {
-      merge: true,
-    }
-  );
+  batch.set(updates.doc(userRecord.uid), {
+    phoneNumber: userRecord.phoneNumber,
+  });
 
-  batch.set(
-    profiles.doc(userRecord.phoneNumber), {
-      uid: userRecord.uid,
-    }, {
+  batch.set(profiles.doc(userRecord.phoneNumber), {
+    uid: userRecord.uid,
+  }, {
+      /** Profile *may* exist already, if the user signed
+       * up to the platform somtime in the past.
+      */
       merge: true,
-    }
-  );
+    });
 
   return createActivity(userRecord, batch);
 };
