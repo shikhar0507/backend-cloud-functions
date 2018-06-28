@@ -26,12 +26,20 @@
 
 
 const admin = require('firebase-admin');
+const key = require('./key.json');
 
-admin.initializeApp();
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert(key),
+    databaseURL: 'https://growthfilev2-0.firebaseio.com',
+  });
+} catch (error) {
+  console.error(error);
+}
 
 const auth = admin.auth();
 const db = admin.firestore();
-/** A sentinel which maps to the Firestore server timestamp when written to
+/** A `sentinel` which maps to the Firestore server timestamp when written to
  * a field in a document.
  */
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
