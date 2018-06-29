@@ -388,6 +388,9 @@ const handleSpecialTemplates = (conn) => {
    */
   const docData = {};
 
+  /** Required while reading the attachments in loop for /read API. */
+  docData.activityId = conn.activityRef.id;
+
   const attachment = filterAttachment(
     conn.req.body.attachment,
     conn.data.template.attachment
