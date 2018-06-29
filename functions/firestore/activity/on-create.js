@@ -58,7 +58,7 @@ const {
   isValidLocation,
   filterSchedules,
   filterVenues,
-  attachmentCreator,
+  filterAttachment,
 } = require('./helper');
 
 
@@ -91,8 +91,7 @@ const handleAssignedUsers = (conn) => {
 
   const promises = [];
 
-  /**
-   * Create docs in Assignees collection if share is in the request body.
+  /** Create docs in Assignees collection if share is in the request body.
    * */
   conn.req.body.share.forEach((phoneNumber) => {
     if (!isValidPhoneNumber(phoneNumber)) return;
@@ -173,6 +172,7 @@ const handleAssignedUsers = (conn) => {
     });
 
     commitBatch(conn);
+
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -258,30 +258,37 @@ const createActivity = (conn) => {
     conn.addendumData
   );
 
-  /** The 'include' array will always have the requester's
-   * phone number, so we don't need to explictly add their number
-   * in order to add them to a batch.
-   */
-  conn.data.subscription.include.forEach((phoneNumber) => {
-    /** The requester shouldn't be added to the activity assignee list
-     * if the request is of `support` type.
+  /** Subscription may or may not exist (especially when creating an Office). */
+  if (conn.data.subscription.hasOwnProperty('include')) {
+    /** The 'include' array will always have the requester's
+     * phone number, so we don't need to explictly add their number
+     * in order to add them to a batch.
      */
-    if (phoneNumber === conn.requester.phoneNumber
-      && conn.requester.isSupportRequest) return;
+    conn
+      .data
+      .subscription
+      .include
+      .forEach((phoneNumber) => {
+        /** The requester shouldn't be added to the activity assignee list
+         * if the request is of `support` type.
+         */
+        if (phoneNumber === conn.requester.phoneNumber
+          && conn.requester.isSupportRequest) return;
 
-    conn.batch.set(
-      activities
-        .doc(conn.activityRef.id)
-        .collection('Assignees')
-        .doc(phoneNumber), {
-        canEdit: handleCanEdit(
-          conn.data.subscription,
-          phoneNumber,
-          conn.requester.phoneNumber,
-          conn.req.body.share
-        ),
+        conn.batch.set(
+          activities
+            .doc(conn.activityRef.id)
+            .collection('Assignees')
+            .doc(phoneNumber), {
+            canEdit: handleCanEdit(
+              conn.data.subscription,
+              phoneNumber,
+              conn.requester.phoneNumber,
+              conn.req.body.share
+            ),
+          });
       });
-  });
+  }
 
   conn.batch.set(
     profiles
@@ -381,7 +388,7 @@ const handleSpecialTemplates = (conn) => {
    */
   const docData = {};
 
-  const attachment = attachmentCreator(
+  const attachment = filterAttachment(
     conn.req.body.attachment,
     conn.data.template.attachment
   );
@@ -425,6 +432,7 @@ const handleSpecialTemplates = (conn) => {
 
   docData.template = conn.req.body.template;
 
+  // TODO: Rename subscription to `admin`.
   if (conn.req.body.template === 'subscription') {
     conn.docRef = profiles
       .doc(conn.requester.phoneNumber)
@@ -435,19 +443,34 @@ const handleSpecialTemplates = (conn) => {
      * is not to be given to anyone.
      */
     delete docData.template;
+
     conn.batch.set(conn.docRef, docData);
 
     updateDailyActivities(conn);
     return;
   }
 
-  if (conn.req.body.template === 'company') {
+  if (conn.req.body.template === 'office') {
     conn.docRef = offices
       .doc(conn.activityRef.id);
 
     conn.batch.set(conn.docRef, docData);
 
     updateDailyActivities(conn);
+    return;
+  }
+
+  /** Check for Office is required because the proceeding
+   * code creates a doc inside the Offices/(office-id)/ path.
+   * If **SHOULD** exist.
+   */
+  if (conn.data.office.empty) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `An office with the name: ${conn.req.body.office} does not exist.`
+    );
+
     return;
   }
 
@@ -492,15 +515,7 @@ const processRequestType = (conn) => {
       + ` template: ${conn.req.body.template} does not exist in`
       + ' your subscriptions.'
     );
-    return;
-  }
 
-  if (conn.data.office.empty) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `An office with the name: ${conn.req.body.office} does not exist.`
-    );
     return;
   }
 
@@ -511,6 +526,7 @@ const processRequestType = (conn) => {
       code.badRequest,
       'Attachment is not present in the request body'
     );
+
     return;
   }
 
@@ -580,12 +596,19 @@ const handleResult = (conn, result) => {
       code.badRequest,
       `Template: ${conn.req.body.template} does not exist.`
     );
+
     return;
   }
 
-  conn.data.subscription = result[1].docs[0].data();
-  conn.data.subscription.id = result[1].docs[0].id;
   conn.data.template = result[0].docs[0].data();
+  conn.data.subscription = {};
+
+  /** Subscription may or may not exist (especially when creating an Office). */
+  if (!result[1].empty) {
+    conn.data.subscription = result[1].docs[0].data();
+    conn.data.subscription.id = result[1].docs[0].id;
+  }
+
   /** Storing office as a reference when the office is not personal,
    * the data and its reference is required fof creating an office.
    */
