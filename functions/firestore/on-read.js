@@ -82,9 +82,11 @@ const updateDailyCollection = (conn, jsonResult) => {
  * @returns {void}
  */
 const addOfficeToTemplates = (conn, jsonResult) => {
-  jsonResult.templates.forEach((templateObject, index) => {
-    templateObject.office = conn.officesArray[`${index}`];
-  });
+  jsonResult
+    .templates
+    .forEach((templateObject, index) => {
+      templateObject.office = conn.officesArray[`${index}`];
+    });
 
   /** Anyone who sends the `from` query pram as `0`, must be
    * initializing the app first time, so this function logs
@@ -115,24 +117,14 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
   jsonResult.activitiesArr = [];
   let activityObj;
 
-  Object.keys(jsonResult.activities).forEach((activityId) => {
-    activityObj = jsonResult.activities[`${activityId}`];
+  Object
+    .keys(jsonResult.activities)
+    .forEach((activityId) => {
+      activityObj = jsonResult.activities[`${activityId}`];
+      activityObj.activityId = activityId;
 
-    jsonResult.activitiesArr.push({
-      activityId,
-      status: activityObj.status,
-      canEdit: activityObj.canEdit,
-      schedule: activityObj.schedule,
-      venue: activityObj.venue,
-      timestamp: activityObj.timestamp,
-      template: activityObj.template,
-      title: activityObj.title,
-      description: activityObj.description,
-      office: activityObj.office,
-      assignees: activityObj.assignees,
-      attachment: activityObj.attachment,
+      jsonResult.activitiesArr.push(activityObj);
     });
-  });
 
   jsonResult.activities = jsonResult.activitiesArr;
 
@@ -155,7 +147,8 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
  * @returns {void}
  */
 const fetchSubscriptions = (conn, jsonResult) => {
-  Promise.all(conn.templatesList)
+  Promise.
+    all(conn.templatesList)
     .then((snapShot) => {
       snapShot.forEach((doc) => {
         if (!doc.exists) return;
@@ -216,7 +209,8 @@ const getTemplates = (conn, jsonResult) => {
  * @returns {void}
  */
 const fetchAssignees = (conn, jsonResult) => {
-  Promise.all(conn.assigneeFetchPromises)
+  Promise
+    .all(conn.assigneeFetchPromises)
     .then((snapShotsArray) => {
       let activityObj;
 
@@ -242,18 +236,27 @@ const fetchAssignees = (conn, jsonResult) => {
  * @returns {void}
  */
 const fetchAttachments = (conn, jsonResult) => {
-  Promise.all(conn.docRefsArray)
-    .then((snapShots) => {
+  Promise
+    .all(conn.docRefsArray)
+    .then((docsArray) => {
       let activityObj;
 
-      snapShots.forEach((doc) => {
-        if (!doc.exists) return;
-
+      docsArray.forEach((doc) => {
         activityObj = jsonResult.activities[doc.get('activityId')];
         activityObj.attachment = doc.data();
+
+        /** These fields are redundant to add to the attachment
+         * since this data is already present in the parent
+         * activity object.
+         */
+        delete activityObj.attachment.status;
+        delete activityObj.attachment.template;
+        delete activityObj.attachment.activityId;
+        delete activityObj.attachment.office;
       });
 
       fetchAssignees(conn, jsonResult);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -267,7 +270,8 @@ const fetchAttachments = (conn, jsonResult) => {
  * @returns {void}
  */
 const fetchActivities = (conn, jsonResult) => {
-  Promise.all(conn.activityFetchPromises)
+  Promise
+    .all(conn.activityFetchPromises)
     .then((snapShot) => {
       let activityObj;
       conn.docRefsArray = [];
