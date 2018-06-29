@@ -252,7 +252,7 @@ const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
         geopoint: getGeopointObject(venue.geopoint),
         venueDescriptor: venue.venueDescriptor,
         location: venue.location || '',
-        adddress: venue.address || '',
+        address: venue.address || '',
       });
     });
   });
@@ -279,20 +279,20 @@ const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
  * in the firestore.
  * @returns {Array} Venue Objects.
  */
-const attachmentCreator = (attachmentFromRequestBody, attachmentFromTemplate) => {
-  if (!attachmentFromTemplate) return {};
-
+const filterAttachment = (attachmentFromRequestBody, attachmentFromTemplate) => {
   const filteredAttachment = {};
 
-  Object
-    .keys(attachmentFromTemplate)
-    .forEach((key) => {
-      if (typeof attachmentFromTemplate[`${key}`]
-        === typeof attachmentFromRequestBody[`${key}`]) {
-        /** Filter for each of the value type and their key of the object */
-        filteredAttachment[`${key}`] = attachmentFromRequestBody[`${key}`];
+  const requestBodyAttachmentKeys = Object.keys(attachmentFromRequestBody);
+  const templateAttachmentKeys = Object.keys(attachmentFromTemplate);
+
+  templateAttachmentKeys.forEach((key) => {
+    requestBodyAttachmentKeys.forEach((valueName) => {
+      /** If the value field is missing, the attachment object isn't valid. */
+      if (key === valueName && attachmentFromRequestBody[valueName].value) {
+        filteredAttachment[key] = attachmentFromRequestBody[key].value;
       }
     });
+  });
 
   return filteredAttachment;
 };
@@ -306,5 +306,5 @@ module.exports = {
   isValidDate,
   isValidLocation,
   isValidPhoneNumber,
-  attachmentCreator,
+  filterAttachment,
 };
