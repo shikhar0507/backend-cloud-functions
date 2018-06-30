@@ -73,7 +73,8 @@ const commitBatch = (conn) => conn.batch.commit()
     conn,
     code.created,
     'The activity was successfully created.'
-  )).catch((error) => handleError(conn, error));
+  ))
+  .catch((error) => handleError(conn, error));
 
 
 /**
@@ -93,88 +94,96 @@ const handleAssignedUsers = (conn) => {
 
   /** Create docs in Assignees collection if share is in the request body.
    * */
-  conn.req.body.share.forEach((phoneNumber) => {
-    if (!isValidPhoneNumber(phoneNumber)) return;
+  conn
+    .req
+    .body
+    .share
+    .forEach((phoneNumber) => {
+      if (!isValidPhoneNumber(phoneNumber)) return;
 
-    /** The requester shouldn't be added to the activity assignee list
-     * if the request is of `support` type.
-     */
-    if (phoneNumber === conn.requester.phoneNumber
-      && conn.requester.isSupportRequest) return;
+      /** The requester shouldn't be added to the activity assignee list
+       * if the request is of `support` type.
+       */
+      if (phoneNumber === conn.requester.phoneNumber
+        && conn.requester.isSupportRequest) return;
 
-    /** The phone numbers exist uniquely in the `/Profiles` collection. */
-    promises.push(profiles.doc(phoneNumber).get());
+      /** The phone numbers exist uniquely in the `/Profiles` collection. */
+      promises
+        .push(profiles.doc(phoneNumber).get());
 
-    conn.batch.set(
-      activities
-        .doc(conn.activityRef.id)
-        .collection('Assignees')
-        .doc(phoneNumber), {
-        canEdit: handleCanEdit(
-          conn.data.subscription,
-          phoneNumber,
-          conn.requester.phoneNumber,
-          conn.req.body.share
-        ),
-      }, {
-        merge: true,
-      });
-
-    conn.batch.set(
-      profiles
-        .doc(phoneNumber)
-        .collection('Activities')
-        .doc(conn.activityRef.id), {
-        canEdit: handleCanEdit(
-          conn.data.subscription,
-          phoneNumber,
-          conn.requester.phoneNumber,
-          conn.req.body.share
-        ),
-        timestamp: new Date(conn.req.body.timestamp),
-      });
-  });
-
-  Promise.all(promises).then((snapShots) => {
-    /** The doc exists inside `Profiles` collection. */
-    snapShots.forEach((doc) => {
-      if (!doc.exists) {
-        /** Create profiles for the phone numbers which are not in the DB. */
-        conn.batch.set(profiles.doc(doc.id), {
-          uid: null,
+      conn.batch.set(
+        activities
+          .doc(conn.activityRef.id)
+          .collection('Assignees')
+          .doc(phoneNumber), {
+          canEdit: handleCanEdit(
+            conn.data.subscription,
+            phoneNumber,
+            conn.requester.phoneNumber,
+            conn.req.body.share
+          ),
+        }, {
+          merge: true,
         });
 
-        conn.batch.set(
-          profiles
-            .doc(doc.id)
-            .collection('Activities')
-            .doc(conn.activityRef.id), {
-            canEdit: handleCanEdit(
-              conn.data.subscription,
-              doc.id,
-              conn.requester.phoneNumber,
-              conn.req.body.share
-            ),
-            timestamp: new Date(conn.req.body.timestamp),
-          });
-      }
-
-      /** The `uid` shouldn't be `null` OR `undefined` */
-      if (doc.exists && doc.get('uid')) {
-        conn.batch.set(
-          updates
-            .doc(doc.get('uid'))
-            .collection('Addendum')
-            .doc(),
-          conn.addendumData
-        );
-      }
+      conn.batch.set(
+        profiles
+          .doc(phoneNumber)
+          .collection('Activities')
+          .doc(conn.activityRef.id), {
+          canEdit: handleCanEdit(
+            conn.data.subscription,
+            phoneNumber,
+            conn.requester.phoneNumber,
+            conn.req.body.share
+          ),
+          timestamp: new Date(conn.req.body.timestamp),
+        });
     });
 
-    commitBatch(conn);
+  Promise
+    .all(promises)
+    .then((snapShots) => {
+      /** The doc exists inside `Profiles` collection. */
+      snapShots.forEach((doc) => {
+        if (!doc.exists) {
+          /** Create profiles for the phone numbers which are not in the DB. */
+          conn.batch.set(profiles.doc(doc.id), {
+            uid: null,
+          });
 
-    return;
-  }).catch((error) => handleError(conn, error));
+          conn.batch.set(
+            profiles
+              .doc(doc.id)
+              .collection('Activities')
+              .doc(conn.activityRef.id), {
+              canEdit: handleCanEdit(
+                conn.data.subscription,
+                doc.id,
+                conn.requester.phoneNumber,
+                conn.req.body.share
+              ),
+              timestamp: new Date(conn.req.body.timestamp),
+            });
+        }
+
+        /** The `uid` shouldn't be `null` OR `undefined` */
+        if (doc.exists && doc.get('uid')) {
+          conn.batch.set(
+            updates
+              .doc(doc.get('uid'))
+              .collection('Addendum')
+              .doc(),
+            conn.addendumData
+          );
+        }
+      });
+
+      commitBatch(conn);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -606,7 +615,7 @@ const handleResult = (conn, result) => {
   conn.data.template = result[0].docs[0].data();
   conn.data.subscription = {};
 
-  /** Subscription may or may not exist (especially when creating an Office). */
+  /** Subscription may or may not exist (especially when creating an `Office`). */
   if (!result[1].empty) {
     conn.data.subscription = result[1].docs[0].data();
     conn.data.subscription.id = result[1].docs[0].id;
@@ -671,25 +680,26 @@ const handleResult = (conn, result) => {
  * @returns {void}
  */
 const fetchDocs = (conn) => {
-  Promise.all([
-    activityTemplates
-      .where('name', '==', conn.req.body.template)
-      .limit(1)
-      .get(),
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Subscriptions')
-      .where('template', '==', conn.req.body.template)
-      .limit(1)
-      .get(),
-    offices
-      .where('name', '==', conn.req.body.office)
-      .limit(1)
-      .get(),
-    enums
-      .doc('CANEDITRULES')
-      .get(),
-  ])
+  Promise
+    .all([
+      activityTemplates
+        .where('name', '==', conn.req.body.template)
+        .limit(1)
+        .get(),
+      profiles
+        .doc(conn.requester.phoneNumber)
+        .collection('Subscriptions')
+        .where('template', '==', conn.req.body.template)
+        .limit(1)
+        .get(),
+      offices
+        .where('name', '==', conn.req.body.office)
+        .limit(1)
+        .get(),
+      enums
+        .doc('CANEDITRULES')
+        .get(),
+    ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
 };
