@@ -150,6 +150,8 @@ const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
 
   const defaultSchedules = [];
 
+  if (!scheduleNames) return defaultSchedules;
+
   scheduleNames.forEach((schedule) => {
     defaultSchedules.push({
       name: schedule,
@@ -223,6 +225,8 @@ const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
 
   let validVenues = [];
   const defaultVenues = [];
+
+  if (!venueDescriptors) return defaultVenues;
 
   const getGeopointObject = require('../../admin/admin').getGeopointObject;
 
