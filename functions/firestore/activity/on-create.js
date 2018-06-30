@@ -137,7 +137,7 @@ const handleAssignedUsers = (conn) => {
             conn.requester.phoneNumber,
             conn.req.body.share
           ),
-          timestamp: new Date(conn.req.body.timestamp),
+          timestamp: conn.data.timestamp,
         });
     });
 
@@ -163,7 +163,7 @@ const handleAssignedUsers = (conn) => {
                 conn.requester.phoneNumber,
                 conn.req.body.share
               ),
-              timestamp: new Date(conn.req.body.timestamp),
+              timestamp: conn.data.timestamp,
             });
         }
 
@@ -233,7 +233,7 @@ const createActivity = (conn) => {
     conn.data.template.venue
   );
 
-  activityRoot.timestamp = new Date(conn.req.body.timestamp);
+  activityRoot.timestamp = conn.data.timestamp;
 
   /** The docRef is the reference to the document which the
     * activity handled in the request. It will ne null for an
@@ -255,7 +255,7 @@ const createActivity = (conn) => {
     comment: `${conn.requester.displayName || conn.requester.phoneNumber}` +
       ` created ${conn.data.template.defaultTitle}`,
     location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: new Date(conn.req.body.timestamp),
+    timestamp: conn.data.timestamp,
   };
 
   /** The addendum doc is always created for the requester */
@@ -314,7 +314,7 @@ const createActivity = (conn) => {
         conn.requester.phoneNumber,
         conn.req.body.share
       ),
-      timestamp: new Date(conn.req.body.timestamp),
+      timestamp: conn.data.timestamp,
     });
 
   handleAssignedUsers(conn);
@@ -337,7 +337,7 @@ const logLocation = (conn) => {
   const data = {
     activityId: conn.activityRef.id,
     geopoint: getGeopointObject(conn.req.body.geopoint),
-    timestamp: new Date(conn.req.body.timestamp),
+    timestamp: conn.data.timestamp,
     office: conn.req.body.office,
     template: conn.req.body.template,
   };
@@ -405,7 +405,7 @@ const createSubscription = (conn, docData) => {
   }
 
   docData.canEditRule = conn.req.body.canEditRule;
-  docData.timestamp = new Date(conn.req.body.timestamp);
+  docData.timestamp = conn.data.timestamp;
 
   conn.docRef = profiles
     .doc(conn.requester.phoneNumber)
@@ -677,6 +677,9 @@ const handleSupportRequest = (conn) => {
 const handleResult = (conn, result) => {
   /** Stores all the temporary data for creating the activity. */
   conn.data = {};
+
+  /** Calling new Date() constructor multiple times is wasteful. */
+  conn.data.timestamp = new Date(conn.req.body.timestamp);
 
   /** A template with the name from the request body doesn't exist. */
   if (result[0].empty) {
