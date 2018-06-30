@@ -386,6 +386,122 @@ const updateDailyActivities = (conn) => {
 
 
 /**
+ * Creates a *new* `subscription` for the user based on the `office`
+ * and the `template` from the request body.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
+ * @returns {void}
+ */
+const createSubscription = (conn, docData) => {
+  if (!conn.data.office.empty) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `The office: ${conn.req.body.office} doesn't exist.`
+    );
+
+    return;
+  }
+
+  docData.canEditRule = conn.req.body.canEditRule;
+  docData.timestamp = new Date(conn.req.body.timestamp);
+
+  conn.docRef = profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Subscriptions')
+    .doc(conn.activityRef.id);
+
+  /** Subscription to the `admin` template
+   * is not to be given to anyone.
+   */
+  delete docData.template;
+
+  // TODO: createDocData.template = conn.req.body.template.value;
+  // ? But, this also requires a check if the template exists.
+
+  if (!Array.isArray(conn.req.body.share)) {
+    docData.include = [];
+
+    /** All assignees of this activity will be in the `include` array. */
+    conn
+      .req
+      .body
+      .share
+      .forEach((phoneNumber) => {
+        if (!isValidPhoneNumber(phoneNumber)) return;
+
+        docData.include.push(phoneNumber);
+      });
+  }
+
+  conn.batch.set(conn.docRef, docData);
+
+  updateDailyActivities(conn);
+};
+
+
+/**
+ * Adds a *new* office to the `Offices` collection.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
+ * @returns {void}
+ */
+const createOffice = (conn, docData) => {
+  if (!conn.data.office.empty) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `An office with the name: ${conn.req.body.office} already exists.`
+    );
+
+    return;
+  }
+
+  conn.docRef = offices
+    .doc(conn.activityRef.id);
+
+  conn.batch.set(conn.docRef, docData);
+
+  updateDailyActivities(conn);
+};
+
+
+/**
+ * Creates a *new* document inside the `Offices/(office-id)/` path based on
+ * the template and `activiy-id`.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
+ * @returns {void}
+ */
+const createNewEntityInOffice = (conn, docData) => {
+  if (conn.data.office.empty) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `An office with the name: ${conn.req.body.office} does not exist.`
+    );
+
+    return;
+  }
+
+  const officeId = conn.data.office.docs[0].id;
+
+  conn.docRef = offices
+    .doc(officeId)
+    /** Collection names are `ALWAYS` plural. */
+    .collection(`${conn.req.body.template}s`)
+    .doc(conn.activityRef.id);
+
+  conn.batch.set(conn.docRef, docData);
+
+  updateDailyActivities(conn);
+};
+
+
+/**
  * Handles the cases where the template is of `subcription` or `office`.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
@@ -441,62 +557,21 @@ const handleSpecialTemplates = (conn) => {
 
   docData.status = conn.data.template.statusOnCreate;
   docData.office = conn.req.body.office;
-
   docData.template = conn.req.body.template;
 
-  // TODO: Rename subscription to `admin`.
-  if (conn.req.body.template === 'subscription') {
-    conn.docRef = profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Subscriptions')
-      .doc();
-
-    /** Subscription to the `subscription` template
-     * is not to be given to anyone.
-     */
-    delete docData.template;
-
-    conn.batch.set(conn.docRef, docData);
-
-    updateDailyActivities(conn);
-    return;
-  }
-
   if (conn.req.body.template === 'office') {
-    conn.docRef = offices
-      .doc(conn.activityRef.id);
-
-    conn.batch.set(conn.docRef, docData);
-
-    updateDailyActivities(conn);
-    return;
-  }
-
-  /** Check for Office is required because the proceeding
-   * code creates a doc inside the Offices/(office-id)/ path.
-   * If **SHOULD** exist.
-   */
-  if (conn.data.office.empty) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `An office with the name: ${conn.req.body.office} does not exist.`
-    );
+    createOffice(conn, docData);
 
     return;
   }
 
-  const officeId = conn.data.office.docs[0].id;
+  if (conn.req.body.template === 'admin') {
+    createSubscription(conn, docData);
 
-  conn.docRef = offices
-    .doc(officeId)
-    /** Collection names are `ALWAYS` plural. */
-    .collection(`${conn.req.body.template}s`)
-    .doc(conn.activityRef.id);
+    return;
+  }
 
-  conn.batch.set(conn.docRef, docData);
-
-  updateDailyActivities(conn);
+  createNewEntityInOffice(conn, docData);
 };
 
 
@@ -517,6 +592,7 @@ const processRequestType = (conn) => {
   if (conn.req.body.office === 'personal') {
     if (conn.req.body.template === 'plan') {
       updateDailyActivities(conn);
+
       return;
     }
 
@@ -585,6 +661,7 @@ const handleSupportRequest = (conn) => {
    * request body and not from the user's subscription.
    */
   conn.data.subscription.canEditRule = conn.req.body.canEditRule;
+
   processRequestType(conn);
 };
 
@@ -636,6 +713,7 @@ const handleResult = (conn, result) => {
      * @see https://github.com/Growthfilev2/backend-cloud-functions/blob/master/docs/support-requests/README.md
      */
     handleSupportRequest(conn);
+
     return;
   }
 
@@ -651,6 +729,7 @@ const handleResult = (conn, result) => {
       code.forbidden,
       `Template: ${conn.req.body.template} doesn't exist.`
     );
+
     return;
   }
 
@@ -666,6 +745,7 @@ const handleResult = (conn, result) => {
       + ` an activity with the template: ${conn.req.body.template}`
       + ` for the office: ${conn.req.body.office}.`
     );
+
     return;
   }
 
@@ -728,6 +808,7 @@ const app = (conn) => {
       `Request body is invalid. Make sure that template, timestamp, office,`
       + ` and the geopoint fields are present.`
     );
+
     return;
   }
 
