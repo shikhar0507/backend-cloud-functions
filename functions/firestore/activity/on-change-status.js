@@ -120,7 +120,7 @@ const logLocation = (conn) => {
   const data = {
     activityId: conn.req.body.activityId,
     geopoint: getGeopointObject(conn.req.body.geopoint),
-    timestamp: new Date(conn.req.body.timestamp),
+    timestamp: conn.data.timestamp,
     office: conn.data.activity.get('office'),
     template: conn.data.activity.get('template'),
   };
@@ -171,7 +171,7 @@ const updateActivityStatus = (conn) => {
     activities
       .doc(conn.req.body.activityId), {
       status: conn.req.body.status,
-      timestamp: new Date(conn.req.body.timestamp),
+      timestamp: conn.data.timestamp,
     }, {
       merge: true,
     }
@@ -199,7 +199,7 @@ const fetchTemplate = (conn) => {
         comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
           + ` updated ${doc.get('defaultTitle')}`,
         location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: new Date(conn.req.body.timestamp),
+        timestamp: conn.data.timestamp,
       };
 
       updateActivityStatus(conn);
@@ -245,6 +245,8 @@ const fetchDocs = (conn) => {
     conn.batch = db.batch();
     conn.data = {};
 
+    /** Calling new Date() constructor multiple times is wasteful. */
+    conn.data.timestamp = new Date(conn.req.body.timestamp);
     conn.data.assignees = [];
     conn.data.activity = result[0];
 
@@ -266,7 +268,7 @@ const fetchDocs = (conn) => {
           .doc(doc.id)
           .collection('Activities')
           .doc(conn.req.body.activityId), {
-          timestamp: new Date(conn.req.body.timestamp),
+          timestamp: conn.data.timestamp,
         }, {
           merge: true,
         }

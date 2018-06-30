@@ -121,7 +121,7 @@ const logLocation = (conn) => {
       .doc(), {
       activityId: conn.req.body.activityId,
       geopoint: getGeopointObject(conn.req.body.geopoint),
-      timestamp: new Date(conn.req.body.timestamp),
+      timestamp: conn.data.timestamp,
       office: conn.data.activity.get('office'),
       template: conn.data.activity.get('template'),
     });
@@ -144,7 +144,7 @@ const setAddendumForAssignees = (conn) => {
         .doc(phoneNumber)
         .collection('Activities')
         .doc(conn.req.body.activityId), {
-        timestamp: new Date(conn.req.body.timestamp),
+        timestamp: conn.data.timestamp,
       }, {
         merge: true,
       });
@@ -167,7 +167,7 @@ const setAddendumForAssignees = (conn) => {
             user: conn.requester.displayName || conn.requester.phoneNumber,
             comment: conn.req.body.comment,
             location: getGeopointObject(conn.req.body.geopoint),
-            timestamp: new Date(conn.req.body.timestamp),
+            timestamp: conn.data.timestamp,
           });
       });
 
@@ -283,6 +283,9 @@ const fetchDocs = (conn) => {
       .get(),
   ]).then((docsArray) => {
     conn.data = {};
+
+    /** Calling new Date() constructor multiple times is wasteful. */
+    conn.data.timestamp = new Date(conn.req.body.timestamp);
     conn.data.profileActivityDoc = docsArray[0];
     conn.data.activity = docsArray[1];
 

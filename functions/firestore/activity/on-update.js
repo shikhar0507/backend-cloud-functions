@@ -123,7 +123,7 @@ const logLocation = (conn) => {
   const data = {
     activityId: conn.req.body.activityId,
     geopoint: getGeopointObject(conn.req.body.geopoint),
-    timestamp: new Date(conn.req.body.timestamp),
+    timestamp: conn.data.timestamp,
     office: conn.data.activity.get('office'),
     template: conn.data.activity.get('template'),
   };
@@ -171,7 +171,7 @@ const updateActivityDoc = (conn) => {
     );
   }
 
-  update.timestamp = new Date(conn.req.body.timestamp);
+  update.timestamp = conn.data.timestamp;
 
   /** Imeplementing the `handleAttachment()` method will make this work. */
   if (conn.hasOwnProperty('docRef')) {
@@ -222,7 +222,7 @@ const addAddendumForAssignees = (conn) => {
         .doc(phoneNumber)
         .collection('Activities')
         .doc(conn.req.body.activityId), {
-        timestamp: new Date(conn.req.body.timestamp),
+        timestamp: conn.data.timestamp,
       }, {
         merge: true,
       }
@@ -275,7 +275,7 @@ const fetchTemplate = (conn) => {
         comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
           + ` updated ${doc.get('defaultTitle')}`,
         location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: new Date(conn.req.body.timestamp),
+        timestamp: conn.data.timestamp,
       };
 
       conn.data.template = doc;
@@ -320,6 +320,9 @@ const fetchDocs = (conn) => {
     conn.batch = db.batch();
 
     conn.data = {};
+
+    /** Calling new Date() constructor multiple times is wasteful. */
+    conn.data.timestamp = new Date(conn.req.body.timestamp);
     conn.data.activity = result[0];
 
     conn.data.assigneesArray = [];
