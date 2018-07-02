@@ -77,7 +77,7 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const date = new Date();
+  const date = conn.data.timestamp;
 
   const hour = date.getHours();
   const minutes = date.getMinutes();

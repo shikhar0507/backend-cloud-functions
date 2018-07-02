@@ -76,7 +76,7 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const date = new Date();
+  const date = conn.data.timestamp;
 
   const hour = date.getHours();
   const minutes = date.getMinutes();
@@ -197,7 +197,7 @@ const fetchTemplate = (conn) => {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
         comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
-          + ` updated ${doc.get('defaultTitle')}`,
+          + ` updated ${doc.get('defaultTitle')}.`,
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: conn.data.timestamp,
       };
@@ -237,7 +237,7 @@ const fetchDocs = (conn) => {
       sendResponse(
         conn,
         code.conflict,
-        `There is no activity with the id: ${conn.req.body.activityId}`
+        `There is no activity with the id: ${conn.req.body.activityId}.`
       );
       return;
     }
@@ -245,7 +245,7 @@ const fetchDocs = (conn) => {
     conn.batch = db.batch();
     conn.data = {};
 
-    /** Calling new Date() constructor multiple times is wasteful. */
+    /** Calling new `Date()` constructor multiple times is wasteful. */
     conn.data.timestamp = new Date(conn.req.body.timestamp);
     conn.data.assignees = [];
     conn.data.activity = result[0];
@@ -358,8 +358,8 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `Request body is invalid. Make sure that the activityId, timestamp,`
-      + ` geopoint and the status fields are present.`
+      `Request body is invalid. Make sure that the 'activityId', 'timestamp',`
+      + ` 'geopoint' and the 'status' fields are present in the request body.`
     );
     return;
   }

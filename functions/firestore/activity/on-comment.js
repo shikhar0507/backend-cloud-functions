@@ -78,7 +78,7 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const date = new Date();
+  const date = conn.data.timestamp;
 
   const hour = date.getHours();
   const minutes = date.getMinutes();
@@ -315,8 +315,8 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The request body is invalid. Make sure that the activityId, timestamp,`
-      + ` geopoint and the comment are present.`
+      `The request body is invalid. Make sure that the 'activityId', 'timestamp',`
+      + ` 'geopoint' and the 'comment' fields are present in the request body.`
     );
     return;
   }

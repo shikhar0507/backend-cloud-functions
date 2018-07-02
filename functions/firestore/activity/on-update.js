@@ -64,7 +64,7 @@ const {
  * @returns {Promise} Batch Object.
  */
 const commitBatch = (conn) => conn.batch.commit()
-  .then((data) => sendResponse(conn, code.noContent))
+  .then(() => sendResponse(conn, code.noContent))
   .catch((error) => handleError(conn, error));
 
 
@@ -77,7 +77,7 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const date = new Date();
+  const date = conn.data.timestamp;
 
   const hour = date.getHours();
   const minutes = date.getMinutes();
@@ -253,6 +253,7 @@ const addAddendumForAssignees = (conn) => {
     }
 
     handleAttachment(conn);
+
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -312,7 +313,7 @@ const fetchDocs = (conn) => {
       sendResponse(
         conn,
         code.conflict,
-        `There is no activity with the id: ${conn.req.body.activityId}`
+        `There is no activity with the id: ${conn.req.body.activityId}.`
       );
       return;
     }
@@ -321,7 +322,7 @@ const fetchDocs = (conn) => {
 
     conn.data = {};
 
-    /** Calling new Date() constructor multiple times is wasteful. */
+    /** Calling new `Date()` constructor multiple times is wasteful. */
     conn.data.timestamp = new Date(conn.req.body.timestamp);
     conn.data.activity = result[0];
 
@@ -335,6 +336,7 @@ const fetchDocs = (conn) => {
     });
 
     fetchTemplate(conn);
+
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -360,6 +362,7 @@ const verifyEditPermission = (conn) => {
           conn.forbidden,
           `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
+
         return;
       }
 
@@ -369,10 +372,12 @@ const verifyEditPermission = (conn) => {
           code.forbidden,
           'You do not have the permission to edit this activity.'
         );
+
         return;
       }
 
       fetchDocs(conn);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -391,14 +396,16 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The request body is invalid. Make sure that the activityId, timestamp`
-      + ` and the geopoint are included.`
+      `The request body is invalid. Make sure that the 'activityId', 'timestamp'`
+      + ` and the 'geopoint' are included in the request body.`
     );
+
     return;
   }
 
   if (conn.requester.isSupportRequest) {
     fetchDocs(conn);
+
     return;
   }
 

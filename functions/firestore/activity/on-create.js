@@ -357,7 +357,7 @@ const logLocation = (conn) => {
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const date = new Date();
+  const date = conn.data.timestamp;
 
   const hour = date.getHours();
   const minutes = date.getMinutes();
@@ -808,8 +808,8 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `Request body is invalid. Make sure that template, timestamp, office,`
-      + ` and the geopoint fields are present.`
+      `Request body is invalid. Make sure that 'template', 'timestamp', 'office',`
+      + ` and the 'geopoint' fields are present in the request body.`
     );
 
     return;
