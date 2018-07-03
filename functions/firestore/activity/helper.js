@@ -145,7 +145,7 @@ const handleCanEdit = (
  * @returns {Array} Of valid schedules.
  */
 const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
-  /** If filterSchedules has been called once, return the cached values. */
+  /** If `filterSchedules` has been called once, return the cached values. */
   if (conn.data.hasOwnProperty('schedule')) return conn.data.schedule;
 
   const defaultSchedules = [];
@@ -186,7 +186,8 @@ const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
         return;
       }
 
-      if (schedule.endTime >= schedule.startTime) {
+      if (isValidDate(schedule.endTime) && isValidDate(schedule.startTime)
+        && schedule.endTime >= schedule.startTime) {
         validSchedules.push({
           name: schedule.name,
           startTime: new Date(schedule.startTime),
@@ -208,7 +209,6 @@ const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
   return validSchedules;
 };
 
-const getGeopointObject = require('../../admin/admin').getGeopointObject;
 
 /**
  * Validates the venues based on the `venueDescriptors` and
