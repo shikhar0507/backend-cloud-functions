@@ -65,6 +65,7 @@ const fetchAllTemplates = (conn) => {
 
       /** Response ends here... */
       sendJSON(conn, jsonObject);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -77,7 +78,7 @@ const fetchAllTemplates = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @returns {void}
  */
-const fetchSingleTemplate = (conn) => {
+const fetchTemplateByName = (conn) => {
   if (!isValidString(conn.req.body.name)) {
     sendResponse(
       conn,
@@ -104,6 +105,7 @@ const fetchSingleTemplate = (conn) => {
       }
 
       sendJSON(conn, snapShot.docs[0].data());
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -118,7 +120,8 @@ const fetchSingleTemplate = (conn) => {
  */
 const app = (conn) => {
   if (conn.req.query.hasOwnProperty('name')) {
-    fetchSingleTemplate(conn);
+    fetchTemplateByName(conn);
+
     return;
   }
 

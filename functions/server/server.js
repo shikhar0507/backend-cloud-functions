@@ -54,23 +54,27 @@ const handleRequestPath = (conn) => {
   if (action === 'activities') {
     const onActivity = require('./on-activity');
     onActivity(conn);
+
     return;
   }
 
   if (action === 'services') {
     const onService = require('./on-service');
     onService(conn);
+
     return;
   }
 
   if (action.startsWith('read')) {
     const onRead = require('../firestore/on-read');
     onRead(conn);
+
     return;
   }
 
   if (action === 'now') {
     now(conn);
+
     return;
   }
 
@@ -105,10 +109,12 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
           conn,
           'The uid and phone number of the requester does not match.'
         );
+
         return;
       }
 
       handleRequestPath(conn);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -142,6 +148,7 @@ const fetchRequesterPhoneNumber = (conn) => {
       conn.requester.phoneNumber = userRecord.phoneNumber;
 
       verifyUidAndPhoneNumberCombination(conn);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -161,6 +168,7 @@ const checkAuthorizationToken = (conn) => {
       code.unauthorized,
       'The authorization header is missing from the headers.'
     );
+
     return;
   }
 
@@ -198,6 +206,7 @@ const checkAuthorizationToken = (conn) => {
       conn.requester.uid = decodedIdToken.uid;
 
       fetchRequesterPhoneNumber(conn);
+
       return;
     })
     .catch((error) => {
@@ -207,6 +216,7 @@ const checkAuthorizationToken = (conn) => {
           code.unauthorized,
           'The idToken was revoked recently. Please reauthenticate.'
         );
+
         return;
       }
 
@@ -217,6 +227,7 @@ const checkAuthorizationToken = (conn) => {
           'The idToken in the request header is invalid/expired.'
           + ' Please reauthenticate.'
         );
+
         return;
       }
 
@@ -264,6 +275,7 @@ const server = (req, res) => {
   ].indexOf(req.method) > -1) {
     /** FOR handling CORS... */
     sendResponse(conn, code.noContent);
+
     return;
   }
 
@@ -275,6 +287,7 @@ const server = (req, res) => {
     'PUT',
   ].indexOf(req.method) > -1) {
     checkAuthorizationToken(conn);
+
     return;
   }
 
@@ -282,7 +295,7 @@ const server = (req, res) => {
     conn,
     code.notImplemented,
     `${req.method} is not supported for any request.`
-    + ' Please use GET, POST, PATCH, or PUT to make your requests.'
+    + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests.'
   );
 };
 

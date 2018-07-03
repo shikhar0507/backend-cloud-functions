@@ -52,11 +52,11 @@
     "no-caller": 2,
     // Disallow null comparisons without type-checking operators
     "no-eq-null": 2,
-    // Disallow the use of eval()
+    // Disallow the use of eval
     "no-eval": 2,
     // Warn against extending native types
     "no-extend-native": 1,
-    // Warn against unnecessary calls to .bind()
+    // Warn against unnecessary calls to .bind
     "no-extra-bind": 1,
     // Warn against unnecessary labels
     "no-extra-label": 1,
@@ -94,12 +94,12 @@
     "no-path-concat": 1,
     // Prefer using arrow functions for callbacks
     "prefer-arrow-callback": 1,
-    // Return inside each then() to create readable and reusable Promise chains.
+    // Return inside each `then` to create readable and reusable Promise chains.
     // Forces developers to return console logs and http calls in promises.
     "promise/always-return": 2,
-    //Enforces the use of catch() on un-returned promises
+    //Enforces the use of `catch` on un-returned promises
     "promise/catch-or-return": 2,
-    // Warn against nested then() or catch() statements
+    // Warn against nested `then` or `catch` statements
     "promise/no-nesting": 1,
     "no-extra-parens": "warn",
     "prefer-const": "warn",
@@ -172,6 +172,24 @@
     "spaced-comment": [
       "warn",
       "always"
+    ],
+    "max-len": [
+      "warn",
+      {
+        "code": 80,
+        "tabWidth": 2,
+        "ignoreComments": true,
+        "ignoreUrls": true,
+        "ignoreTrailingComments": true,
+        "ignoreStrings": true
+      }
+    ],
+    "newline-before-return": "warn",
+    "max-params": [
+      "warn",
+      {
+        "max": 4
+      }
     ]
   }
 }

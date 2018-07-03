@@ -87,6 +87,7 @@ const handleAssignedUsers = (conn) => {
   /** The list of assignees *NEEDS* to be an array. */
   if (!Array.isArray(conn.req.body.share)) {
     commitBatch(conn);
+
     return;
   }
 

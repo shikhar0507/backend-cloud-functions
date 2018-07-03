@@ -66,10 +66,11 @@ const {
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
-const commitBatch = (conn) => conn.batch
-  .commit()
-  .then(() => sendResponse(conn, code.noContent))
-  .catch((error) => handleError(conn, error));
+const commitBatch = (conn) =>
+  conn.batch
+    .commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -177,13 +178,12 @@ const fetchAssigneesFromAllActivities = (conn) => {
   const activitiesArray = conn.data.docsArray[0];
 
   activitiesArray.forEach((activity) => {
-    promises
-      .push(
-        activities
-          .doc(activity)
-          .collection('Assignees')
-          .get()
-      );
+    promises.push(
+      activities
+        .doc(activity)
+        .collection('Assignees')
+        .get()
+    );
   });
 
   let phoneNumber;

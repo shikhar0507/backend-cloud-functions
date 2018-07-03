@@ -61,12 +61,15 @@ const {
  * @param {Object} conn Object with Express Request and Response Objects.
  * @returns {Promise} Batch object.
  */
-const commitBatch = (conn) => conn.batch.commit()
-  .then(() => sendResponse(
-    conn,
-    code.created,
-    'The comment was successfully added to the activity.'
-  )).catch((error) => handleError(conn, error));
+const commitBatch = (conn) =>
+  conn.batch
+    .commit()
+    .then(() => sendResponse(
+      conn,
+      code.created,
+      'The comment was successfully added to the activity.'
+    ))
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -172,6 +175,7 @@ const setAddendumForAssignees = (conn) => {
       });
 
       logLocation(conn);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -201,6 +205,7 @@ const createAssigneePromises = (conn) => {
       conn.batch = db.batch();
 
       setAddendumForAssignees(conn);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -224,6 +229,7 @@ const checkIfActivityExists = (conn) => {
           code.conflict,
           `No acivity found with the id: ${conn.req.body.activityId}.`
         );
+
         return;
       }
 
@@ -235,6 +241,7 @@ const checkIfActivityExists = (conn) => {
       conn.data.activity = doc;
 
       createAssigneePromises(conn);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -255,6 +262,7 @@ const checkCommentPermission = (conn) => {
      * `/Activities` root collection is required.
      */
     checkIfActivityExists(conn);
+
     return;
   }
 
@@ -264,6 +272,7 @@ const checkCommentPermission = (conn) => {
       code.conflict,
       `No acivity found with the id: ${conn.req.body.activityId}.`
     );
+
     return;
   }
 
@@ -272,26 +281,30 @@ const checkCommentPermission = (conn) => {
 
 
 const fetchDocs = (conn) => {
-  Promise.all([
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId)
-      .get(),
-    activities
-      .doc(conn.req.body.activityId)
-      .get(),
-  ]).then((docsArray) => {
-    conn.data = {};
+  Promise
+    .all([
+      profiles
+        .doc(conn.requester.phoneNumber)
+        .collection('Activities')
+        .doc(conn.req.body.activityId)
+        .get(),
+      activities
+        .doc(conn.req.body.activityId)
+        .get(),
+    ])
+    .then((docsArray) => {
+      conn.data = {};
 
-    /** Calling new Date() constructor multiple times is wasteful. */
-    conn.data.timestamp = new Date(conn.req.body.timestamp);
-    conn.data.profileActivityDoc = docsArray[0];
-    conn.data.activity = docsArray[1];
+      /** Calling new Date() constructor multiple times is wasteful. */
+      conn.data.timestamp = new Date(conn.req.body.timestamp);
+      conn.data.profileActivityDoc = docsArray[0];
+      conn.data.activity = docsArray[1];
 
-    checkCommentPermission(conn);
-    return;
-  }).catch((error) => handleError(conn, error));
+      checkCommentPermission(conn);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -318,6 +331,7 @@ const app = (conn) => {
       `The request body is invalid. Make sure that the 'activityId', 'timestamp',`
       + ` 'geopoint' and the 'comment' fields are present in the request body.`
     );
+
     return;
   }
 

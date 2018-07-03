@@ -134,6 +134,7 @@ const getUserByPhoneNumber = (phoneNumber) =>
     }
 
     console.log(error);
+
     return {
       [phoneNumber]: {},
     };

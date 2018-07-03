@@ -204,6 +204,7 @@ const setAddendumForUsersWithUid = (conn) => {
     });
 
     updateActivityDoc(conn);
+
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -296,6 +297,7 @@ const fetchTemplateAndSubscriptions = (conn) => {
     }
 
     addAddendumForAssignees(conn);
+
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -322,6 +324,7 @@ const fetchDocs = (conn) => {
         code.conflict,
         `There is no activity with the id: ${conn.req.body.activityId}`
       );
+
       return;
     }
 
@@ -341,6 +344,7 @@ const fetchDocs = (conn) => {
     });
 
     fetchTemplateAndSubscriptions(conn);
+
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -360,6 +364,7 @@ const verifyEditPermission = (conn) => {
           code.notFound,
           `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
+
         return;
       }
 
@@ -369,10 +374,12 @@ const verifyEditPermission = (conn) => {
           code.forbidden,
           'You do not have the permission to edit this activity.'
         );
+
         return;
       }
 
       fetchDocs(conn);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -392,9 +399,10 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The request body is invalid. Make sure that the activityId, timestamp`
-      + ` geopoint and the share fields are present.`
+      `The request body is invalid. Make sure that the 'activityId', 'timestamp'`
+      + ` 'geopoint' and the 'share' fields are present in the request body.`
     );
+
     return;
   }
 
@@ -403,6 +411,7 @@ const app = (conn) => {
    */
   if (conn.requester.isSupportRequest) {
     fetchDocs(conn);
+
     return;
   }
 

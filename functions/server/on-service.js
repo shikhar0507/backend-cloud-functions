@@ -47,18 +47,21 @@ const app = (conn) => {
   if (action === 'users') {
     const onUsers = require('../services/on-users');
     onUsers(conn);
+
     return;
   }
 
   if (action === 'permissions') {
     const onPermissions = require('../services/on-permissions');
     onPermissions(conn);
+
     return;
   }
 
   if (action === 'templates') {
     const onTemplates = require('../services/on-templates');
     onTemplates(conn);
+
     return;
   }
 

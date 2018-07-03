@@ -63,8 +63,10 @@ const setClaims = (conn, user, claims, response) => {
     .then(() => {
       response.code = code.noContent;
       createInstantLog(conn, response);
+
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -111,10 +113,12 @@ const fetchUserRecord = (conn, response) => {
         response.message = `${conn.req.body.phoneNumber} does not exist.`;
         response.resourcesAccessed.push('user record');
         createInstantLog(conn, response);
+
         return;
       }
 
       createClaimsObject(conn, user, response);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -133,6 +137,7 @@ const validateRequestBody = (conn, response) => {
     response.message = 'The phoneNumber field is missing from the'
       + ' request body.';
     createInstantLog(conn, response);
+
     return;
   }
 
@@ -141,6 +146,7 @@ const validateRequestBody = (conn, response) => {
     response.message = `${conn.req.body.phoneNumber} is not a valid'
     +' phone number.`;
     createInstantLog(conn, response);
+
     return;
   }
 
@@ -149,6 +155,7 @@ const validateRequestBody = (conn, response) => {
     response.code = code.forbidden;
     response.message = 'You cannot set your own permissions.';
     createInstantLog(conn, response);
+
     return;
   }
 
@@ -159,6 +166,7 @@ const validateRequestBody = (conn, response) => {
     response.message = 'There are no valid "permission"'
       + ' fields in the request body.';
     createInstantLog(conn, response);
+
     return;
   }
 
@@ -171,6 +179,7 @@ const validateRequestBody = (conn, response) => {
     response.message = 'Granting more than one permission'
       + ' is not allowed for a user.';
     createInstantLog(conn, response);
+
     return;
   }
 
@@ -180,6 +189,7 @@ const validateRequestBody = (conn, response) => {
     response.message = 'The \'support\' field should be a'
       + ' boolean value \'true\'.';
     createInstantLog(conn, response);
+
     return;
   }
 
@@ -189,6 +199,7 @@ const validateRequestBody = (conn, response) => {
     response.message = 'The \'manageTemplates\' field should be'
       + ' a boolean value \'true\'.';
     createInstantLog(conn, response);
+
     return;
   }
 
@@ -209,6 +220,7 @@ const app = (conn) => {
       code.forbidden,
       'You are forbidden from accessing this resource.'
     );
+
     return;
   }
 
@@ -219,6 +231,7 @@ const app = (conn) => {
       `${conn.req.method} is not allowed for /api/services/permissions`
       + ' endpoint. Use PUT.'
     );
+
     return;
   }
 
@@ -230,6 +243,7 @@ const app = (conn) => {
     response.code = code.forbidden;
     response.message = 'You are forbidden from granting permissions.';
     createInstantLog(conn, response);
+
     return;
   }
 

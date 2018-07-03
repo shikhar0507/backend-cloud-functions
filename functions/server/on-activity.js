@@ -62,6 +62,7 @@ const app = (conn) => {
       code.forbidden,
       'You do not have the permission to make support requests for activities.'
     );
+
     return;
   }
 
@@ -74,11 +75,14 @@ const app = (conn) => {
         `${conn.req.method} is not allowed for the /create`
         + ' endpoint. Use POST.'
       );
+
       return;
+
     }
 
     const onCreate = require('../firestore/activity/on-create');
     onCreate(conn);
+
     return;
   }
 
@@ -90,11 +94,13 @@ const app = (conn) => {
         `${conn.req.method} is not allowed for the /${action}`
         + ' endpoint. Use POST.'
       );
+
       return;
     }
 
     const onComment = require('../firestore/activity/on-comment');
     onComment(conn);
+
     return;
   }
 
@@ -106,11 +112,13 @@ const app = (conn) => {
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /update endpoint. Use PATCH.`
         + ' Use PATCH.');
+
       return;
     }
 
     const onUpdate = require('../firestore/activity/on-update');
     onUpdate(conn);
+
     return;
   }
 
@@ -123,11 +131,13 @@ const app = (conn) => {
         `${conn.req.method} is not allowed for the /share endpoint. Use PATCH.`
         + ' Use PATCH.'
       );
+
       return;
     }
 
     const onShare = require('../firestore/activity/on-share');
     onShare(conn);
+
     return;
   }
 
@@ -139,11 +149,13 @@ const app = (conn) => {
         `${conn.req.method} is not allowed for the /${action}`
         + ' endpoint. Use PATCH.'
       );
+
       return;
     }
 
     const onStatusChange = require('../firestore/activity/on-change-status');
     onStatusChange(conn);
+
     return;
   }
 
@@ -155,11 +167,13 @@ const app = (conn) => {
         `${conn.req.method} is not allowed for the /${action}`
         + ' endpoint. Use PATCH.'
       );
+
       return;
     }
 
     const onRemove = require('../firestore/activity/on-remove');
     onRemove(conn);
+
     return;
   }
 

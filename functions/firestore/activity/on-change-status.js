@@ -62,9 +62,11 @@ const {
  * @param {Object} conn Contains Express Request and Response Objects.
  * @returns {Promise} Batch object
  */
-const commitBatch = (conn) => conn.batch.commit()
-  .then(() => sendResponse(conn, code.noContent))
-  .catch((error) => handleError(conn, error));
+const commitBatch = (conn) =>
+  conn.batch
+    .commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -139,7 +141,8 @@ const logLocation = (conn) => {
  * @returns {void}
  */
 const addAddendumForAssignees = (conn) => {
-  Promise.all(conn.data.assignees)
+  Promise
+    .all(conn.data.assignees)
     .then((docsArray) => {
       /** Adds addendum for all the users who have signed up via auth. */
       docsArray.forEach((doc) => {
@@ -155,6 +158,7 @@ const addAddendumForAssignees = (conn) => {
       });
 
       logLocation(conn);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -203,6 +207,7 @@ const fetchTemplate = (conn) => {
       };
 
       updateActivityStatus(conn);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -216,77 +221,83 @@ const fetchTemplate = (conn) => {
  * @returns {void}
  */
 const fetchDocs = (conn) => {
-  Promise.all([
-    activities
-      .doc(conn.req.body.activityId)
-      .get(),
-    activities
-      .doc(conn.req.body.activityId)
-      .collection('Assignees')
-      .get(),
-    enums
-      .doc('ACTIVITYSTATUS')
-      .get(),
-  ]).then((result) => {
-    if (!result[0].exists) {
-      /** This case should probably never execute becase there is provision
-       * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-       * function, the check for the existance of the activity has already
-       * been performed in the User's profile.
-       */
-      sendResponse(
-        conn,
-        code.conflict,
-        `There is no activity with the id: ${conn.req.body.activityId}.`
-      );
+  Promise
+    .all([
+      activities
+        .doc(conn.req.body.activityId)
+        .get(),
+      activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .get(),
+      enums
+        .doc('ACTIVITYSTATUS')
+        .get(),
+    ])
+    .then((result) => {
+      if (!result[0].exists) {
+        /** This case should probably never execute becase there is provision
+         * for deleting an activity anywhere. AND, for reaching the fetchDocs()
+         * function, the check for the existance of the activity has already
+         * been performed in the User's profile.
+         */
+        sendResponse(
+          conn,
+          code.conflict,
+          `There is no activity with the id: ${conn.req.body.activityId}.`
+        );
+
+        return;
+      }
+
+      conn.batch = db.batch();
+      conn.data = {};
+
+      /** Calling new `Date()` constructor multiple times is wasteful. */
+      conn.data.timestamp = new Date(conn.req.body.timestamp);
+      conn.data.assignees = [];
+      conn.data.activity = result[0];
+
+      if (conn.req.body.status === conn.data.activity.get('status')) {
+        sendResponse(
+          conn,
+          code.conflict,
+          `The activity status is already ${conn.req.body.status}.`
+        );
+
+        return;
+      }
+
+      /** The Assignees list is required to add addendum. */
+      result[1].forEach((doc) => {
+        conn.data.assignees.push(profiles.doc(doc.id).get());
+
+        conn.batch.set(
+          profiles
+            .doc(doc.id)
+            .collection('Activities')
+            .doc(conn.req.body.activityId), {
+            timestamp: conn.data.timestamp,
+          }, {
+            merge: true,
+          }
+        );
+      });
+
+      if (result[2].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {
+        sendResponse(
+          conn,
+          code.badRequest,
+          `${conn.req.body.status} is NOT a valid status from the template.`
+        );
+
+        return;
+      }
+
+      fetchTemplate(conn);
+
       return;
-    }
-
-    conn.batch = db.batch();
-    conn.data = {};
-
-    /** Calling new `Date()` constructor multiple times is wasteful. */
-    conn.data.timestamp = new Date(conn.req.body.timestamp);
-    conn.data.assignees = [];
-    conn.data.activity = result[0];
-
-    if (conn.req.body.status === conn.data.activity.get('status')) {
-      sendResponse(
-        conn,
-        code.conflict,
-        `The activity status is already ${conn.req.body.status}.`
-      );
-      return;
-    }
-
-    /** The Assignees list is required to add addendum. */
-    result[1].forEach((doc) => {
-      conn.data.assignees.push(profiles.doc(doc.id).get());
-
-      conn.batch.set(
-        profiles
-          .doc(doc.id)
-          .collection('Activities')
-          .doc(conn.req.body.activityId), {
-          timestamp: conn.data.timestamp,
-        }, {
-          merge: true,
-        }
-      );
-    });
-
-    if (result[2].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `${conn.req.body.status} is NOT a valid status from the template.`
-      );
-      return;
-    }
-
-    fetchTemplate(conn);
-    return;
-  }).catch((error) => handleError(conn, error));
+    }).catch((error) => handleError(conn, error));
 };
 
 
@@ -311,6 +322,7 @@ const verifyEditPermission = (conn) => {
           code.notFound,
           `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
+
         return;
       }
 
@@ -321,10 +333,12 @@ const verifyEditPermission = (conn) => {
           code.forbidden,
           'You do not have the permission to edit this activity.'
         );
+
         return;
       }
 
       fetchDocs(conn);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -361,6 +375,7 @@ const app = (conn) => {
       `Request body is invalid. Make sure that the 'activityId', 'timestamp',`
       + ` 'geopoint' and the 'status' fields are present in the request body.`
     );
+
     return;
   }
 
@@ -369,6 +384,7 @@ const app = (conn) => {
    */
   if (conn.requester.isSupportRequest) {
     fetchDocs(conn);
+
     return;
   }
 

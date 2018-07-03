@@ -59,8 +59,9 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'No query parameter found in the request URL. Please use ?q=value.'
+      'No query parameter found in the request URL. Please use ?q=value in the URL.'
     );
+
     return;
   }
 
@@ -92,7 +93,8 @@ const app = (conn) => {
   let phoneNumber;
   let record;
 
-  Promise.all(promises)
+  Promise
+    .all(promises)
     .then((userRecords) => {
       userRecords.forEach((userRecord) => {
         phoneNumber = Object.keys(userRecord)[0];
@@ -107,6 +109,7 @@ const app = (conn) => {
             metadata: record.metadata || '',
             customClaims: record.customClaims || {},
           };
+
           return;
         }
 
@@ -119,8 +122,10 @@ const app = (conn) => {
 
       /** Response ends here. */
       sendJSON(conn, jsonResponse);
+
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

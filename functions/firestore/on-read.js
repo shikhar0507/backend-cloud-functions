@@ -84,9 +84,8 @@ const updateDailyCollection = (conn, jsonResult) => {
 const addOfficeToTemplates = (conn, jsonResult) => {
   jsonResult
     .templates
-    .forEach((templateObject, index) => {
-      templateObject.office = conn.officesArray[`${index}`];
-    });
+    .forEach((templateObject, index) =>
+      templateObject.office = conn.officesArray[`${index}`]);
 
   /** Anyone who sends the `from` query pram as `0`, must be
    * initializing the app first time, so this function logs
@@ -94,6 +93,7 @@ const addOfficeToTemplates = (conn, jsonResult) => {
    */
   if (conn.req.query.from === '0') {
     updateDailyCollection(conn, jsonResult);
+
     return;
   }
 
@@ -162,6 +162,7 @@ const fetchSubscriptions = (conn, jsonResult) => {
       });
 
       convertActivityObjectToArray(conn, jsonResult);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -195,6 +196,7 @@ const getTemplates = (conn, jsonResult) => {
       });
 
       fetchSubscriptions(conn, jsonResult);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -223,6 +225,7 @@ const fetchAssignees = (conn, jsonResult) => {
       });
 
       getTemplates(conn, jsonResult);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -297,6 +300,7 @@ const fetchActivities = (conn, jsonResult) => {
       });
 
       fetchAttachments(conn, jsonResult);
+
       return;
     }).catch((error) => handleError(conn, error));
 };
@@ -332,6 +336,7 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
       });
 
       fetchActivities(conn, jsonResult);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -382,6 +387,7 @@ const readAddendumsByQuery = (conn) => {
       });
 
       getActivityIdsFromProfileCollection(conn, jsonResult);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -395,6 +401,7 @@ const app = (conn) => {
       code.badRequest,
       'No query parameter found in the request URL.'
     );
+
     return;
   }
 
@@ -404,6 +411,7 @@ const app = (conn) => {
       code.badRequest,
       `${conn.req.query.from} is not a valid timestamp.`
     );
+
     return;
   }
 

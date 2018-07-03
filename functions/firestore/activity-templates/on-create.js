@@ -129,13 +129,14 @@ const handleResult = (conn, result) => {
  * @returns {void}
  */
 const fetchDocs = (conn) => {
-  Promise.all([
-    activityTemplates
-      .where('name', '==', conn.req.body.name)
-      .limit(1)
-      .get(),
-    enums.doc('ACTIVITYSTATUS').get(),
-  ])
+  Promise
+    .all([
+      activityTemplates
+        .where('name', '==', conn.req.body.name)
+        .limit(1)
+        .get(),
+      enums.doc('ACTIVITYSTATUS').get(),
+    ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
 };

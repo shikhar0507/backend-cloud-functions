@@ -50,11 +50,13 @@ const app = (conn) => {
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /read endpoint. Use GET.`
       );
+
       return;
     }
 
     const onRead = require('../services/users/on-read');
     onRead(conn);
+
     return;
   }
 
@@ -65,11 +67,13 @@ const app = (conn) => {
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /update endpoint. Use PATCH.`
       );
+
       return;
     }
 
     const onUpdate = require('../services/users/on-update');
     onUpdate(conn);
+
     return;
   }
 

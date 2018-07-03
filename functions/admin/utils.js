@@ -149,6 +149,7 @@ const disableAccount = (conn, reason) => {
  */
 const hasSupportClaims = (customClaims) => {
   if (!customClaims) return false;
+
   /** A custom claim can be undefined or a boolean, so an explicit
    * check is used.
    */
@@ -164,6 +165,7 @@ const hasSupportClaims = (customClaims) => {
  */
 const hasManageTemplateClaims = (customClaims) => {
   if (!customClaims) return false;
+
   /** A custom claim can be undefined or a boolean, so an explicit
    * check is used.
    */
@@ -179,6 +181,7 @@ const hasManageTemplateClaims = (customClaims) => {
  */
 const hasSuperUserClaims = (customClaims) => {
   if (!customClaims) return false;
+
   /** A custom claim can be `undefined` or a `boolean`, so an explicit
    * check is used.
    */
@@ -199,6 +202,7 @@ const now = (conn) => {
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for the /now endpoint.`
     );
+
     return;
   }
 

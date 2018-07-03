@@ -41,6 +41,7 @@ const app = (conn) => {
       code.forbidden,
       'You do not have permission to access /manageTemplates.'
     );
+
     return;
   }
 
@@ -53,11 +54,13 @@ const app = (conn) => {
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for /create. Use POST.`
       );
+
       return;
     }
 
     const onCreate = require('../firestore/activity-templates/on-create');
     onCreate(conn);
+
     return;
   }
 
@@ -68,11 +71,13 @@ const app = (conn) => {
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for /update. Use PUT.`
       );
+
       return;
     }
 
     const onUpdate = require('../firestore/activity-templates/on-update');
     onUpdate(conn);
+
     return;
   }
 
@@ -83,11 +88,13 @@ const app = (conn) => {
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for /read. Use GET.`
       );
+
       return;
     }
 
     const onRead = require('../firestore/activity-templates/on-read');
     onRead(conn);
+
     return;
   }
 

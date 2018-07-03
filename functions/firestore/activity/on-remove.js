@@ -177,6 +177,7 @@ const setAddendumForUsersWithUid = (conn) => {
     });
 
     updateActivityDoc(conn);
+
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -212,6 +213,7 @@ const unassignFromTheActivity = (conn) => {
   });
 
   setAddendumForUsersWithUid(conn);
+
   return;
 };
 
@@ -261,6 +263,7 @@ const fetchDocs = (conn) => {
         code.conflict,
         `There is no activity with the id: ${conn.req.body.activityId}`
       );
+
       return;
     }
 
@@ -280,6 +283,7 @@ const fetchDocs = (conn) => {
     });
 
     fetchTemplate(conn);
+
     return;
   }).catch((error) => handleError(conn, error));
 };
@@ -300,6 +304,7 @@ const verifyEditPermission = (conn) => {
           code.notFound,
           `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
+
         return;
       }
 
@@ -310,10 +315,12 @@ const verifyEditPermission = (conn) => {
           code.forbidden,
           'You do not have the permission to edit this activity.'
         );
+
         return;
       }
 
       fetchDocs(conn);
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -336,6 +343,7 @@ const app = (conn) => {
       `The request body is invalid. Make sure that the 'activityId', 'timestamp',`
       + ` 'geopoint' and the 'remove' fields are present in the request body.`
     );
+
     return;
   }
 
@@ -344,6 +352,7 @@ const app = (conn) => {
    */
   if (conn.requester.isSupportRequest) {
     fetchDocs(conn);
+
     return;
   }
 

@@ -55,6 +55,7 @@ const isValidLocation = (location) => {
 const isValidString = (str) => {
   if (typeof str !== 'string') return false;
   if (str.trim() === '') return false;
+
   return true;
 };
 
@@ -88,6 +89,7 @@ const isValidPhoneNumber = (phoneNumber) => {
    * *$: Matches the end of the string, or the end of a line if the multiple flag (m) is enabled.
    */
   const re = /^\+[1-9]\d{5,14}$/;
+
   return re.test(phoneNumber);
 };
 
@@ -118,6 +120,7 @@ const handleCanEdit = (
       || assignees.indexOf(phoneNumber) > -1) {
       return true;
     }
+
     return false;
   }
 
@@ -128,6 +131,7 @@ const handleCanEdit = (
     if (phoneNumber === requesterPhoneNumber) {
       return true;
     }
+
     return false;
   }
 
@@ -173,7 +177,8 @@ const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
       if (!schedule.hasOwnProperty('startTime')) return;
 
       /** Both `startTime` and `endTime` are absent. */
-      if (!isValidDate(schedule.startTime) && !isValidDate(schedule.endTime)) return;
+      if (!isValidDate(schedule.startTime)
+        && !isValidDate(schedule.endTime)) return;
 
       /** Schedule has valid `startTime` */
       if (isValidDate(schedule.startTime) && !schedule.hasOwnProperty('endTime')) {
@@ -283,7 +288,9 @@ const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
  * in the firestore.
  * @returns {Array} Venue Objects.
  */
-const filterAttachment = (attachmentFromRequestBody, attachmentFromTemplate) => {
+const filterAttachment = (
+  attachmentFromRequestBody, attachmentFromTemplate
+) => {
   const filteredAttachment = {};
 
   const requestBodyAttachmentKeys = Object.keys(attachmentFromRequestBody);

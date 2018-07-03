@@ -41,6 +41,7 @@ const app = (conn) => {
       code.forbidden,
       'You are unauthorized to perform this operation.'
     );
+
     return;
   }
 
@@ -54,11 +55,13 @@ const app = (conn) => {
         `${conn.req.method} is not allowed for /${action}`
         + ' endpoint. Use PUT.'
       );
+
       return;
     }
 
     const onPermissions = require('./manage/on-permissions');
     onPermissions(conn);
+
     return;
   }
 

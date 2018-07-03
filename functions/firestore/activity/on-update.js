@@ -249,6 +249,7 @@ const addAddendumForAssignees = (conn) => {
     /** Attachment absent. Skip it. */
     if (!conn.req.body.hasOwnProperty('attachment')) {
       updateActivityDoc(conn);
+
       return;
     }
 
@@ -315,6 +316,7 @@ const fetchDocs = (conn) => {
         code.conflict,
         `There is no activity with the id: ${conn.req.body.activityId}.`
       );
+
       return;
     }
 
