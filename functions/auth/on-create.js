@@ -51,7 +51,7 @@ const {
  * @param {Object} batch Batch object.
  * @returns {Promise} Batch object.
  */
-const updateDailyCollection = (userRecord, batch) =>
+const updateDailySignups = (userRecord, batch) =>
   dailySignUps
     .doc(getFormattedDate(new Date()))
     .set({
@@ -100,7 +100,7 @@ const createSubscription = (userRecord, batch, activityDocRef) => {
     }
   );
 
-  return updateDailyCollection(userRecord, batch);
+  return updateDailySignups(userRecord, batch);
 };
 
 
