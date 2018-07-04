@@ -34,6 +34,7 @@ const {
 const {
   handleError,
   sendResponse,
+  getFormattedDate,
 } = require('../../admin/utils');
 
 const {
@@ -81,22 +82,18 @@ const commitBatch = (conn) =>
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const date = conn.data.timestamp;
-
-  const hour = date.getHours();
-  const minutes = date.getMinutes();
-  const seconds = date.getSeconds();
+  const timestamp = conn.data.timestamp;
 
   const office = conn.data.activity.get('office');
   const template = conn.data.activity.get('template');
 
   const dailyActivitiesDoc = dailyActivities
-    .doc(date.toDateString())
+    .doc(getFormattedDate(timestamp))
     .collection(office)
     .doc(template);
 
   const data = {
-    [`${hour}h:${minutes}m:${seconds}s`]: {
+    [`${timestamp.toUTCString()}`]: {
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.req.body.activityId,

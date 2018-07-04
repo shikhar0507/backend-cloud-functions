@@ -44,6 +44,7 @@ const {
 const {
   handleError,
   sendResponse,
+  getFormattedDate,
 } = require('../../admin/utils');
 
 const {
@@ -358,14 +359,10 @@ const logLocation = (conn) => {
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const date = conn.data.timestamp;
-
-  const hour = date.getHours();
-  const minutes = date.getMinutes();
-  const seconds = date.getSeconds();
+  const timestamp = conn.data.timestamp;
 
   const doc = {
-    [`${hour}h:${minutes}m:${seconds}s`]: {
+    [`${timestamp.toUTCString()}`]: {
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.activityRef.id,
@@ -374,7 +371,7 @@ const updateDailyActivities = (conn) => {
 
   conn.batch.set(
     dailyActivities
-      .doc(date.toDateString())
+      .doc(getFormattedDate(timestamp))
       .collection(conn.req.body.office)
       .doc(conn.req.body.template),
     doc, {
