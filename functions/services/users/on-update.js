@@ -35,12 +35,12 @@ const {
 const {
   handleError,
   sendResponse,
+  getFormattedDate,
 } = require('../../admin/utils');
 
 const {
   isValidPhoneNumber,
   isValidLocation,
-  isValidDate,
 } = require('../../firestore/activity/helper');
 
 const {
@@ -62,7 +62,7 @@ const {
 
 /**
  * Commits the batch and sends an empty response to the client.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -76,16 +76,16 @@ const commitBatch = (conn) =>
 /**
  * Creates a log of the phone number updates performed by users
  * for daily reports.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
 const createDailyLog = (conn) => {
   conn.batch.set(
     dailyPhoneNumberChanges
-      .doc(new Date(conn.req.body.timestamp).toDateString()), {
+      .doc(getFormattedDate(conn.data.timestamp)), {
       [conn.requester.phoneNumber]: {
-        timestamp: new Date(conn.req.body.timestamp),
+        timestamp: conn.data.timestamp,
         newPhoneNumber: conn.req.body.phoneNumber,
       },
     }, {
@@ -103,7 +103,7 @@ const createDailyLog = (conn) => {
 /**
  * Writes the addendum for each user to notify them of the phone
  * number update.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -132,7 +132,7 @@ const writeAddendumForUsers = (conn) => {
  * Filters out the `assignees` of the all the `activities` who don't
  * have a document in the `Updates` collection (i.e., they haven't signed up.).
  * Updates are not created for them.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -166,9 +166,9 @@ const fetchUsersWithUids = (conn) => {
 
 
 /**
- * Gets all the `Assignees` from the `activities` of which the 
+ * Gets all the `Assignees` from the `activities` of which the
  * requester is an *assignee* of.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -214,7 +214,7 @@ const fetchAssigneesFromAllActivities = (conn) => {
 /**
  * Clones all the `subscription` docs from the User `profile` to the new
  * profile.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -265,7 +265,7 @@ const cloneSubscriptions = (conn) => {
 /**
  * Clones all the `activity` docs from the User `profile` to the new
  * profile.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -317,7 +317,7 @@ const cloneActivities = (conn) => {
 /**
  * Fetches *all* the docs from `Activities` and `Subscriptions` from
  * the `Users/(requester phone number)` collection.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -335,6 +335,7 @@ const fetchDocs = (conn) => {
     ])
     .then((docsArray) => {
       conn.data.docsArray = docsArray;
+      conn.data.timestamp = conn.data.timestamp;
       cloneActivities(conn, docsArray);
 
       return;
@@ -346,7 +347,7 @@ const fetchDocs = (conn) => {
 /**
  * Updates the `Users` and `Updates` collections for the user with the
  * **new** phone number from the request body.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -380,7 +381,7 @@ const updateDocs = (conn) => {
 /**
  * Revokes the current `idToken` of the user and updates their `phoneNumber`
  * in auth.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
@@ -433,7 +434,7 @@ const updatePhoneNumberInAuth = (conn) => {
 /**
  * Verifies the request body to check if the a valid `phoneNumber`,
  * `timestamp` and `geopoint` are present.
- * 
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
