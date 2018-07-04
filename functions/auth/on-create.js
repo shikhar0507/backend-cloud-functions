@@ -33,6 +33,10 @@ const {
 } = require('../admin/admin');
 
 const {
+  getFormattedDate,
+} = require('../admin/utils');
+
+const {
   activities,
   updates,
   profiles,
@@ -49,7 +53,7 @@ const {
  */
 const updateDailyCollection = (userRecord, batch) =>
   dailySignUps
-    .doc(new Date().toDateString())
+    .doc(getFormattedDate(new Date()))
     .set({
       [userRecord.phoneNumber]: {
         timestamp: serverTimestamp,
@@ -74,11 +78,10 @@ const updateDailyCollection = (userRecord, batch) =>
  */
 const createSubscription = (userRecord, batch, activityDocRef) => {
   /** Default subscription for everyone who signs up */
-  batch.set(
-    profiles
-      .doc(userRecord.phoneNumber)
-      .collection('Subscriptions')
-      .doc(), {
+  batch.set(profiles
+    .doc(userRecord.phoneNumber)
+    .collection('Subscriptions')
+    .doc(), {
       office: 'personal',
       template: 'plan',
       include: [
