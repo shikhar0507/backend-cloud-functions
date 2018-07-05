@@ -363,6 +363,7 @@ const updateDailyActivities = (conn) => {
 
   const doc = {
     [`${timestamp.toUTCString()}`]: {
+      template: conn.req.body.template,
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.activityRef.id,

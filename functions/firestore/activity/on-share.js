@@ -91,6 +91,7 @@ const updateDailyActivities = (conn) => {
 
   const data = {
     [`${timestamp.toUTCString()}`]: {
+      template: conn.data.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.req.body.activityId,
