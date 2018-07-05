@@ -81,23 +81,18 @@ const updateDailyActivities = (conn) => {
   const timestamp = conn.data.timestamp;
 
   const office = conn.data.activity.get('office');
-  const template = conn.data.activity.get('template');
 
   const dailyActivitiesDoc = dailyActivities
     .doc(getFormattedDate(timestamp))
     .collection(office)
-    .doc(template);
+    .doc();
 
-  const data = {
-    [`${timestamp.toUTCString()}`]: {
-      template: conn.data.activity.get('template'),
-      phoneNumber: conn.requester.phoneNumber,
-      url: conn.req.url,
-      activityId: conn.req.body.activityId,
-    },
-  };
-
-  conn.batch.set(dailyActivitiesDoc, data);
+  conn.batch.set(dailyActivitiesDoc, {
+    template: conn.data.activity.get('template'),
+    phoneNumber: conn.requester.phoneNumber,
+    url: conn.req.url,
+    activityId: conn.req.body.activityId,
+  });
 
   commitBatch(conn);
 };

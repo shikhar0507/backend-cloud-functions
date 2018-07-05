@@ -360,24 +360,17 @@ const logLocation = (conn) => {
  */
 const updateDailyActivities = (conn) => {
   const timestamp = conn.data.timestamp;
+  const dailyActivitiesDoc = dailyActivities
+    .doc(getFormattedDate(timestamp))
+    .collection(conn.req.body.office)
+    .doc();
 
-  const doc = {
-    [`${timestamp.toUTCString()}`]: {
-      template: conn.req.body.template,
-      phoneNumber: conn.requester.phoneNumber,
-      url: conn.req.url,
-      activityId: conn.activityRef.id,
-    },
-  };
-
-  conn.batch.set(
-    dailyActivities
-      .doc(getFormattedDate(timestamp))
-      .collection(conn.req.body.office)
-      .doc(conn.req.body.template),
-    doc, {
-      merge: true,
-    }
+  conn.batch.set(dailyActivitiesDoc, {
+    template: conn.req.body.template,
+    phoneNumber: conn.requester.phoneNumber,
+    url: conn.req.url,
+    activityId: conn.activityRef.id,
+  }
   );
 
   logLocation(conn);
