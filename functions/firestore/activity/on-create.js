@@ -331,20 +331,17 @@ const createActivity = (conn) => {
  * @returns {void}
  */
 const logLocation = (conn) => {
-  const locationDoc = profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Map')
-    .doc();
-
-  const data = {
-    activityId: conn.activityRef.id,
-    geopoint: getGeopointObject(conn.req.body.geopoint),
-    timestamp: conn.data.timestamp,
-    office: conn.req.body.office,
-    template: conn.req.body.template,
-  };
-
-  conn.batch.set(locationDoc, data);
+  conn.batch.set(
+    profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Map')
+      .doc(), {
+      activityId: conn.activityRef.id,
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+      timestamp: conn.data.timestamp,
+      office: conn.req.body.office,
+      template: conn.req.body.template,
+    });
 
   createActivity(conn);
 };
@@ -359,17 +356,16 @@ const logLocation = (conn) => {
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const dailyActivitiesDoc = dailyActivities
-    .doc(getFormattedDate(conn.data.timestamp))
-    .collection(conn.req.body.office)
-    .doc();
-
-  conn.batch.set(dailyActivitiesDoc, {
-    template: conn.req.body.template,
-    phoneNumber: conn.requester.phoneNumber,
-    url: conn.req.url,
-    activityId: conn.activityRef.id,
-  }
+  conn.batch.set(
+    dailyActivities
+      .doc(getFormattedDate(conn.data.timestamp))
+      .collection(conn.req.body.office)
+      .doc(), {
+      template: conn.req.body.template,
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      activityId: conn.activityRef.id,
+    }
   );
 
   logLocation(conn);
@@ -799,8 +795,9 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `Request body is invalid. Make sure that 'template', 'timestamp', 'office',`
-      + ` and the 'geopoint' fields are present in the request body.`
+      'Invalid request body.'
+      + ' Make sure to include template (string), timestamp (long number),'
+      + ' office (string), and the geopoint (object) in the request body.'
     );
 
     return;

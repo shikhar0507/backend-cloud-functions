@@ -78,20 +78,16 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const office = conn.data.activity.get('office');
-
-  const dailyActivitiesDoc = dailyActivities
+  conn.batch.set(dailyActivities
     .doc(getFormattedDate(conn.data.timestamp))
-    .collection(office)
-    .doc();
-
-  conn.batch.set(dailyActivitiesDoc, {
-    timestamp: conn.data.timestamp,
-    template: conn.data.activity.get('template'),
-    phoneNumber: conn.requester.phoneNumber,
-    url: conn.req.url,
-    activityId: conn.req.body.activityId,
-  });
+    .collection(conn.data.activity.get('office'))
+    .doc(), {
+      timestamp: conn.data.timestamp,
+      template: conn.data.activity.get('template'),
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      activityId: conn.req.body.activityId,
+    });
 
   commitBatch(conn);
 };
@@ -105,21 +101,17 @@ const updateDailyActivities = (conn) => {
  * @returns {void}
  */
 const logLocation = (conn) => {
-  const locationDoc =
+  conn.batch.set(
     profiles
       .doc(conn.requester.phoneNumber)
       .collection('Map')
-      .doc();
-
-  const data = {
-    activityId: conn.req.body.activityId,
-    geopoint: getGeopointObject(conn.req.body.geopoint),
-    timestamp: conn.data.timestamp,
-    office: conn.data.activity.get('office'),
-    template: conn.data.activity.get('template'),
-  };
-
-  conn.batch.set(locationDoc, data);
+      .doc(), {
+      activityId: conn.req.body.activityId,
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+      timestamp: conn.data.timestamp,
+      office: conn.data.activity.get('office'),
+      template: conn.data.activity.get('template'),
+    });
 
   updateDailyActivities(conn);
 };
@@ -389,8 +381,9 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The request body is invalid. Make sure that the 'activityId', 'timestamp'`
-      + ` and the 'geopoint' are included in the request body.`
+      'Invalid request body.'
+      + ' Make sure to include valid "activityId" (string), "timestamp" (long number),'
+      + ' and the "geopoint" (object) are present in the request body.'
     );
 
     return;

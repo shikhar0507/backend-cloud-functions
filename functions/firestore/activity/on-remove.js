@@ -73,20 +73,17 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const office = conn.data.activity.get('office');
-
-  const dailyActivitiesDoc = dailyActivities
-    .doc(getFormattedDate(conn.data.timestamp))
-    .collection(office)
-    .doc();
-
-  conn.batch.set(dailyActivitiesDoc, {
-    timestamp: conn.data.timestamp,
-    template: conn.data.activity.get('template'),
-    phoneNumber: conn.requester.phoneNumber,
-    url: conn.req.url,
-    activityId: conn.req.body.activityId,
-  });
+  conn.batch.set(
+    dailyActivities
+      .doc(getFormattedDate(conn.data.timestamp))
+      .collection(conn.data.activity.get('office'))
+      .doc(), {
+      timestamp: conn.data.timestamp,
+      template: conn.data.activity.get('template'),
+      phoneNumber: conn.requester.phoneNumber,
+      url: conn.req.url,
+      activityId: conn.req.body.activityId,
+    });
 
   commitBatch(conn);
 };
@@ -332,8 +329,9 @@ const app = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The request body is invalid. Make sure that the 'activityId', 'timestamp',`
-      + ` 'geopoint' and the 'remove' fields are present in the request body.`
+      'Invalid request body.'
+      + ' Make sure to include the "activityId" (string), "timestamp" (long number),'
+      + ' "remove" (array) and the "geopoint" (object) fields in the request body.'
     );
 
     return;
