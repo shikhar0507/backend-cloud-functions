@@ -78,17 +78,16 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const timestamp = conn.data.timestamp;
-
   const office = conn.data.activity.get('office');
 
   const dailyActivitiesDoc =
     dailyActivities
-      .doc(getFormattedDate(timestamp))
+      .doc(getFormattedDate(conn.data.timestamp))
       .collection(office)
       .doc();
 
   conn.batch.set(dailyActivitiesDoc, {
+    timestamp: conn.data.timestamp,
     template: conn.data.activity.get('template'),
     phoneNumber: conn.requester.phoneNumber,
     url: conn.req.url,

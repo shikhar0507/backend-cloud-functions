@@ -359,9 +359,8 @@ const logLocation = (conn) => {
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const timestamp = conn.data.timestamp;
   const dailyActivitiesDoc = dailyActivities
-    .doc(getFormattedDate(timestamp))
+    .doc(getFormattedDate(conn.data.timestamp))
     .collection(conn.req.body.office)
     .doc();
 
