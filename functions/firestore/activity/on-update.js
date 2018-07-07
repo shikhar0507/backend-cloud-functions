@@ -139,18 +139,34 @@ const updateActivityDoc = (conn) => {
   }
 
   if (conn.req.body.hasOwnProperty('schedule')) {
+    const scheduleNames = new Set();
+
+    conn.data.activity.get('schedule').forEach((sch) => {
+      if (sch.hasOwnProperty('name')) {
+        scheduleNames.add(sch.name);
+      }
+    });
+
     update.schedule = filterSchedules(
       conn,
       conn.req.body.schedule,
-      conn.data.template.get('schedule')
+      [...scheduleNames,]
     );
   }
 
   if (conn.req.body.hasOwnProperty('venue')) {
+    const venueNames = new Set();
+
+    conn.data.activity.get('venue').forEach((venue) => {
+      if (venue.hasOwnProperty('venueDescriptor')) {
+        venueNames.add(venue.venueDescriptor);
+      }
+    });
+
     update.venue = filterVenues(
       conn,
       conn.req.body.venue,
-      conn.data.template.get('venue')
+      [...venueNames,]
     );
   }
 
@@ -244,86 +260,60 @@ const addAddendumForAssignees = (conn) => {
 
 
 /**
- * Gets the template from the activity root.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- * @returns {void}
- */
-const fetchTemplate = (conn) => {
-  activityTemplates
-    .doc(conn.data.activity.get('template'))
-    .get()
-    .then((doc) => {
-      conn.data.addendum = {
-        activityId: conn.req.body.activityId,
-        user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
-          + ` updated ${doc.get('defaultTitle')}`,
-        location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: conn.data.timestamp,
-      };
-
-      conn.data.template = doc;
-      addAddendumForAssignees(conn);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
-
-
-/**
  * Fetches the activity, and its assignees from the DB.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @returns {void}
  */
 const fetchDocs = (conn) => {
-  Promise.all([
-    activities
-      .doc(conn.req.body.activityId)
-      .get(),
-    activities
-      .doc(conn.req.body.activityId)
-      .collection('Assignees')
-      .get(),
-  ]).then((result) => {
-    if (!result[0].exists) {
-      /** This case should probably never execute becase there is provision
-       * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-       * function, the check for the existance of the activity has already
-       * been performed in the User's profile.
-       */
-      sendResponse(
-        conn,
-        code.conflict,
-        `There is no activity with the id: ${conn.req.body.activityId}.`
-      );
+  Promise
+    .all([
+      activities
+        .doc(conn.req.body.activityId)
+        .get(),
+      activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .get(),
+    ])
+    .then((result) => {
+      if (!result[0].exists) {
+        /** This case should probably never execute becase there is provision
+         * for deleting an activity anywhere. AND, for reaching the fetchDocs()
+         * function, the check for the existance of the activity has already
+         * been performed in the User's profile.
+         */
+        sendResponse(
+          conn,
+          code.conflict,
+          `There is no activity with the id: ${conn.req.body.activityId}.`
+        );
+
+        return;
+      }
+
+      conn.batch = db.batch();
+
+      conn.data = {};
+
+      /** Calling new `Date()` constructor multiple times is wasteful. */
+      conn.data.timestamp = new Date(conn.req.body.timestamp);
+      conn.data.activity = result[0];
+
+      conn.data.assigneesArray = [];
+      conn.data.assigneesPhoneNumbersArray = [];
+
+      result[1].forEach((doc) => {
+        /** The assigneesArray is required to add addendum. */
+        conn.data.assigneesArray.push(profiles.doc(doc.id).get());
+        conn.data.assigneesPhoneNumbersArray.push(doc.id);
+      });
+
+      addAddendumForAssignees(conn);
 
       return;
-    }
-
-    conn.batch = db.batch();
-
-    conn.data = {};
-
-    /** Calling new `Date()` constructor multiple times is wasteful. */
-    conn.data.timestamp = new Date(conn.req.body.timestamp);
-    conn.data.activity = result[0];
-
-    conn.data.assigneesArray = [];
-    conn.data.assigneesPhoneNumbersArray = [];
-
-    result[1].forEach((doc) => {
-      /** The assigneesArray is required to add addendum. */
-      conn.data.assigneesArray.push(profiles.doc(doc.id).get());
-      conn.data.assigneesPhoneNumbersArray.push(doc.id);
-    });
-
-    fetchTemplate(conn);
-
-    return;
-  }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -344,7 +334,7 @@ const verifyEditPermission = (conn) => {
         /** The activity doesn't exist for the user */
         sendResponse(
           conn,
-          conn.forbidden,
+          code.forbidden,
           `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
         );
 
