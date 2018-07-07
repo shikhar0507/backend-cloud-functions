@@ -396,6 +396,16 @@ const readAddendumsByQuery = (conn) => {
 
 
 const app = (conn) => {
+  if (conn.req.method !== 'GET') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for /read. Use GET.`
+    );
+
+    return;
+  }
+
   if (!conn.req.query.hasOwnProperty('from')) {
     sendResponse(
       conn,
