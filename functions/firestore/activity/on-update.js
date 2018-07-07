@@ -134,7 +134,7 @@ const updateActivityDoc = (conn) => {
   }
 
   if (conn.req.body.hasOwnProperty('description')
-    && isValidString(conn.req.body.dailyActivitiesDoc)) {
+    && isValidString(conn.req.body.description)) {
     update.description = conn.req.body.description;
   }
 
