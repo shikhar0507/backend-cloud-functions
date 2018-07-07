@@ -302,7 +302,8 @@ const fetchActivities = (conn, jsonResult) => {
       fetchAttachments(conn, jsonResult);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
