@@ -96,52 +96,45 @@ const handleAssignedUsers = (conn) => {
 
   /** Create docs in Assignees collection if share is in the request body.
    * */
-  conn
-    .req
-    .body
-    .share
-    .forEach((phoneNumber) => {
-      if (!isValidPhoneNumber(phoneNumber)) return;
+  conn.req.body.share.forEach((phoneNumber) => {
+    if (!isValidPhoneNumber(phoneNumber)) return;
 
-      /** The requester shouldn't be added to the activity assignee list
-       * if the request is of `support` type.
-       */
-      if (phoneNumber === conn.requester.phoneNumber
-        && conn.requester.isSupportRequest) return;
+    /** The requester shouldn't be added to the activity assignee list
+     * if the request is of `support` type.
+     */
+    if (phoneNumber === conn.requester.phoneNumber
+      && conn.requester.isSupportRequest) return;
 
-      /** The phone numbers exist uniquely in the `/Profiles` collection. */
-      promises
-        .push(profiles.doc(phoneNumber).get());
+    /** The phone numbers exist uniquely in the `/Profiles` collection. */
+    promises.push(profiles.doc(phoneNumber).get());
 
-      conn.batch.set(
-        activities
-          .doc(conn.activityRef.id)
-          .collection('Assignees')
-          .doc(phoneNumber), {
-          canEdit: handleCanEdit(
-            conn.data.subscription,
-            phoneNumber,
-            conn.requester.phoneNumber,
-            conn.req.body.share
-          ),
-        }, {
-          merge: true,
-        });
+    conn.batch.set(activities
+      .doc(conn.activityRef.id)
+      .collection('Assignees')
+      .doc(phoneNumber), {
+        canEdit: handleCanEdit(
+          conn.data.subscription,
+          phoneNumber,
+          conn.requester.phoneNumber,
+          conn.req.body.share
+        ),
+      }, {
+        merge: true,
+      });
 
-      conn.batch.set(
-        profiles
-          .doc(phoneNumber)
-          .collection('Activities')
-          .doc(conn.activityRef.id), {
-          canEdit: handleCanEdit(
-            conn.data.subscription,
-            phoneNumber,
-            conn.requester.phoneNumber,
-            conn.req.body.share
-          ),
-          timestamp: conn.data.timestamp,
-        });
-    });
+    conn.batch.set(profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .doc(conn.activityRef.id), {
+        canEdit: handleCanEdit(
+          conn.data.subscription,
+          phoneNumber,
+          conn.requester.phoneNumber,
+          conn.req.body.share
+        ),
+        timestamp: conn.data.timestamp,
+      });
+  });
 
   Promise
     .all(promises)
@@ -154,11 +147,10 @@ const handleAssignedUsers = (conn) => {
             uid: null,
           });
 
-          conn.batch.set(
-            profiles
-              .doc(doc.id)
-              .collection('Activities')
-              .doc(conn.activityRef.id), {
+          conn.batch.set(profiles
+            .doc(doc.id)
+            .collection('Activities')
+            .doc(conn.activityRef.id), {
               canEdit: handleCanEdit(
                 conn.data.subscription,
                 doc.id,
@@ -171,11 +163,10 @@ const handleAssignedUsers = (conn) => {
 
         /** The `uid` shouldn't be `null` OR `undefined` */
         if (doc.exists && doc.get('uid')) {
-          conn.batch.set(
-            updates
-              .doc(doc.get('uid'))
-              .collection('Addendum')
-              .doc(),
+          conn.batch.set(updates
+            .doc(doc.get('uid'))
+            .collection('Addendum')
+            .doc(),
             conn.addendumData
           );
         }
@@ -261,11 +252,10 @@ const createActivity = (conn) => {
   };
 
   /** The addendum doc is always created for the requester */
-  conn.batch.set(
-    updates
-      .doc(conn.requester.uid)
-      .collection('Addendum')
-      .doc(),
+  conn.batch.set(updates
+    .doc(conn.requester.uid)
+    .collection('Addendum')
+    .doc(),
     conn.addendumData
   );
 
@@ -275,39 +265,32 @@ const createActivity = (conn) => {
      * phone number, so we don't need to explictly add their number
      * in order to add them to a batch.
      */
-    conn
-      .data
-      .subscription
-      .include
-      .forEach((phoneNumber) => {
-        /** The requester shouldn't be added to the activity assignee list
-         * if the request is of `support` type.
-         */
-        if (phoneNumber === conn.requester.phoneNumber
-          && conn.requester.isSupportRequest) return;
+    conn.data.subscription.include.forEach((phoneNumber) => {
+      /** The requester shouldn't be added to the activity assignee list
+       * if the request is of `support` type.
+       */
+      if (phoneNumber === conn.requester.phoneNumber
+        && conn.requester.isSupportRequest) return;
 
-        conn.batch.set(
-          activities
-            .doc(conn.activityRef.id)
-            .collection('Assignees')
-            .doc(phoneNumber), {
-            canEdit: handleCanEdit(
-              conn.data.subscription,
-              phoneNumber,
-              conn.requester.phoneNumber,
-              conn.req.body.share
-            ),
-          });
-      });
+      conn.batch.set(activities
+        .doc(conn.activityRef.id)
+        .collection('Assignees')
+        .doc(phoneNumber), {
+          canEdit: handleCanEdit(
+            conn.data.subscription,
+            phoneNumber,
+            conn.requester.phoneNumber,
+            conn.req.body.share
+          ),
+        });
+    });
   }
 
-  conn.batch.set(
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Activities')
-      .doc(conn.activityRef.id), {
-      canEdit: handleCanEdit(
-        conn.data.subscription,
+  conn.batch.set(profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Activities')
+    .doc(conn.activityRef.id), {
+      canEdit: handleCanEdit(conn.data.subscription,
         /** The phone Number to check and the one with which we are
          * going to verify the edit rule with are same because this
          * block is writing the doc for the user themselves.
@@ -331,11 +314,10 @@ const createActivity = (conn) => {
  * @returns {void}
  */
 const logLocation = (conn) => {
-  conn.batch.set(
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Map')
-      .doc(), {
+  conn.batch.set(profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Map')
+    .doc(), {
       activityId: conn.activityRef.id,
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: conn.data.timestamp,
@@ -356,11 +338,10 @@ const logLocation = (conn) => {
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(
-    dailyActivities
-      .doc(getFormattedDate(conn.data.timestamp))
-      .collection(conn.req.body.office)
-      .doc(), {
+  conn.batch.set(dailyActivities
+    .doc(getFormattedDate(conn.data.timestamp))
+    .collection(conn.req.body.office)
+    .doc(), {
       template: conn.req.body.template,
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
@@ -411,15 +392,11 @@ const createSubscription = (conn, docData) => {
     docData.include = [];
 
     /** All assignees of this activity will be in the `include` array. */
-    conn
-      .req
-      .body
-      .share
-      .forEach((phoneNumber) => {
-        if (!isValidPhoneNumber(phoneNumber)) return;
+    conn.req.body.share.forEach((phoneNumber) => {
+      if (!isValidPhoneNumber(phoneNumber)) return;
 
-        docData.include.push(phoneNumber);
-      });
+      docData.include.push(phoneNumber);
+    });
   }
 
   conn.batch.set(conn.docRef, docData);
@@ -446,8 +423,7 @@ const createOffice = (conn, docData) => {
     return;
   }
 
-  conn.docRef = offices
-    .doc(conn.activityRef.id);
+  conn.docRef = offices.doc(conn.activityRef.id);
 
   conn.batch.set(conn.docRef, docData);
 

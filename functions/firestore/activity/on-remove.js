@@ -58,10 +58,8 @@ const {
 
 
 const commitBatch = (conn) => conn.batch.commit()
-  .then(() => sendResponse(
-    conn,
-    code.noContent
-  )).catch((error) => handleError(conn, error));
+  .then(() => sendResponse(conn, code.noContent))
+  .catch((error) => handleError(conn, error));
 
 
 /**
@@ -73,11 +71,10 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(
-    dailyActivities
-      .doc(getFormattedDate(conn.data.timestamp))
-      .collection(conn.data.activity.get('office'))
-      .doc(), {
+  conn.batch.set(dailyActivities
+    .doc(getFormattedDate(conn.data.timestamp))
+    .collection(conn.data.activity.get('office'))
+    .doc(), {
       timestamp: conn.data.timestamp,
       template: conn.data.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
@@ -97,11 +94,10 @@ const updateDailyActivities = (conn) => {
  * @returns {void}
  */
 const logLocation = (conn) => {
-  conn.batch.set(
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Map')
-      .doc(), {
+  conn.batch.set(profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Map')
+    .doc(), {
       activityId: conn.req.body.activityId,
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: conn.data.timestamp,
@@ -115,9 +111,8 @@ const logLocation = (conn) => {
 
 
 const updateActivityDoc = (conn) => {
-  conn.batch.set(
-    activities
-      .doc(conn.req.body.activityId), {
+  conn.batch.set(activities
+    .doc(conn.req.body.activityId), {
       timestamp: conn.data.timestamp,
     }, {
       merge: true,
@@ -132,17 +127,12 @@ const setAddendumForUsersWithUid = (conn) => {
   const promises = [];
 
   conn.data.assigneeArray.forEach((phoneNumber) => {
-    promises.push(
-      profiles
-        .doc(phoneNumber)
-        .get()
-    );
+    promises.push(profiles.doc(phoneNumber).get());
 
-    conn.batch.set(
-      profiles
-        .doc(phoneNumber)
-        .collection('Activities')
-        .doc(conn.req.body.activityId), {
+    conn.batch.set(profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .doc(conn.req.body.activityId), {
         timestamp: conn.data.timestamp,
       }, {
         merge: true,
@@ -150,25 +140,27 @@ const setAddendumForUsersWithUid = (conn) => {
     );
   });
 
-  Promise.all(promises).then((snapShot) => {
-    snapShot.forEach((doc) => {
-      /** `uid` is NOT `null` OR `undefined` */
-      if (!doc.get('uid')) return;
+  Promise
+    .all(promises)
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        /** `uid` is NOT `null` OR `undefined` */
+        if (!doc.get('uid')) return;
 
-      conn.batch.set(
-        updates
+        conn.batch.set(updates
           .doc(doc.get('uid'))
           .collection('Addendum')
           .doc(),
-        conn.addendum
-      );
+          conn.addendum
+        );
 
-    });
+      });
 
-    updateActivityDoc(conn);
+      updateActivityDoc(conn);
 
-    return;
-  }).catch((error) => handleError(conn, error));
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -179,19 +171,17 @@ const unassignFromTheActivity = (conn) => {
     if (!isValidPhoneNumber(phoneNumber)) return;
 
     /** Deleting from Assignees collection inside activity doc */
-    conn.batch.delete(
-      activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .doc(phoneNumber)
+    conn.batch.delete(activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .doc(phoneNumber)
     );
 
     /** Deleting from Activities collection inside user Profile */
-    conn.batch.delete(
-      profiles
-        .doc(phoneNumber)
-        .collection('Activities')
-        .doc(conn.req.body.activityId)
+    conn.batch.delete(profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .doc(conn.req.body.activityId)
     );
 
     index = conn.data.assigneeArray.indexOf(phoneNumber);
@@ -232,49 +222,52 @@ const fetchTemplate = (conn) => {
 
 
 const fetchDocs = (conn) => {
-  Promise.all([
-    activities
-      .doc(conn.req.body.activityId)
-      .get(),
-    activities
-      .doc(conn.req.body.activityId)
-      .collection('Assignees')
-      .get(),
-  ]).then((result) => {
-    if (!result[0].exists) {
-      /** This case should probably never execute becase there is NO provision
-       * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-       * function, the check for the existance of the activity has already
-       * been performed in the `Profiles/(phoneNumber)/Activities(activity-id)`.
-       */
-      sendResponse(
-        conn,
-        code.conflict,
-        `There is no activity with the id: ${conn.req.body.activityId}`
-      );
+  Promise
+    .all([
+      activities
+        .doc(conn.req.body.activityId)
+        .get(),
+      activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .get(),
+    ])
+    .then((result) => {
+      if (!result[0].exists) {
+        /** This case should probably never execute becase there is NO provision
+         * for deleting an activity anywhere. AND, for reaching the fetchDocs()
+         * function, the check for the existance of the activity has already
+         * been performed in the `Profiles/(phoneNumber)/Activities(activity-id)`.
+         */
+        sendResponse(
+          conn,
+          code.conflict,
+          `There is no activity with the id: ${conn.req.body.activityId}`
+        );
+
+        return;
+      }
+
+      conn.batch = db.batch();
+      conn.data = {};
+
+      /** Calling new Date() constructor multiple times is wasteful. */
+      conn.data.timestamp = new Date(conn.req.body.timestamp);
+
+      conn.data.activity = result[0];
+      conn.data.assigneeArray = [];
+
+      /** The `assigneeArray` is required to add addendum. */
+      result[1].forEach((doc) => {
+        /** The `doc.id` is the phoneNumber of the assignee. */
+        conn.data.assigneeArray.push(doc.id);
+      });
+
+      fetchTemplate(conn);
 
       return;
-    }
-
-    conn.batch = db.batch();
-    conn.data = {};
-
-    /** Calling new Date() constructor multiple times is wasteful. */
-    conn.data.timestamp = new Date(conn.req.body.timestamp);
-
-    conn.data.activity = result[0];
-    conn.data.assigneeArray = [];
-
-    /** The `assigneeArray` is required to add addendum. */
-    result[1].forEach((doc) => {
-      /** The `doc.id` is the phoneNumber of the assignee. */
-      conn.data.assigneeArray.push(doc.id);
-    });
-
-    fetchTemplate(conn);
-
-    return;
-  }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

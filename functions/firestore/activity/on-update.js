@@ -101,11 +101,10 @@ const updateDailyActivities = (conn) => {
  * @returns {void}
  */
 const logLocation = (conn) => {
-  conn.batch.set(
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Map')
-      .doc(), {
+  conn.batch.set(profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Map')
+    .doc(), {
       activityId: conn.req.body.activityId,
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: conn.data.timestamp,
@@ -158,9 +157,9 @@ const updateActivityDoc = (conn) => {
     const venueNames = new Set();
 
     conn.data.activity.get('venue').forEach((venue) => {
-      if (venue.hasOwnProperty('venueDescriptor')) {
-        venueNames.add(venue.venueDescriptor);
-      }
+      if (!venue.hasOwnProperty('venueDescriptor')) return;
+
+      venueNames.add(venue.venueDescriptor);
     });
 
     update.venue = filterVenues(
@@ -181,8 +180,8 @@ const updateActivityDoc = (conn) => {
     updates.docRef = conn.docRef;
   }
 
-  conn.batch.set(
-    activities.doc(conn.req.body.activityId),
+  conn.batch.set(activities
+    .doc(conn.req.body.activityId),
     update, {
       /** The activity doc *will* have some of these fields by default. */
       merge: true,
@@ -216,11 +215,10 @@ const handleAttachment = (conn) => {
  */
 const addAddendumForAssignees = (conn) => {
   conn.data.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
-    conn.batch.set(
-      profiles
-        .doc(phoneNumber)
-        .collection('Activities')
-        .doc(conn.req.body.activityId), {
+    conn.batch.set(profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .doc(conn.req.body.activityId), {
         timestamp: conn.data.timestamp,
       }, {
         merge: true,
@@ -228,34 +226,37 @@ const addAddendumForAssignees = (conn) => {
     );
   });
 
-  Promise.all(conn.data.assigneesArray).then((snapShot) => {
-    snapShot.forEach((doc) => {
-      if (!doc.get('uid')) return;
+  Promise
+    .all(conn.data.assigneesArray)
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        if (!doc.get('uid')) return;
 
-      /** Users without `uid` are the ones who don't have
-       * signed up. Addemdum is added only for the users who
-       * have an account in auth.
-       */
-      conn.batch.set(
-        updates
-          .doc(doc.get('uid'))
-          .collection('Addendum')
-          .doc(),
-        conn.data.addendum
-      );
-    });
+        /** Users without `uid` are the ones who don't have
+         * signed up. Addemdum is added only for the users who
+         * have an account in auth.
+         */
+        conn.batch.set(
+          updates
+            .doc(doc.get('uid'))
+            .collection('Addendum')
+            .doc(),
+          conn.data.addendum
+        );
+      });
 
-    /** Attachment absent. Skip it. */
-    if (!conn.req.body.hasOwnProperty('attachment')) {
-      updateActivityDoc(conn);
+      /** Attachment absent. Skip it. */
+      if (!conn.req.body.hasOwnProperty('attachment')) {
+        updateActivityDoc(conn);
+
+        return;
+      }
+
+      handleAttachment(conn);
 
       return;
-    }
-
-    handleAttachment(conn);
-
-    return;
-  }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

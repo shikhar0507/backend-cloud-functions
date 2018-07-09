@@ -49,7 +49,10 @@ const {
  * @returns {void}
  */
 const handleRequestPath = (conn) => {
-  const action = require('url').parse(conn.req.url).path.split('/')[1];
+  const action = require('url')
+    .parse(conn.req.url)
+    .path
+    .split('/')[1];
 
   if (action === 'activities') {
     const onActivity = require('./on-activity');
@@ -116,7 +119,8 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
       handleRequestPath(conn);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

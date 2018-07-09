@@ -63,11 +63,9 @@ const {
  * @param {Object} conn Contains Express Request and Response Objects.
  * @returns {Promise} Batch object
  */
-const commitBatch = (conn) =>
-  conn.batch
-    .commit()
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
+const commitBatch = (conn) => conn.batch.commit()
+  .then(() => sendResponse(conn, code.noContent))
+  .catch((error) => handleError(conn, error));
 
 
 /**
@@ -79,11 +77,10 @@ const commitBatch = (conn) =>
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(
-    dailyActivities
-      .doc(getFormattedDate(conn.data.timestamp))
-      .collection(conn.data.activity.get('office'))
-      .doc(), {
+  conn.batch.set(dailyActivities
+    .doc(getFormattedDate(conn.data.timestamp))
+    .collection(conn.data.activity.get('office'))
+    .doc(), {
       timestamp: conn.data.timestamp,
       template: conn.data.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
@@ -103,11 +100,10 @@ const updateDailyActivities = (conn) => {
  * @returns {void}
 */
 const logLocation = (conn) => {
-  conn.batch.set(
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Map')
-      .doc(), {
+  conn.batch.set(profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Map')
+    .doc(), {
       activityId: conn.req.body.activityId,
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: conn.data.timestamp,
@@ -157,9 +153,8 @@ const addAddendumForAssignees = (conn) => {
  * @returns {void}
  */
 const updateActivityStatus = (conn) => {
-  conn.batch.set(
-    activities
-      .doc(conn.req.body.activityId), {
+  conn.batch.set(activities
+    .doc(conn.req.body.activityId), {
       status: conn.req.body.status,
       timestamp: conn.data.timestamp,
     }, {
@@ -270,7 +265,11 @@ const fetchDocs = (conn) => {
         );
       });
 
-      if (result[2].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {
+      if (
+        result[2]
+          .get('ACTIVITYSTATUS')
+          .indexOf(conn.req.body.status) === -1
+      ) {
         sendResponse(
           conn,
           code.badRequest,

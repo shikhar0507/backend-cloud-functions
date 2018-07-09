@@ -78,11 +78,10 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(
-    dailyActivities
-      .doc(getFormattedDate(conn.data.timestamp))
-      .collection(conn.data.activity.get('office'))
-      .doc(), {
+  conn.batch.set(dailyActivities
+    .doc(getFormattedDate(conn.data.timestamp))
+    .collection(conn.data.activity.get('office'))
+    .doc(), {
       timestamp: conn.data.timestamp,
       template: conn.data.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
@@ -102,11 +101,10 @@ const updateDailyActivities = (conn) => {
  * @returns {void}
  */
 const logLocation = (conn) => {
-  const locationDoc =
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Map')
-      .doc();
+  const locationDoc = profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Map')
+    .doc();
 
   const data = {
     activityId: conn.req.body.activityId,
@@ -129,9 +127,8 @@ const logLocation = (conn) => {
  * @returns {void}
  */
 const updateActivityDoc = (conn) => {
-  conn.batch.set(
-    activities
-      .doc(conn.req.body.activityId), {
+  conn.batch.set(activities
+    .doc(conn.req.body.activityId), {
       timestamp: conn.data.timestamp,
     }, {
       merge: true,
@@ -157,11 +154,10 @@ const setAddendumForUsersWithUid = (conn) => {
   assigneeListWithUniques.forEach((phoneNumber) => {
     promises.push(profiles.doc(phoneNumber).get());
 
-    conn.batch.set(
-      profiles
-        .doc(phoneNumber)
-        .collection('Activities')
-        .doc(conn.req.body.activityId), {
+    conn.batch.set(profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .doc(conn.req.body.activityId), {
         timestamp: conn.data.timestamp,
       }, {
         merge: true,
@@ -169,32 +165,34 @@ const setAddendumForUsersWithUid = (conn) => {
     );
   });
 
-  Promise.all(promises).then((snapShot) => {
-    snapShot.forEach((doc) => {
-      /** Create Profiles for the users who don't have a profile already. */
-      if (!doc.exists) {
-        /** The `doc.id` is the `phoneNumber` that doesn't exist */
-        conn.batch.set(profiles.doc(doc.id), {
-          uid: null,
-        });
-      }
+  Promise
+    .all(promises)
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        /** Create Profiles for the users who don't have a profile already. */
+        if (!doc.exists) {
+          /** The `doc.id` is the `phoneNumber` that doesn't exist */
+          conn.batch.set(profiles.doc(doc.id), {
+            uid: null,
+          });
+        }
 
-      if (doc.exists && doc.get('uid')) {
-        /** The `uid` is NOT `null` OR `undefined` */
-        conn.batch.set(
-          updates
+        if (doc.exists && doc.get('uid')) {
+          /** The `uid` is NOT `null` OR `undefined` */
+          conn.batch.set(updates
             .doc(doc.get('uid'))
             .collection('Addendum')
             .doc(),
-          conn.addendum
-        );
-      }
-    });
+            conn.addendum
+          );
+        }
+      });
 
-    updateActivityDoc(conn);
+      updateActivityDoc(conn);
 
-    return;
-  }).catch((error) => handleError(conn, error));
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -211,11 +209,10 @@ const addAddendumForAssignees = (conn) => {
     /** Adding a doc with the id = phoneNumber in
      * `Activities/(activityId)/Assignees`
      * */
-    conn.batch.set(
-      activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .doc(phoneNumber), {
+    conn.batch.set(activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .doc(phoneNumber), {
         canEdit: handleCanEdit(
           conn.data.subscription,
           phoneNumber,
@@ -229,11 +226,10 @@ const addAddendumForAssignees = (conn) => {
     /** Adding a doc with the id = activityId inside
      *  Profiles/(phoneNumber)/Activities/(activityId)
      * */
-    conn.batch.set(
-      profiles
-        .doc(phoneNumber)
-        .collection('Activities')
-        .doc(conn.req.body.activityId), {
+    conn.batch.set(profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .doc(conn.req.body.activityId), {
         canEdit: handleCanEdit(
           conn.data.subscription,
           phoneNumber,
@@ -253,88 +249,94 @@ const addAddendumForAssignees = (conn) => {
 
 
 const fetchTemplateAndSubscriptions = (conn) => {
-  Promise.all([
-    activityTemplates
-      .doc(conn.data.activity.get('template'))
-      .get(),
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Subscriptions')
-      .where('office', '==', conn.data.activity.get('office'))
-      .where('template', '==', conn.data.activity.get('template'))
-      .limit(1)
-      .get(),
-  ]).then((docsArray) => {
-    conn.addendum = {
-      activityId: conn.req.body.activityId,
-      user: conn.requester.displayName || conn.requester.phoneNumber,
-      comment: `${conn.requester.displayName} || ${conn.requester.phoneNumber}`
-        + ` updated ${docsArray[0].get('defaultTitle')}`,
-      location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: conn.data.timestamp,
-    };
+  Promise
+    .all([
+      activityTemplates
+        .doc(conn.data.activity.get('template'))
+        .get(),
+      profiles
+        .doc(conn.requester.phoneNumber)
+        .collection('Subscriptions')
+        .where('office', '==', conn.data.activity.get('office'))
+        .where('template', '==', conn.data.activity.get('template'))
+        .limit(1)
+        .get(),
+    ])
+    .then((docsArray) => {
+      conn.addendum = {
+        activityId: conn.req.body.activityId,
+        user: conn.requester.displayName || conn.requester.phoneNumber,
+        comment: `${conn.requester.displayName} || ${conn.requester.phoneNumber}`
+          + ` updated ${docsArray[0].get('defaultTitle')}`,
+        location: getGeopointObject(conn.req.body.geopoint),
+        timestamp: conn.data.timestamp,
+      };
 
-    conn.data.template = docsArray[0];
-    conn.data.subscription = docsArray[1].docs[0];
+      conn.data.template = docsArray[0];
+      conn.data.subscription = docsArray[1].docs[0];
 
-    if (conn.requester.isSupportRequest) {
-      conn.data.subscription = {};
+      if (conn.requester.isSupportRequest) {
+        conn.data.subscription = {};
 
-      conn.data.subscription.canEditRule
-        = conn.data.activity.get('canEditRule');
-    }
+        conn.data.subscription.canEditRule
+          = conn.data.activity.get('canEditRule');
+      }
 
-    addAddendumForAssignees(conn);
+      addAddendumForAssignees(conn);
 
-    return;
-  }).catch((error) => handleError(conn, error));
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
 const fetchDocs = (conn) => {
-  Promise.all([
-    activities
-      .doc(conn.req.body.activityId)
-      .get(),
-    activities
-      .doc(conn.req.body.activityId)
-      .collection('Assignees')
-      .get(),
-  ]).then((result) => {
-    if (!result[0].exists) {
-      /** This case should probably never execute becase there is NO provision
-       * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-       * function, the check for the existance of the activity has already
-       * been performed in the User's profile.
-       */
-      sendResponse(
-        conn,
-        code.conflict,
-        `There is no activity with the id: ${conn.req.body.activityId}`
-      );
+  Promise
+    .all([
+      activities
+        .doc(conn.req.body.activityId)
+        .get(),
+      activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .get(),
+    ])
+    .then((result) => {
+      if (!result[0].exists) {
+        /** This case should probably never execute becase there is NO provision
+         * for deleting an activity anywhere. AND, for reaching the fetchDocs()
+         * function, the check for the existance of the activity has already
+         * been performed in the User's profile.
+         */
+        sendResponse(
+          conn,
+          code.conflict,
+          `There is no activity with the id: ${conn.req.body.activityId}`
+        );
+
+        return;
+      }
+
+      conn.batch = db.batch();
+      conn.data = {};
+
+      /** Calling new Date() constructor multiple times is wasteful. */
+      conn.data.timestamp = new Date(conn.req.body.timestamp);
+
+      conn.data.activity = result[0];
+      conn.data.assigneeArray = [];
+
+      /** The assigneeArray is required to add addendum. */
+      result[1].forEach((doc) => {
+        /** The `doc.id` is the phoneNumber of the assignee. */
+        conn.data.assigneeArray.push(doc.id);
+      });
+
+      fetchTemplateAndSubscriptions(conn);
 
       return;
-    }
-
-    conn.batch = db.batch();
-    conn.data = {};
-
-    /** Calling new Date() constructor multiple times is wasteful. */
-    conn.data.timestamp = new Date(conn.req.body.timestamp);
-
-    conn.data.activity = result[0];
-    conn.data.assigneeArray = [];
-
-    /** The assigneeArray is required to add addendum. */
-    result[1].forEach((doc) => {
-      /** The `doc.id` is the phoneNumber of the assignee. */
-      conn.data.assigneeArray.push(doc.id);
-    });
-
-    fetchTemplateAndSubscriptions(conn);
-
-    return;
-  }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

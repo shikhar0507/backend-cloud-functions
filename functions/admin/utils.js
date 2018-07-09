@@ -154,15 +154,18 @@ const disableAccount = (conn, reason) => {
     disableUser(conn.requester.uid),
   ];
 
-  Promise.all(promises).then(() => {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'There was some trouble parsing your request. Please contact support.'
-    );
+  Promise
+    .all(promises)
+    .then(() => {
+      sendResponse(
+        conn,
+        code.forbidden,
+        'There was some trouble parsing your request. Please contact support.'
+      );
 
-    return;
-  }).catch((error) => handleError(conn, error));
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

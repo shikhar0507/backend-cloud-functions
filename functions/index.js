@@ -28,22 +28,22 @@
 const functions = require('firebase-functions');
 
 const authOnCreate = functions
-    .auth
-    .user()
-    .onCreate(require('./auth/on-create'));
+  .auth
+  .user()
+  .onCreate(require('./auth/on-create'));
 
 const authOnDelete = functions
-    .auth
-    .user()
-    .onDelete(require('./auth/on-delete'));
+  .auth
+  .user()
+  .onDelete(require('./auth/on-delete'));
 
 const api = functions
-    .https
-    .onRequest(require('./server/server'));
+  .https
+  .onRequest(require('./server/server'));
 
 
 module.exports = {
-    api,
-    authOnCreate,
-    authOnDelete,
+  api,
+  authOnCreate,
+  authOnDelete,
 };

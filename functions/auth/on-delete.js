@@ -54,25 +54,25 @@ const app = (userRecord, context) => {
     phoneNumber,
   } = userRecord;
 
-  batch.set(
-    profiles
-      .doc(phoneNumber), {
+  batch.set(profiles
+    .doc(phoneNumber), {
       uid: null,
     }, {
       merge: true,
     }
   );
 
-  batch.set(
-    updates
-      .doc(uid), {
+  batch.set(updates
+    .doc(uid), {
       phoneNumber: null,
     }, {
       merge: true,
     }
   );
 
-  return batch.commit().catch(console.error);
+  return batch
+    .commit()
+    .catch(console.error);
 };
 
 

@@ -52,8 +52,8 @@ const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
  * @param {Object} claims Contains Claims object.
  * @returns {Promise} A `userRecord` or an `error` object.
  */
-const setCustomUserClaims = (uid, claims) =>
-  auth.setCustomUserClaims(uid, claims);
+const setCustomUserClaims = (uid, claims) => auth
+  .setCustomUserClaims(uid, claims);
 
 
 /**
@@ -64,13 +64,12 @@ const setCustomUserClaims = (uid, claims) =>
  * @returns {Object} A `sentinel` which *maps* to a `geopoint` object
  * on writing to the Firestore.
  */
-const getGeopointObject = (geopoint) =>
-  new admin
-    .firestore
-    .GeoPoint(
-      geopoint.latitude,
-      geopoint.longitude
-    );
+const getGeopointObject = (geopoint) => new admin
+  .firestore
+  .GeoPoint(
+    geopoint.latitude,
+    geopoint.longitude
+  );
 
 
 /**
@@ -81,10 +80,9 @@ const getGeopointObject = (geopoint) =>
  * @returns {Object} An updated `userRecord`.
  * @see https://en.wikipedia.org/wiki/E.164
  */
-const updateUserPhoneNumberInAuth = (uid, phoneNumber) =>
-  auth.updateUser(uid, {
-    phoneNumber,
-  });
+const updateUserPhoneNumberInAuth = (uid, phoneNumber) => auth.updateUser(uid, {
+  phoneNumber,
+});
 
 
 /**
@@ -119,12 +117,14 @@ const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
  * To avoid that, the catch() clause now handles the response in
  * a different way.
  */
-const getUserByPhoneNumber = (phoneNumber) =>
-  auth.getUserByPhoneNumber(phoneNumber).then((userRecord) => {
+const getUserByPhoneNumber = (phoneNumber) => auth
+  .getUserByPhoneNumber(phoneNumber)
+  .then((userRecord) => {
     return {
       [phoneNumber]: userRecord,
     };
-  }).catch((error) => {
+  })
+  .catch((error) => {
     if (error.code === 'auth/user-not-found' ||
       error.code === 'auth/invalid-phone-number' ||
       error.code === 'auth/internal-error') {
@@ -147,8 +147,8 @@ const getUserByPhoneNumber = (phoneNumber) =>
  * @param {string} uid A 30 character alpha-numeric string.
  * @returns {Promise} Resolving to a userRecord object.
  */
-const disableUser = (uid) =>
-  auth.updateUser(uid, {
+const disableUser = (uid) => auth
+  .updateUser(uid, {
     disabled: true,
   });
 
@@ -169,8 +169,8 @@ const getUserByUid = (uid) => auth.getUser(uid);
  * @param {boolean} checkRevoked Checks if the token has been revoked recently.
  * @returns {Object} The `userRecord` from Firebase auth.
  */
-const verifyIdToken = (idToken, checkRevoked) =>
-  auth.verifyIdToken(idToken, checkRevoked);
+const verifyIdToken = (idToken, checkRevoked) => auth
+  .verifyIdToken(idToken, checkRevoked);
 
 
 const users = {

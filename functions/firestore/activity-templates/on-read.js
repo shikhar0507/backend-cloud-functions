@@ -67,7 +67,8 @@ const fetchAllTemplates = (conn) => {
       sendJSON(conn, jsonObject);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

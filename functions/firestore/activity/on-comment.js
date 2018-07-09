@@ -62,15 +62,13 @@ const {
  * @param {Object} conn Object with Express Request and Response Objects.
  * @returns {Promise} Batch object.
  */
-const commitBatch = (conn) =>
-  conn.batch
-    .commit()
-    .then(() => sendResponse(
-      conn,
-      code.created,
-      'The comment was successfully added to the activity.'
-    ))
-    .catch((error) => handleError(conn, error));
+const commitBatch = (conn) => conn.batch.commit()
+  .then(() => sendResponse(
+    conn,
+    code.created,
+    'The comment was successfully added to the activity.'
+  ))
+  .catch((error) => handleError(conn, error));
 
 
 /**
@@ -82,11 +80,10 @@ const commitBatch = (conn) =>
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  conn.batch.set(
-    dailyActivities
-      .doc(getFormattedDate(conn.data.timestamp))
-      .collection(conn.data.activity.get('office'))
-      .doc(), {
+  conn.batch.set(dailyActivities
+    .doc(getFormattedDate(conn.data.timestamp))
+    .collection(conn.data.activity.get('office'))
+    .doc(), {
       timestamp: conn.data.timestamp,
       template: conn.data.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
@@ -106,11 +103,10 @@ const updateDailyActivities = (conn) => {
  * @returns {void}
  */
 const logLocation = (conn) => {
-  conn.batch.set(
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Map')
-      .doc(), {
+  conn.batch.set(profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Map')
+    .doc(), {
       activityId: conn.req.body.activityId,
       geopoint: getGeopointObject(conn.req.body.geopoint),
       timestamp: conn.data.timestamp,
@@ -131,18 +127,18 @@ const logLocation = (conn) => {
  */
 const setAddendumForAssignees = (conn) => {
   conn.assigneesPhoneNumberList.forEach((phoneNumber) => {
-    conn.batch.set(
-      profiles
-        .doc(phoneNumber)
-        .collection('Activities')
-        .doc(conn.req.body.activityId), {
+    conn.batch.set(profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .doc(conn.req.body.activityId), {
         timestamp: conn.data.timestamp,
       }, {
         merge: true,
       });
   });
 
-  Promise.all(conn.assigneeDocPromises)
+  Promise
+    .all(conn.assigneeDocPromises)
     .then((snapShots) => {
       snapShots.forEach((doc) => {
         /** `uid` shouldn't be `null` OR `undefined` */
@@ -150,11 +146,10 @@ const setAddendumForAssignees = (conn) => {
 
         if (!doc.get('uid')) return;
 
-        conn.batch.set(
-          updates
-            .doc(doc.get('uid'))
-            .collection('Addendum')
-            .doc(), {
+        conn.batch.set(updates
+          .doc(doc.get('uid'))
+          .collection('Addendum')
+          .doc(), {
             activityId: conn.req.body.activityId,
             user: conn.requester.displayName || conn.requester.phoneNumber,
             comment: conn.req.body.comment,
