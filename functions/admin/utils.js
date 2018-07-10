@@ -160,7 +160,7 @@ const disableAccount = (conn, reason) => {
       sendResponse(
         conn,
         code.forbidden,
-        'There was some trouble parsing your request. Please contact support.'
+        'Your account has been disabled. Please contact support.'
       );
 
       return;
