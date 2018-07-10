@@ -31,13 +31,13 @@
     // Removed rule "disallow the use of console" from recommended eslint rules
     "no-console": "off",
     // Removed rule "disallow multiple spaces in regular expressions" from recommended eslint rules
-    "no-regex-spaces": "off",
+    "no-regex-spaces": "warn",
     // Removed rule "disallow the use of debugger" from recommended eslint rules
-    "no-debugger": "off",
+    "no-debugger": "warn",
     // Removed rule "disallow unused variables" from recommended eslint rules
-    "no-unused-vars": "off",
+    "no-unused-vars": "warn",
     // Removed rule "disallow mixed spaces and tabs for indentation" from recommended eslint rules
-    "no-mixed-spaces-and-tabs": "off",
+    "no-mixed-spaces-and-tabs": "warn",
     // Warn against template literal placeholder syntax in regular strings
     "no-template-curly-in-string": 1,
     // Warn if return statements do not either always or never specify values
@@ -101,7 +101,9 @@
     "promise/catch-or-return": 2,
     // Warn against nested `then` or `catch` statements
     "promise/no-nesting": 1,
+    // Restricts the use of parentheses to only where they are necessary
     "no-extra-parens": "warn",
+    // A variable that is never reassigned use `const` for it.
     "prefer-const": "warn",
     "no-const-assign": "error",
     // Use ES6 let and const for variable declaration.
