@@ -15,6 +15,15 @@
     "name": "Utkarsh Bhatt",
     "email": "utkarsh.bhatt12@gmail.com"
   },
+  "keywords": [
+    "firebase",
+    "firestore",
+    "firebase-cloud-functions",
+    "javascript",
+    "es6",
+    "node",
+    "node.js"
+  ],
   "homepage": "https://growthfile.com",
   "version": "0.3.2",
   "license": "MIT",
