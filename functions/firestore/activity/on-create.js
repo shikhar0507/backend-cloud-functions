@@ -338,16 +338,19 @@ const logLocation = (conn) => {
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
+  const moment = require('moment');
+  const docId = moment(conn.data.timestamp).format('DD-MM-YYYY');
+
   conn.batch.set(dailyActivities
-    .doc(getFormattedDate(conn.data.timestamp))
-    .collection(conn.req.body.office)
-    .doc(), {
+    .doc(docId).collection('Logs').doc(), {
+      activityId: conn.activityRef.id,
+      office: conn.req.body.office,
       template: conn.req.body.template,
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
-      activityId: conn.activityRef.id,
-    }
-  );
+      timestamp: conn.data.timestamp,
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+    });
 
   logLocation(conn);
 };

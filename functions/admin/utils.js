@@ -40,31 +40,6 @@ const {
 
 
 /**
- * Returns the date string in the form `02-07-2018` (DD-MM-YYYY).
- *
- * @param {Object} timestamp Javascript Date object.
- * @param {boolean} yesterday Whether to return the yesterday's date.
- * @returns {string} The formatted date string.
- */
-const getFormattedDate = (timestamp, yesterday) => {
-  if (yesterday) {
-    timestamp.setDate(timestamp.getDate() - 1);
-  }
-
-  // Date starts with 0
-  const day = timestamp.getDay() + 1;
-  // Months starts with 0
-  const month = timestamp.getMonth() + 1;
-  const year = timestamp.getFullYear();
-
-  const dayx = (day < 10 ? '0' : '') + day;
-  const monthx = (month < 10 ? '0' : '') + month;
-
-  return `${dayx}-${monthx}-${year}`;
-};
-
-
-/**
  * Ends the response by sending the `JSON` to the client with `200 OK` response.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
@@ -244,7 +219,6 @@ const now = (conn) => {
 
 
 module.exports = {
-  getFormattedDate,
   hasSupportClaims,
   hasSuperUserClaims,
   hasManageTemplateClaims,
