@@ -34,7 +34,6 @@ const {
 const {
   handleError,
   sendResponse,
-  getFormattedDate,
 } = require('../../admin/utils');
 
 const {
@@ -80,15 +79,21 @@ const commitBatch = (conn) => conn.batch.commit()
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
+  const moment = require('moment');
+
+  const docId = moment(conn.data.timestamp).format('DD-MM-YYYY');
+
   conn.batch.set(dailyActivities
-    .doc(getFormattedDate(conn.data.timestamp))
-    .collection(conn.data.activity.get('office'))
+    .doc(docId)
+    .collection('Logs')
     .doc(), {
+      office: conn.data.activity.get('office'),
       timestamp: conn.data.timestamp,
       template: conn.data.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.req.body.activityId,
+      geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 
   commitBatch(conn);

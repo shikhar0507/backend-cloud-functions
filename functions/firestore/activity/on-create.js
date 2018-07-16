@@ -44,7 +44,6 @@ const {
 const {
   handleError,
   sendResponse,
-  getFormattedDate,
 } = require('../../admin/utils');
 
 const {
