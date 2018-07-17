@@ -24,6 +24,7 @@
 
 'use strict';
 
+
 const {
   code,
 } = require('./responses');
@@ -105,9 +106,13 @@ const handleError = (conn, error) => {
  * @returns {void}
  */
 const disableAccount = (conn, reason) => {
+  const moment = require('moment');
+
+  const docId = moment(new Date()).format('DD-MM-YYYY');
+
   const promises = [
     dailyDisabled
-      .doc(new Date().toDateString())
+      .doc(docId)
       .set({
         [conn.requester.phoneNumber]: {
           reason,
