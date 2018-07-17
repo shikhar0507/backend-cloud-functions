@@ -374,6 +374,11 @@ const readAddendumsByQuery = (conn) => {
          * on `timestamp`.
          * */
         jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
+
+        /** Ends the response. */
+        sendJSON(conn, jsonResult);
+
+        return;
       }
 
       snapShot.forEach((doc) => {
