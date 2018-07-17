@@ -26,15 +26,14 @@
 
 
 const admin = require('firebase-admin');
-const key = require('./key.json');
 
 try {
   admin.initializeApp({
-    credential: admin.credential.cert(key),
+    credential: admin.credential.cert(require('./key.json')),
     databaseURL: 'https://growthfilev2-0.firebaseio.com',
   });
 } catch (error) {
-  console.error(error);
+  console.error(JSON.stringify(error));
 }
 
 const auth = admin.auth();
@@ -93,6 +92,14 @@ const updateUserPhoneNumberInAuth = (uid, phoneNumber) => auth.updateUser(uid, {
  */
 const createUserInAuth = (userRecord) => auth.createUser(userRecord);
 
+
+/**
+ * Deletes the user from auth.
+ *
+ * @param {string} uid A 30 character alpha-numeric string.
+ * @returns {Promise} Resolving to a userRecord object who's auth was deleted.
+ */
+const deleteUserFromAuth = (uid) => auth.deleteUser(uid);
 
 /**
  * Revokes the token of the a user in order to end their login session.
@@ -182,6 +189,7 @@ const users = {
   revokeRefreshTokens,
   disableUser,
   setCustomUserClaims,
+  deleteUserFromAuth,
 };
 
 

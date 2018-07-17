@@ -86,7 +86,7 @@ const sendResponse = (conn, statusCode, message = '') => {
  * @returns {void}
  */
 const handleError = (conn, error) => {
-  console.log(error);
+  console.log(JSON.stringify(error));
 
   sendResponse(
     conn,
