@@ -98,33 +98,6 @@ const updateDailyActivities = (conn) => {
 
 
 /**
- * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
- * history of the user.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const logLocation = (conn) => {
-  const locationDoc = profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Map')
-    .doc();
-
-  const data = {
-    activityId: conn.req.body.activityId,
-    geopoint: getGeopointObject(conn.req.body.geopoint),
-    timestamp: conn.data.timestamp,
-    office: conn.data.activity.get('office'),
-    template: conn.data.activity.get('template'),
-  };
-
-  conn.batch.set(locationDoc, data);
-
-  updateDailyActivities(conn);
-};
-
-
-/**
  * Updates the timestamp in the activity root document.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
@@ -139,7 +112,7 @@ const updateActivityDoc = (conn) => {
     }
   );
 
-  logLocation(conn);
+  updateDailyActivities(conn);
 };
 
 

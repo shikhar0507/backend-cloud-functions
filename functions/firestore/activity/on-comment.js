@@ -101,29 +101,6 @@ const updateDailyActivities = (conn) => {
 
 
 /**
- * Creates a doc inside `/Profiles/(phoneNumber)/Map` for tracking location
- * history of the user.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const logLocation = (conn) => {
-  conn.batch.set(profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Map')
-    .doc(), {
-      activityId: conn.req.body.activityId,
-      geopoint: getGeopointObject(conn.req.body.geopoint),
-      timestamp: conn.data.timestamp,
-      office: conn.data.activity.get('office'),
-      template: conn.data.activity.get('template'),
-    });
-
-  updateDailyActivities(conn);
-};
-
-
-/**
  * Adds addendum doc for each assignee of the activity for which the comment
  * is being created.
  *
@@ -163,7 +140,7 @@ const setAddendumForAssignees = (conn) => {
           });
       });
 
-      logLocation(conn);
+      updateDailyActivities(conn);
 
       return;
     }).catch((error) => handleError(conn, error));
