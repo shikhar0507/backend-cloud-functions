@@ -281,7 +281,7 @@ const fetchActivities = (conn, jsonResult) => {
 
       snapShot.forEach((doc) => {
         /** Activity-id: doc.ref.path.split('/')[1] */
-        activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
+        activityObj = jsonResult.activities[doc.id];
 
         activityObj.status = doc.get('status');
         activityObj.schedule = doc.get('schedule');
