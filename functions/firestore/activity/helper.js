@@ -25,73 +25,10 @@
 'use strict';
 
 
-/**
- * Checks if the location is valid with respect to the standard
- * lat and lng values.
- *
- * @param {Object} location Contains lat and lng values.
- * @returns {boolean} If the input `latitude` & `longitude` pair is valid.
- */
-const isValidLocation = (location) => {
-  if (!location) return false;
-  if (!location.hasOwnProperty('latitude')
-    || !location.hasOwnProperty('longitude')) return false;
-
-  const lat = location.latitude;
-  const lng = location.longitude;
-
-  if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return false;
-
-  return true;
-};
-
-
-/**
- * Checks for a non-null, non-empty string.
- *
- * @param {string} str A string.
- * @returns {boolean} If `str` is a non-empty string.
- */
-const isValidString = (str) => {
-  if (typeof str !== 'string') return false;
-  if (str.trim() === '') return false;
-
-  return true;
-};
-
-
-/**
- * Checks whether the number is a valid Unix timestamp.
- *
- * @param {Object} date Javascript Date object.
- * @returns {boolean} Whether the number is a *valid* Unix timestamp.
- */
-const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
-
-
-/**
- * Verifies a phone number based on the E.164 standard.
- *
- * @param {string} phoneNumber A phone number.
- * @returns {boolean} If the number is a *valid* __E.164__ phone number.
- * @see https://en.wikipedia.org/wiki/E.164
- */
-const isValidPhoneNumber = (phoneNumber) => {
-  if (!phoneNumber) return false;
-
-  /**
-   * RegExp *Explained*...
-   * * ^: Matches the beginning of the string, or the beginning of a line if the multiline flag (m) is enabled.
-   * * \+: Matches the `+` character
-   * *[1-9]: Matches the character in range `1` to `9`
-   * *\d: Matches any digit character
-   * * *{5-14}: Match between 5 and 14 characters after the preceeding `+` token
-   * *$: Matches the end of the string, or the end of a line if the multiple flag (m) is enabled.
-   */
-  const re = /^\+[1-9]\d{5,14}$/;
-
-  return re.test(phoneNumber);
-};
+const {
+  isValidDate,
+  isValidGeopoint,
+} = require('../../admin/utils');
 
 
 /**
@@ -255,7 +192,7 @@ const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
     requestBodyVenue.forEach((venue) => {
       if (venue.venueDescriptor !== venueDescriptor) return;
 
-      if (!isValidLocation(venue.geopoint)) return;
+      if (!isValidGeopoint(venue.geopoint)) return;
 
       validVenues.push({
         geopoint: getGeopointObject(venue.geopoint),
@@ -313,9 +250,5 @@ module.exports = {
   filterSchedules,
   filterVenues,
   handleCanEdit,
-  isValidString,
-  isValidDate,
-  isValidLocation,
-  isValidPhoneNumber,
   filterAttachment,
 };

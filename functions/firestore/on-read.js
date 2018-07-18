@@ -33,11 +33,8 @@ const {
   handleError,
   sendResponse,
   sendJSON,
-} = require('../admin/utils');
-
-const {
   isValidDate,
-} = require('./activity/helper');
+} = require('../admin/utils');
 
 const {
   code,

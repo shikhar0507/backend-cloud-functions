@@ -32,11 +32,8 @@ const {
 const {
   handleError,
   sendResponse,
+  isE164PhoneNumber,
 } = require('../admin/utils');
-
-const {
-  isValidPhoneNumber,
-} = require('../firestore/activity/helper');
 
 const {
   code,
@@ -141,7 +138,7 @@ const validateRequestBody = (conn, response) => {
     return;
   }
 
-  if (!isValidPhoneNumber(conn.req.body.phoneNumber)) {
+  if (!isE164PhoneNumber(conn.req.body.phoneNumber)) {
     response.code = code.badRequest;
     response.message = `${conn.req.body.phoneNumber} is not a valid'
     +' phone number.`;

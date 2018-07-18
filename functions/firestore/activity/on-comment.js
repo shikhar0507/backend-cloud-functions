@@ -35,13 +35,10 @@ const {
   handleError,
   sendResponse,
   getISO8601Date,
-} = require('../../admin/utils');
-
-const {
   isValidDate,
-  isValidString,
-  isValidLocation,
-} = require('./helper');
+  isNonEmptyString,
+  isValidGeopoint,
+} = require('../../admin/utils');
 
 const {
   code,
@@ -281,10 +278,10 @@ const fetchDocs = (conn) => {
  * @returns {boolean} If the request body is valid.
  */
 const isValidRequestBody = (body) => {
-  return isValidString(body.activityId)
+  return isNonEmptyString(body.activityId)
     && isValidDate(body.timestamp)
-    && isValidLocation(body.geopoint)
-    && isValidString(body.comment);
+    && isValidGeopoint(body.geopoint)
+    && isNonEmptyString(body.comment);
 };
 
 

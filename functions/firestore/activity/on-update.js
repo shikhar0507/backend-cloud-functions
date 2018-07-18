@@ -35,12 +35,12 @@ const {
   handleError,
   sendResponse,
   getISO8601Date,
+  isValidDate,
+  isNonEmptyString,
+  isValidGeopoint,
 } = require('../../admin/utils');
 
 const {
-  isValidDate,
-  isValidString,
-  isValidLocation,
   filterSchedules,
   filterVenues,
 } = require('./helper');
@@ -108,12 +108,12 @@ const updateActivityDoc = (conn) => {
   const update = {};
 
   if (conn.req.body.hasOwnProperty('title')
-    && isValidString(conn.req.body.title)) {
+    && isNonEmptyString(conn.req.body.title)) {
     update.title = conn.req.body.title;
   }
 
   if (conn.req.body.hasOwnProperty('description')
-    && isValidString(conn.req.body.description)) {
+    && isNonEmptyString(conn.req.body.description)) {
     update.description = conn.req.body.description;
   }
 
@@ -342,8 +342,8 @@ const verifyEditPermission = (conn) => {
 
 const isValidRequestBody = (conn) => {
   return isValidDate(conn.req.body.timestamp)
-    && isValidString(conn.req.body.activityId)
-    && isValidLocation(conn.req.body.geopoint);
+    && isNonEmptyString(conn.req.body.activityId)
+    && isValidGeopoint(conn.req.body.geopoint);
 };
 
 

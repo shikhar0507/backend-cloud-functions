@@ -37,15 +37,12 @@ const {
   handleError,
   sendJSON,
   sendResponse,
+  isE164PhoneNumber,
 } = require('../../admin/utils');
 
 const {
   getUserByPhoneNumber,
 } = users;
-
-const {
-  isValidPhoneNumber,
-} = require('../../firestore/activity/helper');
 
 
 /**
@@ -81,7 +78,7 @@ const app = (conn) => {
 
   if (Array.isArray(conn.req.query.q)) {
     conn.req.query.q.forEach((val) => {
-      if (!isValidPhoneNumber(val)) return;
+      if (!isE164PhoneNumber(val)) return;
 
       promises.push(getUserByPhoneNumber(val));
     });

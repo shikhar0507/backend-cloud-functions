@@ -39,12 +39,9 @@ const {
 } = require('../../admin/responses');
 
 const {
-  isValidString,
-} = require('../activity/helper');
-
-const {
   handleError,
   sendResponse,
+  isNonEmptyString,
 } = require('../../admin/utils');
 
 
@@ -79,11 +76,11 @@ const updateTemplate = (conn, updatedFields) => {
 const makeUpdateDoc = (conn) => {
   const updatedFields = {};
 
-  if (isValidString(conn.req.body.defaultTitle)) {
+  if (isNonEmptyString(conn.req.body.defaultTitle)) {
     updatedFields.defaultTitle = conn.req.body.defaultTitle;
   }
 
-  if (isValidString(conn.req.body.comment)) {
+  if (isNonEmptyString(conn.req.body.comment)) {
     updatedFields.comment = conn.req.body.comment;
   }
 
@@ -195,7 +192,7 @@ const app = (conn) => {
     return;
   }
 
-  if (!isValidString(conn.req.body.name)) {
+  if (!isNonEmptyString(conn.req.body.name)) {
     sendResponse(
       conn,
       code.badRequest,

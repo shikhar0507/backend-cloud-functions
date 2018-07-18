@@ -35,14 +35,11 @@ const {
   handleError,
   sendResponse,
   getISO8601Date,
-} = require('../../admin/utils');
-
-const {
   isValidDate,
-  isValidString,
-  isValidLocation,
-  isValidPhoneNumber,
-} = require('./helper');
+  isValidGeopoint,
+  isE164PhoneNumber,
+  isNonEmptyString,
+} = require('../../admin/utils');
 
 const {
   code,
@@ -148,7 +145,7 @@ const unassignFromTheActivity = (conn) => {
   let index;
 
   conn.req.body.remove.forEach((phoneNumber) => {
-    if (!isValidPhoneNumber(phoneNumber)) return;
+    if (!isE164PhoneNumber(phoneNumber)) return;
 
     /** Deleting from Assignees collection inside activity doc */
     conn.batch.delete(activities
@@ -291,9 +288,9 @@ const verifyEditPermission = (conn) => {
 
 const isValidRequestBody = (conn) => {
   return isValidDate(conn.req.body.timestamp)
-    && isValidString(conn.req.body.activityId)
+    && isNonEmptyString(conn.req.body.activityId)
     && Array.isArray(conn.req.body.remove)
-    && isValidLocation(conn.req.body.geopoint);
+    && isValidGeopoint(conn.req.body.geopoint);
 };
 
 

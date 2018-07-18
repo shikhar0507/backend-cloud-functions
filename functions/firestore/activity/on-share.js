@@ -35,14 +35,14 @@ const {
   handleError,
   sendResponse,
   getISO8601Date,
+  isValidDate,
+  isNonEmptyString,
+  isValidGeopoint,
+  isE164PhoneNumber,
 } = require('../../admin/utils');
 
 const {
   handleCanEdit,
-  isValidDate,
-  isValidString,
-  isValidLocation,
-  isValidPhoneNumber,
 } = require('./helper');
 
 const {
@@ -174,7 +174,7 @@ const setAddendumForUsersWithUid = (conn) => {
 
 const addAddendumForAssignees = (conn) => {
   conn.req.body.share.forEach((phoneNumber) => {
-    if (!isValidPhoneNumber(phoneNumber)) return;
+    if (!isE164PhoneNumber(phoneNumber)) return;
 
     /** The requester shouldn't be added to the activity assignee list
      * if the request is of `support` type.
@@ -353,10 +353,10 @@ const verifyEditPermission = (conn) => {
 
 
 const isValidRequestBody = (body) => {
-  return isValidDate(body.timestamp) &&
-    isValidString(body.activityId) &&
-    Array.isArray(body.share) &&
-    isValidLocation(body.geopoint);
+  return isValidDate(body.timestamp)
+    && isNonEmptyString(body.activityId)
+    && Array.isArray(body.share)
+    && isValidGeopoint(body.geopoint);
 };
 
 

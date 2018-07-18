@@ -33,15 +33,12 @@ const {
   sendJSON,
   handleError,
   sendResponse,
+  isNonEmptyString,
 } = require('../../admin/utils');
 
 const {
   code,
 } = require('../../admin/responses');
-
-const {
-  isValidString,
-} = require('../activity/helper');
 
 const {
   activityTemplates,
@@ -80,7 +77,7 @@ const fetchAllTemplates = (conn) => {
  * @returns {void}
  */
 const fetchTemplateByName = (conn) => {
-  if (!isValidString(conn.req.body.name)) {
+  if (!isNonEmptyString(conn.req.body.name)) {
     sendResponse(
       conn,
       code.badRequest,

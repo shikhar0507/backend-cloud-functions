@@ -35,13 +35,10 @@ const {
 const {
   handleError,
   sendResponse,
-} = require('../../admin/utils');
-
-const {
-  isValidPhoneNumber,
-  isValidLocation,
+  isE164PhoneNumber,
+  isValidGeopoint,
   isValidDate,
-} = require('../../firestore/activity/helper');
+} = require('../../admin/utils');
 
 const {
   code,
@@ -313,7 +310,7 @@ const app = (conn) => {
     return;
   }
 
-  if (!isValidPhoneNumber(conn.req.body.phoneNumber)) {
+  if (!isE164PhoneNumber(conn.req.body.phoneNumber)) {
     sendResponse(
       conn,
       code.badRequest,
@@ -333,7 +330,7 @@ const app = (conn) => {
     return;
   }
 
-  if (!isValidLocation(conn.req.body.geopoint)) {
+  if (!isValidGeopoint(conn.req.body.geopoint)) {
     sendResponse(
       conn,
       code.badRequest,

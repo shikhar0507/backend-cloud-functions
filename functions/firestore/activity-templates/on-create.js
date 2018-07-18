@@ -30,16 +30,13 @@ const {
 } = require('../../admin/admin');
 
 const {
-  isValidString,
-} = require('../activity/helper');
-
-const {
   code,
 } = require('../../admin/responses');
 
 const {
   handleError,
   sendResponse,
+  isNonEmptyString,
 } = require('../../admin/utils');
 
 const {
@@ -161,7 +158,7 @@ const app = (conn) => {
     return;
   }
 
-  if (!isValidString(conn.req.body.name)) {
+  if (!isNonEmptyString(conn.req.body.name)) {
     sendResponse(
       conn,
       code.badRequest,
@@ -192,7 +189,7 @@ const app = (conn) => {
     return;
   }
 
-  if (!isValidString(conn.req.body.defaultTitle)) {
+  if (!isNonEmptyString(conn.req.body.defaultTitle)) {
     sendResponse(
       conn,
       code.badRequest,
@@ -212,7 +209,7 @@ const app = (conn) => {
     return;
   }
 
-  if (!isValidString(conn.req.body.comment)) {
+  if (!isNonEmptyString(conn.req.body.comment)) {
     sendResponse(
       conn,
       code.badRequest,
@@ -232,7 +229,7 @@ const app = (conn) => {
     return;
   }
 
-  if (!isValidString(conn.req.body.statusOnCreate)) {
+  if (!isNonEmptyString(conn.req.body.statusOnCreate)) {
     sendResponse(
       conn,
       code.badRequest,

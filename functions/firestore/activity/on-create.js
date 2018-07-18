@@ -45,6 +45,10 @@ const {
   handleError,
   sendResponse,
   getISO8601Date,
+  isValidDate,
+  isE164PhoneNumber,
+  isNonEmptyString,
+  isValidGeopoint,
 } = require('../../admin/utils');
 
 const {
@@ -53,10 +57,6 @@ const {
 
 const {
   handleCanEdit,
-  isValidDate,
-  isValidString,
-  isValidPhoneNumber,
-  isValidLocation,
   filterSchedules,
   filterVenues,
   filterAttachment,
@@ -97,7 +97,7 @@ const handleAssignedUsers = (conn) => {
   /** Create docs in Assignees collection if share is in the request body.
    * */
   conn.req.body.share.forEach((phoneNumber) => {
-    if (!isValidPhoneNumber(phoneNumber)) return;
+    if (!isE164PhoneNumber(phoneNumber)) return;
 
     /** The requester shouldn't be added to the activity assignee list
      * if the request is of `support` type.
@@ -192,11 +192,11 @@ const createActivity = (conn) => {
   activityRoot.title = conn.req.body.title;
   activityRoot.description = conn.req.body.description;
 
-  if (!isValidString(activityRoot.title)) {
+  if (!isNonEmptyString(activityRoot.title)) {
     activityRoot.title = '';
   }
 
-  if (!isValidString(activityRoot.description)) {
+  if (!isNonEmptyString(activityRoot.description)) {
     activityRoot.description = '';
   }
 
@@ -372,7 +372,7 @@ const createSubscription = (conn, docData) => {
 
     /** All assignees of this activity will be in the `include` array. */
     conn.req.body.share.forEach((phoneNumber) => {
-      if (!isValidPhoneNumber(phoneNumber)) return;
+      if (!isE164PhoneNumber(phoneNumber)) return;
 
       docData.include.push(phoneNumber);
     });
@@ -738,10 +738,10 @@ const fetchDocs = (conn) => {
 * @returns {boolean} If the request body has valid fields.
  */
 const isValidRequestBody = (body) => {
-  return isValidString(body.template)
+  return isNonEmptyString(body.template)
     && isValidDate(body.timestamp)
-    && isValidString(body.office)
-    && isValidLocation(body.geopoint);
+    && isNonEmptyString(body.office)
+    && isValidGeopoint(body.geopoint);
 };
 
 
