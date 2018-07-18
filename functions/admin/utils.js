@@ -223,10 +223,22 @@ const now = (conn) => {
 };
 
 
+const getDateInDDMMYYYY = (date) => {
+  if (!date) {
+    date = new Date();
+  }
+
+  const Moment = require('moment')(date);
+
+  return Moment.format('DD-MM-YYYY');
+};
+
+
 module.exports = {
   hasSupportClaims,
   hasSuperUserClaims,
   hasManageTemplateClaims,
+  getDateInDDMMYYYY,
   disableAccount,
   sendResponse,
   handleError,
