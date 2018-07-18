@@ -33,10 +33,6 @@ const {
 } = require('../admin/admin');
 
 const {
-  getFormattedDate,
-} = require('../admin/utils');
-
-const {
   activities,
   updates,
   profiles,
@@ -51,9 +47,13 @@ const {
  * @param {Object} batch Batch object.
  * @returns {Promise} Batch object.
  */
-const updateDailySignups = (userRecord, batch) =>
-  dailySignUps
-    .doc(getFormattedDate(new Date()))
+const updateDailySignups = (userRecord, batch) => {
+  const moment = require('moment');
+
+  const docId = moment(new Date()).format('DD-MM-YYYY');
+
+  return dailySignUps
+    .doc(docId)
     .set({
       [userRecord.phoneNumber]: {
         timestamp: serverTimestamp,
@@ -65,6 +65,7 @@ const updateDailySignups = (userRecord, batch) =>
       })
     .then(() => batch.commit())
     .catch(console.error);
+};
 
 
 /**
