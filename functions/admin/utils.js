@@ -223,7 +223,7 @@ const now = (conn) => {
 };
 
 
-const getDateInDDMMYYYY = (date) => {
+const getISO8601Date = (date) => {
   if (!date) {
     date = new Date();
   }
@@ -238,7 +238,7 @@ module.exports = {
   hasSupportClaims,
   hasSuperUserClaims,
   hasManageTemplateClaims,
-  getDateInDDMMYYYY,
+  getISO8601Date,
   disableAccount,
   sendResponse,
   handleError,
