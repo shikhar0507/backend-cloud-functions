@@ -33,6 +33,10 @@ const {
 } = require('../admin/admin');
 
 const {
+  getISO8601Date,
+} = require('../admin/utils');
+
+const {
   activities,
   updates,
   profiles,
@@ -48,12 +52,8 @@ const {
  * @returns {Promise} Batch object.
  */
 const updateDailySignups = (userRecord, batch) => {
-  const moment = require('moment');
-
-  const docId = moment(new Date()).format('DD-MM-YYYY');
-
   return dailySignUps
-    .doc(docId)
+    .doc(getISO8601Date())
     .set({
       [userRecord.phoneNumber]: {
         timestamp: serverTimestamp,

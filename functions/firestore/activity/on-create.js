@@ -44,6 +44,7 @@ const {
 const {
   handleError,
   sendResponse,
+  getISO8601Date,
 } = require('../../admin/utils');
 
 const {
@@ -314,8 +315,7 @@ const createActivity = (conn) => {
  * @returns {void}
  */
 const updateDailyActivities = (conn) => {
-  const moment = require('moment');
-  const docId = moment(conn.data.timestamp).format('DD-MM-YYYY');
+  const docId = getISO8601Date(conn.data.timestamp);
 
   conn.batch.set(dailyActivities
     .doc(docId).collection('Logs').doc(), {
