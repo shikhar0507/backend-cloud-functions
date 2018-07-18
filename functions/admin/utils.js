@@ -98,58 +98,6 @@ const handleError = (conn, error) => {
 
 
 /**
- * Disables the user account in auth based on uid and writes the reason to
- * the document in the profiles collection for which the account was disabled.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- * @param {string} reason For which the account is being disabled.
- * @returns {void}
- */
-const disableAccount = (conn, reason) => {
-  const moment = require('moment');
-
-  const docId = moment(new Date()).format('DD-MM-YYYY');
-
-  const promises = [
-    dailyDisabled
-      .doc(docId)
-      .set({
-        [conn.requester.phoneNumber]: {
-          reason,
-          timestamp: new Date(),
-        },
-      }, {
-          /** This doc may have other fields too. */
-          merge: true,
-        }),
-    profiles
-      .doc(conn.requester.phoneNumber)
-      .set({
-        disabledFor: reason,
-        disabledTimestamp: new Date(),
-      }, {
-          /** This doc may have other fields too. */
-          merge: true,
-        }),
-    disableUser(conn.requester.uid),
-  ];
-
-  Promise
-    .all(promises)
-    .then(() => {
-      sendResponse(
-        conn,
-        code.forbidden,
-        'Your account has been disabled. Please contact support.'
-      );
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
-
-
-/**
  * Helper function to check `support` custom claims.
  *
  * @param {Object} customClaims Contains boolean custom claims.
@@ -238,6 +186,51 @@ const getISO8601Date = (date) => {
   const Moment = require('moment')(date);
 
   return Moment.format('DD-MM-YYYY');
+};
+
+
+/**
+ * Disables the user account in auth based on uid and writes the reason to
+ * the document in the profiles collection for which the account was disabled.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {string} reason For which the account is being disabled.
+ * @returns {void}
+ */
+const disableAccount = (conn, reason) => {
+  const date = new Date();
+
+  const docId = getISO8601Date(date);
+
+  const docObject = {
+    disabledFor: reason,
+    disabledTimestamp: date,
+  };
+
+  Promise
+    .all([
+      dailyDisabled
+        .doc(docId)
+        .set({
+          [conn.requester.phoneNumber]: docObject,
+        }, {
+            /** This doc may have other fields too. */
+            merge: true,
+          }),
+      profiles
+        .doc(conn.requester.phoneNumber)
+        .set(docObject, {
+          /** This doc may have other fields too. */
+          merge: true,
+        }),
+      disableUser(conn.requester.uid),
+    ])
+    .then(() => sendResponse(
+      conn,
+      code.forbidden,
+      'Your account has been disabled. Please contact support.'
+    ))
+    .catch((error) => handleError(conn, error));
 };
 
 
