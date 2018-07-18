@@ -163,7 +163,7 @@ const handleAssignedUsers = (conn) => {
             .doc(doc.get('uid'))
             .collection('Addendum')
             .doc(),
-            conn.addendumData
+            conn.data.addendum
           );
         }
       });
@@ -177,12 +177,96 @@ const handleAssignedUsers = (conn) => {
 
 
 /**
+ * Adds the activity to each user's profile from the `include` array.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
+ */
+const handleIncludesFromSubscriptions = (conn) => {
+  /** Subscription may or may not exist (especially when creating an Office). */
+  if (conn.data.subscription.hasOwnProperty('include')) {
+    /** The 'include' array will always have the requester's
+     * phone number, so we don't need to explictly add their number
+     * in order to add them to a batch.
+     */
+    conn.data.subscription.include.forEach((phoneNumber) => {
+      /** The requester shouldn't be added to the activity assignee list
+       * if the request is of `support` type.
+       */
+      if (phoneNumber === conn.requester.phoneNumber
+        && conn.requester.isSupportRequest) return;
+
+      conn.batch.set(rootCollections
+        .activities
+        .doc(conn.activityRef.id)
+        .collection('Assignees')
+        .doc(phoneNumber), {
+          canEdit: handleCanEdit(conn.data.subscription,
+            phoneNumber,
+            conn.requester.phoneNumber,
+            conn.req.body.share
+          ),
+        });
+    });
+  }
+
+  conn.batch.set(rootCollections
+    .profiles
+    .doc(conn.requester.phoneNumber)
+    .collection('Activities')
+    .doc(conn.activityRef.id), {
+      canEdit: handleCanEdit(conn.data.subscription,
+        /** The phone Number to check and the one with which we are
+         * going to verify the edit rule with are same because this
+         * block is writing the doc for the user themselves.
+         */
+        conn.requester.phoneNumber,
+        conn.requester.phoneNumber,
+        conn.req.body.share
+      ),
+      timestamp: conn.data.timestamp,
+    });
+
+  handleAssignedUsers(conn);
+};
+
+
+/**
+ * Writes the addendum for the requester.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
+ */
+const addAddendumForRequester = (conn) => {
+  conn.data.addendum = {
+    activityId: conn.activityRef.id,
+    user: conn.requester.displayName || conn.requester.phoneNumber,
+    comment: `${conn.requester.displayName || conn.requester.phoneNumber}` +
+      ` created ${conn.data.template.defaultTitle}`,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: conn.data.timestamp,
+  };
+
+  /** The addendum doc is always created for the requester */
+  conn.batch.set(rootCollections
+    .updates
+    .doc(conn.requester.uid)
+    .collection('Addendum')
+    .doc(),
+    conn.data.addendum
+  );
+
+  handleIncludesFromSubscriptions(conn);
+};
+
+
+/**
  * Adds activity root doc to batch.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
  * @returns {void}
  */
-const createActivity = (conn) => {
+const createActivityRoot = (conn) => {
   const activityRoot = {};
 
   activityRoot.title = conn.req.body.title;
@@ -228,7 +312,6 @@ const createActivity = (conn) => {
     * activity handled in the request. It will ne null for an
     * activity with the template 'plan' with office 'personal'.
     */
-
   activityRoot.docRef = conn.docRef || null;
 
   /** The rule is stored here to avoid reading subscriptions during
@@ -238,70 +321,7 @@ const createActivity = (conn) => {
 
   conn.batch.set(conn.activityRef, activityRoot);
 
-  conn.addendumData = {
-    activityId: conn.activityRef.id,
-    user: conn.requester.displayName || conn.requester.phoneNumber,
-    comment: `${conn.requester.displayName || conn.requester.phoneNumber}` +
-      ` created ${conn.data.template.defaultTitle}`,
-    location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: conn.data.timestamp,
-  };
-
-  /** The addendum doc is always created for the requester */
-  conn.batch.set(rootCollections
-    .updates
-    .doc(conn.requester.uid)
-    .collection('Addendum')
-    .doc(),
-    conn.addendumData
-  );
-
-  /** Subscription may or may not exist (especially when creating an Office). */
-  if (conn.data.subscription.hasOwnProperty('include')) {
-    /** The 'include' array will always have the requester's
-     * phone number, so we don't need to explictly add their number
-     * in order to add them to a batch.
-     */
-    conn.data.subscription.include.forEach((phoneNumber) => {
-      /** The requester shouldn't be added to the activity assignee list
-       * if the request is of `support` type.
-       */
-      if (phoneNumber === conn.requester.phoneNumber
-        && conn.requester.isSupportRequest) return;
-
-      conn.batch.set(rootCollections
-        .activities
-        .doc(conn.activityRef.id)
-        .collection('Assignees')
-        .doc(phoneNumber), {
-          canEdit: handleCanEdit(
-            conn.data.subscription,
-            phoneNumber,
-            conn.requester.phoneNumber,
-            conn.req.body.share
-          ),
-        });
-    });
-  }
-
-  conn.batch.set(rootCollections
-    .profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Activities')
-    .doc(conn.activityRef.id), {
-      canEdit: handleCanEdit(conn.data.subscription,
-        /** The phone Number to check and the one with which we are
-         * going to verify the edit rule with are same because this
-         * block is writing the doc for the user themselves.
-         */
-        conn.requester.phoneNumber,
-        conn.requester.phoneNumber,
-        conn.req.body.share
-      ),
-      timestamp: conn.data.timestamp,
-    });
-
-  handleAssignedUsers(conn);
+  addAddendumForRequester(conn);
 };
 
 
@@ -328,7 +348,7 @@ const updateDailyActivities = (conn) => {
       geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 
-  createActivity(conn);
+  createActivityRoot(conn);
 };
 
 
@@ -584,13 +604,8 @@ const handleSupportRequest = (conn) => {
     return;
   }
 
-  if (
-    conn
-      .data
-      .canEditRules
-      .get('CANEDITRULES')
-      .indexOf(conn.req.body.canEditRule) === -1
-  ) {
+  if (conn.data.canEditRules.get('CANEDITRULES')
+    .indexOf(conn.req.body.canEditRule) === -1) {
     sendResponse(
       conn,
       code.badRequest,
