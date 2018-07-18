@@ -223,6 +223,13 @@ const now = (conn) => {
 };
 
 
+/**
+ * Returns the date in ISO 8601 (DD-MM-YYYY) format.
+ *
+ * @param {Object} date A valid Date object.
+ * @returns {String} a moment date object.
+ * @see https://en.wikipedia.org/wiki/ISO_8601
+ */
 const getISO8601Date = (date) => {
   if (!date) {
     date = new Date();
