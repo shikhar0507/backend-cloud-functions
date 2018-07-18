@@ -124,7 +124,7 @@ const setAddendumForUsersWithUid = (conn) => {
           .doc(doc.get('uid'))
           .collection('Addendum')
           .doc(),
-          conn.addendum
+          conn.data.addendum
         );
 
       });
@@ -180,7 +180,7 @@ const fetchTemplate = (conn) => {
     .doc(template)
     .get()
     .then((doc) => {
-      conn.addendum = {
+      conn.data.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
         comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
@@ -213,23 +213,39 @@ const fetchDocs = (conn) => {
     .then((result) => {
       if (!result[0].exists) {
         /** This case should probably never execute becase there is NO provision
-         * for deleting an activity anywhere. AND, for reaching the fetchDocs()
+         * for deleting an activity anywhere. AND, for reaching the `fetchDocs()`
          * function, the check for the existance of the activity has already
          * been performed in the `Profiles/(phoneNumber)/Activities(activity-id)`.
          */
         sendResponse(
           conn,
           code.conflict,
-          `There is no activity with the id: ${conn.req.body.activityId}`
+          `No activity found with the id: ${conn.req.body.activityId}.`
+        );
+
+        return;
+      }
+
+      /** Assignees collection in the `Activity/(doc-id)/Assignees` */
+      if (result[1].size === 1) {
+        /** An activity cannot exist with zero assignees. The person
+         * last to stay cannot remove themselves.
+         */
+        sendResponse(
+          conn,
+          code.forbidden,
+          `Cannot remove the last assignee of the activity.`
         );
 
         return;
       }
 
       conn.batch = db.batch();
+
+      /** Object for storing local data. */
       conn.data = {};
 
-      /** Calling new Date() constructor multiple times is wasteful. */
+      /** Calling `new Date()` constructor multiple times is wasteful. */
       conn.data.timestamp = new Date(conn.req.body.timestamp);
 
       conn.data.activity = result[0];
@@ -263,7 +279,7 @@ const verifyEditPermission = (conn) => {
         sendResponse(
           conn,
           code.notFound,
-          `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
+          `No activity found with the id: ${conn.req.body.activityId}.`
         );
 
         return;
@@ -288,16 +304,15 @@ const verifyEditPermission = (conn) => {
 };
 
 
-const isValidRequestBody = (conn) => {
-  return isValidDate(conn.req.body.timestamp)
-    && isNonEmptyString(conn.req.body.activityId)
-    && Array.isArray(conn.req.body.remove)
-    && isValidGeopoint(conn.req.body.geopoint);
-};
+const isValidRequestBody = (body) =>
+  isValidDate(body.timestamp)
+  && isNonEmptyString(body.activityId)
+  && Array.isArray(body.remove)
+  && isValidGeopoint(body.geopoint);
 
 
 const app = (conn) => {
-  if (!isValidRequestBody(conn)) {
+  if (!isValidRequestBody(conn.req.body)) {
     sendResponse(
       conn,
       code.badRequest,
