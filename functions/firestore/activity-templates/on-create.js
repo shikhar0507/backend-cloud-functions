@@ -39,11 +39,6 @@ const {
   isNonEmptyString,
 } = require('../../admin/utils');
 
-const {
-  enums,
-  activityTemplates,
-} = rootCollections;
-
 
 /**
  * Adds a new document to the ActivityTemplates collection with
@@ -53,7 +48,8 @@ const {
  * @returns {void}
  */
 const createTemplate = (conn) => {
-  activityTemplates
+  rootCollections
+    .activityTemplates
     .doc(conn.req.body.name)
     .set({
       name: conn.req.body.name,
@@ -129,11 +125,15 @@ const handleResult = (conn, result) => {
 const fetchDocs = (conn) => {
   Promise
     .all([
-      activityTemplates
+      rootCollections
+        .activityTemplates
         .where('name', '==', conn.req.body.name)
         .limit(1)
         .get(),
-      enums.doc('ACTIVITYSTATUS').get(),
+      rootCollections
+        .enums
+        .doc('ACTIVITYSTATUS')
+        .get(),
     ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));

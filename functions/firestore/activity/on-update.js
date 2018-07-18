@@ -49,13 +49,6 @@ const {
   code,
 } = require('../../admin/responses');
 
-const {
-  activities,
-  profiles,
-  updates,
-  dailyActivities,
-} = rootCollections;
-
 
 /**
  * Commits the batch to the DB.
@@ -79,7 +72,8 @@ const commitBatch = (conn) => conn.batch.commit()
 const updateDailyActivities = (conn) => {
   const docId = getISO8601Date(conn.data.timestamp);
 
-  conn.batch.set(dailyActivities
+  conn.batch.set(rootCollections
+    .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
@@ -157,10 +151,11 @@ const updateActivityDoc = (conn) => {
      * The `docRef` is not `undefined` only when a document is updated during
      * the update operation.
      */
-    updates.docRef = conn.docRef;
+    update.docRef = conn.docRef;
   }
 
-  conn.batch.set(activities
+  conn.batch.set(rootCollections
+    .activities
     .doc(conn.req.body.activityId),
     update, {
       /** The activity doc *will* have some of these fields by default. */
@@ -195,7 +190,8 @@ const handleAttachment = (conn) => {
  */
 const addAddendumForAssignees = (conn) => {
   conn.data.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
-    conn.batch.set(profiles
+    conn.batch.set(rootCollections
+      .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
@@ -216,11 +212,11 @@ const addAddendumForAssignees = (conn) => {
          * signed up. Addemdum is added only for the users who
          * have an account in auth.
          */
-        conn.batch.set(
-          updates
-            .doc(doc.get('uid'))
-            .collection('Addendum')
-            .doc(),
+        conn.batch.set(rootCollections
+          .updates
+          .doc(doc.get('uid'))
+          .collection('Addendum')
+          .doc(),
           conn.data.addendum
         );
       });
@@ -249,10 +245,12 @@ const addAddendumForAssignees = (conn) => {
 const fetchDocs = (conn) => {
   Promise
     .all([
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .get(),
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .collection('Assignees')
         .get(),
@@ -286,7 +284,9 @@ const fetchDocs = (conn) => {
 
       result[1].forEach((doc) => {
         /** The assigneesArray is required to add addendum. */
-        conn.data.assigneesArray.push(profiles.doc(doc.id).get());
+        conn.data.assigneesArray.push(
+          rootCollections.profiles.doc(doc.id).get()
+        );
         conn.data.assigneesPhoneNumbersArray.push(doc.id);
       });
 
@@ -305,7 +305,8 @@ const fetchDocs = (conn) => {
  * @returns {void}
  */
 const verifyEditPermission = (conn) => {
-  profiles
+  rootCollections
+    .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
     .doc(conn.req.body.activityId)

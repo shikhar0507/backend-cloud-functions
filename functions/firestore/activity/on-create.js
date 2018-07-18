@@ -31,15 +31,6 @@ const {
   db,
 } = require('../../admin/admin');
 
-const {
-  activities,
-  profiles,
-  updates,
-  activityTemplates,
-  offices,
-  dailyActivities,
-  enums,
-} = rootCollections;
 
 const {
   handleError,
@@ -106,9 +97,10 @@ const handleAssignedUsers = (conn) => {
       && conn.requester.isSupportRequest) return;
 
     /** The phone numbers exist uniquely in the `/Profiles` collection. */
-    promises.push(profiles.doc(phoneNumber).get());
+    promises.push(rootCollections.profiles.doc(phoneNumber).get());
 
-    conn.batch.set(activities
+    conn.batch.set(rootCollections
+      .activities
       .doc(conn.activityRef.id)
       .collection('Assignees')
       .doc(phoneNumber), {
@@ -122,7 +114,8 @@ const handleAssignedUsers = (conn) => {
         merge: true,
       });
 
-    conn.batch.set(profiles
+    conn.batch.set(rootCollections
+      .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.activityRef.id), {
@@ -143,11 +136,13 @@ const handleAssignedUsers = (conn) => {
       snapShots.forEach((doc) => {
         if (!doc.exists) {
           /** Create profiles for the phone numbers which are not in the DB. */
-          conn.batch.set(profiles.doc(doc.id), {
-            uid: null,
-          });
+          conn.batch.set(rootCollections
+            .profiles.doc(doc.id), {
+              uid: null,
+            });
 
-          conn.batch.set(profiles
+          conn.batch.set(rootCollections
+            .profiles
             .doc(doc.id)
             .collection('Activities')
             .doc(conn.activityRef.id), {
@@ -163,7 +158,8 @@ const handleAssignedUsers = (conn) => {
 
         /** The `uid` shouldn't be `null` OR `undefined` */
         if (doc.exists && doc.get('uid')) {
-          conn.batch.set(updates
+          conn.batch.set(rootCollections
+            .updates
             .doc(doc.get('uid'))
             .collection('Addendum')
             .doc(),
@@ -252,7 +248,8 @@ const createActivity = (conn) => {
   };
 
   /** The addendum doc is always created for the requester */
-  conn.batch.set(updates
+  conn.batch.set(rootCollections
+    .updates
     .doc(conn.requester.uid)
     .collection('Addendum')
     .doc(),
@@ -272,7 +269,8 @@ const createActivity = (conn) => {
       if (phoneNumber === conn.requester.phoneNumber
         && conn.requester.isSupportRequest) return;
 
-      conn.batch.set(activities
+      conn.batch.set(rootCollections
+        .activities
         .doc(conn.activityRef.id)
         .collection('Assignees')
         .doc(phoneNumber), {
@@ -286,7 +284,8 @@ const createActivity = (conn) => {
     });
   }
 
-  conn.batch.set(profiles
+  conn.batch.set(rootCollections
+    .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
     .doc(conn.activityRef.id), {
@@ -317,7 +316,8 @@ const createActivity = (conn) => {
 const updateDailyActivities = (conn) => {
   const docId = getISO8601Date(conn.data.timestamp);
 
-  conn.batch.set(dailyActivities
+  conn.batch.set(rootCollections
+    .dailyActivities
     .doc(docId).collection('Logs').doc(), {
       activityId: conn.activityRef.id,
       office: conn.req.body.office,
@@ -354,7 +354,8 @@ const createSubscription = (conn, docData) => {
   docData.canEditRule = conn.req.body.canEditRule;
   docData.timestamp = conn.data.timestamp;
 
-  conn.docRef = profiles
+  conn.docRef = rootCollections
+    .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Subscriptions')
     .doc(conn.activityRef.id);
@@ -402,7 +403,7 @@ const createOffice = (conn, docData) => {
     return;
   }
 
-  conn.docRef = offices.doc(conn.activityRef.id);
+  conn.docRef = rootCollections.offices.doc(conn.activityRef.id);
 
   conn.batch.set(conn.docRef, docData);
 
@@ -431,7 +432,8 @@ const createNewEntityInOffice = (conn, docData) => {
 
   const officeId = conn.data.office.docs[0].id;
 
-  conn.docRef = offices
+  conn.docRef = rootCollections
+    .offices
     .doc(officeId)
     /** Collection names are `ALWAYS` plural. */
     .collection(`${conn.req.body.template}s`)
@@ -528,7 +530,7 @@ const processRequestType = (conn) => {
   /** A reference of the batch and the activity instance will be used
    * multiple times throughout the activity creation.
    */
-  conn.activityRef = activities.doc();
+  conn.activityRef = rootCollections.activities.doc();
   conn.batch = db.batch();
 
   if (conn.req.body.office === 'personal') {
@@ -707,21 +709,25 @@ const handleResult = (conn, result) => {
 const fetchDocs = (conn) => {
   Promise
     .all([
-      activityTemplates
+      rootCollections
+        .activityTemplates
         .where('name', '==', conn.req.body.template)
         .limit(1)
         .get(),
-      profiles
+      rootCollections
+        .profiles
         .doc(conn.requester.phoneNumber)
         .collection('Subscriptions')
         .where('template', '==', conn.req.body.template)
         .limit(1)
         .get(),
-      offices
+      rootCollections
+        .offices
         .where('name', '==', conn.req.body.office)
         .limit(1)
         .get(),
-      enums
+      rootCollections
+        .enums
         .doc('CANEDITRULES')
         .get(),
     ])

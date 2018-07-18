@@ -36,13 +36,6 @@ const {
   getISO8601Date,
 } = require('../admin/utils');
 
-const {
-  activities,
-  updates,
-  profiles,
-  dailySignUps,
-} = rootCollections;
-
 
 /**
  * Adds the user's `phoneNumber` to the log for the day.
@@ -51,8 +44,9 @@ const {
  * @param {Object} batch Batch object.
  * @returns {Promise} Batch object.
  */
-const updateDailySignups = (userRecord, batch) => {
-  return dailySignUps
+const updateDailySignups = (userRecord, batch) =>
+  rootCollections
+    .dailySignUps
     .doc(getISO8601Date())
     .set({
       [userRecord.phoneNumber]: {
@@ -65,7 +59,6 @@ const updateDailySignups = (userRecord, batch) => {
       })
     .then(() => batch.commit())
     .catch(console.error);
-};
 
 
 /**
@@ -79,7 +72,8 @@ const updateDailySignups = (userRecord, batch) => {
  */
 const createSubscription = (userRecord, batch, activityDocRef) => {
   /** Default subscription for everyone who signs up */
-  batch.set(profiles
+  batch.set(rootCollections
+    .profiles
     .doc(userRecord.phoneNumber)
     .collection('Subscriptions')
     .doc(), {
@@ -115,7 +109,8 @@ const createSubscription = (userRecord, batch, activityDocRef) => {
  * @returns {Promise} Batch object.
  */
 const createAddendum = (userRecord, batch, activityDocRef) => {
-  batch.set(updates
+  batch.set(rootCollections
+    .updates
     .doc(userRecord.uid)
     .collection('Addendum')
     .doc(), {
@@ -142,7 +137,7 @@ const createAddendum = (userRecord, batch, activityDocRef) => {
  * @returns {Promise} Batch object.
  */
 const createActivity = (userRecord, batch) => {
-  const activityDocRef = activities.doc();
+  const activityDocRef = rootCollections.activities.doc();
 
   batch.set(activityDocRef, {
     canEditRule: 'NONE',
@@ -176,17 +171,16 @@ const createActivity = (userRecord, batch) => {
  * a newly signed up user.
  *
  * @param {Object} userRecord Object with user info.
- * @param {Object} context Object with Event info.
  * @returns {Promise} Batch object.
  */
-const app = (userRecord, context) => {
+const app = (userRecord) => {
   const batch = db.batch();
 
-  batch.set(updates.doc(userRecord.uid), {
+  batch.set(rootCollections.updates.doc(userRecord.uid), {
     phoneNumber: userRecord.phoneNumber,
   });
 
-  batch.set(profiles.doc(userRecord.phoneNumber), {
+  batch.set(rootCollections.profiles.doc(userRecord.phoneNumber), {
     uid: userRecord.uid,
   }, {
       /** Profile *may* exist already, if the user signed

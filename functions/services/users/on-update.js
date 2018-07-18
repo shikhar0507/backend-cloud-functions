@@ -50,13 +50,6 @@ const {
   deleteUserFromAuth,
 } = users;
 
-const {
-  profiles,
-  activities,
-  updates,
-  dailyPhoneNumberChanges,
-} = rootCollections;
-
 
 const commitBatch = (conn, batch) => batch
   .commit()
@@ -77,12 +70,13 @@ const logDailyPhoneNumberChanges = (conn, batch) => {
 
   const docId = moment(conn.req.body.timestamp).format('DD-MM-YYYY');
 
-  batch.set(dailyPhoneNumberChanges.doc(docId), {
-    [conn.requester.phoneNumber]: {
-      timestamp: new Date(conn.req.body.timestamp),
-      updatedPhoneNumber: conn.req.body.phoneNumber,
-    },
-  }, {
+  batch.set(rootCollections
+    .dailyPhoneNumberChanges.doc(docId), {
+      [conn.requester.phoneNumber]: {
+        timestamp: new Date(conn.req.body.timestamp),
+        updatedPhoneNumber: conn.req.body.phoneNumber,
+      },
+    }, {
       merge: true,
     });
 
@@ -92,7 +86,8 @@ const logDailyPhoneNumberChanges = (conn, batch) => {
 
 const writeAddendumForUsers = (conn, batch) => {
   conn.data.usersWithUpdatesDoc.forEach((doc) => {
-    batch.set(updates
+    batch.set(rootCollections
+      .updates
       .doc(doc.id).collection('Addendum').doc(), {
         activityId: doc.get('activityId'),
         comment: `${conn.requester.phoneNumber} changed their`
@@ -112,7 +107,8 @@ const fetchUsersWithUid = (conn, batch) => {
   conn.data.usersWithUpdatesDoc = [];
 
   conn.data.assignees.forEach((userObject) => {
-    promises.push(updates
+    promises.push(rootCollections
+      .updates
       .where('phoneNumber', '==', userObject.phoneNumber).get()
     );
   });
@@ -174,14 +170,16 @@ const transferSubscriptions = (conn, batch) => {
     const docData = doc.data();
     docData.include = include;
 
-    batch.set(profiles
+    batch.set(rootCollections
+      .profiles
       .doc(conn.req.body.phoneNumber)
       .collection('Subscriptions')
       .doc(doc.id),
       docData
     );
 
-    batch.delete(profiles
+    batch.delete(rootCollections
+      .profiles
       .doc(conn.requester.phoneNumber)
       .collection('Subscriptions')
       .doc(doc.id)
@@ -197,14 +195,16 @@ const transferActivities = (conn, batch) => {
 
   activitiesArray.forEach((doc) => {
     conn.data.promises.push(
-      activities
+      rootCollections
+        .activities
         .doc(doc.id)
         .collection('Assignees')
         .get()
     );
 
     /** Copy activities from old profile to the new one. */
-    batch.set(profiles
+    batch.set(rootCollections
+      .profiles
       .doc(conn.req.body.phoneNumber)
       .collection('Activities')
       .doc(doc.id),
@@ -212,14 +212,16 @@ const transferActivities = (conn, batch) => {
     );
 
     /** Delete the copied activities (from previous step). */
-    batch.delete(profiles
+    batch.delete(rootCollections
+      .profiles
       .doc(conn.requester.phoneNumber)
       .collection('Activities')
       .doc(doc.id)
     );
 
     /** Add the new `phoneNumber` as an assignee to all the fetched activities. */
-    batch.set(activities
+    batch.set(rootCollections
+      .activities
       .doc(doc.id)
       .collection('Assignees')
       .doc(conn.req.body.phoneNumber), {
@@ -228,7 +230,8 @@ const transferActivities = (conn, batch) => {
       });
 
     /** Delete old `phoneNumber` from Activity assignees list. */
-    batch.delete(activities
+    batch.delete(rootCollections
+      .activities
       .doc(doc.id)
       .collection('Assignees')
       .doc(conn.requester.phoneNumber)
@@ -240,7 +243,7 @@ const transferActivities = (conn, batch) => {
 
 
 const fetchActivitiesAndSubsriptions = (conn, batch) => {
-  const userProfile = profiles.doc(conn.requester.phoneNumber);
+  const userProfile = rootCollections.profiles.doc(conn.requester.phoneNumber);
 
   Promise
     .all([
@@ -267,7 +270,8 @@ const updateUserDocs = (conn) => {
   /** Stores temporary data throughout the code. */
   conn.data = {};
 
-  batch.set(profiles
+  batch.set(rootCollections
+    .profiles
     .doc(conn.req.body.phoneNumber), {
       uid: conn.requester.uid,
     }, {
@@ -275,7 +279,8 @@ const updateUserDocs = (conn) => {
     }
   );
 
-  conn.batch.set(updates.
+  batch.set(rootCollections
+    .updates.
     doc(conn.requester.uid), {
       phoneNumber: conn.req.body.phoneNumber,
     }, {

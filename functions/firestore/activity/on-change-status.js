@@ -44,15 +44,6 @@ const {
   code,
 } = require('../../admin/responses');
 
-const {
-  activities,
-  profiles,
-  updates,
-  activityTemplates,
-  enums,
-  dailyActivities,
-} = rootCollections;
-
 
 /**
  * Commits the batch to write the documents added to the batch atomically.
@@ -76,7 +67,8 @@ const commitBatch = (conn) => conn.batch.commit()
 const updateDailyActivities = (conn) => {
   const docId = getISO8601Date(conn.data.timestamp);
 
-  conn.batch.set(dailyActivities
+  conn.batch.set(rootCollections
+    .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
@@ -108,11 +100,11 @@ const addAddendumForAssignees = (conn) => {
       docsArray.forEach((doc) => {
         if (!doc.get('uid')) return;
 
-        conn.batch.set(
-          updates
-            .doc(doc.get('uid'))
-            .collection('Addendum')
-            .doc(),
+        conn.batch.set(rootCollections
+          .updates
+          .doc(doc.get('uid'))
+          .collection('Addendum')
+          .doc(),
           conn.addendum
         );
       });
@@ -131,7 +123,8 @@ const addAddendumForAssignees = (conn) => {
  * @returns {void}
  */
 const updateActivityStatus = (conn) => {
-  conn.batch.set(activities
+  conn.batch.set(rootCollections
+    .activities
     .doc(conn.req.body.activityId), {
       status: conn.req.body.status,
       timestamp: conn.data.timestamp,
@@ -152,7 +145,8 @@ const updateActivityStatus = (conn) => {
  * @returns {void}
  */
 const fetchTemplate = (conn) => {
-  activityTemplates
+  rootCollections
+    .activityTemplates
     .doc(conn.data.activity.get('template'))
     .get()
     .then((doc) => {
@@ -182,14 +176,17 @@ const fetchTemplate = (conn) => {
 const fetchDocs = (conn) => {
   Promise
     .all([
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .get(),
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .collection('Assignees')
         .get(),
-      enums
+      rootCollections
+        .enums
         .doc('ACTIVITYSTATUS')
         .get(),
     ])
@@ -229,13 +226,13 @@ const fetchDocs = (conn) => {
 
       /** The Assignees list is required to add addendum. */
       result[1].forEach((doc) => {
-        conn.data.assignees.push(profiles.doc(doc.id).get());
+        conn.data.assignees.push(rootCollections.profiles.doc(doc.id).get());
 
-        conn.batch.set(
-          profiles
-            .doc(doc.id)
-            .collection('Activities')
-            .doc(conn.req.body.activityId), {
+        conn.batch.set(rootCollections
+          .profiles
+          .doc(doc.id)
+          .collection('Activities')
+          .doc(conn.req.body.activityId), {
             timestamp: conn.data.timestamp,
           }, {
             merge: true,
@@ -272,7 +269,8 @@ const fetchDocs = (conn) => {
  * @returns {void}
  */
 const verifyEditPermission = (conn) => {
-  profiles
+  rootCollections
+    .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
     .doc(conn.req.body.activityId)

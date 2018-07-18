@@ -40,13 +40,6 @@ const {
   code,
 } = require('../admin/responses');
 
-const {
-  activities,
-  profiles,
-  updates,
-  activityTemplates,
-} = rootCollections;
-
 
 /**
  * Writes the log to `/DailyReads` about the user, timestamp and the
@@ -173,7 +166,8 @@ const fetchSubscriptions = (conn, jsonResult) => {
  * @returns {void}
  */
 const getTemplates = (conn, jsonResult) => {
-  profiles
+  rootCollections
+    .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Subscriptions')
     .where('timestamp', '>', conn.from)
@@ -188,7 +182,7 @@ const getTemplates = (conn, jsonResult) => {
         conn.officesArray.push(doc.get('office'));
 
         conn.templatesList.push(
-          activityTemplates.doc(doc.get('template')).get()
+          rootCollections.activityTemplates.doc(doc.get('template')).get()
         );
       });
 
@@ -316,7 +310,8 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
   conn.assigneeFetchPromises = [];
   conn.activityData = {};
 
-  profiles
+  rootCollections
+    .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
     .where('timestamp', '>', conn.from)
@@ -325,9 +320,11 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
     .then((snapShot) => {
       snapShot.forEach((doc) => {
         conn.activityFetchPromises
-          .push(activities.doc(doc.id).get());
-        conn.assigneeFetchPromises
-          .push(activities.doc(doc.id).collection('Assignees').get());
+          .push(rootCollections.activities.doc(doc.id).get());
+
+        conn.assigneeFetchPromises.push(
+          rootCollections.activities.doc(doc.id).collection('Assignees').get()
+        );
 
         jsonResult.activities[doc.id] = {};
         jsonResult.activities[doc.id]['canEdit'] = doc.get('canEdit');
@@ -359,7 +356,8 @@ const readAddendumsByQuery = (conn) => {
    */
   jsonResult.upto = jsonResult.from;
 
-  updates
+  rootCollections
+    .updates
     .doc(conn.requester.uid)
     .collection('Addendum')
     .where('timestamp', '>', conn.from)

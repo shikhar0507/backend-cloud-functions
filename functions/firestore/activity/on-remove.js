@@ -45,14 +45,6 @@ const {
   code,
 } = require('../../admin/responses');
 
-const {
-  activities,
-  profiles,
-  updates,
-  activityTemplates,
-  dailyActivities,
-} = rootCollections;
-
 
 const commitBatch = (conn) => conn.batch.commit()
   .then(() => sendResponse(conn, code.noContent))
@@ -70,7 +62,8 @@ const commitBatch = (conn) => conn.batch.commit()
 const updateDailyActivities = (conn) => {
   const docId = getISO8601Date(conn.data.timestamp);
 
-  conn.batch.set(dailyActivities
+  conn.batch.set(rootCollections
+    .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
@@ -88,7 +81,8 @@ const updateDailyActivities = (conn) => {
 
 
 const updateActivityDoc = (conn) => {
-  conn.batch.set(activities
+  conn.batch.set(rootCollections
+    .activities
     .doc(conn.req.body.activityId), {
       timestamp: conn.data.timestamp,
     }, {
@@ -104,9 +98,10 @@ const setAddendumForUsersWithUid = (conn) => {
   const promises = [];
 
   conn.data.assigneeArray.forEach((phoneNumber) => {
-    promises.push(profiles.doc(phoneNumber).get());
+    promises.push(rootCollections.profiles.doc(phoneNumber).get());
 
-    conn.batch.set(profiles
+    conn.batch.set(rootCollections
+      .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
@@ -124,7 +119,8 @@ const setAddendumForUsersWithUid = (conn) => {
         /** `uid` is NOT `null` OR `undefined` */
         if (!doc.get('uid')) return;
 
-        conn.batch.set(updates
+        conn.batch.set(rootCollections
+          .updates
           .doc(doc.get('uid'))
           .collection('Addendum')
           .doc(),
@@ -148,14 +144,16 @@ const unassignFromTheActivity = (conn) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
 
     /** Deleting from Assignees collection inside activity doc */
-    conn.batch.delete(activities
+    conn.batch.delete(rootCollections
+      .activities
       .doc(conn.req.body.activityId)
       .collection('Assignees')
       .doc(phoneNumber)
     );
 
     /** Deleting from Activities collection inside user Profile */
-    conn.batch.delete(profiles
+    conn.batch.delete(rootCollections
+      .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId)
@@ -177,7 +175,8 @@ const unassignFromTheActivity = (conn) => {
 const fetchTemplate = (conn) => {
   const template = conn.data.activity.get('template');
 
-  activityTemplates
+  rootCollections
+    .activityTemplates
     .doc(template)
     .get()
     .then((doc) => {
@@ -201,10 +200,12 @@ const fetchTemplate = (conn) => {
 const fetchDocs = (conn) => {
   Promise
     .all([
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .get(),
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .collection('Assignees')
         .get(),
@@ -249,7 +250,8 @@ const fetchDocs = (conn) => {
 
 
 const verifyEditPermission = (conn) => {
-  profiles
+  rootCollections
+    .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
     .doc(conn.req.body.activityId)

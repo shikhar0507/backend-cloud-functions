@@ -30,11 +30,6 @@ const {
 } = require('../../admin/admin');
 
 const {
-  enums,
-  activityTemplates,
-} = rootCollections;
-
-const {
   code,
 } = require('../../admin/responses');
 
@@ -53,7 +48,8 @@ const {
  * @returns {void}
  */
 const updateTemplate = (conn, updatedFields) => {
-  activityTemplates
+  rootCollections
+    .activityTemplates
     .doc(conn.data.docId)
     .set(updatedFields, {
       /** The request body can contain a partial update, so merging
@@ -160,11 +156,14 @@ const handleResult = (conn, result) => {
 const fetchDocs = (conn) => {
   Promise
     .all([
-      activityTemplates
+      rootCollections
+        .activityTemplates
         .where('name', '==', conn.req.body.name)
         .limit(1)
         .get(),
-      enums.doc('ACTIVITYSTATUS')
+      rootCollections
+        .enums
+        .doc('ACTIVITYSTATUS')
         .get(),
     ])
     .then((result) => handleResult(conn, result))

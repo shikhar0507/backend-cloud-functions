@@ -30,31 +30,24 @@ const {
   db,
 } = require('../admin/admin');
 
-const {
-  updates,
-  profiles,
-} = rootCollections;
-
-const {
-  batch,
-} = db;
-
 
 /**
  * Sets the `uid` and `phoneNumber` fields of the user being deleted to
  * `null` inside the Updates and Profiles collection respectively.
  *
  * @param {Object} userRecord Object with user info.
- * @param {Object} context Object with Event info.
  * @returns {Promise} Batch object.
  */
-const app = (userRecord, context) => {
+const app = (userRecord) => {
   const {
     uid,
     phoneNumber,
   } = userRecord;
 
-  batch.set(profiles
+  const batch = db.batch();
+
+  batch.set(rootCollections
+    .profiles
     .doc(phoneNumber), {
       uid: null,
     }, {
@@ -62,7 +55,8 @@ const app = (userRecord, context) => {
     }
   );
 
-  batch.set(updates
+  batch.set(rootCollections
+    .updates
     .doc(uid), {
       phoneNumber: null,
     }, {

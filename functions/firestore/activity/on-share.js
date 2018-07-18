@@ -49,14 +49,6 @@ const {
   code,
 } = require('../../admin/responses');
 
-const {
-  activities,
-  profiles,
-  updates,
-  activityTemplates,
-  dailyActivities,
-} = rootCollections;
-
 
 /**
  * Commits the batch to the DB.
@@ -80,7 +72,8 @@ const commitBatch = (conn) => conn.batch.commit()
 const updateDailyActivities = (conn) => {
   const docId = getISO8601Date(conn.data.timestamp);
 
-  conn.batch.set(dailyActivities
+  conn.batch.set(rootCollections
+    .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
@@ -103,7 +96,8 @@ const updateDailyActivities = (conn) => {
  * @returns {void}
  */
 const updateActivityDoc = (conn) => {
-  conn.batch.set(activities
+  conn.batch.set(rootCollections
+    .activities
     .doc(conn.req.body.activityId), {
       timestamp: conn.data.timestamp,
     }, {
@@ -128,9 +122,10 @@ const setAddendumForUsersWithUid = (conn) => {
   const promises = [];
 
   assigneeListWithUniques.forEach((phoneNumber) => {
-    promises.push(profiles.doc(phoneNumber).get());
+    promises.push(rootCollections.profiles.doc(phoneNumber).get());
 
-    conn.batch.set(profiles
+    conn.batch.set(rootCollections
+      .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
@@ -148,14 +143,14 @@ const setAddendumForUsersWithUid = (conn) => {
         /** Create Profiles for the users who don't have a profile already. */
         if (!doc.exists) {
           /** The `doc.id` is the `phoneNumber` that doesn't exist */
-          conn.batch.set(profiles.doc(doc.id), {
+          conn.batch.set(rootCollections.profiles.doc(doc.id), {
             uid: null,
           });
         }
 
         if (doc.exists && doc.get('uid')) {
           /** The `uid` is NOT `null` OR `undefined` */
-          conn.batch.set(updates
+          conn.batch.set(rootCollections.updates
             .doc(doc.get('uid'))
             .collection('Addendum')
             .doc(),
@@ -185,7 +180,8 @@ const addAddendumForAssignees = (conn) => {
     /** Adding a doc with the id = phoneNumber in
      * `Activities/(activityId)/Assignees`
      * */
-    conn.batch.set(activities
+    conn.batch.set(rootCollections
+      .activities
       .doc(conn.req.body.activityId)
       .collection('Assignees')
       .doc(phoneNumber), {
@@ -202,7 +198,8 @@ const addAddendumForAssignees = (conn) => {
     /** Adding a doc with the id = activityId inside
      *  Profiles/(phoneNumber)/Activities/(activityId)
      * */
-    conn.batch.set(profiles
+    conn.batch.set(rootCollections
+      .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
@@ -227,10 +224,12 @@ const addAddendumForAssignees = (conn) => {
 const fetchTemplateAndSubscriptions = (conn) => {
   Promise
     .all([
-      activityTemplates
+      rootCollections
+        .activityTemplates
         .doc(conn.data.activity.get('template'))
         .get(),
-      profiles
+      rootCollections
+        .profiles
         .doc(conn.requester.phoneNumber)
         .collection('Subscriptions')
         .where('office', '==', conn.data.activity.get('office'))
@@ -269,10 +268,12 @@ const fetchTemplateAndSubscriptions = (conn) => {
 const fetchDocs = (conn) => {
   Promise
     .all([
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .get(),
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .collection('Assignees')
         .get(),
@@ -317,7 +318,8 @@ const fetchDocs = (conn) => {
 
 
 const verifyEditPermission = (conn) => {
-  profiles
+  rootCollections
+    .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
     .doc(conn.req.body.activityId)

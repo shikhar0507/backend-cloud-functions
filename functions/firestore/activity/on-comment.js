@@ -44,13 +44,6 @@ const {
   code,
 } = require('../../admin/responses');
 
-const {
-  activities,
-  updates,
-  profiles,
-  dailyActivities,
-} = rootCollections;
-
 
 /**
  * Commits the batch to the Firestore and send a response to the client
@@ -79,7 +72,8 @@ const commitBatch = (conn) => conn.batch.commit()
 const updateDailyActivities = (conn) => {
   const docId = getISO8601Date(conn.data.timestamp);
 
-  conn.batch.set(dailyActivities
+  conn.batch.set(rootCollections
+    .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
@@ -105,7 +99,8 @@ const updateDailyActivities = (conn) => {
  */
 const setAddendumForAssignees = (conn) => {
   conn.assigneesPhoneNumberList.forEach((phoneNumber) => {
-    conn.batch.set(profiles
+    conn.batch.set(rootCollections
+      .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
@@ -124,7 +119,8 @@ const setAddendumForAssignees = (conn) => {
 
         if (!doc.get('uid')) return;
 
-        conn.batch.set(updates
+        conn.batch.set(rootCollections
+          .updates
           .doc(doc.get('uid'))
           .collection('Addendum')
           .doc(), {
@@ -154,14 +150,17 @@ const createAssigneePromises = (conn) => {
   conn.assigneeDocPromises = [];
   conn.assigneesPhoneNumberList = [];
 
-  activities
+  rootCollections
+    .activities
     .doc(conn.req.body.activityId)
     .collection('Assignees')
     .get()
     .then((snapShot) => {
       snapShot.forEach((doc) => {
-        conn.assigneeDocPromises.push(profiles.doc(doc.id).get());
-        conn.assigneesPhoneNumberList.push(doc.id);
+        conn.assigneeDocPromises
+          .push(rootCollections.profiles.doc(doc.id).get());
+        conn.assigneesPhoneNumberList
+          .push(doc.id);
       });
 
       conn.batch = db.batch();
@@ -181,7 +180,8 @@ const createAssigneePromises = (conn) => {
  * @returns {void}
  */
 const checkIfActivityExists = (conn) => {
-  activities
+  rootCollections
+    .activities
     .doc(conn.req.body.activityId)
     .get()
     .then((doc) => {
@@ -245,12 +245,14 @@ const checkCommentPermission = (conn) => {
 const fetchDocs = (conn) => {
   Promise
     .all([
-      profiles
+      rootCollections
+        .profiles
         .doc(conn.requester.phoneNumber)
         .collection('Activities')
         .doc(conn.req.body.activityId)
         .get(),
-      activities
+      rootCollections
+        .activities
         .doc(conn.req.body.activityId)
         .get(),
     ])

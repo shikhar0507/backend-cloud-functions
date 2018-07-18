@@ -40,10 +40,6 @@ const {
   code,
 } = require('../../admin/responses');
 
-const {
-  activityTemplates,
-} = rootCollections;
-
 
 /**
  * Fetches all the docs from `/ActivityTemplates` collection and sends
@@ -55,7 +51,8 @@ const {
 const fetchAllTemplates = (conn) => {
   const jsonObject = {};
 
-  activityTemplates
+  rootCollections
+    .activityTemplates
     .get()
     .then((snapShot) => {
       snapShot.forEach((doc) => jsonObject[doc.get('name')] = doc.data());
@@ -87,7 +84,8 @@ const fetchTemplateByName = (conn) => {
     return;
   }
 
-  activityTemplates
+  rootCollections
+    .activityTemplates
     .where('name', '==', conn.req.query.name)
     .limit(1)
     .get()
