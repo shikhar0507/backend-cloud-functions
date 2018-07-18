@@ -108,7 +108,7 @@ const fetchUserRecord = (conn, response) => {
       if (!user.uid) {
         response.code = code.conflict;
         response.message = `${conn.req.body.phoneNumber} does not exist.`;
-        response.resourcesAccessed.push('user record');
+        response.resourcesAccessed.push(JSON.stringify({ userRecord, }));
         createInstantLog(conn, response);
 
         return;
@@ -129,6 +129,13 @@ const fetchUserRecord = (conn, response) => {
  * @returns {void}
  */
 const validateRequestBody = (conn, response) => {
+  if (conn.req.body.hasOwnProperty('superUser')) {
+    response.code = code.forbidden;
+    response.message = 'Cannot set superUser permission for '
+      + 'anyone.';
+    createInstantLog(conn, response);
+  }
+
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {
     response.code = code.badRequest;
     response.message = 'The phoneNumber field is missing from the'
