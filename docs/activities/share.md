@@ -4,23 +4,19 @@ endpoint: `/api/activities/share`
 
 method: `PATCH`
 
-query parameters: `as` (optional)
-
-> The `as` query parameter can be used by a privilidged user to make a support request for creating an activity.
-> The URL for the support request should look like this: `/api/activities/share?as=support`
-> For support requests, you *don't* need to be an assignee of the activity.
+query parameters: `support` (optional)
 
 ## Full Request Body
 
 ```json
 {
-    "activityId": string --> activityId,
-    "timestamp": number --> unix timestamp,
+    "activityId": "z8ifrds0uSeWQoWuWJoX",
+    "timestamp": 1529650294688,
     "geopoint": {
-        latitude: number,
-        longitude: number
+        "latitude": 28.5482662,
+        "longitude": 77.2030614
     },
-    "share": [multiple strings --> phone numbers]
+    "share": ["+919090909090", "+918989898989"]
 }
 ```
 

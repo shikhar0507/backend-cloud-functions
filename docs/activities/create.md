@@ -6,36 +6,35 @@ endpoint: `/api/activities/create`
 
 method: `POST`
 
-query parameters: `as` (optional)
-
-> The `as` query parameter can be used by a privilidged user to make a support request for creating an activity.
-> The URL for the support request should look like this: `/api/activities/create?as=support`
-> For support requests, you *don't* need to be an assignee of the activity.
+query parameters: `support` (optional)
 
 ## Full Request Body
 
 ```json
 {
-    "template": string --> template name,
-    "timestamp": number --> unix timestamp,
-    "office": string --> office name,
+    "template": "Template name",
+    "office": "Office name",
+    "timestamp": 1531896150395,
     "geopoint": {
-        latitude: number,
-        longitude: number
+        "latitude": 28.5482662,
+        "longitude": 77.2030185
     },
-    "title": string --> activity title,
-    "description": string --> activity description,
-    "share": [multiple strings --> phone numbers of the assignees],
+    "title": "string",
+    "description": "string",
+    "share": ["+919090909090", "+918989898989"],
     "venue": [{
-        "venueDescriptor": "where",
-        "location": string --> location name,
-        "geopoint": {latitude: number, longitude: number},
-        "address": string --> address
+        "venueDescriptor": "venue name from template",
+        "location": "location name",
+        "geopoint": {
+        "latitude": 28.5482662,
+        "longitude": 77.2030185
+        },
+        "address": "address string"
     }],
     "schedule": [{
-        "name": "when",
-        "startTime": number --> unix timestamp,
-        "endTime": number --> unix timestamp
+        "name": "schedule name from template",
+        "startTime": 1531896457042,
+        "endTime": 1531896457641
     }]
 }
 ```
@@ -44,12 +43,12 @@ query parameters: `as` (optional)
 
 ```json
 {
-    "template": string --> template name,
-    "timestamp": number --> unix timestamp,
-    "office": string --> office name,
+    "template": "Template name",
+    "office": "Office name",
+    "timestamp": 1531896150395,
     "geopoint": {
-        latitude: number,
-        longitude: number
+        "latitude": 28.5482662,
+        "longitude": 77.2030185
     }
 }
 ```

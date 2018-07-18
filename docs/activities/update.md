@@ -4,30 +4,33 @@ endpoint: `/api/activities/update`
 
 method: `PATCH`
 
-query parameter: none
+query parameter: `support` (optional)
 
 ## Full Request Body
 
 ```json
 {
-    "activityId": string --> activityId,
-    "timestamp": number --> unix timestamp,
+    "activityId": "z8ifrds0uSeWQoWuWJoX",
+    "timestamp": 1529650294688,
     "geopoint": {
-        latitude: number,
-        longitude: number
+        "latitude": 28.5482662,
+        "longitude": 77.2030614
     },
-    "title": string --> updated title,
-    "description": string --> updated description,
+    "title": "string",
+    "description": "string",
     "venue": [{
-        "venueDescriptor": "where",
-        "location": string --> location name,
-        "geopoint": {latitude: number, longitude: number},
-        "address": string --> address
+        "venueDescriptor": "venue name from template",
+        "location": "location name",
+        "geopoint": {
+        "latitude": 28.5482662,
+        "longitude": 77.2030185
+        },
+        "address": "address string"
     }],
     "schedule": [{
-        "name": "when",
-        "startTime": number --> unix timestamp,
-        "endTime": number --> unix timestamp
+        "name": "schedule name from template",
+        "startTime": 1531896457042,
+        "endTime": 1531896457641
     }]
 }
 ```
@@ -37,12 +40,12 @@ query parameter: none
 ```json
 {
 
-    "activityId": string --> activityId,
-    "timestamp": number --> unix timestamp,
+    "activityId": "z8ifrds0uSeWQoWuWJoX",
+    "timestamp": 1529650294688,
     "geopoint": {
-        latitude: number,
-        longitude: number
-    },
+        "latitude": 28.5482662,
+        "longitude": 77.2030614
+    }
 }
 ```
 

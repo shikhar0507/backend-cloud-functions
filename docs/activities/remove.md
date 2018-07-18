@@ -4,19 +4,19 @@ endpoint: `/api/activities/remove`
 
 method: `PATCH`
 
-query parameter: none
+query parameter: `support` (optional)
 
 ## Full Request Body
 
 ```json
 {
-    "activityId": string --> activityId,
-    "timestamp": number --> unix timestamp,
+    "activityId": "z8ifrds0uSeWQoWuWJoX",
+    "timestamp": 1529650294688,
     "geopoint": {
-        latitude: number,
-        longitude: number
+        "latitude": 28.5482662,
+        "longitude": 77.2030614
     },
-    "remove": [multiple strings --> phone numbers]
+    "remove": ["+919090909090", "+918989898989"]
 }
 ```
 

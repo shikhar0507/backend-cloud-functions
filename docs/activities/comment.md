@@ -11,10 +11,10 @@ query parameter: none
 ```json
 {
     "activityId": "rthbw93Sc3YpAHbRAYFL",
-    "timestamp": 0,
+    "timestamp": 1531896150395,
     "geopoint": {
-        "latitude": 0,
-        "longitude": 0
+        "latitude": 28.5482662,
+        "longitude": 77.2030185
     },
     "comment": "A comment string."
 }

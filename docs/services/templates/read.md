@@ -12,21 +12,9 @@ This is a response for the request which has the template name in the request bo
 
 ```json
 {
-    "venue": {
-        "location": "India Gate",
-        "venueDescriptor": "where",
-        "geopoint": {
-            "_latitude": 28.612912,
-            "_longitude": 77.227321
-        },
-        "address": "Rajpath Marg, India Gate, New Delhi, Delhi 110001"
-    },
+    "venue": ["where"],
     "defaultTitle": "plan",
-    "schedule": {
-        "endTime": "1999-12-31T18:30:00.000Z",
-        "startTime": "1999-12-31T18:30:00.000Z",
-        "name": "when"
-    },
+    "schedule": ["when"],
     "attachment": {},
     "name": "plan",
     "comment": "'Default template. Available to all users(group or not)",
@@ -50,49 +38,22 @@ Upon omitting the `query` in the request URL, the API will send all the template
             "name": ""
         },
         "defaultTitle": "leave",
-        "schedule": {
-            "endTime": "2018-05-22T18:30:00.000Z",
-            "startTime": "2018-05-22T18:30:00.000Z",
-            "name": ""
-        },
+        "schedule": ["schedule1", "schedule2"],
         "name": "leave",
         "comment": "Template used for employee leaves",
         "statusOnCreate": "PENDING",
         "title": "leave",
-        "venue": {
-            "venueDescriptor": "",
-            "geopoint": {
-                "_latitude": 0,
-                "_longitude": 0
-            },
-            "address": "",
-            "location": ""
-        },
-        "include": [
-            "manager",
-            "hr"
-        ]
+        "venue": ["venue1", "venue2"],
+        "include": ["manager", "hr"]
     },
     "plan": {
         "defaultTitle": "plan",
-        "schedule": {
-            "endTime": "1999-12-31T18:30:00.000Z",
-            "startTime": "1999-12-31T18:30:00.000Z",
-            "name": "when"
-        },
+        "schedule": ["when"],
         "attachment": {},
         "name": "plan",
         "comment": "'Default template. Available to all users(group or not)",
         "statusOnCreate": "PENDING",
-        "venue": {
-            "location": "India Gate",
-            "venueDescriptor": "where",
-            "geopoint": {
-                "_latitude": 28.612912,
-                "_longitude": 77.227321
-            },
-            "address": "Rajpath Marg, India Gate, New Delhi, Delhi 110001"
-        }
+        "venue": ["where"]
     },
     "Customer product number maintenance": {
         "title": "Customer product number maintenance",
@@ -125,4 +86,4 @@ Upon omitting the `query` in the request URL, the API will send all the template
 
 ## Preconditions
 
-* Only the users who have `manageTemplates` set to `true` in their `customClaims` can read templates from the Firestore.
+* Only the users who have `manageTemplates` set to `true` in their `customClaims` can read templates from the database.
