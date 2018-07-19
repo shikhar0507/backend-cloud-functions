@@ -58,9 +58,10 @@ const {
  * Commits the batch and sends a response to the client.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {Promise} Doc metadata or error object.
  */
-const commitBatch = (conn) => conn.batch.commit()
+const commitBatch = (conn, locals) => locals.batch.commit()
   .then(() => sendResponse(
     conn,
     code.created,
@@ -73,20 +74,20 @@ const commitBatch = (conn) => conn.batch.commit()
  * Adds docs for each assignee of the activity to the batch.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const handleAssignedUsers = (conn) => {
+const handleAssignedUsers = (conn, locals) => {
   /** The list of assignees *NEEDS* to be an array. */
   if (!Array.isArray(conn.req.body.share)) {
-    commitBatch(conn);
+    commitBatch(conn, locals);
 
     return;
   }
 
   const promises = [];
 
-  /** Create docs in Assignees collection if share is in the request body.
-   * */
+  /** Create docs in Assignees collection if share is in the request body. */
   conn.req.body.share.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
 
@@ -99,13 +100,13 @@ const handleAssignedUsers = (conn) => {
     /** The phone numbers exist uniquely in the `/Profiles` collection. */
     promises.push(rootCollections.profiles.doc(phoneNumber).get());
 
-    conn.batch.set(rootCollections
+    locals.batch.set(rootCollections
       .activities
-      .doc(conn.activityRef.id)
+      .doc(locals.activityRef.id)
       .collection('Assignees')
       .doc(phoneNumber), {
         canEdit: handleCanEdit(
-          conn.data.subscription,
+          locals.subscription,
           phoneNumber,
           conn.requester.phoneNumber,
           conn.req.body.share
@@ -120,12 +121,12 @@ const handleAssignedUsers = (conn) => {
       .collection('Activities')
       .doc(conn.activityRef.id), {
         canEdit: handleCanEdit(
-          conn.data.subscription,
+          locals.subscription,
           phoneNumber,
           conn.requester.phoneNumber,
           conn.req.body.share
         ),
-        timestamp: conn.data.timestamp,
+        timestamp: locals.timestamp,
       });
   });
 
@@ -137,9 +138,7 @@ const handleAssignedUsers = (conn) => {
         if (!doc.exists) {
           /** Create profiles for the phone numbers which are not in the DB. */
           conn.batch.set(rootCollections
-            .profiles.doc(doc.id), {
-              uid: null,
-            });
+            .profiles.doc(doc.id), { uid: null, });
 
           conn.batch.set(rootCollections
             .profiles
@@ -147,12 +146,12 @@ const handleAssignedUsers = (conn) => {
             .collection('Activities')
             .doc(conn.activityRef.id), {
               canEdit: handleCanEdit(
-                conn.data.subscription,
+                locals.subscription,
                 doc.id,
                 conn.requester.phoneNumber,
                 conn.req.body.share
               ),
-              timestamp: conn.data.timestamp,
+              timestamp: locals.timestamp,
             });
         }
 
@@ -163,7 +162,7 @@ const handleAssignedUsers = (conn) => {
             .doc(doc.get('uid'))
             .collection('Addendum')
             .doc(),
-            conn.data.addendum
+            locals.addendum
           );
         }
       });
@@ -180,16 +179,17 @@ const handleAssignedUsers = (conn) => {
  * Adds the activity to each user's profile from the `include` array.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const handleIncludesFromSubscriptions = (conn) => {
+const handleIncludesFromSubscriptions = (conn, locals) => {
   /** Subscription may or may not exist (especially when creating an Office). */
-  if (conn.data.subscription.hasOwnProperty('include')) {
+  if (locals.subscription.hasOwnProperty('include')) {
     /** The 'include' array will always have the requester's
      * phone number, so we don't need to explictly add their number
      * in order to add them to a batch.
      */
-    conn.data.subscription.include.forEach((phoneNumber) => {
+    locals.subscription.include.forEach((phoneNumber) => {
       /** The requester shouldn't be added to the activity assignee list
        * if the request is of `support` type.
        */
@@ -201,7 +201,7 @@ const handleIncludesFromSubscriptions = (conn) => {
         .doc(conn.activityRef.id)
         .collection('Assignees')
         .doc(phoneNumber), {
-          canEdit: handleCanEdit(conn.data.subscription,
+          canEdit: handleCanEdit(locals.subscription,
             phoneNumber,
             conn.requester.phoneNumber,
             conn.req.body.share
@@ -215,7 +215,7 @@ const handleIncludesFromSubscriptions = (conn) => {
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
     .doc(conn.activityRef.id), {
-      canEdit: handleCanEdit(conn.data.subscription,
+      canEdit: handleCanEdit(locals.subscription,
         /** The phone Number to check and the one with which we are
          * going to verify the edit rule with are same because this
          * block is writing the doc for the user themselves.
@@ -224,7 +224,7 @@ const handleIncludesFromSubscriptions = (conn) => {
         conn.requester.phoneNumber,
         conn.req.body.share
       ),
-      timestamp: conn.data.timestamp,
+      timestamp: locals.timestamp,
     });
 
   handleAssignedUsers(conn);
@@ -235,16 +235,18 @@ const handleIncludesFromSubscriptions = (conn) => {
  * Writes the addendum for the requester.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addAddendumForRequester = (conn) => {
-  conn.data.addendum = {
+const addAddendumForRequester = (conn, locals) => {
+  locals.addendum = {
     activityId: conn.activityRef.id,
     user: conn.requester.displayName || conn.requester.phoneNumber,
-    comment: `${conn.requester.displayName || conn.requester.phoneNumber}` +
-      ` created ${conn.data.template.defaultTitle}`,
+    comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
+      // + ` created ${conn.data.template.defaultTitle}`,
+      + ` created ${locals.template.defaultTitle}`,
     location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: conn.data.timestamp,
+    timestamp: locals.timestamp,
   };
 
   /** The addendum doc is always created for the requester */
@@ -253,7 +255,7 @@ const addAddendumForRequester = (conn) => {
     .doc(conn.requester.uid)
     .collection('Addendum')
     .doc(),
-    conn.data.addendum
+    locals.addendum
   );
 
   handleIncludesFromSubscriptions(conn);
@@ -264,9 +266,10 @@ const addAddendumForRequester = (conn) => {
  * Adds activity root doc to batch.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const createActivityRoot = (conn) => {
+const createActivityRoot = (conn, locals) => {
   const activityRoot = {};
 
   activityRoot.title = conn.req.body.title;
@@ -285,10 +288,10 @@ const createActivityRoot = (conn) => {
   }
 
   if (activityRoot.title === '') {
-    activityRoot.tile = conn.data.template.defaultTitle;
+    activityRoot.tile = locals.template.defaultTitle;
   }
 
-  activityRoot.status = conn.data.template.statusOnCreate;
+  activityRoot.status = locals.template.statusOnCreate;
   activityRoot.office = conn.req.body.office;
   activityRoot.template = conn.req.body.template;
 
@@ -296,28 +299,28 @@ const createActivityRoot = (conn) => {
     conn,
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
-    conn.data.template.schedule
+    locals.template.schedule
   );
 
   activityRoot.venue = filterVenues(
     conn,
     conn.req.body.venue,
     /** The `venue` object from the template. */
-    conn.data.template.venue
+    locals.template.venue
   );
 
-  activityRoot.timestamp = conn.data.timestamp;
+  activityRoot.timestamp = locals.timestamp;
 
   /** The docRef is the reference to the document which the
     * activity handled in the request. It will ne null for an
     * activity with the template 'plan' with office 'personal'.
     */
-  activityRoot.docRef = conn.docRef || null;
+  activityRoot.docRef = locals.docRef || null;
 
   /** The rule is stored here to avoid reading subscriptions during
    * updates.
    */
-  activityRoot.canEditRule = conn.data.subscription.canEditRule;
+  activityRoot.canEditRule = locals.subscription.canEditRule;
 
   conn.batch.set(conn.activityRef, activityRoot);
 
@@ -331,10 +334,11 @@ const createActivityRoot = (conn) => {
  * timestamp of the request and the api used.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateDailyActivities = (conn) => {
-  const docId = getISO8601Date(conn.data.timestamp);
+const updateDailyActivities = (conn, locals) => {
+  const docId = getISO8601Date(locals.timestamp);
 
   conn.batch.set(rootCollections
     .dailyActivities
@@ -344,7 +348,7 @@ const updateDailyActivities = (conn) => {
       template: conn.req.body.template,
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
-      timestamp: conn.data.timestamp,
+      timestamp: locals.timestamp,
       geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 
@@ -358,10 +362,11 @@ const updateDailyActivities = (conn) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const createSubscription = (conn, docData) => {
-  if (!conn.data.office.empty) {
+const createSubscription = (conn, docData, locals) => {
+  if (!locals.office.empty) {
     sendResponse(
       conn,
       code.conflict,
@@ -372,7 +377,7 @@ const createSubscription = (conn, docData) => {
   }
 
   docData.canEditRule = conn.req.body.canEditRule;
-  docData.timestamp = conn.data.timestamp;
+  docData.timestamp = locals.timestamp;
 
   conn.docRef = rootCollections
     .profiles
@@ -410,10 +415,11 @@ const createSubscription = (conn, docData) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const createOffice = (conn, docData) => {
-  if (!conn.data.office.empty) {
+const createOffice = (conn, docData, locals) => {
+  if (!locals.office.empty) {
     sendResponse(
       conn,
       code.conflict,
@@ -423,11 +429,11 @@ const createOffice = (conn, docData) => {
     return;
   }
 
-  conn.docRef = rootCollections.offices.doc(conn.activityRef.id);
+  locals.docRef = rootCollections.offices.doc(conn.activityRef.id);
 
-  conn.batch.set(conn.docRef, docData);
+  conn.batch.set(locals.docRef, docData);
 
-  updateDailyActivities(conn);
+  updateDailyActivities(conn, locals);
 };
 
 
@@ -437,10 +443,11 @@ const createOffice = (conn, docData) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const createNewEntityInOffice = (conn, docData) => {
-  if (conn.data.office.empty) {
+const createNewEntityInOffice = (conn, docData, locals) => {
+  if (locals.office.empty) {
     sendResponse(
       conn,
       code.badRequest,
@@ -450,18 +457,18 @@ const createNewEntityInOffice = (conn, docData) => {
     return;
   }
 
-  const officeId = conn.data.office.docs[0].id;
+  const officeId = locals.office.docs[0].id;
 
-  conn.docRef = rootCollections
+  locals.docRef = rootCollections
     .offices
     .doc(officeId)
     /** Collection names are `ALWAYS` plural. */
     .collection(`${conn.req.body.template}s`)
     .doc(conn.activityRef.id);
 
-  conn.batch.set(conn.docRef, docData);
+  conn.batch.set(locals.docRef, docData);
 
-  updateDailyActivities(conn);
+  updateDailyActivities(conn, locals);
 };
 
 
@@ -469,9 +476,10 @@ const createNewEntityInOffice = (conn, docData) => {
  * Handles the cases where the template is of `subcription` or `office`.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const handleSpecialTemplates = (conn) => {
+const handleSpecialTemplates = (conn, locals) => {
   /** A temp object storing all the fields for the doc to
    * write from the attachment.
    */
@@ -482,7 +490,7 @@ const handleSpecialTemplates = (conn) => {
 
   const attachment = filterAttachment(
     conn.req.body.attachment,
-    conn.data.template.attachment
+    locals.template.attachment
   );
 
   /** Add `ALL` fields from the `attachment` to the subscription document. */
@@ -494,7 +502,7 @@ const handleSpecialTemplates = (conn) => {
     conn,
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
-    conn.data.template.schedule
+    locals.template.schedule
   );
 
   schedules.forEach((schedule) => {
@@ -508,7 +516,7 @@ const handleSpecialTemplates = (conn) => {
     conn,
     conn.req.body.venue,
     /** The `venue` object from the template. */
-    conn.data.template.venue
+    locals.template.venue
   );
 
   venues.forEach((venue) => {
@@ -519,23 +527,23 @@ const handleSpecialTemplates = (conn) => {
     };
   });
 
-  docData.status = conn.data.template.statusOnCreate;
+  docData.status = locals.template.statusOnCreate;
   docData.office = conn.req.body.office;
   docData.template = conn.req.body.template;
 
   if (conn.req.body.template === 'office') {
-    createOffice(conn, docData);
+    createOffice(conn, docData, locals);
 
     return;
   }
 
   if (conn.req.body.template === 'admin') {
-    createSubscription(conn, docData);
+    createSubscription(conn, docData, locals);
 
     return;
   }
 
-  createNewEntityInOffice(conn, docData);
+  createNewEntityInOffice(conn, docData, locals);
 };
 
 
@@ -544,18 +552,19 @@ const handleSpecialTemplates = (conn) => {
  * based on that.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const processRequestType = (conn) => {
+const processRequestType = (conn, locals) => {
   /** A reference of the batch and the activity instance will be used
    * multiple times throughout the activity creation.
    */
-  conn.activityRef = rootCollections.activities.doc();
-  conn.batch = db.batch();
+  locals.activityRef = rootCollections.activities.doc();
+  locals.batch = db.batch();
 
   if (conn.req.body.office === 'personal') {
     if (conn.req.body.template === 'plan') {
-      updateDailyActivities(conn);
+      updateDailyActivities(conn, locals);
 
       return;
     }
@@ -582,18 +591,19 @@ const processRequestType = (conn) => {
     return;
   }
 
-  handleSpecialTemplates(conn);
+  handleSpecialTemplates(conn, locals);
 };
 
 
 /**
  * Adds the `canEditRule` from the request body to a temporary
- * object in `conn.data`.
+ * object in `locals` object.
  *
  * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const handleSupportRequest = (conn) => {
+const handleSupportRequest = (conn, locals) => {
   if (!conn.req.body.hasOwnProperty('canEditRule')) {
     sendResponse(
       conn,
@@ -604,13 +614,13 @@ const handleSupportRequest = (conn) => {
     return;
   }
 
-  if (conn.data.canEditRules.get('CANEDITRULES')
+  if (locals.canEditRules.get('CANEDITRULES')
     .indexOf(conn.req.body.canEditRule) === -1) {
     sendResponse(
       conn,
       code.badRequest,
       `The canEditRule in the request body is invalid. Use one of`
-      + ` the following: ${conn.data.canEditRules.get('CANEDITRULES')}`
+      + ` the following: ${locals.canEditRules.get('CANEDITRULES')}`
     );
 
     return;
@@ -619,9 +629,9 @@ const handleSupportRequest = (conn) => {
   /** For support requests, the `canEditRule` will be used from the
    * request body and not from the user's subscription.
    */
-  conn.data.subscription.canEditRule = conn.req.body.canEditRule;
+  locals.subscription.canEditRule = conn.req.body.canEditRule;
 
-  processRequestType(conn);
+  processRequestType(conn, locals);
 };
 
 
@@ -635,10 +645,10 @@ const handleSupportRequest = (conn) => {
  */
 const handleResult = (conn, result) => {
   /** Stores all the temporary data for creating the activity. */
-  conn.data = {};
+  const locals = {};
 
   /** Calling new Date() constructor multiple times is wasteful. */
-  conn.data.timestamp = new Date(conn.req.body.timestamp);
+  locals.timestamp = new Date(conn.req.body.timestamp);
 
   /** A template with the name from the request body doesn't exist. */
   if (result[0].empty) {
@@ -651,21 +661,20 @@ const handleResult = (conn, result) => {
     return;
   }
 
-  conn.data.template = result[0].docs[0].data();
-  conn.data.subscription = {};
+  locals.template = result[0].docs[0].data();
+  locals.subscription = {};
 
   /** Subscription may or may not exist (especially when creating an `Office`). */
   if (!result[1].empty) {
-    conn.data.subscription = result[1].docs[0].data();
-    conn.data.subscription.id = result[1].docs[0].id;
+    locals.subscription = result[1].docs[0].data();
+    locals.subscription.id = result[1].docs[0].id;
   }
 
   /** Storing office as a reference when the office is not personal,
    * the data and its reference is required fof creating an office.
    */
-  conn.data.office = result[2];
-
-  conn.data.canEditRules = result[3];
+  locals.office = result[2];
+  locals.canEditRules = result[3];
 
   /** Handle support requests from here. */
   if (conn.requester.isSupportRequest) {
@@ -674,7 +683,7 @@ const handleResult = (conn, result) => {
      * to create the activity with.
      * @see https://github.com/Growthfilev2/backend-cloud-functions/blob/master/docs/support-requests/README.md
      */
-    handleSupportRequest(conn);
+    handleSupportRequest(conn, locals);
 
     return;
   }
@@ -711,7 +720,7 @@ const handleResult = (conn, result) => {
     return;
   }
 
-  processRequestType(conn);
+  processRequestType(conn, locals);
 };
 
 
@@ -721,7 +730,7 @@ const handleResult = (conn, result) => {
  * @param {Object} conn Object containing Express Request and Response objects.
  * @returns {void}
  */
-const fetchDocs = (conn) => {
+const fetchDocs = (conn) =>
   Promise
     .all([
       rootCollections
@@ -748,7 +757,6 @@ const fetchDocs = (conn) => {
     ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
