@@ -91,6 +91,25 @@ const updateDailyActivities = (conn) => {
 
 
 /**
+ * Updates the `timestamp` field in the activity root object with the timestamp
+ * sent from the request body.
+ *
+ * @param {Object} conn Object with Express Request and Response Objects.
+ * @returns {void}
+ */
+const updateActivityRootTimestamp = (conn) => {
+  conn.batch.set(rootCollections
+    .activities.doc(conn.req.body.activityId), {
+      timestamp: conn.data.timestamp,
+    }, {
+      merge: true,
+    });
+
+  updateDailyActivities(conn);
+};
+
+
+/**
  * Adds addendum doc for each assignee of the activity for which the comment
  * is being created.
  *
@@ -132,7 +151,7 @@ const setAddendumForAssignees = (conn) => {
           });
       });
 
-      updateDailyActivities(conn);
+      updateActivityRootTimestamp(conn);
 
       return;
     }).catch((error) => handleError(conn, error));
