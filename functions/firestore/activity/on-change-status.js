@@ -148,7 +148,6 @@ const updateActivityStatus = (conn, locals) => {
 const fetchTemplate = (conn, locals) => {
   rootCollections
     .activityTemplates
-    // .doc(conn.data.activity.get('template'))
     .doc(locals.activity.get('template'))
     .get()
     .then((doc) => {
