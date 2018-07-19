@@ -29,7 +29,7 @@
   },
   "rules": {
     // Removed rule "disallow the use of console" from recommended eslint rules
-    "no-console": "off",
+    "no-console": "warn",
     // Removed rule "disallow multiple spaces in regular expressions" from recommended eslint rules
     "no-regex-spaces": "warn",
     // Removed rule "disallow the use of debugger" from recommended eslint rules
@@ -165,7 +165,7 @@
     "newline-per-chained-call": [
       "warn",
       {
-        "ignoreChainWithDepth": 4
+        "ignoreChainWithDepth": 3
       }
     ],
     "no-unused-expressions": "warn",

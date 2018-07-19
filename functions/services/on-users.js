@@ -25,13 +25,9 @@
 'use strict';
 
 
-const {
-  sendResponse,
-} = require('../admin/utils');
+const { sendResponse, } = require('../admin/utils');
 
-const {
-  code,
-} = require('../admin/responses');
+const { code, } = require('../admin/responses');
 
 
 /**
@@ -40,7 +36,7 @@ const {
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @returns {void}
  */
-const app = (conn) => {
+module.exports = (conn) => {
   const action = require('url').parse(conn.req.url).path.split('/')[3];
 
   if (action.startsWith('read')) {
@@ -83,6 +79,3 @@ const app = (conn) => {
     `No resource found at the path: ${(conn.req.url)}.`
   );
 };
-
-
-module.exports = app;

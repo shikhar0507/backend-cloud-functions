@@ -32,9 +32,7 @@ const {
   db,
 } = require('../admin/admin');
 
-const {
-  getISO8601Date,
-} = require('../admin/utils');
+const { getISO8601Date, } = require('../admin/utils');
 
 
 /**
@@ -58,6 +56,7 @@ const updateDailySignups = (userRecord, batch) =>
         merge: true,
       })
     .then(() => batch.commit())
+    /* eslint no-console: "off" */
     .catch(console.error);
 
 
@@ -173,16 +172,20 @@ const createActivity = (userRecord, batch) => {
  * @param {Object} userRecord Object with user info.
  * @returns {Promise} Batch object.
  */
-const app = (userRecord) => {
+module.exports = (userRecord) => {
   const batch = db.batch();
 
-  batch.set(rootCollections.updates.doc(userRecord.uid), {
-    phoneNumber: userRecord.phoneNumber,
-  });
+  batch.set(rootCollections
+    .updates
+    .doc(userRecord.uid), {
+      phoneNumber: userRecord.phoneNumber,
+    });
 
-  batch.set(rootCollections.profiles.doc(userRecord.phoneNumber), {
-    uid: userRecord.uid,
-  }, {
+  batch.set(rootCollections
+    .profiles
+    .doc(userRecord.phoneNumber), {
+      uid: userRecord.uid,
+    }, {
       /** Profile *may* exist already, if the user signed
        * up to the platform somtime in the past.
       */
@@ -191,6 +194,3 @@ const app = (userRecord) => {
 
   return createActivity(userRecord, batch);
 };
-
-
-module.exports = app;

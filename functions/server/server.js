@@ -25,10 +25,9 @@
 'use strict';
 
 
-const {
-  rootCollections,
-  users,
-} = require('../admin/admin');
+const { rootCollections, users, } = require('../admin/admin');
+
+const { code, } = require('../admin/responses');
 
 const {
   handleError,
@@ -37,9 +36,6 @@ const {
   disableAccount,
 } = require('../admin/utils');
 
-const {
-  code,
-} = require('../admin/responses');
 
 
 /**
@@ -235,6 +231,7 @@ const checkAuthorizationToken = (conn) => {
         return;
       }
 
+      /* eslint no-console: "off" */
       console.log(error);
 
       sendResponse(
@@ -254,7 +251,7 @@ const checkAuthorizationToken = (conn) => {
  * @param {Object} res Express Response object.
  * @returns {void}
  */
-const server = (req, res) => {
+module.exports = (req, res) => {
   const conn = {
     req,
     res,
@@ -302,6 +299,3 @@ const server = (req, res) => {
     + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests.'
   );
 };
-
-
-module.exports = server;

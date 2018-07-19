@@ -33,6 +33,7 @@ try {
     databaseURL: 'https://growthfilev2-0.firebaseio.com',
   });
 } catch (error) {
+  /* eslint no-console: "off" */
   console.error(JSON.stringify(error));
 }
 

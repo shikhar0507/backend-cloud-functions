@@ -25,11 +25,9 @@
 'use strict';
 
 
-const {
-  rootCollections,
-  getGeopointObject,
-  db,
-} = require('../../admin/admin');
+const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+
+const { code, } = require('../../admin/responses');
 
 const {
   handleError,
@@ -40,9 +38,6 @@ const {
   isValidGeopoint,
 } = require('../../admin/utils');
 
-const {
-  code,
-} = require('../../admin/responses');
 
 
 /**
@@ -50,15 +45,17 @@ const {
  * about the result.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {Promise} Batch object.
  */
-const commitBatch = (conn) => conn.batch.commit()
-  .then(() => sendResponse(
-    conn,
-    code.created,
-    'The comment was successfully added to the activity.'
-  ))
-  .catch((error) => handleError(conn, error));
+const commitBatch = (conn, locals) =>
+  locals.batch.commit()
+    .then(() => sendResponse(
+      conn,
+      code.created,
+      'The comment was successfully added to the activity.'
+    ))
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -67,19 +64,20 @@ const commitBatch = (conn) => conn.batch.commit()
  * timestamp of the request and the api used.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateDailyActivities = (conn) => {
-  const docId = getISO8601Date(conn.data.timestamp);
+const updateDailyActivities = (conn, locals) => {
+  const docId = getISO8601Date(locals.timestamp);
 
-  conn.batch.set(rootCollections
+  locals.batch.set(rootCollections
     .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
-      office: conn.data.activity.get('office'),
-      timestamp: conn.data.timestamp,
-      template: conn.data.activity.get('template'),
+      office: locals.activity.get('office'),
+      timestamp: locals.timestamp,
+      template: locals.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.req.body.activityId,
@@ -95,12 +93,13 @@ const updateDailyActivities = (conn) => {
  * sent from the request body.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateActivityRootTimestamp = (conn) => {
-  conn.batch.set(rootCollections
+const updateActivityRootTimestamp = (conn, locals) => {
+  locals.batch.set(rootCollections
     .activities.doc(conn.req.body.activityId), {
-      timestamp: conn.data.timestamp,
+      timestamp: locals.timestamp,
     }, {
       merge: true,
     });
@@ -114,23 +113,24 @@ const updateActivityRootTimestamp = (conn) => {
  * is being created.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const setAddendumForAssignees = (conn) => {
-  conn.assigneesPhoneNumberList.forEach((phoneNumber) => {
-    conn.batch.set(rootCollections
+const setAddendumForAssignees = (conn, locals) => {
+  locals.assigneesPhoneNumberList.forEach((phoneNumber) => {
+    locals.batch.set(rootCollections
       .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
-        timestamp: conn.data.timestamp,
+        timestamp: locals.timestamp,
       }, {
         merge: true,
       });
   });
 
   Promise
-    .all(conn.assigneeDocPromises)
+    .all(locals.assigneeDocPromises)
     .then((snapShots) => {
       snapShots.forEach((doc) => {
         /** `uid` shouldn't be `null` OR `undefined` */
@@ -138,23 +138,23 @@ const setAddendumForAssignees = (conn) => {
 
         if (!doc.get('uid')) return;
 
-        conn.batch.set(rootCollections
-          .updates
-          .doc(doc.get('uid'))
+        locals.batch.set(rootCollections
+          .updates.doc(doc.get('uid'))
           .collection('Addendum')
           .doc(), {
             activityId: conn.req.body.activityId,
             user: conn.requester.displayName || conn.requester.phoneNumber,
             comment: conn.req.body.comment,
             location: getGeopointObject(conn.req.body.geopoint),
-            timestamp: conn.data.timestamp,
+            timestamp: locals.timestamp,
           });
       });
 
-      updateActivityRootTimestamp(conn);
+      updateActivityRootTimestamp(conn, locals);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -163,11 +163,12 @@ const setAddendumForAssignees = (conn) => {
  * and creates a list of profiles for which the Addendum are to be written.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const createAssigneePromises = (conn) => {
-  conn.assigneeDocPromises = [];
-  conn.assigneesPhoneNumberList = [];
+const createAssigneePromises = (conn, locals) => {
+  locals.assigneeDocPromises = [];
+  locals.assigneesPhoneNumberList = [];
 
   rootCollections
     .activities
@@ -176,15 +177,14 @@ const createAssigneePromises = (conn) => {
     .get()
     .then((snapShot) => {
       snapShot.forEach((doc) => {
-        conn.assigneeDocPromises
-          .push(rootCollections.profiles.doc(doc.id).get());
-        conn.assigneesPhoneNumberList
-          .push(doc.id);
+        locals.assigneeDocPromises.push(
+          rootCollections.profiles.doc(doc.id).get()
+        );
+
+        locals.assigneesPhoneNumberList.push(doc.id);
       });
 
-      conn.batch = db.batch();
-
-      setAddendumForAssignees(conn);
+      setAddendumForAssignees(conn, locals);
 
       return;
     })
@@ -196,9 +196,10 @@ const createAssigneePromises = (conn) => {
  * Fetches the activity doc from inside the `Activities` root collection.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const checkIfActivityExists = (conn) => {
+const checkIfActivityExists = (conn, locals) =>
   rootCollections
     .activities
     .doc(conn.req.body.activityId)
@@ -219,14 +220,13 @@ const checkIfActivityExists = (conn) => {
        * support person, but actually exists in the `/Activities`
        * collection.
        */
-      conn.data.activity = doc;
+      locals.activity = doc;
 
-      createAssigneePromises(conn);
+      createAssigneePromises(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -234,20 +234,21 @@ const checkIfActivityExists = (conn) => {
  * have sent a request to add a comment to.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const checkCommentPermission = (conn) => {
+const checkCommentPermission = (conn, locals) => {
   if (conn.requester.isSupportRequest) {
     /** The activity may not exist in the `Profiles/(phoneNumber)/Activities`
      * collection, so for the support requests, another check inside the
      * `/Activities` root collection is required.
      */
-    checkIfActivityExists(conn);
+    checkIfActivityExists(conn, locals);
 
     return;
   }
 
-  if (!conn.data.profileActivityDoc.exists) {
+  if (!locals.profileActivityDoc.exists) {
     sendResponse(
       conn,
       code.conflict,
@@ -257,11 +258,13 @@ const checkCommentPermission = (conn) => {
     return;
   }
 
-  createAssigneePromises(conn);
+  createAssigneePromises(conn, locals);
+
+  return;
 };
 
 
-const fetchDocs = (conn) => {
+const fetchDocs = (conn) =>
   Promise
     .all([
       rootCollections
@@ -276,19 +279,20 @@ const fetchDocs = (conn) => {
         .get(),
     ])
     .then((docsArray) => {
-      conn.data = {};
+      const locals = {};
+      locals.batch = db.batch();
 
-      /** Calling new Date() constructor multiple times is wasteful. */
-      conn.data.timestamp = new Date(conn.req.body.timestamp);
-      conn.data.profileActivityDoc = docsArray[0];
-      conn.data.activity = docsArray[1];
+      /** Calling `new Date()` constructor multiple times is wasteful. */
+      locals.timestamp = new Date(conn.req.body.timestamp);
+      locals.profileActivityDoc = docsArray[0];
+      locals.activity = docsArray[1];
 
-      checkCommentPermission(conn);
+      checkCommentPermission(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-};
+
 
 
 /**
@@ -298,15 +302,14 @@ const fetchDocs = (conn) => {
  * @param {Object} body The request body.
  * @returns {boolean} If the request body is valid.
  */
-const isValidRequestBody = (body) => {
-  return isNonEmptyString(body.activityId)
-    && isValidDate(body.timestamp)
-    && isValidGeopoint(body.geopoint)
-    && isNonEmptyString(body.comment);
-};
+const isValidRequestBody = (body) =>
+  isNonEmptyString(body.activityId)
+  && isValidDate(body.timestamp)
+  && isValidGeopoint(body.geopoint)
+  && isNonEmptyString(body.comment);
 
 
-const app = (conn) => {
+module.exports = (conn) => {
   if (!isValidRequestBody(conn.req.body)) {
     sendResponse(
       conn,
@@ -321,6 +324,3 @@ const app = (conn) => {
 
   fetchDocs(conn);
 };
-
-
-module.exports = app;

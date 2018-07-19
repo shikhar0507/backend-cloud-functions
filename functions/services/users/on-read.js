@@ -25,13 +25,9 @@
 'use strict';
 
 
-const {
-  users,
-} = require('../../admin/admin');
+const { users, } = require('../../admin/admin');
 
-const {
-  code,
-} = require('../../admin/responses');
+const { code, } = require('../../admin/responses');
 
 const {
   handleError,
@@ -40,9 +36,6 @@ const {
   isE164PhoneNumber,
 } = require('../../admin/utils');
 
-const {
-  getUserByPhoneNumber,
-} = users;
 
 
 /**
@@ -51,12 +44,12 @@ const {
  * @param {Object} conn Object containing Express's Request and Reponse objects.
  * @returns {void}
  */
-const app = (conn) => {
+module.exports = (conn) => {
   if (!conn.req.query.q) {
     sendResponse(
       conn,
       code.badRequest,
-      'No query parameter found in the request URL. Please use ?q=value in the URL.'
+      'No query parameter found in the request URL. Please use ?q=phone number in the URL.'
     );
 
     return;
@@ -80,10 +73,10 @@ const app = (conn) => {
     conn.req.query.q.forEach((val) => {
       if (!isE164PhoneNumber(val)) return;
 
-      promises.push(getUserByPhoneNumber(val));
+      promises.push(users.getUserByPhoneNumber(val));
     });
   } else {
-    promises.push(getUserByPhoneNumber(conn.req.query.q));
+    promises.push(users.getUserByPhoneNumber(conn.req.query.q));
   }
 
   const jsonResponse = {};
@@ -124,6 +117,3 @@ const app = (conn) => {
     })
     .catch((error) => handleError(conn, error));
 };
-
-
-module.exports = app;

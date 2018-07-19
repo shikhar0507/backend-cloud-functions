@@ -25,11 +25,9 @@
 'use strict';
 
 
-const {
-  rootCollections,
-  getGeopointObject,
-  db,
-} = require('../../admin/admin');
+const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+
+const { code, } = require('../../admin/responses');
 
 const {
   handleError,
@@ -41,14 +39,12 @@ const {
   isNonEmptyString,
 } = require('../../admin/utils');
 
-const {
-  code,
-} = require('../../admin/responses');
 
 
-const commitBatch = (conn) => conn.batch.commit()
-  .then(() => sendResponse(conn, code.noContent))
-  .catch((error) => handleError(conn, error));
+const commitBatch = (conn, locals) =>
+  locals.batch.commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -57,55 +53,56 @@ const commitBatch = (conn) => conn.batch.commit()
  * timestamp of the request and the api used.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateDailyActivities = (conn) => {
-  const docId = getISO8601Date(conn.data.timestamp);
+const updateDailyActivities = (conn, locals) => {
+  const docId = getISO8601Date(locals.timestamp);
 
-  conn.batch.set(rootCollections
+  locals.batch.set(rootCollections
     .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
-      office: conn.data.activity.get('office'),
-      timestamp: conn.data.timestamp,
-      template: conn.data.activity.get('template'),
+      office: locals.activity.get('office'),
+      timestamp: locals.timestamp,
+      template: locals.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.req.body.activityId,
       geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 
-  commitBatch(conn);
+  commitBatch(conn, locals);
 };
 
 
-const updateActivityDoc = (conn) => {
-  conn.batch.set(rootCollections
+const updateActivityDoc = (conn, locals) => {
+  locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
-      timestamp: conn.data.timestamp,
+      timestamp: locals.timestamp,
     }, {
       merge: true,
     }
   );
 
-  updateDailyActivities(conn);
+  updateDailyActivities(conn, locals);
 };
 
 
-const setAddendumForUsersWithUid = (conn) => {
+const setAddendumForUsersWithUid = (conn, locals) => {
   const promises = [];
 
-  conn.data.assigneeArray.forEach((phoneNumber) => {
+  locals.assigneeArray.forEach((phoneNumber) => {
     promises.push(rootCollections.profiles.doc(phoneNumber).get());
 
-    conn.batch.set(rootCollections
+    locals.batch.set(rootCollections
       .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
-        timestamp: conn.data.timestamp,
+        timestamp: locals.timestamp,
       }, {
         merge: true,
       }
@@ -119,17 +116,17 @@ const setAddendumForUsersWithUid = (conn) => {
         /** `uid` is NOT `null` OR `undefined` */
         if (!doc.get('uid')) return;
 
-        conn.batch.set(rootCollections
+        locals.batch.set(rootCollections
           .updates
           .doc(doc.get('uid'))
           .collection('Addendum')
           .doc(),
-          conn.data.addendum
+          locals.addendum
         );
 
       });
 
-      updateActivityDoc(conn);
+      updateActivityDoc(conn, locals);
 
       return;
     })
@@ -137,14 +134,14 @@ const setAddendumForUsersWithUid = (conn) => {
 };
 
 
-const unassignFromTheActivity = (conn) => {
+const unassignFromTheActivity = (conn, locals) => {
   let index;
 
   conn.req.body.remove.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
 
     /** Deleting from Assignees collection inside activity doc */
-    conn.batch.delete(rootCollections
+    locals.batch.delete(rootCollections
       .activities
       .doc(conn.req.body.activityId)
       .collection('Assignees')
@@ -152,52 +149,103 @@ const unassignFromTheActivity = (conn) => {
     );
 
     /** Deleting from Activities collection inside user Profile */
-    conn.batch.delete(rootCollections
+    locals.batch.delete(rootCollections
       .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId)
     );
 
-    index = conn.data.assigneeArray.indexOf(phoneNumber);
+    index = locals.assigneeArray.indexOf(phoneNumber);
 
     if (index > -1) {
-      conn.data.assigneeArray.splice(index, 1);
+      locals.assigneeArray.splice(index, 1);
     }
   });
 
-  setAddendumForUsersWithUid(conn);
+  setAddendumForUsersWithUid(conn, locals);
 
   return;
 };
 
 
-const fetchTemplate = (conn) => {
-  const template = conn.data.activity.get('template');
+const fetchTemplate = (conn, locals) => {
+  const template = locals.activity.get('template');
 
   rootCollections
     .activityTemplates
     .doc(template)
     .get()
     .then((doc) => {
-      conn.data.addendum = {
+      locals.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
         comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
           + ` updated ${doc.get('defaultTitle')}`,
         location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: conn.data.timestamp,
+        timestamp: locals.timestamp,
       };
 
-      conn.data.template = doc;
-      unassignFromTheActivity(conn);
+      locals.template = doc;
+      unassignFromTheActivity(conn, locals);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
-const fetchDocs = (conn) => {
+const handleResult = (conn, result) => {
+  if (!result[0].exists) {
+    /** This case should probably never execute becase there is NO provision
+     * for deleting an activity anywhere. AND, for reaching the `fetchDocs()`
+     * function, the check for the existance of the activity has already
+     * been performed in the `Profiles/(phoneNumber)/Activities(activity-id)`.
+     */
+    sendResponse(
+      conn,
+      code.conflict,
+      `No activity found with the id: ${conn.req.body.activityId}.`
+    );
+
+    return;
+  }
+
+  /** Assignees collection in the `Activity/(doc-id)/Assignees` */
+  if (result[1].size === 1) {
+    /** An activity cannot exist with zero assignees. The person
+     * last to stay cannot remove themselves.
+     */
+    sendResponse(
+      conn,
+      code.forbidden,
+      `Cannot remove the last assignee of the activity.`
+    );
+
+    return;
+  }
+
+  /** Object for storing local data. */
+  const locals = {};
+
+  locals.batch = db.batch();
+
+  /** Calling `new Date()` constructor multiple times is wasteful. */
+  locals.timestamp = new Date(conn.req.body.timestamp);
+
+  locals.activity = result[0];
+
+  /** The `assigneeArray` is required to add addendum.
+   * The `doc.id` is the phoneNumber of the assignee.
+   */
+  locals.assigneeArray = [];
+  result[1].forEach((doc) => locals.assigneeArray.push(doc.id));
+
+  fetchTemplate(conn, locals);
+};
+
+
+const fetchDocs = (conn) =>
   Promise
     .all([
       rootCollections
@@ -210,62 +258,11 @@ const fetchDocs = (conn) => {
         .collection('Assignees')
         .get(),
     ])
-    .then((result) => {
-      if (!result[0].exists) {
-        /** This case should probably never execute becase there is NO provision
-         * for deleting an activity anywhere. AND, for reaching the `fetchDocs()`
-         * function, the check for the existance of the activity has already
-         * been performed in the `Profiles/(phoneNumber)/Activities(activity-id)`.
-         */
-        sendResponse(
-          conn,
-          code.conflict,
-          `No activity found with the id: ${conn.req.body.activityId}.`
-        );
-
-        return;
-      }
-
-      /** Assignees collection in the `Activity/(doc-id)/Assignees` */
-      if (result[1].size === 1) {
-        /** An activity cannot exist with zero assignees. The person
-         * last to stay cannot remove themselves.
-         */
-        sendResponse(
-          conn,
-          code.forbidden,
-          `Cannot remove the last assignee of the activity.`
-        );
-
-        return;
-      }
-
-      conn.batch = db.batch();
-
-      /** Object for storing local data. */
-      conn.data = {};
-
-      /** Calling `new Date()` constructor multiple times is wasteful. */
-      conn.data.timestamp = new Date(conn.req.body.timestamp);
-
-      conn.data.activity = result[0];
-      conn.data.assigneeArray = [];
-
-      /** The `assigneeArray` is required to add addendum. */
-      result[1].forEach((doc) => {
-        /** The `doc.id` is the phoneNumber of the assignee. */
-        conn.data.assigneeArray.push(doc.id);
-      });
-
-      fetchTemplate(conn);
-
-      return;
-    })
+    .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
-};
 
 
-const verifyEditPermission = (conn) => {
+const verifyEditPermission = (conn) =>
   rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
@@ -301,7 +298,6 @@ const verifyEditPermission = (conn) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 const isValidRequestBody = (body) =>
@@ -311,7 +307,7 @@ const isValidRequestBody = (body) =>
   && isValidGeopoint(body.geopoint);
 
 
-const app = (conn) => {
+module.exports = (conn) => {
   if (!isValidRequestBody(conn.req.body)) {
     sendResponse(
       conn,
@@ -335,6 +331,3 @@ const app = (conn) => {
 
   verifyEditPermission(conn);
 };
-
-
-module.exports = app;

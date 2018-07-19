@@ -25,9 +25,11 @@
 'use strict';
 
 
-const {
-  users,
-} = require('../admin/admin');
+const { users, } = require('../admin/admin');
+
+const { code, } = require('../admin/responses');
+
+const { createInstantLog, } = require('../admin/logger');
 
 const {
   handleError,
@@ -35,13 +37,6 @@ const {
   isE164PhoneNumber,
 } = require('../admin/utils');
 
-const {
-  code,
-} = require('../admin/responses');
-
-const {
-  createInstantLog,
-} = require('../admin/logger');
 
 
 /**
@@ -217,7 +212,7 @@ const validateRequestBody = (conn, response) => {
  * @param {Object} conn Contains Express Request and Response objects.
  * @returns {void}
  */
-const app = (conn) => {
+module.exports = (conn) => {
   if (!conn.requester.customClaims) {
     sendResponse(
       conn,
@@ -253,6 +248,3 @@ const app = (conn) => {
 
   validateRequestBody(conn, response);
 };
-
-
-module.exports = app;

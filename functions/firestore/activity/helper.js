@@ -25,10 +25,7 @@
 'use strict';
 
 
-const {
-  isValidDate,
-  isValidGeopoint,
-} = require('../../admin/utils');
+const { isValidDate, isValidGeopoint, } = require('../../admin/utils');
 
 
 /**

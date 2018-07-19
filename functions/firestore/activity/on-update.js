@@ -25,11 +25,11 @@
 'use strict';
 
 
-const {
-  rootCollections,
-  getGeopointObject,
-  db,
-} = require('../../admin/admin');
+const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+
+const { filterSchedules, filterVenues, } = require('./helper');
+
+const { code, } = require('../../admin/responses');
 
 const {
   handleError,
@@ -40,25 +40,19 @@ const {
   isValidGeopoint,
 } = require('../../admin/utils');
 
-const {
-  filterSchedules,
-  filterVenues,
-} = require('./helper');
-
-const {
-  code,
-} = require('../../admin/responses');
 
 
 /**
  * Commits the batch to the DB.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} locals Object containing local data.
  * @returns {Promise} Batch Object.
  */
-const commitBatch = (conn) => conn.batch.commit()
-  .then(() => sendResponse(conn, code.noContent))
-  .catch((error) => handleError(conn, error));
+const commitBatch = (conn, locals) =>
+  locals.batch.commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -67,26 +61,27 @@ const commitBatch = (conn) => conn.batch.commit()
  * timestamp of the request and the api used.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateDailyActivities = (conn) => {
-  const docId = getISO8601Date(conn.data.timestamp);
+const updateDailyActivities = (conn, locals) => {
+  const docId = getISO8601Date(locals.timestamp);
 
-  conn.batch.set(rootCollections
+  locals.batch.set(rootCollections
     .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
-      office: conn.data.activity.get('office'),
-      timestamp: conn.data.timestamp,
-      template: conn.data.activity.get('template'),
+      office: locals.activity.get('office'),
+      timestamp: locals.timestamp,
+      template: locals.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.req.body.activityId,
       geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 
-  commitBatch(conn);
+  commitBatch(conn, locals);
 };
 
 
@@ -94,10 +89,10 @@ const updateDailyActivities = (conn) => {
  * Updates the activity root and adds the data to the batch.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
- * @param {Object} update Fields for the activity root object.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateActivityDoc = (conn) => {
+const updateActivityDoc = (conn, locals) => {
   /** Stores the objects that are to be updated in the activity root. */
   const update = {};
 
@@ -114,7 +109,7 @@ const updateActivityDoc = (conn) => {
   if (conn.req.body.hasOwnProperty('schedule')) {
     const scheduleNames = new Set();
 
-    conn.data.activity.get('schedule').forEach((sch) => {
+    locals.activity.get('schedule').forEach((sch) => {
       if (sch.hasOwnProperty('name')) {
         scheduleNames.add(sch.name);
       }
@@ -130,7 +125,7 @@ const updateActivityDoc = (conn) => {
   if (conn.req.body.hasOwnProperty('venue')) {
     const venueNames = new Set();
 
-    conn.data.activity.get('venue').forEach((venue) => {
+    locals.activity.get('venue').forEach((venue) => {
       if (!venue.hasOwnProperty('venueDescriptor')) return;
 
       venueNames.add(venue.venueDescriptor);
@@ -143,9 +138,9 @@ const updateActivityDoc = (conn) => {
     );
   }
 
-  update.timestamp = conn.data.timestamp;
+  update.timestamp = locals.timestamp;
 
-  /** Imeplementing the `handleAttachment()` method will make this work. */
+  /** Implementing the `handleAttachment()` method will make this work. */
   if (conn.hasOwnProperty('docRef')) {
     /**
      * The `docRef` is not `undefined` only when a document is updated during
@@ -154,7 +149,7 @@ const updateActivityDoc = (conn) => {
     update.docRef = conn.docRef;
   }
 
-  conn.batch.set(rootCollections
+  locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId),
     update, {
@@ -163,7 +158,7 @@ const updateActivityDoc = (conn) => {
     }
   );
 
-  updateDailyActivities(conn);
+  updateDailyActivities(conn, locals);
 };
 
 
@@ -172,12 +167,12 @@ const updateActivityDoc = (conn) => {
  * Manages the attachment object.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
- * @param {Object} update Fields for the activity root object.
+ * @param {Object} locals Fields for the activity root object.
  * @returns {void}
  */
-const handleAttachment = (conn) => {
+const handleAttachment = (conn, locals) => {
   /** Do stuff */
-  updateActivityDoc(conn);
+  updateActivityDoc(conn, locals);
 };
 
 
@@ -186,16 +181,17 @@ const handleAttachment = (conn) => {
  * Adds addendum data for all the assignees in the activity.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addAddendumForAssignees = (conn) => {
-  conn.data.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
-    conn.batch.set(rootCollections
+const addAddendumForAssignees = (conn, locals) => {
+  locals.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
+    locals.batch.set(rootCollections
       .profiles
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
-        timestamp: conn.data.timestamp,
+        timestamp: locals.timestamp,
       }, {
         merge: true,
       }
@@ -203,7 +199,7 @@ const addAddendumForAssignees = (conn) => {
   });
 
   Promise
-    .all(conn.data.assigneesArray)
+    .all(locals.assigneesArray)
     .then((snapShot) => {
       snapShot.forEach((doc) => {
         if (!doc.get('uid')) return;
@@ -212,27 +208,68 @@ const addAddendumForAssignees = (conn) => {
          * signed up. Addemdum is added only for the users who
          * have an account in auth.
          */
-        conn.batch.set(rootCollections
+        locals.batch.set(rootCollections
           .updates
           .doc(doc.get('uid'))
           .collection('Addendum')
           .doc(),
-          conn.data.addendum
+          locals.addendum
         );
       });
 
       /** Attachment absent. Skip it. */
       if (!conn.req.body.hasOwnProperty('attachment')) {
-        updateActivityDoc(conn);
+        updateActivityDoc(conn, locals);
 
         return;
       }
 
-      handleAttachment(conn);
+      handleAttachment(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
+};
+
+
+const handleResult = (conn, result) => {
+  if (!result[0].exists) {
+    /** This case should probably never execute becase there is provision
+     * for deleting an activity anywhere. AND, for reaching the fetchDocs()
+     * function, the check for the existance of the activity has already
+     * been performed in the User's profile.
+     */
+    sendResponse(
+      conn,
+      code.conflict,
+      `There is no activity with the id: ${conn.req.body.activityId}.`
+    );
+
+    return;
+  }
+
+
+  const locals = {};
+
+  locals.batch = db.batch();
+
+  /** Calling new `Date()` constructor multiple times is wasteful. */
+  locals.timestamp = new Date(conn.req.body.timestamp);
+  locals.activity = result[0];
+
+  locals.assigneesArray = [];
+  locals.assigneesPhoneNumbersArray = [];
+
+  result[1].forEach((doc) => {
+    /** The assigneesArray is required to add addendum. */
+    locals.assigneesArray.push(
+      rootCollections.profiles.doc(doc.id).get()
+    );
+
+    locals.assigneesPhoneNumbersArray.push(doc.id);
+  });
+
+  addAddendumForAssignees(conn, locals);
 };
 
 
@@ -242,7 +279,7 @@ const addAddendumForAssignees = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @returns {void}
  */
-const fetchDocs = (conn) => {
+const fetchDocs = (conn) =>
   Promise
     .all([
       rootCollections
@@ -255,47 +292,8 @@ const fetchDocs = (conn) => {
         .collection('Assignees')
         .get(),
     ])
-    .then((result) => {
-      if (!result[0].exists) {
-        /** This case should probably never execute becase there is provision
-         * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-         * function, the check for the existance of the activity has already
-         * been performed in the User's profile.
-         */
-        sendResponse(
-          conn,
-          code.conflict,
-          `There is no activity with the id: ${conn.req.body.activityId}.`
-        );
-
-        return;
-      }
-
-      conn.batch = db.batch();
-
-      conn.data = {};
-
-      /** Calling new `Date()` constructor multiple times is wasteful. */
-      conn.data.timestamp = new Date(conn.req.body.timestamp);
-      conn.data.activity = result[0];
-
-      conn.data.assigneesArray = [];
-      conn.data.assigneesPhoneNumbersArray = [];
-
-      result[1].forEach((doc) => {
-        /** The assigneesArray is required to add addendum. */
-        conn.data.assigneesArray.push(
-          rootCollections.profiles.doc(doc.id).get()
-        );
-        conn.data.assigneesPhoneNumbersArray.push(doc.id);
-      });
-
-      addAddendumForAssignees(conn);
-
-      return;
-    })
+    .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -341,15 +339,14 @@ const verifyEditPermission = (conn) => {
 };
 
 
-const isValidRequestBody = (conn) => {
-  return isValidDate(conn.req.body.timestamp)
-    && isNonEmptyString(conn.req.body.activityId)
-    && isValidGeopoint(conn.req.body.geopoint);
-};
+const isValidRequestBody = (body) =>
+  isValidDate(body.timestamp)
+  && isNonEmptyString(body.activityId)
+  && isValidGeopoint(body.geopoint);
 
 
-const app = (conn) => {
-  if (!isValidRequestBody(conn)) {
+module.exports = (conn) => {
+  if (!isValidRequestBody(conn.req.body)) {
     sendResponse(
       conn,
       code.badRequest,
@@ -369,6 +366,3 @@ const app = (conn) => {
 
   verifyEditPermission(conn);
 };
-
-
-module.exports = app;

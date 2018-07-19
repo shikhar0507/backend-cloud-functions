@@ -32,45 +32,30 @@ const {
   getGeopointObject,
 } = require('../../admin/admin');
 
+const { code, } = require('../../admin/responses');
+
 const {
   handleError,
   sendResponse,
   isE164PhoneNumber,
   isValidGeopoint,
   isValidDate,
+  getISO8601Date,
 } = require('../../admin/utils');
 
-const {
-  code,
-} = require('../../admin/responses');
 
-const {
-  updateUserPhoneNumberInAuth,
-  revokeRefreshTokens,
-  deleteUserFromAuth,
-} = users;
-
-
-const commitBatch = (conn, batch) => batch
-  .commit()
-  .then(() => sendResponse(conn, code.noContent))
-  .catch((error) => handleError(conn, error));
-
-
-const disableOldAccount = (conn, batch) => {
-  revokeRefreshTokens(conn.requester.uid)
-    .then(() => deleteUserFromAuth(conn.requester.uid))
-    .then(() => commitBatch(conn, batch))
+const disableOldAccount = (conn, locals) => {
+  users.revokeRefreshTokens(conn.requester.uid)
+    .then(() => users.deleteUserFromAuth(conn.requester.uid))
+    .then(() => locals.batch.commit())
     .catch((error) => handleError(conn, error));
 };
 
 
-const logDailyPhoneNumberChanges = (conn, batch) => {
-  const moment = require('moment');
+const logDailyPhoneNumberChanges = (conn, locals) => {
+  const docId = getISO8601Date(conn.req.body.timestamp);
 
-  const docId = moment(conn.req.body.timestamp).format('DD-MM-YYYY');
-
-  batch.set(rootCollections
+  locals.batch.set(rootCollections
     .dailyPhoneNumberChanges.doc(docId), {
       [conn.requester.phoneNumber]: {
         timestamp: new Date(conn.req.body.timestamp),
@@ -80,15 +65,17 @@ const logDailyPhoneNumberChanges = (conn, batch) => {
       merge: true,
     });
 
-  disableOldAccount(conn, batch);
+  disableOldAccount(conn, locals);
 };
 
 
-const writeAddendumForUsers = (conn, batch) => {
-  conn.data.usersWithUpdatesDoc.forEach((doc) => {
-    batch.set(rootCollections
+const writeAddendumForUsers = (conn, locals) => {
+  locals.usersWithUpdatesDoc.forEach((doc) => {
+    locals.batch.set(rootCollections
       .updates
-      .doc(doc.id).collection('Addendum').doc(), {
+      .doc(doc.id)
+      .collection('Addendum')
+      .doc(), {
         activityId: doc.get('activityId'),
         comment: `${conn.requester.phoneNumber} changed their`
           + ` phone number to ${conn.req.body.phoneNumber}.`,
@@ -98,18 +85,19 @@ const writeAddendumForUsers = (conn, batch) => {
       });
   });
 
-  logDailyPhoneNumberChanges(conn, batch);
+  logDailyPhoneNumberChanges(conn, locals);
 };
 
 
-const fetchUsersWithUid = (conn, batch) => {
+const fetchUsersWithUid = (conn, locals) => {
   const promises = [];
-  conn.data.usersWithUpdatesDoc = [];
+  locals.usersWithUpdatesDoc = [];
 
-  conn.data.assignees.forEach((userObject) => {
+  locals.assignees.forEach((userObject) => {
     promises.push(rootCollections
       .updates
-      .where('phoneNumber', '==', userObject.phoneNumber).get()
+      .where('phoneNumber', '==', userObject.phoneNumber)
+      .get()
     );
   });
 
@@ -121,12 +109,13 @@ const fetchUsersWithUid = (conn, batch) => {
 
         snapShot.forEach((doc) => {
           if (!doc.exists) return;
+          if (!doc.get('uid')) return;
 
-          conn.data.usersWithUpdatesDoc.push(doc);
+          locals.usersWithUpdatesDoc.push(doc);
         });
       });
 
-      writeAddendumForUsers(conn, batch);
+      writeAddendumForUsers(conn, locals);
 
       return;
     })
@@ -134,22 +123,22 @@ const fetchUsersWithUid = (conn, batch) => {
 };
 
 
-const updateActivityAssignees = (conn, batch) => {
-  conn.data.assignees = [];
+const updateActivityAssignees = (conn, locals) => {
+  locals.assignees = [];
 
   Promise
-    .all(conn.data.promises)
+    .all(locals.promises)
     .then((snapShots) => {
       snapShots.forEach((snapShot) => {
         snapShot.forEach((doc) => {
           const activityId = doc.ref.path.split('/')[1];
           const phoneNumber = doc.id;
 
-          conn.data.assignees.push({ activityId, phoneNumber, });
+          locals.assignees.push({ activityId, phoneNumber, });
         });
       });
 
-      fetchUsersWithUid(conn, batch);
+      fetchUsersWithUid(conn, locals);
 
       return;
     })
@@ -157,8 +146,8 @@ const updateActivityAssignees = (conn, batch) => {
 };
 
 
-const transferSubscriptions = (conn, batch) => {
-  const subscriptionsArray = conn.data.snapShots[1];
+const transferSubscriptions = (conn, locals, snapShots) => {
+  const subscriptionsArray = snapShots[1];
 
   subscriptionsArray.forEach((doc) => {
     const include = doc.get('include');
@@ -170,7 +159,7 @@ const transferSubscriptions = (conn, batch) => {
     const docData = doc.data();
     docData.include = include;
 
-    batch.set(rootCollections
+    locals.batch.set(rootCollections
       .profiles
       .doc(conn.req.body.phoneNumber)
       .collection('Subscriptions')
@@ -178,7 +167,7 @@ const transferSubscriptions = (conn, batch) => {
       docData
     );
 
-    batch.delete(rootCollections
+    locals.batch.delete(rootCollections
       .profiles
       .doc(conn.requester.phoneNumber)
       .collection('Subscriptions')
@@ -186,15 +175,15 @@ const transferSubscriptions = (conn, batch) => {
     );
   });
 
-  updateActivityAssignees(conn, batch);
+  updateActivityAssignees(conn, locals);
 };
 
-const transferActivities = (conn, batch) => {
-  const activitiesArray = conn.data.snapShots[0];
-  conn.data.promises = [];
+const transferActivities = (conn, locals, snapShots) => {
+  const activitiesArray = snapShots[0];
+  locals.promises = [];
 
   activitiesArray.forEach((doc) => {
-    conn.data.promises.push(
+    locals.promises.push(
       rootCollections
         .activities
         .doc(doc.id)
@@ -203,7 +192,7 @@ const transferActivities = (conn, batch) => {
     );
 
     /** Copy activities from old profile to the new one. */
-    batch.set(rootCollections
+    locals.batch.set(rootCollections
       .profiles
       .doc(conn.req.body.phoneNumber)
       .collection('Activities')
@@ -212,7 +201,7 @@ const transferActivities = (conn, batch) => {
     );
 
     /** Delete the copied activities (from previous step). */
-    batch.delete(rootCollections
+    locals.batch.delete(rootCollections
       .profiles
       .doc(conn.requester.phoneNumber)
       .collection('Activities')
@@ -220,7 +209,7 @@ const transferActivities = (conn, batch) => {
     );
 
     /** Add the new `phoneNumber` as an assignee to all the fetched activities. */
-    batch.set(rootCollections
+    locals.batch.set(rootCollections
       .activities
       .doc(doc.id)
       .collection('Assignees')
@@ -230,7 +219,7 @@ const transferActivities = (conn, batch) => {
       });
 
     /** Delete old `phoneNumber` from Activity assignees list. */
-    batch.delete(rootCollections
+    locals.batch.delete(rootCollections
       .activities
       .doc(doc.id)
       .collection('Assignees')
@@ -238,39 +227,34 @@ const transferActivities = (conn, batch) => {
     );
   });
 
-  transferSubscriptions(conn, batch);
+  transferSubscriptions(conn, locals, snapShots);
 };
 
 
-const fetchActivitiesAndSubsriptions = (conn, batch) => {
-  const userProfile = rootCollections.profiles.doc(conn.requester.phoneNumber);
-
+const fetchActivitiesAndSubsriptions = (conn, locals) =>
   Promise
     .all([
-      userProfile
+      rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber)
         .collection('Activities')
         .get(),
-      userProfile
+      rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber)
         .collection('Subscriptions')
         .get(),
     ])
-    .then((snapShots) => {
-      conn.data.snapShots = snapShots;
-      transferActivities(conn, batch);
-
-      return;
-    })
+    .then((snapShots) => transferActivities(conn, locals, snapShots))
     .catch((error) => handleError(conn, error));
-};
 
 
 const updateUserDocs = (conn) => {
-  const batch = db.batch();
-
   /** Stores temporary data throughout the code. */
-  conn.data = {};
+  const locals = {};
+  locals.batch = db.batch();
 
-  batch.set(rootCollections
+  locals.batch.set(rootCollections
     .profiles
     .doc(conn.req.body.phoneNumber), {
       uid: conn.requester.uid,
@@ -279,32 +263,33 @@ const updateUserDocs = (conn) => {
     }
   );
 
-  batch.set(rootCollections
-    .updates.
-    doc(conn.requester.uid), {
+  locals.batch.set(rootCollections
+    .updates
+    .doc(conn.requester.uid), {
       phoneNumber: conn.req.body.phoneNumber,
     }, {
       merge: true,
     }
   );
 
-  fetchActivitiesAndSubsriptions(conn, batch);
+  fetchActivitiesAndSubsriptions(conn, locals);
 };
 
 
 const updatePhoneNumberInAuth = (conn) => {
-  updateUserPhoneNumberInAuth(
-    /** Current `uid` */
-    conn.requester.uid,
-    /** New phoneNumber to set. */
-    conn.req.body.phoneNumber
-  )
+  users
+    .updateUserPhoneNumberInAuth(
+      /** Current `uid` */
+      conn.requester.uid,
+      /** New phoneNumber to set. */
+      conn.req.body.phoneNumber
+    )
     .then(() => updateUserDocs(conn))
     .catch((error) => handleError(conn, error));
 };
 
 
-const app = (conn) => {
+module.exports = (conn) => {
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {
     sendResponse(
       conn,
@@ -367,6 +352,3 @@ const app = (conn) => {
 
   updatePhoneNumberInAuth(conn);
 };
-
-
-module.exports = app;

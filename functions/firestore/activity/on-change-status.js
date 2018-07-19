@@ -25,11 +25,9 @@
 'use strict';
 
 
-const {
-  rootCollections,
-  getGeopointObject,
-  db,
-} = require('../../admin/admin');
+const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+
+const { code, } = require('../../admin/responses');
 
 const {
   handleError,
@@ -40,20 +38,19 @@ const {
   isValidGeopoint,
 } = require('../../admin/utils');
 
-const {
-  code,
-} = require('../../admin/responses');
 
 
 /**
  * Commits the batch to write the documents added to the batch atomically.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {Promise} Batch object
  */
-const commitBatch = (conn) => conn.batch.commit()
-  .then(() => sendResponse(conn, code.noContent))
-  .catch((error) => handleError(conn, error));
+const commitBatch = (conn, locals) =>
+  locals.batch.commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -62,19 +59,20 @@ const commitBatch = (conn) => conn.batch.commit()
  * timestamp of the request and the api used.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateDailyActivities = (conn) => {
-  const docId = getISO8601Date(conn.data.timestamp);
+const updateDailyActivities = (conn, locals) => {
+  const docId = getISO8601Date(locals.timestamp);
 
-  conn.batch.set(rootCollections
+  locals.batch.set(rootCollections
     .dailyActivities
     .doc(docId)
     .collection('Logs')
     .doc(), {
-      office: conn.data.activity.get('office'),
-      timestamp: conn.data.timestamp,
-      template: conn.data.activity.get('template'),
+      office: locals.activity.get('office'),
+      timestamp: locals.timestamp,
+      template: locals.activity.get('template'),
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
       activityId: conn.req.body.activityId,
@@ -90,17 +88,18 @@ const updateDailyActivities = (conn) => {
  * signed up.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addAddendumForAssignees = (conn) => {
+const addAddendumForAssignees = (conn, locals) => {
   Promise
-    .all(conn.data.assignees)
+    .all(locals.assigneeDocPromises)
     .then((docsArray) => {
       /** Adds addendum for all the users who have signed up via auth. */
       docsArray.forEach((doc) => {
         if (!doc.get('uid')) return;
 
-        conn.batch.set(rootCollections
+        locals.batch.set(rootCollections
           .updates
           .doc(doc.get('uid'))
           .collection('Addendum')
@@ -120,14 +119,15 @@ const addAddendumForAssignees = (conn) => {
  * Updates the `status` field in the activity root.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateActivityStatus = (conn) => {
-  conn.batch.set(rootCollections
+const updateActivityStatus = (conn, locals) => {
+  locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
       status: conn.req.body.status,
-      timestamp: conn.data.timestamp,
+      timestamp: locals.timestamp,
     }, {
       merge: true,
     }
@@ -142,12 +142,14 @@ const updateActivityStatus = (conn) => {
  * document.
  *
  * @param {Object} conn Contains Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const fetchTemplate = (conn) => {
+const fetchTemplate = (conn, locals) => {
   rootCollections
     .activityTemplates
-    .doc(conn.data.activity.get('template'))
+    // .doc(conn.data.activity.get('template'))
+    .doc(locals.activity.get('template'))
     .get()
     .then((doc) => {
       conn.addendum = {
@@ -156,13 +158,91 @@ const fetchTemplate = (conn) => {
         comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
           + ` updated ${doc.get('defaultTitle')}.`,
         location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: conn.data.timestamp,
+        timestamp: locals.timestamp,
       };
 
-      updateActivityStatus(conn);
+      updateActivityStatus(conn, locals);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+/**
+ * Processes the `result` from the Firestore and saves the data to variables
+ * for use in the function flow.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Array} result Array of Documents fetched from Firestore.
+ * @returns {void}
+ */
+const handleResults = (conn, result) => {
+  if (!result[0].exists) {
+    /** This case should probably never execute becase there is provision
+     * for deleting an activity anywhere. AND, for reaching the fetchDocs()
+     * function, the check for the existance of the activity has already
+     * been performed in the User's profile.
+     */
+    sendResponse(
+      conn,
+      code.conflict,
+      `There is no activity with the id: ${conn.req.body.activityId}.`
+    );
+
+    return;
+  }
+
+  const locals = {};
+  locals.batch = db.batch();
+
+  /** Calling new `Date()` constructor multiple times is wasteful. */
+  locals.timestamp = new Date(conn.req.body.timestamp);
+  locals.activity = result[0];
+
+  if (conn.req.body.status === locals.activity.get('status')) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `The activity status is already ${conn.req.body.status}.`
+    );
+
+    return;
+  }
+
+  locals.assigneeDocPromises = [];
+
+  /** The Assignees list is required to add addendum. */
+  result[1].forEach((doc) => {
+    locals.assigneeDocPromises.push(rootCollections.profiles.doc(doc.id).get());
+
+    locals.batch.set(rootCollections
+      .profiles
+      .doc(doc.id)
+      .collection('Activities')
+      .doc(conn.req.body.activityId), {
+        timestamp: locals.timestamp,
+      }, {
+        merge: true,
+      }
+    );
+  });
+
+  if (
+    result[2]
+      .get('ACTIVITYSTATUS')
+      .indexOf(conn.req.body.status) === -1
+  ) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `${conn.req.body.status} is NOT a valid status from the template.`
+    );
+
+    return;
+  }
+
+  fetchTemplate(conn, locals);
 };
 
 
@@ -190,74 +270,8 @@ const fetchDocs = (conn) => {
         .doc('ACTIVITYSTATUS')
         .get(),
     ])
-    .then((result) => {
-      if (!result[0].exists) {
-        /** This case should probably never execute becase there is provision
-         * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-         * function, the check for the existance of the activity has already
-         * been performed in the User's profile.
-         */
-        sendResponse(
-          conn,
-          code.conflict,
-          `There is no activity with the id: ${conn.req.body.activityId}.`
-        );
-
-        return;
-      }
-
-      conn.batch = db.batch();
-      conn.data = {};
-
-      /** Calling new `Date()` constructor multiple times is wasteful. */
-      conn.data.timestamp = new Date(conn.req.body.timestamp);
-      conn.data.assignees = [];
-      conn.data.activity = result[0];
-
-      if (conn.req.body.status === conn.data.activity.get('status')) {
-        sendResponse(
-          conn,
-          code.conflict,
-          `The activity status is already ${conn.req.body.status}.`
-        );
-
-        return;
-      }
-
-      /** The Assignees list is required to add addendum. */
-      result[1].forEach((doc) => {
-        conn.data.assignees.push(rootCollections.profiles.doc(doc.id).get());
-
-        conn.batch.set(rootCollections
-          .profiles
-          .doc(doc.id)
-          .collection('Activities')
-          .doc(conn.req.body.activityId), {
-            timestamp: conn.data.timestamp,
-          }, {
-            merge: true,
-          }
-        );
-      });
-
-      if (
-        result[2]
-          .get('ACTIVITYSTATUS')
-          .indexOf(conn.req.body.status) === -1
-      ) {
-        sendResponse(
-          conn,
-          code.badRequest,
-          `${conn.req.body.status} is NOT a valid status from the template.`
-        );
-
-        return;
-      }
-
-      fetchTemplate(conn);
-
-      return;
-    }).catch((error) => handleError(conn, error));
+    .then((result) => handleResults(conn, result))
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -328,7 +342,7 @@ const isValidRequestBody = (body) => {
  * @param {Object} conn Contains Express Request and Response Objects.
  * @returns {void}
  */
-const app = (conn) => {
+module.exports = (conn) => {
   if (!isValidRequestBody(conn.req.body)) {
     sendResponse(
       conn,
@@ -352,6 +366,3 @@ const app = (conn) => {
 
   verifyEditPermission(conn);
 };
-
-
-module.exports = app;

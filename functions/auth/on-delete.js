@@ -25,10 +25,7 @@
 'use strict';
 
 
-const {
-  rootCollections,
-  db,
-} = require('../admin/admin');
+const { rootCollections, db, } = require('../admin/admin');
 
 
 /**
@@ -38,11 +35,8 @@ const {
  * @param {Object} userRecord Object with user info.
  * @returns {Promise} Batch object.
  */
-const app = (userRecord) => {
-  const {
-    uid,
-    phoneNumber,
-  } = userRecord;
+module.exports = (userRecord) => {
+  const { uid, phoneNumber, } = userRecord;
 
   const batch = db.batch();
 
@@ -66,8 +60,6 @@ const app = (userRecord) => {
 
   return batch
     .commit()
+    /* eslint no-console: "off" */
     .catch(console.error);
 };
-
-
-module.exports = app;

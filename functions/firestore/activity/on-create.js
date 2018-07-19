@@ -25,12 +25,12 @@
 'use strict';
 
 
-const {
-  rootCollections,
-  getGeopointObject,
-  db,
-} = require('../../admin/admin');
+const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
 
+
+const { code, } = require('../../admin/responses');
+
+const { handleCanEdit, filterSchedules, filterVenues, filterAttachment, } = require('./helper');
 
 const {
   handleError,
@@ -42,16 +42,6 @@ const {
   isValidGeopoint,
 } = require('../../admin/utils');
 
-const {
-  code,
-} = require('../../admin/responses');
-
-const {
-  handleCanEdit,
-  filterSchedules,
-  filterVenues,
-  filterAttachment,
-} = require('./helper');
 
 
 /**
@@ -61,13 +51,14 @@ const {
  * @param {Object} locals Object containing local data.
  * @returns {Promise} Doc metadata or error object.
  */
-const commitBatch = (conn, locals) => locals.batch.commit()
-  .then(() => sendResponse(
-    conn,
-    code.created,
-    'The activity was successfully created.'
-  ))
-  .catch((error) => handleError(conn, error));
+const commitBatch = (conn, locals) =>
+  locals.batch.commit()
+    .then(() => sendResponse(
+      conn,
+      code.created,
+      'The activity was successfully created.'
+    ))
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -115,7 +106,7 @@ const handleAssignedUsers = (conn, locals) => {
         merge: true,
       });
 
-    conn.batch.set(rootCollections
+    locals.batch.set(rootCollections
       .profiles
       .doc(phoneNumber)
       .collection('Activities')
@@ -137,10 +128,14 @@ const handleAssignedUsers = (conn, locals) => {
       snapShots.forEach((doc) => {
         if (!doc.exists) {
           /** Create profiles for the phone numbers which are not in the DB. */
-          conn.batch.set(rootCollections
-            .profiles.doc(doc.id), { uid: null, });
+          locals.batch.set(rootCollections
+            .profiles
+            .doc(doc.id), {
+              uid: null,
+            }
+          );
 
-          conn.batch.set(rootCollections
+          locals.batch.set(rootCollections
             .profiles
             .doc(doc.id)
             .collection('Activities')
@@ -157,7 +152,7 @@ const handleAssignedUsers = (conn, locals) => {
 
         /** The `uid` shouldn't be `null` OR `undefined` */
         if (doc.exists && doc.get('uid')) {
-          conn.batch.set(rootCollections
+          locals.batch.set(rootCollections
             .updates
             .doc(doc.get('uid'))
             .collection('Addendum')
@@ -196,7 +191,7 @@ const handleIncludesFromSubscriptions = (conn, locals) => {
       if (phoneNumber === conn.requester.phoneNumber
         && conn.requester.isSupportRequest) return;
 
-      conn.batch.set(rootCollections
+      locals.batch.set(rootCollections
         .activities
         .doc(conn.activityRef.id)
         .collection('Assignees')
@@ -210,7 +205,7 @@ const handleIncludesFromSubscriptions = (conn, locals) => {
     });
   }
 
-  conn.batch.set(rootCollections
+  locals.batch.set(rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
@@ -243,14 +238,13 @@ const addAddendumForRequester = (conn, locals) => {
     activityId: conn.activityRef.id,
     user: conn.requester.displayName || conn.requester.phoneNumber,
     comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
-      // + ` created ${conn.data.template.defaultTitle}`,
       + ` created ${locals.template.defaultTitle}`,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: locals.timestamp,
   };
 
   /** The addendum doc is always created for the requester */
-  conn.batch.set(rootCollections
+  locals.batch.set(rootCollections
     .updates
     .doc(conn.requester.uid)
     .collection('Addendum')
@@ -322,7 +316,7 @@ const createActivityRoot = (conn, locals) => {
    */
   activityRoot.canEditRule = locals.subscription.canEditRule;
 
-  conn.batch.set(conn.activityRef, activityRoot);
+  locals.batch.set(locals.activityRef, activityRoot);
 
   addAddendumForRequester(conn);
 };
@@ -340,10 +334,12 @@ const createActivityRoot = (conn, locals) => {
 const updateDailyActivities = (conn, locals) => {
   const docId = getISO8601Date(locals.timestamp);
 
-  conn.batch.set(rootCollections
+  locals.batch.set(rootCollections
     .dailyActivities
-    .doc(docId).collection('Logs').doc(), {
-      activityId: conn.activityRef.id,
+    .doc(docId)
+    .collection('Logs')
+    .doc(), {
+      activityId: locals.activityRef.id,
       office: conn.req.body.office,
       template: conn.req.body.template,
       phoneNumber: conn.requester.phoneNumber,
@@ -379,11 +375,12 @@ const createSubscription = (conn, docData, locals) => {
   docData.canEditRule = conn.req.body.canEditRule;
   docData.timestamp = locals.timestamp;
 
-  conn.docRef = rootCollections
-    .profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Subscriptions')
-    .doc(conn.activityRef.id);
+  locals
+    .docRef = rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Subscriptions')
+      .doc(locals.activityRef.id);
 
   /** Subscription to the `admin` template
    * is not to be given to anyone.
@@ -404,7 +401,7 @@ const createSubscription = (conn, docData, locals) => {
     });
   }
 
-  conn.batch.set(conn.docRef, docData);
+  locals.batch.set(locals.docRef, docData);
 
   updateDailyActivities(conn);
 };
@@ -429,9 +426,9 @@ const createOffice = (conn, docData, locals) => {
     return;
   }
 
-  locals.docRef = rootCollections.offices.doc(conn.activityRef.id);
+  locals.docRef = rootCollections.offices.doc(locals.activityRef.id);
 
-  conn.batch.set(locals.docRef, docData);
+  locals.batch.set(locals.docRef, docData);
 
   updateDailyActivities(conn, locals);
 };
@@ -464,9 +461,9 @@ const createNewEntityInOffice = (conn, docData, locals) => {
     .doc(officeId)
     /** Collection names are `ALWAYS` plural. */
     .collection(`${conn.req.body.template}s`)
-    .doc(conn.activityRef.id);
+    .doc(locals.activityRef.id);
 
-  conn.batch.set(locals.docRef, docData);
+  locals.batch.set(locals.docRef, docData);
 
   updateDailyActivities(conn, locals);
 };
@@ -486,7 +483,7 @@ const handleSpecialTemplates = (conn, locals) => {
   const docData = {};
 
   /** Required while reading the attachments in loop for /read API. */
-  docData.activityId = conn.activityRef.id;
+  docData.activityId = locals.activityRef.id;
 
   const attachment = filterAttachment(
     conn.req.body.attachment,
@@ -647,7 +644,7 @@ const handleResult = (conn, result) => {
   /** Stores all the temporary data for creating the activity. */
   const locals = {};
 
-  /** Calling new Date() constructor multiple times is wasteful. */
+  /** Calling `new Date()` constructor multiple times is wasteful. */
   locals.timestamp = new Date(conn.req.body.timestamp);
 
   /** A template with the name from the request body doesn't exist. */
@@ -764,17 +761,16 @@ const fetchDocs = (conn) =>
  * `geopoint`, `office`, and the `template`.
  *
  * @param {Object} body The request body.
-* @returns {boolean} If the request body has valid fields.
+ * @returns {boolean} If the request body has valid fields.
  */
-const isValidRequestBody = (body) => {
-  return isNonEmptyString(body.template)
-    && isValidDate(body.timestamp)
-    && isNonEmptyString(body.office)
-    && isValidGeopoint(body.geopoint);
-};
+const isValidRequestBody = (body) =>
+  isNonEmptyString(body.template)
+  && isValidDate(body.timestamp)
+  && isNonEmptyString(body.office)
+  && isValidGeopoint(body.geopoint);
 
 
-const app = (conn) => {
+module.exports = (conn) => {
   if (!isValidRequestBody(conn.req.body)) {
     sendResponse(
       conn,
@@ -789,6 +785,3 @@ const app = (conn) => {
 
   fetchDocs(conn);
 };
-
-
-module.exports = app;

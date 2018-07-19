@@ -25,9 +25,9 @@
 'use strict';
 
 
-const {
-  rootCollections,
-} = require('../../admin/admin');
+const { rootCollections, } = require('../../admin/admin');
+
+const { code, } = require('../../admin/responses');
 
 const {
   sendJSON,
@@ -35,10 +35,6 @@ const {
   sendResponse,
   isNonEmptyString,
 } = require('../../admin/utils');
-
-const {
-  code,
-} = require('../../admin/responses');
 
 
 /**

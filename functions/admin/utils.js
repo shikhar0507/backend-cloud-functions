@@ -87,6 +87,7 @@ const sendResponse = (conn, statusCode, message = '') => {
  * @returns {void}
  */
 const handleError = (conn, error) => {
+  /* eslint no-console: "off" */
   console.log(JSON.stringify(error));
 
   sendResponse(

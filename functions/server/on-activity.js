@@ -30,9 +30,7 @@ const {
   hasSupportClaims,
 } = require('../admin/utils');
 
-const {
-  code,
-} = require('../admin/responses');
+const { code, } = require('../admin/responses');
 
 
 /**
@@ -42,7 +40,7 @@ const {
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @returns {void}
  */
-const app = (conn) => {
+module.exports = (conn) => {
   const action = require('url').parse(conn.req.url).path.split('/')[2];
   /** Can be used to verify in the activity flow to see if the request
    * is of type support.
@@ -153,8 +151,8 @@ const app = (conn) => {
       return;
     }
 
-    const onStatusChange = require('../firestore/activity/on-change-status');
-    onStatusChange(conn);
+    const onChangeStatus = require('../firestore/activity/on-change-status');
+    onChangeStatus(conn);
 
     return;
   }
@@ -183,6 +181,3 @@ const app = (conn) => {
     `No resource found at the path: ${(conn.req.url)}.`
   );
 };
-
-
-module.exports = app;

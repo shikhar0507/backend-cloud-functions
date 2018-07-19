@@ -34,6 +34,7 @@ const {
   sendResponse,
   sendJSON,
   isValidDate,
+  getISO8601Date,
 } = require('../admin/utils');
 
 const {
@@ -50,14 +51,24 @@ const {
  * @returns {void}
  */
 const updateDailyCollection = (conn, jsonResult) => {
+  /** Anyone who sends the `from` query pram as `0`, must be
+   * initializing the app first time, so this function logs
+   * their request in `/DailyInits/(Date)/(phoneNumber)/(auto-id)`.
+   */
+  if (conn.req.query.from !== '0') {
+    sendJSON(conn, jsonResult);
+
+    return;
+  }
+
+  const timestamp = new Date();
+
   rootCollections
     .dailyInits
-    .doc(new Date().toDateString())
+    .doc(getISO8601Date(timestamp))
     .collection(conn.requester.phoneNumber)
     .doc()
-    .set({
-      timestamp: new Date(),
-    })
+    .set({ timestamp, })
     .then(() => sendJSON(conn, jsonResult))
     .catch((error) => handleError(conn, error));
 };
@@ -69,25 +80,16 @@ const updateDailyCollection = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addOfficeToTemplates = (conn, jsonResult) => {
+const addOfficeToTemplates = (conn, jsonResult, locals) => {
   jsonResult
     .templates
     .forEach((templateObject, index) =>
-      templateObject.office = conn.officesArray[`${index}`]);
+      templateObject.office = locals.officesArray[`${index}`]);
 
-  /** Anyone who sends the `from` query pram as `0`, must be
-   * initializing the app first time, so this function logs
-   * their request in `/DailyInits/(Date)/(phoneNumber)/(auto-id)`.
-   */
-  if (conn.req.query.from === '0') {
-    updateDailyCollection(conn, jsonResult);
-
-    return;
-  }
-
-  sendJSON(conn, jsonResult);
+  updateDailyCollection(conn, jsonResult);
 };
 
 
@@ -97,13 +99,14 @@ const addOfficeToTemplates = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  * @description `Amardeep` was having problem parsing Activity objects
    * when they were inside an `Object`. This function is made on his request.
    * It takes each activity object and restructures it in order to push
    * them in an array.
  */
-const convertActivityObjectToArray = (conn, jsonResult) => {
+const convertActivityObjectToArray = (conn, jsonResult, locals) => {
   jsonResult.activitiesArr = [];
   let activityObj;
 
@@ -124,7 +127,7 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
    */
   delete jsonResult.activitiesArr;
 
-  addOfficeToTemplates(conn, jsonResult);
+  addOfficeToTemplates(conn, jsonResult, locals);
 };
 
 
@@ -134,11 +137,12 @@ const convertActivityObjectToArray = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const fetchSubscriptions = (conn, jsonResult) => {
+const fetchSubscriptions = (conn, jsonResult, locals) =>
   Promise.
-    all(conn.templatesList)
+    all(locals.templatesList)
     .then((snapShot) => {
       snapShot.forEach((doc) => {
         if (!doc.exists) return;
@@ -151,11 +155,11 @@ const fetchSubscriptions = (conn, jsonResult) => {
         });
       });
 
-      convertActivityObjectToArray(conn, jsonResult);
+      convertActivityObjectToArray(conn, jsonResult, locals);
 
       return;
-    }).catch((error) => handleError(conn, error));
-};
+    })
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -163,35 +167,35 @@ const fetchSubscriptions = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const getTemplates = (conn, jsonResult) => {
+const getTemplates = (conn, jsonResult, locals) =>
   rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Subscriptions')
-    .where('timestamp', '>', conn.from)
+    .where('timestamp', '>', locals.from)
     .where('timestamp', '<=', jsonResult.upto)
     .get()
     .then((snapShot) => {
-      conn.templatesList = [];
-      conn.officesArray = [];
+      locals.templatesList = [];
+      locals.officesArray = [];
 
       snapShot.forEach((doc) => {
         /** The `office` is required inside each template. */
-        conn.officesArray.push(doc.get('office'));
+        locals.officesArray.push(doc.get('office'));
 
-        conn.templatesList.push(
+        locals.templatesList.push(
           rootCollections.activityTemplates.doc(doc.get('template')).get()
         );
       });
 
-      fetchSubscriptions(conn, jsonResult);
+      fetchSubscriptions(conn, jsonResult, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -199,15 +203,16 @@ const getTemplates = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const fetchAssignees = (conn, jsonResult) => {
+const fetchAssignees = (conn, jsonResult, locals) =>
   Promise
-    .all(conn.assigneeFetchPromises)
-    .then((snapShotsArray) => {
+    .all(locals.assigneeFetchPromises)
+    .then((snapShots) => {
       let activityObj;
 
-      snapShotsArray.forEach((snapShot) => {
+      snapShots.forEach((snapShot) => {
         snapShot.forEach((doc) => {
           /** Activity-id: `doc.ref.path.split('/')[1]` */
           activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
@@ -215,11 +220,11 @@ const fetchAssignees = (conn, jsonResult) => {
         });
       });
 
-      getTemplates(conn, jsonResult);
+      getTemplates(conn, jsonResult, locals);
 
       return;
-    }).catch((error) => handleError(conn, error));
-};
+    })
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -227,11 +232,12 @@ const fetchAssignees = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express Request and Response Objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const fetchAttachments = (conn, jsonResult) => {
+const fetchAttachments = (conn, jsonResult, locals) =>
   Promise
-    .all(conn.docRefsArray)
+    .all(locals.docRefsArray)
     .then((docsArray) => {
       let activityObj;
 
@@ -249,11 +255,11 @@ const fetchAttachments = (conn, jsonResult) => {
         delete activityObj.attachment.office;
       });
 
-      fetchAssignees(conn, jsonResult);
+      fetchAssignees(conn, jsonResult, locals);
 
       return;
-    }).catch((error) => handleError(conn, error));
-};
+    })
+    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -261,14 +267,15 @@ const fetchAttachments = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const fetchActivities = (conn, jsonResult) => {
+const fetchActivities = (conn, jsonResult, locals) =>
   Promise
-    .all(conn.activityFetchPromises)
+    .all(locals.activityFetchPromises)
     .then((snapShot) => {
       let activityObj;
-      conn.docRefsArray = [];
+      locals.docRefsArray = [];
 
       snapShot.forEach((doc) => {
         /** Activity-id: doc.ref.path.split('/')[1] */
@@ -286,16 +293,15 @@ const fetchActivities = (conn, jsonResult) => {
         activityObj.attachment = {};
 
         if (doc.get('docRef')) {
-          conn.docRefsArray.push(doc.get('docRef').get());
+          locals.docRefsArray.push(doc.get('docRef').get());
         }
       });
 
-      fetchAttachments(conn, jsonResult);
+      fetchAttachments(conn, jsonResult, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -303,26 +309,28 @@ const fetchActivities = (conn, jsonResult) => {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
-  conn.activityFetchPromises = [];
-  conn.assigneeFetchPromises = [];
-  conn.activityData = {};
+const getActivityIdsFromProfileCollection = (conn, jsonResult, locals) => {
+  locals.activityFetchPromises = [];
+  locals.assigneeFetchPromises = [];
+  locals.activityData = {};
 
   rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
-    .where('timestamp', '>', conn.from)
+    .where('timestamp', '>', locals.from)
     .where('timestamp', '<=', jsonResult.upto)
     .get()
     .then((snapShot) => {
       snapShot.forEach((doc) => {
-        conn.activityFetchPromises
-          .push(rootCollections.activities.doc(doc.id).get());
+        locals.activityFetchPromises.push(
+          rootCollections.activities.doc(doc.id).get()
+        );
 
-        conn.assigneeFetchPromises.push(
+        locals.assigneeFetchPromises.push(
           rootCollections.activities.doc(doc.id).collection('Assignees').get()
         );
 
@@ -330,7 +338,7 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
         jsonResult.activities[doc.id]['canEdit'] = doc.get('canEdit');
       });
 
-      fetchActivities(conn, jsonResult);
+      fetchActivities(conn, jsonResult, locals);
 
       return;
     })
@@ -342,15 +350,16 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult) => {
  * Fetches the addendums and adds them to a a temporary object in memory.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const readAddendumsByQuery = (conn) => {
+const readAddendumsByQuery = (conn, locals) => {
   const jsonResult = {};
 
   jsonResult.addendum = [];
   jsonResult.activities = {};
   jsonResult.templates = [];
-  jsonResult.from = conn.from;
+  jsonResult.from = locals.from;
   /** When  no docs are found in Addendum for the given timestamp,
    * the from and upto time will remain same.
    */
@@ -360,7 +369,7 @@ const readAddendumsByQuery = (conn) => {
     .updates
     .doc(conn.requester.uid)
     .collection('Addendum')
-    .where('timestamp', '>', conn.from)
+    .where('timestamp', '>', locals.from)
     .orderBy('timestamp', 'asc')
     .get()
     .then((snapShot) => {
@@ -396,7 +405,7 @@ const readAddendumsByQuery = (conn) => {
 };
 
 
-const app = (conn) => {
+module.exports = (conn) => {
   if (conn.req.method !== 'GET') {
     sendResponse(
       conn,
@@ -427,13 +436,12 @@ const app = (conn) => {
     return;
   }
 
+  const locals = {};
+
   /** Converting "from" query string to a date multiple times
    * is wasteful. Storing it here by calculating it once for use
    * throughout the instance.
    */
-  conn.from = new Date(parseInt(conn.req.query.from));
-  readAddendumsByQuery(conn);
+  locals.from = new Date(parseInt(conn.req.query.from));
+  readAddendumsByQuery(conn, locals);
 };
-
-
-module.exports = app;

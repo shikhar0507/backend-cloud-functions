@@ -25,13 +25,9 @@
 'use strict';
 
 
-const {
-  rootCollections,
-} = require('../../admin/admin');
+const { rootCollections, } = require('../../admin/admin');
 
-const {
-  code,
-} = require('../../admin/responses');
+const { code, } = require('../../admin/responses');
 
 const {
   handleError,
@@ -43,14 +39,16 @@ const {
 /**
  * Updates the document in the `ActivityTemplates` collection and
  * sends the response of success to the user.
+ *
  * @param {Object} conn Express Request and Response Objects.
  * @param {Object} updatedFields Document with the *valid* fields from the request body.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateTemplate = (conn, updatedFields) => {
+const updateTemplate = (conn, updatedFields, locals) => {
   rootCollections
     .activityTemplates
-    .doc(conn.data.docId)
+    .doc(locals.docId)
     .set(updatedFields, {
       /** The request body can contain a partial update, so merging
        * is a safe way to handle this document.
@@ -67,9 +65,10 @@ const updateTemplate = (conn, updatedFields) => {
  * the existing template `doc` in the `ActivityTemplates` collection.
  *
  * @param {Object} conn Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const makeUpdateDoc = (conn) => {
+const makeUpdateDoc = (conn, locals) => {
   const updatedFields = {};
 
   if (isNonEmptyString(conn.req.body.defaultTitle)) {
@@ -95,11 +94,12 @@ const makeUpdateDoc = (conn) => {
     }
   }
 
-  updateTemplate(conn, updatedFields);
+  updateTemplate(conn, updatedFields, locals);
 };
 
 
 /**
+ * Checks for the existance of the template.
  *
  * @param {Object} conn Express Request and Response Objects.
  * @param {Array} result Contains the object of documents fetched from Firestore.
@@ -113,17 +113,17 @@ const handleResult = (conn, result) => {
     sendResponse(
       conn,
       code.conflict,
-      `Template with the name: ${conn.req.body.name} does not exist.`
+      `Template: ${conn.req.body.name} does not exist.`
     );
 
     return;
   }
 
-  conn.data = {};
+  const locals = {};
   /** A reference to this doc is required in the updateTemplate()
    * function.
    */
-  conn.data.docId = templateDoc.docs[0].id;
+  locals.docId = templateDoc.docs[0].id;
 
   if (conn.req.body.hasOwnProperty('statusOnCreate')) {
     if (
@@ -142,7 +142,7 @@ const handleResult = (conn, result) => {
     }
   }
 
-  makeUpdateDoc(conn);
+  makeUpdateDoc(conn, locals);
 };
 
 
@@ -180,7 +180,7 @@ const fetchDocs = (conn) => {
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
-const app = (conn) => {
+module.exports = (conn) => {
   if (!conn.req.body.hasOwnProperty('name')) {
     sendResponse(
       conn,
@@ -214,6 +214,3 @@ const app = (conn) => {
 
   fetchDocs(conn);
 };
-
-
-module.exports = app;
