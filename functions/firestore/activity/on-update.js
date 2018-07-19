@@ -32,12 +32,12 @@ const { filterSchedules, filterVenues, } = require('./helper');
 const { code, } = require('../../admin/responses');
 
 const {
+  isValidDate,
   handleError,
   sendResponse,
   getISO8601Date,
-  isValidDate,
-  isNonEmptyString,
   isValidGeopoint,
+  isNonEmptyString,
 } = require('../../admin/utils');
 
 
@@ -86,6 +86,40 @@ const updateDailyActivities = (conn, locals) => {
 
 
 /**
+ * Adds addendum data for all the assignees in the activity.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const addAddendumForAssignees = (conn, locals) =>
+  Promise
+    .all(locals.assigneesArray)
+    .then((snapShot) => {
+      snapShot.forEach((doc) => {
+        if (!doc.get('uid')) return;
+
+        /** Users without `uid` are the ones who don't have
+         * signed up. Addendum is added only for the users who
+         * have an account in auth.
+         */
+        locals.batch.set(rootCollections
+          .updates
+          .doc(doc.get('uid'))
+          .collection('Addendum')
+          .doc(),
+          locals.addendum
+        );
+      });
+
+      updateDailyActivities(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+
+
+/**
  * Updates the activity root and adds the data to the batch.
  *
  * @param {Object} conn Contains Express' Request and Respone objects.
@@ -94,73 +128,76 @@ const updateDailyActivities = (conn, locals) => {
  */
 const updateActivityDoc = (conn, locals) => {
   /** Stores the objects that are to be updated in the activity root. */
-  const update = {};
+  const activityUpdates = {};
+
+  locals.addendum.comment = `${locals.addendum.user} updated the activity`;
 
   if (conn.req.body.hasOwnProperty('title')
     && isNonEmptyString(conn.req.body.title)) {
-    update.title = conn.req.body.title;
+    locals.addendum.comment += ' title, ';
+    activityUpdates.title = conn.req.body.title;
   }
 
   if (conn.req.body.hasOwnProperty('description')
     && isNonEmptyString(conn.req.body.description)) {
-    update.description = conn.req.body.description;
+    locals.addendum.comment += ' description, ';
+    activityUpdates.description = conn.req.body.description;
   }
 
   if (conn.req.body.hasOwnProperty('schedule')) {
     const scheduleNames = new Set();
+    locals.addendum.comment += ' schedule, ';
 
-    locals.activity.get('schedule').forEach((sch) => {
-      if (sch.hasOwnProperty('name')) {
-        scheduleNames.add(sch.name);
-      }
-    });
+    locals
+      .activity
+      .get('schedule')
+      .forEach((scheduleObject) => scheduleNames.add(scheduleObject.name));
 
-    update.schedule = filterSchedules(
-      conn,
+    activityUpdates.schedule = filterSchedules(
+      locals,
       conn.req.body.schedule,
       [...scheduleNames,]
     );
   }
 
   if (conn.req.body.hasOwnProperty('venue')) {
+    locals.addendum.comment += ' venue ';
     const venueNames = new Set();
 
-    locals.activity.get('venue').forEach((venue) => {
-      if (!venue.hasOwnProperty('venueDescriptor')) return;
+    locals
+      .activity
+      .get('venue')
+      .forEach((venueObject) => venueNames.add(venueObject.venueDescriptor));
 
-      venueNames.add(venue.venueDescriptor);
-    });
-
-    update.venue = filterVenues(
-      conn,
+    activityUpdates.venue = filterVenues(
+      locals,
       conn.req.body.venue,
       [...venueNames,]
     );
   }
 
-  update.timestamp = locals.timestamp;
+  activityUpdates.timestamp = locals.timestamp;
 
   /** Implementing the `handleAttachment()` method will make this work. */
-  if (conn.hasOwnProperty('docRef')) {
+  if (locals.hasOwnProperty('docRef')) {
     /**
      * The `docRef` is not `undefined` only when a document is updated during
      * the update operation.
      */
-    update.docRef = conn.docRef;
+    activityUpdates.docRef = locals.docRef;
   }
 
   locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId),
-    update, {
+    activityUpdates, {
       /** The activity doc *will* have some of these fields by default. */
       merge: true,
     }
   );
 
-  updateDailyActivities(conn, locals);
+  addAddendumForAssignees(conn, locals);
 };
-
 
 
 /**
@@ -176,15 +213,7 @@ const handleAttachment = (conn, locals) => {
 };
 
 
-
-/**
- * Adds addendum data for all the assignees in the activity.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const addAddendumForAssignees = (conn, locals) => {
+const updateActivityTimestamp = (conn, locals) => {
   locals.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
     locals.batch.set(rootCollections
       .profiles
@@ -198,37 +227,7 @@ const addAddendumForAssignees = (conn, locals) => {
     );
   });
 
-  Promise
-    .all(locals.assigneesArray)
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        if (!doc.get('uid')) return;
-
-        /** Users without `uid` are the ones who don't have
-         * signed up. Addemdum is added only for the users who
-         * have an account in auth.
-         */
-        locals.batch.set(rootCollections
-          .updates
-          .doc(doc.get('uid'))
-          .collection('Addendum')
-          .doc(),
-          locals.addendum
-        );
-      });
-
-      /** Attachment absent. Skip it. */
-      if (!conn.req.body.hasOwnProperty('attachment')) {
-        updateActivityDoc(conn, locals);
-
-        return;
-      }
-
-      handleAttachment(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  handleAttachment(conn, locals);
 };
 
 
@@ -248,13 +247,21 @@ const handleResult = (conn, result) => {
     return;
   }
 
-
+  /** For storing local data during the flow. */
   const locals = {};
 
   locals.batch = db.batch();
 
   /** Calling new `Date()` constructor multiple times is wasteful. */
   locals.timestamp = new Date(conn.req.body.timestamp);
+
+  locals.addendum = {
+    activityId: conn.req.body.activityId,
+    user: conn.requester.displayName || conn.requester.phoneNumber,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: locals.timestamp,
+  };
+
   locals.activity = result[0];
 
   locals.assigneesArray = [];
@@ -269,7 +276,7 @@ const handleResult = (conn, result) => {
     locals.assigneesPhoneNumbersArray.push(doc.id);
   });
 
-  addAddendumForAssignees(conn, locals);
+  updateActivityTimestamp(conn, locals);
 };
 
 

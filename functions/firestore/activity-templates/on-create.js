@@ -56,15 +56,11 @@ const createTemplate = (conn) => {
       schedule: conn.req.body.schedule || [],
       venue: conn.req.body.venue || [],
     })
-    .then(() => {
-      sendResponse(
-        conn,
-        code.created,
-        'The template was created successfully.'
-      );
-
-      return;
-    })
+    .then(() => sendResponse(
+      conn,
+      code.created,
+      'The template was created successfully.')
+    )
     .catch((error) => handleError(conn, error));
 };
 
@@ -143,7 +139,7 @@ const fetchDocs = (conn) => {
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
-const app = (conn) => {
+module.exports = (conn) => {
   if (!conn.req.body.hasOwnProperty('name')) {
     sendResponse(
       conn,
@@ -274,6 +270,3 @@ const app = (conn) => {
 
   fetchDocs(conn);
 };
-
-
-module.exports = app;

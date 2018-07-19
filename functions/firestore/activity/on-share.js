@@ -32,12 +32,12 @@ const { handleCanEdit, } = require('./helper');
 const { code, } = require('../../admin/responses');
 
 const {
+  isValidDate,
   handleError,
   sendResponse,
   getISO8601Date,
-  isValidDate,
-  isNonEmptyString,
   isValidGeopoint,
+  isNonEmptyString,
   isE164PhoneNumber,
 } = require('../../admin/utils');
 
@@ -148,7 +148,8 @@ const setAddendumForUsersWithUid = (conn, locals) => {
 
         if (doc.exists && doc.get('uid')) {
           /** The `uid` is NOT `null` OR `undefined` */
-          locals.batch.set(rootCollections.updates
+          locals.batch.set(rootCollections
+            .updates
             .doc(doc.get('uid'))
             .collection('Addendum')
             .doc(),
@@ -173,12 +174,14 @@ const setAddendumForUsersWithUid = (conn, locals) => {
  * @returns {void}
  */
 const addAddendumForAssignees = (conn, locals) => {
+  let comment = `${conn.requester.phoneNumber} shared this activity with: `;
+
   conn.req.body.share.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
-
     /** The requester shouldn't be added to the activity assignee list
      * if the request is of `support` type.
      */
+    comment += `${phoneNumber} `;
     if (phoneNumber === conn.requester.phoneNumber
       && conn.requester.isSupportRequest) return;
 
@@ -191,7 +194,7 @@ const addAddendumForAssignees = (conn, locals) => {
       .collection('Assignees')
       .doc(phoneNumber), {
         canEdit: handleCanEdit(
-          locals.subscription,
+          locals,
           phoneNumber,
           conn.requester.phoneNumber
         ),
@@ -209,7 +212,7 @@ const addAddendumForAssignees = (conn, locals) => {
       .collection('Activities')
       .doc(conn.req.body.activityId), {
         canEdit: handleCanEdit(
-          locals.subscription,
+          locals,
           phoneNumber,
           conn.requester.phoneNumber
         ),
@@ -221,6 +224,8 @@ const addAddendumForAssignees = (conn, locals) => {
 
     locals.assigneeArray.push(phoneNumber);
   });
+
+  locals.addendum.comment = comment.trim();
 
   setAddendumForUsersWithUid(conn, locals);
 };
@@ -246,20 +251,15 @@ const fetchTemplateAndSubscriptions = (conn, locals) => {
       locals.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: `${conn.requester.displayName} || ${conn.requester.phoneNumber}`
-          + ` updated ${docsArray[0].get('defaultTitle')}`,
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: locals.timestamp,
       };
 
       locals.template = docsArray[0];
-      locals.subscription = docsArray[1].docs[0];
+      locals.include = docsArray[1].docs[0].get('include');
 
       if (conn.requester.isSupportRequest) {
-        locals.subscription = {};
-
-        locals.subscription
-          .canEditRule = locals.activity.get('canEditRule');
+        locals.include = [];
       }
 
       addAddendumForAssignees(conn, locals);
@@ -292,6 +292,8 @@ const handleResult = (conn, result) => {
   locals.timestamp = new Date(conn.req.body.timestamp);
 
   locals.activity = result[0];
+
+  locals.canEditRule = result[0].get('canEditRule');
 
   /** The assigneeArray is required to add addendum.
    * The `doc.id` is the phoneNumber of the assignee.

@@ -32,25 +32,20 @@ const { isValidDate, isValidGeopoint, } = require('../../admin/utils');
  * Handles whether a person has the authority to edit an activity after it is
  * created.
  *
- * @param {Object} subscription User's subscription document.
+ * @param {Object} locals Object containing local data.
  * @param {string} phoneNumber Number to check the `canEdit` rule for.
  * @param {string} requesterPhoneNumber Phone number of the requester.
  * @param {Array} assignees Array of people who are assignees of the activity.
  * @returns {boolean} Depends on the subscription and the phoneNumber in args.
  */
-const handleCanEdit = (
-  subscription,
-  phoneNumber,
-  requesterPhoneNumber,
-  assignees = []
-) => {
-  if (subscription.canEditRule === 'ALL') return true;
+const handleCanEdit = (locals, phoneNumber, requesterPhoneNumber, assignees = []) => {
+  if (locals.canEditRule === 'ALL') return true;
 
-  if (subscription.canEditRule === 'NONE') return false;
+  if (locals.canEditRule === 'NONE') return false;
 
   /** List of assignees... */
-  if (subscription.canEditRule === 'FROM_INCLUDE') {
-    if (subscription.include.indexOf(phoneNumber) > -1
+  if (locals.canEditRule === 'FROM_INCLUDE') {
+    if (locals.include.indexOf(phoneNumber) > -1
       || assignees.indexOf(phoneNumber) > -1) {
       return true;
     }
@@ -59,9 +54,9 @@ const handleCanEdit = (
   }
 
   // TODO: this needs to be implemented.
-  if (subscription.canEditRule === 'PEOPLE_TYPE') return true;
+  if (locals.canEditRule === 'PEOPLE_TYPE') return true;
 
-  if (subscription.canEditRule === 'CREATOR') {
+  if (locals.canEditRule === 'CREATOR') {
     if (phoneNumber === requesterPhoneNumber) {
       return true;
     }
@@ -77,14 +72,14 @@ const handleCanEdit = (
  * Validates the schedules where the there is a name field present,
  * along with the condition that the endTime >= startTime.
  *
- * @param {Object} conn Express Request and Response Objects.
+ * @param {Object} locals Object containing local data.
  * @param {Array} requestBodySchedule Schedules from request body.
  * @param {Array} scheduleNames Schedules from template.
  * @returns {Array} Of valid schedules.
  */
-const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
+const filterSchedules = (locals, requestBodySchedule, scheduleNames) => {
   /** If `filterSchedules` has been called once, return the cached values. */
-  if (conn.data.hasOwnProperty('schedule')) return conn.data.schedule;
+  if (locals.hasOwnProperty('schedule')) return locals.schedule;
 
   const defaultSchedules = [];
 
@@ -143,7 +138,7 @@ const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
   /** Set up the cache for avoiding subsequent calculations on next function
    * calls to filterSchedules function.
    */
-  conn.data.schedule = validSchedules;
+  locals.schedule = validSchedules;
 
   return validSchedules;
 };
@@ -153,14 +148,14 @@ const filterSchedules = (conn, requestBodySchedule, scheduleNames) => {
  * Validates the venues based on the `venueDescriptors` and
  * valid geopoint object.
  *
- * @param {Object} conn Express Request and Response object.
+ * @param {Object} locals Object containing local data.
  * @param {Array} requestBodyVenue Venue objects from request.
  * @param {Array} venueDescriptors Venue descriptors from template.
  * @returns {Array} Valid venues based on template.
  */
-const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
+const filterVenues = (locals, requestBodyVenue, venueDescriptors) => {
   /** If filterVenues has been called once, return the cached values. */
-  if (conn.data.hasOwnProperty('venue')) return conn.data.venue;
+  if (locals.hasOwnProperty('venue')) return locals.venue;
 
   let validVenues = [];
   const defaultVenues = [];
@@ -207,7 +202,7 @@ const filterVenues = (conn, requestBodyVenue, venueDescriptors) => {
   /** Set up the cache for avoiding subsequent calculations on next function
    * calls to filterVenues function.
    */
-  conn.data.venue = validVenues;
+  locals.venue = validVenues;
 
   return validVenues;
 };

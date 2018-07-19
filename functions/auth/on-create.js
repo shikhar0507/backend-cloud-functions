@@ -26,10 +26,10 @@
 
 
 const {
+  db,
   rootCollections,
   serverTimestamp,
   getGeopointObject,
-  db,
 } = require('../admin/admin');
 
 const { getISO8601Date, } = require('../admin/utils');

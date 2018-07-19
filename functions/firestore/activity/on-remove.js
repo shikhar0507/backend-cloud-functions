@@ -30,13 +30,13 @@ const { rootCollections, getGeopointObject, db, } = require('../../admin/admin')
 const { code, } = require('../../admin/responses');
 
 const {
+  isValidDate,
   handleError,
   sendResponse,
   getISO8601Date,
-  isValidDate,
   isValidGeopoint,
-  isE164PhoneNumber,
   isNonEmptyString,
+  isE164PhoneNumber,
 } = require('../../admin/utils');
 
 
@@ -136,9 +136,12 @@ const setAddendumForUsersWithUid = (conn, locals) => {
 
 const unassignFromTheActivity = (conn, locals) => {
   let index;
+  let comment = `${conn.requester.phoneNumber} unassigned: `;
 
   conn.req.body.remove.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
+
+    comment += `${phoneNumber} `;
 
     /** Deleting from Assignees collection inside activity doc */
     locals.batch.delete(rootCollections
@@ -163,9 +166,9 @@ const unassignFromTheActivity = (conn, locals) => {
     }
   });
 
-  setAddendumForUsersWithUid(conn, locals);
+  locals.addendum.comment = `${comment}from the activity.`;
 
-  return;
+  setAddendumForUsersWithUid(conn, locals);
 };
 
 
@@ -180,8 +183,6 @@ const fetchTemplate = (conn, locals) => {
       locals.addendum = {
         activityId: conn.req.body.activityId,
         user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
-          + ` updated ${doc.get('defaultTitle')}`,
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: locals.timestamp,
       };

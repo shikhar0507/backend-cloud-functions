@@ -33,15 +33,14 @@ const { code, } = require('../../admin/responses');
 const { handleCanEdit, filterSchedules, filterVenues, filterAttachment, } = require('./helper');
 
 const {
+  isValidDate,
   handleError,
   sendResponse,
   getISO8601Date,
-  isValidDate,
-  isE164PhoneNumber,
-  isNonEmptyString,
   isValidGeopoint,
+  isNonEmptyString,
+  isE164PhoneNumber,
 } = require('../../admin/utils');
-
 
 
 /**
@@ -97,7 +96,7 @@ const handleAssignedUsers = (conn, locals) => {
       .collection('Assignees')
       .doc(phoneNumber), {
         canEdit: handleCanEdit(
-          locals.subscription,
+          locals,
           phoneNumber,
           conn.requester.phoneNumber,
           conn.req.body.share
@@ -110,9 +109,9 @@ const handleAssignedUsers = (conn, locals) => {
       .profiles
       .doc(phoneNumber)
       .collection('Activities')
-      .doc(conn.activityRef.id), {
+      .doc(locals.activityRef.id), {
         canEdit: handleCanEdit(
-          locals.subscription,
+          locals,
           phoneNumber,
           conn.requester.phoneNumber,
           conn.req.body.share
@@ -139,7 +138,7 @@ const handleAssignedUsers = (conn, locals) => {
             .profiles
             .doc(doc.id)
             .collection('Activities')
-            .doc(conn.activityRef.id), {
+            .doc(locals.activityRef.id), {
               canEdit: handleCanEdit(
                 locals.subscription,
                 doc.id,
@@ -162,7 +161,7 @@ const handleAssignedUsers = (conn, locals) => {
         }
       });
 
-      commitBatch(conn);
+      commitBatch(conn, locals);
 
       return;
     })
@@ -193,10 +192,11 @@ const handleIncludesFromSubscriptions = (conn, locals) => {
 
       locals.batch.set(rootCollections
         .activities
-        .doc(conn.activityRef.id)
+        .doc(locals.activityRef.id)
         .collection('Assignees')
         .doc(phoneNumber), {
-          canEdit: handleCanEdit(locals.subscription,
+          canEdit: handleCanEdit(
+            locals.subscription,
             phoneNumber,
             conn.requester.phoneNumber,
             conn.req.body.share
@@ -209,9 +209,10 @@ const handleIncludesFromSubscriptions = (conn, locals) => {
     .profiles
     .doc(conn.requester.phoneNumber)
     .collection('Activities')
-    .doc(conn.activityRef.id), {
-      canEdit: handleCanEdit(locals.subscription,
-        /** The phone Number to check and the one with which we are
+    .doc(locals.activityRef.id), {
+      canEdit: handleCanEdit(
+        locals.subscription,
+        /** The phone number to check and the one with which we are
          * going to verify the edit rule with are same because this
          * block is writing the doc for the user themselves.
          */
@@ -222,7 +223,7 @@ const handleIncludesFromSubscriptions = (conn, locals) => {
       timestamp: locals.timestamp,
     });
 
-  handleAssignedUsers(conn);
+  handleAssignedUsers(conn, locals);
 };
 
 
@@ -235,7 +236,7 @@ const handleIncludesFromSubscriptions = (conn, locals) => {
  */
 const addAddendumForRequester = (conn, locals) => {
   locals.addendum = {
-    activityId: conn.activityRef.id,
+    activityId: locals.activityRef.id,
     user: conn.requester.displayName || conn.requester.phoneNumber,
     comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
       + ` created ${locals.template.defaultTitle}`,
@@ -252,7 +253,7 @@ const addAddendumForRequester = (conn, locals) => {
     locals.addendum
   );
 
-  handleIncludesFromSubscriptions(conn);
+  handleIncludesFromSubscriptions(conn, locals);
 };
 
 
@@ -290,14 +291,14 @@ const createActivityRoot = (conn, locals) => {
   activityRoot.template = conn.req.body.template;
 
   activityRoot.schedule = filterSchedules(
-    conn,
+    locals,
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     locals.template.schedule
   );
 
   activityRoot.venue = filterVenues(
-    conn,
+    locals,
     conn.req.body.venue,
     /** The `venue` object from the template. */
     locals.template.venue
@@ -318,7 +319,7 @@ const createActivityRoot = (conn, locals) => {
 
   locals.batch.set(locals.activityRef, activityRoot);
 
-  addAddendumForRequester(conn);
+  addAddendumForRequester(conn, locals);
 };
 
 
@@ -348,7 +349,7 @@ const updateDailyActivities = (conn, locals) => {
       geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 
-  createActivityRoot(conn);
+  createActivityRoot(conn, locals);
 };
 
 
@@ -496,7 +497,7 @@ const handleSpecialTemplates = (conn, locals) => {
     .forEach((key) => docData[`${key}`] = attachment[`${key}`]);
 
   const schedules = filterSchedules(
-    conn,
+    locals,
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     locals.template.schedule
@@ -510,7 +511,7 @@ const handleSpecialTemplates = (conn, locals) => {
   });
 
   const venues = filterVenues(
-    conn,
+    locals,
     conn.req.body.venue,
     /** The `venue` object from the template. */
     locals.template.venue
@@ -659,12 +660,13 @@ const handleResult = (conn, result) => {
   }
 
   locals.template = result[0].docs[0].data();
-  locals.subscription = {};
 
   /** Subscription may or may not exist (especially when creating an `Office`). */
   if (!result[1].empty) {
     locals.subscription = result[1].docs[0].data();
     locals.subscription.id = result[1].docs[0].id;
+    locals.canEditRule = result[1].docs[0].get('canEditRule');
+    locals.include = result[1].docs[0].get('include');
   }
 
   /** Storing office as a reference when the office is not personal,

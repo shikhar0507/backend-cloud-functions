@@ -67,15 +67,10 @@ const sendResponse = (conn, statusCode, message = '') => {
   let success = true;
 
   /** 2xx codes denote success. */
-  if (!statusCode.toString().startsWith('2')) success = false;
+  if (statusCode > 226) success = false;
 
   conn.res.writeHead(statusCode, conn.headers);
-
-  conn.res.end(JSON.stringify({
-    success,
-    message,
-    code: statusCode,
-  }));
+  conn.res.end(JSON.stringify({ success, message, code: statusCode, }));
 };
 
 
@@ -88,7 +83,7 @@ const sendResponse = (conn, statusCode, message = '') => {
  */
 const handleError = (conn, error) => {
   /* eslint no-console: "off" */
-  console.log(JSON.stringify(error));
+  console.error(error);
 
   sendResponse(
     conn,
@@ -164,11 +159,7 @@ const now = (conn) => {
   }
 
   /** Ends response. */
-  sendJSON(conn, {
-    success: true,
-    timestamp: Date.now(),
-    code: code.ok,
-  });
+  sendJSON(conn, { success: true, timestamp: Date.now(), code: code.ok, });
 };
 
 
@@ -179,15 +170,9 @@ const now = (conn) => {
  * @returns {String} a moment date object.
  * @see https://en.wikipedia.org/wiki/ISO_8601
  */
-const getISO8601Date = (date) => {
-  if (!date) {
-    date = new Date();
-  }
-
-  const Moment = require('moment')(date);
-
-  return Moment.format('DD-MM-YYYY');
-};
+const getISO8601Date = (date) =>
+  require('moment')(date || new Date())
+    .format('DD-MM-YYYY');
 
 
 /**
@@ -244,6 +229,7 @@ const disableAccount = (conn, reason) => {
  */
 const isValidGeopoint = (location) => {
   if (!location) return false;
+
   if (!location.hasOwnProperty('latitude')
     || !location.hasOwnProperty('longitude')) return false;
 
@@ -305,17 +291,17 @@ const isE164PhoneNumber = (phoneNumber) => {
 
 
 module.exports = {
-  isE164PhoneNumber,
+  now,
+  sendJSON,
   isValidDate,
-  isNonEmptyString,
+  handleError,
+  sendResponse,
+  disableAccount,
+  getISO8601Date,
   isValidGeopoint,
   hasSupportClaims,
+  isNonEmptyString,
+  isE164PhoneNumber,
   hasSuperUserClaims,
   hasManageTemplateClaims,
-  getISO8601Date,
-  disableAccount,
-  sendResponse,
-  handleError,
-  sendJSON,
-  now,
 };

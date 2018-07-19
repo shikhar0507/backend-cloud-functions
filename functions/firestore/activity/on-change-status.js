@@ -31,11 +31,11 @@ const { code, } = require('../../admin/responses');
 
 const {
   handleError,
+  isValidDate,
   sendResponse,
   getISO8601Date,
-  isValidDate,
-  isNonEmptyString,
   isValidGeopoint,
+  isNonEmptyString,
 } = require('../../admin/utils');
 
 
@@ -79,7 +79,7 @@ const updateDailyActivities = (conn, locals) => {
       geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 
-  commitBatch(conn);
+  commitBatch(conn, locals);
 };
 
 
@@ -104,14 +104,15 @@ const addAddendumForAssignees = (conn, locals) => {
           .doc(doc.get('uid'))
           .collection('Addendum')
           .doc(),
-          conn.addendum
+          locals.addendum
         );
       });
 
-      updateDailyActivities(conn);
+      updateDailyActivities(conn, locals);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -133,38 +134,10 @@ const updateActivityStatus = (conn, locals) => {
     }
   );
 
-  addAddendumForAssignees(conn);
-};
+  locals.addendum.comment = `${conn.requester.phoneNumber} updated the activity`
+    + ` status to ${conn.req.body.status}.`;
 
-
-/**
- * Fetches the template from reading the name from the activity root
- * document.
- *
- * @param {Object} conn Contains Express Request and Response Objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const fetchTemplate = (conn, locals) => {
-  rootCollections
-    .activityTemplates
-    .doc(locals.activity.get('template'))
-    .get()
-    .then((doc) => {
-      conn.addendum = {
-        activityId: conn.req.body.activityId,
-        user: conn.requester.displayName || conn.requester.phoneNumber,
-        comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
-          + ` updated ${doc.get('defaultTitle')}.`,
-        location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: locals.timestamp,
-      };
-
-      updateActivityStatus(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  addAddendumForAssignees(conn, locals);
 };
 
 
@@ -235,13 +208,20 @@ const handleResults = (conn, result) => {
     sendResponse(
       conn,
       code.badRequest,
-      `${conn.req.body.status} is NOT a valid status from the template.`
+      `${conn.req.body.status} is NOT a valid status.`
     );
 
     return;
   }
 
-  fetchTemplate(conn, locals);
+  locals.addendum = {
+    activityId: conn.req.body.activityId,
+    user: conn.requester.displayName || conn.requester.phoneNumber,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: locals.timestamp,
+  };
+
+  updateActivityStatus(conn, locals);
 };
 
 

@@ -376,6 +376,8 @@ const readAddendumsByQuery = (conn, locals) => {
       if (snapShot.empty) {
         /** Activites object is an array for the final response. */
         jsonResult.activities = [];
+
+        /** Response ends here because addendum are empty. */
         sendJSON(conn, jsonResult);
 
         return;
@@ -396,8 +398,7 @@ const readAddendumsByQuery = (conn, locals) => {
        * on `timestamp`.
        * */
       jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
-
-      getActivityIdsFromProfileCollection(conn, jsonResult);
+      getActivityIdsFromProfileCollection(conn, jsonResult, locals);
 
       return;
     })

@@ -110,7 +110,7 @@ const fetchTemplateByName = (conn) => {
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @returns {void}
  */
-const app = (conn) => {
+module.exports = (conn) => {
   if (conn.req.query.hasOwnProperty('name')) {
     fetchTemplateByName(conn);
 
@@ -119,6 +119,3 @@ const app = (conn) => {
 
   fetchAllTemplates(conn);
 };
-
-
-module.exports = app;

@@ -30,12 +30,12 @@ const { rootCollections, getGeopointObject, db, } = require('../../admin/admin')
 const { code, } = require('../../admin/responses');
 
 const {
+  isValidDate,
   handleError,
   sendResponse,
   getISO8601Date,
-  isValidDate,
-  isNonEmptyString,
   isValidGeopoint,
+  isNonEmptyString,
 } = require('../../admin/utils');
 
 
@@ -84,7 +84,7 @@ const updateDailyActivities = (conn, locals) => {
       geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 
-  commitBatch(conn);
+  commitBatch(conn, locals);
 };
 
 
@@ -104,7 +104,7 @@ const updateActivityRootTimestamp = (conn, locals) => {
       merge: true,
     });
 
-  updateDailyActivities(conn);
+  updateDailyActivities(conn, locals);
 };
 
 
