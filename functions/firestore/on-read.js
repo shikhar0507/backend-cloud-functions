@@ -364,13 +364,9 @@ const readAddendumsByQuery = (conn) => {
     .orderBy('timestamp', 'asc')
     .get()
     .then((snapShot) => {
-      if (!snapShot.empty) {
-        /** The `timestamp` of the last addendum sorted sorted based
-         * on `timestamp`.
-         * */
-        jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
-
-        /** Ends the response. */
+      if (snapShot.empty) {
+        /** Activites object is an array for the final response. */
+        jsonResult.activities = [];
         sendJSON(conn, jsonResult);
 
         return;
@@ -386,6 +382,11 @@ const readAddendumsByQuery = (conn) => {
           user: doc.get('user'),
         });
       });
+
+      /** The `timestamp` of the last addendum sorted sorted based
+       * on `timestamp`.
+       * */
+      jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
 
       getActivityIdsFromProfileCollection(conn, jsonResult);
 
