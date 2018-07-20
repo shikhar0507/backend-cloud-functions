@@ -59,7 +59,7 @@ const createInstantLog = (conn, response) => {
   if (!response.message) response.message = '';
   let successful = true;
 
-  if (response.code > 299) {
+  if (response.code > 226) {
     successful = false;
   }
 

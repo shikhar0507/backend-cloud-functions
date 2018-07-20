@@ -29,11 +29,7 @@ const { rootCollections, } = require('../../admin/admin');
 
 const { code, } = require('../../admin/responses');
 
-const {
-  handleError,
-  sendResponse,
-  isNonEmptyString,
-} = require('../../admin/utils');
+const { handleError, sendResponse, isNonEmptyString, } = require('../../admin/utils');
 
 
 /**
@@ -43,7 +39,7 @@ const {
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
-const createTemplate = (conn) => {
+const createTemplate = (conn) =>
   rootCollections
     .activityTemplates
     .doc(conn.req.body.name)
@@ -62,7 +58,6 @@ const createTemplate = (conn) => {
       'The template was created successfully.')
     )
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -114,7 +109,7 @@ const handleResult = (conn, result) => {
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
-const fetchDocs = (conn) => {
+const fetchDocs = (conn) =>
   Promise
     .all([
       rootCollections
@@ -129,7 +124,6 @@ const fetchDocs = (conn) => {
     ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
-};
 
 
 /**

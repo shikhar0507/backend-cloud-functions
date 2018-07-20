@@ -91,7 +91,7 @@ const updateDailyActivities = (conn, locals) => {
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addAddendumForAssignees = (conn, locals) => {
+const addAddendumForAssignees = (conn, locals) =>
   Promise
     .all(locals.assigneeDocPromises)
     .then((docsArray) => {
@@ -113,7 +113,6 @@ const addAddendumForAssignees = (conn, locals) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -200,11 +199,7 @@ const handleResults = (conn, result) => {
     );
   });
 
-  if (
-    result[2]
-      .get('ACTIVITYSTATUS')
-      .indexOf(conn.req.body.status) === -1
-  ) {
+  if (result[2].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {
     sendResponse(
       conn,
       code.badRequest,
@@ -232,7 +227,7 @@ const handleResults = (conn, result) => {
  * @param {Object} conn Contains Express Request and Response Objects.
  * @returns {void}
  */
-const fetchDocs = (conn) => {
+const fetchDocs = (conn) =>
   Promise
     .all([
       rootCollections
@@ -251,7 +246,6 @@ const fetchDocs = (conn) => {
     ])
     .then((result) => handleResults(conn, result))
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -261,7 +255,7 @@ const fetchDocs = (conn) => {
  * @param {Object} conn Contains Express Request and Response Objects.
  * @returns {void}
  */
-const verifyEditPermission = (conn) => {
+const verifyEditPermission = (conn) =>
   rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
@@ -296,7 +290,6 @@ const verifyEditPermission = (conn) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -306,12 +299,11 @@ const verifyEditPermission = (conn) => {
  * @param {Object} body The request body.
  * @returns {boolean} If the request body has valid fields.
  */
-const isValidRequestBody = (body) => {
-  return isNonEmptyString(body.activityId)
-    && isValidDate(body.timestamp)
-    && isValidGeopoint(body.geopoint)
-    && isNonEmptyString(body.status);
-};
+const isValidRequestBody = (body) =>
+  isNonEmptyString(body.activityId)
+  && isValidDate(body.timestamp)
+  && isValidGeopoint(body.geopoint)
+  && isNonEmptyString(body.status);
 
 
 /**

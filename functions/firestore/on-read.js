@@ -242,6 +242,8 @@ const fetchAttachments = (conn, jsonResult, locals) =>
       let activityObj;
 
       docsArray.forEach((doc) => {
+        if (!doc.exists) return;
+
         activityObj = jsonResult.activities[doc.get('activityId')];
         activityObj.attachment = doc.data();
 

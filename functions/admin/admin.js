@@ -27,15 +27,7 @@
 
 const admin = require('firebase-admin');
 
-try {
-  admin.initializeApp({
-    credential: admin.credential.cert(require('./key.json')),
-    databaseURL: 'https://growthfilev2-0.firebaseio.com',
-  });
-} catch (error) {
-  /* eslint no-console: "off" */
-  console.error(error);
-}
+admin.initializeApp();
 
 const auth = admin.auth();
 const db = admin.firestore();
@@ -131,16 +123,23 @@ const getUserByPhoneNumber = (phoneNumber) =>
       };
     })
     .catch((error) => {
-      if (error.code === 'auth/user-not-found' ||
-        error.code === 'auth/invalid-phone-number' ||
-        error.code === 'auth/internal-error') {
+      /** @see https://firebase.google.com/docs/auth/admin/errors */
+      if (error.code === 'auth/user-not-found'
+        || error.code === 'auth/invalid-phone-number'
+        || error.code === 'auth/internal-error') {
         return {
           [phoneNumber]: {},
         };
       }
 
+      /* eslint no-console: "off"*/
       console.log(error);
 
+      /** This function relies on the user input, so chances are
+       * that all three conditions checked above may not cover
+       * all the cases. Returning a usable object regardless,
+       * so the clients can work correctly.
+       */
       return {
         [phoneNumber]: {},
       };

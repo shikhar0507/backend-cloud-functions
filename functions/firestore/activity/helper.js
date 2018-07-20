@@ -72,15 +72,11 @@ const handleCanEdit = (locals, phoneNumber, requesterPhoneNumber, assignees = []
  * Validates the schedules where the there is a name field present,
  * along with the condition that the endTime >= startTime.
  *
- * @param {Object} locals Object containing local data.
  * @param {Array} requestBodySchedule Schedules from request body.
  * @param {Array} scheduleNames Schedules from template.
  * @returns {Array} Of valid schedules.
  */
-const filterSchedules = (locals, requestBodySchedule, scheduleNames) => {
-  /** If `filterSchedules` has been called once, return the cached values. */
-  if (locals.hasOwnProperty('schedule')) return locals.schedule;
-
+const filterSchedules = (requestBodySchedule, scheduleNames) => {
   const defaultSchedules = [];
 
   if (!scheduleNames) return defaultSchedules;
@@ -135,11 +131,6 @@ const filterSchedules = (locals, requestBodySchedule, scheduleNames) => {
     validSchedules = defaultSchedules;
   }
 
-  /** Set up the cache for avoiding subsequent calculations on next function
-   * calls to filterSchedules function.
-   */
-  locals.schedule = validSchedules;
-
   return validSchedules;
 };
 
@@ -148,15 +139,11 @@ const filterSchedules = (locals, requestBodySchedule, scheduleNames) => {
  * Validates the venues based on the `venueDescriptors` and
  * valid geopoint object.
  *
- * @param {Object} locals Object containing local data.
  * @param {Array} requestBodyVenue Venue objects from request.
  * @param {Array} venueDescriptors Venue descriptors from template.
  * @returns {Array} Valid venues based on template.
  */
-const filterVenues = (locals, requestBodyVenue, venueDescriptors) => {
-  /** If filterVenues has been called once, return the cached values. */
-  if (locals.hasOwnProperty('venue')) return locals.venue;
-
+const filterVenues = (requestBodyVenue, venueDescriptors) => {
   let validVenues = [];
   const defaultVenues = [];
 
@@ -199,11 +186,6 @@ const filterVenues = (locals, requestBodyVenue, venueDescriptors) => {
     validVenues = defaultVenues;
   }
 
-  /** Set up the cache for avoiding subsequent calculations on next function
-   * calls to filterVenues function.
-   */
-  locals.venue = validVenues;
-
   return validVenues;
 };
 
@@ -212,25 +194,23 @@ const filterVenues = (locals, requestBodyVenue, venueDescriptors) => {
  * Filters out all the non-essential keys from the attachment object in the
  * request body using the attachment object from the template.
  *
- * @param {Object} attachmentFromRequestBody Attachment from the request.body.attachment.
- * @param {Object} attachmentFromTemplate Attachment object from the template
- * in the firestore.
- * @returns {Array} Venue Objects.
+ * @param {Object} reqBodyAttachment Attachment from the request.body.attachment.
+ * @param {Object} templateAttachment Attachment from the template in db.
+ * @returns {Object} Valid attachment object.
  */
-const filterAttachment = (
-  attachmentFromRequestBody, attachmentFromTemplate
-) => {
+const filterAttachment = (reqBodyAttachment, templateAttachment) => {
   const filteredAttachment = {};
 
-  const requestBodyAttachmentKeys = Object.keys(attachmentFromRequestBody);
-  const templateAttachmentKeys = Object.keys(attachmentFromTemplate);
+  const requestBodyAttachmentKeys = Object.keys(reqBodyAttachment);
+  const templateAttachmentKeys = Object.keys(templateAttachment);
 
   templateAttachmentKeys.forEach((key) => {
     requestBodyAttachmentKeys.forEach((valueName) => {
+      if (key !== valueName) return;
+      if (!reqBodyAttachment[valueName].hasOwnProperty('value')) return;
+
       /** If the value field is missing, the attachment object isn't valid. */
-      if (key === valueName && attachmentFromRequestBody[valueName].value) {
-        filteredAttachment[key] = attachmentFromRequestBody[key].value;
-      }
+      filteredAttachment[key] = reqBodyAttachment[key].value;
     });
   });
 
@@ -239,8 +219,8 @@ const filterAttachment = (
 
 
 module.exports = {
-  filterSchedules,
   filterVenues,
   handleCanEdit,
+  filterSchedules,
   filterAttachment,
 };

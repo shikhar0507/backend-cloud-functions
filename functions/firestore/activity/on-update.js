@@ -27,7 +27,7 @@
 
 const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
 
-const { filterSchedules, filterVenues, } = require('./helper');
+const { filterSchedules, filterVenues, filterAttachment, } = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
@@ -208,8 +208,38 @@ const updateActivityDoc = (conn, locals) => {
  * @returns {void}
  */
 const handleAttachment = (conn, locals) => {
-  /** Do stuff */
-  updateActivityDoc(conn, locals);
+  if (!locals.activity.get('docRef')) {
+    updateActivityDoc(conn, locals);
+
+    return;
+  }
+
+  if (!conn.req.body.hasOwnProperty('attachment')) {
+    updateActivityDoc(conn, locals);
+
+    return;
+  }
+
+  const attachmentDocRef = db.doc(locals.activity.get('attachment'));
+  const templateName = locals.activity.get('template');
+
+  rootCollections
+    .activityTemplates
+    .doc(templateName)
+    .get()
+    .then((doc) => {
+      const updatedFields = filterAttachment(
+        conn.req.body.attachment,
+        doc.get('attachment')
+      );
+
+      locals.batch.set(attachmentDocRef, updatedFields, { merge: true, });
+
+      updateActivityDoc(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleAttachment(conn, error));
 };
 
 
@@ -309,7 +339,7 @@ const fetchDocs = (conn) =>
  * @param {Object} conn Contains Express' Request and Respone objects.
  * @returns {void}
  */
-const verifyEditPermission = (conn) => {
+const verifyEditPermission = (conn) =>
   rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
@@ -343,7 +373,6 @@ const verifyEditPermission = (conn) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 const isValidRequestBody = (body) =>

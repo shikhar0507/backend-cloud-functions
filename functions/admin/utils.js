@@ -61,7 +61,6 @@ const sendJSON = (conn, json) => {
  * @param {number} statusCode A standard HTTP status code.
  * @param {string} [message] Response message for the request.
  * @returns {void}
- *
  */
 const sendResponse = (conn, statusCode, message = '') => {
   let success = true;

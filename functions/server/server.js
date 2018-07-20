@@ -232,7 +232,7 @@ const checkAuthorizationToken = (conn) => {
       }
 
       /* eslint no-console: "off" */
-      console.log(error);
+      console.error(error);
 
       sendResponse(
         conn,
@@ -270,10 +270,7 @@ module.exports = (req, res) => {
     'Cache-Control': 'no-cache',
   };
 
-  if ([
-    'OPTIONS',
-    'HEAD',
-  ].indexOf(req.method) > -1) {
+  if (['OPTIONS', 'HEAD',].indexOf(req.method) > -1) {
     /** FOR handling CORS... */
     sendResponse(conn, code.noContent);
 
@@ -281,12 +278,7 @@ module.exports = (req, res) => {
   }
 
   /** Allowed methods */
-  if ([
-    'GET',
-    'POST',
-    'PATCH',
-    'PUT',
-  ].indexOf(req.method) > -1) {
+  if (['GET', 'POST', 'PATCH', 'PUT',].indexOf(req.method) > -1) {
     checkAuthorizationToken(conn);
 
     return;

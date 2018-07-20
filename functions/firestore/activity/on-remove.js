@@ -91,7 +91,7 @@ const updateActivityDoc = (conn, locals) => {
 };
 
 
-const setAddendumForUsersWithUid = (conn, locals) => {
+const addAddendumForUsersWithAuth = (conn, locals) => {
   const promises = [];
 
   locals.assigneeArray.forEach((phoneNumber) => {
@@ -168,7 +168,7 @@ const unassignFromTheActivity = (conn, locals) => {
 
   locals.addendum.comment = `${comment}from the activity.`;
 
-  setAddendumForUsersWithUid(conn, locals);
+  addAddendumForUsersWithAuth(conn, locals);
 };
 
 

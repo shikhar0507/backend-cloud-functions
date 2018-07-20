@@ -97,16 +97,11 @@
     // Return inside each `then` to create readable and reusable Promise chains.
     // Forces developers to return console logs and http calls in promises.
     "promise/always-return": 2,
-    //Enforces the use of `catch` on un-returned promises
     "promise/catch-or-return": 2,
-    // Warn against nested `then` or `catch` statements
     "promise/no-nesting": 1,
-    // Restricts the use of parentheses to only where they are necessary
     "no-extra-parens": "warn",
-    // A variable that is never reassigned use `const` for it.
     "prefer-const": "warn",
     "no-const-assign": "error",
-    // Use ES6 let and const for variable declaration.
     "no-var": "error",
     "prefer-template": "warn",
     "valid-jsdoc": [

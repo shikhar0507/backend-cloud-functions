@@ -45,7 +45,7 @@ const {
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const updateTemplate = (conn, updatedFields, locals) => {
+const updateTemplate = (conn, updatedFields, locals) =>
   rootCollections
     .activityTemplates
     .doc(locals.docId)
@@ -57,7 +57,6 @@ const updateTemplate = (conn, updatedFields, locals) => {
     })
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -153,7 +152,7 @@ const handleResult = (conn, result) => {
  * @param {Object} conn Express Request and Response Objects.
  * @returns {void}
  */
-const fetchDocs = (conn) => {
+const fetchDocs = (conn) =>
   Promise
     .all([
       rootCollections
@@ -168,7 +167,6 @@ const fetchDocs = (conn) => {
     ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
-};
 
 
 

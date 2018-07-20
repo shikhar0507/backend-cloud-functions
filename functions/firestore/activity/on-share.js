@@ -372,12 +372,11 @@ const verifyEditPermission = (conn) =>
     .catch((error) => handleError(conn, error));
 
 
-const isValidRequestBody = (body) => {
-  return isValidDate(body.timestamp)
-    && isNonEmptyString(body.activityId)
-    && Array.isArray(body.share)
-    && isValidGeopoint(body.geopoint);
-};
+const isValidRequestBody = (body) =>
+  isValidDate(body.timestamp)
+  && isNonEmptyString(body.activityId)
+  && Array.isArray(body.share)
+  && isValidGeopoint(body.geopoint);
 
 
 module.exports = (conn) => {

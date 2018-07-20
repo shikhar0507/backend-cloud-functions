@@ -123,18 +123,17 @@ const fetchUsersWithUid = (conn, locals) => {
 };
 
 
-const updateActivityAssignees = (conn, locals) => {
-  locals.assignees = [];
-
+const updateActivityAssignees = (conn, locals) =>
   Promise
     .all(locals.promises)
     .then((snapShots) => {
+      locals.assignees = [];
+
       snapShots.forEach((snapShot) => {
         snapShot.forEach((doc) => {
           const activityId = doc.ref.path.split('/')[1];
-          const phoneNumber = doc.id;
 
-          locals.assignees.push({ activityId, phoneNumber, });
+          locals.assignees.push({ activityId, phoneNumber: doc.id, });
         });
       });
 
@@ -143,7 +142,6 @@ const updateActivityAssignees = (conn, locals) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 const transferSubscriptions = (conn, locals, snapShots) => {
@@ -249,6 +247,13 @@ const fetchActivitiesAndSubsriptions = (conn, locals) =>
     .catch((error) => handleError(conn, error));
 
 
+/**
+ * Updates the user profile docs (inside `Updates` and `Profile`)
+ * with the phone number from the request body.
+ *
+ * @param {Object} conn Express Request and Response Objects.
+ * @returns {void}
+ */
 const updateUserDocs = (conn) => {
   /** Stores temporary data throughout the code. */
   const locals = {};
@@ -276,7 +281,14 @@ const updateUserDocs = (conn) => {
 };
 
 
-const updatePhoneNumberInAuth = (conn) => {
+/**
+ * Updates the user's phone number in `auth` using the `phoneNumber`
+ * field from the request body.
+ *
+ * @param {Object} conn Express Request and Response Objects.
+ * @returns {void}
+ */
+const updatePhoneNumberInAuth = (conn) =>
   users
     .updateUserPhoneNumberInAuth(
       /** Current `uid` */
@@ -285,16 +297,55 @@ const updatePhoneNumberInAuth = (conn) => {
       conn.req.body.phoneNumber
     )
     .then(() => updateUserDocs(conn))
-    .catch((error) => handleError(conn, error));
-};
+    .catch((error) => {
+      /** @see https://firebase.google.com/docs/auth/admin/errors */
+      if (error.code === 'auth/invalid-phone-number') {
+        sendResponse(
+          conn,
+          code.badRequest,
+          'Invalid phone number found in the request body.'
+        );
+
+        return;
+      }
+
+      if (error.code === 'auth/phone-number-already-exists') {
+        sendResponse(
+          conn,
+          code.conflict,
+          `Someone is already using the phone number: ${conn.req.body.phoneNumber}.`
+        );
+
+        return;
+      }
+
+      handleError(conn, error);
+    });
 
 
+/**
+ * Validates the request by checking the request body for a valid
+ * `timestamp`, `phoneNumber`, and `geopoint`.
+ *
+ * @param {Object} conn Express Request and Response Objects.
+ * @returns {void}
+ */
 module.exports = (conn) => {
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {
     sendResponse(
       conn,
       code.badRequest,
       'The phoneNumber field is missing from the request body.'
+    );
+
+    return;
+  }
+
+  if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
+    sendResponse(
+      conn,
+      code.conflict,
+      'The phone number to update cannot be the same as your own phone number.'
     );
 
     return;
