@@ -75,6 +75,27 @@ const handleAssignedUsers = (conn, locals) => {
     return;
   }
 
+  /** When the include array from subscription is empty, AND the
+   * `share` array from the request body is also empty, the activity
+   * will be created with no assignees.
+   * That's not allowed since, no assignee means that it will not reach anyone
+   * in a read request.
+   *
+   * Special case is also taken in account here for the support requests when
+   * the because the fallback value for include array is an empty array.
+   */
+  if (locals.include.length === 0
+    && conn.req.body.share.length === 0
+    && !conn.requester.isSupportRequest) {
+    sendResponse(
+      conn,
+      code.conflict,
+      'Cannot create an activity zero assignees. Make sure to include someone.'
+    );
+
+    return;
+  }
+
   const promises = [];
 
   /** Create docs in Assignees collection if share is in the request body. */
@@ -660,6 +681,11 @@ const handleResult = (conn, result) => {
   }
 
   locals.template = result[0].docs[0].data();
+  /** Used by handleCanEdit method for setting up edit permissions.
+   * In support requests, the subscription doc may not exist sometimes,
+   * so include will be default in that case. An empty array is a fallback.
+   */
+  locals.include = [];
 
   /** Subscription may or may not exist (especially when creating an `Office`). */
   if (!result[1].empty) {

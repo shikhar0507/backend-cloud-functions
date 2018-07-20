@@ -242,6 +242,16 @@ const handleResult = (conn, result) => {
   locals.assigneeArray = [];
   result[1].forEach((doc) => locals.assigneeArray.push(doc.id));
 
+  if (locals.assigneeArray.length === 1) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `Cannot remove the last assignee of this activity.`
+    );
+
+    return;
+  }
+
   fetchTemplate(conn, locals);
 };
 
