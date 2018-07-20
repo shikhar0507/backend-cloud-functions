@@ -27,7 +27,6 @@
 
 const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
 
-
 const { code, } = require('../../admin/responses');
 
 const { handleCanEdit, filterSchedules, filterVenues, filterAttachment, } = require('./helper');
@@ -90,7 +89,6 @@ const handleAssignedUsers = (conn, locals) => {
    * will be created with no assignees.
    * That's not allowed since, no assignee means that it will not reach anyone
    * in a read request.
-   *
    */
   if (locals.include.length === 0
     && conn.req.body.share.length === 0) {
@@ -118,18 +116,18 @@ const handleAssignedUsers = (conn, locals) => {
     /** The phone numbers exist uniquely in the `/Profiles` collection. */
     promises.push(rootCollections.profiles.doc(phoneNumber).get());
 
+    const canEdit = handleCanEdit(
+      locals,
+      phoneNumber,
+      conn.requester.phoneNumber,
+      conn.req.body.share
+    );
+
     locals.batch.set(rootCollections
       .activities
       .doc(locals.activityRef.id)
       .collection('Assignees')
-      .doc(phoneNumber), {
-        canEdit: handleCanEdit(
-          locals,
-          phoneNumber,
-          conn.requester.phoneNumber,
-          conn.req.body.share
-        ),
-      }, {
+      .doc(phoneNumber), { canEdit, }, {
         merge: true,
       });
 
@@ -138,21 +136,16 @@ const handleAssignedUsers = (conn, locals) => {
       .doc(phoneNumber)
       .collection('Activities')
       .doc(locals.activityRef.id), {
-        canEdit: handleCanEdit(
-          locals,
-          phoneNumber,
-          conn.requester.phoneNumber,
-          conn.req.body.share
-        ),
+        canEdit,
         timestamp: locals.timestamp,
       });
   });
 
   Promise
     .all(promises)
-    .then((snapShots) => {
+    .then((snapShot) => {
       /** The doc exists inside `Profiles` collection. */
-      snapShots.forEach((doc) => {
+      snapShot.forEach((doc) => {
         if (!doc.exists) {
           /** Create profiles for the phone numbers which are not in the DB. */
           locals.batch.set(rootCollections
@@ -169,6 +162,7 @@ const handleAssignedUsers = (conn, locals) => {
             .doc(locals.activityRef.id), {
               canEdit: handleCanEdit(
                 locals,
+                /** Document ID is the phoneNumber */
                 doc.id,
                 conn.requester.phoneNumber,
                 conn.req.body.share
