@@ -15,9 +15,8 @@ query parameters: none
 }
 ```
 
-> A user can only have one permission, at most. 
-
-On every successful permission update, the last permission is overwritten.
+> A user can only have one permission at most.
+> On every successful permission update, the existing permissions are replaced.
 
 ## Supported Permissions (field)
 
@@ -26,5 +25,5 @@ On every successful permission update, the last permission is overwritten.
 
 ## Preconditions
 
-* Only a person who has `superUser` set to `true` in the `customClaims` can successfully use this endpoint.
+* Only a person who has `superUser` in the `customClaims` can successfully use this endpoint.
 * You cannot grant yourself permissions. This means that, if the `phoneNumber` in the request body is the same phone number which you are logged-in with; your request will be rejected.

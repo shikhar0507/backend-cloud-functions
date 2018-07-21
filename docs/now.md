@@ -15,3 +15,7 @@ query parameter: none
     "code": 200
 }
 ```
+
+## Preconditions
+
+None

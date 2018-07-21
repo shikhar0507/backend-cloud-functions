@@ -86,4 +86,4 @@ Upon omitting the `query` in the request URL, the API will send all the template
 
 ## Preconditions
 
-* Only the users who have `manageTemplates` set to `true` in their `customClaims` can read templates from the database.
+* Only the users who have `manageTemplates` their `customClaims` can read templates from the database.

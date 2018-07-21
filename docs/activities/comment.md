@@ -20,20 +20,6 @@ query parameter: none
 }
 ```
 
-## JS Object for this JSON
-
-```js
-const body = {
-    activityId: 'rthbw93Sc3YpAHbRAYFL',
-    timestamp: 0,
-    geopoint: {
-        latitude: 0,
-        longitude: 0,
-    },
-    comment: 'A comment string.',
-};
-```
-
 * An activity with the `activityId` from the request body must exist.
 
 * You must be an assignee of the activity.

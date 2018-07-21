@@ -4,7 +4,7 @@ endpoint: `/api/read`
 
 method: `GET`
 
-query parameter: `from=number --> unix timestamp`
+query parameter: `from=number`
 
 example: `/api/activities/read?from=1522598642000`
 
@@ -20,7 +20,7 @@ example: `/api/activities/read?from=1522598642000`
 }
 ```
 
-This is the response that you will get when there are no activities found for the timestamp that you sent in the request parameter.
+This is the response that you will get when there are no activities found for the `timestamp` that you sent in the `from` query parameter in the url.
 
 ## Full Response Body
 
