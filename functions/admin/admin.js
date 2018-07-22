@@ -36,6 +36,10 @@ const db = admin.firestore();
  */
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
+require('process')
+  .on('unhandledRejection', console.log)
+  .on('uncaughtException', console.log);
+
 
 /**
  * Sets claims for a user based on `uid`.
