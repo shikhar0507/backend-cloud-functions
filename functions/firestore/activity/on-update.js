@@ -110,7 +110,6 @@ const updateActivityDoc = (conn, locals) => {
       .forEach((scheduleObject) => scheduleNames.add(scheduleObject.name));
 
     activityUpdates.schedule = filterSchedules(
-      locals,
       conn.req.body.schedule,
       [...scheduleNames,]
     );
@@ -217,7 +216,7 @@ const handleResult = (conn, result) => {
     sendResponse(
       conn,
       code.conflict,
-      `There is no activity with the id: ${conn.req.body.activityId}.`
+      `This activity (${conn.req.body.activityId}) does not exist.`
     );
 
     return;
@@ -298,7 +297,7 @@ const verifyEditPermission = (conn) =>
         sendResponse(
           conn,
           code.forbidden,
-          `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
+          `This activity (${conn.req.body.activityId}) does not exist.`
         );
 
         return;
