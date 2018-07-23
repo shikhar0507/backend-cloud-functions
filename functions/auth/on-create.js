@@ -78,9 +78,7 @@ const createSubscription = (userRecord, batch, activityDocRef) => {
     .doc(), {
       office: 'personal',
       template: 'plan',
-      include: [
-        userRecord.phoneNumber,
-      ],
+      include: [],
       /** The auth event isn't an activity */
       activityId: activityDocRef.id,
       status: 'CONFIRMED',
