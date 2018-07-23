@@ -255,6 +255,7 @@ const fetchDocs = (conn) =>
  */
 const isValidRequestBody = (body) =>
   isNonEmptyString(body.activityId)
+  && typeof body.timestamp === 'number'
   && isValidDate(body.timestamp)
   && isValidGeopoint(body.geopoint)
   && isNonEmptyString(body.comment);

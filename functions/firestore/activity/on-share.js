@@ -331,6 +331,7 @@ const verifyEditPermission = (conn) =>
 
 const isValidRequestBody = (body) =>
   isValidDate(body.timestamp)
+  && typeof body.timestamp === 'number'
   && isNonEmptyString(body.activityId)
   && Array.isArray(body.share)
   && isValidGeopoint(body.geopoint);

@@ -738,6 +738,7 @@ const fetchDocs = (conn) =>
  */
 const isValidRequestBody = (body) =>
   isNonEmptyString(body.template)
+  && typeof body.timestamp === 'number'
   && isValidDate(body.timestamp)
   && isNonEmptyString(body.office)
   && isValidGeopoint(body.geopoint);
