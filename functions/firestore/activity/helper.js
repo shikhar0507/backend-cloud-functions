@@ -25,7 +25,12 @@
 'use strict';
 
 
-const { isValidDate, isValidGeopoint, } = require('../../admin/utils');
+const {
+  isValidDate,
+  isValidGeopoint,
+  isNonEmptyString,
+  isE164PhoneNumber,
+} = require('../../admin/utils');
 
 
 /**
@@ -218,9 +223,262 @@ const filterAttachment = (reqBodyAttachment, templateAttachment) => {
 };
 
 
+/**
+ * Validates the request body for data from the client, and constructs
+ * a helpful message in case of some error.
+ *
+ * @param {Object} body Request body from the client device.
+ * @param {*} endpoint Resource name for which the validation is to be performed.
+ * @returns {Object} message object.
+ */
+const isValidRequestBody = (body, endpoint) => {
+  // TODO: Refactor this behemoth... :O
+  const successMessage = {
+    message: '',
+    isValidBody: true,
+  };
+
+  if (!body.hasOwnProperty('timestamp')) {
+    return {
+      message: 'The "timestamp" field is missing from the request body.',
+      isValidBody: false,
+    };
+  }
+
+  if (typeof body.timestamp !== 'number') {
+    return {
+      message: 'The "timestamp" field should be a number.',
+      isValidBody: false,
+    };
+  }
+
+  if (!isValidDate(body.timestamp)) {
+    return {
+      message: 'The "timestamp" in the request body is invalid.',
+      isValidBody: false,
+    };
+  }
+
+  if (!body.hasOwnProperty('geopoint')) {
+    return {
+      message: 'The "geopoint" field is missing from the request body.',
+      isValidBody: false,
+    };
+  }
+
+  if (!isValidGeopoint(body.geopoint)) {
+    return {
+      message: 'The "geopoint" object in the request body is invalid.'
+        + ' Please make sure that the "latitude" and "longtitude" properties'
+        + 'are present and  and are in valid ranges.',
+      isValidBody: false,
+    };
+  }
+
+  if (endpoint === 'create') {
+    if (!body.hasOwnProperty('template')) {
+      return {
+        message: 'The "template" field is missing from the request body.',
+        isValidBody: false,
+      };
+    }
+
+    if (!isNonEmptyString(body.template)) {
+      return {
+        message: 'The "template" field should be a non-empty string.',
+        isValidBody: false,
+      };
+    }
+
+    if (!body.hasOwnProperty('office')) {
+      return {
+        message: 'The "office" field is missing from the request body.',
+        isValidBody: false,
+      };
+    }
+
+    if (!isNonEmptyString(body.office)) {
+      return {
+        message: 'The "office" field should be a non-empty string.',
+        isValidBody: false,
+      };
+    }
+
+    return successMessage;
+  }
+
+  if (!body.hasOwnProperty('activityId')) {
+    return {
+      message: 'The "activityId" field is missing from the request body.',
+      isValidBody: false,
+    };
+  }
+
+  if (!isNonEmptyString(body.activityId)) {
+    return {
+      message: 'The "activityId" field should be a non-empty string.',
+      isValidBody: false,
+    };
+  }
+
+  if (endpoint === 'comment') {
+    if (!body.hasOwnProperty('comment')) {
+      return {
+        message: 'The "comment" field is missing from the request body.',
+        isValidBody: false,
+      };
+    }
+
+    if (!isNonEmptyString(body.comment)) {
+      return {
+        message: 'The "comment" field should be a non-empty string.',
+        isValidBody: false,
+      };
+    }
+
+    return successMessage;
+  }
+
+  if (endpoint === 'update') {
+    if (!body.hasOwnProperty('title')
+      && !body.hasOwnProperty('description')
+      && !body.hasOwnProperty('venue')
+      && !body.hasOwnProperty('schedule')) {
+      return {
+        message: 'The request body has no usable fields.'
+          + ' Please add at least one (or all) of these: "title", "description", "schedule", or "venue"'
+          + ' in the request body to make a successful request.',
+        isValidBody: false,
+      };
+    }
+
+    if (body.hasOwnProperty('title')
+      && !isNonEmptyString(body.title)) {
+      return {
+        message: 'The "title" field in the request body should be a non-empty string.',
+        isValidBody: false,
+      };
+    }
+
+    if (body.hasOwnProperty('description')
+      && !isNonEmptyString(body.description)) {
+      return {
+        message: 'The "description" field in the request body should be a non-empty string.',
+        isValidBody: false,
+      };
+    }
+
+    return successMessage;
+  }
+
+  if (endpoint === 'change-status') {
+    if (!body.hasOwnProperty('status')) {
+      return {
+        message: 'The "status" field is missing from the request body.',
+        isValidBody: false,
+      };
+    }
+
+    if (!isNonEmptyString(body.status)) {
+      return {
+        message: 'The "status" field should be a non-empty string.',
+        isValidBody: false,
+      };
+    }
+
+    return successMessage;
+  }
+
+  if (endpoint === 'remove') {
+    if (!body.hasOwnProperty('remove')) {
+      return {
+        message: 'The "remove" array is missing from the request body',
+        isValidBody: false,
+      };
+    }
+
+    if (!Array.isArray(body.remove)) {
+      return {
+        message: 'The "remove" field in the reqest body should be an array.',
+        isValidBody: false,
+      };
+    }
+
+    if (body.remove.length === 0) {
+      return {
+        message: 'The "remove" array cannot be empty.',
+        isValidBody: false,
+      };
+    }
+
+    const validPhoneNumbers = [];
+
+    body.remove.forEach((phoneNumber) => {
+      if (!isE164PhoneNumber(phoneNumber)) return;
+
+      validPhoneNumbers.push(phoneNumber);
+    });
+
+    if (validPhoneNumbers.length === 0) {
+      return {
+        message: 'No valid phone numbers found in the "remove" array from the'
+          + ' request body.',
+        isValidBody: false,
+      };
+    }
+
+    return successMessage;
+  }
+
+  if (endpoint === 'share') {
+    if (!body.hasOwnProperty('share')) {
+      return {
+        message: 'The "share" array is missing from the request body',
+        isValidBody: false,
+      };
+    }
+
+    if (!Array.isArray(body.share)) {
+      return {
+        message: 'The "share" field in the reqest body should be an array.',
+        isValidBody: false,
+      };
+    }
+
+    if (body.share.length === 0) {
+      return {
+        message: 'The "share" array cannot be empty.',
+        isValidBody: false,
+      };
+    }
+
+    const validPhoneNumbers = [];
+
+    body.share.forEach((phoneNumber) => {
+      if (!isE164PhoneNumber(phoneNumber)) return;
+
+      validPhoneNumbers.push(phoneNumber);
+    });
+
+    if (validPhoneNumbers.length === 0) {
+      return {
+        message: 'No valid phone numbers found in the "share" array from the'
+          + ' request body.',
+        isValidBody: false,
+      };
+    }
+
+    return successMessage;
+  }
+
+  throw new Error('Invalid endpoint in the method argument');
+};
+
+
 module.exports = {
   filterVenues,
   handleCanEdit,
   filterSchedules,
   filterAttachment,
+  isValidRequestBody,
 };
