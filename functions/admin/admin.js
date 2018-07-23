@@ -26,6 +26,7 @@
 
 
 const admin = require('firebase-admin');
+const process = require('process');
 
 admin.initializeApp();
 
@@ -36,8 +37,10 @@ const db = admin.firestore();
  */
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
-require('process')
-  .on('unhandledRejection', console.log)
+process
+  .on('unhandledRejection', console.log);
+
+process
   .on('uncaughtException', console.log);
 
 

@@ -433,7 +433,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `${conn.req.query.from} is not a valid timestamp.`
+      `${conn.req.query.from} is not a valid unix timestamp.`
     );
 
     return;
