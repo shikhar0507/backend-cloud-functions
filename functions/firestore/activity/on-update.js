@@ -170,7 +170,6 @@ const updateActivityDoc = (conn, locals) => {
       .forEach((venueObject) => venueNames.add(venueObject.venueDescriptor));
 
     activityUpdates.venue = filterVenues(
-      locals,
       conn.req.body.venue,
       [...venueNames,]
     );
