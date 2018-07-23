@@ -35,28 +35,11 @@ const {
   isValidDate,
   handleError,
   sendResponse,
-  getISO8601Date,
+  logDailyActivities,
   isValidGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
 } = require('../../admin/utils');
-
-
-/**
- * Commits the batch and sends a response to the client.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {Promise} Doc metadata or error object.
- */
-const commitBatch = (conn, locals) =>
-  locals.batch.commit()
-    .then(() => sendResponse(
-      conn,
-      code.created,
-      'The activity was successfully created.'
-    ))
-    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -73,13 +56,14 @@ const handleAssignedUsers = (conn, locals) => {
       sendResponse(
         conn,
         code.conflict,
-        'Cannot create an activity with zero assignees. Make sure to include someone.'
+        'Cannot create an activity with zero assignees.'
+        + ' Please include someone.'
       );
 
       return;
     }
 
-    commitBatch(conn, locals);
+    logDailyActivities(conn, locals, code.created);
 
     return;
   }
@@ -95,7 +79,8 @@ const handleAssignedUsers = (conn, locals) => {
     sendResponse(
       conn,
       code.conflict,
-      'Cannot create an activity with zero assignees. Make sure to include someone.'
+      'Cannot create an activity with zero assignees.'
+      + ' Please include someone.'
     );
 
     return;
@@ -183,7 +168,11 @@ const handleAssignedUsers = (conn, locals) => {
         }
       });
 
-      commitBatch(conn, locals);
+      /** Ends the response by commiting the batch
+       * and logging the activity metadata to
+       * `/DailyActivities` collection.
+       */
+      logDailyActivities(conn, locals, code.created);
 
       return;
     })
@@ -364,36 +353,6 @@ const createActivityRoot = (conn, locals) => {
 
 
 /**
- * Adds a doc in `/DailyActivities` collection in the path:
- * `/(office name)/(template name)` with the user's phone number,
- * timestamp of the request and the api used.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateDailyActivities = (conn, locals) => {
-  const docId = getISO8601Date(locals.timestamp);
-
-  locals.batch.set(rootCollections
-    .dailyActivities
-    .doc(docId)
-    .collection('Logs')
-    .doc(), {
-      activityId: locals.activityRef.id,
-      office: conn.req.body.office,
-      template: conn.req.body.template,
-      phoneNumber: conn.requester.phoneNumber,
-      url: conn.req.url,
-      timestamp: locals.timestamp,
-      geopoint: getGeopointObject(conn.req.body.geopoint),
-    });
-
-  createActivityRoot(conn, locals);
-};
-
-
-/**
  * Adds a *new* office to the `Offices` collection.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
@@ -443,7 +402,7 @@ const createOffice = (conn, docData, locals) => {
 
   locals.batch.set(locals.docRef, docData);
 
-  updateDailyActivities(conn, locals);
+  createActivityRoot(conn, locals);
 };
 
 
@@ -485,7 +444,7 @@ const createNewEntityInOffice = (conn, docData, locals) => {
 
   locals.batch.set(locals.docRef, docData);
 
-  updateDailyActivities(conn, locals);
+  createActivityRoot(conn, locals);
 };
 
 
@@ -579,11 +538,21 @@ const validateAttachment = (conn, locals) => {
  * @returns {void}
  */
 const processRequestType = (conn, locals) => {
-  /** A reference of the batch and the activity instance will be used
-   * multiple times throughout the activity creation.
-   */
-  locals.activityRef = rootCollections.activities.doc();
-  locals.batch = db.batch();
+  if (conn.req.body.office === 'personal') {
+    if (conn.req.body.template === 'plan') {
+      createActivityRoot(conn, locals);
+
+      return;
+    }
+
+    sendResponse(
+      conn,
+      code.forbidden,
+      `No subscription of ${conn.req.body.office} + ${conn.req.body.office} found.`
+    );
+
+    return;
+  }
 
   /** For creating a subscription or company, an attachment is required. */
   if (!conn.req.body.hasOwnProperty('attachment')) {
@@ -651,6 +620,12 @@ const handleSupportRequest = (conn, locals) => {
 const handleResult = (conn, result) => {
   /** Stores all the temporary data for creating the activity. */
   const locals = {};
+
+  /** A reference of the batch and the activity instance will be used
+   * multiple times throughout the activity creation.
+   */
+  locals.activityRef = rootCollections.activities.doc();
+  locals.batch = db.batch();
 
   /** Calling `new Date()` constructor multiple times is wasteful. */
   locals.timestamp = new Date(conn.req.body.timestamp);

@@ -33,37 +33,7 @@ const {
 const { code, } = require('../admin/responses');
 
 
-/**
- * Calls the resource related to an activity depending on the action
- * from the url.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- * @returns {void}
- */
-module.exports = (conn) => {
-  const action = require('url').parse(conn.req.url).path.split('/')[2];
-  /** Can be used to verify in the activity flow to see if the request
-   * is of type support.
-   */
-  conn.requester.isSupportRequest = false;
-
-  /** URL query params are of type `string`. */
-  if (conn.req.query.support === 'true') {
-    conn.requester.isSupportRequest = true;
-  }
-
-  if (conn.requester.isSupportRequest
-    && !hasSupportClaims(conn.requester.customClaims)) {
-    // TODO: Probably disable user account here too. Not sure.
-    sendResponse(
-      conn,
-      code.forbidden,
-      'You do not have the permission to make support requests for activities.'
-    );
-
-    return;
-  }
-
+const handleAction = (conn, action) => {
   /** `/api/activities/create` can have a query string. */
   if (action.startsWith('create')) {
     if (conn.req.method !== 'POST') {
@@ -180,4 +150,40 @@ module.exports = (conn) => {
     code.notFound,
     `No resource found at the path: ${(conn.req.url)}.`
   );
+};
+
+
+/**
+ * Calls the resource related to an activity depending on the action
+ * from the url.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @returns {void}
+ */
+module.exports = (conn) => {
+  const action = require('url').parse(conn.req.url).path.split('/')[2];
+
+  /** Can be used to verify in the activity flow to see if the request
+   * is of type support.
+   */
+  conn.requester.isSupportRequest = false;
+
+  /** URL query params are of type `string`. */
+  if (conn.req.query.support === 'true') {
+    conn.requester.isSupportRequest = true;
+  }
+
+  if (conn.requester.isSupportRequest
+    && !hasSupportClaims(conn.requester.customClaims)) {
+    // TODO: Probably disable user account here too. Not sure.
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You do not have the permission to make support requests for activities.'
+    );
+
+    return;
+  }
+
+  handleAction(conn, action);
 };

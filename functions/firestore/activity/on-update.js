@@ -35,54 +35,10 @@ const {
   isValidDate,
   handleError,
   sendResponse,
-  getISO8601Date,
+  logDailyActivities,
   isValidGeopoint,
   isNonEmptyString,
 } = require('../../admin/utils');
-
-
-
-/**
- * Commits the batch to the DB.
- *
- * @param {Object} conn Contains Express' Request and Respone objects.
- * @param {Object} locals Object containing local data.
- * @returns {Promise} Batch Object.
- */
-const commitBatch = (conn, locals) =>
-  locals.batch.commit()
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
-
-
-/**
- * Adds a doc in `/DailyActivities` collection in the path:
- * `/(office name)/(template name)` with the user's phone number,
- * timestamp of the request and the api used.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateDailyActivities = (conn, locals) => {
-  const docId = getISO8601Date(locals.timestamp);
-
-  locals.batch.set(rootCollections
-    .dailyActivities
-    .doc(docId)
-    .collection('Logs')
-    .doc(), {
-      office: locals.activity.get('office'),
-      timestamp: locals.timestamp,
-      template: locals.activity.get('template'),
-      phoneNumber: conn.requester.phoneNumber,
-      url: conn.req.url,
-      activityId: conn.req.body.activityId,
-      geopoint: getGeopointObject(conn.req.body.geopoint),
-    });
-
-  commitBatch(conn, locals);
-};
 
 
 /**
@@ -112,7 +68,7 @@ const addAddendumForAssignees = (conn, locals) =>
         );
       });
 
-      updateDailyActivities(conn, locals);
+      logDailyActivities(conn, locals, code.noContent);
 
       return;
     })
