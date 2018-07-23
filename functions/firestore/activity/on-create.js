@@ -468,18 +468,19 @@ const createNewEntityInOffice = (conn, docData, locals) => {
   }
 
   const officeId = locals.office.docs[0].id;
+
   /** Mutates the template name such at its first character
    * is capitalized. Collection names in the DB have first
    * character in CAPS.
+   * @see https://english.stackexchange.com/a/15914
    */
-  const capitalizedTemplateName = `${conn.req.body.template.charAt(0)}`
-    + `${conn.req.body.template.substr(1)}`;
+  const properCaseTemplateName = conn.req.body.template
+    .replace(/^\w/, (c) => c.toUpperCase());
 
   locals.docRef = rootCollections
     .offices
     .doc(officeId)
-    /** Collection names are `ALWAYS` plural. */
-    .collection(capitalizedTemplateName)
+    .collection(properCaseTemplateName)
     .doc(locals.activityRef.id);
 
   locals.batch.set(locals.docRef, docData);
