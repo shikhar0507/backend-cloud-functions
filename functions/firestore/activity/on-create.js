@@ -29,16 +29,14 @@ const { rootCollections, getGeopointObject, db, } = require('../../admin/admin')
 
 const { code, } = require('../../admin/responses');
 
-const { handleCanEdit, filterSchedules, filterVenues, filterAttachment, } = require('./helper');
+const { handleCanEdit, filterSchedules, filterVenues, filterAttachment, isValidRequestBody, } = require('./helper');
 
 const {
-  isValidDate,
   handleError,
   sendResponse,
-  logDailyActivities,
-  isValidGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
+  logDailyActivities,
 } = require('../../admin/utils');
 
 
@@ -729,29 +727,14 @@ const fetchDocs = (conn) =>
     .catch((error) => handleError(conn, error));
 
 
-/**
- * Checks if the request body has `ALL` the *required* fields like `timestamp`,
- * `geopoint`, `office`, and the `template`.
- *
- * @param {Object} body The request body.
- * @returns {boolean} If the request body has valid fields.
- */
-const isValidRequestBody = (body) =>
-  isNonEmptyString(body.template)
-  && typeof body.timestamp === 'number'
-  && isValidDate(body.timestamp)
-  && isNonEmptyString(body.office)
-  && isValidGeopoint(body.geopoint);
-
-
 module.exports = (conn) => {
-  if (!isValidRequestBody(conn.req.body)) {
+  const result = isValidRequestBody(conn.req.body, 'create');
+
+  if (!result.isValidBody) {
     sendResponse(
       conn,
       code.badRequest,
-      'Invalid request body.'
-      + ' Make sure to include template (string), timestamp (long number),'
-      + ' office (string), and the geopoint (object) in the request body.'
+      result.message
     );
 
     return;

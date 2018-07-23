@@ -27,14 +27,13 @@
 
 const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
 
+const { isValidRequestBody, } = require('./helper');
+
 const { code, } = require('../../admin/responses');
 
 const {
-  isValidDate,
   handleError,
   sendResponse,
-  isValidGeopoint,
-  isNonEmptyString,
   isE164PhoneNumber,
   logDailyActivities,
 } = require('../../admin/utils');
@@ -99,7 +98,7 @@ const addAddendumForUsersWithAuth = (conn, locals) => {
 
 const unassignFromTheActivity = (conn, locals) => {
   let index;
-  let comment = `${conn.requester.phoneNumber} unassigned: `;
+  let comment = `${conn.requester.phoneNumber} unassigned `;
 
   conn.req.body.remove.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
@@ -274,22 +273,14 @@ const verifyEditPermission = (conn) =>
     .catch((error) => handleError(conn, error));
 
 
-const isValidRequestBody = (body) =>
-  isValidDate(body.timestamp)
-  && typeof body.timestamp === 'number'
-  && isNonEmptyString(body.activityId)
-  && Array.isArray(body.remove)
-  && isValidGeopoint(body.geopoint);
-
-
 module.exports = (conn) => {
-  if (!isValidRequestBody(conn.req.body)) {
+  const result = isValidRequestBody(conn.req.body, 'remove');
+
+  if (!result.isValidBody) {
     sendResponse(
       conn,
       code.badRequest,
-      'Invalid request body.'
-      + ' Make sure to include the "activityId" (string), "timestamp" (long number),'
-      + ' "remove" (array) and the "geopoint" (object) fields in the request body.'
+      result.message
     );
 
     return;

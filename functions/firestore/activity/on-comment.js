@@ -27,15 +27,14 @@
 
 const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
 
+const { isValidRequestBody, } = require('./helper');
+
 const { code, } = require('../../admin/responses');
 
 const {
-  isValidDate,
   handleError,
   sendResponse,
   logDailyActivities,
-  isValidGeopoint,
-  isNonEmptyString,
 } = require('../../admin/utils');
 
 
@@ -245,30 +244,14 @@ const fetchDocs = (conn) =>
     .catch((error) => handleError(conn, error));
 
 
-
-/**
- * Checks for `timestamp`, `geopoint`, `activityId` and the `comment` from the
- * request body.
- *
- * @param {Object} body The request body.
- * @returns {boolean} If the request body is valid.
- */
-const isValidRequestBody = (body) =>
-  isNonEmptyString(body.activityId)
-  && typeof body.timestamp === 'number'
-  && isValidDate(body.timestamp)
-  && isValidGeopoint(body.geopoint)
-  && isNonEmptyString(body.comment);
-
-
 module.exports = (conn) => {
-  if (!isValidRequestBody(conn.req.body)) {
+  const result = isValidRequestBody(conn.req.body, 'comment');
+
+  if (!result.isValidBody) {
     sendResponse(
       conn,
       code.badRequest,
-      'Invalid request body.'
-      + ' Make sure to include the "activityId" (string), "timestamp" (long number),'
-      + ' "geopoint" (object), and the "comment" (string) fields in the request body.'
+      result.message
     );
 
     return;

@@ -27,16 +27,14 @@
 
 const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
 
-const { filterSchedules, filterVenues, filterAttachment, } = require('./helper');
+const { filterSchedules, filterVenues, filterAttachment, isValidRequestBody, } = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
 const {
-  isValidDate,
   handleError,
   sendResponse,
   logDailyActivities,
-  isValidGeopoint,
   isNonEmptyString,
 } = require('../../admin/utils');
 
@@ -320,21 +318,14 @@ const verifyEditPermission = (conn) =>
     .catch((error) => handleError(conn, error));
 
 
-const isValidRequestBody = (body) =>
-  isValidDate(body.timestamp)
-  && typeof body.timestamp === 'number'
-  && isNonEmptyString(body.activityId)
-  && isValidGeopoint(body.geopoint);
-
-
 module.exports = (conn) => {
-  if (!isValidRequestBody(conn.req.body)) {
+  const result = isValidRequestBody(conn.req.body, 'update');
+
+  if (!result.isValidBody) {
     sendResponse(
       conn,
       code.badRequest,
-      'Invalid request body.'
-      + ' Make sure to include valid "activityId" (string), "timestamp" (long number),'
-      + ' and the "geopoint" (object) are present in the request body.'
+      result.message
     );
 
     return;

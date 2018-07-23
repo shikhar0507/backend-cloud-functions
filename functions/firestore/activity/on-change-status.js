@@ -27,15 +27,14 @@
 
 const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
 
+const { isValidRequestBody, } = require('./helper');
+
 const { code, } = require('../../admin/responses');
 
 const {
   handleError,
-  isValidDate,
   sendResponse,
   logDailyActivities,
-  isValidGeopoint,
-  isNonEmptyString,
 } = require('../../admin/utils');
 
 
@@ -249,21 +248,6 @@ const verifyEditPermission = (conn) =>
 
 
 /**
- * Checks if the request body has `ALL` the *required* fields like `activityId`,
- * `timestamp`, `geopoint`, and `status`.
- *
- * @param {Object} body The request body.
- * @returns {boolean} If the request body has valid fields.
- */
-const isValidRequestBody = (body) =>
-  isNonEmptyString(body.activityId)
-  && typeof body.timestamp === 'number'
-  && isValidDate(body.timestamp)
-  && isValidGeopoint(body.geopoint)
-  && isNonEmptyString(body.status);
-
-
-/**
  * Validates the request body to check if it contains a valid `timestamp`,
  * `activityId`, `status` and the `geopoint`.
  *
@@ -271,13 +255,13 @@ const isValidRequestBody = (body) =>
  * @returns {void}
  */
 module.exports = (conn) => {
-  if (!isValidRequestBody(conn.req.body)) {
+  const result = isValidRequestBody(conn.req.body, 'change-status');
+
+  if (!result.isValidBody) {
     sendResponse(
       conn,
       code.badRequest,
-      'Invalid request body.'
-      + ' Make sure to include the "activityId" (string), "timestamp" (long number)'
-      + ' "geopoint" (object) and the "status" (string) in the request body.'
+      result.message
     );
 
     return;

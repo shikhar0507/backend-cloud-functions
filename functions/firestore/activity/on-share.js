@@ -27,16 +27,13 @@
 
 const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
 
-const { handleCanEdit, } = require('./helper');
+const { handleCanEdit, isValidRequestBody, } = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
 const {
-  isValidDate,
   handleError,
   sendResponse,
-  isValidGeopoint,
-  isNonEmptyString,
   isE164PhoneNumber,
   logDailyActivities,
 } = require('../../admin/utils');
@@ -329,22 +326,14 @@ const verifyEditPermission = (conn) =>
     .catch((error) => handleError(conn, error));
 
 
-const isValidRequestBody = (body) =>
-  isValidDate(body.timestamp)
-  && typeof body.timestamp === 'number'
-  && isNonEmptyString(body.activityId)
-  && Array.isArray(body.share)
-  && isValidGeopoint(body.geopoint);
-
-
 module.exports = (conn) => {
-  if (!isValidRequestBody(conn.req.body)) {
+  const result = isValidRequestBody(conn.req.body, 'share');
+
+  if (!result.isValidBody) {
     sendResponse(
       conn,
       code.badRequest,
-      'Invalid Request body.'
-      + ' Make sure to include the "activityId" (string), "timestamp" (long number),'
-      + ' "geopoint" (object) and the "share" (array) fields in the request body.'
+      result.message
     );
 
     return;
