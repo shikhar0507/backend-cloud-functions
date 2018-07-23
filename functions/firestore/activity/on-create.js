@@ -394,59 +394,6 @@ const updateDailyActivities = (conn, locals) => {
 
 
 /**
- * Creates a *new* `subscription` for the user based on the `office`
- * and the `template` from the request body.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const createSubscription = (conn, docData, locals) => {
-  if (!locals.office.empty) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `The office: ${conn.req.body.office} doesn't exist.`
-    );
-
-    return;
-  }
-
-  docData.canEditRule = conn.req.body.canEditRule;
-  docData.timestamp = locals.timestamp;
-
-  locals
-    .docRef = rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Subscriptions')
-      .doc(locals.activityRef.id);
-
-  /** No one subscibes to the `admin` template. */
-  delete docData.template;
-
-  // TODO: createDocData.template = conn.req.body.template.value;
-  // ? But, this also requires a check if the template exists.
-
-  if (!Array.isArray(conn.req.body.share)) {
-    docData.include = [];
-
-    /** All assignees of this activity will be in the `include` array. */
-    conn.req.body.share.forEach((phoneNumber) => {
-      if (!isE164PhoneNumber(phoneNumber)) return;
-
-      docData.include.push(phoneNumber);
-    });
-  }
-
-  locals.batch.set(locals.docRef, docData);
-
-  updateDailyActivities(conn);
-};
-
-
-/**
  * Adds a *new* office to the `Offices` collection.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
@@ -460,7 +407,7 @@ const createOffice = (conn, docData, locals) => {
     sendResponse(
       conn,
       code.conflict,
-      `An office with the name: ${conn.req.body.office} already exists.`
+      `Office: ${conn.req.body.office} already exists.`
     );
 
     return;
@@ -480,7 +427,7 @@ const createOffice = (conn, docData, locals) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The Office name cannot be an empty/blank string.`
+      `The office name cannot be an empty/blank string.`
     );
 
     return;
@@ -514,19 +461,25 @@ const createNewEntityInOffice = (conn, docData, locals) => {
     sendResponse(
       conn,
       code.badRequest,
-      `An office with the name: ${conn.req.body.office} does not exist.`
+      `The office: "${conn.req.body.office}" does not exist.`
     );
 
     return;
   }
 
   const officeId = locals.office.docs[0].id;
+  /** Mutates the template name such at its first character
+   * is capitalized. Collection names in the DB have first
+   * character in CAPS.
+   */
+  const capitalizedTemplateName = `${conn.req.body.template.charAt(0)}`
+    + `${conn.req.body.template.substr(1)}`;
 
   locals.docRef = rootCollections
     .offices
     .doc(officeId)
     /** Collection names are `ALWAYS` plural. */
-    .collection(`${conn.req.body.template}s`)
+    .collection(capitalizedTemplateName)
     .doc(locals.activityRef.id);
 
   locals.batch.set(locals.docRef, docData);
@@ -577,17 +530,8 @@ const handleSpecialTemplates = (conn, docData, locals) => {
     return;
   }
 
-  /** Admin template is used to give template
-   * subscriptions to the users.
-   */
-  if (conn.req.body.template === 'admin') {
-    createSubscription(conn, docData, locals);
-
-    return;
-  }
-
   /** Any case where the template name is other
-   * than `office` or admin will create a document as follows:
+   * than `office` will create a document as follows:
    * `Office/(office-id)/(...here...)` path.
    */
   createNewEntityInOffice(conn, docData, locals);
@@ -743,7 +687,7 @@ const handleResult = (conn, result) => {
   /** Handle support requests from here. */
   if (conn.requester.isSupportRequest) {
     /** A person with support privilidge, doesn't need to
-     * have the subscription to the template that they want
+     * have the `subscription` to the template that they want
      * to create the activity with.
      * @see https://github.com/Growthfilev2/backend-cloud-functions/blob/master/docs/support-requests/README.md
      */
