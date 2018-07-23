@@ -275,8 +275,8 @@ const handleIncludesFromSubscriptions = (conn, locals) => {
 const addAddendumForRequester = (conn, locals) => {
   locals.addendum = {
     activityId: locals.activityRef.id,
-    user: conn.requester.displayName || conn.requester.phoneNumber,
-    comment: `${conn.requester.displayName || conn.requester.phoneNumber}`
+    user: conn.requester.phoneNumber,
+    comment: `${conn.requester.phoneNumber}`
       + ` created ${locals.template.defaultTitle}`,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: locals.timestamp,

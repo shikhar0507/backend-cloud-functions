@@ -286,7 +286,7 @@ const handleResult = (conn, result) => {
 
   locals.addendum = {
     activityId: conn.req.body.activityId,
-    user: conn.requester.displayName || conn.requester.phoneNumber,
+    user: conn.requester.phoneNumber,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: locals.timestamp,
   };
