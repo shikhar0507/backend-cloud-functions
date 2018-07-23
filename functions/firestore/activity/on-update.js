@@ -177,15 +177,6 @@ const updateActivityDoc = (conn, locals) => {
 
   activityUpdates.timestamp = locals.timestamp;
 
-  /** Implementing the `handleAttachment()` method will make this work. */
-  if (locals.hasOwnProperty('docRef')) {
-    /**
-     * The `docRef` is not `undefined` only when a document is updated during
-     * the update operation.
-     */
-    activityUpdates.docRef = locals.docRef;
-  }
-
   locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId),
