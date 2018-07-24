@@ -60,6 +60,86 @@ const updateActivityDoc = (conn, locals) => {
 };
 
 
+const updateSubscription = (conn, locals, doc) => {
+  const docData = doc.data();
+  const includeArray = doc.get('include');
+
+  const newIncludeArray = locals.validPhoneNumbers.cocat(includeArray);
+
+  docData.include = newIncludeArray;
+
+  locals.batch.set(locals.activity.get('docRef'), docData);
+
+  updateActivityDoc(conn, locals);
+};
+
+
+/**
+ * Updates the linked doc in the `docRef` field in the activity based on
+ * the template name.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const updateLinkedDoc = (conn, locals) =>
+  db
+    .doc(locals.activity.get('docRef'))
+    .get()
+    .then((doc) => {
+      const docData = doc.data();
+
+      if (locals.activity.get('template') === 'subscription') {
+        const includeArray = doc.get('include');
+        const updatedIncludeArray = locals
+          .validPhoneNumbers
+          .concat(includeArray);
+
+        docData.include = updatedIncludeArray;
+      }
+
+      if (locals.activity.get('template') === 'report') {
+        const toArray = doc.get('to');
+        const updatedToArray = locals
+          .validPhoneNumbers
+          .concat(toArray);
+
+        docData.to = updatedToArray;
+      }
+
+      locals.batch.set(locals
+        .activity
+        .get('docRef'),
+        docData
+      );
+
+      updateActivityDoc(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+
+
+/**
+ * Handles the special case when the template name is 'report' or
+ * 'subscription'.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const handleSpecialTemplates = (conn, locals) => {
+  if (['subscription', 'report',]
+    .indexOf(locals.activity.get('template')) > -1) {
+    updateLinkedDoc(conn, locals);
+
+    return;
+  }
+
+  updateActivityDoc(conn, locals);
+};
+
+
 /**
  * Adds the documents to batch for the users who have their `uid` populated
  * inside their profiles.
@@ -95,9 +175,11 @@ const setAddendumForUsersWithUid = (conn, locals) => {
         /** Create Profiles for the users who don't have a profile already. */
         if (!doc.exists) {
           /** The `doc.id` is the `phoneNumber` that doesn't exist */
-          locals.batch.set(rootCollections.profiles.doc(doc.id), {
-            uid: null,
-          });
+          locals.batch.set(rootCollections
+            .profiles
+            .doc(doc.id), {
+              uid: null,
+            });
         }
 
         if (doc.exists && doc.get('uid')) {
@@ -112,7 +194,7 @@ const setAddendumForUsersWithUid = (conn, locals) => {
         }
       });
 
-      updateActivityDoc(conn, locals);
+      handleSpecialTemplates(conn, locals);
 
       return;
     })
@@ -130,8 +212,12 @@ const setAddendumForUsersWithUid = (conn, locals) => {
 const addAddendumForAssignees = (conn, locals) => {
   let comment = `${conn.requester.phoneNumber} shared this activity with: `;
 
+  locals.validPhoneNumbers = [];
+
   conn.req.body.share.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
+
+    locals.validPhoneNumbers.push(phoneNumber);
 
     comment += `${phoneNumber}, `;
 
@@ -227,6 +313,7 @@ const handleResult = (conn, result) => {
     timestamp: locals.timestamp,
   };
 
+  // handleSpecialTemplates(conn, locals);
   addAddendumForAssignees(conn, locals);
 };
 
