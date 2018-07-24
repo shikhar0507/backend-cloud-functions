@@ -228,6 +228,10 @@ const isValidGeopoint = (location) => {
   const lat = location.latitude;
   const lng = location.longitude;
 
+  if (typeof lat !== 'number') return false;
+
+  if (typeof lng !== 'number') return false;
+
   /** @see https://msdn.microsoft.com/en-in/library/aa578799.aspx */
   if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return false;
 
