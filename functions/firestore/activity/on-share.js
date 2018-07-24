@@ -187,54 +187,6 @@ const addAddendumForAssignees = (conn, locals) => {
 };
 
 
-/**
- * Fetches the template and subscription docs.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const fetchTemplateAndSubscription = (conn, locals) =>
-  Promise
-    .all([
-      rootCollections
-        .activityTemplates
-        .doc(locals.activity.get('template'))
-        .get(),
-      rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .collection('Subscriptions')
-        .where('office', '==', locals.activity.get('office'))
-        .where('template', '==', locals.activity.get('template'))
-        .limit(1)
-        .get(),
-    ])
-    .then((docsArray) => {
-      locals.addendum = {
-        activityId: conn.req.body.activityId,
-        user: conn.requester.phoneNumber,
-        location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: locals.timestamp,
-      };
-
-      locals.template = docsArray[0];
-      locals.include = docsArray[1].docs[0].get('include');
-
-      /** No addendum is added for the people in `include`
-       * array for a support request.
-       */
-      if (conn.requester.isSupportRequest) {
-        locals.include = [];
-      }
-
-      addAddendumForAssignees(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
-
 const handleResult = (conn, result) => {
   if (!result[0].exists) {
     /** This case should probably never execute becase there is NO provision
@@ -267,7 +219,15 @@ const handleResult = (conn, result) => {
   locals.assigneeArray = [];
   result[1].forEach((doc) => locals.assigneeArray.push(doc.id));
 
-  fetchTemplateAndSubscription(conn, locals);
+  /** Comment field will be added later. */
+  locals.addendum = {
+    activityId: conn.req.body.activityId,
+    user: conn.requester.phoneNumber,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: locals.timestamp,
+  };
+
+  addAddendumForAssignees(conn, locals);
 };
 
 
@@ -355,7 +315,7 @@ module.exports = (conn) => {
    * of the activity to make changes.
    */
   if (conn.requester.isSupportRequest) {
-    fetchTemplateAndSubscription(conn);
+    fetchDocs(conn);
 
     return;
   }
