@@ -62,6 +62,82 @@ const updateActivityDoc = (conn, locals) => {
 
 
 /**
+ * Updates the linked doc in the `docRef` field in the activity based on
+ * the template name.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const updateLinkedDoc = (conn, locals) =>
+  db
+    .doc(locals.activity.get('docRef'))
+    .get()
+    .then((doc) => {
+      const docData = doc.data();
+
+      if (locals.activity.get('template') === 'subscription') {
+        const includeArray = doc.get('include');
+
+        includeArray.forEach((phoneNumber) => {
+          const index = conn.req.body.remove.indexOf(phoneNumber);
+
+          if (index > -1) {
+            includeArray.splice(index, 1);
+          }
+        });
+
+        docData.include = includeArray;
+      }
+
+      if (locals.activity.get('template') === 'report') {
+        const toArray = doc.get('to');
+
+        toArray.forEach((phoneNumber) => {
+          const index = conn.req.body.remove.indexOf(phoneNumber);
+
+          if (index > -1) {
+            toArray.splice(index, 1);
+          }
+
+          docData.to = toArray;
+        });
+      }
+
+      locals.batch.set(locals
+        .activity
+        .get('docRef'),
+        docData
+      );
+
+      updateActivityDoc(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+
+
+/**
+ * Handles the special case when the template name is 'report' or
+ * 'subscription'.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const handleSpecialTemplates = (conn, locals) => {
+  if (['subscription', 'report',]
+    .indexOf(locals.activity.get('template')) > -1) {
+    updateLinkedDoc(conn, locals);
+
+    return;
+  }
+
+  updateActivityDoc(conn, locals);
+};
+
+
+/**
  * Adds addendum for all the assignees of the activity excluding the ones
  * who have been unassigned from this activity.
  *
@@ -104,7 +180,7 @@ const addAddendumForUsersWithAuth = (conn, locals) => {
 
       });
 
-      updateActivityDoc(conn, locals);
+      handleSpecialTemplates(conn, locals);
 
       return;
     })
@@ -124,10 +200,14 @@ const unassignFromTheActivity = (conn, locals) => {
   let index;
   let comment = `${conn.requester.phoneNumber} unassigned `;
 
+  locals.validPhoneNumbers = [];
+
   conn.req.body.remove.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
 
     comment += `${phoneNumber} `;
+
+    locals.validPhoneNumbers.push(phoneNumber);
 
     /** Deleting from Assignees collection inside activity doc */
     locals.batch.delete(rootCollections
