@@ -39,7 +39,7 @@ const {
 
 
 /**
- * Updates the `timestamp` field in the activity root object with the timestamp
+ * Updates the `timestamp` field in the activity root object with the `timestamp`
  * sent from the request body.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
@@ -59,8 +59,8 @@ const updateActivityRootTimestamp = (conn, locals) => {
 
 
 /**
- * Adds addendum doc for each assignee of the activity for which the comment
- * is being created.
+ * Adds `addendum` doc for each `assignee` of the activity for which
+ * the comment is being created.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
  * @param {Object} locals Object containing local data.
@@ -143,7 +143,7 @@ const createAssigneePromises = (conn, locals) => {
 
 
 /**
- * Fetches the activity doc from inside the `Activities` root collection.
+ * Fetches the `activity` doc from inside the `Activities` root collection.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
  * @param {Object} locals Object containing local data.
@@ -180,7 +180,7 @@ const checkIfActivityExists = (conn, locals) =>
 
 
 /**
- * Checks whether the user is an assignee to an activity which they
+ * Checks whether the user is an assignee to an `activity` which they
  * have sent a request to add a comment to.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
@@ -214,6 +214,13 @@ const checkCommentPermission = (conn, locals) => {
 };
 
 
+/**
+ * Fetches the `activity` doc from user's `Subscription` and the
+ * `Activities` collection.
+ *
+ * @param {Object} conn Contains Express Request and Response Objects.
+ * @returns {void}
+ */
 const fetchDocs = (conn) =>
   Promise
     .all([

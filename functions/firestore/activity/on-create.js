@@ -29,7 +29,13 @@ const { rootCollections, getGeopointObject, db, } = require('../../admin/admin')
 
 const { code, } = require('../../admin/responses');
 
-const { handleCanEdit, filterSchedules, filterVenues, filterAttachment, isValidRequestBody, } = require('./helper');
+const {
+  handleCanEdit,
+  filterSchedules,
+  filterVenues,
+  filterAttachment,
+  isValidRequestBody,
+} = require('./helper');
 
 const {
   handleError,
@@ -374,7 +380,7 @@ const createOffice = (conn, docData, locals) => {
     sendResponse(
       conn,
       code.badRequest,
-      `Cannot create an office without the name. Please add one in the attachment.`
+      'Cannot create an office without the name. Please add one in the attachment.'
     );
 
     return;
@@ -546,7 +552,8 @@ const processRequestType = (conn, locals) => {
     sendResponse(
       conn,
       code.forbidden,
-      `No subscription of ${conn.req.body.office} + ${conn.req.body.office} found.`
+      `No subscription of ${conn.req.body.office} and`
+      + ` ${conn.req.body.template} found.`
     );
 
     return;

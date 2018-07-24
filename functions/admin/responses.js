@@ -21,6 +21,7 @@
  *
  */
 
+
 'use strict';
 
 
@@ -40,6 +41,4 @@ const code = {
 };
 
 
-module.exports = {
-  code,
-};
+module.exports = { code, };

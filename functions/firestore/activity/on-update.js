@@ -186,6 +186,14 @@ const handleAttachment = (conn, locals) => {
 };
 
 
+/**
+ * Updates the activity `timestamp` field for all the assignees
+ * of the activity.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
 const updateActivityTimestamp = (conn, locals) => {
   locals.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
     locals.batch.set(rootCollections
@@ -204,6 +212,14 @@ const updateActivityTimestamp = (conn, locals) => {
 };
 
 
+/**
+ * Checks if the activity doc exists and creates an array
+ * of promises for all assignees.
+ *
+ * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} result Array of Documents fetched from Firestore.
+ * @returns {void}
+ */
 const handleResult = (conn, result) => {
   if (!result[0].exists) {
     /** This case should probably never execute becase there is provision

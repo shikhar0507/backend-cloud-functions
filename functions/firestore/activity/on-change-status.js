@@ -105,15 +105,15 @@ const updateActivityStatus = (conn, locals) => {
  */
 const handleResults = (conn, result) => {
   if (!result[0].exists) {
-    /** This case should probably never execute becase there is provision
-     * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-     * function, the check for the existance of the activity has already
-     * been performed in the User's profile.
+    /** This is the second time we are checking if the activity document
+     * exists. This is so, because for the `support` requests, the activity
+     * document might not exist in the user's profile. But, in some cases,
+     * the activity with the ID from the request body might not itself exist.
      */
     sendResponse(
       conn,
-      code.conflict,
-      `There is no activity with the id: ${conn.req.body.activityId}.`
+      code.notFound,
+      `No activity found with the id: ${conn.req.body.activityId}.`
     );
 
     return;
@@ -158,12 +158,14 @@ const handleResults = (conn, result) => {
     sendResponse(
       conn,
       code.badRequest,
-      `${conn.req.body.status} is NOT a valid status.`
+      `${conn.req.body.status} is not a valid status.`
+      + ` Use one of the following values: ${result[2].get('ACTIVITYSTATUS')}.`
     );
 
     return;
   }
 
+  /** The `comment` field will be added later. */
   locals.addendum = {
     activityId: conn.req.body.activityId,
     user: conn.requester.phoneNumber,
@@ -223,14 +225,13 @@ const verifyEditPermission = (conn) =>
         sendResponse(
           conn,
           code.notFound,
-          `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
+          `No activity found with the id: ${conn.req.body.activityId}.`
         );
 
         return;
       }
 
       if (!doc.get('canEdit')) {
-        /** The `canEdit` flag is false so updating is not allowed */
         sendResponse(
           conn,
           code.forbidden,

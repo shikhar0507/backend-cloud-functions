@@ -39,6 +39,13 @@ const {
 } = require('../../admin/utils');
 
 
+/**
+ * Updates the `timestamp` field in the main `activity` document.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
 const updateActivityDoc = (conn, locals) => {
   locals.batch.set(rootCollections
     .activities
@@ -49,10 +56,19 @@ const updateActivityDoc = (conn, locals) => {
     }
   );
 
+  /** Logs the activity and sends a response to the client. */
   logDailyActivities(conn, locals, code.noContent);
 };
 
 
+/**
+ * Adds addendum for all the assignees of the activity excluding the ones
+ * who have been unassigned from this activity.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
 const addAddendumForUsersWithAuth = (conn, locals) => {
   const promises = [];
 
@@ -96,6 +112,14 @@ const addAddendumForUsersWithAuth = (conn, locals) => {
 };
 
 
+/**
+ * Removes the user's from the activity which have been sent in the
+ * request body field 'remove'.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
 const unassignFromTheActivity = (conn, locals) => {
   let index;
   let comment = `${conn.requester.phoneNumber} unassigned `;
@@ -134,6 +158,14 @@ const unassignFromTheActivity = (conn, locals) => {
 };
 
 
+/**
+ * Fetches the template document from the template and validates
+ * the request body using it.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
 const fetchTemplate = (conn, locals) => {
   const template = locals.activity.get('template');
 
@@ -158,6 +190,14 @@ const fetchTemplate = (conn, locals) => {
 };
 
 
+/**
+ * Processes the `result` from the Firestore and saves the data to variables
+ * for use in the function flow.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Array} result Array of Documents fetched from Firestore.
+ * @returns {void}
+ */
 const handleResult = (conn, result) => {
   if (!result[0].exists) {
     /** This case should probably never execute becase there is NO provision
@@ -218,6 +258,13 @@ const handleResult = (conn, result) => {
 };
 
 
+/**
+ * Fetches the activity and it's assignees using the `activityId` from
+ * the request body.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @returns {void}
+ */
 const fetchDocs = (conn) =>
   Promise
     .all([
@@ -235,6 +282,12 @@ const fetchDocs = (conn) =>
     .catch((error) => handleError(conn, error));
 
 
+/**
+ * Checks if the requester has edit permissions to the activity.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
+ */
 const verifyEditPermission = (conn) =>
   rootCollections
     .profiles

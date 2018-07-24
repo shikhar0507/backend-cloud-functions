@@ -33,7 +33,7 @@ const { rootCollections, db, } = require('../admin/admin');
  * `null` inside the Updates and Profiles collection respectively.
  *
  * @param {Object} userRecord Object with user info.
- * @returns {Promise} Batch object.
+ * @returns {Promise <Object>} Batch object.
  */
 module.exports = (userRecord) => {
   const { uid, phoneNumber, } = userRecord;

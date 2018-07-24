@@ -25,18 +25,11 @@
 'use strict';
 
 
-const {
-  sendResponse,
-  handleError,
-} = require('./utils');
+const { sendResponse, handleError, } = require('./utils');
 
-const {
-  rootCollections,
-} = require('./admin');
+const { rootCollections, } = require('./admin');
 
-const {
-  instant,
-} = rootCollections;
+const { instant, } = rootCollections;
 
 
 /**
@@ -82,6 +75,4 @@ const createInstantLog = (conn, response) => {
 };
 
 
-module.exports = {
-  createInstantLog,
-};
+module.exports = { createInstantLog, };

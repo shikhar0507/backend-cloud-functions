@@ -32,11 +32,13 @@ admin.initializeApp();
 
 const auth = admin.auth();
 const db = admin.firestore();
+
 /** A `sentinel` which maps to the Firestore server timestamp when written to
  * a field in a document.
  */
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
+/** For the worst cases where there is an omission of a catch() block. */
 process
   .on('unhandledRejection', console.log);
 
@@ -49,7 +51,7 @@ process
  *
  * @param {string} uid A 30 character alpha-numeric string.
  * @param {Object} claims Contains Claims object.
- * @returns {Promise} A `userRecord` or an `error` object.
+ * @returns {Promise <Object>} A `userRecord` or an `error` object.
  */
 const setCustomUserClaims = (uid, claims) =>
   auth.setCustomUserClaims(uid, claims);
@@ -75,7 +77,7 @@ const getGeopointObject = (geopoint) =>
  *
  * @param {string} uid A 30 character alpha-numeric string.
  * @param {string} phoneNumber A E.164 phone number.
- * @returns {Object} An updated `userRecord`.
+ * @returns {Promise <Object>} Resolving to an updated `userRecord`.
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const updateUserPhoneNumberInAuth = (uid, phoneNumber) =>
@@ -86,7 +88,7 @@ const updateUserPhoneNumberInAuth = (uid, phoneNumber) =>
  * Creates a new user in Auth with the given userRecord.
  *
  * @param {Object} userRecord Contains the fields with user data.
- * @returns {Promise} New `userRecord` for the created user.
+ * @returns {Promise <Object>} New `userRecord` for the created user.
  */
 const createUserInAuth = (userRecord) => auth.createUser(userRecord);
 
@@ -95,7 +97,7 @@ const createUserInAuth = (userRecord) => auth.createUser(userRecord);
  * Deletes the user from auth.
  *
  * @param {string} uid A 30 character alpha-numeric string.
- * @returns {Promise} Resolving to a userRecord object who's auth was deleted.
+ * @returns {Promise <Object>} Resolving to a `userRecord` object who's auth was deleted.
  */
 const deleteUserFromAuth = (uid) => auth.deleteUser(uid);
 
@@ -113,14 +115,16 @@ const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
  * Returns the user record object using the phone number.
  *
  * @param {string} phoneNumber Firebase user's phone number.
- * @returns {Object} A `userRecord` containing the `photoURL`, `displayName`
- * and the `lastSignInTime`.
- * @see https://en.wikipedia.org/wiki/E.164
+ * @returns {Promise <Object>} Resolving to a `userRecord` object containing
+ * the `photoURL`, `displayName` and the `lastSignInTime`.
  * @description Could've simply returned the `userRecord` with this function, but
  * in some cases, this function is called inside a loop. So, whenever
  * there is an error, the function would crash the cloud function.
  * To avoid that, the catch() clause now handles the response in
  * a different way.
+ * Here, this function will return an empty object even in the case when
+ * the input `phoneNumber` is in does not confirm to the E.164 phone number.
+ * @see https://en.wikipedia.org/wiki/E.164
  */
 const getUserByPhoneNumber = (phoneNumber) =>
   auth.getUserByPhoneNumber(phoneNumber)
@@ -157,7 +161,7 @@ const getUserByPhoneNumber = (phoneNumber) =>
  * Disables the user account in auth.
  *
  * @param {string} uid A 30 character alpha-numeric string.
- * @returns {Promise} Resolving to a userRecord object.
+ * @returns {Promise <Object>} Resolving to a userRecord object.
  */
 const disableUser = (uid) => auth.updateUser(uid, { disabled: true, });
 
@@ -166,7 +170,7 @@ const disableUser = (uid) => auth.updateUser(uid, { disabled: true, });
  * Returns the `userRecord` by using the `uid`.
  *
  * @param {string} uid Firebase uid string.
- * @returns {Object} Object containing the user record.
+ * @returns {Promise <Object>} Resolving to a `userRecord` object.
  */
 const getUserByUid = (uid) => auth.getUser(uid);
 
@@ -176,10 +180,13 @@ const getUserByUid = (uid) => auth.getUser(uid);
  *
  * @param {string} idToken String containing the token from the request.
  * @param {boolean} checkRevoked Checks if the token has been revoked recently.
- * @returns {Object} The `userRecord` from Firebase auth.
+ * @returns {Promise <Object>} Resolves to an object with the user's
+ * `uid`, `exp`, `iat`, `aud`, `iss`, `sub` and `auth_time`.
+ * @see https://firebase.google.com/docs/auth/admin/verify-id-tokens
  */
 const verifyIdToken = (idToken, checkRevoked) =>
   auth.verifyIdToken(idToken, checkRevoked);
+
 
 /**
  * Contains the references to all the collections which are in the
@@ -224,11 +231,11 @@ const rootCollections = {
    * @example `/Offices/(autoId)'
    */
   offices: db.collection('Offices'),
-  /** This collection stores a document temporarily for
-   * collecting the data required for an instant notification.
-   * Once the notification is sent successfully, the document in context
-   * is deleted by an auto-triggering function in Firestore.
-   * @example `/Instant(auto-id)`
+  /** Stores documents temporarily for sending an instant email
+   * notification to any recipient. Once the report is sent,
+   * the document here is deleted by the same cloud function
+   * for which a document was created here.
+   * @example `/Instant/(auto-id)`
    */
   instant: db.collection('Instant'),
   /** Contains the Docs of all the users who have signed up on
@@ -256,6 +263,7 @@ const rootCollections = {
    */
   dailyPhoneNumberChanges: db.collection('DailyPhoneNumberChanges'),
 };
+
 
 const users = {
   disableUser,

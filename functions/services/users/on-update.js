@@ -44,12 +44,14 @@ const {
 } = require('../../admin/utils');
 
 
+
 const disableOldAccount = (conn, locals) => {
   users.revokeRefreshTokens(conn.requester.uid)
     .then(() => users.deleteUserFromAuth(conn.requester.uid))
     .then(() => locals.batch.commit())
     .catch((error) => handleError(conn, error));
 };
+
 
 
 const logDailyPhoneNumberChanges = (conn, locals) => {
@@ -67,6 +69,7 @@ const logDailyPhoneNumberChanges = (conn, locals) => {
 
   disableOldAccount(conn, locals);
 };
+
 
 
 const writeAddendumForUsers = (conn, locals) => {
@@ -87,6 +90,7 @@ const writeAddendumForUsers = (conn, locals) => {
 
   logDailyPhoneNumberChanges(conn, locals);
 };
+
 
 
 const fetchUsersWithUid = (conn, locals) => {
@@ -123,6 +127,7 @@ const fetchUsersWithUid = (conn, locals) => {
 };
 
 
+
 const updateActivityAssignees = (conn, locals) =>
   Promise
     .all(locals.promises)
@@ -142,6 +147,7 @@ const updateActivityAssignees = (conn, locals) =>
       return;
     })
     .catch((error) => handleError(conn, error));
+
 
 
 const transferSubscriptions = (conn, locals, snapShots) => {
@@ -175,6 +181,7 @@ const transferSubscriptions = (conn, locals, snapShots) => {
 
   updateActivityAssignees(conn, locals);
 };
+
 
 const transferActivities = (conn, locals, snapShots) => {
   const activitiesArray = snapShots[0];
@@ -313,7 +320,7 @@ const updatePhoneNumberInAuth = (conn) =>
         sendResponse(
           conn,
           code.conflict,
-          `Someone is already using the phone number: ${conn.req.body.phoneNumber}.`
+          `${conn.req.body.phoneNumber} is already in use.`
         );
 
         return;
@@ -335,7 +342,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'The phoneNumber field is missing from the request body.'
+      'The "phoneNumber" field is missing from the request body.'
     );
 
     return;

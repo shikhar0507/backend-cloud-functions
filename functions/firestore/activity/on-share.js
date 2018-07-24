@@ -132,10 +132,12 @@ const addAddendumForAssignees = (conn, locals) => {
 
   conn.req.body.share.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
+
+    comment += `${phoneNumber}, `;
+
     /** The requester shouldn't be added to the activity assignee list
      * if the request is of `support` type.
      */
-    comment += `${phoneNumber} `;
     if (phoneNumber === conn.requester.phoneNumber
       && conn.requester.isSupportRequest) return;
 
@@ -185,7 +187,14 @@ const addAddendumForAssignees = (conn, locals) => {
 };
 
 
-const fetchTemplateAndSubscriptions = (conn, locals) => {
+/**
+ * Fetches the template and subscription docs.
+ *
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const fetchTemplateAndSubscription = (conn, locals) =>
   Promise
     .all([
       rootCollections
@@ -212,6 +221,9 @@ const fetchTemplateAndSubscriptions = (conn, locals) => {
       locals.template = docsArray[0];
       locals.include = docsArray[1].docs[0].get('include');
 
+      /** No addendum is added for the people in `include`
+       * array for a support request.
+       */
       if (conn.requester.isSupportRequest) {
         locals.include = [];
       }
@@ -221,7 +233,7 @@ const fetchTemplateAndSubscriptions = (conn, locals) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-};
+
 
 const handleResult = (conn, result) => {
   if (!result[0].exists) {
@@ -255,7 +267,7 @@ const handleResult = (conn, result) => {
   locals.assigneeArray = [];
   result[1].forEach((doc) => locals.assigneeArray.push(doc.id));
 
-  fetchTemplateAndSubscriptions(conn, locals);
+  fetchTemplateAndSubscription(conn, locals);
 };
 
 
@@ -343,7 +355,7 @@ module.exports = (conn) => {
    * of the activity to make changes.
    */
   if (conn.requester.isSupportRequest) {
-    fetchDocs(conn);
+    fetchTemplateAndSubscription(conn);
 
     return;
   }

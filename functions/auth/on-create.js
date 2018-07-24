@@ -40,7 +40,7 @@ const { getISO8601Date, } = require('../admin/utils');
  *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
- * @returns {Promise} Batch object.
+ * @returns {Promise <Object>} Batch object.
  */
 const updateDailySignups = (userRecord, batch) =>
   rootCollections
@@ -67,7 +67,7 @@ const updateDailySignups = (userRecord, batch) =>
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
  * @param {Object} activityDocRef Reference to the Activity doc.
- * @returns {Promise} Batch object.
+ * @returns {Promise <Object>} Batch object.
  */
 const createSubscription = (userRecord, batch, activityDocRef) => {
   /** Default subscription for everyone who signs up */
@@ -103,7 +103,7 @@ const createSubscription = (userRecord, batch, activityDocRef) => {
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
  * @param {Object} activityDocRef Reference to the Activity doc.
- * @returns {Promise} Batch object.
+ * @returns {Promise <Object>} Batch object.
  */
 const createAddendum = (userRecord, batch, activityDocRef) => {
   batch.set(rootCollections
@@ -131,7 +131,7 @@ const createAddendum = (userRecord, batch, activityDocRef) => {
  *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
- * @returns {Promise} Batch object.
+ * @returns {Promise <Object>} Batch object.
  */
 const createActivity = (userRecord, batch) => {
   const activityDocRef = rootCollections.activities.doc();
@@ -168,7 +168,7 @@ const createActivity = (userRecord, batch) => {
  * a newly signed up user.
  *
  * @param {Object} userRecord Object with user info.
- * @returns {Promise} Batch object.
+ * @returns {Promise <Object>} Batch object.
  */
 module.exports = (userRecord) => {
   const batch = db.batch();

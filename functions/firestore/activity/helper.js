@@ -43,7 +43,12 @@ const {
  * @param {Array} assignees Array of people who are assignees of the activity.
  * @returns {boolean} Depends on the subscription and the phoneNumber in args.
  */
-const handleCanEdit = (locals, phoneNumber, requesterPhoneNumber, assignees = []) => {
+const handleCanEdit = (
+  locals,
+  phoneNumber,
+  requesterPhoneNumber,
+  assignees = []
+) => {
   if (locals.canEditRule === 'ALL') return true;
 
   if (locals.canEditRule === 'NONE') return false;
@@ -223,7 +228,14 @@ const filterAttachment = (reqBodyAttachment, templateAttachment) => {
 };
 
 
-const validateCreateBody = (body, successMessage) => {
+/**
+ * Checks the `template` and `office` fields from the request body.
+ *
+ * @param {Object} body Request body from the client's device.
+ * @param {Object} successMessage The default success message.
+ * @returns {Object} Message object
+ */
+const validateCreateRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('template')) {
     return {
       message: 'The "template" field is missing from the request body.',
@@ -256,14 +268,22 @@ const validateCreateBody = (body, successMessage) => {
 };
 
 
-const validateUpdateBody = (body, successMessage) => {
+/**
+ * Checks if the update body has valid data to make an update request.
+ *
+ * @param {Object} body Request body from the client's device.
+ * @param {Object} successMessage The default success message.
+ * @returns {Object} Message object
+ */
+const validateUpdateRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('title')
     && !body.hasOwnProperty('description')
     && !body.hasOwnProperty('venue')
     && !body.hasOwnProperty('schedule')) {
     return {
       message: 'The request body has no usable fields.'
-        + ' Please add at least one (or all) of these: "title", "description", "schedule", or "venue"'
+        + ' Please add at least one (or all) of these: "title",'
+        + ' "description", "schedule", or "venue"'
         + ' in the request body to make a successful request.',
       isValidBody: false,
     };
@@ -289,7 +309,14 @@ const validateUpdateBody = (body, successMessage) => {
 };
 
 
-const validateCommentBody = (body, successMessage) => {
+/**
+ * Checks if the request body has a valid `comment`.
+ *
+ * @param {Object} body Request body from the client's device.
+ * @param {Object} successMessage The default success message.
+ * @returns {Object} Message object
+ */
+const validateCommentRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('comment')) {
     return {
       message: 'The "comment" field is missing from the request body.',
@@ -308,7 +335,13 @@ const validateCommentBody = (body, successMessage) => {
 };
 
 
-const validateChangeStatusBody = (body, successMessage) => {
+/**
+ * Checks if the request body has a valid `status` field.
+ * @param {Object} body Request body from the client's device.
+ * @param {Object} successMessage The default success message.
+ * @returns {Object} Message object
+ */
+const validateChangeStatusRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('status')) {
     return {
       message: 'The "status" field is missing from the request body.',
@@ -327,7 +360,16 @@ const validateChangeStatusBody = (body, successMessage) => {
 };
 
 
-const validateRemoveBody = (body, successMessage) => {
+/**
+ * Checks if the request body has the `remove` field as an array
+ * with at least one valid phone number remove from the
+ * activity assignee list.
+ *
+ * @param {Object} body Request body from the client's device.
+ * @param {Object} successMessage The default success message.
+ * @returns {Object} Message object
+ */
+const validateRemoveRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('remove')) {
     return {
       message: 'The "remove" array is missing from the request body',
@@ -369,7 +411,16 @@ const validateRemoveBody = (body, successMessage) => {
 };
 
 
-const validateShareBody = (body, successMessage) => {
+/**
+ * Checks if the request body has the `share` field as an array
+ * with at least one valid phone number to add to the activity
+ * assignee list.
+ *
+ * @param {Object} body Request body from the client's device.
+ * @param {Object} successMessage The default success message.
+ * @returns {Object} Message object
+ */
+const validateShareRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('share')) {
     return {
       message: 'The "share" array is missing from the request body',
@@ -415,12 +466,12 @@ const validateShareBody = (body, successMessage) => {
  * Validates the request body for data from the client, and constructs
  * a helpful message in case of some error.
  *
- * @param {Object} body Request body from the client device.
+ * @param {Object} body Request body from the client's device.
  * @param {string} endpoint Resource name for which the validation is to be performed.
  * @returns {Object} message object.
  */
 const isValidRequestBody = (body, endpoint) => {
-  // TODO: Refactor this behemoth... :O
+  /** Message returned when everything in the request body is alright. */
   const successMessage = {
     message: null,
     isValidBody: true,
@@ -464,9 +515,12 @@ const isValidRequestBody = (body, endpoint) => {
   }
 
   if (endpoint === 'create') {
-    return validateCreateBody(body, successMessage);
+    return validateCreateRequestBody(body, successMessage);
   }
 
+  /** With the exception of `/create` endpoint, ALL other endpoints
+   * require the `activityId` in the request body.
+   */
   if (!body.hasOwnProperty('activityId')) {
     return {
       message: 'The "activityId" field is missing from the request body.',
@@ -482,23 +536,23 @@ const isValidRequestBody = (body, endpoint) => {
   }
 
   if (endpoint === 'comment') {
-    return validateCommentBody(body, successMessage);
+    return validateCommentRequestBody(body, successMessage);
   }
 
   if (endpoint === 'update') {
-    return validateUpdateBody(body, successMessage);
+    return validateUpdateRequestBody(body, successMessage);
   }
 
   if (endpoint === 'change-status') {
-    return validateChangeStatusBody(body, successMessage);
+    return validateChangeStatusRequestBody(body, successMessage);
   }
 
   if (endpoint === 'remove') {
-    return validateRemoveBody(body, successMessage);
+    return validateRemoveRequestBody(body, successMessage);
   }
 
   if (endpoint === 'share') {
-    return validateShareBody(body, successMessage);
+    return validateShareRequestBody(body, successMessage);
   }
 
   throw new Error('Invalid endpoint in the method argument');

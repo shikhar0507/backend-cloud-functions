@@ -27,11 +27,7 @@
 
 const { code, } = require('./responses');
 
-const {
-  rootCollections,
-  disableUser,
-  getGeopointObject,
-} = require('./admin');
+const { rootCollections, disableUser, getGeopointObject, } = require('./admin');
 
 
 /**
@@ -160,7 +156,7 @@ const now = (conn) => {
  * Returns the date in ISO 8601 (DD-MM-YYYY) format.
  *
  * @param {Object} date A valid Date object.
- * @returns {String} a moment date object.
+ * @returns {String} An ISO 8601 (DD-MM-YYYY) date string.
  * @see https://en.wikipedia.org/wiki/ISO_8601
  */
 const getISO8601Date = (date) =>
@@ -219,18 +215,20 @@ const disableAccount = (conn, reason) => {
  * Checks if the location is valid with respect to the standard
  * lat and lng values.
  *
- * @param {Object} location Contains lat and lng values.
+ * @param {Object} location Contains `lat` and `lng` values.
  * @returns {boolean} If the input `latitude` & `longitude` pair is valid.
  */
 const isValidGeopoint = (location) => {
   if (!location) return false;
 
-  if (!location.hasOwnProperty('latitude')
-    || !location.hasOwnProperty('longitude')) return false;
+  if (!location.hasOwnProperty('latitude')) return false;
+
+  if (!location.hasOwnProperty('longitude')) return false;
 
   const lat = location.latitude;
   const lng = location.longitude;
 
+  /** @see https://msdn.microsoft.com/en-in/library/aa578799.aspx */
   if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return false;
 
   return true;
@@ -238,7 +236,7 @@ const isValidGeopoint = (location) => {
 
 
 /**
- * Checks for a non-null, non-empty string.
+ * Checks for a `non-null`, `non-empty` string.
  *
  * @param {string} str A string.
  * @returns {boolean} If `str` is a non-empty string.
