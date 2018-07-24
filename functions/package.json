@@ -35,21 +35,21 @@
   "dependencies": {
     "@sendgrid/mail": "^6.3.1",
     "firebase-admin": "^5.12.1",
-    "firebase-functions": "^1.0.2",
+    "firebase-functions": "^1.1.0",
     "moment": "^2.22.2"
   },
   "devDependencies": {
-    "eslint": "^4.19.1",
+    "eslint": "^5.2.0",
     "eslint-config-recommended": "^3.0.0",
-    "eslint-plugin-import": "^2.11.0",
-    "eslint-plugin-jsdoc": "^3.6.3",
+    "eslint-plugin-import": "^2.13.0",
+    "eslint-plugin-jsdoc": "^3.7.1",
     "eslint-plugin-no-loops": "^0.3.0",
-    "eslint-plugin-promise": "^3.7.0",
+    "eslint-plugin-promise": "^3.8.0",
     "eslint-plugin-requirejs": "^3.2.0",
     "eslint-plugin-security": "^1.4.0",
     "firebase-functions-test": "^0.1.2",
     "husky": "^0.14.3",
-    "mocha": "^5.1.1"
+    "mocha": "^5.2.0"
   },
   "private": true
 }
