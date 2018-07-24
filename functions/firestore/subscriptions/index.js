@@ -25,37 +25,30 @@
 'use strict';
 
 
-const functions = require('firebase-functions');
-
-const authOnCreate = functions
-  .auth
-  .user()
-  .onCreate(require('./auth/on-create'));
-
-const authOnDelete = functions
-  .auth
-  .user()
-  .onDelete(require('./auth/on-delete'));
-
-const api = functions
-  .https
-  .onRequest(require('./server/server'));
-
-const subscriptionsHandler = functions
-  .firestore
-  .document('Offices/{officeId}/Subscriptions/{docId}')
-  .onWrite(require('./firestore/subscriptions/index'));
-
-const reportsHandler = functions
-  .firestore
-  .document('Offices/{officeId}/Reports/{docId}')
-  .onWrite(require('./firestore/reports/index'));
+const { rootCollections, } = require('../../admin/admin');
 
 
-module.exports = {
-  api,
-  authOnCreate,
-  authOnDelete,
-  reportsHandler,
-  subscriptionsHandler,
+/**
+ * Copies the document created at the path 
+ * `/Offices/(officeId)/Subscriptions/(activityId)` to 
+ * `/Profiles/(subcriberPhoneNumber)/Subscriptions/(activityId)`.
+ * 
+ * @param {Object} doc Doc ref of the document created `onWrite()`.
+ * @param {Object} context Data about the `event`.
+ * @returns {Promise <Object>} Batch object.
+ */
+module.exports = (doc, context) => {
+  const docData = doc.data();
+
+  const activityId = doc.get('activityId');
+  const subscriberPhoneNumber = doc.get('phoneNumber');
+
+  return rootCollections
+    .profiles
+    .doc(subscriberPhoneNumber)
+    .collection('Subscriptions')
+    .doc(activityId)
+    .set(docData)
+    /* eslint no-console: "off" */
+    .catch(console.error);
 };
