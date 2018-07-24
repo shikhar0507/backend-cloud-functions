@@ -60,20 +60,6 @@ const updateActivityDoc = (conn, locals) => {
 };
 
 
-const updateSubscription = (conn, locals, doc) => {
-  const docData = doc.data();
-  const includeArray = doc.get('include');
-
-  const newIncludeArray = locals.validPhoneNumbers.cocat(includeArray);
-
-  docData.include = newIncludeArray;
-
-  locals.batch.set(locals.activity.get('docRef'), docData);
-
-  updateActivityDoc(conn, locals);
-};
-
-
 /**
  * Updates the linked doc in the `docRef` field in the activity based on
  * the template name.
@@ -313,7 +299,6 @@ const handleResult = (conn, result) => {
     timestamp: locals.timestamp,
   };
 
-  // handleSpecialTemplates(conn, locals);
   addAddendumForAssignees(conn, locals);
 };
 
