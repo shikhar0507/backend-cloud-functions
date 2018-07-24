@@ -28,7 +28,9 @@
 const admin = require('firebase-admin');
 const process = require('process');
 
-admin.initializeApp();
+admin.initializeApp({
+  credential: admin.credential.cert(require('./service_account.json')),
+});
 
 const auth = admin.auth();
 const db = admin.firestore();
