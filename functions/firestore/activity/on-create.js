@@ -430,6 +430,16 @@ const createNewEntityInOffice = (conn, docData, locals) => {
     return;
   }
 
+  if (locals.office.get('status') === 'CANCELLED') {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `This office is inactive. Cannot use ${conn.req.body.template}.`
+    );
+
+    return;
+  }
+
   const officeId = locals.office.docs[0].id;
 
   /** Mutates the template name such at its first character
