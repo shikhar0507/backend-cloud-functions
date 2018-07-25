@@ -460,7 +460,8 @@ const createNewEntityInOffice = (conn, docData, locals) => {
   locals.docRef = rootCollections
     .offices
     .doc(officeId)
-    .collection(properCaseTemplateName)
+    /** Collection name will be plural. */
+    .collection(`${properCaseTemplateName}s`)
     .doc(locals.activityRef.id);
 
   locals.batch.set(locals.docRef, docData);
