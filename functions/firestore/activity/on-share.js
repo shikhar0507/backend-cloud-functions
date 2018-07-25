@@ -269,7 +269,7 @@ const handleResult = (conn, result) => {
     sendResponse(
       conn,
       code.conflict,
-      `There is no activity with the id: ${conn.req.body.activityId}`
+      `No activity found with the id: ${conn.req.body.activityId}.`
     );
 
     return;

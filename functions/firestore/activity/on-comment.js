@@ -158,7 +158,7 @@ const checkIfActivityExists = (conn, locals) =>
       if (!doc.exists) {
         sendResponse(
           conn,
-          code.conflict,
+          code.notFound,
           `No acivity found with the id: ${conn.req.body.activityId}.`
         );
 
@@ -201,7 +201,7 @@ const checkCommentPermission = (conn, locals) => {
   if (!locals.profileActivityDoc.exists) {
     sendResponse(
       conn,
-      code.conflict,
+      code.badRequest,
       `No acivity found with the id: ${conn.req.body.activityId}.`
     );
 

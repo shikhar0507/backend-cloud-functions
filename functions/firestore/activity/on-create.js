@@ -325,12 +325,19 @@ const createActivityRoot = (conn, locals) => {
   activityRoot.office = conn.req.body.office;
   activityRoot.template = conn.req.body.template;
 
+  /** `locals.schedule` will be avaialble when an office
+   * is created by this activity. No need to perform
+   * the operations in there again.
+   */
   activityRoot.schedule = locals.schedule || filterSchedules(
     conn.req.body.schedule,
     /** The `schedule` object from the template. */
     locals.template.schedule
   );
 
+  /** Similar to schedule, the `locals.venue` will have
+   * some value if an office is created.
+  */
   activityRoot.venue = locals.venue || filterVenues(
     conn.req.body.venue,
     /** The `venue` object from the template. */
@@ -339,7 +346,7 @@ const createActivityRoot = (conn, locals) => {
 
   activityRoot.timestamp = locals.timestamp;
 
-  /** The docRef is the reference to the document which the
+  /** The `docRef` is the reference to the document which the
     * activity handled in the request. It will ne null for an
     * activity with the template 'plan' with office 'personal'.
     */
@@ -521,6 +528,17 @@ const handleSpecialTemplates = (conn, docData, locals) => {
  * @returns {void}
  */
 const validateAttachment = (conn, locals) => {
+  /** For creating a subscription or company, an `attachment` is required. */
+  if (!conn.req.body.hasOwnProperty('attachment')) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      'Attachment is not present in the request body.'
+    );
+
+    return;
+  }
+
   /** A temp object storing all the fields for the doc to
    * write from the attachment.
    */
@@ -569,17 +587,6 @@ const processRequestType = (conn, locals) => {
     return;
   }
 
-  /** For creating a subscription or company, an attachment is required. */
-  if (!conn.req.body.hasOwnProperty('attachment')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'Attachment is not present in the request body'
-    );
-
-    return;
-  }
-
   validateAttachment(conn, locals);
 };
 
@@ -609,7 +616,7 @@ const handleSupportRequest = (conn, locals) => {
       conn,
       code.badRequest,
       `The canEditRule in the request body is invalid. Use one of`
-      + ` the following: ${locals.canEditRules.get('CANEDITRULES')}`
+      + ` the following: ${locals.canEditRules.get('CANEDITRULES')}.`
     );
 
     return;
