@@ -1,6 +1,6 @@
 # Adding a Comment to an Existing Activity
 
-endpoint: `/api/activities/commennt`
+endpoint: `/api/activities/comment`
 
 method: `POST`
 

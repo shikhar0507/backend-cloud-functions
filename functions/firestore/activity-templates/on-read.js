@@ -41,7 +41,7 @@ const {
  * Fetches all the docs from `/ActivityTemplates` collection and sends
  * the response in a JSON object.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 const fetchAllTemplates = (conn) => {
@@ -66,7 +66,7 @@ const fetchAllTemplates = (conn) => {
  * Fetches the template based on `name` from the query parameter in the
  * request URL.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 const fetchTemplateByName = (conn) => {
@@ -107,7 +107,7 @@ const fetchTemplateByName = (conn) => {
 /**
  * Checks if the query string is present in the request URL.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 module.exports = (conn) => {

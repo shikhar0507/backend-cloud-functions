@@ -1,10 +1,10 @@
 # Cloud Functions for Growthfile
 
-This is the repository for cloud functions running on Firebase Growthfile backend.
+This is the repository for cloud functions running on Firebase Growthfile back-end.
 
 ## File Structure
 
-```
+```json
 |   .firebaserc
 |   .gitignore
 |   file.txt
@@ -171,6 +171,7 @@ xhr.setRequestHeader('Content-Type', 'application/json');
 xhr.setRequestHeader('Authorization', '/* auth token string */');
 xhr.setRequestHeader('Cache-Control', 'no-cache');
 xhr.send(data);
+
 ```
 
 * Using Javascript fetch

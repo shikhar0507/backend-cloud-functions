@@ -236,7 +236,7 @@ const transferActivities = (conn, locals, snapShots) => {
 };
 
 
-const fetchActivitiesAndSubsriptions = (conn, locals) =>
+const fetchActivitiesAndSubscriptions = (conn, locals) =>
   Promise
     .all([
       rootCollections
@@ -284,7 +284,7 @@ const updateUserDocs = (conn) => {
     }
   );
 
-  fetchActivitiesAndSubsriptions(conn, locals);
+  fetchActivitiesAndSubscriptions(conn, locals);
 };
 
 

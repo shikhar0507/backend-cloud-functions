@@ -33,7 +33,7 @@ const { code, } = require('../admin/responses');
 /**
  * Handles the requests made to /users resource.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 module.exports = (conn) => {

@@ -1,6 +1,6 @@
 # Response Code
 
-Ocassionally, the API will give out reponses in a way that you did not desire.
+Occasionally, the API will give out responses in a way that you did not desire.
 
 More often than not, this is probably an issue with the client side.
 
@@ -8,7 +8,7 @@ Unless the response code starts with 5xx, please make sure that your request is 
 
 ## API Responses
 
-The clients will recieve one of the following response code in the response along with a helpful message indicating what happened.
+The clients will receive one of the following response code in the response along with a helpful message indicating what happened.
 
 * ok: 200
 * created: 201

@@ -98,7 +98,7 @@ const makeUpdateDoc = (conn, locals) => {
 
 
 /**
- * Checks for the existance of the template.
+ * Checks for the existence of the template.
  *
  * @param {Object} conn Express Request and Response Objects.
  * @param {Array} result Contains the object of documents fetched from Firestore.

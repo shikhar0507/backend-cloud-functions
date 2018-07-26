@@ -39,7 +39,7 @@ const {
 
 
 /**
- * Checks the `path` of the URL in the reuqest and handles the execution flow.
+ * Checks the `path` of the URL in the request and handles the execution flow.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
@@ -121,7 +121,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
 
 
 /**
- * Fetches the requestor's phone number from auth.
+ * Fetches the requester phone number from auth.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
@@ -214,7 +214,7 @@ const checkAuthorizationToken = (conn) => {
         sendResponse(
           conn,
           code.unauthorized,
-          'The idToken was revoked recently. Please reauthenticate.'
+          'The idToken was revoked recently. Please re-authenticate.'
         );
 
         return;
@@ -225,7 +225,7 @@ const checkAuthorizationToken = (conn) => {
           conn,
           code.unauthorized,
           'The idToken in the request header is invalid/expired.'
-          + ' Please reauthenticate.'
+          + ' Please re-authenticate.'
         );
 
         return;
@@ -238,7 +238,7 @@ const checkAuthorizationToken = (conn) => {
         conn,
         code.forbidden,
         'There was an error processing the idToken sent in the request.'
-        + ' Please reauthenticate.'
+        + ' Please re-authenticate.'
       );
     });
 };
@@ -258,7 +258,7 @@ module.exports = (req, res) => {
   };
 
   conn.headers = {
-    /** Preflight headers */
+    /** The pre-flight headers */
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
     'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +

@@ -2,11 +2,11 @@
 
 There are no special endpoints for support requests. Instead, `support` is a custom claim given to a user on the platform.
 
-## Support Privilidges
+## Support Privileges
 
-A person with the `support` custom claim has the following privilidges:
+A person with the `support` custom claim has the following privileges:
 
-* Can create activities without them being asignees of the activity themselves.
+* Can create activities without them being assignees of the activity themselves.
 
 * Can edit the activity without being an assignee.
 
@@ -23,7 +23,7 @@ The endpoints which employ a support request are the following:
 5. `/api/activities/remove`
 6. `/api/activities/comment`
 
-* A person with support privilidge can create an activity without the need of subsciption to the template required to create the activity.
+* A person with support privilege can create an activity without the need of subscription to the template required to create the activity.
 
 To distinguish a normal request from a support request, you have to add a query parameter `support` to your request URL.
 

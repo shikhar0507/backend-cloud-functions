@@ -76,7 +76,7 @@ const updateDailyCollection = (conn, jsonResult) => {
 
 /**
  * Adds the `office` field to the template based on the document
- * where the subcription was found.
+ * where the subscription was found.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} jsonResult The fetched data from Firestore.
@@ -349,13 +349,13 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult, locals) => {
 
 
 /**
- * Fetches the addendums and adds them to a a temporary object in memory.
+ * Fetches the `addendum` and adds them to a a temporary object in memory.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const readAddendumsByQuery = (conn, locals) => {
+const readAddendumByQuery = (conn, locals) => {
   const jsonResult = {};
 
   jsonResult.addendum = [];
@@ -376,7 +376,7 @@ const readAddendumsByQuery = (conn, locals) => {
     .get()
     .then((snapShot) => {
       if (snapShot.empty) {
-        /** Activites object is an array for the final response. */
+        /** `activities` object is an array for the final response. */
         jsonResult.activities = [];
 
         /** Response ends here because addendum are empty. */
@@ -446,5 +446,5 @@ module.exports = (conn) => {
    * throughout the instance.
    */
   locals.from = new Date(parseInt(conn.req.query.from));
-  readAddendumsByQuery(conn, locals);
+  readAddendumByQuery(conn, locals);
 };

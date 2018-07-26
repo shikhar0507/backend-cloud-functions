@@ -167,7 +167,7 @@ This is the response that you will get when there are no activities found for th
                 {
                     "location": "location 1",
                     "venueDescriptor": "where",
-                    "adddress": "address stuff",
+                    "address": "address stuff",
                     "geopoint": {
                         "_latitude": 28.5821193,
                         "_longitude": 77.3179443
@@ -176,7 +176,7 @@ This is the response that you will get when there are no activities found for th
                 {
                     "location": "location 2",
                     "venueDescriptor": "where",
-                    "adddress": "address stuff 2",
+                    "address": "address stuff 2",
                     "geopoint": {
                         "_latitude": 28.5821193,
                         "_longitude": 77.3179443
@@ -308,7 +308,7 @@ This is the response that you will get when there are no activities found for th
             "venue": [
                 {
                     "venueDescriptor": "where",
-                    "adddress": "NEW Address String",
+                    "address": "NEW Address String",
                     "geopoint": {
                         "_latitude": 22.20202,
                         "_longitude": 30.404044
@@ -318,7 +318,7 @@ This is the response that you will get when there are no activities found for th
                 {
                     "location": "SECONDS LOCATION",
                     "venueDescriptor": "where",
-                    "adddress": "SECOND ADDRESS",
+                    "address": "SECOND ADDRESS",
                     "geopoint": {
                         "_latitude": 21.20202,
                         "_longitude": 36.404044

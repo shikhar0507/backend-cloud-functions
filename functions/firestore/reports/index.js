@@ -26,11 +26,11 @@
 
 
 /**
- * Copies the document created at the path 
- * `/Offices/(officeId)/Reports/(activityId)` to 
+ * Copies the document created at the path
+ * `/Offices/(officeId)/Reports/(activityId)` to
  * `/Profiles/(subcriberPhoneNumber)/Subscriptions/(activityId)`.
  * TODO: Implement this function...
- * 
+ *
  * @param {Object} doc Doc ref of the document created `onWrite()`.
  * @param {Object} context Data about the `event`.
  * @returns {Promise <Object>} Batch object.

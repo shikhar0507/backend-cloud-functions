@@ -41,7 +41,7 @@ const {
 /**
  * Fetches the `userRecords` for all the phone numbers from the request param.
  *
- * @param {Object} conn Object containing Express's Request and Reponse objects.
+ * @param {Object} conn Object containing Express's Request and Response objects.
  * @returns {void}
  */
 module.exports = (conn) => {

@@ -34,7 +34,7 @@ const { code, } = require('../admin/responses');
  * Calls the resource related to a service depending on the action
  * from the `URL`.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 module.exports = (conn) => {

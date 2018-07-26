@@ -47,7 +47,7 @@ const sendJSON = (conn, json) => {
  * Ends the response of the request after successful completion of the task
  * or on an error.
  *
- * @param {Object} conn Object containing Express's Request and Reponse objects.
+ * @param {Object} conn Object containing Express's Request and Response objects.
  * @param {number} statusCode A standard HTTP status code.
  * @param {string} [message] Response message for the request.
  * @returns {void}
@@ -66,7 +66,7 @@ const sendResponse = (conn, statusCode, message = '') => {
 /**
  * Ends the response when there is an error while handling the request.
  *
- * @param {Object} conn Object containing Express's Request and Reponse objects.
+ * @param {Object} conn Object containing Express's Request and Response objects.
  * @param {Object} error Firebase Error object.
  * @returns {void}
  */
@@ -133,7 +133,7 @@ const hasSuperUserClaims = (customClaims) => {
 /**
  * Returns the server timestamp on a `GET` request.
  *
- * @param {Object} conn Object containing Express's Request and Reponse objects.
+ * @param {Object} conn Object containing Express's Request and Response objects.
  * @returns {void}
  */
 const now = (conn) => {
@@ -168,7 +168,7 @@ const getISO8601Date = (date) =>
  * Disables the user account in auth based on uid and writes the reason to
  * the document in the profiles collection for which the account was disabled.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {string} reason For which the account is being disabled.
  * @returns {void}
  */
@@ -278,7 +278,7 @@ const isE164PhoneNumber = (phoneNumber) => {
    * * \+: Matches the `+` character
    * *[1-9]: Matches the character in range `1` to `9`
    * *\d: Matches any digit character
-   * * *{5-14}: Match between 5 and 14 characters after the preceeding `+` token
+   * * *{5-14}: Match between 5 and 14 characters after the preceding `+` token
    * *$: Matches the end of the string, or the end of a line if the multiple flag (m) is enabled.
    */
   const re = /^\+[1-9]\d{5,14}$/;

@@ -109,7 +109,7 @@ const setAddendumForAssignees = (conn, locals) => {
 
 
 /**
- * Fetches all the docs from '/Assignees' subcollection in the activity
+ * Fetches all the docs from '/Assignees' sub-collection in the activity
  * and creates a list of profiles for which the Addendum are to be written.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
@@ -159,7 +159,7 @@ const checkIfActivityExists = (conn, locals) =>
         sendResponse(
           conn,
           code.notFound,
-          `No acivity found with the id: ${conn.req.body.activityId}.`
+          `No activity found with the id: ${conn.req.body.activityId}.`
         );
 
         return;
@@ -202,7 +202,7 @@ const checkCommentPermission = (conn, locals) => {
     sendResponse(
       conn,
       code.badRequest,
-      `No acivity found with the id: ${conn.req.body.activityId}.`
+      `No activity found with the id: ${conn.req.body.activityId}.`
     );
 
     return;

@@ -157,7 +157,7 @@ const handleAction = (conn, action) => {
  * Calls the resource related to an activity depending on the action
  * from the url.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 module.exports = (conn) => {

@@ -379,7 +379,7 @@ const validateRemoveRequestBody = (body, successMessage) => {
 
   if (!Array.isArray(body.remove)) {
     return {
-      message: 'The "remove" field in the reqest body should be an array.',
+      message: 'The "remove" field in the request body should be an array.',
       isValidBody: false,
     };
   }
@@ -430,7 +430,7 @@ const validateShareRequestBody = (body, successMessage) => {
 
   if (!Array.isArray(body.share)) {
     return {
-      message: 'The "share" field in the reqest body should be an array.',
+      message: 'The "share" field in the request body should be an array.',
       isValidBody: false,
     };
   }
@@ -508,7 +508,7 @@ const isValidRequestBody = (body, endpoint) => {
   if (!isValidGeopoint(body.geopoint)) {
     return {
       message: 'The "geopoint" object in the request body is invalid.'
-        + ' Please make sure that the "latitude" and "longtitude" fields'
+        + ' Please make sure that the "latitude" and "longitude" fields'
         + ' are present in the "geopoint" object with valid ranges.',
       isValidBody: false,
     };

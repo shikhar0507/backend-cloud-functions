@@ -172,7 +172,7 @@ const handleAssignedUsers = (conn, locals) => {
         }
       });
 
-      /** Ends the response by commiting the batch
+      /** Ends the response by committing the batch
        * and logging the activity metadata to
        * `/DailyActivities` collection.
        */
@@ -204,7 +204,7 @@ const addActivityToUserProfile = (conn, locals) => {
   );
 
   /** For support requests, the activity is not to be added to
-   * the requester's profile.
+   * the requester profile.
    */
   if (!conn.requester.isSupportRequest) {
     locals.batch.set(rootCollections
@@ -229,7 +229,7 @@ const addActivityToUserProfile = (conn, locals) => {
  * @returns {void}
  */
 const handleIncludesFromSubscriptions = (conn, locals) => {
-  /** The 'include' array will always have the requester's
+  /** The 'include' array will always have the requester
    * phone number, therefore not adding user's number to the batch
    * explicitly.
    */
@@ -325,7 +325,7 @@ const createActivityRoot = (conn, locals) => {
   activityRoot.office = conn.req.body.office;
   activityRoot.template = conn.req.body.template;
 
-  /** `locals.schedule` will be avaialble when an office
+  /** `locals.schedule` will be available when an office
    * is created by this activity. No need to perform
    * the operations in there again.
    */
@@ -419,7 +419,7 @@ const createOffice = (conn, docData, locals) => {
 
 /**
  * Creates a *new* document inside the `Offices/(office-id)/` path based on
- * the template and `activiy-id`.
+ * the template and `activity-id`.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
@@ -471,7 +471,7 @@ const createNewEntityInOffice = (conn, docData, locals) => {
 
 
 /**
- * Handles the cases where the template is of `subcription` or `office`.
+ * Handles the cases where the template is of `subscription` or `office`.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
@@ -685,7 +685,7 @@ const handleResult = (conn, result) => {
 
   /** Handle support requests from here. */
   if (conn.requester.isSupportRequest) {
-    /** A person with support privilidge, doesn't need to
+    /** A person with support privilege, doesn't need to
      * have the `subscription` to the template that they want
      * to create the activity with.
      * @see https://github.com/Growthfilev2/backend-cloud-functions/blob/master/docs/support-requests/README.md

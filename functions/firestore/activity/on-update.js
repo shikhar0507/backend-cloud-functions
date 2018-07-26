@@ -42,7 +42,7 @@ const {
 /**
  * Adds addendum data for all the assignees in the activity.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -76,7 +76,7 @@ const addAddendumForAssignees = (conn, locals) =>
 /**
  * Updates the activity root and adds the data to the batch.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -146,7 +146,7 @@ const updateActivityDoc = (conn, locals) => {
 /**
  * Manages the attachment object.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Fields for the activity root object.
  * @returns {void}
  */
@@ -216,15 +216,15 @@ const updateActivityTimestamp = (conn, locals) => {
  * Checks if the activity doc exists and creates an array
  * of promises for all assignees.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} result Array of Documents fetched from Firestore.
  * @returns {void}
  */
 const handleResult = (conn, result) => {
   if (!result[0].exists) {
-    /** This case should probably never execute becase there is provision
+    /** This case should probably never execute because there is provision
      * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-     * function, the check for the existance of the activity has already
+     * function, the check for the existence of the activity has already
      * been performed in the User's profile.
      */
     sendResponse(
@@ -272,7 +272,7 @@ const handleResult = (conn, result) => {
 /**
  * Fetches the activity, and its assignees from the DB.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 const fetchDocs = (conn) =>
@@ -295,7 +295,7 @@ const fetchDocs = (conn) =>
 /**
  * Checks if the user has permission to update the activity data.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 const verifyEditPermission = (conn) =>

@@ -42,7 +42,7 @@ const { getISO8601Date, } = require('../admin/utils');
  * @param {Object} batch Batch object.
  * @returns {Promise <Object>} Batch object.
  */
-const updateDailySignups = (userRecord, batch) =>
+const updateDailySignUps = (userRecord, batch) =>
   rootCollections
     .dailySignUps
     .doc(getISO8601Date())
@@ -92,13 +92,13 @@ const createSubscription = (userRecord, batch, activityDocRef) => {
     }
   );
 
-  return updateDailySignups(userRecord, batch);
+  return updateDailySignUps(userRecord, batch);
 };
 
 
 /**
  * Adds an addendum to the the user's `Updates` collection inside the
- * `Addendum` subcollection.
+ * `Addendum` sub-collection.
  *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
@@ -127,7 +127,7 @@ const createAddendum = (userRecord, batch, activityDocRef) => {
 
 /**
  * Adds a document to the batch for creating a doc in
- * `/Activities` collection for user signup.
+ * `/Activities` collection for user sign up.
  *
  * @param {Object} userRecord Object with user info.
  * @param {Object} batch Batch object.
@@ -185,7 +185,7 @@ module.exports = (userRecord) => {
       uid: userRecord.uid,
     }, {
       /** Profile *may* exist already, if the user signed
-       * up to the platform somtime in the past.
+       * up to the platform sometime in the past.
       */
       merge: true,
     });

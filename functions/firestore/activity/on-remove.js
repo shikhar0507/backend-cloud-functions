@@ -65,7 +65,7 @@ const updateActivityDoc = (conn, locals) => {
  * Updates the linked doc in the `docRef` field in the activity based on
  * the template name.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -121,7 +121,7 @@ const updateLinkedDoc = (conn, locals) =>
  * Handles the special case when the template name is 'report' or
  * 'subscription'.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -280,9 +280,9 @@ const fetchTemplate = (conn, locals) => {
  */
 const handleResult = (conn, result) => {
   if (!result[0].exists) {
-    /** This case should probably never execute becase there is NO provision
+    /** This case should probably never execute because there is NO provision
      * for deleting an activity anywhere. AND, for reaching the `fetchDocs()`
-     * function, the check for the existance of the activity has already
+     * function, the check for the existence of the activity has already
      * been performed in the `Profiles/(phoneNumber)/Activities(activity-id)`.
      */
     sendResponse(

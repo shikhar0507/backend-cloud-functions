@@ -42,7 +42,7 @@ const {
 /**
  * Updates the timestamp in the activity root document.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -64,7 +64,7 @@ const updateActivityDoc = (conn, locals) => {
  * Updates the linked doc in the `docRef` field in the activity based on
  * the template name.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -110,7 +110,7 @@ const updateLinkedDoc = (conn, locals) =>
  * Handles the special case when the template name is 'report' or
  * 'subscription'.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -130,7 +130,7 @@ const handleSpecialTemplates = (conn, locals) => {
  * Adds the documents to batch for the users who have their `uid` populated
  * inside their profiles.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -191,7 +191,7 @@ const setAddendumForUsersWithUid = (conn, locals) => {
 /**
  * Adds addendum for all the assignees of the activity.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
@@ -261,9 +261,9 @@ const addAddendumForAssignees = (conn, locals) => {
 
 const handleResult = (conn, result) => {
   if (!result[0].exists) {
-    /** This case should probably never execute becase there is NO provision
+    /** This case should probably never execute because there is NO provision
      * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-     * function, the check for the existance of the activity has already
+     * function, the check for the existence of the activity has already
      * been performed in the User's profile.
      */
     sendResponse(
@@ -307,7 +307,7 @@ const handleResult = (conn, result) => {
  * Fetches the activity doc, along with all the `assignees` of the activity
  * using the `activityId` from the `request body`.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 const fetchDocs = (conn) =>
@@ -331,7 +331,7 @@ const fetchDocs = (conn) =>
  * Checks if the requester has the permission to perform an update
  * to this activity. For this to happen, the `canEdit` flag is checked.
  *
- * @param {Object} conn Contains Express' Request and Respone objects.
+ * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
 const verifyEditPermission = (conn) =>
