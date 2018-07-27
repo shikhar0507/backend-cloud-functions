@@ -25,9 +25,9 @@
 'use strict';
 
 
-const {
-  rootCollections,
-} = require('../admin/admin');
+const { rootCollections, } = require('../admin/admin');
+
+const { code, } = require('../admin/responses');
 
 const {
   handleError,
@@ -37,9 +37,6 @@ const {
   getISO8601Date,
 } = require('../admin/utils');
 
-const {
-  code,
-} = require('../admin/responses');
 
 
 /**
@@ -317,7 +314,6 @@ const fetchActivities = (conn, jsonResult, locals) =>
 const getActivityIdsFromProfileCollection = (conn, jsonResult, locals) => {
   locals.activityFetchPromises = [];
   locals.assigneeFetchPromises = [];
-  locals.activityData = {};
 
   rootCollections
     .profiles
@@ -356,16 +352,16 @@ const getActivityIdsFromProfileCollection = (conn, jsonResult, locals) => {
  * @returns {void}
  */
 const readAddendumByQuery = (conn, locals) => {
-  const jsonResult = {};
-
-  jsonResult.addendum = [];
-  jsonResult.activities = {};
-  jsonResult.templates = [];
-  jsonResult.from = locals.from;
-  /** When  no docs are found in Addendum for the given timestamp,
-   * the from and upto time will remain same.
-   */
-  jsonResult.upto = jsonResult.from;
+  const jsonResult = {
+    addendum: [],
+    activities: {},
+    templates: [],
+    from: locals.from,
+    /** When  no docs are found in `Addendum` for the given timestamp,
+     * the from and upto time will remain same.
+     */
+    upto: locals.from,
+  };
 
   rootCollections
     .updates
@@ -439,6 +435,7 @@ module.exports = (conn) => {
     return;
   }
 
+  /** Object to store local data during the cloud function instance. */
   const locals = {};
 
   /** Converting "from" query string to a date multiple times
