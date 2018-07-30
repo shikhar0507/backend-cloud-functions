@@ -52,10 +52,17 @@ const reportsHandler = functions
   .onWrite(require('./firestore/reports/index'));
 
 
+const addendumHandler = functions
+  .firestore
+  .document('AddendumObjects/{docId}')
+  .onCreate(require('./firestore/addendum/index'));
+
+
 module.exports = {
   api,
   authOnCreate,
   authOnDelete,
   reportsHandler,
+  addendumHandler,
   subscriptionsHandler,
 };
