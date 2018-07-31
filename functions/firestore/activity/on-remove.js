@@ -138,53 +138,28 @@ const handleSpecialTemplates = (conn, locals) => {
 
 
 /**
- * Adds addendum for all the assignees of the activity excluding the ones
- * who have been unassigned from this activity.
+ * Creates a document in the path: `/AddendumObjects/(auto-id)`.
+ * This will trigger an auto triggering cloud function which will
+ * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
+ * doc.
  *
- * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} conn Object with Express Request and Response Objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addAddendumForUsersWithAuth = (conn, locals) => {
-  const promises = [];
+const createAddendumDoc = (conn, locals) => {
+  locals.batch.set(rootCollections
+    .addendumObjects
+    .doc(), {
+      activityId: conn.req.body.activityId,
+      user: conn.requester.phoneNumber,
+      location: getGeopointObject(conn.req.body.geopoint),
+      comment: locals.comment,
+      timestamp: locals.timestamp,
+    }
+  );
 
-  locals.assigneeArray.forEach((phoneNumber) => {
-    promises.push(rootCollections.profiles.doc(phoneNumber).get());
-
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId), {
-        timestamp: locals.timestamp,
-      }, {
-        merge: true,
-      }
-    );
-  });
-
-  Promise
-    .all(promises)
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        /** `uid` is NOT `null` OR `undefined` */
-        if (!doc.get('uid')) return;
-
-        locals.batch.set(rootCollections
-          .updates
-          .doc(doc.get('uid'))
-          .collection('Addendum')
-          .doc(),
-          locals.addendum
-        );
-
-      });
-
-      handleSpecialTemplates(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  handleSpecialTemplates(conn, locals);
 };
 
 
@@ -198,18 +173,18 @@ const addAddendumForUsersWithAuth = (conn, locals) => {
  */
 const unassignFromTheActivity = (conn, locals) => {
   let index;
-  let comment = `${conn.requester.phoneNumber} unassigned `;
+  locals.comment = `${conn.requester.phoneNumber} unassigned `;
 
   locals.validPhoneNumbers = [];
 
   conn.req.body.remove.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
 
-    comment += `${phoneNumber} `;
+    locals.comment += `${phoneNumber} `;
 
     locals.validPhoneNumbers.push(phoneNumber);
 
-    /** Deleting from Assignees collection inside activity doc */
+    /** Deleting from `Assignees` collection inside activity doc */
     locals.batch.delete(rootCollections
       .activities
       .doc(conn.req.body.activityId)
@@ -217,7 +192,7 @@ const unassignFromTheActivity = (conn, locals) => {
       .doc(phoneNumber)
     );
 
-    /** Deleting from Activities collection inside user Profile */
+    /** Deleting from `Activities` collection inside user Profile */
     locals.batch.delete(rootCollections
       .profiles
       .doc(phoneNumber)
@@ -232,9 +207,9 @@ const unassignFromTheActivity = (conn, locals) => {
     }
   });
 
-  locals.addendum.comment = `${comment}from the activity.`;
+  locals.addendum.comment = `${locals.comment}from the activity.`;
 
-  addAddendumForUsersWithAuth(conn, locals);
+  createAddendumDoc(conn, locals);
 };
 
 
@@ -254,13 +229,6 @@ const fetchTemplate = (conn, locals) => {
     .doc(template)
     .get()
     .then((doc) => {
-      locals.addendum = {
-        activityId: conn.req.body.activityId,
-        user: conn.requester.phoneNumber,
-        location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: locals.timestamp,
-      };
-
       locals.template = doc;
       unassignFromTheActivity(conn, locals);
 
@@ -382,7 +350,7 @@ const verifyEditPermission = (conn) =>
         sendResponse(
           conn,
           code.notFound,
-          `No activity found with the id: ${conn.req.body.activityId}.`
+          `No activity found with the id: '${conn.req.body.activityId}'.`
         );
 
         return;
