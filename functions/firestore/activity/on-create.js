@@ -47,6 +47,31 @@ const {
 
 
 /**
+ * Creates a document in the path: `/AddendumObjects/(auto-id)`.
+ * This will trigger an auto triggering cloud function which will
+ * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
+ * doc.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const createAddendumDoc = (conn, locals) => {
+  locals.batch.set(rootCollections
+    .addendumObjects
+    .doc(),
+    locals.addendum
+  );
+
+  /** Ends the response by committing the batch
+   * and logging the activity metadata to
+   * `/DailyActivities` collection.
+   */
+  logDailyActivities(conn, locals, code.created);
+};
+
+
+/**
  * Adds docs for each assignee of the activity to the batch.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
@@ -67,7 +92,7 @@ const handleAssignedUsers = (conn, locals) => {
       return;
     }
 
-    logDailyActivities(conn, locals, code.created);
+    createAddendumDoc(conn, locals, code.created);
 
     return;
   }
@@ -92,7 +117,7 @@ const handleAssignedUsers = (conn, locals) => {
 
   const promises = [];
 
-  /** Create docs in Assignees collection if share is in the request body. */
+  /** Create docs in `Assignees` collection if share is in the request body. */
   conn.req.body.share.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
 
@@ -133,50 +158,38 @@ const handleAssignedUsers = (conn, locals) => {
   Promise
     .all(promises)
     .then((snapShot) => {
-      /** The doc exists inside `Profiles` collection. */
       snapShot.forEach((doc) => {
-        if (!doc.exists) {
-          /** Create profiles for the phone numbers which are not in the DB. */
-          locals.batch.set(rootCollections
-            .profiles
-            .doc(doc.id), {
-              uid: null,
-            }
-          );
+        /** The doc exists inside `Profiles` collection. */
+        if (doc.exists) return;
 
-          locals.batch.set(rootCollections
-            .profiles
-            .doc(doc.id)
-            .collection('Activities')
-            .doc(locals.activityRef.id), {
-              canEdit: handleCanEdit(
-                locals,
-                /** Document ID is the phoneNumber */
-                doc.id,
-                conn.requester.phoneNumber,
-                conn.req.body.share
-              ),
-              timestamp: locals.timestamp,
-            });
-        }
+        /** Create `profiles` for the phone numbers which are not
+         * in the Firestore. */
+        locals.batch.set(rootCollections
+          .profiles
+          .doc(doc.id), {
+            uid: null,
+          }
+        );
 
-        /** The `uid` shouldn't be `null` OR `undefined` */
-        if (doc.exists && doc.get('uid')) {
-          locals.batch.set(rootCollections
-            .updates
-            .doc(doc.get('uid'))
-            .collection('Addendum')
-            .doc(),
-            locals.addendum
-          );
-        }
+        locals.batch.set(rootCollections
+          .profiles
+          /** The `doc.id` is `phoneNumber`. */
+          .doc(doc.id)
+          .collection('Activities')
+          .doc(locals.activityRef.id), {
+            canEdit: handleCanEdit(
+              locals,
+              /** The `doc.id` is `phoneNumber`. */
+              doc.id,
+              conn.requester.phoneNumber,
+              conn.req.body.share
+            ),
+            timestamp: locals.timestamp,
+          });
+
       });
 
-      /** Ends the response by committing the batch
-       * and logging the activity metadata to
-       * `/DailyActivities` collection.
-       */
-      logDailyActivities(conn, locals, code.created);
+      createAddendumDoc(locals, locals);
 
       return;
     })
@@ -270,7 +283,7 @@ const addAddendumForRequester = (conn, locals) => {
     activityId: locals.activityRef.id,
     user: conn.requester.phoneNumber,
     comment: `${conn.requester.phoneNumber}`
-      + ` created ${locals.template.defaultTitle}`,
+      + ` created ${locals.template.defaultTitle}.`,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: locals.timestamp,
   };
