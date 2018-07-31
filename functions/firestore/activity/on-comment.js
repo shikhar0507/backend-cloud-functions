@@ -25,7 +25,11 @@
 'use strict';
 
 
-const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+const {
+  rootCollections,
+  getGeopointObject,
+  db,
+} = require('../../admin/admin');
 
 const { isValidRequestBody, } = require('./helper');
 
@@ -48,7 +52,8 @@ const {
  */
 const updateActivityRootTimestamp = (conn, locals) => {
   locals.batch.set(rootCollections
-    .activities.doc(conn.req.body.activityId), {
+    .activities
+    .doc(conn.req.body.activityId), {
       timestamp: locals.timestamp,
     }, {
       merge: true,
@@ -59,87 +64,30 @@ const updateActivityRootTimestamp = (conn, locals) => {
 
 
 /**
- * Adds `addendum` doc for each `assignee` of the activity for which
- * the comment is being created.
+ * Creates a document in the path: `/AddendumObjects/(auto-id)`.
+ * This will trigger an auto triggering cloud function which will
+ * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
+ * doc.
  *
  * @param {Object} conn Object with Express Request and Response Objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const setAddendumForAssignees = (conn, locals) => {
-  locals.assigneesPhoneNumberList.forEach((phoneNumber) => {
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId), {
-        timestamp: locals.timestamp,
-      }, {
-        merge: true,
-      });
-  });
+const createAddendumDoc = (conn, locals) => {
+  locals.batch.set(rootCollections
+    .addendumObjects
+    .doc(), {
+      activityId: conn.req.body.activityId,
+      user: conn.requester.phoneNumber,
+      comment: conn.req.body.comment,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: locals.timestamp,
+    }
+  );
 
-  Promise
-    .all(locals.assigneeDocPromises)
-    .then((snapShots) => {
-      snapShots.forEach((doc) => {
-        /** `uid` shouldn't be `null` OR `undefined` */
-        if (!doc.exists) return;
-
-        if (!doc.get('uid')) return;
-
-        locals.batch.set(rootCollections
-          .updates.doc(doc.get('uid'))
-          .collection('Addendum')
-          .doc(), {
-            activityId: conn.req.body.activityId,
-            user: conn.requester.phoneNumber,
-            comment: conn.req.body.comment,
-            location: getGeopointObject(conn.req.body.geopoint),
-            timestamp: locals.timestamp,
-          });
-      });
-
-      updateActivityRootTimestamp(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  updateActivityRootTimestamp(conn, locals);
 };
 
-
-/**
- * Fetches all the docs from '/Assignees' sub-collection in the activity
- * and creates a list of profiles for which the Addendum are to be written.
- *
- * @param {Object} conn Object with Express Request and Response Objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const createAssigneePromises = (conn, locals) => {
-  locals.assigneeDocPromises = [];
-  locals.assigneesPhoneNumberList = [];
-
-  rootCollections
-    .activities
-    .doc(conn.req.body.activityId)
-    .collection('Assignees')
-    .get()
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        locals.assigneeDocPromises.push(
-          rootCollections.profiles.doc(doc.id).get()
-        );
-
-        locals.assigneesPhoneNumberList.push(doc.id);
-      });
-
-      setAddendumForAssignees(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
 
 
 /**
@@ -172,7 +120,7 @@ const checkIfActivityExists = (conn, locals) =>
        */
       locals.activity = doc;
 
-      createAssigneePromises(conn, locals);
+      createAddendumDoc(conn, locals);
 
       return;
     })
@@ -208,7 +156,7 @@ const checkCommentPermission = (conn, locals) => {
     return;
   }
 
-  createAssigneePromises(conn, locals);
+  createAddendumDoc(conn, locals);
 
   return;
 };
