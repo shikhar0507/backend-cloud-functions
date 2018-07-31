@@ -25,7 +25,11 @@
 'use strict';
 
 
-const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+const {
+  rootCollections,
+  getGeopointObject,
+  db,
+} = require('../../admin/admin');
 
 const { handleCanEdit, isValidRequestBody, } = require('./helper');
 
@@ -134,88 +138,41 @@ const handleSpecialTemplates = (conn, locals) => {
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const setAddendumForUsersWithUid = (conn, locals) => {
-  /** Assignee array can have duplicate elements. */
-  const assigneeListWithUniques = Array.from(new Set(locals.assigneeArray));
-  const promises = [];
+const createAddendumDoc = (conn, locals) => {
+  locals.batch.set(rootCollections
+    .addendumObjects
+    .doc(), {
+      activityId: conn.req.body.activityId,
+      user: conn.requester.phoneNumber,
+      location: getGeopointObject(conn.req.body.geopoint),
+      comment: locals.comment,
+      timestamp: locals.timestamp,
+    }
+  );
 
-  assigneeListWithUniques.forEach((phoneNumber) => {
-    promises.push(rootCollections.profiles.doc(phoneNumber).get());
-
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId), {
-        timestamp: locals.timestamp,
-      }, {
-        merge: true,
-      }
-    );
-  });
-
-  Promise
-    .all(promises)
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        /** Create Profiles for the users who don't have a profile already. */
-        if (!doc.exists) {
-          /** The `doc.id` is the `phoneNumber` that doesn't exist */
-          locals.batch.set(rootCollections
-            .profiles
-            .doc(doc.id), {
-              uid: null,
-            });
-        }
-
-        if (doc.exists && doc.get('uid')) {
-          /** The `uid` is NOT `null` OR `undefined` */
-          locals.batch.set(rootCollections
-            .updates
-            .doc(doc.get('uid'))
-            .collection('Addendum')
-            .doc(),
-            locals.addendum
-          );
-        }
-      });
-
-      handleSpecialTemplates(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  handleSpecialTemplates(conn, locals);
 };
 
 
 /**
- * Adds addendum for all the assignees of the activity.
+ * Adds `addendum` for all the assignees of the activity.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addAddendumForAssignees = (conn, locals) => {
-  let comment = `${conn.requester.phoneNumber} shared this activity with: `;
+const handleAssignees = (conn, locals) => {
+  locals.comment = `${conn.requester.phoneNumber} shared this activity with: `;
 
-  locals.validPhoneNumbers = [];
+  locals.assigneeArray.forEach((phoneNumber) => {
+    locals.comment += `${phoneNumber}, `;
 
-  conn.req.body.share.forEach((phoneNumber) => {
-    if (!isE164PhoneNumber(phoneNumber)) return;
-
-    locals.validPhoneNumbers.push(phoneNumber);
-
-    comment += `${phoneNumber}, `;
-
-    /** The requester shouldn't be added to the activity assignee list
-     * if the request is of `support` type.
+    /** Requester is not added to activity for `support`
+     * requests.
      */
     if (phoneNumber === conn.requester.phoneNumber
       && conn.requester.isSupportRequest) return;
 
-    /** Adding a doc with the id = phoneNumber in
-     * `Activities/(activityId)/Assignees`
-     * */
     locals.batch.set(rootCollections
       .activities
       .doc(conn.req.body.activityId)
@@ -231,9 +188,6 @@ const addAddendumForAssignees = (conn, locals) => {
       }
     );
 
-    /** Adding a doc with the id = activityId inside
-     *  Profiles/(phoneNumber)/Activities/(activityId)
-     * */
     locals.batch.set(rootCollections
       .profiles
       .doc(phoneNumber)
@@ -250,22 +204,35 @@ const addAddendumForAssignees = (conn, locals) => {
       }
     );
 
-    locals.assigneeArray.push(phoneNumber);
+    locals.batch.set(rootCollections
+      .profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .doc(conn.req.body.activityId), {
+        timestamp: locals.timestamp,
+      }, {
+        merge: true,
+      }
+    );
   });
 
-  locals.addendum.comment = comment.trim();
-
-  setAddendumForUsersWithUid(conn, locals);
+  createAddendumDoc(conn, locals);
 };
 
 
+/**
+ * Processes the `result` from the Firestore and saves the data to variables
+ * for use in the function flow.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Array} result Docs fetched from Firestore.
+ * @returns {void}
+ */
 const handleResult = (conn, result) => {
-  if (!result[0].exists) {
-    /** This case should probably never execute because there is NO provision
-     * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-     * function, the check for the existence of the activity has already
-     * been performed in the User's profile.
-     */
+  const activityDoc = result[0];
+  const assigneesArray = result[1];
+
+  if (!activityDoc.exists) {
     sendResponse(
       conn,
       code.conflict,
@@ -275,31 +242,30 @@ const handleResult = (conn, result) => {
     return;
   }
 
-  const locals = {};
-  locals.batch = db.batch();
-
-  /** Calling `new Date()` constructor multiple times is wasteful. */
-  locals.timestamp = new Date(conn.req.body.timestamp);
-
-  locals.activity = result[0];
-
-  locals.canEditRule = result[0].get('canEditRule');
-
-  /** The assigneeArray is required to add addendum.
-   * The `doc.id` is the phoneNumber of the assignee.
-   */
-  locals.assigneeArray = [];
-  result[1].forEach((doc) => locals.assigneeArray.push(doc.id));
-
-  /** Comment field will be added later. */
-  locals.addendum = {
-    activityId: conn.req.body.activityId,
-    user: conn.requester.phoneNumber,
-    location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: locals.timestamp,
+  const locals = {
+    batch: db.batch(),
+    /** Calling `new Date()` constructor multiple times is wasteful. */
+    timestamp: new Date(conn.req.body.timestamp),
+    activity: result[0],
+    canEditRule: result[0].get('canEditRule'),
+    assigneeArray: [],
   };
 
-  addAddendumForAssignees(conn, locals);
+  /** Activity is only created with valid phone numbers.
+   * No validation is required here.
+   */
+  assigneesArray.forEach((doc) => locals.assigneeArray.push(doc.id));
+
+  /** The `share` array from the request body may not
+   * have all valid phone numbers.
+   */
+  conn.req.body.share.forEach((phoneNumber) => {
+    if (!isE164PhoneNumber(phoneNumber)) return;
+
+    locals.assigneeArray.push(phoneNumber);
+  });
+
+  handleAssignees(conn, locals);
 };
 
 
@@ -343,11 +309,11 @@ const verifyEditPermission = (conn) =>
     .get()
     .then((doc) => {
       if (!doc.exists) {
-        /** The activity doesn't exist for the user */
+        /** The `activity` doesn't exist for the user. */
         sendResponse(
           conn,
           code.notFound,
-          `An activity with the id: ${conn.req.body.activityId} doesn't exist.`
+          `No activity found with the ID: '${conn.req.body.activityId}'.`
         );
 
         return;
