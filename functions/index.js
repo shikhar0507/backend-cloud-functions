@@ -58,6 +58,12 @@ const addendumHandler = functions
   .onCreate(require('./firestore/addendum/index'));
 
 
+const assigneeHandler = functions
+  .firestore
+  .document('Activities/{activityId}/Assignees/{phoneNumber}')
+  .onWrite(require('./firestore/assignees/index'));
+
+
 module.exports = {
   api,
   authOnCreate,
