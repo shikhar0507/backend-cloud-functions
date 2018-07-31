@@ -25,7 +25,11 @@
 'use strict';
 
 
-const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+const {
+  rootCollections,
+  getGeopointObject,
+  db,
+} = require('../../admin/admin');
 
 const { isValidRequestBody, } = require('./helper');
 
@@ -39,35 +43,30 @@ const {
 
 
 /**
- * Writes the `addendum` for all the `assignees` of the activity who have
- * signed up.
+ * Creates a document in the path: `/AddendumObjects/(auto-id)`.
+ * This will trigger an auto triggering cloud function which will
+ * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
+ * doc.
  *
- * @param {Object} conn Contains Express Request and Response Objects.
+ * @param {Object} conn Object with Express Request and Response Objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addAddendumForAssignees = (conn, locals) =>
-  Promise
-    .all(locals.assigneeDocPromises)
-    .then((docsArray) => {
-      /** Adds addendum for all the users who have signed up via auth. */
-      docsArray.forEach((doc) => {
-        if (!doc.get('uid')) return;
+const createAddendumDoc = (conn, locals) => {
+  locals.batch.set(rootCollections
+    .addendumObjects
+    .doc(), {
+      activityId: conn.req.body.activityId,
+      user: conn.requester.phoneNumber,
+      location: getGeopointObject(conn.req.body.geopoint),
+      comment: `${conn.requester.phoneNumber} updated the activity`
+      + ` status to ${conn.req.body.status}.`,
+      timestamp: locals.timestamp,
+    }
+  );
 
-        locals.batch.set(rootCollections
-          .updates
-          .doc(doc.get('uid'))
-          .collection('Addendum')
-          .doc(),
-          locals.addendum
-        );
-      });
-
-      logDailyActivities(conn, locals, code.noContent);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  logDailyActivities(conn, locals, code.noContent);
+};
 
 
 /**
@@ -88,10 +87,7 @@ const updateActivityStatus = (conn, locals) => {
     }
   );
 
-  locals.addendum.comment = `${conn.requester.phoneNumber} updated the activity`
-    + ` status to ${conn.req.body.status}.`;
-
-  addAddendumForAssignees(conn, locals);
+  createAddendumDoc(conn, locals);
 };
 
 
@@ -130,18 +126,13 @@ const handleResults = (conn, result) => {
     sendResponse(
       conn,
       code.conflict,
-      `The activity status is already ${conn.req.body.status}.`
+      `The activity status is already '${conn.req.body.status}'.`
     );
 
     return;
   }
 
-  locals.assigneeDocPromises = [];
-
-  /** The Assignees list is required to add addendum. */
   result[1].forEach((doc) => {
-    locals.assigneeDocPromises.push(rootCollections.profiles.doc(doc.id).get());
-
     locals.batch.set(rootCollections
       .profiles
       .doc(doc.id)
@@ -158,20 +149,12 @@ const handleResults = (conn, result) => {
     sendResponse(
       conn,
       code.badRequest,
-      `${conn.req.body.status} is not a valid status.`
+      `'${conn.req.body.status}' is not a valid status.`
       + ` Use one of the following values: ${result[2].get('ACTIVITYSTATUS')}.`
     );
 
     return;
   }
-
-  /** The `comment` field will be added later. */
-  locals.addendum = {
-    activityId: conn.req.body.activityId,
-    user: conn.requester.phoneNumber,
-    location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: locals.timestamp,
-  };
 
   updateActivityStatus(conn, locals);
 };
@@ -225,7 +208,7 @@ const verifyEditPermission = (conn) =>
         sendResponse(
           conn,
           code.notFound,
-          `No activity found with the id: ${conn.req.body.activityId}.`
+          `No activity found with the id: '${conn.req.body.activityId}'.`
         );
 
         return;
