@@ -25,9 +25,18 @@
 'use strict';
 
 
-const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+const {
+  rootCollections,
+  getGeopointObject,
+  db,
+} = require('../../admin/admin');
 
-const { filterSchedules, filterVenues, filterAttachment, isValidRequestBody, } = require('./helper');
+const {
+  filterSchedules,
+  filterVenues,
+  filterAttachment,
+  isValidRequestBody,
+} = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
@@ -40,37 +49,24 @@ const {
 
 
 /**
- * Adds addendum data for all the assignees in the activity.
+ * Creates a document in the path: `/AddendumObjects/(auto-id)`.
+ * This will trigger an auto triggering cloud function which will
+ * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
+ * doc.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const addAddendumForAssignees = (conn, locals) =>
-  Promise
-    .all(locals.assigneesArray)
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        if (!doc.get('uid')) return;
+const createAddendumDoc = (conn, locals) => {
+  locals.batch.set(rootCollections
+    .addendumObjects
+    .doc(),
+    locals.addendum
+  );
 
-        /** Users without `uid` are the ones who don't have
-         * signed up. Addendum is added only for the users who
-         * have an account in auth.
-         */
-        locals.batch.set(rootCollections
-          .updates
-          .doc(doc.get('uid'))
-          .collection('Addendum')
-          .doc(),
-          locals.addendum
-        );
-      });
-
-      logDailyActivities(conn, locals, code.noContent);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  logDailyActivities(conn, locals, code.noContent);
+};
 
 
 /**
@@ -139,7 +135,7 @@ const updateActivityDoc = (conn, locals) => {
     }
   );
 
-  addAddendumForAssignees(conn, locals);
+  createAddendumDoc(conn, locals);
 };
 
 
@@ -176,7 +172,12 @@ const handleAttachment = (conn, locals) => {
         doc.get('attachment')
       );
 
-      locals.batch.set(attachmentDocRef, updatedFields, { merge: true, });
+      locals.batch.set(
+        attachmentDocRef,
+        updatedFields, {
+          merge: true,
+        }
+      );
 
       updateActivityDoc(conn, locals);
 
@@ -195,7 +196,7 @@ const handleAttachment = (conn, locals) => {
  * @returns {void}
  */
 const updateActivityTimestamp = (conn, locals) => {
-  locals.assigneesPhoneNumbersArray.forEach((phoneNumber) => {
+  locals.assigneePhoneNumberArray.forEach((phoneNumber) => {
     locals.batch.set(rootCollections
       .profiles
       .doc(phoneNumber)
@@ -221,7 +222,10 @@ const updateActivityTimestamp = (conn, locals) => {
  * @returns {void}
  */
 const handleResult = (conn, result) => {
-  if (!result[0].exists) {
+  const activityDoc = result[0];
+  const assigneeDocsArray = result[1];
+
+  if (!activityDoc.exists) {
     /** This case should probably never execute because there is provision
      * for deleting an activity anywhere. AND, for reaching the fetchDocs()
      * function, the check for the existence of the activity has already
@@ -236,34 +240,25 @@ const handleResult = (conn, result) => {
     return;
   }
 
-  /** For storing local data during the flow. */
-  const locals = {};
-
-  locals.batch = db.batch();
-
   /** Calling new `Date()` constructor multiple times is wasteful. */
-  locals.timestamp = new Date(conn.req.body.timestamp);
+  const timestamp = new Date(conn.req.body.timestamp);
 
-  locals.addendum = {
-    activityId: conn.req.body.activityId,
-    user: conn.requester.phoneNumber,
-    location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: locals.timestamp,
+  /** For storing local data during the flow. */
+  const locals = {
+    timestamp,
+    batch: db.batch(),
+    activity: result[0],
+    assigneePhoneNumberArray: [],
+    addendum: {
+      timestamp,
+      activityId: conn.req.body.activityId,
+      user: conn.requester.phoneNumber,
+      location: getGeopointObject(conn.req.body.geopoint),
+    },
   };
 
-  locals.activity = result[0];
-
-  locals.assigneesArray = [];
-  locals.assigneesPhoneNumbersArray = [];
-
-  result[1].forEach((doc) => {
-    /** The assigneesArray is required to add addendum. */
-    locals.assigneesArray.push(
-      rootCollections.profiles.doc(doc.id).get()
-    );
-
-    locals.assigneesPhoneNumbersArray.push(doc.id);
-  });
+  assigneeDocsArray
+    .forEach((doc) => locals.assigneePhoneNumberArray.push(doc.id));
 
   updateActivityTimestamp(conn, locals);
 };
