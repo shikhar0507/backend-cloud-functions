@@ -28,9 +28,7 @@
 const admin = require('firebase-admin');
 const process = require('process');
 
-admin.initializeApp({
-  credential: admin.credential.cert(require('./service_account.json')),
-});
+admin.initializeApp();
 
 const auth = admin.auth();
 const db = admin.firestore();
@@ -195,7 +193,7 @@ const verifyIdToken = (idToken, checkRevoked) =>
  * root of the Firestore.
  *
  * **Note**: Brackets `()` in the string means that the string inside
- * them is auto-generated.
+ * them is either a variable.
  */
 const rootCollections = {
   /** Collection which contains `docs` of the users with their
