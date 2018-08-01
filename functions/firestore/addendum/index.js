@@ -52,7 +52,22 @@ module.exports = (snap) =>
       const batch = db.batch();
 
       snapShots.forEach((doc) => {
-        if (!doc.exists) return;
+        if (!doc.exists) {
+          /** Any new phone number introduced to the system
+           * will get its own profile as if they have signed up,
+           * but a document in the /Updates/(uid) will not be present.
+           * This is just a placeholder profile for them.
+           */
+          batch.set(rootCollections
+            .profiles
+            .doc(doc.id), {
+              uid: null,
+            });
+        }
+
+        /** No uid means that the user has not signed up
+         * for the app. Not writing addendum for those users.
+         */
         if (!doc.get('uid')) return;
 
         const uid = doc.get('uid');
