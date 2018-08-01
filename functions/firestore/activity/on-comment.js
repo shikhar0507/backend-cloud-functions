@@ -91,7 +91,6 @@ const createAddendumDoc = (conn, locals) => {
 };
 
 
-
 /**
  * Fetches the `activity` doc from inside the `Activities` root collection.
  *
@@ -186,10 +185,11 @@ const fetchDocs = (conn) =>
         .get(),
     ])
     .then((docsArray) => {
-      const locals = {};
-      locals.batch = db.batch();
-      locals.profileActivityDoc = docsArray[0];
-      locals.activity = docsArray[1];
+      const locals = {
+        batch: db.batch(),
+        profileActivityDoc: docsArray[0],
+        activity: docsArray[1],
+      };
 
       checkCommentPermission(conn, locals);
 

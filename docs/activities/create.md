@@ -20,7 +20,6 @@ query parameters: `support` (optional)
         "longitude": 77.2030185
     },
     "title": "string",
-    "description": "string",
     "share": ["+919090909090", "+918989898989"],
     "venue": [{
         "venueDescriptor": "venue name from template",
@@ -53,6 +52,6 @@ query parameters: `support` (optional)
 }
 ```
 
-A request with this body will create an activity with the requester as the only assignee with no title or description.
+A request with this body will create an activity with the requester as the only assignee with no title.
 
 These are the fields which are __REQUIRED__ at LEAST to be present in the request body in order for your request to be accepted.

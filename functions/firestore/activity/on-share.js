@@ -26,10 +26,10 @@
 
 
 const {
-  rootCollections,
-  getGeopointObject,
   db,
   serverTimestamp,
+  rootCollections,
+  getGeopointObject,
 } = require('../../admin/admin');
 
 const { handleCanEdit, isValidRequestBody, } = require('./helper');
@@ -66,72 +66,6 @@ const updateActivityDoc = (conn, locals) => {
 
 
 /**
- * Updates the linked doc in the `docRef` field in the activity based on
- * the template name.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateLinkedDoc = (conn, locals) =>
-  db
-    .doc(locals.activity.get('docRef'))
-    .get()
-    .then((doc) => {
-      const docData = doc.data();
-
-      if (locals.activity.get('template') === 'subscription') {
-        const includeArray = doc.get('include');
-        const updatedIncludeArray = locals
-          .validPhoneNumbers
-          .concat(includeArray);
-
-        docData.include = updatedIncludeArray;
-      }
-
-      if (locals.activity.get('template') === 'report') {
-        const toArray = doc.get('to');
-        const updatedToArray = locals
-          .validPhoneNumbers
-          .concat(toArray);
-
-        docData.to = updatedToArray;
-      }
-
-      locals.batch.set(locals
-        .activity
-        .get('docRef'),
-        docData
-      );
-
-      updateActivityDoc(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
-
-/**
- * Handles the special case when the template name is 'report' or
- * 'subscription'.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const handleSpecialTemplates = (conn, locals) => {
-  if (['subscription', 'report',]
-    .indexOf(locals.activity.get('template')) > -1) {
-    updateLinkedDoc(conn, locals);
-
-    return;
-  }
-
-  updateActivityDoc(conn, locals);
-};
-
-
-/**
  * Adds the documents to batch for the users who have their `uid` populated
  * inside their profiles.
  *
@@ -152,7 +86,7 @@ const createAddendumDoc = (conn, locals) => {
     }
   );
 
-  handleSpecialTemplates(conn, locals);
+  updateActivityDoc(conn, locals);
 };
 
 
@@ -169,8 +103,7 @@ const handleAssignees = (conn, locals) => {
   locals.assigneeArray.forEach((phoneNumber) => {
     locals.comment += `${phoneNumber}, `;
 
-    /** Requester is not added to activity for `support`
-     * requests.
+    /** Requester is not added to activity for `support` requests.
      */
     if (phoneNumber === conn.requester.phoneNumber
       && conn.requester.isSupportRequest) return;
@@ -185,33 +118,6 @@ const handleAssignees = (conn, locals) => {
           phoneNumber,
           conn.requester.phoneNumber
         ),
-      }, {
-        merge: true,
-      }
-    );
-
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId), {
-        canEdit: handleCanEdit(
-          locals,
-          phoneNumber,
-          conn.requester.phoneNumber
-        ),
-        timestamp: serverTimestamp,
-      }, {
-        merge: true,
-      }
-    );
-
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId), {
-        timestamp: serverTimestamp,
       }, {
         merge: true,
       }

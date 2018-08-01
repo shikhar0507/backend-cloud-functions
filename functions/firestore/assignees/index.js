@@ -26,13 +26,14 @@
 
 
 const {
-  rootCollections,
   db,
   users,
+  rootCollections,
+  getGeopointObject,
 } = require('../../admin/admin');
 
 
-const handleOffice = (assigneeDoc, context, result) => {
+const handleOffice = (result) => {
   const batch = db.batch();
 
   const activityRef = result[0];
@@ -44,88 +45,90 @@ const handleOffice = (assigneeDoc, context, result) => {
   /** Office ID will always be the ID of the activity
    * used to create that office.
    */
-  const officeRef = rootCollections.offices.doc(activityId);
+  const docRef = rootCollections.offices.doc(activityId);
 
   /** Office doc will always have the same data of the
    * activity doc, except `schedule`, `venue`, and `attachment` objects.
    * Those three will have their fields as individual fields in the
    * main office doc.
    */
-  const officeData = activityRef.data();
+  const officeDoc = activityRef.data();
 
-  officeData.activityId = activityId;
-  officeData.name = activityRef.get('office');
+  officeDoc.activityId = activityId;
+  officeDoc.name = activityRef.get('office');
 
-  delete officeData.schedule;
-  delete officeData.venue;
-  delete officeData.title;
-  delete officeData.description;
-  delete officeData.office;
+  delete officeDoc.schedule;
+  delete officeDoc.venue;
+  delete officeDoc.title;
+  delete officeDoc.description;
+  delete officeDoc.office;
 
   Object
     .keys(attachment)
-    .forEach((key) => officeData[key] = attachment[key]);
+    .forEach((key) => officeDoc[key] = attachment[key]);
 
-  Object
-    .keys(schedule)
-    .forEach((key) => officeData[key] = schedule[key]);
+  schedule.forEach((scheduleObject) => {
+    officeDoc[`${scheduleObject.name}`] = {
+      startTime: scheduleObject.startTime,
+      endTime: scheduleObject.endTime,
+    };
+  });
 
-  Object
-    .keys(venue)
-    .forEach((key) => officeData[key] = venue[key]);
+  venue.forEach((venueObject) => {
+    officeDoc[`${venueObject.venueDescriptor}`] = {
+      address: venueObject.address,
+      location: venueObject.location,
+      geopoint: getGeopointObject(venueObject.geopoint),
+    };
+  });
 
-  batch.set(officeRef, officeData);
+  batch.set(docRef, officeDoc);
 
-  batch.set(activityRef, {
-    docRef: officeRef,
-  }, {
-      merge: true,
-    });
+  batch.set(activityRef, { docRef, }, { merge: true, });
 
   return batch.commit();
 };
 
-const handleSubscription = (assigneeDoc, result) => {
+
+const handleSubscription = (result) => {
   const batch = db.batch();
   const activityRef = result[0];
   const activityId = activityRef.id;
-  const subscriberPhoneNumber = activityRef.get('attachment').phoneNumber.value;
-
-  const subscriptionRef = rootCollections
+  const subscriberPhoneNumber = activityRef
+    .get('attachment')
+    .phoneNumber
+    .value;
+  const docRef = rootCollections
     .profiles
     .doc(subscriberPhoneNumber)
     .collection('Subscriptions')
     .doc(activityId);
-
   const include = [];
-
   const assigneeArray = result[1];
+
+
   /** Doc-id is the phone number of the assignee. */
   assigneeArray.forEach((doc) => include.push(doc.id));
 
   const subscriptionData = {
+    include,
     activityId,
     canEditRule: activityRef.get('canEditRule'),
-    include,
     office: activityRef.get('office'),
     status: activityRef.get('status'),
     template: activityRef.get('template'),
     timestamp: activityRef.get('timestamp'),
   };
 
-  batch.set(subscriptionRef, subscriptionData);
+  batch.set(docRef, subscriptionData);
 
-  batch.set(activityRef, {
-    docRef: subscriptionRef,
-  }, {
-      merge: true,
-    });
+  batch.set(activityRef, { docRef, }, { merge: true, });
 
   return batch.commit();
 };
 
 
-const handleAdmin = (assigneeDoc, result) => {
+const handleAdmin = (result) => {
   const activityRef = result[0];
   const phoneNumber = activityRef
     .get('attachment')
@@ -159,23 +162,23 @@ const handleAdmin = (assigneeDoc, result) => {
 };
 
 
-const handleReport = (assigneeDoc, result) => {
+const handleReport = (result) => {
   const batch = db.batch();
 
   const activityRef = result[0];
   const activityId = activityRef.id;
   const office = activityRef.get('office');
+  const template = activityRef.get('template');
   const cc = 'help@growthfile.com';
 
   const assigneeArray = result[1];
+
   /** @example For template name: `Daily Activities`
    * the root collection name will be `Daily Activities Mailing List`
   */
-  const template = activityRef.get('template');
-
   const collectionName = `${template}s Mailing List`;
 
-  const mailingListDocRef = db
+  const docRef = db
     .collection(collectionName)
     .doc(activityId);
 
@@ -185,37 +188,131 @@ const handleReport = (assigneeDoc, result) => {
 
   const reportDoc = { cc, office, to, };
 
-  batch.set(mailingListDocRef, reportDoc, { merge: true, });
+  batch.set(activityRef, { docRef, }, { merge: true, });
+
+  batch.set(docRef, reportDoc, { merge: true, });
 
   return batch.commit();
 };
 
-const handleResult = (assigneeDoc, result) => {
+
+const addChildToOffice = (result) => {
+  const activityRef = result[0];
+  const activityId = activityRef.id;
+
+  const office = activityRef.get('office');
+  const template = activityRef.get('template');
+  const schedule = activityRef.get('schedule');
+  const venue = activityRef.get('venue');
+  const attachment = activityRef.get('attachment');
+
+  return rootCollections
+    .offices
+    .where('name', '==', office)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      const officeDocRef = snapShot.docs[0];
+      const officeId = officeDocRef.id;
+      /** Mutates the template name such at its first character
+       * is capitalized. Collection names in the DB have first
+       * character in CAPS.
+       * @see https://english.stackexchange.com/a/15914
+       */
+      const properCaseTemplateName = template
+        .replace(/^\w/, (c) => c.toUpperCase());
+
+      /** Collection name is always plural. */
+      const pluralizedTemplate = `${properCaseTemplateName}s`;
+
+      const docRef = rootCollections
+        .offices
+        .doc(officeId)
+        .collection(pluralizedTemplate)
+        .doc(activityId);
+
+      const docData = activityRef.data();
+
+      delete docData.schedule;
+      delete docData.venue;
+      delete docData.attachment;
+      delete docData.title;
+      delete docData.description;
+
+      Object
+        .keys(attachment)
+        .forEach((key) => docData[key] = attachment[key]);
+
+      schedule.forEach((scheduleObject) => {
+        docData[`${scheduleObject.name}`] = {
+          startTime: scheduleObject.startTime,
+          endTime: scheduleObject.endTime,
+        };
+      });
+
+      venue.forEach((venueObject) => {
+        docData[`${venueObject.venueDescriptor}`] = {
+          address: venueObject.address,
+          location: venueObject.location,
+          geopoint: getGeopointObject(venueObject.geopoint),
+        };
+      });
+
+      const batch = db.batch();
+
+      batch.set(docRef, docData, { merge: true, });
+
+      batch.set(activityRef, { docRef, }, { merge: true, });
+
+      return batch.commit();
+    })
+    .catch(console.error);
+};
+
+
+const handleResult = (result) => {
   const activityRef = result[0];
   const template = activityRef.get('template');
 
-  /** For all other templates, the function doesn't need to do anything */
-  if (['office', 'subscription', 'admin', 'report',].indexOf(template) === -1) {
-    return Promise.resolve();
-  }
-
   if (template === 'office') {
-    return handleOffice(assigneeDoc, result);
+    return handleOffice(result);
   }
 
   if (template === 'subscription') {
-    return handleSubscription(assigneeDoc, result);
+    return handleSubscription(result);
   }
 
   if (template === 'admin') {
-    return handleAdmin(assigneeDoc, result);
+    return handleAdmin(result);
   }
 
   if (template === 'report') {
-    return handleReport(assigneeDoc, result);
+    return handleReport(result);
   }
 
-  return Promise.resolve();
+  return addChildToOffice(result);
+};
+
+
+const updateActivityTimestamp = (result) => {
+  const activityRef = result[0];
+  const activityId = activityRef.id;
+  const assigneeArray = result[1];
+  const batch = db.batch();
+
+  assigneeArray.forEach((doc) => {
+    batch.set(rootCollections
+      .profiles.doc(doc.id)
+      .collection('Activities')
+      .doc(activityId),
+      doc.data(), { merge: true, }
+    );
+  });
+
+  return batch
+    .commit()
+    .then(() => handleResult(result))
+    .catch(console.error);
 };
 
 
@@ -231,6 +328,6 @@ module.exports = (assigneeDoc, context) => {
         .collection('Assignees')
         .get(),
     ])
-    .then((result) => handleResult(assigneeDoc, result))
+    .then((result) => updateActivityTimestamp(result))
     .catch(console.error);
 };

@@ -17,7 +17,6 @@ query parameter: `support` (optional)
         "longitude": 77.2030614
     },
     "title": "string",
-    "description": "string",
     "venue": [{
         "venueDescriptor": "venue name from template",
         "location": "location name",

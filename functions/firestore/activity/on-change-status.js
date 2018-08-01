@@ -134,25 +134,12 @@ const handleResults = (conn, result) => {
     return;
   }
 
-  result[1].forEach((doc) => {
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(doc.id)
-      .collection('Activities')
-      .doc(conn.req.body.activityId), {
-        timestamp: serverTimestamp,
-      }, {
-        merge: true,
-      }
-    );
-  });
-
-  if (result[2].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {
+  if (result[1].get('ACTIVITYSTATUS').indexOf(conn.req.body.status) === -1) {
     sendResponse(
       conn,
       code.badRequest,
       `'${conn.req.body.status}' is not a valid status.`
-      + ` Use one of the following values: ${result[2].get('ACTIVITYSTATUS')}.`
+      + ` Use one of the following values: ${result[1].get('ACTIVITYSTATUS')}.`
     );
 
     return;
@@ -175,11 +162,6 @@ const fetchDocs = (conn) =>
       rootCollections
         .activities
         .doc(conn.req.body.activityId)
-        .get(),
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
         .get(),
       rootCollections
         .enums

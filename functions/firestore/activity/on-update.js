@@ -89,12 +89,6 @@ const updateActivityDoc = (conn, locals) => {
     activityUpdates.title = conn.req.body.title;
   }
 
-  if (conn.req.body.hasOwnProperty('description')
-    && isNonEmptyString(conn.req.body.description)) {
-    locals.addendum.comment += ' description, ';
-    activityUpdates.description = conn.req.body.description;
-  }
-
   if (conn.req.body.hasOwnProperty('schedule')) {
     const scheduleNames = new Set();
     locals.addendum.comment += ' schedule, ';

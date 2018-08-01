@@ -283,15 +283,15 @@ const handleResult = (conn, result) => {
   }
 
   /** Object for storing local data. */
-  const locals = {};
+  const locals = {
+    batch: db.batch(),
+    activity: result[0],
+    /** The `assigneeArray` is required to add addendum.
+     * The `doc.id` is the phoneNumber of the assignee.
+     */
+    assigneeArray: [],
+  };
 
-  locals.batch = db.batch();
-  locals.activity = result[0];
-
-  /** The `assigneeArray` is required to add addendum.
-   * The `doc.id` is the phoneNumber of the assignee.
-   */
-  locals.assigneeArray = [];
   result[1].forEach((doc) => locals.assigneeArray.push(doc.id));
 
   if (locals.assigneeArray.length === 1) {

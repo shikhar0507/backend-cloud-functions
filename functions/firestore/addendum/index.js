@@ -24,12 +24,14 @@
 
 'use strict';
 
+
 const { rootCollections, db, } = require('../../admin/admin');
 
-module.exports = (snap) =>
+
+module.exports = (addendumDocRef) =>
   rootCollections
     .activities
-    .doc(snap.get('activityId'))
+    .doc(addendumDocRef.get('activityId'))
     .collection('Assignees')
     .get()
     .then((snapShot) => {
@@ -56,16 +58,14 @@ module.exports = (snap) =>
           /** Any new phone number introduced to the system
            * will get its own profile as if they have signed up,
            * but a document in the /Updates/(uid) will not be present.
-           * This is just a placeholder profile for them.
+           * This is just a `placeholder` profile for them.
            */
           batch.set(rootCollections
             .profiles
-            .doc(doc.id), {
-              uid: null,
-            });
+            .doc(doc.id), { uid: null, });
         }
 
-        /** No uid means that the user has not signed up
+        /** No `uid` means that the user has not signed up
          * for the app. Not writing addendum for those users.
          */
         if (!doc.get('uid')) return;
@@ -77,7 +77,7 @@ module.exports = (snap) =>
           .doc(uid)
           .collection('Addendum')
           .doc(),
-          snap
+          addendumDocRef.data()
         );
       });
 
