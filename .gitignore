@@ -71,3 +71,6 @@ serviceAccountKey.json
 
 # mac
 .DS_Store
+
+# Firebase project rc file
+.firebaserc
