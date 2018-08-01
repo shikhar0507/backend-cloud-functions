@@ -29,6 +29,7 @@ const {
   rootCollections,
   getGeopointObject,
   db,
+  serverTimestamp,
 } = require('../../admin/admin');
 
 const {
@@ -124,7 +125,7 @@ const updateActivityDoc = (conn, locals) => {
     );
   }
 
-  activityUpdates.timestamp = locals.timestamp;
+  activityUpdates.timestamp = serverTimestamp;
 
   locals.batch.set(rootCollections
     .activities
@@ -202,7 +203,7 @@ const updateActivityTimestamp = (conn, locals) => {
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
-        timestamp: locals.timestamp,
+        timestamp: serverTimestamp,
       }, {
         merge: true,
       }
@@ -240,17 +241,14 @@ const handleResult = (conn, result) => {
     return;
   }
 
-  /** Calling new `Date()` constructor multiple times is wasteful. */
-  const timestamp = new Date(conn.req.body.timestamp);
-
   /** For storing local data during the flow. */
   const locals = {
-    timestamp,
     batch: db.batch(),
     activity: result[0],
     assigneePhoneNumberArray: [],
     addendum: {
-      timestamp,
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
       activityId: conn.req.body.activityId,
       user: conn.requester.phoneNumber,
       location: getGeopointObject(conn.req.body.geopoint),

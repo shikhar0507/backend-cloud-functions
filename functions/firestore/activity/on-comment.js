@@ -29,6 +29,7 @@ const {
   rootCollections,
   getGeopointObject,
   db,
+  serverTimestamp,
 } = require('../../admin/admin');
 
 const { isValidRequestBody, } = require('./helper');
@@ -54,7 +55,7 @@ const updateActivityRootTimestamp = (conn, locals) => {
   locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
-      timestamp: locals.timestamp,
+      timestamp: serverTimestamp,
     }, {
       merge: true,
     });
@@ -81,7 +82,8 @@ const createAddendumDoc = (conn, locals) => {
       user: conn.requester.phoneNumber,
       comment: conn.req.body.comment,
       location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: locals.timestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      timestamp: serverTimestamp,
     }
   );
 
@@ -186,9 +188,6 @@ const fetchDocs = (conn) =>
     .then((docsArray) => {
       const locals = {};
       locals.batch = db.batch();
-
-      /** Calling `new Date()` constructor multiple times is wasteful. */
-      locals.timestamp = new Date(conn.req.body.timestamp);
       locals.profileActivityDoc = docsArray[0];
       locals.activity = docsArray[1];
 

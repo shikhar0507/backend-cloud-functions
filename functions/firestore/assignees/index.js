@@ -214,6 +214,8 @@ const handleResult = (assigneeDoc, result) => {
   if (template === 'report') {
     return handleReport(assigneeDoc, result);
   }
+
+  return Promise.resolve();
 };
 
 

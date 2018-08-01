@@ -25,7 +25,12 @@
 'use strict';
 
 
-const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+const {
+  rootCollections,
+  getGeopointObject,
+  db,
+  serverTimestamp,
+} = require('../../admin/admin');
 
 const { isValidRequestBody, } = require('./helper');
 
@@ -50,7 +55,7 @@ const updateActivityDoc = (conn, locals) => {
   locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
-      timestamp: locals.timestamp,
+      timestamp: serverTimestamp,
     }, {
       merge: true,
     }
@@ -155,7 +160,8 @@ const createAddendumDoc = (conn, locals) => {
       user: conn.requester.phoneNumber,
       location: getGeopointObject(conn.req.body.geopoint),
       comment: locals.comment,
-      timestamp: locals.timestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      timestamp: serverTimestamp,
     }
   );
 
@@ -280,10 +286,6 @@ const handleResult = (conn, result) => {
   const locals = {};
 
   locals.batch = db.batch();
-
-  /** Calling `new Date()` constructor multiple times is wasteful. */
-  locals.timestamp = new Date(conn.req.body.timestamp);
-
   locals.activity = result[0];
 
   /** The `assigneeArray` is required to add addendum.

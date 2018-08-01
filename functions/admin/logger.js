@@ -27,7 +27,7 @@
 
 const { sendResponse, handleError, } = require('./utils');
 
-const { rootCollections, } = require('./admin');
+const { rootCollections, serverTimestamp, } = require('./admin');
 
 const { instant, } = rootCollections;
 
@@ -68,7 +68,7 @@ const createInstantLog = (conn, response) => {
       responseMessage: response.message,
       resourcesAccessed: response.resourcesAccessed || null,
       url: conn.req.url,
-      timestamp: new Date(),
+      timestamp: serverTimestamp,
     })
     .then(() => sendResponse(conn, response.code, response.message))
     .catch((error) => handleError(conn, error));

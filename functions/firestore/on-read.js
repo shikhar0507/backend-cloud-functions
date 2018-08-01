@@ -386,7 +386,7 @@ const readAddendumByQuery = (conn, locals) => {
           addendumId: doc.id,
           activityId: doc.get('activityId'),
           comment: doc.get('comment'),
-          timestamp: doc.get('timestamp'),
+          timestamp: doc.get('userDeviceTimestamp'),
           location: doc.get('location'),
           user: doc.get('user'),
         });

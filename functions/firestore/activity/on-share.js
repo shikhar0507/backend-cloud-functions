@@ -29,6 +29,7 @@ const {
   rootCollections,
   getGeopointObject,
   db,
+  serverTimestamp,
 } = require('../../admin/admin');
 
 const { handleCanEdit, isValidRequestBody, } = require('./helper');
@@ -54,7 +55,7 @@ const updateActivityDoc = (conn, locals) => {
   locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
-      timestamp: locals.timestamp,
+      timestamp: serverTimestamp,
     }, {
       merge: true,
     }
@@ -146,7 +147,8 @@ const createAddendumDoc = (conn, locals) => {
       user: conn.requester.phoneNumber,
       location: getGeopointObject(conn.req.body.geopoint),
       comment: locals.comment,
-      timestamp: locals.timestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      timestamp: serverTimestamp,
     }
   );
 
@@ -198,7 +200,7 @@ const handleAssignees = (conn, locals) => {
           phoneNumber,
           conn.requester.phoneNumber
         ),
-        timestamp: locals.timestamp,
+        timestamp: serverTimestamp,
       }, {
         merge: true,
       }
@@ -209,7 +211,7 @@ const handleAssignees = (conn, locals) => {
       .doc(phoneNumber)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
-        timestamp: locals.timestamp,
+        timestamp: serverTimestamp,
       }, {
         merge: true,
       }
@@ -244,8 +246,6 @@ const handleResult = (conn, result) => {
 
   const locals = {
     batch: db.batch(),
-    /** Calling `new Date()` constructor multiple times is wasteful. */
-    timestamp: new Date(conn.req.body.timestamp),
     activity: result[0],
     canEditRule: result[0].get('canEditRule'),
     assigneeArray: [],

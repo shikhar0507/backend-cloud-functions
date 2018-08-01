@@ -29,6 +29,7 @@ const {
   rootCollections,
   getGeopointObject,
   db,
+  serverTimestamp,
 } = require('../../admin/admin');
 
 const { isValidRequestBody, } = require('./helper');
@@ -60,8 +61,9 @@ const createAddendumDoc = (conn, locals) => {
       user: conn.requester.phoneNumber,
       location: getGeopointObject(conn.req.body.geopoint),
       comment: `${conn.requester.phoneNumber} updated the activity`
-      + ` status to ${conn.req.body.status}.`,
-      timestamp: locals.timestamp,
+        + ` status to ${conn.req.body.status}.`,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      timestamp: serverTimestamp,
     }
   );
 
@@ -81,7 +83,7 @@ const updateActivityStatus = (conn, locals) => {
     .activities
     .doc(conn.req.body.activityId), {
       status: conn.req.body.status,
-      timestamp: locals.timestamp,
+      timestamp: serverTimestamp,
     }, {
       merge: true,
     }
@@ -115,11 +117,11 @@ const handleResults = (conn, result) => {
     return;
   }
 
+  /** Object to store local data. */
   const locals = {};
   locals.batch = db.batch();
 
   /** Calling new `Date()` constructor multiple times is wasteful. */
-  locals.timestamp = new Date(conn.req.body.timestamp);
   locals.activity = result[0];
 
   if (conn.req.body.status === locals.activity.get('status')) {
@@ -138,7 +140,7 @@ const handleResults = (conn, result) => {
       .doc(doc.id)
       .collection('Activities')
       .doc(conn.req.body.activityId), {
-        timestamp: locals.timestamp,
+        timestamp: serverTimestamp,
       }, {
         merge: true,
       }

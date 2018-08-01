@@ -30,6 +30,7 @@ const {
   rootCollections,
   db,
   getGeopointObject,
+  serverTimestamp,
 } = require('../../admin/admin');
 
 const { code, } = require('../../admin/responses');
@@ -60,7 +61,7 @@ const logDailyPhoneNumberChanges = (conn, locals) => {
   locals.batch.set(rootCollections
     .dailyPhoneNumberChanges.doc(docId), {
       [conn.requester.phoneNumber]: {
-        timestamp: new Date(conn.req.body.timestamp),
+        timestamp: serverTimestamp,
         updatedPhoneNumber: conn.req.body.phoneNumber,
       },
     }, {
@@ -83,7 +84,7 @@ const writeAddendumForUsers = (conn, locals) => {
         comment: `${conn.requester.phoneNumber} changed their`
           + ` phone number to ${conn.req.body.phoneNumber}.`,
         location: getGeopointObject(conn.req.body.location),
-        timestamp: new Date(conn.req.body.timestamp),
+        timestamp: serverTimestamp,
         user: conn.requester.phoneNumber,
       });
   });

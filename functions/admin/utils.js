@@ -27,7 +27,12 @@
 
 const { code, } = require('./responses');
 
-const { rootCollections, disableUser, getGeopointObject, } = require('./admin');
+const {
+  rootCollections,
+  disableUser,
+  getGeopointObject,
+  serverTimestamp,
+} = require('./admin');
 
 
 /**
@@ -71,7 +76,6 @@ const sendResponse = (conn, statusCode, message = '') => {
  * @returns {void}
  */
 const handleError = (conn, error) => {
-  /* eslint no-console: "off" */
   console.error(error);
 
   sendResponse(
@@ -148,7 +152,7 @@ const now = (conn) => {
   }
 
   /** Ends response. */
-  sendJSON(conn, { success: true, timestamp: Date.now(), code: code.ok, });
+  sendJSON(conn, { success: true, timestamp: serverTimestamp, code: code.ok, });
 };
 
 
@@ -179,7 +183,7 @@ const disableAccount = (conn, reason) => {
 
   const docObject = {
     disabledFor: reason,
-    disabledTimestamp: date,
+    disabledTimestamp: serverTimestamp,
   };
 
   Promise
@@ -335,7 +339,7 @@ const logDailyActivities = (conn, locals, responseCode) => {
       template,
       phoneNumber: conn.requester.phoneNumber,
       url: conn.req.url,
-      timestamp: locals.timestamp,
+      timestamp: serverTimestamp,
       geopoint: getGeopointObject(conn.req.body.geopoint),
     });
 

@@ -25,7 +25,12 @@
 'use strict';
 
 
-const { rootCollections, getGeopointObject, db, } = require('../../admin/admin');
+const {
+  rootCollections,
+  getGeopointObject,
+  db,
+  serverTimestamp,
+} = require('../../admin/admin');
 
 const { code, } = require('../../admin/responses');
 
@@ -151,7 +156,7 @@ const handleAssignedUsers = (conn, locals) => {
       .collection('Activities')
       .doc(locals.activityRef.id), {
         canEdit,
-        timestamp: locals.timestamp,
+        timestamp: serverTimestamp,
       });
   });
 
@@ -184,7 +189,7 @@ const handleAssignedUsers = (conn, locals) => {
               conn.requester.phoneNumber,
               conn.req.body.share
             ),
-            timestamp: locals.timestamp,
+            timestamp: serverTimestamp,
           });
 
       });
@@ -226,7 +231,7 @@ const addActivityToUserProfile = (conn, locals) => {
       .collection('Activities')
       .doc(locals.activityRef.id), {
         canEdit,
-        timestamp: locals.timestamp,
+        timestamp: serverTimestamp,
       });
   }
 
@@ -285,7 +290,8 @@ const addAddendumForRequester = (conn, locals) => {
     comment: `${conn.requester.phoneNumber}`
       + ` created ${locals.template.defaultTitle}.`,
     location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: locals.timestamp,
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    timestamp: serverTimestamp,
   };
 
   /** The addendum doc is always created for the requester.
@@ -357,7 +363,7 @@ const createActivityRoot = (conn, locals) => {
     locals.template.venue
   );
 
-  activityRoot.timestamp = locals.timestamp;
+  activityRoot.timestamp = serverTimestamp;
 
   /** The `docRef` is the reference to the document which the
     * activity handled in the request. It will ne null for an
@@ -662,9 +668,6 @@ const handleResult = (conn, result) => {
    */
   locals.activityRef = rootCollections.activities.doc();
   locals.batch = db.batch();
-
-  /** Calling `new Date()` constructor multiple times is wasteful. */
-  locals.timestamp = new Date(conn.req.body.timestamp);
 
   /** A template with the name from the request body doesn't exist. */
   if (result[0].empty) {

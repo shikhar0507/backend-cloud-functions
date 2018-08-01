@@ -26,7 +26,7 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
-module.exports = (snap, context) =>
+module.exports = (snap) =>
   rootCollections
     .activities
     .doc(snap.get('activityId'))
