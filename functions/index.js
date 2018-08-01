@@ -41,22 +41,10 @@ const api = functions
   .https
   .onRequest(require('./server/server'));
 
-const subscriptionsHandler = functions
-  .firestore
-  .document('Offices/{officeId}/Subscriptions/{docId}')
-  .onWrite(require('./firestore/subscriptions/index'));
-
-const reportsHandler = functions
-  .firestore
-  .document('Offices/{officeId}/Reports/{docId}')
-  .onWrite(require('./firestore/reports/index'));
-
-
 const addendumHandler = functions
   .firestore
   .document('AddendumObjects/{docId}')
   .onCreate(require('./firestore/addendum/index'));
-
 
 const assigneeHandler = functions
   .firestore
@@ -68,7 +56,6 @@ module.exports = {
   api,
   authOnCreate,
   authOnDelete,
-  reportsHandler,
   addendumHandler,
-  subscriptionsHandler,
+  assigneeHandler,
 };
