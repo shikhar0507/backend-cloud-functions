@@ -44,27 +44,6 @@ const {
 
 
 /**
- * Updates the `timestamp` field in the activity root object with the `timestamp`
- * sent from the request body.
- *
- * @param {Object} conn Object with Express Request and Response Objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateActivityRootTimestamp = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .activities
-    .doc(conn.req.body.activityId), {
-      timestamp: serverTimestamp,
-    }, {
-      merge: true,
-    });
-
-  logDailyActivities(conn, locals, code.noContent);
-};
-
-
-/**
  * Creates a document in the path: `/AddendumObjects/(auto-id)`.
  * This will trigger an auto triggering cloud function which will
  * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
@@ -87,7 +66,7 @@ const createAddendumDoc = (conn, locals) => {
     }
   );
 
-  updateActivityRootTimestamp(conn, locals);
+  logDailyActivities(conn, locals, code.noContent);
 };
 
 
