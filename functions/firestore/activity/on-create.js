@@ -208,6 +208,7 @@ const createActivityRoot = (conn, locals) => {
     venue: locals.venue,
     schedule: locals.schedule,
     attachment: locals.attachment || {},
+    docRef: locals.docRef,
   };
 
   if (!conn.req.body.hasOwnProperty('title')) {
@@ -264,6 +265,8 @@ const handleOfficeTemplate = (conn, docData, locals) => {
     return;
   }
 
+  locals.docRef = rootCollections.offices.doc(locals.activityRef.id);
+
   createActivityRoot(conn, locals);
 };
 
@@ -298,6 +301,14 @@ const addChildToOffice = (conn, docData, locals) => {
 
     return;
   }
+
+  const officeId = locals.result[2].docs[0].id;
+
+  locals.docRef = rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Activities')
+    .doc(locals.activityRef.id);
 
   createActivityRoot(conn, locals);
 };

@@ -27,40 +27,8 @@
 
 const {
   db,
-  users,
   rootCollections,
-  getGeopointObject,
 } = require('../../admin/admin');
-
-
-const activityChanged = (oldDocRef, newDocRef) => {
-  let isSame = true;
-
-  if (oldDocRef.get('title') !== newDocRef.get('title')) {
-    isSame = false;
-  }
-
-  if (oldDocRef.get('status') !== newDocRef.get('status')) {
-    isSame = false;
-  }
-
-  if (JSON.stringify(oldDocRef.get('schedule')) !== JSON.stringify(newDocRef.get('schedule'))) {
-    isSame = false;
-  }
-
-  if (JSON.stringify(oldDocRef.get('venue')) !== JSON.stringify(newDocRef.get('venue'))) {
-    isSame = false;
-  }
-
-  if (JSON.stringify(oldDocRef.get('attachment')) !== JSON.stringify(newDocRef.get('attachment'))) {
-    isSame = false;
-  }
-
-  const timestampChanged = JSON.stringify(oldDocRef.get('timestamp')) !== JSON.stringify(newDocRef.get('timestamp'));
-
-  return isSame && timestampChanged;
-};
-
 
 
 module.exports = (change, context) => {

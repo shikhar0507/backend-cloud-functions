@@ -1,11 +1,10 @@
 'use strict';
 
 const {
-  rootCollections,
   db,
+  rootCollections,
 } = require('../../admin/admin');
 
-// assignee on write
 
 module.exports = (change, context) => {
   const batch = db.batch();
