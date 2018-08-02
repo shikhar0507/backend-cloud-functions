@@ -440,6 +440,8 @@ const handleResult = (conn, result) => {
 
   /** Object for storing local data. */
   const locals = {
+    /** Fallback for some cases */
+    docRef: null,
     template,
     /** A reference of the batch and the activity instance will be used
      * multiple times throughout the activity creation.
