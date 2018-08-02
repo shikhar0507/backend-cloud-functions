@@ -27,7 +27,13 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
-
+/**
+ * Copies the addendum doc to the path Updates/(uid)/Addendum(auto-id)
+ * for the activity assignees who have auth.
+ *
+ * @param {Object} addendumDocRef Firebase doc Object.
+ * @returns {Promise <Object>} A `batch` object.
+ */
 module.exports = (addendumDocRef) =>
   rootCollections
     .activities
@@ -54,17 +60,10 @@ module.exports = (addendumDocRef) =>
       const batch = db.batch();
 
       snapShots.forEach((doc) => {
-        if (!doc.exists) {
-          /** Any new phone number introduced to the system
-           * will get its own profile as if they have signed up,
-           * but a document in the /Updates/(uid) will not be present.
-           * This is just a `placeholder` profile for them.
-           */
-          batch.set(rootCollections
-            .profiles
-            .doc(doc.id), { uid: null, });
-        }
-
+        /** An assignee (phone number) who's doc is added
+         * to the promises array above, may not have auth.
+         */
+        if (!doc.exists) return;
         /** No `uid` means that the user has not signed up
          * for the app. Not writing addendum for those users.
          */
