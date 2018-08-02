@@ -51,6 +51,11 @@ const assigneeHandler = functions
   .document('Activities/{activityId}/Assignees/{phoneNumber}')
   .onWrite(require('./firestore/assignees/index'));
 
+const activityHandler = functions
+  .firestore
+  .document('/Activities/{activityId}')
+  .onWrite(require('./firestore/activity/on-write'));
+
 
 module.exports = {
   api,
@@ -58,4 +63,5 @@ module.exports = {
   authOnDelete,
   addendumHandler,
   assigneeHandler,
+  activityHandler,
 };

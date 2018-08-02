@@ -76,7 +76,7 @@ const createAddendumDoc = (conn, locals) => {
   );
 
   /** Ends the response by committing the batch and logging
-   *  the activity data to the DailyActivities` collection.
+   *  the activity data to the `DailyActivities` collection.
    */
   logDailyActivities(conn, locals, code.created);
 };
@@ -150,7 +150,7 @@ const handleAssignedUsers = (conn, locals) => {
       .doc(phoneNumber), { canEdit, }, { merge: true, });
   });
 
-  createAddendumDoc(locals, locals);
+  createAddendumDoc(conn, locals, code.created);
 };
 
 
@@ -207,7 +207,7 @@ const createActivityRoot = (conn, locals) => {
     template: conn.req.body.template,
     venue: locals.venue,
     schedule: locals.schedule,
-    attachment: locals.attachment,
+    attachment: locals.attachment || {},
   };
 
   if (!conn.req.body.hasOwnProperty('title')) {
@@ -312,6 +312,14 @@ const addChildToOffice = (conn, docData, locals) => {
  * @returns {void}
  */
 const handleSpecialTemplates = (conn, docData, locals) => {
+  /** TEMP */
+  if (conn.req.body.office === 'personal' && conn.req.body.template === 'plan') {
+    createActivityRoot(conn, locals);
+
+    return;
+  }
+  /** TEMP */
+
   if (conn.req.body.template === 'office') {
     handleOfficeTemplate(conn, docData, locals);
 
@@ -492,7 +500,7 @@ const handleResult = (conn, result) => {
   }
 
   /** Forbidden to use a `cancelled` subscription. */
-  if (result[1].get('status') === 'CANCELLED') {
+  if (result[1].docs[0].get('status') === 'CANCELLED') {
     sendResponse(
       conn,
       code.forbidden,

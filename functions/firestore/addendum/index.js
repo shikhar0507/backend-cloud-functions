@@ -27,6 +27,7 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
+
 /**
  * Copies the addendum doc to the path Updates/(uid)/Addendum(auto-id)
  * for the activity assignees who have auth.
