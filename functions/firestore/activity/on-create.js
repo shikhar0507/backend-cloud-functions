@@ -50,6 +50,14 @@ const {
   logDailyActivities,
 } = require('../../admin/utils');
 
+const ATTACHMENT_TYPES = [
+  'string',
+  'phoneNumber',
+  'moment.HTML5_FMT.TIME',
+  'weekday',
+  'template',
+];
+
 
 /**
  * Creates a document in the path: `/AddendumObjects/(auto-id)`.
@@ -354,8 +362,13 @@ const handleSpecialTemplates = (conn, docData, locals) => {
  * @returns {void}
  */
 const validateAttachment = (conn, locals) => {
-  /** For creating a subscription or company, an `attachment` is required. */
-  if (!conn.req.body.hasOwnProperty('attachment')) {
+  const attachmentFieldsCount = Object.keys(locals.template.attachment).length;
+
+  /** Some templates **may** have empty attachment object. For those cases,
+   * it's allowed to skip the template in the request body.
+   */
+  if (attachmentFieldsCount > 0
+    && !conn.req.body.hasOwnProperty('attachment')) {
     sendResponse(
       conn,
       code.badRequest,
@@ -440,7 +453,7 @@ const handleResult = (conn, result) => {
 
   /** Object for storing local data. */
   const locals = {
-    /** Fallback for some cases */
+    /** Temporary fallback for testing some cases */
     docRef: null,
     template,
     /** A reference of the batch and the activity instance will be used
@@ -448,9 +461,9 @@ const handleResult = (conn, result) => {
      */
     activityRef: rootCollections.activities.doc(),
     batch: db.batch(),
-    /** Used by handleCanEdit method for setting up edit permissions.
-     * In support requests, the subscription doc may not exist sometimes,
-     * so include will be default in that case. An empty array is a fallback.
+    /** Used by `handleCanEdit` method for getting the `canEdit` permission.
+     * In support requests, the subscription doc **may** not exist. For those
+     * cases an empty array is a fallback.
      */
     include: [],
     office: result[2],
