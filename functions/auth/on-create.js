@@ -29,138 +29,9 @@ const {
   db,
   rootCollections,
   serverTimestamp,
-  getGeopointObject,
 } = require('../admin/admin');
 
 const { getISO8601Date, } = require('../admin/utils');
-
-
-/**
- * Adds the user's `phoneNumber` to the log for the day.
- *
- * @param {Object} userRecord Object with user info.
- * @param {Object} batch Batch object.
- * @returns {Promise <Object>} Batch object.
- */
-const updateDailySignUps = (userRecord, batch) =>
-  rootCollections
-    .dailySignUps
-    .doc(getISO8601Date())
-    .set({
-      [userRecord.phoneNumber]: {
-        timestamp: serverTimestamp,
-      },
-    },
-      {
-        /** Doc will have other phone numbers too. */
-        merge: true,
-      })
-    .then(() => batch.commit())
-    /* eslint no-console: "off" */
-    .catch(console.error);
-
-
-/**
- * Adds a _default_ subscription to the user with the template: `plan` and
- * the office: `personal`.
- *
- * @param {Object} userRecord Object with user info.
- * @param {Object} batch Batch object.
- * @param {Object} activityDocRef Reference to the Activity doc.
- * @returns {Promise <Object>} Batch object.
- */
-const createSubscription = (userRecord, batch, activityDocRef) => {
-  /** Default subscription for everyone who signs up */
-  batch.set(rootCollections
-    .profiles
-    .doc(userRecord.phoneNumber)
-    .collection('Subscriptions')
-    .doc(), {
-      office: 'personal',
-      template: 'plan',
-      include: [],
-      /** The auth event isn't an activity */
-      activityId: activityDocRef.id,
-      status: 'CONFIRMED',
-      canEditRule: 'ALL',
-      timestamp: serverTimestamp,
-    }, {
-      /** The profile *may* have old data for the user, so
-       * replacing the whole document *can* be destructive.
-       */
-      merge: true,
-    }
-  );
-
-  return updateDailySignUps(userRecord, batch);
-};
-
-
-/**
- * Adds an addendum to the the user's `Updates` collection inside the
- * `Addendum` sub-collection.
- *
- * @param {Object} userRecord Object with user info.
- * @param {Object} batch Batch object.
- * @param {Object} activityDocRef Reference to the Activity doc.
- * @returns {Promise <Object>} Batch object.
- */
-const createAddendum = (userRecord, batch, activityDocRef) => {
-  batch.set(rootCollections
-    .updates
-    .doc(userRecord.uid)
-    .collection('Addendum')
-    .doc(), {
-      activityId: activityDocRef.id,
-      comment: 'You signed up.',
-      timestamp: serverTimestamp,
-      user: userRecord.phoneNumber,
-      location: getGeopointObject({
-        latitude: 0,
-        longitude: 0,
-      }),
-    });
-
-  return createSubscription(userRecord, batch, activityDocRef);
-};
-
-
-/**
- * Adds a document to the batch for creating a doc in
- * `/Activities` collection for user sign up.
- *
- * @param {Object} userRecord Object with user info.
- * @param {Object} batch Batch object.
- * @returns {Promise <Object>} Batch object.
- */
-const createActivity = (userRecord, batch) => {
-  const activityDocRef = rootCollections.activities.doc();
-
-  batch.set(activityDocRef, {
-    canEditRule: 'NONE',
-    description: `${userRecord.phoneNumber} signed up.`,
-    docRef: null,
-    office: 'personal',
-    schedule: [],
-    status: 'CONFIRMED',
-    title: 'Welcome to Growthfile.',
-    template: 'plan',
-    timestamp: serverTimestamp,
-    venue: [],
-  });
-
-  /** Not creating the `dailyActivities` doc because on-auth is
-   * not a user action.
-   */
-
-  batch.set(activityDocRef
-    .collection('Assignees')
-    .doc(userRecord.phoneNumber), {
-      canEdit: false,
-    });
-
-  return createAddendum(userRecord, batch, activityDocRef);
-};
 
 
 /**
@@ -190,5 +61,16 @@ module.exports = (userRecord) => {
       merge: true,
     });
 
-  return createActivity(userRecord, batch);
+  batch.set(rootCollections
+    .dailySignUps
+    .doc(getISO8601Date()), {
+      [userRecord.phoneNumber]: {
+        timestamp: serverTimestamp,
+      },
+    }, {
+      /** Doc will have other phone numbers too. */
+      merge: true,
+    })
+    .then(() => batch.commit())
+    .catch(console.error);
 };
