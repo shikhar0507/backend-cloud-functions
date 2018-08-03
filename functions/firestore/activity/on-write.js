@@ -27,15 +27,119 @@
 
 const {
   db,
+  users,
   rootCollections,
 } = require('../../admin/admin');
+
+
+const manageSubscription = (activityDocNew, batch) => {
+  const activityId = activityDocNew.id;
+  const subscriberPhoneNumber = activityDocNew.get('attachment').phoneNumber.value;
+
+  const docRef = activityDocNew.get('docRef');
+  const include = [];
+
+  rootCollections
+    .activities
+    .doc(activityId)
+    .collection('Assignees')
+    .get()
+    .then((snapShot) => snapShot.forEach((doc) => include.push(doc.id)))
+    .then(() => {
+      /* Copying the whole activity data... */
+      batch.set(docRef, activityDocNew.data());
+
+      batch.set(rootCollections
+        .profiles
+        .doc(subscriberPhoneNumber)
+        .collection('Subscriptions')
+        .doc(activityId), {
+          include,
+          activityId,
+          canEditRule: activityDocNew.get('canEditRule'),
+          office: activityDocNew.get('office'),
+          status: activityDocNew.get('status'),
+          template: activityDocNew.get('template'),
+          timestamp: activityDocNew.get('timestamp'),
+        });
+
+      return batch.commit();
+    })
+    .catch(console.error);
+};
+
+const manageReport = (activityDocNew, batch) => {
+  const activityId = activityDocNew.id;
+  const template = activityDocNew.get('template');
+  const cc = 'help@growthfile.com';
+  const office = activityDocNew.get('office');
+  const to = [];
+
+  const collectionName = `${template} Mailing List`;
+
+  const docRef = db.collection(collectionName).doc(activityId);
+
+  rootCollections
+    .activities
+    .doc(activityId)
+    .collection('Assignees')
+    .get()
+    .then((snapShot) => snapShot.forEach((doc) => to.push(doc.id)))
+    .then(() => {
+      batch.set(docRef, activityDocNew.data());
+
+      batch.set(db
+        .collection(collectionName)
+        .doc(activityId), { cc, office, to, });
+
+      return batch.commit();
+    })
+    .catch(console.error);
+};
+
+const manageAdmin = (activityDocNew, batch) => {
+  const phoneNumber = activityDocNew.get('attachment').phoneNumber.value;
+
+  return users
+    .getUserByPhoneNumber(phoneNumber)
+    .then((userRecord) => {
+      const uid = userRecord.uid;
+      const claims = userRecord.customClaims;
+      const office = activityDocNew.get('office');
+      let admin = [];
+
+      if (!claims) {
+        admin.push(office);
+      }
+
+      if (claims && !claims.hasOwnProperty('admin')) {
+        admin.push(office);
+      }
+
+      if (claims && claims.hasOwnProperty('admin')) {
+        admin = claims.admin.push(office);
+      }
+
+      claims.admin = admin;
+
+      return Promise
+        .all([
+          users
+            .setCustomUserClaims(uid, claims),
+          batch
+            .commit(),
+        ]);
+    })
+    .catch(console.error);
+};
 
 
 module.exports = (change, context) => {
   const activityDocNew = change.after;
   const activityId = context.params.activityId;
   const timestamp = activityDocNew.get('timestamp');
-  const locals = {};
+  const template = activityDocNew.get('template');
+  const assigneeCanEdit = {};
 
   return activityDocNew
     .ref
@@ -43,16 +147,14 @@ module.exports = (change, context) => {
     .get()
     .then((assigneeCollectionSnapshot) => {
       const promises = [];
-      locals.assignees = {};
 
       assigneeCollectionSnapshot.forEach((assignee) => {
         const phoneNumber = assignee.id;
-
         const profileDoc = rootCollections.profiles.doc(phoneNumber);
 
         promises.push(profileDoc.get());
 
-        locals.assignees[phoneNumber] = assignee.get('canEdit');
+        assigneeCanEdit[phoneNumber] = assignee.get('canEdit');
       });
 
       return promises;
@@ -65,6 +167,7 @@ module.exports = (change, context) => {
         const phoneNumber = profileDoc.id;
 
         if (!profileDoc.exists) {
+          /** Placeholder profiles for the users with no auth. */
           batch.set(profileDoc.ref, { uid: null, });
         }
 
@@ -72,10 +175,29 @@ module.exports = (change, context) => {
           .ref
           .collection('Activities')
           .doc(activityId), {
-            canEdit: locals.assignees[phoneNumber],
+            canEdit: assigneeCanEdit[phoneNumber],
             timestamp,
           });
       });
+
+      return batch;
+    })
+    .then((batch) => {
+      if (template === 'subscription') {
+        return manageSubscription(activityDocNew, batch);
+      }
+
+      if (template === 'report') {
+        return manageReport(activityDocNew, batch);
+      }
+
+      if (template === 'admin') {
+        return manageAdmin(activityDocNew, batch);
+      }
+
+      const docRef = activityDocNew.get('docRef');
+
+      batch.set(docRef, activityDocNew.data());
 
       return batch.commit();
     })
