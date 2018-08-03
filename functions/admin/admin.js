@@ -27,18 +27,22 @@
 
 const admin = require('firebase-admin');
 const process = require('process');
+const serviceAccountKey = require('./service_account');
+const credential = admin.credential.cert(serviceAccountKey);
 
-admin.initializeApp();
+admin.initializeApp({ credential, });
 
 const auth = admin.auth();
 const db = admin.firestore();
+
+db.settings({ timestampsInSnapshots: true, });
 
 /** A `sentinel` which maps to the Firestore server timestamp when written to
  * a field in a document.
  */
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
-/** For the worst cases where there is an omission of a catch() block. */
+/** For the worst cases where there is an omission of a `catch()` block. */
 process
   .on('unhandledRejection', console.log);
 

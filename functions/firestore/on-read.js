@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { rootCollections, } = require('../admin/admin');
+const { rootCollections, serverTimestamp, } = require('../admin/admin');
 
 const { code, } = require('../admin/responses');
 
@@ -36,7 +36,6 @@ const {
   isValidDate,
   getISO8601Date,
 } = require('../admin/utils');
-
 
 
 /**
@@ -65,7 +64,7 @@ const updateDailyCollection = (conn, jsonResult) => {
     .doc(getISO8601Date(timestamp))
     .collection(conn.requester.phoneNumber)
     .doc()
-    .set({ timestamp, })
+    .set({ timestamp: serverTimestamp, })
     .then(() => sendJSON(conn, jsonResult))
     .catch((error) => handleError(conn, error));
 };
@@ -283,7 +282,7 @@ const fetchActivities = (conn, jsonResult, locals) =>
         activityObj.status = doc.get('status');
         activityObj.schedule = doc.get('schedule');
         activityObj.venue = doc.get('venue');
-        activityObj.timestamp = doc.get('timestamp');
+        activityObj.timestamp = doc.get('timestamp').toDate();
         activityObj.template = doc.get('template');
         activityObj.title = doc.get('title');
         activityObj.description = doc.get('description');
@@ -395,7 +394,9 @@ const readAddendumByQuery = (conn, locals) => {
       /** The `timestamp` of the last addendum sorted sorted based
        * on `timestamp`.
        * */
-      jsonResult.upto = snapShot.docs[snapShot.size - 1].get('timestamp');
+      jsonResult
+        .upto = snapShot.docs[snapShot.size - 1].get('timestamp').toDate();
+
       getActivityIdsFromProfileCollection(conn, jsonResult, locals);
 
       return;
