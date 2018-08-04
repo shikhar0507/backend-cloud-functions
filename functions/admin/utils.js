@@ -28,10 +28,10 @@
 const { code, } = require('./responses');
 
 const {
+  users,
   rootCollections,
-  disableUser,
-  getGeopointObject,
   serverTimestamp,
+  getGeopointObject,
 } = require('./admin');
 
 
@@ -204,7 +204,8 @@ const disableAccount = (conn, reason) => {
           /** This doc may have other fields too. */
           merge: true,
         }),
-      disableUser(conn.requester.uid),
+      users
+        .disableUser(conn.requester.uid),
     ])
     .then(() => sendResponse(
       conn,
