@@ -71,6 +71,7 @@ const manageSubscription = (activityDocNew, batch) => {
     .catch(console.error);
 };
 
+
 const manageReport = (activityDocNew, batch) => {
   const activityId = activityDocNew.id;
   const template = activityDocNew.get('template');
@@ -100,6 +101,7 @@ const manageReport = (activityDocNew, batch) => {
     .catch(console.error);
 };
 
+
 const manageAdmin = (activityDocNew, batch) => {
   const docRef = activityDocNew.get('docRef');
   const phoneNumber = activityDocNew.get('attachment').phoneNumber.value;
@@ -107,8 +109,11 @@ const manageAdmin = (activityDocNew, batch) => {
   return users
     .getUserByPhoneNumber(phoneNumber)
     .then((userRecord) => {
-      const uid = userRecord.uid;
-      const claims = userRecord.customClaims;
+      const phoneNumber = Object.keys(userRecord)[0];
+      const record = userRecord[`${phoneNumber}`];
+
+      const uid = record.uid;
+      const claims = record.customClaims;
       const office = activityDocNew.get('office');
       let admin = [];
 
