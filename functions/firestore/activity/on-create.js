@@ -50,14 +50,6 @@ const {
   logDailyActivities,
 } = require('../../admin/utils');
 
-const ATTACHMENT_TYPES = [
-  'string',
-  'phoneNumber',
-  'moment.HTML5_FMT.TIME',
-  'weekday',
-  'template',
-];
-
 
 /**
  * Creates a document in the path: `/AddendumObjects/(auto-id)`.
