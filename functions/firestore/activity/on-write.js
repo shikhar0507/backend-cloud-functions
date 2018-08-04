@@ -44,6 +44,9 @@ const manageSubscription = (activityDocNew, batch) => {
     .doc(activityId)
     .collection('Assignees')
     .get()
+    /** All assignees of the activity which as subscription are
+     * added to the `include` for the doc.
+     */
     .then((snapShot) => snapShot.forEach((doc) => include.push(doc.id)))
     .then(() => {
       /* Copying the whole activity data... */
