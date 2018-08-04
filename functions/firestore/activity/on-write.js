@@ -101,6 +101,7 @@ const manageReport = (activityDocNew, batch) => {
 };
 
 const manageAdmin = (activityDocNew, batch) => {
+  const docRef = activityDocNew.get('docRef');
   const phoneNumber = activityDocNew.get('attachment').phoneNumber.value;
 
   return users
@@ -124,6 +125,12 @@ const manageAdmin = (activityDocNew, batch) => {
       }
 
       claims.admin = admin;
+
+      /** This will create the doc below
+       * `Offices/(officeId)/(Activities)/(activityId)` with
+       * the template `admin`.
+       */
+      batch.set(docRef, activityDocNew.data());
 
       return Promise
         .all([
