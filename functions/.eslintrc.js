@@ -8,8 +8,13 @@ module.exports = {
       spread: true,
     },
   },
-  extends: ['eslint:recommended', 'plugin:promise/recommended',],
-  plugins: ['promise', 'no-loops',],
+  extends: [
+    'eslint:recommended',
+    'plugin:promise/recommended',
+  ],
+  plugins: [
+    'promise',
+  ],
   env: {
     // Node.js global variables and Node.js scoping
     node: true,
@@ -92,7 +97,6 @@ module.exports = {
     'no-array-constructor': 'warn',
     'newline-per-chained-call': ['warn', { ignoreChainWithDepth: 3, },],
     'no-unused-expressions': 'warn',
-    'no-loops/no-loops': 'warn',
     'no-inline-comments': 'warn',
     'spaced-comment': ['warn', 'always',],
     'max-len': [
