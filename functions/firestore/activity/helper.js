@@ -201,30 +201,107 @@ const filterVenues = (requestBodyVenue, venueDescriptors) => {
 
 
 /**
- * Filters out all the non-essential keys from the attachment object in the
- * request body using the attachment object from the template.
- *
- * @param {Object} reqBodyAttachment Attachment from the request.body.attachment.
- * @param {Object} templateAttachment Attachment from the template in db.
- * @returns {Object} Valid attachment object.
+ * Validates the attachment object based on the `template`.
+ * 
+ * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
  */
-const filterAttachment = (reqBodyAttachment, templateAttachment) => {
-  const filteredAttachment = {};
+const filterAttachment = (conn, locals) => {
+  const weekdays = require('../../admin/attachment-types').weekdays;
 
-  const requestBodyAttachmentKeys = Object.keys(reqBodyAttachment);
-  const templateAttachmentKeys = Object.keys(templateAttachment);
+  const messageObject = {
+    isValid: true,
+    message: null,
+    promise: null,
+  };
 
-  templateAttachmentKeys.forEach((key) => {
-    requestBodyAttachmentKeys.forEach((valueName) => {
-      if (key !== valueName) return;
-      if (!reqBodyAttachment[valueName].hasOwnProperty('value')) return;
+  const fields = Object.keys(locals.template.attachment);
 
-      /** If the value field is missing, the attachment object isn't valid. */
-      filteredAttachment[key] = reqBodyAttachment[key].value;
-    });
-  });
+  for (const field of fields) {
+    const item = conn.req.body.attachment[field];
 
-  return filteredAttachment;
+    if (!conn.req.body.attachment.hasOwnProperty(field)) {
+      messageObject.isValid = false;
+      messageObject.message = `The '${field}' field is missing`
+        + ` from attachment.`;
+      break;
+    }
+
+    if (!item.hasOwnProperty('type')) {
+      messageObject.isValid = false;
+      messageObject.message = `The 'type' field is missing from`
+        + ` the Object '${field}'.`;
+      break;
+    }
+
+    if (!item.hasOwnProperty('value')) {
+      messageObject.isValid = false;
+      messageObject.message = `The 'type' field is missing from`
+        + ` the Object '${field}'.`;
+      break;
+    }
+
+    const type = item.type;
+    const value = item.value;
+
+    if (typeof type !== 'string') {
+      messageObject.isValid = false;
+      messageObject.message = `The 'type' field in '${field}' field`
+        + ` should be a non-empty string.`;
+      break;
+    }
+
+    if (typeof value !== 'string') {
+      messageObject.isValid = false;
+      messageObject.message = `The 'value' field in '${field}' field`
+        + ` should be a non-empty string.`;
+      break;
+    }
+
+    if (field === 'Name') {
+      if (!isNonEmptyString(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `The Object '${field}' should have`
+          + ` a string in the 'value' field.`;
+        break;
+      }
+
+      if (type !== 'office') {
+        messageObject.promise = locals
+          .docRef
+          .collection('Activities')
+          .where('Name', '==', value)
+          .where('template', '==', type)
+          /** Docs exist uniquely based on `Name`, and `template`. */
+          .limit(1)
+          .get();
+      }
+    }
+
+    if (type === 'phoneNumber') {
+      if (value !== '') {
+        if (!isE164PhoneNumber(value)) {
+          messageObject.isValid = false;
+          messageObject.message = `The phone number in the`
+            + ` field '${field}' is invalid.`;
+          break;
+        }
+      }
+    }
+
+    if (type === 'weekday') {
+      if (value !== '') {
+        if (!weekdays.has(value)) {
+          messageObject.isValid = false;
+          messageObject.message = `The value '${value}' in the`
+            + `field '${field}' should be a weekday.`;
+        }
+      }
+    }
+  }
+
+  return messageObject;
 };
 
 

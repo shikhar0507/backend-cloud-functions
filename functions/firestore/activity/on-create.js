@@ -50,6 +50,11 @@ const {
   logDailyActivities,
 } = require('../../admin/utils');
 
+const {
+  validTypes,
+  weekdays,
+} = require('../../admin/attachment-types');
+
 
 /**
  * Creates a document in the path: `/AddendumObjects/(auto-id)`.
@@ -226,140 +231,20 @@ const createActivityRoot = (conn, locals) => {
 
 
 /**
- * Adds a *new* office to the `Offices` collection.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} docData A temp object storing all the fields for the doc
- * to write from the attachment.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const handleOfficeTemplate = (conn, docData, locals) => {
-  if (!locals.office.empty) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `Office: ${conn.req.body.office} already exists.`
-    );
-
-    return;
-  }
-
-  if (!conn.req.body.attachment.hasOwnProperty('name')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The 'attachment' field is missing from the request body.`
-    );
-
-    return;
-  }
-
-  if (!isNonEmptyString(conn.req.body.attachment.name.value)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The office name cannot be an empty/blank string.`
-    );
-
-    return;
-  }
-
-  locals.docRef = rootCollections.offices.doc(locals.activityRef.id);
-
-  createActivityRoot(conn, locals);
-};
-
-
-/**
- * Creates a *new* document inside the `Offices/(office-id)/` path based on
- * the template and `activity-id`.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const addChildToOffice = (conn, docData, locals) => {
-  if (locals.office.empty) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The office: "${conn.req.body.office}" does not exist.`
-    );
-
-    return;
-  }
-
-  if (locals.office.get('status') === 'CANCELLED') {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `This office's status is ${locals.office.get('status')}.`
-      + ` Cannot use create ${conn.req.body.template}.`
-    );
-
-    return;
-  }
-
-  const officeId = locals.result[2].docs[0].id;
-
-  locals.docRef = rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Activities')
-    .doc(locals.activityRef.id);
-
-  createActivityRoot(conn, locals);
-};
-
-
-/**
- * Handles the cases where the template is of `subscription` or `office`.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} docData A temp object storing all the fields for the doc to write from the attachment.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const handleSpecialTemplates = (conn, docData, locals) => {
-  /** TEMP */
-  if (conn.req.body.office === 'personal' && conn.req.body.template === 'plan') {
-    createActivityRoot(conn, locals);
-
-    return;
-  }
-  /** TEMP */
-
-  if (conn.req.body.template === 'office') {
-    handleOfficeTemplate(conn, docData, locals);
-
-    return;
-  }
-
-  /** Any case where the template name is other
-   * than `office` will create a document as follows:
-   * `Office/(office-id)/(...here...)` path.
-   */
-  addChildToOffice(conn, docData, locals);
-};
-
-
-/**
- * Goes through all the fields in the attachment and checks their
- * values along with the type supplied from the request and template.
- *
+ * Validates the attachment and sends a response message if something is
+ * invalid.
+ * 
  * @param {Object} conn Object containing Express Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const validateAttachment = (conn, locals) => {
-  const attachmentFieldsCount = Object.keys(locals.template.attachment).length;
-
-  /** Some templates **may** have empty attachment object. For those cases,
+const handleAttachment = (conn, locals) => {
+  const fields = Object.keys(locals.template.attachment);
+  /**
+   * Some templates **may** have empty attachment object. For those cases,
    * it's allowed to skip the template in the request body.
    */
-  if (attachmentFieldsCount > 0
+  if (fields.length > 0
     && !conn.req.body.hasOwnProperty('attachment')) {
     sendResponse(
       conn,
@@ -370,25 +255,114 @@ const validateAttachment = (conn, locals) => {
     return;
   }
 
-  /** A temp object storing all the fields for the doc to
-   * write from the attachment.
-   */
-  const docData = {};
+  const result = filterAttachment(conn, locals);
 
-  /** Required while reading the attachments in loop for /read API. */
-  docData.activityId = locals.activityRef.id;
+  if (!result.isValid) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      result.message
+    );
 
-  const attachment = filterAttachment(
-    conn.req.body.attachment,
-    locals.template.attachment
-  );
+    return;
+  }
 
-  /** Add `ALL` fields from the `attachment` to the subscription document. */
-  Object
-    .keys(attachment)
-    .forEach((key) => docData[`${key}`] = attachment[`${key}`]);
+  if (!result.promise) {
+    createActivityRoot(conn, locals);
 
-  handleSpecialTemplates(conn, docData, locals);
+    return;
+  }
+
+  result
+    .promise
+    .then((snapShot) => {
+      if (!snapShot.empty) {
+        const value = conn.req.body.attachment.Name.value;
+        const type = conn.req.body.attachment.Name.type;
+        const message = `'${value}' already exists in the office`
+          + ` ${conn.req.body.office} with the template ${type}.`;
+
+        sendResponse(
+          conn,
+          code.conflict,
+          message
+        );
+
+        return;
+      }
+
+      createActivityRoot(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+/**
+ * Adds a *new* office to the `Offices` collection.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const handleOfficeTemplate = (conn, locals) => {
+  if (!locals.office.empty) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `Office: ${conn.req.body.office} already exists.`
+    );
+
+    return;
+  }
+
+  locals.docRef = rootCollections.offices.doc(locals.activityRef.id);
+
+  handleAttachment(conn, locals);
+};
+
+
+/**
+ * Creates a *new* document inside the `Offices/(office-id)/` path based on
+ * the template and `activity-id`.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} locals Object containing local data.
+ * @returns {void}
+ */
+const addChildToOffice = (conn, locals) => {
+  if (locals.office.empty) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The office: "${conn.req.body.office}" does not exist.`
+    );
+
+    return;
+  }
+
+  const officeRef = locals.result[2].docs[0];
+
+  if (officeRef.get('status') === 'CANCELLED') {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `This office's status is ${officeRef.get('status')}.`
+      + ` Cannot use create ${conn.req.body.template}.`
+    );
+
+    return;
+  }
+
+
+  locals.docRef = rootCollections
+    .offices
+    .doc(officeRef.id)
+    .collection('Activities')
+    .doc(locals.activityRef.id);
+
+  handleAttachment(conn, locals);
 };
 
 
@@ -428,7 +402,13 @@ const handleSupportRequest = (conn, locals) => {
    */
   locals.canEditRule = conn.req.body.canEditRule;
 
-  validateAttachment(conn, locals);
+  if (conn.req.body.template === 'office') {
+    handleOfficeTemplate(conn, locals);
+
+    return;
+  }
+
+  addChildToOffice(conn, locals);
 };
 
 
@@ -441,6 +421,17 @@ const handleSupportRequest = (conn, locals) => {
  * @returns {void}
  */
 const handleResult = (conn, result) => {
+  /** A template with the name from the request body doesn't exist. */
+  if (result[0].empty) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `Template: ${conn.req.body.template} does not exist.`
+    );
+
+    return;
+  }
+
   const template = result[0].docs[0].data();
 
   /** Object for storing local data. */
@@ -471,17 +462,6 @@ const handleResult = (conn, result) => {
       template.venue
     ),
   };
-
-  /** A template with the name from the request body doesn't exist. */
-  if (result[0].empty) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `Template: ${conn.req.body.template} does not exist.`
-    );
-
-    return;
-  }
 
   /** Subscription may or may not exist (especially when creating an `Office`). */
   if (!result[1].empty) {
@@ -528,7 +508,13 @@ const handleResult = (conn, result) => {
     return;
   }
 
-  validateAttachment(conn, locals);
+  if (conn.req.body.template === 'office') {
+    handleOfficeTemplate(conn, locals);
+
+    return;
+  }
+
+  addChildToOffice(conn, locals);
 };
 
 
