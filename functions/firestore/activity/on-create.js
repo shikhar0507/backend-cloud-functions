@@ -50,11 +50,6 @@ const {
   logDailyActivities,
 } = require('../../admin/utils');
 
-const {
-  validTypes,
-  weekdays,
-} = require('../../admin/attachment-types');
-
 
 /**
  * Creates a document in the path: `/AddendumObjects/(auto-id)`.
@@ -212,7 +207,7 @@ const createActivityRoot = (conn, locals) => {
     template: conn.req.body.template,
     venue: locals.venue,
     schedule: locals.schedule,
-    attachment: locals.attachment || {},
+    attachment: conn.req.body.attachment || {},
     docRef: locals.docRef,
   };
 
@@ -233,28 +228,12 @@ const createActivityRoot = (conn, locals) => {
 /**
  * Validates the attachment and sends a response message if something is
  * invalid.
- * 
+ *
  * @param {Object} conn Object containing Express Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
 const handleAttachment = (conn, locals) => {
-  const fields = Object.keys(locals.template.attachment);
-  /**
-   * Some templates **may** have empty attachment object. For those cases,
-   * it's allowed to skip the template in the request body.
-   */
-  if (fields.length > 0
-    && !conn.req.body.hasOwnProperty('attachment')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The 'attachment' field is missing from the request body.`
-    );
-
-    return;
-  }
-
   const result = filterAttachment(conn, locals);
 
   if (!result.isValid) {

@@ -215,6 +215,18 @@ const filterAttachment = (conn, locals) => {
 
   const fields = Object.keys(locals.template.attachment);
 
+  /**
+   * Some templates **may** have empty attachment object. For those cases,
+   * it's allowed to skip the template in the request body.
+   */
+  if (fields.length > 0
+    && !conn.req.body.hasOwnProperty('attachment')) {
+    messageObject.isValid = false;
+    messageObject.message = `The 'attachment' field is missing from the request body.`;
+
+    return messageObject;
+  }
+
   for (const field of fields) {
     const item = conn.req.body.attachment[field];
 
