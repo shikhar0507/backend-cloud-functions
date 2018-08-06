@@ -166,10 +166,7 @@ const filterVenues = (requestBodyVenue, venueDescriptors) => {
       venueDescriptor,
       location: '',
       address: '',
-      geopoint: getGeopointObject({
-        latitude: 0,
-        longitude: 0,
-      }),
+      geopoint: null,
     });
   });
 
@@ -202,7 +199,7 @@ const filterVenues = (requestBodyVenue, venueDescriptors) => {
 
 /**
  * Validates the attachment object based on the `template`.
- * 
+ *
  * @param {Object} conn Object containing Express Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
