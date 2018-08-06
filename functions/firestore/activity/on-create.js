@@ -27,6 +27,7 @@
 
 const {
   db,
+  users,
   rootCollections,
   serverTimestamp,
   getGeopointObject,
@@ -75,7 +76,8 @@ const createAddendumDoc = (conn, locals) => {
     }
   );
 
-  /** Ends the response by committing the batch and logging
+  /**
+   * Ends the response by committing the batch and logging
    *  the activity data to the `DailyActivities` collection.
    */
   logDailyActivities(conn, locals, code.created);
@@ -108,7 +110,8 @@ const handleAssignedUsers = (conn, locals) => {
     return;
   }
 
-  /** When the include array from subscription is empty, AND the
+  /**
+   * When the include array from subscription is empty, AND the
    * `share` array from the request body is also empty, the activity
    * will be created with no assignees.
    * That's not allowed since, no assignee means that it will not reach anyone
@@ -130,7 +133,8 @@ const handleAssignedUsers = (conn, locals) => {
   conn.req.body.share.forEach((phoneNumber) => {
     if (!isE164PhoneNumber(phoneNumber)) return;
 
-    /** The requester shouldn't be added to the activity assignee list
+    /**
+     * The requester shouldn't be added to the activity assignee list
      * if the request is of `support` type.
      */
     if (phoneNumber === conn.requester.phoneNumber
@@ -162,12 +166,14 @@ const handleAssignedUsers = (conn, locals) => {
  * @returns {void}
  */
 const addAssigneesFromInclude = (conn, locals) => {
-  /** The 'include' array will always have the requester
+  /**
+   * The 'include' array will always have the requester
    * phone number, therefore not adding user's number to the batch
    * explicitly.
    */
   locals.include.forEach((phoneNumber) => {
-    /** The `include` array will never have the
+    /**
+     * The `include` array will never have the
      * requester's phone number itself.
      **/
     const canEdit = handleCanEdit(
@@ -197,7 +203,8 @@ const addAssigneesFromInclude = (conn, locals) => {
  */
 const createActivityRoot = (conn, locals) => {
   const activityRoot = {
-    /** The rule is stored here to avoid reading
+    /**
+     * The rule is stored here to avoid reading
      * `subscriptions` for activity updates.
      */
     canEditRule: locals.template.canEditRule,
@@ -345,6 +352,43 @@ const addChildToOffice = (conn, locals) => {
 };
 
 
+
+const handleAdminTemplate = (conn, locals) => {
+  const phoneNumber = conn.req.body.attachment.phoneNumber.value;
+
+  if (!isE164PhoneNumber(phoneNumber)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `'${phoneNumber}' is not a valid phone number.`
+    );
+
+    return;
+  }
+
+  users
+    .getUserByPhoneNumber(phoneNumber)
+    .then((userRecord) => {
+      const phoneNumber = Object.keys(userRecord)[0];
+      const record = userRecord[`${phoneNumber}`];
+
+      if (!record.uid) {
+        sendResponse(
+          conn,
+          code.forbidden,
+          `Cannot grant admin rights to a user who has not signed up.`
+        );
+
+        return;
+      }
+
+      addChildToOffice(conn, locals);
+
+      return;
+    }).catch((error) => handleError(conn, error));
+};
+
+
 /**
  * Processes the `result` from the Firestore and saves the data to variables
  * for use in the function flow.
@@ -417,22 +461,28 @@ const handleResult = (conn, result) => {
 
       return;
     }
-  }
 
-  /** Forbidden to use a `cancelled` subscription. */
-  if (subscription.docs[0].get('status') === 'CANCELLED') {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `Your subscription to the template ${conn.req.body.template} is`
-      + ` '${subscription.docs[0].get('status')}'.`
-    );
+    /** Forbidden to use a `cancelled` subscription. */
+    if (subscription.docs[0].get('status') === 'CANCELLED') {
+      sendResponse(
+        conn,
+        code.forbidden,
+        `Your subscription to the template ${conn.req.body.template} is`
+        + ` '${subscription.docs[0].get('status')}'.`
+      );
 
-    return;
+      return;
+    }
   }
 
   if (conn.req.body.template === 'office') {
     handleOfficeTemplate(conn, locals);
+
+    return;
+  }
+
+  if (conn.req.body.template === 'admin') {
+    handleAdminTemplate(conn, locals);
 
     return;
   }
