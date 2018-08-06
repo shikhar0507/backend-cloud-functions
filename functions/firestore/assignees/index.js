@@ -25,53 +25,66 @@
 'use strict';
 
 
-const {
-    db,
-    rootCollections,
-} = require('../../admin/admin');
+const { db, rootCollections, } = require('../../admin/admin');
 
 
+/**
+ * Manages the assignees of the activity. Removes (onDelete)
+ * or adds(onCreate, onUpdate) the activity do to the
+ * assignee's profile depending on the event type.
+ *
+ * @param {Object} change Contains the old and the new doc.
+ * @param {Object} context Data related to the `onWrite` event.
+ * @returns {Promise<Object>} Firestore batch.
+ */
 module.exports = (change, context) => {
-    const batch = db.batch();
+  const assigneeDoc = change.after.exists ? change.after : null;
+  const activityId = context.params.activityId;
+  const phoneNumber = context.params.phoneNumber;
+  const userProfile = rootCollections.profiles.doc(phoneNumber);
+  const batch = db.batch();
 
-    const newDocRef = change.after.exists ? change.after : null;
+  /**
+   * A user has been `unassigned` from the activity.
+   * Remove the activity doc from their profile.
+   * The doc was `deleted`.
+   */
+  if (!assigneeDoc) {
+    batch.delete(userProfile
+      .collection('Activities')
+      .doc(activityId)
+    );
 
-    const activityId = context.params.activityId;
-    const phoneNumber = context.params.phoneNumber;
+    return batch
+      .commit()
+      .catch(console.error);
+  }
 
-    const userProfile = rootCollections.profiles.doc(phoneNumber);
-
-    /** A user has been unassigned from the activity.
-     * Remove the activity doc from their profile.
-     */
-    if (!newDocRef) {
-        batch.delete(userProfile
-            .collection('Activities')
-            .doc(activityId)
-        );
-
-        return batch.commit().catch(console.error);
-    } else {
-        /** A new user has been assigned to this activity.
-         * Add the doc with the id, canEdit and timestamp
-         * to their profile.
+  /**
+   * A new user has been assigned to this activity.
+   * Add the doc with the `id`, `canEdit` and `timestamp`
+   * to their `Profile`.
+   */
+  return userProfile
+    .get()
+    .then((doc) => {
+      if (!doc.exists) {
+        /**
+         * Profile doesn't exist. Create a placeholder profile
+         * doc. Doing this to avoid abandoned docs in the
+         * `Profiles` sub-collections.
          */
-        return userProfile
-            .get()
-            .then((doc) => {
-                if (!doc.exists) {
-                    batch.set(userProfile, { uid: null, });
-                }
+        batch.set(userProfile, { uid: null, });
+      }
 
-                batch.set(userProfile
-                    .collection('Activities')
-                    .doc(activityId), {
-                        canEdit: newDocRef.get('canEdit'),
-                        timestamp: newDocRef.createTime,
-                    });
+      batch.set(userProfile
+        .collection('Activities')
+        .doc(activityId), {
+          canEdit: assigneeDoc.get('canEdit'),
+          timestamp: assigneeDoc.createTime,
+        });
 
-                return batch.commit();
-            })
-            .catch(console.error);
-    }
+      return batch.commit();
+    })
+    .catch(console.error);
 };

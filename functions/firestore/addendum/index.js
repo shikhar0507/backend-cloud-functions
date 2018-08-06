@@ -29,7 +29,7 @@ const { rootCollections, db, } = require('../../admin/admin');
 
 
 /**
- * Copies the addendum doc to the path Updates/(uid)/Addendum(auto-id)
+ * Copies the addendum doc to the path `Updates/(uid)/Addendum(auto-id)`
  * for the activity assignees who have auth.
  *
  * @param {Object} addendumDocRef Firebase doc Object.
@@ -41,36 +41,37 @@ module.exports = (addendumDocRef) =>
     .doc(addendumDocRef.get('activityId'))
     .collection('Assignees')
     .get()
-    .then((snapShot) => {
+    .then((docs) => {
       const promises = [];
 
-      snapShot.forEach((doc) => {
-        const phoneNumber = doc.id;
+      /** The doc.id is the phone number of the assignee. */
+      docs.forEach((doc) => promises
+        .push(rootCollections.profiles.doc(doc.id).get()));
 
-        promises.push(rootCollections
-          .profiles
-          .doc(phoneNumber)
-          .get()
-        );
-      });
-
-      return promises;
+      return Promise.all(promises);
     })
-    .then((promises) => Promise.all(promises))
-    .then((snapShots) => {
+    .then((docs) => {
       const batch = db.batch();
 
-      snapShots.forEach((doc) => {
-        /** An assignee (phone number) who's doc is added
+      docs.forEach((doc) => {
+        /**
+         * An assignee (phone number) who's doc is added
          * to the promises array above, may not have auth.
          */
         if (!doc.exists) return;
-        /** No `uid` means that the user has not signed up
+        /**
+         * No `uid` means that the user has not signed up
          * for the app. Not writing addendum for those users.
          */
-        if (!doc.get('uid')) return;
-
         const uid = doc.get('uid');
+
+        /**
+         * The `uid` field can be `null` too. This is for the
+         * cases when the phone number was introduced to the
+         * system in from other than `auth`. Like creating/sharing
+         * an activity.
+        */
+        if (!uid) return;
 
         batch.set(rootCollections
           .updates
@@ -81,7 +82,6 @@ module.exports = (addendumDocRef) =>
         );
       });
 
-      return batch;
+      return batch.commit();
     })
-    .then((batch) => batch.commit())
     .catch(console.error);

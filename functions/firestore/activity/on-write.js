@@ -25,30 +25,35 @@
 'use strict';
 
 
-const {
-  db,
-  users,
-  rootCollections,
-} = require('../../admin/admin');
+const { db, users, rootCollections, } = require('../../admin/admin');
 
 
+/**
+ * Subscribes the assignee from the `attachment` to the `template`
+ * and `office`.
+ *
+ * @param {Object} activityDocNew Reference of the Activity object.
+ * @param {Object} batch Firestore batch object.
+ * @returns {Promise<Object>} Firestore batch.
+ */
 const manageSubscription = (activityDocNew, batch) => {
   const activityId = activityDocNew.id;
-  const subscriberPhoneNumber = activityDocNew.get('attachment').phoneNumber.value;
-
-  const docRef = activityDocNew.get('docRef');
   const include = [];
 
-  rootCollections
+  return rootCollections
     .activities
     .doc(activityId)
     .collection('Assignees')
     .get()
-    /** All assignees of the activity which as subscription are
+    /**
+     * All assignees of the activity which as subscription are
      * added to the `include` for the doc.
      */
     .then((snapShot) => snapShot.forEach((doc) => include.push(doc.id)))
     .then(() => {
+      const docRef = activityDocNew.get('docRef');
+      const subscriberPhoneNumber = activityDocNew.get('attachment').phoneNumber.value;
+
       /* Copying the whole activity data... */
       batch.set(docRef, activityDocNew.data());
 
@@ -72,6 +77,15 @@ const manageSubscription = (activityDocNew, batch) => {
 };
 
 
+
+/**
+ * Subscribes the `assignees` of the activity to the mailing list
+ * based on the report.
+ *
+ * @param {Object} activityDocNew Reference of the Activity object.
+ * @param {Object} batch Firestore batch object.
+ * @returns {Promise<Object>} Firestore batch.
+ */
 const manageReport = (activityDocNew, batch) => {
   const activityId = activityDocNew.id;
   const template = activityDocNew.get('template');
@@ -83,7 +97,7 @@ const manageReport = (activityDocNew, batch) => {
 
   const docRef = db.collection(collectionName).doc(activityId);
 
-  rootCollections
+  return rootCollections
     .activities
     .doc(activityId)
     .collection('Assignees')
@@ -102,6 +116,15 @@ const manageReport = (activityDocNew, batch) => {
 };
 
 
+
+/**
+ * For the template `admin`, adds the office name to the custom
+ * claims of the user from attachment.
+ *
+ * @param {Object} activityDocNew Reference of the Activity object.
+ * @param {Object} batch Firestore batch object.
+ * @returns {Promise<Object>} Firestore batch.
+ */
 const manageAdmin = (activityDocNew, batch) => {
   const docRef = activityDocNew.get('docRef');
   const phoneNumber = activityDocNew.get('attachment').phoneNumber.value;
@@ -131,7 +154,8 @@ const manageAdmin = (activityDocNew, batch) => {
 
       claims.admin = admin;
 
-      /** This will create the doc below
+      /**
+       * This will create the doc below
        * `Offices/(officeId)/(Activities)/(activityId)` with
        * the template `admin`.
        */
@@ -149,11 +173,19 @@ const manageAdmin = (activityDocNew, batch) => {
 };
 
 
+
+/**
+ * Triggers on activity `onWrite` event. Adds a `doc` with the `id` = `activityId`,
+ * `timestamp` = `timestamp` from activity doc and `canEdit` from the Assignee doc
+ * to the respective profiles of the activity assignees.
+ *
+ * @param {Object} change Contains the old and the new doc.
+ * @param {Object} context Data related to the `onWrite` event.
+ * @returns {Promise<Object>} Firestore batch.
+ */
 module.exports = (change, context) => {
   const activityDocNew = change.after;
   const activityId = context.params.activityId;
-  const timestamp = activityDocNew.get('timestamp');
-  const template = activityDocNew.get('template');
   const assigneeCanEdit = {};
 
   return activityDocNew
@@ -172,32 +204,34 @@ module.exports = (change, context) => {
         assigneeCanEdit[phoneNumber] = assignee.get('canEdit');
       });
 
-      return promises;
+      return Promise.all(promises);
     })
-    .then((promises) => Promise.all(promises))
-    .then((profileDocsSnapshot) => {
+    .then((docs) => {
       const batch = db.batch();
 
-      profileDocsSnapshot.forEach((profileDoc) => {
-        const phoneNumber = profileDoc.id;
+      docs.forEach((doc) => {
+        /** The doc id is the phone number of the assignee. */
+        const phoneNumber = doc.id;
 
-        if (!profileDoc.exists) {
-          /** Placeholder profiles for the users with no auth. */
-          batch.set(profileDoc.ref, { uid: null, });
+        if (!doc.exists) {
+          /** Placeholder `profiles` for the users with no auth. */
+          batch.set(doc.ref, { uid: null, });
         }
 
-        batch.set(profileDoc
+        batch.set(doc
           .ref
           .collection('Activities')
           .doc(activityId), {
             canEdit: assigneeCanEdit[phoneNumber],
-            timestamp,
+            timestamp: activityDocNew.get('timestamp'),
           });
       });
 
       return batch;
     })
     .then((batch) => {
+      const template = activityDocNew.get('template');
+
       if (template === 'subscription') {
         return manageSubscription(activityDocNew, batch);
       }
@@ -210,9 +244,11 @@ module.exports = (change, context) => {
         return manageAdmin(activityDocNew, batch);
       }
 
-      const docRef = activityDocNew.get('docRef');
-
-      batch.set(docRef, activityDocNew.data());
+      /**
+       * Copy the activity doc to the path which was created
+       * by the activity in the `docRef` field.
+       */
+      batch.set(activityDocNew.get('docRef'), activityDocNew.data());
 
       return batch.commit();
     })
