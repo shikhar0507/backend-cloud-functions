@@ -362,31 +362,23 @@ const validateCreateRequestBody = (body, successMessage) => {
  * @returns {Object} Message object
  */
 const validateUpdateRequestBody = (body, successMessage) => {
-  if (!body.hasOwnProperty('title')
+  if (!body.hasOwnProperty('activityName')
     && !body.hasOwnProperty('description')
     && !body.hasOwnProperty('venue')
     && !body.hasOwnProperty('schedule')) {
     return {
       message: 'The request body has no usable fields.'
-        + ' Please add at least one (or all) of these: "title",'
+        + ' Please add at least any (or all) of these: "title",'
         + ' "description", "schedule", or "venue"'
         + ' in the request body to make a successful request.',
       isValidBody: false,
     };
   }
 
-  if (body.hasOwnProperty('title')
-    && !isNonEmptyString(body.title)) {
+  if (body.hasOwnProperty('activityName')
+    && !isNonEmptyString(body.activityName)) {
     return {
-      message: 'The "title" field in the request body should be a non-empty string.',
-      isValidBody: false,
-    };
-  }
-
-  if (body.hasOwnProperty('description')
-    && !isNonEmptyString(body.description)) {
-    return {
-      message: 'The "description" field in the request body should be a non-empty string.',
+      message: 'The "activityName" field in the request body should be a non-empty string.',
       isValidBody: false,
     };
   }

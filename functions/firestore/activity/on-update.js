@@ -83,10 +83,10 @@ const updateActivityDoc = (conn, locals) => {
 
   locals.addendum.comment = `${locals.addendum.user} updated the activity`;
 
-  if (conn.req.body.hasOwnProperty('title')
-    && isNonEmptyString(conn.req.body.title)) {
-    locals.addendum.comment += ' title, ';
-    activityUpdates.title = conn.req.body.title;
+  if (conn.req.body.hasOwnProperty('activityName')
+    && isNonEmptyString(conn.req.body.activityName)) {
+    locals.addendum.comment += ' activityName, ';
+    activityUpdates.activityName = conn.req.body.activityName;
   }
 
   if (conn.req.body.hasOwnProperty('schedule')) {

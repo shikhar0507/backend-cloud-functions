@@ -218,12 +218,12 @@ const createActivityRoot = (conn, locals) => {
     docRef: locals.docRef,
   };
 
-  if (!conn.req.body.hasOwnProperty('title')) {
-    activityRoot.tile = locals.template.defaultTitle;
+  if (!conn.req.body.hasOwnProperty('activityName')) {
+    activityRoot.activityName = '';
   }
 
-  if (isNonEmptyString(conn.req.body.title)) {
-    activityRoot.title = conn.req.body.title;
+  if (isNonEmptyString(conn.req.body.activityName)) {
+    activityRoot.activityName = conn.req.body.activityName;
   }
 
   locals.batch.set(locals.activityRef, activityRoot);
