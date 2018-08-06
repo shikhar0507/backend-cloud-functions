@@ -200,7 +200,7 @@ const createActivityRoot = (conn, locals) => {
     /** The rule is stored here to avoid reading
      * `subscriptions` for activity updates.
      */
-    canEditRule: locals.canEditRule,
+    canEditRule: locals.template.canEditRule,
     timestamp: serverTimestamp,
     status: locals.template.statusOnCreate,
     office: conn.req.body.office,
@@ -346,52 +346,6 @@ const addChildToOffice = (conn, locals) => {
 
 
 /**
- * Adds the `canEditRule` from the request body to a temporary
- * object in `locals` object.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const handleSupportRequest = (conn, locals) => {
-  if (!conn.req.body.hasOwnProperty('canEditRule')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The 'canEditRule' field is missing from the request body.`
-    );
-
-    return;
-  }
-
-  if (locals.canEditRules.get('CANEDITRULES')
-    .indexOf(conn.req.body.canEditRule) === -1) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The 'canEditRule' in the request body is invalid. Use one of`
-      + ` the following: ${locals.canEditRules.get('CANEDITRULES')}.`
-    );
-
-    return;
-  }
-
-  /** For support requests, the `canEditRule` will be used from the
-   * request body and not from the user's subscription.
-   */
-  locals.canEditRule = conn.req.body.canEditRule;
-
-  if (conn.req.body.template === 'office') {
-    handleOfficeTemplate(conn, locals);
-
-    return;
-  }
-
-  addChildToOffice(conn, locals);
-};
-
-
-/**
  * Processes the `result` from the Firestore and saves the data to variables
  * for use in the function flow.
  *
@@ -412,6 +366,7 @@ const handleResult = (conn, result) => {
   }
 
   const template = result[0].docs[0].data();
+  const subscription = result[1];
 
   /** Object for storing local data. */
   const locals = {
@@ -429,7 +384,6 @@ const handleResult = (conn, result) => {
      */
     include: [],
     office: result[2],
-    canEditRules: result[3],
     schedule: filterSchedules(
       conn.req.body.schedule,
       /** The `schedule` object from the template. */
@@ -442,46 +396,36 @@ const handleResult = (conn, result) => {
     ),
   };
 
-  /** Subscription may or may not exist (especially when creating an `Office`). */
-  if (!result[1].empty) {
-    locals.canEditRule = result[1].docs[0].get('canEditRule');
-    locals.include = result[1].docs[0].get('include');
+  /** Subscription may not exist for support requests. */
+  if (!subscription.empty) {
+    locals.include = subscription.docs[0].get('include');
   }
 
-  /** Handle support requests from here. */
-  if (conn.requester.isSupportRequest) {
-    /** A person with support privilege, doesn't need to
-     * have the `subscription` to the template that they want
-     * to create the activity with.
-     * @see https://github.com/Growthfilev2/backend-cloud-functions/blob/master/docs/support-requests/README.md
-     */
-    handleSupportRequest(conn, locals);
+  if (!conn.requester.isSupportRequest) {
+    if (subscription.empty) {
+      /** The template with that field does not exist in the user's
+       * subscriptions. This probably means that they are either
+       * not subscribed to the template that they requested
+       * to create the activity with, OR the template with
+       * that `name` simply does not exist.
+       */
+      sendResponse(
+        conn,
+        code.forbidden,
+        `No subscription found for the template: ${conn.req.body.template}.`
+      );
 
-    return;
-  }
-
-  if (result[1].empty) {
-    /** The template with that field does not exist in the user's
-     * subscriptions. This probably means that they are either
-     * not subscribed to the template that they requested
-     * to create the activity with, OR the template with
-     * that `name` simply does not exist.
-     */
-    sendResponse(
-      conn,
-      code.forbidden,
-      `No subscription found for the template: ${conn.req.body.template}.`
-    );
-
-    return;
+      return;
+    }
   }
 
   /** Forbidden to use a `cancelled` subscription. */
-  if (result[1].docs[0].get('status') === 'CANCELLED') {
+  if (subscription.docs[0].get('status') === 'CANCELLED') {
     sendResponse(
       conn,
       code.forbidden,
-      `Your subscription to this template is 'CANCELLED'.`
+      `Your subscription to the template ${conn.req.body.template} is`
+      + ` '${subscription.docs[0].get('status')}'.`
     );
 
     return;
@@ -529,10 +473,6 @@ module.exports = (conn) => {
         .offices
         .where('name', '==', conn.req.body.office)
         .limit(1)
-        .get(),
-      rootCollections
-        .enums
-        .doc('CANEDITRULES')
         .get(),
     ])
     .then((result) => handleResult(conn, result))
