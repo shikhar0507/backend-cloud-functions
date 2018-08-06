@@ -43,4 +43,24 @@ weekdays.set('friday', 'friday');
 weekdays.set('saturday', 'saturday');
 weekdays.set('sunday', 'sunday');
 
-module.exports = { weekdays, validTypes, };
+const activityStatuses = new Map();
+
+activityStatuses.set('CONFIRMED', 'CONFIRMED');
+activityStatuses.set('CANCELLED', 'CANCELLED');
+activityStatuses.set('PENDING', 'PENDING');
+
+const canEditRules = new Map();
+
+canEditRules.set('ALL', 'ALL');
+canEditRules.set('NONE', 'NONE');
+canEditRules.set('CREATOR', 'CREATOR');
+canEditRules.set('ADMIN', 'ADMIN');
+canEditRules.set('EMPLOYEE', 'EMPLOYEE');
+
+
+module.exports = {
+  weekdays,
+  validTypes,
+  activityStatuses,
+  canEditRules,
+};
