@@ -20,6 +20,8 @@ example: `/api/activities/read?from=1522598642000`
 }
 ```
 
+> Note: If no data is found for the request, the response will have `from` and `upto` fields with the same value.
+
 This is the response that you will get when there are no activities found for the `timestamp` that you sent in the `from` query parameter in the url.
 
 ## Full Response Body

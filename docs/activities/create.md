@@ -19,7 +19,7 @@ query parameters: `support` (optional)
         "latitude": 28.5482662,
         "longitude": 77.2030185
     },
-    "title": "string",
+    "activityName": "string",
     "share": ["+919090909090", "+918989898989"],
     "venue": [{
         "venueDescriptor": "venue name from template",
@@ -52,6 +52,4 @@ query parameters: `support` (optional)
 }
 ```
 
-A request with this body will create an activity with the requester as the only assignee with no title.
-
-These are the fields which are __REQUIRED__ at LEAST to be present in the request body in order for your request to be accepted.
+> Note: A request without any usable fields such as `activityName`, `schedule`, `venue`, or `share` will be rejected by the server. Make sure to include at least one (or any/all) of them.

@@ -1,10 +1,10 @@
 # Adding a Comment to an Existing Activity
 
-endpoint: `/api/activities/comment`
+* endpoint: `/api/activities/comment`
 
-method: `POST`
+* method: `POST`
 
-query parameter: none
+* query parameters: `support` (optional)
 
 ## Full Request Body
 

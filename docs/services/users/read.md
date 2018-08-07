@@ -6,9 +6,9 @@ method: `GET`
 
 query parameter:
 
-- `q`
+- `q` (optional)
 
-- `as` (optional)
+- `superUser` (optional)
 
 The `.../read` endpoint accepts an argument `q` which can either be an array or a single value containing the phone numbers of all the users you want to get the profiles of.
 

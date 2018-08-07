@@ -16,7 +16,7 @@ query parameter: `support` (optional)
         "latitude": 28.5482662,
         "longitude": 77.2030614
     },
-    "title": "string",
+    "activityName": "string",
     "venue": [{
         "venueDescriptor": "venue name from template",
         "location": "location name",
@@ -47,6 +47,8 @@ query parameter: `support` (optional)
     }
 }
 ```
+
+> Note: A request without any usable fields such as `activityName`, `schedule`, `venue`, or `share` will be rejected by the server. Make sure to include at least one (or any/all) of them.
 
 ## Preconditions
 

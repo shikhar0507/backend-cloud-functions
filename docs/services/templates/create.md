@@ -36,4 +36,5 @@ query parameters: none
 ## Preconditions
 
 * The requester needs to have the `manageTemplate` customClaim in their `idToken`.
+
 * Template `name` should be unique. So, while creating an activity, the if an activity with the `name` from your request body already exists, your request will be rejected.

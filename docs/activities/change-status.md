@@ -1,8 +1,10 @@
 # Changing The Current Status of An Existing Activity
 
-endpoint: `/api/activities/change-status`
+* endpoint: `/api/activities/change-status`
 
-method: `PATCH`
+* method: `PATCH`
+
+* query parameters: `support` (optional)
 
 ## Full Request Body
 
