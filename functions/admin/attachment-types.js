@@ -24,7 +24,7 @@
 
 'use strict';
 
-
+/** Types allowed for the field `type` in the attachment object. */
 const validTypes = new Map()
   .set('office', 'office')
   .set('string', 'string')
@@ -32,6 +32,7 @@ const validTypes = new Map()
   .set('weekday', 'weekday')
   .set('template', 'template');
 
+/** Weekdays accepted in the attachment for the field `type` of `weekday`. */
 const weekdays = new Map()
   .set('monday', 'monday')
   .set('tuesday', 'tuesday')
@@ -41,11 +42,17 @@ const weekdays = new Map()
   .set('saturday', 'saturday')
   .set('sunday', 'sunday');
 
+/**
+ * Statuses which are allowed for the `activity`, `subscription` or `office`.
+ */
 const activityStatuses = new Map()
   .set('CONFIRMED', 'CONFIRMED')
   .set('CANCELLED', 'CANCELLED')
   .set('PENDING', 'PENDING');
 
+/**
+ * Values of `canEdit` which for validating the `canEditRule`.
+ */
 const canEditRules = new Map()
   .set('ALL', 'ALL')
   .set('NONE', 'NONE')
