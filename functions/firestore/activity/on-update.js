@@ -33,9 +33,9 @@ const {
 } = require('../../admin/admin');
 
 const {
-  filterSchedules,
-  filterVenues,
+  validateVenues,
   filterAttachment,
+  validateSchedules,
   isValidRequestBody,
 } = require('./helper');
 
@@ -84,53 +84,10 @@ const createAddendumDoc = (conn, locals) => {
  * @returns {void}
  */
 const updateActivityDoc = (conn, locals) => {
-  /** Stores the objects that are to be updated in the activity root. */
-  const activityUpdates = {};
-
-  locals.addendum.comment = `${locals.addendum.user} updated the activity`;
-
-  if (conn.req.body.hasOwnProperty('activityName')
-    && isNonEmptyString(conn.req.body.activityName)) {
-    locals.addendum.comment += ' activityName, ';
-    activityUpdates.activityName = conn.req.body.activityName;
-  }
-
-  if (conn.req.body.hasOwnProperty('schedule')) {
-    const scheduleNames = new Set();
-    locals.addendum.comment += ' schedule, ';
-
-    locals
-      .activity
-      .get('schedule')
-      .forEach((scheduleObject) => scheduleNames.add(scheduleObject.name));
-
-    activityUpdates.schedule = filterSchedules(
-      conn.req.body.schedule,
-      [...scheduleNames,]
-    );
-  }
-
-  if (conn.req.body.hasOwnProperty('venue')) {
-    locals.addendum.comment += ' venue ';
-    const venueNames = new Set();
-
-    locals
-      .activity
-      .get('venue')
-      .forEach((venueObject) => venueNames.add(venueObject.venueDescriptor));
-
-    activityUpdates.venue = filterVenues(
-      conn.req.body.venue,
-      [...venueNames,]
-    );
-  }
-
-  activityUpdates.timestamp = serverTimestamp;
-
   locals.batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId),
-    activityUpdates, {
+    locals.activityUpdates, {
       /** The activity doc *will* have some of these fields by default. */
       merge: true,
     }
@@ -224,7 +181,7 @@ const updateActivityTimestamp = (conn, locals) => {
  */
 const handleResult = (conn, result) => {
   const activityDoc = result[0];
-  const assigneeDocsArray = result[1];
+  const assignees = result[1];
 
   if (!activityDoc.exists) {
     /** This case should probably never execute because there is provision
@@ -252,11 +209,70 @@ const handleResult = (conn, result) => {
       activityId: conn.req.body.activityId,
       user: conn.requester.phoneNumber,
       location: getGeopointObject(conn.req.body.geopoint),
+      comment: `${conn.requester.phoneNumber} update the activity`,
     },
+    /** Stores the objects that are to be updated in the activity root. */
+    activityUpdates: { timestamp: serverTimestamp, },
   };
 
-  assigneeDocsArray
+  if (conn.req.body.hasOwnProperty('activityName')
+    && isNonEmptyString(conn.req.body.activityName)) {
+    locals.addendum.comment += ' activityName, ';
+    locals.activityUpdates.activityName = conn.req.body.activityName;
+  }
+
+  assignees
     .forEach((doc) => locals.assigneePhoneNumberArray.push(doc.id));
+
+  if (conn.req.body.hasOwnProperty('schedule')) {
+    const scheduleNames = new Set();
+
+    locals
+      .activity
+      .schedule
+      .forEach((scheduleObject) => scheduleNames.add(scheduleObject.name));
+
+    const result = validateSchedules(
+      conn.req.body.schedule,
+      /** Function expects an array of strings. Not `Set()` */
+      Array.from(scheduleNames)
+    );
+
+    if (!result.isValid) {
+      sendResponse(conn, code.badRequest, result.message);
+
+      return;
+    }
+
+    locals.addendum.comment += ' schedule,';
+    locals.activityUpdates.schedule = conn.req.body.schedule;
+  }
+
+  if (conn.req.body.hasOwnProperty('venue')) {
+    const venueDescriptors = new Set();
+
+    locals
+      .activity
+      .venue
+      .forEach(
+        (venueObject) => venueDescriptors.add(venueObject.venueDescriptor)
+      );
+
+    const result = validateVenues(
+      conn.req.body.venue,
+      /** Function expects an array of strings. Not `Set()` */
+      Array.from(venueDescriptors)
+    );
+
+    if (!result.isValid) {
+      sendResponse(conn, code.badRequest, result.message);
+
+      return;
+    }
+
+    locals.addendum.comment += ' venue,';
+    locals.activityUpdates.venue = conn.req.body.venue;
+  }
 
   updateActivityTimestamp(conn, locals);
 };

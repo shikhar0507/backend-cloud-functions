@@ -37,9 +37,9 @@ const { code, } = require('../../admin/responses');
 
 const {
   handleCanEdit,
-  filterSchedules,
-  filterVenues,
+  validateVenues,
   filterAttachment,
+  validateSchedules,
   isValidRequestBody,
 } = require('./helper');
 
@@ -232,9 +232,9 @@ const createActivityRoot = (conn, locals) => {
     office: conn.req.body.office,
     officeId: locals.office.docs[0].id,
     template: conn.req.body.template,
-    venue: locals.venue,
-    schedule: locals.schedule,
-    attachment: conn.req.body.attachment || {},
+    venue: conn.req.body.venue || locals.template.venue,
+    schedule: conn.req.body.schedule || locals.template.schedule,
+    attachment: conn.req.body.attachment || locals.template.attachment,
     docRef: locals.docRef,
   };
 
@@ -450,17 +450,38 @@ const handleResult = (conn, result) => {
      */
     include: [],
     office: result[2],
-    schedule: filterSchedules(
+  };
+
+  if (conn.req.body.hasOwnProperty('schedule')) {
+    const result = validateSchedules(
       conn.req.body.schedule,
-      /** The `schedule` object from the template. */
       template.schedule
-    ),
-    venue: filterVenues(
+    );
+
+    if (!result.isValid) {
+      sendResponse(conn, code.badRequest, result.message);
+
+      return;
+    }
+
+    locals.schedule = conn.req.body.schedule;
+  }
+
+  if (conn.req.body.hasOwnProperty('venue')) {
+    const result = validateVenues(
       conn.req.body.venue,
       /** The `venue` object from the template. */
       template.venue
-    ),
-  };
+    );
+
+    if (!result.isValid) {
+      sendResponse(conn, code.badRequest, result.message);
+
+      return;
+    }
+
+    locals.venue = conn.req.body.venue;
+  }
 
   /** Subscription may not exist for support requests. */
   if (!subscription.empty) {
@@ -469,8 +490,11 @@ const handleResult = (conn, result) => {
 
   if (!conn.requester.isSupportRequest) {
     if (subscription.empty) {
-      /** The template with that field does not exist in the user's
-       * subscriptions. This probably means that they are either
+      /**
+       * The template with that field does not exist in the user's
+       * subscriptions.
+       *
+       * This probably means that they are either
        * not subscribed to the template that they requested
        * to create the activity with, OR the template with
        * that `name` simply does not exist.
@@ -540,6 +564,10 @@ module.exports = (conn) => {
         .where('template', '==', conn.req.body.template)
         .where('office', '==', conn.req.body.office)
         .limit(1)
+        .get(),
+      rootCollections
+        .offices
+        .doc(conn.req.body.office)
         .get(),
     ])
     .then((result) => handleResult(conn, result))

@@ -82,66 +82,112 @@ const handleCanEdit = (
  * Validates the schedules where the there is a name field present,
  * along with the condition that the endTime >= startTime.
  *
- * @param {Array} requestBodySchedule Schedules from request body.
- * @param {Array} scheduleNames Schedules from template.
- * @returns {Array} Of valid schedules.
+ * @param {Array} schedules Schedules from request body.
+ * @param {Array} scheduleNames Schedules names allowed from the template.
+ * @returns {Object} `messageObject` denoting whether the `schedules`
+ *  from the request body are valid.
  */
-const filterSchedules = (requestBodySchedule, scheduleNames) => {
-  const defaultSchedules = [];
+const validateSchedules = (schedules, scheduleNames) => {
+  const messageObject = {
+    isValid: true,
+    message: null,
+  };
 
-  if (!scheduleNames) return defaultSchedules;
+  let tempObj;
 
-  scheduleNames.forEach((schedule) => {
-    defaultSchedules.push({
-      name: schedule,
-      startTime: '',
-      endTime: '',
-    });
-  });
+  if (!Array.isArray(schedules)) {
+    messageObject.isValid = false;
+    messageObject.message = `The 'schedule' field in the request body should`
+      + ` be an array of objects.`;
 
-  if (scheduleNames.length === 0) return defaultSchedules;
-
-  if (!Array.isArray(requestBodySchedule)) return defaultSchedules;
-
-  let validSchedules = [];
-
-  scheduleNames.forEach((name) => {
-    requestBodySchedule.forEach((schedule) => {
-      if (schedule.name !== name) return;
-
-      if (!schedule.hasOwnProperty('startTime')) return;
-
-      /** Both `startTime` and `endTime` are absent. */
-      if (!isValidDate(schedule.startTime)
-        && !isValidDate(schedule.endTime)) return;
-
-      /** Schedule has valid `startTime` */
-      if (isValidDate(schedule.startTime) && !schedule.hasOwnProperty('endTime')) {
-        validSchedules.push({
-          name: schedule.name,
-          startTime: new Date(schedule.startTime),
-          endTime: new Date(schedule.startTime),
-        });
-
-        return;
-      }
-
-      if (isValidDate(schedule.endTime) && isValidDate(schedule.startTime)
-        && schedule.endTime >= schedule.startTime) {
-        validSchedules.push({
-          name: schedule.name,
-          startTime: new Date(schedule.startTime),
-          endTime: new Date(schedule.endTime),
-        });
-      }
-    });
-  });
-
-  if (validSchedules.length === 0) {
-    validSchedules = defaultSchedules;
+    return messageObject;
   }
 
-  return validSchedules;
+  if (scheduleNames.length !== schedules.length) {
+    let abbr = 'schedule';
+
+    if (scheduleNames.length > 1) {
+      abbr = 'schedules';
+    }
+
+    messageObject.isValid = false;
+    messageObject.message = `Expected ${scheduleNames.length} ${abbr} in the`
+      + `request body. Found ${schedules.length}.`;
+
+    return messageObject;
+  }
+
+  /** Not using `forEach` because `break` doesn't work with it. */
+  for (let i = 0; i < schedules.length; i++) {
+    tempObj = schedules[i];
+
+    if (typeof tempObj !== 'object') {
+      messageObject.isValid = false;
+      messageObject.message = `The schedule array should .`;
+      break;
+    }
+
+    if (!tempObj.hasOwnProperty('name')) {
+      messageObject.isValid = false;
+      messageObject.message = `The Object at position ${i + 1} is missing`
+        + ` the 'name' field in the schedule array.`;
+      break;
+    }
+
+    if (!tempObj.hasOwnProperty('startTime')) {
+      messageObject.isValid = false;
+      messageObject.message = `The Object at the position ${i + 1} is missing`
+        + ` the 'startTime' field in the schedule array`;
+      break;
+    }
+
+    if (!tempObj.hasOwnProperty('endTime')) {
+      messageObject.isValid = false;
+      messageObject.message = `The Object at the position ${i + 1} is missing`
+        + ` the 'endTime' field in the schedule array`;
+      break;
+    }
+
+    const name = tempObj.name;
+    const startTime = tempObj.startTime;
+    const endTime = tempObj.endTime;
+
+    if (!isNonEmptyString(name)) {
+      messageObject.isValid = false;
+      messageObject.message = `The Object at position ${i + 1} has an invalid`
+        + ` value in the field 'name' in the schedule array.`;
+      break;
+    }
+
+    if (!isValidDate(startTime)) {
+      messageObject.isValid = false;
+      messageObject.message = `The 'startTime' in the schedule '${name}' should`
+        + ` be a valid unix timestamp.`;
+      break;
+    }
+
+    if (!isValidDate(endTime)) {
+      messageObject.isValid = false;
+      messageObject.message = `The 'endTime' in the schedule '${name}' should`
+        + `be a valid unix timestamp.`;
+      break;
+    }
+
+    if (startTime > endTime) {
+      messageObject.isValid = false;
+      messageObject.message = `The value of 'startTime' is greater than the`
+        + ` value of 'endTime' in the object ${name}.`;
+      break;
+    }
+
+    if (scheduleNames.indexOf(name) === -1) {
+      messageObject.isValid = false;
+      messageObject.message = `'${name}' is an invalid schedule name.`;
+      break;
+    }
+  }
+
+  return messageObject;
 };
 
 
@@ -149,51 +195,126 @@ const filterSchedules = (requestBodySchedule, scheduleNames) => {
  * Validates the venues based on the `venueDescriptors` and
  * valid geopoint object.
  *
- * @param {Array} requestBodyVenue Venue objects from request.
- * @param {Array} venueDescriptors Venue descriptors from template.
- * @returns {Array} Valid venues based on template.
+ * @param {Array} venues Venue objects from request body.
+ * @param {Array} venueDescriptors Venue descriptors allowed from the template.
+ * @returns {Object} `messageObject` denoting whether the venues
+ * from the request body are valid.
  */
-const filterVenues = (requestBodyVenue, venueDescriptors) => {
-  let validVenues = [];
-  const defaultVenues = [];
+const validateVenues = (venues, venueDescriptors) => {
+  const messageObject = {
+    isValid: true,
+    message: null,
+  };
 
-  if (!venueDescriptors) return defaultVenues;
+  let tempObj;
 
-  const getGeopointObject = require('../../admin/admin').getGeopointObject;
+  if (!Array.isArray(venues)) {
+    messageObject.isValid = false;
+    messageObject.message = `The 'venue' field in the request body should`
+      + ` be an array of objects.`;
 
-  venueDescriptors.forEach((venueDescriptor) => {
-    defaultVenues.push({
-      venueDescriptor,
-      location: '',
-      address: '',
-      geopoint: null,
-    });
-  });
-
-  if (!Array.isArray(requestBodyVenue)) return defaultVenues;
-
-  if (requestBodyVenue.length === 0) return defaultVenues;
-
-  venueDescriptors.forEach((venueDescriptor) => {
-    requestBodyVenue.forEach((venue) => {
-      if (venue.venueDescriptor !== venueDescriptor) return;
-
-      if (!isValidGeopoint(venue.geopoint)) return;
-
-      validVenues.push({
-        geopoint: getGeopointObject(venue.geopoint),
-        venueDescriptor: venue.venueDescriptor,
-        location: venue.location || '',
-        address: venue.address || '',
-      });
-    });
-  });
-
-  if (validVenues.length === 0) {
-    validVenues = defaultVenues;
+    return messageObject;
   }
 
-  return validVenues;
+  if (venueDescriptors.length !== venues.length) {
+    let abbr = 'venue';
+
+    if (venueDescriptors.length > 1) {
+      abbr = 'venues';
+    }
+
+    messageObject.isValid = false;
+    messageObject.message = `Expected ${venueDescriptors.length}`
+      + `${abbr} in the request body. Found ${venues.length}.`;
+
+    return messageObject;
+  }
+
+  /** Not using `forEach` because `break` doesn't work with it. */
+  for (let i = 0; i < venues.length; i++) {
+    tempObj = venues[i];
+
+    if (!tempObj.hasOwnProperty('venueDescriptor')) {
+      messageObject.isValid = false;
+      messageObject.message = `The venue object at position ${i} is missing the`
+        + ` field 'venueDescriptor' in venues array.`;
+      break;
+    }
+
+    if (!tempObj.hasOwnProperty('address')) {
+      messageObject.isValid = false;
+      messageObject.message = `The venue object at position ${i} is missing the`
+        + ` field 'address' in venues array.`;
+      break;
+    }
+
+    if (!tempObj.hasOwnProperty('geopoint')) {
+      messageObject.isValid = false;
+      messageObject.message = `The venue object at position ${i} is missing the`
+        + ` field 'geopoint' in venues array.`;
+      break;
+    }
+
+    if (!tempObj.hasOwnProperty('location')) {
+      messageObject.isValid = false;
+      messageObject.message = `The venue object at position ${i} is missing the`
+        + ` field 'location' in venues array.`;
+      break;
+    }
+
+    const venueDescriptor = tempObj.venueDescriptor;
+    const address = tempObj.address;
+    const geopoint = tempObj.geopoint;
+    const location = tempObj.location;
+
+    if (!isNonEmptyString(venueDescriptor)) {
+      messageObject.isValid = false;
+      messageObject.message = `In the venue object at position ${i},`
+        + ` the 'venueDescriptor' is not valid. Expected a 'non-empty'`
+        + ` string. Found '${venueDescriptor}'.`;
+      break;
+    }
+
+    if (venueDescriptors.indexOf(venueDescriptor) === -1) {
+      messageObject.isValid = false;
+      messageObject.message = `'${venueDescriptor}' is not a valid `
+        + ` 'venueDescriptor'.`;
+      break;
+    }
+
+    if (typeof address !== 'string') {
+      messageObject.isValid = false;
+      messageObject.message = `In the venue object at position ${i},`
+        + ` the 'address' is not valid. Expected 'string'.`
+        + ` Found '${typeof address}'.`;
+      break;
+    }
+
+    if (typeof location !== 'string') {
+      messageObject.isValid = false;
+      messageObject.message = '';
+      break;
+    }
+
+    if (typeof geopoint !== 'object') {
+      messageObject.isValid = false;
+      messageObject.message = `In the venue object at position ${i}, the`
+        + ` 'geopoint' is not valid. Expected 'object'.`
+        + ` Found '${typeof geopoint}'.`;
+      break;
+    }
+
+    if (!isValidGeopoint(geopoint)) {
+      messageObject.isValid = false;
+      messageObject.message = `In the venue object at position ${i}, the`
+        + ` ' geopoint' is invalid. Make sure to include the fields`
+        + `' latitude' and 'longitude' in the object with proper range`
+        + ` for each field.`;
+      break;
+    }
+  }
+
+  return messageObject;
 };
 
 
@@ -202,7 +323,8 @@ const filterVenues = (requestBodyVenue, venueDescriptors) => {
  *
  * @param {Object} conn Object containing Express Request and Response objects.
  * @param {Object} locals Object containing local data.
- * @returns {void}
+ * @returns {Object} `messageObject` containing `message` and `isValid` fields
+ * denoting if the attachment is a valid object.
  */
 const filterAttachment = (conn, locals) => {
   // TODO: Move this function to `isValidRequestBody` function.
@@ -641,9 +763,9 @@ const isValidRequestBody = (body, endpoint) => {
 
 
 module.exports = {
-  filterVenues,
+  validateVenues,
   handleCanEdit,
-  filterSchedules,
+  validateSchedules,
   filterAttachment,
   isValidRequestBody,
 };
