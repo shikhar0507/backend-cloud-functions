@@ -241,6 +241,7 @@ const createActivityRoot = (conn, locals) => {
  * @returns {void}
  */
 const handleAttachment = (conn, locals) => {
+  // TODO: Move this to the beginning of the activity flow.
   const result = filterAttachment(conn, locals);
 
   if (!result.isValid) {
@@ -335,7 +336,7 @@ const addChildToOffice = (conn, locals) => {
       conn,
       code.forbidden,
       `This office's status is ${officeRef.get('status')}.`
-      + ` Cannot use create ${conn.req.body.template}.`
+      + ` Cannot use ${conn.req.body.template}.`
     );
 
     return;
@@ -385,7 +386,8 @@ const handleAdminTemplate = (conn, locals) => {
       addChildToOffice(conn, locals);
 
       return;
-    }).catch((error) => handleError(conn, error));
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

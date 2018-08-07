@@ -25,37 +25,33 @@
 'use strict';
 
 
-const validTypes = new Map();
+const validTypes = new Map()
+  .set('office', 'office')
+  .set('string', 'string')
+  .set('phoneNumber', 'phoneNumber')
+  .set('weekday', 'weekday')
+  .set('template', 'template');
 
-validTypes.set('office', 'office');
-validTypes.set('string', 'string');
-validTypes.set('phoneNumber', 'phoneNumber');
-validTypes.set('weekday', 'weekday');
-validTypes.set('template', 'template');
+const weekdays = new Map()
+  .set('monday', 'monday')
+  .set('tuesday', 'tuesday')
+  .set('wednesday', 'wednesday')
+  .set('thursday', 'thursday')
+  .set('friday', 'friday')
+  .set('saturday', 'saturday')
+  .set('sunday', 'sunday');
 
-const weekdays = new Map();
+const activityStatuses = new Map()
+  .set('CONFIRMED', 'CONFIRMED')
+  .set('CANCELLED', 'CANCELLED')
+  .set('PENDING', 'PENDING');
 
-weekdays.set('monday', 'monday');
-weekdays.set('tuesday', 'tuesday');
-weekdays.set('wednesday', 'wednesday');
-weekdays.set('thursday', 'thursday');
-weekdays.set('friday', 'friday');
-weekdays.set('saturday', 'saturday');
-weekdays.set('sunday', 'sunday');
-
-const activityStatuses = new Map();
-
-activityStatuses.set('CONFIRMED', 'CONFIRMED');
-activityStatuses.set('CANCELLED', 'CANCELLED');
-activityStatuses.set('PENDING', 'PENDING');
-
-const canEditRules = new Map();
-
-canEditRules.set('ALL', 'ALL');
-canEditRules.set('NONE', 'NONE');
-canEditRules.set('CREATOR', 'CREATOR');
-canEditRules.set('ADMIN', 'ADMIN');
-canEditRules.set('EMPLOYEE', 'EMPLOYEE');
+const canEditRules = new Map()
+  .set('ALL', 'ALL')
+  .set('NONE', 'NONE')
+  .set('CREATOR', 'CREATOR')
+  .set('ADMIN', 'ADMIN')
+  .set('EMPLOYEE', 'EMPLOYEE');
 
 
 module.exports = {

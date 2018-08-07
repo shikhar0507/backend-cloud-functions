@@ -205,6 +205,7 @@ const filterVenues = (requestBodyVenue, venueDescriptors) => {
  * @returns {void}
  */
 const filterAttachment = (conn, locals) => {
+  // TODO: Move this function to `isValidRequestBody` function.
   const weekdays = require('../../admin/attachment-types').weekdays;
 
   const messageObject = {
@@ -288,6 +289,7 @@ const filterAttachment = (conn, locals) => {
       }
     }
 
+    // TODO: Refactor this... :O
     if (type === 'phoneNumber') {
       if (value !== '') {
         if (!isE164PhoneNumber(value)) {
