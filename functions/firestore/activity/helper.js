@@ -378,6 +378,14 @@ const filterAttachment = (conn, locals) => {
     const type = item.type;
     const value = item.value;
 
+    const validTypes = require('../../admin/attachment-types');
+
+    if (!validTypes.has(type)) {
+      messageObject.isValid = false;
+      messageObject.message = `The '${type}' is not a valid type.`;
+      break;
+    }
+
     if (typeof type !== 'string') {
       messageObject.isValid = false;
       messageObject.message = `The 'type' field in '${field}' field`
