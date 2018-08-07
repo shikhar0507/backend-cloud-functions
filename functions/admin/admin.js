@@ -257,11 +257,6 @@ const rootCollections = {
    * @example `/DailyInits/(DD-MM-YYYY)`
    */
   dailyInits: db.collection('DailyInits'),
-  /** Stores a log of all the offices using the templates
-   * with the `activityId`, `timestamp`, `office`, `template` and the `url`.
-   * @example `/DailyActivities/(Office name)/(Template name)`
-   */
-  dailyActivities: db.collection('DailyActivities'),
   /** Stores the users who are disabled on a day
    * @example `/DailyDisabled/(DD-MM-YYYY)`
    */
