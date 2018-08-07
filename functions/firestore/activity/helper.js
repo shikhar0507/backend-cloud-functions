@@ -123,7 +123,8 @@ const validateSchedules = (schedules, scheduleNames) => {
 
     if (typeof tempObj !== 'object') {
       messageObject.isValid = false;
-      messageObject.message = `The schedule array should .`;
+      messageObject.message = `The schedule array should be an object.`
+        + ` Found ${typeof tempObj}`;
       break;
     }
 
@@ -483,6 +484,28 @@ const validateCreateRequestBody = (body, successMessage) => {
     };
   }
 
+  if (body.hasOwnProperty('share')) {
+    if (!Array.isArray(body.share)) {
+      return {
+        message: `The "share" field in the request body should be an 'array'.`,
+        isValidBody: false,
+      };
+    }
+
+    let phoneNumber;
+
+    for (let i = 0; i < body.share; i++) {
+      phoneNumber = body.share[i];
+
+      if (!isE164PhoneNumber(phoneNumber)) {
+        successMessage.message = `The '${phoneNumber}' is not a`
+          + ` valid phone number.`;
+        successMessage.isValidBody = false;
+        break;
+      }
+    }
+  }
+
   return successMessage;
 };
 
@@ -511,7 +534,8 @@ const validateUpdateRequestBody = (body, successMessage) => {
   if (body.hasOwnProperty('activityName')
     && !isNonEmptyString(body.activityName)) {
     return {
-      message: 'The "activityName" field in the request body should be a non-empty string.',
+      message: 'The "activityName" field in the request body should be a'
+        + ' non-empty string.',
       isValidBody: false,
     };
   }
@@ -602,20 +626,17 @@ const validateRemoveRequestBody = (body, successMessage) => {
     };
   }
 
-  const validPhoneNumbers = [];
+  let phoneNumber;
 
-  body.remove.forEach((phoneNumber) => {
-    if (!isE164PhoneNumber(phoneNumber)) return;
+  for (let i = 0; i < body.remove.length; i++) {
+    phoneNumber = body.remove.length[i];
 
-    validPhoneNumbers.push(phoneNumber);
-  });
+    if (!isE164PhoneNumber(phoneNumber)) {
+      successMessage.message = `Phone number: '${phoneNumber}' is invalid.`;
+      successMessage.isValidBody = false;
+    }
 
-  if (validPhoneNumbers.length === 0) {
-    return {
-      message: 'No valid phone numbers found in the "remove" array from the'
-        + ' request body.',
-      isValidBody: false,
-    };
+    break;
   }
 
   return successMessage;
@@ -653,20 +674,17 @@ const validateShareRequestBody = (body, successMessage) => {
     };
   }
 
-  const validPhoneNumbers = [];
+  let phoneNumber;
 
-  body.share.forEach((phoneNumber) => {
-    if (!isE164PhoneNumber(phoneNumber)) return;
+  for (let i = 0; i < body.share.length; i++) {
+    phoneNumber = body.share.length[i];
 
-    validPhoneNumbers.push(phoneNumber);
-  });
+    if (!isE164PhoneNumber(phoneNumber)) {
+      successMessage.message = `Phone number: '${phoneNumber}' is invalid.`;
+      successMessage.isValidBody = false;
+    }
 
-  if (validPhoneNumbers.length === 0) {
-    return {
-      message: 'No valid phone numbers found in the "share" array from the'
-        + ' request body.',
-      isValidBody: false,
-    };
+    break;
   }
 
   return successMessage;
