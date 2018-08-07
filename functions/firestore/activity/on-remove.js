@@ -155,17 +155,20 @@ const handleSpecialTemplates = (conn, locals) => {
  * @returns {void}
  */
 const createAddendumDoc = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .addendumObjects
-    .doc(), {
-      activityId: conn.req.body.activityId,
-      user: conn.requester.phoneNumber,
-      location: getGeopointObject(conn.req.body.geopoint),
-      comment: locals.comment,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      timestamp: serverTimestamp,
-    }
-  );
+  const docRef = rootCollections
+    .offices
+    .doc(locals.activity.get('officeId'))
+    .collection('Addendum')
+    .doc();
+
+  locals.batch.set(docRef, {
+    activityId: conn.req.body.activityId,
+    user: conn.requester.phoneNumber,
+    location: getGeopointObject(conn.req.body.geopoint),
+    comment: locals.comment,
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    timestamp: serverTimestamp,
+  });
 
   handleSpecialTemplates(conn, locals);
 };

@@ -59,12 +59,15 @@ const {
  * @returns {void}
  */
 const createAddendumDoc = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .addendumObjects
-    .doc(),
-    locals.addendum
-  );
+  const docRef = rootCollections
+    .offices
+    .doc(locals.activity.get('officeId'))
+    .collection('Addendum')
+    .doc();
 
+  locals.batch.set(docRef, locals.addendum);
+
+  /** ENDS the request. */
   locals
     .batch
     .commit()

@@ -230,11 +230,6 @@ const rootCollections = {
    * @example `/ReportTemplates/(report-name)`
    */
   reportTemplates: db.collection('ReportTemplates'),
-  /** Stores the addendum for the assignees of the activity.
-   * This doc contains the `activityId`, `location`, `timestamp`,
-   * `comment`, and the `user` fields.
-   */
-  addendumObjects: db.collection('AddendumObjects'),
   /** Contains a _unique_ doc for *each* `office` which has signed up for
    * the platform.
    * @example `/Offices/(autoId)'

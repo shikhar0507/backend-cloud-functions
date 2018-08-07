@@ -53,61 +53,28 @@ const {
  * @returns {void}
  */
 const createAddendumDoc = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .addendumObjects
-    .doc(), {
-      activityId: conn.req.body.activityId,
-      user: conn.requester.phoneNumber,
-      comment: conn.req.body.comment,
-      location: getGeopointObject(conn.req.body.geopoint),
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      timestamp: serverTimestamp,
-    }
-  );
+  const docRef = rootCollections
+    .offices
+    .doc(locals.activity.get('officeId'))
+    .collection('Addendum')
+    .doc();
 
+  locals.batch.set(docRef, {
+    activityId: conn.req.body.activityId,
+    user: conn.requester.phoneNumber,
+    comment: conn.req.body.comment,
+    location: getGeopointObject(conn.req.body.geopoint),
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    timestamp: serverTimestamp,
+  });
+
+  /** ENDS the response. */
   locals
     .batch
     .commit()
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
-
-
-/**
- * Fetches the `activity` doc from inside the `Activities` root collection.
- *
- * @param {Object} conn Object with Express Request and Response Objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const checkIfActivityExists = (conn, locals) =>
-  rootCollections
-    .activities
-    .doc(conn.req.body.activityId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        sendResponse(
-          conn,
-          code.notFound,
-          `No activity found with the id: ${conn.req.body.activityId}.`
-        );
-
-        return;
-      }
-
-      /** Resetting the activity doc data here again for the
-       * cases where the activity doc doesn't exist for the
-       * support person, but actually exists in the `/Activities`
-       * collection.
-       */
-      locals.activity = doc;
-
-      createAddendumDoc(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
 
 
 /**
@@ -119,16 +86,6 @@ const checkIfActivityExists = (conn, locals) =>
  * @returns {void}
  */
 const checkCommentPermission = (conn, locals) => {
-  if (conn.requester.isSupportRequest) {
-    /** The activity may not exist in the `Profiles/(phoneNumber)/Activities`
-     * collection, so for the support requests, another check inside the
-     * `/Activities` root collection is required.
-     */
-    checkIfActivityExists(conn, locals);
-
-    return;
-  }
-
   if (!locals.profileActivityDoc.exists) {
     sendResponse(
       conn,
@@ -166,11 +123,11 @@ const fetchDocs = (conn) =>
         .doc(conn.req.body.activityId)
         .get(),
     ])
-    .then((docsArray) => {
+    .then((result) => {
       const locals = {
         batch: db.batch(),
-        profileActivityDoc: docsArray[0],
-        activity: docsArray[1],
+        profileActivityDoc: result[0],
+        activity: result[1],
       };
 
       checkCommentPermission(conn, locals);

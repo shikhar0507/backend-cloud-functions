@@ -52,37 +52,53 @@ const {
 
 
 /**
- * Creates a document in the path: `/AddendumObjects/(auto-id)`.
- * This will trigger an auto triggering cloud function which will
- * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
- * doc.
+ * Creates a `doc` inside `Addendum` root collection below the
+ * respective office.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
 const createAddendumDoc = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .addendumObjects
-    .doc(), {
-      activityId: locals.activityRef.id,
-      user: conn.requester.phoneNumber,
-      comment: `${conn.requester.phoneNumber}`
-        + ` created ${locals.template.defaultTitle}.`,
-      location: getGeopointObject(conn.req.body.geopoint),
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      timestamp: serverTimestamp,
-    }
-  );
+  const activityId = locals.activityRef.id;
+  let docRef;
 
+  /** Activity is for creating an `office`. Doc ID will be the
+   * same as the activity-id.
+   */
+  if (conn.req.body.template === 'office') {
+    docRef = rootCollections
+      .offices
+      .doc(activityId)
+      .collection('Addendum')
+      .doc();
+  } else {
+    const officeId = locals.office.docs[0].id;
+
+    docRef = rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Addendum')
+      .doc();
+  }
+
+  locals.batch.set(docRef, {
+    activityId,
+    user: conn.requester.phoneNumber,
+    comment: `${conn.requester.phoneNumber}`
+      + ` created ${locals.template.defaultTitle}.`,
+    location: getGeopointObject(conn.req.body.geopoint),
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    timestamp: serverTimestamp,
+  });
+
+  const message = 'The activity was successfully created.';
+
+  /** ENDS the response. */
   locals
     .batch
     .commit()
-    .then(() => sendResponse(
-      conn,
-      code.created,
-      'The activity was successfully created.')
-    )
+    .then(() => sendResponse(conn, code.created, message))
     .catch((error) => handleError(conn, error));
 };
 
@@ -214,6 +230,7 @@ const createActivityRoot = (conn, locals) => {
     timestamp: serverTimestamp,
     status: locals.template.statusOnCreate,
     office: conn.req.body.office,
+    officeId: locals.office.docs[0].id,
     template: conn.req.body.template,
     venue: locals.venue,
     schedule: locals.schedule,
@@ -332,7 +349,7 @@ const addChildToOffice = (conn, locals) => {
     return;
   }
 
-  const officeRef = locals.result[2].docs[0];
+  const officeRef = locals.office.docs[0];
 
   if (officeRef.get('status') === 'CANCELLED') {
     sendResponse(
@@ -522,11 +539,6 @@ module.exports = (conn) => {
         .collection('Subscriptions')
         .where('template', '==', conn.req.body.template)
         .where('office', '==', conn.req.body.office)
-        .limit(1)
-        .get(),
-      rootCollections
-        .offices
-        .where('name', '==', conn.req.body.office)
         .limit(1)
         .get(),
     ])

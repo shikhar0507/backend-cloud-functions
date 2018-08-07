@@ -53,19 +53,23 @@ const {
  * @returns {void}
  */
 const createAddendumDoc = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .addendumObjects
-    .doc(), {
-      activityId: conn.req.body.activityId,
-      user: conn.requester.phoneNumber,
-      location: getGeopointObject(conn.req.body.geopoint),
-      comment: `${conn.requester.phoneNumber} updated the activity`
-        + ` status to ${conn.req.body.status}.`,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      timestamp: serverTimestamp,
-    }
-  );
+  const docRef = rootCollections
+    .offices
+    .doc(locals.activity.get('officeId'))
+    .collection('Addendum')
+    .doc();
 
+  locals.batch.set(docRef, {
+    activityId: conn.req.body.activityId,
+    user: conn.requester.phoneNumber,
+    location: getGeopointObject(conn.req.body.geopoint),
+    comment: `${conn.requester.phoneNumber} updated the activity`
+      + ` status to ${conn.req.body.status}.`,
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    timestamp: serverTimestamp,
+  });
+
+  /** ENDS the response. */
   locals
     .batch
     .commit()
@@ -121,11 +125,10 @@ const handleResults = (conn, result) => {
   }
 
   /** Object to store local data. */
-  const locals = {};
-  locals.batch = db.batch();
-
-  /** Calling new `Date()` constructor multiple times is wasteful. */
-  locals.activity = result[0];
+  const locals = {
+    batch: db.batch(),
+    activity: result[0],
+  };
 
   if (conn.req.body.status === locals.activity.get('status')) {
     sendResponse(
