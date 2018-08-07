@@ -287,7 +287,7 @@ const handleAttachment = (conn, locals) => {
         const value = conn.req.body.attachment.Name.value;
         const type = conn.req.body.attachment.Name.type;
         const message = `'${value}' already exists in the office`
-          + ` ${conn.req.body.office} with the template ${type}.`;
+          + ` '${conn.req.body.office}' with the template '${type}'.`;
 
         sendResponse(
           conn,
@@ -450,6 +450,7 @@ const handleResult = (conn, result) => {
      */
     include: [],
     office: result[2],
+    allPhoneNumbers: new Set().add(conn.requester.phoneNumber),
   };
 
   if (conn.req.body.hasOwnProperty('schedule')) {
@@ -519,6 +520,25 @@ const handleResult = (conn, result) => {
 
       return;
     }
+  }
+
+  if (Array.isArray(conn.req.body.share)) {
+    conn.req.body.share
+      .forEach((phoneNumber) => locals.allPhoneNumbers.add(phoneNumber));
+  }
+
+  if (conn.req.body.hasOwnProperty('attachment')) {
+    const fields = Object.keys(conn.req.body.attachment);
+
+    fields.forEach((field) => {
+      const item = conn.req.body.attachment[field];
+      const type = item.type;
+      const value = item.value;
+
+      if (type === 'phoneNumber' && isE164PhoneNumber(value)) {
+        locals.allPhoneNumbers.add(value);
+      }
+    });
   }
 
   if (conn.req.body.template === 'office') {
