@@ -48,7 +48,6 @@ const {
   sendResponse,
   isNonEmptyString,
   isE164PhoneNumber,
-  logDailyActivities,
 } = require('../../admin/utils');
 
 
@@ -76,11 +75,15 @@ const createAddendumDoc = (conn, locals) => {
     }
   );
 
-  /**
-   * Ends the response by committing the batch and logging
-   *  the activity data to the `DailyActivities` collection.
-   */
-  logDailyActivities(conn, locals, code.created);
+  locals
+    .batch
+    .commit()
+    .then(() => sendResponse(
+      conn,
+      code.created,
+      'The activity was successfully created.')
+    )
+    .catch((error) => handleError(conn, error));
 };
 
 

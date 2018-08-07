@@ -44,7 +44,6 @@ const { code, } = require('../../admin/responses');
 const {
   handleError,
   sendResponse,
-  logDailyActivities,
   isNonEmptyString,
 } = require('../../admin/utils');
 
@@ -66,7 +65,11 @@ const createAddendumDoc = (conn, locals) => {
     locals.addendum
   );
 
-  logDailyActivities(conn, locals, code.noContent);
+  locals
+    .batch
+    .commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };
 
 

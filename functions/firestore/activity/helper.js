@@ -223,7 +223,8 @@ const filterAttachment = (conn, locals) => {
   if (fields.length > 0
     && !conn.req.body.hasOwnProperty('attachment')) {
     messageObject.isValid = false;
-    messageObject.message = `The 'attachment' field is missing from the request body.`;
+    messageObject.message = `The 'attachment' field is missing from the`
+      + ` request body.`;
 
     return messageObject;
   }

@@ -40,7 +40,6 @@ const {
   handleError,
   sendResponse,
   isE164PhoneNumber,
-  logDailyActivities,
 } = require('../../admin/utils');
 
 
@@ -61,7 +60,11 @@ const updateActivityDoc = (conn, locals) => {
     }
   );
 
-  logDailyActivities(conn, locals, code.noContent);
+  locals
+    .batch
+    .commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };
 
 

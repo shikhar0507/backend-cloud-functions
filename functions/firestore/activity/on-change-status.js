@@ -39,7 +39,6 @@ const { code, } = require('../../admin/responses');
 const {
   handleError,
   sendResponse,
-  logDailyActivities,
 } = require('../../admin/utils');
 
 
@@ -67,7 +66,11 @@ const createAddendumDoc = (conn, locals) => {
     }
   );
 
-  logDailyActivities(conn, locals, code.noContent);
+  locals
+    .batch
+    .commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };
 
 
