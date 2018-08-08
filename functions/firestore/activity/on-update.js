@@ -34,6 +34,7 @@ const {
 
 const {
   validateVenues,
+  getCanEditValue,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
@@ -48,24 +49,24 @@ const {
 } = require('../../admin/utils');
 
 
-/**
- * Creates a document in the path: `/AddendumObjects/(auto-id)`.
- * This will trigger an auto triggering cloud function which will
- * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
- * doc.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const createAddendumDoc = (conn, locals) => {
-  const docRef = rootCollections
-    .offices
-    .doc(locals.activity.get('officeId'))
-    .collection('Addendum')
-    .doc();
+const createDocsWithBatch = (conn, locals) => {
+  locals.batch.set(rootCollections
+    .activities
+    .doc(conn.req.body.activityId),
+    locals.activityUpdates, { merge: true, });
 
-  locals.batch.set(docRef, locals.addendum);
+  locals.batch.set(rootCollections
+    .offices
+    .doc(locals.activityDocRef.get('officeId'))
+    .collection('Addendum')
+    .doc(), {
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      activityId: conn.req.body.activityId,
+      user: conn.requester.phoneNumber,
+      location: getGeopointObject(conn.req.body.geopoint),
+      comment: locals.comment,
+    });
 
   /** ENDS the request. */
   locals
@@ -75,99 +76,106 @@ const createAddendumDoc = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
-
-/**
- * Updates the activity root and adds the data to the batch.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateActivityDoc = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .activities
-    .doc(conn.req.body.activityId),
-    locals.activityUpdates, {
-      /** The activity doc *will* have some of these fields by default. */
-      merge: true,
-    }
-  );
-
-  createAddendumDoc(conn, locals);
+const handleAssignees = (conn, locals) => {
+  // TODO: Fetch docs from Offices to see which users are employees and 
+  // which ones are admin.
+  createDocsWithBatch(conn, locals);
 };
 
+const queryForNameInOffices = (conn, locals, promise) =>
+  promise
+    .then((snapShot) => {
+      if (!snapShot.empty) {
+        const value = conn.req.body.attachment.Name.value;
+        const type = conn.req.body.attachment.Name.type;
+        const message = `'${value}' already exists in the office`
+          + ` '${conn.req.body.office}' with the template '${type}'.`;
 
-/**
- * Manages the attachment object.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Fields for the activity root object.
- * @returns {void}
- */
-const handleAttachment = (conn, locals) => {
-  if (!locals.activity.get('docRef')) {
-    updateActivityDoc(conn, locals);
+        sendResponse(conn, code.conflict, message);
 
-    return;
-  }
+        return;
+      }
 
-  if (!conn.req.body.hasOwnProperty('attachment')) {
-    updateActivityDoc(conn, locals);
-
-    return;
-  }
-
-  const attachmentDocRef = db.doc(locals.activity.get('attachment'));
-  const templateName = locals.activity.get('template');
-
-  rootCollections
-    .activityTemplates
-    .doc(templateName)
-    .get()
-    .then((doc) => {
-      const updatedFields = filterAttachment(
-        conn.req.body.attachment,
-        doc.get('attachment')
-      );
-
-      locals.batch.set(
-        attachmentDocRef,
-        updatedFields, {
-          merge: true,
-        }
-      );
-
-      updateActivityDoc(conn, locals);
+      handleAssignees(conn, locals);
 
       return;
     })
-    .catch((error) => handleAttachment(conn, error));
-};
+    .catch((error) => handleError(conn, error));
 
 
-/**
- * Updates the activity `timestamp` field for all the assignees
- * of the activity.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateActivityTimestamp = (conn, locals) => {
-  locals.assigneePhoneNumberArray.forEach((phoneNumber) => {
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId), {
-        timestamp: serverTimestamp,
-      }, {
-        merge: true,
-      }
-    );
-  });
 
-  handleAttachment(conn, locals);
+const handleExtra = (conn, locals) => {
+  if (conn.req.body.hasOwnProperty('schedule')) {
+    const names = [];
+
+    locals
+      .activityDocRef
+      .get('schedule')
+      .forEach((object) => names.push(object.name));
+
+    const result = validateSchedules(conn.req.body.schedule, names);
+
+    if (!result.isValid) {
+      sendResponse(conn, code.badRequest, result.message);
+
+      return;
+    }
+
+    locals.addendum.comment += ' schedule,';
+    locals.updatedFields.schedule = conn.req.body.schedule;
+  }
+
+  if (conn.req.body.hasOwnProperty('venue')) {
+    const descriptors = [];
+
+    locals
+      .activityDocRef
+      .get('venue')
+      .forEach((object) => descriptors.push(object.descriptor));
+
+    const result = validateVenues(conn.req.body.venue, descriptors);
+
+    if (!result.isValid) {
+      sendResponse(conn, code.badRequest, result.message);
+
+      return;
+    }
+
+    locals.addendum.comment += ' venue,';
+    locals.updatedFields.venue = conn.req.body.venue;
+  }
+
+  if (conn.req.body.hasOwnProperty('attachment')) {
+    const attachmentValid = filterAttachment(conn.req.body, locals);
+
+    if (!attachmentValid.isValid) {
+      sendResponse(conn, code.badRequest, attachmentValid.message);
+
+      return;
+    }
+
+    attachmentValid
+      .phoneNumbers
+      .forEach((phoneNumber) => locals.allPhoneNumbers.add(phoneNumber));
+
+    locals
+      .allPhoneNumbers
+      .forEach((phoneNumber) => locals.permissions[phoneNumber] = {
+        isAdmin: false,
+        isEmployee: false,
+        isCreator: conn.requester.phoneNumber === phoneNumber,
+      });
+
+    if (!attachmentValid.promise) {
+      handleAssignees(conn, locals);
+
+      return;
+    }
+
+    queryForNameInOffices(conn, locals);
+  }
+
+  handleAssignees(conn, locals);
 };
 
 
@@ -180,19 +188,16 @@ const updateActivityTimestamp = (conn, locals) => {
  * @returns {void}
  */
 const handleResult = (conn, result) => {
-  const activityDoc = result[0];
-  const assignees = result[1];
+  const [
+    activityDocRef,
+    assigneesCollectionRef,
+  ] = result;
 
-  if (!activityDoc.exists) {
-    /** This case should probably never execute because there is provision
-     * for deleting an activity anywhere. AND, for reaching the fetchDocs()
-     * function, the check for the existence of the activity has already
-     * been performed in the User's profile.
-     */
+  if (!activityDocRef.exists) {
     sendResponse(
       conn,
       code.conflict,
-      `This activity (${conn.req.body.activityId}) does not exist.`
+      `No activity found with the id: '${conn.req.body.activityId}'.`
     );
 
     return;
@@ -200,81 +205,35 @@ const handleResult = (conn, result) => {
 
   /** For storing local data during the flow. */
   const locals = {
+    activityDocRef,
+    canEditRule: activityDocRef.get('canEditRule'),
     batch: db.batch(),
-    activity: result[0],
-    assigneePhoneNumberArray: [],
-    addendum: {
-      timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      activityId: conn.req.body.activityId,
-      user: conn.requester.phoneNumber,
-      location: getGeopointObject(conn.req.body.geopoint),
-      comment: `${conn.requester.phoneNumber} update the activity`,
-    },
+    permissions: {},
+    allPhoneNumbers: [],
+    comment: `${conn.requester.phoneNumber} update the activity`,
     /** Stores the objects that are to be updated in the activity root. */
-    activityUpdates: { timestamp: serverTimestamp, },
+    updatedFields: { timestamp: serverTimestamp, },
   };
 
-  if (conn.req.body.hasOwnProperty('activityName')
-    && isNonEmptyString(conn.req.body.activityName)) {
+  if (conn.req.body.hasOwnProperty('activityName')) {
+    if (!isNonEmptyString(conn.req.body.activityName)) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `The 'activityName' field should be a non-empty string.`
+      );
+
+      return;
+    }
+
     locals.addendum.comment += ' activityName, ';
     locals.activityUpdates.activityName = conn.req.body.activityName;
   }
 
-  assignees
-    .forEach((doc) => locals.assigneePhoneNumberArray.push(doc.id));
+  assigneesCollectionRef
+    .forEach((doc) => locals.allPhoneNumbers.push(doc.id));
 
-  if (conn.req.body.hasOwnProperty('schedule')) {
-    const scheduleNames = new Set();
-
-    locals
-      .activity
-      .schedule
-      .forEach((scheduleObject) => scheduleNames.add(scheduleObject.name));
-
-    const result = validateSchedules(
-      conn.req.body.schedule,
-      /** Function expects an array of strings. Not `Set()` */
-      Array.from(scheduleNames)
-    );
-
-    if (!result.isValid) {
-      sendResponse(conn, code.badRequest, result.message);
-
-      return;
-    }
-
-    locals.addendum.comment += ' schedule,';
-    locals.activityUpdates.schedule = conn.req.body.schedule;
-  }
-
-  if (conn.req.body.hasOwnProperty('venue')) {
-    const venueDescriptors = new Set();
-
-    locals
-      .activity
-      .venue
-      .forEach(
-        (venueObject) => venueDescriptors.add(venueObject.venueDescriptor)
-      );
-
-    const result = validateVenues(
-      conn.req.body.venue,
-      /** Function expects an array of strings. Not `Set()` */
-      Array.from(venueDescriptors)
-    );
-
-    if (!result.isValid) {
-      sendResponse(conn, code.badRequest, result.message);
-
-      return;
-    }
-
-    locals.addendum.comment += ' venue,';
-    locals.activityUpdates.venue = conn.req.body.venue;
-  }
-
-  updateActivityTimestamp(conn, locals);
+  handleExtra(conn, locals);
 };
 
 
@@ -316,11 +275,10 @@ const verifyEditPermission = (conn) =>
     .get()
     .then((doc) => {
       if (!doc.exists) {
-        /** The activity doesn't exist for the user */
         sendResponse(
           conn,
           code.forbidden,
-          `This activity (${conn.req.body.activityId}) does not exist.`
+          `No activity found with the id: '${conn.req.body.activityId}'.`
         );
 
         return;

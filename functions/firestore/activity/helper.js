@@ -34,51 +34,6 @@ const {
 
 
 /**
- * Handles whether a person has the authority to edit an activity after it is
- * created.
- *
- * @param {Object} locals Object containing local data.
- * @param {string} phoneNumber Number to check the `canEdit` rule for.
- * @param {string} requesterPhoneNumber Phone number of the requester.
- * @param {Array} assignees Array of people who are assignees of the activity.
- * @returns {boolean} Depends on the subscription and the phoneNumber in args.
- */
-const handleCanEdit = (
-  locals,
-  phoneNumber,
-  requesterPhoneNumber,
-  assignees = []
-) => {
-  if (locals.canEditRule === 'ALL') return true;
-
-  if (locals.canEditRule === 'NONE') return false;
-
-  /** List of assignees... */
-  if (locals.canEditRule === 'FROM_INCLUDE') {
-    if (locals.include.indexOf(phoneNumber) > -1
-      || assignees.indexOf(phoneNumber) > -1) {
-      return true;
-    }
-
-    return false;
-  }
-
-  // TODO: this needs to be implemented.
-  if (locals.canEditRule === 'PEOPLE_TYPE') return true;
-
-  if (locals.canEditRule === 'CREATOR') {
-    if (phoneNumber === requesterPhoneNumber) {
-      return true;
-    }
-
-    return false;
-  }
-
-  return false;
-};
-
-
-/**
  * Validates the schedules where the there is a name field present,
  * along with the condition that the endTime >= startTime.
  *
@@ -418,6 +373,8 @@ const filterAttachment = (body, locals) => {
     return messageObject;
   }
 
+  const validTypes = require('../../admin/attachment-types').validTypes;
+
   for (const field of fields) {
     if (!body.attachment.hasOwnProperty(field)) {
       messageObject.isValid = false;
@@ -462,8 +419,6 @@ const filterAttachment = (body, locals) => {
       break;
     }
 
-    const validTypes = require('../../admin/attachment-types').validTypes;
-
     if (!validTypes.has(type)) {
       messageObject.isValid = false;
       messageObject.message = `The field '${field}.type' has an invalid type.`;
@@ -479,8 +434,11 @@ const filterAttachment = (body, locals) => {
       }
 
       if (type !== 'office') {
-        messageObject.promise = locals
-          .docRef
+        const rootCollections = require('../../admin/admin').rootCollections;
+
+        messageObject.promise = rootCollections
+          .offices
+          .doc(locals.officeId)
           .collection('Activities')
           .where('Name', '==', value)
           .where('template', '==', type)
@@ -638,7 +596,7 @@ const validateUpdateRequestBody = (body, successMessage) => {
  *
  * @param {Object} body Request body from the client's device.
  * @param {Object} successMessage The default success message.
- * @returns {Object} Message object
+ * @returns {Object} Message object.
  */
 const validateCommentRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('comment')) {
@@ -663,7 +621,7 @@ const validateCommentRequestBody = (body, successMessage) => {
  * Checks if the request body has a valid `status` field.
  * @param {Object} body Request body from the client's device.
  * @param {Object} successMessage The default success message.
- * @returns {Object} Message object
+ * @returns {Object} Message object.
  */
 const validateChangeStatusRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('status')) {
@@ -888,9 +846,31 @@ const isValidRequestBody = (body, endpoint) => {
 };
 
 
+const getCanEditValue = (locals, phoneNumber) => {
+  const canEditRule = locals.canEditRule;
+
+  if (canEditRule === 'ALL') return true;
+  if (canEditRule === 'NONE') return true;
+
+  if (canEditRule === 'CREATOR') {
+    return locals.permissions[phoneNumber].isCreator;
+  }
+
+  if (canEditRule === 'ADMIN') {
+    return locals.permissions[phoneNumber].isAdmin;
+  }
+
+  if (canEditRule === 'EMPLOYEE') {
+    return locals.permissions[phoneNumber].isEmployee;
+  }
+
+  return false;
+};
+
+
 module.exports = {
   validateVenues,
-  handleCanEdit,
+  getCanEditValue,
   validateSchedules,
   filterAttachment,
   isValidRequestBody,

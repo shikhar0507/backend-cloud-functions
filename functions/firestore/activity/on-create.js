@@ -40,34 +40,13 @@ const {
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
+  getCanEditValue,
 } = require('./helper');
 
 const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
-
-
-const getCanEditValue = (locals, phoneNumber) => {
-  const canEditRule = locals.templateDocRef.get('canEditRule');
-
-  if (canEditRule === 'ALL') return true;
-  if (canEditRule === 'NONE') return true;
-
-  if (canEditRule === 'CREATOR') {
-    return locals.permissions[phoneNumber].isCreator;
-  }
-
-  if (canEditRule === 'ADMIN') {
-    return locals.permissions[phoneNumber].isAdmin;
-  }
-
-  if (canEditRule === 'EMPLOYEE') {
-    return locals.permissions[phoneNumber].isEmployee;
-  }
-
-  return false;
-};
 
 
 const getDocRef = (template, locals) => {
@@ -329,7 +308,8 @@ const createLocals = (conn, locals, result) => {
     return;
   }
 
-  if (subscriptionQueryResult.empty && !conn.requester.isSupportRequest) {
+  if (subscriptionQueryResult.empty
+    && !conn.requester.isSupportRequest) {
     sendResponse(
       conn,
       code.forbidden,
@@ -350,19 +330,37 @@ const createLocals = (conn, locals, result) => {
     return;
   }
 
-  if (conn.req.body.template === 'office' && !locals.officeDocRef) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `The office: '${conn.req.body.office}' already exists.`
-    );
-
-    return;
-  }
-
   locals.templateDocRef = templateQueryResult.docs[0];
   locals.subscriptionDocRef = subscriptionQueryResult.docs[0];
   locals.officeDocRef = officeQueryResult.docs[0];
+  locals.canEditRule = templateQueryResult.docs[0].get('canEditRule');
+
+  if (conn.req.body.template === 'office') {
+    if (!locals.officeDocRef) {
+      sendResponse(
+        conn,
+        code.conflict,
+        `The office: '${conn.req.body.office}' already exists.`
+      );
+
+      return;
+    }
+
+    if (conn.req.body.office !== conn.req.body.attachment.Name.value) {
+      sendResponse(
+        conn,
+        code.conflict,
+        `The office name in the 'attachment.Name.value' and the`
+        + ` 'office' field should be the same.`
+      );
+
+      return;
+    }
+
+    locals.officeId = locals.activityRef.id;
+  }
+
+  locals.officeId = locals.officeDocRef.id;
 
   if (locals.subscriptionDocRef.get('status') === 'CANCELLED') {
     sendResponse(
@@ -374,7 +372,6 @@ const createLocals = (conn, locals, result) => {
 
     return;
   }
-
 
   if (locals.officeDocRef.get('status') === 'CANCELLED') {
     sendResponse(
