@@ -350,6 +350,16 @@ const createLocals = (conn, locals, result) => {
     return;
   }
 
+  if (conn.req.body.template === 'office' && !locals.officeDocRef) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `The office: '${conn.req.body.office}' already exists.`
+    );
+
+    return;
+  }
+
   locals.templateDocRef = templateQueryResult.docs[0];
   locals.subscriptionDocRef = subscriptionQueryResult.docs[0];
   locals.officeDocRef = officeQueryResult.docs[0];
