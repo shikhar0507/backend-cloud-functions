@@ -329,8 +329,6 @@ const validateVenues = (venues, venueDescriptors) => {
  */
 const filterAttachment = (conn, locals) => {
   // TODO: Move this function to `isValidRequestBody` function.
-  const weekdays = require('../../admin/attachment-types').weekdays;
-
   const messageObject = {
     isValid: true,
     message: null,
@@ -352,15 +350,32 @@ const filterAttachment = (conn, locals) => {
     return messageObject;
   }
 
-  for (const field of fields) {
-    const item = conn.req.body.attachment[field];
+  const invalidTypeMessage = `Expected the type of 'attachment' to be`
+    + ` an 'Object', Found ${typeof conn.req.body.attachment}.`;
 
+  if (conn.req.body.attachment === null) {
+    messageObject.isValid = false;
+    messageObject.message = invalidTypeMessage;
+
+    return messageObject;
+  }
+
+  if (typeof conn.req.body.attachment !== 'object') {
+    messageObject.isValid = false;
+    messageObject.message = invalidTypeMessage;
+
+    return messageObject;
+  }
+
+  for (const field of fields) {
     if (!conn.req.body.attachment.hasOwnProperty(field)) {
       messageObject.isValid = false;
       messageObject.message = `The '${field}' field is missing`
         + ` from attachment.`;
       break;
     }
+
+    const item = conn.req.body.attachment[field];
 
     if (!item.hasOwnProperty('type')) {
       messageObject.isValid = false;
@@ -379,33 +394,37 @@ const filterAttachment = (conn, locals) => {
     const type = item.type;
     const value = item.value;
 
-    const validTypes = require('../../admin/attachment-types');
 
-    if (!validTypes.has(type)) {
-      messageObject.isValid = false;
-      messageObject.message = `The '${type}' is not a valid type.`;
-      break;
-    }
+    const shouldBeString = `In 'attachment', expected 'string' in`
+      + ` '${field}.value' object.`;
 
     if (typeof type !== 'string') {
       messageObject.isValid = false;
-      messageObject.message = `The 'type' field in '${field}' field`
-        + ` should be a non-empty string.`;
+      messageObject.message = `${shouldBeString}`
+        + ` Found ${typeof value}.`;
       break;
     }
 
     if (typeof value !== 'string') {
       messageObject.isValid = false;
-      messageObject.message = `The 'value' field in '${field}' field`
-        + ` should be a non-empty string.`;
+      messageObject.message = `${shouldBeString}`
+        + ` Found ${typeof value}.`;
+      break;
+    }
+
+    const validTypes = require('../../admin/attachment-types').validTypes;
+
+    if (!validTypes.has(type)) {
+      messageObject.isValid = false;
+      messageObject.message = `The field '${field}.type' has an invalid type.`;
       break;
     }
 
     if (field === 'Name') {
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
-        messageObject.message = `The Object '${field}' should have`
-          + ` a string in the 'value' field.`;
+        messageObject.message = `${shouldBeString}`
+          + ` Found ${typeof value}.`;
         break;
       }
 
@@ -421,25 +440,23 @@ const filterAttachment = (conn, locals) => {
       }
     }
 
-    // TODO: Refactor this... :O
     if (type === 'phoneNumber') {
-      if (value !== '') {
-        if (!isE164PhoneNumber(value)) {
-          messageObject.isValid = false;
-          messageObject.message = `The phone number in the`
-            + ` field '${field}' is invalid.`;
-          break;
-        }
+      if (value !== '' && !isE164PhoneNumber(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `In 'attachment' the field '${field}'`
+          + ` has an invalid phone number.`;
+        break;
       }
     }
 
+    const weekdays = require('../../admin/attachment-types').weekdays;
+
     if (type === 'weekday') {
-      if (value !== '') {
-        if (!weekdays.has(value)) {
-          messageObject.isValid = false;
-          messageObject.message = `The value '${value}' in the`
-            + `field '${field}' should be a weekday.`;
-        }
+      if (value !== '' && !weekdays.has(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `In 'attachment', the field ${field}`
+          + ` is an invalid 'weekday'. Use one of the`
+          + ` following: ${Array.from(weekdays.keys())}.`;
       }
     }
   }
@@ -453,45 +470,46 @@ const filterAttachment = (conn, locals) => {
  *
  * @param {Object} body Request body from the client's device.
  * @param {Object} successMessage The default success message.
- * @returns {Object} Message object
+ * @returns {Object} Message object.
  */
 const validateCreateRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('template')) {
     return {
-      message: 'The "template" field is missing from the request body.',
+      message: `Expected 'template' field to have a value of type 'string'. `
+        + `Found ${typeof body.template}.`,
       isValidBody: false,
     };
   }
 
   if (!isNonEmptyString(body.template)) {
     return {
-      message: 'The "template" field should be a non-empty string.',
+      message: `The 'template' field should be a non-empty string.`,
       isValidBody: false,
     };
   }
 
   if (!body.hasOwnProperty('office')) {
     return {
-      message: 'The "office" field is missing from the request body.',
+      message: `The 'office' field is missing from the request body.`,
       isValidBody: false,
     };
   }
 
   if (!isNonEmptyString(body.office)) {
     return {
-      message: 'The "office" field should be a non-empty string.',
+      message: `The 'office' field should be a non-empty string.`,
       isValidBody: false,
     };
   }
 
-  if (body.hasOwnProperty('share')) {
-    if (!Array.isArray(body.share)) {
-      return {
-        message: `The "share" field in the request body should be an 'array'.`,
-        isValidBody: false,
-      };
-    }
-
+  if (body.hasOwnProperty('share')
+    && !Array.isArray(body.share)) {
+    return {
+      message: `The 'share' field in the request body should be an 'array'.`,
+      isValidBody: false,
+    };
+  } else {
+    /** Verify if all phone numbers are valid. */
     let phoneNumber;
 
     for (let i = 0; i < body.share; i++) {
@@ -515,7 +533,7 @@ const validateCreateRequestBody = (body, successMessage) => {
  *
  * @param {Object} body Request body from the client's device.
  * @param {Object} successMessage The default success message.
- * @returns {Object} Message object
+ * @returns {Object} Message object.
  */
 const validateUpdateRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('activityName')
@@ -523,10 +541,10 @@ const validateUpdateRequestBody = (body, successMessage) => {
     && !body.hasOwnProperty('venue')
     && !body.hasOwnProperty('schedule')) {
     return {
-      message: 'The request body has no usable fields.'
-        + ' Please add at least any (or all) of these: "title",'
-        + ' "description", "schedule", or "venue"'
-        + ' in the request body to make a successful request.',
+      message: `The request body has no usable fields.`
+        + ` Please add at least one (or any/all) of these: 'title',`
+        + ` 'description', 'schedule', or 'venue'`
+        + ` in the request body to make a successful request.`,
       isValidBody: false,
     };
   }
@@ -534,8 +552,8 @@ const validateUpdateRequestBody = (body, successMessage) => {
   if (body.hasOwnProperty('activityName')
     && !isNonEmptyString(body.activityName)) {
     return {
-      message: 'The "activityName" field in the request body should be a'
-        + ' non-empty string.',
+      message: `The 'activityName' field in the request body should be a`
+        + ` non-empty string.`,
       isValidBody: false,
     };
   }
@@ -554,14 +572,14 @@ const validateUpdateRequestBody = (body, successMessage) => {
 const validateCommentRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('comment')) {
     return {
-      message: 'The "comment" field is missing from the request body.',
+      message: `The 'comment' field is missing from the request body.`,
       isValidBody: false,
     };
   }
 
   if (!isNonEmptyString(body.comment)) {
     return {
-      message: 'The "comment" field should be a non-empty string.',
+      message: `The 'comment' field should be a non-empty string.`,
       isValidBody: false,
     };
   }
@@ -579,14 +597,24 @@ const validateCommentRequestBody = (body, successMessage) => {
 const validateChangeStatusRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('status')) {
     return {
-      message: 'The "status" field is missing from the request body.',
+      message: `The 'status' field is missing from the request body.`,
       isValidBody: false,
     };
   }
 
   if (!isNonEmptyString(body.status)) {
     return {
-      message: 'The "status" field should be a non-empty string.',
+      message: `The 'status' field should be a non-empty string.`,
+      isValidBody: false,
+    };
+  }
+
+  const activityStatuses =
+    require('../../admin/attachment-types').activityStatuses;
+
+  if (!activityStatuses.has(body.status)) {
+    return {
+      message: `${body.status} is not a valid status.`,
       isValidBody: false,
     };
   }
@@ -607,21 +635,21 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
 const validateRemoveRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('remove')) {
     return {
-      message: 'The "remove" array is missing from the request body',
+      message: `The 'remove' array is missing from the request body`,
       isValidBody: false,
     };
   }
 
   if (!Array.isArray(body.remove)) {
     return {
-      message: 'The "remove" field in the request body should be an array.',
+      message: `The 'remove' field in the request body should be an array.`,
       isValidBody: false,
     };
   }
 
   if (body.remove.length === 0) {
     return {
-      message: 'The "remove" array cannot be empty.',
+      message: `The 'remove' array cannot be empty.`,
       isValidBody: false,
     };
   }
@@ -655,21 +683,21 @@ const validateRemoveRequestBody = (body, successMessage) => {
 const validateShareRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('share')) {
     return {
-      message: 'The "share" array is missing from the request body',
+      message: `The 'share' array is missing from the request body`,
       isValidBody: false,
     };
   }
 
   if (!Array.isArray(body.share)) {
     return {
-      message: 'The "share" field in the request body should be an array.',
+      message: `The 'share' field in the request body should be an array.`,
       isValidBody: false,
     };
   }
 
   if (body.share.length === 0) {
     return {
-      message: 'The "share" array cannot be empty.',
+      message: `The 'share' array cannot be empty.`,
       isValidBody: false,
     };
   }
@@ -708,37 +736,37 @@ const isValidRequestBody = (body, endpoint) => {
 
   if (!body.hasOwnProperty('timestamp')) {
     return {
-      message: 'The "timestamp" field is missing from the request body.',
+      message: `The 'timestamp' field is missing from the request body.`,
       isValidBody: false,
     };
   }
 
   if (typeof body.timestamp !== 'number') {
     return {
-      message: 'The "timestamp" field should be a number.',
+      message: `The 'timestamp' field should be a number.`,
       isValidBody: false,
     };
   }
 
   if (!isValidDate(body.timestamp)) {
     return {
-      message: 'The "timestamp" in the request body is invalid.',
+      message: `The 'timestamp' in the request body is invalid.`,
       isValidBody: false,
     };
   }
 
   if (!body.hasOwnProperty('geopoint')) {
     return {
-      message: 'The "geopoint" field is missing from the request body.',
+      message: `The 'geopoint' field is missing from the request body.`,
       isValidBody: false,
     };
   }
 
   if (!isValidGeopoint(body.geopoint)) {
     return {
-      message: 'The "geopoint" object in the request body is invalid.'
-        + ' Please make sure that the "latitude" and "longitude" fields'
-        + ' are present in the "geopoint" object with valid ranges.',
+      message: `The 'geopoint' object in the request body is invalid.`
+        + ` Please make sure that the 'latitude' and 'longitude' fields`
+        + ` are present in the 'geopoint' object with valid ranges.`,
       isValidBody: false,
     };
   }
@@ -752,14 +780,14 @@ const isValidRequestBody = (body, endpoint) => {
    */
   if (!body.hasOwnProperty('activityId')) {
     return {
-      message: 'The "activityId" field is missing from the request body.',
+      message: `The 'activityId' field is missing from the request body.`,
       isValidBody: false,
     };
   }
 
   if (!isNonEmptyString(body.activityId)) {
     return {
-      message: 'The "activityId" field should be a non-empty string.',
+      message: `The 'activityId' field should be a non-empty string.`,
       isValidBody: false,
     };
   }
@@ -784,7 +812,7 @@ const isValidRequestBody = (body, endpoint) => {
     return validateShareRequestBody(body, successMessage);
   }
 
-  throw new Error('Invalid endpoint in the method argument');
+  throw new Error(`Invalid endpoint in the method argument`);
 };
 
 
