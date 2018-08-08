@@ -173,6 +173,20 @@ const validateSchedules = (body, scheduleNames) => {
       break;
     }
 
+    if (typeof startTime !== 'number') {
+      messageObject.isValid = false;
+      messageObject.message = `The 'startTime' in the schedule '${name}' should`
+        + ` be a number`;
+      break;
+    }
+
+    if (typeof endTime !== 'number') {
+      messageObject.isValid = false;
+      messageObject.message = `The 'startTime' in the schedule '${name}' should`
+        + ` be a number`;
+      break;
+    }
+
     if (!isValidDate(startTime)) {
       messageObject.isValid = false;
       messageObject.message = `The 'startTime' in the schedule '${name}' should`
