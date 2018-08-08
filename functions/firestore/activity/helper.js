@@ -82,23 +82,36 @@ const handleCanEdit = (
  * Validates the schedules where the there is a name field present,
  * along with the condition that the endTime >= startTime.
  *
- * @param {Array} schedules Schedules from request body.
+ * @param {Object} body The request body.
  * @param {Array} scheduleNames Schedules names allowed from the template.
  * @returns {Object} `messageObject` denoting whether the `schedules`
  *  from the request body are valid.
  */
-const validateSchedules = (schedules, scheduleNames) => {
+const validateSchedules = (body, scheduleNames) => {
   const messageObject = {
     isValid: true,
     message: null,
   };
 
-  let tempObj;
+  if (!body.hasOwnProperty('schedule')) {
+    messageObject.isValid = false;
+    messageObject.message = `The 'schedule' field is missing`
+      + ` from the request body.`;
+
+    return messageObject;
+  }
+
+  const schedules = body.schedule;
 
   if (!Array.isArray(schedules)) {
+    let abbr = 'object';
+    if (scheduleNames.length > 1) {
+      abbr = 'objects';
+    }
+
     messageObject.isValid = false;
     messageObject.message = `The 'schedule' field in the request body should`
-      + ` be an array of objects.`;
+      + ` be an array with ${scheduleNames.length} ${abbr}.`;
 
     return messageObject;
   }
@@ -112,14 +125,14 @@ const validateSchedules = (schedules, scheduleNames) => {
 
     messageObject.isValid = false;
     messageObject.message = `Expected ${scheduleNames.length} ${abbr} in the`
-      + `request body. Found ${schedules.length}.`;
+      + ` request body. Found ${schedules.length}.`;
 
     return messageObject;
   }
 
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < schedules.length; i++) {
-    tempObj = schedules[i];
+    const tempObj = schedules[i];
 
     if (typeof tempObj !== 'object') {
       messageObject.isValid = false;
@@ -196,18 +209,26 @@ const validateSchedules = (schedules, scheduleNames) => {
  * Validates the venues based on the `venueDescriptors` and
  * valid geopoint object.
  *
- * @param {Array} venues Venue objects from request body.
+ * @param {Object} body The request body.
  * @param {Array} venueDescriptors Venue descriptors allowed from the template.
  * @returns {Object} `messageObject` denoting whether the venues
  * from the request body are valid.
  */
-const validateVenues = (venues, venueDescriptors) => {
+const validateVenues = (body, venueDescriptors) => {
   const messageObject = {
     isValid: true,
     message: null,
   };
 
-  let tempObj;
+  if (!body.hasOwnProperty('venue')) {
+    messageObject.isValid = false;
+    messageObject.message = `The 'venue' field is missing from the`
+      + ` request body.`;
+
+    return messageObject;
+  }
+
+  const venues = body.venue;
 
   if (!Array.isArray(venues)) {
     messageObject.isValid = false;
@@ -226,14 +247,14 @@ const validateVenues = (venues, venueDescriptors) => {
 
     messageObject.isValid = false;
     messageObject.message = `Expected ${venueDescriptors.length}`
-      + `${abbr} in the request body. Found ${venues.length}.`;
+      + ` ${abbr} in the request body. Found ${venues.length}.`;
 
     return messageObject;
   }
 
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < venues.length; i++) {
-    tempObj = venues[i];
+    const tempObj = venues[i];
 
     if (!tempObj.hasOwnProperty('venueDescriptor')) {
       messageObject.isValid = false;
@@ -309,8 +330,8 @@ const validateVenues = (venues, venueDescriptors) => {
       messageObject.isValid = false;
       messageObject.message = `In the venue object at position ${i}, the`
         + ` ' geopoint' is invalid. Make sure to include the fields`
-        + `' latitude' and 'longitude' in the object with proper range`
-        + ` for each field.`;
+        + `' latitude' and 'longitude' are present in the object with proper`
+        + ` range for each field.`;
       break;
     }
   }
@@ -322,27 +343,27 @@ const validateVenues = (venues, venueDescriptors) => {
 /**
  * Validates the attachment object based on the `template`.
  *
- * @param {Object} conn Object containing Express Request and Response objects.
+ * @param {Object} body The request body.
  * @param {Object} locals Object containing local data.
  * @returns {Object} `messageObject` containing `message` and `isValid` fields
  * denoting if the attachment is a valid object.
  */
-const filterAttachment = (conn, locals) => {
+const filterAttachment = (body, locals) => {
   // TODO: Move this function to `isValidRequestBody` function.
   const messageObject = {
     isValid: true,
     message: null,
     promise: null,
+    phoneNumbers: [],
   };
 
-  const fields = Object.keys(locals.template.attachment);
+  const fields = Object.keys(locals.templateDocRef.get('attachment'));
 
   /**
    * Some templates **may** have empty attachment object. For those cases,
    * it's allowed to skip the template in the request body.
    */
-  if (fields.length > 0
-    && !conn.req.body.hasOwnProperty('attachment')) {
+  if (!body.hasOwnProperty('attachment')) {
     messageObject.isValid = false;
     messageObject.message = `The 'attachment' field is missing from the`
       + ` request body.`;
@@ -351,31 +372,47 @@ const filterAttachment = (conn, locals) => {
   }
 
   const invalidTypeMessage = `Expected the type of 'attachment' to be`
-    + ` an 'Object', Found ${typeof conn.req.body.attachment}.`;
+    + ` of type 'Object'. Found ${typeof body.attachment}.`;
 
-  if (conn.req.body.attachment === null) {
+  /** The typeof null is also `object`. */
+  if (body.attachment === null) {
     messageObject.isValid = false;
     messageObject.message = invalidTypeMessage;
 
     return messageObject;
   }
 
-  if (typeof conn.req.body.attachment !== 'object') {
+  if (typeof body.attachment !== 'object') {
     messageObject.isValid = false;
     messageObject.message = invalidTypeMessage;
+
+    return messageObject;
+  }
+
+  const foundFields = Object.keys(body.attachment);
+
+  if (fields.length !== foundFields.length) {
+    let abbr = 'field';
+    if (fields.length > 1) {
+      abbr = 'fields';
+    }
+
+    messageObject.isValid = false;
+    messageObject.message = `In 'attachment', expected ${fields.length}`
+      + ` ${abbr}. Found ${foundFields.length}`;
 
     return messageObject;
   }
 
   for (const field of fields) {
-    if (!conn.req.body.attachment.hasOwnProperty(field)) {
+    if (!body.attachment.hasOwnProperty(field)) {
       messageObject.isValid = false;
       messageObject.message = `The '${field}' field is missing`
         + ` from attachment.`;
       break;
     }
 
-    const item = conn.req.body.attachment[field];
+    const item = body.attachment[field];
 
     if (!item.hasOwnProperty('type')) {
       messageObject.isValid = false;
@@ -393,7 +430,6 @@ const filterAttachment = (conn, locals) => {
 
     const type = item.type;
     const value = item.value;
-
 
     const shouldBeString = `In 'attachment', expected 'string' in`
       + ` '${field}.value' object.`;
@@ -447,6 +483,12 @@ const filterAttachment = (conn, locals) => {
           + ` has an invalid phone number.`;
         break;
       }
+
+      /** 
+       * Collecting all phone numbers from attachment to 
+       * add add in the activity assignee list.
+       */
+      messageObject.phoneNumbers.push(value);
     }
 
     const weekdays = require('../../admin/attachment-types').weekdays;
@@ -527,7 +569,7 @@ const validateCreateRequestBody = (body, successMessage) => {
     /** Verify if all phone numbers are valid. */
     let phoneNumber;
 
-    for (let i = 0; i < body.share; i++) {
+    for (let i = 0; i < body.share.length; i++) {
       phoneNumber = body.share[i];
 
       if (!isE164PhoneNumber(phoneNumber)) {
@@ -675,7 +717,8 @@ const validateRemoveRequestBody = (body, successMessage) => {
     phoneNumber = body.remove.length[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `Phone number: '${phoneNumber}' is invalid.`;
+      successMessage.message = `Phone number: '${phoneNumber}' is invalid in`
+        + ` the 'share' array.`;
       successMessage.isValid = false;
     }
 
