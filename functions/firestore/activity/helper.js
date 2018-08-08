@@ -473,32 +473,47 @@ const filterAttachment = (conn, locals) => {
  * @returns {Object} Message object.
  */
 const validateCreateRequestBody = (body, successMessage) => {
+  if (!body.hasOwnProperty('activityName')) {
+    return {
+      message: `The 'activityName' field is missing from the request body.`,
+      isValid: false,
+    };
+  }
+
+  if (!isNonEmptyString(body.activityName)) {
+    return {
+      message: `The 'activityName' should be of type 'string'. `
+        + `Found '${typeof body.activityName}'.`,
+      isValid: false,
+    };
+  }
+
   if (!body.hasOwnProperty('template')) {
     return {
       message: `Expected 'template' field to have a value of type 'string'. `
         + `Found ${typeof body.template}.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!isNonEmptyString(body.template)) {
     return {
       message: `The 'template' field should be a non-empty string.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!body.hasOwnProperty('office')) {
     return {
       message: `The 'office' field is missing from the request body.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!isNonEmptyString(body.office)) {
     return {
       message: `The 'office' field should be a non-empty string.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -506,7 +521,7 @@ const validateCreateRequestBody = (body, successMessage) => {
     && !Array.isArray(body.share)) {
     return {
       message: `The 'share' field in the request body should be an 'array'.`,
-      isValidBody: false,
+      isValid: false,
     };
   } else {
     /** Verify if all phone numbers are valid. */
@@ -518,7 +533,7 @@ const validateCreateRequestBody = (body, successMessage) => {
       if (!isE164PhoneNumber(phoneNumber)) {
         successMessage.message = `The '${phoneNumber}' is not a`
           + ` valid phone number.`;
-        successMessage.isValidBody = false;
+        successMessage.isValid = false;
         break;
       }
     }
@@ -545,7 +560,7 @@ const validateUpdateRequestBody = (body, successMessage) => {
         + ` Please add at least one (or any/all) of these: 'title',`
         + ` 'description', 'schedule', or 'venue'`
         + ` in the request body to make a successful request.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -554,7 +569,7 @@ const validateUpdateRequestBody = (body, successMessage) => {
     return {
       message: `The 'activityName' field in the request body should be a`
         + ` non-empty string.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -573,14 +588,14 @@ const validateCommentRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('comment')) {
     return {
       message: `The 'comment' field is missing from the request body.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!isNonEmptyString(body.comment)) {
     return {
       message: `The 'comment' field should be a non-empty string.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -598,14 +613,14 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('status')) {
     return {
       message: `The 'status' field is missing from the request body.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!isNonEmptyString(body.status)) {
     return {
       message: `The 'status' field should be a non-empty string.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -615,7 +630,7 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
   if (!activityStatuses.has(body.status)) {
     return {
       message: `${body.status} is not a valid status.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -636,21 +651,21 @@ const validateRemoveRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('remove')) {
     return {
       message: `The 'remove' array is missing from the request body`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!Array.isArray(body.remove)) {
     return {
       message: `The 'remove' field in the request body should be an array.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (body.remove.length === 0) {
     return {
       message: `The 'remove' array cannot be empty.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -661,7 +676,7 @@ const validateRemoveRequestBody = (body, successMessage) => {
 
     if (!isE164PhoneNumber(phoneNumber)) {
       successMessage.message = `Phone number: '${phoneNumber}' is invalid.`;
-      successMessage.isValidBody = false;
+      successMessage.isValid = false;
     }
 
     break;
@@ -684,21 +699,21 @@ const validateShareRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('share')) {
     return {
       message: `The 'share' array is missing from the request body`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!Array.isArray(body.share)) {
     return {
       message: `The 'share' field in the request body should be an array.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (body.share.length === 0) {
     return {
       message: `The 'share' array cannot be empty.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -709,7 +724,7 @@ const validateShareRequestBody = (body, successMessage) => {
 
     if (!isE164PhoneNumber(phoneNumber)) {
       successMessage.message = `Phone number: '${phoneNumber}' is invalid.`;
-      successMessage.isValidBody = false;
+      successMessage.isValid = false;
     }
 
     break;
@@ -731,34 +746,34 @@ const isValidRequestBody = (body, endpoint) => {
   /** Message returned when everything in the request body is alright. */
   const successMessage = {
     message: null,
-    isValidBody: true,
+    isValid: true,
   };
 
   if (!body.hasOwnProperty('timestamp')) {
     return {
       message: `The 'timestamp' field is missing from the request body.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (typeof body.timestamp !== 'number') {
     return {
       message: `The 'timestamp' field should be a number.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!isValidDate(body.timestamp)) {
     return {
       message: `The 'timestamp' in the request body is invalid.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!body.hasOwnProperty('geopoint')) {
     return {
       message: `The 'geopoint' field is missing from the request body.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -767,7 +782,7 @@ const isValidRequestBody = (body, endpoint) => {
       message: `The 'geopoint' object in the request body is invalid.`
         + ` Please make sure that the 'latitude' and 'longitude' fields`
         + ` are present in the 'geopoint' object with valid ranges.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
@@ -781,14 +796,14 @@ const isValidRequestBody = (body, endpoint) => {
   if (!body.hasOwnProperty('activityId')) {
     return {
       message: `The 'activityId' field is missing from the request body.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
   if (!isNonEmptyString(body.activityId)) {
     return {
       message: `The 'activityId' field should be a non-empty string.`,
-      isValidBody: false,
+      isValid: false,
     };
   }
 
