@@ -456,8 +456,8 @@ const filterAttachment = (body, locals) => {
         break;
       }
 
-      /** 
-       * Collecting all phone numbers from attachment to 
+      /**
+       * Collecting all phone numbers from attachment to
        * add add in the activity assignee list.
        */
       messageObject.phoneNumbers.push(value);
@@ -531,13 +531,14 @@ const validateCreateRequestBody = (body, successMessage) => {
     };
   }
 
-  if (body.hasOwnProperty('share')
-    && !Array.isArray(body.share)) {
-    return {
-      message: `The 'share' field in the request body should be an 'array'.`,
-      isValid: false,
-    };
-  } else {
+  if (body.hasOwnProperty('share')) {
+    if (!Array.isArray(body.share)) {
+      return {
+        message: `The 'share' field in the request body should be an 'array'.`,
+        isValid: false,
+      };
+    }
+
     /** Verify if all phone numbers are valid. */
     let phoneNumber;
 
@@ -638,8 +639,8 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
     };
   }
 
-  const activityStatuses =
-    require('../../admin/attachment-types').activityStatuses;
+  const activityStatuses = require('../../admin/attachment-types')
+    .activityStatuses;
 
   if (!activityStatuses.has(body.status)) {
     return {
@@ -847,7 +848,7 @@ const isValidRequestBody = (body, endpoint) => {
 
 
 const getCanEditValue = (locals, phoneNumber) => {
-  const canEditRule = locals.canEditRule;
+  const canEditRule = locals.static.canEditRule;
 
   if (canEditRule === 'ALL') return true;
   if (canEditRule === 'NONE') return true;
@@ -864,6 +865,7 @@ const getCanEditValue = (locals, phoneNumber) => {
     return locals.permissions[phoneNumber].isEmployee;
   }
 
+  /** Probably will never reach here. */
   return false;
 };
 

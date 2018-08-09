@@ -37,10 +37,10 @@ const { code, } = require('../../admin/responses');
 
 const {
   validateVenues,
+  getCanEditValue,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
-  getCanEditValue,
 } = require('./helper');
 
 const {
@@ -49,79 +49,73 @@ const {
 } = require('../../admin/utils');
 
 
-const getDocRef = (template, locals) => {
-  if (template === 'office') {
-    return rootCollections.offices.doc(locals.activityRef.id);
-  }
-
-  return rootCollections
-    .offices
-    .doc(locals.officeDocRef.id)
-    .collection('Activities')
-    .doc(locals.activityRef.id);
-};
-
-
 const createAddendum = (conn, locals) => {
-  const activityId = locals.activityRef.id;
-  let officeDocRef;
-
-  if (locals.hasOwnProperty('officeDocRef')) {
-    /** Office doc doesn't exist. The requester template is 'office'. */
-    officeDocRef = locals.officeDocRef.ref;
-  } else {
-    officeDocRef = rootCollections.offices.doc(activityId);
-  }
-
-  locals.batch.set(officeDocRef
+  locals.batch.set(rootCollections
+    .offices
+    .doc(locals.officeId)
     .collection('Addendum')
     .doc(), {
-      activityId,
-      timestamp: serverTimestamp,
+      activityId: locals.activityRef.id,
       user: conn.requester.phoneNumber,
-      // TODO: Fix this `comment` after the final specs are out.
-      comment: `${conn.requester.phoneNumber} created: ${activityId}.`,
       location: getGeopointObject(conn.req.body.geopoint),
+      /**
+       * Sent to the user with the field `timestamp` in the
+       * read response to the `/read`.
+       */
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      timestamp: serverTimestamp,
+      action: 'create',
+      template: conn.req.body.template,
+      share: conn.req.body.share || [],
+      remove: null,
+      updatedPhoneNumber: null,
     });
-
-  const message = 'The activity was successfully created.';
 
   /** ENDS the response. */
   locals.batch.commit()
-    .then(() => sendResponse(conn, code.created, message))
+    .then(() => sendResponse(
+      conn,
+      code.created,
+      'The activity was successfully created.'
+    ))
     .catch((error) => handleError(conn, error));
 };
 
 
 const createDocsWithBatch = (conn, locals) => {
+  locals
+    .allPhoneNumbers
+    .forEach((phoneNumber) => {
+      const isRequester = phoneNumber === conn.requester.phoneNumber;
+
+      /**
+       * Support requests won't add the creator to the
+       * activity assignee list.
+       */
+      if (isRequester && conn.requester.isSupportRequest) return;
+      locals.batch.set(locals
+        .activityRef
+        .collection('Assignees')
+        .doc(phoneNumber), {
+          activityId: locals.activityRef.id,
+          canEdit: getCanEditValue(locals, phoneNumber),
+        });
+    });
+
+
   locals.batch.set(locals
     .activityRef, {
       venue: conn.req.body.venue,
       schedule: conn.req.body.schedule,
       attachment: conn.req.body.attachment,
       timestamp: serverTimestamp,
-      officeId: locals.officeDocRef.id,
+      officeId: rootCollections.offices.doc(locals.static.officeId).id,
       office: conn.req.body.office,
       template: conn.req.body.template,
       activityName: conn.req.body.activityName,
-      docRef: getDocRef(conn.req.body.template, locals),
-      status: locals.templateDocRef.get('statusOnCreate'),
-      canEditRule: locals.templateDocRef.get('canEditRule'),
-    });
-
-  Array
-    .from(locals.allPhoneNumbers)
-    .forEach((phoneNumber) => {
-      locals.batch.set(locals
-        .activityRef
-        .collection('Assignees')
-        .doc(phoneNumber), {
-          // Storing here to avoid splitting the path
-          // For the read logic.
-          activityId: locals.activityRef.id,
-          canEdit: getCanEditValue(locals, phoneNumber),
-        });
+      docRef: locals.docRef,
+      status: locals.static.statusOnCreate,
+      canEditRule: locals.static.canEditRule,
     });
 
   if (conn.req.body.template !== 'admin') {
@@ -130,8 +124,11 @@ const createDocsWithBatch = (conn, locals) => {
     return;
   }
 
-  // FIX this after the admin template is finalized.
-  const phoneNumber = conn.req.body.attachment.phoneNumber.value;
+  /**
+   * Phone number of the user who's being given the `admin` custom
+   * claims with the `admin` template.
+   */
+  const phoneNumber = conn.req.body.attachment['Phone Number'].value;
 
   users
     .getUserByPhoneNumber(phoneNumber)
@@ -158,13 +155,12 @@ const createDocsWithBatch = (conn, locals) => {
 
 
 const handleAssignees = (conn, locals) => {
-  const officeId = locals.officeDocRef.id;
   locals.permissions = {};
 
   const promises = [];
 
-  Array
-    .from(locals.allPhoneNumbers)
+  locals
+    .allPhoneNumbers
     .forEach((phoneNumber) => {
       const isRequester = phoneNumber === conn.requester.phoneNumber;
 
@@ -181,6 +177,15 @@ const handleAssignees = (conn, locals) => {
       };
 
       if (isRequester) locals.permissions[phoneNumber].isCreator = true;
+
+      /**
+       * No docs will exist if the template is `office`
+       * since this template itself is used to create
+       * the office. No use of adding promises to the array.
+       */
+      if (conn.req.body.template === 'office') return;
+
+      const officeId = locals.static.officeId;
 
       promises.push(rootCollections
         .offices.doc(officeId)
@@ -201,6 +206,12 @@ const handleAssignees = (conn, locals) => {
       );
     });
 
+  if (promises.length === 0) {
+    createDocsWithBatch(conn, locals);
+
+    return;
+  }
+
   Promise
     .all(promises)
     .then((snapShots) => {
@@ -214,6 +225,8 @@ const handleAssignees = (conn, locals) => {
         /** The person can either be an employee or an admin. */
         if (template === 'admin') {
           locals.permissions[phoneNumber].isAdmin = true;
+
+          return;
         }
 
         locals.permissions[phoneNumber].isEmployee = true;
@@ -227,44 +240,21 @@ const handleAssignees = (conn, locals) => {
 };
 
 
-
-const queryForNameInOffices = (conn, locals, promise) =>
-  promise
-    .then((snapShot) => {
-      if (!snapShot.empty) {
-        const value = conn.req.body.attachment.Name.value;
-        const type = conn.req.body.attachment.Name.type;
-        const message = `'${value}' already exists in the office`
-          + ` '${conn.req.body.office}' with the template '${type}'.`;
-
-        sendResponse(conn, code.conflict, message);
-
-        return;
-      }
-
-      handleAssignees(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
-
-
 const handleExtra = (conn, locals) => {
-  const scheduleNames = locals.templateDocRef.get('schedule');
-  const schedulesValid = validateSchedules(conn.req.body, scheduleNames);
+  const scheduleNames = locals.static.schedule;
+  const scheduleValid = validateSchedules(conn.req.body, scheduleNames);
 
-  if (!schedulesValid.isValid) {
-    sendResponse(conn, code.badRequest, schedulesValid.message);
+  if (!scheduleValid.isValid) {
+    sendResponse(conn, code.badRequest, scheduleValid.message);
 
     return;
   }
 
-  const venueDescriptors = locals.templateDocRef.get('venue');
-  const venuesValid = validateVenues(conn.req.body, venueDescriptors);
+  const venueDescriptors = locals.static.venue;
+  const venueValid = validateVenues(conn.req.body, venueDescriptors);
 
-  if (!venuesValid.isValid) {
-    sendResponse(conn, code.badRequest, venuesValid.message);
+  if (!venueValid.isValid) {
+    sendResponse(conn, code.badRequest, venueValid.message);
 
     return;
   }
@@ -287,7 +277,25 @@ const handleExtra = (conn, locals) => {
     return;
   }
 
-  queryForNameInOffices(conn, locals, attachmentValid.promise);
+  attachmentValid
+    .promise
+    .then((snapShot) => {
+      if (!snapShot.empty) {
+        const value = conn.req.body.attachment.Name.value;
+        const type = conn.req.body.attachment.Name.type;
+        const message = `'${value}' already exists in the office`
+          + ` '${conn.req.body.office}' with the template '${type}'.`;
+
+        sendResponse(conn, code.conflict, message);
+
+        return;
+      }
+
+      handleAssignees(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -308,44 +316,61 @@ const createLocals = (conn, locals, result) => {
     return;
   }
 
-  if (subscriptionQueryResult.empty
-    && !conn.requester.isSupportRequest) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `No subscription found for the template: '${conn.req.body.template}'`
-      + ` with the office '${conn.req.body.office}'.`
-    );
+  locals.static.schedule = templateQueryResult.docs[0].get('schedule');
+  locals.static.venue = templateQueryResult.docs[0].get('venue');
+  locals.static.attachment = templateQueryResult.docs[0].get('attachment');
+  locals.static.canEditRule = templateQueryResult.docs[0].get('canEditRule');
+  locals.static.statusOnCreate = templateQueryResult.docs[0].get('statusOnCreate');
+  locals.status.officeId = locals.activityRef.id;
+  locals.static.include = [];
 
-    return;
-  }
-
-  if (officeQueryResult.empty && conn.req.body.template !== 'office') {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `No office found with the name '${conn.req.body.office}'.`
-    );
-
-    return;
-  }
-
-  locals.templateDocRef = templateQueryResult.docs[0];
-  locals.subscriptionDocRef = subscriptionQueryResult.docs[0];
-  locals.officeDocRef = officeQueryResult.docs[0];
-  locals.canEditRule = templateQueryResult.docs[0].get('canEditRule');
-
-  if (conn.req.body.template === 'office') {
-    if (!locals.officeDocRef) {
+  if (!subscriptionQueryResult.empty) {
+    if (!conn.requester.isSupportRequest) {
       sendResponse(
         conn,
-        code.conflict,
-        `The office: '${conn.req.body.office}' already exists.`
+        code.forbidden,
+        `No subscription found for the template: '${conn.req.body.template}'`
+        + ` with the office '${conn.req.body.office}'.`
       );
 
       return;
     }
 
+    locals.static.include = subscriptionQueryResult.docs[0].get('include');
+  }
+
+  if (!officeQueryResult.empty) {
+    if (conn.req.body.template === 'office') {
+      sendResponse(
+        conn,
+        code.conflict,
+        `The office '${conn.req.body.office}' already exists.`
+      );
+
+      return;
+    }
+
+    if (locals.officeDocRef.get('status') === 'CANCELLED') {
+      sendResponse(
+        conn,
+        code.forbidden,
+        `The office status is 'CANCELLED'. Cannot create an activity.`
+      );
+
+      return;
+    }
+
+    const officeId = officeQueryResult.docs[0].id;
+
+    locals.static.officeId = officeId;
+    locals.docRef = rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Activities')
+      .doc(locals.activityRef.id);
+  }
+
+  if (officeQueryResult.empty) {
     if (conn.req.body.office !== conn.req.body.attachment.Name.value) {
       sendResponse(
         conn,
@@ -357,35 +382,27 @@ const createLocals = (conn, locals, result) => {
       return;
     }
 
-    locals.officeId = locals.activityRef.id;
+    const officeId = locals.activityRef.id;
+    locals.static.officeId = officeId;
+    locals.docRef = rootCollections.offices(officeId);
   }
 
-  locals.officeId = locals.officeDocRef.id;
+  if (!conn.requester.isSupportRequest) {
+    if (subscriptionQueryResult.docs[0].get('status') === 'CANCELLED') {
+      sendResponse(
+        conn,
+        code.forbidden,
+        `Your subscription to the template '${conn.req.body.template}'`
+        + ` is 'CANCELLED'. Cannot create an activity.`
+      );
 
-  if (locals.subscriptionDocRef.get('status') === 'CANCELLED') {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `Your subscription to the template '${conn.req.body.template}'`
-      + ` is 'CANCELLED'. Cannot create an activity.`
-    );
-
-    return;
-  }
-
-  if (locals.officeDocRef.get('status') === 'CANCELLED') {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `The office status is 'CANCELLED'. Cannot create an activity.`
-    );
-
-    return;
+      return;
+    }
   }
 
   if (conn.req.body.hasOwnProperty('share')) {
     if (conn.req.body.share.length === 0
-      && locals.templateDocRef.get('include').length === 0) {
+      && locals.static.include.length === 0) {
       sendResponse(
         conn,
         code.conflict,
@@ -399,12 +416,11 @@ const createLocals = (conn, locals, result) => {
       .forEach((phoneNumber) => locals.allPhoneNumbers.add(phoneNumber));
   }
 
-
-  /** 
+  /**
    * Default assignees for all the activities that the user
-   * creates using the subscription mentioned in the reuest body.
+   * creates using the subscription mentioned in the request body.
    */
-  locals.subscriptionDocRef.get('include')
+  locals.static.include
     .forEach((phoneNumber) => locals.allPhoneNumbers.add(phoneNumber));
 
   handleExtra(conn, locals);
@@ -422,9 +438,21 @@ module.exports = (conn) => {
 
   const locals = {
     activityRef: rootCollections.activities.doc(),
+    docRef: null,
     batch: db.batch(),
-    allPhoneNumbers: new Set().add(conn.requester.phoneNumber),
+    /**
+     * Using a `Set()` to avoid duplication of phone numbers.
+     */
+    allPhoneNumbers: new Set(),
+    /**
+     * Stores all the data which will not change during the instance.
+     */
+    static: {},
   };
+
+  if (!conn.requester.isSupportRequest) {
+    locals.allPhoneNumbers.add(conn.requester.phoneNumber);
+  }
 
   Promise
     .all([
