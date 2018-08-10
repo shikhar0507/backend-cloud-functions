@@ -42,74 +42,19 @@ const {
 } = require('../../admin/utils');
 
 
-/**
- * Creates a document in the path: `/AddendumObjects/(auto-id)`.
- * This will trigger an auto triggering cloud function which will
- * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
- * doc.
- *
- * @param {Object} conn Object with Express Request and Response Objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const createAddendumDoc = (conn, locals) => {
-  const docRef = rootCollections
-    .offices
-    .doc(locals.activity.get('officeId'))
-    .collection('Addendum')
-    .doc();
+module.exports = (conn) => {
+  const result = isValidRequestBody(conn.req.body, 'comment');
 
-  locals.batch.set(docRef, {
-    activityId: conn.req.body.activityId,
-    user: conn.requester.phoneNumber,
-    comment: conn.req.body.comment,
-    location: getGeopointObject(conn.req.body.geopoint),
-    userDeviceTimestamp: new Date(conn.req.body.timestamp),
-    timestamp: serverTimestamp,
-  });
-
-  /** ENDS the response. */
-  locals
-    .batch
-    .commit()
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
-};
-
-
-/**
- * Checks whether the user is an assignee to an `activity` which they
- * have sent a request to add a comment to.
- *
- * @param {Object} conn Object with Express Request and Response Objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const checkCommentPermission = (conn, locals) => {
-  if (!locals.profileActivityDoc.exists) {
+  if (!result.isValid) {
     sendResponse(
       conn,
       code.badRequest,
-      `No activity found with the id: ${conn.req.body.activityId}.`
+      result.message
     );
 
     return;
   }
 
-  createAddendumDoc(conn, locals);
-
-  return;
-};
-
-
-/**
- * Fetches the `activity` doc from user's `Subscription` and the
- * `Activities` collection.
- *
- * @param {Object} conn Contains Express Request and Response Objects.
- * @returns {void}
- */
-const fetchDocs = (conn) =>
   Promise
     .all([
       rootCollections
@@ -124,31 +69,43 @@ const fetchDocs = (conn) =>
         .get(),
     ])
     .then((result) => {
-      const locals = {
-        batch: db.batch(),
-        profileActivityDoc: result[0],
-        activity: result[1],
-      };
+      const batch = db.batch();
+      const profileActivityDoc = result[1];
+      const activity = result[1];
 
-      checkCommentPermission(conn, locals);
+      if (!profileActivityDoc.exists) {
+        sendResponse(
+          conn,
+          code.badRequest,
+          `No activity found with the id: '${conn.req.body.activityId}'.`
+        );
+
+        return;
+      }
+
+      batch.set(rootCollections
+        .offices
+        .doc(activity.get('officeId'))
+        .collection('Addendum')
+        .doc(), {
+          share: [],
+          remove: null,
+          action: 'comment',
+          updatedPhoneNumber: null,
+          timestamp: serverTimestamp,
+          user: conn.requester.phoneNumber,
+          activityId: conn.req.body.activityId,
+          template: activity.get('template'),
+          location: getGeopointObject(conn.req.body.geopoint),
+          userDeviceTimestamp: new Date(conn.req.body.timestamp),
+          updatedFields: [],
+          comment: conn.req.body.comment,
+        });
+
+      batch.commit();
 
       return;
     })
+    .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
-
-
-module.exports = (conn) => {
-  const result = isValidRequestBody(conn.req.body, 'comment');
-
-  if (!result.isValidBody) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      result.message
-    );
-
-    return;
-  }
-
-  fetchDocs(conn);
 };
