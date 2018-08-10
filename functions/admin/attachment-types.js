@@ -28,9 +28,10 @@
 const validTypes = new Map()
   .set('office', 'office')
   .set('string', 'string')
-  .set('phoneNumber', 'phoneNumber')
   .set('weekday', 'weekday')
-  .set('template', 'template');
+  .set('template', 'template')
+  .set('phoneNumber', 'phoneNumber')
+  .set('moment.HTML5_FMT.TIME', 'moment.HTML5_FMT.TIME');
 
 /** Weekdays accepted in the attachment for the field `type` of `weekday`. */
 const weekdays = new Map()
@@ -46,9 +47,9 @@ const weekdays = new Map()
  * Statuses which are allowed for the `activity`, `subscription` or `office`.
  */
 const activityStatuses = new Map()
+  .set('PENDING', 'PENDING')
   .set('CONFIRMED', 'CONFIRMED')
-  .set('CANCELLED', 'CANCELLED')
-  .set('PENDING', 'PENDING');
+  .set('CANCELLED', 'CANCELLED');
 
 /**
  * Values of `canEdit` which for validating the `canEditRule`.
@@ -56,14 +57,14 @@ const activityStatuses = new Map()
 const canEditRules = new Map()
   .set('ALL', 'ALL')
   .set('NONE', 'NONE')
-  .set('CREATOR', 'CREATOR')
   .set('ADMIN', 'ADMIN')
+  .set('CREATOR', 'CREATOR')
   .set('EMPLOYEE', 'EMPLOYEE');
 
 
 module.exports = {
   weekdays,
   validTypes,
-  activityStatuses,
   canEditRules,
+  activityStatuses,
 };

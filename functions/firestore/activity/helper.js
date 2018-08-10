@@ -46,6 +46,7 @@ const validateSchedules = (body, scheduleNames) => {
   const messageObject = {
     isValid: true,
     message: null,
+    finalSchedules: [],
   };
 
   if (!body.hasOwnProperty('schedule')) {
@@ -60,6 +61,7 @@ const validateSchedules = (body, scheduleNames) => {
 
   if (!Array.isArray(schedules)) {
     let abbr = 'object';
+
     if (scheduleNames.length > 1) {
       abbr = 'objects';
     }
@@ -87,39 +89,40 @@ const validateSchedules = (body, scheduleNames) => {
 
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < schedules.length; i++) {
-    const tempObj = schedules[i];
+    const scheduleObject = schedules[i];
 
-    if (typeof tempObj !== 'object') {
+
+    if (typeof scheduleObject !== 'object') {
       messageObject.isValid = false;
       messageObject.message = `The schedule array should be an object.`
-        + ` Found ${typeof tempObj}`;
+        + ` Found ${typeof scheduleObject}`;
       break;
     }
 
-    if (!tempObj.hasOwnProperty('name')) {
+    if (!scheduleObject.hasOwnProperty('name')) {
       messageObject.isValid = false;
       messageObject.message = `The Object at position ${i + 1} is missing`
         + ` the 'name' field in the schedule array.`;
       break;
     }
 
-    if (!tempObj.hasOwnProperty('startTime')) {
+    if (!scheduleObject.hasOwnProperty('startTime')) {
       messageObject.isValid = false;
       messageObject.message = `The Object at the position ${i + 1} is missing`
         + ` the 'startTime' field in the schedule array`;
       break;
     }
 
-    if (!tempObj.hasOwnProperty('endTime')) {
+    if (!scheduleObject.hasOwnProperty('endTime')) {
       messageObject.isValid = false;
       messageObject.message = `The Object at the position ${i + 1} is missing`
         + ` the 'endTime' field in the schedule array`;
       break;
     }
 
-    const name = tempObj.name;
-    const startTime = tempObj.startTime;
-    const endTime = tempObj.endTime;
+    const name = scheduleObject.name;
+    const startTime = scheduleObject.startTime;
+    const endTime = scheduleObject.endTime;
 
     if (!isNonEmptyString(name)) {
       messageObject.isValid = false;
@@ -326,7 +329,7 @@ const filterAttachment = (body, locals) => {
     phoneNumbers: [],
   };
 
-  const fields = Object.keys(locals.templateDocRef.get('attachment'));
+  const fields = Object.keys(locals.objects.attachment);
 
   /**
    * Some templates **may** have empty attachment object. For those cases,
@@ -402,19 +405,18 @@ const filterAttachment = (body, locals) => {
     const type = item.type;
     const value = item.value;
 
-    const shouldBeString = `In 'attachment', expected 'string' in`
-      + ` '${field}.value' object.`;
+    const shouldBeString = `In 'attachment', expected 'string' in '${field}`;
 
     if (typeof type !== 'string') {
       messageObject.isValid = false;
-      messageObject.message = `${shouldBeString}`
+      messageObject.message = `${shouldBeString}.value object.`
         + ` Found ${typeof value}.`;
       break;
     }
 
     if (typeof value !== 'string') {
       messageObject.isValid = false;
-      messageObject.message = `${shouldBeString}`
+      messageObject.message = `${shouldBeString}.value object.`
         + ` Found ${typeof value}.`;
       break;
     }
@@ -428,8 +430,8 @@ const filterAttachment = (body, locals) => {
     if (field === 'Name') {
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
-        messageObject.message = `${shouldBeString}`
-          + ` Found ${typeof value}.`;
+        messageObject.message = `The 'Name' field in 'attachment' should`
+          + ` be a non-empty string.`;
         break;
       }
 
@@ -438,10 +440,10 @@ const filterAttachment = (body, locals) => {
 
         messageObject.promise = rootCollections
           .offices
-          .doc(locals.officeId)
+          .doc(locals.static.officeId)
           .collection('Activities')
-          .where('Name', '==', value)
-          .where('template', '==', type)
+          .where('attachment.Name.value', '==', value)
+          .where('template', '==', locals.static.template)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)
           .get();
@@ -504,15 +506,15 @@ const validateCreateRequestBody = (body, successMessage) => {
 
   if (!body.hasOwnProperty('template')) {
     return {
-      message: `Expected 'template' field to have a value of type 'string'. `
-        + `Found ${typeof body.template}.`,
+      message: `The 'template' field is missing from the request body.`,
       isValid: false,
     };
   }
 
   if (!isNonEmptyString(body.template)) {
     return {
-      message: `The 'template' field should be a non-empty string.`,
+      message: `Expected 'template' field to have a value of type 'string'. `
+        + `Found ${typeof body.template}.`,
       isValid: false,
     };
   }
@@ -539,15 +541,16 @@ const validateCreateRequestBody = (body, successMessage) => {
       };
     }
 
-    /** Verify if all phone numbers are valid. */
-    let phoneNumber;
-
+    /**
+     * Using the traditional loop because you can't
+     * `break` out of a `forEach` loop.
+     * */
     for (let i = 0; i < body.share.length; i++) {
-      phoneNumber = body.share[i];
+      const phoneNumber = body.share[i];
 
       if (!isE164PhoneNumber(phoneNumber)) {
-        successMessage.message = `The '${phoneNumber}' is not a`
-          + ` valid phone number.`;
+        successMessage.message = `The phone number '${phoneNumber}' at`
+          + ` position: ${i} in the 'share' array is invalid.`;
         successMessage.isValid = false;
         break;
       }
