@@ -647,7 +647,9 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
 
   if (!activityStatuses.has(body.status)) {
     return {
-      message: `${body.status} is not a valid status.`,
+      message: `'${body.status}' is not a valid activity status.`
+        + ` Please use one of the following`
+        + ` values: ${[...activityStatuses.keys(),]}.`,
       isValid: false,
     };
   }
@@ -693,7 +695,7 @@ const validateRemoveRequestBody = (body, successMessage) => {
     phoneNumber = body.remove.length[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `Phone number: '${phoneNumber}' is invalid in`
+      successMessage.message = `Phone number: '${phoneNumber}' is invalid in `
         + ` the 'share' array.`;
       successMessage.isValid = false;
     }
@@ -809,7 +811,7 @@ const isValidRequestBody = (body, endpoint) => {
     return validateCreateRequestBody(body, successMessage);
   }
 
-  /** With the exception of `/create` endpoint, ALL other endpoints
+  /** With the exception of `/ create` endpoint, ALL other endpoints
    * require the `activityId` in the request body.
    */
   if (!body.hasOwnProperty('activityId')) {
@@ -821,7 +823,7 @@ const isValidRequestBody = (body, endpoint) => {
 
   if (!isNonEmptyString(body.activityId)) {
     return {
-      message: `The 'activityId' field should be a non-empty string.`,
+      message: `The 'activityId' field should be a non - empty string.`,
       isValid: false,
     };
   }

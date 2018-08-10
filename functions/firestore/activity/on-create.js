@@ -97,6 +97,7 @@ const createDocsWithBatch = (conn, locals) => {
       share: conn.req.body.share || [],
       location: getGeopointObject(conn.req.body.geopoint),
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      updatedFields: [],
     });
 
   /** ENDS the response. */
