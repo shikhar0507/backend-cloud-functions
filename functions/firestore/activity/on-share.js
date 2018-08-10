@@ -32,106 +32,14 @@ const {
   getGeopointObject,
 } = require('../../admin/admin');
 
-const { handleCanEdit, isValidRequestBody, } = require('./helper');
+const { isValidRequestBody, getCanEditValue, } = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
 const {
   handleError,
   sendResponse,
-  isE164PhoneNumber,
 } = require('../../admin/utils');
-
-
-/**
- * Updates the timestamp in the activity root document.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateActivityDoc = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .activities
-    .doc(conn.req.body.activityId), {
-      timestamp: serverTimestamp,
-    }, {
-      merge: true,
-    }
-  );
-
-  locals
-    .batch
-    .commit()
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
-};
-
-
-/**
- * Adds the documents to batch for the users who have their `uid` populated
- * inside their profiles.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const createAddendumDoc = (conn, locals) => {
-  const docRef = rootCollections
-    .offices
-    .doc(locals.activity.get('officeId'))
-    .collection('Addendum')
-    .doc();
-
-  locals.batch.set(docRef, {
-    activityId: conn.req.body.activityId,
-    user: conn.requester.phoneNumber,
-    location: getGeopointObject(conn.req.body.geopoint),
-    comment: locals.comment,
-    userDeviceTimestamp: new Date(conn.req.body.timestamp),
-    timestamp: serverTimestamp,
-  });
-
-  updateActivityDoc(conn, locals);
-};
-
-
-/**
- * Adds `addendum` for all the assignees of the activity.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const handleAssignees = (conn, locals) => {
-  locals.comment = `${conn.requester.phoneNumber} shared this activity with: `;
-
-  locals.assigneeArray.forEach((phoneNumber) => {
-    locals.comment += `${phoneNumber}, `;
-
-    /** Requester is not added to activity for `support` requests.
-     */
-    if (phoneNumber === conn.requester.phoneNumber
-      && conn.requester.isSupportRequest) return;
-
-    locals.batch.set(rootCollections
-      .activities
-      .doc(conn.req.body.activityId)
-      .collection('Assignees')
-      .doc(phoneNumber), {
-        canEdit: handleCanEdit(
-          locals,
-          phoneNumber,
-          conn.requester.phoneNumber
-        ),
-      }, {
-        merge: true,
-      }
-    );
-  });
-
-  createAddendumDoc(conn, locals);
-};
 
 
 /**
@@ -143,115 +51,151 @@ const handleAssignees = (conn, locals) => {
  * @returns {void}
  */
 const handleResult = (conn, result) => {
-  const activityDoc = result[0];
-  const assigneesArray = result[1];
+  const profileActivity = result[0];
+  const activity = result[1];
 
-  if (!activityDoc.exists) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `No activity found with the id: ${conn.req.body.activityId}.`
-    );
+  if (!conn.requester.isSupportRequest) {
+    if (!profileActivity.exists) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `No activity found with the id: '${conn.req.body.activityId}'.`
+      );
 
-    return;
+      return;
+    }
+
+    if (!profileActivity.get('canEdit')) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `You cannot edit this activity.`
+      );
+
+      return;
+    }
   }
 
   const locals = {
-    batch: db.batch(),
-    activity: result[0],
-    canEditRule: result[0].get('canEditRule'),
-    assigneeArray: [],
+    objects: {
+      permissions: {},
+    },
+    static: {
+      officeId: activity.get('officeId'),
+      canEditRule: activity.get('canEditRule'),
+    },
   };
 
-  /** Activity is only created with valid phone numbers.
-   * No validation is required here.
-   */
-  assigneesArray.forEach((doc) => locals.assigneeArray.push(doc.id));
+  const promises = [];
 
-  /** The `share` array from the request body may not
+  /** 
+   * The `share` array from the request body may not
    * have all valid phone numbers.
    */
   conn.req.body.share.forEach((phoneNumber) => {
-    if (!isE164PhoneNumber(phoneNumber)) return;
+    const isRequester = phoneNumber === conn.requester.phoneNumber;
 
-    locals.assigneeArray.push(phoneNumber);
+    if (isRequester && conn.requester.isSupportRequest) return;
+
+    locals.objects.permissions[phoneNumber] = {
+      isAdmin: false,
+      isEmployee: false,
+      isCreator: isRequester,
+    };
+
+    promises.push(rootCollections
+      .offices
+      .doc(locals.static.officeId)
+      .collection('Activities')
+      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('template', '==', 'employee')
+      .limit(1)
+      .get()
+    );
+
+    promises.push(rootCollections
+      .offices
+      .doc(locals.static.officeId)
+      .collection('Activities')
+      .where('attachment."Phone Number".value', '==', phoneNumber)
+      .where('template', '==', 'admin')
+      .limit(1)
+      .get()
+    );
   });
 
-  handleAssignees(conn, locals);
+  Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const doc = snapShot.docs[0];
+        const template = doc.get('template');
+        const phoneNumber = doc.get('attachment.Phone Number.value');
+
+        /** The person can either be an `employee` or an `admin`. */
+        if (template === 'admin') {
+          locals.objects.permissions[phoneNumber].isAdmin = true;
+
+          return;
+        }
+
+        locals.objects.permissions[phoneNumber].isEmployee = true;
+      });
+
+      const batch = db.batch();
+
+      conn.req.body.share.forEach((phoneNumber) => {
+        batch.set(rootCollections
+          .activities
+          .doc(conn.req.body.activityId)
+          .collection('Assignees')
+          .doc(phoneNumber), {
+            canEdit: getCanEditValue(locals, phoneNumber),
+            activityId: conn.req.body.activityId,
+          });
+      });
+
+      batch.set(rootCollections
+        .activities
+        .doc(conn.req.body.activityId), {
+          timestamp: serverTimestamp,
+        }, {
+          merge: true,
+        });
+
+      batch.set(rootCollections
+        .offices
+        .doc(activity.get('officeId'))
+        .collection('Addendum')
+        .doc(), {
+          remove: null,
+          action: 'share',
+          updatedFields: [],
+          updatedPhoneNumber: null,
+          share: conn.req.body.share,
+          timestamp: serverTimestamp,
+          user: conn.requester.phoneNumber,
+          template: activity.get('template'),
+          activityId: conn.req.body.activityId,
+          location: getGeopointObject(conn.req.body.geopoint),
+          userDeviceTimestamp: new Date(conn.req.body.timestamp),
+        });
+
+      return batch.commit();
+    })
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };
 
 
-/**
- * Fetches the activity doc, along with all the `assignees` of the activity
- * using the `activityId` from the `request body`.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const fetchDocs = (conn) =>
-  Promise
-    .all([
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .get(),
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .get(),
-    ])
-    .then((result) => handleResult(conn, result))
-    .catch((error) => handleError(conn, error));
-
-
-/**
- * Checks if the requester has the permission to perform an update
- * to this activity. For this to happen, the `canEdit` flag is checked.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const verifyEditPermission = (conn) =>
-  rootCollections
-    .profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Activities')
-    .doc(conn.req.body.activityId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        /** The `activity` doesn't exist for the user. */
-        sendResponse(
-          conn,
-          code.notFound,
-          `No activity found with the ID: '${conn.req.body.activityId}'.`
-        );
-
-        return;
-      }
-
-      if (!doc.get('canEdit')) {
-        sendResponse(
-          conn,
-          code.forbidden,
-          'You do not have the permission to edit this activity.'
-        );
-
-        return;
-      }
-
-      fetchDocs(conn);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
-
 module.exports = (conn) => {
+  console.log('\n'.repeat(10));
+
   const result = isValidRequestBody(conn.req.body, 'share');
 
-  if (!result.isValidBody) {
+  if (!result.isValid) {
     sendResponse(
       conn,
       code.badRequest,
@@ -261,14 +205,19 @@ module.exports = (conn) => {
     return;
   }
 
-  /** The support person doesn't need to be an assignee
-   * of the activity to make changes.
-   */
-  if (conn.requester.isSupportRequest) {
-    fetchDocs(conn);
-
-    return;
-  }
-
-  verifyEditPermission(conn);
+  Promise
+    .all([
+      rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber)
+        .collection('Activities')
+        .doc(conn.req.body.activityId)
+        .get(),
+      rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .get(),
+    ])
+    .then((result) => handleResult(conn, result))
+    .catch((error) => handleError(conn, error));
 };

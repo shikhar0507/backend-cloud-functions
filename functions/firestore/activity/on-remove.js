@@ -26,303 +26,164 @@
 
 
 const {
-  rootCollections,
-  getGeopointObject,
   db,
+  rootCollections,
   serverTimestamp,
+  getGeopointObject,
 } = require('../../admin/admin');
 
-const { isValidRequestBody, } = require('./helper');
+const {
+  isValidRequestBody,
+  getPhoneNumbersFromAttachment,
+} = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
 const {
   handleError,
   sendResponse,
-  isE164PhoneNumber,
 } = require('../../admin/utils');
 
 
-/**
- * Updates the `timestamp` field in the main `activity` document.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateActivityDoc = (conn, locals) => {
-  locals.batch.set(rootCollections
+const handleResult = (conn, result) => {
+  const profileActivity = result[0];
+  const activity = result[1];
+  const assignees = result[2];
+
+  if (!conn.requester.isSupportRequest) {
+    if (!profileActivity.exists) {
+      sendResponse(
+        conn,
+        code.notFound,
+        `No activity found with the id: '${conn.req.body.activityId}'.`
+      );
+
+      return;
+    }
+
+    if (!profileActivity.get('canEdit')) {
+      /** The `canEdit` flag is false so update is forbidden. */
+      sendResponse(
+        conn,
+        code.forbidden,
+        'You do not have the permission to edit this activity.'
+      );
+
+      return;
+    }
+  }
+
+  if (assignees.size === 1) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `Cannot remove an assignee from an activity with only one assignee.`
+    );
+
+    return;
+  }
+
+  let found = false;
+
+  assignees.forEach((doc) => {
+    const phoneNumber = doc.id;
+
+    if (phoneNumber !== conn.req.body.remove) return;
+
+    found = true;
+  });
+
+  if (!found) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `No assignee found with the phone number: '${conn.req.body.remove}'.`
+    );
+
+    return;
+  }
+
+
+
+  const attachment = activity.get('attachment');
+
+  if (getPhoneNumbersFromAttachment(attachment)
+    .has(conn.req.body.remove)
+  ) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `Cannot remove the phone number: '${conn.req.body.remove}'`
+      + `from the activity. Please use the '/update' endpoint`
+      + ` to remove this number from the attachment.`
+    );
+
+    return;
+  }
+
+  const batch = db.batch();
+
+  batch.delete(rootCollections
+    .activities
+    .doc(conn.req.body.activityId)
+    .collection('Assignees')
+    .doc(conn.req.body.remove)
+  );
+
+  batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
       timestamp: serverTimestamp,
     }, {
       merge: true,
-    }
-  );
+    });
 
-  locals
-    .batch
-    .commit()
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
-};
-
-
-/**
- * Updates the linked doc in the `docRef` field in the activity based on
- * the template name.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateLinkedDoc = (conn, locals) =>
-  db
-    .doc(locals.activity.get('docRef'))
-    .get()
-    .then((doc) => {
-      const docData = doc.data();
-
-      if (locals.activity.get('template') === 'subscription') {
-        const includeArray = doc.get('include');
-
-        includeArray.forEach((phoneNumber) => {
-          const index = conn.req.body.remove.indexOf(phoneNumber);
-
-          if (index > -1) {
-            includeArray.splice(index, 1);
-          }
-        });
-
-        docData.include = includeArray;
-      }
-
-      if (locals.activity.get('template') === 'report') {
-        const toArray = doc.get('to');
-
-        toArray.forEach((phoneNumber) => {
-          const index = conn.req.body.remove.indexOf(phoneNumber);
-
-          if (index > -1) {
-            toArray.splice(index, 1);
-          }
-
-          docData.to = toArray;
-        });
-      }
-
-      locals.batch.set(locals
-        .activity
-        .get('docRef'),
-        docData
-      );
-
-      updateActivityDoc(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
-
-/**
- * Handles the special case when the template name is 'report' or
- * 'subscription'.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const handleSpecialTemplates = (conn, locals) => {
-  if (['subscription', 'report',]
-    .indexOf(locals.activity.get('template')) > -1) {
-    updateLinkedDoc(conn, locals);
-
-    return;
-  }
-
-  updateActivityDoc(conn, locals);
-};
-
-
-/**
- * Creates a document in the path: `/AddendumObjects/(auto-id)`.
- * This will trigger an auto triggering cloud function which will
- * copy this addendum to ever assignee's `/Updates/(uid)/Addendum(auto-id)`
- * doc.
- *
- * @param {Object} conn Object with Express Request and Response Objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const createAddendumDoc = (conn, locals) => {
-  const docRef = rootCollections
+  batch.set(rootCollections
     .offices
-    .doc(locals.activity.get('officeId'))
+    .doc(activity.get('officeId'))
     .collection('Addendum')
-    .doc();
+    .doc(), {
+      share: [],
+      remove: conn.req.body.remove,
+      action: 'remove',
+      updatedPhoneNumber: null,
+      timestamp: serverTimestamp,
+      user: conn.requester.phoneNumber,
+      activityId: conn.req.body.activityId,
+      template: activity.get('template'),
+      location: getGeopointObject(conn.req.body.geopoint),
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      updatedFields: [],
+      comment: null,
+    });
 
-  locals.batch.set(docRef, {
-    activityId: conn.req.body.activityId,
-    user: conn.requester.phoneNumber,
-    location: getGeopointObject(conn.req.body.geopoint),
-    comment: locals.comment,
-    userDeviceTimestamp: new Date(conn.req.body.timestamp),
-    timestamp: serverTimestamp,
-  });
-
-  handleSpecialTemplates(conn, locals);
+  batch.commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleResult(conn, error));
 };
 
 
-/**
- * Removes the user's from the activity which have been sent in the
- * request body field 'remove'.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const unassignFromTheActivity = (conn, locals) => {
-  let index;
-  locals.comment = `${conn.requester.phoneNumber} unassigned `;
+module.exports = (conn) => {
+  const result = isValidRequestBody(conn.req.body, 'remove');
 
-  locals.validPhoneNumbers = [];
-
-  conn.req.body.remove.forEach((phoneNumber) => {
-    if (!isE164PhoneNumber(phoneNumber)) return;
-
-    locals.comment += `${phoneNumber} `;
-
-    locals.validPhoneNumbers.push(phoneNumber);
-
-    /** Deleting from `Assignees` collection inside activity doc */
-    locals.batch.delete(rootCollections
-      .activities
-      .doc(conn.req.body.activityId)
-      .collection('Assignees')
-      .doc(phoneNumber)
-    );
-
-    /** Deleting from `Activities` collection inside user Profile */
-    locals.batch.delete(rootCollections
-      .profiles
-      .doc(phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId)
-    );
-
-    index = locals.assigneeArray.indexOf(phoneNumber);
-
-    if (index > -1) {
-      locals.assigneeArray.splice(index, 1);
-    }
-  });
-
-  locals.addendum.comment = `${locals.comment}from the activity.`;
-
-  createAddendumDoc(conn, locals);
-};
-
-
-/**
- * Fetches the template document from the template and validates
- * the request body using it.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const fetchTemplate = (conn, locals) => {
-  const template = locals.activity.get('template');
-
-  rootCollections
-    .activityTemplates
-    .doc(template)
-    .get()
-    .then((doc) => {
-      locals.template = doc;
-      unassignFromTheActivity(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
-
-
-/**
- * Processes the `result` from the Firestore and saves the data to variables
- * for use in the function flow.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @param {Array} result Array of Documents fetched from Firestore.
- * @returns {void}
- */
-const handleResult = (conn, result) => {
-  if (!result[0].exists) {
-    /** This case should probably never execute because there is NO provision
-     * for deleting an activity anywhere. AND, for reaching the `fetchDocs()`
-     * function, the check for the existence of the activity has already
-     * been performed in the `Profiles/(phoneNumber)/Activities(activity-id)`.
-     */
+  if (!result.isValid) {
     sendResponse(
       conn,
-      code.conflict,
-      `No activity found with the id: ${conn.req.body.activityId}.`
+      code.badRequest,
+      result.message
     );
 
     return;
   }
 
-  /** Assignees collection in the `Activity/(doc-id)/Assignees` */
-  if (result[1].size === 1) {
-    /** An activity cannot exist with zero assignees. The person
-     * last to stay cannot remove themselves.
-     */
-    sendResponse(
-      conn,
-      code.forbidden,
-      `Cannot remove the last assignee of the activity.`
-    );
-
-    return;
-  }
-
-  /** Object for storing local data. */
-  const locals = {
-    batch: db.batch(),
-    activity: result[0],
-    /** The `assigneeArray` is required to add addendum.
-     * The `doc.id` is the phoneNumber of the assignee.
-     */
-    assigneeArray: [],
-  };
-
-  result[1].forEach((doc) => locals.assigneeArray.push(doc.id));
-
-  if (locals.assigneeArray.length === 1) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `Cannot remove the last assignee of this activity.`
-    );
-
-    return;
-  }
-
-  fetchTemplate(conn, locals);
-};
-
-
-/**
- * Fetches the activity and it's assignees using the `activityId` from
- * the request body.
- *
- * @param {Object} conn Object containing Express Request and Response objects.
- * @returns {void}
- */
-const fetchDocs = (conn) =>
   Promise
     .all([
+      rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber)
+        .collection('Activities')
+        .doc(conn.req.body.activityId)
+        .get(),
       rootCollections
         .activities
         .doc(conn.req.body.activityId)
@@ -335,73 +196,4 @@ const fetchDocs = (conn) =>
     ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
-
-
-/**
- * Checks if the requester has edit permissions to the activity.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const verifyEditPermission = (conn) =>
-  rootCollections
-    .profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Activities')
-    .doc(conn.req.body.activityId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        /** The activity does not exist in the system (OR probably
-         * only for the user). */
-        sendResponse(
-          conn,
-          code.notFound,
-          `No activity found with the id: '${conn.req.body.activityId}'.`
-        );
-
-        return;
-      }
-
-      if (!doc.get('canEdit')) {
-        /** The `canEdit` flag is false so update is forbidden. */
-        sendResponse(
-          conn,
-          code.forbidden,
-          'You do not have the permission to edit this activity.'
-        );
-
-        return;
-      }
-
-      fetchDocs(conn);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
-
-module.exports = (conn) => {
-  const result = isValidRequestBody(conn.req.body, 'remove');
-
-  if (!result.isValidBody) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      result.message
-    );
-
-    return;
-  }
-
-  /** The support person doesn't need to be an assignee
-   * of the activity to make changes.
-   */
-  if (conn.requester.isSupportRequest) {
-    fetchDocs(conn);
-
-    return;
-  }
-
-  verifyEditPermission(conn);
 };

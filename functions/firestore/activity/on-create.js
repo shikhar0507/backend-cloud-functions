@@ -129,10 +129,8 @@ const handleAssignees = (conn, locals) => {
       locals.objects.permissions[phoneNumber] = {
         isAdmin: false,
         isEmployee: false,
-        isCreator: false,
+        isCreator: isRequester,
       };
-
-      if (isRequester) locals.objects.permissions[phoneNumber].isCreator = true;
 
       /**
        * No docs will exist if the template is `office`
@@ -146,7 +144,7 @@ const handleAssignees = (conn, locals) => {
       promises.push(rootCollections
         .offices.doc(officeId)
         .collection('Activities')
-        .where('phoneNumber', '==', phoneNumber)
+        .where('attachment.Phone Number.value', '==', phoneNumber)
         .where('template', '==', 'admin')
         .limit(1)
         .get()
@@ -155,7 +153,7 @@ const handleAssignees = (conn, locals) => {
       promises.push(rootCollections
         .offices.doc(officeId)
         .collection('Activities')
-        .where('phoneNumber', '==', phoneNumber)
+        .where('attachment.Phone Number.value', '==', phoneNumber)
         .where('template', '==', 'employee')
         .limit(1)
         .get()
@@ -176,7 +174,7 @@ const handleAssignees = (conn, locals) => {
 
         const doc = snapShot.docs[0];
         const template = doc.get('template');
-        const phoneNumber = doc.get('phoneNumber');
+        const phoneNumber = doc.get('attachment.Phone Number.value');
 
         /** The person can either be an `employee` or an `admin`. */
         if (template === 'admin') {

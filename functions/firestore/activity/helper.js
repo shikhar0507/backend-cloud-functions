@@ -321,12 +321,12 @@ const validateVenues = (body, venueDescriptors) => {
  * denoting if the attachment is a valid object.
  */
 const filterAttachment = (body, locals) => {
-  // TODO: Move this function to `isValidRequestBody` function.
   const messageObject = {
     isValid: true,
     message: null,
     promise: null,
-    phoneNumbers: [],
+    /** Avoiding duplication of phone number values. */
+    phoneNumbers: new Set(),
   };
 
   const fields = Object.keys(locals.objects.attachment);
@@ -462,7 +462,7 @@ const filterAttachment = (body, locals) => {
        * Collecting all phone numbers from attachment to
        * add add in the activity assignee list.
        */
-      messageObject.phoneNumbers.push(value);
+      messageObject.phoneNumbers.add(value);
     }
 
     const weekdays = require('../../admin/attachment-types').weekdays;
@@ -476,6 +476,9 @@ const filterAttachment = (body, locals) => {
       }
     }
   }
+
+  /** Set to array. */
+  messageObject.phoneNumbers = [...messageObject.phoneNumbers,];
 
   return messageObject;
 };
@@ -675,32 +678,19 @@ const validateRemoveRequestBody = (body, successMessage) => {
     };
   }
 
-  if (!Array.isArray(body.remove)) {
+  if (typeof body.remove !== 'string') {
     return {
-      message: `The 'remove' field in the request body should be an array.`,
+      message: `The 'remove' field in the request body should be string.`,
       isValid: false,
     };
   }
 
-  if (body.remove.length === 0) {
+  if (!isE164PhoneNumber(body.remove)) {
     return {
-      message: `The 'remove' array cannot be empty.`,
+      message: `The phone number: '${body.remove}' is not a valid`
+        + ` phone number.`,
       isValid: false,
     };
-  }
-
-  let phoneNumber;
-
-  for (let i = 0; i < body.remove.length; i++) {
-    phoneNumber = body.remove.length[i];
-
-    if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `Phone number: '${phoneNumber}' is invalid in `
-        + ` the 'share' array.`;
-      successMessage.isValid = false;
-    }
-
-    break;
   }
 
   return successMessage;
@@ -738,13 +728,12 @@ const validateShareRequestBody = (body, successMessage) => {
     };
   }
 
-  let phoneNumber;
-
   for (let i = 0; i < body.share.length; i++) {
-    phoneNumber = body.share.length[i];
+    const phoneNumber = body.share[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `Phone number: '${phoneNumber}' is invalid.`;
+      successMessage.message = `In the 'share' array, the value at position`
+        + ` ${i}: '${phoneNumber}' is invalid.`;
       successMessage.isValid = false;
     }
 
@@ -875,10 +864,28 @@ const getCanEditValue = (locals, phoneNumber) => {
 };
 
 
+const getPhoneNumbersFromAttachment = (attachment) => {
+  const phoneNumbersSet = new Set();
+
+  Object.keys(attachment).forEach((key) => {
+    const field = attachment[key];
+    const type = field.type;
+    const value = field.value;
+
+    if (type !== 'phoneNumber') return;
+
+    phoneNumbersSet.add(value);
+  });
+
+  return phoneNumbersSet;
+};
+
+
 module.exports = {
   validateVenues,
   getCanEditValue,
   validateSchedules,
   filterAttachment,
   isValidRequestBody,
+  getPhoneNumbersFromAttachment,
 };
