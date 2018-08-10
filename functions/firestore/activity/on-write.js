@@ -66,6 +66,7 @@ const manageSubscription = (activityDocNew, batch) => {
           activityId,
           canEditRule: activityDocNew.get('canEditRule'),
           office: activityDocNew.get('office'),
+          officeId: activityDocNew.get('officeId'),
           status: activityDocNew.get('status'),
           template: activityDocNew.get('template'),
           timestamp: activityDocNew.get('timestamp'),
