@@ -128,7 +128,8 @@ const manageReport = (activityDocNew, batch) => {
  */
 const manageAdmin = (activityDocNew, batch) => {
   const docRef = activityDocNew.get('docRef');
-  const phoneNumber = activityDocNew.get('attachment').phoneNumber.value;
+  const status = activityDocNew.get('status');
+  const phoneNumber = activityDocNew.get('attachment')['Phone Number'].value;
 
   return users
     .getUserByPhoneNumber(phoneNumber)
@@ -141,19 +142,27 @@ const manageAdmin = (activityDocNew, batch) => {
       const office = activityDocNew.get('office');
       let admin = [];
 
-      if (!claims) {
-        admin.push(office);
-      }
+      if (status !== 'CANCELLED') {
+        if (!claims) {
+          admin.push(office);
+        }
 
-      if (claims && !claims.hasOwnProperty('admin')) {
-        admin.push(office);
-      }
+        if (claims && !claims.hasOwnProperty('admin')) {
+          admin.push(office);
+        }
 
-      if (claims && claims.hasOwnProperty('admin')) {
-        admin = claims.admin.push(office);
-      }
+        if (claims && claims.hasOwnProperty('admin')) {
+          admin = claims.admin.push(office);
+        }
 
-      claims.admin = admin;
+        claims.admin = admin;
+      } else {
+        const index = claims.admin.indexOf(office);
+
+        if (index > -1) {
+          claims.admin.splice(index, 1);
+        }
+      }
 
       /**
        * This will create the doc below
