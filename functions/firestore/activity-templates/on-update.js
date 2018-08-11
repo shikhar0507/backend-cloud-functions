@@ -35,180 +35,243 @@ const {
   isNonEmptyString,
 } = require('../../admin/utils');
 
-
-/**
- * Updates the document in the `ActivityTemplates` collection and
- * sends the response of success to the user.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @param {Object} updatedFields Document with the *valid* fields from the request body.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const updateTemplate = (conn, updatedFields, locals) =>
-  rootCollections
-    .activityTemplates
-    .doc(locals.docId)
-    .set(updatedFields, {
-      /** The request body can contain a partial update, so merging
-       * is a safe way to handle this document.
-       */
-      merge: true,
-    })
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
+const {
+  validTypes,
+  canEditRules,
+  templateFields,
+  activityStatuses,
+} = require('../../admin/attachment-types');
 
 
-/**
- * Creates the `update` object which can be used to modify and update
- * the existing template `doc` in the `ActivityTemplates` collection.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const makeUpdateDoc = (conn, locals) => {
-  const updatedFields = {};
+const validateRequestBody = (conn, locals) => {
+  const fields = Object.keys(conn.req.body);
 
-  if (isNonEmptyString(conn.req.body.defaultTitle)) {
-    updatedFields.defaultTitle = conn.req.body.defaultTitle;
-  }
+  for (const field of fields) {
+    if (!templateFields.has(field)) {
+      locals.objects.message.message = `Unknown field: '${field}' found`
+        + ` in the request body.`;
+      locals.objects.message.isValid = false;
+      break;
+    }
 
-  if (isNonEmptyString(conn.req.body.comment)) {
-    updatedFields.comment = conn.req.body.comment;
-  }
+    const value = conn.req.body[field];
 
-  if (Array.isArray(conn.req.body.schedule)) {
-    updatedFields.schedule = conn.req.body.schedule;
-  }
+    if (field === 'statusOnCreate') {
+      if (!activityStatuses.has(value)) {
+        locals.objects.message.message = `'${value}' is not a valid value`
+          + ` for the field 'statusOnCreate'. Allowed values:`
+          + ` ${[...activityStatuses.keys(),]}.`;
+        locals.objects.message.isValid = false;
+        break;
+      }
 
-  if (Array.isArray(conn.req.body.venue)) {
-    updatedFields.venue = conn.req.body.venue;
-  }
+      locals.objects.updatedFields[field] = value;
+    }
 
-  if (conn.req.body.hasOwnProperty('attachment')) {
-    if (Object.prototype.toString
-      .call(conn.req.body.attachment) === '[object Object]') {
-      updatedFields.attachment = conn.req.body.attachment;
+    if (field === 'canEditRule') {
+      if (!canEditRules.has(value)) {
+        locals.objects.message.message = `'${value}' is not a valid value`
+          + ` for the field 'canEditRule'. Allowed values:`
+          + ` ${[...canEditRules.keys(),]}.`;
+        locals.objects.message.isValid = false;
+        break;
+      }
+
+      locals.objects.updatedFields[field] = value;
+    }
+
+    if (field === 'venue') {
+      if (!Array.isArray(value)) {
+        locals.objects.message.message = `The 'venue' field should be an 'array'.`;
+        locals.objects.message.isValid = false;
+        break;
+      }
+    }
+
+    if (field === 'schedule') {
+      if (!Array.isArray(value)) {
+        locals.objects.message.message = `The 'schedule' field should be an 'array'.`;
+        locals.objects.message.isValid = false;
+        break;
+      }
+    }
+
+    if (field === 'comment') {
+      if (!isNonEmptyString(value)) {
+        locals.objects.message.message = `The 'schedule' field should be an 'array'.`;
+        locals.objects.message.isValid = false;
+        break;
+      }
+
+      locals.objects.updatedFields[field] = value;
     }
   }
 
-  updateTemplate(conn, updatedFields, locals);
-};
-
-
-/**
- * Checks for the existence of the template.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @param {Array} result Contains the object of documents fetched from Firestore.
- * @returns {void}
- */
-const handleResult = (conn, result) => {
-  const templateDoc = result[0];
-  const enumDoc = result[1];
-
-  if (templateDoc.empty) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `Template: ${conn.req.body.name} does not exist.`
-    );
+  if (!locals.objects.message.isValid) {
+    sendResponse(conn, code.badRequest, locals.objects.message.message);
 
     return;
   }
 
-  const locals = {};
-  /** A reference to this doc is required in the updateTemplate()
-   * function.
-   */
-  locals.docId = templateDoc.docs[0].id;
+  if (conn.req.body.hasOwnProperty('schedule')) {
+    let valid = true;
 
-  if (conn.req.body.hasOwnProperty('statusOnCreate')) {
-    if (
-      enumDoc
-        .get('ACTIVITYSTATUS')
-        .indexOf(conn.req.body.statusOnCreate) === -1
-    ) {
+    conn.req.body.schedule.forEach((name) => {
+      if (!isNonEmptyString(name)) {
+        valid = false;
+      }
+    });
+
+    if (!valid) {
       sendResponse(
         conn,
         code.badRequest,
-        'Value of the statusOnCreate field is not valid.'
-        + ` Please use one of the following values: ${enumDoc.get('ACTIVITYSTATUS')}.`
+        `The value of the 'schedule' can either be an empty array, or an array`
+        + ` of non-empty strings.`
       );
 
       return;
     }
   }
 
-  makeUpdateDoc(conn, locals);
+  if (conn.req.body.hasOwnProperty('venue')) {
+    let valid = true;
+
+    conn.req.body.venue.forEach((descriptor) => {
+      if (!isNonEmptyString(descriptor)) {
+        valid = false;
+      }
+    });
+
+    if (!valid) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `The value of the field 'venue' can either be an empty array,`
+        + ` or an array of non-empty strings.`
+      );
+
+      return;
+    }
+  }
+
+  if (conn.req.body.hasOwnProperty('attachment')) {
+    if (Object.prototype.toString
+      .call(conn.req.body.attachment) !== '[object Object]') {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `Expected the value of the 'attachment' field to`
+        + ` be of type Object. Found: '${typeof attachment}'.`
+      );
+
+      return;
+    }
+
+    const message = {
+      isValid: true,
+      message: null,
+    };
+
+    const fields = Object.keys(conn.req.body.attachment);
+
+    for (const field of fields) {
+      const item = conn.req.body.attachment[field];
+
+      if (!item.hasOwnProperty('value')) {
+        message.isValid = false;
+        message.message = `In attachment, the object '${field}' is`
+          + ` missing the field 'value'.`;
+        break;
+      }
+
+      if (!item.hasOwnProperty('type')) {
+        message.isValid = false;
+        message.message = `In attachment, the object '${field}' is`
+          + ` missing the field 'type'.`;
+        break;
+      }
+
+      const value = item.value;
+      const type = item.type;
+
+      if (!validTypes.has(type)) {
+        message.isValid = false;
+        message.message = `In attachment, the 'type' in the object '${field}'`
+          + ` has an invalid type. Allowed values: ${[...validTypes.keys(),]}`;
+        break;
+      }
+
+      if (value !== '') {
+        message.isValid = false;
+        message.message = `The value in all objects in attachment`
+          + ` should be an empty string.`;
+        break;
+      }
+    }
+
+    if (!message.isValid) {
+      sendResponse(conn, code.badRequest, message.message);
+
+      return;
+    }
+
+    locals.objects.updatedFields.attachment = conn.req.body.attachment;
+  }
+
+  rootCollections
+    .activityTemplates
+    .doc(locals.static.templateId)
+    .set(locals.objects.updatedFields, { merge: true, })
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };
 
 
-/**
- * Fetches the `template` with the `name` from the request body
- * and the `ACTIVITYSTATUS` doc from Enums collection.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @returns {void}
- */
-const fetchDocs = (conn) =>
-  Promise
-    .all([
-      rootCollections
-        .activityTemplates
-        .where('name', '==', conn.req.body.name)
-        .limit(1)
-        .get(),
-      rootCollections
-        .enums
-        .doc('ACTIVITYSTATUS')
-        .get(),
-    ])
-    .then((result) => handleResult(conn, result))
-    .catch((error) => handleError(conn, error));
-
-
-
-/**
- * Validates the `name` field from the request body to see
- * if it is skipped, or is a valid string, and *isn't*
- * `plan` (default template).
- *
- * @param {Object} conn Express Request and Response Objects.
- * @returns {void}
- */
 module.exports = (conn) => {
+  console.warn('\n'.repeat(10));
   if (!conn.req.body.hasOwnProperty('name')) {
     sendResponse(
       conn,
       code.badRequest,
-      'The name field is missing from the request body.'
+      `The 'name' field is missing from the request body.`
     );
 
     return;
   }
 
-  if (!isNonEmptyString(conn.req.body.name)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The name field needs to be a string.'
-    );
+  rootCollections
+    .activityTemplates
+    .where('name', '==', conn.req.body.name)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      if (snapShot.empty) {
+        sendResponse(
+          conn,
+          code.notFound,
+          `No template found with the name: '${conn.req.query.name}'.`
+        );
 
-    return;
-  }
+        return;
+      }
 
-  /** The default template Plan can't be updated. */
-  if (conn.req.body.name === 'plan') {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'Updating the template Plan is not allowed.'
-    );
+      const locals = {
+        objects: {
+          updatedFields: {},
+          message: {
+            isValid: true,
+            message: null,
+          },
+        },
+        static: {
+          templateId: snapShot.docs[0].id,
+        },
+      };
 
-    return;
-  }
+      validateRequestBody(conn, locals);
 
-  fetchDocs(conn);
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };

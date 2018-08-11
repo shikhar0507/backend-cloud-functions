@@ -29,100 +29,182 @@ const { rootCollections, } = require('../../admin/admin');
 
 const { code, } = require('../../admin/responses');
 
-const { handleError, sendResponse, isNonEmptyString, } = require('../../admin/utils');
+const {
+  validTypes,
+  canEditRules,
+  templateFields,
+  activityStatuses,
+} = require('../../admin/attachment-types');
+
+const {
+  handleError,
+  sendResponse,
+  isNonEmptyString,
+} = require('../../admin/utils');
 
 
-/**
- * Adds a new document to the ActivityTemplates collection with
- * the doc-id as the template name.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @returns {void}
- */
-const createTemplate = (conn) =>
-  rootCollections
-    .activityTemplates
-    .doc(conn.req.body.name)
-    .set({
-      name: conn.req.body.name,
-      defaultTitle: conn.req.body.defaultTitle,
-      comment: conn.req.body.comment,
-      statusOnCreate: conn.req.body.statusOnCreate,
-      attachment: conn.req.body.attachment || {},
-      schedule: conn.req.body.schedule || [],
-      venue: conn.req.body.venue || [],
-    })
-    .then(() => sendResponse(
-      conn,
-      code.created,
-      'The template was created successfully.')
-    )
-    .catch((error) => handleError(conn, error));
+const validateTemplate = (body) => {
+  const message = {
+    message: null,
+    isValid: true,
+  };
 
+  const fields = Object.keys(body);
 
-/**
- * Validates if the the template already exists with the name sent in
- * the request body. Rejects the request if it does.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @param {Array} result Contains the object of documents fetched from Firestore.
- * @returns {void}
- */
-const handleResult = (conn, result) => {
-  const templateDoc = result[0];
-  const enumDoc = result[1];
+  for (const field of fields) {
+    if (!templateFields.has(field)) {
+      message.message = `The field '${field}' is not allowed.`
+        + ` Use only: ${[...templateFields.keys(),]}.`;
+      message.isValid = false;
+      break;
+    }
 
-  if (!templateDoc.empty) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `The ${conn.req.body.name} template already exists.`
-      + ` Use the templates update API to make changes.`
-    );
+    const value = body[field];
 
-    return;
+    if (['name', 'statusOnCreate', 'canEditRule', 'comment',]
+      .indexOf(field) > -1
+      && !isNonEmptyString(value)) {
+      message.message = `The field '${field}' should have a non-empty`
+        + ` string as its value.`;
+      message.isValid = false;
+      break;
+    }
+
+    if (!body.hasOwnProperty('name')) {
+      message.message = `The 'name' field is missing from`
+        + ` the request body.`;
+      message.isValid = false;
+      break;
+    }
+
+    if (body.name && body.name.toLowerCase() !== body.name) {
+      message.message = `The value of the field 'name' should be`
+        + ` non-empty string with all lowercase alphabetic characters.`;
+      message.isValid = false;
+      break;
+    }
+
+    if (!body.hasOwnProperty('comment')) {
+      message.message = `The 'comment' field is missing from`
+        + ` the request body.`;
+      message.isValid = false;
+      break;
+    }
+
+    if (!body.hasOwnProperty('canEditRule')) {
+      message.message = `The 'canEditRule' field is missing from`
+        + ` the request body.`;
+      message.isValid = false;
+      break;
+    }
+
+    if (!body.hasOwnProperty('statusOnCreate')) {
+      message.message = `The 'statusOnCreate' field is missing from`
+        + ` the request body.`;
+      message.isValid = false;
+      break;
+    }
+
+    if (!body.hasOwnProperty('schedule')) {
+      message.message = `The 'schedule' field is missing from`
+        + ` the request body.`;
+      message.isValid = false;
+      break;
+    }
+
+    if (!body.hasOwnProperty('venue')) {
+      message.message = `The 'venue' field is missing from`
+        + ` the request body.`;
+      message.isValid = false;
+      break;
+    }
+
+    if (field === 'statusOnCreate') {
+      if (!activityStatuses.has(value)) {
+        message.message = `The value in the field 'statusOnCreate': '${value}'`
+          + ` is not a valid activity status. Use one of the following:`
+          /** Map to string conversion */
+          + ` ${[...activityStatuses.keys(),]}`;
+        message.isValid = false;
+        break;
+      }
+    }
+
+    if (field === 'canEditRule') {
+      if (!canEditRules.has(value)) {
+        message.message = `The value in the field 'canEditRule': '${value}'`
+          + ` is not a valid 'canEditRule'. Use one of the following:`
+          + ` ${[...canEditRules.keys(),]}`;
+        message.isValid = false;
+        break;
+      }
+    }
+
+    if (field === 'venue') {
+      const invalidVenueMessage = `The value of the field 'venue'`
+        + ` can either be an empty array, or an array of non-empty strings.`;
+
+      if (!Array.isArray(value)) {
+        message.message = invalidVenueMessage;
+        message.isValid = false;
+        break;
+      }
+
+      let valid = true;
+
+      value.forEach((descriptor) => {
+        if (isNonEmptyString(descriptor)) return;
+
+        valid = false;
+      });
+
+      if (!valid) {
+        message.message = invalidVenueMessage;
+        message.isValid = false;
+        break;
+      }
+    }
+
+    if (field === 'schedule') {
+      const invalidScheduleMessage = `The value of the field 'schedule'`
+        + ` can either be an empty array, or an array of non-empty strings.`;
+
+      if (!Array.isArray(value)) {
+        message.message = invalidScheduleMessage;
+        message.isValid = false;
+        break;
+      }
+
+      let valid = true;
+
+      value.forEach((name) => {
+        if (isNonEmptyString(name)) return;
+
+        valid = false;
+      });
+
+      if (!valid) {
+        message.message = invalidScheduleMessage;
+        message.isValid = false;
+        break;
+      }
+    }
   }
 
-  if (
-    enumDoc
-      .get('ACTIVITYSTATUS')
-      .indexOf(conn.req.body.statusOnCreate) === -1
-  ) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'Value of the statusOnCreate field is not valid.'
-      + ` Please use one of the following values: ${enumDoc.get('ACTIVITYSTATUS')}.`
-    );
-
-    return;
-  }
-
-  createTemplate(conn);
+  return message;
 };
 
 
-/**
- * Fetches the `template` with the `name` from the request body
- * and the `ACTIVITYSTATUS` doc from Enums collection.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @returns {void}
- */
-const fetchDocs = (conn) =>
-  Promise
-    .all([
-      rootCollections
-        .activityTemplates
-        .where('name', '==', conn.req.body.name)
-        .limit(1)
-        .get(),
-      rootCollections
-        .enums
-        .doc('ACTIVITYSTATUS')
-        .get(),
-    ])
-    .then((result) => handleResult(conn, result))
+const createDoc = (conn) =>
+  rootCollections
+    .activityTemplates
+    .doc()
+    .set(conn.req.body)
+    .then(() => sendResponse(
+      conn,
+      code.ok,
+      `Template: '${conn.req.body.name}' has been created successfully.`
+    ))
     .catch((error) => handleError(conn, error));
 
 
@@ -134,133 +216,105 @@ const fetchDocs = (conn) =>
  * @returns {void}
  */
 module.exports = (conn) => {
-  if (!conn.req.body.hasOwnProperty('name')) {
+  const result = validateTemplate(conn.req.body);
+
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
+
+    return;
+  }
+
+  if (!conn.req.body.hasOwnProperty('attachment')) {
     sendResponse(
       conn,
       code.badRequest,
-      'Missing the name field in the request body.'
+      `The 'attachment' field is missing from the request body.`
     );
 
     return;
   }
 
-  if (!isNonEmptyString(conn.req.body.name)) {
+  const attachment = conn.req.body.attachment;
+
+  if (Object.prototype.toString.call(attachment) !== '[object Object]') {
     sendResponse(
       conn,
       code.badRequest,
-      'The name field needs to be a non-empty string.'
+      `Expected the value of the 'attachment' field to`
+      + ` be of type Object. Found: '${typeof attachment}'.`
     );
 
     return;
   }
 
-  /** Default template `plan` cannot be modified. */
-  if (conn.req.body.name === 'plan') {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'You can\'t update the template "plan".'
-    );
+  const attachmentFields = Object.keys(attachment);
 
-    return;
-  }
+  const message = {
+    isValid: true,
+    message: null,
+  };
 
-  if (!conn.req.body.hasOwnProperty('defaultTitle')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'Can\'t create a template without a defaultTitle.'
-    );
+  for (const field of attachmentFields) {
+    const item = attachment[field];
 
-    return;
-  }
+    if (!item.hasOwnProperty('type')) {
+      message.message = `In attachment, the object '${field}'`
+        + ` is missing the field 'type'.`;
+      message.isValid = false;
+      break;
+    }
 
-  if (!isNonEmptyString(conn.req.body.defaultTitle)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The defaultTitle field needs to be a non-empty string.'
-    );
+    if (!item.hasOwnProperty('value')) {
+      message.message = `In attachment, the object '${field}'`
+        + ` is missing the field 'value'.`;
+      message.isValid = false;
+      break;
+    }
 
-    return;
-  }
+    const value = item.value;
+    const type = item.type;
 
-  if (!conn.req.body.hasOwnProperty('comment')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'Can\'t create a template without a comment.'
-    );
+    if (value !== '') {
+      message.message = `All objects in the 'attachment' should`
+        + ` have value = ''.`;
+      message.isValid = false;
+      break;
+    }
 
-    return;
-  }
-
-  if (!isNonEmptyString(conn.req.body.comment)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The comment field needs to be a non-empty string.'
-    );
-
-    return;
-  }
-
-  if (!conn.req.body.hasOwnProperty('statusOnCreate')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'Can\'t create a template without the statusOnCreate field.'
-    );
-
-    return;
-  }
-
-  if (!isNonEmptyString(conn.req.body.statusOnCreate)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The statusOnCreate field needs to be a non-empty string.'
-    );
-
-    return;
-  }
-
-  if (conn.req.body.hasOwnProperty('schedule')) {
-    if (!Array.isArray(conn.req.body.schedule)) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `The schedule needs to be an array of strings.`
-      );
-
-      return;
+    if (!validTypes.has(type)) {
+      message.message = `In attachment, the object '${field}'.type does`
+        + ` not have a valid type.`;
+      message.isValid = false;
+      break;
     }
   }
 
-  if (conn.req.body.hasOwnProperty('venue')) {
-    if (!Array.isArray(conn.req.body.venue)) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `The venue needs to be an array of strings.`
-      );
+  if (!message.isValid) {
+    sendResponse(conn, code.badRequest, message.message);
 
-      return;
-    }
+    return;
   }
 
-  if (conn.req.body.hasOwnProperty('attachment')) {
-    if (Object.prototype.toString
-      .call(conn.req.body.attachment) !== '[object Object]') {
-      sendResponse(
-        conn,
-        code.badRequest,
-        'The attachment needs to be an object.'
-      );
+  rootCollections
+    .activityTemplates
+    .where('name', '==', conn.req.body.name)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      if (!snapShot.empty) {
+        sendResponse(
+          conn,
+          code.conflict,
+          `A template with the name: '${conn.req.body.name}' `
+          + `already exists.`
+        );
+
+        return;
+      }
+
+      createDoc(conn);
 
       return;
-    }
-  }
-
-  fetchDocs(conn);
+    })
+    .catch((error) => handleError(conn, error));
 };
