@@ -61,10 +61,20 @@ const canEditRules = new Map()
   .set('CREATOR', 'CREATOR')
   .set('EMPLOYEE', 'EMPLOYEE');
 
+const templateFields = new Map()
+  .set('name', 'name')
+  .set('statusOnCreate', 'statusOnCreate')
+  .set('canEditRule', 'canEditRule')
+  .set('venue', 'venue')
+  .set('schedule', 'schedule')
+  .set('comment', 'comment')
+  .set('attachment', 'attachment');
+
 
 module.exports = {
   weekdays,
   validTypes,
   canEditRules,
+  templateFields,
   activityStatuses,
 };
