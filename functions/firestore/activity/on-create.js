@@ -70,11 +70,11 @@ const createDocsWithBatch = (conn, locals) => {
 
   locals.batch.set(locals.docs.activityRef, {
     docRef: locals.docs.docRef,
-    venue: conn.req.body.venue,
+    venue: locals.objects.venueArray,
     timestamp: serverTimestamp,
     office: conn.req.body.office,
     template: conn.req.body.template,
-    schedule: conn.req.body.schedule,
+    schedule: locals.objects.scheduleArray,
     status: locals.static.statusOnCreate,
     attachment: conn.req.body.attachment || {},
     canEditRule: locals.static.canEditRule,
@@ -204,6 +204,8 @@ const handleExtra = (conn, locals) => {
     return;
   }
 
+  locals.objects.scheduleArray = scheduleValid.schedules;
+
   const venueDescriptors = locals.objects.venue;
   const venueValid = validateVenues(conn.req.body, venueDescriptors);
 
@@ -212,6 +214,8 @@ const handleExtra = (conn, locals) => {
 
     return;
   }
+
+  locals.objects.venueArray = venueValid.venues;
 
   const attachmentValid = filterAttachment(conn.req.body, locals);
 

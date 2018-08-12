@@ -24,6 +24,7 @@
 
 'use strict';
 
+const { getGeopointObject, } = require('./../../admin/admin');
 
 const {
   isValidDate,
@@ -47,6 +48,7 @@ const validateSchedules = (body, scheduleNames) => {
     isValid: true,
     message: null,
     finalSchedules: [],
+    schedules: [],
   };
 
   if (!body.hasOwnProperty('schedule')) {
@@ -172,6 +174,12 @@ const validateSchedules = (body, scheduleNames) => {
         + ` Use: ${scheduleNames}`;
       break;
     }
+
+    messageObject.schedules.push({
+      name,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
+    });
   }
 
   return messageObject;
@@ -191,6 +199,7 @@ const validateVenues = (body, venueDescriptors) => {
   const messageObject = {
     isValid: true,
     message: null,
+    venues: [],
   };
 
   if (!body.hasOwnProperty('venue')) {
@@ -227,40 +236,40 @@ const validateVenues = (body, venueDescriptors) => {
 
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < venues.length; i++) {
-    const tempObj = venues[i];
+    const venueObject = venues[i];
 
-    if (!tempObj.hasOwnProperty('venueDescriptor')) {
+    if (!venueObject.hasOwnProperty('venueDescriptor')) {
       messageObject.isValid = false;
       messageObject.message = `The venue object at position ${i} is missing the`
         + ` field 'venueDescriptor' in venues array.`;
       break;
     }
 
-    if (!tempObj.hasOwnProperty('address')) {
+    if (!venueObject.hasOwnProperty('address')) {
       messageObject.isValid = false;
       messageObject.message = `The venue object at position ${i} is missing the`
         + ` field 'address' in venues array.`;
       break;
     }
 
-    if (!tempObj.hasOwnProperty('geopoint')) {
+    if (!venueObject.hasOwnProperty('geopoint')) {
       messageObject.isValid = false;
       messageObject.message = `The venue object at position ${i} is missing the`
         + ` field 'geopoint' in venues array.`;
       break;
     }
 
-    if (!tempObj.hasOwnProperty('location')) {
+    if (!venueObject.hasOwnProperty('location')) {
       messageObject.isValid = false;
       messageObject.message = `The venue object at position ${i} is missing the`
         + ` field 'location' in venues array.`;
       break;
     }
 
-    const venueDescriptor = tempObj.venueDescriptor;
-    const address = tempObj.address;
-    const geopoint = tempObj.geopoint;
-    const location = tempObj.location;
+    const venueDescriptor = venueObject.venueDescriptor;
+    const address = venueObject.address;
+    const geopoint = venueObject.geopoint;
+    const location = venueObject.location;
 
     if (!isNonEmptyString(venueDescriptor)) {
       messageObject.isValid = false;
@@ -307,6 +316,13 @@ const validateVenues = (body, venueDescriptors) => {
         + ` range for each field.`;
       break;
     }
+
+    messageObject.venues.push({
+      venueDescriptor,
+      location,
+      address,
+      geopoint: getGeopointObject(geopoint),
+    });
   }
 
   return messageObject;

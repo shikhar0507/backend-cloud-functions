@@ -108,8 +108,6 @@ const getUpdatedFields = (conn, locals) => {
     const scheduleNames = [];
     activitySchedule.forEach((schedule) => scheduleNames.push(schedule.name));
 
-    console.log('scheduleNames', scheduleNames);
-
     const result = validateSchedules(conn.req.body, scheduleNames);
 
     if (!result.isValid) {
@@ -118,15 +116,13 @@ const getUpdatedFields = (conn, locals) => {
       return;
     }
 
-    locals.objects.updatedFields.schedule = conn.req.body.schedule;
+    locals.objects.updatedFields.schedule = result.schedules;
   }
 
   if (conn.req.body.hasOwnProperty('venue')) {
     const venueDescriptors = [];
     activityVenue
       .forEach((venue) => venueDescriptors.push(venue.venueDescriptor));
-
-    console.log('venueDescriptors', venueDescriptors);
 
     const result = validateVenues(conn.req.body, venueDescriptors);
 
@@ -136,10 +132,8 @@ const getUpdatedFields = (conn, locals) => {
       return;
     }
 
-    locals.objects.updatedFields.venue = conn.req.body.venue;
+    locals.objects.updatedFields.venue = result.venues;
   }
-
-  console.log('locals.objects.updatedFields', locals.objects.updatedFields);
 
   updateDocsWithBatch(conn, locals);
 };
