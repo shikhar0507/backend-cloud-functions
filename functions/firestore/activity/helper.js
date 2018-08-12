@@ -89,6 +89,8 @@ const validateSchedules = (body, scheduleNames) => {
     return messageObject;
   }
 
+  const seenName = new Map();
+
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < schedules.length; i++) {
     const scheduleObject = schedules[i];
@@ -126,6 +128,16 @@ const validateSchedules = (body, scheduleNames) => {
     const startTime = scheduleObject.startTime;
     const endTime = scheduleObject.endTime;
 
+    if (seenName.has(name)) {
+      messageObject.isValid = false;
+      messageObject.message = `Each object in the 'schedule' array must`
+        + ` have distinct value in the field 'name'`;
+      break;
+    }
+
+    /** All objects have unique value in the `name`. */
+    seenName.set(name, name);
+
     if (!isNonEmptyString(name)) {
       messageObject.isValid = false;
       messageObject.message = `The Object at position ${i + 1} has an invalid`
@@ -142,7 +154,7 @@ const validateSchedules = (body, scheduleNames) => {
 
     if (typeof endTime !== 'number') {
       messageObject.isValid = false;
-      messageObject.message = `The 'startTime' in the schedule '${name}' should`
+      messageObject.message = `The 'endTime' in the schedule '${name}' should`
         + ` be a number`;
       break;
     }
@@ -234,6 +246,8 @@ const validateVenues = (body, venueDescriptors) => {
     return messageObject;
   }
 
+  const seenDescriptors = new Map();
+
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < venues.length; i++) {
     const venueObject = venues[i];
@@ -270,6 +284,16 @@ const validateVenues = (body, venueDescriptors) => {
     const address = venueObject.address;
     const geopoint = venueObject.geopoint;
     const location = venueObject.location;
+
+    if (seenDescriptors.has(venueDescriptor)) {
+      messageObject.isValid = false;
+      messageObject.message = `Each object in the 'venue' array must`
+        + ` have distinct value in the field 'venueDescriptor'`;
+      break;
+    }
+
+    /** All objects have unique value in the `venueDescriptor`. */
+    seenDescriptors.set(venueDescriptor, venueDescriptor);
 
     if (!isNonEmptyString(venueDescriptor)) {
       messageObject.isValid = false;
