@@ -82,7 +82,8 @@ const validateRequestBody = (conn, locals) => {
 
     if (field === 'venue') {
       if (!Array.isArray(value)) {
-        locals.objects.message.message = `The 'venue' field should be an 'array'.`;
+        locals.objects.message.message = `The 'venue' field should`
+          + ` be an 'array'.`;
         locals.objects.message.isValid = false;
         break;
       }
@@ -90,7 +91,8 @@ const validateRequestBody = (conn, locals) => {
 
     if (field === 'schedule') {
       if (!Array.isArray(value)) {
-        locals.objects.message.message = `The 'schedule' field should be an 'array'.`;
+        locals.objects.message.message = `The 'schedule' field should`
+          + ` be an 'array'.`;
         locals.objects.message.isValid = false;
         break;
       }
@@ -98,7 +100,8 @@ const validateRequestBody = (conn, locals) => {
 
     if (field === 'comment') {
       if (!isNonEmptyString(value)) {
-        locals.objects.message.message = `The 'schedule' field should be an 'array'.`;
+        locals.objects.message.message = `The 'comment' field should`
+          + ` be a 'string'.`;
         locals.objects.message.isValid = false;
         break;
       }
