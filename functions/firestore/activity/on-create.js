@@ -222,11 +222,7 @@ const handleExtra = (conn, locals) => {
   }
 
   attachmentValid.phoneNumbers
-    .forEach((phoneNumber) => {
-      if (phoneNumber === '') return;
-
-      locals.objects.allPhoneNumbers.add(phoneNumber);
-    });
+    .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
 
   if (!attachmentValid.promise) {
     handleAssignees(conn, locals);
@@ -240,10 +236,13 @@ const handleExtra = (conn, locals) => {
       if (!snapShot.empty) {
         const value = conn.req.body.attachment.Name.value;
         const type = conn.req.body.attachment.Name.type;
-        const message = `'${value}' already exists in the office`
-          + ` '${conn.req.body.office}' with the template '${type}'.`;
 
-        sendResponse(conn, code.conflict, message);
+        sendResponse(
+          conn,
+          code.conflict,
+          `'${value}' already exists in the office '${conn.req.body.office}'`
+          + ` with the template '${type}'.`
+        );
 
         return;
       }
@@ -350,9 +349,11 @@ const createLocals = (conn, result) => {
 
   locals.static.canEditRule = templateQueryResult.docs[0].get('canEditRule');
   locals.static.statusOnCreate = templateQueryResult.docs[0].get('statusOnCreate');
-  /** Used by the filterAttachment function to query the
+  /** 
+   * Used by the filterAttachment function to query the
    * `Office/(officeId)/Activities` collection by using the
-   * attachment.Name.value. */
+   * attachment.Name.value. 
+   */
   locals.static.template = templateQueryResult.docs[0].get('name');
 
   if (subscriptionQueryResult.empty && !conn.requester.isSupportRequest) {
@@ -379,9 +380,9 @@ const createLocals = (conn, result) => {
     }
 
     /**
-   * Default assignees for all the activities that the user
-   * creates using the subscription mentioned in the request body.
-   */
+     * Default assignees for all the activities that the user
+     * creates using the subscription mentioned in the request body.
+     */
     subscriptionQueryResult.docs[0].get('include')
       .forEach(
         (phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber)
@@ -418,19 +419,6 @@ const createLocals = (conn, result) => {
         .doc(officeId)
         .collection('Activities')
         .doc(locals.static.activityId);
-  }
-
-  if (officeQueryResult.empty) {
-    if (conn.req.body.office !== conn.req.body.attachment.Name.value) {
-      sendResponse(
-        conn,
-        code.conflict,
-        `The office name in the 'attachment.Name.value' and the`
-        + ` 'office' field should be the same.`
-      );
-
-      return;
-    }
   }
 
   if (conn.req.body.hasOwnProperty('share')) {
