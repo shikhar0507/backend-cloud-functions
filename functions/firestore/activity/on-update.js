@@ -45,45 +45,264 @@ const { code, } = require('../../admin/responses');
 const {
   handleError,
   sendResponse,
-  isNonEmptyString,
 } = require('../../admin/utils');
 
 
-const createDocsWithBatch = (conn, locals) => {
-  locals.batch.set(rootCollections
-    .activities
-    .doc(conn.req.body.activityId),
-    locals.activityUpdates, { merge: true, });
+const updateDocsWithBatch = (conn, locals) => {
+  const activityRef = rootCollections.activities.doc(conn.req.body.activityId);
+
+  locals.batch.set(activityRef,
+    locals.objects.updatedFields, {
+      merge: true,
+    });
+
+  Object.keys(locals.objects.permissions)
+    .forEach((phoneNumber) => {
+      locals.batch.set(activityRef
+        .collection('Assignees')
+        .doc(phoneNumber), {
+          canEdit: getCanEditValue(locals, phoneNumber),
+        }, {
+          merge: true,
+        });
+    });
 
   locals.batch.set(rootCollections
     .offices
-    .doc(locals.activityDocRef.get('officeId'))
+    .doc(locals.docs.activity.get('officeId'))
     .collection('Addendum')
     .doc(), {
+      share: [],
+      remove: null,
+      action: 'update',
+      updatedPhoneNumber: null,
       timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      activityId: conn.req.body.activityId,
       user: conn.requester.phoneNumber,
+      activityId: conn.req.body.activityId,
+      template: locals.docs.activity.get('template'),
       location: getGeopointObject(conn.req.body.geopoint),
-      comment: locals.comment,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      updatedFields: Object.keys(locals.objects.updatedFields),
+      comment: null,
     });
 
-  /** ENDS the request. */
-  locals
-    .batch
+  /** Ends the response. */
+  locals.batch
     .commit()
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
 
-const handleAssignees = (conn, locals) => {
-  // TODO: Fetch docs from Offices to see which users are employees and 
-  // which ones are admin.
-  createDocsWithBatch(conn, locals);
+
+const getUpdatedFields = (conn, locals) => {
+  const activityName = locals.docs.activity.get('activityName');
+  const activitySchedule = locals.docs.activity.get('schedule');
+  const activityVenue = locals.docs.activity.get('venue');
+
+  if (conn.req.body.hasOwnProperty('activityName')
+    && activityName !== conn.req.body.activityName) {
+    locals.objects.updatedFields.activityName = conn.req.body.activityName;
+  }
+
+  if (conn.req.body.hasOwnProperty('schedule')) {
+    const scheduleNames = [];
+    activitySchedule.forEach((schedule) => scheduleNames.push(schedule.name));
+
+    console.log('scheduleNames', scheduleNames);
+
+    const result = validateSchedules(conn.req.body, scheduleNames);
+
+    if (!result.isValid) {
+      sendResponse(conn, code.badRequest, result.message);
+
+      return;
+    }
+
+    locals.objects.updatedFields.schedule = conn.req.body.schedule;
+  }
+
+  if (conn.req.body.hasOwnProperty('venue')) {
+    const venueDescriptors = [];
+    activityVenue
+      .forEach((venue) => venueDescriptors.push(venue.venueDescriptor));
+
+    console.log('venueDescriptors', venueDescriptors);
+
+    const result = validateVenues(conn.req.body, venueDescriptors);
+
+    if (!result.isValid) {
+      sendResponse(conn, code.badRequest, result.message);
+
+      return;
+    }
+
+    locals.objects.updatedFields.venue = conn.req.body.venue;
+  }
+
+  console.log('locals.objects.updatedFields', locals.objects.updatedFields);
+
+  updateDocsWithBatch(conn, locals);
 };
 
-const queryForNameInOffices = (conn, locals, promise) =>
-  promise
+
+const handleAssignees = (conn, locals) => {
+  const bodyAttachmentFields = Object.keys(conn.req.body.attachment);
+  const activityAttachment = locals.docs.activity.get('attachment');
+
+  const promises = [];
+
+  bodyAttachmentFields.forEach((field) => {
+    const oldPhoneNumber = activityAttachment[field].value;
+    const item = conn.req.body.attachment[field];
+    const type = item.type;
+    const phoneNumber = item.value;
+
+    if (type !== 'phoneNumber') return;
+
+    if (phoneNumber === '') return;
+
+    if (oldPhoneNumber !== '') {
+      /** 
+       * Unassign the old phone number from the activity.
+       * Replace this with the new one from the attachment.
+       */
+      locals.batch.delete(rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(oldPhoneNumber)
+      );
+    }
+
+    if (phoneNumber === oldPhoneNumber) return;
+
+    const isRequester = phoneNumber === conn.requester.phoneNumber;
+
+    locals.objects.permissions[phoneNumber] = {
+      isAdmin: false,
+      isEmployee: false,
+      isCreator: isRequester,
+    };
+
+    promises.push(rootCollections
+      .offices
+      .doc(locals.static.officeId)
+      .collection('Activities')
+      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('template', '==', 'employee')
+      .limit(1)
+      .get()
+    );
+
+    promises.push(rootCollections
+      .offices
+      .doc(locals.static.officeId)
+      .collection('Activities')
+      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('template', '==', 'admin')
+      .limit(1)
+      .get()
+    );
+  });
+
+  if (promises.length === 0) {
+    getUpdatedFields(conn, locals);
+
+    return;
+  }
+
+  Promise.all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const doc = snapShot.docs[0];
+
+        const template = doc.get('template');
+        const phoneNumber = doc.get('attachment.Phone Number.value');
+
+        if (template === 'admin') {
+          locals.objects.permissions[phoneNumber].isAdmin = true;
+
+          return;
+        }
+
+        locals.objects.permissions[phoneNumber].isEmployee = true;
+      });
+
+      locals.objects.updatedFields.attachment = conn.req.body.attachment;
+
+      getUpdatedFields(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+const handleResult = (conn, result) => {
+  const profileActivity = result[0];
+  const activity = result[1];
+
+  if (!conn.requester.isSupportRequest) {
+    if (!conn.requester.isSupportRequest) {
+      if (!profileActivity.exists) {
+        sendResponse(
+          conn,
+          code.badRequest,
+          `No activity found with the id: '${conn.req.body.activityId}'.`
+        );
+
+        return;
+      }
+
+      if (!profileActivity.get('canEdit')) {
+        sendResponse(
+          conn,
+          code.forbidden,
+          'You do not have the permission to edit this activity.'
+        );
+
+        return;
+      }
+    }
+  }
+
+  const locals = {
+    batch: db.batch(),
+    objects: {
+      updatedFields: {
+        timestamp: serverTimestamp,
+      },
+      permissions: {},
+      attachment: activity.get('attachment'),
+    },
+    docs: {
+      activity,
+    },
+    static: {
+      officeId: activity.get('officeId'),
+      canEditRule: activity.get('canEditRule'),
+    },
+  };
+
+  const attachmentValid = filterAttachment(conn.req.body, locals);
+
+  if (!attachmentValid.isValid) {
+    sendResponse(conn, code.badRequest, attachmentValid.message);
+
+    return;
+  }
+
+  if (!attachmentValid.promise) {
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
+
+  attachmentValid
+    .promise
     .then((snapShot) => {
       if (!snapShot.empty) {
         const value = conn.req.body.attachment.Name.value;
@@ -101,210 +320,13 @@ const queryForNameInOffices = (conn, locals, promise) =>
       return;
     })
     .catch((error) => handleError(conn, error));
-
-
-
-const handleExtra = (conn, locals) => {
-  if (conn.req.body.hasOwnProperty('schedule')) {
-    const names = [];
-
-    locals
-      .activityDocRef
-      .get('schedule')
-      .forEach((object) => names.push(object.name));
-
-    const result = validateSchedules(conn.req.body.schedule, names);
-
-    if (!result.isValid) {
-      sendResponse(conn, code.badRequest, result.message);
-
-      return;
-    }
-
-    locals.addendum.comment += ' schedule,';
-    locals.updatedFields.schedule = conn.req.body.schedule;
-  }
-
-  if (conn.req.body.hasOwnProperty('venue')) {
-    const descriptors = [];
-
-    locals
-      .activityDocRef
-      .get('venue')
-      .forEach((object) => descriptors.push(object.descriptor));
-
-    const result = validateVenues(conn.req.body.venue, descriptors);
-
-    if (!result.isValid) {
-      sendResponse(conn, code.badRequest, result.message);
-
-      return;
-    }
-
-    locals.addendum.comment += ' venue,';
-    locals.updatedFields.venue = conn.req.body.venue;
-  }
-
-  if (conn.req.body.hasOwnProperty('attachment')) {
-    const attachmentValid = filterAttachment(conn.req.body, locals);
-
-    if (!attachmentValid.isValid) {
-      sendResponse(conn, code.badRequest, attachmentValid.message);
-
-      return;
-    }
-
-    attachmentValid
-      .phoneNumbers
-      .forEach((phoneNumber) => locals.allPhoneNumbers.add(phoneNumber));
-
-    locals
-      .allPhoneNumbers
-      .forEach((phoneNumber) => locals.permissions[phoneNumber] = {
-        isAdmin: false,
-        isEmployee: false,
-        isCreator: conn.requester.phoneNumber === phoneNumber,
-      });
-
-    if (!attachmentValid.promise) {
-      handleAssignees(conn, locals);
-
-      return;
-    }
-
-    queryForNameInOffices(conn, locals);
-  }
-
-  handleAssignees(conn, locals);
 };
-
-
-/**
- * Checks if the activity doc exists and creates an array
- * of promises for all assignees.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} result Array of Documents fetched from Firestore.
- * @returns {void}
- */
-const handleResult = (conn, result) => {
-  const [
-    activityDocRef,
-    assigneesCollectionRef,
-  ] = result;
-
-  if (!activityDocRef.exists) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `No activity found with the id: '${conn.req.body.activityId}'.`
-    );
-
-    return;
-  }
-
-  /** For storing local data during the flow. */
-  const locals = {
-    activityDocRef,
-    canEditRule: activityDocRef.get('canEditRule'),
-    batch: db.batch(),
-    permissions: {},
-    allPhoneNumbers: [],
-    comment: `${conn.requester.phoneNumber} update the activity`,
-    /** Stores the objects that are to be updated in the activity root. */
-    updatedFields: { timestamp: serverTimestamp, },
-  };
-
-  if (conn.req.body.hasOwnProperty('activityName')) {
-    if (!isNonEmptyString(conn.req.body.activityName)) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `The 'activityName' field should be a non-empty string.`
-      );
-
-      return;
-    }
-
-    locals.addendum.comment += ' activityName, ';
-    locals.activityUpdates.activityName = conn.req.body.activityName;
-  }
-
-  assigneesCollectionRef
-    .forEach((doc) => locals.allPhoneNumbers.push(doc.id));
-
-  handleExtra(conn, locals);
-};
-
-
-/**
- * Fetches the activity, and its assignees from the DB.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const fetchDocs = (conn) =>
-  Promise
-    .all([
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .get(),
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .get(),
-    ])
-    .then((result) => handleResult(conn, result))
-    .catch((error) => handleError(conn, error));
-
-
-/**
- * Checks if the user has permission to update the activity data.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const verifyEditPermission = (conn) =>
-  rootCollections
-    .profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Activities')
-    .doc(conn.req.body.activityId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        sendResponse(
-          conn,
-          code.forbidden,
-          `No activity found with the id: '${conn.req.body.activityId}'.`
-        );
-
-        return;
-      }
-
-      if (!doc.get('canEdit')) {
-        sendResponse(
-          conn,
-          code.forbidden,
-          'You do not have the permission to edit this activity.'
-        );
-
-        return;
-      }
-
-      fetchDocs(conn);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
 
 
 module.exports = (conn) => {
   const result = isValidRequestBody(conn.req.body, 'update');
 
-  if (!result.isValidBody) {
+  if (!result.isValid) {
     sendResponse(
       conn,
       code.badRequest,
@@ -314,11 +336,18 @@ module.exports = (conn) => {
     return;
   }
 
-  if (conn.requester.isSupportRequest) {
-    fetchDocs(conn);
-
-    return;
-  }
-
-  verifyEditPermission(conn);
+  Promise.all([
+    rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Activities')
+      .doc(conn.req.body.activityId)
+      .get(),
+    rootCollections
+      .activities
+      .doc(conn.req.body.activityId)
+      .get(),
+  ])
+    .then((result) => handleResult(conn, result))
+    .catch((error) => handleError(conn, error));
 };
