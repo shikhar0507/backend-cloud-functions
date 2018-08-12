@@ -43,7 +43,7 @@ const api = functions
 
 const addendumHandler = functions
   .firestore
-  .document('AddendumObjects/{docId}')
+  .document('Offices/{officeId}/Addendum/{docId}')
   .onCreate(require('./firestore/addendum/index'));
 
 const assigneeHandler = functions
