@@ -56,6 +56,11 @@ const activityHandler = functions
   .document('/Activities/{activityId}')
   .onWrite(require('./firestore/activity/on-write'));
 
+const phoneNumberUpdateHandler = functions
+  .firestore
+  .document('PhoneNumberUpdates/docId')
+  .onCreate(require('./firestore/profiles/index'));
+
 
 module.exports = {
   api,
@@ -64,4 +69,5 @@ module.exports = {
   addendumHandler,
   assigneeHandler,
   activityHandler,
+  phoneNumberUpdateHandler,
 };

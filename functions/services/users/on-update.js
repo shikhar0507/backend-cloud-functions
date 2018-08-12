@@ -40,273 +40,143 @@ const {
   sendResponse,
   isE164PhoneNumber,
   isValidGeopoint,
-  isValidDate,
   getISO8601Date,
+  isValidDate,
 } = require('../../admin/utils');
 
 
+const updateUserDocs = (conn) => {
+  const profile = rootCollections.profiles.doc(conn.requester.phoneNumber);
 
-const disableOldAccount = (conn, locals) => {
-  users.revokeRefreshTokens(conn.requester.uid)
-    .then(() => users.deleteUserFromAuth(conn.requester.uid))
-    .then(() => locals.batch.commit())
-    .catch((error) => handleError(conn, error));
-};
-
-
-
-const logDailyPhoneNumberChanges = (conn, locals) => {
-  const docId = getISO8601Date(conn.req.body.timestamp);
-
-  locals.batch.set(rootCollections
-    .dailyPhoneNumberChanges.doc(docId), {
-      [conn.requester.phoneNumber]: {
-        timestamp: serverTimestamp,
-        updatedPhoneNumber: conn.req.body.phoneNumber,
-      },
-    }, {
-      merge: true,
-    });
-
-  disableOldAccount(conn, locals);
-};
-
-
-
-const writeAddendumForUsers = (conn, locals) => {
-  locals.usersWithUpdatesDoc.forEach((doc) => {
-    locals.batch.set(rootCollections
-      .updates
-      .doc(doc.id)
-      .collection('Addendum')
-      .doc(), {
-        activityId: doc.get('activityId'),
-        comment: `${conn.requester.phoneNumber} changed their`
-          + ` phone number to ${conn.req.body.phoneNumber}.`,
-        location: getGeopointObject(conn.req.body.location),
-        timestamp: serverTimestamp,
-        user: conn.requester.phoneNumber,
-      });
-  });
-
-  logDailyPhoneNumberChanges(conn, locals);
-};
-
-
-
-const fetchUsersWithUid = (conn, locals) => {
-  const promises = [];
-  locals.usersWithUpdatesDoc = [];
-
-  locals.assignees.forEach((userObject) => {
-    promises.push(rootCollections
-      .updates
-      .where('phoneNumber', '==', userObject.phoneNumber)
-      .get()
-    );
-  });
-
-  Promise
-    .all(promises)
-    .then((usersWithAuth) => {
-      usersWithAuth.forEach((snapShot) => {
-        if (snapShot.empty) return;
-
-        snapShot.forEach((doc) => {
-          if (!doc.exists) return;
-          if (!doc.get('uid')) return;
-
-          locals.usersWithUpdatesDoc.push(doc);
-        });
-      });
-
-      writeAddendumForUsers(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
-
-
-
-const updateActivityAssignees = (conn, locals) =>
-  Promise
-    .all(locals.promises)
-    .then((snapShots) => {
-      locals.assignees = [];
-
-      snapShots.forEach((snapShot) => {
-        snapShot.forEach((doc) => {
-          const activityId = doc.ref.path.split('/')[1];
-
-          locals.assignees.push({ activityId, phoneNumber: doc.id, });
-        });
-      });
-
-      fetchUsersWithUid(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
-
-
-const transferSubscriptions = (conn, locals, snapShots) => {
-  const subscriptionsArray = snapShots[1];
-
-  subscriptionsArray.forEach((doc) => {
-    const include = doc.get('include');
-
-    const phoneNumberIndex = include.indexOf(conn.requester.phoneNumber);
-
-    include[phoneNumberIndex] = conn.req.body.phoneNumber;
-
-    const docData = doc.data();
-    docData.include = include;
-
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(conn.req.body.phoneNumber)
-      .collection('Subscriptions')
-      .doc(doc.id),
-      docData
-    );
-
-    locals.batch.delete(rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Subscriptions')
-      .doc(doc.id)
-    );
-  });
-
-  updateActivityAssignees(conn, locals);
-};
-
-
-const transferActivities = (conn, locals, snapShots) => {
-  const activitiesArray = snapShots[0];
-  locals.promises = [];
-
-  activitiesArray.forEach((doc) => {
-    locals.promises.push(
-      rootCollections
-        .activities
-        .doc(doc.id)
-        .collection('Assignees')
-        .get()
-    );
-
-    /** Copy activities from old profile to the new one. */
-    locals.batch.set(rootCollections
-      .profiles
-      .doc(conn.req.body.phoneNumber)
-      .collection('Activities')
-      .doc(doc.id),
-      doc.data()
-    );
-
-    /** Delete the copied activities (from previous step). */
-    locals.batch.delete(rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Activities')
-      .doc(doc.id)
-    );
-
-    /** Add the new `phoneNumber` as an assignee to all the fetched activities. */
-    locals.batch.set(rootCollections
-      .activities
-      .doc(doc.id)
-      .collection('Assignees')
-      .doc(conn.req.body.phoneNumber), {
-        /** Activity root contains `canEdit` field */
-        canEdit: doc.get('canEdit'),
-      });
-
-    /** Delete old `phoneNumber` from Activity assignees list. */
-    locals.batch.delete(rootCollections
-      .activities
-      .doc(doc.id)
-      .collection('Assignees')
-      .doc(conn.requester.phoneNumber)
-    );
-  });
-
-  transferSubscriptions(conn, locals, snapShots);
-};
-
-
-const fetchActivitiesAndSubscriptions = (conn, locals) =>
   Promise
     .all([
-      rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .collection('Activities')
-        .get(),
-      rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .collection('Subscriptions')
-        .get(),
+      profile.get(),
+      profile.collection('Activities').get(),
+      profile.collection('Subscriptions').get(),
     ])
-    .then((snapShots) => transferActivities(conn, locals, snapShots))
+    .then((result) => {
+      const batch = db.batch();
+      const profileDoc = result[0];
+      const activities = result[1];
+      const subscriptions = result[2];
+
+      const newProfileData = profileDoc.data();
+      newProfileData.phoneNumber = conn.req.body.phoneNumber;
+
+      batch.set(profile, {
+        uid: null,
+      }, {
+          merge: true,
+        }
+      );
+
+      batch.set(rootCollections
+        .profiles
+        .doc(conn.req.body.phoneNumber),
+        newProfileData
+      );
+
+      batch.set(rootCollections
+        .updates
+        .doc(conn.requester.uid), {
+          phoneNumber: conn.req.body.phoneNumber,
+        }, {
+          merge: true,
+        });
+
+      subscriptions.forEach((doc) => batch.delete(doc.ref));
+
+      const userDeviceTimestamp = new Date(conn.req.body.timestamp);
+      const geopoint = getGeopointObject(conn.req.body.geopoint);
+
+      activities.forEach((doc) => {
+        batch.set(rootCollections
+          .phoneNumberUpdates
+          .doc(doc.id), {
+            userDeviceTimestamp,
+            location: geopoint,
+            canEdit: doc.get('canEdit'),
+            timestamp: serverTimestamp,
+            user: conn.requester.phoneNumber,
+            updatedPhoneNumber: conn.req.body.phoneNumber,
+          });
+      });
+
+      return;
+    })
     .catch((error) => handleError(conn, error));
-
-
-/**
- * Updates the user profile docs (inside `Updates` and `Profile`)
- * with the phone number from the request body.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @returns {void}
- */
-const updateUserDocs = (conn) => {
-  /** Stores temporary data throughout the code. */
-  const locals = {};
-  locals.batch = db.batch();
-
-  locals.batch.set(rootCollections
-    .profiles
-    .doc(conn.req.body.phoneNumber), {
-      uid: conn.requester.uid,
-    }, {
-      merge: true,
-    }
-  );
-
-  locals.batch.set(rootCollections
-    .updates
-    .doc(conn.requester.uid), {
-      phoneNumber: conn.req.body.phoneNumber,
-    }, {
-      merge: true,
-    }
-  );
-
-  fetchActivitiesAndSubscriptions(conn, locals);
 };
 
 
-/**
- * Updates the user's phone number in `auth` using the `phoneNumber`
- * field from the request body.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @returns {void}
- */
-const updatePhoneNumberInAuth = (conn) =>
+module.exports = (conn) => {
+  const fields = [
+    'phoneNumber',
+    'geopoint',
+    'timestamp',
+  ];
+
+  const result = {
+    isValid: true,
+    message: null,
+  };
+
+  for (const field of fields) {
+    if (!conn.req.body.hasOwnProperty(field)) {
+      result.isValid = false;
+      result.message = `The field: '${field}' is missing from the`
+        + ` request body.`;
+    }
+
+    const value = conn.req.body[field];
+
+    if (field === 'timestamp') {
+      if (typeof value !== 'number') {
+        result.isValid = false;
+        result.message = `The value in the field '${field}' should be a valid`
+          + ` unix timestamp (number).`;
+        break;
+      }
+
+      if (!isValidDate(value)) {
+        result.isValid = false;
+        result.message = `The value in the field '${field}' should be a valid`
+          + ` unix timestamp (number).`;
+        break;
+      }
+    }
+
+    if (field === 'phoneNumber') {
+      if (!isE164PhoneNumber(value)) {
+        result.isValid = false;
+        result.message = `The field 'phoneNumber' should be a valid E.164`
+          + ` phone number string.`;
+        break;
+      }
+    }
+
+    if (field === 'geopoint') {
+      if (!isValidGeopoint(value)) {
+        result.isValid = false;
+        result.message = `The field 'geopoint' should be a valid`
+          + ` geopoint object.`;
+        break;
+      }
+    }
+  }
+
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
+
+    return;
+  }
+
   users
     .updateUserPhoneNumberInAuth(
-      /** Current `uid` */
       conn.requester.uid,
-      /** New phoneNumber to set. */
       conn.req.body.phoneNumber
     )
     .then(() => updateUserDocs(conn))
     .catch((error) => {
-      /** @see https://firebase.google.com/docs/auth/admin/errors */
       if (error.code === 'auth/invalid-phone-number') {
         sendResponse(
           conn,
@@ -329,85 +199,4 @@ const updatePhoneNumberInAuth = (conn) =>
 
       handleError(conn, error);
     });
-
-
-/**
- * Validates the request by checking the request body for a valid
- * `timestamp`, `phoneNumber`, and `geopoint`.
- *
- * @param {Object} conn Express Request and Response Objects.
- * @returns {void}
- */
-module.exports = (conn) => {
-  if (!conn.req.body.hasOwnProperty('phoneNumber')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The "phoneNumber" field is missing from the request body.'
-    );
-
-    return;
-  }
-
-  if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
-    sendResponse(
-      conn,
-      code.conflict,
-      'The phone number to update cannot be the same as your own phone number.'
-    );
-
-    return;
-  }
-
-  if (!isE164PhoneNumber(conn.req.body.phoneNumber)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `${conn.req.body.phoneNumber} is not a valid phone number.`
-    );
-
-    return;
-  }
-
-  if (!conn.req.body.hasOwnProperty('geopoint')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The geopoint field is missing from the request body.'
-    );
-
-    return;
-  }
-
-  if (!isValidGeopoint(conn.req.body.geopoint)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The geopoint is not a valid latitude, longitude object.'
-    );
-
-    return;
-  }
-
-  if (!conn.req.body.hasOwnProperty('timestamp')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The timestamp field is missing from the request body.'
-    );
-
-    return;
-  }
-
-  if (!isValidDate(conn.req.body.timestamp)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `${conn.req.body.timestamp} is not a valid timestamp.`
-    );
-
-    return;
-  }
-
-  updatePhoneNumberInAuth(conn);
 };

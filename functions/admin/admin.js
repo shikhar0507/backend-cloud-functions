@@ -261,6 +261,7 @@ const rootCollections = {
    * @example `/DailyPhoneNumberChanges/(DD-MM-YYYY)`
    */
   dailyPhoneNumberChanges: db.collection('DailyPhoneNumberChanges'),
+  phoneNumberUpdates: db.collection('PhoneNumberUpdates'),
 };
 
 
