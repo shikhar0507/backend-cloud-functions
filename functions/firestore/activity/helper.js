@@ -168,7 +168,8 @@ const validateSchedules = (body, scheduleNames) => {
 
     if (scheduleNames.indexOf(name) === -1) {
       messageObject.isValid = false;
-      messageObject.message = `'${name}' is an invalid schedule name.`;
+      messageObject.message = `The value '${name}' is an invalid schedule name.`
+        + ` Use: ${scheduleNames}`;
       break;
     }
   }
@@ -271,8 +272,8 @@ const validateVenues = (body, venueDescriptors) => {
 
     if (venueDescriptors.indexOf(venueDescriptor) === -1) {
       messageObject.isValid = false;
-      messageObject.message = `'${venueDescriptor}' is not a valid `
-        + ` 'venueDescriptor'.`;
+      messageObject.message = `The value '${venueDescriptor}' is an`
+        + ` invalid venueDescriptor. Use: ${venueDescriptors}`;
       break;
     }
 
@@ -329,8 +330,6 @@ const filterAttachment = (body, locals) => {
     phoneNumbers: new Set(),
   };
 
-  const fields = Object.keys(locals.objects.attachment);
-
   /**
    * Some templates **may** have empty attachment object. For those cases,
    * it's allowed to skip the template in the request body.
@@ -361,22 +360,16 @@ const filterAttachment = (body, locals) => {
     return messageObject;
   }
 
+  const fields = Object.keys(locals.objects.attachment);
   const foundFields = Object.keys(body.attachment);
 
   if (fields.length !== foundFields.length) {
-    let abbr = 'field';
-    if (fields.length > 1) {
-      abbr = 'fields';
-    }
-
     messageObject.isValid = false;
-    messageObject.message = `In 'attachment', expected ${fields.length}`
-      + ` ${abbr}. Found ${foundFields.length}`;
+    messageObject.message = `The attachment in the request body should`
+      + ` have the following fields: ${fields}.`;
 
     return messageObject;
   }
-
-  const validTypes = require('../../admin/attachment-types').validTypes;
 
   for (const field of fields) {
     if (!body.attachment.hasOwnProperty(field)) {
@@ -421,17 +414,20 @@ const filterAttachment = (body, locals) => {
       break;
     }
 
-    if (!validTypes.has(type)) {
-      messageObject.isValid = false;
-      messageObject.message = `The field '${field}.type' has an invalid type.`;
-      break;
-    }
-
     if (field === 'Name') {
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
         messageObject.message = `The 'Name' field in 'attachment' should`
           + ` be a non-empty string.`;
+        break;
+      }
+
+      if (body.template === 'office'
+        && body.attachment.Name.value !== body.office) {
+        messageObject.isValid = false;
+        messageObject.message = `The office name in the`
+          + ` 'attachment.Name.value' and the`
+          + ` 'office' field should be the same.`;
         break;
       }
 
@@ -443,7 +439,7 @@ const filterAttachment = (body, locals) => {
           .doc(locals.static.officeId)
           .collection('Activities')
           .where('attachment.Name.value', '==', value)
-          .where('template', '==', locals.static.template)
+          .where('template', '==', type)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)
           .get();
@@ -462,7 +458,9 @@ const filterAttachment = (body, locals) => {
        * Collecting all phone numbers from attachment to
        * add add in the activity assignee list.
        */
-      messageObject.phoneNumbers.add(value);
+      if (value !== '') {
+        messageObject.phoneNumbers.add(value);
+      }
     }
 
     const weekdays = require('../../admin/attachment-types').weekdays;
@@ -575,11 +573,12 @@ const validateUpdateRequestBody = (body, successMessage) => {
   if (!body.hasOwnProperty('activityName')
     && !body.hasOwnProperty('description')
     && !body.hasOwnProperty('venue')
-    && !body.hasOwnProperty('schedule')) {
+    && !body.hasOwnProperty('schedule')
+    && !body.hasOwnProperty('attachment')) {
     return {
       message: `The request body has no usable fields.`
-        + ` Please add at least one (or any/all) of these: 'title',`
-        + ` 'description', 'schedule', or 'venue'`
+        + ` Please add at least any of these: 'activityName',`
+        + ` 'schedule', 'venue' or 'attachment'`
         + ` in the request body to make a successful request.`,
       isValid: false,
     };
