@@ -102,7 +102,7 @@ const addOfficeToTemplates = (conn, jsonResult, locals) => {
    * It takes each activity object and restructures it in order to push
    * them in an array.
  */
-const convertActivityObjectToArray = (conn, jsonResult, locals) => {
+const mutateActivityToArray = (conn, jsonResult, locals) => {
   jsonResult.activitiesArr = [];
   let activityObj;
 
@@ -117,7 +117,8 @@ const convertActivityObjectToArray = (conn, jsonResult, locals) => {
 
   jsonResult.activities = jsonResult.activitiesArr;
 
-  /** `jsonResult.activitiesArr` is temporary object for storing
+  /** 
+   * `jsonResult.activitiesArr` is temporary object for storing
    * the array with the activity objects. This object is not required
    * in the response body.
    */
@@ -137,8 +138,8 @@ const convertActivityObjectToArray = (conn, jsonResult, locals) => {
  * @returns {void}
  */
 const fetchSubscriptions = (conn, jsonResult, locals) =>
-  Promise.
-    all(locals.templatesList)
+  Promise
+    .all(locals.templatesList)
     .then((snapShot) => {
       snapShot.forEach((doc) => {
         if (!doc.exists) return;
@@ -147,11 +148,11 @@ const fetchSubscriptions = (conn, jsonResult, locals) =>
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
           template: doc.get('defaultTitle'),
-          attachment: doc.get('attachment') || {},
+          attachment: doc.get('attachment'),
         });
       });
 
-      convertActivityObjectToArray(conn, jsonResult, locals);
+      mutateActivityToArray(conn, jsonResult, locals);
 
       return;
     })
@@ -182,8 +183,10 @@ const getTemplates = (conn, jsonResult, locals) =>
         /** The `office` is required inside each template. */
         locals.officesArray.push(doc.get('office'));
 
-        locals.templatesList.push(
-          rootCollections.activityTemplates.doc(doc.get('template')).get()
+        locals.templatesList.push(rootCollections
+          .activityTemplates
+          .doc(doc.get('template'))
+          .get()
         );
       });
 
@@ -223,42 +226,6 @@ const fetchAssignees = (conn, jsonResult, locals) =>
     .catch((error) => handleError(conn, error));
 
 
-/**
- *  Fetches all the attachments using the activity root docRef field.
- *
- * @param {Object} conn Contains Express Request and Response Objects.
- * @param {Object} jsonResult The fetched data from Firestore.
- * @param {Object} locals Object containing local data.
- * @returns {void}
- */
-const fetchAttachments = (conn, jsonResult, locals) =>
-  Promise
-    .all(locals.docRefsArray)
-    .then((docsArray) => {
-      let activityObj;
-
-      docsArray.forEach((doc) => {
-        if (!doc.exists) return;
-
-        activityObj = jsonResult.activities[doc.get('activityId')];
-        activityObj.attachment = doc.data();
-
-        /** These fields are redundant to add to the attachment
-         * since this data is already present in the parent
-         * activity object.
-         */
-        delete activityObj.attachment.status;
-        delete activityObj.attachment.template;
-        delete activityObj.attachment.activityId;
-        delete activityObj.attachment.office;
-      });
-
-      fetchAssignees(conn, jsonResult, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
 
 /**
  * Fetches all the activity data in which the user is an assignee of.
@@ -273,7 +240,6 @@ const fetchActivities = (conn, jsonResult, locals) =>
     .all(locals.activityFetchPromises)
     .then((snapShot) => {
       let activityObj;
-      locals.docRefsArray = [];
 
       snapShot.forEach((doc) => {
         /** Activity-id: doc.ref.path.split('/')[1] */
@@ -288,14 +254,10 @@ const fetchActivities = (conn, jsonResult, locals) =>
         activityObj.description = doc.get('description');
         activityObj.office = doc.get('office');
         activityObj.assignees = [];
-        activityObj.attachment = {};
-
-        if (doc.get('docRef')) {
-          locals.docRefsArray.push(doc.get('docRef').get());
-        }
+        activityObj.attachment = doc.get('attachment');
       });
 
-      fetchAttachments(conn, jsonResult, locals);
+      fetchAssignees(conn, jsonResult, locals);
 
       return;
     })
@@ -310,7 +272,7 @@ const fetchActivities = (conn, jsonResult, locals) =>
  * @param {Object} locals Object containing local data.
  * @returns {void}
  */
-const getActivityIdsFromProfileCollection = (conn, jsonResult, locals) => {
+const getActivityIds = (conn, jsonResult, locals) => {
   locals.activityFetchPromises = [];
   locals.assigneeFetchPromises = [];
 
@@ -385,19 +347,20 @@ const readAddendumByQuery = (conn, locals) => {
           addendumId: doc.id,
           activityId: doc.get('activityId'),
           comment: doc.get('comment'),
-          timestamp: doc.get('userDeviceTimestamp'),
+          timestamp: doc.get('userDeviceTimestamp').toDate(),
           location: doc.get('location'),
           user: doc.get('user'),
         });
       });
 
-      /** The `timestamp` of the last addendum sorted sorted based
+      /**
+       * The `timestamp` of the last addendum sorted sorted based
        * on `timestamp`.
        * */
       jsonResult
         .upto = snapShot.docs[snapShot.size - 1].get('timestamp').toDate();
 
-      getActivityIdsFromProfileCollection(conn, jsonResult, locals);
+      getActivityIds(conn, jsonResult, locals);
 
       return;
     })
