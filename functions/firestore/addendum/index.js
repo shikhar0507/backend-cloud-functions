@@ -27,45 +27,61 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
+const getComment = (doc) => {
+  const share = doc.get('share');
+  const remove = doc.get('remove');
+  const action = doc.get('action');
+  const updatedPhoneNumber = doc.get('updatedPhoneNumber');
+  const timestamp = doc.get('timestamp');
+  const user = doc.get('user');
+  const activityId = doc.get('activityId');
+  const template = doc.get('template');
+  const location = doc.get('location');
+  const userDeviceTimestamp = doc.get('userDeviceTimestamp');
+  const updatedFields = doc.get('updatedFields');
+
+  // TODO: Implement comment creation.
+  return '';
+};
+
 
 /**
  * Copies the addendum doc to the path `Updates/(uid)/Addendum(auto-id)`
  * for the activity assignees who have auth.
  *
- * @param {Object} addendumDocRef Firebase doc Object.
+ * @param {Object} addendumDoc Firebase doc Object.
  * @returns {Promise <Object>} A `batch` object.
  */
-module.exports = (addendumDocRef) =>
+module.exports = (addendumDoc) =>
   rootCollections
     .activities
-    .doc(addendumDocRef.get('activityId'))
+    .doc(addendumDoc.get('activityId'))
     .collection('Assignees')
     .get()
-    .then((docs) => {
+    .then((assignees) => {
       const promises = [];
 
       /** The doc.id is the phone number of the assignee. */
-      docs.forEach((doc) => promises
+      assignees.forEach((doc) => promises
         .push(rootCollections.profiles.doc(doc.id).get()));
 
       return Promise.all(promises);
     })
-    .then((docs) => {
+    .then((profiles) => {
       const batch = db.batch();
 
-      docs.forEach((doc) => {
+      profiles.forEach((profile) => {
         /**
          * An assignee (phone number) who's doc is added
          * to the promises array above, may not have auth.
          */
-        if (!doc.exists) return;
+        if (!profile.exists) return;
+
+        const uid = profile.get('uid');
+
         /**
          * No `uid` means that the user has not signed up
          * for the app. Not writing addendum for those users.
-         */
-        const uid = doc.get('uid');
-
-        /**
          * The `uid` field can be `null` too. This is for the
          * cases when the phone number was introduced to the
          * system in from other than `auth`. Like creating/sharing
@@ -77,9 +93,14 @@ module.exports = (addendumDocRef) =>
           .updates
           .doc(uid)
           .collection('Addendum')
-          .doc(),
-          addendumDocRef.data()
-        );
+          .doc(), {
+            addendumId: addendumDoc.id,
+            activityId: addendumDoc.get('activityId'),
+            timestamp: addendumDoc.get('userDeviceTimestamp'),
+            location: addendumDoc.get('location'),
+            user: addendumDoc.get('user'),
+            comment: getComment(addendumDoc),
+          });
       });
 
       return batch.commit();
