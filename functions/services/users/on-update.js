@@ -26,22 +26,22 @@
 
 
 const {
+  db,
   users,
   rootCollections,
-  db,
-  getGeopointObject,
   serverTimestamp,
+  getGeopointObject,
 } = require('../../admin/admin');
 
 const { code, } = require('../../admin/responses');
 
 const {
+  isValidDate,
   handleError,
   sendResponse,
-  isE164PhoneNumber,
-  isValidGeopoint,
   getISO8601Date,
-  isValidDate,
+  isValidGeopoint,
+  isE164PhoneNumber,
 } = require('../../admin/utils');
 
 
@@ -67,8 +67,7 @@ const updateUserDocs = (conn) => {
         uid: null,
       }, {
           merge: true,
-        }
-      );
+        });
 
       batch.set(rootCollections
         .profiles
@@ -80,6 +79,17 @@ const updateUserDocs = (conn) => {
         .updates
         .doc(conn.requester.uid), {
           phoneNumber: conn.req.body.phoneNumber,
+        }, {
+          merge: true,
+        });
+
+      /** Logs the phone number changes per day. */
+      batch.set(rootCollections
+        .dailyPhoneNumberChanges
+        .doc(getISO8601Date()), {
+          [newProfileData.phoneNumber]: {
+            newPhoneNumber: conn.req.body.phoneNumber,
+          },
         }, {
           merge: true,
         });
@@ -102,7 +112,7 @@ const updateUserDocs = (conn) => {
           });
       });
 
-      return;
+      return batch.commit();
     })
     .catch((error) => handleError(conn, error));
 };
