@@ -220,6 +220,8 @@ const checkAuthorizationToken = (conn) => {
         return;
       }
 
+      console.error('auth: ERROR', error);
+
       if (error.code === 'auth/argument-error') {
         sendResponse(
           conn,

@@ -52,7 +52,8 @@ const manageSubscription = (activityDocNew, batch) => {
     .then((snapShot) => snapShot.forEach((doc) => include.push(doc.id)))
     .then(() => {
       const docRef = activityDocNew.get('docRef');
-      const subscriberPhoneNumber = activityDocNew.get('attachment').phoneNumber.value;
+      const subscriberPhoneNumber = activityDocNew.get('attachment')['Phone Number'].value;
+      const template = activityDocNew.get('attachment').Template.value;
 
       /* Copying the whole activity data... */
       batch.set(docRef, activityDocNew.data());
@@ -64,11 +65,11 @@ const manageSubscription = (activityDocNew, batch) => {
         .doc(activityId), {
           include,
           activityId,
+          template,
           canEditRule: activityDocNew.get('canEditRule'),
           office: activityDocNew.get('office'),
           officeId: activityDocNew.get('officeId'),
           status: activityDocNew.get('status'),
-          template: activityDocNew.get('template'),
           timestamp: activityDocNew.get('timestamp'),
         });
 
@@ -166,7 +167,7 @@ const manageAdmin = (activityDocNew, batch) => {
 
       /**
        * This will create the doc below
-       * `Offices/(officeId)/(Activities)/(activityId)` with
+       * `Offices/(officeId)/Activities/(activityId)` with
        * the template `admin`.
        */
       batch.set(docRef, activityDocNew.data());

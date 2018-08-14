@@ -70,8 +70,16 @@ const templateFields = new Map()
   .set('comment', 'comment')
   .set('attachment', 'attachment');
 
+const vowels = new Map()
+  .set('a', 'a')
+  .set('e', 'e')
+  .set('i', 'i')
+  .set('o', 'o')
+  .set('u', 'u');
+
 
 module.exports = {
+  vowels,
   weekdays,
   validTypes,
   canEditRules,

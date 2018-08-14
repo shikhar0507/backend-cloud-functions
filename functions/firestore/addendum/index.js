@@ -27,27 +27,31 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
-const getComment = (addendumDoc, profile) => {
-  const user = addendumDoc.get('user');
-  const share = addendumDoc.get('share');
-  const remove = addendumDoc.get('remove');
-  const action = addendumDoc.get('action');
-  const status = addendumDoc.get('status');
-  const comment = addendumDoc.get('comment');
-  const template = addendumDoc.get('template');
-  const activityName = addendumDoc.get('activityName');
-  const updatedFields = addendumDoc.get('updatedFields');
-  const updatedPhoneNumber = addendumDoc.get('updatedPhoneNumber');
+const getComment = (addendum, viewer) => {
+  const user = addendum.get('user');
+  const share = addendum.get('share');
+  const remove = addendum.get('remove');
+  const action = addendum.get('action');
+  const status = addendum.get('status');
+  const comment = addendum.get('comment');
+  const template = addendum.get('template');
+  const activityName = addendum.get('activityName');
+  const updatedFields = addendum.get('updatedFields');
+  const updatedPhoneNumber = addendum.get('updatedPhoneNumber');
 
-  const profilePhoneNumber = profile.id;
-  const isSame = user === profilePhoneNumber;
+  const isSame = user === viewer;
 
-  let pronoun = profilePhoneNumber;
+  let pronoun = viewer;
 
   if (isSame) pronoun = 'You';
 
   if (action === 'create') {
-    return `${pronoun} created ${template}.`;
+    const vowels = require('../../admin/attachment-types').vowels;
+
+    const templateNameFirstCharacter = template[0];
+    const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
+
+    return `${pronoun} created ${article} ${template}.`;
   }
 
   if (action === 'change-status') {
@@ -57,7 +61,7 @@ const getComment = (addendumDoc, profile) => {
       displayStatus = 'reversed';
     }
 
-    return `${pronoun} ${displayStatus} ${activityName}.`;
+    return `${pronoun} ${displayStatus.toLowerCase()} ${activityName}.`;
   }
 
 
@@ -82,17 +86,15 @@ const getComment = (addendumDoc, profile) => {
       return `${pronoun} added ${share[0]}.`;
     }
 
-    let str = `${pronoun}`;
+    let str = '';
 
-    share.forEach((phoneNumber, index) => {
-      // [ph1, ph2, ph3]
-      // You added ${ph1}, ${ph2} & ${ph3}.
-      if (index !== share.length - 1) {
-        str += ` added ${phoneNumber}, `;
-      } else {
-        str += ` & ${phoneNumber}`;
-      }
-    });
+    for (let i = 0; i < share.length - 1; i++) {
+      str += `${share[i]}, `;
+    }
+
+    str = str.replace(/,\s*$/, '');
+
+    str += `& ${share[share.length - 1]}`;
 
     return `${pronoun} added ${str}`;
   }
@@ -107,7 +109,7 @@ const getComment = (addendumDoc, profile) => {
 
 
 /**
- * Copies the addendum doc to the path `Updates/(uid)/Addendum(auto-id)`
+ * Copies the addendum doc to the path `Updates/(uid)/Addendum/(auto-id)`
  * for the activity assignees who have auth.
  *
  * @param {Object} addendumDoc Firebase doc Object.
@@ -159,10 +161,11 @@ module.exports = (addendumDoc) =>
         batch.set(profileAddendumDocRef, {
           addendumId: addendumDoc.id,
           activityId: addendumDoc.get('activityId'),
-          timestamp: addendumDoc.get('userDeviceTimestamp'),
+          timestamp: addendumDoc.get('timestamp'),
+          userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
           location: addendumDoc.get('location'),
           user: addendumDoc.get('user'),
-          comment: getComment(addendumDoc, profile),
+          comment: getComment(addendumDoc, profile.id),
         });
       });
 

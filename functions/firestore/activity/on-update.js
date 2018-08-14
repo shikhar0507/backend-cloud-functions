@@ -275,7 +275,6 @@ const handleResult = (conn, result) => {
       activity,
     },
     static: {
-      updatedFields: '',
       officeId: activity.get('officeId'),
       canEditRule: activity.get('canEditRule'),
       activityName: activity.get('activityName'),

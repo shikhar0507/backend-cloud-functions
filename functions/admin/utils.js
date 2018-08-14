@@ -39,10 +39,11 @@ const {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} json The response object to send to the client.
+ * @param {number} [responseCode] Response code (`default`: `200`) to send to the client.
  * @returns {void}
  */
-const sendJSON = (conn, json) => {
-  conn.res.writeHead(code.ok, conn.headers);
+const sendJSON = (conn, json, responseCode = code.ok) => {
+  conn.res.writeHead(responseCode, conn.headers);
   conn.res.end(JSON.stringify(json));
 };
 

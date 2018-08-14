@@ -88,7 +88,13 @@ const createDocsWithBatch = (conn, locals) => {
     .collection('Addendum')
     .doc(), {
       user: conn.requester.phoneNumber,
-      share: conn.req.body.share || null,
+      /**
+       * Numbers from `attachment`, and all other places will always
+       * be present in the `allPhoneNumbers` set. Using that instead of
+       * the request body `share` to avoid some users being missed
+       * in the `comment`.
+       */
+      share: Array.from(locals.objects.allPhoneNumbers),
       remove: null,
       action: 'create',
       status: null,
@@ -303,6 +309,13 @@ const createLocals = (conn, result) => {
       include: [],
       canEditRule: null,
       statusOnCreate: null,
+      /** Used by the filterAttachment function to check the duplication
+       * of entities inside the Offices/(officeId)/Activities collection.
+       * Eg., When the template is `employee`, the req.body.attachment.Name
+       * + `locals.static.template` will be used to query for the employee.
+       * If their doc already exists, reject the request.
+       */
+      template: conn.req.body.template,
     },
     /**
      * For storing all object types (e.g, schedule, venue, attachment)
@@ -365,15 +378,8 @@ const createLocals = (conn, result) => {
   locals.objects.schedule = templateQueryResult.docs[0].get('schedule');
   locals.objects.venue = templateQueryResult.docs[0].get('venue');
   locals.objects.attachment = templateQueryResult.docs[0].get('attachment');
-
   locals.static.canEditRule = templateQueryResult.docs[0].get('canEditRule');
   locals.static.statusOnCreate = templateQueryResult.docs[0].get('statusOnCreate');
-  /**
-   * Used by the filterAttachment function to query the
-   * `Office/(officeId)/Activities` collection by using the
-   * `attachment.Name.value`.
-   */
-  locals.static.template = templateQueryResult.docs[0].get('name');
 
   if (subscriptionQueryResult.empty && !conn.requester.isSupportRequest) {
     sendResponse(
@@ -441,17 +447,6 @@ const createLocals = (conn, result) => {
   }
 
   if (conn.req.body.hasOwnProperty('share')) {
-    if (conn.req.body.share.length === 0
-      && locals.static.include.length === 0) {
-      sendResponse(
-        conn,
-        code.conflict,
-        `Cannot create an activity without any assignees.`
-      );
-
-      return;
-    }
-
     conn.req.body.share
       .forEach((phoneNumber) =>
         locals.objects.allPhoneNumbers.add(phoneNumber));

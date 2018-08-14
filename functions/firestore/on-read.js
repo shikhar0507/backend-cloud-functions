@@ -140,14 +140,14 @@ const mutateActivityToArray = (conn, jsonResult, locals) => {
 const fetchSubscriptions = (conn, jsonResult, locals) =>
   Promise
     .all(locals.templatesList)
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
+    .then((docs) => {
+      docs.forEach((doc) => {
         if (!doc.exists) return;
 
         jsonResult.templates.push({
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
-          template: doc.get('defaultTitle'),
+          template: doc.get('name'),
           attachment: doc.get('attachment'),
         });
       });
@@ -175,11 +175,11 @@ const getTemplates = (conn, jsonResult, locals) =>
     .where('timestamp', '>', locals.from)
     .where('timestamp', '<=', jsonResult.upto)
     .get()
-    .then((snapShot) => {
+    .then((docs) => {
       locals.templatesList = [];
       locals.officesArray = [];
 
-      snapShot.forEach((doc) => {
+      docs.forEach((doc) => {
         /** The `office` is required inside each template. */
         locals.officesArray.push(doc.get('office'));
 
@@ -209,12 +209,10 @@ const fetchAssignees = (conn, jsonResult, locals) =>
   Promise
     .all(locals.assigneeFetchPromises)
     .then((snapShots) => {
-      let activityObj;
-
       snapShots.forEach((snapShot) => {
         snapShot.forEach((doc) => {
           /** Activity-id: `doc.ref.path.split('/')[1]` */
-          activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
+          const activityObj = jsonResult.activities[doc.ref.path.split('/')[1]];
           activityObj.assignees.push(doc.id);
         });
       });
@@ -226,6 +224,19 @@ const fetchAssignees = (conn, jsonResult, locals) =>
     .catch((error) => handleError(conn, error));
 
 
+const beautifySchedule = (schedules) => {
+  const array = [];
+
+  schedules.forEach((schedule) => {
+    const name = schedule.name;
+    const startTime = schedule.startTime.toDate();
+    const endTime = schedule.endTime.toDate();
+
+    array.push({ name, startTime, endTime, });
+  });
+
+  return array;
+};
 
 /**
  * Fetches all the activity data in which the user is an assignee of.
@@ -238,21 +249,21 @@ const fetchAssignees = (conn, jsonResult, locals) =>
 const fetchActivities = (conn, jsonResult, locals) =>
   Promise
     .all(locals.activityFetchPromises)
-    .then((snapShot) => {
-      let activityObj;
-
-      snapShot.forEach((doc) => {
+    .then((docs) => {
+      docs.forEach((doc) => {
         /** Activity-id: doc.ref.path.split('/')[1] */
-        activityObj = jsonResult.activities[doc.id];
+        const activityObj = jsonResult.activities[doc.id];
+        const schedule = beautifySchedule(doc.get('schedule'));
 
+        activityObj.schedule = schedule;
         activityObj.status = doc.get('status');
-        activityObj.schedule = doc.get('schedule');
         activityObj.venue = doc.get('venue');
         activityObj.timestamp = doc.get('timestamp').toDate();
         activityObj.template = doc.get('template');
-        activityObj.title = doc.get('title');
+        activityObj.activityName = doc.get('activityName');
         activityObj.description = doc.get('description');
         activityObj.office = doc.get('office');
+        /** Added further down the line. */
         activityObj.assignees = [];
         activityObj.attachment = doc.get('attachment');
       });
@@ -283,8 +294,8 @@ const getActivityIds = (conn, jsonResult, locals) => {
     .where('timestamp', '>', locals.from)
     .where('timestamp', '<=', jsonResult.upto)
     .get()
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
+    .then((docs) => {
+      docs.forEach((doc) => {
         locals.activityFetchPromises.push(
           rootCollections.activities.doc(doc.id).get()
         );
@@ -353,10 +364,6 @@ const readAddendumByQuery = (conn, locals) => {
         });
       });
 
-      /**
-       * The `timestamp` of the last addendum sorted sorted based
-       * on `timestamp`.
-       * */
       jsonResult
         .upto = snapShot.docs[snapShot.size - 1].get('timestamp').toDate();
 
@@ -373,7 +380,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for /read. Use GET.`
+      `'${conn.req.method}' is not allowed for '/read'. Use 'GET'.`
     );
 
     return;
@@ -383,7 +390,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      'No query parameter found in the request URL.'
+      `Missing the query param 'from' in the request URL.`
     );
 
     return;
@@ -393,19 +400,21 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `${conn.req.query.from} is not a valid unix timestamp.`
+      `'${conn.req.query.from}' is not a valid unix timestamp.`
     );
 
     return;
   }
 
   /** Object to store local data during the cloud function instance. */
-  const locals = {};
+  const locals = {
+    /**
+     * Converting `from` query string to a date multiple times
+     * is wasteful. Storing it here by calculating it once for use
+     * throughout the instance.
+     */
+    from: new Date(parseInt(conn.req.query.from)),
+  };
 
-  /** Converting "from" query string to a date multiple times
-   * is wasteful. Storing it here by calculating it once for use
-   * throughout the instance.
-   */
-  locals.from = new Date(parseInt(conn.req.query.from));
   readAddendumByQuery(conn, locals);
 };

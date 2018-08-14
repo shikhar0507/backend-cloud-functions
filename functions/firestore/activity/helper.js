@@ -47,7 +47,6 @@ const validateSchedules = (body, scheduleNames) => {
   const messageObject = {
     isValid: true,
     message: null,
-    finalSchedules: [],
     schedules: [],
   };
 
@@ -479,7 +478,13 @@ const filterAttachment = (body, locals) => {
           .doc(locals.static.officeId)
           .collection('Activities')
           .where('attachment.Name.value', '==', value)
-          .where('template', '==', type)
+          /**
+           * Not directly using `body.template` for `template`
+           * because other than the create request, the template
+           * name for which to query doesn't come from the
+           * request `body`.
+           */
+          .where('template', '==', locals.static.template)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)
           .get();
@@ -884,7 +889,7 @@ const getCanEditValue = (locals, phoneNumber) => {
   const canEditRule = locals.static.canEditRule;
 
   if (canEditRule === 'ALL') return true;
-  if (canEditRule === 'NONE') return true;
+  if (canEditRule === 'NONE') return false;
 
   if (canEditRule === 'CREATOR') {
     return locals.permissions[phoneNumber].isCreator;
