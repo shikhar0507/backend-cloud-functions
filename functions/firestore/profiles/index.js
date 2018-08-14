@@ -27,17 +27,20 @@ module.exports = (snapShot, context) => {
         .doc(officeId)
         .collection('Addendum')
         .doc(), {
-          updatedPhoneNumber,
-          activityId,
           user,
-          location,
-          userDeviceTimestamp,
-          timestamp,
+          share: null,
           remove: null,
+          action: 'phone-number-update',
+          status: null,
+          comment: null,
           template: null,
-          action: 'phoneNumberUpdate',
-          share: [],
-          updatedFields: [],
+          location,
+          timestamp,
+          userDeviceTimestamp,
+          activityId,
+          activityName: null,
+          updatedFields: null,
+          updatedPhoneNumber,
         });
 
       batch.delete(activityRef
