@@ -27,21 +27,82 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
-const getComment = (doc) => {
-  const share = doc.get('share');
-  const remove = doc.get('remove');
-  const action = doc.get('action');
-  const updatedPhoneNumber = doc.get('updatedPhoneNumber');
-  const timestamp = doc.get('timestamp');
-  const user = doc.get('user');
-  const activityId = doc.get('activityId');
-  const template = doc.get('template');
-  const location = doc.get('location');
-  const userDeviceTimestamp = doc.get('userDeviceTimestamp');
-  const updatedFields = doc.get('updatedFields');
+const getComment = (addendumDoc, profile) => {
+  const user = addendumDoc.get('user');
+  const share = addendumDoc.get('share');
+  const remove = addendumDoc.get('remove');
+  const action = addendumDoc.get('action');
+  const status = addendumDoc.get('status');
+  const comment = addendumDoc.get('comment');
+  const template = addendumDoc.get('template');
+  const activityName = addendumDoc.get('activityName');
+  const updatedFields = addendumDoc.get('updatedFields');
+  const updatedPhoneNumber = addendumDoc.get('updatedPhoneNumber');
 
-  // TODO: Implement comment creation.
-  return '';
+  const profilePhoneNumber = profile.id;
+  const isSame = user === profilePhoneNumber;
+
+  let pronoun = profilePhoneNumber;
+
+  if (isSame) pronoun = 'You';
+
+  if (action === 'create') {
+    return `${pronoun} created ${template}.`;
+  }
+
+  if (action === 'change-status') {
+    let displayStatus = status;
+
+    if (status === 'PENDING') {
+      displayStatus = 'reversed';
+    }
+
+    return `${pronoun} ${displayStatus} ${activityName}.`;
+  }
+
+
+  if (action === 'remove') {
+    return `${pronoun} removed ${remove}.`;
+  }
+
+  if (action === 'phone-number-update') {
+    pronoun = `${user} changed their`;
+
+    if (isSame) {
+      pronoun = 'You changed your';
+    }
+
+    return `${pronoun} phone number from ${user} to ${updatedPhoneNumber}.`;
+  }
+
+  if (action === 'share') {
+    if (share.length === 1) {
+      // [ph1]
+      // You added ${ph1}.
+      return `${pronoun} added ${share[0]}.`;
+    }
+
+    let str = `${pronoun}`;
+
+    share.forEach((phoneNumber, index) => {
+      // [ph1, ph2, ph3]
+      // You added ${ph1}, ${ph2} & ${ph3}.
+      if (index !== share.length - 1) {
+        str += ` added ${phoneNumber}, `;
+      } else {
+        str += ` & ${phoneNumber}`;
+      }
+    });
+
+    return `${pronoun} added ${str}`;
+  }
+
+  if (action === 'update') {
+    return `${pronoun} updated ${updatedFields}.`;
+  }
+
+  /** Action is `comment` */
+  return comment;
 };
 
 
@@ -89,18 +150,20 @@ module.exports = (addendumDoc) =>
         */
         if (!uid) return;
 
-        batch.set(rootCollections
+        const profileAddendumDocRef = rootCollections
           .updates
           .doc(uid)
           .collection('Addendum')
-          .doc(), {
-            addendumId: addendumDoc.id,
-            activityId: addendumDoc.get('activityId'),
-            timestamp: addendumDoc.get('userDeviceTimestamp'),
-            location: addendumDoc.get('location'),
-            user: addendumDoc.get('user'),
-            comment: getComment(addendumDoc),
-          });
+          .doc();
+
+        batch.set(profileAddendumDocRef, {
+          addendumId: addendumDoc.id,
+          activityId: addendumDoc.get('activityId'),
+          timestamp: addendumDoc.get('userDeviceTimestamp'),
+          location: addendumDoc.get('location'),
+          user: addendumDoc.get('user'),
+          comment: getComment(addendumDoc, profile),
+        });
       });
 
       return batch.commit();

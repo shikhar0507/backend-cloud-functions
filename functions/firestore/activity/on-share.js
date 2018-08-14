@@ -88,7 +88,7 @@ const handleResult = (conn, result) => {
 
   const promises = [];
 
-  /** 
+  /**
    * The `share` array from the request body may not
    * have all valid phone numbers.
    */
@@ -170,17 +170,20 @@ const handleResult = (conn, result) => {
         .doc(activity.get('officeId'))
         .collection('Addendum')
         .doc(), {
+          user: conn.requester.phoneNumber,
+          share: conn.req.body.share,
           remove: null,
           action: 'share',
-          updatedFields: [],
-          updatedPhoneNumber: null,
-          share: conn.req.body.share,
-          timestamp: serverTimestamp,
-          user: conn.requester.phoneNumber,
-          template: activity.get('template'),
-          activityId: conn.req.body.activityId,
+          status: null,
+          comment: null,
+          template: null,
           location: getGeopointObject(conn.req.body.geopoint),
+          timestamp: serverTimestamp,
           userDeviceTimestamp: new Date(conn.req.body.timestamp),
+          activityId: conn.req.body.activityId,
+          activityName: activity.get('activityName'),
+          updatedFields: null,
+          updatedPhoneNumber: null,
         });
 
       return batch.commit();

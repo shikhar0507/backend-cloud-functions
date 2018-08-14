@@ -72,18 +72,20 @@ const updateDocsWithBatch = (conn, locals) => {
     .doc(locals.docs.activity.get('officeId'))
     .collection('Addendum')
     .doc(), {
-      share: [],
+      user: conn.requester.phoneNumber,
+      share: null,
       remove: null,
       action: 'update',
-      updatedPhoneNumber: null,
-      timestamp: serverTimestamp,
-      user: conn.requester.phoneNumber,
-      activityId: conn.req.body.activityId,
-      template: locals.docs.activity.get('template'),
-      location: getGeopointObject(conn.req.body.geopoint),
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      updatedFields: Object.keys(locals.objects.updatedFields),
+      status: null,
       comment: null,
+      template: null,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      activityId: conn.req.body.activityId,
+      activityName: locals.static.activityName,
+      updatedFields: Object.keys(locals.objects.updatedFields),
+      updatedPhoneNumber: null,
     });
 
   /** Ends the response. */
@@ -156,7 +158,7 @@ const handleAssignees = (conn, locals) => {
     if (phoneNumber === '') return;
 
     if (oldPhoneNumber !== '') {
-      /** 
+      /**
        * Unassign the old phone number from the activity.
        * Replace this with the new one from the attachment.
        */
@@ -239,26 +241,24 @@ const handleResult = (conn, result) => {
   const activity = result[1];
 
   if (!conn.requester.isSupportRequest) {
-    if (!conn.requester.isSupportRequest) {
-      if (!profileActivity.exists) {
-        sendResponse(
-          conn,
-          code.badRequest,
-          `No activity found with the id: '${conn.req.body.activityId}'.`
-        );
+    if (!profileActivity.exists) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `No activity found with the id: '${conn.req.body.activityId}'.`
+      );
 
-        return;
-      }
+      return;
+    }
 
-      if (!profileActivity.get('canEdit')) {
-        sendResponse(
-          conn,
-          code.forbidden,
-          'You do not have the permission to edit this activity.'
-        );
+    if (!profileActivity.get('canEdit')) {
+      sendResponse(
+        conn,
+        code.forbidden,
+        'You do not have the permission to edit this activity.'
+      );
 
-        return;
-      }
+      return;
     }
   }
 
@@ -275,8 +275,10 @@ const handleResult = (conn, result) => {
       activity,
     },
     static: {
+      updatedFields: '',
       officeId: activity.get('officeId'),
       canEditRule: activity.get('canEditRule'),
+      activityName: activity.get('activityName'),
     },
   };
 

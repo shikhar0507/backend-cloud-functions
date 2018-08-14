@@ -87,17 +87,20 @@ const createDocsWithBatch = (conn, locals) => {
     .doc(locals.static.officeId)
     .collection('Addendum')
     .doc(), {
+      user: conn.requester.phoneNumber,
+      share: conn.req.body.share || null,
       remove: null,
       action: 'create',
-      updatedPhoneNumber: null,
-      timestamp: serverTimestamp,
-      user: conn.requester.phoneNumber,
-      activityId: locals.static.activityId,
+      status: null,
+      comment: null,
       template: conn.req.body.template,
-      share: conn.req.body.share || [],
       location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      updatedFields: [],
+      activityId: locals.static.activityId,
+      activityName: conn.req.body.activityName,
+      updatedFields: null,
+      updatedPhoneNumber: null,
     });
 
   /** ENDS the response. */
@@ -113,6 +116,18 @@ const createDocsWithBatch = (conn, locals) => {
 
 const handleAssignees = (conn, locals) => {
   const promises = [];
+
+  if (locals.objects.allPhoneNumbers.size === 0) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `Cannot create an activity without any assignees. Please`
+      + ` add some assignees for this activity using the 'share'`
+      + ` array in the request body.`
+    );
+
+    return;
+  }
 
   locals
     .objects
@@ -353,10 +368,10 @@ const createLocals = (conn, result) => {
 
   locals.static.canEditRule = templateQueryResult.docs[0].get('canEditRule');
   locals.static.statusOnCreate = templateQueryResult.docs[0].get('statusOnCreate');
-  /** 
+  /**
    * Used by the filterAttachment function to query the
    * `Office/(officeId)/Activities` collection by using the
-   * attachment.Name.value. 
+   * `attachment.Name.value`.
    */
   locals.static.template = templateQueryResult.docs[0].get('name');
 

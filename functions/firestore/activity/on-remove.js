@@ -143,18 +143,20 @@ const handleResult = (conn, result) => {
     .doc(activity.get('officeId'))
     .collection('Addendum')
     .doc(), {
-      share: [],
+      user: conn.requester.phoneNumber,
+      share: null,
       remove: conn.req.body.remove,
       action: 'remove',
-      updatedPhoneNumber: null,
-      timestamp: serverTimestamp,
-      user: conn.requester.phoneNumber,
-      activityId: conn.req.body.activityId,
-      template: activity.get('template'),
-      location: getGeopointObject(conn.req.body.geopoint),
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      updatedFields: [],
+      status: null,
       comment: null,
+      template: null,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      activityId: conn.req.body.activityId,
+      activityName: activity.get('activityName'),
+      updatedFields: null,
+      updatedPhoneNumber: null,
     });
 
   batch.commit()

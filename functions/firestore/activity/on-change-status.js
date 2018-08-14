@@ -47,8 +47,8 @@ const fetchDocs = (conn) => {
     .activities
     .doc(conn.req.body.activityId)
     .get()
-    .then((activityDoc) => {
-      if (!activityDoc.exists) {
+    .then((activity) => {
+      if (!activity.exists) {
         sendResponse(
           conn,
           code.badRequest,
@@ -58,7 +58,7 @@ const fetchDocs = (conn) => {
         return;
       }
 
-      if (activityDoc.get('status') === conn.req.body.status) {
+      if (activity.get('status') === conn.req.body.status) {
         sendResponse(
           conn,
           code.conflict,
@@ -81,20 +81,23 @@ const fetchDocs = (conn) => {
 
       batch.set(rootCollections
         .offices
-        .doc(activityDoc.get('officeId'))
+        .doc(activity.get('officeId'))
         .collection('Addendum')
         .doc(), {
-          share: [],
+          user: conn.requester.phoneNumber,
+          share: null,
           remove: null,
           action: 'change-status',
-          updatedPhoneNumber: null,
-          timestamp: serverTimestamp,
-          user: conn.requester.phoneNumber,
-          activityId: conn.req.body.activityId,
-          template: activityDoc.get('template'),
+          status: conn.req.body.status,
+          comment: null,
+          template: null,
           location: getGeopointObject(conn.req.body.geopoint),
+          timestamp: serverTimestamp,
           userDeviceTimestamp: new Date(conn.req.body.timestamp),
-          updatedFields: ['status',],
+          activityId: conn.req.body.activityId,
+          activityName: activity.get('activityName'),
+          updatedFields: null,
+          updatedPhoneNumber: null,
         });
 
       batch.commit();

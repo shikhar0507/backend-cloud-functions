@@ -151,7 +151,7 @@ const now = (conn) => {
   }
 
   /** Ends response. */
-  sendJSON(conn, { success: true, timestamp: serverTimestamp, code: code.ok, });
+  sendJSON(conn, { success: true, timestamp: Date.now(), code: code.ok, });
 };
 
 
