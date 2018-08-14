@@ -57,7 +57,7 @@ module.exports = (userRecord) => {
     }, {
       /** Profile *may* exist already, if the user signed
        * up to the platform sometime in the past.
-      */
+       */
       merge: true,
     });
 
@@ -70,7 +70,9 @@ module.exports = (userRecord) => {
     }, {
       /** Doc will have other phone numbers too. */
       merge: true,
-    })
-    .then(() => batch.commit())
+    });
+
+  return batch
+    .commit()
     .catch(console.error);
 };
