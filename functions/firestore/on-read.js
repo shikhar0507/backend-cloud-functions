@@ -117,7 +117,7 @@ const mutateActivityToArray = (conn, jsonResult, locals) => {
 
   jsonResult.activities = jsonResult.activitiesArr;
 
-  /** 
+  /**
    * `jsonResult.activitiesArr` is temporary object for storing
    * the array with the activity objects. This object is not required
    * in the response body.
