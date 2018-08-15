@@ -342,8 +342,8 @@ const readAddendumByQuery = (conn, locals) => {
     .where('timestamp', '>', locals.from)
     .orderBy('timestamp', 'asc')
     .get()
-    .then((snapShot) => {
-      if (snapShot.empty) {
+    .then((docs) => {
+      if (docs.empty) {
         /** `activities` object is an array for the final response. */
         jsonResult.activities = [];
 
@@ -353,7 +353,7 @@ const readAddendumByQuery = (conn, locals) => {
         return;
       }
 
-      snapShot.forEach((doc) => {
+      docs.forEach((doc) => {
         jsonResult.addendum.push({
           addendumId: doc.id,
           activityId: doc.get('activityId'),
@@ -365,7 +365,7 @@ const readAddendumByQuery = (conn, locals) => {
       });
 
       jsonResult
-        .upto = snapShot.docs[snapShot.size - 1].get('timestamp').toDate();
+        .upto = docs.docs[docs.size - 1].get('timestamp').toDate();
 
       getActivityIds(conn, jsonResult, locals);
 
