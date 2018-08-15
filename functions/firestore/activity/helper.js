@@ -190,8 +190,8 @@ const validateSchedules = (body, scheduleNames) => {
 
     messageObject.schedules.push({
       name,
-      startTime: new Date(startTime),
-      endTime: new Date(endTime),
+      startTime: startTime === '' ? '' : new Date(startTime),
+      endTime: endTime === '' ? '' : new Date(endTime),
     });
   }
 
@@ -283,7 +283,6 @@ const validateVenues = (body, venueDescriptors) => {
 
     const venueDescriptor = venueObject.venueDescriptor;
     const address = venueObject.address;
-    const geopoint = venueObject.geopoint;
     const location = venueObject.location;
 
     if (seenDescriptors.has(venueDescriptor)) {
@@ -326,16 +325,16 @@ const validateVenues = (body, venueDescriptors) => {
     }
 
     /** Client can send empty string in the request. */
-    if (geopoint !== '') {
-      if (typeof geopoint !== 'object') {
+    if (venueObject.geopoint !== '') {
+      if (typeof venueObject.geopoint !== 'object') {
         messageObject.isValid = false;
         messageObject.message = `In the venue object at position ${i}, the`
           + ` 'geopoint' is not valid. Expected 'object'.`
-          + ` Found '${typeof geopoint}'.`;
+          + ` Found '${typeof venueObject.geopoint}'.`;
         break;
       }
 
-      if (!isValidGeopoint(geopoint)) {
+      if (!isValidGeopoint(venueObject.geopoint)) {
         messageObject.isValid = false;
         messageObject.message = `In the venue object at position ${i}, the`
           + ` ' geopoint' is invalid. Make sure to include the fields`
@@ -343,13 +342,15 @@ const validateVenues = (body, venueDescriptors) => {
           + ` range for each field.`;
         break;
       }
+
+      venueObject.geopoint = getGeopointObject(venueObject.geopoint);
     }
 
     messageObject.venues.push({
       venueDescriptor,
-      location,
       address,
-      geopoint: getGeopointObject(geopoint),
+      location,
+      geopoint: venueObject.geopoint,
     });
   }
 
