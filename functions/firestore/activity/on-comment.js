@@ -102,6 +102,7 @@ module.exports = (conn) => {
           activityName: null,
           updatedFields: null,
           updatedPhoneNumber: null,
+          isSupportRequest: conn.requester.isSupport,
         });
 
       batch.commit();

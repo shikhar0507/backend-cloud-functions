@@ -21,6 +21,7 @@ module.exports = (snapShot, context) => {
       const location = snapShot.get('location');
       const user = snapShot.get('user');
       const canEdit = snapShot.get('canEdit');
+      const isSupportRequest = snapShot.get('isSupportRequest');
 
       batch.set(rootCollections
         .offices
@@ -41,6 +42,7 @@ module.exports = (snapShot, context) => {
           activityName: null,
           updatedFields: null,
           updatedPhoneNumber,
+          isSupportRequest,
         });
 
       batch.delete(activityRef

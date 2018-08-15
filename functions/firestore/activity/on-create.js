@@ -107,6 +107,7 @@ const createDocsWithBatch = (conn, locals) => {
       activityName: conn.req.body.activityName,
       updatedFields: null,
       updatedPhoneNumber: null,
+      isSupportRequest: conn.requester.isSupport,
     });
 
   /** ENDS the response. */

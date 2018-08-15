@@ -104,21 +104,21 @@ const validateSchedules = (body, scheduleNames) => {
 
     if (!scheduleObject.hasOwnProperty('name')) {
       messageObject.isValid = false;
-      messageObject.message = `The Object at position ${i + 1} is missing`
+      messageObject.message = `The Object at position ${i} is missing`
         + ` the 'name' field in the schedule array.`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('startTime')) {
       messageObject.isValid = false;
-      messageObject.message = `The Object at the position ${i + 1} is missing`
+      messageObject.message = `The Object at the position ${i} is missing`
         + ` the 'startTime' field in the schedule array`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('endTime')) {
       messageObject.isValid = false;
-      messageObject.message = `The Object at the position ${i + 1} is missing`
+      messageObject.message = `The Object at the position ${i} is missing`
         + ` the 'endTime' field in the schedule array`;
       break;
     }
@@ -139,7 +139,7 @@ const validateSchedules = (body, scheduleNames) => {
 
     if (!isNonEmptyString(name)) {
       messageObject.isValid = false;
-      messageObject.message = `The Object at position ${i + 1} has an invalid`
+      messageObject.message = `The Object at position ${i} has an invalid`
         + ` value in the field 'name' in the schedule array.`;
       break;
     }
@@ -175,7 +175,7 @@ const validateSchedules = (body, scheduleNames) => {
     if (startTime > endTime) {
       messageObject.isValid = false;
       messageObject.message = `The value of 'startTime' is greater than the`
-        + ` value of 'endTime' in the object ${name}.`;
+        + ` value of 'endTime' in the schedule '${name}'.`;
       break;
     }
 

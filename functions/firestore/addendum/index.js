@@ -27,8 +27,8 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
-const getComment = (addendum, viewer) => {
-  const user = addendum.get('user');
+const commentBuilder = (addendum, recipient) => {
+  const addendumCreator = addendum.get('user');
   const share = addendum.get('share');
   const remove = addendum.get('remove');
   const action = addendum.get('action');
@@ -37,11 +37,28 @@ const getComment = (addendum, viewer) => {
   const template = addendum.get('template');
   const activityName = addendum.get('activityName');
   const updatedFields = addendum.get('updatedFields');
+  const isSupportRequest = addendum.get('isSupportRequest');
   const updatedPhoneNumber = addendum.get('updatedPhoneNumber');
 
-  const isSame = user === viewer;
+  /**
+   * The variable `isSame` should never be `true` unless
+   *  it's a support request.
+   */
+  let isSame = false;
+  /**
+   * People are denoted with their phone numbers unless
+   * the person creating the addendum is the same as the one
+   * receiving it.
+   */
+  let pronoun = recipient;
 
-  let pronoun = viewer;
+  /**
+   * With support requests, the person creating that
+   * request never gets added to the assignees of the activity.
+   *
+   * Because of this, the `isSame` variable never gets `true`.
+   */
+  if (!isSupportRequest) isSame = addendumCreator === recipient;
 
   if (isSame) pronoun = 'You';
 
@@ -57,51 +74,53 @@ const getComment = (addendum, viewer) => {
   if (action === 'change-status') {
     let displayStatus = status;
 
-    if (status === 'PENDING') {
-      displayStatus = 'reversed';
-    }
+    /** `PENDING` isn't grammatically correct with the comment here. */
+    if (status === 'PENDING') displayStatus = 'reversed';
 
     return `${pronoun} ${displayStatus.toLowerCase()} ${activityName}.`;
   }
 
-
-  if (action === 'remove') {
-    return `${pronoun} removed ${remove}.`;
-  }
+  if (action === 'remove') return `${pronoun} removed ${remove}.`;
 
   if (action === 'phone-number-update') {
-    pronoun = `${user} changed their`;
+    pronoun = `${addendumCreator} changed their`;
 
-    if (isSame) {
-      pronoun = 'You changed your';
-    }
+    if (isSame) pronoun = 'You changed your';
 
-    return `${pronoun} phone number from ${user} to ${updatedPhoneNumber}.`;
+    return `${pronoun} phone number from ${addendumCreator} to`
+      + ` ${updatedPhoneNumber}.`;
   }
 
   if (action === 'share') {
-    if (share.length === 1) {
-      // [ph1]
-      // You added ${ph1}.
-      return `${pronoun} added ${share[0]}.`;
-    }
+    let pronoun = recipient;
 
-    let str = '';
+    if (recipient === addendumCreator) pronoun = 'You';
 
-    for (let i = 0; i < share.length - 1; i++) {
-      str += `${share[i]}, `;
-    }
+    let str = `${pronoun} added`;
 
-    str = str.replace(/,\s*$/, '');
+    if (share.length === 1) return `${str} ${share[0]}`;
 
-    str += `& ${share[share.length - 1]}`;
+    /** The `share` array will never have the `user` themselves */
+    share.forEach((phoneNumber, index) => {
+      if (recipient === phoneNumber) phoneNumber = 'you';
 
-    return `${pronoun} added ${str}`;
+      /**
+       * Creates a string to show to the user
+       * `${ph1} added ${ph2}, ${ph3}, & ${ph4}`
+       */
+      if (index === share.length - 1) {
+        str += ` & ${phoneNumber}`;
+
+        return;
+      } else {
+        str += `,`;
+      }
+
+      str += ` ${phoneNumber}`;
+    });
   }
 
-  if (action === 'update') {
-    return `${pronoun} updated ${updatedFields}.`;
-  }
+  if (action === 'update') return `${pronoun} updated ${updatedFields}.`;
 
   /** Action is `comment` */
   return comment;
@@ -159,13 +178,13 @@ module.exports = (addendumDoc) =>
           .doc();
 
         batch.set(profileAddendumDocRef, {
-          addendumId: addendumDoc.id,
+          addendumId: profileAddendumDocRef.id,
           activityId: addendumDoc.get('activityId'),
           timestamp: addendumDoc.get('timestamp'),
           userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
           location: addendumDoc.get('location'),
           user: addendumDoc.get('user'),
-          comment: getComment(addendumDoc, profile.id),
+          comment: commentBuilder(addendumDoc, profile.id),
         });
       });
 

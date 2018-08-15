@@ -86,6 +86,7 @@ const updateDocsWithBatch = (conn, locals) => {
       activityName: locals.static.activityName,
       updatedFields: Object.keys(locals.objects.updatedFields),
       updatedPhoneNumber: null,
+      isSupportRequest: conn.requester.isSupport,
     });
 
   /** Ends the response. */
@@ -278,6 +279,7 @@ const handleResult = (conn, result) => {
       officeId: activity.get('officeId'),
       canEditRule: activity.get('canEditRule'),
       activityName: activity.get('activityName'),
+      template: activity.get('template'),
     },
   };
 
