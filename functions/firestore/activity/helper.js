@@ -144,39 +144,41 @@ const validateSchedules = (body, scheduleNames) => {
       break;
     }
 
-    if (typeof startTime !== 'number') {
-      messageObject.isValid = false;
-      messageObject.message = `The 'startTime' in the schedule '${name}' should`
-        + ` be a number`;
-      break;
-    }
+    if (startTime !== '' && endTime !== '') {
+      if (typeof startTime !== 'number') {
+        messageObject.isValid = false;
+        messageObject.message = `The 'startTime' in the schedule '${name}'`
+          + ` should be a number`;
+        break;
+      }
 
-    if (typeof endTime !== 'number') {
-      messageObject.isValid = false;
-      messageObject.message = `The 'endTime' in the schedule '${name}' should`
-        + ` be a number`;
-      break;
-    }
+      if (typeof endTime !== 'number') {
+        messageObject.isValid = false;
+        messageObject.message = `The 'endTime' in the schedule '${name}'`
+          + ` should be a number`;
+        break;
+      }
 
-    if (!isValidDate(startTime)) {
-      messageObject.isValid = false;
-      messageObject.message = `The 'startTime' in the schedule '${name}' should`
-        + ` be a valid unix timestamp.`;
-      break;
-    }
+      if (!isValidDate(startTime)) {
+        messageObject.isValid = false;
+        messageObject.message = `The 'startTime' in the schedule '${name}'`
+          + ` should be a valid unix timestamp.`;
+        break;
+      }
 
-    if (!isValidDate(endTime)) {
-      messageObject.isValid = false;
-      messageObject.message = `The 'endTime' in the schedule '${name}' should`
-        + `be a valid unix timestamp.`;
-      break;
-    }
+      if (!isValidDate(endTime)) {
+        messageObject.isValid = false;
+        messageObject.message = `The 'endTime' in the schedule '${name}' should`
+          + `be a valid unix timestamp.`;
+        break;
+      }
 
-    if (startTime > endTime) {
-      messageObject.isValid = false;
-      messageObject.message = `The value of 'startTime' is greater than the`
-        + ` value of 'endTime' in the schedule '${name}'.`;
-      break;
+      if (startTime > endTime) {
+        messageObject.isValid = false;
+        messageObject.message = `The value of 'startTime' is greater than the`
+          + ` value of 'endTime' in the schedule '${name}'.`;
+        break;
+      }
     }
 
     if (scheduleNames.indexOf(name) === -1) {
@@ -323,21 +325,24 @@ const validateVenues = (body, venueDescriptors) => {
       break;
     }
 
-    if (typeof geopoint !== 'object') {
-      messageObject.isValid = false;
-      messageObject.message = `In the venue object at position ${i}, the`
-        + ` 'geopoint' is not valid. Expected 'object'.`
-        + ` Found '${typeof geopoint}'.`;
-      break;
-    }
+    /** Client can send empty string in the request. */
+    if (geopoint !== '') {
+      if (typeof geopoint !== 'object') {
+        messageObject.isValid = false;
+        messageObject.message = `In the venue object at position ${i}, the`
+          + ` 'geopoint' is not valid. Expected 'object'.`
+          + ` Found '${typeof geopoint}'.`;
+        break;
+      }
 
-    if (!isValidGeopoint(geopoint)) {
-      messageObject.isValid = false;
-      messageObject.message = `In the venue object at position ${i}, the`
-        + ` ' geopoint' is invalid. Make sure to include the fields`
-        + `' latitude' and 'longitude' are present in the object with proper`
-        + ` range for each field.`;
-      break;
+      if (!isValidGeopoint(geopoint)) {
+        messageObject.isValid = false;
+        messageObject.message = `In the venue object at position ${i}, the`
+          + ` ' geopoint' is invalid. Make sure to include the fields`
+          + `' latitude' and 'longitude' are present in the object with proper`
+          + ` range for each field.`;
+        break;
+      }
     }
 
     messageObject.venues.push({
