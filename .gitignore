@@ -74,3 +74,6 @@ serviceAccountKey.json
 
 # Firebase project rc file
 .firebaserc
+
+# Environment variables
+env.*
