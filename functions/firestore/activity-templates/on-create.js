@@ -195,15 +195,21 @@ const validateTemplate = (body) => {
 };
 
 
-const createDoc = (conn) =>
-  rootCollections
-    .activityTemplates
-    .doc()
-    .set(conn.req.body)
+const createDoc = (conn, docs) =>
+  Promise
+    .all([
+      docs
+        .templateDocRef
+        .set(conn.req.body),
+      rootCollections
+        .instant
+        .doc()
+        .set(docs.email),
+    ])
     .then(() => sendResponse(
       conn,
-      code.ok,
-      `Template: '${conn.req.body.name}' has been created successfully.`
+      code.created,
+      `Template: ${conn.req.body.name} has been created successfully.`
     ))
     .catch((error) => handleError(conn, error));
 
@@ -312,7 +318,36 @@ module.exports = (conn) => {
         return;
       }
 
-      createDoc(conn);
+      const templateDocRef = rootCollections.activityTemplates.doc();
+
+      const subject = `Template Created the in Growthfile DB`;
+      const html = `
+        <h2>
+          The template manager: <strong>{${conn.requester.phoneNumber}}</strong>
+          just created a new template: ${conn.req.body.name} in the
+          Growthfile DB.
+        </h2>
+        <p>
+          <strong>Template Id</strong>: ${templateDocRef.id}
+          <br>
+          <strong>Template Name</strong>: ${conn.req.body.name}
+        </p>
+
+        <hr>
+
+        <pre>
+        <code>
+          ${JSON.stringify(conn.req.body, ' ', 2)}
+        </code>
+        </pre>
+
+        <hr>
+      `;
+
+      createDoc(conn, {
+        email: { subject, html, },
+        templateDocRef,
+      });
 
       return;
     })

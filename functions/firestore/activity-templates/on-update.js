@@ -165,7 +165,7 @@ const validateRequestBody = (conn, locals) => {
         conn,
         code.badRequest,
         `Expected the value of the 'attachment' field to`
-        + ` be of type Object. Found: '${typeof attachment}'.`
+        + ` be of type Object. Found: '${typeof conn.req.body.attachment}'.`
       );
 
       return;
@@ -222,10 +222,51 @@ const validateRequestBody = (conn, locals) => {
     locals.objects.updatedFields.attachment = conn.req.body.attachment;
   }
 
-  rootCollections
-    .activityTemplates
-    .doc(locals.static.templateId)
-    .set(locals.objects.updatedFields, { merge: true, })
+  const subject = `Template Updated in the Growthfile DB`;
+  const html = `
+  <p>
+    The template manager: <strong>{${conn.requester.phoneNumber}}</strong>
+    just updated an existing template: '${conn.req.body.name}' in the
+    Growthfile DB.
+  <p>
+  <p>
+    <strong>Template Id</strong>: '${locals.static.templateId}'
+    <br>
+    <strong>Template Name</strong>: '${conn.req.body.name}'
+  </p>
+
+  <hr>
+
+  <h2>Request Body</h2>
+  <pre>
+  <code>
+    ${JSON.stringify(conn.req.body, ' ', 2)}
+  </code>
+  </pre>
+
+  <hr>
+
+  <h2>Updated Entries</h2>
+  <pre>
+  <code>
+    ${JSON.stringify(locals.objects.updatedFields, ' ', 2)}
+  </code>
+  </pre>
+
+  <hr>
+  `;
+
+  Promise
+    .all([
+      locals
+        .docs
+        .template
+        .set(locals.objects.updatedFields, { merge: true, }),
+      locals
+        .docs
+        .instant
+        .set({ html, subject, }),]
+    )
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
@@ -269,6 +310,10 @@ module.exports = (conn) => {
         },
         static: {
           templateId: snapShot.docs[0].id,
+        },
+        docs: {
+          template: rootCollections.activityTemplates.doc(snapShot.docs[0].id),
+          instant: rootCollections.instant.doc(),
         },
       };
 
