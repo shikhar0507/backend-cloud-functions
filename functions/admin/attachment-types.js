@@ -26,7 +26,6 @@
 
 /** Types allowed for the field `type` in the attachment object. */
 const validTypes = new Map()
-  .set('office', 'office')
   .set('string', 'string')
   .set('weekday', 'weekday')
   .set('template', 'template')
