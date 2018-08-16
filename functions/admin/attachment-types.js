@@ -77,6 +77,57 @@ const vowels = new Map()
   .set('o', 'o')
   .set('u', 'u');
 
+const sgMailTemplateIds = new Map()
+  .set('instantEmails', 'd-a9a592a473d6414d94a8344e8f16c8a0');
+
+const substitutionWrappers = ['{{', '}}',];
+
+const createBodyFields = new Map()
+  .set('timestamp', 'timestamp')
+  .set('geopoint', 'geopoint')
+  .set('template', 'template')
+  .set('activityName', 'activityName')
+  .set('share', 'share')
+  .set('venue', 'venue')
+  .set('schedule', 'schedule')
+  .set('attachment', 'attachment');
+
+const updateBodyFields = new Map()
+  .set('timestamp', 'timestamp')
+  .set('geopoint', 'geopoint')
+  .set('activityId', 'activityId')
+  .set('schedule', 'schedule')
+  .set('venue', 'venue');
+
+const shareBodyFields = new Map()
+  .set('timestamp', 'timestamp')
+  .set('geopoint', 'geopoint')
+  .set('activityId', 'activityId')
+  .set('share', 'share');
+
+const changeStatusBodyFields = new Map()
+  .set('timestamp', 'timestamp')
+  .set('geopoint', 'geopoint')
+  .set('activityId', 'activityId')
+  .set('status', 'status');
+
+const commentBodyFields = new Map()
+  .set('timestamp', 'timestamp')
+  .set('geopoint', 'geopoint')
+  .set('activityId', 'activityId')
+  .set('comment', 'comment');
+
+const removeBodyFields = new Map()
+  .set('timestamp', 'timestamp')
+  .set('geopoint', 'geopoint')
+  .set('activityId', 'activityId')
+  .set('remove', 'remove');
+
+const phoneNumberUpdateBodyFields = new Map()
+  .set('timestamp', 'timestamp')
+  .set('geopoint', 'geopoint')
+  .set('phoneNumber', 'phoneNumber');
+
 
 module.exports = {
   vowels,
@@ -85,4 +136,13 @@ module.exports = {
   canEditRules,
   templateFields,
   activityStatuses,
+  sgMailTemplateIds,
+  substitutionWrappers,
+  createBodyFields,
+  updateBodyFields,
+  shareBodyFields,
+  removeBodyFields,
+  commentBodyFields,
+  changeStatusBodyFields,
+  phoneNumberUpdateBodyFields,
 };
