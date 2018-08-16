@@ -223,7 +223,7 @@ const validateRequestBody = (conn, locals) => {
   }
 
   const subject = `Template Updated in the Growthfile DB`;
-  const html = `
+  const body = `
   <p>
     The template manager: <strong>{${conn.requester.phoneNumber}}</strong>
     just updated an existing template: '${conn.req.body.name}' in the
@@ -265,15 +265,14 @@ const validateRequestBody = (conn, locals) => {
       locals
         .docs
         .instant
-        .set({ html, subject, }),]
-    )
+        .set({ body, subject, }),
+    ])
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
 
 
 module.exports = (conn) => {
-  console.warn('\n'.repeat(10));
   if (!conn.req.body.hasOwnProperty('name')) {
     sendResponse(
       conn,

@@ -321,12 +321,12 @@ module.exports = (conn) => {
       const templateDocRef = rootCollections.activityTemplates.doc();
 
       const subject = `Template Created the in Growthfile DB`;
-      const html = `
-        <h2>
+      const body = `
+        <p>
           The template manager: <strong>{${conn.requester.phoneNumber}}</strong>
           just created a new template: ${conn.req.body.name} in the
           Growthfile DB.
-        </h2>
+        </p>
         <p>
           <strong>Template Id</strong>: ${templateDocRef.id}
           <br>
@@ -340,12 +340,10 @@ module.exports = (conn) => {
           ${JSON.stringify(conn.req.body, ' ', 2)}
         </code>
         </pre>
-
-        <hr>
       `;
 
       createDoc(conn, {
-        email: { subject, html, },
+        email: { subject, body, },
         templateDocRef,
       });
 
