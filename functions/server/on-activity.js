@@ -45,7 +45,6 @@ const handleAction = (conn, action) => {
       );
 
       return;
-
     }
 
     const onCreate = require('../firestore/activity/on-create');
@@ -78,8 +77,9 @@ const handleAction = (conn, action) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /update endpoint. Use PATCH.`
-        + ' Use PATCH.');
+        `${conn.req.method} is not allowed for the /update endpoint.`
+        + ` Use PATCH.`
+      );
 
       return;
     }
@@ -97,7 +97,6 @@ const handleAction = (conn, action) => {
         conn,
         code.methodNotAllowed,
         `${conn.req.method} is not allowed for the /share endpoint. Use PATCH.`
-        + ' Use PATCH.'
       );
 
       return;
