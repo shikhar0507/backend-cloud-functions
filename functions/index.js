@@ -61,9 +61,15 @@ const phoneNumberUpdateHandler = functions
   .document('PhoneNumberUpdates/docId')
   .onCreate(require('./firestore/profiles/index'));
 
+const instantMail = functions
+  .firestore
+  .document('Instant/{docId}')
+  .onCreate(require('./firestore/instant/index'));
+
 
 module.exports = {
   api,
+  instantMail,
   authOnCreate,
   authOnDelete,
   addendumHandler,
