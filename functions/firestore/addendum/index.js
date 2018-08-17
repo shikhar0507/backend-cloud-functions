@@ -41,16 +41,12 @@ const commentBuilder = (addendum, recipient) => {
   const updatedPhoneNumber = addendum.get('updatedPhoneNumber');
 
   /**
-   * The variable `isSame` should never be `true` unless
-   *  it's a support request.
-   */
-  let isSame = false;
-  /**
    * People are denoted with their phone numbers unless
    * the person creating the addendum is the same as the one
    * receiving it.
    */
-  let pronoun = recipient;
+  let pronoun;
+  let isSame = false;
 
   /**
    * With support requests, the person creating that
@@ -58,9 +54,18 @@ const commentBuilder = (addendum, recipient) => {
    *
    * Because of this, the `isSame` variable never gets `true`.
    */
-  if (!isSupportRequest) isSame = addendumCreator === recipient;
-
-  if (isSame) pronoun = 'You';
+  if (isSupportRequest) {
+    pronoun = addendumCreator;
+  } else if (addendumCreator === recipient) {
+    pronoun = 'You';
+    /**
+     * The variable `isSame` should never be `true` unless
+     *  it's a support request.
+     */
+    isSame = true;
+  } else {
+    pronoun = addendumCreator;
+  }
 
   if (action === 'create') {
     const vowels = require('../../admin/attachment-types').vowels;
