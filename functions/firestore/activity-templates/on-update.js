@@ -223,7 +223,7 @@ const validateRequestBody = (conn, locals) => {
   }
 
   const subject = `Template Updated in the Growthfile DB`;
-  const body = `
+  const html = `
   <p>
     The template manager: <strong>{${conn.requester.phoneNumber}}</strong>
     just updated an existing template: '${conn.req.body.name}' in the
@@ -265,7 +265,7 @@ const validateRequestBody = (conn, locals) => {
       locals
         .docs
         .instant
-        .set({ body, subject, }),
+        .set({ html, subject, }),
     ])
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));

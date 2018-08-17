@@ -321,7 +321,7 @@ module.exports = (conn) => {
       const templateDocRef = rootCollections.activityTemplates.doc();
 
       const subject = `Template Created the in Growthfile DB`;
-      const body = `
+      const html = `
         <p>
           The template manager: <strong>{${conn.requester.phoneNumber}}</strong>
           just created a new template: ${conn.req.body.name} in the
@@ -343,7 +343,7 @@ module.exports = (conn) => {
       `;
 
       createDoc(conn, {
-        email: { subject, body, },
+        email: { subject, html, },
         templateDocRef,
       });
 
