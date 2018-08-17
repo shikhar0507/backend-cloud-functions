@@ -109,7 +109,7 @@ const updateUserDocs = (conn) => {
             timestamp: serverTimestamp,
             user: conn.requester.phoneNumber,
             updatedPhoneNumber: conn.req.body.phoneNumber,
-            isSupportRequest: conn.requester.isSupport,
+            isSupportRequest: conn.requester.isSupportRequest,
           });
       });
 
