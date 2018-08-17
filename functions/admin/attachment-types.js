@@ -24,13 +24,15 @@
 
 'use strict';
 
+
 /** Types allowed for the field `type` in the attachment object. */
 const validTypes = new Map()
   .set('string', 'string')
   .set('weekday', 'weekday')
-  .set('template', 'template')
+  .set('office', 'office')
   .set('phoneNumber', 'phoneNumber')
-  .set('moment.HTML5_FMT.TIME', 'moment.HTML5_FMT.TIME');
+  .set('moment.HTML5_FMT.TIME', 'moment.HTML5_FMT.TIME')
+  .set('base64', 'base64');
 
 /** Weekdays accepted in the attachment for the field `type` of `weekday`. */
 const weekdays = new Map()
@@ -78,8 +80,6 @@ const vowels = new Map()
 
 const sgMailTemplateIds = new Map()
   .set('instantEmails', 'd-a9a592a473d6414d94a8344e8f16c8a0');
-
-const substitutionWrappers = ['{{', '}}',];
 
 const createBodyFields = new Map()
   .set('timestamp', 'timestamp')
@@ -136,7 +136,6 @@ module.exports = {
   templateFields,
   activityStatuses,
   sgMailTemplateIds,
-  substitutionWrappers,
   createBodyFields,
   updateBodyFields,
   shareBodyFields,
