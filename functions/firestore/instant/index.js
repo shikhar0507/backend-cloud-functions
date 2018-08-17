@@ -1,12 +1,7 @@
 'use strict';
 
 const sgMail = require('@sendgrid/mail');
-const constants = require('../../admin/attachment-types');
-
 const env = require('../../admin/env');
-
-const templateId = constants.sgMailTemplateIds.get('instantEmails');
-const substitutionWrappers = constants.substitutionWrappers;
 
 const sgMailApiKey = env.sgMailApiKey;
 const to = env.to;
@@ -21,12 +16,8 @@ module.exports = (doc) =>
       to,
       from,
       replyTo,
-      templateId,
-      substitutionWrappers,
-      substitutions: {
-        subject: doc.get('subject'),
-        body: doc.get('body'),
-      },
+      html: doc.get('html'),
+      subject: doc.get('subject'),
     })
     .catch((error) => {
       console.error(error.response);
