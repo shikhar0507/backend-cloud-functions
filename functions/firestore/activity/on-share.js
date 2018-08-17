@@ -184,7 +184,7 @@ const handleResult = (conn, result) => {
           activityName: activity.get('activityName'),
           updatedFields: null,
           updatedPhoneNumber: null,
-          isSupportRequest: conn.requester.isSupport,
+          isSupportRequest: conn.requester.isSupportRequest,
         });
 
       return batch.commit();

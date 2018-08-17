@@ -98,7 +98,7 @@ const fetchDocs = (conn) => {
           activityName: activity.get('activityName'),
           updatedFields: null,
           updatedPhoneNumber: null,
-          isSupportRequest: conn.requester.isSupport,
+          isSupportRequest: conn.requester.isSupportRequest,
         });
 
       batch.commit();
