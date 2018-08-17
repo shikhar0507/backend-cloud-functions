@@ -52,7 +52,7 @@ const manageSubscription = (activityDocNew, batch) => {
     .then((snapShot) => snapShot.forEach((doc) => include.push(doc.id)))
     .then(() => {
       const docRef = activityDocNew.get('docRef');
-      const subscriberPhoneNumber = activityDocNew.get('attachment')['Phone Number'].value;
+      const subscriberPhoneNumber = activityDocNew.get('attachment').Subscriber.value;
       const template = activityDocNew.get('attachment').Template.value;
 
       /* Copying the whole activity data... */
@@ -130,7 +130,7 @@ const manageReport = (activityDocNew, batch) => {
 const manageAdmin = (activityDocNew, batch) => {
   const docRef = activityDocNew.get('docRef');
   const status = activityDocNew.get('status');
-  const phoneNumber = activityDocNew.get('attachment')['Phone Number'].value;
+  const phoneNumber = activityDocNew.get('attachment').Admin.value;
 
   return users
     .getUserByPhoneNumber(phoneNumber)
