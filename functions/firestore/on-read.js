@@ -229,8 +229,16 @@ const beautifySchedule = (schedules) => {
 
   schedules.forEach((schedule) => {
     const name = schedule.name;
-    const startTime = schedule.startTime.toDate();
-    const endTime = schedule.endTime.toDate();
+    let startTime = schedule.startTime;
+    let endTime = schedule.endTime;
+
+    /**
+     * Both `startTime` and `endTime` can be empty strings,
+     * so when that is the case, the `doDate()` method will
+     * crash since it is not in the `prototype` of `string`.
+     */
+    if (startTime !== '') startTime = startTime.toDate();
+    if (endTime !== '') endTime = endTime.toDate();
 
     array.push({ name, startTime, endTime, });
   });
@@ -253,6 +261,7 @@ const fetchActivities = (conn, jsonResult, locals) =>
       docs.forEach((doc) => {
         /** Activity-id: doc.ref.path.split('/')[1] */
         const activityObj = jsonResult.activities[doc.id];
+
         const schedule = beautifySchedule(doc.get('schedule'));
 
         activityObj.schedule = schedule;
