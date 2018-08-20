@@ -39,6 +39,8 @@ const {
 
 const { code, } = require('../../admin/responses');
 
+const { httpsActions, } = require('../../admin/attachment-types');
+
 const {
   handleError,
   sendResponse,
@@ -146,7 +148,7 @@ const handleResult = (conn, result) => {
       user: conn.requester.phoneNumber,
       share: null,
       remove: conn.req.body.remove,
-      action: 'remove',
+      action: httpsActions.remove,
       status: null,
       comment: null,
       template: null,

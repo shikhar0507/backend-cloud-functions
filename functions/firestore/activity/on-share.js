@@ -36,6 +36,8 @@ const { isValidRequestBody, getCanEditValue, } = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
+const { httpsActions, } = require('../../admin/attachment-types');
+
 const {
   handleError,
   sendResponse,
@@ -173,7 +175,7 @@ const handleResult = (conn, result) => {
           user: conn.requester.phoneNumber,
           share: conn.req.body.share,
           remove: null,
-          action: 'share',
+          action: httpsActions.share,
           status: null,
           comment: null,
           template: null,

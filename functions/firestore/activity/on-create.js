@@ -35,6 +35,8 @@ const {
 
 const { code, } = require('../../admin/responses');
 
+const { httpsActions, } = require('../../admin/attachment-types');
+
 const {
   validateVenues,
   getCanEditValue,
@@ -96,7 +98,7 @@ const createDocsWithBatch = (conn, locals) => {
        */
       share: Array.from(locals.objects.allPhoneNumbers),
       remove: null,
-      action: 'create',
+      action: httpsActions.create,
       status: null,
       comment: null,
       template: conn.req.body.template,

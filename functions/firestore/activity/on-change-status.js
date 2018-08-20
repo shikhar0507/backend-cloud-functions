@@ -36,6 +36,8 @@ const { isValidRequestBody, } = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
+const { httpsActions, } = require('../../admin/attachment-types');
+
 const {
   handleError,
   sendResponse,
@@ -87,7 +89,7 @@ const fetchDocs = (conn) => {
           user: conn.requester.phoneNumber,
           share: null,
           remove: null,
-          action: 'change-status',
+          action: httpsActions.changeStatus,
           status: conn.req.body.status,
           comment: null,
           template: null,

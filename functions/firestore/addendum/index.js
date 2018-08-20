@@ -27,6 +27,8 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
+const { httpsActions, } = require('../../admin/attachment-types');
+
 const commentBuilder = (addendum, recipient) => {
   const addendumCreator = addendum.get('user');
   const share = addendum.get('share');
@@ -67,7 +69,7 @@ const commentBuilder = (addendum, recipient) => {
     pronoun = addendumCreator;
   }
 
-  if (action === 'create') {
+  if (action === httpsActions.create) {
     const vowels = require('../../admin/attachment-types').vowels;
 
     const templateNameFirstCharacter = template[0];
@@ -76,7 +78,7 @@ const commentBuilder = (addendum, recipient) => {
     return `${pronoun} created ${article} ${template}.`;
   }
 
-  if (action === 'change-status') {
+  if (action === httpsActions.changeStatus) {
     let displayStatus = status;
 
     /** `PENDING` isn't grammatically correct with the comment here. */
@@ -85,9 +87,9 @@ const commentBuilder = (addendum, recipient) => {
     return `${pronoun} ${displayStatus.toLowerCase()} ${activityName}.`;
   }
 
-  if (action === 'remove') return `${pronoun} removed ${remove}.`;
+  if (action === httpsActions.remove) return `${pronoun} removed ${remove}.`;
 
-  if (action === 'phone-number-update') {
+  if (action === httpsActions.updatePhoneNumber) {
     pronoun = `${addendumCreator} changed their`;
 
     if (isSame) pronoun = 'You changed your';
@@ -96,7 +98,7 @@ const commentBuilder = (addendum, recipient) => {
       + ` ${updatedPhoneNumber}.`;
   }
 
-  if (action === 'share') {
+  if (action === httpsActions.share) {
     let pronoun = recipient;
 
     if (recipient === addendumCreator) pronoun = 'You';
@@ -125,7 +127,9 @@ const commentBuilder = (addendum, recipient) => {
     });
   }
 
-  if (action === 'update') return `${pronoun} updated ${updatedFields}.`;
+  if (action === httpsActions.update) {
+    return `${pronoun} updated ${updatedFields}.`;
+  }
 
   /** Action is `comment` */
   return comment;

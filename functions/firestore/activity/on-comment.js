@@ -36,6 +36,8 @@ const { isValidRequestBody, } = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
+const { httpsActions, } = require('../../admin/attachment-types');
+
 const {
   handleError,
   sendResponse,
@@ -91,7 +93,7 @@ module.exports = (conn) => {
           user: conn.requester.phoneNumber,
           share: null,
           remove: null,
-          action: 'comment',
+          action: httpsActions.comment,
           status: null,
           comment: conn.req.body.comment,
           template: null,

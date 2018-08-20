@@ -5,6 +5,8 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 
+const { httpsActions, } = require('../../admin/attachment-types');
+
 module.exports = (snapShot, context) => {
   const activityId = context.params.docId;
   const activityRef = rootCollections.activities.doc(activityId);
@@ -31,7 +33,7 @@ module.exports = (snapShot, context) => {
           user,
           share: null,
           remove: null,
-          action: 'phone-number-update',
+          action: httpsActions.updatePhoneNumber,
           status: null,
           comment: null,
           template: null,

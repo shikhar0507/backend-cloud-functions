@@ -127,12 +127,23 @@ const phoneNumberUpdateBodyFields = new Map()
   .set('geopoint', 'geopoint')
   .set('phoneNumber', 'phoneNumber');
 
+const httpsActions = {
+  create: 'create',
+  update: 'update',
+  changeStatus: 'change-status',
+  remove: 'remove',
+  share: 'share',
+  updatePhoneNumber: 'update-phone-number',
+  comment: 'comment',
+};
+
 
 module.exports = {
   vowels,
   weekdays,
   validTypes,
   canEditRules,
+  httpsActions,
   templateFields,
   activityStatuses,
   sgMailTemplateIds,

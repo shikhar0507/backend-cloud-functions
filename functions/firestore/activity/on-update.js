@@ -42,6 +42,8 @@ const {
 
 const { code, } = require('../../admin/responses');
 
+const { httpsActions, } = require('../../admin/attachment-types');
+
 const {
   handleError,
   sendResponse,
@@ -75,7 +77,7 @@ const updateDocsWithBatch = (conn, locals) => {
       user: conn.requester.phoneNumber,
       share: null,
       remove: null,
-      action: 'update',
+      action: httpsActions.update,
       status: null,
       comment: null,
       template: null,
