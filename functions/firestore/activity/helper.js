@@ -515,7 +515,7 @@ const filterAttachment = (body, locals) => {
      * the Offices/(officeId)/Activities will be queried for the doc
      * to EXIST.
      */
-    if (!validTypes.has(type)) {
+    if (!validTypes.has(type) && value !== '') {
       messageObject
         .querySnapshotShouldExist
         .push(rootCollections

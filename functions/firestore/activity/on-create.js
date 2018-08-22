@@ -504,7 +504,7 @@ const createLocals = (conn, result) => {
     return;
   }
 
-  if (officeQueryResult.empty && conn.req.body.office !== 'office') {
+  if (officeQueryResult.empty && conn.req.body.template !== 'office') {
     sendResponse(
       conn,
       code.forbidden,
