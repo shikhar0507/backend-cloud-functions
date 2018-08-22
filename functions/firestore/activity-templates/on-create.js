@@ -30,7 +30,6 @@ const { rootCollections, } = require('../../admin/admin');
 const { code, } = require('../../admin/responses');
 
 const {
-  validTypes,
   canEditRules,
   templateFields,
   activityStatuses,
@@ -253,50 +252,42 @@ module.exports = (conn) => {
     return;
   }
 
-  const attachmentFields = Object.keys(attachment);
-
-  const message = {
+  const messageObject = {
     isValid: true,
     message: null,
   };
+
+  const attachmentFields = Object.keys(attachment);
 
   for (const field of attachmentFields) {
     const item = attachment[field];
 
     if (!item.hasOwnProperty('type')) {
-      message.message = `In attachment, the object '${field}'`
+      messageObject.message = `In attachment, the object '${field}'`
         + ` is missing the field 'type'.`;
-      message.isValid = false;
+      messageObject.isValid = false;
       break;
     }
 
     if (!item.hasOwnProperty('value')) {
-      message.message = `In attachment, the object '${field}'`
+      messageObject.message = `In attachment, the object '${field}'`
         + ` is missing the field 'value'.`;
-      message.isValid = false;
+      messageObject.isValid = false;
       break;
     }
 
     const value = item.value;
-    const type = item.type;
 
     if (value !== '') {
-      message.message = `All objects in the 'attachment' should`
-        + ` have value = ''.`;
-      message.isValid = false;
-      break;
-    }
-
-    if (!validTypes.has(type)) {
-      message.message = `In attachment, the object '${field}'.type does`
-        + ` not have a valid type.`;
-      message.isValid = false;
+      messageObject.message = `All objects in the 'attachment' should`
+        + ` have value equal to an empty string.`;
+      messageObject.isValid = false;
       break;
     }
   }
 
-  if (!message.isValid) {
-    sendResponse(conn, code.badRequest, message.message);
+  if (!messageObject.isValid) {
+    sendResponse(conn, code.badRequest, messageObject.message);
 
     return;
   }
@@ -311,8 +302,7 @@ module.exports = (conn) => {
         sendResponse(
           conn,
           code.conflict,
-          `A template with the name: '${conn.req.body.name}' `
-          + `already exists.`
+          `A template with the name: '${conn.req.body.name}' already exists.`
         );
 
         return;
@@ -323,7 +313,7 @@ module.exports = (conn) => {
       const subject = `Template Created the in Growthfile DB`;
       const html = `
         <p>
-          The template manager: <strong>{${conn.requester.phoneNumber}}</strong>
+          The template manager: <strong>${conn.requester.phoneNumber}</strong>
           just created a new template: ${conn.req.body.name} in the
           Growthfile DB.
         </p>
@@ -335,7 +325,13 @@ module.exports = (conn) => {
 
         <hr>
 
-        <pre>
+        <pre style="font-size: 20px;
+          border: 2px solid grey;
+          width: 450px;
+          border-left: 12px solid green;
+          border-radius: 5px;
+          font-family: monaco;
+          padding: 14px;">
         <code>
           ${JSON.stringify(conn.req.body, ' ', 2)}
         </code>

@@ -49,7 +49,7 @@ const addendumHandler = functions
 const assigneeHandler = functions
   .firestore
   .document('Activities/{activityId}/Assignees/{phoneNumber}')
-  .onWrite(require('./firestore/assignees/index'));
+  .onDelete(require('./firestore/assignees/index'));
 
 const activityHandler = functions
   .firestore

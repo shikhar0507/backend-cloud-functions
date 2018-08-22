@@ -44,6 +44,38 @@ const {
 } = require('../../admin/utils');
 
 
+const createDocs = (conn, activity) => {
+  const batch = db.batch();
+
+  batch.set(rootCollections
+    .offices
+    .doc(activity.get('officeId'))
+    .collection('Addendum')
+    .doc(), {
+      user: conn.requester.phoneNumber,
+      share: null,
+      remove: null,
+      action: httpsActions.comment,
+      status: null,
+      comment: conn.req.body.comment,
+      template: null,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      activityId: conn.req.body.activityId,
+      activityName: null,
+      updatedFields: null,
+      updatedPhoneNumber: null,
+      isSupportRequest: conn.requester.isSupportRequest,
+    });
+
+  batch
+    .commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
+};
+
+
 module.exports = (conn) => {
   const result = isValidRequestBody(conn.req.body, 'comment');
 
@@ -71,9 +103,7 @@ module.exports = (conn) => {
         .get(),
     ])
     .then((result) => {
-      const batch = db.batch();
       const profileActivityDoc = result[1];
-      const activity = result[1];
 
       if (!profileActivityDoc.exists) {
         sendResponse(
@@ -85,32 +115,11 @@ module.exports = (conn) => {
         return;
       }
 
-      batch.set(rootCollections
-        .offices
-        .doc(activity.get('officeId'))
-        .collection('Addendum')
-        .doc(), {
-          user: conn.requester.phoneNumber,
-          share: null,
-          remove: null,
-          action: httpsActions.comment,
-          status: null,
-          comment: conn.req.body.comment,
-          template: null,
-          location: getGeopointObject(conn.req.body.geopoint),
-          timestamp: serverTimestamp,
-          userDeviceTimestamp: new Date(conn.req.body.timestamp),
-          activityId: conn.req.body.activityId,
-          activityName: null,
-          updatedFields: null,
-          updatedPhoneNumber: null,
-          isSupportRequest: conn.requester.isSupportRequest,
-        });
+      const activity = result[1];
 
-      batch.commit();
+      createDocs(conn, activity);
 
       return;
     })
-    .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };

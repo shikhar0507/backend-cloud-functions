@@ -29,9 +29,8 @@
 const validTypes = new Map()
   .set('string', 'string')
   .set('weekday', 'weekday')
-  .set('office', 'office')
   .set('phoneNumber', 'phoneNumber')
-  .set('moment.HTML5_FMT.TIME', 'moment.HTML5_FMT.TIME')
+  .set('HH:MM', 'HH:MM')
   .set('base64', 'base64');
 
 /** Weekdays accepted in the attachment for the field `type` of `weekday`. */
@@ -77,9 +76,6 @@ const vowels = new Map()
   .set('i', 'i')
   .set('o', 'o')
   .set('u', 'u');
-
-const sgMailTemplateIds = new Map()
-  .set('instantEmails', 'd-a9a592a473d6414d94a8344e8f16c8a0');
 
 const createBodyFields = new Map()
   .set('timestamp', 'timestamp')
@@ -142,14 +138,13 @@ module.exports = {
   vowels,
   weekdays,
   validTypes,
-  canEditRules,
   httpsActions,
+  canEditRules,
   templateFields,
+  shareBodyFields,
   activityStatuses,
-  sgMailTemplateIds,
   createBodyFields,
   updateBodyFields,
-  shareBodyFields,
   removeBodyFields,
   commentBodyFields,
   changeStatusBodyFields,

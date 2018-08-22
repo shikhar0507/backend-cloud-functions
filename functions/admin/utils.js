@@ -78,11 +78,23 @@ const sendResponse = (conn, statusCode, message = '') => {
 const handleError = (conn, error) => {
   console.error(error);
 
-  sendResponse(
-    conn,
-    code.internalServerError,
-    'There was an error handling the request. Please try again later.'
-  );
+  /** Sends email to `env.to` emails on crash. */
+  rootCollections
+    .instant
+    .doc()
+    .set({
+      html: JSON.stringify(error.message),
+      subject: 'Cloud function crashed... :(',
+    })
+    .then(() => sendResponse(
+      conn,
+      code.internalServerError,
+      'There was an error handling the request. Please try again later.'
+    ))
+    .catch((error) => {
+      console.error(error);
+      sendResponse(conn, code.internalServerError, 'Something went wrong.');
+    });
 };
 
 
@@ -168,6 +180,9 @@ const getISO8601Date = (date) =>
     .format('DD-MM-YYYY');
 
 
+const isHHMMFormat = (string) =>
+  new RegExp('^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$').test(string);
+
 /**
  * Disables the user account in auth based on uid and writes the reason to
  * the document in the profiles collection for which the account was disabled.
@@ -185,6 +200,20 @@ const disableAccount = (conn, reason) => {
     disabledFor: reason,
     disabledTimestamp: serverTimestamp,
   };
+
+  const subject = `User Disabled: '${conn.requester.phoneNumber}'`;
+  const html = `
+  <p>
+    The user '${conn.requester.phoneNumber}' has been disabled
+    in Growthfile.
+
+    <br>
+
+    <strong>Reason</strong>: ${docObject.disabledFor}
+    <br>
+    <strong>Timestamp</strong>: ${new Date().toTimeString()} Today
+  </p>
+  `;
 
   Promise
     .all([
@@ -204,6 +233,10 @@ const disableAccount = (conn, reason) => {
           /** This doc may have other fields too. */
           merge: true,
         }),
+      rootCollections
+        .instant
+        .doc()
+        .set({ html, subject, }),
       users
         .disableUser(conn.requester.uid),
     ])
@@ -293,6 +326,7 @@ module.exports = {
   isValidDate,
   handleError,
   sendResponse,
+  isHHMMFormat,
   disableAccount,
   getISO8601Date,
   isValidGeopoint,

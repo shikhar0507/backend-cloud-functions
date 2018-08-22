@@ -60,17 +60,19 @@ module.exports = (snapShot, context) => {
 
       const newAttachment = attachment;
 
-      Object.keys(attachment).forEach((key) => {
-        const item = attachment[key];
-        const value = item.value;
-        const type = item.type;
+      Object
+        .keys(attachment)
+        .forEach((key) => {
+          const item = attachment[key];
+          const value = item.value;
+          const type = item.type;
 
-        if (type !== 'phoneNumber') return;
-        if (value === '') return;
-        if (value !== user) return;
+          if (type !== 'phoneNumber') return;
+          if (value === '') return;
+          if (value !== user) return;
 
-        newAttachment[value] = updatedPhoneNumber;
-      });
+          newAttachment[value] = updatedPhoneNumber;
+        });
 
       batch.set(activityRef, {
         timestamp,

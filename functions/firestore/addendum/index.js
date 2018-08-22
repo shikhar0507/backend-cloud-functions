@@ -48,7 +48,6 @@ const commentBuilder = (addendum, recipient) => {
    * receiving it.
    */
   let pronoun;
-  let isSame = false;
 
   /**
    * With support requests, the person creating that
@@ -60,11 +59,6 @@ const commentBuilder = (addendum, recipient) => {
     pronoun = addendumCreator;
   } else if (addendumCreator === recipient) {
     pronoun = 'You';
-    /**
-     * The variable `isSame` should never be `true` unless
-     *  it's a support request.
-     */
-    isSame = true;
   } else {
     pronoun = addendumCreator;
   }
@@ -90,19 +84,15 @@ const commentBuilder = (addendum, recipient) => {
   if (action === httpsActions.remove) return `${pronoun} removed ${remove}.`;
 
   if (action === httpsActions.updatePhoneNumber) {
-    pronoun = `${addendumCreator} changed their`;
+    let pronoun = `${addendumCreator} changed their`;
 
-    if (isSame) pronoun = 'You changed your';
+    if (pronoun === addendumCreator) pronoun = 'You changed your';
 
     return `${pronoun} phone number from ${addendumCreator} to`
       + ` ${updatedPhoneNumber}.`;
   }
 
   if (action === httpsActions.share) {
-    let pronoun = recipient;
-
-    if (recipient === addendumCreator) pronoun = 'You';
-
     let str = `${pronoun} added`;
 
     if (share.length === 1) return `${str} ${share[0]}`;

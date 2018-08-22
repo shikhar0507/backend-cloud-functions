@@ -27,7 +27,6 @@
 
 const {
   db,
-  users,
   rootCollections,
   serverTimestamp,
   getGeopointObject,
@@ -65,7 +64,7 @@ const createDocsWithBatch = (conn, locals) => {
       locals.batch.set(locals.docs.activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
-          activityId: locals.docs.activityRef.id,
+          activityId: locals.static.activityId,
           canEdit: getCanEditValue(locals, phoneNumber),
         });
     });
@@ -218,59 +217,37 @@ const handleAssignees = (conn, locals) => {
 };
 
 
-const handleExtra = (conn, locals) => {
-  const scheduleNames = locals.objects.schedule;
-  const scheduleValid = validateSchedules(conn.req.body, scheduleNames);
+const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
+  const promises = result.querySnapshotShouldNotExist;
 
-  if (!scheduleValid.isValid) {
-    sendResponse(conn, code.badRequest, scheduleValid.message);
-
-    return;
-  }
-
-  locals.objects.scheduleArray = scheduleValid.schedules;
-
-  const venueDescriptors = locals.objects.venue;
-  const venueValid = validateVenues(conn.req.body, venueDescriptors);
-
-  if (!venueValid.isValid) {
-    sendResponse(conn, code.badRequest, venueValid.message);
-
-    return;
-  }
-
-  locals.objects.venueArray = venueValid.venues;
-
-  const attachmentValid = filterAttachment(conn.req.body, locals);
-
-  if (!attachmentValid.isValid) {
-    sendResponse(conn, code.badRequest, attachmentValid.message);
-
-    return;
-  }
-
-  attachmentValid.phoneNumbers
-    .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
-
-  if (!attachmentValid.promise) {
+  if (promises.length === 0) {
     handleAssignees(conn, locals);
 
     return;
   }
 
-  attachmentValid
-    .promise
-    .then((snapShot) => {
-      if (!snapShot.empty) {
-        const value = conn.req.body.attachment.Name.value;
-        const type = conn.req.body.attachment.Name.type;
+  Promise
+    .all(promises)
+    .then((snapShots) => {
+      let successful = true;
+      let message = null;
 
-        sendResponse(
-          conn,
-          code.conflict,
-          `'${value}' already exists in the office '${conn.req.body.office}'`
-          + ` with the template '${type}'.`
-        );
+      for (const snapShot of snapShots) {
+        const filters = snapShot._query._fieldFilters;
+        const argOne = filters[0]._value;
+        const argTwo = filters[1]._value;
+
+        if (!snapShot.empty) {
+          successful = false;
+          message = `A document already exists for the office:`
+            + ` ${conn.req.body.office} with Name: ${argOne} +`
+            + ` template: ${argTwo}.`;
+          break;
+        }
+      }
+
+      if (!successful) {
+        sendResponse(conn, code.badRequest, message);
 
         return;
       }
@@ -280,6 +257,155 @@ const handleExtra = (conn, locals) => {
       return;
     })
     .catch((error) => handleError(conn, error));
+};
+
+
+const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
+  const promises = result.querySnapshotShouldExist;
+
+  if (promises.length === 0) {
+    resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
+
+    return;
+  }
+
+  Promise
+    .all(promises)
+    .then((snapShots) => {
+      let successful = true;
+      let message;
+
+      for (const snapShot of snapShots) {
+        const filters = snapShot._query._fieldFilters;
+        const argOne = filters[0]._value;
+        let argTwo;
+
+        message = `No template found with the name: ${argOne} from`
+          + ` the attachment.`;
+
+        if (conn.req.body.template !== 'subscription') {
+          argTwo = filters[1]._value;
+          message = `The ${argOne} ${argTwo} does not exist in`
+            + ` the office: ${conn.req.body.office}.`;
+        }
+
+        if (snapShot.empty) {
+          successful = false;
+          break;
+        }
+      }
+
+      if (!successful) {
+        sendResponse(conn, code.badRequest, message);
+
+        return;
+      }
+
+      resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+const resolveProfileCheckPromises = (conn, locals, result) => {
+  const promises = result.profileDocShouldExist;
+
+  if (promises.length === 0) {
+    resolveQuerySnapshotShouldExistPromises(conn, locals, result);
+
+    return;
+  }
+
+  Promise
+    .all(promises)
+    .then((docs) => {
+      let successful = true;
+      let message = null;
+
+      for (const doc of docs) {
+        message = `No user found with the phone number:`
+          + ` ${doc.id} from the attachment.`;
+
+        if (!doc.exists) {
+          successful = false;
+          break;
+        }
+
+        if (!doc.get('uid')) {
+          successful = false;
+          break;
+        }
+      }
+
+      if (!successful) {
+        sendResponse(conn, code.badRequest, message);
+
+        return;
+      }
+
+      resolveQuerySnapshotShouldExistPromises(conn, locals, result);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+const handleAttachment = (conn, locals) => {
+  const result = filterAttachment(conn.req.body, locals);
+
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
+
+    return;
+  }
+
+  /**
+   * All phone numbers in the attachment are added to the
+   * activity assignees.
+   */
+  result.phoneNumbers
+    .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
+
+  if (result.querySnapshotShouldExist.length === 0
+    && result.querySnapshotShouldNotExist.length === 0
+    && result.profileDocShouldExist.length === 0) {
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
+  resolveProfileCheckPromises(conn, locals, result);
+};
+
+
+const handleScheduleAndVenue = (conn, locals) => {
+  const scheduleNames = locals.objects.schedule;
+  const scheduleValidationResult =
+    validateSchedules(conn.req.body, scheduleNames);
+
+  if (!scheduleValidationResult.isValid) {
+    sendResponse(conn, code.badRequest, scheduleValidationResult.message);
+
+    return;
+  }
+
+  locals.objects.scheduleArray = scheduleValidationResult.schedules;
+
+  const venueDescriptors = locals.objects.venue;
+  const venueValidationResult = validateVenues(conn.req.body, venueDescriptors);
+
+  if (!venueValidationResult.isValid) {
+    sendResponse(conn, code.badRequest, venueValidationResult.message);
+
+    return;
+  }
+
+  locals.objects.venueArray = venueValidationResult.venues;
+
+  handleAttachment(conn, locals);
 };
 
 
@@ -378,6 +504,16 @@ const createLocals = (conn, result) => {
     return;
   }
 
+  if (officeQueryResult.empty && conn.req.body.office !== 'office') {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `No office found with the name: '${conn.req.body.office}'.`
+    );
+
+    return;
+  }
+
   locals.objects.schedule = templateQueryResult.docs[0].get('schedule');
   locals.objects.venue = templateQueryResult.docs[0].get('venue');
   locals.objects.attachment = templateQueryResult.docs[0].get('attachment');
@@ -411,7 +547,9 @@ const createLocals = (conn, result) => {
      * Default assignees for all the activities that the user
      * creates using the subscription mentioned in the request body.
      */
-    subscriptionQueryResult.docs[0].get('include')
+    subscriptionQueryResult
+      .docs[0]
+      .get('include')
       .forEach(
         (phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber)
       );
@@ -455,7 +593,7 @@ const createLocals = (conn, result) => {
         locals.objects.allPhoneNumbers.add(phoneNumber));
   }
 
-  handleExtra(conn, locals);
+  handleScheduleAndVenue(conn, locals);
 };
 
 
@@ -495,73 +633,5 @@ module.exports = (conn) => {
     return;
   }
 
-  if (conn.req.body.template !== 'admin') {
-    fetchDocs(conn);
-
-    return;
-  }
-
-  if (!conn.req.body.attachment.hasOwnProperty('Phone Number')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The 'Phone Number' field is missing from the attachment object.`
-    );
-
-    return;
-  }
-
-  /**
-   * Phone number of the user who's being given the `admin` custom
-   * claims with the `admin` template.
-   */
-  if (!conn.req.body.attachment['Phone Number'].hasOwnProperty('value')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The 'value' field is missing from the 'Phone Number'`
-      + ` object in 'attachment'.`
-    );
-
-    return;
-  }
-
-  const isE164PhoneNumber = require('../../admin/utils').isE164PhoneNumber;
-
-  if (!isE164PhoneNumber(conn.req.body.attachment['Phone Number'].value)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The 'Phone Number'.value field in the 'attachment' does not have`
-      + ` a valid phone number. Cannot create an admin for the`
-      + `office ${conn.req.body.office}.`
-    );
-
-    return;
-  }
-
-  const phoneNumber = conn.req.body.attachment['Phone Number'].value;
-
-  users
-    .getUserByPhoneNumber(phoneNumber)
-    .then((userRecord) => {
-      const phoneNumber = Object.keys(userRecord)[0];
-      const record = userRecord[`${phoneNumber}`];
-
-      if (!record.hasOwnProperty('uid')) {
-        sendResponse(
-          conn,
-          code.forbidden,
-          `No user found with the phone number: '${phoneNumber}'.`
-          + ` Granting admin rights is not possible.`
-        );
-
-        return;
-      }
-
-      fetchDocs(conn);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  fetchDocs(conn);
 };

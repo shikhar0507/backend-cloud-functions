@@ -36,7 +36,6 @@ const {
 } = require('../../admin/utils');
 
 const {
-  validTypes,
   canEditRules,
   templateFields,
   activityStatuses,
@@ -198,16 +197,16 @@ const validateRequestBody = (conn, locals) => {
       const value = item.value;
       const type = item.type;
 
-      if (!validTypes.has(type)) {
+      if (!isNonEmptyString(type)) {
         message.isValid = false;
-        message.message = `In attachment, the 'type' in the object '${field}'`
-          + ` has an invalid type. Allowed values: ${[...validTypes.keys(),]}`;
+        message.message = `The type in all objects in the attachment`
+          + ` should be a non-empty string.`;
         break;
       }
 
       if (value !== '') {
         message.isValid = false;
-        message.message = `The value in all objects in attachment`
+        message.message = `The value in all objects in the attachment`
           + ` should be an empty string.`;
         break;
       }
@@ -238,7 +237,13 @@ const validateRequestBody = (conn, locals) => {
   <hr>
 
   <h2>Request Body</h2>
-  <pre>
+  <pre style="font-size: 20px;
+  border: 2px solid grey;
+  width: 450px;
+  border-left: 12px solid green;
+  border-radius: 5px;
+  font-family: monaco;
+  padding: 14px;>
   <code>
     ${JSON.stringify(conn.req.body, ' ', 2)}
   </code>
@@ -247,7 +252,13 @@ const validateRequestBody = (conn, locals) => {
   <hr>
 
   <h2>Updated Entries</h2>
-  <pre>
+  <pre style="font-size: 20px;
+  border: 2px solid grey;
+  width: 450px;
+  border-left: 12px solid green;
+  border-radius: 5px;
+  font-family: monaco;
+  padding: 14px;">
   <code>
     ${JSON.stringify(locals.objects.updatedFields, ' ', 2)}
   </code>

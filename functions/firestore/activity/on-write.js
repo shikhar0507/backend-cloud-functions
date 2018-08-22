@@ -38,21 +38,32 @@ const { db, users, rootCollections, } = require('../../admin/admin');
  */
 const manageSubscription = (activityDocNew, batch) => {
   const activityId = activityDocNew.id;
-  const include = [];
 
   return rootCollections
     .activities
     .doc(activityId)
     .collection('Assignees')
     .get()
-    /**
-     * All assignees of the activity which as subscription are
-     * added to the `include` for the doc.
-     */
-    .then((snapShot) => snapShot.forEach((doc) => include.push(doc.id)))
-    .then(() => {
+    .then((assignees) => {
+      const include = [];
+      const subscriberPhoneNumber =
+        activityDocNew.get('attachment').Subscriber.value;
+
+      /**
+       * All assignees of the activity which as subscription are
+       * added to the `include` for the doc.
+       */
+      assignees.forEach((assignee) => {
+        /**
+         * The user's own phone number should not be added
+         * in the include array.
+         */
+        if (subscriberPhoneNumber === assignee.id) return;
+
+        include.push(assignee.id);
+      });
+
       const docRef = activityDocNew.get('docRef');
-      const subscriberPhoneNumber = activityDocNew.get('attachment').Subscriber.value;
       const template = activityDocNew.get('attachment').Template.value;
 
       /* Copying the whole activity data... */
@@ -66,7 +77,6 @@ const manageSubscription = (activityDocNew, batch) => {
           include,
           activityId,
           template,
-          canEditRule: activityDocNew.get('canEditRule'),
           office: activityDocNew.get('office'),
           officeId: activityDocNew.get('officeId'),
           status: activityDocNew.get('status'),
@@ -137,31 +147,23 @@ const manageAdmin = (activityDocNew, batch) => {
     .then((userRecord) => {
       const phoneNumber = Object.keys(userRecord)[0];
       const record = userRecord[`${phoneNumber}`];
-
       const uid = record.uid;
-      const claims = record.customClaims;
       const office = activityDocNew.get('office');
-      let admin = [];
+      const admin = [office,];
+      let claims = {};
 
-      if (status !== 'CANCELLED') {
-        if (!claims) {
-          admin.push(office);
-        }
+      if (status === 'CANCELLED') {
+        const index = record.customClaims.admin.indexOf(office);
+        record.customClaims.admin.splice(index, 1);
 
-        if (claims && !claims.hasOwnProperty('admin')) {
-          admin.push(office);
-        }
-
-        if (claims && claims.hasOwnProperty('admin')) {
-          admin = claims.admin.push(office);
-        }
-
-        claims.admin = admin;
+        claims = record.customClaims;
       } else {
-        const index = claims.admin.indexOf(office);
+        if (record.customClaims) {
+          if (record.customClaims.admin) {
+            record.customClaims.admin.forEach((item) => admin.push(item));
 
-        if (index > -1) {
-          claims.admin.splice(index, 1);
+            claims = record.customClaims;
+          }
         }
       }
 

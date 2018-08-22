@@ -106,7 +106,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
          */
         disableAccount(
           conn,
-          'The uid and phone number of the requester does not match.'
+          `The uid and phone number of the requester does not match.`
         );
 
         return;
@@ -186,7 +186,7 @@ const checkAuthorizationToken = (conn) => {
     sendResponse(
       conn,
       code.unauthorized,
-      'Authorization type is not "Bearer".'
+      `Authorization type is not 'Bearer'.`
     );
 
     return;
@@ -220,27 +220,24 @@ const checkAuthorizationToken = (conn) => {
         return;
       }
 
-      console.error('auth: ERROR', error);
-
       if (error.code === 'auth/argument-error') {
         sendResponse(
           conn,
           code.unauthorized,
-          'The idToken in the request header is invalid/expired.'
-          + ' Please re-authenticate.'
+          `The idToken in the request header is invalid/expired.`
+          + ` Please re-authenticate.`
         );
 
         return;
       }
 
-      /* eslint no-console: "off" */
       console.error(error);
 
       sendResponse(
         conn,
         code.forbidden,
-        'There was an error processing the idToken sent in the request.'
-        + ' Please re-authenticate.'
+        `There was an error processing the idToken sent in the request.`
+        + ` Please re-authenticate.`
       );
     });
 };

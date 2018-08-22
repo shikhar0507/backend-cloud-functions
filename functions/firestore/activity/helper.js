@@ -24,6 +24,7 @@
 
 'use strict';
 
+
 const { getGeopointObject, } = require('./../../admin/admin');
 
 const {
@@ -370,9 +371,10 @@ const filterAttachment = (body, locals) => {
   const messageObject = {
     isValid: true,
     message: null,
-    promise: null,
-    /** Avoiding duplication of phone number values. */
     phoneNumbers: new Set(),
+    querySnapshotShouldExist: [],
+    querySnapshotShouldNotExist: [],
+    profileDocShouldExist: [],
   };
 
   /**
@@ -416,11 +418,15 @@ const filterAttachment = (body, locals) => {
     return messageObject;
   }
 
+  const rootCollections = require('../../admin/admin').rootCollections;
+  const validTypes = require('../../admin/attachment-types').validTypes;
+
+  /** The `forEach` loop doesn't support `break` */
   for (const field of fields) {
     if (!body.attachment.hasOwnProperty(field)) {
       messageObject.isValid = false;
       messageObject.message = `The '${field}' field is missing`
-        + ` from attachment.`;
+        + ` from attachment in the request body.`;
       break;
     }
 
@@ -429,34 +435,98 @@ const filterAttachment = (body, locals) => {
     if (!item.hasOwnProperty('type')) {
       messageObject.isValid = false;
       messageObject.message = `The 'type' field is missing from`
-        + ` the Object '${field}'.`;
+        + ` the Object '${field}' in the attachment object from`
+        + ` the request body.`;
       break;
     }
 
     if (!item.hasOwnProperty('value')) {
       messageObject.isValid = false;
       messageObject.message = `The 'type' field is missing from`
-        + ` the Object '${field}'.`;
+        + ` the Object '${field}' in the attachment object from`
+        + ` the request body.`;
       break;
     }
 
     const type = item.type;
     const value = item.value;
 
-    const shouldBeString = `In 'attachment', expected 'string' in '${field}`;
-
-    if (typeof type !== 'string') {
+    /** Type will never be an empty string */
+    if (!isNonEmptyString(type)) {
       messageObject.isValid = false;
-      messageObject.message = `${shouldBeString}.value object.`
-        + ` Found ${typeof value}.`;
+      messageObject.message = `The field: '${field}'.type should be a`
+        + ` non-empty string.`;
       break;
     }
 
     if (typeof value !== 'string') {
       messageObject.isValid = false;
-      messageObject.message = `${shouldBeString}.value object.`
-        + ` Found ${typeof value}.`;
+      messageObject.message = `In 'attachment', expected 'string' in the`
+        + ` field: '${field}'.value Found ${typeof value}.`;
       break;
+    }
+
+    if (body.template === 'subscription') {
+      if (body.attachment.Template.value === 'office') {
+        messageObject.isValid = false;
+        messageObject.message = `Subscription of the template: 'office'`
+          + ` is not allowed.`;
+        break;
+      }
+
+      if (!isNonEmptyString(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `The value of the field ${field}.value`
+          + ` should be a non-empty string.`;
+        break;
+      }
+      if (field === 'Template') {
+        messageObject
+          .querySnapshotShouldExist
+          .push(rootCollections
+            .activityTemplates.where('name', '==', value)
+            .limit(1)
+            .get()
+          );
+      }
+    }
+
+    if (body.template === 'admin') {
+      const phoneNumber = body.attachment.Admin.value;
+
+      if (!isE164PhoneNumber(phoneNumber)) {
+        messageObject.isValid = false;
+        messageObject.message = `The phone number in `
+          + ` 'body.attachment.Admin.value' is invalid.`;
+        break;
+      }
+
+      messageObject
+        .profileDocShouldExist
+        .push(rootCollections
+          .profiles
+          .doc(phoneNumber)
+          .get()
+        );
+    }
+
+    /**
+     * For all the cases when the type is not among the `validTypes`
+     * the Offices/(officeId)/Activities will be queried for the doc
+     * to EXIST.
+     */
+    if (!validTypes.has(type)) {
+      messageObject
+        .querySnapshotShouldExist
+        .push(rootCollections
+          .offices
+          .doc(locals.static.officeId)
+          .collection('Activities')
+          .where('attachment.Name.value', '==', value)
+          .where('template', '==', type)
+          .limit(1)
+          .get()
+        );
     }
 
     if (field === 'Name') {
@@ -472,14 +542,13 @@ const filterAttachment = (body, locals) => {
         messageObject.isValid = false;
         messageObject.message = `The office name in the`
           + ` 'attachment.Name.value' and the`
-          + ` 'office' field should be the same.`;
+          + ` 'office' field in the request body should be the same.`;
         break;
       }
 
-      if (type !== 'office') {
-        const rootCollections = require('../../admin/admin').rootCollections;
-
-        messageObject.promise = rootCollections
+      messageObject
+        .querySnapshotShouldNotExist
+        .push(rootCollections
           .offices
           .doc(locals.static.officeId)
           .collection('Activities')
@@ -493,8 +562,8 @@ const filterAttachment = (body, locals) => {
           .where('template', '==', locals.static.template)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)
-          .get();
-      }
+          .get()
+        );
     }
 
     if (type === 'phoneNumber') {
@@ -514,14 +583,27 @@ const filterAttachment = (body, locals) => {
       }
     }
 
-    const weekdays = require('../../admin/attachment-types').weekdays;
-
     if (type === 'weekday') {
+      const weekdays = require('../../admin/attachment-types').weekdays;
+
       if (value !== '' && !weekdays.has(value)) {
         messageObject.isValid = false;
         messageObject.message = `In 'attachment', the field ${field}`
           + ` is an invalid 'weekday'. Use one of the`
           + ` following: ${Array.from(weekdays.keys())}.`;
+      }
+    }
+
+    if (type === 'HH:MM') {
+      const isHHMMFormat = require('../../admin/utils').isHHMMFormat;
+
+      if (!isHHMMFormat(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `The value in the field:` +
+          ` '${field}' is not a valid HH:MM time format. Use the`
+          + ` following regex to validate your input:`
+          + ` '^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'`;
+        break;
       }
     }
   }
@@ -894,23 +976,22 @@ const isValidRequestBody = (body, endpoint) => {
 const getCanEditValue = (locals, phoneNumber) => {
   const canEditRule = locals.static.canEditRule;
 
-  if (canEditRule === 'ALL') return true;
   if (canEditRule === 'NONE') return false;
 
   if (canEditRule === 'CREATOR') {
-    return locals.permissions[phoneNumber].isCreator;
+    return locals.objects.permissions[phoneNumber].isCreator;
   }
 
   if (canEditRule === 'ADMIN') {
-    return locals.permissions[phoneNumber].isAdmin;
+    return locals.objects.permissions[phoneNumber].isAdmin;
   }
 
   if (canEditRule === 'EMPLOYEE') {
-    return locals.permissions[phoneNumber].isEmployee;
+    return locals.objects.permissions[phoneNumber].isEmployee;
   }
 
-  /** Probably will never reach here. */
-  return false;
+  /** The `canEditRule` is `ALL`. */
+  return true;
 };
 
 

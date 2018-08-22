@@ -58,14 +58,13 @@ const updateDocsWithBatch = (conn, locals) => {
       merge: true,
     });
 
-  Object.keys(locals.objects.permissions)
+  Object
+    .keys(locals.objects.permissions)
     .forEach((phoneNumber) => {
       locals.batch.set(activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
           canEdit: getCanEditValue(locals, phoneNumber),
-        }, {
-          merge: true,
         });
     });
 
@@ -239,6 +238,176 @@ const handleAssignees = (conn, locals) => {
 };
 
 
+const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
+  const promises = result.querySnapshotShouldNotExist;
+
+  if (promises.length === 0) {
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
+  const attachmentFromActivity = locals.docs.activity.get('attachment');
+  const attachmentFromBody = conn.req.body.attachment;
+
+  if (attachmentFromActivity.hasOwnProperty('Name')) {
+    if (attachmentFromActivity.Name.value === attachmentFromBody.Name.value) {
+      handleAssignees(conn, locals);
+
+      return;
+    }
+  }
+
+  Promise
+    .all(promises)
+    .then((snapShots) => {
+      let successful = true;
+      let message = null;
+
+      for (const snapShot of snapShots) {
+        const filters = snapShot._query._fieldFilters;
+        const argOne = filters[0]._value;
+        const argTwo = filters[1]._value;
+
+        if (!snapShot.empty) {
+          successful = false;
+          message = `A document already exists for the office:`
+            + ` ${locals.static.office} with Name: ${argOne} &`
+            + ` template: ${argTwo}.`;
+          break;
+        }
+      }
+
+      if (!successful) {
+        sendResponse(conn, code.badRequest, message);
+
+        return;
+      }
+
+      locals.objects.updatedFields.attachment = conn.req.body.attachment;
+
+      handleAssignees(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
+  const promises = result.querySnapshotShouldExist;
+
+  if (promises.length === 0) {
+    resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
+
+    return;
+  }
+
+  Promise
+    .all(promises)
+    .then((snapShots) => {
+      let successful = true;
+      let message;
+
+      for (const snapShot of snapShots) {
+        const filters = snapShot._query._fieldFilters;
+        const argOne = filters[0]._value;
+        let argTwo;
+
+        message = `No template found with the name: ${argOne} from`
+          + ` the attachment.`;
+
+        if (locals.static.template !== 'subscription') {
+          argTwo = filters[1]._value;
+          message = `The ${argOne} ${argTwo} does not exist in`
+            + ` the office: ${locals.static.office}.`;
+        }
+
+        if (snapShot.empty) {
+          successful = false;
+          break;
+        }
+      }
+
+      if (!successful) {
+        sendResponse(conn, code.badRequest, message);
+
+        return;
+      }
+
+      resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+const resolveProfileCheckPromises = (conn, locals, result) => {
+  const promises = result.profileDocShouldExist;
+
+  if (promises.length === 0) {
+    resolveQuerySnapshotShouldExistPromises(conn, locals, result);
+
+    return;
+  }
+
+  Promise
+    .all(promises)
+    .then((docs) => {
+      let successful = true;
+      let message = null;
+
+      for (const doc of docs) {
+        message = `No user found with the phone number:`
+          + ` ${doc.id} from the attachment.`;
+
+        if (!doc.exists) {
+          successful = false;
+          break;
+        }
+
+        if (!doc.get('uid')) {
+          successful = false;
+          break;
+        }
+      }
+
+      if (!successful) {
+        sendResponse(conn, code.badRequest, message);
+
+        return;
+      }
+
+      resolveQuerySnapshotShouldExistPromises(conn, locals, result);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
+const handleAttachment = (conn, locals) => {
+  const result = filterAttachment(conn.req.body, locals);
+
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
+
+    return;
+  }
+
+  if (result.querySnapshotShouldExist.length === 0
+    && result.querySnapshotShouldNotExist.length === 0
+    && result.profileDocShouldExist.length === 0) {
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
+  resolveProfileCheckPromises(conn, locals, result);
+};
+
+
 const handleResult = (conn, result) => {
   const profileActivity = result[0];
   const activity = result[1];
@@ -282,43 +451,11 @@ const handleResult = (conn, result) => {
       canEditRule: activity.get('canEditRule'),
       activityName: activity.get('activityName'),
       template: activity.get('template'),
+      office: activity.get('office'),
     },
   };
 
-  const attachmentValid = filterAttachment(conn.req.body, locals);
-
-  if (!attachmentValid.isValid) {
-    sendResponse(conn, code.badRequest, attachmentValid.message);
-
-    return;
-  }
-
-  if (!attachmentValid.promise) {
-    handleAssignees(conn, locals);
-
-    return;
-  }
-
-
-  attachmentValid
-    .promise
-    .then((snapShot) => {
-      if (!snapShot.empty) {
-        const value = conn.req.body.attachment.Name.value;
-        const type = conn.req.body.attachment.Name.type;
-        const message = `'${value}' already exists in the office`
-          + ` '${conn.req.body.office}' with the template '${type}'.`;
-
-        sendResponse(conn, code.conflict, message);
-
-        return;
-      }
-
-      handleAssignees(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  handleAttachment(conn, locals);
 };
 
 

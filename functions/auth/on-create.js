@@ -43,32 +43,28 @@ const { getISO8601Date, } = require('../admin/utils');
  */
 module.exports = (userRecord) => {
   const batch = db.batch();
+  const { uid, phoneNumber, } = userRecord;
 
   batch.set(rootCollections
     .updates
-    .doc(userRecord.uid), {
-      phoneNumber: userRecord.phoneNumber,
-    });
+    .doc(uid), { phoneNumber, });
 
+  /**
+   * Profile *may* exist already, if the user signed
+   * up to the platform sometime in the past.
+   */
   batch.set(rootCollections
     .profiles
-    .doc(userRecord.phoneNumber), {
-      uid: userRecord.uid,
-    }, {
-      /** Profile *may* exist already, if the user signed
-       * up to the platform sometime in the past.
-       */
-      merge: true,
-    });
+    .doc(phoneNumber), { uid, }, { merge: true, });
 
+  /** Doc will have other phone numbers too. */
   batch.set(rootCollections
     .dailySignUps
     .doc(getISO8601Date()), {
-      [userRecord.phoneNumber]: {
+      [phoneNumber]: {
         timestamp: serverTimestamp,
       },
     }, {
-      /** Doc will have other phone numbers too. */
       merge: true,
     });
 

@@ -58,6 +58,7 @@ module.exports = (userRecord) => {
     }
   );
 
-  /* eslint no-console: "off" */
-  return batch.commit().catch(console.error);
+  return batch
+    .commit()
+    .catch(console.error);
 };

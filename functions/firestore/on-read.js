@@ -140,9 +140,10 @@ const mutateActivityToArray = (conn, jsonResult, locals) => {
 const fetchSubscriptions = (conn, jsonResult, locals) =>
   Promise
     .all(locals.templatesList)
-    .then((docs) => {
-      docs.forEach((doc) => {
-        if (!doc.exists) return;
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        /** Queried with `limit(1)` */
+        const doc = snapShot.docs[0];
 
         jsonResult.templates.push({
           schedule: doc.get('schedule'),
@@ -183,11 +184,14 @@ const getTemplates = (conn, jsonResult, locals) =>
         /** The `office` is required inside each template. */
         locals.officesArray.push(doc.get('office'));
 
-        locals.templatesList.push(rootCollections
-          .activityTemplates
-          .doc(doc.get('template'))
-          .get()
-        );
+        locals
+          .templatesList
+          .push(rootCollections
+            .activityTemplates
+            .where('name', '==', doc.get('template'))
+            .limit(1)
+            .get()
+          );
       });
 
       fetchSubscriptions(conn, jsonResult, locals);

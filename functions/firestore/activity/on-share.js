@@ -119,7 +119,7 @@ const handleResult = (conn, result) => {
       .offices
       .doc(locals.static.officeId)
       .collection('Activities')
-      .where('attachment."Phone Number".value', '==', phoneNumber)
+      .where('attachment.Phone Number.value', '==', phoneNumber)
       .where('template', '==', 'admin')
       .limit(1)
       .get()
@@ -155,7 +155,6 @@ const handleResult = (conn, result) => {
           .collection('Assignees')
           .doc(phoneNumber), {
             canEdit: getCanEditValue(locals, phoneNumber),
-            activityId: conn.req.body.activityId,
           });
       });
 
@@ -197,8 +196,6 @@ const handleResult = (conn, result) => {
 
 
 module.exports = (conn) => {
-  console.log('\n'.repeat(10));
-
   const result = isValidRequestBody(conn.req.body, 'share');
 
   if (!result.isValid) {

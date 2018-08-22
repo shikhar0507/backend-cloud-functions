@@ -44,7 +44,48 @@ const {
 } = require('../../admin/utils');
 
 
-const fetchDocs = (conn) => {
+const createDocs = (conn, activity) => {
+  const batch = db.batch();
+
+  batch.set(rootCollections
+    .activities
+    .doc(conn.req.body.activityId), {
+      status: conn.req.body.status,
+      timestamp: serverTimestamp,
+    }, {
+      merge: true,
+    });
+
+  batch.set(rootCollections
+    .offices
+    .doc(activity.get('officeId'))
+    .collection('Addendum')
+    .doc(), {
+      user: conn.requester.phoneNumber,
+      share: null,
+      remove: null,
+      action: httpsActions.changeStatus,
+      status: conn.req.body.status,
+      comment: null,
+      template: null,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      activityId: conn.req.body.activityId,
+      activityName: activity.get('activityName'),
+      updatedFields: null,
+      updatedPhoneNumber: null,
+      isSupportRequest: conn.requester.isSupportRequest,
+    });
+
+  batch
+    .commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
+};
+
+
+const fetchDocs = (conn) =>
   rootCollections
     .activities
     .doc(conn.req.body.activityId)
@@ -70,49 +111,14 @@ const fetchDocs = (conn) => {
         return;
       }
 
-      const batch = db.batch();
-
-      batch.set(rootCollections
-        .activities
-        .doc(conn.req.body.activityId), {
-          status: conn.req.body.status,
-          timestamp: serverTimestamp,
-        }, {
-          merge: true,
-        });
-
-      batch.set(rootCollections
-        .offices
-        .doc(activity.get('officeId'))
-        .collection('Addendum')
-        .doc(), {
-          user: conn.requester.phoneNumber,
-          share: null,
-          remove: null,
-          action: httpsActions.changeStatus,
-          status: conn.req.body.status,
-          comment: null,
-          template: null,
-          location: getGeopointObject(conn.req.body.geopoint),
-          timestamp: serverTimestamp,
-          userDeviceTimestamp: new Date(conn.req.body.timestamp),
-          activityId: conn.req.body.activityId,
-          activityName: activity.get('activityName'),
-          updatedFields: null,
-          updatedPhoneNumber: null,
-          isSupportRequest: conn.requester.isSupportRequest,
-        });
-
-      batch.commit();
+      createDocs(conn, activity);
 
       return;
-
     })
-    .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
-};
 
-const fetchActivityFromProfile = (conn) => {
+
+const checkActivityDocInUserProfile = (conn) =>
   rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
@@ -146,7 +152,7 @@ const fetchActivityFromProfile = (conn) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-};
+
 
 module.exports = (conn) => {
   const result = isValidRequestBody(conn.req.body, 'change-status');
@@ -171,5 +177,5 @@ module.exports = (conn) => {
     return;
   }
 
-  fetchActivityFromProfile(conn);
+  checkActivityDocInUserProfile(conn);
 };

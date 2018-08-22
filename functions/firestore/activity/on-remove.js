@@ -99,13 +99,12 @@ const handleResult = (conn, result) => {
     sendResponse(
       conn,
       code.conflict,
-      `No assignee found with the phone number: '${conn.req.body.remove}'.`
+      `No assignee found with the phone number: '${conn.req.body.remove}'`
+      + ` in this activity.`
     );
 
     return;
   }
-
-
 
   const attachment = activity.get('attachment');
 
@@ -117,7 +116,7 @@ const handleResult = (conn, result) => {
       code.forbidden,
       `Cannot remove the phone number: '${conn.req.body.remove}'`
       + `from the activity. Please use the '/update' endpoint`
-      + ` to remove this number from the attachment.`
+      + ` to remove/change this number from/in the attachment.`
     );
 
     return;
