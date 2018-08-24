@@ -419,7 +419,7 @@ const filterAttachment = (body, locals) => {
   }
 
   const rootCollections = require('../../admin/admin').rootCollections;
-  const validTypes = require('../../admin/attachment-types').validTypes;
+  const validTypes = require('../../admin/constants').validTypes;
 
   /** The `forEach` loop doesn't support `break` */
   for (const field of fields) {
@@ -592,7 +592,7 @@ const filterAttachment = (body, locals) => {
     }
 
     if (type === 'weekday') {
-      const weekdays = require('../../admin/attachment-types').weekdays;
+      const weekdays = require('../../admin/constants').weekdays;
 
       if (value !== '' && !weekdays.has(value)) {
         messageObject.isValid = false;
@@ -785,7 +785,7 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
     };
   }
 
-  const activityStatuses = require('../../admin/attachment-types')
+  const activityStatuses = require('../../admin/constants')
     .activityStatuses;
 
   if (!activityStatuses.has(body.status)) {

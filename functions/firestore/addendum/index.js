@@ -27,7 +27,7 @@
 
 const { rootCollections, db, } = require('../../admin/admin');
 
-const { httpsActions, } = require('../../admin/attachment-types');
+const { httpsActions, vowels, } = require('../../admin/constants');
 
 
 const getUpdatedScheduleNames = (requestBody, schedule) => {
@@ -225,8 +225,6 @@ const commentBuilder = (addendum, recipient) => {
   }
 
   if (action === httpsActions.create) {
-    const vowels = require('../../admin/attachment-types').vowels;
-
     const templateNameFirstCharacter = template[0];
     const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
 

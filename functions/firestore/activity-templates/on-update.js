@@ -39,7 +39,7 @@ const {
   canEditRules,
   templateFields,
   activityStatuses,
-} = require('../../admin/attachment-types');
+} = require('../../admin/constants');
 
 
 const validateRequestBody = (conn, locals) => {

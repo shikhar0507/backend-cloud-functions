@@ -5,7 +5,7 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 
-const { httpsActions, } = require('../../admin/attachment-types');
+const { httpsActions, } = require('../../admin/constants');
 
 module.exports = (snapShot, context) => {
   const activityId = context.params.docId;

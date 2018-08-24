@@ -36,7 +36,7 @@ const { isValidRequestBody, getCanEditValue, } = require('./helper');
 
 const { code, } = require('../../admin/responses');
 
-const { httpsActions, } = require('../../admin/attachment-types');
+const { httpsActions, } = require('../../admin/constants');
 
 const {
   handleError,

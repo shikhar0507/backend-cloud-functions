@@ -34,7 +34,7 @@ const {
 
 const { code, } = require('../../admin/responses');
 
-const { httpsActions, } = require('../../admin/attachment-types');
+const { httpsActions, } = require('../../admin/constants');
 
 const {
   validateVenues,
