@@ -480,6 +480,14 @@ const filterAttachment = (body, locals) => {
           + ` should be a non-empty string.`;
         break;
       }
+
+      if (field === 'Subscriber' && !isE164PhoneNumber(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `The value in the field 'Subscriber' should`
+          + ` be a valid phone number.`;
+        break;
+      }
+
       if (field === 'Template') {
         messageObject
           .querySnapshotShouldExist
