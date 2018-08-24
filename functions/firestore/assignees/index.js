@@ -25,24 +25,33 @@
 'use strict';
 
 
-const { rootCollections, } = require('../../admin/admin');
+const { rootCollections, db, } = require('../../admin/admin');
 
 
 /**
- * Removes the activity from the profile of the Assignee when they
- * are unassigned from the activity.
- * Unassign means that doc from
- * `Activities/(activityId)/Assignees/(phoneNumber)` deleted.
+ * Removes the doc from the `Profile/(phoneNumber)/Activities/(activityId)`
+ * of the assignee who has been unassigned from this activity.
  *
- * @param {Object} doc Contains the doc of the removed assignee.
- * @param {Object} context Data related to the `onWrite` event.
- * @returns {Promise<Object>} Firestore `Promise` object.
+ * When someone is unassigned from an activity, they will no longer see any
+ * further updates from the activity on hitting
+ * the `/api/read?from=unix timestamp`
+ *
+ * @Trigger: `onDelete`
+ * @Path: `Activities/(activityId)/Assignees/(doc)`
+ *
+ * @param {Object} doc Contains the Profile doc of the removed assignee.
+ * @param {Object} context Data related to the `onDelete` event.
+ * @returns {Promise <Object>} Firestore `Batch` object.
  */
-module.exports = (doc, context) =>
-  rootCollections
+module.exports = (doc, context) => {
+  const phoneNumber = context.params.phoneNumber;
+  const activityId = context.params.activityId;
+
+  return rootCollections
     .profiles
-    .doc(doc.id)
+    .doc(phoneNumber)
     .collection('Activities')
-    .doc(context.params.activityId)
+    .doc(activityId)
     .delete()
     .catch(console.error);
+};
