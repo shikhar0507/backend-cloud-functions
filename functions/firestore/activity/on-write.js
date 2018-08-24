@@ -60,6 +60,14 @@ const manageSubscription = (activityDocNew, batch) => {
          */
         if (subscriberPhoneNumber === assignee.id) return;
 
+        const addToInclude = assignee.get('addToInclude');
+
+        /**
+         * For the subscription template, people from
+         * the share array are not added to the include array.
+         */
+        if (!addToInclude) return;
+
         include.push(assignee.id);
       });
 

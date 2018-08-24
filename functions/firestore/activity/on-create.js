@@ -53,6 +53,11 @@ const {
 const createDocsWithBatch = (conn, locals) => {
   locals.objects.allPhoneNumbers
     .forEach((phoneNumber) => {
+      let addToInclude = true;
+
+      if (conn.req.body.template === 'subscription'
+        && conn.req.body.share.indexOf(phoneNumber) > -1) addToInclude = false;
+
       const isRequester = phoneNumber === conn.requester.phoneNumber;
 
       /**
@@ -64,6 +69,7 @@ const createDocsWithBatch = (conn, locals) => {
       locals.batch.set(locals.docs.activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
+          addToInclude,
           activityId: locals.static.activityId,
           canEdit: getCanEditValue(locals, phoneNumber),
         });

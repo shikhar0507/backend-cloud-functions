@@ -85,6 +85,7 @@ const handleResult = (conn, result) => {
     static: {
       officeId: activity.get('officeId'),
       canEditRule: activity.get('canEditRule'),
+      template: activity.get('template'),
     },
   };
 
@@ -147,13 +148,20 @@ const handleResult = (conn, result) => {
       });
 
       const batch = db.batch();
+      let addToInclude = true;
 
       conn.req.body.share.forEach((phoneNumber) => {
+        if (locals.static.template === 'subscription'
+          && conn.req.body.share.indexOf(phoneNumber) > -1) {
+          addToInclude = false;
+        }
+
         batch.set(rootCollections
           .activities
           .doc(conn.req.body.activityId)
           .collection('Assignees')
           .doc(phoneNumber), {
+            addToInclude,
             canEdit: getCanEditValue(locals, phoneNumber),
           });
       });

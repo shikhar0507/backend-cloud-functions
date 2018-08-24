@@ -65,6 +65,11 @@ const updateDocsWithBatch = (conn, locals) => {
         .collection('Assignees')
         .doc(phoneNumber), {
           canEdit: getCanEditValue(locals, phoneNumber),
+          /**
+           * These people are not from the `share` array of the request body.
+           * The update api doesn't accept the `share` array.
+           */
+          addToInclude: true,
         });
     });
 
