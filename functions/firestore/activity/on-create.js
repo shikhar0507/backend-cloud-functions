@@ -87,6 +87,7 @@ const createDocsWithBatch = (conn, locals) => {
     canEditRule: locals.static.canEditRule,
     activityName: conn.req.body.activityName || '',
     officeId: rootCollections.offices.doc(locals.static.officeId).id,
+    hidden: locals.static.hidden,
   });
 
   locals.batch.set(rootCollections
@@ -574,6 +575,7 @@ const createLocals = (conn, result) => {
   locals.objects.attachment = templateQueryResult.docs[0].get('attachment');
   locals.static.canEditRule = templateQueryResult.docs[0].get('canEditRule');
   locals.static.statusOnCreate = templateQueryResult.docs[0].get('statusOnCreate');
+  locals.static.hidden = templateQueryResult.docs[0].get('hidden');
 
   if (subscriptionQueryResult.empty && !conn.requester.isSupportRequest) {
     sendResponse(

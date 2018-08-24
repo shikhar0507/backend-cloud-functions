@@ -104,6 +104,18 @@ const validateTemplate = (body) => {
       break;
     }
 
+    if (!body.hasOwnProperty('hidden')) {
+      message.message = `The 'hidden' field is missing from the request body`;
+      message.isValid = false;
+      break;
+    }
+
+    if (typeof body.hidden !== 'boolean') {
+      message.message = `The value of the field 'hidden' should be a boolean`;
+      message.isValid = false;
+      break;
+    }
+
     if (!body.hasOwnProperty('schedule')) {
       message.message = `The 'schedule' field is missing from`
         + ` the request body.`;

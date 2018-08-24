@@ -279,6 +279,7 @@ const fetchActivities = (conn, jsonResult, locals) =>
         /** Added further down the line. */
         activityObj.assignees = [];
         activityObj.attachment = doc.get('attachment');
+        activityObj.hiddden = doc.get('hidden');
       });
 
       fetchAssignees(conn, jsonResult, locals);

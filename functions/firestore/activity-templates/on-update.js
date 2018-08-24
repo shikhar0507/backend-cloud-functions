@@ -67,6 +67,16 @@ const validateRequestBody = (conn, locals) => {
       locals.objects.updatedFields[field] = value;
     }
 
+    if (field === 'hidden') {
+      if (typeof value !== 'boolean') {
+        locals.objects.message.message = `The field 'hidden' should have a boolean value.`;
+        locals.objects.message.isValid = false;
+        break;
+      }
+
+      locals.objects.updatedFields[field] = value;
+    }
+
     if (field === 'canEditRule') {
       if (!canEditRules.has(value)) {
         locals.objects.message.message = `'${value}' is not a valid value`
