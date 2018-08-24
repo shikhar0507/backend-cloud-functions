@@ -217,11 +217,60 @@ const handleAssignees = (conn, locals) => {
 };
 
 
+const checkSubscription = (conn, locals) => {
+  if (conn.req.body.template !== 'subscription') {
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
+  const attachment = conn.req.body.attachment;
+  const office = conn.req.body.office;
+  const template = attachment.Template.value;
+  const phoneNumber = attachment.Subscriber.value;
+
+  /**
+   * If the `Subscriber` mentioned in the `attachment` already has the
+   * subscription to the `template` for the `office`, there's no point in
+   * creating **yet** another activity.
+   */
+  rootCollections
+    .profiles
+    .doc(phoneNumber)
+    .collection('Subscriptions')
+    .where('template', '==', template)
+    .where('office', '==', office)
+    /**
+     * Subscriptions are unique combinations of office + template names.
+     * More than one cannot exist for a single user.
+     */
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      if (!snapShot.empty) {
+        sendResponse(
+          conn,
+          code.conflict,
+          `The user: '${phoneNumber}' already has the subscription of `
+          + ` '${template}' for the office: '${office}'.`
+        );
+
+        return;
+      }
+
+      handleAssignees(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+
 const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
   const promises = result.querySnapshotShouldNotExist;
 
   if (promises.length === 0) {
-    handleAssignees(conn, locals);
+    checkSubscription(conn, locals);
 
     return;
   }
@@ -252,7 +301,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
         return;
       }
 
-      handleAssignees(conn, locals);
+      checkSubscription(conn, locals);
 
       return;
     })
@@ -372,7 +421,7 @@ const handleAttachment = (conn, locals) => {
   if (result.querySnapshotShouldExist.length === 0
     && result.querySnapshotShouldNotExist.length === 0
     && result.profileDocShouldExist.length === 0) {
-    handleAssignees(conn, locals);
+    checkSubscription(conn, locals);
 
     return;
   }
