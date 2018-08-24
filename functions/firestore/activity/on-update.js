@@ -85,7 +85,10 @@ const updateDocsWithBatch = (conn, locals) => {
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
       activityId: conn.req.body.activityId,
       activityName: locals.static.activityName,
-      updatedFields: Object.keys(locals.objects.updatedFields),
+      updatedFields: {
+        requestBody: conn.req.body,
+        activityBody: locals.docs.activity,
+      },
       updatedPhoneNumber: null,
       isSupportRequest: conn.requester.isSupportRequest,
     });
@@ -150,20 +153,33 @@ const handleAssignees = (conn, locals) => {
   const promises = [];
 
   bodyAttachmentFields.forEach((field) => {
-    const oldPhoneNumber = activityAttachment[field].value;
     const item = conn.req.body.attachment[field];
     const type = item.type;
-    const phoneNumber = item.value;
 
     if (type !== 'phoneNumber') return;
 
-    if (phoneNumber === '') return;
+    const newPhoneNumber = item.value;
+    const oldPhoneNumber = activityAttachment[field].value;
 
-    if (oldPhoneNumber !== '') {
+    /** Nothing has changed, so no point in creating promises. */
+    if (oldPhoneNumber === newPhoneNumber) return;
+
+    if (oldPhoneNumber !== '' && newPhoneNumber === '') {
+      locals.batch.delete(rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(oldPhoneNumber)
+      );
+
       /**
-       * Unassign the old phone number from the activity.
-       * Replace this with the new one from the attachment.
+       * New phone number is an empty string which is not a valid phone number
+       * Not creating promises in that case.
        */
+      return;
+    }
+
+    if (oldPhoneNumber !== '' && newPhoneNumber !== '') {
       locals.batch.delete(rootCollections
         .activities
         .doc(conn.req.body.activityId)
@@ -172,11 +188,9 @@ const handleAssignees = (conn, locals) => {
       );
     }
 
-    if (phoneNumber === oldPhoneNumber) return;
+    const isRequester = newPhoneNumber === conn.requester.phoneNumber;
 
-    const isRequester = phoneNumber === conn.requester.phoneNumber;
-
-    locals.objects.permissions[phoneNumber] = {
+    locals.objects.permissions[newPhoneNumber] = {
       isAdmin: false,
       isEmployee: false,
       isCreator: isRequester,
@@ -186,7 +200,7 @@ const handleAssignees = (conn, locals) => {
       .offices
       .doc(locals.static.officeId)
       .collection('Activities')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('attachment.Phone Number.value', '==', newPhoneNumber)
       .where('template', '==', 'employee')
       .limit(1)
       .get()
@@ -196,7 +210,7 @@ const handleAssignees = (conn, locals) => {
       .offices
       .doc(locals.static.officeId)
       .collection('Activities')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('attachment.Phone Number.value', '==', newPhoneNumber)
       .where('template', '==', 'admin')
       .limit(1)
       .get()
@@ -227,8 +241,6 @@ const handleAssignees = (conn, locals) => {
 
         locals.objects.permissions[phoneNumber].isEmployee = true;
       });
-
-      locals.objects.updatedFields.attachment = conn.req.body.attachment;
 
       getUpdatedFields(conn, locals);
 
@@ -283,8 +295,6 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
         return;
       }
-
-      locals.objects.updatedFields.attachment = conn.req.body.attachment;
 
       handleAssignees(conn, locals);
 
@@ -403,6 +413,8 @@ const handleAttachment = (conn, locals) => {
 
     return;
   }
+
+  locals.objects.updatedFields.attachment = conn.req.body.attachment;
 
   resolveProfileCheckPromises(conn, locals, result);
 };
