@@ -63,11 +63,7 @@ const manageSubscription = (activityDocNew, batch) => {
         include.push(assignee.id);
       });
 
-      const docRef = activityDocNew.get('docRef');
       const template = activityDocNew.get('attachment').Template.value;
-
-      /* Copying the whole activity data... */
-      batch.set(docRef, activityDocNew.data());
 
       batch.set(rootCollections
         .profiles
@@ -107,8 +103,6 @@ const manageReport = (activityDocNew, batch) => {
 
   const collectionName = `${template} Mailing List`;
 
-  const docRef = db.collection(collectionName).doc(activityId);
-
   return rootCollections
     .activities
     .doc(activityId)
@@ -116,8 +110,6 @@ const manageReport = (activityDocNew, batch) => {
     .get()
     .then((snapShot) => snapShot.forEach((doc) => to.push(doc.id)))
     .then(() => {
-      batch.set(docRef, activityDocNew.data());
-
       batch.set(db
         .collection(collectionName)
         .doc(activityId), { cc, office, to, });
@@ -138,7 +130,6 @@ const manageReport = (activityDocNew, batch) => {
  * @returns {Promise<Object>} Firestore batch.
  */
 const manageAdmin = (activityDocNew, batch) => {
-  const docRef = activityDocNew.get('docRef');
   const status = activityDocNew.get('status');
   const phoneNumber = activityDocNew.get('attachment').Admin.value;
 
@@ -166,13 +157,6 @@ const manageAdmin = (activityDocNew, batch) => {
           }
         }
       }
-
-      /**
-       * This will create the doc below
-       * `Offices/(officeId)/Activities/(activityId)` with
-       * the template `admin`.
-       */
-      batch.set(docRef, activityDocNew.data());
 
       return Promise
         .all([
@@ -205,10 +189,10 @@ module.exports = (change, context) => {
     .ref
     .collection('Assignees')
     .get()
-    .then((assigneeCollectionSnapshot) => {
+    .then((assignees) => {
       const promises = [];
 
-      assigneeCollectionSnapshot.forEach((assignee) => {
+      assignees.forEach((assignee) => {
         const phoneNumber = assignee.id;
         const profileDoc = rootCollections.profiles.doc(phoneNumber);
 
@@ -219,19 +203,18 @@ module.exports = (change, context) => {
 
       return Promise.all(promises);
     })
-    .then((docs) => {
+    .then((profiles) => {
       const batch = db.batch();
 
-      docs.forEach((doc) => {
-        /** The doc id is the phone number of the assignee. */
-        const phoneNumber = doc.id;
+      profiles.forEach((profile) => {
+        const phoneNumber = profile.id;
 
-        if (!doc.exists) {
+        if (!profile.exists) {
           /** Placeholder `profiles` for the users with no auth. */
-          batch.set(doc.ref, { uid: null, });
+          batch.set(profile.ref, { uid: null, });
         }
 
-        batch.set(doc
+        batch.set(profile
           .ref
           .collection('Activities')
           .doc(activityId), {
@@ -245,6 +228,12 @@ module.exports = (change, context) => {
     .then((batch) => {
       const template = activityDocNew.get('template');
 
+      /**
+       * Copy the activity doc to the path which was created
+       * by the activity in the `docRef` field.
+       */
+      batch.set(activityDocNew.get('docRef'), activityDocNew.data());
+
       if (template === 'subscription') {
         return manageSubscription(activityDocNew, batch);
       }
@@ -257,11 +246,6 @@ module.exports = (change, context) => {
         return manageAdmin(activityDocNew, batch);
       }
 
-      /**
-       * Copy the activity doc to the path which was created
-       * by the activity in the `docRef` field.
-       */
-      batch.set(activityDocNew.get('docRef'), activityDocNew.data());
 
       return batch.commit();
     })
