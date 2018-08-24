@@ -83,7 +83,7 @@ const handleError = (conn, error) => {
     .instant
     .doc()
     .set({
-      html: JSON.stringify(error.message),
+      html: `<pre>${error}</pre>`,
       subject: 'Cloud function crashed... :(',
     })
     .then(() => sendResponse(
