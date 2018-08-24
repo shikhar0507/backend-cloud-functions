@@ -29,6 +29,167 @@ const { rootCollections, db, } = require('../../admin/admin');
 
 const { httpsActions, } = require('../../admin/attachment-types');
 
+
+const getUpdatedScheduleNames = (requestBody, schedule) => {
+  let commentString = '';
+
+  schedule.forEach((item, index) => {
+    const name = item.name;
+    let oldStartTime = requestBody.schedule[index].startTime;
+    let oldEndTime = requestBody.schedule[index].endTime;
+    let newStartTime = item.startTime;
+    let newEndTime = item.endTime;
+
+    if (oldEndTime !== '') {
+      oldEndTime = oldEndTime.getTime();
+    }
+
+    if (oldStartTime !== '') {
+      oldStartTime = oldStartTime.getTime();
+    }
+
+    if (newEndTime !== '') {
+      newEndTime = newEndTime.getTime();
+    }
+
+    if (newStartTime !== '') {
+      newStartTime = newStartTime.getTime();
+    }
+
+    if (oldEndTime === newEndTime) return;
+    if (oldStartTime === newEndTime) return;
+
+    const isFirstElement = index === 0;
+
+    if (isFirstElement) {
+      commentString += `${name}`;
+
+      return;
+    } else {
+      commentString += `, `;
+    }
+
+    commentString += `${name}`;
+  });
+
+  return commentString;
+};
+
+
+const getUpdatedVenueDescriptors = (requestBody, venue) => {
+  let commentString = '';
+
+  venue.forEach((item, index) => {
+    const venueDescriptor = item.venueDescriptor;
+    const oldLocation = item.location;
+    const oldAddress = item.location;
+    const oldGeopoint = item.geopoint;
+    let oldLongitude = '';
+    let oldLatitude = '';
+
+    if (oldGeopoint !== '') {
+      oldLongitude = oldGeopoint.longitude;
+      oldLatitude = oldGeopoint.latitude;
+    }
+
+    const newLocation = requestBody.venue[index].location;
+    const newAddress = requestBody.venue[index].address;
+    const newGeopoint = requestBody.venue[index].geopoint;
+    let newLatitude = '';
+    let newLongitude = '';
+
+    if (newGeopoint !== '') {
+      newLatitude = newGeopoint.latitude;
+      newLongitude = newGeopoint.longitude;
+    }
+
+    if (oldLocation === newLocation) return;
+    if (oldAddress === newAddress) return;
+    if (oldLatitude === newLatitude) return;
+    if (oldLongitude === newLongitude) return;
+
+    const isFirstElement = index === 0;
+
+    if (isFirstElement) {
+      commentString += `${venueDescriptor}`;
+
+      return;
+    } else {
+      commentString += `, `;
+    }
+
+    commentString += `${venueDescriptor}`;
+  });
+
+  return commentString;
+};
+
+const getUpdatedAttachmentFieldNames = (requestBody, attachment) => {
+  let commentString = '';
+  const newAttachment = requestBody.attachment;
+
+  Object
+    .keys(newAttachment)
+    .forEach((field, index) => {
+      const oldFieldValue = attachment[field].value;
+      const newFieldValue = newAttachment[field].value;
+
+      if (oldFieldValue === newFieldValue) return;
+
+      const isFirstElement = index === 0;
+
+      if (isFirstElement) {
+        commentString += `${field}`;
+
+        return;
+      } else {
+        commentString += `, `;
+      }
+
+      commentString += `${field}`;
+    });
+
+  return commentString;
+};
+
+
+const getUpdatedFieldNames = (updatedFields) => {
+  const { requestBody, activityBody, } = updatedFields;
+
+  const schedule = activityBody.get('schedule');
+  const venue = activityBody.get('venue');
+  const attachment = activityBody.get('attachment');
+  let finalComment = '';
+
+  const updatedNames = getUpdatedScheduleNames(requestBody, schedule);
+  const updatedDescriptors = getUpdatedVenueDescriptors(requestBody, venue);
+  const updatedFieldsInAttachment =
+    getUpdatedAttachmentFieldNames(requestBody, attachment);
+
+  if (updatedNames) {
+    finalComment += updatedNames;
+  }
+
+  if (updatedDescriptors) {
+    if (finalComment === '') {
+      finalComment += `${updatedDescriptors}`;
+    } else {
+      finalComment += `, ${updatedDescriptors}`;
+    }
+  }
+
+  if (updatedFieldsInAttachment) {
+    if (finalComment === '') {
+      finalComment += `${updatedFieldsInAttachment}`;
+    } else {
+      finalComment += `, ${updatedFieldsInAttachment}`;
+    }
+  }
+
+  return finalComment;
+};
+
+
 const commentBuilder = (addendum, recipient) => {
   const addendumCreator = addendum.get('user');
   const share = addendum.get('share');
@@ -86,7 +247,7 @@ const commentBuilder = (addendum, recipient) => {
   if (action === httpsActions.updatePhoneNumber) {
     let pronoun = `${addendumCreator} changed their`;
 
-    if (pronoun === addendumCreator) pronoun = 'You changed your';
+    if (addendumCreator === recipient) pronoun = 'You changed your';
 
     return `${pronoun} phone number from ${addendumCreator} to`
       + ` ${updatedPhoneNumber}.`;
@@ -118,7 +279,7 @@ const commentBuilder = (addendum, recipient) => {
   }
 
   if (action === httpsActions.update) {
-    return `${pronoun} updated ${updatedFields}.`;
+    return `${pronoun} updated ${getUpdatedFieldNames(updatedFields)}.`;
   }
 
   /** Action is `comment` */
@@ -165,7 +326,7 @@ module.exports = (addendumDoc) =>
          * for the app. Not writing addendum for those users.
          * The `uid` field can be `null` too. This is for the
          * cases when the phone number was introduced to the
-         * system in from other than `auth`. Like creating/sharing
+         * system in from other than `auth`. Like `creating/sharing`
          * an activity.
         */
         if (!uid) return;
@@ -177,7 +338,6 @@ module.exports = (addendumDoc) =>
           .doc();
 
         batch.set(profileAddendumDocRef, {
-          addendumId: profileAddendumDocRef.id,
           activityId: addendumDoc.get('activityId'),
           timestamp: addendumDoc.get('timestamp'),
           userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
