@@ -39,6 +39,7 @@ const {
   canEditRules,
   templateFields,
   activityStatuses,
+  reportingActions,
 } = require('../../admin/constants');
 
 
@@ -68,8 +69,9 @@ const validateRequestBody = (conn, locals) => {
     }
 
     if (field === 'hidden') {
-      if (typeof value !== 'boolean') {
-        locals.objects.message.message = `The field 'hidden' should have a boolean value.`;
+      if (['true', 'false',].indexOf(value) === -1) {
+        locals.objects.message.message = `The value of the field 'hidden' can`
+          + ` only be 0 or 1`;
         locals.objects.message.isValid = false;
         break;
       }
@@ -232,16 +234,18 @@ const validateRequestBody = (conn, locals) => {
   }
 
   const subject = `Template Updated in the Growthfile DB`;
-  const html = `
+  const messageBody = `
   <p>
-    The template manager: <strong>{${conn.requester.phoneNumber}}</strong>
+    The template manager: <strong>${conn.requester.phoneNumber}</strong>
     just updated an existing template: '${conn.req.body.name}' in the
     Growthfile DB.
   <p>
   <p>
-    <strong>Template Id</strong>: '${locals.static.templateId}'
+    <strong>Template Manager: </strong> ${conn.requester.displayName}
     <br>
-    <strong>Template Name</strong>: '${conn.req.body.name}'
+    <strong>Template Id</strong>: ${locals.static.templateId}
+    <br>
+    <strong>Template Name</strong>: ${conn.req.body.name}
   </p>
 
   <hr>
@@ -286,7 +290,11 @@ const validateRequestBody = (conn, locals) => {
       locals
         .docs
         .instant
-        .set({ html, subject, }),
+        .set({
+          messageBody,
+          subject,
+          action: reportingActions.usedCustomClaims,
+        }),
     ])
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));

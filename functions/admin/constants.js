@@ -68,7 +68,8 @@ const templateFields = new Map()
   .set('venue', 'venue')
   .set('schedule', 'schedule')
   .set('comment', 'comment')
-  .set('attachment', 'attachment');
+  .set('attachment', 'attachment')
+  .set('hidden', 'hidden');
 
 const vowels = new Map()
   .set('a', 'a')
@@ -133,6 +134,12 @@ const httpsActions = {
   comment: 'comment',
 };
 
+const reportingActions = {
+  usedCustomClaims: 'usedCustomClaims',
+  authDisabled: 'authDisabled',
+  authDeleted: 'authDeleted',
+};
+
 
 module.exports = {
   vowels,
@@ -143,6 +150,7 @@ module.exports = {
   templateFields,
   shareBodyFields,
   activityStatuses,
+  reportingActions,
   createBodyFields,
   updateBodyFields,
   removeBodyFields,

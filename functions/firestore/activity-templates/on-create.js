@@ -33,6 +33,7 @@ const {
   canEditRules,
   templateFields,
   activityStatuses,
+  reportingActions,
 } = require('../../admin/constants');
 
 const {
@@ -110,8 +111,9 @@ const validateTemplate = (body) => {
       break;
     }
 
-    if (typeof body.hidden !== 'boolean') {
-      message.message = `The value of the field 'hidden' should be a boolean`;
+    /** IndexedDB can't create indexes on boolean values. */
+    if (['true', 'false',].indexOf(body.hidden) === -1) {
+      message.message = `The value of the field 'hidden' can only be 0 or 1`;
       message.isValid = false;
       break;
     }
@@ -205,17 +207,20 @@ const validateTemplate = (body) => {
   return message;
 };
 
-
-const createDoc = (conn, docs) =>
+const createDocs = (conn, locals) => {
   Promise
     .all([
-      docs
+      locals
         .templateDocRef
         .set(conn.req.body),
       rootCollections
         .instant
         .doc()
-        .set(docs.email),
+        .set({
+          messageBody: locals.messageBody,
+          subject: locals.subject,
+          action: locals.action,
+        }),
     ])
     .then(() => sendResponse(
       conn,
@@ -223,6 +228,7 @@ const createDoc = (conn, docs) =>
       `Template: ${conn.req.body.name} has been created successfully.`
     ))
     .catch((error) => handleError(conn, error));
+};
 
 
 /**
@@ -323,13 +329,15 @@ module.exports = (conn) => {
       const templateDocRef = rootCollections.activityTemplates.doc();
 
       const subject = `Template Created the in Growthfile DB`;
-      const html = `
+      const messageBody = `
         <p>
           The template manager: <strong>${conn.requester.phoneNumber}</strong>
           just created a new template: ${conn.req.body.name} in the
           Growthfile DB.
         </p>
         <p>
+          <strong>Template Manager: </strong> ${conn.requester.displayName || ''}
+          <br>
           <strong>Template Id</strong>: ${templateDocRef.id}
           <br>
           <strong>Template Name</strong>: ${conn.req.body.name}
@@ -350,10 +358,14 @@ module.exports = (conn) => {
         </pre>
       `;
 
-      createDoc(conn, {
-        email: { subject, html, },
+      const locals = {
+        messageBody,
+        subject,
         templateDocRef,
-      });
+        action: reportingActions.usedCustomClaims,
+      };
+
+      createDocs(conn, locals);
 
       return;
     })

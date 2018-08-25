@@ -146,6 +146,7 @@ const fetchRequesterPhoneNumber = (conn) => {
       }
 
       conn.requester.phoneNumber = userRecord.phoneNumber;
+      conn.requester.displayName = userRecord.displayName || '';
 
       verifyUidAndPhoneNumberCombination(conn);
 

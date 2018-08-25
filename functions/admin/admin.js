@@ -262,6 +262,7 @@ const rootCollections = {
    */
   dailyPhoneNumberChanges: db.collection('DailyPhoneNumberChanges'),
   phoneNumberUpdates: db.collection('PhoneNumberUpdates'),
+  reports: db.collection('Reports'),
 };
 
 

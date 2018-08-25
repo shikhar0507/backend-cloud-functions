@@ -78,23 +78,11 @@ const sendResponse = (conn, statusCode, message = '') => {
 const handleError = (conn, error) => {
   console.error(error);
 
-  /** Sends email to `env.to` emails on crash. */
-  rootCollections
-    .instant
-    .doc()
-    .set({
-      html: `<pre>${error}</pre>`,
-      subject: 'Cloud function crashed... :(',
-    })
-    .then(() => sendResponse(
-      conn,
-      code.internalServerError,
-      'There was an error handling the request. Please try again later.'
-    ))
-    .catch((error) => {
-      console.error(error);
-      sendResponse(conn, code.internalServerError, 'Something went wrong.');
-    });
+  sendResponse(
+    conn,
+    code.internalServerError,
+    'There was an error handling the request. Please try again later.'
+  );
 };
 
 
