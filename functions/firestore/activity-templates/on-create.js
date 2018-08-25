@@ -112,7 +112,7 @@ const validateTemplate = (body) => {
     }
 
     /** IndexedDB can't create indexes on boolean values. */
-    if (['true', 'false',].indexOf(body.hidden) === -1) {
+    if ([0, 1,].indexOf(body.hidden) === -1) {
       message.message = `The value of the field 'hidden' can only be 0 or 1`;
       message.isValid = false;
       break;

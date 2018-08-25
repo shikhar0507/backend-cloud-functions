@@ -69,7 +69,7 @@ const validateRequestBody = (conn, locals) => {
     }
 
     if (field === 'hidden') {
-      if (['true', 'false',].indexOf(value) === -1) {
+      if ([0, 1,].indexOf(value) === -1) {
         locals.objects.message.message = `The value of the field 'hidden' can`
           + ` only be 0 or 1`;
         locals.objects.message.isValid = false;
