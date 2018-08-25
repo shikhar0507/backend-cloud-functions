@@ -92,7 +92,7 @@ const updateDocsWithBatch = (conn, locals) => {
       activityName: locals.static.activityName,
       updatedFields: {
         requestBody: conn.req.body,
-        activityBody: locals.docs.activity,
+        activityBody: locals.docs.activity.data(),
       },
       updatedPhoneNumber: null,
       isSupportRequest: conn.requester.isSupportRequest,

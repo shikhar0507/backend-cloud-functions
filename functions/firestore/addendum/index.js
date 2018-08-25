@@ -156,9 +156,9 @@ const getUpdatedAttachmentFieldNames = (requestBody, attachment) => {
 const getUpdatedFieldNames = (updatedFields) => {
   const { requestBody, activityBody, } = updatedFields;
 
-  const schedule = activityBody.get('schedule');
-  const venue = activityBody.get('venue');
-  const attachment = activityBody.get('attachment');
+  const schedule = activityBody.schedule;
+  const venue = activityBody.venue;
+  const attachment = activityBody.attachment;
   let finalComment = '';
 
   const updatedNames = getUpdatedScheduleNames(requestBody, schedule);
