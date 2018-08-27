@@ -26,10 +26,10 @@
 
 
 const {
-  rootCollections,
-  getGeopointObject,
   db,
+  rootCollections,
   serverTimestamp,
+  getGeopointObject,
 } = require('../../admin/admin');
 
 const { isValidRequestBody, } = require('./helper');
@@ -46,6 +46,12 @@ const {
 
 const createDocs = (conn, activity) => {
   const batch = db.batch();
+
+  batch.set(rootCollections
+    .activities
+    .doc(conn.req.body.activityId), {
+      timestamp: serverTimestamp,
+    }, { merge: true, });
 
   batch.set(rootCollections
     .offices
