@@ -6,13 +6,14 @@ const sgMailApiKey = require('../../admin/env').sgMailApiKey;
 
 sgMail.setApiKey(sgMailApiKey);
 
-const getAuth = (recipientsDoc, instantDoc) => {
-  const { to, cc, } = recipientsDoc.data();
+
+const sendMails = (recipientsDoc, instantDoc) => {
+  const { include, cc, } = recipientsDoc.data();
   const { subject, messageBody, } = instantDoc.data();
 
   const promises = [];
 
-  to.forEach(
+  include.forEach(
     (phoneNumber) => promises.push(users.getUserByPhoneNumber(phoneNumber))
   );
 
@@ -29,10 +30,12 @@ const getAuth = (recipientsDoc, instantDoc) => {
           if (!userRecord) return;
 
           const email = record.email;
+          const emailVerified = record.emailVerified;
           const disabled = record.disabled;
-          const displayName = record.displayName;
+          const displayName = record.displayName || '';
 
           if (!email) return;
+          if (!emailVerified) return;
           if (disabled) return;
 
           messages.push({
@@ -41,7 +44,7 @@ const getAuth = (recipientsDoc, instantDoc) => {
             html: messageBody,
             to: {
               email,
-              name: displayName || '',
+              name: displayName,
             },
             from: cc,
           });
@@ -66,5 +69,5 @@ module.exports = (instantDoc) =>
     .collection('Recipients')
     .doc('KlQM9EzrYfTzE2cjExFp')
     .get()
-    .then((recipientsDoc) => getAuth(recipientsDoc, instantDoc))
+    .then((recipientsDoc) => sendMails(recipientsDoc, instantDoc))
     .catch(console.error);

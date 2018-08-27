@@ -135,9 +135,9 @@ const httpsActions = {
 };
 
 const reportingActions = {
-  usedCustomClaims: 'usedCustomClaims',
-  authDisabled: 'authDisabled',
   authDeleted: 'authDeleted',
+  authDisabled: 'authDisabled',
+  usedCustomClaims: 'usedCustomClaims',
 };
 
 

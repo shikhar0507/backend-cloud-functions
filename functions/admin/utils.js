@@ -180,24 +180,20 @@ const isHHMMFormat = (string) =>
  * @returns {void}
  */
 const disableAccount = (conn, reason) => {
+  const { reportingActions, } = require('../admin/constants');
   const date = new Date();
 
   const docId = getISO8601Date(date);
 
-  const docObject = {
-    disabledFor: reason,
-    disabledTimestamp: serverTimestamp,
-  };
+  const disabledFor = reason;
+  const disabledTimestamp = serverTimestamp;
 
   const subject = `User Disabled: '${conn.requester.phoneNumber}'`;
-  const html = `
+  const messageBody = `
   <p>
-    The user '${conn.requester.phoneNumber}' has been disabled
-    in Growthfile.
-
+    The user '${conn.requester.phoneNumber}' has been disabled in Growthfile.
     <br>
-
-    <strong>Reason</strong>: ${docObject.disabledFor}
+    <strong>Reason</strong>: ${reason}
     <br>
     <strong>Timestamp</strong>: ${new Date().toTimeString()} Today
   </p>
@@ -209,7 +205,7 @@ const disableAccount = (conn, reason) => {
         .dailyDisabled
         .doc(docId)
         .set({
-          [conn.requester.phoneNumber]: docObject,
+          [conn.requester.phoneNumber]: { reason, disabledTimestamp, },
         }, {
             /** This doc may have other fields too. */
             merge: true,
@@ -217,14 +213,21 @@ const disableAccount = (conn, reason) => {
       rootCollections
         .profiles
         .doc(conn.requester.phoneNumber)
-        .set(docObject, {
-          /** This doc may have other fields too. */
-          merge: true,
-        }),
+        .set({
+          disabledFor,
+          disabledTimestamp,
+        }, {
+            /** This doc may have other fields too. */
+            merge: true,
+          }),
       rootCollections
         .instant
         .doc()
-        .set({ html, subject, }),
+        .set({
+          messageBody,
+          subject,
+          action: reportingActions.authDisabled,
+        }),
       users
         .disableUser(conn.requester.uid),
     ])

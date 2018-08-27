@@ -25,13 +25,13 @@
 'use strict';
 
 
-const { sendResponse, } = require('../admin/utils');
+const { sendResponse, hasManageTemplateClaims, } = require('../admin/utils');
 
 const { code, } = require('../admin/responses');
 
 
 module.exports = (conn) => {
-  if (!conn.requester.customClaims.manageTemplates) {
+  if (!hasManageTemplateClaims(conn.requester.customClaims)) {
     sendResponse(
       conn,
       code.forbidden,

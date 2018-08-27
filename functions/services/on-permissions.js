@@ -29,12 +29,15 @@ const { users, } = require('../admin/admin');
 
 const { code, } = require('../admin/responses');
 
-const { createInstantLog, } = require('../admin/logger');
+const { rootCollections, } = require('../admin/admin');
+
+const { reportingActions, } = require('../admin/constants');
 
 const {
   handleError,
   sendResponse,
   isE164PhoneNumber,
+  hasSuperUserClaims,
 } = require('../admin/utils');
 
 
@@ -46,18 +49,33 @@ const {
  * @param {Object} conn Contains Express Request and Response objects.
  * @param {Object} user Contains data from Auth of the user.
  * @param {Object} claims Custom claims object for the userRecord.
- * @param {Object} response Object to store the logging data.
  * @returns {void}
  */
-const setClaims = (conn, user, claims, response) => {
-  users
-    .setCustomUserClaims(user.uid, claims)
-    .then(() => {
-      response.code = code.noContent;
-      createInstantLog(conn, response);
+const setClaims = (conn, user, claims) => {
+  const subject = `Custom Claims granted by the superUser`;
 
-      return;
-    })
+  const messageBody = `
+  The superUser ${conn.requester.phoneNumber} has granted the following
+  permission to the user: ${conn.req.body.phoneNumber}
+
+  <pre>
+    ${JSON.stringify(claims, ' ', 2)}
+  </pre>
+  `;
+
+  Promise
+    .all([
+      rootCollections
+        .instant
+        .doc().set({
+          action: reportingActions.usedCustomClaims,
+          messageBody,
+          subject,
+        }),
+      users
+        .setCustomUserClaims(user.uid, claims),
+    ])
+    .then(() => sendResponse(conn, code.ok, `Permissions Granted: ${claims}`))
     .catch((error) => handleError(conn, error));
 };
 
@@ -68,10 +86,9 @@ const setClaims = (conn, user, claims, response) => {
  *
  * @param {Object} conn Contains Express Request and Response objects.
  * @param {Object} user Contains the `userRecord`.
- * @param {Object} response Object to store the logging data.
  * @returns {void}
  */
-const createClaimsObject = (conn, user, response) => {
+const createClaimsObject = (conn, user) => {
   const claims = {};
 
   if (conn.req.body.support) {
@@ -82,7 +99,7 @@ const createClaimsObject = (conn, user, response) => {
     claims.manageTemplates = conn.req.body.manageTemplates;
   }
 
-  setClaims(conn, user, claims, response);
+  setClaims(conn, user, claims);
 };
 
 
@@ -91,25 +108,25 @@ const createClaimsObject = (conn, user, response) => {
  * some permission allocated.
  *
  * @param {Object} conn Contains Express Request and Response objects.
- * @param {Object} response Object to store the logging data.
  * @returns {void}
  */
-const fetchUserRecord = (conn, response) => {
+const fetchUserRecord = (conn) => {
   users
     .getUserByPhoneNumber(conn.req.body.phoneNumber)
     .then((userRecord) => {
       const user = userRecord[conn.req.body.phoneNumber];
 
       if (!user.uid) {
-        response.code = code.conflict;
-        response.message = `${conn.req.body.phoneNumber} does not exist.`;
-        response.resourcesAccessed.push(JSON.stringify({ userRecord, }));
-        createInstantLog(conn, response);
+        sendResponse(
+          conn,
+          code.conflict,
+          `${conn.req.body.phoneNumber} does not exist.`
+        );
 
         return;
       }
 
-      createClaimsObject(conn, user, response);
+      createClaimsObject(conn, user);
 
       return;
     }).catch((error) => handleError(conn, error));
@@ -120,40 +137,42 @@ const fetchUserRecord = (conn, response) => {
  * Checks if the `request` body is in the correct form.
  *
  * @param {Object} conn Contains Express Request and Response objects.
- * @param {Object} response Object to store the logging data.
  * @returns {void}
  */
-const validateRequestBody = (conn, response) => {
+const validateRequestBody = (conn) => {
   if (conn.req.body.hasOwnProperty('superUser')) {
-    response.code = code.forbidden;
-    response.message = 'Cannot set superUser permission for '
-      + 'anyone.';
-    createInstantLog(conn, response);
+    sendResponse(
+      conn,
+      code.forbidden,
+      'Cannot set superUser permission for anyone.'
+    );
+
+    return;
   }
 
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {
-    response.code = code.badRequest;
-    response.message = 'The phoneNumber field is missing from the'
-      + ' request body.';
-    createInstantLog(conn, response);
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The phoneNumber field is missing from the request body.`
+    );
 
     return;
   }
 
   if (!isE164PhoneNumber(conn.req.body.phoneNumber)) {
-    response.code = code.badRequest;
-    response.message = `${conn.req.body.phoneNumber} is not a valid'
-    +' phone number.`;
-    createInstantLog(conn, response);
+    sendResponse(
+      conn,
+      code.badRequest,
+      `${conn.req.body.phoneNumber} is not a valid phone number.`
+    );
 
     return;
   }
 
   /** A person *can't* change their own permissions. */
   if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
-    response.code = code.forbidden;
-    response.message = 'You cannot set your own permissions.';
-    createInstantLog(conn, response);
+    sendResponse(conn, code.forbidden, 'You cannot set your own permissions.');
 
     return;
   }
@@ -161,10 +180,11 @@ const validateRequestBody = (conn, response) => {
   /** Both the fields are missing from the request body. */
   if (!conn.req.body.hasOwnProperty('support')
     && !conn.req.body.hasOwnProperty('manageTemplates')) {
-    response.code = code.badRequest;
-    response.message = 'There are no valid "permission"'
-      + ' fields in the request body.';
-    createInstantLog(conn, response);
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The are not valid permissions in the request body.`
+    );
 
     return;
   }
@@ -174,35 +194,38 @@ const validateRequestBody = (conn, response) => {
    */
   if (conn.req.body.hasOwnProperty('support')
     && conn.req.body.hasOwnProperty('manageTemplates')) {
-    response.code = code.forbidden;
-    response.message = 'Granting more than one permission'
-      + ' is not allowed for a user.';
-    createInstantLog(conn, response);
+    sendResponse(
+      conn,
+      code.forbidden,
+      `Granting more than one permission is not allowed for a user.`
+    );
 
     return;
   }
 
   if (conn.req.body.hasOwnProperty('support')
     && conn.req.body.support !== true) {
-    response.code = code.badRequest;
-    response.message = 'The \'support\' field should be a'
-      + ' boolean value \'true\'.';
-    createInstantLog(conn, response);
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The 'support' field should be a boolean value 'true'.`
+    );
 
     return;
   }
 
   if (conn.req.body.hasOwnProperty('manageTemplates')
     && conn.req.body.manageTemplates !== true) {
-    response.code = code.badRequest;
-    response.message = 'The \'manageTemplates\' field should be'
-      + ' a boolean value \'true\'.';
-    createInstantLog(conn, response);
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The 'manageTemplates' field should be a boolean value 'true'.`
+    );
 
     return;
   }
 
-  fetchUserRecord(conn, response);
+  fetchUserRecord(conn);
 };
 
 
@@ -227,24 +250,22 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for /api/services/permissions`
-      + ' endpoint. Use PUT.'
+      `${conn.req.method} is not allowed for '/api/services/permissions'`
+      + ` endpoint. Use 'PUT'.`
     );
 
     return;
   }
 
-  /** Object to store the logging data. */
-  const response = {};
-  response.resourcesAccessed = [];
-
-  if (!conn.requester.customClaims.superUser) {
-    response.code = code.forbidden;
-    response.message = 'You are forbidden from granting permissions.';
-    createInstantLog(conn, response);
+  if (!hasSuperUserClaims(conn.requester.customClaims)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `You are not allowed to grant permissions.`
+    );
 
     return;
   }
 
-  validateRequestBody(conn, response);
+  validateRequestBody(conn);
 };

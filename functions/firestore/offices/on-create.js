@@ -2,22 +2,31 @@
 
 const { db, } = require('../../admin/admin');
 
-const getNameCombinations = (officeName) => {
-  const nameCombinations = [];
 
-  return nameCombinations;
+const getPermutations = (officeName) => {
+  const nameCombinations = new Set();
+
+  [' ', '.', ',', '-', '&', '(', ')',]
+    .forEach((character) => {
+      const parts = officeName.split(character);
+
+      parts.forEach((part) => {
+        nameCombinations.add(part);
+        nameCombinations.add(part.toLowerCase());
+        nameCombinations.add(part.toUpperCase());
+      });
+    });
+
+  return [...nameCombinations,];
 };
 
 
-module.exports = (officeDoc, context) => {
+module.exports = (officeDoc) => {
   const batch = db.batch();
-  const officeRef = officeDoc.ref;
+  const officeName = officeDoc.get('attachment.Name.value');
+  const namePermutations = getPermutations(officeName);
 
-  batch.set(officeRef, {
-    nameCombinations: getNameCombinations(officeDoc.get('attachment.Name.value')),
-  }, {
-      merge: true,
-    });
+  batch.set(officeDoc.ref, { namePermutations, }, { merge: true, });
 
   return batch
     .commit()

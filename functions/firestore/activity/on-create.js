@@ -55,10 +55,11 @@ const createDocsWithBatch = (conn, locals) => {
     .forEach((phoneNumber) => {
       let addToInclude = true;
 
-      if (conn.req.body.template === 'subscription'
-        && conn.req.body.share.indexOf(phoneNumber) > -1) addToInclude = false;
-
       const isRequester = phoneNumber === conn.requester.phoneNumber;
+
+      if (conn.req.body.template === 'subscription' && isRequester) {
+        addToInclude = false;
+      }
 
       /**
        * Support requests won't add the creator to the
@@ -66,12 +67,18 @@ const createDocsWithBatch = (conn, locals) => {
        */
       if (isRequester && conn.requester.isSupportRequest) return;
 
+      let canEdit = getCanEditValue(locals, phoneNumber);
+
+      if (conn.req.body.template === 'admin'
+        && phoneNumber === conn.req.body.attachment.Admin.value) {
+        canEdit = true;
+      }
+
       locals.batch.set(locals.docs.activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
           addToInclude,
-          activityId: locals.static.activityId,
-          canEdit: getCanEditValue(locals, phoneNumber),
+          canEdit,
         });
     });
 
@@ -174,7 +181,7 @@ const handleAssignees = (conn, locals) => {
       promises.push(rootCollections
         .offices.doc(officeId)
         .collection('Activities')
-        .where('attachment.Phone Number.value', '==', phoneNumber)
+        .where('attachment.Admin.value', '==', phoneNumber)
         .where('template', '==', 'admin')
         .limit(1)
         .get()
@@ -183,7 +190,7 @@ const handleAssignees = (conn, locals) => {
       promises.push(rootCollections
         .offices.doc(officeId)
         .collection('Activities')
-        .where('attachment.Phone Number.value', '==', phoneNumber)
+        .where('attachment.Employee Contact.value', '==', phoneNumber)
         .where('template', '==', 'employee')
         .limit(1)
         .get()
@@ -202,18 +209,22 @@ const handleAssignees = (conn, locals) => {
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;
 
+        let phoneNumber;
         const doc = snapShot.docs[0];
         const template = doc.get('template');
-        const phoneNumber = doc.get('attachment.Phone Number.value');
+        const isAdmin = template === 'admin';
+        const isEmployee = template === 'employee';
 
-        /** The person can either be an `employee` or an `admin`. */
-        if (template === 'admin') {
-          locals.objects.permissions[phoneNumber].isAdmin = true;
-
-          return;
+        if (isAdmin) {
+          phoneNumber = doc.get('attachment.Admin.value');
         }
 
-        locals.objects.permissions[phoneNumber].isEmployee = true;
+        if (isEmployee) {
+          phoneNumber = doc.get('attachment.Employee Contact.value');
+        }
+
+        locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
+        locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
       });
 
       createDocsWithBatch(conn, locals);

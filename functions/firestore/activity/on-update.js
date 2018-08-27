@@ -61,15 +61,23 @@ const updateDocsWithBatch = (conn, locals) => {
   Object
     .keys(locals.objects.permissions)
     .forEach((phoneNumber) => {
+      const isRequester = conn.requester.phoneNumber === phoneNumber;
+      let addToInclude = true;
+
+      if (locals.static.template === 'subscription' && isRequester) {
+        addToInclude = false;
+      }
+
       locals.batch.set(activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
+
           canEdit: getCanEditValue(locals, phoneNumber),
           /**
            * These people are not from the `share` array of the request body.
            * The update api doesn't accept the `share` array.
            */
-          addToInclude: true,
+          addToInclude,
         });
     });
 
@@ -205,7 +213,7 @@ const handleAssignees = (conn, locals) => {
       .offices
       .doc(locals.static.officeId)
       .collection('Activities')
-      .where('attachment.Phone Number.value', '==', newPhoneNumber)
+      .where('attachment.Employee Contact.value', '==', newPhoneNumber)
       .where('template', '==', 'employee')
       .limit(1)
       .get()
@@ -215,7 +223,7 @@ const handleAssignees = (conn, locals) => {
       .offices
       .doc(locals.static.officeId)
       .collection('Activities')
-      .where('attachment.Phone Number.value', '==', newPhoneNumber)
+      .where('attachment.Admin.value', '==', newPhoneNumber)
       .where('template', '==', 'admin')
       .limit(1)
       .get()
@@ -233,18 +241,22 @@ const handleAssignees = (conn, locals) => {
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;
 
+        let phoneNumber;
         const doc = snapShot.docs[0];
-
         const template = doc.get('template');
-        const phoneNumber = doc.get('attachment.Phone Number.value');
+        const isAdmin = template === 'admin';
+        const isEmployee = template === 'employee';
 
-        if (template === 'admin') {
-          locals.objects.permissions[phoneNumber].isAdmin = true;
-
-          return;
+        if (isAdmin) {
+          phoneNumber = doc.get('attachment.Admin.value');
         }
 
-        locals.objects.permissions[phoneNumber].isEmployee = true;
+        if (isEmployee) {
+          phoneNumber = doc.get('attachment.Employee Contact.value');
+        }
+
+        locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
+        locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
       });
 
       getUpdatedFields(conn, locals);

@@ -605,7 +605,7 @@ const filterAttachment = (body, locals) => {
     if (type === 'HH:MM') {
       const isHHMMFormat = require('../../admin/utils').isHHMMFormat;
 
-      if (!isHHMMFormat(value)) {
+      if (value !== '' && !isHHMMFormat(value)) {
         messageObject.isValid = false;
         messageObject.message = `The value in the field:` +
           ` '${field}' is not a valid HH:MM time format. Use the`

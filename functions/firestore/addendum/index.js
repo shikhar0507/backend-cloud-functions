@@ -41,19 +41,19 @@ const getUpdatedScheduleNames = (requestBody, schedule) => {
     let newEndTime = item.endTime;
 
     if (oldEndTime !== '') {
-      oldEndTime = oldEndTime.getTime();
+      oldEndTime = new Date(oldEndTime).getTime();
     }
 
     if (oldStartTime !== '') {
-      oldStartTime = oldStartTime.getTime();
+      oldStartTime = new Date(oldStartTime).getTime();
     }
 
     if (newEndTime !== '') {
-      newEndTime = newEndTime.getTime();
+      newEndTime = new Date(newEndTime).getTime();
     }
 
     if (newStartTime !== '') {
-      newStartTime = newStartTime.getTime();
+      newStartTime = new Date(newStartTime).getTime();
     }
 
     if (oldEndTime === newEndTime) return;
@@ -88,8 +88,8 @@ const getUpdatedVenueDescriptors = (requestBody, venue) => {
     let oldLatitude = '';
 
     if (oldGeopoint !== '') {
-      oldLongitude = oldGeopoint.longitude;
-      oldLatitude = oldGeopoint.latitude;
+      oldLongitude = oldGeopoint._longitude;
+      oldLatitude = oldGeopoint._latitude;
     }
 
     const newLocation = requestBody.venue[index].location;
@@ -133,8 +133,9 @@ const getUpdatedAttachmentFieldNames = (requestBody, attachment) => {
     .forEach((field, index) => {
       const oldFieldValue = attachment[field].value;
       const newFieldValue = newAttachment[field].value;
+      const isUpdated = oldFieldValue !== newFieldValue;
 
-      if (oldFieldValue === newFieldValue) return;
+      if (!isUpdated) return;
 
       const isFirstElement = index === 0;
 

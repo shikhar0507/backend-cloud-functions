@@ -79,7 +79,6 @@ const manageSubscription = (activityDocNew, batch) => {
         .collection('Subscriptions')
         .doc(activityId), {
           include,
-          activityId,
           template,
           office: activityDocNew.get('office'),
           officeId: activityDocNew.get('officeId'),
@@ -107,7 +106,7 @@ const manageReport = (activityDocNew, batch) => {
   const template = activityDocNew.get('template');
   const cc = 'help@growthfile.com';
   const office = activityDocNew.get('office');
-  const to = [];
+  const include = [];
 
   const collectionName = `${template} Mailing List`;
 
@@ -116,11 +115,11 @@ const manageReport = (activityDocNew, batch) => {
     .doc(activityId)
     .collection('Assignees')
     .get()
-    .then((snapShot) => snapShot.forEach((doc) => to.push(doc.id)))
+    .then((snapShot) => snapShot.forEach((doc) => include.push(doc.id)))
     .then(() => {
       batch.set(db
         .collection(collectionName)
-        .doc(activityId), { cc, office, to, });
+        .doc(activityId), { cc, office, include, });
 
       return batch.commit();
     })
@@ -147,29 +146,41 @@ const manageAdmin = (activityDocNew, batch) => {
       const phoneNumber = Object.keys(userRecord)[0];
       const record = userRecord[`${phoneNumber}`];
       const uid = record.uid;
+      const customClaims = record.customClaims;
       const office = activityDocNew.get('office');
-      const admin = [office,];
-      let claims = {};
+      let newClaims = {
+        admin: [office,],
+      };
 
+      /**
+       * The `statusOnCreate` for `admin` template is `CONFIRMED`.
+       * This block should not run when the activity has been
+       * created by someone.
+       * In the case of `/change-status` however, chances are
+       * that the status becomes `CANCELLED`.
+       *
+       * When that happens, the name of the office from
+       * the `admin` array is removed from the `customClaims.admin`
+       * of the admin user.
+       */
       if (status === 'CANCELLED') {
-        const index = record.customClaims.admin.indexOf(office);
-        record.customClaims.admin.splice(index, 1);
-
-        claims = record.customClaims;
+        const index = customClaims.admin.indexOf(office);
+        newClaims = customClaims.admin.splice(index, 1);
       } else {
-        if (record.customClaims) {
-          if (record.customClaims.admin) {
-            record.customClaims.admin.forEach((item) => admin.push(item));
-
-            claims = record.customClaims;
-          }
+        /**
+         * The user already is `admin` of another office.
+         * Preserving their older permission for that case..
+         */
+        if (customClaims && customClaims.admin) {
+          customClaims.admin.push(office);
+          newClaims = customClaims.admin;
         }
       }
 
       return Promise
         .all([
           users
-            .setCustomUserClaims(uid, claims),
+            .setCustomUserClaims(uid, newClaims),
           batch
             .commit(),
         ]);
@@ -253,7 +264,6 @@ module.exports = (change, context) => {
       if (template === 'admin') {
         return manageAdmin(activityDocNew, batch);
       }
-
 
       return batch.commit();
     })

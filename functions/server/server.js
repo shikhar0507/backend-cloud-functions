@@ -100,6 +100,7 @@ const verifyUidAndPhoneNumberCombination = (conn) => {
     .get()
     .then((doc) => {
       if (doc.get('uid') !== conn.requester.uid) {
+        console.log('uid and auth uid doesn\'t match');
         /** The user probably managed to change their phone number by something
          * other than out provided endpoint for updating the `auth`.
          * Disabling their account because this is not allowed.

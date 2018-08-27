@@ -66,6 +66,11 @@ const reportsHandler = functions
   .document('Instant/{docId}')
   .onCreate(require('./firestore/reports/index'));
 
+const createOfficeNamePermutations = functions
+  .firestore
+  .document('Office/{officeId}')
+  .onCreate(require('./firestore/offices/on-create'));
+
 
 module.exports = {
   api,
@@ -75,5 +80,6 @@ module.exports = {
   addendumHandler,
   assigneeHandler,
   activityHandler,
+  createOfficeNamePermutations,
   phoneNumberUpdateHandler,
 };

@@ -26,7 +26,7 @@
 
 
 const { rootCollections, db, } = require('../admin/admin');
-
+const { reportingActions, } = require('../admin/constants');
 
 /**
  * Sets the `uid` and `phoneNumber` fields of the user being deleted to
@@ -56,6 +56,31 @@ module.exports = (userRecord) => {
     }, {
       merge: true,
     }
+  );
+
+  const subject = `Auth deleted of the user: ${phoneNumber}`;
+  const messageBody = `
+    The user: ${phoneNumber} auth has has been deleted.
+
+    <h3>User Record</h3>
+    <pre>
+      ${JSON.stringify(userRecord, ' ', 2)}
+    </pre>
+
+    <h3>customClaims</h3>
+    <pre>
+      ${JSON.stringify(userRecord.customClaims, ' ', 2)}
+    </pre>
+  `;
+
+  batch.set(rootCollections
+    .instant
+    .doc()
+    .set({
+      action: reportingActions.authDeleted,
+      subject,
+      messageBody,
+    })
   );
 
   return batch

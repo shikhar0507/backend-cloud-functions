@@ -110,7 +110,7 @@ const handleResult = (conn, result) => {
       .offices
       .doc(locals.static.officeId)
       .collection('Activities')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('attachment.Employee Contact.value', '==', phoneNumber)
       .where('template', '==', 'employee')
       .limit(1)
       .get()
@@ -120,7 +120,7 @@ const handleResult = (conn, result) => {
       .offices
       .doc(locals.static.officeId)
       .collection('Activities')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('attachment.Admin.value', '==', phoneNumber)
       .where('template', '==', 'admin')
       .limit(1)
       .get()
@@ -133,26 +133,31 @@ const handleResult = (conn, result) => {
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;
 
+        let phoneNumber;
         const doc = snapShot.docs[0];
         const template = doc.get('template');
-        const phoneNumber = doc.get('attachment.Phone Number.value');
+        const isAdmin = template === 'admin';
+        const isEmployee = template === 'employee';
 
-        /** The person can either be an `employee` or an `admin`. */
-        if (template === 'admin') {
-          locals.objects.permissions[phoneNumber].isAdmin = true;
-
-          return;
+        if (isAdmin) {
+          phoneNumber = doc.get('attachment.Admin.value');
         }
 
-        locals.objects.permissions[phoneNumber].isEmployee = true;
+        if (isEmployee) {
+          phoneNumber = doc.get('attachment.Employee Contact.value');
+        }
+
+        locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
+        locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
       });
 
       const batch = db.batch();
       let addToInclude = true;
 
       conn.req.body.share.forEach((phoneNumber) => {
-        if (locals.static.template === 'subscription'
-          && conn.req.body.share.indexOf(phoneNumber) > -1) {
+        const isRequester = conn.requester.phoneNumber === phoneNumber;
+
+        if (locals.static.template === 'subscription' && isRequester) {
           addToInclude = false;
         }
 
