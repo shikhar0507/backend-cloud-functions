@@ -70,9 +70,12 @@ const getActivities = (conn, locals) => {
 
 
 module.exports = (conn) => {
+  const from = new Date(parseInt(conn.req.query.from));
+
   const locals = {
-    from: new Date(parseInt(conn.req.query.from)),
+    from,
     jsonObject: {
+      from,
       activities: {},
       templates: {},
     },
@@ -98,7 +101,7 @@ module.exports = (conn) => {
         const officeId = doc.id;
         const timestamp = doc.get('timestamp');
 
-        if (locals.from.getTime() < timestamp.toDate().getTime()) return;
+        if (timestamp.toDate().getTime() < locals.from.getTime()) return;
 
         const status = doc.get('status');
 
