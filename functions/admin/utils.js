@@ -134,6 +134,19 @@ const hasSuperUserClaims = (customClaims) => {
 };
 
 
+const hasAdminClaims = (customClaims) => {
+  if (!customClaims) return false;
+
+  if (!customClaims.admin) return false;
+
+  /**
+   * Empty array with the admin custom claims still
+   * negate the permission to view offices for a user.
+   */
+  return customClaims.admin.length > 0;
+};
+
+
 /**
  * Returns the server timestamp on a `GET` request.
  *
@@ -319,6 +332,7 @@ module.exports = {
   sendResponse,
   isHHMMFormat,
   disableAccount,
+  hasAdminClaims,
   getISO8601Date,
   isValidGeopoint,
   hasSupportClaims,

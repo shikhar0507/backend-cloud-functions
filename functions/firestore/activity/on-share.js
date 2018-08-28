@@ -141,14 +141,13 @@ const handleResult = (conn, result) => {
 
         if (isAdmin) {
           phoneNumber = doc.get('attachment.Admin.value');
+          locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
         }
 
         if (isEmployee) {
           phoneNumber = doc.get('attachment.Employee Contact.value');
+          locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
         }
-
-        locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
-        locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
       });
 
       const batch = db.batch();

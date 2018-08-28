@@ -82,7 +82,7 @@ const getUpdatedVenueDescriptors = (requestBody, venue) => {
   venue.forEach((item, index) => {
     const venueDescriptor = item.venueDescriptor;
     const oldLocation = item.location;
-    const oldAddress = item.location;
+    const oldAddress = item.address;
     const oldGeopoint = item.geopoint;
     let oldLongitude = '';
     let oldLatitude = '';

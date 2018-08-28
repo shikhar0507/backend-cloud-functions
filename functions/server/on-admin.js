@@ -1,14 +1,25 @@
 'use strict';
 
 const {
-  sendResponse,
   isValidDate,
+  sendResponse,
+  hasAdminClaims,
 } = require('../admin/utils');
 
 const { code, } = require('../admin/responses');
 
 
 const handleAction = (conn, action) => {
+  if (!hasAdminClaims(conn.requester.customClaims)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You are not allowed to access this resource.'
+    );
+
+    return;
+  }
+
   if (action.startsWith('read')) {
     if (!conn.req.query.hasOwnProperty('from')) {
       sendResponse(
@@ -35,6 +46,8 @@ const handleAction = (conn, action) => {
 
     return;
   }
+
+  sendResponse(conn, code.badRequest, 'No resource found at this URL');
 };
 
 

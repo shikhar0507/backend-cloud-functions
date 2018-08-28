@@ -35,26 +35,27 @@ const { code, } = require('../admin/responses');
  * from the `URL`.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Array} action Chunks of URL path split on `/`.
  * @returns {void}
  */
-module.exports = (conn) => {
-  const action = require('url').parse(conn.req.url).path.split('/')[2];
+module.exports = (conn, action) => {
+  const resource = action[2];
 
-  if (action === 'users') {
+  if (resource === 'users') {
     const onUsers = require('../services/on-users');
     onUsers(conn);
 
     return;
   }
 
-  if (action === 'permissions') {
+  if (resource === 'permissions') {
     const onPermissions = require('../services/on-permissions');
     onPermissions(conn);
 
     return;
   }
 
-  if (action === 'templates') {
+  if (resource === 'templates') {
     const onTemplates = require('../services/on-templates');
     onTemplates(conn);
 

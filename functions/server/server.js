@@ -48,30 +48,40 @@ const handleRequestPath = (conn) => {
   const action = require('url')
     .parse(conn.req.url)
     .path
-    .split('/')[1];
+    .split('/');
 
-  if (action === 'activities') {
+  const resource = action[1];
+
+  if (resource === 'activities') {
     const onActivity = require('./on-activity');
-    onActivity(conn);
+    onActivity(conn, action);
 
     return;
   }
 
-  if (action === 'services') {
+  if (resource === 'services') {
     const onService = require('./on-service');
-    onService(conn);
+    onService(conn, action);
 
     return;
   }
 
-  if (action.startsWith('read')) {
+  if (resource.startsWith('read')) {
     const onRead = require('../firestore/on-read');
     onRead(conn);
 
     return;
   }
 
-  if (action === 'now') {
+  if (resource.startsWith('admin')) {
+    const onAdmin = require('./on-admin');
+
+    onAdmin(conn, action);
+
+    return;
+  }
+
+  if (resource === 'now') {
     now(conn);
 
     return;
