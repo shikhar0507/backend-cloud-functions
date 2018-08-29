@@ -26,9 +26,7 @@
 
 
 const { rootCollections, users, } = require('../admin/admin');
-
 const { code, } = require('../admin/responses');
-
 const {
   handleError,
   sendResponse,
@@ -49,6 +47,8 @@ const handleRequestPath = (conn) => {
     .parse(conn.req.url)
     .path
     .split('/');
+
+  console.log('API:', action);
 
   const resource = action[1];
 

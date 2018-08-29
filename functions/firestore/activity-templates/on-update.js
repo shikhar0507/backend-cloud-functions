@@ -25,16 +25,13 @@
 'use strict';
 
 
-const { rootCollections, } = require('../../admin/admin');
-
+const { rootCollections, serverTimestamp, } = require('../../admin/admin');
 const { code, } = require('../../admin/responses');
-
 const {
   handleError,
   sendResponse,
   isNonEmptyString,
 } = require('../../admin/utils');
-
 const {
   canEditRules,
   templateFields,
@@ -330,7 +327,9 @@ module.exports = (conn) => {
 
       const locals = {
         objects: {
-          updatedFields: {},
+          updatedFields: {
+            timestamp: serverTimestamp,
+          },
           message: {
             isValid: true,
             message: null,

@@ -1,28 +1,28 @@
 'use strict';
 
-const { sendJSON, handleError, } = require('../../admin/utils');
+const { sendJSON, handleError, beautifySchedule, } = require('../../admin/utils');
 const { rootCollections, } = require('../../admin/admin');
+
 
 const getReports = (conn, locals) => {
   // TODO: Implement when the report template are completed.
   sendJSON(conn, locals.jsonObject);
 };
 
-const getTemplates = (conn, locals) => {
+
+const getTemplates = (conn, locals) =>
   rootCollections
     .activityTemplates
-    .where('timestamp', '>=', locals.from)
+    .where('timestamp', '>', locals.from)
+    .where('timestamp', '<=', locals.jsonObject.upto)
     .get()
     .then((docs) => {
       docs.forEach((doc) => {
-        const templateId = doc.id;
-        const attachment = doc.get('attachment');
-        const name = doc.get('name');
-        const schedule = doc.get('schedule');
-        const venue = doc.get('venue');
-
-        locals.jsonObject.templates[templateId] = {
-          attachment, name, schedule, venue,
+        locals.jsonObject.templates[doc.id] = {
+          name: doc.get('name'),
+          venue: doc.get('venue'),
+          schedule: doc.get('schedule'),
+          attachment: doc.get('attachment'),
         };
       });
 
@@ -31,42 +31,51 @@ const getTemplates = (conn, locals) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
-const getActivities = (conn, locals) => {
+const getActivities = (conn, locals) =>
   Promise
     .all(locals.activitiesToFetch)
-    .then((activitiesSubcollectionArray) => {
-      activitiesSubcollectionArray.forEach((querySnapshot) => {
-        querySnapshot.forEach((doc) => {
-          const activityId = doc.id;
-          const office = doc.get('office');
-          const timestamp = doc.get('timestamp');
-          const attachment = doc.get('attachment');
-          const schedule = doc.get('schedule');
-          const venue = doc.get('venue');
-          const status = doc.get('status');
-          const template = doc.get('template');
+    .then((allOfficeActivities) => {
+      /**
+       * For each office, there will be an `activity` with the furthest
+       * `timestamp`. We are storing the `timestamp` of that `activity` and
+       * comparing those values against each other. The **furthest** among
+       *  them will be sent as the `upto` time in the read response.
+      */
+      const furthestTimestamps = [];
 
-          locals.jsonObject.activities[activityId] = {
-            office,
-            timestamp,
-            attachment,
-            schedule,
-            venue,
-            status,
-            template,
-          };
+      allOfficeActivities
+        .forEach((officeActivitiesSnapshot) => {
+          const lastDoc =
+            officeActivitiesSnapshot
+              .docs[officeActivitiesSnapshot.docs.length - 1];
+          const office = lastDoc.get('office');
+          const timestamp = lastDoc.get('timestamp').toDate();
+
+          furthestTimestamps.push(timestamp.getTime());
+
+          officeActivitiesSnapshot
+            .forEach((doc) => {
+              locals.jsonObject.activities[doc.id] = {
+                office,
+                timestamp,
+                venue: doc.get('venue'),
+                status: doc.get('status'),
+                template: doc.get('template'),
+                attachment: doc.get('attachment'),
+                schedule: beautifySchedule(doc.get('schedule')),
+              };
+            });
         });
-      });
+
+      locals.jsonObject.upto = new Date(Math.max(...furthestTimestamps));
 
       getTemplates(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
 module.exports = (conn) => {
@@ -76,8 +85,10 @@ module.exports = (conn) => {
     from,
     jsonObject: {
       from,
+      upto: from,
       activities: {},
       templates: {},
+      reports: {},
     },
     activitiesToFetch: [],
   };
@@ -97,24 +108,27 @@ module.exports = (conn) => {
     .all(promises)
     .then((snapShots) => {
       snapShots.forEach((snapShot) => {
-        const doc = snapShot.docs[0];
-        const officeId = doc.id;
-        const timestamp = doc.get('timestamp');
+        if (snapShot.empty) return;
 
-        if (timestamp.toDate().getTime() < locals.from.getTime()) return;
+        const doc = snapShot.docs[0];
+        const timestamp = doc.get('timestamp').toDate();
+
+        if (timestamp.getTime() < from.getTime()) return;
 
         const status = doc.get('status');
 
         if (status === 'CANCELLED') return;
 
+        const officeId = doc.id;
+
         locals.jsonObject.activities[officeId] = {
           status,
           timestamp,
-          office: doc.get('office'),
-          attachment: doc.get('attachment'),
-          schedule: doc.get('schedule'),
           venue: doc.get('venue'),
+          office: doc.get('office'),
           template: doc.get('template'),
+          schedule: beautifySchedule(doc.get('schedule')),
+          attachment: doc.get('attachment'),
         };
 
         locals.activitiesToFetch
@@ -122,7 +136,8 @@ module.exports = (conn) => {
             .offices
             .doc(officeId)
             .collection('Activities')
-            .where('timestamp', '>=', locals.from)
+            .where('timestamp', '>', from)
+            .orderBy('timestamp', 'asc')
             .get()
           );
       });

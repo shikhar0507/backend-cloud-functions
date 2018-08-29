@@ -25,19 +25,15 @@
 'use strict';
 
 
+const { isValidRequestBody, getCanEditValue, } = require('./helper');
+const { code, } = require('../../admin/responses');
+const { httpsActions, } = require('../../admin/constants');
 const {
   db,
   serverTimestamp,
   rootCollections,
   getGeopointObject,
 } = require('../../admin/admin');
-
-const { isValidRequestBody, getCanEditValue, } = require('./helper');
-
-const { code, } = require('../../admin/responses');
-
-const { httpsActions, } = require('../../admin/constants');
-
 const {
   handleError,
   sendResponse,
@@ -76,6 +72,16 @@ const handleResult = (conn, result) => {
 
       return;
     }
+  }
+
+  if (!activity.exists) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `No activity found with the id: '${conn.req.body.activityId}'.`
+    );
+
+    return;
   }
 
   const locals = {

@@ -26,7 +26,6 @@
 
 
 const { code, } = require('./responses');
-
 const {
   users,
   rootCollections,
@@ -170,19 +169,38 @@ const now = (conn) => {
 
 
 /**
- * Returns the date in ISO 8601 (DD-MM-YYYY) format.
+ * Returns the date in ISO 8601 `(DD-MM-YYYY)` format.
  *
- * @param {Object} date A valid Date object.
+ * @param {Object<Date>} [date] Javascript `Date` object.
  * @returns {String} An ISO 8601 (DD-MM-YYYY) date string.
  * @see https://en.wikipedia.org/wiki/ISO_8601
  */
-const getISO8601Date = (date) =>
-  require('moment')(date || new Date())
-    .format('DD-MM-YYYY');
+const getISO8601Date = (date = new Date()) =>
+  date
+    .toJSON()
+    .slice(0, 10)
+    .split('-')
+    .reverse()
+    .join('-');
 
 
+/**
+ * Checks if the input argument to the function satisfies the
+ *  following conditions:
+ *
+ * ## `RegExp` Explained:
+ *
+ * * This regexp has two `groups` separated by a `:` character.
+ * * Group 1: `([0-9]|0[0-9]|1[0-9]|2[0-3])`
+ * * Group 2: `[0-5][0-9]`
+ * * The `(` and `)` denote the `groups`.
+ *
+ * @param {string} string A string in HH:MM format.
+ * @returns {boolean} If the input string is in HH:MM format.
+ */
 const isHHMMFormat = (string) =>
-  new RegExp('^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$').test(string);
+  /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(string);
+
 
 /**
  * Disables the user account in auth based on uid and writes the reason to
@@ -194,12 +212,7 @@ const isHHMMFormat = (string) =>
  */
 const disableAccount = (conn, reason) => {
   const { reportingActions, } = require('../admin/constants');
-  const date = new Date();
-
-  const docId = getISO8601Date(date);
-
-  const disabledFor = reason;
-  const disabledTimestamp = serverTimestamp;
+  const docId = getISO8601Date();
 
   const subject = `User Disabled: '${conn.requester.phoneNumber}'`;
   const messageBody = `
@@ -218,17 +231,20 @@ const disableAccount = (conn, reason) => {
         .dailyDisabled
         .doc(docId)
         .set({
-          [conn.requester.phoneNumber]: { reason, disabledTimestamp, },
+          [conn.requester.phoneNumber]: {
+            reason,
+            disabledTimestamp: serverTimestamp,
+          },
         }, {
-            /** This doc may have other fields too. */
+            /** This doc *will* have other fields too. */
             merge: true,
           }),
       rootCollections
         .profiles
         .doc(conn.requester.phoneNumber)
         .set({
-          disabledFor,
-          disabledTimestamp,
+          disabledFor: reason,
+          disabledTimestamp: serverTimestamp,
         }, {
             /** This doc may have other fields too. */
             merge: true,
@@ -262,16 +278,13 @@ const disableAccount = (conn, reason) => {
  */
 const isValidGeopoint = (location) => {
   if (!location) return false;
-
   if (!location.hasOwnProperty('latitude')) return false;
-
   if (!location.hasOwnProperty('longitude')) return false;
 
   const lat = location.latitude;
   const lng = location.longitude;
 
   if (typeof lat !== 'number') return false;
-
   if (typeof lng !== 'number') return false;
 
   /** @see https://msdn.microsoft.com/en-in/library/aa578799.aspx */
@@ -287,12 +300,8 @@ const isValidGeopoint = (location) => {
  * @param {string} str A string.
  * @returns {boolean} If `str` is a non-empty string.
  */
-const isNonEmptyString = (str) => {
-  if (typeof str !== 'string') return false;
-  if (str.trim() === '') return false;
-
-  return true;
-};
+const isNonEmptyString = (str) =>
+  typeof str === 'string' && str.trim() !== '';
 
 
 /**
@@ -312,7 +321,8 @@ const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
  * @see https://en.wikipedia.org/wiki/E.164
  * @see https://stackoverflow.com/a/23299989
  * @description RegExp *Explained*...
- * * `^`: Matches the beginning of the string, or the beginning of a line if the multiline flag (m) is enabled.
+ * * `^`: Matches the beginning of the string, or the beginning of a line
+ * if the multiline flag (m) is enabled.
  * * `\+`: Matches the `+` character
  * * `[1-9]`: Matches the character in range `1` to `9`
  * * `\d`: Matches any digit character
@@ -322,6 +332,29 @@ const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
  */
 const isE164PhoneNumber = (phoneNumber) =>
   /^\+[1-9]\d{5,14}$/.test(phoneNumber);
+
+
+const beautifySchedule = (schedules) => {
+  const array = [];
+
+  schedules.forEach((schedule) => {
+    const name = schedule.name;
+    let startTime = schedule.startTime;
+    let endTime = schedule.endTime;
+
+    /**
+     * Both `startTime` and `endTime` can be empty strings,
+     * so when that is the case, the `doDate()` method will
+     * crash since it is not in the `prototype` of `string`.
+     */
+    if (startTime !== '') startTime = startTime.toDate();
+    if (endTime !== '') endTime = endTime.toDate();
+
+    array.push({ name, startTime, endTime, });
+  });
+
+  return array;
+};
 
 
 module.exports = {
@@ -336,6 +369,7 @@ module.exports = {
   getISO8601Date,
   isValidGeopoint,
   hasSupportClaims,
+  beautifySchedule,
   isNonEmptyString,
   isE164PhoneNumber,
   hasSuperUserClaims,

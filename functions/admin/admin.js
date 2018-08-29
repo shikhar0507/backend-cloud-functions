@@ -147,8 +147,11 @@ const getUserByPhoneNumber = (phoneNumber) =>
         };
       }
 
-      /* eslint no-console: "off"*/
-      console.log(error);
+      /**
+       * Any other cases except the ones handled above should be
+       * noted by the devs.
+       */
+      console.error(error);
 
       /** This function relies on the user input, so chances are
        * that all three conditions checked above may not cover

@@ -25,19 +25,15 @@
 'use strict';
 
 
+const { isValidRequestBody, } = require('./helper');
+const { code, } = require('../../admin/responses');
+const { httpsActions, } = require('../../admin/constants');
 const {
   db,
   rootCollections,
   serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
-
-const { isValidRequestBody, } = require('./helper');
-
-const { code, } = require('../../admin/responses');
-
-const { httpsActions, } = require('../../admin/constants');
-
 const {
   handleError,
   sendResponse,
@@ -110,6 +106,7 @@ module.exports = (conn) => {
     ])
     .then((result) => {
       const profileActivityDoc = result[1];
+      const activity = result[1];
 
       if (!profileActivityDoc.exists) {
         sendResponse(
@@ -121,7 +118,16 @@ module.exports = (conn) => {
         return;
       }
 
-      const activity = result[1];
+      if (!activity.exists) {
+        sendResponse(
+          conn,
+          code.badRequest,
+          `No activity found with the id: '${conn.req.body.activityId}'.`
+        );
+
+        return;
+      }
+
 
       createDocs(conn, activity);
 

@@ -41,4 +41,76 @@ const code = {
 };
 
 
-module.exports = { code, };
+const activityNotFoundError = (activityId) =>
+  `No activity found with the id: ${activityId}`;
+
+const invalidMethodError = (methodUsed, expectedMethod) =>
+  `${methodUsed} is not allowed. Use ${expectedMethod}`;
+
+const invalidTimestampError = (input) =>
+  `${input} is not a valid unix timestamp.`;
+
+const templateNotFoundError = (templateName) =>
+  `No template found with the name: ${templateName}`;
+
+const officeNotFoundError = (officeName) =>
+  `No office found with the name: ${officeName}`;
+
+const subscriptionAlreadyExistsError = (templateName) =>
+  `The user already has the subscription to the template: ${templateName}`;
+
+const officeStatusCancelledError = (officeName) =>
+  `The office: ${officeName} is inactive. Cannot proceed.`;
+
+const subscriptionStatusCancelledError = (officeName, templateName) =>
+  `Your subscription of ${templateName} in the office ${officeName} is`
+  + ` inactive. Cannot proceed.`;
+
+const officeAlreadyExistsError = (officeName) =>
+  `An office with the name: ${officeName} already exists.`;
+
+
+const userNotFoundError = (phoneNumber) =>
+  `No user found with the phone number ${phoneNumber}.`;
+
+const activityStatusConflictError = (oldStatus) =>
+  `The activity status is already ${oldStatus}.`;
+
+const removingPhoneNumberFromAttachmentError = (phoneNumber) =>
+  `Cannot remove the phone number: '${phoneNumber}'`
+  + `from the activity. Please use the '/update' endpoint`
+  + ` to remove/change this number from/in the attachment.`;
+
+const templateCreationSuccessFul = (templateName) =>
+  `Template ${templateName} has been created successfully.`;
+
+
+const getCustomMessages = {
+  activityNotFoundError,
+  invalidTimestampError,
+  templateNotFoundError,
+  officeNotFoundError,
+  invalidMethodError,
+  subscriptionAlreadyExistsError,
+  officeStatusCancelledError,
+  subscriptionStatusCancelledError,
+  officeAlreadyExistsError,
+  userNotFoundError,
+  activityStatusConflictError,
+  removingPhoneNumberFromAttachmentError,
+  templateCreationSuccessFul,
+};
+
+const staticMessages = {
+  editPermissionError: `You cannot edit this activity.`,
+  missingQueryParamFrom: `The request URL is missing the query param 'from'.`,
+  serverCrashed: `There was an error handling the request. Please try`
+    + ` again later.`,
+  lastAssigneeRemovalError: `Cannot remove an assignee from an activity with`
+    + ` only one assignee.`,
+  noAssigneesError: `Cannot create an activity without any assignees.`,
+  templateCreationSuccessFul,
+};
+
+
+module.exports = { code, getCustomMessages, staticMessages, };

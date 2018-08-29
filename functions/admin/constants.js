@@ -71,6 +71,7 @@ const templateFields = new Map()
   .set('attachment', 'attachment')
   .set('hidden', 'hidden');
 
+/** Used while creating comments, to handle vowels correctly. */
 const vowels = new Map()
   .set('a', 'a')
   .set('e', 'e')

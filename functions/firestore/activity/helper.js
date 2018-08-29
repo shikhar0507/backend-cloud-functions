@@ -26,7 +26,6 @@
 
 
 const { getGeopointObject, } = require('./../../admin/admin');
-
 const {
   isValidDate,
   isValidGeopoint,

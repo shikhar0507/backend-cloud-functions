@@ -25,13 +25,14 @@
 'use strict';
 
 
+const { code, } = require('../../admin/responses');
+const { httpsActions, } = require('../../admin/constants');
 const {
   rootCollections,
   getGeopointObject,
   db,
   serverTimestamp,
 } = require('../../admin/admin');
-
 const {
   validateVenues,
   getCanEditValue,
@@ -39,11 +40,6 @@ const {
   validateSchedules,
   isValidRequestBody,
 } = require('./helper');
-
-const { code, } = require('../../admin/responses');
-
-const { httpsActions, } = require('../../admin/constants');
-
 const {
   handleError,
   sendResponse,
@@ -119,8 +115,7 @@ const getUpdatedFields = (conn, locals) => {
   const activitySchedule = locals.docs.activity.get('schedule');
   const activityVenue = locals.docs.activity.get('venue');
 
-  if (conn.req.body.hasOwnProperty('activityName')
-    && activityName !== conn.req.body.activityName) {
+  if (activityName !== conn.req.body.activityName) {
     locals.objects.updatedFields.activityName = conn.req.body.activityName;
   }
 
@@ -460,6 +455,16 @@ const handleResult = (conn, result) => {
 
       return;
     }
+  }
+
+  if (!activity.exists) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `No activity found with the id: '${conn.req.body.activityId}'.`
+    );
+
+    return;
   }
 
   const locals = {

@@ -1,11 +1,10 @@
 'use strict';
 
+const { httpsActions, } = require('../../admin/constants');
 const {
   db,
   rootCollections,
 } = require('../../admin/admin');
-
-const { httpsActions, } = require('../../admin/constants');
 
 module.exports = (snapShot, context) => {
   const activityId = context.params.docId;

@@ -26,7 +26,6 @@
 
 
 const { sendResponse, hasManageTemplateClaims, } = require('../admin/utils');
-
 const { code, } = require('../admin/responses');
 
 

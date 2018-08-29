@@ -24,33 +24,29 @@
 
 'use strict';
 
-
+const { code, } = require('../../admin/responses');
+const { httpsActions, } = require('../../admin/constants');
+const {
+  handleError,
+  sendResponse,
+} = require('../../admin/utils');
 const {
   db,
   rootCollections,
   serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
-
 const {
   isValidRequestBody,
   getPhoneNumbersFromAttachment,
 } = require('./helper');
-
-const { code, } = require('../../admin/responses');
-
-const { httpsActions, } = require('../../admin/constants');
-
-const {
-  handleError,
-  sendResponse,
-} = require('../../admin/utils');
 
 
 const handleResult = (conn, result) => {
   const profileActivity = result[0];
   const activity = result[1];
   const assignees = result[2];
+  const removedUserUpdatesSnapshot = result[3];
 
   if (!conn.requester.isSupportRequest) {
     if (!profileActivity.exists) {
@@ -64,7 +60,6 @@ const handleResult = (conn, result) => {
     }
 
     if (!profileActivity.get('canEdit')) {
-      /** The `canEdit` flag is false so update is forbidden. */
       sendResponse(
         conn,
         code.forbidden,
@@ -73,6 +68,16 @@ const handleResult = (conn, result) => {
 
       return;
     }
+  }
+
+  if (!activity.exists) {
+    sendResponse(
+      conn,
+      code.notFound,
+      `No activity found with the id: '${conn.req.body.activityId}'.`
+    );
+
+    return;
   }
 
   if (assignees.size === 1) {
@@ -161,6 +166,26 @@ const handleResult = (conn, result) => {
       isSupportRequest: conn.requester.isSupportRequest,
     });
 
+  /**
+   * Only write `comment` to the `Updates` of the person
+   * when they exist in the platform as a user.
+   */
+  if (!removedUserUpdatesSnapshot.empty) {
+    const doc = removedUserUpdatesSnapshot.docs[0];
+
+    batch.set(doc
+      .ref
+      .collection('Addendum')
+      .doc(), {
+        timestamp: serverTimestamp,
+        user: conn.requester.phoneNumber,
+        activityId: conn.req.body.activityId,
+        comment: `${conn.requester.phoneNumber} removed you`,
+        userDeviceTimestamp: new Date(conn.req.body.timestamp),
+        location: getGeopointObject(conn.req.body.geopoint),
+      });
+  }
+
   batch.commit()
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleResult(conn, error));
@@ -196,6 +221,10 @@ module.exports = (conn) => {
         .activities
         .doc(conn.req.body.activityId)
         .collection('Assignees')
+        .get(),
+      rootCollections
+        .updates
+        .where('phoneNumber', '==', conn.req.body.remove)
         .get(),
     ])
     .then((result) => handleResult(conn, result))

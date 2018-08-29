@@ -25,17 +25,14 @@
 'use strict';
 
 
+const { code, } = require('../../admin/responses');
+const { httpsActions, } = require('../../admin/constants');
 const {
   db,
   rootCollections,
   serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
-
-const { code, } = require('../../admin/responses');
-
-const { httpsActions, } = require('../../admin/constants');
-
 const {
   validateVenues,
   getCanEditValue,
@@ -43,7 +40,6 @@ const {
   validateSchedules,
   isValidRequestBody,
 } = require('./helper');
-
 const {
   handleError,
   sendResponse,

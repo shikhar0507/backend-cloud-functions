@@ -25,6 +25,7 @@
 'use strict';
 
 
+const { code, } = require('../../admin/responses');
 const {
   db,
   users,
@@ -32,9 +33,6 @@ const {
   serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
-
-const { code, } = require('../../admin/responses');
-
 const {
   isValidDate,
   handleError,

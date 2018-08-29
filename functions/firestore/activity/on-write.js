@@ -191,9 +191,15 @@ const manageAdmin = (activityDocNew, batch) => {
 
 
 /**
- * Triggers on activity `onWrite` event. Adds a `doc` with the `id` = `activityId`,
- * `timestamp` = `timestamp` from activity doc and `canEdit` from the Assignee doc
- * to the respective profiles of the activity assignees.
+ * `Creates` or `Updates` the `activity` doc in the `Profile` of the `Assignees` of
+ * an `activity`.
+ *
+ * Values in this `doc` are `canEdit` and `timestamp` the `onWrite` event.
+ * The `id` of this `doc` is the same as the `activity-id`.
+ *
+ * @Trigger: `onWrite`
+ * @Path: `Activities/(activityId)`
+ * @WritePath: `Profiles/(assignee phone number)/Activities/(activityId)`
  *
  * @param {Object} change Contains the old and the new doc.
  * @param {Object} context Data related to the `onWrite` event.
@@ -203,6 +209,13 @@ module.exports = (change, context) => {
   const activityDocNew = change.after;
   const activityId = context.params.activityId;
   const assigneeCanEdit = {};
+
+  /**
+   * Only for `debugging` purpose. An `activity` will *never* be deleted.
+   * But, if this case is not handled, the cloud function will crash since
+   * the `activityDocNew` will be `undefined` with the `onDelete` operation.
+  */
+  if (!activityDocNew) return Promise.resolve('Activity was deleted.');
 
   return activityDocNew
     .ref
@@ -229,7 +242,7 @@ module.exports = (change, context) => {
         const phoneNumber = profile.id;
 
         if (!profile.exists) {
-          /** Placeholder `profiles` for the users with no auth. */
+          /** Placeholder `profiles` for the users with no `auth`. */
           batch.set(profile.ref, { uid: null, });
         }
 
@@ -248,8 +261,8 @@ module.exports = (change, context) => {
       const template = activityDocNew.get('template');
 
       /**
-       * Copy the activity doc to the path which was created
-       * by the activity in the `docRef` field.
+       * Copy the `activity` doc to the path which was created
+       * by the `activity` in the `docRef` field.
        */
       batch.set(activityDocNew.get('docRef'), activityDocNew.data());
 

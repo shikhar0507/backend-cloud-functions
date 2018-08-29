@@ -26,9 +26,8 @@
 
 
 const { rootCollections, serverTimestamp, } = require('../admin/admin');
-
+const { beautifySchedule, } = require('../admin/utils');
 const { code, } = require('../admin/responses');
-
 const {
   handleError,
   sendResponse,
@@ -221,34 +220,18 @@ const fetchAssignees = (conn, jsonResult, locals) =>
         });
       });
 
+      if (!locals.fetchTemplates) {
+        mutateActivityToArray(conn, jsonResult, locals);
+
+        return;
+      }
+
       getTemplates(conn, jsonResult, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
 
-
-const beautifySchedule = (schedules) => {
-  const array = [];
-
-  schedules.forEach((schedule) => {
-    const name = schedule.name;
-    let startTime = schedule.startTime;
-    let endTime = schedule.endTime;
-
-    /**
-     * Both `startTime` and `endTime` can be empty strings,
-     * so when that is the case, the `doDate()` method will
-     * crash since it is not in the `prototype` of `string`.
-     */
-    if (startTime !== '') startTime = startTime.toDate();
-    if (endTime !== '') endTime = endTime.toDate();
-
-    array.push({ name, startTime, endTime, });
-  });
-
-  return array;
-};
 
 /**
  * Fetches all the activity data in which the user is an assignee of.
@@ -263,16 +246,23 @@ const fetchActivities = (conn, jsonResult, locals) =>
     .all(locals.activityFetchPromises)
     .then((docs) => {
       docs.forEach((doc) => {
+        const template = doc.get('template');
+
+        /**
+         * Even if one `activity` is found with the template `subscription`
+         * we will `query` the `ActivityTemplates` collection, skip that
+         * step, otherwise.
+         */
+        if (template === 'subscription') locals.fetchTemplates = true;
+
         /** Activity-id: doc.ref.path.split('/')[1] */
         const activityObj = jsonResult.activities[doc.id];
 
-        const schedule = beautifySchedule(doc.get('schedule'));
-
-        activityObj.schedule = schedule;
+        activityObj.schedule = beautifySchedule(doc.get('schedule'));
+        activityObj.template = template;
         activityObj.status = doc.get('status');
         activityObj.venue = doc.get('venue');
         activityObj.timestamp = doc.get('timestamp').toDate();
-        activityObj.template = doc.get('template');
         activityObj.activityName = doc.get('activityName');
         activityObj.description = doc.get('description');
         activityObj.office = doc.get('office');
@@ -343,8 +333,9 @@ const readAddendumByQuery = (conn, locals) => {
     activities: {},
     templates: [],
     from: locals.from,
-    /** When  no docs are found in `Addendum` for the given timestamp,
-     * the from and upto time will remain same.
+    /**
+     * When  no docs are found in `Addendum` for the given `timestamp`,
+     * the `from` and `upto` time will remain same.
      */
     upto: locals.from,
   };
@@ -428,6 +419,13 @@ module.exports = (conn) => {
      * throughout the instance.
      */
     from: new Date(parseInt(conn.req.query.from)),
+    /**
+     * When no `activities` are found between the
+     * `timestamps`: `from` and `upto`
+     * there is no need to query the templates collection.
+     * This flag will handle that case.
+     */
+    fetchTemplates: false,
   };
 
   readAddendumByQuery(conn, locals);

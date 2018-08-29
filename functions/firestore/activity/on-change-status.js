@@ -25,19 +25,15 @@
 'use strict';
 
 
+const { isValidRequestBody, } = require('./helper');
+const { code, } = require('../../admin/responses');
+const { httpsActions, } = require('../../admin/constants');
 const {
   db,
   rootCollections,
   serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
-
-const { isValidRequestBody, } = require('./helper');
-
-const { code, } = require('../../admin/responses');
-
-const { httpsActions, } = require('../../admin/constants');
-
 const {
   handleError,
   sendResponse,
@@ -168,7 +164,8 @@ module.exports = (conn) => {
   }
 
 
-  /** The `support` person doesn't need to be an assignee
+  /**
+   * The `support` person doesn't need to be an assignee
    * of the activity to make changes.
    */
   if (conn.requester.isSupportRequest) {

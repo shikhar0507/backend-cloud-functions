@@ -26,7 +26,6 @@
 
 
 const { rootCollections, db, } = require('../../admin/admin');
-
 const { httpsActions, vowels, } = require('../../admin/constants');
 
 
@@ -342,6 +341,10 @@ module.exports = (addendumDoc) =>
           userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
           location: addendumDoc.get('location'),
           user: addendumDoc.get('user'),
+          /**
+           * The profile.id is the phone number of the user
+           * viewing the comment.
+           */
           comment: commentBuilder(addendumDoc, profile.id),
         });
       });

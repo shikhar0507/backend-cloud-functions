@@ -25,17 +25,14 @@
 'use strict';
 
 
-const { rootCollections, } = require('../../admin/admin');
-
+const { rootCollections, serverTimestamp, } = require('../../admin/admin');
 const { code, } = require('../../admin/responses');
-
 const {
   canEditRules,
   templateFields,
   activityStatuses,
   reportingActions,
 } = require('../../admin/constants');
-
 const {
   handleError,
   sendResponse,
@@ -208,11 +205,14 @@ const validateTemplate = (body) => {
 };
 
 const createDocs = (conn, locals) => {
+  const templateBody = conn.req.body;
+  templateBody.timestamp = serverTimestamp;
+
   Promise
     .all([
       locals
         .templateDocRef
-        .set(conn.req.body),
+        .set(templateBody),
       rootCollections
         .instant
         .doc()
