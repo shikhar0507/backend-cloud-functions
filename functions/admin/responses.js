@@ -84,6 +84,10 @@ const removingPhoneNumberFromAttachmentError = (phoneNumber) =>
 const templateCreationSuccessFul = (templateName) =>
   `Template ${templateName} has been created successfully.`;
 
+const unacceptableMethodUsed = (methodUsed) =>
+  `${methodUsed} is not allowed for any request. Please use one of the`
+  + ` following: GET, POST, PATCH, PUT`;
+
 
 const getCustomMessages = {
   activityNotFoundError,
@@ -99,18 +103,29 @@ const getCustomMessages = {
   activityStatusConflictError,
   removingPhoneNumberFromAttachmentError,
   templateCreationSuccessFul,
+  unacceptableMethodUsed,
 };
 
-const staticMessages = {
+const staticErrorMessages = {
   editPermissionError: `You cannot edit this activity.`,
-  missingQueryParamFrom: `The request URL is missing the query param 'from'.`,
-  serverCrashed: `There was an error handling the request. Please try`
+  missingQueryParamFromError: `The request URL is missing the query`
+    + ` param 'from'.`,
+  serverCrashedError: `There was an error handling the request. Please try`
     + ` again later.`,
   lastAssigneeRemovalError: `Cannot remove an assignee from an activity with`
     + ` only one assignee.`,
-  noAssigneesError: `Cannot create an activity without any assignees.`,
-  templateCreationSuccessFul,
+  activityWithoutAssigneesError: `Cannot create an activity without any`
+    + ` assignees.`,
+  authorizationHeaderMissingError: `The 'Authorization' header is missing from`
+    + ` the request headers.`,
+  authorizationHeaderNotStringError: `The 'Authorization' header's value should`
+    + ` be a string.`,
+  authorizationHeaderNotBearerError: `The 'Authorization' header should start`
+    + ` with 'Bearer <idToken>'`,
+  accountDisabledError: `Your account is disabled. Cannot proceed.`,
+  idTokenRecentlyRevokedError: `The idToken in the request headers was revoked`
+    + ` recently. Please re-authenticate again.`,
 };
 
 
-module.exports = { code, getCustomMessages, staticMessages, };
+module.exports = { code, getCustomMessages, staticErrorMessages, };

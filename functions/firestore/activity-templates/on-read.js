@@ -35,11 +35,28 @@ const {
 } = require('../../admin/utils');
 
 
+const getDocObject = (doc) => {
+  return {
+    name: doc.get('name'),
+    venue: doc.get('venue'),
+    hidden: doc.get('hidden'),
+    comment: doc.get('comment'),
+    schedule: doc.get('schedule'),
+    attachment: doc.get('attachment'),
+    createTime: doc.createTime.toDate(),
+    updateTime: doc.updateTime.toDate(),
+    canEditRule: doc.get('canEditRule'),
+    timestamp: doc.get('timestamp').toDate(),
+    statusOnCreate: doc.get('statusOnCreate'),
+  };
+};
+
+
 /**
  * Fetches all the docs from `/ActivityTemplates` collection and sends
  * the response in a JSON object.
  *
- * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express Request and Response objects.
  * @returns {void}
  */
 const fetchAllTemplates = (conn) => {
@@ -49,7 +66,7 @@ const fetchAllTemplates = (conn) => {
     .activityTemplates
     .get()
     .then((snapShot) => {
-      snapShot.forEach((doc) => jsonObject[doc.get('name')] = doc.data());
+      snapShot.forEach((doc) => jsonObject[doc.id] = getDocObject(doc));
 
       /** Response ends here... */
       sendJSON(conn, jsonObject);
@@ -64,11 +81,11 @@ const fetchAllTemplates = (conn) => {
  * Fetches the template based on `name` from the query parameter in the
  * request URL.
  *
- * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express Request and Response objects.
  * @returns {void}
  */
 const fetchTemplateByName = (conn) => {
-  if (!isNonEmptyString(conn.req.body.name)) {
+  if (!isNonEmptyString(conn.req.query.name)) {
     sendResponse(
       conn,
       code.badRequest,
@@ -94,7 +111,7 @@ const fetchTemplateByName = (conn) => {
         return;
       }
 
-      sendJSON(conn, snapShot.docs[0].data());
+      sendJSON(conn, getDocObject(snapShot.docs[0]));
 
       return;
     })
@@ -105,7 +122,7 @@ const fetchTemplateByName = (conn) => {
 /**
  * Checks if the query string is present in the request URL.
  *
- * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} conn Contains Express Request and Response objects.
  * @returns {void}
  */
 module.exports = (conn) => {

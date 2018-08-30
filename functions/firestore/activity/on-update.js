@@ -83,12 +83,12 @@ const updateDocsWithBatch = (conn, locals) => {
     .collection('Addendum')
     .doc(), {
       user: conn.requester.phoneNumber,
-      share: null,
-      remove: null,
+      // share: null,
+      // remove: null,
       action: httpsActions.update,
-      status: null,
-      comment: null,
-      template: null,
+      // status: null,
+      // comment: null,
+      // template: null,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
@@ -98,7 +98,7 @@ const updateDocsWithBatch = (conn, locals) => {
         requestBody: conn.req.body,
         activityBody: locals.docs.activity.data(),
       },
-      updatedPhoneNumber: null,
+      // updatedPhoneNumber: null,
       isSupportRequest: conn.requester.isSupportRequest,
     });
 

@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { rootCollections, db, } = require('../../admin/admin');
+const { rootCollections, db, users, } = require('../../admin/admin');
 const { httpsActions, vowels, } = require('../../admin/constants');
 
 
@@ -192,16 +192,8 @@ const getUpdatedFieldNames = (updatedFields) => {
 
 const commentBuilder = (addendum, recipient) => {
   const addendumCreator = addendum.get('user');
-  const share = addendum.get('share');
-  const remove = addendum.get('remove');
   const action = addendum.get('action');
-  const status = addendum.get('status');
-  const comment = addendum.get('comment');
-  const template = addendum.get('template');
-  const activityName = addendum.get('activityName');
-  const updatedFields = addendum.get('updatedFields');
   const isSupportRequest = addendum.get('isSupportRequest');
-  const updatedPhoneNumber = addendum.get('updatedPhoneNumber');
 
   /**
    * People are denoted with their phone numbers unless
@@ -225,6 +217,7 @@ const commentBuilder = (addendum, recipient) => {
   }
 
   if (action === httpsActions.create) {
+    const template = addendum.get('template');
     const templateNameFirstCharacter = template[0];
     const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
 
@@ -232,6 +225,8 @@ const commentBuilder = (addendum, recipient) => {
   }
 
   if (action === httpsActions.changeStatus) {
+    const activityName = addendum.get('activityName');
+    const status = addendum.get('status');
     let displayStatus = status;
 
     /** `PENDING` isn't grammatically correct with the comment here. */
@@ -240,9 +235,14 @@ const commentBuilder = (addendum, recipient) => {
     return `${pronoun} ${displayStatus.toLowerCase()} ${activityName}.`;
   }
 
-  if (action === httpsActions.remove) return `${pronoun} removed ${remove}.`;
+  if (action === httpsActions.remove) {
+    const remove = addendum.get('remove');
+
+    return `${pronoun} removed ${remove}.`;
+  }
 
   if (action === httpsActions.updatePhoneNumber) {
+    const updatedPhoneNumber = addendum.get('updatedPhoneNumber');
     let pronoun = `${addendumCreator} changed their`;
 
     if (addendumCreator === recipient) pronoun = 'You changed your';
@@ -252,6 +252,7 @@ const commentBuilder = (addendum, recipient) => {
   }
 
   if (action === httpsActions.share) {
+    const share = addendum.get('share');
     let str = `${pronoun} added`;
 
     if (share.length === 1) return `${str} ${share[0]}`;
@@ -269,19 +270,21 @@ const commentBuilder = (addendum, recipient) => {
 
         return;
       } else {
-        str += `,`;
+        str += `, `;
       }
 
-      str += ` ${phoneNumber}`;
+      str += `${phoneNumber}`;
     });
   }
 
   if (action === httpsActions.update) {
+    const updatedFields = addendum.get('updatedFields');
+
     return `${pronoun} updated ${getUpdatedFieldNames(updatedFields)}.`;
   }
 
   /** Action is `comment` */
-  return comment;
+  return addendum.get('comment');
 };
 
 
@@ -342,8 +345,8 @@ module.exports = (addendumDoc) =>
           location: addendumDoc.get('location'),
           user: addendumDoc.get('user'),
           /**
-           * The profile.id is the phone number of the user
-           * viewing the comment.
+           * The `.id` property returns the phone number of the person who will
+           * see this comment.
            */
           comment: commentBuilder(addendumDoc, profile.id),
         });

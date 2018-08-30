@@ -106,18 +106,18 @@ const createDocsWithBatch = (conn, locals) => {
        * in the `comment`.
        */
       share: Array.from(locals.objects.allPhoneNumbers),
-      remove: null,
+      // remove: null,
       action: httpsActions.create,
-      status: null,
-      comment: null,
+      // status: null,
+      // comment: null,
       template: conn.req.body.template,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
       activityId: locals.static.activityId,
       activityName: conn.req.body.activityName,
-      updatedFields: null,
-      updatedPhoneNumber: null,
+      // updatedFields: null,
+      // updatedPhoneNumber: null,
       isSupportRequest: conn.requester.isSupportRequest,
     });
 
