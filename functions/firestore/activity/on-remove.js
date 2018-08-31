@@ -150,19 +150,13 @@ const handleResult = (conn, result) => {
     .collection('Addendum')
     .doc(), {
       user: conn.requester.phoneNumber,
-      // share: null,
       remove: conn.req.body.remove,
       action: httpsActions.remove,
-      // status: null,
-      // comment: null,
-      // template: null,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
       activityId: conn.req.body.activityId,
       activityName: activity.get('activityName'),
-      // updatedFields: null,
-      // updatedPhoneNumber: null,
       isSupportRequest: conn.requester.isSupportRequest,
     });
 

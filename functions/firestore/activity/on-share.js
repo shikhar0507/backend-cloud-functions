@@ -191,18 +191,12 @@ const handleResult = (conn, result) => {
         .doc(), {
           user: conn.requester.phoneNumber,
           share: conn.req.body.share,
-          // remove: null,
           action: httpsActions.share,
-          // status: null,
-          // comment: null,
-          // template: null,
           location: getGeopointObject(conn.req.body.geopoint),
           timestamp: serverTimestamp,
           userDeviceTimestamp: new Date(conn.req.body.timestamp),
           activityId: conn.req.body.activityId,
           activityName: activity.get('activityName'),
-          // updatedFields: null,
-          // updatedPhoneNumber: null,
           isSupportRequest: conn.requester.isSupportRequest,
         });
 

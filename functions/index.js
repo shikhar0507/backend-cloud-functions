@@ -58,7 +58,7 @@ const activityHandler = functions
 
 const phoneNumberUpdateHandler = functions
   .firestore
-  .document('PhoneNumberUpdates/docId')
+  .document('PhoneNumberUpdates/{docId}')
   .onCreate(require('./firestore/profiles/index'));
 
 const reportsHandler = functions
@@ -70,6 +70,11 @@ const createOfficeNamePermutations = functions
   .firestore
   .document('Office/{officeId}')
   .onCreate(require('./firestore/offices/on-create'));
+
+const purgeAddendum = functions
+  .firestore
+  .document('Profiles/{phoneNumber}')
+  .onUpdate(require('./firestore/profiles/on-update'));
 
 
 module.exports = {

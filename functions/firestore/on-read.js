@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { rootCollections, serverTimestamp, } = require('../admin/admin');
+const { rootCollections, serverTimestamp, db, } = require('../admin/admin');
 const { beautifySchedule, } = require('../admin/utils');
 const { code, } = require('../admin/responses');
 const {
@@ -46,24 +46,41 @@ const {
  * @returns {void}
  */
 const updateDailyCollection = (conn, jsonResult) => {
-  /** Anyone who sends the `from` query pram as `0`, must be
+  /**
+   * Anyone who sends the `from` query pram as `0`, must be
    * initializing the app first time, so this function logs
-   * their request in `/DailyInits/(Date)/(phoneNumber)/(auto-id)`.
+   * their request in `/DailyInits/(DD-MM-YYYY)/`.
    */
-  if (conn.req.query.from !== '0') {
-    sendJSON(conn, jsonResult);
+  const batch = db.batch();
 
-    return;
+  if (conn.req.query.from === '0') {
+    batch.set(rootCollections
+      .dailyInits
+      .doc(getISO8601Date())
+      .collection(conn.requester.phoneNumber)
+      .doc(), {
+        timestamp: serverTimestamp,
+      });
   }
 
-  const timestamp = new Date();
+  if (conn.requester.lastQueryFrom !== conn.req.query.from) {
+    batch.set(rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber), {
+        lastFromQuery: conn.req.query.from,
+      }, {
+        merge: true,
+      });
+  }
 
-  rootCollections
-    .dailyInits
-    .doc(getISO8601Date(timestamp))
-    .collection(conn.requester.phoneNumber)
-    .doc()
-    .set({ timestamp: serverTimestamp, })
+  console.log({
+    lastQueryFrom: conn.requester.lastQueryFrom,
+    from: conn.req.query.from,
+    'if': conn.requester.lastQueryFrom !== conn.req.query.from,
+  });
+
+  batch
+    .commit()
     .then(() => sendJSON(conn, jsonResult))
     .catch((error) => handleError(conn, error));
 };
@@ -108,7 +125,7 @@ const mutateActivityToArray = (conn, jsonResult, locals) => {
   Object
     .keys(jsonResult.activities)
     .forEach((activityId) => {
-      activityObj = jsonResult.activities[`${activityId}`];
+      activityObj = jsonResult.activities[activityId];
       activityObj.activityId = activityId;
 
       jsonResult.activitiesArr.push(activityObj);
@@ -250,8 +267,8 @@ const fetchActivities = (conn, jsonResult, locals) =>
 
         /**
          * Even if one `activity` is found with the template `subscription`
-         * we will `query` the `ActivityTemplates` collection, skip that
-         * step, otherwise.
+         * we will `query` the `ActivityTemplates` collection, That step is
+         * skipped otherwise.
          */
         if (template === 'subscription') locals.fetchTemplates = true;
 
@@ -270,6 +287,7 @@ const fetchActivities = (conn, jsonResult, locals) =>
         activityObj.assignees = [];
         activityObj.attachment = doc.get('attachment');
         activityObj.hidden = doc.get('hidden');
+        activityObj.creator = doc.get('creator');
       });
 
       fetchAssignees(conn, jsonResult, locals);

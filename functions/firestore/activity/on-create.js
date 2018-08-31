@@ -46,6 +46,16 @@ const {
 } = require('../../admin/utils');
 
 
+const getActivityName = (conn) => {
+  if (conn.req.body.attachment.hasOwnProperty('Name')) {
+    return `${conn.req.body.template}: ${conn.req.body.attachment.Name.value}`;
+  }
+
+  return `${conn.req.body.template}:`
+    + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
+};
+
+
 const createDocsWithBatch = (conn, locals) => {
   locals.objects.allPhoneNumbers
     .forEach((phoneNumber) => {
@@ -79,6 +89,14 @@ const createDocsWithBatch = (conn, locals) => {
     });
 
   locals.batch.set(locals.docs.activityRef, {
+    /**
+     * The `docRef` path can be a doc in two places.
+     * If the template in the request body is `office`,
+     * the Path will be `Offices/(activityId)`.
+     *
+     * In all other cases, the path will be
+     * `Offices/(officeId)/Activities/(activityId)`
+     */
     docRef: locals.docs.docRef,
     venue: locals.objects.venueArray,
     timestamp: serverTimestamp,
@@ -86,11 +104,12 @@ const createDocsWithBatch = (conn, locals) => {
     template: conn.req.body.template,
     schedule: locals.objects.scheduleArray,
     status: locals.static.statusOnCreate,
-    attachment: conn.req.body.attachment || {},
+    attachment: conn.req.body.attachment,
     canEditRule: locals.static.canEditRule,
-    activityName: conn.req.body.activityName || '',
+    activityName: getActivityName(conn),
     officeId: rootCollections.offices.doc(locals.static.officeId).id,
     hidden: locals.static.hidden,
+    creator: conn.requester.phoneNumber,
   });
 
   locals.batch.set(rootCollections
@@ -106,18 +125,13 @@ const createDocsWithBatch = (conn, locals) => {
        * in the `comment`.
        */
       share: Array.from(locals.objects.allPhoneNumbers),
-      // remove: null,
       action: httpsActions.create,
-      // status: null,
-      // comment: null,
       template: conn.req.body.template,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
       activityId: locals.static.activityId,
-      activityName: conn.req.body.activityName,
-      // updatedFields: null,
-      // updatedPhoneNumber: null,
+      activityName: getActivityName(conn),
       isSupportRequest: conn.requester.isSupportRequest,
     });
 
@@ -154,8 +168,7 @@ const handleAssignees = (conn, locals) => {
       const isRequester = phoneNumber === conn.requester.phoneNumber;
 
       /**
-       * Support requests won't add the creator to the
-       * activity assignee list.
+       * Support requests won't add the creator to the activity assignee list.
        */
       if (isRequester && conn.requester.isSupportRequest) return;
 
@@ -174,23 +187,27 @@ const handleAssignees = (conn, locals) => {
 
       const officeId = locals.static.officeId;
 
-      promises.push(rootCollections
-        .offices.doc(officeId)
-        .collection('Activities')
-        .where('attachment.Admin.value', '==', phoneNumber)
-        .where('template', '==', 'admin')
-        .limit(1)
-        .get()
-      );
+      if (locals.static.canEditRule === 'ADMIN') {
+        promises.push(rootCollections
+          .offices.doc(officeId)
+          .collection('Activities')
+          .where('attachment.Admin.value', '==', phoneNumber)
+          .where('template', '==', 'admin')
+          .limit(1)
+          .get()
+        );
+      }
 
-      promises.push(rootCollections
-        .offices.doc(officeId)
-        .collection('Activities')
-        .where('attachment.Employee Contact.value', '==', phoneNumber)
-        .where('template', '==', 'employee')
-        .limit(1)
-        .get()
-      );
+      if (locals.static.canEditRule === 'EMPLOYEE') {
+        promises.push(rootCollections
+          .offices.doc(officeId)
+          .collection('Activities')
+          .where('attachment.Employee Contact.value', '==', phoneNumber)
+          .where('template', '==', 'employee')
+          .limit(1)
+          .get()
+        );
+      }
     });
 
   if (promises.length === 0) {
@@ -465,6 +482,11 @@ const handleScheduleAndVenue = (conn, locals) => {
     return;
   }
 
+  /**
+   * Can't directly write the `conn.req.body.venue` to the activity root
+   * because venue objects contain `Geopoint` object of Firebase.
+   * We need to convert that from a normal `JS` Object for each venue.
+   */
   locals.objects.venueArray = venueValidationResult.venues;
 
   handleAttachment(conn, locals);
@@ -498,11 +520,10 @@ const createLocals = (conn, result) => {
        * during the `support` requests.
        */
       include: [],
-      canEditRule: null,
-      statusOnCreate: null,
-      /** Used by the filterAttachment function to check the duplication
-       * of entities inside the Offices/(officeId)/Activities collection.
-       * Eg., When the template is `employee`, the req.body.attachment.Name
+      /**
+       * Used by the `filterAttachment` function to check the duplication
+       * of entities inside the `Offices/(officeId)/Activities` collection.
+       * Eg., When the template is `employee`, the `req.body.attachment.Name`
        * + `locals.static.template` will be used to query for the employee.
        * If their doc already exists, reject the request.
        */

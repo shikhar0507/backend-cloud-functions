@@ -30,18 +30,11 @@ module.exports = (snapShot, context) => {
         .collection('Addendum')
         .doc(), {
           user,
-          // share: null,
-          // remove: null,
           action: httpsActions.updatePhoneNumber,
-          // status: null,
-          // comment: null,
-          // template: null,
           location,
           timestamp,
           userDeviceTimestamp,
           activityId,
-          // activityName: null,
-          // updatedFields: null,
           updatedPhoneNumber,
           isSupportRequest,
         });
@@ -79,7 +72,6 @@ module.exports = (snapShot, context) => {
       }, {
           merge: true,
         });
-
 
       return batch.commit();
     })

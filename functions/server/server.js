@@ -101,17 +101,55 @@ const handleRequestPath = (conn) => {
  * has the same uid as the requester.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
+ * @param {Object} userRecord User record object from Firebase Auth.
  * @returns {void}
  */
-const verifyUidAndPhoneNumberCombination = (conn) => {
+const getProfile = (conn, userRecord) => {
   rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
     .get()
     .then((doc) => {
+      conn.requester.lastQueryFrom = doc.get('lastQueryFrom');
+
+      /**
+        * When a user signs up for the first time, the `authOnCreate`
+        * cloud function creates two docs in the Firestore.
+        *
+        * `Profiles/(phoneNumber)`, & `Updates/(uid)`.
+        *
+        * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
+        * It has one field `uid` = the uid from the auth.
+        *
+        * The Updates doc has the `doc-id` as the uid from the auth
+        * and one field `phoneNumber` = phoneNumber from auth.
+        *
+        * When a user signs up via the user facing app, they instantly hit
+        * the `/api` endpoint. In normal flow, the
+        * `getProfile` is called.
+        *
+        * It compares the `uid` from profile doc and the `uid` from auth.
+        * If the `authOnCreate` hasn't completed execution in this time,
+        * chances are that this doc won't be found and getting the uid
+        * from this non-existing doc will result in `disableAccount` function
+        * being called.
+        *
+        * To counter this, we allow a grace period of `60` seconds between
+        * the `auth` creation and the hit time on the api.
+        */
+      const authCreationTime =
+        new Date(userRecord.metadata.creationTime).getTime();
+
+      if (Date.now() - authCreationTime < 60) {
+        handleRequestPath(conn);
+
+        return;
+      }
+
       if (doc.get('uid') !== conn.requester.uid) {
         console.log('uid and auth uid doesn\'t match');
-        /** The user probably managed to change their phone number by something
+        /**
+         * The user probably managed to change their phone number by something
          * other than out provided endpoint for updating the `auth`.
          * Disabling their account because this is not allowed.
          */
@@ -159,41 +197,9 @@ const fetchRequesterPhoneNumber = (conn) =>
       conn.requester.phoneNumber = userRecord.phoneNumber;
       conn.requester.displayName = userRecord.displayName || '';
 
-      /**
-       * When a user signs up for the first time, the `authOnCreate`
-       * cloud function creates two docs in the Firestore.
-       *
-       * `Profiles/(phoneNumber)`, & `Updates/(uid)`.
-       *
-       * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
-       * It has one field `uid` = the uid from the auth.
-       *
-       * The Updates doc has the `doc-id` as the uid from the auth
-       * and one field `phoneNumber` = phoneNumber from auth.
-       *
-       * When a user signs up via the user facing app, they instantly hit
-       * the `/api` endpoint. In normal flow, the
-       * `verifyUidAndPhoneNumberCombination` is called.
-       *
-       * It compares the `uid` from profile doc and the `uid` from auth.
-       * If the `authOnCreate` hasn't completed execution in this time,
-       * chances are that this doc won't be found and getting the uid
-       * from this non-existing doc will result in `disableAccount` function
-       * being called.
-       *
-       * To counter this, we allow a grace period of `60` seconds between
-       * the `auth` creation and the hit time on the api.
-       */
-      const authCreationTime =
-        new Date(userRecord.metadata.creationTime).getTime();
+      console.log('phoneNumber', conn.requester.phoneNumber);
 
-      if (Date.now() - authCreationTime < 60) {
-        handleRequestPath(conn);
-
-        return;
-      }
-
-      verifyUidAndPhoneNumberCombination(conn);
+      getProfile(conn, userRecord);
 
       return;
     })

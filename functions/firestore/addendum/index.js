@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { rootCollections, db, users, } = require('../../admin/admin');
+const { rootCollections, db, } = require('../../admin/admin');
 const { httpsActions, vowels, } = require('../../admin/constants');
 
 

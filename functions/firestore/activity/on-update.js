@@ -83,22 +83,15 @@ const updateDocsWithBatch = (conn, locals) => {
     .collection('Addendum')
     .doc(), {
       user: conn.requester.phoneNumber,
-      // share: null,
-      // remove: null,
       action: httpsActions.update,
-      // status: null,
-      // comment: null,
-      // template: null,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
       activityId: conn.req.body.activityId,
-      activityName: locals.static.activityName,
       updatedFields: {
         requestBody: conn.req.body,
         activityBody: locals.docs.activity.data(),
       },
-      // updatedPhoneNumber: null,
       isSupportRequest: conn.requester.isSupportRequest,
     });
 
@@ -111,44 +104,37 @@ const updateDocsWithBatch = (conn, locals) => {
 
 
 const getUpdatedFields = (conn, locals) => {
-  const activityName = locals.docs.activity.get('activityName');
   const activitySchedule = locals.docs.activity.get('schedule');
   const activityVenue = locals.docs.activity.get('venue');
 
-  if (activityName !== conn.req.body.activityName) {
-    locals.objects.updatedFields.activityName = conn.req.body.activityName;
+  const scheduleNames = [];
+  activitySchedule.forEach((schedule) => scheduleNames.push(schedule.name));
+
+  const scheduleValidationResult
+    = validateSchedules(conn.req.body, scheduleNames);
+
+  if (!scheduleValidationResult.isValid) {
+    sendResponse(conn, code.badRequest, scheduleValidationResult.message);
+
+    return;
   }
 
-  if (conn.req.body.hasOwnProperty('schedule')) {
-    const scheduleNames = [];
-    activitySchedule.forEach((schedule) => scheduleNames.push(schedule.name));
+  locals.objects.updatedFields.schedule = scheduleValidationResult.schedules;
 
-    const result = validateSchedules(conn.req.body, scheduleNames);
+  const venueDescriptors = [];
+  activityVenue
+    .forEach((venue) => venueDescriptors.push(venue.venueDescriptor));
 
-    if (!result.isValid) {
-      sendResponse(conn, code.badRequest, result.message);
+  const venueValidationResult
+    = validateVenues(conn.req.body, venueDescriptors);
 
-      return;
-    }
+  if (!venueValidationResult.isValid) {
+    sendResponse(conn, code.badRequest, venueValidationResult.message);
 
-    locals.objects.updatedFields.schedule = result.schedules;
+    return;
   }
 
-  if (conn.req.body.hasOwnProperty('venue')) {
-    const venueDescriptors = [];
-    activityVenue
-      .forEach((venue) => venueDescriptors.push(venue.venueDescriptor));
-
-    const result = validateVenues(conn.req.body, venueDescriptors);
-
-    if (!result.isValid) {
-      sendResponse(conn, code.badRequest, result.message);
-
-      return;
-    }
-
-    locals.objects.updatedFields.venue = result.venues;
-  }
+  locals.objects.updatedFields.venue = venueValidationResult.venues;
 
   updateDocsWithBatch(conn, locals);
 };
@@ -204,25 +190,29 @@ const handleAssignees = (conn, locals) => {
       isCreator: isRequester,
     };
 
-    promises.push(rootCollections
-      .offices
-      .doc(locals.static.officeId)
-      .collection('Activities')
-      .where('attachment.Employee Contact.value', '==', newPhoneNumber)
-      .where('template', '==', 'employee')
-      .limit(1)
-      .get()
-    );
+    if (locals.static.canEditRule === 'EMPLOYEE') {
+      promises.push(rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('attachment.Employee Contact.value', '==', newPhoneNumber)
+        .where('template', '==', 'employee')
+        .limit(1)
+        .get()
+      );
+    }
 
-    promises.push(rootCollections
-      .offices
-      .doc(locals.static.officeId)
-      .collection('Activities')
-      .where('attachment.Admin.value', '==', newPhoneNumber)
-      .where('template', '==', 'admin')
-      .limit(1)
-      .get()
-    );
+    if (locals.static.canEditRule === 'ADMIN') {
+      promises.push(rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('attachment.Admin.value', '==', newPhoneNumber)
+        .where('template', '==', 'admin')
+        .limit(1)
+        .get()
+      );
+    }
   });
 
   if (promises.length === 0) {
@@ -236,16 +226,18 @@ const handleAssignees = (conn, locals) => {
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;
 
-        let phoneNumber;
         const doc = snapShot.docs[0];
+        let phoneNumber;
         const template = doc.get('template');
+
         const isAdmin = template === 'admin';
-        const isEmployee = template === 'employee';
 
         if (isAdmin) {
           phoneNumber = doc.get('attachment.Admin.value');
           locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
         }
+
+        const isEmployee = template === 'employee';
 
         if (isEmployee) {
           phoneNumber = doc.get('attachment.Employee Contact.value');
@@ -273,12 +265,17 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
   const attachmentFromActivity = locals.docs.activity.get('attachment');
   const attachmentFromBody = conn.req.body.attachment;
 
-  if (attachmentFromActivity.hasOwnProperty('Name')) {
-    if (attachmentFromActivity.Name.value === attachmentFromBody.Name.value) {
-      handleAssignees(conn, locals);
+  /**
+   * No need to query for the `Name` to be unique since that check
+   * has already been performed while creating an activity. Of course,
+   * only when the Name.value hasn't changed.
+   */
+  if (attachmentFromActivity.hasOwnProperty('Name')
+    && attachmentFromActivity.Name.value
+    === attachmentFromBody.Name.value) {
+    handleAssignees(conn, locals);
 
-      return;
-    }
+    return;
   }
 
   Promise
@@ -388,6 +385,17 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
           break;
         }
 
+        /** A doc in `/Profiles` can exist for a user even when
+         * they haven't actually done the `OTP`.
+         *
+         * This is because when a new phone number is introduced
+         * to the system, the activity Activity `onWrite` function
+         * creates their `Profile` regardless.
+         *
+         * To counter that, we actually check the value of the field
+         * `uid` in the `Profile` doc. For all the numbers introduced
+         * automatically and not by using the `OTP`, the uid will be `null`.
+         */
         if (!doc.get('uid')) {
           successful = false;
           break;
@@ -482,7 +490,6 @@ const handleResult = (conn, result) => {
     static: {
       officeId: activity.get('officeId'),
       canEditRule: activity.get('canEditRule'),
-      activityName: activity.get('activityName'),
       template: activity.get('template'),
       office: activity.get('office'),
     },

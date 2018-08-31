@@ -165,7 +165,9 @@ const manageAdmin = (activityDocNew, batch) => {
        */
       if (status === 'CANCELLED') {
         const index = customClaims.admin.indexOf(office);
-        newClaims = customClaims.admin.splice(index, 1);
+        customClaims.admin.splice(index, 1);
+
+        newClaims = customClaims;
       } else {
         /**
          * The user already is `admin` of another office.
@@ -173,7 +175,7 @@ const manageAdmin = (activityDocNew, batch) => {
          */
         if (customClaims && customClaims.admin) {
           customClaims.admin.push(office);
-          newClaims = customClaims.admin;
+          newClaims = customClaims;
         }
       }
 

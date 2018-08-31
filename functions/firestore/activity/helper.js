@@ -630,21 +630,6 @@ const filterAttachment = (body, locals) => {
  * @returns {Object} Message object.
  */
 const validateCreateRequestBody = (body, successMessage) => {
-  if (!body.hasOwnProperty('activityName')) {
-    return {
-      message: `The 'activityName' field is missing from the request body.`,
-      isValid: false,
-    };
-  }
-
-  if (!isNonEmptyString(body.activityName)) {
-    return {
-      message: `The 'activityName' should be of type 'string'. `
-        + `Found '${typeof body.activityName}'.`,
-      isValid: false,
-    };
-  }
-
   if (!body.hasOwnProperty('template')) {
     return {
       message: `The 'template' field is missing from the request body.`,
@@ -710,25 +695,15 @@ const validateCreateRequestBody = (body, successMessage) => {
  * @returns {Object} Message object.
  */
 const validateUpdateRequestBody = (body, successMessage) => {
-  if (!body.hasOwnProperty('activityName')
-    && !body.hasOwnProperty('description')
-    && !body.hasOwnProperty('venue')
+  if (!body.hasOwnProperty('venue')
     && !body.hasOwnProperty('schedule')
-    && !body.hasOwnProperty('attachment')) {
+    && !body.hasOwnProperty('attachment')
+  ) {
     return {
       message: `The request body has no usable fields.`
-        + ` Please add at least any of these: 'activityName',`
+        + ` Please add at least any of these: ,`
         + ` 'schedule', 'venue' or 'attachment'`
         + ` in the request body to make a successful request.`,
-      isValid: false,
-    };
-  }
-
-  if (body.hasOwnProperty('activityName')
-    && !isNonEmptyString(body.activityName)) {
-    return {
-      message: `The 'activityName' field in the request body should be a`
-        + ` non-empty string.`,
       isValid: false,
     };
   }

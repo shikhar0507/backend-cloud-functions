@@ -55,19 +55,12 @@ const createDocs = (conn, activity) => {
     .collection('Addendum')
     .doc(), {
       user: conn.requester.phoneNumber,
-      // share: null,
-      // remove: null,
       action: httpsActions.comment,
-      // status: null,
       comment: conn.req.body.comment,
-      // template: null,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
       activityId: conn.req.body.activityId,
-      // activityName: null,
-      // updatedFields: null,
-      // updatedPhoneNumber: null,
       isSupportRequest: conn.requester.isSupportRequest,
     });
 
