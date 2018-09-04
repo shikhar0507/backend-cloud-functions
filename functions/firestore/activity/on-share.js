@@ -104,33 +104,35 @@ const handleResult = (conn, result) => {
   conn.req.body.share.forEach((phoneNumber) => {
     const isRequester = phoneNumber === conn.requester.phoneNumber;
 
-    if (isRequester && conn.requester.isSupportRequest) return;
-
     locals.objects.permissions[phoneNumber] = {
       isAdmin: false,
       isEmployee: false,
       isCreator: isRequester,
     };
 
-    promises.push(rootCollections
-      .offices
-      .doc(locals.static.officeId)
-      .collection('Activities')
-      .where('attachment.Employee Contact.value', '==', phoneNumber)
-      .where('template', '==', 'employee')
-      .limit(1)
-      .get()
-    );
+    if (locals.static.template === 'employee') {
+      promises.push(rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('attachment.Employee Contact.value', '==', phoneNumber)
+        .where('template', '==', 'employee')
+        .limit(1)
+        .get()
+      );
+    }
 
-    promises.push(rootCollections
-      .offices
-      .doc(locals.static.officeId)
-      .collection('Activities')
-      .where('attachment.Admin.value', '==', phoneNumber)
-      .where('template', '==', 'admin')
-      .limit(1)
-      .get()
-    );
+    if (locals.static.template === 'admin') {
+      promises.push(rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('attachment.Admin.value', '==', phoneNumber)
+        .where('template', '==', 'admin')
+        .limit(1)
+        .get()
+      );
+    }
   });
 
   Promise

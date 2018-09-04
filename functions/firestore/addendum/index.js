@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { rootCollections, db, } = require('../../admin/admin');
+const { rootCollections, db, users, } = require('../../admin/admin');
 const { httpsActions, vowels, } = require('../../admin/constants');
 
 
@@ -190,7 +190,7 @@ const getUpdatedFieldNames = (updatedFields) => {
 };
 
 
-const commentBuilder = (addendum, recipient) => {
+const commentBuilder = (addendum, recipient, namesMap) => {
   const addendumCreator = addendum.get('user');
   const action = addendum.get('action');
   const isSupportRequest = addendum.get('isSupportRequest');
@@ -216,12 +216,21 @@ const commentBuilder = (addendum, recipient) => {
     pronoun = addendumCreator;
   }
 
+  /**
+   * Replaces the phone number with the `displayName` from auth
+   * (if available).
+   */
+  if (pronoun !== 'You' && namesMap.get(recipient)) {
+    pronoun = namesMap.get(recipient);
+  }
+
   if (action === httpsActions.create) {
     const template = addendum.get('template');
+
     const templateNameFirstCharacter = template[0];
     const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
 
-    return `${pronoun} created ${article} ${template}.`;
+    return `${pronoun} created ${article} ${template}`;
   }
 
   if (action === httpsActions.changeStatus) {
@@ -288,6 +297,83 @@ const commentBuilder = (addendum, recipient) => {
 };
 
 
+const createComments = (addendumDoc, profiles, namesMap) => {
+  const batch = db.batch();
+
+  profiles.forEach((profile) => {
+    /**
+     * An assignee (phone number) who's doc is added
+     * to the promises array above, may not have auth.
+     */
+    if (!profile.exists) return;
+
+    const uid = profile.get('uid');
+
+    /**
+     * No `uid` means that the user has not signed up
+     * for the app. Not writing addendum for those users.
+     * The `uid` field can be `null` too. This is for the
+     * cases when the phone number was introduced to the
+     * system in from other than `auth`. Like `creating/sharing`
+     * an activity.
+    */
+    if (!uid) return;
+
+    batch.set(rootCollections
+      .updates
+      .doc(uid)
+      .collection('Addendum')
+      .doc(), {
+        activityId: addendumDoc.get('activityId'),
+        timestamp: addendumDoc.get('timestamp'),
+        userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
+        location: addendumDoc.get('location'),
+        user: addendumDoc.get('user'),
+        /**
+         * The `.id` property returns the phone number of the person who will
+         * see this comment.
+         */
+        comment: commentBuilder(addendumDoc, profile.id, namesMap),
+      });
+  });
+};
+
+
+const getDisplayNames = (addendumDoc, profiles) => {
+  const promises = [];
+
+  profiles.forEach((profile) => {
+    if (!profile.exists) return;
+
+    const uid = profile.get('uid');
+
+    if (!uid) return;
+
+    promises.push(users.getUserByPhoneNumber(profile.id));
+  });
+
+  const namesMap = new Map();
+
+  return Promise
+    .all(promises)
+    .then((userRecords) => {
+      userRecords.forEach((userRecord) => {
+        const phoneNumber = Object.keys(userRecord)[0];
+        const record = userRecord[`${phoneNumber}`];
+
+        const displayName = record.displayName;
+
+        if (displayName === '') return;
+
+        namesMap.set(phoneNumber, displayName);
+      });
+
+      return createComments(addendumDoc, profiles, namesMap);
+    })
+    .catch(console.log);
+};
+
+
 /**
  * Copies the addendum doc to the path `Updates/(uid)/Addendum/(auto-id)`
  * for the activity assignees who have auth.
@@ -305,53 +391,11 @@ module.exports = (addendumDoc) =>
       const promises = [];
 
       /** The doc.id is the phone number of the assignee. */
-      assignees.forEach((doc) => promises
-        .push(rootCollections.profiles.doc(doc.id).get()));
+      assignees.forEach((doc) =>
+        promises.push(rootCollections.profiles.doc(doc.id).get())
+      );
 
       return Promise.all(promises);
     })
-    .then((profiles) => {
-      const batch = db.batch();
-
-      profiles.forEach((profile) => {
-        /**
-         * An assignee (phone number) who's doc is added
-         * to the promises array above, may not have auth.
-         */
-        if (!profile.exists) return;
-
-        const uid = profile.get('uid');
-
-        /**
-         * No `uid` means that the user has not signed up
-         * for the app. Not writing addendum for those users.
-         * The `uid` field can be `null` too. This is for the
-         * cases when the phone number was introduced to the
-         * system in from other than `auth`. Like `creating/sharing`
-         * an activity.
-        */
-        if (!uid) return;
-
-        const profileAddendumDocRef = rootCollections
-          .updates
-          .doc(uid)
-          .collection('Addendum')
-          .doc();
-
-        batch.set(profileAddendumDocRef, {
-          activityId: addendumDoc.get('activityId'),
-          timestamp: addendumDoc.get('timestamp'),
-          userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
-          location: addendumDoc.get('location'),
-          user: addendumDoc.get('user'),
-          /**
-           * The `.id` property returns the phone number of the person who will
-           * see this comment.
-           */
-          comment: commentBuilder(addendumDoc, profile.id),
-        });
-      });
-
-      return batch.commit();
-    })
+    .then((profiles) => getDisplayNames(addendumDoc, profiles))
     .catch(console.error);

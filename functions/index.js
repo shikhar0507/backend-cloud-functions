@@ -68,13 +68,18 @@ const reportsHandler = functions
 
 const createOfficeNamePermutations = functions
   .firestore
-  .document('Office/{officeId}')
+  .document('Offices/{officeId}')
   .onCreate(require('./firestore/offices/on-create'));
 
 const purgeAddendum = functions
   .firestore
   .document('Profiles/{phoneNumber}')
   .onUpdate(require('./firestore/profiles/on-update'));
+
+const subscriptionUpdater = functions
+  .firestore
+  .document('ActivityTemplates/{docId}')
+  .onUpdate(require('./firestore/subscriptions/on-update'));
 
 
 module.exports = {
@@ -85,6 +90,8 @@ module.exports = {
   addendumHandler,
   assigneeHandler,
   activityHandler,
-  createOfficeNamePermutations,
+  // subscriptionUpdater,
+  // purgeAddendum,
   phoneNumberUpdateHandler,
+  createOfficeNamePermutations,
 };

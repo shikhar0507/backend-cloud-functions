@@ -110,8 +110,7 @@ const getProfile = (conn, userRecord) => {
     .doc(conn.requester.phoneNumber)
     .get()
     .then((doc) => {
-      conn.requester.lastQueryFrom = doc.get('lastQueryFrom');
-
+      conn.requester.lastFromQuery = doc.get('lastFromQuery');
       /**
         * When a user signs up for the first time, the `authOnCreate`
         * cloud function creates two docs in the Firestore.
@@ -147,18 +146,23 @@ const getProfile = (conn, userRecord) => {
       }
 
       if (doc.get('uid') !== conn.requester.uid) {
-        console.log('uid and auth uid doesn\'t match');
+        console.log({
+          msg: `The uid and phone number of the requester does not match.`,
+          authUid: conn.requester.uid,
+          profileUid: doc.get('uid'),
+        });
+
         /**
          * The user probably managed to change their phone number by something
          * other than out provided endpoint for updating the `auth`.
          * Disabling their account because this is not allowed.
          */
-        //   disableAccount(
-        //     conn,
-        //     `The uid and phone number of the requester does not match.`
-        //   );
+        disableAccount(
+          conn,
+          `The uid and phone number of the requester does not match.`
+        );
 
-        // return;
+        return;
       }
 
       handleRequestPath(conn);
@@ -197,7 +201,7 @@ const fetchRequesterPhoneNumber = (conn) =>
       conn.requester.phoneNumber = userRecord.phoneNumber;
       conn.requester.displayName = userRecord.displayName || '';
 
-      console.log('phoneNumber', conn.requester.phoneNumber);
+      console.log('phoneNumber:', conn.requester.phoneNumber);
 
       getProfile(conn, userRecord);
 

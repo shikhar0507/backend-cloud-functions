@@ -284,6 +284,7 @@ const users = {
 
 module.exports = {
   db,
+  auth,
   users,
   rootCollections,
   serverTimestamp,

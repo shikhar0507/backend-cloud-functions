@@ -44,18 +44,6 @@ module.exports = (userRecord) => {
   const batch = db.batch();
   const { uid, phoneNumber, } = userRecord;
 
-  batch.set(rootCollections
-    .updates
-    .doc(uid), { phoneNumber, });
-
-  /**
-   * Profile *may* exist already, if the user signed
-   * up to the platform sometime in the past.
-   */
-  batch.set(rootCollections
-    .profiles
-    .doc(phoneNumber), { uid, }, { merge: true, });
-
   /** Doc will have other phone numbers too. */
   batch.set(rootCollections
     .dailySignUps
@@ -63,6 +51,24 @@ module.exports = (userRecord) => {
       [phoneNumber]: {
         timestamp: serverTimestamp,
       },
+    }, {
+      merge: true,
+    });
+
+  batch.set(rootCollections
+    .updates
+    .doc(uid), {
+      phoneNumber,
+    });
+
+  /**
+   * Profile *may* exist already, if the user signed
+   * up to the platform sometime in the past.
+   */
+  batch.set(rootCollections
+    .profiles
+    .doc(phoneNumber), {
+      uid,
     }, {
       merge: true,
     });

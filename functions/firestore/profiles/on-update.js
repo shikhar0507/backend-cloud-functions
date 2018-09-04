@@ -48,9 +48,11 @@ const purgeAddendum = (uid, queryArg, resolve, reject) =>
 
       docs.forEach((doc) => batch.delete(doc.ref));
 
+      /* eslint-disable */
       return batch
         .commit()
         .then(() => docs.size);
+      /* eslint-enable */
     })
     .then((numberOfDocsDeleted) => {
       if (numberOfDocsDeleted === 0) return resolve();
@@ -63,8 +65,8 @@ const purgeAddendum = (uid, queryArg, resolve, reject) =>
 
 
 /**
- * Deletes the addendum docs from the `Updates/(uid)/Addendum` when the `lastFromQuery`
- * changes in the `Profiles` doc of the user.
+ * Deletes the addendum docs from the `Updates/(uid)/Addendum` when the
+ * `lastFromQuery` changes in the `Profiles` doc of the user.
  *
  * @Path: `Profiles/(phoneNumber)`
  * @Trigger: `onUpdate`
@@ -82,17 +84,6 @@ module.exports = (change) => {
   if (oldQuery === newQuery) return Promise.resolve();
 
   const uid = newProfile.get('uid');
-
-  /**
-   * The `uid` can either be `null` or a `non-empty` string.
-   *
-   * If the uid is `null`, the user's `Updates/(uid)/Addendum` collection
-   * will not exist.
-   */
-  if (!uid) return Promise.resolve();
-
-  if (oldQuery === '0') return Promise.resolve();
-  if (newQuery === '0') return Promise.resolve();
 
   const queryArg = new Date(parseInt(oldQuery));
 

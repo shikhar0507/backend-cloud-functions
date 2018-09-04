@@ -34,26 +34,28 @@ const { db, users, rootCollections, } = require('../../admin/admin');
  *
  * @param {Object} activityDocNew Reference of the Activity object.
  * @param {Object} batch Firestore batch object.
+ * @param {Object} assigneesSnapshot Firestore query snapshot containing assignees..
  * @returns {Promise<Object>} Firestore batch.
  */
-const manageSubscription = (activityDocNew, batch) => {
-  const activityId = activityDocNew.id;
+const addSubscriptionToProfile = (activityDocNew, batch, assigneesSnapshot) => {
+  const subscriberPhoneNumber =
+    activityDocNew.get('attachment.Subscriber.value');
+  const templateName = activityDocNew.get('attachment.Template.value');
 
   return rootCollections
-    .activities
-    .doc(activityId)
-    .collection('Assignees')
+    .activityTemplates
+    .where('name', '==', templateName)
+    .limit(1)
     .get()
-    .then((assignees) => {
+    .then((docs) => {
+      const doc = docs.docs[0];
       const include = [];
-      const subscriberPhoneNumber =
-        activityDocNew.get('attachment').Subscriber.value;
 
       /**
        * All assignees of the activity which as subscription are
-       * added to the `include` for the doc.
+       * added to the`include` for the doc.
        */
-      assignees.forEach((assignee) => {
+      assigneesSnapshot.forEach((assignee) => {
         /**
          * The user's own phone number should not be added
          * in the include array.
@@ -71,19 +73,22 @@ const manageSubscription = (activityDocNew, batch) => {
         include.push(assignee.id);
       });
 
-      const template = activityDocNew.get('attachment').Template.value;
-
       batch.set(rootCollections
         .profiles
         .doc(subscriberPhoneNumber)
         .collection('Subscriptions')
-        .doc(activityId), {
+        .doc(activityDocNew.id), {
           include,
-          template,
-          office: activityDocNew.get('office'),
-          officeId: activityDocNew.get('officeId'),
-          status: activityDocNew.get('status'),
+          schedule: doc.get('schedule'),
+          venue: doc.get('venue'),
+          template: doc.get('name'),
+          attachment: doc.get('attachment'),
           timestamp: activityDocNew.get('timestamp'),
+          office: activityDocNew.get('office'),
+          status: activityDocNew.get('status'),
+          canEditRule: doc.get('canEditRule'),
+          hidden: doc.get('hidden'),
+          statusOnCreate: doc.get('statusOnCreate'),
         });
 
       return batch.commit();
@@ -99,9 +104,10 @@ const manageSubscription = (activityDocNew, batch) => {
  *
  * @param {Object} activityDocNew Reference of the Activity object.
  * @param {Object} batch Firestore batch object.
+ * @param {Object} assigneesSnapshot Firestore query snapshot containing assignees..
  * @returns {Promise<Object>} Firestore batch.
  */
-const manageReport = (activityDocNew, batch) => {
+const handleReportDoc = (activityDocNew, batch, assigneesSnapshot) => {
   const activityId = activityDocNew.id;
   const template = activityDocNew.get('template');
   const cc = 'help@growthfile.com';
@@ -110,20 +116,14 @@ const manageReport = (activityDocNew, batch) => {
 
   const collectionName = `${template} Mailing List`;
 
-  return rootCollections
-    .activities
-    .doc(activityId)
-    .collection('Assignees')
-    .get()
-    .then((snapShot) => snapShot.forEach((doc) => include.push(doc.id)))
-    .then(() => {
-      batch.set(db
-        .collection(collectionName)
-        .doc(activityId), { cc, office, include, });
+  /** The doc.id is the phone number of an assignee. */
+  assigneesSnapshot.forEach((doc) => include.push(doc.id));
 
-      return batch.commit();
-    })
-    .catch(console.error);
+  batch.set(db
+    .collection(collectionName)
+    .doc(activityId), { cc, office, include, });
+
+  return batch.commit().catch(console.error);
 };
 
 
@@ -136,7 +136,7 @@ const manageReport = (activityDocNew, batch) => {
  * @param {Object} batch Firestore batch object.
  * @returns {Promise<Object>} Firestore batch.
  */
-const manageAdmin = (activityDocNew, batch) => {
+const setAdminCustomClaims = (activityDocNew, batch) => {
   const status = activityDocNew.get('status');
   const phoneNumber = activityDocNew.get('attachment').Admin.value;
 
@@ -144,7 +144,7 @@ const manageAdmin = (activityDocNew, batch) => {
     .getUserByPhoneNumber(phoneNumber)
     .then((userRecord) => {
       const phoneNumber = Object.keys(userRecord)[0];
-      const record = userRecord[`${phoneNumber}`];
+      const record = userRecord[phoneNumber];
       const uid = record.uid;
       const customClaims = record.customClaims;
       const office = activityDocNew.get('office');
@@ -165,17 +165,22 @@ const manageAdmin = (activityDocNew, batch) => {
        */
       if (status === 'CANCELLED') {
         const index = customClaims.admin.indexOf(office);
-        customClaims.admin.splice(index, 1);
 
-        newClaims = customClaims;
+        if (index > -1) {
+          customClaims.admin.splice(index, 1);
+          newClaims = customClaims;
+        }
+
       } else {
         /**
          * The user already is `admin` of another office.
          * Preserving their older permission for that case..
          */
         if (customClaims && customClaims.admin) {
-          customClaims.admin.push(office);
-          newClaims = customClaims;
+          if (customClaims.admin.indexOf(office) === -1) {
+            customClaims.admin.push(office);
+            newClaims = customClaims;
+          }
         }
       }
 
@@ -189,7 +194,6 @@ const manageAdmin = (activityDocNew, batch) => {
     })
     .catch(console.error);
 };
-
 
 
 /**
@@ -210,13 +214,14 @@ const manageAdmin = (activityDocNew, batch) => {
 module.exports = (change, context) => {
   const activityDocNew = change.after;
   const activityId = context.params.activityId;
-  const assigneeCanEdit = {};
+  const assigneeCanEditMap = {};
+  let assigneesSnapshot;
 
   /**
    * Only for `debugging` purpose. An `activity` will *never* be deleted.
    * But, if this case is not handled, the cloud function will crash since
    * the `activityDocNew` will be `undefined` with the `onDelete` operation.
-  */
+   */
   if (!activityDocNew) return Promise.resolve('Activity was deleted.');
 
   return activityDocNew
@@ -224,15 +229,12 @@ module.exports = (change, context) => {
     .collection('Assignees')
     .get()
     .then((assignees) => {
+      assigneesSnapshot = assignees;
       const promises = [];
 
       assignees.forEach((assignee) => {
-        const phoneNumber = assignee.id;
-        const profileDoc = rootCollections.profiles.doc(phoneNumber);
-
-        promises.push(profileDoc.get());
-
-        assigneeCanEdit[phoneNumber] = assignee.get('canEdit');
+        promises.push(rootCollections.profiles.doc(assignee.id).get());
+        assigneeCanEditMap[assignee.id] = assignee.get('canEdit');
       });
 
       return Promise.all(promises);
@@ -240,21 +242,23 @@ module.exports = (change, context) => {
     .then((profiles) => {
       const batch = db.batch();
 
-      profiles.forEach((profile) => {
-        const phoneNumber = profile.id;
+      const data = activityDocNew.data();
+      data.assignees = Object.keys(assigneeCanEditMap);
 
+      console.log('assignees:', Object.keys(assigneeCanEditMap));
+
+      profiles.forEach((profile) => {
         if (!profile.exists) {
           /** Placeholder `profiles` for the users with no `auth`. */
           batch.set(profile.ref, { uid: null, });
         }
 
+        data.canEdit = assigneeCanEditMap[profile.id];
+
         batch.set(profile
           .ref
           .collection('Activities')
-          .doc(activityId), {
-            canEdit: assigneeCanEdit[phoneNumber],
-            timestamp: activityDocNew.get('timestamp'),
-          });
+          .doc(activityId), data);
       });
 
       return batch;
@@ -269,15 +273,19 @@ module.exports = (change, context) => {
       batch.set(activityDocNew.get('docRef'), activityDocNew.data());
 
       if (template === 'subscription') {
-        return manageSubscription(activityDocNew, batch);
+        return addSubscriptionToProfile(
+          activityDocNew,
+          batch,
+          assigneesSnapshot
+        );
       }
 
       if (template === 'report') {
-        return manageReport(activityDocNew, batch);
+        return handleReportDoc(activityDocNew, batch, assigneesSnapshot);
       }
 
       if (template === 'admin') {
-        return manageAdmin(activityDocNew, batch);
+        return setAdminCustomClaims(activityDocNew, batch);
       }
 
       return batch.commit();

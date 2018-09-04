@@ -35,7 +35,6 @@ const {
 } = require('../../admin/utils');
 
 
-
 /**
  * Fetches the `userRecords` for all the phone numbers from the request param.
  *

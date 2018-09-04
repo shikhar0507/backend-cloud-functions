@@ -48,10 +48,11 @@ const {
 
 const getActivityName = (conn) => {
   if (conn.req.body.attachment.hasOwnProperty('Name')) {
-    return `${conn.req.body.template}: ${conn.req.body.attachment.Name.value}`;
+    return `${conn.req.body.template.toUpperCase()}:`
+      + ` ${conn.req.body.attachment.Name.value}`;
   }
 
-  return `${conn.req.body.template}:`
+  return `${conn.req.body.template.toUpperCase()}:`
     + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
 };
 
@@ -66,12 +67,6 @@ const createDocsWithBatch = (conn, locals) => {
       if (conn.req.body.template === 'subscription' && isRequester) {
         addToInclude = false;
       }
-
-      /**
-       * Support requests won't add the creator to the
-       * activity assignee list.
-       */
-      if (isRequester && conn.requester.isSupportRequest) return;
 
       let canEdit = getCanEditValue(locals, phoneNumber);
 
@@ -118,6 +113,7 @@ const createDocsWithBatch = (conn, locals) => {
     .collection('Addendum')
     .doc(), {
       user: conn.requester.phoneNumber,
+      userDisplayName: conn.requester.displayName,
       /**
        * Numbers from `attachment`, and all other places will always
        * be present in the `allPhoneNumbers` set. Using that instead of
@@ -166,11 +162,6 @@ const handleAssignees = (conn, locals) => {
     .allPhoneNumbers
     .forEach((phoneNumber) => {
       const isRequester = phoneNumber === conn.requester.phoneNumber;
-
-      /**
-       * Support requests won't add the creator to the activity assignee list.
-       */
-      if (isRequester && conn.requester.isSupportRequest) return;
 
       locals.objects.permissions[phoneNumber] = {
         isAdmin: false,
@@ -538,7 +529,8 @@ const createLocals = (conn, result) => {
        * Using a `Set()` to avoid duplication of phone numbers.
        */
       allPhoneNumbers: new Set(),
-      /** Stores the phoneNumber and it's permission to see
+      /**
+       * Stores the phoneNumber and it's permission to see
        * if it is an `admin` of the office, or an `employee`.
        */
       permissions: {},
@@ -567,25 +559,10 @@ const createLocals = (conn, result) => {
     },
   };
 
-  if (!conn.requester.isSupportRequest) {
-    locals.objects.allPhoneNumbers.add(conn.requester.phoneNumber);
-  }
-
   const [
-    templateQueryResult,
     subscriptionQueryResult,
     officeQueryResult,
   ] = result;
-
-  if (templateQueryResult.empty) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `Template '${conn.req.body.template}' not found.`
-    );
-
-    return;
-  }
 
   if (officeQueryResult.empty && conn.req.body.template !== 'office') {
     sendResponse(
@@ -596,13 +573,6 @@ const createLocals = (conn, result) => {
 
     return;
   }
-
-  locals.objects.schedule = templateQueryResult.docs[0].get('schedule');
-  locals.objects.venue = templateQueryResult.docs[0].get('venue');
-  locals.objects.attachment = templateQueryResult.docs[0].get('attachment');
-  locals.static.canEditRule = templateQueryResult.docs[0].get('canEditRule');
-  locals.static.statusOnCreate = templateQueryResult.docs[0].get('statusOnCreate');
-  locals.static.hidden = templateQueryResult.docs[0].get('hidden');
 
   if (subscriptionQueryResult.empty && !conn.requester.isSupportRequest) {
     sendResponse(
@@ -671,10 +641,35 @@ const createLocals = (conn, result) => {
         .doc(locals.static.activityId);
   }
 
-  if (conn.req.body.hasOwnProperty('share')) {
-    conn.req.body.share
-      .forEach((phoneNumber) =>
-        locals.objects.allPhoneNumbers.add(phoneNumber));
+  conn.req.body.share.forEach((phoneNumber) =>
+    locals.objects.allPhoneNumbers.add(phoneNumber));
+
+  if (!conn.requester.isSupportRequest) {
+    locals.objects.schedule = subscriptionQueryResult.docs[0].get('schedule');
+    locals.objects.venue = subscriptionQueryResult.docs[0].get('venue');
+    locals.objects.attachment = subscriptionQueryResult.docs[0].get('attachment');
+    locals.static.canEditRule = subscriptionQueryResult.docs[0].get('canEditRule');
+    locals.static.statusOnCreate = subscriptionQueryResult.docs[0].get('statusOnCreate');
+    locals.static.hidden = subscriptionQueryResult.docs[0].get('hidden');
+  } else {
+    const templateQueryResult = result[2];
+
+    if (templateQueryResult.empty) {
+      sendResponse(
+        conn,
+        code.badRequest,
+        `No template found with the name: ${conn.req.body.template}`
+      );
+
+      return;
+    }
+
+    locals.objects.schedule = templateQueryResult.docs[0].get('schedule');
+    locals.objects.venue = templateQueryResult.docs[0].get('venue');
+    locals.objects.attachment = templateQueryResult.docs[0].get('attachment');
+    locals.static.canEditRule = templateQueryResult.docs[0].get('canEditRule');
+    locals.static.statusOnCreate = templateQueryResult.docs[0].get('statusOnCreate');
+    locals.static.hidden = templateQueryResult.docs[0].get('hidden');
   }
 
   handleScheduleAndVenue(conn, locals);
@@ -682,27 +677,39 @@ const createLocals = (conn, result) => {
 
 
 const fetchDocs = (conn) => {
-  Promise
-    .all([
-      rootCollections
+  const promises = [
+    rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Subscriptions')
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', conn.req.body.template)
+      .limit(1)
+      .get(),
+    rootCollections
+      .offices
+      .where('attachment.Name.value', '==', conn.req.body.office)
+      .limit(1)
+      .get(),
+  ];
+
+  /**
+   * Bringing in the template doc when the request is of type
+   * support since the requester may or may not have the subscription
+   * to the template they want to use.
+   */
+  if (conn.requester.isSupportRequest) {
+    promises
+      .push(rootCollections
         .activityTemplates
         .where('name', '==', conn.req.body.template)
         .limit(1)
-        .get(),
-      rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .collection('Subscriptions')
-        .where('office', '==', conn.req.body.office)
-        .where('template', '==', conn.req.body.template)
-        .limit(1)
-        .get(),
-      rootCollections
-        .offices
-        .where('attachment.Name.value', '==', conn.req.body.office)
-        .limit(1)
-        .get(),
-    ])
+        .get()
+      );
+  }
+
+  Promise
+    .all(promises)
     .then((result) => createLocals(conn, result))
     .catch((error) => handleError(conn, error));
 };
