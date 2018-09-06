@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { isValidRequestBody, } = require('./helper');
+const { isValidRequestBody, checkActivityAndAssignee, } = require('./helper');
 const { code, } = require('../../admin/responses');
 const { httpsActions, } = require('../../admin/constants');
 const {
@@ -43,30 +43,33 @@ const {
 const createDocs = (conn, activity) => {
   const batch = db.batch();
 
+  const addendumDocRef = rootCollections
+    .offices
+    .doc(activity.get('officeId'))
+    .collection('Addendum')
+    .doc();
+
   batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
+      addendumDocRef,
       status: conn.req.body.status,
       timestamp: serverTimestamp,
     }, {
       merge: true,
     });
 
-  batch.set(rootCollections
-    .offices
-    .doc(activity.get('officeId'))
-    .collection('Addendum')
-    .doc(), {
-      user: conn.requester.phoneNumber,
-      action: httpsActions.changeStatus,
-      status: conn.req.body.status,
-      location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      activityId: conn.req.body.activityId,
-      activityName: activity.get('activityName'),
-      isSupportRequest: conn.requester.isSupportRequest,
-    });
+  batch.set(addendumDocRef, {
+    user: conn.requester.phoneNumber,
+    action: httpsActions.changeStatus,
+    status: conn.req.body.status,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: serverTimestamp,
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    activityId: conn.req.body.activityId,
+    activityName: activity.get('activityName'),
+    isSupportRequest: conn.requester.isSupportRequest,
+  });
 
   batch
     .commit()
@@ -74,78 +77,36 @@ const createDocs = (conn, activity) => {
     .catch((error) => handleError(conn, error));
 };
 
+const handleResult = (conn, docs) => {
+  const result = checkActivityAndAssignee(
+    docs,
+    conn.requester.isSupportRequest
+  );
 
-const fetchDocs = (conn) =>
-  rootCollections
-    .activities
-    .doc(conn.req.body.activityId)
-    .get()
-    .then((activity) => {
-      if (!activity.exists) {
-        sendResponse(
-          conn,
-          code.badRequest,
-          `No activity found with the id: '${conn.req.body.activityId}'.`
-        );
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
 
-        return;
-      }
+    return;
+  }
 
-      if (activity.get('status') === conn.req.body.status) {
-        sendResponse(
-          conn,
-          code.conflict,
-          `The activity status is already '${conn.req.body.status}'.`
-        );
+  const [activity,] = docs;
 
-        return;
-      }
+  if (activity.get('status') === conn.req.body.status) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `The activity status is already '${conn.req.body.status}'.`
+    );
 
-      createDocs(conn, activity);
+    return;
+  }
 
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-
-
-const checkActivityDocInUserProfile = (conn) =>
-  rootCollections
-    .profiles
-    .doc(conn.requester.phoneNumber)
-    .collection('Activities')
-    .doc(conn.req.body.activityId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        /** The activity doesn't exist for the user */
-        sendResponse(
-          conn,
-          code.notFound,
-          `No activity found with the id: '${conn.req.body.activityId}'.`
-        );
-
-        return;
-      }
-
-      if (!doc.get('canEdit')) {
-        sendResponse(
-          conn,
-          code.forbidden,
-          'You do not have the permission to edit this activity.'
-        );
-
-        return;
-      }
-
-      fetchDocs(conn);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  createDocs(conn, activity);
+};
 
 
 module.exports = (conn) => {
-  const result = isValidRequestBody(conn.req.body, 'change-status');
+  const result = isValidRequestBody(conn.req.body, httpsActions.changeStatus);
 
   if (!result.isValid) {
     sendResponse(
@@ -157,16 +118,19 @@ module.exports = (conn) => {
     return;
   }
 
-
-  /**
-   * The `support` person doesn't need to be an assignee
-   * of the activity to make changes.
-   */
-  if (conn.requester.isSupportRequest) {
-    fetchDocs(conn);
-
-    return;
-  }
-
-  checkActivityDocInUserProfile(conn);
+  Promise
+    .all([
+      rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .get(),
+      rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(conn.requester.phoneNumber)
+        .get(),
+    ])
+    .then((docs) => handleResult(conn, docs))
+    .catch((error) => handleError(conn, error));
 };

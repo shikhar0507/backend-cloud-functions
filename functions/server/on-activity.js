@@ -57,7 +57,7 @@ const handleAction = (conn, action) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action}`
+        `${conn.req.method} is not allowed for the /comment`
         + ' endpoint. Use POST.'
       );
 
@@ -125,24 +125,6 @@ const handleAction = (conn, action) => {
     return;
   }
 
-  if (action.startsWith('remove')) {
-    if (conn.req.method !== 'PATCH') {
-      sendResponse(
-        conn,
-        code.methodNotAllowed,
-        `${conn.req.method} is not allowed for the /${action}`
-        + ' endpoint. Use PATCH.'
-      );
-
-      return;
-    }
-
-    const onRemove = require('../firestore/activity/on-remove');
-    onRemove(conn);
-
-    return;
-  }
-
   sendResponse(
     conn,
     code.notFound,
@@ -173,7 +155,6 @@ module.exports = (conn) => {
 
   if (conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims)) {
-    // TODO: Probably disable user account here too. Not sure.
     sendResponse(
       conn,
       code.forbidden,

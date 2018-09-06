@@ -43,26 +43,31 @@ const {
 const createDocs = (conn, activity) => {
   const batch = db.batch();
 
-  batch.set(rootCollections
-    .activities
-    .doc(conn.req.body.activityId), {
-      timestamp: serverTimestamp,
-    }, { merge: true, });
-
-  batch.set(rootCollections
+  const addendumDocRef = rootCollections
     .offices
     .doc(activity.get('officeId'))
     .collection('Addendum')
-    .doc(), {
-      user: conn.requester.phoneNumber,
-      action: httpsActions.comment,
-      comment: conn.req.body.comment,
-      location: getGeopointObject(conn.req.body.geopoint),
+    .doc();
+
+  batch.set(rootCollections
+    .activities
+    .doc(conn.req.body.activityId), {
+      addendumDocRef,
       timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      activityId: conn.req.body.activityId,
-      isSupportRequest: conn.requester.isSupportRequest,
+    }, {
+      merge: true,
     });
+
+  batch.set(addendumDocRef, {
+    user: conn.requester.phoneNumber,
+    action: httpsActions.comment,
+    comment: conn.req.body.comment,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: serverTimestamp,
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    activityId: conn.req.body.activityId,
+    isSupportRequest: conn.requester.isSupportRequest,
+  });
 
   batch
     .commit()
@@ -72,7 +77,7 @@ const createDocs = (conn, activity) => {
 
 
 module.exports = (conn) => {
-  const result = isValidRequestBody(conn.req.body, 'comment');
+  const result = isValidRequestBody(conn.req.body, httpsActions.comment);
 
   if (!result.isValid) {
     sendResponse(
@@ -87,40 +92,30 @@ module.exports = (conn) => {
   Promise
     .all([
       rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .collection('Activities')
+        .activities
         .doc(conn.req.body.activityId)
         .get(),
       rootCollections
         .activities
         .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(conn.requester.phoneNumber)
         .get(),
     ])
-    .then((result) => {
-      const profileActivityDoc = result[1];
-      const activity = result[1];
-
-      if (!profileActivityDoc.exists) {
-        sendResponse(
-          conn,
-          code.badRequest,
-          `No activity found with the id: '${conn.req.body.activityId}'.`
-        );
-
-        return;
-      }
+    .then((docs) => {
+      const [activity, assignee,] = docs;
 
       if (!activity.exists) {
-        sendResponse(
-          conn,
-          code.badRequest,
-          `No activity found with the id: '${conn.req.body.activityId}'.`
-        );
+        sendResponse(conn, code.badRequest, `The activity does not exist`);
 
         return;
       }
 
+      if (!assignee.exists) {
+        sendResponse(conn, code.forbidden, `You cannot edit this activity.`);
+
+        return;
+      }
 
       createDocs(conn, activity);
 

@@ -994,11 +994,44 @@ const getPhoneNumbersFromAttachment = (attachment) => {
 };
 
 
+const checkActivityAndAssignee = (docs, isSupportRequest) => {
+  const [activity, requester,] = docs;
+
+  if (!activity.exists) {
+    return {
+      isValid: false,
+      message: `The activity does not exist.`,
+    };
+  }
+
+  if (!isSupportRequest) {
+    const message = `You cannot edit this activity.`;
+
+    if (!requester.exists) {
+      return {
+        isValid: false,
+        message,
+      };
+    }
+
+    if (!requester.get('canEdit')) {
+      return {
+        isValid: false,
+        message,
+      };
+    }
+  }
+
+  return { isValid: true, message: null, };
+};
+
+
 module.exports = {
   validateVenues,
   getCanEditValue,
   validateSchedules,
   filterAttachment,
   isValidRequestBody,
+  checkActivityAndAssignee,
   getPhoneNumbersFromAttachment,
 };

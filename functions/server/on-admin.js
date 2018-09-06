@@ -90,5 +90,9 @@ module.exports = (conn) => {
 
   if (action.startsWith('read')) {
     handleAction(conn, action);
+
+    return;
   }
+
+  sendResponse(conn, code.notImplemented, 'No resource found at this path.');
 };

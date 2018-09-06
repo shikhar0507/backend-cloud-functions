@@ -39,6 +39,7 @@ const {
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
+  checkActivityAndAssignee,
 } = require('./helper');
 const {
   handleError,
@@ -48,6 +49,12 @@ const {
 
 const updateDocsWithBatch = (conn, locals) => {
   const activityRef = rootCollections.activities.doc(conn.req.body.activityId);
+
+  locals.objects.updatedFields.addendumDocRef = rootCollections
+    .offices
+    .doc(locals.docs.activity.get('officeId'))
+    .collection('Addendum')
+    .doc();
 
   locals.batch.set(activityRef,
     locals.objects.updatedFields, {
@@ -77,11 +84,10 @@ const updateDocsWithBatch = (conn, locals) => {
         });
     });
 
-  locals.batch.set(rootCollections
-    .offices
-    .doc(locals.docs.activity.get('officeId'))
-    .collection('Addendum')
-    .doc(), {
+  locals.batch.set(locals
+    .objects
+    .updatedFields
+    .addendumDocRef, {
       user: conn.requester.phoneNumber,
       action: httpsActions.update,
       location: getGeopointObject(conn.req.body.geopoint),
@@ -145,6 +151,7 @@ const handleAssignees = (conn, locals) => {
   const activityAttachment = locals.docs.activity.get('attachment');
 
   const promises = [];
+  let phoneNumbersChanged = false;
 
   bodyAttachmentFields.forEach((field) => {
     const item = conn.req.body.attachment[field];
@@ -157,6 +164,8 @@ const handleAssignees = (conn, locals) => {
 
     /** Nothing has changed, so no point in creating promises. */
     if (oldPhoneNumber === newPhoneNumber) return;
+
+    phoneNumbersChanged = true;
 
     if (oldPhoneNumber !== '' && newPhoneNumber === '') {
       locals.batch.delete(rootCollections
@@ -214,6 +223,21 @@ const handleAssignees = (conn, locals) => {
       );
     }
   });
+
+  if (new Map()
+    .set('subscription', 'subscription')
+    .set('admin', 'admin')
+    .has(locals.static.template)
+    && phoneNumbersChanged) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `Phone numbers cannot be updated for the template:`
+      + ` ${locals.static.template}`
+    );
+
+    return;
+  }
 
   if (promises.length === 0) {
     getUpdatedFields(conn, locals);
@@ -439,41 +463,19 @@ const handleAttachment = (conn, locals) => {
 };
 
 
-const handleResult = (conn, result) => {
-  const profileActivity = result[0];
-  const activity = result[1];
+const handleResult = (conn, docs) => {
+  const result = checkActivityAndAssignee(
+    docs,
+    conn.requester.isSupportRequest
+  );
 
-  if (!conn.requester.isSupportRequest) {
-    if (!profileActivity.exists) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `No activity found with the id: '${conn.req.body.activityId}'.`
-      );
-
-      return;
-    }
-
-    if (!profileActivity.get('canEdit')) {
-      sendResponse(
-        conn,
-        code.forbidden,
-        'You do not have the permission to edit this activity.'
-      );
-
-      return;
-    }
-  }
-
-  if (!activity.exists) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `No activity found with the id: '${conn.req.body.activityId}'.`
-    );
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
 
     return;
   }
+
+  const [activity,] = docs;
 
   const locals = {
     batch: db.batch(),
@@ -500,7 +502,7 @@ const handleResult = (conn, result) => {
 
 
 module.exports = (conn) => {
-  const result = isValidRequestBody(conn.req.body, 'update');
+  const result = isValidRequestBody(conn.req.body, httpsActions.update);
 
   if (!result.isValid) {
     sendResponse(
@@ -512,18 +514,19 @@ module.exports = (conn) => {
     return;
   }
 
-  Promise.all([
-    rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber)
-      .collection('Activities')
-      .doc(conn.req.body.activityId)
-      .get(),
-    rootCollections
-      .activities
-      .doc(conn.req.body.activityId)
-      .get(),
-  ])
+  Promise
+    .all([
+      rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .get(),
+      rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(conn.requester.phoneNumber)
+        .get(),
+    ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
 };

@@ -83,16 +83,14 @@ const createDocsWithBatch = (conn, locals) => {
         });
     });
 
+  const addendumDocRef = rootCollections
+    .offices
+    .doc(locals.static.officeId)
+    .collection('Addendum')
+    .doc();
+
   locals.batch.set(locals.docs.activityRef, {
-    /**
-     * The `docRef` path can be a doc in two places.
-     * If the template in the request body is `office`,
-     * the Path will be `Offices/(activityId)`.
-     *
-     * In all other cases, the path will be
-     * `Offices/(officeId)/Activities/(activityId)`
-     */
-    docRef: locals.docs.docRef,
+    addendumDocRef,
     venue: locals.objects.venueArray,
     timestamp: serverTimestamp,
     office: conn.req.body.office,
@@ -107,29 +105,25 @@ const createDocsWithBatch = (conn, locals) => {
     creator: conn.requester.phoneNumber,
   });
 
-  locals.batch.set(rootCollections
-    .offices
-    .doc(locals.static.officeId)
-    .collection('Addendum')
-    .doc(), {
-      user: conn.requester.phoneNumber,
-      userDisplayName: conn.requester.displayName,
-      /**
-       * Numbers from `attachment`, and all other places will always
-       * be present in the `allPhoneNumbers` set. Using that instead of
-       * the request body `share` to avoid some users being missed
-       * in the `comment`.
-       */
-      share: Array.from(locals.objects.allPhoneNumbers),
-      action: httpsActions.create,
-      template: conn.req.body.template,
-      location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      activityId: locals.static.activityId,
-      activityName: getActivityName(conn),
-      isSupportRequest: conn.requester.isSupportRequest,
-    });
+  locals.batch.set(addendumDocRef, {
+    user: conn.requester.phoneNumber,
+    userDisplayName: conn.requester.displayName,
+    /**
+     * Numbers from `attachment`, and all other places will always
+     * be present in the `allPhoneNumbers` set. Using that instead of
+     * the request body `share` to avoid some users being missed
+     * in the `comment`.
+     */
+    share: Array.from(locals.objects.allPhoneNumbers),
+    action: httpsActions.create,
+    template: conn.req.body.template,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: serverTimestamp,
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    activityId: locals.static.activityId,
+    activityName: getActivityName(conn),
+    isSupportRequest: conn.requester.isSupportRequest,
+  });
 
   /** ENDS the response. */
   locals.batch.commit()
@@ -543,19 +537,6 @@ const createLocals = (conn, result) => {
      */
     docs: {
       activityRef,
-      /**
-       * Points to the document which this activity was used to create.
-       * This either points to an `office` doc, or an activity doc
-       * which is a child to that `office`.
-       *
-       * @description The `docRef` is the same as the `activityId`
-       * for the case when the template name is `office`. For any
-       * other case, like (e.g., template name === 'employee'), this
-       * value will be updated to point to a document inside
-       * a sub-collection in the path
-       * `Offices/(officeId)/Activities/(activityId)`.
-       */
-      docRef: rootCollections.offices.doc(activityRef.id),
     },
   };
 
@@ -633,12 +614,6 @@ const createLocals = (conn, result) => {
     const officeId = officeQueryResult.docs[0].id;
 
     locals.static.officeId = officeId;
-    locals.docs.docRef =
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Activities')
-        .doc(locals.static.activityId);
   }
 
   conn.req.body.share.forEach((phoneNumber) =>
@@ -670,6 +645,10 @@ const createLocals = (conn, result) => {
     locals.static.canEditRule = templateQueryResult.docs[0].get('canEditRule');
     locals.static.statusOnCreate = templateQueryResult.docs[0].get('statusOnCreate');
     locals.static.hidden = templateQueryResult.docs[0].get('hidden');
+  }
+
+  if (!conn.requester.isSupportRequest) {
+    locals.objects.allPhoneNumbers.add(conn.requester.phoneNumber);
   }
 
   handleScheduleAndVenue(conn, locals);

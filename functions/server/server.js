@@ -324,7 +324,10 @@ module.exports = (req, res) => {
     'Cache-Control': 'no-cache',
   };
 
-  if (['OPTIONS', 'HEAD',].indexOf(req.method) > -1) {
+  if (new Set()
+    .add('OPTIONS')
+    .add('HEAD')
+    .has(req.method)) {
     /** FOR handling CORS... */
     sendResponse(conn, code.noContent);
 
@@ -332,7 +335,12 @@ module.exports = (req, res) => {
   }
 
   /** Allowed methods */
-  if (['GET', 'POST', 'PATCH', 'PUT',].indexOf(req.method) > -1) {
+  if (new Set()
+    .add('GET')
+    .add('POST')
+    .add('PATCH')
+    .add('PUT')
+    .has(req.method)) {
     checkAuthorizationToken(conn);
 
     return;

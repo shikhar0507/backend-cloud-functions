@@ -319,23 +319,27 @@ const createComments = (addendumDoc, profiles, namesMap) => {
     */
     if (!uid) return;
 
-    batch.set(rootCollections
+    const docRef = rootCollections
       .updates
       .doc(uid)
       .collection('Addendum')
-      .doc(), {
-        activityId: addendumDoc.get('activityId'),
-        timestamp: addendumDoc.get('timestamp'),
-        userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
-        location: addendumDoc.get('location'),
-        user: addendumDoc.get('user'),
-        /**
-         * The `.id` property returns the phone number of the person who will
-         * see this comment.
-         */
-        comment: commentBuilder(addendumDoc, profile.id, namesMap),
-      });
+      .doc();
+
+    batch.set(docRef, {
+      /**
+       * The `.id` property returns the phone number of the person who will
+       * see this comment.
+       */
+      comment: commentBuilder(addendumDoc, profile.id, namesMap),
+      activityId: addendumDoc.get('activityId'),
+      timestamp: addendumDoc.get('timestamp'),
+      userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
+      location: addendumDoc.get('location'),
+      user: addendumDoc.get('user'),
+    });
   });
+
+  return batch.commit();
 };
 
 

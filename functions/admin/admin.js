@@ -149,7 +149,7 @@ const getUserByPhoneNumber = (phoneNumber) =>
 
       /**
        * Any other cases except the ones handled above should be
-       * noted by the devs.
+       * noted by the developers.
        */
       console.error(error);
 

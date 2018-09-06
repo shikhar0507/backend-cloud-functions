@@ -41,11 +41,6 @@ const api = functions
   .https
   .onRequest(require('./server/server'));
 
-const addendumHandler = functions
-  .firestore
-  .document('Offices/{officeId}/Addendum/{docId}')
-  .onCreate(require('./firestore/addendum/index'));
-
 const assigneeHandler = functions
   .firestore
   .document('Activities/{activityId}/Assignees/{phoneNumber}')
@@ -87,11 +82,10 @@ module.exports = {
   authOnCreate,
   authOnDelete,
   reportsHandler,
-  addendumHandler,
   assigneeHandler,
   activityHandler,
-  // subscriptionUpdater,
-  // purgeAddendum,
+  subscriptionUpdater,
+  purgeAddendum,
   phoneNumberUpdateHandler,
   createOfficeNamePermutations,
 };

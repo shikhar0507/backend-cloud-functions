@@ -25,7 +25,11 @@
 'use strict';
 
 
-const { isValidRequestBody, getCanEditValue, } = require('./helper');
+const {
+  isValidRequestBody,
+  getCanEditValue,
+  checkActivityAndAssignee,
+} = require('./helper');
 const { code, } = require('../../admin/responses');
 const { httpsActions, } = require('../../admin/constants');
 const {
@@ -45,44 +49,52 @@ const {
  * for use in the function flow.
  *
  * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Array} result Docs fetched from Firestore.
+ * @param {Array} docs Docs fetched from Firestore.
  * @returns {void}
  */
-const handleResult = (conn, result) => {
-  const profileActivity = result[0];
-  const activity = result[1];
+const handleResult = (conn, docs) => {
+  const result = checkActivityAndAssignee(
+    docs,
+    conn.requester.isSupportRequest
+  );
 
-  if (!conn.requester.isSupportRequest) {
-    if (!profileActivity.exists) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `No activity found with the id: '${conn.req.body.activityId}'.`
-      );
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
 
-      return;
-    }
-
-    if (!profileActivity.get('canEdit')) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `You cannot edit this activity.`
-      );
-
-      return;
-    }
+    return;
   }
 
-  if (!activity.exists) {
+  let allAreNew = true;
+  let phoneNumber;
+
+  docs.forEach((doc, index) => {
+    /**
+     * The first two docs are activity doc and the
+     * requester's doc. They have already been validated above.
+     */
+    if (index === 0) return;
+    if (index === 1) return;
+
+    /**
+     * If an `assignee` already exists in the Activity assignee list.
+     */
+    if (doc.exists) {
+      allAreNew = false;
+      phoneNumber = doc.id;
+    }
+  });
+
+  if (!allAreNew) {
     sendResponse(
       conn,
       code.badRequest,
-      `No activity found with the id: '${conn.req.body.activityId}'.`
+      `${phoneNumber} is already an assignee of the activity.`
     );
 
     return;
   }
+
+  const [activity,] = docs;
 
   const locals = {
     objects: {
@@ -178,29 +190,32 @@ const handleResult = (conn, result) => {
           });
       });
 
+      const addendumDocRef = rootCollections
+        .offices
+        .doc(activity.get('officeId'))
+        .collection('Addendum')
+        .doc();
+
       batch.set(rootCollections
         .activities
         .doc(conn.req.body.activityId), {
+          addendumDocRef,
           timestamp: serverTimestamp,
         }, {
           merge: true,
         });
 
-      batch.set(rootCollections
-        .offices
-        .doc(activity.get('officeId'))
-        .collection('Addendum')
-        .doc(), {
-          user: conn.requester.phoneNumber,
-          share: conn.req.body.share,
-          action: httpsActions.share,
-          location: getGeopointObject(conn.req.body.geopoint),
-          timestamp: serverTimestamp,
-          userDeviceTimestamp: new Date(conn.req.body.timestamp),
-          activityId: conn.req.body.activityId,
-          activityName: activity.get('activityName'),
-          isSupportRequest: conn.requester.isSupportRequest,
-        });
+      batch.set(addendumDocRef, {
+        user: conn.requester.phoneNumber,
+        share: conn.req.body.share,
+        action: httpsActions.share,
+        location: getGeopointObject(conn.req.body.geopoint),
+        timestamp: serverTimestamp,
+        userDeviceTimestamp: new Date(conn.req.body.timestamp),
+        activityId: conn.req.body.activityId,
+        activityName: activity.get('activityName'),
+        isSupportRequest: conn.requester.isSupportRequest,
+      });
 
       return batch.commit();
     })
@@ -210,7 +225,7 @@ const handleResult = (conn, result) => {
 
 
 module.exports = (conn) => {
-  const result = isValidRequestBody(conn.req.body, 'share');
+  const result = isValidRequestBody(conn.req.body, httpsActions.share);
 
   if (!result.isValid) {
     sendResponse(
@@ -222,19 +237,24 @@ module.exports = (conn) => {
     return;
   }
 
+  const activityRef = rootCollections.activities.doc(conn.req.body.activityId);
+  const assigneesCollectionRef = activityRef.collection('Assignees');
+
+  const promises = [
+    activityRef
+      .get(),
+    assigneesCollectionRef
+      .doc(conn.requester.phoneNumber)
+      .get(),
+  ];
+
+  conn.req.body.share.forEach(
+    (phoneNumber) =>
+      promises.push(assigneesCollectionRef.doc(phoneNumber).get())
+  );
+
   Promise
-    .all([
-      rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .collection('Activities')
-        .doc(conn.req.body.activityId)
-        .get(),
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .get(),
-    ])
-    .then((result) => handleResult(conn, result))
+    .all(promises)
+    .then((docs) => handleResult(conn, docs))
     .catch((error) => handleError(conn, error));
 };

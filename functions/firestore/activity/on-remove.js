@@ -38,74 +38,46 @@ const {
 } = require('../../admin/admin');
 const {
   isValidRequestBody,
-  getPhoneNumbersFromAttachment,
+  checkActivityAndAssignee,
 } = require('./helper');
 
 
-const handleResult = (conn, result) => {
-  const profileActivity = result[0];
-  const activity = result[1];
-  const assignees = result[2];
-  const removedUserUpdatesSnapshot = result[3];
+const getPhoneNumbersFromAttachment = (attachment) => {
+  const phoneNumbersSet = new Set();
 
-  if (!conn.requester.isSupportRequest) {
-    if (!profileActivity.exists) {
-      sendResponse(
-        conn,
-        code.notFound,
-        `No activity found with the id: '${conn.req.body.activityId}'.`
-      );
+  Object.keys(attachment).forEach((key) => {
+    const field = attachment[key];
+    const type = field.type;
+    const value = field.value;
 
-      return;
-    }
+    if (type !== 'phoneNumber') return;
 
-    if (!profileActivity.get('canEdit')) {
-      sendResponse(
-        conn,
-        code.forbidden,
-        'You do not have the permission to edit this activity.'
-      );
-
-      return;
-    }
-  }
-
-  if (!activity.exists) {
-    sendResponse(
-      conn,
-      code.notFound,
-      `No activity found with the id: '${conn.req.body.activityId}'.`
-    );
-
-    return;
-  }
-
-  if (assignees.size === 1) {
-    sendResponse(
-      conn,
-      code.conflict,
-      `Cannot remove an assignee from an activity with only one assignee.`
-    );
-
-    return;
-  }
-
-  let found = false;
-
-  assignees.forEach((doc) => {
-    const phoneNumber = doc.id;
-
-    if (phoneNumber !== conn.req.body.remove) return;
-
-    found = true;
+    phoneNumbersSet.add(value);
   });
 
-  if (!found) {
+  return phoneNumbersSet;
+};
+
+
+const handleResult = (conn, docs) => {
+  const [activity, _, removed,] = docs;
+
+  const result = checkActivityAndAssignee(
+    docs,
+    conn.requester.isSupportRequest
+  );
+
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
+
+    return;
+  }
+
+  if (!removed.exists) {
     sendResponse(
       conn,
       code.conflict,
-      `No assignee found with the phone number: '${conn.req.body.remove}'`
-      + ` in this activity.`
+      `${removed.id} is not an assignee of the activity.`
     );
 
     return;
@@ -136,49 +108,32 @@ const handleResult = (conn, result) => {
     .doc(conn.req.body.remove)
   );
 
+  const addendumDocRef = rootCollections
+    .offices
+    .doc(activity.get('officeId'))
+    .collection('Addendum')
+    .doc();
+
   batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
+      addendumDocRef,
       timestamp: serverTimestamp,
     }, {
       merge: true,
     });
 
-  batch.set(rootCollections
-    .offices
-    .doc(activity.get('officeId'))
-    .collection('Addendum')
-    .doc(), {
-      user: conn.requester.phoneNumber,
-      remove: conn.req.body.remove,
-      action: httpsActions.remove,
-      location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      activityId: conn.req.body.activityId,
-      activityName: activity.get('activityName'),
-      isSupportRequest: conn.requester.isSupportRequest,
-    });
-
-  /**
-   * Only write `comment` to the `Updates` of the person
-   * when they exist in the platform as a user.
-   */
-  if (!removedUserUpdatesSnapshot.empty) {
-    const doc = removedUserUpdatesSnapshot.docs[0];
-
-    batch.set(doc
-      .ref
-      .collection('Addendum')
-      .doc(), {
-        timestamp: serverTimestamp,
-        user: conn.requester.phoneNumber,
-        activityId: conn.req.body.activityId,
-        comment: `${conn.requester.phoneNumber} removed you`,
-        userDeviceTimestamp: new Date(conn.req.body.timestamp),
-        location: getGeopointObject(conn.req.body.geopoint),
-      });
-  }
+  batch.set(addendumDocRef, {
+    user: conn.requester.phoneNumber,
+    remove: conn.req.body.remove,
+    action: httpsActions.remove,
+    location: getGeopointObject(conn.req.body.geopoint),
+    timestamp: serverTimestamp,
+    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    activityId: conn.req.body.activityId,
+    activityName: activity.get('activityName'),
+    isSupportRequest: conn.requester.isSupportRequest,
+  });
 
   batch.commit()
     .then(() => sendResponse(conn, code.noContent))
@@ -187,7 +142,7 @@ const handleResult = (conn, result) => {
 
 
 module.exports = (conn) => {
-  const result = isValidRequestBody(conn.req.body, 'remove');
+  const result = isValidRequestBody(conn.req.body, httpsActions.remove);
 
   if (!result.isValid) {
     sendResponse(
@@ -199,28 +154,33 @@ module.exports = (conn) => {
     return;
   }
 
+  if (conn.req.body.remove === conn.requester.phoneNumber) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `You cannot unassign yourself from the activity.`
+    );
+
+    return;
+  }
+
+  const activityRef = rootCollections
+    .activities
+    .doc(conn.req.body.activityId);
+
+  const assigneesCollectionRef = activityRef.collection('Assignees');
+
   Promise
     .all([
-      rootCollections
-        .profiles
+      activityRef
+        .get(),
+      assigneesCollectionRef
         .doc(conn.requester.phoneNumber)
-        .collection('Activities')
-        .doc(conn.req.body.activityId)
         .get(),
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .get(),
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .get(),
-      rootCollections
-        .updates
-        .where('phoneNumber', '==', conn.req.body.remove)
+      assigneesCollectionRef
+        .doc(conn.req.body.remove)
         .get(),
     ])
-    .then((result) => handleResult(conn, result))
+    .then((docs) => handleResult(conn, docs))
     .catch((error) => handleError(conn, error));
 };
