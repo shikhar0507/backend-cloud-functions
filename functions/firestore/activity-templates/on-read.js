@@ -36,19 +36,23 @@ const {
 
 
 const getDocObject = (doc) => {
-  return {
-    name: doc.get('name'),
-    venue: doc.get('venue'),
-    hidden: doc.get('hidden'),
-    comment: doc.get('comment'),
-    schedule: doc.get('schedule'),
-    attachment: doc.get('attachment'),
-    createTime: doc.createTime.toDate(),
-    updateTime: doc.updateTime.toDate(),
-    canEditRule: doc.get('canEditRule'),
+  const templateObject = {
     timestamp: doc.get('timestamp').toDate(),
-    statusOnCreate: doc.get('statusOnCreate'),
+    createTime: doc.createTime,
+    updateTime: doc.createTime,
   };
+
+  ['name',
+    'venue',
+    'hidden',
+    'comment',
+    'schedule',
+    'attachment',
+    'canEditRule',
+    'statusOnCreate',
+  ].forEach((field) => templateObject[field] = doc.get(field));
+
+  return templateObject;
 };
 
 
@@ -64,6 +68,7 @@ const fetchAllTemplates = (conn) => {
 
   rootCollections
     .activityTemplates
+    .orderBy('timestamp', 'desc')
     .get()
     .then((snapShot) => {
       snapShot.forEach((doc) => jsonObject[doc.id] = getDocObject(doc));

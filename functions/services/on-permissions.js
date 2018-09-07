@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { users, } = require('../admin/admin');
+const { users, auth, } = require('../admin/admin');
 const { code, } = require('../admin/responses');
 const { rootCollections, } = require('../admin/admin');
 const { reportingActions, } = require('../admin/constants');
@@ -36,6 +36,67 @@ const {
   hasSuperUserClaims,
 } = require('../admin/utils');
 
+const action = reportingActions.usedCustomClaims;
+
+const getClaimsObject = (body) => {
+  const claims = {};
+
+  if (body.support) {
+    claims.support = body.support;
+  }
+
+  if (body.manageTemplates) {
+    claims.manageTemplates = body.manageTemplates;
+  }
+
+  return claims;
+};
+
+const getFailureMessageObject = (conn, action, responseCode) => {
+  let success = true;
+
+  if (responseCode > 300) success = false;
+
+  const subject =
+    `${conn.requester.displayName || conn.requester.phoneNumber}`
+    + ` just accessed the API: ${conn.req.url}`;
+
+  const messageBody = `
+    <strong>Display Name</strong>: ${conn.requester.displayName || 'NOT SET'}
+    <br>
+    <strong>Phone Number</strong>: ${conn.requester.phoneNumber}
+    <br>
+    <strong>URL</strong></strong>: ${conn.req.url}
+    <br>
+    <strong>Successful<strong>: ${success}
+    <br>
+    <strong>Action</strong>: ${action}
+    <br>
+
+    <H3>Request Body<h3>
+
+    <pre style="font-size: 20px;
+    border: 2px solid grey;
+    width: 450px;
+    border-left: 12px solid green;
+    border-radius: 5px;
+    font-family: monaco;
+    padding: 14px;">
+    ${JSON.stringify(conn.req.body, ' ', 2)}
+    </pre>
+  `;
+
+  return { subject, messageBody, action, };
+};
+
+const logFailedRequest = (conn, responseCode, message, action) => {
+  rootCollections
+    .instant
+    .doc()
+    .set(getFailureMessageObject(conn, action, responseCode))
+    .then(() => sendResponse(conn, responseCode, message))
+    .catch((error) => handleError(conn, error));
+};
 
 
 /**
@@ -43,11 +104,12 @@ const {
  * request.
  *
  * @param {Object} conn Contains Express Request and Response objects.
- * @param {Object} user Contains data from Auth of the user.
+ * @param {string} uid UID from Firebase auth.
  * @param {Object} claims Custom claims object for the userRecord.
  * @returns {void}
  */
-const setClaims = (conn, user, claims) => {
+const setClaims = (conn, uid) => {
+  const claims = getClaimsObject(conn.req.body);
   const subject = `Custom Claims granted by the superUser`;
 
   const messageBody = `
@@ -55,7 +117,7 @@ const setClaims = (conn, user, claims) => {
   permission to the user: ${conn.req.body.phoneNumber}
 
   <pre>
-    ${JSON.stringify(claims, ' ', 2)}
+  ${JSON.stringify(claims, ' ', 2)}
   </pre>
   `;
 
@@ -63,39 +125,12 @@ const setClaims = (conn, user, claims) => {
     .all([
       rootCollections
         .instant
-        .doc().set({
-          action: reportingActions.usedCustomClaims,
-          messageBody,
-          subject,
-        }),
-      users
-        .setCustomUserClaims(user.uid, claims),
+        .doc().set({ action, messageBody, subject, }),
+      auth
+        .setCustomUserClaims(uid, claims),
     ])
     .then(() => sendResponse(conn, code.ok, `Permissions Granted: ${claims}`))
     .catch((error) => handleError(conn, error));
-};
-
-
-/**
- * Creates the `customClaims` object to set in the auth for `user`
- * from the request body.
- *
- * @param {Object} conn Contains Express Request and Response objects.
- * @param {Object} user Contains the `userRecord`.
- * @returns {void}
- */
-const createClaimsObject = (conn, user) => {
-  const claims = {};
-
-  if (conn.req.body.support) {
-    claims.support = conn.req.body.support;
-  }
-
-  if (conn.req.body.manageTemplates) {
-    claims.manageTemplates = conn.req.body.manageTemplates;
-  }
-
-  setClaims(conn, user, claims);
 };
 
 
@@ -111,18 +146,20 @@ const fetchUserRecord = (conn) => {
     .getUserByPhoneNumber(conn.req.body.phoneNumber)
     .then((userRecord) => {
       const user = userRecord[conn.req.body.phoneNumber];
+      const uid = user.uid;
 
-      if (!user.uid) {
-        sendResponse(
+      if (!uid) {
+        logFailedRequest(
           conn,
           code.conflict,
-          `${conn.req.body.phoneNumber} does not exist.`
+          `${conn.req.body.phoneNumber} does not exist.`,
+          action
         );
 
         return;
       }
 
-      createClaimsObject(conn, user);
+      setClaims(conn, uid);
 
       return;
     }).catch((error) => handleError(conn, error));
@@ -137,30 +174,33 @@ const fetchUserRecord = (conn) => {
  */
 const validateRequestBody = (conn) => {
   if (conn.req.body.hasOwnProperty('superUser')) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.forbidden,
-      'Cannot set superUser permission for anyone.'
+      'Cannot set superUser permission for anyone.',
+      action
     );
 
     return;
   }
 
   if (!conn.req.body.hasOwnProperty('phoneNumber')) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.badRequest,
-      `The phoneNumber field is missing from the request body.`
+      `The phoneNumber field is missing from the request body.`,
+      action
     );
 
     return;
   }
 
   if (!isE164PhoneNumber(conn.req.body.phoneNumber)) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.badRequest,
-      `${conn.req.body.phoneNumber} is not a valid phone number.`
+      `${conn.req.body.phoneNumber} is not a valid phone number.`,
+      action
     );
 
     return;
@@ -168,7 +208,7 @@ const validateRequestBody = (conn) => {
 
   /** A person *can't* change their own permissions. */
   if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
-    sendResponse(conn, code.forbidden, 'You cannot set your own permissions.');
+    logFailedRequest(conn, code.forbidden, 'You cannot set your own permissions.', action);
 
     return;
   }
@@ -176,10 +216,11 @@ const validateRequestBody = (conn) => {
   /** Both the fields are missing from the request body. */
   if (!conn.req.body.hasOwnProperty('support')
     && !conn.req.body.hasOwnProperty('manageTemplates')) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.badRequest,
-      `The are not valid permissions in the request body.`
+      `The are not valid permissions in the request body.`,
+      action
     );
 
     return;
@@ -190,10 +231,11 @@ const validateRequestBody = (conn) => {
    */
   if (conn.req.body.hasOwnProperty('support')
     && conn.req.body.hasOwnProperty('manageTemplates')) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.forbidden,
-      `Granting more than one permission is not allowed for a user.`
+      `Granting more than one permission is not allowed for a user.`,
+      action
     );
 
     return;
@@ -201,10 +243,11 @@ const validateRequestBody = (conn) => {
 
   if (conn.req.body.hasOwnProperty('support')
     && conn.req.body.support !== true) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.badRequest,
-      `The 'support' field should be a boolean value 'true'.`
+      `The 'support' field should be a boolean value 'true'.`,
+      action
     );
 
     return;
@@ -212,10 +255,11 @@ const validateRequestBody = (conn) => {
 
   if (conn.req.body.hasOwnProperty('manageTemplates')
     && conn.req.body.manageTemplates !== true) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.badRequest,
-      `The 'manageTemplates' field should be a boolean value 'true'.`
+      `The 'manageTemplates' field should be a boolean value 'true'.`,
+      action
     );
 
     return;
@@ -233,31 +277,34 @@ const validateRequestBody = (conn) => {
  */
 module.exports = (conn) => {
   if (!conn.requester.customClaims) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.forbidden,
-      'You are forbidden from accessing this resource.'
+      'You are forbidden from accessing this resource.',
+      action
     );
 
     return;
   }
 
   if (conn.req.method !== 'PUT') {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for '/api/services/permissions'`
-      + ` endpoint. Use 'PUT'.`
+      + ` endpoint. Use 'PUT'.`,
+      action
     );
 
     return;
   }
 
   if (!hasSuperUserClaims(conn.requester.customClaims)) {
-    sendResponse(
+    logFailedRequest(
       conn,
       code.forbidden,
-      `You are not allowed to grant permissions.`
+      `You are not allowed to grant permissions.`,
+      action
     );
 
     return;

@@ -256,7 +256,7 @@ const validateRequestBody = (conn, locals) => {
   font-family: monaco;
   padding: 14px;>
   <code>
-    ${JSON.stringify(conn.req.body, ' ', 2)}
+  ${JSON.stringify(conn.req.body, ' ', 2)}
   </code>
   </pre>
 
@@ -271,7 +271,7 @@ const validateRequestBody = (conn, locals) => {
   font-family: monaco;
   padding: 14px;">
   <code>
-    ${JSON.stringify(locals.objects.updatedFields, ' ', 2)}
+  ${JSON.stringify(locals.objects.updatedFields, ' ', 2)}
   </code>
   </pre>
 

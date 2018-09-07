@@ -140,7 +140,7 @@ const hasAdminClaims = (customClaims) => {
 
   /**
    * Empty array with the admin custom claims still
-   * negate the permission to view offices for a user.
+   * negates the permission to view `offices` for a user.
    */
   return customClaims.admin.length > 0;
 };
@@ -334,6 +334,13 @@ const isE164PhoneNumber = (phoneNumber) =>
   /^\+[1-9]\d{5,14}$/.test(phoneNumber);
 
 
+const getTimeWithoutSeconds = (dateString) => {
+  const parts = dateString.toDate().toJSON().split(':');
+
+  return `${parts[0]}:${parts[1]}`;
+};
+
+
 const beautifySchedule = (schedules) => {
   const array = [];
 
@@ -347,8 +354,9 @@ const beautifySchedule = (schedules) => {
      * so when that is the case, the `doDate()` method will
      * crash since it is not in the `prototype` of `string`.
      */
-    if (startTime !== '') startTime = startTime.toDate();
-    if (endTime !== '') endTime = endTime.toDate();
+    if (startTime !== '') startTime = getTimeWithoutSeconds(startTime);
+
+    if (endTime !== '') endTime = getTimeWithoutSeconds(endTime);
 
     array.push({ name, startTime, endTime, });
   });

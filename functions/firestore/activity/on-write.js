@@ -25,18 +25,22 @@
 'use strict';
 
 
-const { db,
+const {
+  db,
   users,
   rootCollections,
   serverTimestamp,
 } = require('../../admin/admin');
-const { httpsActions, vowels, } = require('../../admin/constants');
+const {
+  httpsActions,
+  vowels,
+} = require('../../admin/constants');
 
 
 const setAdminCustomClaims = (locals, batch) => {
   const activityDocNew = locals.change.after;
   const status = activityDocNew.get('status');
-  const phoneNumber = activityDocNew.get('attachment').Admin.value;
+  const phoneNumber = activityDocNew.get('attachment.Admin.value');
 
   return users
     .getUserByPhoneNumber(phoneNumber)
@@ -75,6 +79,12 @@ const setAdminCustomClaims = (locals, batch) => {
          * Preserving their older permission for that case..
          */
         if (customClaims && customClaims.admin) {
+          /**
+           * If this office is already present in the user's custom claims,
+           * there's no need to add it again.
+           * This fixes the case of duplication in the `offices` array in the
+           * custom claims.
+           */
           if (customClaims.admin.indexOf(office) === -1) {
             customClaims.admin.push(office);
             newClaims = customClaims;
@@ -267,7 +277,6 @@ const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
   return commentString;
 };
 
-
 const getUpdatedAttachmentFieldNames = (requestBody, attachment) => {
   let commentString = '';
   const newAttachment = requestBody.attachment;
@@ -335,6 +344,7 @@ const getUpdatedFieldNames = (updatedFields) => {
   return finalComment;
 };
 
+
 const getPronoun = (locals, recipient) => {
   const addendum = locals.addendum;
   const addendumCreator = addendum.get('user');
@@ -364,6 +374,20 @@ const getPronoun = (locals, recipient) => {
   return pronoun;
 };
 
+const getCreationActionComment = (template, pronoun) => {
+  const templateNameFirstCharacter = template[0];
+  const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
+
+  return `${pronoun} created ${article} ${template}`;
+};
+
+const getChangeStatusComment = (status, activityName, pronoun) => {
+  /** `PENDING` isn't grammatically correct with the comment here. */
+  if (status === 'PENDING') status = 'reversed';
+
+  return `${pronoun} ${status.toLowerCase()} ${activityName}.`;
+};
+
 
 const commentBuilder = (locals, recipient) => {
   const addendum = locals.addendum;
@@ -372,29 +396,16 @@ const commentBuilder = (locals, recipient) => {
   const pronoun = getPronoun(locals, recipient);
 
   if (action === httpsActions.create) {
-    const template = addendum.get('template');
+    const template = locals.addendum.get('template');
 
-    const templateNameFirstCharacter = template[0];
-    const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
-
-    return `${pronoun} created ${article} ${template}`;
+    return getCreationActionComment(template, pronoun);
   }
 
   if (action === httpsActions.changeStatus) {
     const activityName = addendum.get('activityName');
     const status = addendum.get('status');
-    let displayStatus = status;
 
-    /** `PENDING` isn't grammatically correct with the comment here. */
-    if (status === 'PENDING') displayStatus = 'reversed';
-
-    return `${pronoun} ${displayStatus.toLowerCase()} ${activityName}.`;
-  }
-
-  if (action === httpsActions.remove) {
-    const remove = addendum.get('remove');
-
-    return `${pronoun} removed ${remove}.`;
+    return getChangeStatusComment(status, activityName, pronoun);
   }
 
   if (action === httpsActions.updatePhoneNumber) {
@@ -411,26 +422,32 @@ const commentBuilder = (locals, recipient) => {
     const share = addendum.get('share');
     let str = `${pronoun} added`;
 
-    if (share.length === 1) return `${str} ${share[0]}`;
+    if (share.length === 1) {
+      const removedUserIdentifier = getPronoun(locals, share[0]);
+
+      return `${str} ${removedUserIdentifier}`;
+    }
 
     /** The `share` array will never have the `user` themselves */
     share.forEach((phoneNumber, index) => {
-      if (recipient === phoneNumber) phoneNumber = 'you';
+      const removedUserIdentifier = getPronoun(locals, phoneNumber);
 
       /**
        * Creates a string to show to the user
        * `${ph1} added ${ph2}, ${ph3}, & ${ph4}`
        */
       if (index === share.length - 1) {
-        str += ` & ${phoneNumber}`;
+        str += ` & ${removedUserIdentifier}`;
 
         return;
       } else {
         str += `, `;
       }
 
-      str += `${phoneNumber}`;
+      str += `${removedUserIdentifier}`;
     });
+
+    return str;
   }
 
   if (action === httpsActions.update) {
@@ -485,8 +502,7 @@ module.exports = (change, context) => {
       locals.addendum = addendum;
 
       const authFetchPromises = [];
-      const addendumCreator = locals.addendum.get('user');
-      locals.addendumCreator.phoneNumber = addendumCreator;
+      locals.addendumCreator.phoneNumber = locals.addendum.get('user');
 
       locals.assigneesSnapShot.forEach((doc) => {
         authFetchPromises.push(users.getUserByPhoneNumber(doc.id));
@@ -498,7 +514,7 @@ module.exports = (change, context) => {
 
         locals.assigneePhoneNumbersArray.push(doc.id);
 
-        if (doc.id === addendumCreator) {
+        if (doc.id === locals.addendumCreator.phoneNumber) {
           locals.addendumCreatorInAssignees = true;
         }
       });
@@ -507,7 +523,7 @@ module.exports = (change, context) => {
 
       if (!locals.addendumCreatorInAssignees) {
         authFetchPromises
-          .push(users.getUserByPhoneNumber(addendumCreator));
+          .push(users.getUserByPhoneNumber(locals.addendumCreator.phoneNumber));
       }
 
       console.log('locals.addendumCreatorInAssignees:', locals.addendumCreatorInAssignees);
@@ -557,6 +573,7 @@ module.exports = (change, context) => {
       locals
         .assigneePhoneNumbersArray
         .forEach((phoneNumber) => {
+          /** Without `uid` the doc in Updates/(uid) will not exist. */
           if (!locals.assigneesMap.get(phoneNumber).uid) return;
 
           batch.set(rootCollections

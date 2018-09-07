@@ -25,15 +25,19 @@
 'use strict';
 
 
-const { rootCollections, db, serverTimestamp, } = require('../../admin/admin');
+const {
+  rootCollections,
+  db,
+  serverTimestamp,
+} = require('../../admin/admin');
+
+const BATCH_LIMIT = 500;
 
 
-const updateSubscriptions = (templateName, resolve, reject, query) =>
+const updateSubscriptions = (query, templateName, resolve, reject) =>
   query
     .get()
     .then((activities) => {
-      if (activities.empty) return Promise.resolve();
-
       const batch = db.batch();
 
       activities.forEach((activityDoc) => {
@@ -44,14 +48,13 @@ const updateSubscriptions = (templateName, resolve, reject, query) =>
           });
       });
 
-      /* eslint-disable */
-      return batch
-        .commit()
-        .then(() => activities.size);
-      /* eslint-enable */
+      return activities.docs[activities.size - 1];
     })
-    .then((numberOfDocsUpdated) => {
-      if (numberOfDocsUpdated === 0) return resolve();
+    .then((lastDocFromPreviousQuery) => {
+      /** All docs are updated */
+      if (!lastDocFromPreviousQuery.id) return Promise.resolve();
+
+      const startAt = lastDocFromPreviousQuery.get('timestamp');
 
       return process
         .nextTick(() => {
@@ -59,9 +62,11 @@ const updateSubscriptions = (templateName, resolve, reject, query) =>
             .activities
             .where('template', '==', 'subscription')
             .where('attachment.Template.value', '==', templateName)
-            .limit(500);
+            .orderBy('timestamp', 'desc')
+            .startAt(startAt)
+            .limit(BATCH_LIMIT);
 
-          return updateSubscriptions(templateName, resolve, reject, query);
+          updateSubscriptions(query, templateName, resolve, reject);
         });
     })
     .catch(reject);
@@ -85,10 +90,17 @@ module.exports = (change) => {
   /** The template name never changes. */
   const templateName = change.after.get('name');
 
+  const query = rootCollections
+    .activities
+    .where('template', '==', 'subscription')
+    .where('attachment.Template.value', '==', templateName)
+    .orderBy('timestamp', 'desc')
+    .limit(BATCH_LIMIT);
+
   return new
     Promise(
       (resolve, reject) =>
-        updateSubscriptions(templateName, resolve, reject)
+        updateSubscriptions(query, resolve, reject)
     )
     .catch(console.error);
 };

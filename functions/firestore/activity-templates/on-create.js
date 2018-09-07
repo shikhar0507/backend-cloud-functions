@@ -353,7 +353,7 @@ module.exports = (conn) => {
           font-family: monaco;
           padding: 14px;">
         <code>
-          ${JSON.stringify(conn.req.body, ' ', 2)}
+        ${JSON.stringify(conn.req.body, ' ', 2)}
         </code>
         </pre>
       `;
