@@ -44,17 +44,6 @@ module.exports = (userRecord) => {
   const batch = db.batch();
   const { uid, phoneNumber, } = userRecord;
 
-  /** Doc will have other phone numbers too. */
-  batch.set(rootCollections
-    .dailySignUps
-    .doc(getISO8601Date()), {
-      [phoneNumber]: {
-        timestamp: serverTimestamp,
-      },
-    }, {
-      merge: true,
-    });
-
   batch.set(rootCollections
     .updates
     .doc(uid), {
@@ -73,7 +62,33 @@ module.exports = (userRecord) => {
       merge: true,
     });
 
-  return batch
-    .commit()
+  return rootCollections
+    .profiles
+    .doc(phoneNumber)
+    .collection('Activities')
+    .where('template', '==', 'employee')
+    .where('attachment.Employee Contact.value', '==', phoneNumber)
+    .get()
+    .then((docs) => {
+      if (docs.empty) return batch.commit();
+
+      docs.forEach((doc) => {
+        const officeId = doc.get('officeId');
+
+        batch.set(rootCollections
+          .offices
+          .doc(officeId).
+          collection('SignUps')
+          .doc(getISO8601Date()), {
+            [phoneNumber]: {
+              timestamp: serverTimestamp,
+            },
+          }, {
+            merge: true,
+          });
+      });
+
+      return batch.commit();
+    })
     .catch(console.error);
 };
