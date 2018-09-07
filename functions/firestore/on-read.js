@@ -157,6 +157,7 @@ module.exports = (conn) => {
           timestamp: doc.get('timestamp').toDate(),
           location: doc.get('location'),
           user: doc.get('user'),
+          isComment: doc.get('isComment'),
         });
       });
 
