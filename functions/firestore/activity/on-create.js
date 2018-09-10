@@ -695,6 +695,17 @@ const fetchDocs = (conn) => {
 
 
 module.exports = (conn) => {
+  if (conn.req.method !== 'POST') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for the /create`
+      + ' endpoint. Use POST.'
+    );
+
+    return;
+  }
+
   const bodyResult = isValidRequestBody(conn.req.body, 'create');
 
   if (!bodyResult.isValid) {

@@ -106,6 +106,17 @@ const handleResult = (conn, docs) => {
 
 
 module.exports = (conn) => {
+  if (conn.req.method !== 'PATCH') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for /change-status`
+      + ' endpoint. Use PATCH.'
+    );
+
+    return;
+  }
+
   const result = isValidRequestBody(conn.req.body, httpsActions.changeStatus);
 
   if (!result.isValid) {

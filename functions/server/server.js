@@ -25,64 +25,106 @@
 'use strict';
 
 
-const { rootCollections, users, } = require('../admin/admin');
-const { code, } = require('../admin/responses');
 const {
+  rootCollections,
+  auth,
+} = require('../admin/admin');
+const {
+  code,
+} = require('../admin/responses');
+const {
+  now,
   handleError,
   sendResponse,
-  now,
   disableAccount,
+  hasSupportClaims,
 } = require('../admin/utils');
 
 
+const getHeaders = () => {
+  return {
+    /** The pre-flight headers */
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
+    'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
+      'Content-Type, Accept',
+    // 30 days
+    'Access-Control-Max-Age': 2592000,
+    'Content-Type': 'application/json',
+    'Content-Language': 'en-US',
+    'Cache-Control': 'no-cache',
+  };
+};
 
-/**
- * Checks the `path` of the URL in the request and handles the execution flow.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const handleRequestPath = (conn) => {
-  const action = require('url')
-    .parse(conn.req.url)
-    .path
-    .split('/');
 
-  console.log('API:', action);
+const handleAdminUrl = (conn, urlParts) => {
+  const resource = urlParts[2];
 
-  const resource = action[1];
-
-  if (resource === 'activities') {
-    const onActivity = require('./on-activity');
-    onActivity(conn, action);
-
-    return;
-  }
-
-  if (resource === 'services') {
-    const onService = require('./on-service');
-    onService(conn, action);
+  if (resource === 'read') {
+    require('../firestore/offices/on-read')(conn);
 
     return;
   }
 
-  if (resource.startsWith('read')) {
-    const onRead = require('../firestore/on-read');
-    onRead(conn);
+  sendResponse(
+    conn,
+    code.badRequest,
+    `No resource found at the path: ${(conn.req.url)}.`
+  );
+};
+
+
+const handleActivitiesUrl = (conn, urlParts) => {
+  /**
+   * Can be used to verify in the activity flow to see if the request
+   * is of type support.
+   */
+  conn.requester.isSupportRequest = false;
+
+  /** URL query params are of type `string`. */
+  if (conn.req.query.support === 'true') {
+    conn.requester.isSupportRequest = true;
+  }
+
+  if (conn.requester.isSupportRequest
+    && !hasSupportClaims(conn.requester.customClaims)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You do not have the permission to make support requests for activities.'
+    );
 
     return;
   }
 
-  if (resource.startsWith('admin')) {
-    const onAdmin = require('./on-admin');
+  const resource = urlParts[2];
 
-    onAdmin(conn, action);
+  if (resource === 'comment') {
+    require('../firestore/activity/on-comment')(conn);
 
     return;
   }
 
-  if (resource === 'now') {
-    now(conn);
+  if (resource === 'create') {
+    require('../firestore/activity/on-create')(conn);
+
+    return;
+  }
+
+  if (resource === 'update') {
+    require('../firestore/activity/on-update')(conn);
+
+    return;
+  }
+
+  if (resource === 'share') {
+    require('../firestore/activity/on-share')(conn);
+
+    return;
+  }
+
+  if (resource === 'change-status') {
+    require('../firestore/activity/on-change-status')(conn);
 
     return;
   }
@@ -90,27 +132,85 @@ const handleRequestPath = (conn) => {
   sendResponse(
     conn,
     code.notFound,
-    'No resource found at this path.'
+    `No resource found at the path: ${(conn.req.url)}.`
   );
 };
 
 
-/**
- * Fetches the phone number of the requester and verifies
- * if the document for this phone number inside the /Profiles
- * has the same uid as the requester.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @param {Object} userRecord User record object from Firebase Auth.
- * @returns {void}
- */
-const getProfile = (conn, userRecord) => {
+const handleServicesUrl = (conn, urlParts) => {
+  const resource = urlParts[2];
+
+  if (resource === 'users') {
+    require('../services/on-users')(conn);
+
+    return;
+  }
+
+  if (resource === 'permissions') {
+    require('../services/on-permissions')(conn);
+
+    return;
+  }
+
+  if (resource === 'templates') {
+    require('../services/on-templates')(conn);
+
+    return;
+  }
+
+  sendResponse(
+    conn,
+    code.notFound,
+    `No resource found at the path: ${(conn.req.url)}.`
+  );
+};
+
+
+const handleRequestPath = (conn, parsedUrl) => {
+  const urlParts = parsedUrl.pathname.split('/');
+  const parent = urlParts[1];
+
+  if (parent === 'read') {
+    require('../firestore/on-read')(conn);
+
+    return;
+  }
+
+  if (parent === 'activities') {
+    handleActivitiesUrl(conn, urlParts);
+
+    return;
+  }
+
+  if (parent === 'services') {
+    handleServicesUrl(conn, urlParts);
+
+    return;
+  }
+
+
+  if (parent === 'admin') {
+    handleAdminUrl(conn, urlParts);
+
+    return;
+  }
+
+  sendResponse(
+    conn,
+    code.notFound,
+    `No resource found at the path: ${conn.req.url}`
+  );
+};
+
+
+const getProfile = (conn, pathName) =>
   rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
     .get()
     .then((doc) => {
       conn.requester.lastFromQuery = doc.get('lastFromQuery');
+      conn.requester.employeeOf = doc.get('employeeOf');
       /**
         * When a user signs up for the first time, the `authOnCreate`
         * cloud function creates two docs in the Firestore.
@@ -137,9 +237,10 @@ const getProfile = (conn, userRecord) => {
         * the `auth` creation and the hit time on the api.
         */
       const authCreationTime =
-        new Date(userRecord.metadata.creationTime).getTime();
+        new Date(conn.requester.creationTime).getTime();
+      const NUM_SECS_IN_MINUTE = 60;
 
-      if (Date.now() - authCreationTime < 60) {
+      if (Date.now() - authCreationTime < NUM_SECS_IN_MINUTE) {
         handleRequestPath(conn);
 
         return;
@@ -157,31 +258,25 @@ const getProfile = (conn, userRecord) => {
          * other than out provided endpoint for updating the `auth`.
          * Disabling their account because this is not allowed.
          */
-        // disableAccount(
-        //   conn,
-        //   `The uid and phone number of the requester does not match.`
-        // );
+        disableAccount(
+          conn,
+          `The uid and phone number of the requester does not match.`
+        );
 
         return;
       }
 
-      handleRequestPath(conn);
+      handleRequestPath(conn, pathName);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-};
 
 
-/**
- * Fetches the requester phone number from auth.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const fetchRequesterPhoneNumber = (conn) =>
-  users
-    .getUserByUid(conn.requester.uid)
+
+const getUserAuthFromIdToken = (conn, decodedIdToken) =>
+  auth
+    .getUser(conn.requester.uid)
     .then((userRecord) => {
       if (userRecord.disabled) {
         /** Users with disabled accounts cannot request any operation **/
@@ -194,20 +289,58 @@ const fetchRequesterPhoneNumber = (conn) =>
         return;
       }
 
-      if (userRecord.customClaims) {
-        conn.requester.customClaims = userRecord.customClaims;
+      conn.requester = {
+        uid: decodedIdToken || conn.requester.uid,
+        phoneNumber: userRecord.phoneNumber,
+        displayName: userRecord.displayName,
+        customClaims: userRecord.customClaims || null,
+        creationTime: userRecord.metadata.creationTime,
+      };
+
+      console.log({ phoneNumber: conn.requester.phoneNumber, });
+
+      const parsedUrl = require('url').parse(conn.req.url);
+
+      if (parsedUrl.pathname === '/now') {
+        now(conn);
+
+        return;
       }
 
-      conn.requester.phoneNumber = userRecord.phoneNumber;
-      conn.requester.displayName = userRecord.displayName || '';
-
-      console.log('phoneNumber:', conn.requester.phoneNumber);
-
-      getProfile(conn, userRecord);
+      getProfile(conn, parsedUrl);
 
       return;
     })
     .catch((error) => handleError(conn, error));
+
+
+const headerValid = (headers) => {
+  if (!headers.hasOwnProperty('authorization')) {
+    return {
+      isValid: false,
+      message: 'The authorization header is missing from the headers.',
+    };
+  }
+
+  if (typeof headers.authorization !== 'string') {
+    return {
+      isValid: false,
+      message: 'The authorization header is not valid.',
+    };
+  }
+
+  if (!headers.authorization.startsWith('Bearer ')) {
+    return {
+      isValid: false,
+      message: `Authorization type is not 'Bearer'.`,
+    };
+  }
+
+  return {
+    isValid: true,
+    authToken: headers.authorization.split('Bearer ')[1],
+  };
+};
 
 
 /**
@@ -217,32 +350,10 @@ const fetchRequesterPhoneNumber = (conn) =>
  * @returns {void}
  */
 const checkAuthorizationToken = (conn) => {
-  if (!conn.req.headers.hasOwnProperty('authorization')) {
-    sendResponse(
-      conn,
-      code.unauthorized,
-      'The authorization header is missing from the headers.'
-    );
+  const result = headerValid(conn.req.headers);
 
-    return;
-  }
-
-  if (typeof conn.req.headers.authorization !== 'string') {
-    sendResponse(
-      conn,
-      code.unauthorized,
-      'The authorization header is not valid.'
-    );
-
-    return;
-  }
-
-  if (!conn.req.headers.authorization.startsWith('Bearer ')) {
-    sendResponse(
-      conn,
-      code.unauthorized,
-      `Authorization type is not 'Bearer'.`
-    );
+  if (!result.isValid) {
+    sendResponse(conn, code.forbidden, result.message);
 
     return;
   }
@@ -250,20 +361,9 @@ const checkAuthorizationToken = (conn) => {
   /** Checks if the token was revoked recently when set to `true` */
   const checkRevoked = true;
 
-  users
-    .verifyIdToken(
-      conn.req.headers.authorization.split('Bearer ')[1],
-      checkRevoked
-    )
-    .then((decodedIdToken) => {
-      /** Object to identify the requester throughout the flow. */
-      conn.requester = {};
-      conn.requester.uid = decodedIdToken.uid;
-
-      fetchRequesterPhoneNumber(conn);
-
-      return;
-    })
+  auth
+    .verifyIdToken(result.authToken, checkRevoked)
+    .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => {
       if (error.code === 'auth/id-token-revoked') {
         sendResponse(
@@ -309,47 +409,34 @@ module.exports = (req, res) => {
   const conn = {
     req,
     res,
+    headers: getHeaders(),
   };
 
-  conn.headers = {
-    /** The pre-flight headers */
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
-    'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
-      'Content-Type, Accept',
-    // 30 days
-    'Access-Control-Max-Age': 2592000,
-    'Content-Type': 'application/json',
-    'Content-Language': 'en-US',
-    'Cache-Control': 'no-cache',
-  };
-
-  if (new Set()
+  const allowedHttpsMethods = new Set()
     .add('OPTIONS')
     .add('HEAD')
-    .has(req.method)) {
-    /** FOR handling CORS... */
+    .add('GET')
+    .add('POST')
+    .add('PATCH')
+    .add('PUT');
+
+  if (!allowedHttpsMethods.has(req.method)) {
+    sendResponse(
+      conn,
+      code.notImplemented,
+      `${req.method} is not supported for any request.`
+      + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests.'
+    );
+
+    return;
+  }
+
+  /** For handling CORS */
+  if (req.method === 'HEAD' || req.method === 'OPTIONS') {
     sendResponse(conn, code.noContent);
 
     return;
   }
 
-  /** Allowed methods */
-  if (new Set()
-    .add('GET')
-    .add('POST')
-    .add('PATCH')
-    .add('PUT')
-    .has(req.method)) {
-    checkAuthorizationToken(conn);
-
-    return;
-  }
-
-  sendResponse(
-    conn,
-    code.notImplemented,
-    `${req.method} is not supported for any request.`
-    + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests.'
-  );
+  checkAuthorizationToken(conn);
 };

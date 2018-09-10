@@ -225,6 +225,17 @@ const handleResult = (conn, docs) => {
 
 
 module.exports = (conn) => {
+  if (conn.req.method !== 'PATCH') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for the /share endpoint. Use PATCH.`
+    );
+
+    return;
+  }
+
+
   const result = isValidRequestBody(conn.req.body, httpsActions.share);
 
   if (!result.isValid) {

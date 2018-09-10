@@ -58,6 +58,8 @@ const updateSubscriptions = (query, templateName, resolve, reject) =>
 
       return process
         .nextTick(() => {
+          console.log('next tick');
+
           const query = rootCollections
             .activities
             .where('template', '==', 'subscription')

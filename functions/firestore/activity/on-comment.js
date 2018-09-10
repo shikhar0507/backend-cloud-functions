@@ -77,6 +77,17 @@ const createDocs = (conn, activity) => {
 
 
 module.exports = (conn) => {
+  if (conn.req.method !== 'POST') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for the /comment`
+      + ' endpoint. Use POST.'
+    );
+
+    return;
+  }
+
   const result = isValidRequestBody(conn.req.body, httpsActions.comment);
 
   if (!result.isValid) {

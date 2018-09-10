@@ -41,7 +41,7 @@ const purgeAddendum = (uid, queryArg, resolve, reject) =>
     .get()
     .then((docs) => {
       // When there are no documents left, we are done
-      if (docs.size === 0) return 0;
+      if (docs.size === 0) return resolve();
 
       // Delete documents in a batch
       const batch = db.batch();

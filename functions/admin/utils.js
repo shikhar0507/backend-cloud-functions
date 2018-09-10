@@ -28,9 +28,11 @@
 const { code, } = require('./responses');
 const {
   users,
+  db,
   rootCollections,
   serverTimestamp,
 } = require('./admin');
+
 
 
 /**
@@ -147,6 +149,21 @@ const hasAdminClaims = (customClaims) => {
 
 
 /**
+ * Returns the date in ISO 8601 `(DD-MM-YYYY)` format.
+ *
+ * @param {Object<Date>} [date] Javascript `Date` object.
+ * @returns {String} An ISO 8601 (DD-MM-YYYY) date string.
+ * @see https://en.wikipedia.org/wiki/ISO_8601
+ */
+const getISO8601Date = (date = new Date()) =>
+  date
+    .toJSON()
+    .slice(0, 10)
+    .split('-')
+    .reverse()
+    .join('-');
+
+/**
  * Returns the server timestamp on a `GET` request.
  *
  * @param {Object} conn Object containing Express's Request and Response objects.
@@ -163,25 +180,22 @@ const now = (conn) => {
     return;
   }
 
-  /** Ends response. */
-  sendJSON(conn, { success: true, timestamp: Date.now(), code: code.ok, });
+  db
+    .collection('Timers')
+    .doc(getISO8601Date())
+    .set({
+      timestamp: serverTimestamp,
+    })
+    .then(() =>
+      sendJSON(conn, {
+        success: true,
+        timestamp: Date.now(),
+        code: code.ok,
+      })
+    )
+    .catch((error) => handleError(conn, error));
+
 };
-
-
-/**
- * Returns the date in ISO 8601 `(DD-MM-YYYY)` format.
- *
- * @param {Object<Date>} [date] Javascript `Date` object.
- * @returns {String} An ISO 8601 (DD-MM-YYYY) date string.
- * @see https://en.wikipedia.org/wiki/ISO_8601
- */
-const getISO8601Date = (date = new Date()) =>
-  date
-    .toJSON()
-    .slice(0, 10)
-    .split('-')
-    .reverse()
-    .join('-');
 
 
 /**

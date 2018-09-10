@@ -77,8 +77,16 @@ const subscriptionUpdater = functions
   .onUpdate(require('./firestore/subscriptions/on-update'));
 
 
+/* Temporary */
+const timer = functions
+  .firestore
+  .document('Timers/{docId}')
+  .onCreate(require('./timer/on-create'));
+
+
 module.exports = {
   api,
+  timer,
   authOnCreate,
   authOnDelete,
   reportsHandler,

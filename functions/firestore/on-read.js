@@ -25,14 +25,23 @@
 'use strict';
 
 
-const { rootCollections, serverTimestamp, db, } = require('../admin/admin');
-const { beautifySchedule, } = require('../admin/utils');
-const { code, } = require('../admin/responses');
+const {
+  rootCollections,
+  serverTimestamp,
+  db,
+} = require('../admin/admin');
+const {
+  beautifySchedule,
+} = require('../admin/utils');
+const {
+  code,
+} = require('../admin/responses');
 const {
   handleError,
   sendResponse,
   sendJSON,
   isValidDate,
+  isNonEmptyString,
   getISO8601Date,
 } = require('../admin/utils');
 
@@ -40,8 +49,8 @@ const {
 const validateRequest = (conn) => {
   if (conn.req.method !== 'GET') {
     return {
-      isValid: false, message: `'${conn.req.method}' is not allowed for`
-        + ` '/read'. Use 'GET'.`,
+      isValid: false,
+      message: `'${conn.req.method}' is not allowed for '/read'. Use 'GET'.`,
     };
   }
 
@@ -52,6 +61,13 @@ const validateRequest = (conn) => {
     };
   }
 
+  if (!isNonEmptyString(conn.req.query.from)) {
+    return {
+      isValid: false,
+      message: `The query param 'from' cannot be an empty string.`,
+    };
+  }
+
   if (!isValidDate(conn.req.query.from)) {
     return {
       isValid: false,
@@ -59,44 +75,10 @@ const validateRequest = (conn) => {
     };
   }
 
-  return { isValid: true, message: null, };
-};
-
-
-const makeLogs = (conn, jsonObject) => {
-  const batch = db.batch();
-
-  if (conn.req.query.from === '0') {
-    batch.set(rootCollections
-      .dailyInits
-      .doc(getISO8601Date())
-      .collection(conn.requester.phoneNumber)
-      .doc(), {
-        timestamp: serverTimestamp,
-      });
-  }
-
-  if (conn.requester.lastFromQuery !== conn.req.query.from) {
-    batch.set(rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber), {
-        lastFromQuery: conn.req.query.from,
-      }, {
-        merge: true,
-      });
-  }
-
-  console.log({
-    lastFromQuery: conn.requester.lastFromQuery,
-    from: conn.req.query.from,
-  });
-
-  console.log('batch', batch._writes);
-
-  batch
-    .commit()
-    .then(() => sendJSON(conn, jsonObject))
-    .catch((error) => handleError(conn, error));
+  return {
+    isValid: true,
+    message: null,
+  };
 };
 
 
@@ -110,6 +92,14 @@ module.exports = (conn) => {
   }
 
   const from = new Date(parseInt(conn.req.query.from));
+
+  const jsonObject = {
+    from,
+    upto: from,
+    addendum: [],
+    activities: [],
+    templates: [],
+  };
 
   Promise
     .all([
@@ -133,20 +123,11 @@ module.exports = (conn) => {
     .then((result) => {
       const [addendum, activities, subscriptions,] = result;
 
-      const jsonObject = {
-        from,
-        upto: from,
-        addendum: [],
-        activities: [],
-        templates: [],
-      };
-
       if (!addendum.empty) {
-        jsonObject.upto =
-          addendum
-            .docs[addendum.size - 1]
-            .get('timestamp')
-            .toDate();
+        jsonObject.upto = addendum
+          .docs[addendum.size - 1]
+          .get('timestamp')
+          .toDate();
       }
 
       addendum.forEach((doc) => {
@@ -189,9 +170,47 @@ module.exports = (conn) => {
         });
       });
 
-      makeLogs(conn, jsonObject);
+      const batch = db.batch();
 
-      return;
+      if (conn.req.query.from === '0' && conn.requester.employeeOf) {
+        Object
+          .keys(conn.requester.employeeOf)
+          .forEach((officeName) => {
+            const officeId = conn.requester.employeeOf[officeName];
+
+            batch.set(rootCollections
+              .offices
+              .doc(officeId)
+              .collection('Inits')
+              .doc(getISO8601Date()), {
+                [conn.requester.phoneNumber]: {
+                  timestamp: serverTimestamp,
+                },
+              }, {
+                merge: true,
+              });
+          });
+      }
+
+      if (conn.requester.lastFromQuery !== conn.req.query.from) {
+        batch.set(rootCollections
+          .profiles
+          .doc(conn.requester.phoneNumber), {
+            lastFromQuery: conn.req.query.from,
+          }, {
+            merge: true,
+          });
+      }
+
+      console.log({
+        batch: batch._writes,
+        lastFromQuery: conn.requester.lastFromQuery,
+        from: conn.req.query.from,
+      });
+
+      return batch;
     })
+    .then((batch) => batch.commit())
+    .then(() => sendJSON(conn, jsonObject))
     .catch((error) => handleError(conn, error));
 };

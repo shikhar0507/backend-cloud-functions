@@ -276,17 +276,6 @@ const validateRequestBody = (conn) => {
  * @returns {void}
  */
 module.exports = (conn) => {
-  if (!conn.requester.customClaims) {
-    logFailedRequest(
-      conn,
-      code.forbidden,
-      'You are forbidden from accessing this resource.',
-      action
-    );
-
-    return;
-  }
-
   if (conn.req.method !== 'PUT') {
     logFailedRequest(
       conn,

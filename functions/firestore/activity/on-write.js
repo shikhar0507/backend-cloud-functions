@@ -28,6 +28,7 @@
 const {
   db,
   users,
+  deleteField,
   rootCollections,
   serverTimestamp,
 } = require('../../admin/admin');
@@ -346,8 +347,7 @@ const getUpdatedFieldNames = (updatedFields) => {
 
 
 const getPronoun = (locals, recipient) => {
-  const addendum = locals.addendum;
-  const addendumCreator = addendum.get('user');
+  const addendumCreator = locals.addendum.get('user');
   const assigneesMap = locals.assigneesMap;
   /**
      * People are denoted with their phone numbers unless
@@ -389,7 +389,7 @@ const getChangeStatusComment = (status, activityName, pronoun) => {
 };
 
 
-const commentBuilder = (locals, recipient) => {
+const getCommentString = (locals, recipient) => {
   const addendum = locals.addendum;
   const addendumCreator = addendum.get('user');
   const action = addendum.get('action');
@@ -461,10 +461,42 @@ const commentBuilder = (locals, recipient) => {
 };
 
 
+/**
+ * Checks if the action was a comment.
+ * @param {string} action Can be one of the activity actions from HTTPS functions.
+ * @returns {number} 0 | 1 depending on whether the action was a comment or anything else.
+ */
 const isComment = (action) => {
   if (action === httpsActions.comment) return 1;
 
   return 0;
+};
+
+const addOfficeToProfile = (locals, batch) => {
+  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
+  const officeId = locals.change.after.get('officeId');
+  const officeName = locals.change.after.get('office');
+  const status = locals.change.after.get('status');
+
+  const employeeOf = {
+    [officeName]: officeId,
+  };
+
+  if (status === 'CANCELLED') {
+    employeeOf[officeName] = deleteField();
+  }
+
+  batch.set(rootCollections
+    .profiles
+    .doc(phoneNumber), {
+      employeeOf,
+    }, {
+      merge: true,
+    });
+
+  return batch
+    .commit()
+    .catch(console.error);
 };
 
 
@@ -497,6 +529,7 @@ module.exports = (change, context) => {
     ])
     .then((docs) => {
       const [addendum, assigneesSnapShot,] = docs;
+      console.log('action:', addendum.get('action'));
 
       locals.assigneesSnapShot = assigneesSnapShot;
       locals.addendum = addendum;
@@ -505,7 +538,8 @@ module.exports = (change, context) => {
       locals.addendumCreator.phoneNumber = locals.addendum.get('user');
 
       locals.assigneesSnapShot.forEach((doc) => {
-        authFetchPromises.push(users.getUserByPhoneNumber(doc.id));
+        authFetchPromises
+          .push(users.getUserByPhoneNumber(doc.id));
 
         locals.assigneesMap.set(doc.id, {
           canEdit: doc.get('canEdit'),
@@ -557,6 +591,7 @@ module.exports = (change, context) => {
 
         activityData.canEdit = locals.assigneesMap.get(phoneNumber).canEdit;
         activityData.assignees = locals.assigneePhoneNumbersArray;
+        activityData.timestamp = serverTimestamp;
 
         batch.set(profileRef
           .collection('Activities')
@@ -573,7 +608,7 @@ module.exports = (change, context) => {
       locals
         .assigneePhoneNumbersArray
         .forEach((phoneNumber) => {
-          /** Without `uid` the doc in Updates/(uid) will not exist. */
+          /** Without `uid` the doc in `Updates/(uid)` will not exist. */
           if (!locals.assigneesMap.get(phoneNumber).uid) return;
 
           batch.set(rootCollections
@@ -582,7 +617,7 @@ module.exports = (change, context) => {
             .collection('Addendum')
             .doc(), {
               activityId,
-              comment: commentBuilder(locals, phoneNumber),
+              comment: getCommentString(locals, phoneNumber),
               isComment: isComment(locals.addendum.get('action')),
               timestamp: serverTimestamp,
               userDeviceTimestamp: locals.addendum.get('userDeviceTimestamp'),
@@ -625,6 +660,10 @@ module.exports = (change, context) => {
 
       if (template === 'admin') {
         return setAdminCustomClaims(locals, batch);
+      }
+
+      if (template === 'employee') {
+        return addOfficeToProfile(locals, batch);
       }
 
       return batch

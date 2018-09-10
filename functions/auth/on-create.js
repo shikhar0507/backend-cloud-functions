@@ -70,15 +70,11 @@ module.exports = (userRecord) => {
     .where('attachment.Employee Contact.value', '==', phoneNumber)
     .get()
     .then((docs) => {
-      if (docs.empty) return batch.commit();
-
       docs.forEach((doc) => {
-        const officeId = doc.get('officeId');
-
         batch.set(rootCollections
           .offices
-          .doc(officeId).
-          collection('SignUps')
+          .doc(doc.get('officeId'))
+          .collection('SignUps')
           .doc(getISO8601Date()), {
             [phoneNumber]: {
               timestamp: serverTimestamp,

@@ -1,7 +1,19 @@
 'use strict';
 
-const { sendJSON, handleError, beautifySchedule, } = require('../../admin/utils');
-const { rootCollections, } = require('../../admin/admin');
+const {
+  sendJSON,
+  handleError,
+  beautifySchedule,
+  sendResponse,
+  isValidDate,
+  hasAdminClaims,
+} = require('../../admin/utils');
+const {
+  rootCollections,
+} = require('../../admin/admin');
+const {
+  code,
+} = require('../../admin/responses');
 
 
 const getReports = (conn, locals) => {
@@ -13,7 +25,7 @@ const getReports = (conn, locals) => {
 const getTemplates = (conn, locals) =>
   rootCollections
     .activityTemplates
-    .where('timestamp', '>', locals.from)
+    .where('timestamp', '>', locals.jsonObject.from)
     .where('timestamp', '<=', locals.jsonObject.upto)
     .get()
     .then((docs) => {
@@ -79,10 +91,49 @@ const getActivities = (conn, locals) =>
 
 
 module.exports = (conn) => {
+  if (conn.req.method !== 'GET') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed. Use 'GET' for /read`
+    );
+
+    return;
+  }
+
+  if (!hasAdminClaims(conn.requester.customClaims)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You are not allowed to access this resource.'
+    );
+
+    return;
+  }
+
+  if (!conn.req.query.hasOwnProperty('from')) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The request URL is missing the 'from' query parameter.`
+    );
+
+    return;
+  }
+
+  if (!isValidDate(conn.req.query.from)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The value in the 'from' query parameter is not a valid unix timestamp.`
+    );
+
+    return;
+  }
+
   const from = new Date(parseInt(conn.req.query.from));
 
   const locals = {
-    from,
     jsonObject: {
       from,
       upto: from,

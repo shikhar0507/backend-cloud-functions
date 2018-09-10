@@ -76,6 +76,9 @@ const getGeopointObject = (geopoint) =>
   );
 
 
+const deleteField = () => admin.firestore.FieldValue.delete();
+
+
 /**
  * Updates the phone number of a user in the auth for Firebase.
  *
@@ -286,6 +289,7 @@ module.exports = {
   db,
   auth,
   users,
+  deleteField,
   rootCollections,
   serverTimestamp,
   getGeopointObject,
