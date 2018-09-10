@@ -659,27 +659,32 @@ const validateCreateRequestBody = (body, successMessage) => {
     };
   }
 
-  if (body.hasOwnProperty('share')) {
-    if (!Array.isArray(body.share)) {
-      return {
-        message: `The 'share' field in the request body should be an 'array'.`,
-        isValid: false,
-      };
-    }
+  if (!body.hasOwnProperty('share')) {
+    return {
+      message: `The 'share' field is missing from the request body.`,
+      isValid: false,
+    };
+  }
 
-    /**
-     * Using the traditional loop because you can't
-     * `break` out of a `forEach` loop.
-     * */
-    for (let i = 0; i < body.share.length; i++) {
-      const phoneNumber = body.share[i];
+  if (!Array.isArray(body.share)) {
+    return {
+      message: `The 'share' field in the request body should be an 'array'.`,
+      isValid: false,
+    };
+  }
 
-      if (!isE164PhoneNumber(phoneNumber)) {
-        successMessage.message = `The phone number '${phoneNumber}' at`
-          + ` position: ${i} in the 'share' array is invalid.`;
-        successMessage.isValid = false;
-        break;
-      }
+  /**
+   * Using the traditional loop because you can't `break` out of a 
+   * `forEach` loop.
+   */
+  for (let i = 0; i < body.share.length; i++) {
+    const phoneNumber = body.share[i];
+
+    if (!isE164PhoneNumber(phoneNumber)) {
+      successMessage.message = `The phone number '${phoneNumber}' at`
+        + ` position: ${i} in the 'share' array is invalid.`;
+      successMessage.isValid = false;
+      break;
     }
   }
 

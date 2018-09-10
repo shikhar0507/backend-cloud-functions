@@ -276,7 +276,7 @@ const getProfile = (conn, pathName) =>
 
 const getUserAuthFromIdToken = (conn, decodedIdToken) =>
   auth
-    .getUser(conn.requester.uid)
+    .getUser(decodedIdToken.uid)
     .then((userRecord) => {
       if (userRecord.disabled) {
         /** Users with disabled accounts cannot request any operation **/
@@ -290,7 +290,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
       }
 
       conn.requester = {
-        uid: decodedIdToken || conn.requester.uid,
+        uid: decodedIdToken.uid,
         phoneNumber: userRecord.phoneNumber,
         displayName: userRecord.displayName,
         customClaims: userRecord.customClaims || null,
@@ -300,6 +300,8 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
       console.log({ phoneNumber: conn.requester.phoneNumber, });
 
       const parsedUrl = require('url').parse(conn.req.url);
+
+      console.log({ href: parsedUrl.href, });
 
       if (parsedUrl.pathname === '/now') {
         now(conn);
