@@ -52,7 +52,7 @@ const sendMails = (recipientsDoc, instantDoc) => {
           const phoneNumber = Object.keys(userRecord)[0];
           const record = userRecord[`${phoneNumber}`];
 
-          if (!userRecord) return;
+          if (!record) return;
 
           const email = record.email;
           const emailVerified = record.emailVerified;
@@ -80,6 +80,8 @@ const sendMails = (recipientsDoc, instantDoc) => {
        * `email` in their `auth` or all of them are `disabled`.
        */
       if (messages.length === 0) return Promise.resolve();
+
+      console.log({ messages, });
 
       return sgMail.sendMultiple(messages);
     })

@@ -336,7 +336,7 @@ module.exports = (conn) => {
           Growthfile DB.
         </p>
         <p>
-          <strong>Template Manager: </strong> ${conn.requester.displayName || ''}
+          <strong>Template Manager Name: </strong> ${conn.requester.displayName || ''}
           <br>
           <strong>Template Id</strong>: ${templateDocRef.id}
           <br>

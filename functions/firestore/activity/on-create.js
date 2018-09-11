@@ -100,7 +100,7 @@ const createDocsWithBatch = (conn, locals) => {
     attachment: conn.req.body.attachment,
     canEditRule: locals.static.canEditRule,
     activityName: getActivityName(conn),
-    officeId: rootCollections.offices.doc(locals.static.officeId).id,
+    officeId: locals.static.officeId,
     hidden: locals.static.hidden,
     creator: conn.requester.phoneNumber,
   });

@@ -148,6 +148,12 @@ module.exports = (conn) => {
           status: doc.get('status'),
           assignees: doc.get('assignees'),
           canEdit: doc.get('canEdit'),
+          /**
+           * Schedule objects can have `startTime` and `endTime`
+           * equal to either empty strings or Firestore `Date` objects.
+           * This function converts them to readable JS `Date` objects
+           * and also snips out the `Z` (offset) word.
+           */
           schedule: beautifySchedule(doc.get('schedule')),
           venue: doc.get('venue'),
           timestamp: doc.get('timestamp').toDate(),
@@ -183,9 +189,7 @@ module.exports = (conn) => {
               .doc(officeId)
               .collection('Inits')
               .doc(getISO8601Date()), {
-                [conn.requester.phoneNumber]: {
-                  timestamp: serverTimestamp,
-                },
+                [conn.requester.phoneNumber]: serverTimestamp,
               }, {
                 merge: true,
               });

@@ -611,13 +611,20 @@ module.exports = (change, context) => {
           /** Without `uid` the doc in `Updates/(uid)` will not exist. */
           if (!locals.assigneesMap.get(phoneNumber).uid) return;
 
+          const comment = getCommentString(locals, phoneNumber);
+
+          console.log({
+            phoneNumber,
+            comment,
+          });
+
           batch.set(rootCollections
             .updates
             .doc(locals.assigneesMap.get(phoneNumber).uid)
             .collection('Addendum')
             .doc(), {
               activityId,
-              comment: getCommentString(locals, phoneNumber),
+              comment,
               isComment: isComment(locals.addendum.get('action')),
               timestamp: serverTimestamp,
               userDeviceTimestamp: locals.addendum.get('userDeviceTimestamp'),

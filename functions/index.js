@@ -92,8 +92,8 @@ module.exports = {
   reportsHandler,
   assigneeHandler,
   activityHandler,
-  // subscriptionUpdater,
-  // purgeAddendum,
+  subscriptionUpdater,
+  purgeAddendum,
   phoneNumberUpdateHandler,
   createOfficeNamePermutations,
 };

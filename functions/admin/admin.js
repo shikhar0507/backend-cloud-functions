@@ -71,11 +71,17 @@ const setCustomUserClaims = (uid, claims) =>
  */
 const getGeopointObject = (geopoint) =>
   new admin.firestore.GeoPoint(
-    geopoint.latitude,
-    geopoint.longitude
+    geopoint._latitude,
+    geopoint._longitude
   );
 
 
+/**
+ * Deletes the field from Firestore that field is set equal to
+ * this function's return value.
+ *
+ * @returns {Object} Firestore FieldValue Object.
+ */
 const deleteField = () => admin.firestore.FieldValue.delete();
 
 

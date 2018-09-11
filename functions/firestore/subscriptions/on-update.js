@@ -38,6 +38,8 @@ const updateSubscriptions = (query, templateName, resolve, reject) =>
   query
     .get()
     .then((activities) => {
+      if (activities.empty) return Promise.resolve();
+
       const batch = db.batch();
 
       activities.forEach((activityDoc) => {
@@ -50,11 +52,11 @@ const updateSubscriptions = (query, templateName, resolve, reject) =>
 
       return activities.docs[activities.size - 1];
     })
-    .then((lastDocFromPreviousQuery) => {
+    .then((lastDocFromLastQuery) => {
       /** All docs are updated */
-      if (!lastDocFromPreviousQuery.id) return Promise.resolve();
+      if (!lastDocFromLastQuery.id) return Promise.resolve();
 
-      const startAt = lastDocFromPreviousQuery.get('timestamp');
+      const startAt = lastDocFromLastQuery.get('timestamp');
 
       return process
         .nextTick(() => {

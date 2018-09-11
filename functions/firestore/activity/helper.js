@@ -338,8 +338,8 @@ const validateVenues = (body, venueDescriptors) => {
         messageObject.isValid = false;
         messageObject.message = `In the venue object at position ${i}, the`
           + ` ' geopoint' is invalid. Make sure to include the fields`
-          + `' latitude' and 'longitude' are present in the object with proper`
-          + ` range for each field.`;
+          + ` '_latitude' and '_longitude' are present in the object with`
+          + ` proper range for each field.`;
         break;
       }
 
@@ -376,22 +376,17 @@ const filterAttachment = (body, locals) => {
     profileDocShouldExist: [],
   };
 
-  /**
-   * Some templates **may** have empty attachment object. For those cases,
-   * it's allowed to skip the template in the request body.
-   */
-  if (!body.hasOwnProperty('attachment')) {
+  const invalidTypeMessage = `Expected the type of 'attachment' to be`
+    + ` of type 'Object'. Found ${typeof body.attachment}.`;
+
+  if (typeof body.attachment !== 'object') {
     messageObject.isValid = false;
-    messageObject.message = `The 'attachment' field is missing from the`
-      + ` request body.`;
+    messageObject.message = invalidTypeMessage;
 
     return messageObject;
   }
 
-  const invalidTypeMessage = `Expected the type of 'attachment' to be`
-    + ` of type 'Object'. Found ${typeof body.attachment}.`;
-
-  /** The typeof null is also `object`. */
+  /** The `typeof null` is also `object`. */
   if (body.attachment === null) {
     messageObject.isValid = false;
     messageObject.message = invalidTypeMessage;
@@ -399,9 +394,10 @@ const filterAttachment = (body, locals) => {
     return messageObject;
   }
 
-  if (typeof body.attachment !== 'object') {
+  if (Array.isArray(body.attachment)) {
     messageObject.isValid = false;
-    messageObject.message = invalidTypeMessage;
+    messageObject.message = `Expected the type of 'attachment' to be of type`
+      + ` 'Object' Found 'Array'.`;
 
     return messageObject;
   }
@@ -441,7 +437,7 @@ const filterAttachment = (body, locals) => {
 
     if (!item.hasOwnProperty('value')) {
       messageObject.isValid = false;
-      messageObject.message = `The 'type' field is missing from`
+      messageObject.message = `The 'value' field is missing from`
         + ` the Object '${field}' in the attachment object from`
         + ` the request body.`;
       break;
@@ -466,6 +462,7 @@ const filterAttachment = (body, locals) => {
     }
 
     if (body.template === 'subscription') {
+      /** Subscription to the office is `forbidden` */
       if (body.attachment.Template.value === 'office') {
         messageObject.isValid = false;
         messageObject.message = `Subscription of the template: 'office'`
@@ -491,7 +488,8 @@ const filterAttachment = (body, locals) => {
         messageObject
           .querySnapshotShouldExist
           .push(rootCollections
-            .activityTemplates.where('name', '==', value)
+            .activityTemplates
+            .where('name', '==', value)
             .limit(1)
             .get()
           );
@@ -519,7 +517,7 @@ const filterAttachment = (body, locals) => {
 
     /**
      * For all the cases when the type is not among the `validTypes`
-     * the Offices/(officeId)/Activities will be queried for the doc
+     * the `Offices/(officeId)/Activities` will be queried for the doc
      * to EXIST.
      */
     if (!validTypes.has(type) && value !== '') {
@@ -666,6 +664,14 @@ const validateCreateRequestBody = (body, successMessage) => {
     };
   }
 
+
+  if (!body.hasOwnProperty('attachment')) {
+    return {
+      message: `The field 'attachment' is missing from the request body.`,
+      isValid: false,
+    };
+  }
+
   if (!Array.isArray(body.share)) {
     return {
       message: `The 'share' field in the request body should be an 'array'.`,
@@ -674,7 +680,7 @@ const validateCreateRequestBody = (body, successMessage) => {
   }
 
   /**
-   * Using the traditional loop because you can't `break` out of a 
+   * Using the traditional loop because you can't `break` out of a
    * `forEach` loop.
    */
   for (let i = 0; i < body.share.length; i++) {

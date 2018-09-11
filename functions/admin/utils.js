@@ -285,18 +285,18 @@ const disableAccount = (conn, reason) => {
 
 /**
  * Checks if the location is valid with respect to the standard
- * lat and lng values.
+ * `lat` and `lng` values.
  *
- * @param {Object} location Contains `lat` and `lng` values.
+ * @param {Object} geopoint Contains `lat` and `lng` values.
  * @returns {boolean} If the input `latitude` & `longitude` pair is valid.
  */
-const isValidGeopoint = (location) => {
-  if (!location) return false;
-  if (!location.hasOwnProperty('latitude')) return false;
-  if (!location.hasOwnProperty('longitude')) return false;
+const isValidGeopoint = (geopoint) => {
+  if (!geopoint) return false;
+  if (!geopoint.hasOwnProperty('_latitude')) return false;
+  if (!geopoint.hasOwnProperty('_longitude')) return false;
 
-  const lat = location.latitude;
-  const lng = location.longitude;
+  const lat = geopoint._latitude;
+  const lng = geopoint._longitude;
 
   if (typeof lat !== 'number') return false;
   if (typeof lng !== 'number') return false;
@@ -348,11 +348,8 @@ const isE164PhoneNumber = (phoneNumber) =>
   /^\+[1-9]\d{5,14}$/.test(phoneNumber);
 
 
-const getTimeWithoutSeconds = (dateString) => {
-  const parts = dateString.toDate().toJSON().split(':');
-
-  return `${parts[0]}:${parts[1]}`;
-};
+const getTimeWithoutOffset = (dateString) =>
+  dateString.toDate().toJSON().slice(0, -1);
 
 
 const beautifySchedule = (schedules) => {
@@ -368,9 +365,9 @@ const beautifySchedule = (schedules) => {
      * so when that is the case, the `doDate()` method will
      * crash since it is not in the `prototype` of `string`.
      */
-    if (startTime !== '') startTime = getTimeWithoutSeconds(startTime);
+    if (startTime !== '') startTime = getTimeWithoutOffset(startTime);
 
-    if (endTime !== '') endTime = getTimeWithoutSeconds(endTime);
+    if (endTime !== '') endTime = getTimeWithoutOffset(endTime);
 
     array.push({ name, startTime, endTime, });
   });

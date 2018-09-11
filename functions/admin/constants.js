@@ -27,6 +27,7 @@
 
 /** Types allowed for the field `type` in the attachment object. */
 const validTypes = new Map()
+  .set('number', 'number')
   .set('string', 'string')
   .set('weekday', 'weekday')
   .set('phoneNumber', 'phoneNumber')
@@ -129,7 +130,6 @@ const httpsActions = {
   create: 'create',
   update: 'update',
   changeStatus: 'change-status',
-  remove: 'remove',
   share: 'share',
   updatePhoneNumber: 'update-phone-number',
   comment: 'comment',

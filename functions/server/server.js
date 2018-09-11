@@ -297,7 +297,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         creationTime: userRecord.metadata.creationTime,
       };
 
-      console.log({ phoneNumber: conn.requester.phoneNumber, });
+      console.log({ requester: conn.requester, });
 
       const parsedUrl = require('url').parse(conn.req.url);
 
