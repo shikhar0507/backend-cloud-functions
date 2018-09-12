@@ -25,13 +25,18 @@
 'use strict';
 
 
-const { users, } = require('../../admin/admin');
-const { code, } = require('../../admin/responses');
+const {
+  users,
+} = require('../../admin/admin');
+const {
+  code,
+} = require('../../admin/responses');
 const {
   handleError,
   sendJSON,
   sendResponse,
   isE164PhoneNumber,
+  hasSuperUserClaims,
 } = require('../../admin/utils');
 
 
@@ -52,16 +57,16 @@ module.exports = (conn) => {
     return;
   }
 
-  if (conn.req.query.superUser === 'true') {
-    if (!conn.requester.customClaims.superUser) {
-      sendResponse(
-        conn,
-        code.forbidden,
-        'You are not authorized to view user records as a super user.'
-      );
+  if (conn.req.query.hasOwnProperty('superUser')
+    && conn.req.query.superUser === 'true'
+    && !hasSuperUserClaims(conn.requester.customClaims)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You are not authorized to view user records as a super user.'
+    );
 
-      return;
-    }
+    return;
   }
 
   const promises = [];
@@ -76,23 +81,21 @@ module.exports = (conn) => {
     promises.push(users.getUserByPhoneNumber(conn.req.query.q));
   }
 
-  const jsonResponse = {};
-  let phoneNumber;
-  let record;
-
   Promise
     .all(promises)
     .then((userRecords) => {
+      const jsonResponse = {};
+
       userRecords.forEach((userRecord) => {
-        phoneNumber = Object.keys(userRecord)[0];
-        record = userRecord[`${phoneNumber}`];
+        const phoneNumber = Object.keys(userRecord)[0];
+        const record = userRecord[`${phoneNumber}`];
 
         /** The `superUser` can access user's `metadata` and `customClaims`. */
         if (conn.req.query.superUser === 'true') {
           jsonResponse[`${phoneNumber}`] = {
             displayName: record.displayName || '',
             photoURL: record.photoURL || '',
-            disabled: record.disabled || '',
+            disabled: record.disabled,
             metadata: record.metadata || '',
             customClaims: record.customClaims || {},
           };

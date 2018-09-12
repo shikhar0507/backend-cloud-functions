@@ -26,18 +26,18 @@
 
 
 const admin = require('firebase-admin');
-const process = require('process');
-const serviceAccountKey = require('./service_account');
-const credential = admin.credential.cert(serviceAccountKey);
 
-admin.initializeApp({ credential, });
+admin.initializeApp({
+  credential: admin.credential.cert(require('./service_account')),
+});
 
 const auth = admin.auth();
 const db = admin.firestore();
 
 db.settings({ timestampsInSnapshots: true, });
 
-/** A `sentinel` which maps to the Firestore server timestamp when written to
+/**
+ * A `sentinel` which maps to the Firestore server timestamp when written to
  * a field in a document.
  */
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();

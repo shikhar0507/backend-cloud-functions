@@ -33,10 +33,11 @@
   "repository": "https://github.com/Growthfilev2/backend-cloud-functions/",
   "readme": "https://github.com/Growthfilev2/backend-cloud-functions/blob/master/README.md",
   "dependencies": {
-    "moment": "^2.22.2",
-    "firebase-admin": "^6.0.0",
+    "@google-cloud/error-reporting": "^0.5.1",
     "@sendgrid/mail": "^6.3.1",
-    "firebase-functions": "^2.0.5"
+    "firebase-admin": "^6.0.0",
+    "firebase-functions": "^2.0.5",
+    "moment": "^2.22.2"
   },
   "devDependencies": {
     "mocha": "^5.2.0",

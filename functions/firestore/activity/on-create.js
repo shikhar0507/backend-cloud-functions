@@ -70,6 +70,18 @@ const createDocsWithBatch = (conn, locals) => {
 
       let canEdit = getCanEditValue(locals, phoneNumber);
 
+      /**
+       * When the template is `admin`, the person who's being added
+       * as an admin, should have the edit rights of the activity starting
+       * from this activity (if `canEditRule` is `ADMIN`).
+       *
+       * Explicitly setting this here because the check for admin
+       * in the path `Offices/(officeId)/Activities` will not result in a
+       * document for this person. Because of that, the canEdit value will
+       * be `false` for them.
+       *
+       * The following block counters that.
+       */
       if (conn.req.body.template === 'admin'
         && phoneNumber === conn.req.body.attachment.Admin.value) {
         canEdit = true;
@@ -137,8 +149,6 @@ const createDocsWithBatch = (conn, locals) => {
 
 
 const handleAssignees = (conn, locals) => {
-  const promises = [];
-
   if (locals.objects.allPhoneNumbers.size === 0) {
     sendResponse(
       conn,
@@ -151,12 +161,18 @@ const handleAssignees = (conn, locals) => {
     return;
   }
 
+  const promises = [];
+
   locals
     .objects
     .allPhoneNumbers
     .forEach((phoneNumber) => {
       const isRequester = phoneNumber === conn.requester.phoneNumber;
 
+      /**
+       * Defaults are `false`, since we don't know right now what
+       * these people are in the office in context.
+       */
       locals.objects.permissions[phoneNumber] = {
         isAdmin: false,
         isEmployee: false,
@@ -170,11 +186,9 @@ const handleAssignees = (conn, locals) => {
        */
       if (conn.req.body.template === 'office') return;
 
-      const officeId = locals.static.officeId;
-
       if (locals.static.canEditRule === 'ADMIN') {
         promises.push(rootCollections
-          .offices.doc(officeId)
+          .offices.doc(locals.static.officeId)
           .collection('Activities')
           .where('attachment.Admin.value', '==', phoneNumber)
           .where('template', '==', 'admin')
@@ -185,7 +199,7 @@ const handleAssignees = (conn, locals) => {
 
       if (locals.static.canEditRule === 'EMPLOYEE') {
         promises.push(rootCollections
-          .offices.doc(officeId)
+          .offices.doc(locals.static.officeId)
           .collection('Activities')
           .where('attachment.Employee Contact.value', '==', phoneNumber)
           .where('template', '==', 'employee')
