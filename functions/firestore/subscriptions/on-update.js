@@ -31,50 +31,42 @@ const {
   serverTimestamp,
 } = require('../../admin/admin');
 
-const BATCH_LIMIT = 500;
+let count = 0;
 
-
-const updateSubscriptions = (query, templateName, resolve, reject) =>
+const updateSubscriptions = (query, resolve, reject) =>
   query
     .get()
-    .then((activities) => {
-      if (activities.empty) return Promise.resolve();
+    .then((docs) => {
+      if (docs.size === 0) return 0;
 
       const batch = db.batch();
 
-      activities.forEach((activityDoc) => {
-        batch.set(activityDoc.ref, {
+      docs.forEach((doc) => {
+        batch.set(doc.ref, {
           timestamp: serverTimestamp,
         }, {
             merge: true,
           });
       });
 
-      return activities.docs[activities.size - 1];
+      /* eslint-disable */
+      return batch
+        .commit()
+        .then(() => docs.docs[docs.size - 1]);
+      /* eslint-enable */
     })
-    .then((lastDocFromLastQuery) => {
-      /** All docs are updated */
-      if (!lastDocFromLastQuery.id) return Promise.resolve();
+    .then((lastDoc) => {
+      if (!lastDoc) return resolve();
 
-      const startAt = lastDocFromLastQuery.get('timestamp');
+      count++;
+
+      const startAfter = lastDoc.get('attachment.Subscriber.value');
+      const newQuery = query.startAfter(startAfter);
 
       return process
-        .nextTick(() => {
-          console.log('next tick');
-
-          const query = rootCollections
-            .activities
-            .where('template', '==', 'subscription')
-            .where('attachment.Template.value', '==', templateName)
-            .orderBy('timestamp', 'desc')
-            .startAt(startAt)
-            .limit(BATCH_LIMIT);
-
-          updateSubscriptions(query, templateName, resolve, reject);
-        });
+        .nextTick(() => updateSubscriptions(newQuery, resolve, reject));
     })
     .catch(reject);
-
 
 /**
  * Whenever a `Template Manager` updates a document in ActivityTemplates
@@ -93,18 +85,16 @@ const updateSubscriptions = (query, templateName, resolve, reject) =>
 module.exports = (change) => {
   /** The template name never changes. */
   const templateName = change.after.get('name');
-
-  const query = rootCollections
-    .activities
-    .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', templateName)
-    .orderBy('timestamp', 'desc')
-    .limit(BATCH_LIMIT);
+  const query =
+    rootCollections
+      .activities
+      .where('template', '==', 'subscription')
+      .where('attachment.Template.value', '==', templateName)
+      .orderBy('attachment.Subscriber.value')
+      .limit(500);
 
   return new
-    Promise(
-      (resolve, reject) =>
-        updateSubscriptions(query, resolve, reject)
-    )
+    Promise((resolve, reject) => updateSubscriptions(query, resolve, reject))
+    .then(() => console.log(`Iterations: ${count}`))
     .catch(console.error);
 };

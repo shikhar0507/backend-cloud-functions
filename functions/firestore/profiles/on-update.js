@@ -30,22 +30,17 @@ const {
   db,
 } = require('../../admin/admin');
 
+let count = 0;
 
-const purgeAddendum = (uid, queryArg, resolve, reject) =>
-  rootCollections
-    .updates
-    .doc(uid)
-    .collection('Addendum')
-    .where('timestamp', '<', queryArg)
-    .limit(500)
+const purgeAddendum = (query, resolve, reject) =>
+  query
     .get()
     .then((docs) => {
       // When there are no documents left, we are done
-      if (docs.size === 0) return resolve();
+      if (docs.size === 0) return 0;
 
       // Delete documents in a batch
       const batch = db.batch();
-
       docs.forEach((doc) => batch.delete(doc.ref));
 
       /* eslint-disable */
@@ -54,12 +49,15 @@ const purgeAddendum = (uid, queryArg, resolve, reject) =>
         .then(() => docs.size);
       /* eslint-enable */
     })
-    .then((numberOfDocsDeleted) => {
-      if (numberOfDocsDeleted === 0) return resolve();
+    .then((deleteCount) => {
+      /** All docs deleted */
+      if (deleteCount === 0) return resolve();
+
+      count++;
 
       // Recurse on the next process tick, to avoid exploding the stack.
       return process
-        .nextTick(() => purgeAddendum(uid, queryArg, resolve, reject));
+        .nextTick(() => purgeAddendum(query, resolve, reject));
     })
     .catch(reject);
 
@@ -75,21 +73,25 @@ const purgeAddendum = (uid, queryArg, resolve, reject) =>
  * @returns {Promise<Batch>} Firestore `Batch` object.
  */
 module.exports = (change) => {
-  const oldProfile = change.before;
-  const newProfile = change.after;
+  const oldFromValue = change.before.get('lastFromQuery');
+  const newFromValue = change.after.get('lastFromQuery');
 
-  const oldQuery = oldProfile.get('lastFromQuery');
-  const newQuery = newProfile.get('lastFromQuery');
+  if (newFromValue < oldFromValue) return Promise.resolve();
 
-  if (oldQuery === newQuery) return Promise.resolve();
-
-  const uid = newProfile.get('uid');
-
-  const queryArg = new Date(parseInt(oldQuery));
+  const uid = change.after.get('uid');
+  const queryArg = new Date(parseInt(oldFromValue));
+  const query = rootCollections
+    .updates
+    .doc(uid)
+    .collection('Addendum')
+    .where('timestamp', '<', queryArg)
+    .orderBy('timestamp')
+    .limit(500);
 
   return new
     Promise(
-      (resolve, reject) => purgeAddendum(uid, queryArg, resolve, reject)
+      (resolve, reject) => purgeAddendum(query, resolve, reject)
     )
+    .then(() => console.log(`Iterations: ${count}`))
     .catch(console.error);
 };
