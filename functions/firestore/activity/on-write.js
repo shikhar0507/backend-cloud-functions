@@ -181,7 +181,7 @@ const addSubscriptionToUserProfile = (locals, batch) => {
 
 
 const getUpdatedScheduleNames = (requestBody, oldSchedule) => {
-  let commentString = '';
+  const updatedFields = [];
 
   oldSchedule.forEach((item, index) => {
     const name = item.name;
@@ -217,23 +217,15 @@ const getUpdatedScheduleNames = (requestBody, oldSchedule) => {
     if (newEndTime === oldEndTime
       && newStartTime === oldStartTime) return;
 
-    if (index === 0) {
-      commentString += `${name}`;
-
-      return;
-    } else {
-      commentString += `, `;
-    }
-
-    commentString += `${name}`;
+    updatedFields.push(name);
   });
 
-  return commentString;
+  return updatedFields;
 };
 
 
 const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
-  let commentString = '';
+  const updatedFields = [];
 
   oldVenue.forEach((item, index) => {
     const venueDescriptor = item.venueDescriptor;
@@ -264,47 +256,29 @@ const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
       && oldLatitude === newLatitude
       && oldLongitude === newLongitude) return;
 
-    if (index === 0) {
-      commentString += `${venueDescriptor}`;
-
-      return;
-    } else {
-      commentString += `, `;
-    }
-
-    commentString += `${venueDescriptor}`;
+    updatedFields.push(venueDescriptor);
   });
 
-  return commentString;
+  return updatedFields;
 };
 
 const getUpdatedAttachmentFieldNames = (requestBody, attachment) => {
-  let commentString = '';
+  const updatedFields = [];
   const newAttachment = requestBody.attachment;
 
   Object
     .keys(newAttachment)
-    .forEach((field, index) => {
+    .forEach((field) => {
       const oldFieldValue = attachment[field].value;
       const newFieldValue = newAttachment[field].value;
       const isUpdated = oldFieldValue !== newFieldValue;
 
       if (!isUpdated) return;
 
-      const isFirstElement = index === 0;
-
-      if (isFirstElement) {
-        commentString += `${field}`;
-
-        return;
-      } else {
-        commentString += `, `;
-      }
-
-      commentString += `${field}`;
+      updatedFields.push(field);
     });
 
-  return commentString;
+  return updatedFields;
 };
 
 
@@ -315,34 +289,28 @@ const getUpdatedFieldNames = (updatedFields) => {
   const oldVenue = activityBody.venue;
   const attachment = activityBody.attachment;
 
-  const updatedNames = getUpdatedScheduleNames(requestBody, oldSchedule);
-  const updatedDescriptors = getUpdatedVenueDescriptors(requestBody, oldVenue);
-  const updatedFieldsInAttachment =
-    getUpdatedAttachmentFieldNames(requestBody, attachment);
+  const allFields = [
+    ...getUpdatedScheduleNames(requestBody, oldSchedule),
+    ...getUpdatedVenueDescriptors(requestBody, oldVenue),
+    ...getUpdatedAttachmentFieldNames(requestBody, attachment),
+  ];
 
-  let finalComment = '';
+  let commentString = '';
 
-  if (updatedNames) {
-    finalComment += updatedNames;
-  }
+  allFields
+    .forEach((field, index) => {
+      const isLastField = index === allFields.length - 1;
 
-  if (updatedDescriptors) {
-    if (finalComment === '') {
-      finalComment += `${updatedDescriptors}`;
-    } else {
-      finalComment += `, ${updatedDescriptors}`;
-    }
-  }
+      if (isLastField && allFields.length !== 1) {
+        commentString += `& ${field}`;
 
-  if (updatedFieldsInAttachment) {
-    if (finalComment === '') {
-      finalComment += `${updatedFieldsInAttachment}`;
-    } else {
-      finalComment += `, ${updatedFieldsInAttachment}`;
-    }
-  }
+        return;
+      }
 
-  return finalComment;
+      commentString += `${field}, `;
+    });
+
+  return commentString;
 };
 
 
