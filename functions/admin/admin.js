@@ -229,19 +229,10 @@ const rootCollections = {
    * @example `/Updates/(uid)/Addendum/(auto-id)`
    */
   updates: db.collection('Updates'),
-  /** Contains constants used throughout the system.
-   * @example `/ENUM/(doc-id)/`
-   */
-  enums: db.collection('Enum'),
   /** Contains Templates used for creating activity.
    * @example `/ActivityTemplates/(auto-id)`
    */
   activityTemplates: db.collection('ActivityTemplates'),
-  /** Stores all the data for creating templates and emails
-   * along with their recipients and email timings.
-   * @example `/ReportTemplates/(report-name)`
-   */
-  reportTemplates: db.collection('ReportTemplates'),
   /** Contains a _unique_ doc for *each* `office` which has signed up for
    * the platform.
    * @example `/Offices/(autoId)'
@@ -254,16 +245,6 @@ const rootCollections = {
    * @example `/Instant/(auto-id)`
    */
   instant: db.collection('Instant'),
-  /** Contains the Docs of all the users who have signed up on
-   * a particular day.
-   * @example `/DailySignUps/(DD-MM-YYYY)`
-   */
-  dailySignUps: db.collection('DailySignUps'),
-  /** A Log of all the users who have **initialized** the app first
-   * time on their devices.
-   * @example `/DailyInits/(DD-MM-YYYY)`
-   */
-  dailyInits: db.collection('DailyInits'),
   /** Stores the users who are disabled on a day
    * @example `/DailyDisabled/(DD-MM-YYYY)`
    */
@@ -275,6 +256,7 @@ const rootCollections = {
   dailyPhoneNumberChanges: db.collection('DailyPhoneNumberChanges'),
   phoneNumberUpdates: db.collection('PhoneNumberUpdates'),
   reports: db.collection('Reports'),
+  inits: db.collection('Inits'),
 };
 
 

@@ -414,15 +414,14 @@ module.exports = (req, res) => {
     headers: getHeaders(),
   };
 
-  const allowedHttpsMethods = new Set()
+  if (!new Set()
     .add('OPTIONS')
     .add('HEAD')
     .add('GET')
     .add('POST')
     .add('PATCH')
-    .add('PUT');
-
-  if (!allowedHttpsMethods.has(req.method)) {
+    .add('PUT')
+    .has(req.method)) {
     sendResponse(
       conn,
       code.notImplemented,

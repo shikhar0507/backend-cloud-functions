@@ -48,8 +48,11 @@ const {
 
 
 const updateDocsWithBatch = (conn, locals) => {
-  const activityRef = rootCollections.activities.doc(conn.req.body.activityId);
+  const activityRef = rootCollections
+    .activities
+    .doc(conn.req.body.activityId);
 
+  locals.objects.updatedFields.attachment = conn.req.body.attachment;
   locals.objects.updatedFields.addendumDocRef = rootCollections
     .offices
     .doc(locals.docs.activity.get('officeId'))
@@ -167,6 +170,7 @@ const handleAssignees = (conn, locals) => {
 
     phoneNumbersChanged = true;
 
+    /**  */
     if (oldPhoneNumber !== '' && newPhoneNumber === '') {
       locals.batch.delete(rootCollections
         .activities
@@ -224,9 +228,10 @@ const handleAssignees = (conn, locals) => {
     }
   });
 
-  if (new Map()
-    .set('subscription', 'subscription')
-    .set('admin', 'admin')
+  if (new Set()
+    .add('subscription')
+    .add('admin')
+    .add('employee')
     .has(locals.static.template)
     && phoneNumbersChanged) {
     sendResponse(
@@ -456,8 +461,6 @@ const handleAttachment = (conn, locals) => {
 
     return;
   }
-
-  locals.objects.updatedFields.attachment = conn.req.body.attachment;
 
   resolveProfileCheckPromises(conn, locals, result);
 };

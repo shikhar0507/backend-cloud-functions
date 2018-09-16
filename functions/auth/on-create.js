@@ -24,12 +24,9 @@
 
 'use strict';
 
-
-const { getISO8601Date, } = require('../admin/utils');
 const {
   db,
   rootCollections,
-  serverTimestamp,
 } = require('../admin/admin');
 
 
@@ -48,6 +45,8 @@ module.exports = (userRecord) => {
     .updates
     .doc(uid), {
       phoneNumber,
+    }, {
+      merge: true,
     });
 
   /**
@@ -62,29 +61,7 @@ module.exports = (userRecord) => {
       merge: true,
     });
 
-  return rootCollections
-    .profiles
-    .doc(phoneNumber)
-    .collection('Activities')
-    .where('template', '==', 'employee')
-    .where('attachment.Employee Contact.value', '==', phoneNumber)
-    .get()
-    .then((docs) => {
-      docs.forEach((doc) => {
-        batch.set(rootCollections
-          .offices
-          .doc(doc.get('officeId'))
-          .collection('SignUps')
-          .doc(getISO8601Date()), {
-            [phoneNumber]: {
-              timestamp: serverTimestamp,
-            },
-          }, {
-            merge: true,
-          });
-      });
-
-      return batch.commit();
-    })
+  return batch
+    .commit()
     .catch(console.error);
 };

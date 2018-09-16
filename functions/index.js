@@ -66,18 +66,17 @@ const createOfficeNamePermutations = functions
   .document('Offices/{officeId}')
   .onCreate(require('./firestore/offices/on-create'));
 
-const purgeAddendum = functions
+// TODO: Rename the `required` file to `on-write.js`
+const profileHandler = functions
   .firestore
   .document('Profiles/{phoneNumber}')
-  .onUpdate(require('./firestore/profiles/on-update'));
+  .onWrite(require('./firestore/profiles/on-update'));
 
 const subscriptionUpdater = functions
   .firestore
   .document('ActivityTemplates/{docId}')
   .onUpdate(require('./firestore/subscriptions/on-update'));
 
-
-/* Temporary */
 const timer = functions
   .firestore
   .document('Timers/{docId}')
@@ -89,11 +88,11 @@ module.exports = {
   timer,
   authOnCreate,
   authOnDelete,
+  profileHandler,
   reportsHandler,
-  assigneeHandler,
   activityHandler,
+  assigneeHandler,
   subscriptionUpdater,
-  purgeAddendum,
   phoneNumberUpdateHandler,
   createOfficeNamePermutations,
 };

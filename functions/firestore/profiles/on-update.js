@@ -26,9 +26,11 @@
 
 
 const {
-  rootCollections,
   db,
+  rootCollections,
+  serverTimestamp,
 } = require('../../admin/admin');
+
 
 let count = 0;
 
@@ -62,29 +64,18 @@ const purgeAddendum = (query, resolve, reject) =>
     .catch(reject);
 
 
-/**
- * Deletes the addendum docs from the `Updates/(uid)/Addendum` when the
- * `lastFromQuery` changes in the `Profiles` doc of the user.
- *
- * @Path: `Profiles/(phoneNumber)`
- * @Trigger: `onUpdate`
- *
- * @param {Object} change Contains snapshot of `old` and `new` doc in `context`.
- * @returns {Promise<Batch>} Firestore `Batch` object.
- */
-module.exports = (change) => {
-  const oldFromValue = change.before.get('lastFromQuery');
-  const newFromValue = change.after.get('lastFromQuery');
+const manageAddendum = (change, batch) => {
+  const oldFromValue = parseInt(change.before.get('lastQueryFrom'));
+  const newFromValue = parseInt(change.after.get('lastQueryFrom'));
 
-  if (newFromValue < oldFromValue) return Promise.resolve();
+  if (newFromValue <= oldFromValue) return Promise.resolve();
 
-  const uid = change.after.get('uid');
-  const queryArg = new Date(parseInt(oldFromValue));
+  const newUid = change.after.get('uid') || '';
   const query = rootCollections
     .updates
-    .doc(uid)
+    .doc(newUid)
     .collection('Addendum')
-    .where('timestamp', '<', queryArg)
+    .where('timestamp', '<', oldFromValue)
     .orderBy('timestamp')
     .limit(500);
 
@@ -93,5 +84,112 @@ module.exports = (change) => {
       (resolve, reject) => purgeAddendum(query, resolve, reject)
     )
     .then(() => console.log(`Iterations: ${count}`))
+    .then(() => batch.commit())
+    .catch(console.error);
+};
+
+/**
+ * Deletes the addendum docs from the `Updates/(uid)/Addendum` when the
+ * `lastFromQuery` changes in the `Profiles` doc of the user.
+ *
+ * @Path: `Profiles/(phoneNumber)`
+ * @Trigger: `onWrite`
+ *
+ * @param {Object} change Contains snapshot of `old` and `new` doc in `context`.
+ * @returns {Promise<Batch>} Firestore `Batch` object.
+ */
+module.exports = (change) => {
+  const { before, after, } = change;
+  const batch = db.batch();
+  const phoneNumber = after.id;
+  const oldUid = before.get('uid');
+  const newUid = after.get('uid');
+  const oldEmployeeOf = before.get('employeeOf');
+  const currentEmployeeOf = after.get('employeeOf');
+  const oldOfficesList = Object.keys(oldEmployeeOf || {});
+  const currentOfficesList = Object.keys(currentEmployeeOf || {});
+  const addedList = currentOfficesList
+    .filter((item) => oldOfficesList.indexOf(item) === -1);
+  const removedList = oldOfficesList
+    .filter((item) => currentOfficesList.indexOf(item) === -1);
+  /** 
+   * The uid was undefined or null in the old state, but is available 
+   * after document update event. 
+   */
+  const hasSignedUp = Boolean(!oldUid && newUid);
+
+  console.log({
+    oldUid,
+    newUid,
+    addedList,
+    removedList,
+    phoneNumber,
+    hasSignedUp,
+    oldOfficesList,
+    currentOfficesList,
+  });
+
+  addedList.forEach((officeName) => {
+    // Log employee added to all newly added offices
+    batch.set(rootCollections
+      .inits
+      .doc(), {
+        phoneNumber,
+        uid: newUid || null,
+        office: officeName,
+        officeId: currentEmployeeOf[officeName],
+        addedOn: serverTimestamp,
+        signedUpOn: hasSignedUp ? serverTimestamp : '',
+      });
+  });
+
+  const newFromValue = change.after.get('lastQueryFrom');
+  const toUpdate = [];
+
+  currentOfficesList.forEach((officeName) => {
+    // Log `install` event for all the current offices.
+    if (newFromValue === '0') {
+      batch.set(rootCollections
+        .inits
+        .doc(), {
+          phoneNumber,
+          uid: newUid || null,
+          office: officeName,
+          officeId: currentEmployeeOf[officeName],
+          installedOn: serverTimestamp,
+        });
+    }
+
+    if (hasSignedUp) {
+      toUpdate.push(rootCollections
+        .inits
+        .where('phoneNumber', '==', phoneNumber)
+        .where('office', '==', officeName)
+        .where('signedUpOn', '==', '')
+        .limit(1)
+        .get());
+    }
+  });
+
+  return Promise
+    .all(toUpdate)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const doc = snapShot.docs[0];
+
+        batch.set(doc.ref, {
+          signedUpOn: serverTimestamp,
+        }, {
+            merge: true,
+          });
+      });
+
+      return batch;
+    })
+    .then((batch) => batch.commit())
+    .then(() => console.log('writes:', batch._writes))
+    .then(() => manageAddendum(change))
     .catch(console.error);
 };

@@ -27,7 +27,6 @@
 
 const {
   rootCollections,
-  serverTimestamp,
   db,
 } = require('../admin/admin');
 const {
@@ -42,7 +41,6 @@ const {
   sendJSON,
   isValidDate,
   isNonEmptyString,
-  getISO8601Date,
 } = require('../admin/utils');
 
 
@@ -78,6 +76,52 @@ const validateRequest = (conn) => {
   return {
     isValid: true,
     message: null,
+  };
+};
+
+const getAddendumObject = (doc) => {
+  return {
+    addendumId: doc.id,
+    activityId: doc.get('activityId'),
+    comment: doc.get('comment'),
+    timestamp: doc.get('timestamp').toDate(),
+    location: doc.get('location'),
+    user: doc.get('user'),
+    isComment: doc.get('isComment'),
+  };
+};
+
+const getActivityObject = (doc) => {
+  return {
+    activityId: doc.id,
+    status: doc.get('status'),
+    assignees: doc.get('assignees'),
+    canEdit: doc.get('canEdit'),
+    /**
+     * Schedule objects can have `startTime` and `endTime`
+     * equal to either empty strings or Firestore `Date` objects.
+     * This function converts them to readable JS `Date` objects
+     * and also snips out the `Z` (offset) word.
+     */
+    schedule: beautifySchedule(doc.get('schedule')),
+    venue: doc.get('venue'),
+    timestamp: doc.get('timestamp').toDate(),
+    template: doc.get('template'),
+    activityName: doc.get('activityName'),
+    office: doc.get('office'),
+    attachment: doc.get('attachment'),
+    creator: doc.get('creator'),
+    hidden: doc.get('hidden'),
+  };
+};
+
+const getSubscriptionObject = (doc) => {
+  return {
+    template: doc.get('template'),
+    schedule: doc.get('schedule'),
+    venue: doc.get('venue'),
+    attachment: doc.get('attachment'),
+    office: doc.get('office'),
   };
 };
 
@@ -130,71 +174,16 @@ module.exports = (conn) => {
           .toDate();
       }
 
-      addendum.forEach((doc) => {
-        jsonObject.addendum.push({
-          addendumId: doc.id,
-          activityId: doc.get('activityId'),
-          comment: doc.get('comment'),
-          timestamp: doc.get('timestamp').toDate(),
-          location: doc.get('location'),
-          user: doc.get('user'),
-          isComment: doc.get('isComment'),
-        });
-      });
+      addendum.forEach((doc) =>
+        jsonObject.addendum.push(getAddendumObject(doc)));
 
-      activities.forEach((doc) => {
-        jsonObject.activities.push({
-          activityId: doc.id,
-          status: doc.get('status'),
-          assignees: doc.get('assignees'),
-          canEdit: doc.get('canEdit'),
-          /**
-           * Schedule objects can have `startTime` and `endTime`
-           * equal to either empty strings or Firestore `Date` objects.
-           * This function converts them to readable JS `Date` objects
-           * and also snips out the `Z` (offset) word.
-           */
-          schedule: beautifySchedule(doc.get('schedule')),
-          venue: doc.get('venue'),
-          timestamp: doc.get('timestamp').toDate(),
-          template: doc.get('template'),
-          activityName: doc.get('activityName'),
-          office: doc.get('office'),
-          attachment: doc.get('attachment'),
-          creator: doc.get('creator'),
-          hidden: doc.get('hidden'),
-        });
-      });
+      activities.forEach((doc) =>
+        jsonObject.activities.push(getActivityObject(doc)));
 
-      subscriptions.forEach((doc) => {
-        jsonObject.templates.push({
-          template: doc.get('template'),
-          schedule: doc.get('schedule'),
-          venue: doc.get('venue'),
-          attachment: doc.get('attachment'),
-          office: doc.get('office'),
-        });
-      });
+      subscriptions.forEach((doc) =>
+        jsonObject.templates.push(getSubscriptionObject(doc)));
 
       const batch = db.batch();
-
-      if (conn.req.query.from === '0' && conn.requester.employeeOf) {
-        Object
-          .keys(conn.requester.employeeOf)
-          .forEach((officeName) => {
-            const officeId = conn.requester.employeeOf[officeName];
-
-            batch.set(rootCollections
-              .offices
-              .doc(officeId)
-              .collection('Inits')
-              .doc(getISO8601Date()), {
-                [conn.requester.phoneNumber]: serverTimestamp,
-              }, {
-                merge: true,
-              });
-          });
-      }
 
       if (conn.requester.lastFromQuery !== conn.req.query.from) {
         batch.set(rootCollections
@@ -202,6 +191,7 @@ module.exports = (conn) => {
           .doc(conn.requester.phoneNumber), {
             lastFromQuery: conn.req.query.from,
           }, {
+            /** Profile has other stuff too. */
             merge: true,
           });
       }
