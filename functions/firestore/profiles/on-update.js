@@ -31,6 +31,10 @@ const {
   serverTimestamp,
 } = require('../../admin/admin');
 
+const {
+  reportingActions,
+} = require('../../admin/constants');
+
 
 let count = 0;
 
@@ -64,10 +68,12 @@ const purgeAddendum = (query, resolve, reject) =>
     .catch(reject);
 
 
-const manageAddendum = (change, batch) => {
-  const oldFromValue = parseInt(change.before.get('lastQueryFrom'));
-  const newFromValue = parseInt(change.after.get('lastQueryFrom'));
+const manageAddendum = (change) => {
+  const oldFromValue = change.before.get('lastQueryFrom');
+  const newFromValue = change.after.get('lastQueryFrom');
 
+  if (!newFromValue) return Promise.resolve();
+  if (!oldFromValue) return Promise.resolve();
   if (newFromValue <= oldFromValue) return Promise.resolve();
 
   const newUid = change.after.get('uid') || '';
@@ -75,7 +81,7 @@ const manageAddendum = (change, batch) => {
     .updates
     .doc(newUid)
     .collection('Addendum')
-    .where('timestamp', '<', oldFromValue)
+    .where('timestamp', '<', new Date(oldFromValue))
     .orderBy('timestamp')
     .limit(500);
 
@@ -84,13 +90,12 @@ const manageAddendum = (change, batch) => {
       (resolve, reject) => purgeAddendum(query, resolve, reject)
     )
     .then(() => console.log(`Iterations: ${count}`))
-    .then(() => batch.commit())
     .catch(console.error);
 };
 
 /**
  * Deletes the addendum docs from the `Updates/(uid)/Addendum` when the
- * `lastFromQuery` changes in the `Profiles` doc of the user.
+ * `lastQueryFrom` changes in the `Profiles` doc of the user.
  *
  * @Path: `Profiles/(phoneNumber)`
  * @Trigger: `onWrite`
@@ -104,29 +109,56 @@ module.exports = (change) => {
   const phoneNumber = after.id;
   const oldUid = before.get('uid');
   const newUid = after.get('uid');
-  const oldEmployeeOf = before.get('employeeOf');
-  const currentEmployeeOf = after.get('employeeOf');
-  const oldOfficesList = Object.keys(oldEmployeeOf || {});
-  const currentOfficesList = Object.keys(currentEmployeeOf || {});
+  const newFromValue = change.after.get('lastQueryFrom');
+  const oldOfficesList = Object.keys(before.get('employeeOf') || {});
+  const currentOfficesList = Object.keys(after.get('employeeOf') || {});
   const addedList = currentOfficesList
-    .filter((item) => oldOfficesList.indexOf(item) === -1);
+    .filter((officeName) => oldOfficesList.indexOf(officeName) === -1);
   const removedList = oldOfficesList
-    .filter((item) => currentOfficesList.indexOf(item) === -1);
-  /** 
-   * The uid was undefined or null in the old state, but is available 
-   * after document update event. 
+    .filter((officeName) => currentOfficesList.indexOf(officeName) === -1);
+  /**
+   * The uid was undefined or null in the old state, but is available
+   * after document update event.
    */
   const hasSignedUp = Boolean(!oldUid && newUid);
+  const authDeleted = Boolean(oldUid && !newUid);
+  const hasInstalled = newFromValue === 0;
 
-  console.log({
-    oldUid,
-    newUid,
-    addedList,
-    removedList,
-    phoneNumber,
-    hasSignedUp,
-    oldOfficesList,
-    currentOfficesList,
+  /**
+   * Old and the new uid don't match. Currently no code does this.
+   * Logging this event in case this happens.
+   */
+  const uidChanged = oldUid !== null && newUid !== null && oldUid !== newUid;
+
+  if (uidChanged) {
+    const messageBody = `
+    <p>
+      phoneNumber: ${phoneNumber},
+      <br>
+      newUid: ${newUid}
+      <br>
+      oldUid: ${oldUid}
+      <br>
+    </p>`;
+
+    batch.set(rootCollections
+      .instant
+      .doc(), {
+        messageBody,
+        subject: `${phoneNumber}'s auth has changed`,
+        action: reportingActions.authChanged,
+      });
+  }
+
+  const toDelete = [];
+
+  removedList.forEach((officeName) => {
+    toDelete.push(rootCollections
+      .inits
+      .where('phoneNumber', '==', phoneNumber)
+      .where('office', '==', officeName)
+      .limit(1)
+      .get());
   });
 
   addedList.forEach((officeName) => {
@@ -137,30 +169,41 @@ module.exports = (change) => {
         phoneNumber,
         uid: newUid || null,
         office: officeName,
-        officeId: currentEmployeeOf[officeName],
+        officeId: after.get('employeeOf')[officeName],
         addedOn: serverTimestamp,
         signedUpOn: hasSignedUp ? serverTimestamp : '',
+        event: 'added',
       });
   });
 
-  const newFromValue = change.after.get('lastQueryFrom');
   const toUpdate = [];
 
   currentOfficesList.forEach((officeName) => {
     // Log `install` event for all the current offices.
-    if (newFromValue === '0') {
+    if (hasInstalled) {
       batch.set(rootCollections
         .inits
         .doc(), {
           phoneNumber,
           uid: newUid || null,
           office: officeName,
-          officeId: currentEmployeeOf[officeName],
+          officeId: after.get('employeeOf')[officeName],
           installedOn: serverTimestamp,
+          event: 'install',
         });
     }
 
     if (hasSignedUp) {
+      toUpdate.push(rootCollections
+        .inits
+        .where('phoneNumber', '==', phoneNumber)
+        .where('office', '==', officeName)
+        .where('event', '==', 'added')
+        .limit(1)
+        .get());
+    }
+
+    if (authDeleted) {
       toUpdate.push(rootCollections
         .inits
         .where('phoneNumber', '==', phoneNumber)
@@ -181,15 +224,43 @@ module.exports = (change) => {
 
         batch.set(doc.ref, {
           signedUpOn: serverTimestamp,
+          uid: newUid || null,
         }, {
             merge: true,
           });
       });
 
+      return Promise.all(toDelete);
+    })
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const doc = snapShot.docs[0];
+
+        batch.delete(doc.ref);
+      });
+
       return batch;
     })
     .then((batch) => batch.commit())
-    .then(() => console.log('writes:', batch._writes))
+    .then(() => console.log({
+      // Temporary logging
+      oldUid,
+      newUid,
+      toDelete,
+      toUpdate,
+      addedList,
+      uidChanged,
+      hasSignedUp,
+      removedList,
+      phoneNumber,
+      oldOfficesList,
+      currentOfficesList,
+      writes: batch._writes,
+      oldFromValue: change.before.get('lastQueryFrom'),
+      newFromValue: change.after.get('lastQueryFrom'),
+    }))
     .then(() => manageAddendum(change))
     .catch(console.error);
 };

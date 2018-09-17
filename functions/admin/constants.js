@@ -139,6 +139,7 @@ const reportingActions = {
   authDeleted: 'authDeleted',
   authDisabled: 'authDisabled',
   usedCustomClaims: 'usedCustomClaims',
+  authChanged: 'authChanged',
 };
 
 

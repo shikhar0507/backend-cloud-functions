@@ -107,16 +107,14 @@ const setAdminCustomClaims = (locals, batch) => {
 const handleReport = (locals, batch) => {
   const activityDocNew = locals.change.after.activityDocNew;
   const activityId = activityDocNew.id;
-  const template = activityDocNew.get('template');
 
-  const collectionName = `${template} Mailing List`;
-
-  batch.set(db
-    .collection(collectionName)
+  batch.set(rootCollections
+    .reports
     .doc(activityId), {
       cc: 'help@growthfile.com',
       office: activityDocNew.get('office'),
       include: locals.assigneePhoneNumbersArray,
+      timestamp: serverTimestamp,
     });
 
   return batch
@@ -262,14 +260,14 @@ const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
   return updatedFields;
 };
 
-const getUpdatedAttachmentFieldNames = (requestBody, attachment) => {
+const getUpdatedAttachmentFieldNames = (requestBody, oldAttachment) => {
   const updatedFields = [];
   const newAttachment = requestBody.attachment;
 
   Object
     .keys(newAttachment)
     .forEach((field) => {
-      const oldFieldValue = attachment[field].value;
+      const oldFieldValue = oldAttachment[field].value;
       const newFieldValue = newAttachment[field].value;
       const isUpdated = oldFieldValue !== newFieldValue;
 
@@ -282,26 +280,28 @@ const getUpdatedAttachmentFieldNames = (requestBody, attachment) => {
 };
 
 
-const getUpdatedFieldNames = (updatedFields) => {
-  const { requestBody, activityBody, } = updatedFields;
+const getUpdatedFieldNames = (eventData) => {
+  const { requestBody, activityBody, } = eventData;
 
   const oldSchedule = activityBody.schedule;
   const oldVenue = activityBody.venue;
-  const attachment = activityBody.attachment;
+  const oldAttachment = activityBody.attachment;
 
   const allFields = [
     ...getUpdatedScheduleNames(requestBody, oldSchedule),
     ...getUpdatedVenueDescriptors(requestBody, oldVenue),
-    ...getUpdatedAttachmentFieldNames(requestBody, attachment),
+    ...getUpdatedAttachmentFieldNames(requestBody, oldAttachment),
   ];
 
   let commentString = '';
+
+  if (allFields.length === 1) return commentString += `${allFields[0]}`;
 
   allFields
     .forEach((field, index) => {
       const isLastField = index === allFields.length - 1;
 
-      if (isLastField && allFields.length !== 1) {
+      if (isLastField) {
         commentString += `& ${field}`;
 
         return;
@@ -358,9 +358,8 @@ const getChangeStatusComment = (status, activityName, pronoun) => {
 
 
 const getCommentString = (locals, recipient) => {
-  const addendum = locals.addendum;
-  const addendumCreator = addendum.get('user');
-  const action = addendum.get('action');
+  const addendumCreator = locals.addendum.get('user');
+  const action = locals.addendum.get('action');
   const pronoun = getPronoun(locals, recipient);
 
   if (action === httpsActions.create) {
@@ -370,14 +369,50 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.changeStatus) {
-    const activityName = addendum.get('activityName');
-    const status = addendum.get('status');
+    const activityName = locals.addendum.get('activityName');
+    const status = locals.addendum.get('status');
 
     return getChangeStatusComment(status, activityName, pronoun);
   }
 
+  if (action === httpsActions.share) {
+    const share = locals.addendum.get('share');
+    let str = `${pronoun} added`;
+
+    if (share.length === 1) {
+      const name = locals.authMap.get(share[0]).displayName || share[0];
+
+      return str += ` ${name}`;
+    }
+
+    /** The `share` array will never have the `user` themselves */
+    share.forEach((phoneNumber, index) => {
+      const name = locals.authMap.get(phoneNumber).displayName || phoneNumber;
+      const isLastItem = share.length - 1 === index;
+      /**
+       * Creates a string to show to the user
+       * `${ph1} added ${ph2}, ${ph3}, & ${ph4}`
+       */
+      if (isLastItem) {
+        str += ` & ${name}`;
+
+        return;
+      }
+
+      str += ` ${name}, `;
+    });
+
+    return str;
+  }
+
+  if (action === httpsActions.update) {
+    const eventData = locals.addendum.get('updatedFields');
+
+    return `${pronoun} updated ${getUpdatedFieldNames(eventData)}.`;
+  }
+
   if (action === httpsActions.updatePhoneNumber) {
-    const updatedPhoneNumber = addendum.get('updatedPhoneNumber');
+    const updatedPhoneNumber = locals.addendum.get('updatedPhoneNumber');
     let pronoun = `${addendumCreator} changed their`;
 
     if (addendumCreator === recipient) pronoun = 'You changed your';
@@ -386,46 +421,8 @@ const getCommentString = (locals, recipient) => {
       + ` ${updatedPhoneNumber}.`;
   }
 
-  if (action === httpsActions.share) {
-    const share = addendum.get('share');
-    let str = `${pronoun} added`;
-
-    if (share.length === 1) {
-      const removedUserIdentifier = getPronoun(locals, share[0]);
-
-      return `${str} ${removedUserIdentifier}`;
-    }
-
-    /** The `share` array will never have the `user` themselves */
-    share.forEach((phoneNumber, index) => {
-      const removedUserIdentifier = getPronoun(locals, phoneNumber);
-
-      /**
-       * Creates a string to show to the user
-       * `${ph1} added ${ph2}, ${ph3}, & ${ph4}`
-       */
-      if (index === share.length - 1) {
-        str += ` & ${removedUserIdentifier}`;
-
-        return;
-      } else {
-        str += `, `;
-      }
-
-      str += `${removedUserIdentifier}`;
-    });
-
-    return str;
-  }
-
-  if (action === httpsActions.update) {
-    const updatedFields = addendum.get('updatedFields');
-
-    return `${pronoun} updated ${getUpdatedFieldNames(updatedFields)}.`;
-  }
-
   /** Action is `comment` */
-  return addendum.get('comment');
+  return locals.addendum.get('comment');
 };
 
 
@@ -469,10 +466,15 @@ const addOfficeToProfile = (locals, batch) => {
 
 
 module.exports = (change, context) => {
+  if (!change.after) {
+    /** For debugging only... */
+    console.log('Activity was deleted...');
+
+    return Promise.resolve();
+  }
+
   const addendumRef = change.after.get('addendumDocRef');
   const activityId = context.params.activityId;
-
-  console.log({ activityId, });
 
   const batch = db.batch();
 
@@ -521,14 +523,10 @@ module.exports = (change, context) => {
         }
       });
 
-      console.log('locals.assigneePhoneNumbersArray:', locals.assigneePhoneNumbersArray);
-
       if (!locals.addendumCreatorInAssignees) {
         authFetchPromises
           .push(users.getUserByPhoneNumber(locals.addendumCreator.phoneNumber));
       }
-
-      console.log('locals.addendumCreatorInAssignees:', locals.addendumCreatorInAssignees);
 
       return Promise.all(authFetchPromises);
     })
@@ -568,11 +566,15 @@ module.exports = (change, context) => {
         );
       });
 
-      console.log('locals.assigneesMap:', locals.assigneesMap);
-
       return batch;
     })
     .then((batch) => {
+      /**
+       * Skipping comment creation for the case when the activity
+       * is not visible in the front-end.
+       */
+      if (change.after.get('hidden') === 1) return batch;
+
       locals
         .assigneePhoneNumbersArray
         .forEach((phoneNumber) => {
@@ -606,7 +608,7 @@ module.exports = (change, context) => {
     .then((batch) => {
       const template = locals.change.after.get('template');
 
-      console.log({ template, });
+      console.log({ activityId, template, locals, });
 
       let docRef = rootCollections
         .offices

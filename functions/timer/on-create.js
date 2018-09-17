@@ -1,8 +1,8 @@
 'use strict';
 
 const {
-  rootCollections,
   users,
+  db,
 } = require('../admin/admin');
 const sgMail = require('@sendgrid/mail');
 const sgMailApiKey = require('../admin/env').sgMailApiKey;
@@ -11,14 +11,15 @@ sgMail.setApiKey(sgMailApiKey);
 
 
 module.exports = (snap) =>
-  rootCollections
-    .reports
-    .doc('systemReports')
-    .collection('Recipients')
-    .doc('KlQM9EzrYfTzE2cjExFp')
+  db
+    .doc('/Recipients/spUi8tAiqGXCQxRvqaW7')
     .get()
     .then((doc) => {
-      if (!doc.exists) return Promise.resolve();
+      if (!doc.exists) {
+        console.log('No mails send. Doc does not exist');
+
+        return Promise.resolve();
+      }
 
       const include = doc.get('include');
       const authFetchPromises = [];

@@ -46,8 +46,7 @@ module.exports = (userRecord) => {
       uid: null,
     }, {
       merge: true,
-    }
-  );
+    });
 
   batch.set(rootCollections
     .updates
@@ -55,8 +54,7 @@ module.exports = (userRecord) => {
       phoneNumber: null,
     }, {
       merge: true,
-    }
-  );
+    });
 
   const subject = `Auth deleted of the user: ${phoneNumber}`;
   const messageBody = `
@@ -64,24 +62,16 @@ module.exports = (userRecord) => {
 
     <h3>User Record</h3>
     <pre>
-      ${JSON.stringify(userRecord, ' ', 2)}
-    </pre>
-
-    <h3>customClaims</h3>
-    <pre>
-      ${JSON.stringify(userRecord.customClaims, ' ', 2)}
-    </pre>
-  `;
+${JSON.stringify(userRecord, ' ', 2)}
+    </pre>`;
 
   batch.set(rootCollections
     .instant
-    .doc()
-    .set({
+    .doc(), {
       action: reportingActions.authDeleted,
       subject,
       messageBody,
-    })
-  );
+    });
 
   return batch
     .commit()

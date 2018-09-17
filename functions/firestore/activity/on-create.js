@@ -557,6 +557,7 @@ const createLocals = (conn, result) => {
   const [
     subscriptionQueryResult,
     officeQueryResult,
+    templateQueryResult,
   ] = result;
 
   if (officeQueryResult.empty && conn.req.body.template !== 'office') {
@@ -625,13 +626,12 @@ const createLocals = (conn, result) => {
       return;
     }
 
-    const officeId = officeQueryResult.docs[0].id;
-
-    locals.static.officeId = officeId;
+    locals.static.officeId = officeQueryResult.docs[0].id;
   }
 
-  conn.req.body.share.forEach((phoneNumber) =>
-    locals.objects.allPhoneNumbers.add(phoneNumber));
+  conn.req.body.share.forEach((phoneNumber) => {
+    locals.objects.allPhoneNumbers.add(phoneNumber);
+  });
 
   if (!conn.requester.isSupportRequest) {
     locals.objects.schedule = subscriptionQueryResult.docs[0].get('schedule');
@@ -641,8 +641,6 @@ const createLocals = (conn, result) => {
     locals.static.statusOnCreate = subscriptionQueryResult.docs[0].get('statusOnCreate');
     locals.static.hidden = subscriptionQueryResult.docs[0].get('hidden');
   } else {
-    const templateQueryResult = result[2];
-
     if (templateQueryResult.empty) {
       sendResponse(
         conn,

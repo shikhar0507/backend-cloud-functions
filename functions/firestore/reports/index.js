@@ -32,15 +32,20 @@ const systemReportsHandler = require('./system-reports');
 
 module.exports = (doc) => {
   const action = doc.get('action');
+  console.log({ action, });
 
-  if (action === reportingActions.usedCustomClaims)
-    return systemReportsHandler(doc);
+  /** Only sent to a select few people... */
+  const systemReports = [
+    reportingActions.authChanged,
+    reportingActions.authDeleted,
+    reportingActions.authDisabled,
+    reportingActions.usedCustomClaims,
+  ];
 
-  if (action === reportingActions.authDisabled)
-    return systemReportsHandler(doc);
+  if (systemReports.indexOf(action) > -1) return systemReportsHandler(doc);
 
-  if (action === reportingActions.authDeleted)
-    return systemReportsHandler(doc);
-
-  return Promise.resolve();
+  return Promise
+    .resolve('No mails sent...')
+    .then(console.log)
+    .catch(console.error);
 };

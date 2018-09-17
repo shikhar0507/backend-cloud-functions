@@ -40,11 +40,11 @@ const {
  *
  * @param {Object} conn Contains Express' Request and Response objects.
  * @param {Object} json The response object to send to the client.
- * @param {number} [responseCode] Response code (`default`: `200`) to send to the client.
+ * @param {number} [statusCode] Response code (`default`: `200`) to send to the client.
  * @returns {void}
  */
-const sendJSON = (conn, json, responseCode = code.ok) => {
-  conn.res.writeHead(responseCode, conn.headers);
+const sendJSON = (conn, json, statusCode = code.ok) => {
+  conn.res.writeHead(statusCode, conn.headers);
   conn.res.end(JSON.stringify(json));
 };
 
@@ -59,13 +59,26 @@ const sendJSON = (conn, json, responseCode = code.ok) => {
  * @returns {void}
  */
 const sendResponse = (conn, statusCode, message = '') => {
-  let success = true;
+  const success = statusCode <= 226;
 
-  /** 2xx codes denote success. */
-  if (statusCode > 226) success = false;
+  console.log({
+    success,
+    message,
+    statusCode,
+    requestBody: JSON.stringify(conn.req.body),
+    requestMethod: conn.req.method,
+    requester: conn.requester,
+    url: conn.req.url,
+  });
 
   conn.res.writeHead(statusCode, conn.headers);
-  conn.res.end(JSON.stringify({ success, message, code: statusCode, }));
+
+  conn.res.end(JSON.stringify({
+    message,
+    /** 2xx codes denote success. */
+    success,
+    code: statusCode,
+  }));
 };
 
 
@@ -77,7 +90,7 @@ const sendResponse = (conn, statusCode, message = '') => {
  * @returns {void}
  */
 const handleError = (conn, error) => {
-  console.error(error);
+  console.log({ error, });
 
   sendResponse(
     conn,

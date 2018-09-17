@@ -209,7 +209,7 @@ const getProfile = (conn, pathName) =>
     .doc(conn.requester.phoneNumber)
     .get()
     .then((doc) => {
-      conn.requester.lastFromQuery = doc.get('lastFromQuery');
+      conn.requester.lastQueryFrom = doc.get('lastQueryFrom');
       conn.requester.employeeOf = doc.get('employeeOf');
       /**
         * When a user signs up for the first time, the `authOnCreate`
@@ -297,11 +297,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         creationTime: userRecord.metadata.creationTime,
       };
 
-      console.log({ requester: conn.requester, });
-
       const parsedUrl = require('url').parse(conn.req.url);
-
-      console.log({ href: parsedUrl.href, });
 
       if (parsedUrl.pathname === '/now') {
         now(conn);
@@ -367,6 +363,7 @@ const checkAuthorizationToken = (conn) => {
     .verifyIdToken(result.authToken, checkRevoked)
     .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => {
+      console.log(error);
       if (error.code === 'auth/id-token-revoked') {
         sendResponse(
           conn,

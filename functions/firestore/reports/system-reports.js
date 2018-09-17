@@ -34,7 +34,6 @@ sgMail.setApiKey(sgMailApiKey);
 
 const sendMails = (recipientsDoc, instantDoc) => {
   const { include, cc, } = recipientsDoc.data();
-  const { subject, messageBody, } = instantDoc.data();
 
   const promises = [];
 
@@ -47,6 +46,8 @@ const sendMails = (recipientsDoc, instantDoc) => {
   return Promise
     .all(promises)
     .then((userRecords) => {
+      const { subject, messageBody, } = instantDoc.data();
+
       userRecords
         .forEach((userRecord) => {
           const phoneNumber = Object.keys(userRecord)[0];

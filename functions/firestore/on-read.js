@@ -135,8 +135,8 @@ module.exports = (conn) => {
     return;
   }
 
-  const from = new Date(parseInt(conn.req.query.from));
-
+  const newQuery = parseInt(conn.req.query.from);
+  const from = new Date(newQuery);
   const jsonObject = {
     from,
     upto: from,
@@ -185,26 +185,19 @@ module.exports = (conn) => {
 
       const batch = db.batch();
 
-      if (conn.requester.lastFromQuery !== conn.req.query.from) {
+      if (conn.requester.lastQueryFrom !== newQuery) {
         batch.set(rootCollections
           .profiles
           .doc(conn.requester.phoneNumber), {
-            lastFromQuery: conn.req.query.from,
+            lastQueryFrom: newQuery,
           }, {
             /** Profile has other stuff too. */
             merge: true,
           });
       }
 
-      console.log({
-        batch: batch._writes,
-        lastFromQuery: conn.requester.lastFromQuery,
-        from: conn.req.query.from,
-      });
-
-      return batch;
+      return batch.commit();
     })
-    .then((batch) => batch.commit())
     .then(() => sendJSON(conn, jsonObject))
     .catch((error) => handleError(conn, error));
 };
