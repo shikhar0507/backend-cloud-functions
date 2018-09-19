@@ -128,7 +128,9 @@ module.exports = (change) => {
    * Old and the new uid don't match. Currently no code does this.
    * Logging this event in case this happens.
    */
-  const uidChanged = oldUid !== null && newUid !== null && oldUid !== newUid;
+  const uidChanged = oldUid !== null
+    && newUid !== null
+    && oldUid !== newUid;
 
   if (uidChanged) {
     const messageBody = `
@@ -150,32 +152,6 @@ module.exports = (change) => {
       });
   }
 
-  const toDelete = [];
-
-  removedList.forEach((officeName) => {
-    toDelete.push(rootCollections
-      .inits
-      .where('phoneNumber', '==', phoneNumber)
-      .where('office', '==', officeName)
-      .limit(1)
-      .get());
-  });
-
-  addedList.forEach((officeName) => {
-    // Log employee added to all newly added offices
-    batch.set(rootCollections
-      .inits
-      .doc(), {
-        phoneNumber,
-        uid: newUid || null,
-        office: officeName,
-        officeId: after.get('employeeOf')[officeName],
-        addedOn: serverTimestamp,
-        signedUpOn: hasSignedUp ? serverTimestamp : '',
-        event: 'added',
-      });
-  });
-
   const toUpdate = [];
 
   currentOfficesList.forEach((officeName) => {
@@ -185,7 +161,6 @@ module.exports = (change) => {
         .inits
         .doc(), {
           phoneNumber,
-          uid: newUid || null,
           office: officeName,
           officeId: after.get('employeeOf')[officeName],
           installedOn: serverTimestamp,
@@ -214,6 +189,32 @@ module.exports = (change) => {
     }
   });
 
+  addedList.forEach((officeName) => {
+    // Log employee added to all newly added offices
+    batch.set(rootCollections
+      .inits
+      .doc(), {
+        phoneNumber,
+        office: officeName,
+        officeId: after.get('employeeOf')[officeName],
+        addedOn: serverTimestamp,
+        signedUpOn: hasSignedUp ? serverTimestamp : '',
+        event: 'added',
+      });
+  });
+
+
+  const toDelete = [];
+
+  removedList.forEach((officeName) => {
+    toDelete.push(rootCollections
+      .inits
+      .where('phoneNumber', '==', phoneNumber)
+      .where('office', '==', officeName)
+      .limit(1)
+      .get());
+  });
+
   return Promise
     .all(toUpdate)
     .then((snapShots) => {
@@ -224,7 +225,6 @@ module.exports = (change) => {
 
         batch.set(doc.ref, {
           signedUpOn: serverTimestamp,
-          uid: newUid || null,
         }, {
             merge: true,
           });

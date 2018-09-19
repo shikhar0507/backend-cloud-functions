@@ -1,27 +1,29 @@
 'use strict';
 
 const {
-  users,
   db,
+  users,
+  serverTimestamp,
+  rootCollections,
 } = require('../admin/admin');
 const sgMail = require('@sendgrid/mail');
+const moment = require('moment');
 const sgMailApiKey = require('../admin/env').sgMailApiKey;
 
 sgMail.setApiKey(sgMailApiKey);
-
 
 module.exports = (snap) =>
   db
     .doc('/Recipients/spUi8tAiqGXCQxRvqaW7')
     .get()
-    .then((doc) => {
-      if (!doc.exists) {
+    .then((reportDoc) => {
+      if (!reportDoc.exists) {
         console.log('No mails send. Doc does not exist');
 
         return Promise.resolve();
       }
 
-      const include = doc.get('include');
+      const include = reportDoc.get('include');
       const authFetchPromises = [];
 
       include.forEach(
@@ -69,5 +71,55 @@ module.exports = (snap) =>
       console.log({ messages, });
 
       return sgMail.sendMultiple(messages);
+    })
+    .then(() => Promise.all([
+      rootCollections
+        .inits
+        .where('event', '==', 'added')
+        .where('date', '<', moment().subtract(1, 'day').format('DD-MM-YYYY'))
+        .get(),
+      rootCollections
+        .inits
+        .where('event', '==', 'install')
+        .where('date', '==', moment().subtract(1, 'day').format('DD-MM-YYYY'))
+        .get(),
+    ]))
+    .then((docs) => {
+      const [
+        addedDocs,
+        installDocs,
+      ] = docs;
+      const queries = [];
+
+      addedDocs.forEach((doc) => {
+        queries.push(rootCollections
+          .reports
+          .where('report', '==', 'added')
+          .where('office', '==', doc.get('office'))
+          .get());
+      });
+
+      installDocs.forEach((doc) => {
+        queries.push(rootCollections
+          .reports
+          .where('report', '==', 'install')
+          .where('office', '==', doc.get('office'))
+          .get());
+      });
+
+      return Promise.all(queries);
+    })
+    .then((snapShots) => {
+      const batch = db.batch();
+
+      snapShots.forEach((snapShot) => {
+        snapShot.forEach((doc) => {
+          batch.set(doc.ref, {
+            timestamp: serverTimestamp,
+          });
+        });
+      });
+
+      return batch.commit();
     })
     .catch(console.error);

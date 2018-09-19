@@ -82,6 +82,11 @@ const timer = functions
   .document('Timers/{docId}')
   .onCreate(require('./timer/on-create'));
 
+const backgroundReports = functions
+  .firestore
+  .document('Recipients/{docId}')
+  .onUpdate(require('./firestore/recipients/on-update'));
+
 
 module.exports = {
   api,
@@ -92,6 +97,7 @@ module.exports = {
   reportsHandler,
   activityHandler,
   assigneeHandler,
+  backgroundReports,
   subscriptionUpdater,
   phoneNumberUpdateHandler,
   createOfficeNamePermutations,
