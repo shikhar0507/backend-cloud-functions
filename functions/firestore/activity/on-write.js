@@ -27,6 +27,7 @@
 
 const {
   db,
+  auth,
   users,
   deleteField,
   rootCollections,
@@ -38,19 +39,12 @@ const {
 } = require('../../admin/constants');
 
 
-const setAdminCustomClaims = (locals, batch) => {
-  const activityDocNew = locals.change.after;
-  const status = activityDocNew.get('status');
-  const phoneNumber = activityDocNew.get('attachment.Admin.value');
-
-  return users
-    .getUserByPhoneNumber(phoneNumber)
+const setAdminCustomClaims = (locals, batch) =>
+  auth
+    .getUserByPhoneNumber(locals.change.after.get('attachment.Admin.value'))
     .then((userRecord) => {
-      const phoneNumber = Object.keys(userRecord)[0];
-      const record = userRecord[phoneNumber];
-      const uid = record.uid;
-      const customClaims = record.customClaims;
-      const office = activityDocNew.get('office');
+      const customClaims = userRecord.customClaims;
+      const office = locals.change.after.get('office');
       let newClaims = {
         admin: [office,],
       };
@@ -66,53 +60,44 @@ const setAdminCustomClaims = (locals, batch) => {
        * the `admin` array is removed from the `customClaims.admin`
        * of the admin user.
        */
-      if (status === 'CANCELLED') {
-        const index = customClaims.admin.indexOf(office);
+      const index = customClaims.admin.indexOf(office);
 
-        if (index > -1) {
-          customClaims.admin.splice(index, 1);
-          newClaims = customClaims;
-        }
-
-      } else {
+      if (locals.change.after.get('status') === 'CANCELLED'
+        && index > -1) {
+        customClaims.admin.splice(index, 1);
+        newClaims = customClaims;
+      } else if (customClaims
+        && customClaims.admin
+        && index === -1) {
         /**
          * The user already is `admin` of another office.
          * Preserving their older permission for that case..
+         * If this office is already present in the user's custom claims,
+         * there's no need to add it again.
+         * This fixes the case of duplication in the `offices` array in the
+         * custom claims.
          */
-        if (customClaims && customClaims.admin) {
-          /**
-           * If this office is already present in the user's custom claims,
-           * there's no need to add it again.
-           * This fixes the case of duplication in the `offices` array in the
-           * custom claims.
-           */
-          if (customClaims.admin.indexOf(office) === -1) {
-            customClaims.admin.push(office);
-            newClaims = customClaims;
-          }
-        }
+        customClaims.admin.push(office);
+        newClaims = customClaims;
       }
 
       return Promise
         .all([
           users
-            .setCustomUserClaims(uid, newClaims),
+            .setCustomUserClaims(userRecord.uid, newClaims),
           batch
             .commit(),
         ]);
     })
     .catch(console.error);
-};
+
 
 const handleReport = (locals, batch) => {
-  const activityDocNew = locals.change.after.activityDocNew;
-  const activityId = activityDocNew.id;
-
   batch.set(rootCollections
     .reports
-    .doc(activityId), {
+    .doc(locals.change.after.id), {
       cc: 'help@growthfile.com',
-      office: activityDocNew.get('office'),
+      office: locals.change.after.get('office'),
       include: locals.assigneePhoneNumbersArray,
       timestamp: serverTimestamp,
     });
@@ -122,16 +107,10 @@ const handleReport = (locals, batch) => {
     .catch(console.error);
 };
 
-const addSubscriptionToUserProfile = (locals, batch) => {
-  const activityDocNew = locals.change.after;
-
-  const subscriberPhoneNumber =
-    activityDocNew.get('attachment.Subscriber.value');
-  const templateName = activityDocNew.get('attachment.Template.value');
-
-  return rootCollections
+const addSubscriptionToUserProfile = (locals, batch) =>
+  rootCollections
     .activityTemplates
-    .where('name', '==', templateName)
+    .where('name', '==', locals.change.after.get('attachment.Template.value'))
     .limit(1)
     .get()
     .then((docs) => {
@@ -142,7 +121,7 @@ const addSubscriptionToUserProfile = (locals, batch) => {
         const addToInclude = locals.assigneesMap.get(phoneNumber).addToInclude;
 
         /** The user's own phone number is redundant in the include array. */
-        if (subscriberPhoneNumber === phoneNumber) return;
+        if (locals.change.after.get('attachment.Subscriber.value') === phoneNumber) return;
 
         /**
          * For the subscription template, people from
@@ -155,17 +134,17 @@ const addSubscriptionToUserProfile = (locals, batch) => {
 
       batch.set(rootCollections
         .profiles
-        .doc(subscriberPhoneNumber)
+        .doc(locals.change.after.get('attachment.Subscriber.value'))
         .collection('Subscriptions')
-        .doc(activityDocNew.id), {
+        .doc(locals.change.after.id), {
           include,
           schedule: doc.get('schedule'),
           venue: doc.get('venue'),
           template: doc.get('name'),
           attachment: doc.get('attachment'),
-          timestamp: activityDocNew.get('timestamp'),
-          office: activityDocNew.get('office'),
-          status: activityDocNew.get('status'),
+          timestamp: locals.change.after.get('timestamp'),
+          office: locals.change.after.get('office'),
+          status: locals.change.after.get('status'),
           canEditRule: doc.get('canEditRule'),
           hidden: doc.get('hidden'),
           statusOnCreate: doc.get('statusOnCreate'),
@@ -175,7 +154,6 @@ const addSubscriptionToUserProfile = (locals, batch) => {
         .commit();
     })
     .catch(console.error);
-};
 
 
 const getUpdatedScheduleNames = (requestBody, oldSchedule) => {
@@ -342,7 +320,7 @@ const getPronoun = (locals, recipient) => {
   return pronoun;
 };
 
-const getCreationActionComment = (template, pronoun) => {
+const getCreateActionComment = (template, pronoun) => {
   const templateNameFirstCharacter = template[0];
   const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
 
@@ -365,7 +343,7 @@ const getCommentString = (locals, recipient) => {
   if (action === httpsActions.create) {
     const template = locals.addendum.get('template');
 
-    return getCreationActionComment(template, pronoun);
+    return getCreateActionComment(template, pronoun);
   }
 
   if (action === httpsActions.changeStatus) {
@@ -380,14 +358,15 @@ const getCommentString = (locals, recipient) => {
     let str = `${pronoun} added`;
 
     if (share.length === 1) {
-      const name = locals.authMap.get(share[0]).displayName || share[0];
+      const name = locals.assigneesMap.get(share[0]).displayName || share[0];
 
       return str += ` ${name}`;
     }
 
     /** The `share` array will never have the `user` themselves */
     share.forEach((phoneNumber, index) => {
-      const name = locals.authMap.get(phoneNumber).displayName || phoneNumber;
+      const name = locals
+        .assigneesMap.get(phoneNumber).displayName || phoneNumber;
       const isLastItem = share.length - 1 === index;
       /**
        * Creates a string to show to the user
@@ -426,34 +405,21 @@ const getCommentString = (locals, recipient) => {
 };
 
 
-/**
- * Checks if the action was a comment.
- * @param {string} action Can be one of the activity actions from HTTPS functions.
- * @returns {number} 0 | 1 depending on whether the action was a comment or anything else.
- */
-const isComment = (action) => {
-  if (action === httpsActions.comment) return 1;
-
-  return 0;
-};
-
 const addOfficeToProfile = (locals, batch) => {
-  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
-  const officeId = locals.change.after.get('officeId');
-  const officeName = locals.change.after.get('office');
-  const status = locals.change.after.get('status');
+  const activityData = locals.change.after.data();
+  activityData.id = locals.change.after.id;
 
   const employeeOf = {
-    [officeName]: officeId,
+    [locals.change.after.get('office')]: activityData,
   };
 
-  if (status === 'CANCELLED') {
-    employeeOf[officeName] = deleteField();
+  if (locals.change.after.get('status') === 'CANCELLED') {
+    employeeOf[locals.change.after.get('office')] = deleteField();
   }
 
   batch.set(rootCollections
     .profiles
-    .doc(phoneNumber), {
+    .doc(locals.change.after.get('attachment.Employee Contact.value')), {
       employeeOf,
     }, {
       merge: true,
@@ -466,18 +432,11 @@ const addOfficeToProfile = (locals, batch) => {
 
 
 module.exports = (change, context) => {
-  if (!change.after) {
-    /** For debugging only... */
-    console.log('Activity was deleted...');
+  /** Activity was deleted. For debugging only. */
+  if (!change.after.data()) return Promise.resolve();
 
-    return Promise.resolve();
-  }
-
-  const addendumRef = change.after.get('addendumDocRef');
   const activityId = context.params.activityId;
-
   const batch = db.batch();
-
   const locals = {
     change,
     assigneesMap: new Map(),
@@ -489,7 +448,7 @@ module.exports = (change, context) => {
   return Promise
     .all([
       db
-        .doc(addendumRef.path)
+        .doc(change.after.get('addendumDocRef').path)
         .get(),
       rootCollections
         .activities
@@ -498,17 +457,17 @@ module.exports = (change, context) => {
         .get(),
     ])
     .then((docs) => {
-      const [addendum, assigneesSnapShot,] = docs;
-      console.log('action:', addendum.get('action'));
+      const [
+        addendum,
+        assigneesSnapShot,
+      ] = docs;
 
-      locals.assigneesSnapShot = assigneesSnapShot;
       locals.addendum = addendum;
-
-      const authFetchPromises = [];
+      const authFetch = [];
       locals.addendumCreator.phoneNumber = locals.addendum.get('user');
 
-      locals.assigneesSnapShot.forEach((doc) => {
-        authFetchPromises
+      assigneesSnapShot.forEach((doc) => {
+        authFetch
           .push(users.getUserByPhoneNumber(doc.id));
 
         locals.assigneesMap.set(doc.id, {
@@ -523,12 +482,14 @@ module.exports = (change, context) => {
         }
       });
 
+      /** Need to fetch auth of the  */
       if (!locals.addendumCreatorInAssignees) {
-        authFetchPromises
-          .push(users.getUserByPhoneNumber(locals.addendumCreator.phoneNumber));
+        authFetch.push(
+          users.getUserByPhoneNumber(locals.addendumCreator.phoneNumber)
+        );
       }
 
-      return Promise.all(authFetchPromises);
+      return Promise.all(authFetch);
     })
     .then((userRecords) => {
       userRecords.forEach((userRecord) => {
@@ -539,27 +500,34 @@ module.exports = (change, context) => {
           && phoneNumber === locals.addendumCreator.phoneNumber) {
           locals.addendumCreator.displayName = record.displayName;
 
+          /**
+           * Since addendum creator was not in the assignees list,
+           * returning from the iteration since we don't want to
+           * add them to the activity unnecessarily.
+           */
           return;
         }
 
         locals.assigneesMap.get(phoneNumber).displayName = record.displayName;
         locals.assigneesMap.get(phoneNumber).uid = record.uid;
 
-        const profileRef = rootCollections.profiles.doc(phoneNumber);
-
+        /** New user introduced to the system. Saving their phone number. */
         if (!record.uid) {
-          batch.set(profileRef, {
-            uid: null,
-          });
+          batch.set(rootCollections
+            .profiles
+            .doc(phoneNumber), {
+              uid: null,
+            });
         }
 
-        const activityData = locals.change.after.data();
-
+        const activityData = change.after.data();
         activityData.canEdit = locals.assigneesMap.get(phoneNumber).canEdit;
         activityData.assignees = locals.assigneePhoneNumbersArray;
         activityData.timestamp = serverTimestamp;
 
-        batch.set(profileRef
+        batch.set(rootCollections
+          .profiles
+          .doc(phoneNumber)
           .collection('Activities')
           .doc(activityId),
           activityData
@@ -574,6 +542,18 @@ module.exports = (change, context) => {
        * is not visible in the front-end.
        */
       if (change.after.get('hidden') === 1) return batch;
+
+      /**
+       * Checks if the action was a comment.
+       * @param {string} action Can be one of the activity actions from HTTPS functions.
+       * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
+       */
+      const isComment = (action) => {
+        // Making this a closure since this function is not going to be used anywhere else.
+        if (action === httpsActions.comment) return 1;
+
+        return 0;
+      };
 
       locals
         .assigneePhoneNumbersArray
@@ -593,8 +573,8 @@ module.exports = (change, context) => {
             .doc(locals.assigneesMap.get(phoneNumber).uid)
             .collection('Addendum')
             .doc(), {
-              activityId,
               comment,
+              activityId,
               isComment: isComment(locals.addendum.get('action')),
               timestamp: serverTimestamp,
               userDeviceTimestamp: locals.addendum.get('userDeviceTimestamp'),
@@ -606,26 +586,31 @@ module.exports = (change, context) => {
       return batch;
     })
     .then((batch) => {
-      const template = locals.change.after.get('template');
+      const template = change.after.get('template');
 
-      console.log({ activityId, template, locals, });
+      console.log({
+        activityId,
+        template,
+        locals,
+        action: locals.addendum.get('action'),
+      });
 
-      let docRef = rootCollections
+      let copyTo = rootCollections
         .offices
-        .doc(locals.change.after.get('officeId'))
+        .doc(change.after.get('officeId'))
         .collection('Activities')
-        .doc(locals.change.after.id);
+        .doc(activityId);
 
       if (template === 'office') {
-        docRef = rootCollections
+        copyTo = rootCollections
           .offices
-          .doc(locals.change.after.id);
+          .doc(activityId);
       }
 
-      const activityData = locals.change.after.data();
+      const activityData = change.after.data();
       activityData.timestamp = serverTimestamp;
 
-      batch.set(docRef, activityData);
+      batch.set(copyTo, activityData);
 
       if (template === 'subscription') {
         return addSubscriptionToUserProfile(locals, batch);

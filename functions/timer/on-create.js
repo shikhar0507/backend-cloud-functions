@@ -9,6 +9,9 @@ const {
 const sgMail = require('@sendgrid/mail');
 const moment = require('moment');
 const sgMailApiKey = require('../admin/env').sgMailApiKey;
+const {
+  getISO8601Date,
+} = require('../admin/utils');
 
 sgMail.setApiKey(sgMailApiKey);
 
@@ -17,16 +20,11 @@ module.exports = (snap) =>
     .doc('/Recipients/spUi8tAiqGXCQxRvqaW7')
     .get()
     .then((reportDoc) => {
-      if (!reportDoc.exists) {
-        console.log('No mails send. Doc does not exist');
+      if (!reportDoc.exists) return Promise.resolve();
 
-        return Promise.resolve();
-      }
-
-      const include = reportDoc.get('include');
       const authFetchPromises = [];
 
-      include.forEach(
+      reportDoc.get('include').forEach(
         (phoneNumber) =>
           authFetchPromises.push(users.getUserByPhoneNumber(phoneNumber))
       );
@@ -39,7 +37,7 @@ module.exports = (snap) =>
         const phoneNumber = Object.keys(userRecord)[0];
         const record = userRecord[`${phoneNumber}`];
 
-        if (!userRecord) return;
+        if (!record.uid) return;
 
         const email = record.email;
         const emailVerified = record.emailVerified;
@@ -52,10 +50,14 @@ module.exports = (snap) =>
         if (!emailVerified) return;
         if (disabled) return;
 
-        const html = `
+        let html = `
         <p>Date (DD-MM-YYYY): ${snap.id}</p>
         <p>Timestamp: ${snap.get('timestamp').toDate()}</p>
         `;
+
+        if (displayName && displayName !== '') {
+          html += `<p>Hi ${displayName}</p>`;
+        }
 
         messages.push({
           html,
@@ -72,39 +74,28 @@ module.exports = (snap) =>
 
       return sgMail.sendMultiple(messages);
     })
-    .then(() => Promise.all([
-      rootCollections
-        .inits
-        .where('event', '==', 'added')
-        .where('date', '<', moment().subtract(1, 'day').format('DD-MM-YYYY'))
-        .get(),
-      rootCollections
-        .inits
-        .where('event', '==', 'install')
-        .where('date', '==', moment().subtract(1, 'day').format('DD-MM-YYYY'))
-        .get(),
-    ]))
+    .then(() => rootCollections
+      .inits
+      .where(
+        'date',
+        '==',
+        moment().subtract(1, 'day').format('DD-MM-YYYY')
+      )
+      .get()
+    )
     .then((docs) => {
-      const [
-        addedDocs,
-        installDocs,
-      ] = docs;
       const queries = [];
 
-      addedDocs.forEach((doc) => {
-        queries.push(rootCollections
-          .reports
-          .where('report', '==', 'added')
-          .where('office', '==', doc.get('office'))
-          .get());
-      });
-
-      installDocs.forEach((doc) => {
-        queries.push(rootCollections
-          .reports
-          .where('report', '==', 'install')
-          .where('office', '==', doc.get('office'))
-          .get());
+      docs.forEach((doc) => {
+        queries
+          .push(rootCollections
+            .reports
+            .where('office', '==', doc.get('office'))
+            .where('report', '==', doc.get('report'))
+            /** Office and report combination is unique */
+            .limit(1)
+            .get()
+          );
       });
 
       return Promise.all(queries);
@@ -113,11 +104,13 @@ module.exports = (snap) =>
       const batch = db.batch();
 
       snapShots.forEach((snapShot) => {
-        snapShot.forEach((doc) => {
-          batch.set(doc.ref, {
-            timestamp: serverTimestamp,
+        if (snapShot.empty) return;
+
+        batch.set(snapShot
+          .docs[0]
+          .ref, {
+            date: getISO8601Date(),
           });
-        });
       });
 
       return batch.commit();

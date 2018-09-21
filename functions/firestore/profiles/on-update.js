@@ -29,11 +29,12 @@ const {
   db,
   rootCollections,
   serverTimestamp,
+  deleteField,
 } = require('../../admin/admin');
 
 const {
-  reportingActions,
-} = require('../../admin/constants');
+  getISO8601Date,
+} = require('../../admin/utils');
 
 
 let count = 0;
@@ -74,12 +75,11 @@ const manageAddendum = (change) => {
 
   if (!newFromValue) return Promise.resolve();
   if (!oldFromValue) return Promise.resolve();
-  if (newFromValue <= oldFromValue) return Promise.resolve();
+  if (oldFromValue <= newFromValue) return Promise.resolve();
 
-  const newUid = change.after.get('uid') || '';
   const query = rootCollections
     .updates
-    .doc(newUid)
+    .doc(change.after.get('uid'))
     .collection('Addendum')
     .where('timestamp', '<', new Date(oldFromValue))
     .orderBy('timestamp')
@@ -104,163 +104,131 @@ const manageAddendum = (change) => {
  * @returns {Promise<Batch>} Firestore `Batch` object.
  */
 module.exports = (change) => {
-  const { before, after, } = change;
+  const {
+    before,
+    after,
+  } = change;
+
+  /** Document was deleted. For debugging only... */
+  if (!after.data()) return Promise.resolve();
+
   const batch = db.batch();
   const phoneNumber = after.id;
-  const oldUid = before.get('uid');
-  const newUid = after.get('uid');
-  const newFromValue = change.after.get('lastQueryFrom');
   const oldOfficesList = Object.keys(before.get('employeeOf') || {});
   const currentOfficesList = Object.keys(after.get('employeeOf') || {});
+  /**
+   * List of `offices` where this person has been added as an
+   * `employee` at this instance of the cloud function `onWrite`.
+   * In most cases, this array will only have a single element because
+   * `activity` `onWrite` function only adds a **single** field to this object
+   * at a time.
+   */
   const addedList = currentOfficesList
     .filter((officeName) => oldOfficesList.indexOf(officeName) === -1);
   const removedList = oldOfficesList
     .filter((officeName) => currentOfficesList.indexOf(officeName) === -1);
   /**
-   * The uid was undefined or null in the old state, but is available
-   * after document update event.
+   * The uid was `undefined` or `null` in the old state, but is available
+   * after document `onWrite` event.
    */
-  const hasSignedUp = Boolean(!oldUid && newUid);
-  const authDeleted = Boolean(oldUid && !newUid);
-  const hasInstalled = newFromValue === 0;
+  const hasSignedUp = Boolean(!before.get('uid') && after.get('uid'));
+  const authDeleted = Boolean(before.get('uid') && !after.get('uid'));
+  const hasInstalled = after.get('lastQueryFrom') === 0;
 
-  /**
-   * Old and the new uid don't match. Currently no code does this.
-   * Logging this event in case this happens.
-   */
-  const uidChanged = oldUid !== null
-    && newUid !== null
-    && oldUid !== newUid;
-
-  if (uidChanged) {
-    const messageBody = `
-    <p>
-      phoneNumber: ${phoneNumber},
-      <br>
-      newUid: ${newUid}
-      <br>
-      oldUid: ${oldUid}
-      <br>
-    </p>`;
+  addedList.forEach((office) => {
+    const activityData = after.get('employeeOf')[office];
+    activityData.addedOn = serverTimestamp;
 
     batch.set(rootCollections
-      .instant
-      .doc(), {
-        messageBody,
-        subject: `${phoneNumber}'s auth has changed`,
-        action: reportingActions.authChanged,
+      .inits
+      .doc(activityData.officeId), {
+        office,
+        report: 'added',
+        employeesObject: {
+          [phoneNumber]: activityData,
+        },
+      }, {
+        merge: true,
       });
-  }
+  });
 
-  const toUpdate = [];
+  currentOfficesList.forEach((office) => {
+    // Activity with which this person was added as an employee to the office in context.
+    const employeeActivity = after.get('employeeOf')[office];
 
-  currentOfficesList.forEach((officeName) => {
-    // Log `install` event for all the current offices.
+    /**
+     * If the `lastQueryFrom` value is `0`, the user probably has installed
+     * the app for the first or ( has been installing it multiple) time.
+     * We log all these events to create a report based on this data
+     * for all the offices this person belongs to.
+     */
     if (hasInstalled) {
+      employeeActivity.installedOn = serverTimestamp;
+
       batch.set(rootCollections
         .inits
-        .doc(), {
-          phoneNumber,
-          office: officeName,
-          officeId: after.get('employeeOf')[officeName],
-          installedOn: serverTimestamp,
-          event: 'install',
+        .doc(employeeActivity.id), {
+          office,
+          report: 'install',
+          date: getISO8601Date(),
+          activityObjects: {
+            [employeeActivity.officeId]: employeeActivity,
+          },
+        }, {
+          merge: true,
         });
     }
 
     if (hasSignedUp) {
-      toUpdate.push(rootCollections
-        .inits
-        .where('phoneNumber', '==', phoneNumber)
-        .where('office', '==', officeName)
-        .where('event', '==', 'added')
-        .limit(1)
-        .get());
-    }
+      employeeActivity.signedUpOn = serverTimestamp;
 
-    if (authDeleted) {
-      toUpdate.push(rootCollections
+      batch.set(rootCollections
         .inits
-        .where('phoneNumber', '==', phoneNumber)
-        .where('office', '==', officeName)
-        .where('signedUpOn', '==', '')
-        .limit(1)
-        .get());
+        .doc(employeeActivity.officeId), {
+          office,
+          report: 'added',
+          employeesObject: {
+            [phoneNumber]: employeeActivity,
+          },
+        }, {
+          merge: true,
+        });
     }
   });
 
-  addedList.forEach((officeName) => {
-    // Log employee added to all newly added offices
+  removedList.forEach((office) => {
+    const activityData = after.get('employeeOf')[office];
+
     batch.set(rootCollections
       .inits
-      .doc(), {
-        phoneNumber,
-        office: officeName,
-        officeId: after.get('employeeOf')[officeName],
-        addedOn: serverTimestamp,
-        signedUpOn: hasSignedUp ? serverTimestamp : '',
-        event: 'added',
+      .doc(activityData.officeId), {
+        employeesObject: {
+          [phoneNumber]: deleteField(),
+        },
+      }, {
+        merge: true,
       });
-  });
 
-
-  const toDelete = [];
-
-  removedList.forEach((officeName) => {
-    toDelete.push(rootCollections
+    /** The activity with which this person was added as an employee to this office */
+    batch.delete(rootCollections
       .inits
-      .where('phoneNumber', '==', phoneNumber)
-      .where('office', '==', officeName)
-      .limit(1)
-      .get());
+      .doc(activityData.id)
+    );
   });
 
-  return Promise
-    .all(toUpdate)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
+  console.log({
+    addedList,
+    removedList,
+    currentOfficesList,
+    hasSignedUp,
+    hasInstalled,
+    authDeleted,
+    phoneNumber,
+    batch: batch._writes,
+  });
 
-        const doc = snapShot.docs[0];
-
-        batch.set(doc.ref, {
-          signedUpOn: serverTimestamp,
-        }, {
-            merge: true,
-          });
-      });
-
-      return Promise.all(toDelete);
-    })
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
-
-        const doc = snapShot.docs[0];
-
-        batch.delete(doc.ref);
-      });
-
-      return batch;
-    })
-    .then((batch) => batch.commit())
-    .then(() => console.log({
-      // Temporary logging
-      oldUid,
-      newUid,
-      toDelete,
-      toUpdate,
-      addedList,
-      uidChanged,
-      hasSignedUp,
-      removedList,
-      phoneNumber,
-      oldOfficesList,
-      currentOfficesList,
-      writes: batch._writes,
-      oldFromValue: change.before.get('lastQueryFrom'),
-      newFromValue: change.after.get('lastQueryFrom'),
-    }))
+  return batch
+    .commit()
     .then(() => manageAddendum(change))
     .catch(console.error);
 };

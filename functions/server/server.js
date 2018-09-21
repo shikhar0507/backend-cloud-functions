@@ -28,6 +28,8 @@
 const {
   rootCollections,
   auth,
+  users,
+  db,
 } = require('../admin/admin');
 const {
   code,
@@ -220,7 +222,7 @@ const getProfile = (conn, pathName) =>
         * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
         * It has one field `uid` = the uid from the auth.
         *
-        * The Updates doc has the `doc-id` as the uid from the auth
+        * The `Updates` doc has the `doc-id` as the `uid` from the auth
         * and one field `phoneNumber` = phoneNumber from auth.
         *
         * When a user signs up via the user facing app, they instantly hit
@@ -234,7 +236,7 @@ const getProfile = (conn, pathName) =>
         * being called.
         *
         * To counter this, we allow a grace period of `60` seconds between
-        * the `auth` creation and the hit time on the api.
+        * the `auth` creation and the hit time on the `api`.
         */
       const authCreationTime =
         new Date(conn.requester.creationTime).getTime();
@@ -248,9 +250,14 @@ const getProfile = (conn, pathName) =>
 
       if (doc.get('uid') !== conn.requester.uid) {
         console.log({
+          authCreationTime,
+          now: Date.now(),
           msg: `The uid and phone number of the requester does not match.`,
-          authUid: conn.requester.uid,
+          phoneNumber: doc.id,
           profileUid: doc.get('uid'),
+          authUid: conn.requester.uid,
+          gracePeriodInSeconds: NUM_SECS_IN_MINUTE,
+          timingDifference: Date.now() - authCreationTime < NUM_SECS_IN_MINUTE,
         });
 
         /**

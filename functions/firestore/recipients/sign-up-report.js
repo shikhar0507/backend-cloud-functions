@@ -8,35 +8,96 @@ const {
   rootCollections,
   users,
 } = require('../../admin/admin');
+const {
+  sendGridTemplateIds,
+} = require('../../admin/constants');
 const sgMail = require('@sendgrid/mail');
+
 sgMail.setApiKey(sgMailApiKey);
 
 const getYesterdaysDateString = () =>
   new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
 
 
-// Report is added
+const getPersonDetails = (phoneNumber, activityObject) => {
+  // const activityObject = employeesObject[phoneNumber];
+
+  if (!activityObject) {
+    return {
+      employeeName: '',
+      employeeContact: '',
+      employeeCode: '',
+      department: '',
+      firstSupervisorPhoneNumber: '',
+      secondSupervisorPhoneNumber: '',
+    };
+  }
+
+  return {
+    employeeName: activityObject.attachment.Name.value,
+    employeeContact: activityObject.attachment['Employee Contact'].value,
+    employeeCode: activityObject.attachment['Employee Code'].value,
+    department: activityObject.attachment.Department.value,
+    firstSupervisorPhoneNumber: activityObject.attachment['First Supervisor'].value,
+    secondSupervisorPhoneNumber: activityObject.attachment['Second Supervisor'].value,
+  };
+};
+
+
+const getReadableDateString = (firestoreDateObject) => {
+  if (!firestoreDateObject) return firestoreDateObject;
+
+  return firestoreDateObject.toDate().toDateString();
+};
+
+const getRow = (phoneNumber, activityObject) => {
+  const details = getPersonDetails(phoneNumber, activityObject);
+  const addedOn = getReadableDateString(activityObject.addedOn);
+  const signedUpOn = getReadableDateString(activityObject.signedUpOn);
+  const firstSupervisorDetails = getPersonDetails(details.firstSupervisorPhoneNumber,activityObject);
+  const secondSupervisorDetails = getPersonDetails(details.secondSupervisorPhoneNumber,activityObject);
+
+  return `${details.employeeName},`
+    + `${details.employeeContact},`
+    + `${details.employeeCode},`
+    + `${details.department},`
+    + `${addedOn},`
+    + `${signedUpOn},`
+    + `${firstSupervisorDetails.employeeName},`
+    + `${details.firstSupervisorPhoneNumber},`
+    + `${secondSupervisorDetails.employeeName},`
+    + `${details.secondSupervisorPhoneNumber}`
+    + `\n`;
+};
+
+
+// Report is 'added'
 module.exports = (change) => {
   const {
     cc,
     office,
     include,
-    officeId,
   } = change.after.data();
 
   const locals = {
-    authFetch: [],
-    employeeDataMap: new Map(),
-    activityFetch: [],
     authMap: new Map(),
-    initDoc: {},
-    subject: '',
+    csvString: `Employee Name,`
+      + ` Employee Contact,`
+      + ` Employee Code,`
+      + `Department,`
+      + `Employee Added Date,`
+      + `Sign-Up Date,`
+      + `First Supervisor's Name,`
+      + `Contact Number,`
+      + `Second Supervisor's Name,`
+      + `Contact Number,`
+      + `\n`,
     messageObject: {
       to: [],
       cc,
       from: 'help@growthfile.com',
       attachments: [],
-      templateId: 'd-a73b2f579c8746758ba2753fbb0341df',
+      templateId: sendGridTemplateIds.signUps,
       'dynamic_template_data': {
         office,
         date: getYesterdaysDateString(),
@@ -45,110 +106,64 @@ module.exports = (change) => {
     },
   };
 
-  /**
-   * Query Inits
-   * Get all docs where event === 'added'
-   * Get all employees of that office
-   * Create report
-   * Exit
-   */
+  return rootCollections
+    .inits
+    .where('report', '==', 'added')
+    .where('office', '==', office)
+    .limit(1)
+    .get()
+    .then((docs) => {
+      /** No docs. No emails... */
+      if (docs.empty) return Promise.resolve();
 
-  return Promise
-    .all([
-      rootCollections
-        .inits
-        .where('event', '==', 'added')
-        .where('office', '==', office)
-        .get(),
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Activities')
-        // .activities
-        .where('template', '==', 'employee')
-        .get(),
-    ])
-    .then((result) => {
-      const [
-        initDocs,
-        employeeDocs,
-      ] = result;
+      const {
+        employeesObject,
+      } = docs.docs[0].data();
 
-      employeeDocs.forEach((employee) => {
-        const phoneNumber = employee.get('attachment.Employee Contact.value');
-        const firstSupervisorPhoneNumber =
-          employee.get('attachment.First Supervisor.value');
-        const secondSupervisorPhoneNumber =
-          employee.get('attachment.Second Supervisor.value');
+      const employeePhoneNumbersList = Object.keys(employeesObject);
+      let totalSignUpsCount = 0;
 
-        locals.authFetch.push(employee.get('attachment.Employee Contact.value'));
-        locals.authFetch.push(firstSupervisorPhoneNumber);
-        locals.authFetch.push(secondSupervisorPhoneNumber);
+      employeePhoneNumbersList.forEach((phoneNumber) => {
+        const activityObject = employeesObject[phoneNumber];
+        const row = getRow(phoneNumber, activityObject);
 
-        locals.employeeDataMap.set(phoneNumber, {
-          firstSupervisorPhoneNumber,
-          secondSupervisorPhoneNumber,
-          employeeContact: phoneNumber,
-          name: employee.get('attachment.Name.value'),
-          employeeCode: employee.get('attachment.Employee Code.value'),
-          department: employee.get('attachment.Department.value'),
-        });
-      });
+        /** Can either be an empty string (falsy) value or a valid date object*/
+        if (activityObject.signedUpOn && activityObject.signedUpOn !== '') totalSignUpsCount++;
 
-      initDocs.forEach((doc) => {
-        if (!locals.employeeDataMap.get(doc.get('phoneNumber'))) return;
-
-        let addedOn = doc.get('addedOn');
-        let signedUpOn = doc.get('signedUpOn');
-
-        if (addedOn !== '') {
-          addedOn = addedOn.toDate().toDateString();
-        }
-
-        if (signedUpOn !== '') {
-          signedUpOn = signedUpOn.toDate().toDateString();
-        }
-
-        locals
-          .employeeDataMap.get(doc.get('phoneNumber')).addedOn =
-          addedOn;
-        locals
-          .employeeDataMap.get(doc.get('phoneNumber')).signedUpOn =
-          signedUpOn;
+        locals.csvString += row;
       });
 
       locals
-        .messageObject['dynamic_template_data']['totalEmployees'] =
-        employeeDocs.size;
+        .messageObject['dynamic_template_data']
+        .totalEmployees = employeePhoneNumbersList.length;
       locals
-        .messageObject['dynamic_template_data']['totalSignUps'] =
-        initDocs.size;
+        .messageObject['dynamic_template_data']
+        .totalSignUps = totalSignUpsCount;
       locals
-        .messageObject['dynamic_template_data']['difference'] =
-        employeeDocs.size - initDocs.size;
+        .messageObject['dynamic_template_data']
+        .difference = employeePhoneNumbersList.length - totalSignUpsCount;
 
-      include.forEach((phoneNumber) => {
-        locals.authFetch.push(users.getUserByPhoneNumber(phoneNumber));
-      });
+      const authFetch = [];
 
-      return Promise.all(locals.authFetch);
+      include.forEach(
+        (phoneNumber) =>
+          authFetch.push(users.getUserByPhoneNumber(phoneNumber))
+      );
+
+      return Promise.all(authFetch);
     })
     .then((userRecords) => {
       userRecords.forEach((userRecord) => {
         const phoneNumber = Object.keys(userRecord)[0];
         const record = userRecord[`${phoneNumber}`];
-        if (!record) return;
 
-        const displayName = record.displayName || '';
-        const disabled = record.disabled;
-        const email = record.email;
-        const emailVerified = record.emailVerified;
+        if (!record.uid) return;
 
         locals.authMap.set(phoneNumber, {
-          displayName,
-          email,
-          disabled,
-          emailVerified,
+          email: record.email,
+          disabled: record.disabled,
+          displayName: record.displayName || '',
+          emailVerified: record.emailVerified,
         });
       });
 
@@ -164,53 +179,11 @@ module.exports = (change) => {
         });
       });
 
-      return;
-    })
-    .then(() => {
-      let str = `Employee Name,`
-        + ` Employee Contact,`
-        + ` Employee Code,`
-        + `Department,`
-        + `Employee Added Date,`
-        + `Sign-Up Date,`
-        + `First Supervisor's Name,`
-        + `Contact Number,`
-        + `Second Supervisor's Name,`
-        + `Contact Number,`
-        + `\n`;
-
-      locals.employeeDataMap.forEach((employee) => {
-        let firstSupervisorName = '';
-        let secondSupervisorName = '';
-
-        if (locals.authMap.get(employee.firstSupervisorPhoneNumber)) {
-          firstSupervisorName =
-            locals.authMap.get(employee.firstSupervisorPhoneNumber)
-              .displayName;
-        }
-
-        if (locals.authMap.get(employee.secondSupervisorPhoneNumber)) {
-          secondSupervisorName =
-            locals.authMap.get(employee.secondSupervisorPhoneNumber)
-              .displayName;
-        }
-
-        const row = `${employee.name},`
-          + `${employee.employeeContact},`
-          + `${employee.employeeCode},`
-          + `${employee.department},`
-          + `${employee.addedOn},`
-          + `${employee.signedUpOn},`
-          + `${firstSupervisorName},`
-          + `${employee.firstSupervisorPhoneNumber},`
-          + `${secondSupervisorName},`
-          + `${employee.secondSupervisorPhoneNumber}`;
-
-        str += `${row}\n`;
-      });
+      /** No mails sent. */
+      if (locals.messageObject.to.length === 0) return Promise.resolve();
 
       locals.messageObject.attachments.push({
-        content: new Buffer(str).toString('base64'),
+        content: new Buffer(locals.csvString).toString('base64'),
         fileName: `${office} Sign-Up Report_${getYesterdaysDateString()}.xlsx`,
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         disposition: 'attachment',

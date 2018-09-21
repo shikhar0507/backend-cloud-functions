@@ -142,6 +142,10 @@ const reportingActions = {
   authChanged: 'authChanged',
 };
 
+const sendGridTemplateIds = {
+  signUps: 'd-a73b2f579c8746758ba2753fbb0341df',
+};
+
 
 module.exports = {
   vowels,
@@ -157,6 +161,7 @@ module.exports = {
   updateBodyFields,
   removeBodyFields,
   commentBodyFields,
+  sendGridTemplateIds,
   changeStatusBodyFields,
   phoneNumberUpdateBodyFields,
 };

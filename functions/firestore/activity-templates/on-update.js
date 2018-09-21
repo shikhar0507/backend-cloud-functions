@@ -248,7 +248,7 @@ const validateRequestBody = (conn, locals) => {
   <hr>
 
   <h2>Request Body</h2>
-  <pre style="font-size: 20px;
+  <pre style="font-size: 14px;
   border: 2px solid grey;
   width: 450px;
   border-left: 12px solid green;
@@ -263,7 +263,7 @@ const validateRequestBody = (conn, locals) => {
   <hr>
 
   <h2>Updated Entries</h2>
-  <pre style="font-size: 20px;
+  <pre style="font-size: 14px;
   border: 2px solid grey;
   width: 450px;
   border-left: 12px solid green;

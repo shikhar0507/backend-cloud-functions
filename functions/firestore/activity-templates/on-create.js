@@ -345,12 +345,12 @@ module.exports = (conn) => {
 
         <hr>
 
-        <pre style="font-size: 20px;
+        <pre style="font-size: 14px;
           border: 2px solid grey;
           width: 450px;
           border-left: 12px solid green;
           border-radius: 5px;
-          font-family: monaco;
+          font-family: monospace, monaco;
           padding: 14px;">
         <code>
         ${JSON.stringify(conn.req.body, ' ', 2)}

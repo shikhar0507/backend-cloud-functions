@@ -185,16 +185,14 @@ module.exports = (conn) => {
 
       const batch = db.batch();
 
-      if (conn.requester.lastQueryFrom !== newQuery) {
-        batch.set(rootCollections
-          .profiles
-          .doc(conn.requester.phoneNumber), {
-            lastQueryFrom: newQuery,
-          }, {
-            /** Profile has other stuff too. */
-            merge: true,
-          });
-      }
+      batch.set(rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber), {
+          lastQueryFrom: newQuery,
+        }, {
+          /** Profile has other stuff too. */
+          merge: true,
+        });
 
       return batch.commit();
     })

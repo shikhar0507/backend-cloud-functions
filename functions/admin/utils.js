@@ -27,8 +27,8 @@
 
 const { code, } = require('./responses');
 const {
-  users,
   db,
+  auth,
   rootCollections,
   serverTimestamp,
 } = require('./admin');
@@ -207,7 +207,6 @@ const now = (conn) => {
       })
     )
     .catch((error) => handleError(conn, error));
-
 };
 
 
@@ -284,8 +283,10 @@ const disableAccount = (conn, reason) => {
           subject,
           action: reportingActions.authDisabled,
         }),
-      users
-        .disableUser(conn.requester.uid),
+      auth
+        .updateUser(conn.requester.uid, {
+          disabled: true,
+        }),
     ])
     .then(() => sendResponse(
       conn,
