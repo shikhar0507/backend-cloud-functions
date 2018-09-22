@@ -32,15 +32,12 @@ const {
   deleteField,
 } = require('../../admin/admin');
 
-const {
-  getISO8601Date,
-} = require('../../admin/utils');
 
+const purgeAddendum = (query, resolve, reject) => {
+  /** For temporary logging. */
+  let count = 0;
 
-let count = 0;
-
-const purgeAddendum = (query, resolve, reject) =>
-  query
+  return query
     .get()
     .then((docs) => {
       // When there are no documents left, we are done
@@ -58,7 +55,7 @@ const purgeAddendum = (query, resolve, reject) =>
     })
     .then((deleteCount) => {
       /** All docs deleted */
-      if (deleteCount === 0) return resolve();
+      if (deleteCount === 0) return resolve(count);
 
       count++;
 
@@ -67,6 +64,7 @@ const purgeAddendum = (query, resolve, reject) =>
         .nextTick(() => purgeAddendum(query, resolve, reject));
     })
     .catch(reject);
+};
 
 
 const manageAddendum = (change) => {
@@ -89,7 +87,7 @@ const manageAddendum = (change) => {
     Promise(
       (resolve, reject) => purgeAddendum(query, resolve, reject)
     )
-    .then(() => console.log(`Iterations: ${count}`))
+    .then((count) => console.log(`Rounds:`, count))
     .catch(console.error);
 };
 
@@ -133,7 +131,19 @@ module.exports = (change) => {
    */
   const hasSignedUp = Boolean(!before.get('uid') && after.get('uid'));
   const authDeleted = Boolean(before.get('uid') && !after.get('uid'));
-  const hasInstalled = after.get('lastQueryFrom') === 0;
+  const hasInstalled = Boolean(before.get('lastQueryFrom')
+    && before.get('lastQueryFrom') !== 0
+    && after.get('lastQueryFrom') === 0);
+
+  console.log({
+    addedList,
+    removedList,
+    currentOfficesList,
+    hasSignedUp,
+    hasInstalled,
+    authDeleted,
+    phoneNumber,
+  });
 
   addedList.forEach((office) => {
     const activityData = after.get('employeeOf')[office];
@@ -143,6 +153,7 @@ module.exports = (change) => {
       .inits
       .doc(activityData.officeId), {
         office,
+        date: new Date().toDateString(),
         report: 'added',
         employeesObject: {
           [phoneNumber]: activityData,
@@ -158,21 +169,21 @@ module.exports = (change) => {
 
     /**
      * If the `lastQueryFrom` value is `0`, the user probably has installed
-     * the app for the first or ( has been installing it multiple) time.
+     * the app for the first or (has been installing it multiple) time.
      * We log all these events to create a report based on this data
      * for all the offices this person belongs to.
      */
     if (hasInstalled) {
-      employeeActivity.installedOn = serverTimestamp;
-
       batch.set(rootCollections
         .inits
         .doc(employeeActivity.id), {
           office,
+          phoneNumber,
           report: 'install',
-          date: getISO8601Date(),
-          activityObjects: {
-            [employeeActivity.officeId]: employeeActivity,
+          officeId: after.get('employeeOf')['office'].officeId,
+          date: new Date().toDateString(),
+          installs: {
+            [Date.now()]: serverTimestamp,
           },
         }, {
           merge: true,
@@ -187,6 +198,7 @@ module.exports = (change) => {
         .doc(employeeActivity.officeId), {
           office,
           report: 'added',
+          date: new Date().toDateString(),
           employeesObject: {
             [phoneNumber]: employeeActivity,
           },
@@ -197,7 +209,9 @@ module.exports = (change) => {
   });
 
   removedList.forEach((office) => {
-    const activityData = after.get('employeeOf')[office];
+    // Since the value is not present in the `after` object
+    // We will use `before`.
+    const activityData = before.get('employeeOf')[office];
 
     batch.set(rootCollections
       .inits
@@ -216,19 +230,7 @@ module.exports = (change) => {
     );
   });
 
-  console.log({
-    addedList,
-    removedList,
-    currentOfficesList,
-    hasSignedUp,
-    hasInstalled,
-    authDeleted,
-    phoneNumber,
-    batch: batch._writes,
-  });
-
-  return batch
-    .commit()
+  return batch.commit()
     .then(() => manageAddendum(change))
     .catch(console.error);
 };

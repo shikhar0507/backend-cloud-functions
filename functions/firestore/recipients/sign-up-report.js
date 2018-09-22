@@ -2,27 +2,27 @@
 
 
 const {
-  sgMailApiKey,
-} = require('../../admin/env');
-const {
-  rootCollections,
   users,
 } = require('../../admin/admin');
 const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
-const sgMail = require('@sendgrid/mail');
-
-sgMail.setApiKey(sgMailApiKey);
 
 const getYesterdaysDateString = () =>
   new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
 
 
-const getPersonDetails = (phoneNumber, activityObject) => {
-  // const activityObject = employeesObject[phoneNumber];
+const getReadableDateString = (firestoreDateObject) => {
+  if (!firestoreDateObject) return firestoreDateObject;
 
-  if (!activityObject) {
+  return firestoreDateObject.toDate().toDateString();
+};
+
+
+const getPersonDetails = (phoneNumber, employeesObject) => {
+  const activityObject = employeesObject[phoneNumber];
+
+  if (!activityObject || !phoneNumber || phoneNumber === '') {
     return {
       employeeName: '',
       employeeContact: '',
@@ -40,29 +40,25 @@ const getPersonDetails = (phoneNumber, activityObject) => {
     department: activityObject.attachment.Department.value,
     firstSupervisorPhoneNumber: activityObject.attachment['First Supervisor'].value,
     secondSupervisorPhoneNumber: activityObject.attachment['Second Supervisor'].value,
+    addedOn: getReadableDateString(activityObject.addedOn),
+    signedUpOn: getReadableDateString(activityObject.signedUpOn),
   };
 };
 
 
-const getReadableDateString = (firestoreDateObject) => {
-  if (!firestoreDateObject) return firestoreDateObject;
-
-  return firestoreDateObject.toDate().toDateString();
-};
-
-const getRow = (phoneNumber, activityObject) => {
-  const details = getPersonDetails(phoneNumber, activityObject);
-  const addedOn = getReadableDateString(activityObject.addedOn);
-  const signedUpOn = getReadableDateString(activityObject.signedUpOn);
-  const firstSupervisorDetails = getPersonDetails(details.firstSupervisorPhoneNumber,activityObject);
-  const secondSupervisorDetails = getPersonDetails(details.secondSupervisorPhoneNumber,activityObject);
+const getRow = (phoneNumber, employeesObject) => {
+  const details = getPersonDetails(phoneNumber, employeesObject);
+  const firstSupervisorDetails =
+    getPersonDetails(details.firstSupervisorPhoneNumber, employeesObject);
+  const secondSupervisorDetails =
+    getPersonDetails(details.secondSupervisorPhoneNumber, employeesObject);
 
   return `${details.employeeName},`
     + `${details.employeeContact},`
     + `${details.employeeCode},`
     + `${details.department},`
-    + `${addedOn},`
-    + `${signedUpOn},`
+    + `${details.addedOn},`
+    + `${details.signedUpOn},`
     + `${firstSupervisorDetails.employeeName},`
     + `${details.firstSupervisorPhoneNumber},`
     + `${secondSupervisorDetails.employeeName},`
@@ -72,11 +68,12 @@ const getRow = (phoneNumber, activityObject) => {
 
 
 // Report is 'added'
-module.exports = (change) => {
+module.exports = (change, sgMail) => {
   const {
     cc,
     office,
     include,
+    employeesObject,
   } = change.after.data();
 
   const locals = {
@@ -93,65 +90,28 @@ module.exports = (change) => {
       + `Contact Number,`
       + `\n`,
     messageObject: {
-      to: [],
       cc,
-      from: 'help@growthfile.com',
-      attachments: [],
+      to: [],
+      from: 'gcloud@growthfile.com',
       templateId: sendGridTemplateIds.signUps,
+      attachments: [],
       'dynamic_template_data': {
         office,
-        date: getYesterdaysDateString(),
+        date: new Date().toDateString(),
         subject: `${office} Sign-Up Report_${getYesterdaysDateString()}`,
       },
     },
   };
 
-  return rootCollections
-    .inits
-    .where('report', '==', 'added')
-    .where('office', '==', office)
-    .limit(1)
-    .get()
-    .then((docs) => {
-      /** No docs. No emails... */
-      if (docs.empty) return Promise.resolve();
+  const authFetch = [];
 
-      const {
-        employeesObject,
-      } = docs.docs[0].data();
+  include.forEach(
+    (phoneNumber) =>
+      authFetch.push(users.getUserByPhoneNumber(phoneNumber))
+  );
 
-      const employeePhoneNumbersList = Object.keys(employeesObject);
-      let totalSignUpsCount = 0;
-
-      employeePhoneNumbersList.forEach((phoneNumber) => {
-        const activityObject = employeesObject[phoneNumber];
-        const row = getRow(phoneNumber, activityObject);
-
-        /** Can either be an empty string (falsy) value or a valid date object*/
-        if (activityObject.signedUpOn && activityObject.signedUpOn !== '') totalSignUpsCount++;
-
-        locals.csvString += row;
-      });
-
-      locals
-        .messageObject['dynamic_template_data']
-        .totalEmployees = employeePhoneNumbersList.length;
-      locals
-        .messageObject['dynamic_template_data']
-        .totalSignUps = totalSignUpsCount;
-      locals
-        .messageObject['dynamic_template_data']
-        .difference = employeePhoneNumbersList.length - totalSignUpsCount;
-
-      const authFetch = [];
-
-      include.forEach(
-        (phoneNumber) =>
-          authFetch.push(users.getUserByPhoneNumber(phoneNumber))
-      );
-
-      return Promise.all(authFetch);
-    })
+  return Promise
+    .all(authFetch)
     .then((userRecords) => {
       userRecords.forEach((userRecord) => {
         const phoneNumber = Object.keys(userRecord)[0];
@@ -179,8 +139,35 @@ module.exports = (change) => {
         });
       });
 
+      console.log({
+        to: locals.messageObject.to,
+      });
+
       /** No mails sent. */
       if (locals.messageObject.to.length === 0) return Promise.resolve();
+
+      const employeePhoneNumbersList = Object.keys(employeesObject);
+      let totalSignUpsCount = 0;
+
+      employeePhoneNumbersList.forEach((phoneNumber) => {
+        const activityObject = employeesObject[phoneNumber];
+        const row = getRow(phoneNumber, activityObject);
+
+        /** Can either be an empty string (falsy) value or a valid date object*/
+        if (activityObject.signedUpOn) totalSignUpsCount++;
+
+        locals.csvString += row;
+      });
+
+      locals
+        .messageObject['dynamic_template_data']
+        .totalEmployees = employeePhoneNumbersList.length;
+      locals
+        .messageObject['dynamic_template_data']
+        .totalSignUps = totalSignUpsCount;
+      locals
+        .messageObject['dynamic_template_data']
+        .difference = employeePhoneNumbersList.length - totalSignUpsCount;
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),
@@ -188,6 +175,8 @@ module.exports = (change) => {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         disposition: 'attachment',
       });
+
+      console.log({ locals, });
 
       return sgMail.send(locals.messageObject);
     })

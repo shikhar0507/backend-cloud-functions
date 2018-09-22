@@ -3,24 +3,138 @@
 const {
   db,
   users,
-  serverTimestamp,
   rootCollections,
 } = require('../admin/admin');
-const sgMail = require('@sendgrid/mail');
-const moment = require('moment');
-const sgMailApiKey = require('../admin/env').sgMailApiKey;
 const {
   getISO8601Date,
 } = require('../admin/utils');
+const sgMail = require('@sendgrid/mail');
+const {
+  sgMailApiKey,
+} = require('../admin/env');
 
 sgMail.setApiKey(sgMailApiKey);
 
-module.exports = (snap) =>
-  db
-    .doc('/Recipients/spUi8tAiqGXCQxRvqaW7')
-    .get()
-    .then((reportDoc) => {
-      if (!reportDoc.exists) return Promise.resolve();
+const getYesterdaysDateString = () =>
+  new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
+
+
+// data queried from /Inits collection for yesterday.
+const manageReports = (initDocs) => {
+  console.log({
+    initDocs: initDocs.size,
+  });
+
+  const addedReportQueries = [];
+  const installReportQueries = [];
+  const dataObject = {};
+  const employeesData = {};
+
+  initDocs.forEach((doc) => {
+    const {
+      installs,
+      phoneNumber,
+      office,
+      report,
+      employeesObject,
+    } = doc.data();
+
+    console.log({
+      office: doc.get('office'),
+    });
+
+    employeesData[office] = employeesObject;
+
+    if (report === 'added') {
+      const query = rootCollections
+        .recipients
+        .where('office', '==', office)
+        .where('report', '==', 'added')
+        .get();
+
+      addedReportQueries.push(query);
+    }
+
+    if (report === 'install') {
+      dataObject[office] = {
+        [phoneNumber]: installs,
+      };
+
+      const query = rootCollections
+        .recipients
+        .where('office', '==', office)
+        .where('report', '==', 'install')
+        .get();
+
+      installReportQueries.push(query);
+    }
+  });
+
+  return Promise
+    .all(addedReportQueries)
+    .then((snapShots) => {
+      const batch = db.batch();
+
+      snapShots.forEach((snapShot) => {
+        snapShot.forEach((doc) => {
+          batch.set(doc.ref, {
+            employeesObject: employeesData[doc.get('office')],
+          }, {
+              merge: true,
+            });
+        });
+      });
+
+      return batch.commit();
+    })
+    .then(() => Promise.all(installReportQueries))
+    .then((snapShots) => {
+      const batch = db.batch();
+
+      snapShots.forEach((snapShot) => {
+        snapShot.forEach((doc) => {
+          batch.set(doc.ref, {
+            dataObject: dataObject[doc.get('office')],
+          }, {
+              merge: true,
+            });
+        });
+      });
+
+      return batch.commit();
+    })
+    .catch(console.error);
+};
+
+
+module.exports = (snap) => {
+  if (snap.get('sent')) {
+    // Helps to check if email is sent already. Cloud functions sometimes trigger multiple times
+    // For a single write.
+    console.log('double trigger', snap.get('sent'));
+
+    return Promise.resolve();
+  }
+
+  return Promise.all([
+    db
+      .doc(db.doc(snap.ref.path))
+      .set({
+        sent: true,
+      }, {
+          merge: true,
+        }),
+    rootCollections
+      .recipients
+      .doc('spUi8tAiqGXCQxRvqaW7')
+      .get()
+  ])
+    .then((result) => {
+      const reportDoc = result[1];
+
+      console.log({
+        reportDoc: reportDoc.data(),
+      });
 
       const authFetchPromises = [];
 
@@ -33,6 +147,7 @@ module.exports = (snap) =>
     })
     .then((userRecords) => {
       const messages = [];
+
       userRecords.forEach((userRecord) => {
         const phoneNumber = Object.keys(userRecord)[0];
         const record = userRecord[`${phoneNumber}`];
@@ -44,7 +159,12 @@ module.exports = (snap) =>
         const disabled = record.disabled;
         const displayName = record.displayName || '';
 
-        console.log({ email, emailVerified, disabled, displayName, });
+        console.log({
+          email,
+          emailVerified,
+          disabled,
+          displayName,
+        });
 
         if (!email) return;
         if (!emailVerified) return;
@@ -66,7 +186,7 @@ module.exports = (snap) =>
             email,
             name: displayName,
           },
-          from: 'help@growthfile.com',
+          from: 'gcloud@growthfile.com',
         });
       });
 
@@ -76,43 +196,9 @@ module.exports = (snap) =>
     })
     .then(() => rootCollections
       .inits
-      .where(
-        'date',
-        '==',
-        moment().subtract(1, 'day').format('DD-MM-YYYY')
-      )
+      .where('date', '==', getYesterdaysDateString())
       .get()
     )
-    .then((docs) => {
-      const queries = [];
-
-      docs.forEach((doc) => {
-        queries
-          .push(rootCollections
-            .reports
-            .where('office', '==', doc.get('office'))
-            .where('report', '==', doc.get('report'))
-            /** Office and report combination is unique */
-            .limit(1)
-            .get()
-          );
-      });
-
-      return Promise.all(queries);
-    })
-    .then((snapShots) => {
-      const batch = db.batch();
-
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
-
-        batch.set(snapShot
-          .docs[0]
-          .ref, {
-            date: getISO8601Date(),
-          });
-      });
-
-      return batch.commit();
-    })
+    .then((docs) => manageReports(docs))
     .catch(console.error);
+};

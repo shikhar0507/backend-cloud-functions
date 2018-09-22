@@ -198,6 +198,8 @@ const now = (conn) => {
     .doc(getISO8601Date())
     .set({
       timestamp: serverTimestamp,
+      // Prevents multiple trigger events.
+      sent: false,
     })
     .then(() =>
       sendJSON(conn, {
@@ -306,11 +308,11 @@ const disableAccount = (conn, reason) => {
  */
 const isValidGeopoint = (geopoint) => {
   if (!geopoint) return false;
-  if (!geopoint.hasOwnProperty('_latitude')) return false;
-  if (!geopoint.hasOwnProperty('_longitude')) return false;
+  if (!geopoint.hasOwnProperty('latitude')) return false;
+  if (!geopoint.hasOwnProperty('longitude')) return false;
 
-  const lat = geopoint._latitude;
-  const lng = geopoint._longitude;
+  const lat = geopoint.latitude;
+  const lng = geopoint.longitude;
 
   if (typeof lat !== 'number') return false;
   if (typeof lng !== 'number') return false;

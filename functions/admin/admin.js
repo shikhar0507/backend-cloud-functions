@@ -71,8 +71,8 @@ const setCustomUserClaims = (uid, claims) =>
  */
 const getGeopointObject = (geopoint) =>
   new admin.firestore.GeoPoint(
-    geopoint._latitude,
-    geopoint._longitude
+    geopoint.latitude,
+    geopoint.longitude
   );
 
 
@@ -104,15 +104,6 @@ const updateUserPhoneNumberInAuth = (uid, phoneNumber) =>
  * @returns {Promise <Object>} New `userRecord` for the created user.
  */
 const createUserInAuth = (userRecord) => auth.createUser(userRecord);
-
-
-/**
- * Deletes the user from auth.
- *
- * @param {string} uid A 30 character alpha-numeric string.
- * @returns {Promise <Object>} Resolving to a `userRecord` object who's auth was deleted.
- */
-const deleteUserFromAuth = (uid) => auth.deleteUser(uid);
 
 /**
  * Revokes the token of the a user in order to end their login session.
@@ -192,19 +183,6 @@ const getUserByUid = (uid) => auth.getUser(uid);
 
 
 /**
- * Verifies the user session and returns the uid in a callback.
- *
- * @param {string} idToken String containing the token from the request.
- * @param {boolean} checkRevoked Checks if the token has been revoked recently.
- * @returns {Promise <Object>} Resolves to an object with the user's
- * `uid`, `exp`, `iat`, `aud`, `iss`, `sub` and `auth_time`.
- * @see https://firebase.google.com/docs/auth/admin/verify-id-tokens
- */
-const verifyIdToken = (idToken, checkRevoked) =>
-  auth.verifyIdToken(idToken, checkRevoked);
-
-
-/**
  * Contains the references to all the collections which are in the
  * root of the Firestore.
  *
@@ -257,15 +235,14 @@ const rootCollections = {
   phoneNumberUpdates: db.collection('PhoneNumberUpdates'),
   reports: db.collection('Reports'),
   inits: db.collection('Inits'),
+  recipients: db.collection('Recipients'),
 };
 
 
 const users = {
   disableUser,
   getUserByUid,
-  verifyIdToken,
   createUserInAuth,
-  deleteUserFromAuth,
   setCustomUserClaims,
   revokeRefreshTokens,
   getUserByPhoneNumber,

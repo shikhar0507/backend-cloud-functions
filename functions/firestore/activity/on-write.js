@@ -433,7 +433,11 @@ const addOfficeToProfile = (locals, batch) => {
 
 module.exports = (change, context) => {
   /** Activity was deleted. For debugging only. */
-  if (!change.after.data()) return Promise.resolve();
+  if (!change.after.data()) {
+    console.log('Activity was deleted.', 'ID:', change.before.id);
+
+    return Promise.resolve();
+  }
 
   const activityId = context.params.activityId;
   const batch = db.batch();
