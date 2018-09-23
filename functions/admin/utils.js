@@ -61,15 +61,17 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
 const sendResponse = (conn, statusCode, message = '') => {
   const success = statusCode <= 226;
 
-  console.log({
-    success,
-    message,
-    statusCode,
-    requestBody: JSON.stringify(conn.req.body),
-    requestMethod: conn.req.method,
-    requester: conn.requester,
-    url: conn.req.url,
-  });
+  if (!success) {
+    console.log({
+      success,
+      message,
+      statusCode,
+      requestBody: JSON.stringify(conn.req.body),
+      requestMethod: conn.req.method,
+      requester: conn.requester,
+      url: conn.req.url,
+    });
+  }
 
   conn.res.writeHead(statusCode, conn.headers);
 

@@ -28,8 +28,6 @@
 const {
   rootCollections,
   auth,
-  users,
-  db,
 } = require('../admin/admin');
 const {
   code,

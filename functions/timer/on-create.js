@@ -5,9 +5,6 @@ const {
   users,
   rootCollections,
 } = require('../admin/admin');
-const {
-  getISO8601Date,
-} = require('../admin/utils');
 const sgMail = require('@sendgrid/mail');
 const {
   sgMailApiKey,
@@ -19,7 +16,6 @@ const getYesterdaysDateString = () =>
   new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
 
 
-// data queried from /Inits collection for yesterday.
 const manageReports = (initDocs) => {
   console.log({
     initDocs: initDocs.size,
@@ -27,7 +23,7 @@ const manageReports = (initDocs) => {
 
   const addedReportQueries = [];
   const installReportQueries = [];
-  const dataObject = {};
+  const installsObjects = {};
   const employeesData = {};
 
   initDocs.forEach((doc) => {
@@ -56,7 +52,7 @@ const manageReports = (initDocs) => {
     }
 
     if (report === 'install') {
-      dataObject[office] = {
+      installsObjects[office] = {
         [phoneNumber]: installs,
       };
 
@@ -76,14 +72,19 @@ const manageReports = (initDocs) => {
       const batch = db.batch();
 
       snapShots.forEach((snapShot) => {
+        console.log('added empty:', snapShot.empty, snapShot.size);
+
         snapShot.forEach((doc) => {
           batch.set(doc.ref, {
             employeesObject: employeesData[doc.get('office')],
+            date: new Date().toDateString(),
           }, {
               merge: true,
             });
         });
       });
+
+      console.log('added:', batch._writes);
 
       return batch.commit();
     })
@@ -92,14 +93,19 @@ const manageReports = (initDocs) => {
       const batch = db.batch();
 
       snapShots.forEach((snapShot) => {
+        console.log('install empty:', snapShot.empty, snapShot.size);
+
         snapShot.forEach((doc) => {
           batch.set(doc.ref, {
-            dataObject: dataObject[doc.get('office')],
+            installsObject: installsObjects[doc.get('office')],
+            date: new Date().toDateString(),
           }, {
               merge: true,
             });
         });
       });
+
+      console.log('installs:', batch._writes);
 
       return batch.commit();
     })
@@ -107,18 +113,19 @@ const manageReports = (initDocs) => {
 };
 
 
-module.exports = (snap) => {
-  if (snap.get('sent')) {
+module.exports = (doc) => {
+  if (doc.get('sent')) {
     // Helps to check if email is sent already. Cloud functions sometimes trigger multiple times
     // For a single write.
-    console.log('double trigger', snap.get('sent'));
+    console.log('double trigger', 'sent', doc.get('sent'));
 
     return Promise.resolve();
   }
 
   return Promise.all([
-    db
-      .doc(db.doc(snap.ref.path))
+    rootCollections
+      .timers
+      .doc(doc.id)
       .set({
         sent: true,
       }, {
@@ -126,16 +133,11 @@ module.exports = (snap) => {
         }),
     rootCollections
       .recipients
-      .doc('spUi8tAiqGXCQxRvqaW7')
-      .get()
+      .doc('Good Morning')
+      .get(),
   ])
     .then((result) => {
       const reportDoc = result[1];
-
-      console.log({
-        reportDoc: reportDoc.data(),
-      });
-
       const authFetchPromises = [];
 
       reportDoc.get('include').forEach(
@@ -171,8 +173,8 @@ module.exports = (snap) => {
         if (disabled) return;
 
         let html = `
-        <p>Date (DD-MM-YYYY): ${snap.id}</p>
-        <p>Timestamp: ${snap.get('timestamp').toDate()}</p>
+        <p>Date (DD-MM-YYYY): ${doc.id}</p>
+        <p>Timestamp: ${doc.get('timestamp').toDate()}</p>
         `;
 
         if (displayName && displayName !== '') {

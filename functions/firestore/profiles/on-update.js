@@ -153,6 +153,7 @@ module.exports = (change) => {
       .inits
       .doc(activityData.officeId), {
         office,
+        officeId: activityData.officeId,
         date: new Date().toDateString(),
         report: 'added',
         employeesObject: {
@@ -162,6 +163,8 @@ module.exports = (change) => {
         merge: true,
       });
   });
+
+  const toFetch = [];
 
   currentOfficesList.forEach((office) => {
     // Activity with which this person was added as an employee to the office in context.
@@ -174,20 +177,13 @@ module.exports = (change) => {
      * for all the offices this person belongs to.
      */
     if (hasInstalled) {
-      batch.set(rootCollections
+      toFetch.push(rootCollections
         .inits
-        .doc(employeeActivity.id), {
-          office,
-          phoneNumber,
-          report: 'install',
-          officeId: after.get('employeeOf')['office'].officeId,
-          date: new Date().toDateString(),
-          installs: {
-            [Date.now()]: serverTimestamp,
-          },
-        }, {
-          merge: true,
-        });
+        .where('phoneNumber', '==', phoneNumber)
+        .where('office', '==', office)
+        .where('report', '==', 'install')
+        .get()
+      );
     }
 
     if (hasSignedUp) {
@@ -197,6 +193,7 @@ module.exports = (change) => {
         .inits
         .doc(employeeActivity.officeId), {
           office,
+          officeId: employeeActivity.officeId,
           report: 'added',
           date: new Date().toDateString(),
           employeesObject: {
@@ -230,7 +227,46 @@ module.exports = (change) => {
     );
   });
 
-  return batch.commit()
+  return Promise
+    .all(toFetch)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) {
+          currentOfficesList.forEach((office) => {
+            const employeeActivity = after.get('employeeOf')[office];
+
+            batch.set(rootCollections
+              .inits
+              .doc(employeeActivity.id), {
+                office,
+                phoneNumber,
+                report: 'install',
+                officeId: employeeActivity.officeId,
+                date: new Date().toDateString(),
+                installs: [
+                  serverTimestamp,
+                ],
+              });
+          });
+        }
+
+        snapShot.forEach((doc) => {
+          const {
+            installs,
+          } = doc.data();
+
+          installs.push(serverTimestamp);
+
+          batch.set(doc.ref, {
+            installs,
+          }, {
+              merge: true,
+            });
+        });
+      });
+
+      return batch.commit();
+    })
     .then(() => manageAddendum(change))
     .catch(console.error);
 };

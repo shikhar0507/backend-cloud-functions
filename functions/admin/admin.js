@@ -236,6 +236,7 @@ const rootCollections = {
   reports: db.collection('Reports'),
   inits: db.collection('Inits'),
   recipients: db.collection('Recipients'),
+  timers: db.collection('Timers'),
 };
 
 

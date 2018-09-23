@@ -11,13 +11,11 @@ const {
 const getYesterdaysDateString = () =>
   new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
 
-
 const getReadableDateString = (firestoreDateObject) => {
-  if (!firestoreDateObject) return firestoreDateObject;
+  if (!firestoreDateObject) return '';
 
   return firestoreDateObject.toDate().toDateString();
 };
-
 
 const getPersonDetails = (phoneNumber, employeesObject) => {
   const activityObject = employeesObject[phoneNumber];
@@ -30,6 +28,8 @@ const getPersonDetails = (phoneNumber, employeesObject) => {
       department: '',
       firstSupervisorPhoneNumber: '',
       secondSupervisorPhoneNumber: '',
+      addedOn: '',
+      signedUpOn: '',
     };
   }
 
@@ -54,15 +54,15 @@ const getRow = (phoneNumber, employeesObject) => {
     getPersonDetails(details.secondSupervisorPhoneNumber, employeesObject);
 
   return `${details.employeeName},`
-    + `${details.employeeContact},`
+    + `[${details.employeeContact}],`
     + `${details.employeeCode},`
     + `${details.department},`
     + `${details.addedOn},`
     + `${details.signedUpOn},`
     + `${firstSupervisorDetails.employeeName},`
-    + `${details.firstSupervisorPhoneNumber},`
+    + `[${details.firstSupervisorPhoneNumber}],`
     + `${secondSupervisorDetails.employeeName},`
-    + `${details.secondSupervisorPhoneNumber}`
+    + `[${details.secondSupervisorPhoneNumber}]`
     + `\n`;
 };
 
@@ -118,40 +118,29 @@ module.exports = (change, sgMail) => {
         const record = userRecord[`${phoneNumber}`];
 
         if (!record.uid) return;
-
-        locals.authMap.set(phoneNumber, {
-          email: record.email,
-          disabled: record.disabled,
-          displayName: record.displayName || '',
-          emailVerified: record.emailVerified,
-        });
-      });
-
-      include.forEach((phoneNumber) => {
-        if (!locals.authMap.get(phoneNumber)) return;
-        if (!locals.authMap.get(phoneNumber).email) return;
-        if (!locals.authMap.get(phoneNumber).emailVerified) return;
-        if (locals.authMap.get(phoneNumber).disabled) return;
+        if (!record.email) return;
+        if (!record.emailVerified) return;
+        if (record.disabled) return;
 
         locals.messageObject.to.push({
-          name: locals.authMap.get(phoneNumber).displayName,
-          email: locals.authMap.get(phoneNumber).email,
+          name: record.displayName || '',
+          email: record.email,
         });
-      });
-
-      console.log({
-        to: locals.messageObject.to,
       });
 
       /** No mails sent. */
-      if (locals.messageObject.to.length === 0) return Promise.resolve();
+      if (locals.messageObject.to.length === 0) {
+        console.log('No messages sent...');
+
+        return Promise.resolve();
+      }
 
       const employeePhoneNumbersList = Object.keys(employeesObject);
       let totalSignUpsCount = 0;
 
       employeePhoneNumbersList.forEach((phoneNumber) => {
         const activityObject = employeesObject[phoneNumber];
-        const row = getRow(phoneNumber, activityObject);
+        const row = getRow(phoneNumber, employeesObject);
 
         /** Can either be an empty string (falsy) value or a valid date object*/
         if (activityObject.signedUpOn) totalSignUpsCount++;
@@ -176,7 +165,11 @@ module.exports = (change, sgMail) => {
         disposition: 'attachment',
       });
 
-      console.log({ locals, });
+      console.log({
+        office,
+        csv: locals.csvString,
+        msg: locals.messageObject,
+      });
 
       return sgMail.send(locals.messageObject);
     })
