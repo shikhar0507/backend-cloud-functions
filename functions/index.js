@@ -66,11 +66,10 @@ const createOfficeNamePermutations = functions
   .document('Offices/{officeId}')
   .onCreate(require('./firestore/offices/on-create'));
 
-// TODO: Rename the `required` file to `on-write.js`
 const profileHandler = functions
   .firestore
   .document('Profiles/{phoneNumber}')
-  .onWrite(require('./firestore/profiles/on-update'));
+  .onWrite(require('./firestore/profiles/on-write'));
 
 const subscriptionUpdater = functions
   .firestore
