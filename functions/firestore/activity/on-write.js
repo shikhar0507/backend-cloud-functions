@@ -94,12 +94,13 @@ const setAdminCustomClaims = (locals, batch) =>
 
 const handleReport = (locals, batch) => {
   batch.set(rootCollections
-    .reports
+    .recipients
     .doc(locals.change.after.id), {
-      cc: 'help@growthfile.com',
+      cc: locals.change.after.get('attachment.cc.value'),
       office: locals.change.after.get('office'),
       include: locals.assigneePhoneNumbersArray,
-      timestamp: serverTimestamp,
+      report: locals.change.after.get('attachment.Name.value'),
+      officeId: locals.change.after.get('officeId'),
     });
 
   return batch
@@ -410,17 +411,29 @@ const addOfficeToProfile = (locals, batch) => {
   activityData.id = locals.change.after.id;
 
   const employeeOf = {
-    [locals.change.after.get('office')]: activityData,
+    [activityData.office]: activityData,
   };
 
-  if (locals.change.after.get('status') === 'CANCELLED') {
-    employeeOf[locals.change.after.get('office')] = deleteField();
+  if (activityData.status === 'CANCELLED') {
+    employeeOf[activityData.office] = deleteField();
   }
 
   batch.set(rootCollections
     .profiles
-    .doc(locals.change.after.get('attachment.Employee Contact.value')), {
+    .doc(activityData.attachment['Employee Contact'].value), {
       employeeOf,
+    }, {
+      merge: true,
+    });
+
+  /** Used while creating reports to fetch names of the employees. */
+  batch.set(rootCollections
+    .offices
+    .doc(activityData.officeId), {
+      employeeNameMap: {
+        [activityData.attachment['Employee Contact'].value]:
+          activityData.attachment.Name.value,
+      },
     }, {
       merge: true,
     });
@@ -620,7 +633,7 @@ module.exports = (change, context) => {
         return addSubscriptionToUserProfile(locals, batch);
       }
 
-      if (template === 'report') {
+      if (template === 'recipient') {
         return handleReport(locals, batch);
       }
 

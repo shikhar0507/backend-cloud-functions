@@ -12,8 +12,11 @@ const {
 
 sgMail.setApiKey(sgMailApiKey);
 
-const getYesterdaysDateString = () =>
-  new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
+const getYesterdaysDateString = () => {
+  const today = new Date();
+
+  return new Date(today.setDate(today.getDate() - 1)).toDateString();
+};
 
 
 const manageReports = (initDocs) => {
@@ -21,15 +24,13 @@ const manageReports = (initDocs) => {
     initDocs: initDocs.size,
   });
 
-  const addedReportQueries = [];
+  const signUpReportQueries = [];
   const installReportQueries = [];
   const installsObjects = {};
   const employeesData = {};
 
   initDocs.forEach((doc) => {
     const {
-      installs,
-      phoneNumber,
       office,
       report,
       employeesObject,
@@ -39,22 +40,20 @@ const manageReports = (initDocs) => {
       office: doc.get('office'),
     });
 
-    employeesData[office] = employeesObject;
+    if (report === 'signUp') {
+      employeesData[office] = employeesObject;
 
-    if (report === 'added') {
       const query = rootCollections
         .recipients
         .where('office', '==', office)
-        .where('report', '==', 'added')
+        .where('report', '==', 'signUp')
         .get();
 
-      addedReportQueries.push(query);
+      signUpReportQueries.push(query);
     }
 
     if (report === 'install') {
-      installsObjects[office] = {
-        [phoneNumber]: installs,
-      };
+      installsObjects[office] = {};
 
       const query = rootCollections
         .recipients
@@ -66,25 +65,37 @@ const manageReports = (initDocs) => {
     }
   });
 
+  initDocs.forEach((doc) => {
+    const {
+      installs,
+      phoneNumber,
+      office,
+      report,
+    } = doc.data();
+
+    if (report !== 'install') return;
+
+    installsObjects[office][phoneNumber] = installs;
+  });
+
   return Promise
-    .all(addedReportQueries)
+    .all(signUpReportQueries)
     .then((snapShots) => {
       const batch = db.batch();
 
       snapShots.forEach((snapShot) => {
-        console.log('added empty:', snapShot.empty, snapShot.size);
+        console.log('signUp empty:', snapShot.empty, snapShot.size);
 
         snapShot.forEach((doc) => {
           batch.set(doc.ref, {
             employeesObject: employeesData[doc.get('office')],
-            date: new Date().toDateString(),
           }, {
               merge: true,
             });
         });
       });
 
-      console.log('added:', batch._writes);
+      console.log('signUp:', batch._writes);
 
       return batch.commit();
     })
@@ -98,7 +109,6 @@ const manageReports = (initDocs) => {
         snapShot.forEach((doc) => {
           batch.set(doc.ref, {
             installsObject: installsObjects[doc.get('office')],
-            date: new Date().toDateString(),
           }, {
               merge: true,
             });
@@ -122,20 +132,21 @@ module.exports = (doc) => {
     return Promise.resolve();
   }
 
-  return Promise.all([
-    rootCollections
-      .timers
-      .doc(doc.id)
-      .set({
-        sent: true,
-      }, {
-          merge: true,
-        }),
-    rootCollections
-      .recipients
-      .doc('Good Morning')
-      .get(),
-  ])
+  return Promise
+    .all([
+      rootCollections
+        .timers
+        .doc(doc.id)
+        .set({
+          sent: true,
+        }, {
+            merge: true,
+          }),
+      rootCollections
+        .recipients
+        .doc('Good Morning')
+        .get(),
+    ])
     .then((result) => {
       const reportDoc = result[1];
       const authFetchPromises = [];

@@ -28,7 +28,6 @@
 const {
   db,
   rootCollections,
-  serverTimestamp,
   deleteField,
 } = require('../../admin/admin');
 
@@ -91,6 +90,26 @@ const manageAddendum = (change) => {
     .catch(console.error);
 };
 
+const getLocaleFromTimestamp = (countryCode, timestamp) => {
+  if (timestamp) {
+    // This value comes from Firestore.
+    timestamp = timestamp.toDate();
+  } else {
+    timestamp = new Date();
+  }
+
+  if (countryCode === '+91') {
+    timestamp.setHours(timestamp.getHours() + 5);
+    timestamp.setMinutes(timestamp.getMinutes() + 30);
+    const offsetted = new Date(timestamp);
+
+    return `${offsetted.toDateString()} ${offsetted.toTimeString()}`.split(' GMT')[0];
+  }
+
+  return `${timestamp.toDateString()} ${timestamp.toTimeString()}`;
+};
+
+
 /**
  * Deletes the addendum docs from the `Updates/(uid)/Addendum` when the
  * `lastQueryFrom` changes in the `Profiles` doc of the user.
@@ -147,7 +166,7 @@ module.exports = (change) => {
 
   addedList.forEach((office) => {
     const activityData = after.get('employeeOf')[office];
-    activityData.addedOn = serverTimestamp;
+    activityData.addedOn = getLocaleFromTimestamp('+91', activityData.timestamp);
 
     batch.set(rootCollections
       .inits
@@ -155,7 +174,7 @@ module.exports = (change) => {
         office,
         officeId: activityData.officeId,
         date: new Date().toDateString(),
-        report: 'added',
+        report: 'signUp',
         employeesObject: {
           [phoneNumber]: activityData,
         },
@@ -187,14 +206,14 @@ module.exports = (change) => {
     }
 
     if (hasSignedUp) {
-      employeeActivity.signedUpOn = serverTimestamp;
+      employeeActivity.signedUpOn = getLocaleFromTimestamp('+91');
 
       batch.set(rootCollections
         .inits
         .doc(employeeActivity.officeId), {
           office,
           officeId: employeeActivity.officeId,
-          report: 'added',
+          report: 'signUp',
           date: new Date().toDateString(),
           employeesObject: {
             [phoneNumber]: employeeActivity,
@@ -244,7 +263,7 @@ module.exports = (change) => {
                 officeId: employeeActivity.officeId,
                 date: new Date().toDateString(),
                 installs: [
-                  serverTimestamp,
+                  getLocaleFromTimestamp('+91'),
                 ],
               });
           });
@@ -255,7 +274,7 @@ module.exports = (change) => {
             installs,
           } = doc.data();
 
-          installs.push(serverTimestamp);
+          installs.push(getLocaleFromTimestamp('+91'));
 
           batch.set(doc.ref, {
             installs,

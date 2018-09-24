@@ -16,7 +16,7 @@ module.exports = (change) => {
     report,
   });
 
-  if (report === 'added') return require('./sign-up-report')(change, sgMail);
+  if (report === 'signUp') return require('./sign-up-report')(change, sgMail);
 
   if (report === 'install') return require('./install-report')(change, sgMail);
 

@@ -8,13 +8,10 @@ const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 
-const getYesterdaysDateString = () =>
-  new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
+const getYesterdaysDateString = () => {
+  const today = new Date();
 
-const getReadableDateString = (firestoreDateObject) => {
-  if (!firestoreDateObject) return '';
-
-  return firestoreDateObject.toDate().toDateString();
+  return new Date(today.setDate(today.getDate() - 1)).toDateString();
 };
 
 const getPersonDetails = (phoneNumber, employeesObject) => {
@@ -40,8 +37,8 @@ const getPersonDetails = (phoneNumber, employeesObject) => {
     department: activityObject.attachment.Department.value,
     firstSupervisorPhoneNumber: activityObject.attachment['First Supervisor'].value,
     secondSupervisorPhoneNumber: activityObject.attachment['Second Supervisor'].value,
-    addedOn: getReadableDateString(activityObject.addedOn),
-    signedUpOn: getReadableDateString(activityObject.signedUpOn),
+    addedOn: activityObject.addedOn,
+    signedUpOn: activityObject.signedUpOn || '',
   };
 };
 
@@ -81,13 +78,13 @@ module.exports = (change, sgMail) => {
     csvString: `Employee Name,`
       + ` Employee Contact,`
       + ` Employee Code,`
-      + `Department,`
-      + `Employee Added Date,`
-      + `Sign-Up Date,`
-      + `First Supervisor's Name,`
-      + `Contact Number,`
-      + `Second Supervisor's Name,`
-      + `Contact Number,`
+      + ` Department,`
+      + ` Employee Added Date,`
+      + ` Sign-Up Date,`
+      + ` First Supervisor's Name,`
+      + ` Contact Number,`
+      + ` Second Supervisor's Name,`
+      + ` Contact Number,`
       + `\n`,
     messageObject: {
       cc,
@@ -138,6 +135,13 @@ module.exports = (change, sgMail) => {
       const employeePhoneNumbersList = Object.keys(employeesObject);
       let totalSignUpsCount = 0;
 
+      /** No data. No email... */
+      if (employeePhoneNumbersList.length === 0) {
+        console.log('No emails sent.', 'employeePhoneNumbersList.length', employeePhoneNumbersList.length);
+
+        return Promise.resolve();
+      }
+
       employeePhoneNumbersList.forEach((phoneNumber) => {
         const activityObject = employeesObject[phoneNumber];
         const row = getRow(phoneNumber, employeesObject);
@@ -160,7 +164,7 @@ module.exports = (change, sgMail) => {
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),
-        fileName: `${office} Sign-Up Report_${getYesterdaysDateString()}.xlsx`,
+        fileName: `${office} Sign-Up Report_${getYesterdaysDateString()}.csv`,
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         disposition: 'attachment',
       });

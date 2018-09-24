@@ -25,6 +25,8 @@ const getEmployeeDataObject = (employeeActivityDoc, phoneNumber) => {
   }
 
   return {
+    firstSupervisorsName: employeeActivityDoc.firstSupervisorsName,
+    secondSupervisorsName: employeeActivityDoc.secondSupervisorsName,
     baseLocation: employeeActivityDoc.get('attachment.Base Location.value'),
     dailyEndTime: employeeActivityDoc.get('attachment.Daily End Time.value'),
     dailyStartTime: employeeActivityDoc.get('attachment.Daily Start Time.value'),
@@ -38,13 +40,18 @@ const getEmployeeDataObject = (employeeActivityDoc, phoneNumber) => {
   };
 };
 
-const getYesterdaysDateString = () =>
-  new Date(new Date().setDate(new Date().getDate() - 1)).toDateString();
+const getYesterdaysDateString = () => {
+  const today = new Date();
 
-const getYesterdaysStartTime = () =>
-  new Date(
-    new Date(new Date().setDate(new Date().getDate() - 1)).setHours(0, 0, 0)
-  );
+  return new Date(today.setDate(today.getDate() - 1)).toDateString();
+};
+
+const getYesterdaysStartTime = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0);
+
+  return new Date(today.setDate(today.getDate() - 1));
+};
 
 
 module.exports = (change, sgMail) => {
@@ -65,8 +72,7 @@ module.exports = (change, sgMail) => {
       + ` Employee Contact,`
       + ` Employee Code,`
       + ` Department,`
-      + ` Install Date,`
-      + ` Install Time,`
+      + ` Installed On,`
       + ` Number Of Installs,`
       + ` First Supervisor's Name,`
       + ` Contact Number,`
@@ -88,9 +94,13 @@ module.exports = (change, sgMail) => {
   };
 
   locals.phoneNumbersList = Object.keys(installsObject);
-  const employeeToFetch = [];
 
-  locals.messageObject['dynamic_template_data'].totalInstalls = locals.phoneNumbersList.length;
+  /** No data. No email... */
+  if (locals.phoneNumbersList.length === 0) return Promise.resolve();
+
+  const employeeToFetch = [];
+  let totalInstalls = 0;
+
   locals.phoneNumbersList.forEach((phoneNumber) => {
     const installs = installsObject[phoneNumber];
     const query = rootCollections
@@ -104,16 +114,24 @@ module.exports = (change, sgMail) => {
 
     employeeToFetch.push(query);
 
-    installs.forEach((install) => {
-      const timestamp = install.toDate().getTime();
+    // Collecting the list of people who have multiple installs for yesterday.
+    const yesterdaysStartTime = getYesterdaysStartTime().getTime();
 
-      if (timestamp < getYesterdaysStartTime().getTime()) {
-        locals.hasInstallsBeforeToday.push(phoneNumber);
-      }
+    installs.forEach((timestamp) => {
+      totalInstalls++;
+      const installTime = new Date(timestamp).getTime();
+
+      if (installTime > yesterdaysStartTime) return;
+
+      locals.hasInstallsBeforeToday.push(phoneNumber);
     });
 
+    locals
+      .messageObject['dynamic_template_data']
+      .totalInstalls = totalInstalls;
+
     locals.messageObject['dynamic_template_data']
-      .extraInstalls = locals.hasInstallsBeforeToday.length;
+      .extraInstalls = totalInstalls - locals.phoneNumbersList.length;
   });
 
   return Promise
@@ -132,7 +150,8 @@ module.exports = (change, sgMail) => {
         }
 
         const employeeActivityDoc = snapShot.docs[0];
-        const phoneNumber = employeeActivityDoc.get('attachment.Employee Contact.value');
+        const phoneNumber =
+          employeeActivityDoc.get('attachment.Employee Contact.value');
 
         const firstSupervisorPhoneNumber =
           employeeActivityDoc.get('attachment.First Supervisor.value');
@@ -188,7 +207,8 @@ module.exports = (change, sgMail) => {
         }
 
         const employeeActivityDoc = snapShot.docs[0];
-        const phoneNumber = employeeActivityDoc.get('attachment.Employee Contact.value');
+        const phoneNumber =
+          employeeActivityDoc.get('attachment.Employee Contact.value');
 
         locals.employeeDataMap
           .set(
@@ -199,14 +219,9 @@ module.exports = (change, sgMail) => {
 
       locals.hasInstallsBeforeToday.forEach((phoneNumber) => {
         const installs = installsObject[phoneNumber];
-        let str = 'Phone Number, Install Date, Install Time\n';
+        let str = 'Install Date, Install Time\n';
 
-        installs.forEach((date) => {
-          const installDate = date.toDate().toDateString();
-          const installTime = date.toDate().toTimeString();
-
-          str += `${phoneNumber}, ${installDate}, ${installTime}\n`;
-        });
+        installs.forEach((timestampString) => str += `${timestampString}\n`);
 
         locals.multiInstallsString.set(phoneNumber, str);
       });
@@ -223,6 +238,7 @@ module.exports = (change, sgMail) => {
         const record = userRecord[`${phoneNumber}`];
 
         if (!record.uid) return;
+
         const email = record.email;
         const disabled = record.disabled;
         const emailVerified = record.emailVerified;
@@ -239,10 +255,7 @@ module.exports = (change, sgMail) => {
 
       locals.phoneNumbersList.forEach((phoneNumber) => {
         const data = locals.employeeDataMap.get(phoneNumber);
-        const installDate =
-          installsObject[phoneNumber][0].toDate().toDateString();
-        const installTime =
-          installsObject[phoneNumber][0].toDate().toTimeString();
+        const installedOn = installsObject[phoneNumber][0];
         const numberOfInstalls = installsObject[phoneNumber].length;
         let firstSupervisorsName = '';
         let secondSupervisorsName = '';
@@ -259,22 +272,21 @@ module.exports = (change, sgMail) => {
 
         locals.csvString +=
           `${data.name},`
-          + `[${data.employeeContact}],`
+          + ` '${data.employeeContact},`
           + `${data.employeeCode},`
           + `${data.department},`
-          + `${installDate},`
-          + `${installTime},`
+          + `${installedOn},`
           + `${numberOfInstalls},`
           + `${firstSupervisorsName},`
-          + `${data.firstSupervisorPhoneNumber},`
+          + `'${data.firstSupervisorPhoneNumber}',`
           + `${secondSupervisorsName},`
-          + `${data.secondSupervisorPhoneNumber}`
+          + `'${data.secondSupervisorPhoneNumber}'`
           + `\n`;
       });
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),
-        fileName: `${office} Install Report_${getYesterdaysDateString()}.xlsx`,
+        fileName: `${office} Install Report_${getYesterdaysDateString()}.csv`,
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         disposition: 'attachment',
       });
