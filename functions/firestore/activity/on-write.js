@@ -101,6 +101,9 @@ const handleReport = (locals, batch) => {
       include: locals.assigneePhoneNumbersArray,
       report: locals.change.after.get('attachment.Name.value'),
       officeId: locals.change.after.get('officeId'),
+    }, {
+      /** Required since anyone updating the this activity will cause the report data to be lost.  */
+      merge: true,
     });
 
   return batch
