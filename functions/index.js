@@ -86,6 +86,11 @@ const backgroundReports = functions
   .document('Recipients/{docId}')
   .onUpdate(require('./firestore/recipients/on-update'));
 
+const addendumOnCreate = functions
+  .firestore
+  .document('Offices/{officeId}/Addendum/{docId}')
+  .onCreate(require('./firestore/addendum/on-create'));
+
 
 module.exports = {
   api,
@@ -96,6 +101,7 @@ module.exports = {
   reportsHandler,
   activityHandler,
   assigneeHandler,
+  addendumOnCreate,
   backgroundReports,
   subscriptionUpdater,
   phoneNumberUpdateHandler,
