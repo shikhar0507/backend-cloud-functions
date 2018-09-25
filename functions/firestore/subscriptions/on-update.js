@@ -37,6 +37,8 @@ const updateSubscriptions = (query, resolve, reject) =>
   query
     .get()
     .then((docs) => {
+      console.log('Docs found:', docs.size, 'Iteration:', count);
+
       if (docs.size === 0) return 0;
 
       const batch = db.batch();
@@ -44,6 +46,7 @@ const updateSubscriptions = (query, resolve, reject) =>
       docs.forEach((doc) => {
         batch.set(doc.ref, {
           timestamp: serverTimestamp,
+          // addendumDocRef: null,
         }, {
             merge: true,
           });
@@ -92,6 +95,8 @@ module.exports = (change) => {
       .where('attachment.Template.value', '==', templateName)
       .orderBy('attachment.Subscriber.value')
       .limit(500);
+
+  console.log({ templateName, });
 
   return new
     Promise((resolve, reject) => updateSubscriptions(query, resolve, reject))
