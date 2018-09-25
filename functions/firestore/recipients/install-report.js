@@ -46,6 +46,10 @@ const getYesterdaysDateString = () => {
   return new Date(today.setDate(today.getDate() - 1)).toDateString();
 };
 
+/**
+ * Returns yesterday's Day start timestamp.
+ * @returns {Object} JS date object of the previous day starting timestamp.
+ */
 const getYesterdaysStartTime = () => {
   const today = new Date();
   today.setHours(0, 0, 0);
@@ -56,17 +60,37 @@ const getYesterdaysStartTime = () => {
 
 module.exports = (change, sgMail) => {
   const {
-    installsObject,
-    officeId,
+    cc,
     office,
     include,
-    cc,
+    officeId,
+    installsObject,
   } = change.after.data();
 
+  /** Prevents crashes in case of data not being available */
+  if (!installsObject) {
+    console.log('Data not available:', {
+      after: change.after.data(),
+      before: change.before.data(),
+    });
+
+    return Promise.resolve();
+  }
+
+  const phoneNumbersList = Object.keys(installsObject);
+
+  /** No data. No email... */
+  if (phoneNumbersList.length === 0) {
+    console.log('Empty phone numbers list:', installsObject);
+
+    return Promise.resolve();
+  }
+
   const locals = {
+    phoneNumbersList,
     supervisorsFetch: [],
     authFetch: [],
-    multiInstallsString: new Map(),
+    multiInstallsStringSet: new Map(),
     employeeDataMap: new Map(),
     csvString: `Employee Name,`
       + ` Employee Contact,`
@@ -78,7 +102,7 @@ module.exports = (change, sgMail) => {
       + ` Contact Number,`
       + ` Second Supervisor's Name,`
       + ` Contact Number\n`,
-    hasInstallsBeforeToday: [],
+    hasInstallsBeforeYesterday: [],
     messageObject: {
       to: [],
       cc,
@@ -92,11 +116,6 @@ module.exports = (change, sgMail) => {
       },
     },
   };
-
-  locals.phoneNumbersList = Object.keys(installsObject);
-
-  /** No data. No email... */
-  if (locals.phoneNumbersList.length === 0) return Promise.resolve();
 
   const employeeToFetch = [];
   let totalInstalls = 0;
@@ -123,7 +142,7 @@ module.exports = (change, sgMail) => {
 
       if (installTime > yesterdaysStartTime) return;
 
-      locals.hasInstallsBeforeToday.push(phoneNumber);
+      locals.hasInstallsBeforeYesterday.push(phoneNumber);
     });
 
     locals
@@ -217,13 +236,13 @@ module.exports = (change, sgMail) => {
           );
       });
 
-      locals.hasInstallsBeforeToday.forEach((phoneNumber) => {
+      locals.hasInstallsBeforeYesterday.forEach((phoneNumber) => {
         const installs = installsObject[phoneNumber];
         let str = 'Install Date, Install Time\n';
 
         installs.forEach((timestampString) => str += `${timestampString}\n`);
 
-        locals.multiInstallsString.set(phoneNumber, str);
+        locals.multiInstallsStringSet.set(phoneNumber, str);
       });
 
       include.forEach((phoneNumber) => {
@@ -272,27 +291,27 @@ module.exports = (change, sgMail) => {
 
         locals.csvString +=
           `${data.name},`
-          + ` '${data.employeeContact},`
-          + `${data.employeeCode},`
-          + `${data.department},`
-          + `${installedOn},`
-          + `${numberOfInstalls},`
-          + `${firstSupervisorsName},`
-          + `'${data.firstSupervisorPhoneNumber}',`
-          + `${secondSupervisorsName},`
-          + `'${data.secondSupervisorPhoneNumber}'`
+          + ` ${data.employeeContact},`
+          + ` ${data.employeeCode},`
+          + ` ${data.department},`
+          + ` ${installedOn},`
+          + ` ${numberOfInstalls},`
+          + ` ${firstSupervisorsName},`
+          + ` ${data.firstSupervisorPhoneNumber},`
+          + ` ${secondSupervisorsName},`
+          + ` ${data.secondSupervisorPhoneNumber}`
           + `\n`;
       });
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),
         fileName: `${office} Install Report_${getYesterdaysDateString()}.csv`,
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        type: 'text/csv',
         disposition: 'attachment',
       });
 
-      locals.hasInstallsBeforeToday.forEach((phoneNumber) => {
-        const data = locals.multiInstallsString.get(phoneNumber);
+      locals.hasInstallsBeforeYesterday.forEach((phoneNumber) => {
+        const data = locals.multiInstallsStringSet.get(phoneNumber);
 
         locals.messageObject.attachments.push({
           content: new Buffer(data).toString('base64'),

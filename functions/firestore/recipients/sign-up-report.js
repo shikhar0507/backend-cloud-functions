@@ -43,7 +43,7 @@ const getPersonDetails = (phoneNumber, employeesObject) => {
 };
 
 
-const getRow = (phoneNumber, employeesObject) => {
+const getDataRow = (phoneNumber, employeesObject) => {
   const details = getPersonDetails(phoneNumber, employeesObject);
   const firstSupervisorDetails =
     getPersonDetails(details.firstSupervisorPhoneNumber, employeesObject);
@@ -51,15 +51,15 @@ const getRow = (phoneNumber, employeesObject) => {
     getPersonDetails(details.secondSupervisorPhoneNumber, employeesObject);
 
   return `${details.employeeName},`
-    + `[${details.employeeContact}],`
-    + `${details.employeeCode},`
-    + `${details.department},`
-    + `${details.addedOn},`
-    + `${details.signedUpOn},`
-    + `${firstSupervisorDetails.employeeName},`
-    + `[${details.firstSupervisorPhoneNumber}],`
-    + `${secondSupervisorDetails.employeeName},`
-    + `[${details.secondSupervisorPhoneNumber}]`
+    + ` ${details.employeeContact},`
+    + ` ${details.employeeCode},`
+    + ` ${details.department},`
+    + ` ${details.addedOn},`
+    + ` ${details.signedUpOn},`
+    + ` ${firstSupervisorDetails.employeeName},`
+    + ` ${details.firstSupervisorPhoneNumber},`
+    + ` ${secondSupervisorDetails.employeeName},`
+    + ` ${details.secondSupervisorPhoneNumber}`
     + `\n`;
 };
 
@@ -73,7 +73,25 @@ module.exports = (change, sgMail) => {
     employeesObject,
   } = change.after.data();
 
+  /** Prevents crashes in case of data not being available. */
+  if (!employeesObject) {
+    console.log('Employees object not available:', {
+      before: change.before.data(),
+      after: change.after.data(),
+    });
+  }
+
+  const employeePhoneNumbersList = Object.keys(employeesObject || {});
+
+  /** No data. No email... */
+  if (employeePhoneNumbersList.length === 0) {
+    console.log('No emails sent. employeePhoneNumbersList empty');
+
+    return Promise.resolve();
+  }
+
   const locals = {
+    employeePhoneNumbersList,
     authMap: new Map(),
     csvString: `Employee Name,`
       + ` Employee Contact,`
@@ -132,19 +150,11 @@ module.exports = (change, sgMail) => {
         return Promise.resolve();
       }
 
-      const employeePhoneNumbersList = Object.keys(employeesObject);
       let totalSignUpsCount = 0;
 
-      /** No data. No email... */
-      if (employeePhoneNumbersList.length === 0) {
-        console.log('No emails sent.', 'employeePhoneNumbersList.length', employeePhoneNumbersList.length);
-
-        return Promise.resolve();
-      }
-
-      employeePhoneNumbersList.forEach((phoneNumber) => {
+      locals.employeePhoneNumbersList.forEach((phoneNumber) => {
         const activityObject = employeesObject[phoneNumber];
-        const row = getRow(phoneNumber, employeesObject);
+        const row = getDataRow(phoneNumber, employeesObject);
 
         /** Can either be an empty string (falsy) value or a valid date object*/
         if (activityObject.signedUpOn) totalSignUpsCount++;
@@ -154,18 +164,19 @@ module.exports = (change, sgMail) => {
 
       locals
         .messageObject['dynamic_template_data']
-        .totalEmployees = employeePhoneNumbersList.length;
+        .totalEmployees = locals.employeePhoneNumbersList.length;
       locals
         .messageObject['dynamic_template_data']
         .totalSignUps = totalSignUpsCount;
       locals
         .messageObject['dynamic_template_data']
-        .difference = employeePhoneNumbersList.length - totalSignUpsCount;
+        .difference =
+        locals.employeePhoneNumbersList.length - totalSignUpsCount;
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),
         fileName: `${office} Sign-Up Report_${getYesterdaysDateString()}.csv`,
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        type: 'text/csv',
         disposition: 'attachment',
       });
 
