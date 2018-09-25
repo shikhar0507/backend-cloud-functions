@@ -60,6 +60,7 @@ const createDocs = (conn, activity) => {
     });
 
   batch.set(addendumDocRef, {
+    activityData: activity.data(),
     user: conn.requester.phoneNumber,
     action: httpsActions.changeStatus,
     status: conn.req.body.status,

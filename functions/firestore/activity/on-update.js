@@ -91,6 +91,7 @@ const updateDocsWithBatch = (conn, locals) => {
     .objects
     .updatedFields
     .addendumDocRef, {
+      activityData: locals.docs.activity.data(),
       user: conn.requester.phoneNumber,
       action: httpsActions.update,
       location: getGeopointObject(conn.req.body.geopoint),
@@ -450,6 +451,22 @@ const handleAttachment = (conn, locals) => {
 
   if (!result.isValid) {
     sendResponse(conn, code.badRequest, result.message);
+
+    return;
+  }
+
+  /**
+   * Changing the name of an office will render all the activities
+   * of that office useless since we are currently not updating
+   * the office name in the respective activities.
+   */
+  if (conn.req.body.template === 'office'
+    && conn.req.body.attachment.Name.value !== locals.static.office) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `Updating the 'Name' of an 'Office' is not allowed.`
+    );
 
     return;
   }

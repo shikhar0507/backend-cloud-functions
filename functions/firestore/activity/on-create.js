@@ -101,7 +101,7 @@ const createDocsWithBatch = (conn, locals) => {
     .collection('Addendum')
     .doc();
 
-  locals.batch.set(locals.docs.activityRef, {
+  const activityData = {
     addendumDocRef,
     venue: locals.objects.venueArray,
     timestamp: serverTimestamp,
@@ -115,9 +115,12 @@ const createDocsWithBatch = (conn, locals) => {
     officeId: locals.static.officeId,
     hidden: locals.static.hidden,
     creator: conn.requester.phoneNumber,
-  });
+  };
+
+  locals.batch.set(locals.docs.activityRef, activityData);
 
   locals.batch.set(addendumDocRef, {
+    activityData,
     user: conn.requester.phoneNumber,
     userDisplayName: conn.requester.displayName,
     /**

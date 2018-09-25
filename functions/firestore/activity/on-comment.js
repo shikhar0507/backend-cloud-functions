@@ -67,6 +67,7 @@ const createDocs = (conn, activity) => {
     userDeviceTimestamp: new Date(conn.req.body.timestamp),
     activityId: conn.req.body.activityId,
     isSupportRequest: conn.requester.isSupportRequest,
+    activityData: activity.data(),
   });
 
   batch

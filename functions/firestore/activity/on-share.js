@@ -206,6 +206,7 @@ const handleResult = (conn, docs) => {
         });
 
       batch.set(addendumDocRef, {
+        activityData: activity.data(),
         user: conn.requester.phoneNumber,
         share: conn.req.body.share,
         action: httpsActions.share,
