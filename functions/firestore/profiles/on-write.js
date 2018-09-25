@@ -39,6 +39,8 @@ const purgeAddendum = (query, resolve, reject) => {
   return query
     .get()
     .then((docs) => {
+      console.log('addendums found:', docs.size);
+
       // When there are no documents left, we are done
       if (docs.size === 0) return 0;
 
@@ -69,10 +71,9 @@ const purgeAddendum = (query, resolve, reject) => {
 const manageAddendum = (change) => {
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
-
-  if (!newFromValue) return Promise.resolve();
   if (!oldFromValue) return Promise.resolve();
-  if (oldFromValue <= newFromValue) return Promise.resolve();
+  if (!newFromValue) return Promise.resolve();
+  if (newFromValue <= oldFromValue) return Promise.resolve();
 
   const query = rootCollections
     .updates
@@ -127,7 +128,11 @@ module.exports = (change) => {
   } = change;
 
   /** Document was deleted. For debugging only... */
-  if (!after.data()) return Promise.resolve();
+  if (!after.data()) {
+    console.log('Profile was deleted.');
+
+    return Promise.resolve();
+  }
 
   const batch = db.batch();
   const phoneNumber = after.id;
@@ -163,6 +168,20 @@ module.exports = (change) => {
     authDeleted,
     phoneNumber,
   });
+
+
+  /**
+   * What this code does...
+   *
+   * If has installed
+   *    For each office create installs doc.
+   * If has been added
+   *    For each office (added) created signup docs with addedOn field
+   * If uid written
+   *    For each office (current) create signups doc with signedUpOn field
+   * Delete addendum if new lastFromQuery > old lastFromQuery.
+   *
+   */
 
   addedList.forEach((office) => {
     const activityData = after.get('employeeOf')[office];
