@@ -297,6 +297,7 @@ module.exports = (change) => {
 
           batch.set(doc.ref, {
             installs,
+            date: new Date().toDateString(),
           }, {
               merge: true,
             });
