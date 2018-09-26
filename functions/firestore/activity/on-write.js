@@ -242,6 +242,7 @@ const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
   return updatedFields;
 };
 
+
 const getUpdatedAttachmentFieldNames = (requestBody, oldAttachment) => {
   const updatedFields = [];
   const newAttachment = requestBody.attachment;
@@ -281,9 +282,7 @@ const getUpdatedFieldNames = (eventData) => {
 
   allFields
     .forEach((field, index) => {
-      const isLastField = index === allFields.length - 1;
-
-      if (isLastField) {
+      if (index === allFields.length - 1) {
         commentString += `& ${field}`;
 
         return;
@@ -335,12 +334,11 @@ const getChangeStatusComment = (status, activityName, pronoun) => {
   /** `PENDING` isn't grammatically correct with the comment here. */
   if (status === 'PENDING') status = 'reversed';
 
-  return `${pronoun} ${status.toLowerCase()} ${activityName}.`;
+  return `${pronoun} ${status.toLowerCase()} ${activityName}`;
 };
 
 
 const getCommentString = (locals, recipient) => {
-  const addendumCreator = locals.addendum.get('user');
   const action = locals.addendum.get('action');
   const pronoun = getPronoun(locals, recipient);
 
@@ -371,12 +369,8 @@ const getCommentString = (locals, recipient) => {
     share.forEach((phoneNumber, index) => {
       const name = locals
         .assigneesMap.get(phoneNumber).displayName || phoneNumber;
-      const isLastItem = share.length - 1 === index;
-      /**
-       * Creates a string to show to the user
-       * `${ph1} added ${ph2}, ${ph3}, & ${ph4}`
-       */
-      if (isLastItem) {
+
+      if (share.length - 1 === index) {
         str += ` & ${name}`;
 
         return;
@@ -395,13 +389,12 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.updatePhoneNumber) {
-    const updatedPhoneNumber = locals.addendum.get('updatedPhoneNumber');
-    let pronoun = `${addendumCreator} changed their`;
+    let pronoun = `${locals.addendum.get('user')} changed their`;
 
-    if (addendumCreator === recipient) pronoun = 'You changed your';
+    if (locals.addendum.get('user') === recipient) pronoun = 'You changed your';
 
-    return `${pronoun} phone number from ${addendumCreator} to`
-      + ` ${updatedPhoneNumber}.`;
+    return `${pronoun} phone number from ${locals.addendum.get('user')} to`
+      + ` ${locals.addendum.get('updatedPhoneNumber')}`;
   }
 
   /** Action is `comment` */
