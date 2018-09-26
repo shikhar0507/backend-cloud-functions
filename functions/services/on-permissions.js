@@ -82,7 +82,7 @@ const getFailureMessageObject = (conn, action, responseCode) => {
     border-radius: 5px;
     font-family: monaco;
     padding: 14px;">
-    ${JSON.stringify(conn.req.body, ' ', 2)}
+${JSON.stringify(conn.req.body, ' ', 2)}
     </pre>
   `;
 

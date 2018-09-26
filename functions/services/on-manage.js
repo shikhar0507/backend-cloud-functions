@@ -54,7 +54,7 @@ module.exports = (conn) => {
       return;
     }
 
-    const onPermissions = require('./manage/on-permissions');
+    const onPermissions = require('./on-permissions');
     onPermissions(conn);
 
     return;
