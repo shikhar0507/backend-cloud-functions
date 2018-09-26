@@ -32,20 +32,23 @@ const {
 } = require('../../admin/admin');
 
 
-const purgeAddendum = (query, resolve, reject) => {
-  /** For temporary logging. */
-  let count = 0;
+let count = 0;
 
-  return query
+const purgeAddendum = (query, resolve, reject) =>
+  query
     .get()
     .then((docs) => {
-      console.log('addendums found:', docs.size);
+      count++;
+
+      console.log('Docs found:', docs.size, 'Iteration:', count);
 
       // When there are no documents left, we are done
       if (docs.size === 0) return 0;
 
+
       // Delete documents in a batch
       const batch = db.batch();
+
       docs.forEach((doc) => batch.delete(doc.ref));
 
       /* eslint-disable */
@@ -58,19 +61,24 @@ const purgeAddendum = (query, resolve, reject) => {
       /** All docs deleted */
       if (deleteCount === 0) return resolve(count);
 
-      count++;
-
       // Recurse on the next process tick, to avoid exploding the stack.
       return process
         .nextTick(() => purgeAddendum(query, resolve, reject));
     })
     .catch(reject);
-};
 
 
 const manageAddendum = (change) => {
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
+  /**
+   * Both old and the new values should be available
+   * None should be 0.
+   * The newer value should be greater than the older
+   * value.
+   *
+   * If any of the conditions fail, don't delete the docs.
+   */
   if (!oldFromValue) return Promise.resolve();
   if (!newFromValue) return Promise.resolve();
   if (newFromValue <= oldFromValue) return Promise.resolve();
@@ -90,6 +98,7 @@ const manageAddendum = (change) => {
     .then((count) => console.log(`Rounds:`, count))
     .catch(console.error);
 };
+
 
 const getLocaleFromTimestamp = (countryCode, timestamp) => {
   if (timestamp) {
@@ -159,6 +168,17 @@ module.exports = (change) => {
     && before.get('lastQueryFrom') !== 0
     && after.get('lastQueryFrom') === 0);
 
+  /**
+   * If the person has signed up even before being added to the office,
+   * their signup time will be equal to the signup time of when they
+   * were added to the office.
+   */
+  const hasSignedUpBeforeOffice = Boolean(
+    oldOfficesList.length > 0
+    && before.get('uid')
+    && after.get('uid')
+  );
+
   console.log({
     addedList,
     removedList,
@@ -167,6 +187,7 @@ module.exports = (change) => {
     hasInstalled,
     authDeleted,
     phoneNumber,
+    hasSignedUpBeforeOffice,
   });
 
 
@@ -224,8 +245,9 @@ module.exports = (change) => {
       );
     }
 
-    if (hasSignedUp) {
-      employeeActivity.signedUpOn = getLocaleFromTimestamp('+91');
+    if (hasSignedUp || hasSignedUpBeforeOffice) {
+      employeeActivity.signedUpOn =
+        getLocaleFromTimestamp('+91', employeeActivity.timestamp);
 
       batch.set(rootCollections
         .inits
@@ -297,8 +319,13 @@ module.exports = (change) => {
 
           batch.set(doc.ref, {
             installs,
+            /**
+             * Updating the date is required for the Timer cloud function
+             * to be able to get this document.
+             */
             date: new Date().toDateString(),
           }, {
+              /** This doc contains other data about his older installs for this user. */
               merge: true,
             });
         });
