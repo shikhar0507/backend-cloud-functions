@@ -171,7 +171,6 @@ module.exports = (change, sgMail) => {
         const employeeActivityDoc = snapShot.docs[0];
         const phoneNumber =
           employeeActivityDoc.get('attachment.Employee Contact.value');
-
         const firstSupervisorPhoneNumber =
           employeeActivityDoc.get('attachment.First Supervisor.value');
         const secondSupervisorPhoneNumber =
@@ -236,9 +235,16 @@ module.exports = (change, sgMail) => {
           );
       });
 
+      /**
+       * Time complexity here is O(n^2) but this loop probably doesn't need optimization
+       * This is because per person installs will mostly be 1. So the internal loop
+       * is absent for most cases. An anomaly in this assumption also causes
+       * the extra attachments for the person performing multiple installs.
+       * So, the office for which this person works can know.
+       */
       locals.hasInstallsBeforeYesterday.forEach((phoneNumber) => {
         const installs = installsObject[phoneNumber];
-        let str = 'Install Date, Install Time\n';
+        let str = 'Install Date and Time\n\n';
 
         installs.forEach((timestampString) => str += `${timestampString}\n`);
 
@@ -323,5 +329,5 @@ module.exports = (change, sgMail) => {
 
       return sgMail.sendMultiple(locals.messageObject);
     })
-    .catch(console.error);
+    .catch((error) => JSON.stringify(error));
 };

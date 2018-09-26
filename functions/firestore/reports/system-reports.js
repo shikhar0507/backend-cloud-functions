@@ -86,7 +86,7 @@ const sendMails = (recipientsDoc, instantDoc) => {
 
       return sgMail.sendMultiple(messages);
     })
-    .catch(console.error);
+    .catch((error) => JSON.stringify(error));
 };
 
 
@@ -98,4 +98,4 @@ module.exports = (instantDoc) =>
     .doc('KlQM9EzrYfTzE2cjExFp')
     .get()
     .then((recipientsDoc) => sendMails(recipientsDoc, instantDoc))
-    .catch(console.error);
+    .catch((error) => JSON.stringify(error));

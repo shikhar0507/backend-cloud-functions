@@ -173,12 +173,13 @@ module.exports = (change, sgMail) => {
         .difference =
         locals.employeePhoneNumbersList.length - totalSignUpsCount;
 
-      locals.messageObject.attachments.push({
-        content: new Buffer(locals.csvString).toString('base64'),
-        fileName: `${office} Sign-Up Report_${getYesterdaysDateString()}.csv`,
-        type: 'text/csv',
-        disposition: 'attachment',
-      });
+      locals
+        .messageObject.attachments.push({
+          content: new Buffer(locals.csvString).toString('base64'),
+          fileName: `${office} Sign-Up Report_${getYesterdaysDateString()}.csv`,
+          type: 'text/csv',
+          disposition: 'attachment',
+        });
 
       console.log({
         office,
@@ -188,5 +189,5 @@ module.exports = (change, sgMail) => {
 
       return sgMail.send(locals.messageObject);
     })
-    .catch(console.error);
+    .catch((error) => JSON.stringify(error));
 };
