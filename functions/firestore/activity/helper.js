@@ -338,7 +338,7 @@ const validateVenues = (body, venueDescriptors) => {
         messageObject.isValid = false;
         messageObject.message = `In the venue object at position ${i}, the`
           + ` ' geopoint' is invalid. Make sure to include the fields`
-          + ` '_latitude' and '_longitude' are present in the object with`
+          + ` 'latitude' and 'longitude' are present in the object with`
           + ` proper range for each field.`;
         break;
       }
@@ -532,6 +532,16 @@ const filterAttachment = (body, locals) => {
           .limit(1)
           .get()
         );
+    }
+
+    /** For the template 'recipients' */
+    if (field === 'cc') {
+      if (value !== '' && !/\S+@\S+\.\S+/.test(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `The field attachment.cc.value should`
+          + ` be a valid email address.`;
+        break;
+      }
     }
 
     if (field === 'Name') {
