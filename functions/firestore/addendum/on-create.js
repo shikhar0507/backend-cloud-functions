@@ -42,18 +42,54 @@ const haversineDistance = (coords1, coords2) => {
   return dist;
 };
 
+const getUpdateData = (addendumDoc) => {
+
+};
+
+const getDocData = (addendumDoc) => {
+
+};
+
+
 module.exports = (addendumDoc, context) => {
   const {
+    user,
     location,
     activityData,
   } = addendumDoc.data();
+  const batch = db.batch();
 
-  // const locals = {
-  //   'latlng': getLatLngString(location),
-  // };
+  const locals = {
+    'latlng': getLatLngString(location),
+  };
 
   console.log('context:', context);
   console.log('getLocationUrl:', getLocationUrl(location));
 
-  return Promise.resolve();
+  return rootCollections
+    .inits
+    .where('office', '==', activityData.office)
+    .where('date', '==', new Date().toDateString())
+    .limit(1)
+    .get()
+    .then((docs) => {
+      if (docs.empty) {
+        batch.set(rootCollections.inits.doc(), {
+          [user]: getUpdateData(addendumDoc),
+        }, {
+            merge: true,
+          });
+
+        return batch.commit();
+      }
+
+      batch.set(docs.docs[0].ref, {
+        [user]: getDocData(addendumDoc),
+      }, {
+          merge: true,
+        });
+
+      return batch.commit();
+    })
+    .catch(console.error);
 };
