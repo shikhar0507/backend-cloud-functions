@@ -280,7 +280,8 @@ module.exports = (change, sgMail) => {
 
       locals.phoneNumbersList.forEach((phoneNumber) => {
         const data = locals.employeeDataMap.get(phoneNumber);
-        const installedOn = installsObject[phoneNumber][0];
+        const installedOnArray = installsObject[phoneNumber];
+        const latestInstall = installedOnArray[installedOnArray.length - 1];
         const numberOfInstalls = installsObject[phoneNumber].length;
         let firstSupervisorsName = '';
         let secondSupervisorsName = '';
@@ -300,7 +301,7 @@ module.exports = (change, sgMail) => {
           + ` ${data.employeeContact},`
           + ` ${data.employeeCode},`
           + ` ${data.department},`
-          + ` ${installedOn},`
+          + ` ${latestInstall},`
           + ` ${numberOfInstalls},`
           + ` ${firstSupervisorsName},`
           + ` ${data.firstSupervisorPhoneNumber},`
