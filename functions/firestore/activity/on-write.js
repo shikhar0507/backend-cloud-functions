@@ -38,6 +38,15 @@ const {
   vowels,
 } = require('../../admin/constants');
 
+const getValuesFromAttachment = (attachment) => {
+  const fields = Object.keys(attachment);
+  const object = {};
+
+  fields.forEach((field) => object[field] = attachment[field].value);
+
+  return object;
+};
+
 
 const setAdminCustomClaims = (locals, batch) =>
   auth
@@ -83,13 +92,13 @@ const setAdminCustomClaims = (locals, batch) =>
 
       return Promise
         .all([
-          users
+          auth
             .setCustomUserClaims(userRecord.uid, newClaims),
           batch
             .commit(),
         ]);
     })
-    .catch(console.error);
+    .catch((error) => JSON.stringify(error));
 
 
 const handleReport = (locals, batch) => {
@@ -403,34 +412,79 @@ const getCommentString = (locals, recipient) => {
 
 
 const addOfficeToProfile = (locals, batch) => {
-  const activityData = locals.change.after.data();
-  activityData.id = locals.change.after.id;
+  const activityDoc = locals.change.after.data();
+  activityDoc.id = locals.change.after.id;
+  const office = activityDoc.office;
+  const officeId = activityDoc.officeId;
+  const attachment = activityDoc.attachment;
+  const employeeContact = attachment['Employee Contact'].value;
+  const status = activityDoc.status;
 
   const employeeOf = {
-    [activityData.office]: activityData,
+    [office]: activityDoc,
   };
 
-  if (activityData.status === 'CANCELLED') {
-    employeeOf[activityData.office] = deleteField();
+  if (status === 'CANCELLED') {
+    employeeOf[office] = deleteField();
   }
 
+  /**
+   * TODO: Remove this and update Profile onWrite function to not rely on
+   * data from this object.
+   * This data is redundant since we can access all employee data that is
+   * relevant for the report by reading the Office doc.
+   */
   batch.set(rootCollections
     .profiles
-    .doc(activityData.attachment['Employee Contact'].value), {
+    .doc(employeeContact), {
       employeeOf,
     }, {
       merge: true,
     });
 
-  /** Used while creating reports to fetch names of the employees. */
   batch.set(rootCollections
     .offices
-    .doc(activityData.officeId), {
-      employeeNameMap: {
-        [activityData.attachment['Employee Contact'].value]:
-          activityData.attachment.Name.value,
+    .doc(officeId), {
+      employeesMap: {
+        [employeeContact]: getValuesFromAttachment(attachment),
       },
     }, {
+      merge: true,
+    });
+
+  return batch
+    .commit()
+    .catch(console.error);
+};
+
+const addSupplierToOffice = (locals, batch) => {
+  const attachment = locals.change.after.get('attachment');
+  const supplierName = attachment.Name.value;
+  const officeId = locals.change.after.get('officeId');
+
+  batch.set(rootCollections.offices.doc(officeId), {
+    suppliersMap: {
+      [supplierName]: getValuesFromAttachment(attachment),
+    }
+  }, {
+      merge: true,
+    });
+
+  return batch
+    .commit()
+    .catch(console.error);
+};
+
+const addCustomerToOffice = (locals, batch) => {
+  const attachment = locals.change.after.get('attachment');
+  const customerName = attachment.Name.value;
+  const officeId = locals.change.after.get('officeId');
+
+  batch.set(rootCollections.offices.doc(officeId), {
+    customersMap: {
+      [customerName]: getValuesFromAttachment(attachment),
+    },
+  }, {
       merge: true,
     });
 
@@ -469,11 +523,11 @@ module.exports = (change, context) => {
         .collection('Assignees')
         .get(),
     ])
-    .then((docs) => {
+    .then((result) => {
       const [
         addendum,
         assigneesSnapShot,
-      ] = docs;
+      ] = result;
 
       locals.addendum = addendum;
       const authFetch = [];
@@ -639,6 +693,14 @@ module.exports = (change, context) => {
 
       if (template === 'employee') {
         return addOfficeToProfile(locals, batch);
+      }
+
+      if (template === 'customer') {
+        return addCustomerToOffice(locals, batch);
+      }
+
+      if (template === 'supplier') {
+        return addSupplierToOffice(locals, batch);
       }
 
       return batch
