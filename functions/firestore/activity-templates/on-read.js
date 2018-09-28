@@ -38,8 +38,8 @@ const {
 const getDocObject = (doc) => {
   const templateObject = {
     timestamp: doc.get('timestamp').toDate(),
-    createTime: doc.createTime,
-    updateTime: doc.createTime,
+    createTime: doc.createTime.toDate(),
+    updateTime: doc.createTime.toDate(),
   };
 
   ['name',

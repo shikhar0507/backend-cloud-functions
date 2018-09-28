@@ -534,16 +534,6 @@ const filterAttachment = (body, locals) => {
         );
     }
 
-    /** For the template 'recipients' */
-    if (field === 'cc') {
-      if (value !== '' && !/\S+@\S+\.\S+/.test(value)) {
-        messageObject.isValid = false;
-        messageObject.message = `The field attachment.cc.value should`
-          + ` be a valid email address.`;
-        break;
-      }
-    }
-
     if (field === 'Name') {
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
@@ -595,6 +585,14 @@ const filterAttachment = (body, locals) => {
        */
       if (value !== '') {
         messageObject.phoneNumbers.add(value);
+      }
+    }
+
+    if (type === 'email') {
+      if (value !== '' && !/\S+@\S+\.\S+/.test(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `The field ${field} should be a valid email.`;
+        break;
       }
     }
 

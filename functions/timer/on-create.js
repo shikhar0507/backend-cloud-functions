@@ -26,8 +26,10 @@ const manageReports = (initDocs) => {
 
   const signUpReportQueries = [];
   const installReportQueries = [];
+  const footprintsReportQueries = [];
   const installsObjects = {};
   const employeesData = {};
+  const footprintsObject = {};
 
   initDocs.forEach((doc) => {
     const {
@@ -47,6 +49,7 @@ const manageReports = (initDocs) => {
         .recipients
         .where('office', '==', office)
         .where('report', '==', 'signUp')
+        .limit(1)
         .get();
 
       signUpReportQueries.push(query);
@@ -59,9 +62,23 @@ const manageReports = (initDocs) => {
         .recipients
         .where('office', '==', office)
         .where('report', '==', 'install')
+        .limit(1)
         .get();
 
       installReportQueries.push(query);
+    }
+
+    if (report === 'footprints') {
+      footprintsObject[office] = {};
+
+      const query = rootCollections
+        .recipients
+        .where('office', '==', office)
+        .where('report', '==', 'footprints')
+        .limit(1)
+        .get();
+
+      footprintsReportQueries.push(query);
     }
   });
 
@@ -116,6 +133,24 @@ const manageReports = (initDocs) => {
       });
 
       console.log('installs:', batch._writes);
+
+      return batch.commit();
+    })
+    .then(() => Promise.all(footprintsReportQueries))
+    .then((snapShots) => {
+      const batch = db.batch();
+
+      snapShots.forEach((snapShot) => {
+        console.log('footprints empty:', snapShot.empty, snapShot.size);
+
+        snapShot.forEach((doc) => {
+          batch.set(doc.ref, {
+            footprintsObject: footprintsObject[doc.get('office')],
+          }, {
+              merge: true,
+            });
+        });
+      });
 
       return batch.commit();
     })

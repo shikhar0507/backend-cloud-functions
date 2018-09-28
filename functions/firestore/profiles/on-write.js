@@ -32,19 +32,14 @@ const {
 } = require('../../admin/admin');
 
 
-let count = 0;
-
-const purgeAddendum = (query, resolve, reject) =>
+const purgeAddendum = (query, resolve, reject, count) =>
   query
     .get()
     .then((docs) => {
       count++;
 
-      console.log('Docs found:', docs.size, 'Iteration:', count);
-
       // When there are no documents left, we are done
       if (docs.size === 0) return 0;
-
 
       // Delete documents in a batch
       const batch = db.batch();
@@ -63,7 +58,7 @@ const purgeAddendum = (query, resolve, reject) =>
 
       // Recurse on the next process tick, to avoid exploding the stack.
       return process
-        .nextTick(() => purgeAddendum(query, resolve, reject));
+        .nextTick(() => purgeAddendum(query, resolve, reject, count));
     })
     .catch(reject);
 
@@ -91,9 +86,11 @@ const manageAddendum = (change) => {
     .orderBy('timestamp')
     .limit(500);
 
+  const count = 0;
+
   return new
     Promise(
-      (resolve, reject) => purgeAddendum(query, resolve, reject)
+      (resolve, reject) => purgeAddendum(query, resolve, reject, count)
     )
     .then((count) => console.log(`Rounds:`, count))
     .catch(console.error);
@@ -203,7 +200,6 @@ module.exports = (change) => {
    * Delete addendum if new lastFromQuery > old lastFromQuery.
    *
    */
-
   addedList.forEach((office) => {
     const activityData = after.get('employeeOf')[office];
     activityData.addedOn = getLocaleFromTimestamp('+91', activityData.timestamp);
@@ -228,7 +224,6 @@ module.exports = (change) => {
   currentOfficesList.forEach((office) => {
     // Activity with which this person was added as an employee to the office in context.
     const employeeActivity = after.get('employeeOf')[office];
-
     /**
      * If the `lastQueryFrom` value is `0`, the user probably has installed
      * the app for the first or (has been installing it multiple) time.

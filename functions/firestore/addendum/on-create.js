@@ -4,6 +4,12 @@ const {
   rootCollections,
   db,
 } = require('../../admin/admin');
+const {
+  getISO8601Date,
+} = require('../../admin/utils');
+const {
+  httpsActions,
+} = require('../../admin/constants');
 
 const googleMapsClient =
   require('@google/maps')
@@ -12,10 +18,10 @@ const googleMapsClient =
       Promise: Promise,
     });
 
-const calculateDistance = (geopointOne, geopointTwo) => {
+const haversineDistance = (geopointOne, geopointTwo) => {
   const toRad = (value) => value * Math.PI / 180;
 
-  const RADIUS_OF_EARTH = 6371; // km
+  const RADIUS_OF_EARTH = 6371;
   const distanceBetweenLatitudes = toRad(geopointOne._latitude - geopointTwo._latitude);
   const distanceBetweenLongitudes = toRad(geopointOne._longitude - geopointTwo._longitude);
   const lat1 = toRad(geopointOne._latitude);
@@ -32,36 +38,103 @@ const calculateDistance = (geopointOne, geopointTwo) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = RADIUS_OF_EARTH * c;
 
+  console.log({
+    distanceWithoutCheck: distance,
+  });
+
   /** We ignore the distance if the distance is less than 1 */
-  return distance < 0 ? 0 : distance;
+  return distance < 1 ? 0 : distance;
 };
 
 
 const getRemark = (addendumDoc) => {
   const activityData = addendumDoc.get('activityData');
-  const template = activityData.template;
+  const action = addendumDoc.get('action');
 
   let remark = '';
 
-  if (template === 'check-in' || template === 'dsr' || template === 'tour plan') {
+  const actionsToLog = new Set()
+    .add('create')
+    .add('update');
+
+  if (new Set()
+    .add('check-in')
+    .add('dsr')
+    .add('tour plan')
+    .has(activityData.template)
+    && actionsToLog.has(action)) {
     remark = activityData.attachment.Comment.value;
   }
 
-  if (template === 'expense' || template === 'leave') {
+  if (new Set()
+    .add('expense')
+    .add('leave')
+    .has(activityData.template)
+    && actionsToLog.has(action)) {
     remark = activityData.attachment.Reason.value;
   }
 
   return remark;
 };
 
-const getPlaceInformation = (result) => {
-  const addressComponents = result[0]['address_components'];
+/**
+ * Not all addendum contain the data that is relevant to the
+ * footprints report. This function validates those conditions.
+ *
+ * @param {Object} options Metadata about the event.
+ * @returns {Boolean} To log or not.
+ */
+const isValidFootprint = (options) => {
+  let isValid = true;
+
+  const {
+    template,
+    status,
+    action,
+  } = options;
+
+  const templatesSet =
+    new Set()
+      .add('check-in')
+      .add('tour plan')
+      .add('duty roster')
+      .add('dsr')
+      .add('leave');
+
+  if (!templatesSet.has(template)) {
+    isValid = false;
+  }
+
+  if (template === 'check-in'
+    && action !== httpsActions.create) {
+    isValid = false;
+  }
+
+  if (template === 'duty roster'
+    || template === 'tour plan'
+    && action !== httpsActions.changeStatus
+    && status !== 'CONFIRMED') {
+    isValid = false;
+  }
+
+  if (template === 'dsr'
+    && action !== httpsActions.create) {
+    isValid = false;
+  }
+
+  return isValid;
+};
+
+
+const getPlaceInformation = (results) => {
+  const addressComponents = results[0]['address_components'];
   const locality = addressComponents[0];
   const city = addressComponents[1];
 
   return {
     city: city['long_name'],
     locality: locality['long_name'],
+    formattedAddress: results['formatted_address'],
   };
 };
 
@@ -93,14 +166,27 @@ module.exports = (addendumDoc) => {
     location,
     /** User is the phone number */
     user,
+    action,
   } = addendumDoc.data();
 
   const {
     office,
     officeId,
+    template,
+    status,
   } = activityData;
 
+  const options = {
+    template, status, action,
+  };
+
+  if (!isValidFootprint(options)) {
+    return Promise.resolve();
+  }
+
   const batch = db.batch();
+
+  const todaysDateString = new Date().toDateString();
 
   return Promise
     .all([
@@ -120,7 +206,7 @@ module.exports = (addendumDoc) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('date', '==', new Date().toDateString())
+        .where('date', '==', todaysDateString)
         .where('report', '==', 'footprints')
         .limit(1)
         .get(),
@@ -139,7 +225,13 @@ module.exports = (addendumDoc) => {
 
       if (!lastAddendumQuery.empty) {
         const lastLocation = lastAddendumQuery.docs[0].get('location');
-        distanceTravelled = calculateDistance(lastLocation, location);
+        distanceTravelled = haversineDistance(lastLocation, location);
+
+        console.log({
+          lastLocation,
+          distanceTravelled,
+          location,
+        });
       }
 
       let docRef = rootCollections.inits.doc();
@@ -153,10 +245,12 @@ module.exports = (addendumDoc) => {
        * user.
        */
       const timeString = getLocalTime('+91');
+      const isoDate = getISO8601Date();
       const footprints = {
         /** User === phone number */
         [user]: {
           [timeString]: {
+            date: isoDate,
             distanceTravelled,
             remark: getRemark(addendumDoc),
             geopointMeta: getPlaceInformation(mapsApiResult.json.results),
@@ -175,7 +269,7 @@ module.exports = (addendumDoc) => {
         officeId,
         footprints,
         report: 'footprints',
-        date: new Date().toDateString(),
+        date: todaysDateString,
       }, {
           merge: true,
         });
