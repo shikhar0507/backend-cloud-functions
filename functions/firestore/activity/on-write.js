@@ -465,7 +465,7 @@ const addSupplierToOffice = (locals, batch) => {
   batch.set(rootCollections.offices.doc(officeId), {
     suppliersMap: {
       [supplierName]: getValuesFromAttachment(attachment),
-    }
+    },
   }, {
       merge: true,
     });
