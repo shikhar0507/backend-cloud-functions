@@ -330,5 +330,5 @@ module.exports = (change, sgMail) => {
 
       return sgMail.sendMultiple(locals.messageObject);
     })
-    .catch((error) => JSON.stringify(error));
+    .catch(console.error);
 };

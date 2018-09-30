@@ -189,5 +189,5 @@ module.exports = (change, sgMail) => {
 
       return sgMail.send(locals.messageObject);
     })
-    .catch((error) => JSON.stringify(error));
+    .catch(console.error);
 };

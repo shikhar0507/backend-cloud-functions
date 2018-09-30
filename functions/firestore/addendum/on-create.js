@@ -1,12 +1,10 @@
 'use strict';
 
+
 const {
   rootCollections,
   db,
 } = require('../../admin/admin');
-const {
-  getISO8601Date,
-} = require('../../admin/utils');
 
 const googleMapsClient =
   require('@google/maps')
@@ -85,14 +83,28 @@ const getRemark = (addendumDoc) => {
 
 const getPlaceInformation = (mapsApiResult) => {
   const results = mapsApiResult.json.results;
-  const addressComponents = results[0]['address_components'];
-  const locality = addressComponents[0];
-  const city = addressComponents[1];
+  const firstResult = results[0];
+  const addressComponents = firstResult['address_components'];
+  let city = '';
+  let locality = '';
+
+  addressComponents.forEach((component) => {
+    const longName = component['long_name'];
+    const types = component.types;
+
+    if (types.includes('locality') && types.includes('political')) {
+      city = longName;
+    }
+
+    if (types.includes('administrative_area_level_2')) {
+      locality = longName;
+    }
+  });
 
   return {
-    city: city['long_name'],
-    locality: locality['long_name'],
-    formattedAddress: results['formatted_address'],
+    city,
+    locality,
+    formattedAddress: firstResult['formatted_address'],
   };
 };
 
@@ -129,105 +141,73 @@ module.exports = (addendumDoc) => {
   } = addendumDoc.data();
 
   const {
-    office,
     officeId,
   } = activityData;
 
-  const locals = {
-    /** Default value for the distance is 0... */
-    distance: 0,
-    initDocRef: rootCollections.inits.doc(),
-    todaysDateString: new Date().toDateString(),
-  };
+  /** Default value for the distance is 0... */
+  let distance = 0;
 
-  return Promise
-    .all([
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Addendum')
-        .where('user', '==', user)
-        .orderBy('timestamp', 'desc')
-        .limit(1)
-        .get(),
-      rootCollections
-        .inits
-        .where('office', '==', 'office')
-        .where('date', '==', locals.todaysDateString)
-        .where('report', '==', 'footprints')
-        .limit(1)
-        .get(),
-    ])
-    .then((result) => {
-      const [
-        lastAddendumQuery,
-        initDocQuery,
-      ] = result;
-
-      if (!initDocQuery.empty) {
-        locals.initDocRef = initDocQuery.docs[0].ref;
-      }
-
-      /**
-       * When the addendum doesn't exist for today, this simply means that
-       * this person is just starting the work.
+  return rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Addendum')
+    .where('user', '==', user)
+    .orderBy('timestamp', 'desc')
+    .limit(2)
+    .get()
+    .then((docs) => {
+      /** In the query, the doc at the position 0 will the same doc for 
+       * which the cloud function is triggered. Hence, the distance calculated
+       * will always remain zero.
        */
-      if (!lastAddendumQuery.empty) {
-        const geopointOne = lastAddendumQuery.docs[0].get('location');
-        locals.distance = haversineDistance(geopointOne, location);
+      const doc = docs.docs[1];
+
+      if (doc) {
+        const geopointOne = doc.get('location');
+        distance = haversineDistance(geopointOne, location);
       }
+
+      console.log('distance:', distance);
+
+      // if (distance === 0) {
+      //   /** Distance is zero, so no logging is required since the person 
+      //    * didn't move from their previous location. 
+      //    */
+      //   return Promise.resolve();
+      // }
 
       console.log({
-        lastAddendumQueryEmpty: lastAddendumQuery.empty,
-        initDocQueryEmpty: initDocQuery.empty,
-        geopointOne: location,
-        geopointTwo: !lastAddendumQuery.empty ? lastAddendumQuery.docs[0].get('location') : null,
+        currID: addendumDoc.id,
+        prevID: doc ? doc.id : null,
       });
 
-      if (locals.distance === 0) {
-        console.log('Distance is 0');
-
-        return Promise.resolve();
-      }
-
-      const options = {
-        latlng: getLatLngString(location),
-      };
-
       return googleMapsClient
-        .reverseGeocode(options)
+        .reverseGeocode({
+          latlng: getLatLngString(location),
+        })
         .asPromise();
     })
     .then((mapsApiResult) => {
-      const timeString = getLocalTime('+91');
-      const batch = db.batch();
+      const placeInformation = getPlaceInformation(mapsApiResult);
 
-      const footprints = {
-        /** User === phone number */
-        [user]: {
-          [timeString]: {
-            distanceTravelled: locals.distance,
-            date: getISO8601Date(),
-            remark: getRemark(addendumDoc),
-            geopointMeta: getPlaceInformation(mapsApiResult),
-            locationUrl: getLocationUrl(location),
-          },
-        },
+      const locationInfo = {
+        date: new Date().toDateString(),
+        timeString: getLocalTime('+91'),
+        remark: getRemark(addendumDoc),
+        distanceTravelled: distance.toFixed(2),
+        locationUrl: getLocationUrl(location),
+        city: placeInformation.city,
+        locality: placeInformation.locality,
+        formattedAddress: placeInformation.formattedAddress,
       };
 
-      console.log({ footprints, });
+      console.log({ locationInfo, });
 
-      batch.set(locals.initDocRef, {
-        office,
-        officeId,
-        footprints,
-        report: 'footprints',
-        date: locals.todaysDateString,
-      }, {
+      return db
+        .doc(addendumDoc.ref.path)
+        .set(locationInfo, {
           merge: true,
         });
-
-      return batch.commit();
     })
-    .catch((error) => JSON.stringify(error));
+    .catch(console.error);
 };

@@ -21,6 +21,7 @@ module.exports = (change) => {
   console.log({
     report,
   });
+
   const locals = {
     change,
     sgMail,
@@ -67,7 +68,11 @@ module.exports = (change) => {
 
       if (report === 'install') return require('./install-report')(change, sgMail);
 
-      if (report === 'footprints') return require('./footprints-report')(locals);
+      if (report === 'footprints') {
+        console.log('Footprints triggered...');
+
+        return Promise.resolve();
+      }
 
       return Promise.resolve();
     })

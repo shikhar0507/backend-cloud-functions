@@ -512,6 +512,8 @@ module.exports = (change, context) => {
     addendumCreatorInAssignees: false,
   };
 
+  console.log('Addendum Path:', change.after.get('addendumDocRef').path);
+
   return Promise
     .all([
       db

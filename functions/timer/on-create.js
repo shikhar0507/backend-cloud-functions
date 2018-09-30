@@ -24,6 +24,8 @@ const manageReports = (initDocs) => {
     initDocs: initDocs.size,
   });
 
+  const date = new Date().toDateString();
+
   const signUpReportQueries = [];
   const installReportQueries = [];
   const footprintsReportQueries = [];
@@ -145,7 +147,7 @@ const manageReports = (initDocs) => {
 
         snapShot.forEach((doc) => {
           batch.set(doc.ref, {
-            footprintsObject: footprintsObject[doc.get('office')],
+            date,
           }, {
               merge: true,
             });

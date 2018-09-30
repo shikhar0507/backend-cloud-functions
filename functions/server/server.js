@@ -263,12 +263,12 @@ const getProfile = (conn, pathName) =>
          * other than out provided endpoint for updating the `auth`.
          * Disabling their account because this is not allowed.
          */
-        // disableAccount(
-        //   conn,
-        //   `The uid and phone number of the requester does not match.`
-        // );
+        disableAccount(
+          conn,
+          `The uid and phone number of the requester does not match.`
+        );
 
-        // return;
+        return;
       }
 
       handleRequestPath(conn, pathName);
