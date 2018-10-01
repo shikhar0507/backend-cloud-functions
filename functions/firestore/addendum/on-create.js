@@ -156,7 +156,7 @@ module.exports = (addendumDoc) => {
     .limit(2)
     .get()
     .then((docs) => {
-      /** In the query, the doc at the position 0 will the same doc for 
+      /** In the query, the doc at the position 0 will the same doc for
        * which the cloud function is triggered. Hence, the distance calculated
        * will always remain zero.
        */
@@ -170,8 +170,8 @@ module.exports = (addendumDoc) => {
       console.log('distance:', distance);
 
       // if (distance === 0) {
-      //   /** Distance is zero, so no logging is required since the person 
-      //    * didn't move from their previous location. 
+      //   /** Distance is zero, so no logging is required since the person
+      //    * didn't move from their previous location.
       //    */
       //   return Promise.resolve();
       // }
@@ -193,7 +193,8 @@ module.exports = (addendumDoc) => {
       const locationInfo = {
         date: new Date().toDateString(),
         timeString: getLocalTime('+91'),
-        remark: getRemark(addendumDoc),
+        // remark: getRemark(addendumDoc),
+        remark: '',
         distanceTravelled: distance.toFixed(2),
         locationUrl: getLocationUrl(location),
         city: placeInformation.city,
