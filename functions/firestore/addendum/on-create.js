@@ -169,12 +169,14 @@ module.exports = (addendumDoc) => {
 
       console.log('distance:', distance);
 
-      // if (distance === 0) {
-      //   /** Distance is zero, so no logging is required since the person
-      //    * didn't move from their previous location.
-      //    */
-      //   return Promise.resolve();
-      // }
+      if (distance === 0) {
+        console.log('Distance is ZERO');
+
+        /** Distance is zero, so no logging is required since the person
+         * didn't move from their previous location.
+         */
+        return Promise.resolve();
+      }
 
       console.log({
         currID: addendumDoc.id,

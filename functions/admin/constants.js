@@ -146,7 +146,7 @@ const reportingActions = {
 const sendGridTemplateIds = {
   signUps: 'd-a73b2f579c8746758ba2753fbb0341df',
   installs: 'd-835f877b46bb4cc8aad6df8d735e27a1',
-  footprints: '',
+  footprints: 'd-90095557c1c54de1a153626bb0fbe03d',
 };
 
 

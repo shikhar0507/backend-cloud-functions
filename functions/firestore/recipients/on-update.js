@@ -68,11 +68,7 @@ module.exports = (change) => {
 
       if (report === 'install') return require('./install-report')(change, sgMail);
 
-      if (report === 'footprints') {
-        console.log('Footprints triggered...');
-
-        return Promise.resolve();
-      }
+      if (report === 'footprints') return require('./footprints-report')(locals);
 
       return Promise.resolve();
     })

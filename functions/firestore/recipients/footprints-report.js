@@ -11,10 +11,13 @@ const {
 const getYesterdaysDate = () => {
   const today = new Date();
 
-  return new Date(today.setDate(today.getDate() - 1))
+  return new Date(
+    today.setDate(today.getDate() - 1)
+  )
     .toDateString();
 };
 
+// "=HYPERLINK(""http://www.Google.com"",""Google"")"
 const getAddressWithURL = (options) =>
   `=HYPERLINK(${options.locationUrl}, ${options.formattedAddress})`;
 
@@ -25,12 +28,11 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
-  // TODO: Template substitutions
+  locals.yesterdaysDate = getYesterdaysDate();
   locals.messageObject.templateId = sendGridTemplateIds.footprints;
   locals.messageObject.csvString =
     ` Dated,`
     + ` Department,`
-    + ` Name,`
     + ` Name,`
     + ` Time,`
     + ` Locality,`
@@ -40,9 +42,14 @@ module.exports = (locals) => {
     + ` Address`
     + `\n`;
 
-  locals.yesterdaysDate = getYesterdaysDate();
   const toFetch = [];
   const employeeDataMap = new Map();
+
+  locals['dynamic_template_data'] = {
+    office,
+    subject: `${office} Footprints Report_${locals.yesterdaysDate}`,
+    date: locals.yesterdaysDate,
+  };
 
   const officeDocRef = rootCollections
     .offices
@@ -68,7 +75,7 @@ module.exports = (locals) => {
         employeeDataMap.set(phoneNumber, {});
 
         toFetch.push(officeDocRef
-          .collection('Addendum')
+          .collection('Activities')
           .where('attachment.Employee Contact.value', '==', phoneNumber)
           .limit(1)
           .get());
@@ -95,7 +102,7 @@ module.exports = (locals) => {
       });
 
       locals.addendumDocs.forEach((doc) => {
-        const dated = locals.yesterdaysDate;
+        const dated = getYesterdaysDate();
         const phoneNumber = doc.get('user');
         const department = employeeDataMap.get(phoneNumber).department;
         const name = employeeDataMap.get(phoneNumber).name;
@@ -104,12 +111,12 @@ module.exports = (locals) => {
         const city = doc.get('city');
         const remark = doc.get('remark');
         const distanceTravelled = doc.get('distanceTravelled');
-        const formattedAddress = doc.get('formattedAddress');
+        const formattedAddress = doc.get('formattedAddress').replace(/,/g, '-');
         const locationUrl = doc.get('locationUrl');
-        const addressWithURL = getAddressWithURL({
-          formattedAddress,
-          locationUrl,
-        });
+        // const addressWithURL = getAddressWithURL({
+        //   formattedAddress,
+        //   locationUrl,
+        // });
 
         locals.csvString +=
           ` ${dated},`
@@ -120,9 +127,12 @@ module.exports = (locals) => {
           + ` ${city},`
           + ` ${remark},`
           + ` ${distanceTravelled},`
-          + ` ${addressWithURL},`
+          // + ` ${addressWithURL},`
+          + ` ${formattedAddress},`
           + `\n`;
       });
+
+      console.log(employeeDataMap);
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),
