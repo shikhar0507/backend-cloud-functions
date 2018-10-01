@@ -22,10 +22,15 @@
  */
 
 
+
 'use strict';
 
 
-const { rootCollections, serverTimestamp, } = require('../../admin/admin');
+const {
+  rootCollections,
+  serverTimestamp,
+  db,
+} = require('../../admin/admin');
 const { code, } = require('../../admin/responses');
 const {
   handleError,
@@ -37,199 +42,133 @@ const {
   templateFields,
   activityStatuses,
   reportingActions,
+  validTypes,
 } = require('../../admin/constants');
 
+const validateAttachment = (attachment) => {
+  const messageObject = {
+    isValid: true,
+    message: null,
+  };
 
-const validateRequestBody = (conn, locals) => {
-  const fields = Object.keys(conn.req.body);
+  if (Object.prototype.toString.call(attachment)
+    !== '[object Object]') {
+    messageObject.isValid = false;
+    messageObject.message = `The attachment can only be of type Object.`;
+  }
+
+  const fields = Object.keys(attachment);
 
   for (const field of fields) {
-    if (!templateFields.has(field)) {
-      locals.objects.message.message = `Unknown field: '${field}' found`
-        + ` in the request body.`;
-      locals.objects.message.isValid = false;
+    const item = attachment[field];
+
+    if (!item.hasOwnProperty('value')) {
+      messageObject.isValid = false;
+      messageObject.message = `In attachment, the object '${field}' is`
+        + ` missing the field 'value'.`;
       break;
     }
 
-    const value = conn.req.body[field];
-
-    if (field === 'statusOnCreate') {
-      if (!activityStatuses.has(value)) {
-        locals.objects.message.message = `'${value}' is not a valid value`
-          + ` for the field 'statusOnCreate'. Allowed values:`
-          + ` ${[...activityStatuses.keys(),]}.`;
-        locals.objects.message.isValid = false;
-        break;
-      }
-
-      locals.objects.updatedFields[field] = value;
+    if (!item.hasOwnProperty('type')) {
+      messageObject.isValid = false;
+      messageObject.message = `In attachment, the object '${field}' is`
+        + ` missing the field 'type'.`;
+      break;
     }
 
-    if (field === 'hidden') {
-      if ([0, 1,].indexOf(value) === -1) {
-        locals.objects.message.message = `The value of the field 'hidden' can`
-          + ` only be 0 or 1`;
-        locals.objects.message.isValid = false;
-        break;
-      }
+    const value = item.value;
+    const type = item.type;
 
-      locals.objects.updatedFields[field] = value;
+    if (!isNonEmptyString(type)) {
+      messageObject.isValid = false;
+      messageObject.message = `The type in all objects in the attachment`
+        + ` should be a non-empty string.`;
+      break;
     }
 
-    if (field === 'canEditRule') {
-      if (!canEditRules.has(value)) {
-        locals.objects.message.message = `'${value}' is not a valid value`
-          + ` for the field 'canEditRule'. Allowed values:`
-          + ` ${[...canEditRules.keys(),]}.`;
-        locals.objects.message.isValid = false;
-        break;
-      }
-
-      locals.objects.updatedFields[field] = value;
+    if (!validTypes.has(type)) {
+      messageObject.isValid = false;
+      messageObject.message = `The type '${type}' in the field '${field}'`
+        + ` is not valid. Use ${[...validTypes.keys(),]}`;
+      break;
     }
 
-    if (field === 'venue') {
-      if (!Array.isArray(value)) {
-        locals.objects.message.message = `The 'venue' field should`
-          + ` be an 'array'.`;
-        locals.objects.message.isValid = false;
-        break;
-      }
-    }
-
-    if (field === 'schedule') {
-      if (!Array.isArray(value)) {
-        locals.objects.message.message = `The 'schedule' field should`
-          + ` be an 'array'.`;
-        locals.objects.message.isValid = false;
-        break;
-      }
-    }
-
-    if (field === 'comment') {
-      if (!isNonEmptyString(value)) {
-        locals.objects.message.message = `The 'comment' field should`
-          + ` be a 'string'.`;
-        locals.objects.message.isValid = false;
-        break;
-      }
-
-      locals.objects.updatedFields[field] = value;
+    if (value !== '') {
+      messageObject.isValid = false;
+      messageObject.message = `The value in all objects in the attachment`
+        + ` should be an empty string.`;
+      break;
     }
   }
 
-  if (!locals.objects.message.isValid) {
-    sendResponse(conn, code.badRequest, locals.objects.message.message);
+  return messageObject;
+};
 
-    return;
-  }
 
-  if (conn.req.body.hasOwnProperty('schedule')) {
-    let valid = true;
+const checkBody = (body) => {
+  const messageObject = {
+    isValid: true,
+    message: null,
+  };
 
-    conn.req.body.schedule.forEach((name) => {
-      if (!isNonEmptyString(name)) {
-        valid = false;
-      }
-    });
+  const fields = Object.keys(body);
 
-    if (!valid) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `The value of the 'schedule' can either be an empty array, or an array`
-        + ` of non-empty strings.`
-      );
+  for (const field of fields) {
+    if (!templateFields.has(field)) {
+      messageObject.isValid = false;
+      messageObject.message = `${field} field is not allowed`;
+      break;
+    }
 
-      return;
+    const value = body[field];
+
+    if (field === 'statusOnCreate' && !activityStatuses.has(value)) {
+      messageObject.isValid = false;
+      messageObject.message = `${value} is not a valid value for `
+        + ` 'statusOnCreate'. Use ${[...activityStatuses.keys(),]}`;
+      break;
+    }
+
+    if (field === 'hidden'
+      && !new Set()
+        .add(0)
+        .add(1)
+        .has(value)) {
+      messageObject.isValid = false;
+      messageObject.message = `The field ${field} can only have the values`
+        + ` '0' or '1'`;
+      break;
+    }
+
+    if (field === 'canEditRule' && !canEditRules.has(value)) {
+      messageObject.isValid = false;
+      messageObject.message = `${value} is not a valid value for`
+        + ` the field 'canEditRule'. Use ${[...canEditRules.keys(),]}`;
+      break;
+    }
+
+    if (field === 'venue' || field === 'schedule' && !value.every(isNonEmptyString)) {
+      messageObject.isValid = false;
+      messageObject.message = `The field ${field} can either be an empty array.`
+        + ` Or an array of non-empty strings.`;
+      break;
     }
   }
 
-  if (conn.req.body.hasOwnProperty('venue')) {
-    let valid = true;
+  if (body.hasOwnProperty('attachment')) {
+    const attachmentResult = validateAttachment(body.attachment);
 
-    conn.req.body.venue.forEach((descriptor) => {
-      if (!isNonEmptyString(descriptor)) {
-        valid = false;
-      }
-    });
-
-    if (!valid) {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `The value of the field 'venue' can either be an empty array,`
-        + ` or an array of non-empty strings.`
-      );
-
-      return;
+    if (!attachmentResult.isValid) {
+      messageObject.isValid = false;
+      messageObject.message = attachmentResult.message;
     }
   }
 
-  if (conn.req.body.hasOwnProperty('attachment')) {
-    if (Object.prototype.toString
-      .call(conn.req.body.attachment) !== '[object Object]') {
-      sendResponse(
-        conn,
-        code.badRequest,
-        `Expected the value of the 'attachment' field to`
-        + ` be of type Object. Found: '${typeof conn.req.body.attachment}'.`
-      );
+  return messageObject;
+};
 
-      return;
-    }
 
-    const message = {
-      isValid: true,
-      message: null,
-    };
-
-    const fields = Object.keys(conn.req.body.attachment);
-
-    for (const field of fields) {
-      const item = conn.req.body.attachment[field];
-
-      if (!item.hasOwnProperty('value')) {
-        message.isValid = false;
-        message.message = `In attachment, the object '${field}' is`
-          + ` missing the field 'value'.`;
-        break;
-      }
-
-      if (!item.hasOwnProperty('type')) {
-        message.isValid = false;
-        message.message = `In attachment, the object '${field}' is`
-          + ` missing the field 'type'.`;
-        break;
-      }
-
-      const value = item.value;
-      const type = item.type;
-
-      if (!isNonEmptyString(type)) {
-        message.isValid = false;
-        message.message = `The type in all objects in the attachment`
-          + ` should be a non-empty string.`;
-        break;
-      }
-
-      if (value !== '') {
-        message.isValid = false;
-        message.message = `The value in all objects in the attachment`
-          + ` should be an empty string.`;
-        break;
-      }
-    }
-
-    if (!message.isValid) {
-      sendResponse(conn, code.badRequest, message.message);
-
-      return;
-    }
-
-    locals.objects.updatedFields.attachment = conn.req.body.attachment;
-  }
-
+const updateTemplateDoc = (conn, templateDoc) => {
   const subject = `Template Updated in the Growthfile DB`;
   const messageBody = `
   <p>
@@ -240,7 +179,7 @@ const validateRequestBody = (conn, locals) => {
   <p>
     <strong>Template Manager: </strong> ${conn.requester.displayName}
     <br>
-    <strong>Template Id</strong>: ${locals.static.templateId}
+    <strong>Template Id</strong>: ${templateDoc.id}
     <br>
     <strong>Template Name</strong>: ${conn.req.body.name}
   </p>
@@ -259,44 +198,36 @@ const validateRequestBody = (conn, locals) => {
   ${JSON.stringify(conn.req.body, ' ', 2)}
   </code>
   </pre>
-
-  <hr>
-
-  <h2>Updated Entries</h2>
-  <pre style="font-size: 14px;
-  border: 2px solid grey;
-  width: 450px;
-  border-left: 12px solid green;
-  border-radius: 5px;
-  font-family: monaco;
-  padding: 14px;">
-  <code>
-  ${JSON.stringify(locals.objects.updatedFields, ' ', 2)}
-  </code>
-  </pre>
-
-  <hr>
   `;
 
-  Promise
-    .all([
-      locals
-        .docs
-        .template
-        .set(locals.objects.updatedFields, { merge: true, }),
-      locals
-        .docs
-        .instant
-        .set({
-          messageBody,
-          subject,
-          action: reportingActions.usedCustomClaims,
-        }),
-    ])
+  const batch = db.batch();
+  const body = conn.req.body;
+  body.timestamp = serverTimestamp;
+
+  batch.set(
+    templateDoc.ref,
+    body, {
+      merge: true,
+    });
+
+  batch.set(rootCollections
+    .instant
+    .doc(), {
+      messageBody,
+      subject,
+      action: reportingActions.usedCustomClaims,
+    });
+
+  console.log({
+    ref: templateDoc.ref.path,
+    body,
+  });
+
+  batch
+    .commit()
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
-
 
 module.exports = (conn) => {
   if (!conn.req.body.hasOwnProperty('name')) {
@@ -309,44 +240,35 @@ module.exports = (conn) => {
     return;
   }
 
+  const result = checkBody(conn.req.body);
+
+  if (!result.isValid) {
+    sendResponse(conn, code.badRequest, result.message);
+
+    return;
+  }
+
   rootCollections
     .activityTemplates
     .where('name', '==', conn.req.body.name)
-    .limit(1)
     .get()
-    .then((snapShot) => {
-      if (snapShot.empty) {
+    .then((docs) => {
+      if (docs.empty) {
         sendResponse(
           conn,
-          code.notFound,
-          `No template found with the name: '${conn.req.query.name}'.`
+          code.conflict,
+          `No template found with the name: ${conn.req.body.name}`
         );
 
         return;
       }
 
-      const locals = {
-        objects: {
-          updatedFields: {
-            timestamp: serverTimestamp,
-          },
-          message: {
-            isValid: true,
-            message: null,
-          },
-        },
-        static: {
-          templateId: snapShot.docs[0].id,
-        },
-        docs: {
-          template: rootCollections.activityTemplates.doc(snapShot.docs[0].id),
-          instant: rootCollections.instant.doc(),
-        },
-      };
+      const templateDoc = docs.docs[0];
 
-      validateRequestBody(conn, locals);
+      updateTemplateDoc(conn, templateDoc);
 
       return;
     })
     .catch((error) => handleError(conn, error));
+
 };
