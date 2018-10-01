@@ -238,9 +238,9 @@ const getProfile = (conn, pathName) =>
         */
       const authCreationTime =
         new Date(conn.requester.creationTime).getTime();
-      const NUM_SECS_IN_MINUTE = 60;
+      const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
-      if (Date.now() - authCreationTime < NUM_SECS_IN_MINUTE) {
+      if (Date.now() - authCreationTime < NUM_MILLI_SECS_IN_MINUTE) {
         handleRequestPath(conn);
 
         return;
@@ -254,8 +254,8 @@ const getProfile = (conn, pathName) =>
           phoneNumber: doc.id,
           profileUid: doc.get('uid'),
           authUid: conn.requester.uid,
-          gracePeriodInSeconds: NUM_SECS_IN_MINUTE,
-          timingDifference: Date.now() - authCreationTime < NUM_SECS_IN_MINUTE,
+          gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
+          diff: Date.now() - authCreationTime,
         });
 
         /**
