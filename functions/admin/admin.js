@@ -69,11 +69,16 @@ const setCustomUserClaims = (uid, claims) =>
  * @returns {Object} A `sentinel` which *maps* to a `geopoint` object
  * on writing to the Firestore.
  */
-const getGeopointObject = (geopoint) =>
-  new admin.firestore.GeoPoint(
+const getGeopointObject = (geopoint) => {
+  if (geopoint.latitude === '' && geopoint.longitude === '') {
+    return geopoint;
+  }
+
+  return new admin.firestore.GeoPoint(
     geopoint.latitude,
     geopoint.longitude
   );
+}
 
 
 /**
