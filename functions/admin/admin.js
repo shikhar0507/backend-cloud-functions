@@ -78,7 +78,7 @@ const getGeopointObject = (geopoint) => {
     geopoint.latitude,
     geopoint.longitude
   );
-}
+};
 
 
 /**

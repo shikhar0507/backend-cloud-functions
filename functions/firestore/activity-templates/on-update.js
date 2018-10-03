@@ -86,12 +86,12 @@ const validateAttachment = (attachment) => {
       break;
     }
 
-    if (!validTypes.has(type)) {
-      messageObject.isValid = false;
-      messageObject.message = `The type '${type}' in the field '${field}'`
-        + ` is not valid. Use ${[...validTypes.keys(),]}`;
-      break;
-    }
+    // if (!validTypes.has(type)) {
+    //   messageObject.isValid = false;
+    //   messageObject.message = `The type '${type}' in the field '${field}'`
+    //     + ` is not valid. Use ${[...validTypes.keys(),]}`;
+    //   break;
+    // }
 
     if (value !== '') {
       messageObject.isValid = false;
@@ -147,7 +147,16 @@ const checkBody = (body) => {
       break;
     }
 
-    if (field === 'venue' || field === 'schedule' && !value.every(isNonEmptyString)) {
+    console.log({
+      field,
+      length: value.length,
+      every: value.every(isNonEmptyString),
+    });
+
+    if (field === 'venue'
+      || field === 'schedule'
+      && value.length !== 0
+      && !value.every(isNonEmptyString)) {
       messageObject.isValid = false;
       messageObject.message = `The field ${field} can either be an empty array.`
         + ` Or an array of non-empty strings.`;
@@ -229,6 +238,7 @@ const updateTemplateDoc = (conn, templateDoc) => {
     .catch((error) => handleError(conn, error));
 };
 
+
 module.exports = (conn) => {
   if (!conn.req.body.hasOwnProperty('name')) {
     sendResponse(
@@ -270,5 +280,4 @@ module.exports = (conn) => {
       return;
     })
     .catch((error) => handleError(conn, error));
-
 };

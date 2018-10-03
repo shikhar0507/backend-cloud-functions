@@ -47,17 +47,12 @@ module.exports = (change) => {
         const record = userRecord[`${phoneNumber}`];
 
         if (!record.uid) return;
-
-        const email = record.email;
-        const disabled = record.disabled;
-        const emailVerified = record.emailVerified;
-
-        if (!email) return;
-        if (!emailVerified) return;
-        if (disabled) return;
+        if (!record.email) return;
+        if (!record.emailVerified) return;
+        if (record.disabled) return;
 
         locals.messageObject.to.push({
-          email,
+          email: record.email,
           name: record.displayName || '',
         });
       });
@@ -66,7 +61,7 @@ module.exports = (change) => {
 
       if (report === 'signUp') return require('./sign-up-report')(change, sgMail);
 
-      if (report === 'install') return require('./install-report')(change, sgMail);
+      if (report === 'install') return require('./install-report')(locals);
 
       if (report === 'footprints') return require('./footprints-report')(locals);
 

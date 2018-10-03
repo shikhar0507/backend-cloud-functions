@@ -50,37 +50,6 @@ const haversineDistance = (geopointOne, geopointTwo) => {
 };
 
 
-const getRemark = (addendumDoc) => {
-  const activityData = addendumDoc.get('activityData');
-  const action = addendumDoc.get('action');
-
-  let remark = '';
-
-  const actionsToLog = new Set()
-    .add('create')
-    .add('update');
-
-  if (new Set()
-    .add('check-in')
-    .add('dsr')
-    .add('tour plan')
-    .has(activityData.template)
-    && actionsToLog.has(action)) {
-    remark = activityData.attachment.Comment.value;
-  }
-
-  if (new Set()
-    .add('expense')
-    .add('leave')
-    .has(activityData.template)
-    && actionsToLog.has(action)) {
-    remark = activityData.attachment.Reason.value;
-  }
-
-  return remark;
-};
-
-
 const getPlaceInformation = (mapsApiResult) => {
   const results = mapsApiResult.json.results;
   const firstResult = results[0];
@@ -195,7 +164,6 @@ module.exports = (addendumDoc) => {
       const locationInfo = {
         date: new Date().toDateString(),
         timeString: getLocalTime('+91'),
-        // remark: getRemark(addendumDoc),
         remark: '',
         distanceTravelled: distance.toFixed(2),
         locationUrl: getLocationUrl(location),

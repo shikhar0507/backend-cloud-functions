@@ -37,7 +37,6 @@ module.exports = (locals) => {
     + ` Time,`
     + ` Locality,`
     + ` City,`
-    + ` Remark,`
     + ` Distance Travelled,`
     + ` Address`
     + `\n`;
@@ -45,7 +44,7 @@ module.exports = (locals) => {
   const toFetch = [];
   const employeeDataMap = new Map();
 
-  locals['dynamic_template_data'] = {
+  locals.messageObject['dynamic_template_data'] = {
     office,
     subject: `${office} Footprints Report_${locals.yesterdaysDate}`,
     date: locals.yesterdaysDate,
@@ -109,33 +108,30 @@ module.exports = (locals) => {
         const time = doc.get('timeString');
         const locality = doc.get('locality');
         const city = doc.get('city');
-        const remark = doc.get('remark');
         const distanceTravelled = doc.get('distanceTravelled');
-        const formattedAddress = doc.get('formattedAddress').replace(/,/g, '-');
+        const formattedAddress = doc.get('formattedAddress');
         const locationUrl = doc.get('locationUrl');
-        // const addressWithURL = getAddressWithURL({
-        //   formattedAddress,
-        //   locationUrl,
-        // });
+        const addressWithURL = getAddressWithURL({
+          formattedAddress,
+          locationUrl,
+        });
 
-        locals.csvString +=
+        locals.messageObject.csvString +=
           ` ${dated},`
           + ` ${department},`
           + ` ${name},`
           + ` ${time},`
           + ` ${locality},`
           + ` ${city},`
-          + ` ${remark},`
           + ` ${distanceTravelled},`
-          // + ` ${addressWithURL},`
-          + ` ${formattedAddress},`
+          + ` ${addressWithURL},`
           + `\n`;
       });
 
       console.log(employeeDataMap);
 
       locals.messageObject.attachments.push({
-        content: new Buffer(locals.csvString).toString('base64'),
+        content: new Buffer(locals.messageObject.csvString).toString('base64'),
         fileName: `${office} Footprints Report_${locals.yesterdaysDate}.csv`,
         type: 'text/csv',
         disposition: 'attachment',

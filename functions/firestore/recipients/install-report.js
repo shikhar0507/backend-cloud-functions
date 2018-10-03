@@ -5,40 +5,8 @@ const {
 } = require('../../admin/constants');
 const {
   rootCollections,
-  users,
 } = require('../../admin/admin');
 
-const getEmployeeDataObject = (employeeActivityDoc, phoneNumber) => {
-  if (!employeeActivityDoc) {
-    return {
-      baseLocation: '',
-      dailyEndTime: '',
-      dailyStartTime: '',
-      department: '',
-      employeeCode: '',
-      employeeContact: phoneNumber,
-      firstSupervisorPhoneNumber: '',
-      secondSupervisorPhoneNumber: '',
-      name: '',
-      weeklyOff: '',
-    };
-  }
-
-  return {
-    firstSupervisorsName: employeeActivityDoc.firstSupervisorsName,
-    secondSupervisorsName: employeeActivityDoc.secondSupervisorsName,
-    baseLocation: employeeActivityDoc.get('attachment.Base Location.value'),
-    dailyEndTime: employeeActivityDoc.get('attachment.Daily End Time.value'),
-    dailyStartTime: employeeActivityDoc.get('attachment.Daily Start Time.value'),
-    department: employeeActivityDoc.get('attachment.Department.value'),
-    employeeCode: employeeActivityDoc.get('attachment.Employee Code.value'),
-    employeeContact: phoneNumber,
-    firstSupervisorPhoneNumber: employeeActivityDoc.get('attachment.First Supervisor.value'),
-    secondSupervisorPhoneNumber: employeeActivityDoc.get('attachment.Second Supervisor.value'),
-    name: employeeActivityDoc.get('attachment.Name.value'),
-    weeklyOff: employeeActivityDoc.get('attachment.Weekly Off.value'),
-  };
-};
 
 const getYesterdaysDateString = () => {
   const today = new Date();
@@ -58,277 +26,161 @@ const getYesterdaysStartTime = () => {
 };
 
 
-module.exports = (change, sgMail) => {
+const getName = (employeesData, phoneNumber) => {
+  if (!employeesData[phoneNumber]) return '';
+
+  return employeesData[phoneNumber].Name;
+};
+
+
+module.exports = (locals) => {
   const {
-    cc,
     office,
-    include,
     officeId,
-    installsObject,
-  } = change.after.data();
+  } = locals.change.after.data();
 
-  /** Prevents crashes in case of data not being available */
-  if (!installsObject) {
-    console.log('Data not available:', {
-      after: change.after.data(),
-      before: change.before.data(),
-    });
+  console.log(office, officeId);
 
-    return Promise.resolve();
-  }
+  const yesterdaysDateString = getYesterdaysDateString();
 
-  const phoneNumbersList = Object.keys(installsObject);
+  locals.messageObject.templateId = sendGridTemplateIds.installs;
+  locals.messageObject.csvString =
+    ` Employee Name,`
+    + ` Employee Contact,`
+    + ` Employee Code,`
+    + ` Department,`
+    + ` Installed On,`
+    + ` Number Of Installs,`
+    + ` First Supervisor's Name,`
+    + ` Contact Number,`
+    + ` Second Supervisor's Name,`
+    + ` Contact Number\n`;
 
-  /** No data. No email... */
-  if (phoneNumbersList.length === 0) {
-    console.log('Empty phone numbers list:', installsObject);
-
-    return Promise.resolve();
-  }
-
-  const locals = {
-    phoneNumbersList,
-    supervisorsFetch: [],
-    authFetch: [],
-    multiInstallsStringSet: new Map(),
-    employeeDataMap: new Map(),
-    csvString: `Employee Name,`
-      + ` Employee Contact,`
-      + ` Employee Code,`
-      + ` Department,`
-      + ` Installed On,`
-      + ` Number Of Installs,`
-      + ` First Supervisor's Name,`
-      + ` Contact Number,`
-      + ` Second Supervisor's Name,`
-      + ` Contact Number\n`,
-    hasInstallsBeforeYesterday: [],
-    messageObject: {
-      to: [],
-      cc,
-      attachments: [],
-      templateId: sendGridTemplateIds.installs,
-      from: 'gcloud@growthfile.com',
-      'dynamic_template_data': {
-        office,
-        date: getYesterdaysDateString(),
-        subject: `Install Report_${office}_${getYesterdaysDateString()}`,
-      },
-    },
+  locals.messageObject['dynamic_template_data'] = {
+    office,
+    date: yesterdaysDateString,
+    subject: `Install Report_${office}_${yesterdaysDateString}`,
   };
 
-  const employeeToFetch = [];
-  let totalInstalls = 0;
+  locals.multipleInstallsMap = new Map();
 
-  locals.phoneNumbersList.forEach((phoneNumber) => {
-    const installs = installsObject[phoneNumber];
-    const query = rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
-      .where('template', '==', 'employee')
-      .where('attachment.Employee Contact.value', '==', phoneNumber)
-      .limit(1)
-      .get();
+  Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(officeId)
+        .get(),
+      rootCollections
+        .inits
+        .where('office', '==', office)
+        .where('report', '==', 'install')
+        .where('date', '==', yesterdaysDateString)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        officeDoc,
+        installDocs,
+      ] = result;
 
-    employeeToFetch.push(query);
+      // if (installDocs.empty) {
+      //   console.log('Installs Docs empty');
 
-    // Collecting the list of people who have multiple installs for yesterday.
-    const yesterdaysStartTime = getYesterdaysStartTime().getTime();
+      //   return Promise.resolve();
+      // }
 
-    installs.forEach((timestamp) => {
-      totalInstalls++;
-      const installTime = new Date(timestamp).getTime();
 
-      if (installTime > yesterdaysStartTime) return;
+      let totalInstalls = 0;
 
-      locals.hasInstallsBeforeYesterday.push(phoneNumber);
-    });
+      // Collecting the list of people who have multiple installs for yesterday.
+      const yesterdaysStartTime = getYesterdaysStartTime();
 
-    locals
-      .messageObject['dynamic_template_data']
-      .totalInstalls = totalInstalls;
+      let header = 'Install Date and Time\n\n';
 
-    locals.messageObject['dynamic_template_data']
-      .extraInstalls = totalInstalls - locals.phoneNumbersList.length;
-  });
+      installDocs.forEach((doc) => {
+        const {
+          phoneNumber,
+          installs,
+        } = doc.data();
 
-  return Promise
-    .all(employeeToFetch)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) {
-          const filters = snapShot._query._fieldFilters;
-          const phoneNumber = filters[1]._value;
+        const employeeData =
+          officeDoc
+            .get('employeesData')[phoneNumber];
 
-          locals
-            .employeeDataMap
-            .set(phoneNumber, getEmployeeDataObject(null, phoneNumber));
+        installs
+          .forEach((timestampString) => header += `${timestampString}\n`);
 
-          return;
-        }
+        installs.forEach((timestampString) => {
+          totalInstalls++;
 
-        const employeeActivityDoc = snapShot.docs[0];
-        const phoneNumber =
-          employeeActivityDoc.get('attachment.Employee Contact.value');
-        const firstSupervisorPhoneNumber =
-          employeeActivityDoc.get('attachment.First Supervisor.value');
-        const secondSupervisorPhoneNumber =
-          employeeActivityDoc.get('attachment.Second Supervisor.value');
+          const installTime =
+            new Date(timestampString).getTime();
 
-        locals.employeeDataMap
-          .set(
-            phoneNumber,
-            getEmployeeDataObject(employeeActivityDoc, phoneNumber)
-          );
+          if (installTime > yesterdaysStartTime) return;
 
-        if (firstSupervisorPhoneNumber) {
-          const query = rootCollections
-            .offices
-            .doc(officeId)
-            .collection('Activities')
-            .where('template', '==', 'employee')
-            .where('attachment.Employee Contact.value', '==', firstSupervisorPhoneNumber)
-            .limit(1)
-            .get();
-
-          locals.supervisorsFetch.push(query);
-        }
-
-        if (secondSupervisorPhoneNumber) {
-          const query = rootCollections
-            .offices
-            .doc(officeId)
-            .collection('Activities')
-            .where('template', '==', 'employee')
-            .where('attachment.Employee Contact.value', '==', secondSupervisorPhoneNumber)
-            .limit(1)
-            .get();
-
-          locals.supervisorsFetch.push(query);
-        }
-      });
-
-      return Promise.all(locals.supervisorsFetch);
-    })
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) {
-          const filters = snapShot._query._fieldFilters;
-          const phoneNumber = filters[1]._value;
-
-          locals
-            .employeeDataMap
-            .set(phoneNumber, getEmployeeDataObject(null, phoneNumber));
-
-          return;
-        }
-
-        const employeeActivityDoc = snapShot.docs[0];
-        const phoneNumber =
-          employeeActivityDoc.get('attachment.Employee Contact.value');
-
-        locals.employeeDataMap
-          .set(
-            phoneNumber,
-            getEmployeeDataObject(employeeActivityDoc, phoneNumber)
-          );
-      });
-
-      /**
-       * Time complexity here is O(n^2) but this loop probably doesn't need optimization
-       * This is because per person installs will mostly be 1. So the internal loop
-       * is absent for most cases. An anomaly in this assumption also causes
-       * the extra attachments for the person performing multiple installs.
-       * So, the office for which this person works can know.
-       */
-      locals.hasInstallsBeforeYesterday.forEach((phoneNumber) => {
-        const installs = installsObject[phoneNumber];
-        let str = 'Install Date and Time\n\n';
-
-        installs.forEach((timestampString) => str += `${timestampString}\n`);
-
-        locals.multiInstallsStringSet.set(phoneNumber, str);
-      });
-
-      include.forEach((phoneNumber) => {
-        locals.authFetch.push(users.getUserByPhoneNumber(phoneNumber));
-      });
-
-      return Promise.all(locals.authFetch);
-    })
-    .then((userRecords) => {
-      userRecords.forEach((userRecord) => {
-        const phoneNumber = Object.keys(userRecord)[0];
-        const record = userRecord[`${phoneNumber}`];
-
-        if (!record.uid) return;
-
-        const email = record.email;
-        const disabled = record.disabled;
-        const emailVerified = record.emailVerified;
-
-        if (!email) return;
-        if (disabled) return;
-        if (!emailVerified) return;
-
-        locals.messageObject.to.push({
-          email,
-          name: record.displayName || '',
+          locals.multipleInstallsMap.set(phoneNumber, header);
         });
-      });
 
-      locals.phoneNumbersList.forEach((phoneNumber) => {
-        const data = locals.employeeDataMap.get(phoneNumber);
-        const installedOnArray = installsObject[phoneNumber];
-        const latestInstall = installedOnArray[installedOnArray.length - 1];
-        const numberOfInstalls = installsObject[phoneNumber].length;
-        let firstSupervisorsName = '';
-        let secondSupervisorsName = '';
+        const name = employeeData.Name;
+        const employeeCode = employeeData['Employee Code'];
+        const department = employeeData.Department;
+        const latestInstall = installs[installs.length - 1];
+        const numberOfInstalls = installs.length;
+        const firstSupervisorPhoneNumber =
+          employeeData['First Supervisor'];
+        const secondSupervisorPhoneNumber =
+          employeeData['Second Supervisor'];
+        const firstSupervisorsName =
+          getName(officeDoc.get('employeesData'), firstSupervisorPhoneNumber);
+        const secondSupervisorsName =
+          getName(officeDoc.get('employeesData'), secondSupervisorPhoneNumber);
 
-        if (locals.employeeDataMap.get(data.firstSupervisorPhoneNumber)) {
-          firstSupervisorsName =
-            locals.employeeDataMap.get(data.firstSupervisorPhoneNumber).name;
-        }
-
-        if (locals.employeeDataMap.get(data.secondSupervisorPhoneNumber)) {
-          secondSupervisorsName =
-            locals.employeeDataMap.get(data.secondSupervisorPhoneNumber).name;
-        }
-
-        locals.csvString +=
-          `${data.name},`
-          + ` ${data.employeeContact},`
-          + ` ${data.employeeCode},`
-          + ` ${data.department},`
+        locals.messageObject.csvString +=
+          ` ${name},`
+          + ` ${phoneNumber},`
+          + ` ${employeeCode},`
+          + ` ${department},`
           + ` ${latestInstall},`
           + ` ${numberOfInstalls},`
           + ` ${firstSupervisorsName},`
-          + ` ${data.firstSupervisorPhoneNumber},`
+          + ` ${firstSupervisorPhoneNumber},`
           + ` ${secondSupervisorsName},`
-          + ` ${data.secondSupervisorPhoneNumber}`
+          + ` ${secondSupervisorPhoneNumber}`
           + `\n`;
       });
 
+      locals
+        .messageObject['dynamic_template_data']
+        .totalInstalls = totalInstalls;
+
+      locals.messageObject['dynamic_template_data']
+        .extraInstalls = totalInstalls - installDocs.size;
+
       locals.messageObject.attachments.push({
-        content: new Buffer(locals.csvString).toString('base64'),
-        fileName: `${office} Install Report_${getYesterdaysDateString()}.csv`,
+        content: new Buffer(locals.messageObject.csvString).toString('base64'),
+        fileName: `${office} Install Report_${yesterdaysDateString}.csv`,
         type: 'text/csv',
         disposition: 'attachment',
       });
 
-      locals.hasInstallsBeforeYesterday.forEach((phoneNumber) => {
-        const data = locals.multiInstallsStringSet.get(phoneNumber);
-
-        locals.messageObject.attachments.push({
-          content: new Buffer(data).toString('base64'),
-          fileName: `${phoneNumber}.txt`,
-          type: 'text/plain',
-          disposition: 'attachment',
+      locals
+        .multipleInstallsMap
+        .forEach((timestampString, phoneNumber) => {
+          locals.messageObject.attachments.push({
+            content: new Buffer(timestampString).toString('base64'),
+            fileName: `${phoneNumber}.txt`,
+            type: 'text/plain',
+            disposition: 'attachment',
+          });
         });
+
+      console.log({
+        locals,
       });
 
-      return sgMail.sendMultiple(locals.messageObject);
+      return locals
+        .sgMail
+        .sendMultiple(locals.messageObject);
     })
     .catch(console.error);
 };

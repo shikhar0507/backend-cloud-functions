@@ -61,6 +61,12 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
 const sendResponse = (conn, statusCode, message = '') => {
   const success = statusCode <= 226;
 
+  console.log({
+    body: JSON.stringify(conn.req.body),
+    statusCode,
+    message,
+  });
+
   conn.res.writeHead(statusCode, conn.headers);
 
   conn.res.end(JSON.stringify({
@@ -85,7 +91,7 @@ const handleError = (conn, error) => {
   sendResponse(
     conn,
     code.internalServerError,
-    'There was an error handling the request. Please try again later.'
+    'Please try again later.'
   );
 };
 
@@ -183,19 +189,38 @@ const now = (conn) => {
     return;
   }
 
-  db
-    .collection('Timers')
-    .doc(getISO8601Date())
-    .set({
+  if (conn.req.query.hasOwnProperty('deviceId')) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `Missing the 'deviceId' in the query params.`
+    );
+
+    return;
+  }
+
+  const batch = db.batch();
+
+  // let revoke = false;
+
+  batch.set(rootCollections
+    .timers
+    .doc(getISO8601Date()), {
       timestamp: serverTimestamp,
       // Prevents multiple trigger events.
       sent: false,
-    })
+    }, {
+      merge: true,
+    });
+
+  batch
+    .commit()
     .then(() =>
       sendJSON(conn, {
         success: true,
         timestamp: Date.now(),
         code: code.ok,
+        // revoke,
       })
     )
     .catch((error) => handleError(conn, error));
@@ -283,7 +308,7 @@ const disableAccount = (conn, reason) => {
     .then(() => sendResponse(
       conn,
       code.forbidden,
-      'Your account has been disabled. Please contact support.'
+      `This account has been temporarily disabled. Please contact your admin.`
     ))
     .catch((error) => handleError(conn, error));
 };
@@ -303,6 +328,8 @@ const isValidGeopoint = (geopoint) => {
 
   const lat = geopoint.latitude;
   const lng = geopoint.longitude;
+
+  if (lat === '' && lng === '') return true;
 
   if (typeof lat !== 'number') return false;
   if (typeof lng !== 'number') return false;
@@ -354,10 +381,6 @@ const isE164PhoneNumber = (phoneNumber) =>
   /^\+[1-9]\d{5,14}$/.test(phoneNumber);
 
 
-const getTimeWithoutOffset = (dateString) =>
-  dateString.toDate().toJSON().slice(0, -1);
-
-
 const beautifySchedule = (schedules) => {
   const array = [];
 
@@ -366,14 +389,8 @@ const beautifySchedule = (schedules) => {
     let startTime = schedule.startTime;
     let endTime = schedule.endTime;
 
-    /**
-     * Both `startTime` and `endTime` can be empty strings,
-     * so when that is the case, the `doDate()` method will
-     * crash since it is not in the `prototype` of `string`.
-     */
-    if (startTime !== '') startTime = getTimeWithoutOffset(startTime);
-
-    if (endTime !== '') endTime = getTimeWithoutOffset(endTime);
+    if (startTime !== '') startTime = startTime.toDate();
+    if (endTime !== '') endTime = endTime.toDate();
 
     array.push({ name, startTime, endTime, });
   });

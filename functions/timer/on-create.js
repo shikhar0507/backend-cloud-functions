@@ -107,6 +107,7 @@ const manageReports = (initDocs) => {
 
         snapShot.forEach((doc) => {
           batch.set(doc.ref, {
+            date,
             employeesObject: employeesData[doc.get('office')],
           }, {
               merge: true,
@@ -127,6 +128,7 @@ const manageReports = (initDocs) => {
 
         snapShot.forEach((doc) => {
           batch.set(doc.ref, {
+            date,
             installsObject: installsObjects[doc.get('office')],
           }, {
               merge: true,
