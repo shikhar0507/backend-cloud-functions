@@ -325,26 +325,26 @@ const validateVenues = (body, venueDescriptors) => {
     }
 
     /** Client can send empty string in the request. */
-    if (venueObject.geopoint !== '') {
-      if (typeof venueObject.geopoint !== 'object') {
-        messageObject.isValid = false;
-        messageObject.message = `In the venue object at position ${i}, the`
-          + ` 'geopoint' is not valid. Expected 'object'.`
-          + ` Found '${typeof venueObject.geopoint}'.`;
-        break;
-      }
-
-      if (!isValidGeopoint(venueObject.geopoint)) {
-        messageObject.isValid = false;
-        messageObject.message = `In the venue object at position ${i}, the`
-          + ` ' geopoint' is invalid. Make sure to include the fields`
-          + ` 'latitude' and 'longitude' are present in the object with`
-          + ` proper range for each field.`;
-        break;
-      }
-
-      venueObject.geopoint = getGeopointObject(venueObject.geopoint);
+    // if (venueObject.geopoint !== '') {
+    if (typeof venueObject.geopoint !== 'object') {
+      messageObject.isValid = false;
+      messageObject.message = `In the venue object at position ${i}, the`
+        + ` 'geopoint' is not valid. Expected 'object'.`
+        + ` Found '${typeof venueObject.geopoint}'.`;
+      break;
     }
+
+    if (!isValidGeopoint(venueObject.geopoint)) {
+      messageObject.isValid = false;
+      messageObject.message = `In the venue object at position ${i}, the`
+        + ` ' geopoint' is invalid. Make sure to include the fields`
+        + ` 'latitude' and 'longitude' are present in the object with`
+        + ` proper range for each field.`;
+      break;
+    }
+
+    venueObject.geopoint = getGeopointObject(venueObject.geopoint);
+    // }
 
     messageObject.venues.push({
       venueDescriptor,
@@ -695,8 +695,10 @@ const validateCreateRequestBody = (body, successMessage) => {
     const phoneNumber = body.share[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `The phone number '${phoneNumber}' at`
-        + ` position: ${i} in the 'share' array is invalid.`;
+      // successMessage.message = `The phone number '${phoneNumber}' at`
+      //   + ` position: ${i} in the 'share' array is invalid.`;
+      successMessage.message = `The phone number ${phoneNumber} is invalid.`
+        + ` Please choose a valid phone number.`;
       successMessage.isValid = false;
       break;
     }
@@ -799,6 +801,8 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
  * with at least one valid phone number remove from the
  * activity assignee list.
  *
+ * TODO: Remove this...
+ *
  * @param {Object} body Request body from the client's device.
  * @param {Object} successMessage The default success message.
  * @returns {Object} Message object
@@ -865,8 +869,10 @@ const validateShareRequestBody = (body, successMessage) => {
     const phoneNumber = body.share[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `In the 'share' array, the value at position`
-        + ` ${i}: '${phoneNumber}' is invalid.`;
+      // successMessage.message = `In the 'share' array, the value at position`
+      //   + ` ${i}: '${phoneNumber}' is invalid.`;
+      successMessage.message = `The phone number ${phoneNumber} is invalid.`
+        + ` Please choose a valid phone number.`;
       successMessage.isValid = false;
     }
 
@@ -945,7 +951,7 @@ const isValidRequestBody = (body, endpoint) => {
 
   if (!isNonEmptyString(body.activityId)) {
     return {
-      message: `The 'activityId' field should be a non - empty string.`,
+      message: `The 'activityId' field should be a non-empty string.`,
       isValid: false,
     };
   }
