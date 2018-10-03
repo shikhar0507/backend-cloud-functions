@@ -38,11 +38,14 @@ const {
   vowels,
 } = require('../../admin/constants');
 
-const getValuesFromAttachment = (attachment) => {
+
+const getValuesFromAttachment = (attachment, activityId) => {
   const fields = Object.keys(attachment);
   const object = {};
 
   fields.forEach((field) => object[field] = attachment[field].value);
+
+  object.activityId = activityId;
 
   return object;
 };
@@ -445,8 +448,8 @@ const addOfficeToProfile = (locals, batch) => {
   batch.set(rootCollections
     .offices
     .doc(officeId), {
-      employeesMap: {
-        [employeeContact]: getValuesFromAttachment(attachment),
+      employeesData: {
+        [employeeContact]: getValuesFromAttachment(attachment, locals.change.after.id),
       },
     }, {
       merge: true,
@@ -464,7 +467,7 @@ const addSupplierToOffice = (locals, batch) => {
 
   batch.set(rootCollections.offices.doc(officeId), {
     suppliersMap: {
-      [supplierName]: getValuesFromAttachment(attachment),
+      [supplierName]: getValuesFromAttachment(attachment, locals.change.after.id),
     },
   }, {
       merge: true,
@@ -482,7 +485,7 @@ const addCustomerToOffice = (locals, batch) => {
 
   batch.set(rootCollections.offices.doc(officeId), {
     customersMap: {
-      [customerName]: getValuesFromAttachment(attachment),
+      [customerName]: getValuesFromAttachment(attachment, locals.change.after.id),
     },
   }, {
       merge: true,
