@@ -321,9 +321,8 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
         if (!snapShot.empty) {
           successful = false;
-          message = `A document already exists for the office:`
-            + ` ${locals.static.office} with Name: ${argOne} &`
-            + ` template: ${argTwo}.`;
+          message = `The name '${argOne}' already exists. Please choose`
+            + ` another name.`;
           break;
         }
       }
