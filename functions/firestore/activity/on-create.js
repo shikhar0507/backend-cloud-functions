@@ -142,11 +142,7 @@ const createDocsWithBatch = (conn, locals) => {
 
   /** ENDS the response. */
   locals.batch.commit()
-    .then(() => sendResponse(
-      conn,
-      code.created,
-      'The activity was successfully created.'
-    ))
+    .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
 
@@ -320,9 +316,11 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
         if (!snapShot.empty) {
           successful = false;
-          message = `A document already exists for the office:`
-            + ` ${conn.req.body.office} with Name: ${argOne} +`
-            + ` template: ${argTwo}.`;
+          // message = `A document already exists for the office:`
+          //   + ` ${conn.req.body.office} with Name: ${argOne} +`
+          //   + ` template: ${argTwo}.`;
+          message = `The name '${argOne}' already exists. Please choose`
+            + ` another name.`;
           break;
         }
       }
@@ -406,8 +404,9 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
       let message = null;
 
       for (const doc of docs) {
-        message = `No user found with the phone number:`
-          + ` ${doc.id} from the attachment.`;
+        // message = `No user found with the phone number:`
+        //   + ` ${doc.id} from the attachment.`;
+        message = `The user ${doc.id} has not signed up on Growthfile.`;
 
         if (!doc.exists) {
           successful = false;
