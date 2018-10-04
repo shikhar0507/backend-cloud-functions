@@ -309,13 +309,9 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
       for (const snapShot of snapShots) {
         const filters = snapShot._query._fieldFilters;
         const argOne = filters[0]._value;
-        const argTwo = filters[1]._value;
 
         if (!snapShot.empty) {
           successful = false;
-          // message = `A document already exists for the office:`
-          //   + ` ${conn.req.body.office} with Name: ${argOne} +`
-          //   + ` template: ${argTwo}.`;
           message = `The name '${argOne}' already exists. Please choose`
             + ` another name.`;
           break;
@@ -401,8 +397,6 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
       let message = null;
 
       for (const doc of docs) {
-        // message = `No user found with the phone number:`
-        //   + ` ${doc.id} from the attachment.`;
         message = `The user ${doc.id} has not signed up on Growthfile.`;
 
         if (!doc.exists) {
@@ -470,7 +464,8 @@ const handleScheduleAndVenue = (conn, locals) => {
 
   locals.objects.scheduleArray = scheduleValidationResult.schedules;
 
-  const venueValidationResult = validateVenues(conn.req.body, locals.objects.venue);
+  const venueValidationResult =
+    validateVenues(conn.req.body, locals.objects.venue);
 
   if (!venueValidationResult.isValid) {
     sendResponse(conn, code.badRequest, venueValidationResult.message);

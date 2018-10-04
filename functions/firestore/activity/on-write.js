@@ -449,7 +449,8 @@ const addOfficeToProfile = (locals, batch) => {
     .offices
     .doc(officeId), {
       employeesData: {
-        [employeeContact]: getValuesFromAttachment(attachment, locals.change.after.id),
+        [employeeContact]:
+          getValuesFromAttachment(attachment, locals.change.after.id),
       },
     }, {
       merge: true,
@@ -467,7 +468,8 @@ const addSupplierToOffice = (locals, batch) => {
 
   batch.set(rootCollections.offices.doc(officeId), {
     suppliersMap: {
-      [supplierName]: getValuesFromAttachment(attachment, locals.change.after.id),
+      [supplierName]:
+        getValuesFromAttachment(attachment, locals.change.after.id),
     },
   }, {
       merge: true,
@@ -485,7 +487,8 @@ const addCustomerToOffice = (locals, batch) => {
 
   batch.set(rootCollections.offices.doc(officeId), {
     customersMap: {
-      [customerName]: getValuesFromAttachment(attachment, locals.change.after.id),
+      [customerName]:
+      getValuesFromAttachment(attachment, locals.change.after.id),
     },
   }, {
       merge: true,

@@ -325,7 +325,6 @@ const validateVenues = (body, venueDescriptors) => {
     }
 
     /** Client can send empty string in the request. */
-    // if (venueObject.geopoint !== '') {
     if (typeof venueObject.geopoint !== 'object') {
       messageObject.isValid = false;
       messageObject.message = `In the venue object at position ${i}, the`
@@ -344,7 +343,6 @@ const validateVenues = (body, venueDescriptors) => {
     }
 
     venueObject.geopoint = getGeopointObject(venueObject.geopoint);
-    // }
 
     messageObject.venues.push({
       venueDescriptor,
@@ -695,8 +693,6 @@ const validateCreateRequestBody = (body, successMessage) => {
     const phoneNumber = body.share[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      // successMessage.message = `The phone number '${phoneNumber}' at`
-      //   + ` position: ${i} in the 'share' array is invalid.`;
       successMessage.message = `The phone number ${phoneNumber} is invalid.`
         + ` Please choose a valid phone number.`;
       successMessage.isValid = false;
@@ -869,8 +865,6 @@ const validateShareRequestBody = (body, successMessage) => {
     const phoneNumber = body.share[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      // successMessage.message = `In the 'share' array, the value at position`
-      //   + ` ${i}: '${phoneNumber}' is invalid.`;
       successMessage.message = `The phone number ${phoneNumber} is invalid.`
         + ` Please choose a valid phone number.`;
       successMessage.isValid = false;

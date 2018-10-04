@@ -317,7 +317,6 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
       for (const snapShot of snapShots) {
         const filters = snapShot._query._fieldFilters;
         const argOne = filters[0]._value;
-        const argTwo = filters[1]._value;
 
         if (!snapShot.empty) {
           successful = false;

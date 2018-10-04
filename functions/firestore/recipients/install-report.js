@@ -83,13 +83,6 @@ module.exports = (locals) => {
         installDocs,
       ] = result;
 
-      // if (installDocs.empty) {
-      //   console.log('Installs Docs empty');
-
-      //   return Promise.resolve();
-      // }
-
-
       let totalInstalls = 0;
 
       // Collecting the list of people who have multiple installs for yesterday.
