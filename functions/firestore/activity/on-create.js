@@ -252,11 +252,6 @@ const checkSubscription = (conn, locals) => {
     return;
   }
 
-  const attachment = conn.req.body.attachment;
-  const office = conn.req.body.office;
-  const template = attachment.Template.value;
-  const phoneNumber = attachment.Subscriber.value;
-
   /**
    * If the `Subscriber` mentioned in the `attachment` already has the
    * subscription to the `template` for the `office`, there's no point in
@@ -264,10 +259,10 @@ const checkSubscription = (conn, locals) => {
    */
   rootCollections
     .profiles
-    .doc(phoneNumber)
+    .doc(conn.req.body.attachment.Subscriber.value)
     .collection('Subscriptions')
-    .where('template', '==', template)
-    .where('office', '==', office)
+    .where('template', '==', conn.req.body.attachment.Template.value)
+    .where('office', '==', conn.req.body.office)
     /**
      * Subscriptions are unique combinations of office + template names.
      * More than one cannot exist for a single user.
@@ -279,8 +274,10 @@ const checkSubscription = (conn, locals) => {
         sendResponse(
           conn,
           code.conflict,
-          `The user: '${phoneNumber}' already has the subscription of `
-          + ` '${template}' for the office: '${office}'.`
+          `The user: '${conn.req.body.attachment.Subscriber.value}' already`
+          + ` has the subscription of`
+          + ` '${conn.req.body.attachment.Template.value}' for the office:`
+          + ` '${conn.req.body.office}'.`
         );
 
         return;
@@ -462,9 +459,8 @@ const handleAttachment = (conn, locals) => {
 
 
 const handleScheduleAndVenue = (conn, locals) => {
-  const scheduleNames = locals.objects.schedule;
   const scheduleValidationResult =
-    validateSchedules(conn.req.body, scheduleNames);
+    validateSchedules(conn.req.body, locals.objects.schedule);
 
   if (!scheduleValidationResult.isValid) {
     sendResponse(conn, code.badRequest, scheduleValidationResult.message);
@@ -474,8 +470,7 @@ const handleScheduleAndVenue = (conn, locals) => {
 
   locals.objects.scheduleArray = scheduleValidationResult.schedules;
 
-  const venueDescriptors = locals.objects.venue;
-  const venueValidationResult = validateVenues(conn.req.body, venueDescriptors);
+  const venueValidationResult = validateVenues(conn.req.body, locals.objects.venue);
 
   if (!venueValidationResult.isValid) {
     sendResponse(conn, code.badRequest, venueValidationResult.message);
@@ -562,7 +557,8 @@ const createLocals = (conn, result) => {
     templateQueryResult,
   ] = result;
 
-  if (officeQueryResult.empty && conn.req.body.template !== 'office') {
+  if (officeQueryResult.empty
+    && conn.req.body.template !== 'office') {
     sendResponse(
       conn,
       code.forbidden,
@@ -572,7 +568,8 @@ const createLocals = (conn, result) => {
     return;
   }
 
-  if (subscriptionQueryResult.empty && !conn.requester.isSupportRequest) {
+  if (subscriptionQueryResult.empty
+    && !conn.requester.isSupportRequest) {
     sendResponse(
       conn,
       code.forbidden,
@@ -647,7 +644,7 @@ const createLocals = (conn, result) => {
       sendResponse(
         conn,
         code.badRequest,
-        `No template found with the name: ${conn.req.body.template}`
+        `No template found with the name: '${conn.req.body.template}'`
       );
 
       return;

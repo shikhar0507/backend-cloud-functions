@@ -288,7 +288,8 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         sendResponse(
           conn,
           code.forbidden,
-          `This account has been temporarily disabled. Please contact your admin.`
+          `This account has been temporarily disabled. Please contact`
+          + ` your admin.`
         );
 
         return;
