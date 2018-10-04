@@ -17,6 +17,18 @@ const getPermutations = (officeName) => {
       });
     });
 
+  officeName
+    .split(' ')
+    .forEach((part) => {
+      const withFirstLetterCaps =
+        part
+          .charAt(0)
+          .toUpperCase()
+        + part.substr(1);
+
+      nameCombinations.add(withFirstLetterCaps);
+    });
+
   return [...nameCombinations,];
 };
 
