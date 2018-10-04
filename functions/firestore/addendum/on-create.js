@@ -41,49 +41,54 @@ const haversineDistance = (geopointOne, geopointTwo) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = RADIUS_OF_EARTH * c;
 
-  console.log({
-    distanceWithoutCheck: distance,
-  });
-
   /** We ignore the distance if the distance is less than 1 */
-  return distance < 1 ? 0 : distance;
+  return distance;
 };
 
 
+const getLocationUrl = (plusCode) => `https://plus.codes/${plusCode}`;
+
+
 const getPlaceInformation = (mapsApiResult) => {
-  const results = mapsApiResult.json.results;
-  const firstResult = results[0];
+  const firstResult = mapsApiResult.json.results[0];
   const addressComponents = firstResult['address_components'];
-  let city = '';
-  let locality = '';
+
+  let identifier = '';
 
   addressComponents.forEach((component) => {
     const longName = component['long_name'];
     const types = component.types;
 
-    if (types.includes('locality') && types.includes('political')) {
-      city = longName;
+    if (!types.includes('political')) return;
+
+    if (types.includes('sublocality')) {
+      identifier += ` ${longName} `;
+    }
+
+    if (types.includes('locality')) {
+      identifier += ` ${longName} `;
     }
 
     if (types.includes('administrative_area_level_2')) {
-      locality = longName;
+      identifier += ` ${longName} `;
+    }
+
+    if (types.includes('administrative_area_level_1')) {
+      identifier += ` ${longName} `;
     }
   });
 
+  const plusCode = mapsApiResult.json['plus_code']['global_code'];
+
   return {
-    city,
-    locality,
-    formattedAddress: firstResult['formatted_address'],
+    identifier: identifier.trim(),
+    url: getLocationUrl(plusCode),
   };
 };
 
 
 const getLatLngString = (location) =>
   `${location._latitude},${location._longitude}`;
-
-
-const getLocationUrl = (geopoint) =>
-  `https://www.google.co.in/maps/@${getLatLngString(geopoint)}`;
 
 
 const getLocalTime = (countryCode) => {
@@ -111,10 +116,9 @@ module.exports = (addendumDoc) => {
 
   const {
     officeId,
+    template,
   } = activityData;
 
-  /** Default value for the distance is 0... */
-  let distance = 0;
 
   return rootCollections
     .offices
@@ -131,55 +135,62 @@ module.exports = (addendumDoc) => {
        */
       const doc = docs.docs[1];
 
+      /** Default value for the distance is 0... */
+      let distance = 0;
+      let accumulatedDistance = 0;
+
       if (doc) {
         const geopointOne = doc.get('location');
         distance = haversineDistance(geopointOne, location);
+
+        accumulatedDistance += doc.get('accumulatedDistance') || 0;
       }
 
-      console.log('distance:', distance);
-
-      if (distance === 0) {
-        console.log('Distance is ZERO');
-
-        /** Distance is zero, so no logging is required since the person
-         * didn't move from their previous location.
-         */
-        return Promise.resolve();
-      }
-
-      console.log({
-        user,
-        currID: addendumDoc.id,
-        prevID: doc ? doc.id : null,
-      });
-
-      return googleMapsClient
-        .reverseGeocode({
-          latlng: getLatLngString(location),
-        })
-        .asPromise();
-    })
-    .then((mapsApiResult) => {
-      const placeInformation = getPlaceInformation(mapsApiResult);
-
-      const locationInfo = {
-        date: new Date().toDateString(),
-        timeString: getLocalTime('+91'),
-        remark: '',
-        distanceTravelled: distance.toFixed(2),
-        locationUrl: getLocationUrl(location),
-        city: placeInformation.city,
-        locality: placeInformation.locality,
-        formattedAddress: placeInformation.formattedAddress,
+      const locationData = {
+        distance,
+        accumulatedDistance,
       };
 
-      console.log({ locationInfo, });
+      console.log(locationData);
+
+      const promises = [
+        Promise
+          .resolve(locationData),
+      ];
+
+      if (distance > 0) {
+        promises.push(googleMapsClient
+          .reverseGeocode({
+            latlng: getLatLngString(location),
+          })
+          .asPromise());
+      }
+
+      return Promise
+        .all(promises);
+    })
+    .then((result) => {
+      const [
+        locationData,
+        mapsApiResult,
+      ] = result;
+
+      if (!mapsApiResult) return Promise.resolve();
+
+      const placeInformation = getPlaceInformation(mapsApiResult);
 
       return db
         .doc(addendumDoc.ref.path)
-        .set(locationInfo, {
-          merge: true,
-        });
+        .set({
+          date: new Date().toDateString(),
+          timeString: getLocalTime('+91'),
+          distanceFromPrevAddendum: locationData.distance.toFixed(2),
+          accumulatedDistance: locationData.distance,
+          url: placeInformation.url,
+          identifier: placeInformation.identifier,
+        }, {
+            merge: true,
+          });
     })
     .catch(console.error);
 };

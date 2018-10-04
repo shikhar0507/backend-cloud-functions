@@ -8,7 +8,7 @@ const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 
-const getYesterdaysDate = () => {
+const getYesterdaysDateString = () => {
   const today = new Date();
 
   return new Date(
@@ -17,9 +17,9 @@ const getYesterdaysDate = () => {
     .toDateString();
 };
 
-// "=HYPERLINK(""http://www.Google.com"",""Google"")"
-const getAddressWithURL = (options) =>
-  `=HYPERLINK(${options.locationUrl}, ${options.formattedAddress})`;
+
+const getUrlString = (options) =>
+  `=HYPERLINK(${options.url, options.identifier})`;
 
 
 module.exports = (locals) => {
@@ -28,21 +28,17 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
-  locals.yesterdaysDate = getYesterdaysDate();
+  locals.yesterdaysDate = getYesterdaysDateString();
   locals.messageObject.templateId = sendGridTemplateIds.footprints;
-  locals.messageObject.csvString =
+  locals.csvString =
     ` Dated,`
     + ` Department,`
+    + ` Base Location,`
     + ` Name,`
     + ` Time,`
-    + ` Locality,`
-    + ` City,`
     + ` Distance Travelled,`
-    + ` Address`
+    + ` Address,`
     + `\n`;
-
-  const toFetch = [];
-  const employeeDataMap = new Map();
 
   locals.messageObject['dynamic_template_data'] = {
     office,
@@ -54,84 +50,59 @@ module.exports = (locals) => {
     .offices
     .doc(officeId);
 
-  return officeDocRef
-    .collection('Addendum')
-    .where('date', '==', locals.yesterdaysDate)
-    .orderBy('timestamp', 'desc')
-    .get()
-    .then((addendumDocs) => {
-      if (addendumDocs.size === 0) {
-        console.log('no docs found for addendum');
+  return Promise
+    .all([
+      officeDocRef
+        .get(),
+      officeDocRef
+        .collection('Addendum')
+        .where('date', '==', locals.yesterdaysDate)
+        .orderBy('user')
+        .orderBy('timestamp', 'asc')
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        officeDoc,
+        addendumDocs,
+      ] = result;
+
+      if (addendumDocs.empty) {
+        console.log('No docs found in Addendum');
 
         return Promise.resolve();
       }
 
-      locals.addendumDocs = addendumDocs;
+      const employeesData = officeDoc.get('employeesData');
+      const dated = getYesterdaysDateString();
 
       addendumDocs.forEach((doc) => {
         const phoneNumber = doc.get('user');
-
-        employeeDataMap.set(phoneNumber, {});
-
-        toFetch.push(officeDocRef
-          .collection('Activities')
-          .where('attachment.Employee Contact.value', '==', phoneNumber)
-          .limit(1)
-          .get());
-      });
-
-      return Promise.all(toFetch);
-    })
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        const doc = snapShot.docs[0];
-        const filters = snapShot._query._fieldFilters;
-        const phoneNumber = filters[0]._value;
-
-        let name = '';
-        let department = '';
-
-        if (doc) {
-          name = doc.get('attachment.Name.value');
-          department = doc.get('attachment.Department.value');
-        }
-
-        employeeDataMap.get(phoneNumber).name = name;
-        employeeDataMap.get(phoneNumber).department = department;
-      });
-
-      locals.addendumDocs.forEach((doc) => {
-        const dated = getYesterdaysDate();
-        const phoneNumber = doc.get('user');
-        const department = employeeDataMap.get(phoneNumber).department;
-        const name = employeeDataMap.get(phoneNumber).name;
-        const time = doc.get('timeString');
-        const locality = doc.get('locality');
-        const city = doc.get('city');
-        const distanceTravelled = doc.get('distanceTravelled');
-        const formattedAddress = doc.get('formattedAddress');
-        const locationUrl = doc.get('locationUrl');
-        const addressWithURL = getAddressWithURL({
-          formattedAddress,
-          locationUrl,
+        const timeString = doc.get('timeString');
+        const url = doc.get('url');
+        const identifier = doc.get('identifier');
+        const accumulatedDistance = doc.get('accumulatedDistance');
+        const department = employeesData[phoneNumber].Department;
+        const name = employeesData[phoneNumber].Name;
+        const baseLocation = employeesData[phoneNumber]['Base Location'];
+        const urlString = getUrlString({
+          url,
+          identifier,
         });
 
-        locals.messageObject.csvString +=
+        locals.csvString +=
           ` ${dated},`
           + ` ${department},`
+          + ` ${baseLocation},`
           + ` ${name},`
-          + ` ${time},`
-          + ` ${locality},`
-          + ` ${city},`
-          + ` ${distanceTravelled},`
-          + ` ${addressWithURL},`
+          + ` ${timeString},`
+          + ` ${accumulatedDistance},`
+          + ` ${urlString},`
           + `\n`;
       });
 
-      console.log(employeeDataMap);
-
       locals.messageObject.attachments.push({
-        content: new Buffer(locals.messageObject.csvString).toString('base64'),
+        content: new Buffer(locals.csvString).toString('base64'),
         fileName: `${office} Footprints Report_${locals.yesterdaysDate}.csv`,
         type: 'text/csv',
         disposition: 'attachment',
