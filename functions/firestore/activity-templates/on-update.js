@@ -42,8 +42,8 @@ const {
   templateFields,
   activityStatuses,
   reportingActions,
-  validTypes,
 } = require('../../admin/constants');
+
 
 const validateAttachment = (attachment) => {
   const messageObject = {
@@ -51,10 +51,22 @@ const validateAttachment = (attachment) => {
     message: null,
   };
 
-  if (Object.prototype.toString.call(attachment)
+  if (Object
+    .prototype
+    .toString
+    .call(attachment)
     !== '[object Object]') {
     messageObject.isValid = false;
-    messageObject.message = `The attachment can only be of type Object.`;
+    messageObject.message = `The attachment can only be of type 'Object'.`;
+
+    return messageObject;
+  }
+
+  if (attachment === null) {
+    messageObject.isValid = false;
+    messageObject.message = `The attachment cannot be of type 'null'`;
+
+    return messageObject;
   }
 
   const fields = Object.keys(attachment);
@@ -86,13 +98,6 @@ const validateAttachment = (attachment) => {
       break;
     }
 
-    // if (!validTypes.has(type)) {
-    //   messageObject.isValid = false;
-    //   messageObject.message = `The type '${type}' in the field '${field}'`
-    //     + ` is not valid. Use ${[...validTypes.keys(),]}`;
-    //   break;
-    // }
-
     if (value !== '') {
       messageObject.isValid = false;
       messageObject.message = `The value in all objects in the attachment`
@@ -116,7 +121,8 @@ const checkBody = (body) => {
   for (const field of fields) {
     if (!templateFields.has(field)) {
       messageObject.isValid = false;
-      messageObject.message = `${field} field is not allowed`;
+      messageObject.message = `The field '${field}' is not allowed.`
+        + ` Use ${[...templateFields.keys(),]}.`;
       break;
     }
 
@@ -147,15 +153,11 @@ const checkBody = (body) => {
       break;
     }
 
-    console.log({
-      field,
-      length: value.length,
-      every: value.every(isNonEmptyString),
-    });
-
-    if (field === 'venue'
-      || field === 'schedule'
-      && value.length !== 0
+    if (new Set()
+      .add('venue')
+      .add('schedule')
+      .has(field)
+      && value.length > 0
       && !value.every(isNonEmptyString)) {
       messageObject.isValid = false;
       messageObject.message = `The field ${field} can either be an empty array.`
@@ -178,7 +180,23 @@ const checkBody = (body) => {
 
 
 const updateTemplateDoc = (conn, templateDoc) => {
+  const batch = db.batch();
   const subject = `Template Updated in the Growthfile DB`;
+  const templateObject = templateDoc.data();
+  templateObject.timestamp = serverTimestamp;
+
+  /**
+   * Replacing the original object with the updated values from
+   * the request body since the nested fields in the attachment
+   * object are not replaced when the template manager tries to
+   * update the attachment object.
+   */
+  Object
+    .keys(conn.req.body)
+    .forEach((key) => templateObject[key] = conn.req.body[key]);
+
+  console.log('templateObject:', templateObject);
+
   const messageBody = `
   <p>
     The template manager: <strong>${conn.requester.phoneNumber}</strong>
@@ -203,21 +221,23 @@ const updateTemplateDoc = (conn, templateDoc) => {
   border-radius: 5px;
   font-family: monaco;
   padding: 14px;>
-  <code>
   ${JSON.stringify(conn.req.body, ' ', 2)}
-  </code>
+  </pre>
+
+  <h2>Template Document</h2>
+  <pre style="font-size: 14px;
+  border: 2px solid grey;
+  width: 450px;
+  border-left: 12px solid green;
+  border-radius: 5px;
+  font-family: monaco;
+  padding: 14px;>
+  ${JSON.stringify(templateObject, ' ', 2)}
   </pre>
   `;
 
-  const batch = db.batch();
-  const body = conn.req.body;
-  body.timestamp = serverTimestamp;
-
-  batch.set(
-    templateDoc.ref,
-    body, {
-      merge: true,
-    });
+  /** Full object doesn't require merging. */
+  batch.set(templateDoc.ref, templateObject);
 
   batch.set(rootCollections
     .instant
@@ -225,12 +245,15 @@ const updateTemplateDoc = (conn, templateDoc) => {
       messageBody,
       subject,
       action: reportingActions.usedCustomClaims,
+      substitutions: {
+        templateManagerName: conn.requester.phoneNumber,
+        phoneNumber: conn.requester.phoneNumber,
+        templateName: templateDoc.get('name'),
+        templateId: templateDoc.id,
+        time: new Date().toDateString(),
+        requestBody: conn.req.body,
+      },
     });
-
-  console.log({
-    ref: templateDoc.ref.path,
-    body,
-  });
 
   batch
     .commit()
@@ -244,7 +267,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The 'name' field is missing from the request body.`
+      `The field 'name' is missing from the request body.`
     );
 
     return;
@@ -267,7 +290,7 @@ module.exports = (conn) => {
         sendResponse(
           conn,
           code.conflict,
-          `No template found with the name: ${conn.req.body.name}`
+          `No template found with the name: '${conn.req.body.name}'.`
         );
 
         return;

@@ -148,6 +148,7 @@ module.exports = (addendumDoc) => {
       }
 
       console.log({
+        user,
         currID: addendumDoc.id,
         prevID: doc ? doc.id : null,
       });
