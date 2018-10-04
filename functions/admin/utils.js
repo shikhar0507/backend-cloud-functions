@@ -199,7 +199,7 @@ const now = (conn) => {
   //   return;
   // }
 
-  let revoke = false;
+  let revokeSession = false;
 
   rootCollections
     .updates
@@ -221,13 +221,13 @@ const now = (conn) => {
       // const deviceIds = doc.get('deviceIds') || [];
 
       /** The deviceId should be the latest, else revoke the session. */
-      revoke = doc.get('latestDeviceId')
+      revokeSession = doc.get('latestDeviceId')
         && conn.req.query.deviceId !== doc.get('latestDeviceId');
 
       console.log({
-        revoke,
+        revokeSession,
         uid: conn.requester.uid,
-      })
+      });
 
       // deviceIds.push(conn.req.query.deviceId);
 
@@ -245,7 +245,8 @@ const now = (conn) => {
         success: true,
         timestamp: Date.now(),
         code: code.ok,
-        revoke,
+        /** The client doesn't actually need to know the device ID. */
+        revokeSession: Boolean(revoke),
       })
     )
     .catch((error) => handleError(conn, error));

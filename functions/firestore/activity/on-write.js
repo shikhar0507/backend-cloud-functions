@@ -480,6 +480,24 @@ const addSupplierToOffice = (locals, batch) => {
     .catch(console.error);
 };
 
+
+const addNewOffice = (locals, batch) => {
+  const activityData = locals.change.after.data();
+  activityData.timestamp = serverTimestamp;
+
+  batch.set(rootCollections
+    .offices
+    .doc(locals.change.after.id),
+    activityData, {
+      merge: true,
+    });
+
+  return batch
+    .commit()
+    .catch(console.error);
+};
+
+
 const addCustomerToOffice = (locals, batch) => {
   const attachment = locals.change.after.get('attachment');
   const customerName = attachment.Name.value;
@@ -488,7 +506,7 @@ const addCustomerToOffice = (locals, batch) => {
   batch.set(rootCollections.offices.doc(officeId), {
     customersMap: {
       [customerName]:
-      getValuesFromAttachment(attachment, locals.change.after.id),
+        getValuesFromAttachment(attachment, locals.change.after.id),
     },
   }, {
       merge: true,
@@ -670,22 +688,9 @@ module.exports = (change, context) => {
         action: locals.addendum.get('action'),
       });
 
-      let copyTo = rootCollections
-        .offices
-        .doc(change.after.get('officeId'))
-        .collection('Activities')
-        .doc(activityId);
-
       if (template === 'office') {
-        copyTo = rootCollections
-          .offices
-          .doc(activityId);
+        return addNewOffice(locals, batch);
       }
-
-      const activityData = change.after.data();
-      activityData.timestamp = serverTimestamp;
-
-      batch.set(copyTo, activityData);
 
       if (template === 'subscription') {
         return addSubscriptionToUserProfile(locals, batch);
@@ -710,6 +715,15 @@ module.exports = (change, context) => {
       if (template === 'supplier') {
         return addSupplierToOffice(locals, batch);
       }
+
+      const activityData = change.after.data();
+      activityData.timestamp = serverTimestamp;
+
+      batch.set(rootCollections
+        .offices
+        .doc(change.after.get('officeId'))
+        .collection('Activities')
+        .doc(activityId), activityData);
 
       return batch
         .commit();
