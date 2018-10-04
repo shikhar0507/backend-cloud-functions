@@ -218,18 +218,11 @@ const now = (conn) => {
           merge: true,
         });
 
-      // const deviceIds = doc.get('deviceIds') || [];
+      // const deviceIds = doc.get('deviceIds') || {};
 
-      /** The deviceId should be the latest, else revoke the session. */
-      revokeSession = doc.get('latestDeviceId')
-        && conn.req.query.deviceId !== doc.get('latestDeviceId');
-
-      console.log({
-        revokeSession,
-        uid: conn.requester.uid,
-      });
-
-      // deviceIds.push(conn.req.query.deviceId);
+      // /** The deviceId should be the latest, else revoke the session. */
+      // revokeSession = doc.get('latestDeviceId')
+      //   && conn.req.query.deviceId !== doc.get('latestDeviceId');
 
       // batch.set(doc.ref, {
       //   deviceIds,
@@ -242,11 +235,10 @@ const now = (conn) => {
     })
     .then(() =>
       sendJSON(conn, {
+        revokeSession,
         success: true,
         timestamp: Date.now(),
         code: code.ok,
-        /** The client doesn't actually need to know the device ID. */
-        revokeSession: Boolean(revoke),
       })
     )
     .catch((error) => handleError(conn, error));
@@ -268,7 +260,8 @@ const now = (conn) => {
  * @returns {boolean} If the input string is in HH:MM format.
  */
 const isHHMMFormat = (string) =>
-  /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(string);
+  /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/
+    .test(string);
 
 
 /**
@@ -325,6 +318,7 @@ const disableAccount = (conn, reason) => {
           messageBody,
           subject,
           action: reportingActions.authDisabled,
+          substitutions: {},
         }),
       auth
         .updateUser(conn.requester.uid, {
@@ -352,18 +346,17 @@ const isValidGeopoint = (geopoint) => {
   if (!geopoint.hasOwnProperty('latitude')) return false;
   if (!geopoint.hasOwnProperty('longitude')) return false;
 
-  const lat = geopoint.latitude;
-  const lng = geopoint.longitude;
+  if (geopoint.latitude === ''
+    && geopoint.longitude === '') return true;
 
-  if (lat === '' && lng === '') return true;
-
-  if (typeof lat !== 'number') return false;
-  if (typeof lng !== 'number') return false;
+  if (typeof geopoint.latitude !== 'number') return false;
+  if (typeof geopoint.longitude !== 'number') return false;
 
   /** @see https://msdn.microsoft.com/en-in/library/aa578799.aspx */
-  if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return false;
-
-  return true;
+  return geopoint.latitude >= -90
+    && geopoint.latitude <= 90
+    && geopoint.longitude >= -180
+    && geopoint.longitude <= 180;
 };
 
 
@@ -374,7 +367,8 @@ const isValidGeopoint = (geopoint) => {
  * @returns {boolean} If `str` is a non-empty string.
  */
 const isNonEmptyString = (str) =>
-  typeof str === 'string' && str.trim() !== '';
+  typeof str === 'string'
+  && str.trim() !== '';
 
 
 /**
@@ -404,10 +398,10 @@ const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
  * flag (m) is enabled.
  */
 const isE164PhoneNumber = (phoneNumber) =>
-  /^\+[1-9]\d{5,14}$/.test(phoneNumber);
+  /^\+[1-9]\d{5,14}$/
+    .test(phoneNumber);
 
-
-const beautifySchedule = (schedules) => {
+const convertToDates = (schedules) => {
   const array = [];
 
   schedules.forEach((schedule) => {
@@ -437,7 +431,7 @@ module.exports = {
   getISO8601Date,
   isValidGeopoint,
   hasSupportClaims,
-  beautifySchedule,
+  convertToDates,
   isNonEmptyString,
   isE164PhoneNumber,
   hasSuperUserClaims,

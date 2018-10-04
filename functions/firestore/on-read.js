@@ -30,7 +30,7 @@ const {
   db,
 } = require('../admin/admin');
 const {
-  beautifySchedule,
+  convertToDates,
 } = require('../admin/utils');
 const {
   code,
@@ -103,7 +103,7 @@ const getActivityObject = (doc) => {
      * This function converts them to readable JS `Date` objects
      * and also snips out the `Z` (offset) word.
      */
-    schedule: beautifySchedule(doc.get('schedule')),
+    schedule: convertToDates(doc.get('schedule')),
     venue: doc.get('venue'),
     timestamp: doc.get('timestamp').toDate(),
     template: doc.get('template'),
@@ -122,6 +122,7 @@ const getSubscriptionObject = (doc) => {
     venue: doc.get('venue'),
     attachment: doc.get('attachment'),
     office: doc.get('office'),
+    status: doc.get('status'),
   };
 };
 

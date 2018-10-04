@@ -3,7 +3,7 @@
 const {
   sendJSON,
   handleError,
-  beautifySchedule,
+  convertToDates,
   sendResponse,
   isValidDate,
   hasAdminClaims,
@@ -76,7 +76,7 @@ const getActivities = (conn, locals) =>
                 status: doc.get('status'),
                 template: doc.get('template'),
                 attachment: doc.get('attachment'),
-                schedule: beautifySchedule(doc.get('schedule')),
+                schedule: convertToDates(doc.get('schedule')),
               };
             });
         });
@@ -178,7 +178,7 @@ module.exports = (conn) => {
           venue: doc.get('venue'),
           office: doc.get('office'),
           template: doc.get('template'),
-          schedule: beautifySchedule(doc.get('schedule')),
+          schedule: convertToDates(doc.get('schedule')),
           attachment: doc.get('attachment'),
         };
 
