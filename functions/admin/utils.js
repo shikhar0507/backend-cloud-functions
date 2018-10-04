@@ -189,38 +189,63 @@ const now = (conn) => {
     return;
   }
 
-  if (conn.req.query.hasOwnProperty('deviceId')) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `Missing the 'deviceId' in the query params.`
-    );
+  // if (conn.req.query.hasOwnProperty('deviceId')) {
+  //   sendResponse(
+  //     conn,
+  //     code.forbidden,
+  //     `Missing the 'deviceId' in the query params.`
+  //   );
 
-    return;
-  }
+  //   return;
+  // }
 
-  const batch = db.batch();
+  let revoke = false;
 
-  // let revoke = false;
+  rootCollections
+    .updates
+    .doc(conn.requester.uid)
+    .get()
+    .then((doc) => {
+      const batch = db.batch();
 
-  batch.set(rootCollections
-    .timers
-    .doc(getISO8601Date()), {
-      timestamp: serverTimestamp,
-      // Prevents multiple trigger events.
-      sent: false,
-    }, {
-      merge: true,
-    });
+      batch.set(rootCollections
+        .timers
+        .doc(getISO8601Date()), {
+          timestamp: serverTimestamp,
+          // Prevents multiple trigger events for reports.
+          sent: false,
+        }, {
+          merge: true,
+        });
 
-  batch
-    .commit()
+      // const deviceIds = doc.get('deviceIds') || [];
+
+      /** The deviceId should be the latest, else revoke the session. */
+      revoke = doc.get('latestDeviceId')
+        && conn.req.query.deviceId !== doc.get('latestDeviceId');
+
+      console.log({
+        revoke,
+        uid: conn.requester.uid,
+      })
+
+      // deviceIds.push(conn.req.query.deviceId);
+
+      // batch.set(doc.ref, {
+      //   deviceIds,
+      //   latestDeviceId: conn.req.query.deviceId,
+      // }, {
+      //     merge: true,
+      //   });
+
+      return batch.commit();
+    })
     .then(() =>
       sendJSON(conn, {
         success: true,
         timestamp: Date.now(),
         code: code.ok,
-        // revoke,
+        revoke,
       })
     )
     .catch((error) => handleError(conn, error));
