@@ -82,7 +82,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for the /comment`
+      `${conn.req.method} is not allowed for '${conn.req.url}'`
       + ' endpoint. Use POST.'
     );
 
@@ -115,7 +115,10 @@ module.exports = (conn) => {
         .get(),
     ])
     .then((docs) => {
-      const [activity, assignee,] = docs;
+      const [
+        activity,
+        assignee,
+      ] = docs;
 
       if (!activity.exists) {
         sendResponse(conn, code.badRequest, `The activity does not exist`);

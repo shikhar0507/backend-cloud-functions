@@ -158,6 +158,12 @@ const handleServicesUrl = (conn, urlParts) => {
     return;
   }
 
+  if (resource === 'logs') {
+    require('../services/on-logs')(conn);
+
+    return;
+  }
+
   sendResponse(
     conn,
     code.notFound,

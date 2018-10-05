@@ -181,7 +181,7 @@ const validateSchedules = (body, scheduleNames) => {
       }
     }
 
-    if (scheduleNames.indexOf(name) === -1) {
+    if (!scheduleNames.includes(name)) {
       messageObject.isValid = false;
       messageObject.message = `The value '${name}' is an invalid schedule name.`
         + ` Use: ${scheduleNames}`;
@@ -303,7 +303,7 @@ const validateVenues = (body, venueDescriptors) => {
       break;
     }
 
-    if (venueDescriptors.indexOf(venueDescriptor) === -1) {
+    if (!venueDescriptors.includes(venueDescriptor)) {
       messageObject.isValid = false;
       messageObject.message = `The value '${venueDescriptor}' is an`
         + ` invalid venueDescriptor. Use: ${venueDescriptors}`;
@@ -518,7 +518,8 @@ const filterAttachment = (body, locals) => {
      * the `Offices/(officeId)/Activities` will be queried for the doc
      * to EXIST.
      */
-    if (!validTypes.has(type) && value !== '') {
+    if (!validTypes.has(type)
+      && value !== '') {
       messageObject
         .querySnapshotShouldExist
         .push(rootCollections
