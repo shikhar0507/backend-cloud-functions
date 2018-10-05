@@ -41,8 +41,10 @@ const haversineDistance = (geopointOne, geopointTwo) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = RADIUS_OF_EARTH * c;
 
+  console.log('distance without check:', distance);
+
   /** We ignore the distance if the distance is less than 1 */
-  return distance;
+  return distance > 0.5 ? distance : 0;
 };
 
 
@@ -50,6 +52,13 @@ const getLocationUrl = (plusCode) => `https://plus.codes/${plusCode}`;
 
 
 const getPlaceInformation = (mapsApiResult) => {
+  if (!mapsApiResult) {
+    return {
+      url: '',
+      identifier: '',
+    };
+  }
+
   const firstResult = mapsApiResult.json.results[0];
   const addressComponents = firstResult['address_components'];
 
@@ -95,6 +104,7 @@ const getLocalTime = (countryCode) => {
   const today = new Date();
 
   if (countryCode === '+91') {
+    /** India is +5:30 hours ahead of UTC */
     today.setHours(today.getHours() + 5);
     today.setMinutes(today.getMinutes() + 30);
   }
@@ -119,6 +129,7 @@ module.exports = (addendumDoc) => {
     template,
   } = activityData;
 
+  console.log(addendumDoc.ref.path);
 
   return rootCollections
     .offices
@@ -141,21 +152,24 @@ module.exports = (addendumDoc) => {
 
       if (doc) {
         const geopointOne = doc.get('location');
+        accumulatedDistance = doc.get('accumulatedDistance') || 0;
+
         distance = haversineDistance(geopointOne, location);
 
-        accumulatedDistance += doc.get('accumulatedDistance') || 0;
+        accumulatedDistance += distance;
       }
 
-      const locationData = {
+      console.log({
         distance,
         accumulatedDistance,
-      };
-
-      console.log(locationData);
+      });
 
       const promises = [
         Promise
-          .resolve(locationData),
+          .resolve({
+            distance,
+            accumulatedDistance,
+          }),
       ];
 
       if (distance > 0) {
@@ -175,19 +189,23 @@ module.exports = (addendumDoc) => {
         mapsApiResult,
       ] = result;
 
-      if (!mapsApiResult) return Promise.resolve();
-
       const placeInformation = getPlaceInformation(mapsApiResult);
+
+      const today = new Date();
 
       return db
         .doc(addendumDoc.ref.path)
         .set({
-          date: new Date().toDateString(),
+          day: today.getDay(),
+          month: today.getMonth(),
+          year: today.getFullYear(),
+          date: today.toDateString(),
           timeString: getLocalTime('+91'),
-          distanceFromPrevAddendum: locationData.distance.toFixed(2),
-          accumulatedDistance: locationData.distance,
+          distanceFromPrevAddendum: locationData.distance,
+          accumulatedDistance: locationData.accumulatedDistance,
           url: placeInformation.url,
           identifier: placeInformation.identifier,
+          distanceAccurate: locationData.distance < 0.5,
         }, {
             merge: true,
           });
