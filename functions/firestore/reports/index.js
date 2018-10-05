@@ -31,21 +31,24 @@ const systemReportsHandler = require('./system-reports');
 
 
 module.exports = (doc) => {
-  const action = doc.get('action');
+  const {
+    action,
+  } = doc.data();
+
   console.log({ action, });
 
   /** Only sent to a select few people... */
-  const systemReports = [
+  const reportActions = new Set([
     reportingActions.authChanged,
     reportingActions.authDeleted,
     reportingActions.authDisabled,
     reportingActions.usedCustomClaims,
-  ];
+    reportingActions.clientError,
+  ]);
 
-  if (systemReports.indexOf(action) > -1) return systemReportsHandler(doc);
+  if (reportActions.has(action)) return systemReportsHandler(doc);
 
-  return Promise
-    .resolve('No mails sent...')
-    .then(console.log)
-    .catch(console.error);
+  console.log('No mails sent...');
+
+  return Promise.resolve();
 };

@@ -44,7 +44,7 @@ module.exports = (locals) => {
   const yesterdaysDateString = getYesterdaysDateString();
 
   locals.messageObject.templateId = sendGridTemplateIds.installs;
-  locals.messageObject.csvString =
+  locals.csvString =
     ` Employee Name,`
     + ` Employee Contact,`
     + ` Employee Code,`
@@ -90,7 +90,7 @@ module.exports = (locals) => {
 
       let header = 'Install Date and Time\n\n';
 
-      installDocs.forEach((doc) => {
+      installDocs.forEach((doc, index) => {
         const {
           phoneNumber,
           installs,
@@ -128,7 +128,7 @@ module.exports = (locals) => {
         const secondSupervisorsName =
           getName(officeDoc.get('employeesData'), secondSupervisorPhoneNumber);
 
-        locals.messageObject.csvString +=
+        locals.csvString +=
           ` ${name},`
           + ` ${phoneNumber},`
           + ` ${employeeCode},`
@@ -150,7 +150,7 @@ module.exports = (locals) => {
         .extraInstalls = totalInstalls - installDocs.size;
 
       locals.messageObject.attachments.push({
-        content: new Buffer(locals.messageObject.csvString).toString('base64'),
+        content: new Buffer(locals.csvString).toString('base64'),
         fileName: `${office} Install Report_${yesterdaysDateString}.csv`,
         type: 'text/csv',
         disposition: 'attachment',

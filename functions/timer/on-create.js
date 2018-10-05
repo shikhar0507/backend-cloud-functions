@@ -8,158 +8,10 @@ const {
 const sgMail = require('@sendgrid/mail');
 const {
   sgMailApiKey,
+  systemEmail,
 } = require('../admin/env');
 
 sgMail.setApiKey(sgMailApiKey);
-
-const getYesterdaysDateString = () => {
-  const today = new Date();
-
-  return new Date(today.setDate(today.getDate() - 1)).toDateString();
-};
-
-
-const manageReports = (initDocs) => {
-  console.log({
-    initDocs: initDocs.size,
-  });
-
-  const date = new Date().toDateString();
-
-  const signUpReportQueries = [];
-  const installReportQueries = [];
-  const footprintsReportQueries = [];
-  const installsObjects = {};
-  const employeesData = {};
-  const footprintsObject = {};
-
-  initDocs.forEach((doc) => {
-    const {
-      office,
-      report,
-      employeesObject,
-    } = doc.data();
-
-    console.log({
-      office: doc.get('office'),
-    });
-
-    if (report === 'signUp') {
-      employeesData[office] = employeesObject;
-
-      const query = rootCollections
-        .recipients
-        .where('office', '==', office)
-        .where('report', '==', 'signUp')
-        .limit(1)
-        .get();
-
-      signUpReportQueries.push(query);
-    }
-
-    if (report === 'install') {
-      installsObjects[office] = {};
-
-      const query = rootCollections
-        .recipients
-        .where('office', '==', office)
-        .where('report', '==', 'install')
-        .limit(1)
-        .get();
-
-      installReportQueries.push(query);
-    }
-
-    if (report === 'footprints') {
-      footprintsObject[office] = {};
-
-      const query = rootCollections
-        .recipients
-        .where('office', '==', office)
-        .where('report', '==', 'footprints')
-        .limit(1)
-        .get();
-
-      footprintsReportQueries.push(query);
-    }
-  });
-
-  initDocs.forEach((doc) => {
-    const {
-      installs,
-      phoneNumber,
-      office,
-      report,
-    } = doc.data();
-
-    if (report !== 'install') return;
-
-    installsObjects[office][phoneNumber] = installs;
-  });
-
-  return Promise
-    .all(signUpReportQueries)
-    .then((snapShots) => {
-      const batch = db.batch();
-
-      snapShots.forEach((snapShot) => {
-        console.log('signUp empty:', snapShot.empty, snapShot.size);
-
-        snapShot.forEach((doc) => {
-          batch.set(doc.ref, {
-            date,
-            employeesObject: employeesData[doc.get('office')],
-          }, {
-              merge: true,
-            });
-        });
-      });
-
-      console.log('signUp:', batch._writes);
-
-      return batch.commit();
-    })
-    .then(() => Promise.all(installReportQueries))
-    .then((snapShots) => {
-      const batch = db.batch();
-
-      snapShots.forEach((snapShot) => {
-        console.log('install empty:', snapShot.empty, snapShot.size);
-
-        snapShot.forEach((doc) => {
-          batch.set(doc.ref, {
-            date,
-            installsObject: installsObjects[doc.get('office')],
-          }, {
-              merge: true,
-            });
-        });
-      });
-
-      console.log('installs:', batch._writes);
-
-      return batch.commit();
-    })
-    .then(() => Promise.all(footprintsReportQueries))
-    .then((snapShots) => {
-      const batch = db.batch();
-
-      snapShots.forEach((snapShot) => {
-        console.log('footprints empty:', snapShot.empty, snapShot.size);
-
-        snapShot.forEach((doc) => {
-          batch.set(doc.ref, {
-            date,
-          }, {
-              merge: true,
-            });
-        });
-      });
-
-      return batch.commit();
-    })
-    .catch(console.error);
-};
 
 
 module.exports = (doc) => {
@@ -173,9 +25,8 @@ module.exports = (doc) => {
 
   return Promise
     .all([
-      rootCollections
-        .timers
-        .doc(doc.id)
+      db
+        .doc(doc.ref.path)
         .set({
           sent: true,
         }, {
@@ -227,7 +78,7 @@ module.exports = (doc) => {
         <p>Timestamp: ${doc.get('timestamp').toDate()}</p>
         `;
 
-        if (displayName && displayName !== '') {
+        if (displayName) {
           html += `<p>Hi ${displayName}</p>`;
         }
 
@@ -238,7 +89,7 @@ module.exports = (doc) => {
             email,
             name: displayName,
           },
-          from: 'gcloud@growthfile.com',
+          from: systemEmail,
         });
       });
 
@@ -247,10 +98,23 @@ module.exports = (doc) => {
       return sgMail.sendMultiple(messages);
     })
     .then(() => rootCollections
-      .inits
-      .where('date', '==', getYesterdaysDateString())
+      .recipients
       .get()
     )
-    .then((docs) => manageReports(docs))
+    .then((docs) => {
+      const batch = db.batch();
+      const date = new Date().toDateString();
+
+      docs
+        .forEach(
+          (doc) => batch.set(doc.ref, {
+            date,
+          }, {
+              merge: true,
+            })
+        );
+
+      return batch.commit();
+    })
     .catch(console.error);
 };

@@ -53,7 +53,7 @@ const sendMails = (recipientsDoc, instantDoc) => {
           const phoneNumber = Object.keys(userRecord)[0];
           const record = userRecord[`${phoneNumber}`];
 
-          if (!record) return;
+          if (!record.uid) return;
 
           const email = record.email;
           const emailVerified = record.emailVerified;
