@@ -39,13 +39,14 @@ const {
 } = require('../../admin/constants');
 
 
-const getValuesFromAttachment = (attachment, activityId) => {
-  const fields = Object.keys(attachment);
-  const object = {};
+const getValuesFromAttachment = (activity) => {
+  const object = {
+    activityId: activity.id,
+  };
 
-  fields.forEach((field) => object[field] = attachment[field].value);
+  const fields = Object.keys(activity.get('attachment'));
 
-  object.activityId = activityId;
+  fields.forEach((field) => object[field] = activity.get('attachment')[field].value);
 
   return object;
 };
@@ -58,7 +59,9 @@ const setAdminCustomClaims = (locals, batch) =>
       const customClaims = userRecord.customClaims;
       const office = locals.change.after.get('office');
       let newClaims = {
-        admin: [office,],
+        admin: [
+          office,
+        ],
       };
 
       /**
@@ -166,8 +169,7 @@ const addSubscriptionToUserProfile = (locals, batch) =>
           statusOnCreate: doc.get('statusOnCreate'),
         });
 
-      return batch
-        .commit();
+      return batch.commit();
     })
     .catch(console.error);
 
@@ -219,29 +221,18 @@ const getUpdatedScheduleNames = (requestBody, oldSchedule) => {
 const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
   const updatedFields = [];
 
-  oldVenue.forEach((item, index) => {
-    const venueDescriptor = item.venueDescriptor;
-    const oldLocation = item.location;
-    const oldAddress = item.address;
-    const oldGeopoint = item.geopoint;
-    let oldLongitude = '';
-    let oldLatitude = '';
-
-    if (oldGeopoint !== '') {
-      oldLongitude = oldGeopoint._longitude;
-      oldLatitude = oldGeopoint._latitude;
-    }
-
+  oldVenue.forEach((venue, index) => {
+    const venueDescriptor = venue.venueDescriptor;
+    const oldLocation = venue.location;
+    const oldAddress = venue.address;
+    const oldGeopoint = venue.geopoint;
+    const oldLongitude = oldGeopoint._longitude;
+    const oldLatitude = oldGeopoint._latitude;
     const newLocation = requestBody.venue[index].location;
     const newAddress = requestBody.venue[index].address;
     const newGeopoint = requestBody.venue[index].geopoint;
-    let newLatitude = '';
-    let newLongitude = '';
-
-    if (newGeopoint !== '') {
-      newLatitude = newGeopoint.latitude;
-      newLongitude = newGeopoint.longitude;
-    }
+    const newLatitude = newGeopoint.latitude;
+    const newLongitude = newGeopoint.longitude;
 
     if (oldLocation === newLocation
       && oldAddress === newAddress
@@ -311,10 +302,10 @@ const getPronoun = (locals, recipient) => {
   const addendumCreator = locals.addendum.get('user');
   const assigneesMap = locals.assigneesMap;
   /**
-     * People are denoted with their phone numbers unless
-     * the person creating the addendum is the same as the one
-     * receiving it.
-     */
+   * People are denoted with their phone numbers unless
+   * the person creating the addendum is the same as the one
+   * receiving it.
+   */
   let pronoun = addendumCreator;
 
   if (addendumCreator === recipient) {
@@ -450,7 +441,7 @@ const addOfficeToProfile = (locals, batch) => {
     .doc(officeId), {
       employeesData: {
         [employeeContact]:
-          getValuesFromAttachment(attachment, locals.change.after.id),
+          getValuesFromAttachment(locals.change.after),
       },
     }, {
       merge: true,
@@ -469,7 +460,7 @@ const addSupplierToOffice = (locals, batch) => {
   batch.set(rootCollections.offices.doc(officeId), {
     suppliersMap: {
       [supplierName]:
-        getValuesFromAttachment(attachment, locals.change.after.id),
+        getValuesFromAttachment(locals.change.after),
     },
   }, {
       merge: true,
@@ -503,12 +494,14 @@ const addCustomerToOffice = (locals, batch) => {
   const customerName = attachment.Name.value;
   const officeId = locals.change.after.get('officeId');
 
-  batch.set(rootCollections.offices.doc(officeId), {
-    customersMap: {
-      [customerName]:
-        getValuesFromAttachment(attachment, locals.change.after.id),
-    },
-  }, {
+  batch.set(rootCollections
+    .offices
+    .doc(officeId), {
+      customersMap: {
+        [customerName]:
+          getValuesFromAttachment(locals.change.after),
+      },
+    }, {
       merge: true,
     });
 
