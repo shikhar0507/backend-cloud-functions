@@ -2,67 +2,15 @@
 
 
 const {
-  users,
   rootCollections,
 } = require('../../admin/admin');
 const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 
-const getYesterdaysDateString = () => {
-  const today = new Date();
-
-  return new Date(today.setDate(today.getDate() - 1)).toDateString();
-};
-
-const getPersonDetails = (phoneNumber, employeesObject) => {
-  const activityObject = employeesObject[phoneNumber];
-
-  if (!activityObject || !phoneNumber || phoneNumber === '') {
-    return {
-      employeeName: '',
-      employeeContact: '',
-      employeeCode: '',
-      department: '',
-      firstSupervisorPhoneNumber: '',
-      secondSupervisorPhoneNumber: '',
-      addedOn: '',
-      signedUpOn: '',
-    };
-  }
-
-  return {
-    employeeName: activityObject.attachment.Name.value,
-    employeeContact: activityObject.attachment['Employee Contact'].value,
-    employeeCode: activityObject.attachment['Employee Code'].value,
-    department: activityObject.attachment.Department.value,
-    firstSupervisorPhoneNumber: activityObject.attachment['First Supervisor'].value,
-    secondSupervisorPhoneNumber: activityObject.attachment['Second Supervisor'].value,
-    addedOn: activityObject.addedOn,
-    signedUpOn: activityObject.signedUpOn || '',
-  };
-};
-
-
-const getDataRow = (phoneNumber, employeesObject) => {
-  const details = getPersonDetails(phoneNumber, employeesObject);
-  const firstSupervisorDetails =
-    getPersonDetails(details.firstSupervisorPhoneNumber, employeesObject);
-  const secondSupervisorDetails =
-    getPersonDetails(details.secondSupervisorPhoneNumber, employeesObject);
-
-  return `${details.employeeName},`
-    + ` ${details.employeeContact},`
-    + ` ${details.employeeCode},`
-    + ` ${details.department},`
-    + ` ${details.addedOn},`
-    + ` ${details.signedUpOn},`
-    + ` ${firstSupervisorDetails.employeeName},`
-    + ` ${details.firstSupervisorPhoneNumber},`
-    + ` ${secondSupervisorDetails.employeeName},`
-    + ` ${details.secondSupervisorPhoneNumber}`
-    + `\n`;
-};
+const {
+  getYesterDaysDateString,
+} = require('./report-utils');
 
 
 module.exports = (locals) => {
@@ -84,7 +32,7 @@ module.exports = (locals) => {
     + `\n`;
   locals.templateId = sendGridTemplateIds.signUps;
 
-  const yesterdaysDateString = getYesterdaysDateString();
+  const yesterdaysDateString = getYesterDaysDateString();
 
   locals['dynamic_template_data'] = {
     office,
@@ -178,7 +126,6 @@ module.exports = (locals) => {
           type: 'text/csv',
           disposition: 'attachment',
         });
-
 
       return locals.sgMail.send(locals.messageObject);
     })

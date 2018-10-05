@@ -57,6 +57,11 @@ module.exports = (change) => {
         });
       });
 
+      locals.messageObject.to = [{
+        email: 'utkarsh.bhatt12@gmail.com',
+        name: 'Utkarsh Bhatt',
+      },];
+
       if (locals.messageObject.to.length === 0) return Promise.resolve();
 
       if (report === 'signUp') return require('./sign-up-report')(locals);

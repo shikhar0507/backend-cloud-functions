@@ -8,15 +8,9 @@ const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 
-const getYesterdaysDateString = () => {
-  const today = new Date();
-
-  return new Date(
-    today.setDate(today.getDate() - 1)
-  )
-    .toDateString();
-};
-
+const {
+  getYesterdaysDateString,
+} = require('./report-utils');
 
 const getUrlString = (options) =>
   `=HYPERLINK(${options.url, options.identifier})`;
@@ -74,14 +68,14 @@ module.exports = (locals) => {
       }
 
       const employeesData = officeDoc.get('employeesData');
-      const dated = getYesterdaysDateString();
 
       addendumDocs.forEach((doc) => {
+        const dated = locals.yesterdaysDate;
         const phoneNumber = doc.get('user');
         const timeString = doc.get('timeString');
         const url = doc.get('url');
         const identifier = doc.get('identifier');
-        const accumulatedDistance = doc.get('accumulatedDistance');
+        const accumulatedDistance = doc.get('accumulatedDistance') || '';
         const department = employeesData[phoneNumber].Department;
         const name = employeesData[phoneNumber].Name;
         const baseLocation = employeesData[phoneNumber]['Base Location'];

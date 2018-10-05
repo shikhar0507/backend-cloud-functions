@@ -1,7 +1,7 @@
 'use strict';
 
 
-const getYesterDaysDateString = () => {
+const getYesterdaysDateString = () => {
   const today = new Date();
 
   today.setDate(today.getDate() - 1);
@@ -9,7 +9,15 @@ const getYesterDaysDateString = () => {
   return today.toDateString();
 };
 
+const getPreviousDayMonth = () => {
+  const today = new Date();
+  const yesterday = new Date(today.setDate(today.getDate() - 1));
+
+  return yesterday.getMonth();
+};
+
 
 module.exports = {
-  getYesterDaysDateString,
+  getYesterdaysDateString,
+  getPreviousDayMonth,
 };

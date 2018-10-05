@@ -7,12 +7,9 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 
-
-const getYesterdaysDateString = () => {
-  const today = new Date();
-
-  return new Date(today.setDate(today.getDate() - 1)).toDateString();
-};
+const {
+  getYesterdaysDateString,
+} = require('./report-utils');
 
 /**
  * Returns yesterday's Day start timestamp.
