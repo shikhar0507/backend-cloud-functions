@@ -165,17 +165,6 @@ module.exports = (change) => {
     && before.get('lastQueryFrom') !== 0
     && after.get('lastQueryFrom') === 0);
 
-  /**
-   * If the person has signed up even before being added to the office,
-   * their signup time will be equal to the signup time of when they
-   * were added to the office.
-   */
-  const hasSignedUpBeforeOffice = Boolean(
-    oldOfficesList.length > 0
-    && before.get('uid')
-    && after.get('uid')
-  );
-
   console.log({
     addedList,
     removedList,
@@ -184,7 +173,6 @@ module.exports = (change) => {
     hasInstalled,
     authDeleted,
     phoneNumber,
-    hasSignedUpBeforeOffice,
   });
 
 
@@ -239,6 +227,15 @@ module.exports = (change) => {
         .get()
       );
     }
+
+    const hasSignedUpBeforeOffice =
+      Boolean(
+        office === addedList[0]
+        && before.get('uid')
+        && after.get('uid')
+      );
+
+    console.log('hasSignedUpBeforeOffice:', hasSignedUpBeforeOffice);
 
     if (hasSignedUp || hasSignedUpBeforeOffice) {
       employeeActivity.signedUpOn =
