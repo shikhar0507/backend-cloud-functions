@@ -141,6 +141,7 @@ const reportingActions = {
   authDisabled: 'authDisabled',
   usedCustomClaims: 'usedCustomClaims',
   authChanged: 'authChanged',
+  clientError: 'clientError',
 };
 
 const sendGridTemplateIds = {
