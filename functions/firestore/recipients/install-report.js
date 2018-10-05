@@ -39,8 +39,6 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
-  console.log(office, officeId);
-
   const yesterdaysDateString = getYesterdaysDateString();
 
   locals.messageObject.templateId = sendGridTemplateIds.installs;
@@ -90,7 +88,7 @@ module.exports = (locals) => {
 
       let header = 'Install Date and Time\n\n';
 
-      installDocs.forEach((doc, index) => {
+      installDocs.forEach((doc) => {
         const {
           phoneNumber,
           installs,
@@ -158,9 +156,9 @@ module.exports = (locals) => {
 
       locals
         .multipleInstallsMap
-        .forEach((timestampString, phoneNumber) => {
+        .forEach((timestampsString, phoneNumber) => {
           locals.messageObject.attachments.push({
-            content: new Buffer(timestampString).toString('base64'),
+            content: new Buffer(timestampsString).toString('base64'),
             fileName: `${phoneNumber}.txt`,
             type: 'text/plain',
             disposition: 'attachment',
