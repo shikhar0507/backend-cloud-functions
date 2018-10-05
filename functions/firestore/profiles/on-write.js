@@ -175,6 +175,8 @@ module.exports = (change) => {
     phoneNumber,
   });
 
+  const today = new Date();
+
 
   /**
    * What this code does...
@@ -197,7 +199,10 @@ module.exports = (change) => {
       .doc(activityData.officeId), {
         office,
         officeId: activityData.officeId,
-        date: new Date().toDateString(),
+        date: today.toDateString(),
+        day: today.getDay(),
+        month: today.getMonth(),
+        year: today.getFullYear(),
         report: 'signUp',
         employeesObject: {
           [phoneNumber]: activityData,
@@ -247,7 +252,10 @@ module.exports = (change) => {
           office,
           officeId: employeeActivity.officeId,
           report: 'signUp',
-          date: new Date().toDateString(),
+          date: today.toDateString(),
+          day: today.getDay(),
+          month: today.getMonth(),
+          year: today.getFullYear(),
           employeesObject: {
             [phoneNumber]: employeeActivity,
           },
@@ -294,7 +302,10 @@ module.exports = (change) => {
                 phoneNumber,
                 report: 'install',
                 officeId: employeeActivity.officeId,
-                date: new Date().toDateString(),
+                date: today.toDateString(),
+                day: today.getDay(),
+                month: today.getMonth(),
+                year: today.getFullYear(),
                 installs: [
                   getLocaleFromTimestamp('+91'),
                 ],
@@ -315,7 +326,10 @@ module.exports = (change) => {
              * Updating the date is required for the Timer cloud function
              * to be able to get this document.
              */
-            date: new Date().toDateString(),
+            date: today.toDateString(),
+            day: today.getDay(),
+            month: today.getMonth(),
+            year: today.getFullYear(),
           }, {
               /** This doc contains other data about his older installs for this user. */
               merge: true,
