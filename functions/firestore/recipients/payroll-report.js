@@ -11,6 +11,7 @@ const {
 const {
   getYesterdaysDateString,
   getPreviousDayMonth,
+  getNumberOfDaysInMonth,
 } = require('./report-utils');
 
 
@@ -30,9 +31,14 @@ const getHeader = () => {
     + ` Base Location,`
     + ` Live Since, `;
 
+  const numberOfDays = getNumberOfDaysInMonth({
+    month: today.getMonth() + 1,
+    year: today.getFullYear(),
+  });
+
   /** Human readable dates start with 1. */
-  for (let i = 1; i <= date; i++) {
-    str += `${monthName}-${i}`;
+  for (let i = 0; i <= numberOfDays; i++) {
+    str += `${monthName}-${i + 1}`;
 
     if (i !== date) {
       str += `, `;
@@ -83,5 +89,4 @@ module.exports = (locals) => {
       return Promise.resolve();
     })
     .catch(console.error);
-
 };
