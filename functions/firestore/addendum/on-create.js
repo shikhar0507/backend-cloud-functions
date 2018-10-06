@@ -114,6 +114,29 @@ const getLocalTime = (countryCode) => {
     .split(' ')[0];
 };
 
+const toLog = (options) => {
+  const {
+    template,
+    action,
+  } = options;
+
+  if (action !== 'create') return false;
+
+  return new Set()
+    .add('check-in')
+    .add('leave')
+    .add('tour-plan')
+    .has(template);
+};
+
+const isAccurate = (addendumDoc) => {
+  const checkInLocation = addendumDoc.get('activityData.venue')[0].geopoint;
+  const addendumLocation = addendumDoc.get('location');
+
+  /** Needs to be accurate upto 500m. */
+  return haversineDistance(checkInLocation, addendumLocation) < 0.5;
+};
+
 
 module.exports = (addendumDoc) => {
   const {
@@ -122,37 +145,62 @@ module.exports = (addendumDoc) => {
     location,
     /** User is the phone number */
     user,
+    action,
   } = addendumDoc.data();
 
   const {
     officeId,
+    office,
     template,
   } = activityData;
 
+  if (!toLog({ template, action, })) return Promise.resolve();
+
   console.log(addendumDoc.ref.path);
 
-  return rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Addendum')
-    .where('user', '==', user)
-    .orderBy('timestamp', 'desc')
-    .limit(2)
-    .get()
-    .then((docs) => {
-      /** In the query, the doc at the position 0 will the same doc for
+  const batch = db.batch();
+
+  return Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Addendum')
+        .where('user', '==', user)
+        .orderBy('timestamp', 'desc')
+        .limit(2)
+        .get(),
+      rootCollections
+        .inits
+        .where('activityData.office', '==', office)
+        .where('report', '==', 'payroll')
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      if (!result) return Promise.resolve();
+
+      const [
+        oldAddendumDocsQuery,
+        initDocsQuery,
+      ] = result;
+
+      /**
+       * In the query, the doc at the position 0 will the same doc for
        * which the cloud function is triggered. Hence, the distance calculated
        * will always remain zero.
        */
-      const doc = docs.docs[1];
+      const previousAddendum = oldAddendumDocsQuery.docs[1];
+
+      const batch = db.batch();
 
       /** Default value for the distance is 0... */
       let distance = 0;
       let accumulatedDistance = 0;
 
-      if (doc) {
-        const geopointOne = doc.get('location');
-        accumulatedDistance = doc.get('accumulatedDistance') || 0;
+      if (previousAddendum) {
+        const geopointOne = previousAddendum.get('location');
+        accumulatedDistance = previousAddendum.get('accumulatedDistance') || 0;
 
         distance = haversineDistance(geopointOne, location);
 
@@ -184,6 +232,8 @@ module.exports = (addendumDoc) => {
         .all(promises);
     })
     .then((result) => {
+      if (!result) return Promise.resolve();
+
       const [
         locationData,
         mapsApiResult,
@@ -193,22 +243,23 @@ module.exports = (addendumDoc) => {
 
       const today = new Date();
 
-      return db
-        .doc(addendumDoc.ref.path)
-        .set({
-          day: today.getDay(),
-          month: today.getMonth(),
-          year: today.getFullYear(),
-          date: today.toDateString(),
-          timeString: getLocalTime('+91'),
-          distanceFromPrevAddendum: locationData.distance,
-          accumulatedDistance: locationData.accumulatedDistance,
-          url: placeInformation.url,
-          identifier: placeInformation.identifier,
-          distanceAccurate: locationData.distance < 0.5,
-        }, {
-            merge: true,
-          });
+      batch.set(addendumDoc.ref, {
+        day: today.getDay(),
+        month: today.getMonth(),
+        year: today.getFullYear(),
+        date: today.toDateString(),
+        timeString: getLocalTime('+91'),
+        distanceFromPrevAddendum: locationData.distance,
+        accumulatedDistance: locationData.accumulatedDistance,
+        url: placeInformation.url,
+        identifier: placeInformation.identifier,
+        // distanceAccurate: locationData.distance < 0.5,
+        distanceAccurate: isAccurate(addendumDoc),
+      }, {
+          merge: true,
+        });
+
+      return batch.commit();
     })
     .catch(console.error);
 };
