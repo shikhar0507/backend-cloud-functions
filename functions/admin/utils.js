@@ -172,78 +172,6 @@ const getISO8601Date = (date = new Date()) =>
     .reverse()
     .join('-');
 
-/**
- * Returns the server timestamp on a `GET` request.
- *
- * @param {Object} conn Object containing Express's Request and Response objects.
- * @returns {void}
- */
-const now = (conn) => {
-  if (conn.req.method !== 'GET') {
-    sendResponse(
-      conn,
-      code.methodNotAllowed,
-      `${conn.req.method} is not allowed for the /now endpoint.`
-    );
-
-    return;
-  }
-
-  // if (conn.req.query.hasOwnProperty('deviceId')) {
-  //   sendResponse(
-  //     conn,
-  //     code.forbidden,
-  //     `Missing the 'deviceId' in the query params.`
-  //   );
-
-  //   return;
-  // }
-
-  let revokeSession = false;
-
-  rootCollections
-    .updates
-    .doc(conn.requester.uid)
-    .get()
-    .then((doc) => {
-      const batch = db.batch();
-
-      batch.set(rootCollections
-        .timers
-        .doc(getISO8601Date()), {
-          timestamp: serverTimestamp,
-          // Prevents multiple trigger events for reports.
-          sent: false,
-        }, {
-          merge: true,
-        });
-
-      // const deviceIds = doc.get('deviceIds') || {};
-
-      // /** The deviceId should be the latest, else revoke the session. */
-      // revokeSession = doc.get('latestDeviceId')
-      //   && conn.req.query.deviceId !== doc.get('latestDeviceId');
-
-      // batch.set(doc.ref, {
-      //   deviceIds,
-      //   latestDeviceId: conn.req.query.deviceId,
-      // }, {
-      //     merge: true,
-      //   });
-
-      return batch.commit();
-    })
-    .then(() =>
-      sendJSON(conn, {
-        revokeSession,
-        success: true,
-        timestamp: Date.now(),
-        code: code.ok,
-      })
-    )
-    .catch((error) => handleError(conn, error));
-};
-
 
 /**
  * Checks if the input argument to the function satisfies the
@@ -417,6 +345,102 @@ const convertToDates = (schedules) => {
 
   return array;
 };
+
+
+/**
+ * Returns the server timestamp on a `GET` request.
+ *
+ * @param {Object} conn Object containing Express's Request and Response objects.
+ * @returns {void}
+ */
+const now = (conn) => {
+  if (conn.req.method !== 'GET') {
+    sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for the /now endpoint.`
+    );
+
+    return;
+  }
+
+  if (!conn.req.query.hasOwnProperty('deviceId')) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `Missing the 'deviceId' in the query params.`
+    );
+
+    return;
+  }
+
+  if (!isNonEmptyString(conn.req.query.deviceId)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The deviceId needs to be of type string.`
+    );
+
+    return;
+  }
+
+  let revokeSession = false;
+
+  rootCollections
+    .updates
+    .doc(conn.requester.uid)
+    .get()
+    .then((doc) => {
+      const batch = db.batch();
+
+      batch.set(rootCollections
+        .timers
+        .doc(getISO8601Date()), {
+          timestamp: serverTimestamp,
+          // Prevents multiple trigger events for reports.
+          sent: false,
+        }, {
+          merge: true,
+        });
+
+      // const latestDeviceId = doc.get('latestDeviceId');
+      // const deviceIdsObject = doc.get('deviceIdsObject') || {};
+
+      // if (!latestDeviceId) {
+      //   deviceIdsObject[conn.req.query.deviceId] = {
+      //     count: 1,
+      //     timestamp: new Date(),
+      //   };
+      // } else {
+      //   deviceIdsObject[conn.req.query.deviceId] = {
+      //     count: deviceIdsObject[conn.req.query.deviceId].count++,
+      //     timestamp: new Date(),
+      //   };
+      // }
+
+      // if (latestDeviceId
+      //   && conn.req.query.deviceId !== latestDeviceId) revokeSession = true;
+
+      // batch.set(doc.ref, {
+      //   deviceIdsObject,
+      //   latestDeviceId,
+      // }, {
+      //     merge: true,
+      //   });
+
+      return batch.commit();
+    })
+    .then(() =>
+      sendJSON(conn, {
+        revokeSession,
+        success: true,
+        timestamp: Date.now(),
+        code: code.ok,
+      })
+    )
+    .catch((error) => handleError(conn, error));
+};
+
 
 
 module.exports = {
