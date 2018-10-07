@@ -364,25 +364,25 @@ const now = (conn) => {
     return;
   }
 
-  if (!conn.req.query.hasOwnProperty('deviceId')) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `Missing the 'deviceId' in the query params.`
-    );
+  // if (!conn.req.query.hasOwnProperty('deviceId')) {
+  //   sendResponse(
+  //     conn,
+  //     code.forbidden,
+  //     `Missing the 'deviceId' in the query params.`
+  //   );
 
-    return;
-  }
+  //   return;
+  // }
 
-  if (!isNonEmptyString(conn.req.query.deviceId)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The deviceId needs to be of type string.`
-    );
+  // if (!isNonEmptyString(conn.req.query.deviceId)) {
+  //   sendResponse(
+  //     conn,
+  //     code.badRequest,
+  //     `The deviceId needs to be of type string.`
+  //   );
 
-    return;
-  }
+  //   return;
+  // }
 
   let revokeSession = false;
 
