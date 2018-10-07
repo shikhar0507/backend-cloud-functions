@@ -304,7 +304,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
       conn.requester = {
         uid: decodedIdToken.uid,
         phoneNumber: userRecord.phoneNumber,
-        displayName: userRecord.displayName,
+        displayName: userRecord.displayName || '',
         customClaims: userRecord.customClaims || null,
         creationTime: userRecord.metadata.creationTime,
       };
@@ -407,6 +407,8 @@ const checkAuthorizationToken = (conn) => {
       );
     });
 };
+
+
 
 
 /**
