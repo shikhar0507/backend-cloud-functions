@@ -4,6 +4,7 @@
 const {
   rootCollections,
   db,
+  deleteField,
 } = require('../../admin/admin');
 
 const googleMapsClient =
@@ -95,7 +96,6 @@ const getPlaceInformation = (mapsApiResult) => {
   };
 };
 
-
 const getLatLngString = (location) =>
   `${location._latitude},${location._longitude}`;
 
@@ -114,21 +114,6 @@ const getLocalTime = (countryCode) => {
     .split(' ')[0];
 };
 
-const toLog = (options) => {
-  const {
-    template,
-    action,
-  } = options;
-
-  if (action !== 'create') return false;
-
-  return new Set()
-    .add('check-in')
-    .add('leave')
-    .add('tour-plan')
-    .has(template);
-};
-
 const isAccurate = (addendumDoc) => {
   const checkInLocation = addendumDoc.get('activityData.venue')[0].geopoint;
   const addendumLocation = addendumDoc.get('location');
@@ -138,52 +123,116 @@ const isAccurate = (addendumDoc) => {
 };
 
 
+const getDatesObject = (addendumDoc) => {
+  const object = {};
+  const schedulesArray = addendumDoc.get('activityData.schedule');
+
+  let displayText = '';
+
+  if (addendumDoc.get('activityData.template') === 'leave') {
+    displayText = addendumDoc.get('activityData.attachment.Leave Type.value');
+  }
+
+  if (addendumDoc.get('activityData.template') === 'tour plan') {
+    displayText = 'ON DUTY';
+  }
+
+  /** 
+   * BUG: If the endTime is updated to something that is before
+   * the previous endTime, the entries in the init doc will remain
+   * outdated.
+   */
+  if (addendumDoc.get('activityData.status') === 'CANCELLED') {
+    displayText = deleteField();
+  }
+
+  /** FIX: Addendum onCreate doesn't know the old state of the activity doc,
+   * so, it can't delete the schedules from the old values in the object
+   * when in an update.
+   * 
+   * TODO: If the endTime extends to the next month, multiple init docs should
+   * be created for this user.
+   */
+  schedulesArray.forEach((schedule) => {
+    let startTime = schedule.startTime;
+    let endTime = schedule.endTime;
+
+    if (!startTime || !endTime) return;
+
+    startTime = startTime.toDate().getTime();
+    endTime = endTime.toDate().getTime();
+    const NUM_SECS_IN_DAY = 86400000;
+
+    while (startTime <= endTime) {
+      object[new Date(startTime).getDate()] = displayText;
+
+      startTime += NUM_SECS_IN_DAY;
+    }
+  });
+
+  console.log({ object, });
+
+  return object;
+};
+
+
 module.exports = (addendumDoc) => {
-  const {
-    activityData,
-    /** Location is geopoint */
-    location,
-    /** User is the phone number */
-    user,
-    action,
-  } = addendumDoc.data();
-
-  const {
-    officeId,
-    office,
-    template,
-  } = activityData;
-
-  if (!toLog({ template, action, })) return Promise.resolve();
+  const locals = {
+    batch: db.batch(),
+    distanceFromPrevAddendum: 0,
+    accumulatedDistance: 0,
+    today: new Date(),
+    initDoc: rootCollections.inits.doc(),
+  };
 
   console.log(addendumDoc.ref.path);
 
-  const batch = db.batch();
+  if (!new Set()
+    .add('create')
+    .add('change-status')
+    .add('update')
+    .has(addendumDoc.get('action'))) {
+    console.log('Only create and change-status are logged...');
+
+    return Promise.resolve();
+  }
 
   return Promise
     .all([
       rootCollections
         .offices
-        .doc(officeId)
+        .doc(addendumDoc.get('activityData.officeId'))
         .collection('Addendum')
-        .where('user', '==', user)
+        .where('user', '==', addendumDoc.get('user'))
         .orderBy('timestamp', 'desc')
         .limit(2)
         .get(),
       rootCollections
         .inits
-        .where('activityData.office', '==', office)
+        .where('office', '==', addendumDoc.get('activityData.office'))
         .where('report', '==', 'payroll')
+        .where('month', '==', locals.today.getMonth())
         .limit(1)
         .get(),
     ])
     .then((result) => {
-      if (!result) return Promise.resolve();
-
       const [
         oldAddendumDocsQuery,
         initDocsQuery,
       ] = result;
+
+      console.log(
+        'oldAddendumDocsQuery',
+        oldAddendumDocsQuery.size,
+        'initDocsQuery',
+        initDocsQuery.size
+      );
+
+      if (!initDocsQuery.empty) {
+        locals.initDoc = initDocsQuery.docs[0].ref;
+      }
+
+      console.log('locals.initDoc', locals.initDoc.ref);
 
       /**
        * In the query, the doc at the position 0 will the same doc for
@@ -192,74 +241,75 @@ module.exports = (addendumDoc) => {
        */
       const previousAddendum = oldAddendumDocsQuery.docs[1];
 
-      const batch = db.batch();
-
-      /** Default value for the distance is 0... */
-      let distance = 0;
-      let accumulatedDistance = 0;
-
       if (previousAddendum) {
         const geopointOne = previousAddendum.get('location');
-        accumulatedDistance = previousAddendum.get('accumulatedDistance') || 0;
-
-        distance = haversineDistance(geopointOne, location);
-
-        accumulatedDistance += distance;
+        locals.accumulatedDistance =
+          previousAddendum.get('accumulatedDistance') || 0;
+        locals.distanceFromPrevAddendum =
+          haversineDistance(geopointOne, addendumDoc.get('location'));
+        locals.accumulatedDistance += locals.distanceFromPrevAddendum;
       }
 
-      console.log({
-        distance,
-        accumulatedDistance,
-      });
-
-      const promises = [
-        Promise
-          .resolve({
-            distance,
-            accumulatedDistance,
-          }),
-      ];
-
-      if (distance > 0) {
-        promises.push(googleMapsClient
-          .reverseGeocode({
-            latlng: getLatLngString(location),
-          })
-          .asPromise());
+      if (locals.distanceFromPrevAddendum < 1) {
+        return Promise.resolve(null);
       }
 
-      return Promise
-        .all(promises);
+      if (addendumDoc.get('activityData.template') !== 'check-in') {
+        return Promise.resolve();
+      }
+
+      return googleMapsClient
+        .reverseGeocode({
+          latlng: getLatLngString(addendumDoc.get('location')),
+        })
+        .asPromise();
     })
-    .then((result) => {
-      if (!result) return Promise.resolve();
-
-      const [
-        locationData,
-        mapsApiResult,
-      ] = result;
+    .then((mapsApiResult) => {
+      if (!mapsApiResult) return Promise.resolve();
 
       const placeInformation = getPlaceInformation(mapsApiResult);
 
-      const today = new Date();
-
-      batch.set(addendumDoc.ref, {
-        day: today.getDay(),
-        month: today.getMonth(),
-        year: today.getFullYear(),
-        date: today.toDateString(),
+      locals.batch.set(addendumDoc.ref, {
+        day: locals.today.getDay(),
+        month: locals.today.getMonth(),
+        year: locals.today.getFullYear(),
+        date: locals.today.toDateString(),
         timeString: getLocalTime('+91'),
-        distanceFromPrevAddendum: locationData.distance,
-        accumulatedDistance: locationData.accumulatedDistance,
+        distanceFromPrevAddendum: locals.distanceFromPrevAddendum,
+        accumulatedDistance: locals.accumulatedDistance.toFixed(2),
         url: placeInformation.url,
         identifier: placeInformation.identifier,
-        // distanceAccurate: locationData.distance < 0.5,
         distanceAccurate: isAccurate(addendumDoc),
       }, {
           merge: true,
         });
 
-      return batch.commit();
+      return Promise.resolve();
+    })
+    .then(() => {
+      if (!new Set()
+        .add('leave')
+        .add('tour plan')
+        .has(addendumDoc.get('activityData.template'))) {
+        return Promise.resolve();
+      }
+
+      locals.batch.set(locals.initDoc, {
+        day: locals.today.getDay(),
+        month: locals.today.getMonth(),
+        year: locals.today.getFullYear(),
+        date: locals.today.toDateString(),
+        report: 'payroll',
+        office: addendumDoc.get('activityData.office'),
+        officeId: addendumDoc.get('activityData.officeId'),
+        payrollObject: {
+          [addendumDoc.get('user')]: getDatesObject(addendumDoc),
+        },
+      }, {
+          merge: true,
+        });
+
+      return locals.batch.commit();
     })
     .catch(console.error);
 };
