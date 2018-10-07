@@ -22,15 +22,12 @@ const getHeader = () => {
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec',
   ];
-
-  const monthName = monthNames[today.getMonth()];
-
   let str = ` Employee Name,`
     + ` Employee Contact,`
     + ` Department,`
     + ` Base Location,`
     + ` Live Since, `;
-
+  const monthName = monthNames[today.getMonth()];
   const numberOfDays = getNumberOfDaysInMonth({
     month: today.getMonth() + 1,
     year: today.getFullYear(),
@@ -45,7 +42,23 @@ const getHeader = () => {
     }
   }
 
+  str += `FULL DAY,`
+    + ` HALF DAY,`
+    + ` LEAVE,`
+    + ` HOLIDAY,`
+    + ` BLANK,`
+    + ` LATE,`
+    + ` ON-DUTY,`
+    + ` WEEKLY OFF,`
+    + ` TOTAL,`;
+
   str += '\n';
+
+  return str;
+};
+
+const getRow = (employeesData, phoneNumber, payrollObject) => {
+  let str = '';
 
   return str;
 };
@@ -76,17 +89,40 @@ module.exports = (locals) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('distanceAccurate', '==', true)
+        .where('report', '==', 'payroll')
         .where('month', '==', getPreviousDayMonth())
+        .limit(1)
         .get(),
     ])
     .then((result) => {
       const [
         officeDoc,
-        initDocs,
+        initDocsQuery,
       ] = result;
 
-      return Promise.resolve();
+      if (initDocsQuery.empty) {
+        console.log('Init docs not found.');
+
+        return Promise.resolve();
+      }
+
+      const initDoc = initDocsQuery.docs[0];
+      const employeesData = officeDoc.get('employeesData');
+      const employeesPhoneNumberList = Object.keys(employeesData);
+      const payrollObject = initDoc.get('payrollObject');
+
+      employeesPhoneNumberList.forEach((phoneNumber) => {
+        locals.csvString += getRow(employeesData, phoneNumber, payrollObject);
+      });
+
+      locals.messageObject.attachments.push({
+        content: new Buffer(locals.csvString).toString('base64'),
+        fileName: `${office} Payroll Report_${yesterdaysDateString}.csv`,
+        type: 'text/csv',
+        disposition: 'attachment',
+      });
+
+      return locals.sgMail.sendMultiple(locals.messageObject);
     })
     .catch(console.error);
 };
