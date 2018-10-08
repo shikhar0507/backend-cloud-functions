@@ -12,11 +12,7 @@ const {
   getYesterdaysDateString,
 } = require('./report-utils');
 
-const getUrlString = (options) =>
-  `=HYPERLINK(${options.url, options.identifier})`;
-
 const xlsxPopulate = require('xlsx-populate');
-const util = require('util');
 const fs = require('fs');
 
 
@@ -69,7 +65,7 @@ module.exports = (locals) => {
       const [
         officeDoc,
         addendumDocs,
-        workbook
+        workbook,
       ] = result;
 
       locals.toSendMails = true;
@@ -93,8 +89,7 @@ module.exports = (locals) => {
       ];
 
       const sheet = workbook.sheet('Sheet1');
-
-      const rowChars = ['A', 'B', 'C', 'D', 'E', 'F, G',];
+      const rowChars = ['A', 'B', 'C', 'D', 'E', 'F', 'G',];
 
       workbook.sheet('Sheet1').cell(`A1`).value('Dated');
       workbook.sheet('Sheet1').cell('B1').value('Department');
@@ -149,13 +144,6 @@ module.exports = (locals) => {
 
       return workbook.toFileAsync(locals.filePath);
     })
-    // .then(() => {
-    //   if (!locals.toSendMails) return Promise.resolve();
-
-    //   const readFile = util.promisify(fs.readFile);
-
-    //   return readFile(locals.filePath);
-    // })
     .then(() => {
       if (!locals.toSendMails) return Promise.resolve();
 
