@@ -137,7 +137,7 @@ const getDatesObject = (addendumDoc) => {
     displayText = 'ON DUTY';
   }
 
-  /** 
+  /**
    * BUG: If the endTime is updated to something that is before
    * the previous endTime, the entries in the init doc will remain
    * outdated.
@@ -149,7 +149,7 @@ const getDatesObject = (addendumDoc) => {
   /** FIX: Addendum onCreate doesn't know the old state of the activity doc,
    * so, it can't delete the schedules from the old values in the object
    * when in an update.
-   * 
+   *
    * TODO: If the endTime extends to the next month, multiple init docs should
    * be created for this user.
    */
