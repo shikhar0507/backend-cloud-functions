@@ -59,8 +59,6 @@ module.exports = (change) => {
 
       if (locals.messageObject.to.length === 0) return Promise.resolve();
 
-      locals.xlsxPopulate = require('xlsx-populate');
-
       if (report === 'signUp') return require('./sign-up-report')(locals);
       if (report === 'install') return require('./install-report')(locals);
       if (report === 'footprints') return require('./footprints-report')(locals);

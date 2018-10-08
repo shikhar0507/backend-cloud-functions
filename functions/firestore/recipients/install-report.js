@@ -78,6 +78,11 @@ module.exports = (locals) => {
         installDocs,
       ] = result;
 
+      if (installDocs.empty) {
+        /** No report to be sent since no one installed yesterday. */
+        return Promise.resolve();
+      }
+
       let totalInstalls = 0;
 
       // Collecting the list of people who have multiple installs for yesterday.
@@ -109,11 +114,6 @@ module.exports = (locals) => {
           locals.multipleInstallsMap.set(phoneNumber, header);
         });
 
-        const name = employeeData.Name;
-        const employeeCode = employeeData['Employee Code'];
-        const department = employeeData.Department;
-        const latestInstall = installs[installs.length - 1];
-        const numberOfInstalls = installs.length;
         const firstSupervisorPhoneNumber =
           employeeData['First Supervisor'];
         const secondSupervisorPhoneNumber =
@@ -124,12 +124,12 @@ module.exports = (locals) => {
           getName(officeDoc.get('employeesData'), secondSupervisorPhoneNumber);
 
         locals.csvString +=
-          ` ${name},`
+          ` ${employeeData.Name},`
           + ` ${phoneNumber},`
-          + ` ${employeeCode},`
-          + ` ${department},`
-          + ` ${latestInstall},`
-          + ` ${numberOfInstalls},`
+          + ` ${employeeData['Employee Code']},`
+          + ` ${employeeData.Department},`
+          + ` ${installs[installs.length - 1]},`
+          + ` ${installs.length},`
           + ` ${firstSupervisorsName},`
           + ` ${firstSupervisorPhoneNumber},`
           + ` ${secondSupervisorsName},`

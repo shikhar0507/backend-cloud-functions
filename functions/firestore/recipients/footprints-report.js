@@ -15,6 +15,10 @@ const {
 const getUrlString = (options) =>
   `=HYPERLINK(${options.url, options.identifier})`;
 
+const xlsxPopulate = require('xlsx-populate');
+const util = require('util');
+const fs = require('fs');
+
 
 module.exports = (locals) => {
   const {
@@ -40,6 +44,10 @@ module.exports = (locals) => {
     date: locals.yesterdaysDate,
   };
 
+  locals.fileName = `${office} Footprints Report_${locals.yesterdaysDate}.xlsx`;
+  locals.filePath = `/tmp/${locals.fileName}`;
+  console.log('filePath:', locals.filePath);
+
   const officeDocRef = rootCollections
     .offices
     .doc(officeId);
@@ -54,50 +62,106 @@ module.exports = (locals) => {
         .orderBy('user')
         .orderBy('timestamp', 'asc')
         .get(),
+      xlsxPopulate
+        .fromBlankAsync(),
     ])
     .then((result) => {
       const [
         officeDoc,
         addendumDocs,
+        workbook
       ] = result;
+
+      locals.toSendMails = true;
 
       if (addendumDocs.empty) {
         console.log('No docs found in Addendum');
 
-        return Promise.resolve();
+        locals.toSendMails = false;
+
+        return Promise.resolve(false);
       }
+
+      const headers = [
+        'Dated',
+        'Department',
+        'Base Location',
+        'Name',
+        'Time',
+        'Distance Travelled',
+        'Address',
+      ];
+
+      const sheet = workbook.sheet('Sheet1');
+
+      const rowChars = ['A', 'B', 'C', 'D', 'E', 'F, G',];
+
+      workbook.sheet('Sheet1').cell(`A1`).value('Dated');
+      workbook.sheet('Sheet1').cell('B1').value('Department');
+      workbook.sheet('Sheet1').cell('C1').value('Base Location');
+      workbook.sheet('Sheet1').cell('D1').value('Name');
+      workbook.sheet('Sheet1').cell('E1').value('Time');
+      workbook.sheet('Sheet1').cell('F1').value('Distance Travelled');
+      workbook.sheet('Sheet1').cell('G1').value('Address');
 
       const employeesData = officeDoc.get('employeesData');
 
-      addendumDocs.forEach((doc) => {
-        const dated = locals.yesterdaysDate;
+      addendumDocs.docs.forEach((doc, index) => {
         const phoneNumber = doc.get('user');
-        const timeString = doc.get('timeString');
-        const url = doc.get('url');
-        const identifier = doc.get('identifier');
-        const accumulatedDistance = doc.get('accumulatedDistance') || '';
         const department = employeesData[phoneNumber].Department;
         const name = employeesData[phoneNumber].Name;
         const baseLocation = employeesData[phoneNumber]['Base Location'];
-        const urlString = getUrlString({
-          url,
-          identifier,
-        });
+        const url = doc.get('url');
+        const identifier = doc.get('identifier');
+        const accumulatedDistance =
+          doc.get('accumulatedDistance') ? doc.get('accumulatedDistance').toFixed(2) : '';
 
-        locals.csvString +=
-          ` ${dated},`
-          + ` ${department},`
-          + ` ${baseLocation},`
-          + ` ${name},`
-          + ` ${timeString},`
-          + ` ${accumulatedDistance},`
-          + ` ${urlString},`
-          + `\n`;
+        workbook
+          .sheet('Sheet1')
+          .cell(`A${index + 2}`)
+          .value(locals.yesterdaysDate);
+        workbook
+          .sheet('Sheet1')
+          .cell(`B${index + 2}`)
+          .value(department);
+        workbook
+          .sheet('Sheet1')
+          .cell(`C${index + 2}`)
+          .value(baseLocation);
+        workbook
+          .sheet('Sheet1')
+          .cell(`D${index + 2}`)
+          .value(name);
+        workbook
+          .sheet('Sheet1')
+          .cell(`E${index + 2}`)
+          .value(doc.get('timeString'));
+        workbook
+          .sheet('Sheet1')
+          .cell(`F${index + 2}`)
+          .value(accumulatedDistance);
+        workbook
+          .sheet('Sheet1')
+          .cell(`G${index + 2}`)
+          .value(identifier)
+          .hyperlink(url);
       });
 
+      return workbook.toFileAsync(locals.filePath);
+    })
+    // .then(() => {
+    //   if (!locals.toSendMails) return Promise.resolve();
+
+    //   const readFile = util.promisify(fs.readFile);
+
+    //   return readFile(locals.filePath);
+    // })
+    .then(() => {
+      if (!locals.toSendMails) return Promise.resolve();
+
       locals.messageObject.attachments.push({
-        content: new Buffer(locals.csvString).toString('base64'),
-        fileName: `${office} Footprints Report_${locals.yesterdaysDate}.csv`,
+        content: new Buffer(fs.readFileSync(locals.filePath)).toString('base64'),
+        fileName: `${office} Footprints Report_${locals.yesterdaysDate}.xlsx`,
         type: 'text/csv',
         disposition: 'attachment',
       });
