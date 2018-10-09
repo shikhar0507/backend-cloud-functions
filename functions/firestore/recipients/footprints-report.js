@@ -92,7 +92,12 @@ module.exports = (locals) => {
         'Address',
       ];
 
+<<<<<<< HEAD
       const rowChars = ['A', 'B', 'C', 'D', 'E', 'F, G',];
+=======
+      const sheet = workbook.sheet('Sheet1');
+      const rowChars = ['A', 'B', 'C', 'D', 'E', 'F', 'G',];
+>>>>>>> 1ab22abb9a67a9595a91016404088791895cf404
 
       workbook.sheet('Sheet1').cell(`A1`).value('Dated');
       workbook.sheet('Sheet1').cell('B1').value('Department');
