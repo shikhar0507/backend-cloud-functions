@@ -403,27 +403,9 @@ const now = (conn) => {
           merge: true,
         });
 
-      // const latestDeviceId = doc.get('latestDeviceId');
-      // const deviceIdsObject = doc.get('deviceIdsObject') || {};
-
-      // if (!latestDeviceId) {
-      //   deviceIdsObject[conn.req.query.deviceId] = {
-      //     count: 1,
-      //     timestamp: new Date(),
-      //   };
-      // } else {
-      //   deviceIdsObject[conn.req.query.deviceId] = {
-      //     count: deviceIdsObject[conn.req.query.deviceId].count++,
-      //     timestamp: new Date(),
-      //   };
-      // }
-
-      // if (latestDeviceId
-      //   && conn.req.query.deviceId !== latestDeviceId) revokeSession = true;
-
       // batch.set(doc.ref, {
       //   deviceIdsObject,
-      //   latestDeviceId,
+      //   latestDeviceId: conn.req.query.deviceId,
       // }, {
       //     merge: true,
       //   });

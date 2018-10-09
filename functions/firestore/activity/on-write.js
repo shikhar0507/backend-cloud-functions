@@ -174,12 +174,41 @@ const setAdminCustomClaims = (locals, batch) =>
             .commit(),
         ]);
     })
+    .then(() => rootCollections
+      .offices
+      .doc(locals.change.after.get('officeId'))
+      .collection('Activities')
+      .where('template', '==', 'admin')
+      .get()
+    )
+    .then((docs) => {
+      const adminsCanEdit = {};
+
+      const batch = db.batch();
+
+      docs.forEach((doc) =>
+        adminsCanEdit[doc.get('attachment.Admin.value')] = true);
+
+      batch.set(rootCollections
+        .offices
+        .doc(locals.change.after.get('officeId')), {
+          adminsCanEdit,
+        }, {
+          merge: true,
+        });
+
+      return batch.commit();
+    })
     .then(() => {
       const phoneNumber = locals.change.after.get('attachment.Admin.value');
       const office = locals.change.after.get('office');
       const status = locals.change.after.get('status');
 
-      return revokeCanEdit({ phoneNumber, office, status, });
+      return revokeCanEdit({
+        phoneNumber,
+        office,
+        status,
+      });
     })
     .catch((error) => JSON.stringify(error));
 
@@ -699,6 +728,7 @@ module.exports = (change, context) => {
       locals.addendum = addendum;
       const authFetch = [];
       locals.addendumCreator.phoneNumber = locals.addendum.get('user');
+      // locals.adminQueries = [];
 
       assigneesSnapShot.forEach((doc) => {
         authFetch
@@ -710,6 +740,10 @@ module.exports = (change, context) => {
         });
 
         locals.assigneePhoneNumbersArray.push(doc.id);
+
+        // locals.adminQueries.push(rootCollections
+        //   .office
+        //   .doc(addendum.get('activityData.officeId')))
 
         if (doc.id === locals.addendumCreator.phoneNumber) {
           locals.addendumCreatorInAssignees = true;
@@ -758,6 +792,8 @@ module.exports = (change, context) => {
         activityData.canEdit = locals.assigneesMap.get(phoneNumber).canEdit;
         activityData.assignees = locals.assigneePhoneNumbersArray;
         activityData.timestamp = serverTimestamp;
+
+        // locals.activityData = activityData;
 
         batch.set(rootCollections
           .profiles
@@ -867,8 +903,7 @@ module.exports = (change, context) => {
         .collection('Activities')
         .doc(activityId), activityData);
 
-      return batch
-        .commit();
+      return batch.commit();
     })
     .catch(console.error);
 };

@@ -284,7 +284,6 @@ const getProfile = (conn, pathName) =>
     .catch((error) => handleError(conn, error));
 
 
-
 const getUserAuthFromIdToken = (conn, decodedIdToken) =>
   auth
     .getUser(decodedIdToken.uid)

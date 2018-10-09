@@ -1,5 +1,6 @@
 'use strict';
 
+
 const {
   rootCollections,
 } = require('../../admin/admin');
@@ -12,11 +13,7 @@ const {
   getYesterdaysDateString,
 } = require('./report-utils');
 
-const getUrlString = (options) =>
-  `=HYPERLINK(${options.url, options.identifier})`;
-
 const xlsxPopulate = require('xlsx-populate');
-const util = require('util');
 const fs = require('fs');
 
 
@@ -46,11 +43,13 @@ module.exports = (locals) => {
 
   locals.fileName = `${office} Footprints Report_${locals.yesterdaysDate}.xlsx`;
   locals.filePath = `/tmp/${locals.fileName}`;
-  console.log('filePath:', locals.filePath);
+  console.log('locals.filePath:', locals.filePath);
 
   const officeDocRef = rootCollections
     .offices
     .doc(officeId);
+
+  console.log({ officeDocRef: officeDocRef.path, });
 
   return Promise
     .all([
@@ -69,10 +68,11 @@ module.exports = (locals) => {
       const [
         officeDoc,
         addendumDocs,
-        workbook
+        workbook,
       ] = result;
 
       locals.toSendMails = true;
+      console.log('addendumDocs.empty', addendumDocs.empty);
 
       if (addendumDocs.empty) {
         console.log('No docs found in Addendum');
@@ -91,8 +91,6 @@ module.exports = (locals) => {
         'Distance Travelled',
         'Address',
       ];
-
-      const sheet = workbook.sheet('Sheet1');
 
       const rowChars = ['A', 'B', 'C', 'D', 'E', 'F, G',];
 
@@ -113,9 +111,13 @@ module.exports = (locals) => {
         const baseLocation = employeesData[phoneNumber]['Base Location'];
         const url = doc.get('url');
         const identifier = doc.get('identifier');
-        const accumulatedDistance =
-          doc.get('accumulatedDistance') ? doc.get('accumulatedDistance').toFixed(2) : '';
+        let accumulatedDistance = doc.get('accumulatedDistance');
 
+        if (typeof doc.get('accumulatedDistance') === 'number') {
+          accumulatedDistance = accumulatedDistance.toFixed(2);
+        }
+
+        // TODO: Add spacing for columns based on max width of the fields
         workbook
           .sheet('Sheet1')
           .cell(`A${index + 2}`)
@@ -140,6 +142,7 @@ module.exports = (locals) => {
           .sheet('Sheet1')
           .cell(`F${index + 2}`)
           .value(accumulatedDistance);
+        // TODO: Set text styling for URLs underline + italic
         workbook
           .sheet('Sheet1')
           .cell(`G${index + 2}`)
@@ -149,15 +152,12 @@ module.exports = (locals) => {
 
       return workbook.toFileAsync(locals.filePath);
     })
-    // .then(() => {
-    //   if (!locals.toSendMails) return Promise.resolve();
-
-    //   const readFile = util.promisify(fs.readFile);
-
-    //   return readFile(locals.filePath);
-    // })
     .then(() => {
-      if (!locals.toSendMails) return Promise.resolve();
+      if (!locals.toSendMails) {
+        console.log('inside then. Not sending mails.');
+
+        return Promise.resolve();
+      }
 
       locals.messageObject.attachments.push({
         content: new Buffer(fs.readFileSync(locals.filePath)).toString('base64'),
@@ -165,6 +165,8 @@ module.exports = (locals) => {
         type: 'text/csv',
         disposition: 'attachment',
       });
+
+      console.log('locals.messageObject', locals.messageObject);
 
       return locals.sgMail.sendMultiple(locals.messageObject);
     })

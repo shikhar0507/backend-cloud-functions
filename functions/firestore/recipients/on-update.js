@@ -66,5 +66,5 @@ module.exports = (change) => {
 
       return Promise.resolve();
     })
-    .catch((error) => JSON.stringify(error));
+    .catch(console.error);
 };
