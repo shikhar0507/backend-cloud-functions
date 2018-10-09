@@ -7,6 +7,10 @@ const {
   deleteField,
 } = require('../../admin/admin');
 
+const {
+  httpsActions,
+} = require('../../admin/constants');
+
 const googleMapsClient =
   require('@google/maps')
     .createClient({
@@ -123,14 +127,23 @@ const isAccurate = (addendumDoc) => {
 };
 
 
-const getDatesObject = (addendumDoc) => {
-  const object = {};
+const getPayrollObject = (addendumDoc, initDocsQuery) => {
+  const initDoc = initDocsQuery.docs[0];
+  let payrollObject = {};
+
+  if (initDoc) {
+    payrollObject = initDoc.get('payrollObject') || {};
+  }
+
   const schedulesArray = addendumDoc.get('activityData.schedule');
 
   let displayText = '';
 
   if (addendumDoc.get('activityData.template') === 'leave') {
-    displayText = addendumDoc.get('activityData.attachment.Leave Type.value');
+    displayText
+      = addendumDoc
+        .get('activityData.attachment.Leave Type.value')
+      || 'LEAVE UNSPECIFIED';
   }
 
   if (addendumDoc.get('activityData.template') === 'tour plan') {
@@ -143,14 +156,42 @@ const getDatesObject = (addendumDoc) => {
    * outdated.
    */
   if (addendumDoc.get('activityData.status') === 'CANCELLED') {
-    displayText = deleteField();
+    displayText = '';
   }
+
+  const NUM_SECS_IN_DAY = 86400000;
+
+  if (!payrollObject[addendumDoc.get('user')]) {
+    payrollObject[addendumDoc.get('user')] = {};
+  }
+
+  if (addendumDoc.get('action') === 'update') {
+    const oldSchedulesArray = addendumDoc.get('updatedFields.activityBody.schedule');
+
+    oldSchedulesArray.forEach((schedule) => {
+      let startTime = schedule.startTime;
+      let endTime = schedule.endTime;
+
+      if (!startTime || !endTime) return;
+
+      startTime = startTime.toDate().getTime();
+      endTime = endTime.toDate().getTime();
+
+      while (startTime <= endTime) {
+        payrollObject[addendumDoc.get('user')][new Date(startTime).getDate()] = deleteField();
+
+        startTime += NUM_SECS_IN_DAY;
+      }
+    });
+  }
+
+  console.log('displayText', displayText);
 
   /** FIX: Addendum onCreate doesn't know the old state of the activity doc,
    * so, it can't delete the schedules from the old values in the object
    * when in an update.
    *
-   * TODO: If the endTime extends to the next month, multiple init docs should
+   * TODO: If the `endTime` extends to the next month, multiple init docs should
    * be created for this user.
    */
   schedulesArray.forEach((schedule) => {
@@ -161,18 +202,17 @@ const getDatesObject = (addendumDoc) => {
 
     startTime = startTime.toDate().getTime();
     endTime = endTime.toDate().getTime();
-    const NUM_SECS_IN_DAY = 86400000;
 
     while (startTime <= endTime) {
-      object[new Date(startTime).getDate()] = displayText;
+      payrollObject[addendumDoc.get('user')][new Date(startTime).getDate()] = displayText;
 
       startTime += NUM_SECS_IN_DAY;
     }
   });
 
-  console.log({ object, });
+  console.log('payrollObject', payrollObject);
 
-  return object;
+  return payrollObject;
 };
 
 
@@ -212,6 +252,7 @@ module.exports = (addendumDoc) => {
         .where('office', '==', addendumDoc.get('activityData.office'))
         .where('report', '==', 'payroll')
         .where('month', '==', locals.today.getMonth())
+        .where('year', '==', locals.today.getFullYear())
         .limit(1)
         .get(),
     ])
@@ -227,6 +268,8 @@ module.exports = (addendumDoc) => {
         'initDocsQuery',
         initDocsQuery.size
       );
+
+      locals.initDocsQuery = initDocsQuery;
 
       if (!initDocsQuery.empty) {
         locals.initDoc = initDocsQuery.docs[0].ref;
@@ -250,14 +293,6 @@ module.exports = (addendumDoc) => {
         locals.accumulatedDistance += locals.distanceFromPrevAddendum;
       }
 
-      if (locals.distanceFromPrevAddendum < 1) {
-        return Promise.resolve(null);
-      }
-
-      if (addendumDoc.get('activityData.template') !== 'check-in') {
-        return Promise.resolve();
-      }
-
       return googleMapsClient
         .reverseGeocode({
           latlng: getLatLngString(addendumDoc.get('location')),
@@ -265,49 +300,48 @@ module.exports = (addendumDoc) => {
         .asPromise();
     })
     .then((mapsApiResult) => {
-      if (!mapsApiResult) return Promise.resolve();
-
       const placeInformation = getPlaceInformation(mapsApiResult);
 
-      locals.batch.set(addendumDoc.ref, {
-        day: locals.today.getDay(),
-        month: locals.today.getMonth(),
-        year: locals.today.getFullYear(),
-        date: locals.today.toDateString(),
-        timeString: getLocalTime('+91'),
-        distanceFromPrevAddendum: locals.distanceFromPrevAddendum,
-        accumulatedDistance: locals.accumulatedDistance.toFixed(2),
-        url: placeInformation.url,
-        identifier: placeInformation.identifier,
-        distanceAccurate: isAccurate(addendumDoc),
-      }, {
+      if (addendumDoc.get('activityData.template') === 'check-in') {
+        // Data for check-in
+        const updatedData = {
+          day: locals.today.getDay(),
+          month: locals.today.getMonth(),
+          year: locals.today.getFullYear(),
+          date: locals.today.toDateString(),
+          timeString: getLocalTime('+91'),
+          distanceFromPrevAddendum: locals.distanceFromPrevAddendum,
+          accumulatedDistance: locals.accumulatedDistance.toFixed(2),
+          url: placeInformation.url,
+          identifier: placeInformation.identifier,
+          distanceAccurate: isAccurate(addendumDoc),
+        };
+
+        console.log({ updatedData, });
+
+        locals.batch.set(addendumDoc.ref, updatedData, {
           merge: true,
         });
-
-      return Promise.resolve();
-    })
-    .then(() => {
-      if (!new Set()
-        .add('leave')
-        .add('tour plan')
-        .has(addendumDoc.get('activityData.template'))) {
-        return Promise.resolve();
       }
 
-      locals.batch.set(locals.initDoc, {
-        day: locals.today.getDay(),
-        month: locals.today.getMonth(),
-        year: locals.today.getFullYear(),
-        date: locals.today.toDateString(),
-        report: 'payroll',
-        office: addendumDoc.get('activityData.office'),
-        officeId: addendumDoc.get('activityData.officeId'),
-        payrollObject: {
-          [addendumDoc.get('user')]: getDatesObject(addendumDoc),
-        },
-      }, {
-          merge: true,
-        });
+      if (new Set()
+        .add('leave')
+        .add('tour plan')
+        .add('check-in')
+        .has(addendumDoc.get('activityData.template'))) {
+        locals.batch.set(locals.initDoc, {
+          day: locals.today.getDay(),
+          month: locals.today.getMonth(),
+          year: locals.today.getFullYear(),
+          date: locals.today.toDateString(),
+          report: 'payroll',
+          office: addendumDoc.get('activityData.office'),
+          officeId: addendumDoc.get('activityData.officeId'),
+          payrollObject: getPayrollObject(addendumDoc, locals.initDocsQuery),
+        }, {
+            merge: true,
+          });
+      }
 
       return locals.batch.commit();
     })
