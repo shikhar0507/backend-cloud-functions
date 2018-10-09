@@ -408,8 +408,6 @@ const checkAuthorizationToken = (conn) => {
 };
 
 
-
-
 /**
  * Handles the routing for the request from the clients.
  *
