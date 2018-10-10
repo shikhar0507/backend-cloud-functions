@@ -245,40 +245,60 @@ const handleAssignees = (conn, locals) => {
 };
 
 
-const checkSubscription = (conn, locals) => {
-  if (conn.req.body.template !== 'subscription') {
+const verifyUniqueness = (conn, locals) => {
+  if (!new Set()
+    .add('subscription')
+    .add('admin')
+    .has(conn.req.body.template)) {
     handleAssignees(conn, locals);
 
     return;
   }
 
-  /**
-   * If the `Subscriber` mentioned in the `attachment` already has the
-   * subscription to the `template` for the `office`, there's no point in
-   * creating **yet** another activity.
-   */
-  rootCollections
-    .profiles
-    .doc(conn.req.body.attachment.Subscriber.value)
-    .collection('Subscriptions')
-    .where('template', '==', conn.req.body.attachment.Template.value)
-    .where('office', '==', conn.req.body.office)
+  let query;
+  let message;
+
+  if (conn.req.body.template === 'subscription') {
     /**
-     * Subscriptions are unique combinations of office + template names.
-     * More than one cannot exist for a single user.
-     */
-    .limit(1)
+    * If the `Subscriber` mentioned in the `attachment` already has the
+    * subscription to the `template` for the `office`, there's no point in
+    * creating **yet** another activity.
+    */
+    query = rootCollections
+      .profiles
+      .doc(conn.req.body.attachment.Subscriber.value)
+      .collection('Subscriptions')
+      .where('template', '==', conn.req.body.attachment.Template.value)
+      .where('office', '==', conn.req.body.office)
+      /**
+       * Subscriptions are unique combinations of office + template names.
+       * More than one cannot exist for a single user.
+       */
+      .limit(1);
+
+    message = `The user: '${conn.req.body.attachment.Subscriber.value}' already`
+      + ` has the subscription of`
+      + ` '${conn.req.body.attachment.Template.value}' for the office:`
+      + ` '${conn.req.body.office}'.`;
+  }
+
+  if (conn.req.body.template === 'admin') {
+    query = rootCollections
+      .offices
+      .doc(locals.static.officeId)
+      .collection('Activities')
+      .where('attachment.Admin.value', '==', conn.req.body.attachment.Admin.value)
+      .limit(1);
+
+    message = `The user: '${conn.req.body.attachment.Admin.value}' already`
+      + ` has is an 'Admin' of the office '${conn.req.body.office}'.`;
+  }
+
+  query
     .get()
     .then((snapShot) => {
       if (!snapShot.empty) {
-        sendResponse(
-          conn,
-          code.conflict,
-          `The user: '${conn.req.body.attachment.Subscriber.value}' already`
-          + ` has the subscription of`
-          + ` '${conn.req.body.attachment.Template.value}' for the office:`
-          + ` '${conn.req.body.office}'.`
-        );
+        sendResponse(conn, code.conflict, message);
 
         return;
       }
@@ -295,7 +315,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
   const promises = result.querySnapshotShouldNotExist;
 
   if (promises.length === 0) {
-    checkSubscription(conn, locals);
+    verifyUniqueness(conn, locals);
 
     return;
   }
@@ -324,7 +344,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
         return;
       }
 
-      checkSubscription(conn, locals);
+      verifyUniqueness(conn, locals);
 
       return;
     })
@@ -443,7 +463,7 @@ const handleAttachment = (conn, locals) => {
   if (result.querySnapshotShouldExist.length === 0
     && result.querySnapshotShouldNotExist.length === 0
     && result.profileDocShouldExist.length === 0) {
-    checkSubscription(conn, locals);
+    verifyUniqueness(conn, locals);
 
     return;
   }
