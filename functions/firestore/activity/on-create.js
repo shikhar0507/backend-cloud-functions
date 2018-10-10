@@ -290,8 +290,8 @@ const verifyUniqueness = (conn, locals) => {
       .where('attachment.Admin.value', '==', conn.req.body.attachment.Admin.value)
       .limit(1);
 
-    message = `The user: '${conn.req.body.attachment.Admin.value}' already`
-      + ` has is an 'Admin' of the office '${conn.req.body.office}'.`;
+    message = `The user: '${conn.req.body.attachment.Admin.value}' is already`
+      + ` an 'Admin' of the office '${conn.req.body.office}'.`;
   }
 
   query
