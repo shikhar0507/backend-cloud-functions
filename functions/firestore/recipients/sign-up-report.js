@@ -9,7 +9,7 @@ const {
 } = require('../../admin/constants');
 
 const {
-  getYesterDaysDateString,
+  getYesterdaysDateString,
 } = require('./report-utils');
 
 
@@ -32,7 +32,7 @@ module.exports = (locals) => {
     + `\n`;
   locals.templateId = sendGridTemplateIds.signUps;
 
-  const yesterdaysDateString = getYesterDaysDateString();
+  const yesterdaysDateString = getYesterdaysDateString();
 
   locals['dynamic_template_data'] = {
     office,

@@ -280,7 +280,7 @@ module.exports = (locals) => {
         }
       });
 
-      console.log(locals.payrollObject);
+      // console.log(locals.payrollObject);
 
       return locals
         .initDoc
