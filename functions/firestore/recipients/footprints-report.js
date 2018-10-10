@@ -82,7 +82,7 @@ module.exports = (locals) => {
         return Promise.resolve(false);
       }
 
-      const headers = [
+      [
         'Dated',
         'Department',
         'Base Location',
@@ -90,17 +90,13 @@ module.exports = (locals) => {
         'Time',
         'Distance Travelled',
         'Address',
-      ];
-
-      const rowChars = ['A', 'B', 'C', 'D', 'E', 'F, G',];
-
-      workbook.sheet('Sheet1').cell(`A1`).value('Dated');
-      workbook.sheet('Sheet1').cell('B1').value('Department');
-      workbook.sheet('Sheet1').cell('C1').value('Base Location');
-      workbook.sheet('Sheet1').cell('D1').value('Name');
-      workbook.sheet('Sheet1').cell('E1').value('Time');
-      workbook.sheet('Sheet1').cell('F1').value('Distance Travelled');
-      workbook.sheet('Sheet1').cell('G1').value('Address');
+      ].forEach((header, index) => {
+        const rowChars = ['A', 'B', 'C', 'D', 'E', 'F, G',];
+        workbook
+          .sheet('Sheet1')
+          .cell(`${rowChars[index]}1`)
+          .value(header);
+      });
 
       const employeesData = officeDoc.get('employeesData');
 

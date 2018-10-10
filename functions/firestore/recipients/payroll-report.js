@@ -14,9 +14,8 @@ const {
   getNumberOfDaysInMonth,
 } = require('./report-utils');
 
+
 const getHeader = () => {
-  const today = new Date();
-  const date = today.getDate();
   const monthNames = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec',
@@ -26,6 +25,8 @@ const getHeader = () => {
     + ` Department,`
     + ` Base Location,`
     + ` Live Since, `;
+
+  const today = new Date();
   const monthName = monthNames[today.getMonth()];
   const numberOfDays = getNumberOfDaysInMonth({
     month: today.getMonth(),
@@ -33,12 +34,8 @@ const getHeader = () => {
   });
 
   /** Human readable dates start with 1. */
-  for (let i = 0; i <= numberOfDays; i++) {
-    str += `${monthName}-${i + 1}`;
-
-    if (i !== date) {
-      str += `, `;
-    }
+  for (let dayNumber = 1; dayNumber < numberOfDays; dayNumber++) {
+    str += `${monthName}-${dayNumber}`;
   }
 
   str += `FULL DAY,`
@@ -47,7 +44,7 @@ const getHeader = () => {
     + ` HOLIDAY,`
     + ` BLANK,`
     + ` LATE,`
-    + ` ON-DUTY,`
+    + ` ON DUTY,`
     + ` WEEKLY OFF,`
     + ` TOTAL`;
 
@@ -146,9 +143,6 @@ module.exports = (locals) => {
         });
       });
 
-      // Temporary
-      branchesWithHoliday.add('ZINKID');
-
       const initDoc
         = initDocsQuery.docs[0];
       const employeesData
@@ -175,14 +169,25 @@ module.exports = (locals) => {
         const weeklyOff = employeeData['Weekly Off'];
         const baseLocation = employeeData['Base Location'];
 
+        Object
+          .keys(payrollObject[phoneNumber])
+          .forEach((date) => {
+            if (payrollObject[phoneNumber][date] !== 'ON DUTY') return;
+
+            countsObject[phoneNumber].onDuty
+              = countsObject[phoneNumber].onDuty + 1;
+          });
+
         if (weeklyOff === weekdayName) {
           payrollObject[phoneNumber][yesterday.getDate()] = 'WEEKLY OFF';
-          countsObject.weeklyOff = countsObject.weeklyOff + 1;
+          countsObject[phoneNumber].weeklyOff
+            = countsObject[phoneNumber].weeklyOff + 1;
         }
 
         if (branchesWithHoliday.has(baseLocation)) {
           payrollObject[phoneNumber][yesterday.getDate()] = 'HOLIDAY';
-          countsObject.holiday = countsObject.holiday + 1;
+          countsObject[phoneNumber].holiday
+            = countsObject[phoneNumber].holiday + 1;
         }
 
         employeesWithInit.add(phoneNumber);
@@ -210,11 +215,10 @@ module.exports = (locals) => {
           .collection('Addendum')
           .where('action', '==', 'create')
           .where('template', '==', 'check-in')
-          // .where('date', '==', yesterdaysDateString)
-          // .where('date', '==', new Date().toDateString())
+          .where('date', '==', yesterdaysDateString)
           .where('user', '==', phoneNumber)
-          // .where('distanceAccurate', '==', true)
-          // .orderBy('timestamp', 'asc')
+          .where('distanceAccurate', '==', true)
+          .orderBy('timestamp', 'asc')
           .get();
 
         promises.push(query);
@@ -258,6 +262,13 @@ module.exports = (locals) => {
             .toDate()
             .getTime();
 
+        if (firstCheckInTimestamp === lastCheckInTimestamp) {
+          locals.payrollObject[phoneNumber][yesterday.getDate()] = 'BLANK';
+          countsObject[phoneNumber].blank = countsObject[phoneNumber].blank + 1;
+
+          return;
+        }
+
         if (lastCheckInTimestamp - firstCheckInTimestamp >= eightHours) {
           if (firstCheckInTimestamp > employeeStartTime.getTime()) {
             locals.payrollObject[phoneNumber][yesterday.getDate()] = 'LATE';
@@ -267,6 +278,7 @@ module.exports = (locals) => {
           }
 
           locals.payrollObject[phoneNumber][yesterday.getDate()] = 'FULL DAY';
+
           countsObject[phoneNumber].fullDay
             = countsObject[phoneNumber].fullDay + 1;
         }
@@ -279,8 +291,6 @@ module.exports = (locals) => {
             = countsObject[phoneNumber].halfDay + 1;
         }
       });
-
-      // console.log(locals.payrollObject);
 
       return locals
         .initDoc
@@ -296,26 +306,22 @@ module.exports = (locals) => {
 
       const today = new Date();
 
-      const max = getNumberOfDaysInMonth({
+      const NUM_DAYS_IN_MONTH = getNumberOfDaysInMonth({
         year: today.getFullYear(),
         month: today.getMonth(),
       });
 
       locals.employeesPhoneNumberList.forEach((phoneNumber) => {
-        const employeeData = locals.employeesData[phoneNumber];
-        const name = employeeData.Name;
-        const department = employeeData.Department;
-        const baseLocation = employeeData['Base Location'];
         const liveSince = '';
 
         locals.csvString +=
-          `${name},`
+          `${locals.employeesData[phoneNumber].Name},`
           + ` ${phoneNumber},`
-          + ` ${department},`
-          + ` ${baseLocation},`
+          + ` ${locals.employeesData[phoneNumber].Department},`
+          + ` ${locals.employeesData[phoneNumber]['Base Location']},`
           + ` ${liveSince},`;
 
-        for (let i = 0; i < max; i++) {
+        for (let i = 0; i < NUM_DAYS_IN_MONTH; i++) {
           const status = locals.payrollObject[phoneNumber][i] || '';
 
           locals.csvString += `${status},`;

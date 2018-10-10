@@ -46,10 +46,7 @@ const haversineDistance = (geopointOne, geopointTwo) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = RADIUS_OF_EARTH * c;
 
-  console.log('distance without check:', distance);
-
-  /** We ignore the distance if the distance is less than 1 */
-  return distance > 0.5 ? distance : 0;
+  return distance;
 };
 
 
@@ -222,15 +219,14 @@ module.exports = (addendumDoc) => {
     distanceFromPrevAddendum: 0,
     accumulatedDistance: 0,
     today: new Date(),
-    initDoc: rootCollections.inits.doc(),
   };
 
   console.log(addendumDoc.ref.path);
 
   if (!new Set()
-    .add('create')
-    .add('change-status')
-    .add('update')
+    .add(httpsActions.create)
+    .add(httpsActions.changeStatus)
+    .add(httpsActions.update)
     .has(addendumDoc.get('action'))) {
     console.log('Only create and change-status are logged...');
 
@@ -273,6 +269,8 @@ module.exports = (addendumDoc) => {
 
       if (!initDocsQuery.empty) {
         locals.initDoc = initDocsQuery.docs[0].ref;
+      } else {
+        locals.initDoc = rootCollections.inits.doc();
       }
 
       console.log('locals.initDoc', locals.initDoc.ref);
@@ -288,8 +286,10 @@ module.exports = (addendumDoc) => {
         const geopointOne = previousAddendum.get('location');
         locals.accumulatedDistance =
           previousAddendum.get('accumulatedDistance') || 0;
+
         locals.distanceFromPrevAddendum =
           haversineDistance(geopointOne, addendumDoc.get('location'));
+
         locals.accumulatedDistance += locals.distanceFromPrevAddendum;
       }
 
@@ -311,7 +311,7 @@ module.exports = (addendumDoc) => {
           date: locals.today.toDateString(),
           timeString: getLocalTime('+91'),
           distanceFromPrevAddendum: locals.distanceFromPrevAddendum,
-          accumulatedDistance: locals.accumulatedDistance.toFixed(2),
+          accumulatedDistance: locals.accumulatedDistance,
           url: placeInformation.url,
           identifier: placeInformation.identifier,
           distanceAccurate: isAccurate(addendumDoc),

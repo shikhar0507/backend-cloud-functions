@@ -83,8 +83,6 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      let totalInstalls = 0;
-
       // Collecting the list of people who have multiple installs for yesterday.
       const yesterdaysStartTime = getYesterdaysStartTime();
 
@@ -104,8 +102,6 @@ module.exports = (locals) => {
           .forEach((timestampString) => header += `${timestampString}\n`);
 
         installs.forEach((timestampString) => {
-          totalInstalls++;
-
           const installTime =
             new Date(timestampString).getTime();
 
@@ -136,13 +132,6 @@ module.exports = (locals) => {
           + ` ${secondSupervisorPhoneNumber}`
           + `\n`;
       });
-
-      locals
-        .messageObject['dynamic_template_data']
-        .totalInstalls = totalInstalls;
-
-      locals.messageObject['dynamic_template_data']
-        .extraInstalls = totalInstalls - installDocs.size;
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),

@@ -16,7 +16,14 @@ module.exports = (change) => {
     report,
     include,
     cc,
+    status,
   } = change.after.data();
+
+  if (status === 'CANCELLED') {
+    console.log('Activity status is cancelled.');
+
+    return Promise.resolve();
+  }
 
   console.log({
     report,

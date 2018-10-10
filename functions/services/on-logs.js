@@ -57,16 +57,13 @@ module.exports = (conn) => {
     .get()
     .then((doc) => {
       const batch = db.batch();
-
+      const docRef = rootCollections.instant.doc();
       const body = conn.req.body;
       body.requester = conn.requester;
+      /** This field isn't required since it has lots of extra data. */
+      delete body.requester.employeeOf;
       body.url = conn.req.url;
       body.updatesDoc = doc.data();
-
-      const docRef = rootCollections.instant.doc();
-
-      console.log(docRef.path);
-
       batch.set(docRef, {
         messageBody: JSON.stringify(conn.req.body, ' ', 2),
         subject: 'A new error showed up in the Growthfile Frontend.',

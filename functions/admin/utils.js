@@ -364,27 +364,16 @@ const now = (conn) => {
     return;
   }
 
-  // if (!conn.req.query.hasOwnProperty('deviceId')) {
-  //   sendResponse(
-  //     conn,
-  //     code.forbidden,
-  //     `Missing the 'deviceId' in the query params.`
-  //   );
+  if (!conn.req.query.hasOwnProperty('deviceId')
+    || !isNonEmptyString(conn.req.query.deviceId)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `The request URL does not have a valid 'deviceId' param.`
+    );
 
-  //   return;
-  // }
-
-  // if (!isNonEmptyString(conn.req.query.deviceId)) {
-  //   sendResponse(
-  //     conn,
-  //     code.badRequest,
-  //     `The deviceId needs to be of type string.`
-  //   );
-
-  //   return;
-  // }
-
-  let revokeSession = false;
+    return;
+  }
 
   rootCollections
     .updates
@@ -392,34 +381,71 @@ const now = (conn) => {
     .get()
     .then((doc) => {
       const batch = db.batch();
+      const timestamp = serverTimestamp;
+      const revokeSession = false;
 
       batch.set(rootCollections
         .timers
         .doc(getISO8601Date()), {
-          timestamp: serverTimestamp,
+          timestamp,
           // Prevents multiple trigger events for reports.
           sent: false,
         }, {
           merge: true,
         });
 
-      // batch.set(doc.ref, {
-      //   deviceIdsObject,
-      //   latestDeviceId: conn.req.query.deviceId,
-      // }, {
-      //     merge: true,
-      //   });
+      const getDeviceIdsObject = () => {
+        const obj = doc.get('deviceIdsObject') || {};
 
-      return batch.commit();
+        /** Only adding when changed */
+        if (obj[conn.req.query.deviceId]
+          && doc.get('latestDeviceId') !== conn.req.query.deviceId) {
+          obj[conn.req.query.deviceId] = {
+            count: obj[conn.req.query.deviceId].count + 1,
+            timestamp: serverTimestamp,
+          };
+        } else {
+          obj[conn.req.query.deviceId] = {
+            count: 1,
+            timestamp: serverTimestamp,
+          };
+        }
+
+        return obj;
+      };
+
+      /** Only logging when changed. */
+      if (conn.req.query.deviceId !== doc.get('latestDeviceId')) {
+        batch.set(doc.ref, {
+          latestDeviceId: conn.req.query.deviceId,
+          deviceIdsObject: getDeviceIdsObject(),
+        }, {
+            merge: true,
+          });
+      }
+
+      return Promise
+        .all([
+          Promise
+            .resolve(revokeSession),
+          batch
+            .commit(),
+        ]);
     })
-    .then(() =>
+    .then((result) => {
+      const [
+        revokeSession,
+      ] = result;
+
       sendJSON(conn, {
         revokeSession,
         success: true,
         timestamp: Date.now(),
         code: code.ok,
-      })
-    )
+      });
+
+      return;
+    })
     .catch((error) => handleError(conn, error));
 };
 

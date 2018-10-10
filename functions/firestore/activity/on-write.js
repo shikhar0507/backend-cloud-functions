@@ -73,6 +73,10 @@ const revokeCanEdit = (options) => {
 
           batch.set(activityRef, {
             timestamp: serverTimestamp,
+            /** Setting this to null allows us to skip creating duplicate addendum
+             * for all the activity assignees.
+             */
+            addendumDocRef: null,
           }, {
               merge: true,
             });
@@ -174,58 +178,34 @@ const setAdminCustomClaims = (locals, batch) =>
             .commit(),
         ]);
     })
-    .then(() => rootCollections
-      .offices
-      .doc(locals.change.after.get('officeId'))
-      .collection('Activities')
-      .where('template', '==', 'admin')
-      .get()
-    )
-    .then((docs) => {
-      const adminsCanEdit = {};
-
-      const batch = db.batch();
-
-      docs.forEach((doc) =>
-        adminsCanEdit[doc.get('attachment.Admin.value')] = true);
-
-      batch.set(rootCollections
-        .offices
-        .doc(locals.change.after.get('officeId')), {
-          adminsCanEdit,
-        }, {
-          merge: true,
-        });
-
-      return batch.commit();
-    })
-    .then(() => {
-      const phoneNumber = locals.change.after.get('attachment.Admin.value');
-      const office = locals.change.after.get('office');
-      const status = locals.change.after.get('status');
-
-      return revokeCanEdit({
-        phoneNumber,
-        office,
-        status,
-      });
-    })
+    .then(() => revokeCanEdit({
+      phoneNumber: locals.change.after.get('attachment.Admin.value'),
+      office: locals.change.after.get('office'),
+      status: locals.change.after.get('status'),
+    }))
     .catch((error) => JSON.stringify(error));
 
 
 const handleReport = (locals, batch) => {
-  batch.set(rootCollections
-    .recipients
-    .doc(locals.change.after.id), {
-      cc: locals.change.after.get('attachment.cc.value'),
-      office: locals.change.after.get('office'),
-      include: locals.assigneePhoneNumbersArray,
-      report: locals.change.after.get('attachment.Name.value'),
-      officeId: locals.change.after.get('officeId'),
-    }, {
-      /** Required since anyone updating the this activity will cause the report data to be lost.  */
-      merge: true,
-    });
+  if (locals.addendumDoc
+    && locals.addendumDoc.get('action') !== httpsActions.comment) {
+    batch.set(rootCollections
+      .recipients
+      .doc(locals.change.after.id), {
+        cc: locals.change.after.get('attachment.cc.value'),
+        office: locals.change.after.get('office'),
+        include: locals.assigneePhoneNumbersArray,
+        report: locals.change.after.get('attachment.Name.value'),
+        officeId: locals.change.after.get('officeId'),
+        status: locals.change.after.get('status'),
+      }, {
+        /**
+         * Required since anyone updating the this activity will cause
+         * the report data to be lost.
+         */
+        merge: true,
+      });
+  }
 
   return batch
     .commit()
@@ -405,7 +385,7 @@ const getUpdatedFieldNames = (eventData) => {
 
 
 const getPronoun = (locals, recipient) => {
-  const addendumCreator = locals.addendum.get('user');
+  const addendumCreator = locals.addendumDoc.get('user');
   const assigneesMap = locals.assigneesMap;
   /**
    * People are denoted with their phone numbers unless
@@ -448,24 +428,24 @@ const getChangeStatusComment = (status, activityName, pronoun) => {
 
 
 const getCommentString = (locals, recipient) => {
-  const action = locals.addendum.get('action');
+  const action = locals.addendumDoc.get('action');
   const pronoun = getPronoun(locals, recipient);
 
   if (action === httpsActions.create) {
-    const template = locals.addendum.get('template');
+    const template = locals.addendumDoc.get('template');
 
     return getCreateActionComment(template, pronoun);
   }
 
   if (action === httpsActions.changeStatus) {
-    const activityName = locals.addendum.get('activityName');
-    const status = locals.addendum.get('status');
+    const activityName = locals.addendumDoc.get('activityName');
+    const status = locals.addendumDoc.get('status');
 
     return getChangeStatusComment(status, activityName, pronoun);
   }
 
   if (action === httpsActions.share) {
-    const share = locals.addendum.get('share');
+    const share = locals.addendumDoc.get('share');
     let str = `${pronoun} added`;
 
     if (share.length === 1) {
@@ -492,22 +472,22 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.update) {
-    const eventData = locals.addendum.get('updatedFields');
+    const eventData = locals.addendumDoc.get('updatedFields');
 
-    return `${pronoun} updated ${getUpdatedFieldNames(eventData)}.`;
+    return `${pronoun} updated ${getUpdatedFieldNames(eventData)}`;
   }
 
   if (action === httpsActions.updatePhoneNumber) {
-    let pronoun = `${locals.addendum.get('user')} changed their`;
+    let pronoun = `${locals.addendumDoc.get('user')} changed their`;
 
-    if (locals.addendum.get('user') === recipient) pronoun = 'You changed your';
+    if (locals.addendumDoc.get('user') === recipient) pronoun = 'You changed your';
 
-    return `${pronoun} phone number from ${locals.addendum.get('user')} to`
-      + ` ${locals.addendum.get('updatedPhoneNumber')}`;
+    return `${pronoun} phone number from ${locals.addendumDoc.get('user')} to`
+      + ` ${locals.addendumDoc.get('updatedPhoneNumber')}`;
   }
 
   /** Action is `comment` */
-  return locals.addendum.get('comment');
+  return locals.addendumDoc.get('comment');
 };
 
 
@@ -541,6 +521,7 @@ const unassignFromActivities = (options) => {
 
           batch.set(activityRef, {
             timestamp: serverTimestamp,
+            addendumDocRef: null,
           }, {
               merge: true,
             });
@@ -706,29 +687,43 @@ module.exports = (change, context) => {
     addendumCreatorInAssignees: false,
   };
 
-  console.log('Addendum Path:', change.after.get('addendumDocRef').path);
+  const promises = [rootCollections
+    .activities
+    .doc(activityId)
+    .collection('Assignees')
+    .get(),
+  rootCollections
+    .offices
+    .doc(change.after.get('officeId'))
+    .collection('Activities')
+    .where('template', '==', 'admin')
+    .get(),
+  ];
+
+  if (change.after.get('addendumDocRef')) {
+    promises.push(db
+      .doc(change.after.get('addendumDocRef').path)
+      .get());
+  }
 
   return Promise
-    .all([
-      db
-        .doc(change.after.get('addendumDocRef').path)
-        .get(),
-      rootCollections
-        .activities
-        .doc(activityId)
-        .collection('Assignees')
-        .get(),
-    ])
+    .all(promises)
     .then((result) => {
       const [
-        addendum,
         assigneesSnapShot,
+        adminsSnapShot,
+        addendumDoc,
       ] = result;
 
-      locals.addendum = addendum;
+      locals.adminsCanEdit = [];
+      const allAdminPhoneNumbersSet
+        = new Set(adminsSnapShot.docs.map((doc) => doc.get('attachment.Admin.value')));
+
+      if (addendumDoc) {
+        locals.addendumDoc = addendumDoc;
+      }
+
       const authFetch = [];
-      locals.addendumCreator.phoneNumber = locals.addendum.get('user');
-      // locals.adminQueries = [];
 
       assigneesSnapShot.forEach((doc) => {
         authFetch
@@ -741,19 +736,21 @@ module.exports = (change, context) => {
 
         locals.assigneePhoneNumbersArray.push(doc.id);
 
-        // locals.adminQueries.push(rootCollections
-        //   .office
-        //   .doc(addendum.get('activityData.officeId')))
-
-        if (doc.id === locals.addendumCreator.phoneNumber) {
+        if (addendumDoc
+          && doc.id === locals.addendumDoc.get('user')) {
           locals.addendumCreatorInAssignees = true;
+        }
+
+        if (allAdminPhoneNumbersSet.has(doc.id)) {
+          locals.adminsCanEdit.push(doc.id);
         }
       });
 
-      /** Need to fetch auth of the  */
-      if (!locals.addendumCreatorInAssignees) {
+
+      if (addendumDoc
+        && !locals.addendumCreatorInAssignees) {
         authFetch.push(
-          users.getUserByPhoneNumber(locals.addendumCreator.phoneNumber)
+          users.getUserByPhoneNumber(locals.addendumDoc.get('user'))
         );
       }
 
@@ -764,8 +761,9 @@ module.exports = (change, context) => {
         const phoneNumber = Object.keys(userRecord)[0];
         const record = userRecord[`${phoneNumber}`];
 
-        if (!locals.addendumCreatorInAssignees
-          && phoneNumber === locals.addendumCreator.phoneNumber) {
+        if (!locals.addendumDoc
+          && locals.addendumCreatorInAssignees
+          && phoneNumber === locals.addendumDoc.get('user')) {
           locals.addendumCreator.displayName = record.displayName;
 
           /**
@@ -788,12 +786,11 @@ module.exports = (change, context) => {
             });
         }
 
+        /** Document below the user profile. */
         const activityData = change.after.data();
         activityData.canEdit = locals.assigneesMap.get(phoneNumber).canEdit;
         activityData.assignees = locals.assigneePhoneNumbersArray;
         activityData.timestamp = serverTimestamp;
-
-        // locals.activityData = activityData;
 
         batch.set(rootCollections
           .profiles
@@ -810,9 +807,15 @@ module.exports = (change, context) => {
       /**
        * Skipping comment creation for the case when the activity
        * is not visible in the front-end.
+       *
+       * OR when the addendumDocRef field is set to `null`.
        */
       if (change.after.get('hidden') === 1) return batch;
-      if (!locals.addendum) return batch;
+      /**
+       * When activity is not updated via an https function, we update the
+       * set the `addendumDocRef` as `null`.
+       */
+      if (!locals.addendumDoc) return batch;
 
       /**
        * Checks if the action was a comment.
@@ -846,11 +849,11 @@ module.exports = (change, context) => {
             .doc(), {
               comment,
               activityId,
-              isComment: isComment(locals.addendum.get('action')),
+              isComment: isComment(locals.addendumDoc.get('action')),
               timestamp: serverTimestamp,
-              userDeviceTimestamp: locals.addendum.get('userDeviceTimestamp'),
-              location: locals.addendum.get('location'),
-              user: locals.addendum.get('user'),
+              userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+              location: locals.addendumDoc.get('location'),
+              user: locals.addendumDoc.get('user'),
             });
         });
 
@@ -863,8 +866,21 @@ module.exports = (change, context) => {
         activityId,
         template,
         locals,
-        action: locals.addendum.get('action'),
+        action: locals.addendumDoc ? locals.addendumDoc.get('action') : 'manual update',
       });
+
+      const activityData = change.after.data();
+      activityData.timestamp = serverTimestamp;
+      activityData.adminsCanEdit = locals.adminsCanEdit;
+
+      console.log('locals.adminsCanEdit', locals.adminsCanEdit);
+
+      /** Document below the Offices/(OfficeId)/Activities/ collection. */
+      batch.set(rootCollections
+        .offices
+        .doc(change.after.get('officeId'))
+        .collection('Activities')
+        .doc(activityId), activityData);
 
       if (template === 'office') {
         return addNewOffice(locals, batch);
@@ -893,15 +909,6 @@ module.exports = (change, context) => {
       if (template === 'supplier') {
         return addSupplierToOffice(locals, batch);
       }
-
-      const activityData = change.after.data();
-      activityData.timestamp = serverTimestamp;
-
-      batch.set(rootCollections
-        .offices
-        .doc(change.after.get('officeId'))
-        .collection('Activities')
-        .doc(activityId), activityData);
 
       return batch.commit();
     })
