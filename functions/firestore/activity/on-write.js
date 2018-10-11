@@ -42,6 +42,7 @@ const {
 const getValuesFromAttachment = (activity) => {
   const object = {
     activityId: activity.id,
+    createTime: activity.createTime,
   };
 
   const fields = Object.keys(activity.get('attachment'));

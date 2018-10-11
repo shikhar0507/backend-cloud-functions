@@ -334,7 +334,15 @@ module.exports = (locals) => {
       });
 
       locals.employeesPhoneNumberList.forEach((phoneNumber) => {
-        const liveSince = '';
+        /** TODO: Update the employee activities since the `createTime`
+         Is not available in the object right now. */
+        let liveSince = '';
+
+        if (locals.employeesData[phoneNumber].createTime) {
+          const timestamp = locals.employeesData[phoneNumber].createTime.toDate();
+
+          liveSince = `${timestamp.toDateString()} ${timestamp.toTimeString()}`.split(' GMT')[0];
+        }
 
         locals.csvString +=
           `${locals.employeesData[phoneNumber].Name},`
