@@ -230,6 +230,21 @@ const handleAssignees = (conn, locals) => {
   });
 
   if (new Set()
+    .add('department')
+    .add('branch')
+    .has(locals.static.template)
+    && conn.req.body.attachment.Name.value
+    !== locals.docs.activity.get('attachment').Name.value) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `The ${locals.static.template} name cannot be edited.`
+    );
+
+    return;
+  }
+
+  if (new Set()
     .add('subscription')
     .add('admin')
     .add('employee')
