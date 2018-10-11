@@ -181,8 +181,12 @@ module.exports = (conn) => {
       activities.forEach((doc) =>
         jsonObject.activities.push(getActivityObject(doc)));
 
-      subscriptions.forEach((doc) =>
-        jsonObject.templates.push(getSubscriptionObject(doc)));
+      subscriptions.forEach((doc) => {
+        /** Client side APIs don't allow admin templates. */
+        if (doc.get('canEditRule') === 'ADMIN') return;
+
+        jsonObject.templates.push(getSubscriptionObject(doc));
+      });
 
       const batch = db.batch();
 
