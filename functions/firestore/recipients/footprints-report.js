@@ -1,3 +1,27 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
+
 'use strict';
 
 
@@ -25,16 +49,6 @@ module.exports = (locals) => {
 
   locals.yesterdaysDate = getYesterdaysDateString();
   locals.messageObject.templateId = sendGridTemplateIds.footprints;
-  locals.csvString =
-    ` Dated,`
-    + ` Department,`
-    + ` Base Location,`
-    + ` Name,`
-    + ` Time,`
-    + ` Distance Travelled,`
-    + ` Address,`
-    + `\n`;
-
   locals.messageObject['dynamic_template_data'] = {
     office,
     subject: `${office} Footprints Report_${locals.yesterdaysDate}`,
@@ -82,21 +96,13 @@ module.exports = (locals) => {
         return Promise.resolve(false);
       }
 
-      [
-        'Dated',
-        'Department',
-        'Base Location',
-        'Name',
-        'Time',
-        'Distance Travelled',
-        'Address',
-      ].forEach((header, index) => {
-        const rowChars = ['A', 'B', 'C', 'D', 'E', 'F, G',];
-        workbook
-          .sheet('Sheet1')
-          .cell(`${rowChars[index]}1`)
-          .value(header);
-      });
+      workbook.sheet('Sheet1').cell(`A1`).value('Dated');
+      workbook.sheet('Sheet1').cell('B1').value('Employee Name');
+      workbook.sheet('Sheet1').cell('C1').value('Time');
+      workbook.sheet('Sheet1').cell('D1').value('Distance Travelled');
+      workbook.sheet('Sheet1').cell('E1').value('Address');
+      workbook.sheet('Sheet1').cell('F1').value('Department');
+      workbook.sheet('Sheet1').cell('G1').value('Base Location');
 
       const employeesData = officeDoc.get('employeesData');
 
@@ -121,29 +127,28 @@ module.exports = (locals) => {
         workbook
           .sheet('Sheet1')
           .cell(`B${index + 2}`)
-          .value(department);
-        workbook
-          .sheet('Sheet1')
-          .cell(`C${index + 2}`)
-          .value(baseLocation);
-        workbook
-          .sheet('Sheet1')
-          .cell(`D${index + 2}`)
           .value(name);
         workbook
           .sheet('Sheet1')
-          .cell(`E${index + 2}`)
+          .cell(`C${index + 2}`)
           .value(doc.get('timeString'));
         workbook
           .sheet('Sheet1')
-          .cell(`F${index + 2}`)
+          .cell(`D${index + 2}`)
           .value(accumulatedDistance);
-        // TODO: Set text styling for URLs underline + italic
+        workbook
+          .sheet('Sheet1')
+          .cell(`E${index + 2}`)
+          .value(identifier)
+          .hyperlink(url);
+        workbook
+          .sheet('Sheet1')
+          .cell(`F${index + 2}`)
+          .value(department);
         workbook
           .sheet('Sheet1')
           .cell(`G${index + 2}`)
-          .value(identifier)
-          .hyperlink(url);
+          .value(baseLocation);
       });
 
       return workbook.toFileAsync(locals.filePath);
@@ -166,5 +171,11 @@ module.exports = (locals) => {
 
       return locals.sgMail.sendMultiple(locals.messageObject);
     })
-    .catch(console.error);
+    .catch((error) => {
+      if (error.response) {
+        console.log(error.response.body.errors);
+      } else {
+        console.error(error);
+      }
+    });
 };

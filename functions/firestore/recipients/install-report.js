@@ -1,4 +1,29 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
+
 'use strict';
+
 
 const {
   sendGridTemplateIds,
@@ -40,16 +65,16 @@ module.exports = (locals) => {
 
   locals.messageObject.templateId = sendGridTemplateIds.installs;
   locals.csvString =
-    ` Employee Name,`
+    `Employee Name,`
     + ` Employee Contact,`
-    + ` Employee Code,`
-    + ` Department,`
     + ` Installed On,`
     + ` Number Of Installs,`
+    + ` Employee Code,`
+    + ` Department,`
     + ` First Supervisor's Name,`
     + ` Contact Number,`
     + ` Second Supervisor's Name,`
-    + ` Contact Number\n`;
+    + ` Contact Number,\n`;
 
   locals.messageObject['dynamic_template_data'] = {
     office,
@@ -79,6 +104,8 @@ module.exports = (locals) => {
       ] = result;
 
       if (installDocs.empty) {
+        console.log('Install docs empty');
+
         /** No report to be sent since no one installed yesterday. */
         return Promise.resolve();
       }
@@ -110,6 +137,9 @@ module.exports = (locals) => {
           locals.multipleInstallsMap.set(phoneNumber, header);
         });
 
+        /** Latest install timestamp */
+        const installedOn = installs[installs.length - 1];
+        const numberOfInstalls = installs.length;
         const firstSupervisorPhoneNumber =
           employeeData['First Supervisor'];
         const secondSupervisorPhoneNumber =
@@ -120,12 +150,12 @@ module.exports = (locals) => {
           getName(officeDoc.get('employeesData'), secondSupervisorPhoneNumber);
 
         locals.csvString +=
-          ` ${employeeData.Name},`
-          + ` ${phoneNumber},`
+          `${employeeData.Name},`
+          + `${phoneNumber},`
+          + `${installedOn},`
+          + `${numberOfInstalls},`
           + ` ${employeeData['Employee Code']},`
-          + ` ${employeeData.Department},`
-          + ` ${installs[installs.length - 1]},`
-          + ` ${installs.length},`
+          + `${employeeData.Department},`
           + ` ${firstSupervisorsName},`
           + ` ${firstSupervisorPhoneNumber},`
           + ` ${secondSupervisorsName},`
@@ -151,13 +181,17 @@ module.exports = (locals) => {
           });
         });
 
-      console.log({
-        locals,
-      });
+      console.log('locals:', locals);
 
       return locals
         .sgMail
         .sendMultiple(locals.messageObject);
     })
-    .catch(console.error);
+    .catch((error) => {
+      if (error.response) {
+        console.log(error.response.body.errors);
+      } else {
+        console.error(error);
+      }
+    });
 };
