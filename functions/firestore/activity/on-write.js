@@ -51,80 +51,6 @@ const getValuesFromAttachment = (activity) => {
   return object;
 };
 
-const revokeCanEdit = (options) => {
-  const {
-    phoneNumber,
-    office,
-    status,
-  } = options;
-
-  if (status === 'CONFIRMED') return Promise.resolve();
-
-  const runQuery = (query, resolve, reject) =>
-    query
-      .get()
-      .then((docs) => {
-        if (docs.empty) return 0;
-
-        const batch = db.batch();
-
-        docs.forEach((doc) => {
-          const activityRef = rootCollections.activities.doc(doc.id);
-
-          batch.set(activityRef, {
-            timestamp: serverTimestamp,
-            /** Setting this to null allows us to skip creating duplicate addendum
-             * for all the activity assignees.
-             */
-            addendumDocRef: null,
-          }, {
-              merge: true,
-            });
-
-          batch.set(activityRef
-            .collection('Assignees')
-            .doc(phoneNumber), {
-              canEdit: false,
-            }, {
-              merge: true,
-            });
-        });
-
-        /* eslint-disable */
-        return batch
-          .commit()
-          .then(() => docs.docs[docs.size - 1])
-        /* eslint-enable */
-      })
-      .then((lastDoc) => {
-        if (!lastDoc) return resolve();
-
-        const startAfter = lastDoc.get('timestamp');
-        const newQuery = query.startAfter(startAfter);
-
-        return process
-          .nextTick(() => runQuery(newQuery, resolve, reject));
-      })
-      .catch(reject);
-
-
-  const query = rootCollections
-    .profiles
-    .doc(phoneNumber)
-    .collection('Activities')
-    .where('office', '==', office)
-    .where('canEditRule', '==', 'ADMIN')
-    .where('canEdit', '==', true)
-    .orderBy('timestamp')
-    /** Updating two docs at once here, but batch only supports 500 at max. */
-    .limit(250);
-
-  return new Promise(
-    (resolve, reject) => runQuery(query, resolve, reject)
-  )
-    .catch(console.error);
-};
-
 
 const setAdminCustomClaims = (locals, batch) =>
   auth
@@ -178,11 +104,6 @@ const setAdminCustomClaims = (locals, batch) =>
             .commit(),
         ]);
     })
-    .then(() => revokeCanEdit({
-      phoneNumber: locals.change.after.get('attachment.Admin.value'),
-      office: locals.change.after.get('office'),
-      status: locals.change.after.get('status'),
-    }))
     .catch((error) => JSON.stringify(error));
 
 
@@ -211,6 +132,7 @@ const handleReport = (locals, batch) => {
     .commit()
     .catch(console.error);
 };
+
 
 const addSubscriptionToUserProfile = (locals, batch) =>
   rootCollections
@@ -491,69 +413,6 @@ const getCommentString = (locals, recipient) => {
 };
 
 
-const unassignFromActivities = (options) => {
-  const {
-    office,
-    phoneNumber,
-    status,
-  } = options;
-
-  if (status === 'CONFIRMED') return Promise.resolve();
-
-  const query = rootCollections
-    .profiles
-    .doc(phoneNumber)
-    .collection('Activities')
-    .where('office', '==', office)
-    .orderBy('timestamp')
-    .limit(250);
-
-  const runQuery = (query, resolve, reject) =>
-    query
-      .get()
-      .then((docs) => {
-        if (docs.empty) return Promise.resolve();
-
-        const batch = db.batch();
-
-        docs.forEach((doc) => {
-          const activityRef = rootCollections.activities.doc(doc.id);
-
-          batch.set(activityRef, {
-            timestamp: serverTimestamp,
-            addendumDocRef: null,
-          }, {
-              merge: true,
-            });
-
-          batch.delete(activityRef
-            .collection('Assignees')
-            .doc(phoneNumber));
-        });
-
-        /* eslint-disable */
-        return batch
-          .commit()
-          .then(() => docs[docs].size - 1);
-        /* eslint-enable */
-      })
-      .then((lastDoc) => {
-        if (!lastDoc) return Promise.resolve();
-
-        const startAfter = lastDoc.get('timestamp');
-        const newQuery = query.startAfter(startAfter);
-
-        return process
-          .nextTick(() => runQuery(newQuery, resolve, reject));
-      })
-      .catch(reject);
-
-  return new Promise(
-    (resolve, reject) => runQuery(query, resolve, reject))
-    .catch(console.error);
-};
-
-
 const addOfficeToProfile = (locals, batch) => {
   const activityDoc = locals.change.after.data();
   activityDoc.id = locals.change.after.id;
@@ -598,15 +457,6 @@ const addOfficeToProfile = (locals, batch) => {
 
   return batch
     .commit()
-    .then(() => {
-      const options = {
-        office,
-        phoneNumber: employeeContact,
-        status,
-      };
-
-      return unassignFromActivities(options);
-    })
     .catch(console.error);
 };
 
