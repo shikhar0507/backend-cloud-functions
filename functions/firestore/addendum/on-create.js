@@ -137,10 +137,12 @@ const getPayrollObject = (addendumDoc, initDocsQuery) => {
   let displayText = '';
 
   if (addendumDoc.get('activityData.template') === 'leave') {
-    displayText
-      = addendumDoc
-        .get('activityData.attachment.Leave Type.value')
-      || 'LEAVE UNSPECIFIED';
+    displayText = 'LEAVE UNSPECIFIED';
+
+    /** Value is not an empty string. */
+    if (addendumDoc.get('activityData.attachment.Leave Type.value')) {
+      displayText = `LEAVE-${addendumDoc.get('activityData.attachment.Leave Type.value')}`;
+    }
   }
 
   if (addendumDoc.get('activityData.template') === 'tour plan') {
