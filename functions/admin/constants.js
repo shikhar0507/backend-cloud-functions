@@ -150,6 +150,7 @@ const sendGridTemplateIds = {
   footprints: 'd-90095557c1c54de1a153626bb0fbe03d',
   templateUpdate: 'd-f106ad54b7c04a0dbf624d3117d75e3b',
   payroll: 'd-cf7785c6a4a04285b1b2cee7d0227052',
+  dsr: 'd-e7a922e42d67456dafcc2926731250a0',
 };
 
 

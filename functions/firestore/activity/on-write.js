@@ -257,13 +257,15 @@ const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
 
 const getUpdatedAttachmentFieldNames = (requestBody, oldAttachment) => {
   const updatedFields = [];
-  const newAttachment = requestBody.attachment;
 
   Object
-    .keys(newAttachment)
+    .keys(requestBody.attachment)
     .forEach((field) => {
+      /** Comparing the `base64` photo string is expensive. Not doing it. */
+      if (requestBody.attachment[field].type === 'photo') return;
+
       const oldFieldValue = oldAttachment[field].value;
-      const newFieldValue = newAttachment[field].value;
+      const newFieldValue = requestBody.attachment[field].value;
       const isUpdated = oldFieldValue !== newFieldValue;
 
       if (!isUpdated) return;
@@ -536,6 +538,7 @@ module.exports = (change, context) => {
     assigneePhoneNumbersArray: [],
     addendumCreator: {},
     addendumCreatorInAssignees: false,
+    adminsCanEdit: [],
   };
 
   const promises = [rootCollections
@@ -557,6 +560,8 @@ module.exports = (change, context) => {
       .get());
   }
 
+  console.log('locals', locals);
+
   return Promise
     .all(promises)
     .then((result) => {
@@ -566,7 +571,6 @@ module.exports = (change, context) => {
         addendumDoc,
       ] = result;
 
-      locals.adminsCanEdit = [];
       const allAdminPhoneNumbersSet
         = new Set(adminsSnapShot.docs.map((doc) => doc.get('attachment.Admin.value')));
 
@@ -577,16 +581,6 @@ module.exports = (change, context) => {
       const authFetch = [];
 
       assigneesSnapShot.forEach((doc) => {
-        authFetch
-          .push(users.getUserByPhoneNumber(doc.id));
-
-        locals.assigneesMap.set(doc.id, {
-          canEdit: doc.get('canEdit'),
-          addToInclude: doc.get('addToInclude'),
-        });
-
-        locals.assigneePhoneNumbersArray.push(doc.id);
-
         if (addendumDoc
           && doc.id === locals.addendumDoc.get('user')) {
           locals.addendumCreatorInAssignees = true;
@@ -595,25 +589,39 @@ module.exports = (change, context) => {
         if (allAdminPhoneNumbersSet.has(doc.id)) {
           locals.adminsCanEdit.push(doc.id);
         }
+
+        authFetch
+          .push(users.getUserByPhoneNumber(doc.id));
+
+        locals
+          .assigneesMap
+          .set(doc.id, {
+            canEdit: doc.get('canEdit'),
+            addToInclude: doc.get('addToInclude'),
+          });
+
+        locals
+          .assigneePhoneNumbersArray
+          .push(doc.id);
       });
 
-
-      if (addendumDoc
-        && !locals.addendumCreatorInAssignees) {
-        authFetch.push(
-          users.getUserByPhoneNumber(locals.addendumDoc.get('user'))
-        );
+      if (!locals.addendumCreatorInAssignees) {
+        authFetch
+          .push(
+            users.getUserByPhoneNumber(locals.addendumDoc.get('user'))
+          );
       }
 
-      return Promise.all(authFetch);
+      return Promise
+        .all(authFetch);
     })
     .then((userRecords) => {
       userRecords.forEach((userRecord) => {
         const phoneNumber = Object.keys(userRecord)[0];
         const record = userRecord[`${phoneNumber}`];
 
-        if (!locals.addendumDoc
-          && locals.addendumCreatorInAssignees
+        if (locals.addendumDoc
+          && !locals.addendumCreatorInAssignees
           && phoneNumber === locals.addendumDoc.get('user')) {
           locals.addendumCreator.displayName = record.displayName;
 
