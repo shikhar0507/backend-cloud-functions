@@ -101,7 +101,7 @@ const distanceAccurate = (addendumDoc) => {
   const geopointOne = addendumDoc.get('location');
   const geopointTwo
     = addendumDoc
-      .get('activityData.schedule')[0]
+      .get('activityData.venue')[0]
       .geopoint;
 
   return haversineDistance(geopointOne, geopointTwo) < 0.5;
