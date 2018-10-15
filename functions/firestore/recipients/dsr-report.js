@@ -35,23 +35,21 @@ const {
 } = require('../../admin/constants');
 
 const xlsxPopulate = require('xlsx-populate');
-const fs = require('fs');
-
 
 module.exports = (locals) => {
+  // TODO: REFACTOR THIS...
   const {
     office,
     officeId,
   } = locals.change.after.data();
-
-  const today = new Date();
-  const todaysDateString = today.toDateString();
+  const todaysDateString = new Date().toDateString();
   const yesterdaysDateString = getYesterdaysDateString();
-
+  const fileName = `${office} DSR Report_${yesterdaysDateString}.xlsx`;
+  const filePath = `/tmp/${fileName}`;
   locals.messageObject.templateId = sendGridTemplateIds.dsr;
   locals.messageObject['dynamic_template_data'] = {
     office,
-    date: new Date().toDateString(),
+    date: todaysDateString,
     subject: `DSR_Office_${todaysDateString}`,
   };
 
@@ -75,55 +73,85 @@ module.exports = (locals) => {
       const [
         officeDoc,
         initDocsQuery,
-        worksheet,
+        workbook,
       ] = result;
 
+      locals.sendMail = true;
       if (initDocsQuery.empty) {
         console.log('DSR Inits doc empty');
+
+        locals.sendMail = false;
 
         return Promise.resolve();
       }
 
-      const topRow = [
-        'Visit Date',
-        'Employee Name',
-        'Customer',
-        'First Contact',
-        'Second Contact',
-        'Time',
-        'Address',
-        'Product 1',
-        'Product 2',
-        'Product 3',
-        'Follow Up Date',
-        'Comment',
-        'Department',
-        'Base Location',
-        'First Supervisor',
-        'Second Supervisor',
-      ];
+      // SET Column width 
+      // https://github.com/dtjohnson/xlsx-populate#rows-and-columns
+      const sheet1 = workbook.addSheet('DSR Visits Report');
+      sheet1.row(1).style('bold', true);
+      const sheet2 = workbook.addSheet('DSR Follow-Up Report');
+      sheet2.row(1).style('bold', true);
+      const sheet3 = workbook.addSheet('DSR Closure Report');
+      sheet3.row(1).style('bold', true);
 
-      const letters = [
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-        'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-      ];
+      // TODO: PUT THIS IN A LOOP
+      sheet1.cell('A1').value('Visit Date');
+      sheet1.cell(`B1`).value('Employee Name');
+      sheet1.cell(`C1`).value('Customer');
+      sheet1.cell(`D1`).value('First Contact');
+      sheet1.cell(`E1`).value('Second Contact');
+      sheet1.cell(`F1`).value('Time');
+      sheet1.cell(`G1`).value('Address');
+      sheet1.cell(`H1`).value('Product 1');
+      sheet1.cell(`I1`).value('Product 2');
+      sheet1.cell(`J1`).value('Product 3');
+      sheet1.cell(`K1`).value('Follow Up Date');
+      sheet1.cell(`L1`).value('Comment');
+      sheet1.cell(`M1`).value('Department');
+      sheet1.cell(`N1`).value('Base Location');
+      sheet1.cell(`O1`).value('First Supervisor');
+      sheet1.cell(`P1`).value('Second Supervisor');
 
-      topRow.forEach((item, index) => {
-        const alphabet = letters[index];
+      sheet2.cell(`A1`).value('Follow Up Date');
+      sheet2.cell(`B1`).value('Employee Name');
+      sheet2.cell(`C1`).value('Customer');
+      sheet2.cell(`D1`).value('First Contact');
+      sheet2.cell(`E1`).value('Second Contact');
+      sheet2.cell(`F1`).value('Time');
+      sheet2.cell(`G1`).value('Address');
+      sheet2.cell(`H1`).value('Product 1');
+      sheet2.cell(`I1`).value('Product 2');
+      sheet2.cell(`J1`).value('Product 3');
+      sheet2.cell(`K1`).value('Visit Date');
+      sheet2.cell(`L1`).value('Comment');
+      sheet2.cell(`M1`).value('Department');
+      sheet2.cell(`N1`).value('Base Location');
+      sheet2.cell(`O1`).value('First Supervisor');
+      sheet2.cell(`P1`).value('Second Supervisor');
 
-        worksheet
-          .sheet('DSR Visit Report')
-          .cell(`${alphabet}${index + 1}`)
-          .value(item);
-      });
+      sheet3.cell(`A1`).value('Closure Date');
+      sheet3.cell(`B1`).value('Employee Name');
+      sheet3.cell(`C1`).value('Customer');
+      sheet3.cell(`D1`).value('First Contact');
+      sheet3.cell(`E1`).value('Second Contact');
+      sheet3.cell(`F1`).value('Time');
+      sheet3.cell(`G1`).value('Address');
+      sheet3.cell(`H1`).value('Product 1');
+      sheet3.cell(`I1`).value('Product 2');
+      sheet3.cell(`J1`).value('Product 3');
+      sheet3.cell(`K1`).value('Visit Date');
+      sheet3.cell(`L1`).value('Follow Up Date');
+      sheet3.cell(`M1`).value('Comment');
+      sheet3.cell(`N1`).value('Department');
+      sheet3.cell(`O1`).value('Base Location');
+      sheet3.cell(`P1`).value('First Supervisor');
+      sheet3.cell(`Q1`).value('Second Supervisor');
 
       const {
         visitsObject,
         followUpsObject,
         closureObject,
-      } = initDocsQuery
-        .docs[0]
-        .data();
+      } = initDocsQuery.docs[0].data();
 
       const {
         employeesData,
@@ -133,8 +161,7 @@ module.exports = (locals) => {
         = Object.keys(visitsObject);
 
       visitsPhoneNumbers.forEach((phoneNumber, index) => {
-        const columnIndex = index + 1;
-        const sheetName = 'DSR Visit Report';
+        const columnIndex = index + 2;
         const timeStringArray
           = Object.keys(visitsObject[phoneNumber]);
 
@@ -158,68 +185,52 @@ module.exports = (locals) => {
           const firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
           const secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
 
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`A${columnIndex}`)
             .value(visitDate);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`B${columnIndex}`)
             .value(employeeName);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`C${columnIndex}`)
             .value(customer);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`D${columnIndex}`)
             .value(firstContact);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`E${columnIndex}`)
             .value(secondContact);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`F${columnIndex}`)
             .value(timeString);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`G${columnIndex}`)
             .value(address);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`H${columnIndex}`)
             .value(productOne);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`I${columnIndex}`)
             .value(productTwo);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`J${columnIndex}`)
             .value(productThree);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`K${columnIndex}`)
             .value(followUpDate);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`L${columnIndex}`)
             .value(comment);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`M${columnIndex}`)
             .value(department);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`N${columnIndex}`)
             .value(baseLocation);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`O${columnIndex}`)
             .value(firstSupervisor);
-          worksheet
-            .sheet(sheetName)
+          sheet1
             .cell(`P${columnIndex}`)
             .value(secondSupervisor);
         });
@@ -228,8 +239,7 @@ module.exports = (locals) => {
       const followUpPhoneNumbers = Object.keys(followUpsObject);
 
       followUpPhoneNumbers.forEach((phoneNumber, index) => {
-        const columnIndex = index + 1;
-        const sheetName = 'DSR Follow-Up Report';
+        const columnIndex = index + 2;
         const timeStringArray = Object.keys(followUpsObject[phoneNumber]);
 
         timeStringArray.forEach((timeString) => {
@@ -252,72 +262,55 @@ module.exports = (locals) => {
           const firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
           const secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
 
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`A${columnIndex}`)
             .value(followUpDate);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`B${columnIndex}`)
             .value(employeeName);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`C${columnIndex}`)
             .value(customer);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`D${columnIndex}`)
             .value(firstContact);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`E${columnIndex}`)
             .value(secondContact);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`F${columnIndex}`)
             .value(timeString);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`G${columnIndex}`)
             .value(address);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`H${columnIndex}`)
             .value(productOne);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`I${columnIndex}`)
             .value(productTwo);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`J${columnIndex}`)
             .value(productThree);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`K${columnIndex}`)
             .value(visitDate);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`L${columnIndex}`)
             .value(closureDate);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`M${columnIndex}`)
             .value(comment);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`N${columnIndex}`)
             .value(department);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`O${columnIndex}`)
             .value(baseLocation);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`P${columnIndex}`)
             .value(firstSupervisor);
-          worksheet
-            .sheet(sheetName)
+          sheet2
             .cell(`Q${columnIndex}`)
             .value(secondSupervisor);
         });
@@ -326,8 +319,7 @@ module.exports = (locals) => {
       const closuresPhoneNumbersArray = Object.keys(closureObject);
 
       closuresPhoneNumbersArray.forEach((phoneNumber, index) => {
-        const columnIndex = index + 1;
-        const sheetName = 'DSR Closure Report';
+        const columnIndex = index + 2;
         const timeStringArray = Object.keys(closureObject[phoneNumber]);
 
         timeStringArray.forEach((timeString) => {
@@ -351,79 +343,78 @@ module.exports = (locals) => {
           const firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
           const secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
 
-
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`A${columnIndex}`)
             .value(closureDate);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`B${columnIndex}`)
             .value(employeeName);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`C${columnIndex}`)
             .value(customer);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`D${columnIndex}`)
             .value(firstContact);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`E${columnIndex}`)
             .value(secondContact);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`F${columnIndex}`)
             .value(timeString);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`G${columnIndex}`)
             .value(address);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`H${columnIndex}`)
             .value(productOne);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`I${columnIndex}`)
             .value(productTwo);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`J${columnIndex}`)
             .value(productThree);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`K${columnIndex}`)
             .value(visitDate);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`L${columnIndex}`)
             .value(followUpDate);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`M${columnIndex}`)
             .value(comment);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`N${columnIndex}`)
             .value(department);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`O${columnIndex}`)
             .value(baseLocation);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`P${columnIndex}`)
             .value(firstSupervisor);
-          worksheet
-            .sheet(sheetName)
+          sheet3
             .cell(`Q${columnIndex}`)
             .value(secondSupervisor);
         });
       });
 
-      return;
+      /** Delete the default worksheet. Its' empty */
+      workbook.deleteSheet('Sheet1');
+
+      return workbook.toFileAsync(filePath);
+    })
+    .then(() => {
+      if (!locals.sendMail) return Promise.resolve();
+
+      const fs = require('fs');
+
+      locals.messageObject.attachments.push({
+        fileName,
+        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
+        type: 'text/csv',
+        disposition: 'attachment',
+      });
+
+      return locals.sgMail.sendMultiple(locals.messageObject);
     })
     .catch(console.error);
 };
