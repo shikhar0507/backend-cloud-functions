@@ -66,6 +66,12 @@ const handleAdminUrl = (conn, urlParts) => {
     return;
   }
 
+  if (resource === 'now') {
+    require('../firestore/offices/now')(conn);
+
+    return;
+  }
+
   sendResponse(
     conn,
     code.badRequest,
