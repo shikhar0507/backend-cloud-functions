@@ -59,20 +59,12 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
  * @returns {void}
  */
 const sendResponse = (conn, statusCode, message = '') => {
-  const success = statusCode <= 226;
-
-  console.log({
-    body: JSON.stringify(conn.req.body),
-    statusCode,
-    message,
-  });
-
   conn.res.writeHead(statusCode, conn.headers);
 
   conn.res.end(JSON.stringify({
     message,
     /** 2xx codes denote success. */
-    success,
+    success: statusCode <= 226,
     code: statusCode,
   }));
 };
