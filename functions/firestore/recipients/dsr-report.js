@@ -85,7 +85,6 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      // SET Column width 
       // https://github.com/dtjohnson/xlsx-populate#rows-and-columns
       const sheet1 = workbook.addSheet('DSR Visits Report');
       sheet1.row(1).style('bold', true);

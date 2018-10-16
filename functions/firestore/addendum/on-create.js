@@ -158,7 +158,7 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
   }
 
   if (addendumDoc.get('action') === 'update') {
-    const oldSchedulesArray = addendumDoc.get('updatedFields.activityBody.schedule');
+    const oldSchedulesArray = addendumDoc.get('activityOld.schedule');
 
     oldSchedulesArray.forEach((schedule) => {
       let startTime = schedule.startTime;
@@ -199,10 +199,10 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
       .keys(payrollObject[phoneNumber])
       .filter((item) => item !== '');
 
-  /** 
+  /**
    * When the whole object contains empty string, the recipients onUpdate
    * should query the addendumDocs for this user's day activity. Leaving this field
-   * here even when it is filled with objects will make the Recipients onUpdate 
+   * here even when it is filled with objects will make the Recipients onUpdate
    * function to skip this user.
    */
   if (nonEmptyItemsArray.length === 0) {
@@ -310,6 +310,16 @@ const getFollowUpObject = (addendumDoc, dsrInitDocsQuery) => {
   }
 };
 
+const getClosuresObject = (addendumDoc, dsrInitDocsQuery) => {
+  const closuresObject = (() => {
+    if (dsrInitDocsQuery.empty) return {};
+
+    return dsrInitDocsQuery.docs[0].get('closuresObject');
+  })();
+
+  return closuresObject;
+};
+
 
 module.exports = (addendumDoc) => {
   const phoneNumber = addendumDoc.get('user');
@@ -317,6 +327,7 @@ module.exports = (addendumDoc) => {
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
   const timestamp = addendumDoc.get('timestamp').toDate();
+  const action = addendumDoc.get('action');
   const day = timestamp.getDate();
   const month = timestamp.getMonth();
   const year = timestamp.getFullYear();
@@ -381,6 +392,7 @@ module.exports = (addendumDoc) => {
         year,
         distanceTravelled: distance.accumulated,
         timeString: getTimeString('+91', timestamp),
+        dateString: new Date().toDateString(),
         url: placeInformation.url,
         identifier: placeInformation.identifier,
       };
@@ -397,6 +409,11 @@ module.exports = (addendumDoc) => {
         'leave', 'check-in', 'tour plan',
       ])
         .has(template)) return Promise.resolve();
+
+      if (action !== httpsActions.create
+        || action !== httpsActions.update) {
+        return Promise.resolve();
+      }
 
       return rootCollections
         .inits
@@ -436,7 +453,7 @@ module.exports = (addendumDoc) => {
 
       const visitsObject = getVisitsObject(addendumDoc, dsrInitDocsQuery);
       const followUpObject = getFollowUpObject(addendumDoc, dsrInitDocsQuery);
-      const closuresObject = {};
+      const closureObject = getClosuresObject(addendumDoc, dsrInitDocsQuery);
       const initDocRef = (() => {
         if (dsrInitDocsQuery.empty) {
           return rootCollections.inits.doc();
@@ -450,7 +467,7 @@ module.exports = (addendumDoc) => {
         officeId,
         visitsObject,
         followUpObject,
-        closuresObject,
+        closureObject,
         report: 'dsr',
         date: timestamp.toDateString(),
       }, {
