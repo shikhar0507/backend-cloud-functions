@@ -183,14 +183,14 @@ const addSubscriptionToUserProfile = (locals, batch) =>
     .catch(console.error);
 
 
-const getUpdatedScheduleNames = (requestBody, oldSchedule) => {
+const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
   const updatedFields = [];
 
   oldSchedule.forEach((item, index) => {
     const name = item.name;
     /** Request body ===> Update API request body. */
-    let newStartTime = requestBody.schedule[index].startTime;
-    let newEndTime = requestBody.schedule[index].endTime;
+    let newStartTime = newSchedule[index].startTime;
+    let newEndTime = newSchedule[index].endTime;
     let oldStartTime = item.startTime;
     let oldEndTime = item.endTime;
 
@@ -227,7 +227,7 @@ const getUpdatedScheduleNames = (requestBody, oldSchedule) => {
 };
 
 
-const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
+const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   const updatedFields = [];
 
   oldVenue.forEach((venue, index) => {
@@ -237,9 +237,9 @@ const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
     const oldGeopoint = venue.geopoint;
     const oldLongitude = oldGeopoint._longitude;
     const oldLatitude = oldGeopoint._latitude;
-    const newLocation = requestBody.venue[index].location;
-    const newAddress = requestBody.venue[index].address;
-    const newGeopoint = requestBody.venue[index].geopoint;
+    const newLocation = newVenue[index].location;
+    const newAddress = newVenue[index].address;
+    const newGeopoint = newVenue[index].geopoint;
     const newLatitude = newGeopoint.latitude;
     const newLongitude = newGeopoint.longitude;
 
@@ -255,17 +255,17 @@ const getUpdatedVenueDescriptors = (requestBody, oldVenue) => {
 };
 
 
-const getUpdatedAttachmentFieldNames = (requestBody, oldAttachment) => {
+const getUpdatedAttachmentFieldNames = (newAttachment, oldAttachment) => {
   const updatedFields = [];
 
   Object
-    .keys(requestBody.attachment)
+    .keys(newAttachment)
     .forEach((field) => {
       /** Comparing the `base64` photo string is expensive. Not doing it. */
-      if (requestBody.attachment[field].type === 'photo') return;
+      if (newAttachment[field].type === 'photo') return;
 
       const oldFieldValue = oldAttachment[field].value;
-      const newFieldValue = requestBody.attachment[field].value;
+      const newFieldValue = newAttachment[field].value;
       const isUpdated = oldFieldValue !== newFieldValue;
 
       if (!isUpdated) return;
@@ -277,17 +277,23 @@ const getUpdatedAttachmentFieldNames = (requestBody, oldAttachment) => {
 };
 
 
-const getUpdatedFieldNames = (eventData) => {
-  const { requestBody, activityBody, } = eventData;
 
-  const oldSchedule = activityBody.schedule;
-  const oldVenue = activityBody.venue;
-  const oldAttachment = activityBody.attachment;
+const getUpdatedFieldNames = (options) => {
+  const {
+    before,
+    after,
+  } = options;
+  const oldSchedule = before.get('schedule');
+  const oldVenue = before.get('venue');
+  const oldAttachment = before.get('attachment');
+  const newSchedule = after.get('schedule');
+  const newVenue = after.get('venue');
+  const newAttachment = after.get('attachment');
 
   const allFields = [
-    ...getUpdatedScheduleNames(requestBody, oldSchedule),
-    ...getUpdatedVenueDescriptors(requestBody, oldVenue),
-    ...getUpdatedAttachmentFieldNames(requestBody, oldAttachment),
+    ...getUpdatedScheduleNames(newSchedule, oldSchedule),
+    ...getUpdatedVenueDescriptors(newVenue, oldVenue),
+    ...getUpdatedAttachmentFieldNames(newAttachment, oldAttachment),
   ];
 
   let commentString = '';
@@ -397,9 +403,11 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.update) {
-    const eventData = locals.addendumDoc.get('updatedFields');
+    const before = locals.change.before;
+    const after = locals.change.after;
+    const options = { before, after, };
 
-    return `${pronoun} updated ${getUpdatedFieldNames(eventData)}`;
+    return `${pronoun} updated ${getUpdatedFieldNames(options)}`;
   }
 
   if (action === httpsActions.updatePhoneNumber) {
@@ -434,10 +442,9 @@ const addOfficeToProfile = (locals, batch) => {
   }
 
   /**
-   * TODO: Remove this and update Profile onWrite function to not rely on
-   * data from this object.
-   * This data is redundant since we can access all employee data that is
-   * relevant for the report by reading the Office doc.
+   * TODO: Remove this and update Profile `onWrite` function to not rely on
+   * data from this object. This data is redundant since we can access
+   * all employee data that is relevant for the report by reading the Office doc.
    */
   batch.set(rootCollections
     .profiles

@@ -51,17 +51,43 @@ const updateDocsWithBatch = (conn, locals) => {
   const activityRef = rootCollections
     .activities
     .doc(conn.req.body.activityId);
-
-  locals.objects.updatedFields.attachment = conn.req.body.attachment;
-  locals.objects.updatedFields.addendumDocRef = rootCollections
+  const addendumDocRef = rootCollections
     .offices
     .doc(locals.docs.activity.get('officeId'))
     .collection('Addendum')
     .doc();
 
-  locals.batch.set(activityRef,
-    locals.objects.updatedFields, {
+  const activityUpdateObject = {
+    addendumDocRef,
+    schedule: locals.objects.updatedFields.schedule,
+    venue: locals.objects.updatedFields.venue,
+    timestamp: serverTimestamp,
+    attachment: conn.req.body.attachment,
+  };
+
+  locals
+    .batch
+    .set(activityRef, activityUpdateObject, {
       merge: true,
+    });
+
+  locals
+    .batch
+    .set(addendumDocRef, {
+      /**
+       * Sequence matters here. The `activityUpdateObject` object contains updated values.
+       * Priority is of the `activityUpdateObject`.
+       */
+      activityData: Object
+        .assign({}, locals.docs.activity.data(), activityUpdateObject),
+      user: conn.requester.phoneNumber,
+      action: httpsActions.update,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      activityId: conn.req.body.activityId,
+      activityOld: locals.docs.activity.data(),
+      isSupportRequest: conn.requester.isSupportRequest,
     });
 
   Object
@@ -85,24 +111,6 @@ const updateDocsWithBatch = (conn, locals) => {
            */
           addToInclude,
         });
-    });
-
-  locals.batch.set(locals
-    .objects
-    .updatedFields
-    .addendumDocRef, {
-      activityData: locals.docs.activity.data(),
-      user: conn.requester.phoneNumber,
-      action: httpsActions.update,
-      location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      activityId: conn.req.body.activityId,
-      updatedFields: {
-        requestBody: conn.req.body,
-        activityBody: locals.docs.activity.data(),
-      },
-      isSupportRequest: conn.requester.isSupportRequest,
     });
 
   /** Ends the response. */
@@ -171,7 +179,10 @@ const handleAssignees = (conn, locals) => {
 
     phoneNumbersChanged = true;
 
-    /**  */
+    /**
+     * Number was removed so the person needs to be unassigned from
+     * the activity.
+     */
     if (oldPhoneNumber !== '' && newPhoneNumber === '') {
       locals.batch.delete(rootCollections
         .activities
@@ -187,6 +198,10 @@ const handleAssignees = (conn, locals) => {
       return;
     }
 
+    /**
+     * The `newPhoneNumber` is not an empty `string`; it will be a valid
+     * phone number since the attachment validation function checks that out.
+     */
     if (oldPhoneNumber !== '' && newPhoneNumber !== '') {
       locals.batch.delete(rootCollections
         .activities
@@ -244,6 +259,9 @@ const handleAssignees = (conn, locals) => {
     return;
   }
 
+  /** These templates aren't allowed to be updated from the client-side app.
+   * Updating these phone numbers is done via the admin panel.
+   */
   if (new Set()
     .add('subscription')
     .add('admin')
@@ -307,17 +325,14 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
     return;
   }
 
-  const attachmentFromActivity = locals.docs.activity.get('attachment');
-  const attachmentFromBody = conn.req.body.attachment;
-
   /**
    * No need to query for the `Name` to be unique since that check
    * has already been performed while creating an activity. Of course,
    * only when the Name.value hasn't changed.
    */
-  if (attachmentFromActivity.hasOwnProperty('Name')
-    && attachmentFromActivity.Name.value
-    === attachmentFromBody.Name.value) {
+  if (locals.docs.activity.get('attachment').hasOwnProperty('Name')
+    && locals.docs.activity.get('attachment').Name.value
+    === conn.req.body.attachment.Name.value) {
     handleAssignees(conn, locals);
 
     return;
@@ -508,7 +523,9 @@ const handleResult = (conn, docs) => {
     return;
   }
 
-  const [activity,] = docs;
+  const [
+    activity,
+  ] = docs;
 
   const locals = {
     batch: db.batch(),
