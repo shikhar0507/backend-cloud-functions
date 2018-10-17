@@ -53,17 +53,24 @@ const getValuesFromAttachment = (activity) => {
 };
 
 
-const setAdminCustomClaims = (locals, batch) =>
-  auth
-    .getUserByPhoneNumber(locals.change.after.get('attachment.Admin.value'))
+const setAdminCustomClaims = (locals, batch) => {
+  const phoneNumber = locals.change.after.get('attachment.Admin.value');
+  const status = locals.change.after.get('status');
+  const office = locals.change.after.get('office');
+
+  return auth
+    .getUserByPhoneNumber(phoneNumber)
     .then((userRecord) => {
-      const customClaims = userRecord.customClaims;
-      const office = locals.change.after.get('office');
-      let newClaims = {
-        admin: [
+      console.log('before customClaims:', userRecord.customClaims);
+
+      if (userRecord.customClaims.hasOwnProperty('admin')
+        && !userRecord.customClaims.admin.contains(office)) {
+        userRecord.customClaims.admin.push(office);
+      } else {
+        userRecord.customClaims.admin = [
           office,
-        ],
-      };
+        ];
+      }
 
       /**
        * The `statusOnCreate` for `admin` template is `CONFIRMED`.
@@ -76,15 +83,9 @@ const setAdminCustomClaims = (locals, batch) =>
        * the `admin` array is removed from the `customClaims.admin`
        * of the admin user.
        */
-      const index = customClaims.admin.indexOf(office);
+      if (status === 'CANCELLED') {
+        const index = userRecord.customClaims.admin.indexOf(office);
 
-      if (locals.change.after.get('status') === 'CANCELLED'
-        && index > -1) {
-        customClaims.admin.splice(index, 1);
-        newClaims = customClaims;
-      } else if (customClaims
-        && customClaims.admin
-        && index === -1) {
         /**
          * The user already is `admin` of another office.
          * Preserving their older permission for that case..
@@ -93,19 +94,26 @@ const setAdminCustomClaims = (locals, batch) =>
          * This fixes the case of duplication in the `offices` array in the
          * custom claims.
          */
-        customClaims.admin.push(office);
-        newClaims = customClaims;
+        if (index > -1) {
+          userRecord.customClaims.admin.splice(index, 1);
+        }
       }
+
+      console.log('after customClaims:', userRecord.customClaims);
 
       return Promise
         .all([
           auth
-            .setCustomUserClaims(userRecord.uid, newClaims),
+            .setCustomUserClaims(
+              userRecord.uid,
+              userRecord.customClaims
+            ),
           batch
             .commit(),
         ]);
     })
-    .catch((error) => JSON.stringify(error));
+    .catch(console.error);
+};
 
 
 const handleReport = (locals, batch) => {
@@ -198,7 +206,7 @@ const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
      * Values not equal to an empty string are `Date` objects.
      * Firestore stores the `Date` as a custom object with two properties
      * `seconds` and `nanoseconds`.
-     * To get an actual JS `Date` object, we use the `toDate()` method
+     * To get an actual `Date` object, we use the `toDate()` method
      * on Firestore custom object.
      */
     if (newEndTime !== '') {
@@ -424,6 +432,91 @@ const getCommentString = (locals, recipient) => {
 };
 
 
+const removeFromOffice = (activityDoc) => {
+  const {
+    status,
+    office,
+  } = activityDoc.data();
+
+  if (status !== 'CANCELLED') return Promise.resolve();
+
+  const phoneNumber
+    = activityDoc.get('attachment.Employee Contact.value');
+
+  const runQuery = (query, resolve, reject) => {
+    query
+      .get()
+      .then((activityDocs) => {
+        if (activityDocs.empty) return 0;
+
+        const batch = db.batch();
+
+        activityDocs.forEach((doc) => {
+          const template = doc.get('template');
+
+          /**
+           * The activity with the template employee is cancelled, and that
+           * triggered this function. Not returning in the case of employee
+           * will send this function into an infinite loop.
+           */
+          if (template === 'employee') return;
+
+          if (new Set()
+            .add('admin')
+            .add('subscription')
+            .has(template)) {
+            batch.set(doc.ref, {
+              timestamp: serverTimestamp,
+              status: 'CANCELLED',
+              /** Avoids duplicate addendum creation for the activity. */
+              addendumDocRef: null,
+            }, {
+                merge: true,
+              });
+
+            return;
+          }
+
+          batch.delete(doc
+            .ref
+            .collection('Assignees')
+            .doc(phoneNumber)
+          );
+        });
+
+        /* eslint-disable */
+        return batch
+          .commit()
+          .then((activityDocs.docs[activityDocs.size - 1]));
+        /* eslint-enable */
+      })
+      .then((lastDoc) => {
+        if (!lastDoc) return resolve();
+
+        return process
+          .nextTick(() => {
+            const startAfter = lastDoc.get('timestamp');
+            const newQuery = query.startAfter(startAfter);
+
+            return runQuery(newQuery, resolve, reject);
+          });
+      })
+      .catch(reject);
+  };
+
+  const query = rootCollections
+    .profiles
+    .doc(phoneNumber)
+    .collection('Activities')
+    .where('office', '==', office)
+    .orderBy('timestamp')
+    .limit(250);
+
+  return new Promise((resolve, reject) => runQuery(query, resolve, reject))
+    .catch(console.error);
+};
+
+
 const addOfficeToProfile = (locals, batch) => {
   const activityDoc = locals.change.after.data();
   activityDoc.id = locals.change.after.id;
@@ -467,8 +560,10 @@ const addOfficeToProfile = (locals, batch) => {
 
   return batch
     .commit()
+    .then(() => removeFromOffice(locals.change.after))
     .catch(console.error);
 };
+
 
 const addSupplierToOffice = (locals, batch) => {
   const attachment = locals.change.after.get('attachment');

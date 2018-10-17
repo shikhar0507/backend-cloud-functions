@@ -72,6 +72,12 @@ const handleAdminUrl = (conn, urlParts) => {
     return;
   }
 
+  if (resource === 'search') {
+    require('../firestore/offices/search')(conn);
+
+    return;
+  }
+
   sendResponse(
     conn,
     code.badRequest,

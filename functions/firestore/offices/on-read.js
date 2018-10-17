@@ -26,7 +26,7 @@ const getTemplates = (conn, locals) =>
   rootCollections
     .activityTemplates
     .where('timestamp', '>', locals.jsonObject.from)
-    .where('timestamp', '<=', locals.jsonObject.upto)
+    .where('canEditRule', '==', 'ADMIN')
     .get()
     .then((docs) => {
       docs.forEach((doc) => {
@@ -151,6 +151,7 @@ module.exports = (conn) => {
     (name) => promises.push(rootCollections
       .offices
       .where('attachment.Name.value', '==', name)
+      .limit(1)
       .get()
     )
   );
@@ -188,6 +189,7 @@ module.exports = (conn) => {
             .doc(officeId)
             .collection('Activities')
             .where('timestamp', '>', from)
+            .where('canEditRule', '==', 'ADMIN')
             .orderBy('timestamp', 'asc')
             .get()
           );

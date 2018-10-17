@@ -33,6 +33,7 @@ const {
 } = require('../../admin/constants');
 
 const {
+  monthsArray,
   getYesterdaysDateString,
   getPreviousDayMonth,
   getNumberOfDaysInMonth,
@@ -334,14 +335,24 @@ module.exports = (locals) => {
       });
 
       locals.employeesPhoneNumberList.forEach((phoneNumber) => {
-        /** TODO: Update the employee activities since the `createTime`
-         Is not available in the object right now. */
+        /**
+         * Activity `createTime` is the time at which the user has been
+         * on the platform.
+         */
         let liveSince = '';
 
+        /**
+         * TODO: Remove this if condition.
+         *  Once all the currently created employee activities are updated.
+         */
         if (locals.employeesData[phoneNumber].createTime) {
-          const timestamp = locals.employeesData[phoneNumber].createTime.toDate();
+          const timestamp
+            = locals.employeesData[phoneNumber].createTime.toDate();
+          const date = timestamp.getDate();
+          const year = timestamp.getFullYear();
+          const month = monthsArray[timestamp.getMonth()];
 
-          liveSince = `${timestamp.toDateString()} ${timestamp.toTimeString()}`.split(' GMT')[0];
+          liveSince = `${date} ${month} ${year}`;
         }
 
         locals.csvString +=

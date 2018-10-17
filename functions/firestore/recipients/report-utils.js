@@ -52,7 +52,23 @@ const getNumberOfDaysInMonth = (options) => {
 };
 
 
+const monthsArray = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sept',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
 module.exports = {
+  monthsArray,
   getPreviousDayMonth,
   getNumberOfDaysInMonth,
   getYesterdaysDateString,

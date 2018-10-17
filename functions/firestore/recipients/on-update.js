@@ -32,8 +32,6 @@ const {
 const {
   users,
 } = require('../../admin/admin');
-
-
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(sgMailApiKey);
 
@@ -99,6 +97,7 @@ module.exports = (change) => {
       if (report === 'footprints') return require('./footprints-report')(locals);
       if (report === 'payroll') return require('./payroll-report')(locals);
       if (report === 'dsr') return require('./dsr-report')(locals);
+      if (report === 'duty roster') return require('./duty-roster-report')(locals);
 
       return Promise.resolve();
     })
