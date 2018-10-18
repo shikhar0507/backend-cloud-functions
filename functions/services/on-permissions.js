@@ -25,10 +25,10 @@
 'use strict';
 
 
-const { users, auth, } = require('../admin/admin');
-const { code, } = require('../admin/responses');
-const { rootCollections, } = require('../admin/admin');
-const { reportingActions, } = require('../admin/constants');
+const { users, auth } = require('../admin/admin');
+const { code } = require('../admin/responses');
+const { rootCollections } = require('../admin/admin');
+const { reportingActions } = require('../admin/constants');
 const {
   handleError,
   sendResponse,
@@ -86,7 +86,7 @@ ${JSON.stringify(conn.req.body, ' ', 2)}
     </pre>
   `;
 
-  return { subject, messageBody, action, };
+  return { subject, messageBody, action };
 };
 
 const logFailedRequest = (conn, responseCode, message, action) => {
@@ -125,7 +125,7 @@ const setClaims = (conn, uid) => {
     .all([
       rootCollections
         .instant
-        .doc().set({ action, messageBody, subject, }),
+        .doc().set({ action, messageBody, subject }),
       auth
         .setCustomUserClaims(uid, claims),
     ])

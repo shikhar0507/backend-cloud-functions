@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { getGeopointObject, } = require('./../../admin/admin');
+const { getGeopointObject } = require('./../../admin/admin');
 const {
   isValidDate,
   isValidGeopoint,
@@ -621,7 +621,7 @@ const filterAttachment = (body, locals) => {
   }
 
   /** Set to array. */
-  messageObject.phoneNumbers = [...messageObject.phoneNumbers,];
+  messageObject.phoneNumbers = [...messageObject.phoneNumbers];
 
   return messageObject;
 };
@@ -784,7 +784,7 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
     return {
       message: `'${body.status}' is not a valid activity status.`
         + ` Please use one of the following`
-        + ` values: ${[...activityStatuses.keys(),]}.`,
+        + ` values: ${[...activityStatuses.keys()]}.`,
       isValid: false,
     };
   }
@@ -1015,7 +1015,7 @@ const getPhoneNumbersFromAttachment = (attachment) => {
 
 
 const checkActivityAndAssignee = (docs, isSupportRequest) => {
-  const [activity, requester,] = docs;
+  const [activity, requester] = docs;
 
   if (!activity.exists) {
     return {
@@ -1042,7 +1042,7 @@ const checkActivityAndAssignee = (docs, isSupportRequest) => {
     }
   }
 
-  return { isValid: true, message: null, };
+  return { isValid: true, message: null };
 };
 
 

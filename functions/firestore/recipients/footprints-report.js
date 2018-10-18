@@ -63,7 +63,7 @@ module.exports = (locals) => {
     .offices
     .doc(officeId);
 
-  console.log({ officeDocRef: officeDocRef.path, });
+  console.log({ officeDocRef: officeDocRef.path });
 
   return Promise
     .all([

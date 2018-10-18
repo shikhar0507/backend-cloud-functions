@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { code, } = require('../../admin/responses');
+const { code } = require('../../admin/responses');
 const {
   db,
   users,

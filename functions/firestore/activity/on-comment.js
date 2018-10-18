@@ -25,9 +25,9 @@
 'use strict';
 
 
-const { isValidRequestBody, } = require('./helper');
-const { code, } = require('../../admin/responses');
-const { httpsActions, } = require('../../admin/constants');
+const { isValidRequestBody } = require('./helper');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
 const {
   db,
   rootCollections,

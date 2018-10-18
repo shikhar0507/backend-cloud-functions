@@ -25,9 +25,9 @@
 'use strict';
 
 
-const { isValidRequestBody, checkActivityAndAssignee, } = require('./helper');
-const { code, } = require('../../admin/responses');
-const { httpsActions, } = require('../../admin/constants');
+const { isValidRequestBody, checkActivityAndAssignee } = require('./helper');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
 const {
   db,
   rootCollections,
@@ -90,7 +90,7 @@ const handleResult = (conn, docs) => {
     return;
   }
 
-  const [activity,] = docs;
+  const [activity] = docs;
 
   if (activity.get('status') === conn.req.body.status) {
     sendResponse(

@@ -25,8 +25,8 @@
 'use strict';
 
 
-const { code, } = require('../../admin/responses');
-const { httpsActions, } = require('../../admin/constants');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
 const {
   rootCollections,
   getGeopointObject,
@@ -86,6 +86,10 @@ const updateDocsWithBatch = (conn, locals) => {
       timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
       activityId: conn.req.body.activityId,
+      /**
+       * Required by `addendumOnCreate` function to delete old data from
+       * init docs and update it the case of new ones. e.g., schedule and venue.
+       */
       activityOld: locals.docs.activity.data(),
       isSupportRequest: conn.requester.isSupportRequest,
     });

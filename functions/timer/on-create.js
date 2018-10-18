@@ -118,7 +118,7 @@ module.exports = (doc) => {
         });
       });
 
-      console.log({ messages, });
+      console.log({ messages });
 
       return sgMail.sendMultiple(messages);
     })

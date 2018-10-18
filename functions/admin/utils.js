@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { code, } = require('./responses');
+const { code } = require('./responses');
 const {
   db,
   auth,
@@ -78,7 +78,7 @@ const sendResponse = (conn, statusCode, message = '') => {
  * @returns {void}
  */
 const handleError = (conn, error) => {
-  console.log({ error, });
+  console.log({ error });
 
   sendResponse(
     conn,
@@ -193,7 +193,7 @@ const isHHMMFormat = (string) =>
  * @returns {void}
  */
 const disableAccount = (conn, reason) => {
-  const { reportingActions, } = require('../admin/constants');
+  const { reportingActions } = require('../admin/constants');
   const docId = getISO8601Date();
 
   const subject = `User Disabled: '${conn.requester.phoneNumber}'`;
@@ -332,7 +332,7 @@ const convertToDates = (schedules) => {
     if (startTime !== '') startTime = startTime.toDate();
     if (endTime !== '') endTime = endTime.toDate();
 
-    array.push({ name, startTime, endTime, });
+    array.push({ name, startTime, endTime });
   });
 
   return array;
@@ -441,6 +441,40 @@ const now = (conn) => {
     .catch((error) => handleError(conn, error));
 };
 
+const reportBackgroundError = (error, context = {}) => {
+  const Logging = require('@google-cloud/logging');
+
+  // TODO: Implement this for background functions
+  // DOCS: https://firebase.google.com/docs/functions/reporting-errors
+  const logging = Logging();
+  const logName = 'errors';
+  const log = logging.log(logName);
+  const metadata = {
+    resource: {
+      type: 'cloud_function',
+      labels: {
+        'function_name': process.env.FUNCTION_NAME,
+      },
+    },
+  };
+
+  const errorEvent = {
+    context,
+    message: error.stack,
+    serviceContext: {
+      service: process.env.FUNCTION_NAME,
+      resourceType: 'cloud_function',
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    log.write(log.entry(metadata, errorEvent), (error) => {
+      if (error) return reject(error);
+
+      return resolve();
+    });
+  });
+};
 
 
 module.exports = {
@@ -459,5 +493,6 @@ module.exports = {
   isNonEmptyString,
   isE164PhoneNumber,
   hasSuperUserClaims,
+  reportBackgroundError,
   hasManageTemplateClaims,
 };

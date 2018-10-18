@@ -33,7 +33,7 @@
   "repository": "https://github.com/Growthfilev2/backend-cloud-functions/",
   "readme": "https://github.com/Growthfilev2/backend-cloud-functions/blob/master/README.md",
   "dependencies": {
-    "@google-cloud/error-reporting": "^0.5.1",
+    "@google-cloud/logging": "^4.0.1",
     "@google/maps": "^0.5.5",
     "@sendgrid/mail": "^6.3.1",
     "firebase-admin": "^6.0.0",

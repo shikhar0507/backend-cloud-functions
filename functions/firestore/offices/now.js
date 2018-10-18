@@ -73,5 +73,5 @@ module.exports = (conn) => {
   }
 
   // TODO: Log the `deviceId`
-  sendJSON(conn, { timestamp: Date.now(), });
+  sendJSON(conn, { timestamp: Date.now() });
 };

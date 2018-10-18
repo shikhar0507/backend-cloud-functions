@@ -34,7 +34,7 @@ admin.initializeApp({
 const auth = admin.auth();
 const db = admin.firestore();
 
-db.settings({ timestampsInSnapshots: true, });
+db.settings({ timestampsInSnapshots: true });
 
 /**
  * A `sentinel` which maps to the Firestore server timestamp when written to
@@ -99,7 +99,7 @@ const deleteField = () => admin.firestore.FieldValue.delete();
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const updateUserPhoneNumberInAuth = (uid, phoneNumber) =>
-  auth.updateUser(uid, { phoneNumber, });
+  auth.updateUser(uid, { phoneNumber });
 
 
 /**
@@ -175,7 +175,7 @@ const getUserByPhoneNumber = (phoneNumber) =>
  * @param {string} uid A 30 character alpha-numeric string.
  * @returns {Promise <Object>} Resolving to a userRecord object.
  */
-const disableUser = (uid) => auth.updateUser(uid, { disabled: true, });
+const disableUser = (uid) => auth.updateUser(uid, { disabled: true });
 
 
 /**

@@ -413,7 +413,7 @@ const getCommentString = (locals, recipient) => {
   if (action === httpsActions.update) {
     const before = locals.change.before;
     const after = locals.change.after;
-    const options = { before, after, };
+    const options = { before, after };
 
     return `${pronoun} updated ${getUpdatedFieldNames(options)}`;
   }

@@ -24,13 +24,13 @@
 
 'use strict';
 
-const { db, } = require('../../admin/admin');
+const { db } = require('../../admin/admin');
 
 
 const getPermutations = (officeName) => {
   const nameCombinations = new Set();
 
-  [' ', '.', ',', '-', '&', '(', ')',]
+  [' ', '.', ',', '-', '&', '(', ')']
     .forEach((character) => {
       const parts = officeName.split(character);
 
@@ -53,7 +53,7 @@ const getPermutations = (officeName) => {
       nameCombinations.add(withFirstLetterCaps);
     });
 
-  return [...nameCombinations,];
+  return [...nameCombinations];
 };
 
 
@@ -62,7 +62,7 @@ module.exports = (officeDoc) => {
   const officeName = officeDoc.get('attachment.Name.value');
   const namePermutations = getPermutations(officeName);
 
-  batch.set(officeDoc.ref, { namePermutations, }, { merge: true, });
+  batch.set(officeDoc.ref, { namePermutations }, { merge: true });
 
   return batch
     .commit()

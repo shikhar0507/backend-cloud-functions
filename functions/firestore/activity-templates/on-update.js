@@ -31,7 +31,7 @@ const {
   serverTimestamp,
   db,
 } = require('../../admin/admin');
-const { code, } = require('../../admin/responses');
+const { code } = require('../../admin/responses');
 const {
   handleError,
   sendResponse,
@@ -122,7 +122,7 @@ const checkBody = (body) => {
     if (!templateFields.has(field)) {
       messageObject.isValid = false;
       messageObject.message = `The field '${field}' is not allowed.`
-        + ` Use ${[...templateFields.keys(),]}.`;
+        + ` Use ${[...templateFields.keys()]}.`;
       break;
     }
 
@@ -131,7 +131,7 @@ const checkBody = (body) => {
     if (field === 'statusOnCreate' && !activityStatuses.has(value)) {
       messageObject.isValid = false;
       messageObject.message = `${value} is not a valid value for `
-        + ` 'statusOnCreate'. Use ${[...activityStatuses.keys(),]}`;
+        + ` 'statusOnCreate'. Use ${[...activityStatuses.keys()]}`;
       break;
     }
 
@@ -149,7 +149,7 @@ const checkBody = (body) => {
     if (field === 'canEditRule' && !canEditRules.has(value)) {
       messageObject.isValid = false;
       messageObject.message = `${value} is not a valid value for`
-        + ` the field 'canEditRule'. Use ${[...canEditRules.keys(),]}`;
+        + ` the field 'canEditRule'. Use ${[...canEditRules.keys()]}`;
       break;
     }
 

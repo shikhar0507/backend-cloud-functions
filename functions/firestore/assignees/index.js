@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { rootCollections, } = require('../../admin/admin');
+const { rootCollections } = require('../../admin/admin');
 
 
 /**

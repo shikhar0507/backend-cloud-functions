@@ -39,7 +39,7 @@ const {
  */
 module.exports = (userRecord) => {
   const batch = db.batch();
-  const { uid, phoneNumber, } = userRecord;
+  const { uid, phoneNumber } = userRecord;
 
   batch.set(rootCollections
     .updates

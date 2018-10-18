@@ -128,4 +128,4 @@ const staticErrorMessages = {
 };
 
 
-module.exports = { code, getCustomMessages, staticErrorMessages, };
+module.exports = { code, getCustomMessages, staticErrorMessages };

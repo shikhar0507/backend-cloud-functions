@@ -25,7 +25,7 @@
 'use strict';
 
 
-const { rootCollections, users, } = require('../../admin/admin');
+const { rootCollections, users } = require('../../admin/admin');
 const sgMail = require('@sendgrid/mail');
 const sgMailApiKey = require('../../admin/env').sgMailApiKey;
 
@@ -33,7 +33,7 @@ sgMail.setApiKey(sgMailApiKey);
 
 
 const sendMails = (recipientsDoc, instantDoc) => {
-  const { include, cc, } = recipientsDoc.data();
+  const { include, cc } = recipientsDoc.data();
 
   const promises = [];
 
@@ -46,7 +46,7 @@ const sendMails = (recipientsDoc, instantDoc) => {
   return Promise
     .all(promises)
     .then((userRecords) => {
-      const { subject, messageBody, } = instantDoc.data();
+      const { subject, messageBody } = instantDoc.data();
 
       userRecords
         .forEach((userRecord) => {
@@ -82,7 +82,7 @@ const sendMails = (recipientsDoc, instantDoc) => {
        */
       if (messages.length === 0) return Promise.resolve();
 
-      console.log({ messages, });
+      console.log({ messages });
 
       return sgMail.sendMultiple(messages);
     })

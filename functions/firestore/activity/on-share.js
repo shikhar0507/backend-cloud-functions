@@ -30,8 +30,8 @@ const {
   getCanEditValue,
   checkActivityAndAssignee,
 } = require('./helper');
-const { code, } = require('../../admin/responses');
-const { httpsActions, } = require('../../admin/constants');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
 const {
   db,
   serverTimestamp,
@@ -94,7 +94,7 @@ const handleResult = (conn, docs) => {
     return;
   }
 
-  const [activity,] = docs;
+  const [activity] = docs;
 
   const locals = {
     objects: {

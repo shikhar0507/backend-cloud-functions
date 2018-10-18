@@ -166,7 +166,7 @@ module.exports = (conn) => {
         .get(),
     ])
     .then((result) => {
-      const [addendum, activities, subscriptions,] = result;
+      const [addendum, activities, subscriptions] = result;
 
       if (!addendum.empty) {
         jsonObject.upto = addendum

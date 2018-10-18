@@ -25,8 +25,8 @@
 'use strict';
 
 
-const { rootCollections, db, } = require('../admin/admin');
-const { reportingActions, } = require('../admin/constants');
+const { rootCollections, db } = require('../admin/admin');
+const { reportingActions } = require('../admin/constants');
 
 /**
  * Sets the `uid` and `phoneNumber` fields of the user being deleted to
@@ -36,7 +36,7 @@ const { reportingActions, } = require('../admin/constants');
  * @returns {Promise <Object>} Batch object.
  */
 module.exports = (userRecord) => {
-  const { uid, phoneNumber, } = userRecord;
+  const { uid, phoneNumber } = userRecord;
 
   const batch = db.batch();
 

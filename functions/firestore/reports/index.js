@@ -26,7 +26,7 @@
 'use strict';
 
 
-const { reportingActions, } = require('../../admin/constants');
+const { reportingActions } = require('../../admin/constants');
 const systemReportsHandler = require('./system-reports');
 
 
@@ -35,7 +35,7 @@ module.exports = (doc) => {
     action,
   } = doc.data();
 
-  console.log({ action, });
+  console.log({ action });
 
   /** Only sent to a select few people... */
   const reportActions = new Set([

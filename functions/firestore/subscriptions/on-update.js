@@ -99,7 +99,7 @@ module.exports = (change) => {
       .orderBy('attachment.Subscriber.value')
       .limit(500);
 
-  console.log({ templateName, });
+  console.log({ templateName });
 
   return new
     Promise((resolve, reject) => updateSubscriptions(query, resolve, reject))

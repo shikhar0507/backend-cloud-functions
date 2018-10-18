@@ -25,8 +25,8 @@
 'use strict';
 
 
-const { sendResponse, } = require('../admin/utils');
-const { code, } = require('../admin/responses');
+const { sendResponse } = require('../admin/utils');
+const { code } = require('../admin/responses');
 
 
 module.exports = (conn) => {

@@ -93,29 +93,26 @@ module.exports = (locals) => {
 
       const employeesList = Object.keys(employeesObject);
 
+      const getName = (phoneNumber) => {
+        if (!allEmployeesData[phoneNumber]) return '';
+
+        return allEmployeesData[phoneNumber].Name;
+      };
+
       employeesList.forEach((phoneNumber) => {
         const employeeData = allEmployeesData[phoneNumber];
+
         const employeeName = employeeData.Name;
         const employeeCode = employeeData['Employee Code'];
         const department = employeeData.Department;
-        const addedOn = employeeData.addedOn;
-        const signedUpOn = employeeData.signedUpOn;
+        const addedOn = employeesObject[phoneNumber].addedOn;
+        const signedUpOn = employeesObject[phoneNumber].signedUpOn;
         const firstSupervisorPhoneNumber =
-          allEmployeesData['First Supervisor'];
+          employeeData['First Supervisor'];
         const secondSupervisorPhoneNumber =
-          allEmployeesData['Second Supervisor'];
-        let firstSupervisorName = '';
-        let secondSupervisorName = '';
-
-        if (allEmployeesData[firstSupervisorPhoneNumber]) {
-          firstSupervisorName
-            = allEmployeesData[firstSupervisorPhoneNumber].Name;
-        }
-
-        if (allEmployeesData[secondSupervisorPhoneNumber]) {
-          secondSupervisorName
-            = allEmployeesData[secondSupervisorPhoneNumber].Name;
-        }
+          employeeData['Second Supervisor'];
+        const firstSupervisorName = getName(firstSupervisorPhoneNumber);
+        const secondSupervisorName = getName(secondSupervisorPhoneNumber);
 
         locals.csvString +=
           ` ${employeeName},`

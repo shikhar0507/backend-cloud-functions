@@ -25,8 +25,8 @@
 'use strict';
 
 
-const { rootCollections, serverTimestamp, } = require('../../admin/admin');
-const { code, } = require('../../admin/responses');
+const { rootCollections, serverTimestamp } = require('../../admin/admin');
+const { code } = require('../../admin/responses');
 const {
   canEditRules,
   templateFields,
@@ -51,14 +51,14 @@ const validateTemplate = (body) => {
   for (const field of fields) {
     if (!templateFields.has(field)) {
       message.message = `The field '${field}' is not allowed.`
-        + ` Use only: ${[...templateFields.keys(),]}.`;
+        + ` Use only: ${[...templateFields.keys()]}.`;
       message.isValid = false;
       break;
     }
 
     const value = body[field];
 
-    if (['name', 'statusOnCreate', 'canEditRule', 'comment',]
+    if (['name', 'statusOnCreate', 'canEditRule', 'comment']
       .indexOf(field) > -1
       && !isNonEmptyString(value)) {
       message.message = `The field '${field}' should have a non-empty`
@@ -109,7 +109,7 @@ const validateTemplate = (body) => {
     }
 
     /** IndexedDB can't create indexes on boolean values. */
-    if ([0, 1,].indexOf(body.hidden) === -1) {
+    if ([0, 1].indexOf(body.hidden) === -1) {
       message.message = `The value of the field 'hidden' can only be 0 or 1`;
       message.isValid = false;
       break;
@@ -134,7 +134,7 @@ const validateTemplate = (body) => {
         message.message = `The value in the field 'statusOnCreate': '${value}'`
           + ` is not a valid activity status. Use one of the following:`
           /** Map to string conversion */
-          + ` ${[...activityStatuses.keys(),]}`;
+          + ` ${[...activityStatuses.keys()]}`;
         message.isValid = false;
         break;
       }
@@ -144,7 +144,7 @@ const validateTemplate = (body) => {
       if (!canEditRules.has(value)) {
         message.message = `The value in the field 'canEditRule': '${value}'`
           + ` is not a valid 'canEditRule'. Use one of the following:`
-          + ` ${[...canEditRules.keys(),]}`;
+          + ` ${[...canEditRules.keys()]}`;
         message.isValid = false;
         break;
       }

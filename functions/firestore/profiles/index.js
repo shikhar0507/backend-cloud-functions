@@ -1,6 +1,6 @@
 'use strict';
 
-const { httpsActions, } = require('../../admin/constants');
+const { httpsActions } = require('../../admin/constants');
 const {
   db,
   rootCollections,
