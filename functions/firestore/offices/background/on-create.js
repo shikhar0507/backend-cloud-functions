@@ -24,7 +24,7 @@
 
 'use strict';
 
-const { db } = require('../../admin/admin');
+const { db } = require('../../../admin/admin');
 
 
 const getPermutations = (officeName) => {

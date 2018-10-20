@@ -51,7 +51,7 @@ module.exports = (conn) => {
     .offices
     .where('namePermutations', 'array-contains', conn.req.query.query)
     .get()
-    .then((docs) => docs.docs.map((doc) => doc.get('name')))
+    .then((docs) => docs.docs.map((doc) => doc.get('attachment.Name.value')))
     .then((namesArray) => sendJSON(conn, namesArray))
     .catch((error) => handleError(conn, error));
 };

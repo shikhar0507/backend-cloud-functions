@@ -64,7 +64,7 @@ const reportsHandler = functions
 const createOfficeNamePermutations = functions
   .firestore
   .document('Offices/{officeId}')
-  .onCreate(require('./firestore/offices/on-create'));
+  .onCreate(require('./firestore/offices/background/on-create'));
 
 const profileHandler = functions
   .firestore

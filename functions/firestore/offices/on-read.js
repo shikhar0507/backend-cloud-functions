@@ -26,10 +26,12 @@ const getTemplates = (conn, locals) =>
   rootCollections
     .activityTemplates
     .where('timestamp', '>', locals.jsonObject.from)
-    .where('canEditRule', '==', 'ADMIN')
+    // .where('canEditRule', '==', 'ADMIN')
     .get()
     .then((docs) => {
       docs.forEach((doc) => {
+        if (doc.get('canEditRule') === 'ADMIN') return;
+
         locals.jsonObject.templates[doc.id] = {
           name: doc.get('name'),
           venue: doc.get('venue'),
@@ -81,7 +83,13 @@ const getActivities = (conn, locals) =>
             });
         });
 
-      locals.jsonObject.upto = new Date(Math.max(...furthestTimestamps));
+      /**
+       * Handles the case when the `furthestTimestamps` array is empty. Not adding
+       * this check makes the upto field equal to `null`.
+      */
+      if (furthestTimestamps.length > 0) {
+        locals.jsonObject.upto = new Date(Math.max(...furthestTimestamps));
+      }
 
       getTemplates(conn, locals);
 
@@ -189,8 +197,8 @@ module.exports = (conn) => {
             .doc(officeId)
             .collection('Activities')
             .where('timestamp', '>', from)
-            .where('canEditRule', '==', 'ADMIN')
-            .orderBy('timestamp', 'asc')
+            // .where('canEditRule', '==', 'ADMIN')
+            // .orderBy('timestamp', 'asc')
             .get()
           );
       });
