@@ -153,10 +153,16 @@ const addSubscriptionToUserProfile = (locals, batch) =>
       const doc = docs.docs[0];
       const include = [];
 
+      /** The client app isn't allowed to create activities as `ADMIN`. */
+      if (doc.get('canEditRule') !== 'ADMIN') return batch.commit();
+
       locals.assigneePhoneNumbersArray.forEach((phoneNumber) => {
         const addToInclude = locals.assigneesMap.get(phoneNumber).addToInclude;
 
-        /** The user's own phone number is redundant in the include array. */
+        /**
+         * The user's own phone number is redundant in the include array since they
+         * are the ones creating the activity using this subscription doc.
+         */
         if (locals.change.after.get('attachment.Subscriber.value') === phoneNumber) return;
 
         /**
