@@ -649,17 +649,18 @@ module.exports = (change, context) => {
     adminsCanEdit: [],
   };
 
-  const promises = [rootCollections
-    .activities
-    .doc(activityId)
-    .collection('Assignees')
-    .get(),
-  rootCollections
-    .offices
-    .doc(change.after.get('officeId'))
-    .collection('Activities')
-    .where('template', '==', 'admin')
-    .get(),
+  const promises = [
+    rootCollections
+      .activities
+      .doc(activityId)
+      .collection('Assignees')
+      .get(),
+    rootCollections
+      .offices
+      .doc(change.after.get('officeId'))
+      .collection('Activities')
+      .where('template', '==', 'admin')
+      .get(),
   ];
 
   if (change.after.get('addendumDocRef')) {
@@ -682,6 +683,8 @@ module.exports = (change, context) => {
       const allAdminPhoneNumbersSet
         = new Set(adminsSnapShot.docs.map((doc) => doc.get('attachment.Admin.value')));
 
+      console.log('addendumDoc', addendumDoc);
+
       if (addendumDoc) {
         locals.addendumDoc = addendumDoc;
       }
@@ -690,7 +693,7 @@ module.exports = (change, context) => {
 
       assigneesSnapShot.forEach((doc) => {
         if (addendumDoc
-          && doc.id === locals.addendumDoc.get('user')) {
+          && doc.id === addendumDoc.get('user')) {
           locals.addendumCreatorInAssignees = true;
         }
 
@@ -713,10 +716,11 @@ module.exports = (change, context) => {
           .push(doc.id);
       });
 
-      if (!locals.addendumCreatorInAssignees) {
+      if (addendumDoc
+        && !locals.addendumCreatorInAssignees) {
         authFetch
           .push(
-            users.getUserByPhoneNumber(locals.addendumDoc.get('user'))
+            users.getUserByPhoneNumber(addendumDoc.get('user'))
           );
       }
 
