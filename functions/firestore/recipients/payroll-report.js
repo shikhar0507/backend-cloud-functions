@@ -217,6 +217,11 @@ module.exports = (locals) => {
       });
 
       const promises = [];
+      const addendumRef = rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Addendum');
+
       employeesPhoneNumberList.forEach((phoneNumber) => {
         if (employeesWithInit.has(phoneNumber)) return;
 
@@ -233,12 +238,9 @@ module.exports = (locals) => {
 
         payrollObject[phoneNumber] = {};
 
-        const query = rootCollections
-          .offices.doc(officeId)
-          .collection('Addendum')
-          .where('action', '==', 'create')
+        const query = addendumRef
           .where('template', '==', 'check-in')
-          .where('date', '==', yesterdaysDateString)
+          .where('dateString', '==', yesterdaysDateString)
           .where('user', '==', phoneNumber)
           .where('distanceAccurate', '==', true)
           .orderBy('timestamp', 'asc')
@@ -252,8 +254,7 @@ module.exports = (locals) => {
       locals.initDoc = initDocsQuery.docs[0];
       locals.employeesPhoneNumberList = employeesPhoneNumberList;
 
-      return Promise
-        .all(promises);
+      return Promise.all(promises);
     })
     .then((snapShots) => {
       if (!snapShots) return Promise.resolve();
@@ -266,8 +267,7 @@ module.exports = (locals) => {
         if (snapShot.empty) return;
 
         const employeeStartTime = new Date();
-        const phoneNumber =
-          snapShot.docs[0].get('user');
+        const phoneNumber = snapShot.docs[0].get('user');
         const dailyStartTime = locals.employeesData[phoneNumber]['Daily Start Time'];
         employeeStartTime.setHours(Number(dailyStartTime.split(':')[0]));
         employeeStartTime.setMinutes(Number(dailyStartTime.split(':')[1]) + 30);
@@ -285,6 +285,7 @@ module.exports = (locals) => {
             .toDate()
             .getTime();
 
+        /** Person created only 1 check-in. */
         if (firstCheckInTimestamp === lastCheckInTimestamp) {
           locals.payrollObject[phoneNumber][yesterday.getDate()] = 'BLANK';
           countsObject[phoneNumber].blank = countsObject[phoneNumber].blank + 1;

@@ -117,8 +117,8 @@ module.exports = (locals) => {
         locals.csvString +=
           ` ${employeeName},`
           /**
-           * Removing this space makes the `MS Excel` believe that the phone number
-           * is a number.
+           * Removing this space in front of phone number makes the 
+           * `MS Excel` believe that the phone number is a number (not string).
            */
           + ` ${phoneNumber},`
           + `${addedOn},`

@@ -63,8 +63,6 @@ module.exports = (locals) => {
     .offices
     .doc(officeId);
 
-  console.log({ officeDocRef: officeDocRef.path });
-
   return Promise
     .all([
       officeDocRef
@@ -96,6 +94,7 @@ module.exports = (locals) => {
         return Promise.resolve(false);
       }
 
+      workbook.sheet('Sheet1').row(1).style('bold', true);
       workbook.sheet('Sheet1').cell(`A1`).value('Dated');
       workbook.sheet('Sheet1').cell('B1').value('Employee Name');
       workbook.sheet('Sheet1').cell('C1').value('Time');
@@ -113,11 +112,7 @@ module.exports = (locals) => {
         const baseLocation = employeesData[phoneNumber]['Base Location'];
         const url = doc.get('url');
         const identifier = doc.get('identifier');
-        let accumulatedDistance = doc.get('accumulatedDistance');
-
-        if (typeof doc.get('accumulatedDistance') === 'number') {
-          accumulatedDistance = accumulatedDistance.toFixed(2);
-        }
+        const accumulatedDistance = doc.get('accumulatedDistance');
 
         // TODO: Add spacing for columns based on max width of the fields
         workbook

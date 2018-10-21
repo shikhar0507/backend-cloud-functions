@@ -72,7 +72,6 @@ module.exports = {
     'no-confusing-arrow': 'warn',
     'no-duplicate-imports': 'error',
     camelcase: 'warn',
-    'capitalized-comments': 'warn',
     'comma-dangle': ['warn', 'always-multiline'],
     'comma-style': 'warn',
     'guard-for-in': 'error',

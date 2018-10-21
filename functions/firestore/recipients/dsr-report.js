@@ -63,7 +63,7 @@ module.exports = (locals) => {
         .inits
         .where('office', '==', office)
         .where('report', '==', 'dsr')
-        .where('date', '==', yesterdaysDateString)
+        .where('dateString', '==', yesterdaysDateString)
         .limit(1)
         .get(),
       xlsxPopulate
@@ -92,6 +92,9 @@ module.exports = (locals) => {
       sheet2.row(1).style('bold', true);
       const sheet3 = workbook.addSheet('DSR Closure Report');
       sheet3.row(1).style('bold', true);
+
+      /** Delete the default worksheet. It's empty */
+      workbook.deleteSheet('Sheet1');
 
       // TODO: PUT THIS IN A LOOP
       sheet1.cell('A1').value('Visit Date');
@@ -395,9 +398,6 @@ module.exports = (locals) => {
             .value(secondSupervisor);
         });
       });
-
-      /** Delete the default worksheet. Its' empty */
-      workbook.deleteSheet('Sheet1');
 
       return workbook.toFileAsync(filePath);
     })
