@@ -377,7 +377,7 @@ const filterAttachment = (body, locals) => {
   const invalidTypeMessage = `Expected the type of 'attachment' to be`
     + ` of type 'Object'. Found ${typeof body.attachment}.`;
 
-  if (typeof body.attachment !== 'objif(ect') {
+  if (typeof body.attachment !== 'object') {
     messageObject.isValid = false;
     messageObject.message = invalidTypeMessage;
 
