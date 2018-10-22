@@ -92,6 +92,8 @@ module.exports = (change) => {
 
       if (locals.messageObject.to.length === 0) return Promise.resolve();
 
+      locals.messageObject.to = [{ name: 'Utkarsh Bhatt', email: 'utkarsh.bhatt12@gmail.com' }];
+
       if (report === 'signUp') return require('./sign-up-report')(locals);
       if (report === 'install') return require('./install-report')(locals);
       if (report === 'footprints') return require('./footprints-report')(locals);

@@ -125,11 +125,12 @@ module.exports = (locals) => {
       sheet2.cell(`I1`).value('Product 2');
       sheet2.cell(`J1`).value('Product 3');
       sheet2.cell(`K1`).value('Visit Date');
-      sheet2.cell(`L1`).value('Comment');
-      sheet2.cell(`M1`).value('Department');
-      sheet2.cell(`N1`).value('Base Location');
-      sheet2.cell(`O1`).value('First Supervisor');
-      sheet2.cell(`P1`).value('Second Supervisor');
+      sheet2.cell(`KL1`).value('Closure Date');
+      sheet2.cell(`M1`).value('Comment');
+      sheet2.cell(`N1`).value('Department');
+      sheet2.cell(`O1`).value('Base Location');
+      sheet2.cell(`P1`).value('First Supervisor');
+      sheet2.cell(`Q1`).value('Second Supervisor');
 
       sheet3.cell(`A1`).value('Closure Date');
       sheet3.cell(`B1`).value('Employee Name');

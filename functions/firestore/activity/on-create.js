@@ -118,8 +118,6 @@ const createDocsWithBatch = (conn, locals) => {
     creator: conn.requester.phoneNumber,
   };
 
-  locals.batch.set(locals.docs.activityRef, activityData);
-
   const addendumDocObject = {
     activityData,
     user: conn.requester.phoneNumber,
@@ -153,13 +151,16 @@ const createDocsWithBatch = (conn, locals) => {
     };
 
     const HALF_KILOMETER = 0.5;
+    const distanceAccurate =
+      haversineDistance(geopointOne, geopointTwo) < HALF_KILOMETER;
 
-    addendumDocObject
-      .distanceAccurate
-      = haversineDistance(geopointOne, geopointTwo) < HALF_KILOMETER;
+    if (!distanceAccurate) activityData.status = 'CANCELLED';
+
+    addendumDocObject.distanceAccurate = distanceAccurate;
   }
 
   locals.batch.set(addendumDocRef, addendumDocObject);
+  locals.batch.set(locals.docs.activityRef, activityData);
 
   /** ENDS the response. */
   locals.batch.commit()

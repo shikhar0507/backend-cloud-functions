@@ -99,6 +99,8 @@ module.exports = (locals) => {
           dutyType,
           description,
           reportingTime,
+          reportingTimeStart,
+          reportingTimeEnd,
           reportingLocation,
           createdBy,
           createdOn,
@@ -106,8 +108,23 @@ module.exports = (locals) => {
           when,
           user,
           place,
-          // assigneesString,
+          assignees,
         } = dutyRosterObject[activityId];
+
+        // const reportingTimeEndTimestamp = reportingTimeEnd + 3600;
+
+        // const promise =
+        //   rootCollections
+        //     .offices
+        //     .doc(officeId)
+        //     .collection('Addendum')
+        //     .where('user', '==', user)
+        //     .where('dateString', '==', createdOn)
+        //     .where('timestamp', '<=', new Date(reportingTimeStart))
+        //     .where('timestamp', '>', new Date(reportingTimeEndTimestamp))
+        //     .get();
+
+        // promises.push(promise);
 
         // TODO: Implement this
         const assigneesString = '';

@@ -111,7 +111,7 @@ const getDisplayText = (addendumDoc) => {
 
   if (template === 'leave') {
     const leaveType = addendumDoc.get('activityData.attachment.Leave Type.value');
-    displayText = leaveType || 'LEAVE UNSPECIFIED';
+    displayText = leaveType || 'LEAVE';
   }
 
   if (template === 'tour plan') {
@@ -340,15 +340,19 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
   const reportingTime = (() => {
     if (!schedule.startTime) return '';
 
-    return schedule.startTime.toDate().toTimeString().split(' GMT')[0];
+    // Sorry. Lazyness got me. :(
+    return schedule.startTime.toDate().toTimeString().split(' GMT')[0].slice(0, 5);
   })();
 
   if (!dutyRosterObject[activityId]) dutyRosterObject[activityId] = {};
 
+  dutyRosterObject[activityId].status = status;
   dutyRosterObject[activityId].dutyType = dutyType;
   dutyRosterObject[activityId].description = description;
   dutyRosterObject[activityId].reportingTime = reportingTime;
   dutyRosterObject[activityId].reportingLocation = venue.address;
+  dutyRosterObject[activityId].reportingTimeStart = schedule.startTime.toDate().getTime();
+  dutyRosterObject[activityId].reportingTimeEnd = schedule.endTime.toDate().getTime();
 
   if (action === httpsActions.create) {
     const createdBy = (() => addendumDoc.get('user'))();
@@ -362,7 +366,6 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
   const when = (() => timestamp.toDateString())();
 
   if (action === httpsActions.changeStatus) {
-    dutyRosterObject[activityId].status = status;
     dutyRosterObject[activityId].when = when;
     dutyRosterObject[activityId].user = user;
     dutyRosterObject[activityId].place = place;
@@ -388,18 +391,33 @@ const handleDutyRosterReport = (addendumDoc, batch) => {
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
 
-  return rootCollections
-    .inits
-    .where('report', '==', 'duty roster')
-    .where('office', '==', office)
-    .where('month', '==', new Date().getMonth())
-    .limit(1)
-    .get()
-    .then((snapShot) => {
-      const ref = getRef(snapShot);
+  Promise
+    .all([
+      rootCollections
+        .inits
+        .where('report', '==', 'duty roster')
+        .where('office', '==', office)
+        .where('month', '==', new Date().getMonth())
+        .limit(1)
+        .get(),
+      rootCollections
+        .activities
+        .doc(addendumDoc.get('activityId'))
+        .collection('Assignees')
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        dutyRosterInitDocsQuery,
+        assigneesSnapshot,
+      ] = result;
+
+      const ref = getRef(dutyRosterInitDocsQuery);
 
       const dutyRosterObject
-        = getDutyRosterObject(addendumDoc, snapShot);
+        = getDutyRosterObject(addendumDoc, dutyRosterInitDocsQuery);
+
+      dutyRosterObject.assignees = assigneesSnapshot.docs.map((doc) => doc.id);
 
       batch.set(ref, {
         office,

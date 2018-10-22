@@ -69,7 +69,7 @@ module.exports = (locals) => {
         .get(),
       officeDocRef
         .collection('Addendum')
-        .where('date', '==', locals.yesterdaysDate)
+        .where('dateString', '==', locals.yesterdaysDate)
         .orderBy('user')
         .orderBy('timestamp', 'asc')
         .get(),
