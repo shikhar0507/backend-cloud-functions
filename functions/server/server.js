@@ -78,6 +78,18 @@ const handleAdminUrl = (conn, urlParts) => {
     return;
   }
 
+  if (resource === 'create') {
+    require('../firestore/single-create/single')(conn);
+
+    return;
+  }
+
+  if (resource === 'create-multiple') {
+    require('../firestore/bulk-create/bulk')(conn);
+
+    return;
+  }
+
   sendResponse(
     conn,
     code.badRequest,
