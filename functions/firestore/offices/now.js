@@ -34,6 +34,8 @@ const {
   sendJSON,
   isNonEmptyString,
   hasAdminClaims,
+  convertToDates,
+  hasSupportClaims,
 } = require('../../admin/utils');
 const {
   code,
@@ -51,7 +53,8 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!hasAdminClaims(conn.requester.customClaims)) {
+  if (!hasAdminClaims(conn.requester.customClaims)
+    || hasSupportClaims(conn.requester.customClaims)) {
     sendResponse(
       conn,
       code.forbidden,
@@ -72,6 +75,58 @@ module.exports = (conn) => {
     return;
   }
 
-  // TODO: Log the `deviceId`
-  sendJSON(conn, { timestamp: Date.now() });
+  const responseObject = {
+    timestamp: Date.now(),
+  };
+
+  if (conn.requester.customClaims.support) {
+    sendJSON(conn, responseObject);
+
+    return;
+  }
+
+  const officeNamesArray = conn.requester.customClaims.admin;
+  const promises = [];
+  /** Only admin gets the office docs */
+  responseObject.activities = [];
+
+  officeNamesArray.forEach((name) => {
+    promises.push(rootCollections
+      .offices.where('office', '==', name)
+      .get());
+  });
+
+  const getActivityObject = (doc) => {
+    return {
+      activityName: doc.get('activityName'),
+      adminsCanEdit: doc.get('adminsCanEdit'),
+      attachment: doc.get('attachment'),
+      canEditRule: doc.get('canEditRule'),
+      creator: doc.get('creator'),
+      hidden: doc.get('hidden'),
+      office: doc.get('office'),
+      officeId: doc.get('officeId'),
+      schedule: convertToDates(doc.get('schedule')),
+      status: doc.get('status'),
+      template: doc.get('template'),
+      timestamp: doc.get('timestamp').toDate(),
+      venue: doc.get('venue'),
+    };
+  };
+
+  Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        const doc = snapShot.docs[0];
+
+        responseObject.activities.push(getActivityObject(doc));
+      });
+
+      // TODO: Log the `deviceId`
+      sendJSON(conn, responseObject);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
