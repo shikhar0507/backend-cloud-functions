@@ -16,31 +16,44 @@ const {
 } = require('../../admin/responses');
 
 
-const getReports = (conn, locals) => {
-  // TODO: Implement when the report template are completed.
-  sendJSON(conn, locals.jsonObject);
+const getActivityObject = (doc) => {
+  return {
+    activityName: doc.get('activityName'),
+    adminsCanEdit: doc.get('adminsCanEdit'),
+    attachment: doc.get('attachment'),
+    canEditRule: doc.get('canEditRule'),
+    creator: doc.get('creator'),
+    hidden: doc.get('hidden'),
+    office: doc.get('office'),
+    officeId: doc.get('officeId'),
+    schedule: convertToDates(doc.get('schedule')),
+    status: doc.get('status'),
+    template: doc.get('template'),
+    timestamp: doc.get('timestamp').toDate(),
+    venue: doc.get('venue'),
+  };
+};
+
+
+const getTemplateObject = (doc) => {
+  return {
+    name: doc.get('name'),
+    description: doc.get('comment'),
+  };
 };
 
 
 const getTemplates = (conn, locals) =>
   rootCollections
     .activityTemplates
-    .where('timestamp', '>', locals.jsonObject.from)
-    // .where('canEditRule', '==', 'ADMIN')
     .get()
     .then((docs) => {
-      docs.forEach((doc) => {
-        if (doc.get('canEditRule') === 'ADMIN') return;
+      docs
+        .forEach((doc) => locals
+          .jsonObject
+          .templates.push(getTemplateObject(doc)));
 
-        locals.jsonObject.templates[doc.id] = {
-          name: doc.get('name'),
-          venue: doc.get('venue'),
-          schedule: doc.get('schedule'),
-          attachment: doc.get('attachment'),
-        };
-      });
-
-      getReports(conn, locals);
+      sendJSON(conn, locals.jsonObject);
 
       return;
     })
@@ -64,22 +77,14 @@ const getActivities = (conn, locals) =>
           const lastDoc =
             officeActivitiesSnapshot
               .docs[officeActivitiesSnapshot.docs.length - 1];
-          const office = lastDoc.get('office');
+
           const timestamp = lastDoc.get('timestamp').toDate();
 
           furthestTimestamps.push(timestamp.getTime());
 
           officeActivitiesSnapshot
             .forEach((doc) => {
-              locals.jsonObject.activities[doc.id] = {
-                office,
-                timestamp,
-                venue: doc.get('venue'),
-                status: doc.get('status'),
-                template: doc.get('template'),
-                attachment: doc.get('attachment'),
-                schedule: convertToDates(doc.get('schedule')),
-              };
+              locals.jsonObject.activities.push(getActivityObject(doc));
             });
         });
 
@@ -145,62 +150,44 @@ module.exports = (conn) => {
     jsonObject: {
       from,
       upto: from,
-      activities: {},
-      templates: {},
-      reports: {},
+      activities: [],
+      templates: [],
     },
     activitiesToFetch: [],
   };
 
   const promises = [];
-  const officeNames = conn.requester.customClaims.admin;
+  const officeNamesArray = conn.requester.customClaims.admin;
 
-  officeNames.forEach(
-    (name) => promises.push(rootCollections
-      .offices
-      .where('attachment.Name.value', '==', name)
-      .limit(1)
-      .get()
-    )
-  );
+  officeNamesArray
+    .forEach((name) => promises
+      .push(rootCollections
+        .offices
+        .where('attachment.Name.value', '==', name)
+        .limit(1)
+        .get()));
 
   Promise
     .all(promises)
     .then((snapShots) => {
       snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
-
         const doc = snapShot.docs[0];
-        const timestamp = doc.get('timestamp').toDate();
-
-        if (timestamp.getTime() < from.getTime()) return;
-
+        const officeId = doc.id;
         const status = doc.get('status');
 
         if (status === 'CANCELLED') return;
 
-        const officeId = doc.id;
+        const promise = rootCollections
+          .offices
+          .doc(officeId)
+          .collection('Activities')
+          .where('timestamp', '>', from)
+          .where('canEditRule', '==', 'ADMIN')
+          .get();
 
-        locals.jsonObject.activities[officeId] = {
-          status,
-          timestamp,
-          venue: doc.get('venue'),
-          office: doc.get('office'),
-          template: doc.get('template'),
-          schedule: convertToDates(doc.get('schedule')),
-          attachment: doc.get('attachment'),
-        };
-
-        locals.activitiesToFetch
-          .push(rootCollections
-            .offices
-            .doc(officeId)
-            .collection('Activities')
-            .where('timestamp', '>', from)
-            // .where('canEditRule', '==', 'ADMIN')
-            // .orderBy('timestamp', 'asc')
-            .get()
-          );
+        locals.
+          activitiesToFetch
+          .push(promise);
       });
 
       getActivities(conn, locals);
