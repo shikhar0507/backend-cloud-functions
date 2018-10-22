@@ -37,6 +37,7 @@ const {
   validateVenues,
   getCanEditValue,
   filterAttachment,
+  haversineDistance,
   validateSchedules,
   isValidRequestBody,
 } = require('./helper');
@@ -119,7 +120,7 @@ const createDocsWithBatch = (conn, locals) => {
 
   locals.batch.set(locals.docs.activityRef, activityData);
 
-  locals.batch.set(addendumDocRef, {
+  const addendumDocObject = {
     activityData,
     user: conn.requester.phoneNumber,
     userDisplayName: conn.requester.displayName,
@@ -138,7 +139,27 @@ const createDocsWithBatch = (conn, locals) => {
     activityId: locals.static.activityId,
     activityName: getActivityName(conn),
     isSupportRequest: conn.requester.isSupportRequest,
-  });
+  };
+
+  if (conn.req.body.template === 'check-in') {
+    const geopointOne = {
+      _latitude: conn.req.body.geopoint.latitude,
+      _longitude: conn.req.body.geopoint.longitude,
+    };
+
+    const geopointTwo = {
+      _latitude: conn.req.body.venue[0].geopoint.latitude,
+      _longitude: conn.req.body.venue[0].geopoint.longitude,
+    };
+
+    const HALF_KILOMETER = 0.5;
+
+    addendumDocObject
+      .distanceAccurate
+      = haversineDistance(geopointOne, geopointTwo) < HALF_KILOMETER;
+  }
+
+  locals.batch.set(addendumDocRef, addendumDocObject);
 
   /** ENDS the response. */
   locals.batch.commit()
@@ -186,25 +207,27 @@ const handleAssignees = (conn, locals) => {
       if (conn.req.body.template === 'office') return;
 
       if (locals.static.canEditRule === 'ADMIN') {
-        promises.push(rootCollections
-          .offices.doc(locals.static.officeId)
-          .collection('Activities')
-          .where('attachment.Admin.value', '==', phoneNumber)
-          .where('template', '==', 'admin')
-          .limit(1)
-          .get()
-        );
+        promises
+          .push(rootCollections
+            .offices.doc(locals.static.officeId)
+            .collection('Activities')
+            .where('attachment.Admin.value', '==', phoneNumber)
+            .where('template', '==', 'admin')
+            .limit(1)
+            .get()
+          );
       }
 
       if (locals.static.canEditRule === 'EMPLOYEE') {
-        promises.push(rootCollections
-          .offices.doc(locals.static.officeId)
-          .collection('Activities')
-          .where('attachment.Employee Contact.value', '==', phoneNumber)
-          .where('template', '==', 'employee')
-          .limit(1)
-          .get()
-        );
+        promises
+          .push(rootCollections
+            .offices.doc(locals.static.officeId)
+            .collection('Activities')
+            .where('attachment.Employee Contact.value', '==', phoneNumber)
+            .where('template', '==', 'employee')
+            .limit(1)
+            .get()
+          );
       }
     });
 
@@ -577,7 +600,7 @@ const createLocals = (conn, result) => {
     sendResponse(
       conn,
       code.forbidden,
-      `No office found with the name: '${conn.req.body.office}'.`
+      `No office found with the name: '${conn.req.body.office}'`
     );
 
     return;
@@ -589,7 +612,7 @@ const createLocals = (conn, result) => {
       conn,
       code.forbidden,
       `No subscription found for the template: '${conn.req.body.template}'`
-      + ` with the office '${conn.req.body.office}'.`
+      + ` with the office '${conn.req.body.office}'`
     );
 
     return;
@@ -601,7 +624,7 @@ const createLocals = (conn, result) => {
         conn,
         code.forbidden,
         `Your subscription to the template '${conn.req.body.template}'`
-        + ` is 'CANCELLED'. Cannot create an activity.`
+        + ` is 'CANCELLED'. Cannot create an activity`
       );
 
       return;
@@ -634,7 +657,7 @@ const createLocals = (conn, result) => {
       sendResponse(
         conn,
         code.forbidden,
-        `The office status is 'CANCELLED'. Cannot create an activity.`
+        `The office status is 'CANCELLED'. Cannot create an activity`
       );
 
       return;
@@ -726,13 +749,13 @@ module.exports = (conn) => {
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for the /create`
-      + ' endpoint. Use POST.'
+      + ' endpoint. Use POST'
     );
 
     return;
   }
 
-  const bodyResult = isValidRequestBody(conn.req.body, 'create');
+  const bodyResult = isValidRequestBody(conn.req.body, httpsActions.create);
 
   if (!bodyResult.isValid) {
     sendResponse(conn, code.badRequest, bodyResult.message);

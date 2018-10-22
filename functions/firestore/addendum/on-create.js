@@ -10,6 +10,9 @@ const {
 const {
   httpsActions,
 } = require('../../admin/constants');
+const {
+  haversineDistance,
+} = require('../activity/helper');
 
 const googleMapsClient =
   require('@google/maps')
@@ -17,36 +20,6 @@ const googleMapsClient =
       key: require('../../admin/env').mapsApiKey,
       Promise: Promise,
     });
-
-const haversineDistance = (geopointOne, geopointTwo) => {
-  const toRad = (value) => value * Math.PI / 180;
-
-  const RADIUS_OF_EARTH = 6371;
-  const distanceBetweenLatitudes =
-    toRad(
-      geopointOne._latitude - geopointTwo._latitude
-    );
-  const distanceBetweenLongitudes =
-    toRad(
-      geopointOne._longitude - geopointTwo._longitude
-    );
-
-  const lat1 = toRad(geopointOne._latitude);
-  const lat2 = toRad(geopointTwo._latitude);
-
-  const a =
-    Math.sin(distanceBetweenLatitudes / 2)
-    * Math.sin(distanceBetweenLatitudes / 2)
-    + Math.sin(distanceBetweenLongitudes / 2)
-    * Math.sin(distanceBetweenLongitudes / 2)
-    * Math.cos(lat1)
-    * Math.cos(lat2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = RADIUS_OF_EARTH * c;
-
-  return distance;
-};
 
 const getDateAndTimeStrings = (timestamp) => {
   if (!timestamp) {
@@ -114,15 +87,6 @@ const getPlaceInformation = (mapsApiResult) => {
   };
 };
 
-const distanceAccurate = (addendumDoc) => {
-  const geopointOne = addendumDoc.get('location');
-  const geopointTwo
-    = addendumDoc
-      .get('activityData.venue')[0]
-      .geopoint;
-
-  return haversineDistance(geopointOne, geopointTwo) < 0.5;
-};
 
 const getTimeString = (countryCode, timestamp) => {
   if (countryCode === '+91') {
@@ -583,7 +547,6 @@ const handlePayrollReport = (addendumDoc, batch) => {
 
 module.exports = (addendumDoc) => {
   const phoneNumber = addendumDoc.get('user');
-  const template = addendumDoc.get('activityData.template');
   const officeId = addendumDoc.get('activityData.officeId');
   const timestamp = addendumDoc.get('timestamp').toDate();
   const date = timestamp.getDate();
@@ -655,10 +618,6 @@ module.exports = (addendumDoc) => {
         identifier: placeInformation.identifier,
       };
 
-      if (template === 'check-in') {
-        updateObject.distanceAccurate = distanceAccurate(addendumDoc);
-      }
-
       batch.set(addendumDoc.ref, updateObject, {
         merge: true,
       });
@@ -667,4 +626,4 @@ module.exports = (addendumDoc) => {
     })
     .then((batch) => batch.commit())
     .catch(console.error);
-}; 
+};
