@@ -129,7 +129,11 @@ const setClaims = (conn, uid) => {
       auth
         .setCustomUserClaims(uid, claims),
     ])
-    .then(() => sendResponse(conn, code.ok, `Permissions Granted: ${claims}`))
+    .then(() => sendResponse(
+      conn,
+      code.ok,
+      `Permissions Granted: ${JSON.stringify(claims, ' ', 2)}`
+    ))
     .catch((error) => handleError(conn, error));
 };
 
@@ -219,7 +223,7 @@ const validateRequestBody = (conn) => {
     logFailedRequest(
       conn,
       code.badRequest,
-      `The are not valid permissions in the request body.`,
+      `No valid permission object found in the request body`,
       action
     );
 
