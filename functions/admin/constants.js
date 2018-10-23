@@ -128,30 +128,30 @@ const phoneNumberUpdateBodyFields = new Map()
   .set('phoneNumber', 'phoneNumber');
 
 const httpsActions = {
-  create: 'create',
-  update: 'update',
-  changeStatus: 'change-status',
   share: 'share',
-  updatePhoneNumber: 'update-phone-number',
+  update: 'update',
+  create: 'create',
   comment: 'comment',
+  changeStatus: 'change-status',
+  updatePhoneNumber: 'update-phone-number',
 };
 
 const reportingActions = {
+  clientError: 'clientError',
   authDeleted: 'authDeleted',
+  authChanged: 'authChanged',
   authDisabled: 'authDisabled',
   usedCustomClaims: 'usedCustomClaims',
-  authChanged: 'authChanged',
-  clientError: 'clientError',
 };
 
 const sendGridTemplateIds = {
+  dsr: 'd-e7a922e42d67456dafcc2926731250a0',
+  leave: 'd-ae3a31066b0f447bbf8661570b4dc719',
+  payroll: 'd-cf7785c6a4a04285b1b2cee7d0227052',
   signUps: 'd-a73b2f579c8746758ba2753fbb0341df',
   installs: 'd-835f877b46bb4cc8aad6df8d735e27a1',
-  footprints: 'd-90095557c1c54de1a153626bb0fbe03d',
-  payroll: 'd-cf7785c6a4a04285b1b2cee7d0227052',
-  dsr: 'd-e7a922e42d67456dafcc2926731250a0',
   dutyRoster: 'd-9b9c44018c3b41a8805189476a38c172',
-  leave: 'd-ae3a31066b0f447bbf8661570b4dc719',
+  footprints: 'd-90095557c1c54de1a153626bb0fbe03d',
   expenseClaim: 'd-ae3a31066b0f447bbf8661570b4dc719',
 };
 

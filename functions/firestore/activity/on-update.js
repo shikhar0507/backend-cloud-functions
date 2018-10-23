@@ -479,7 +479,13 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
 
 
 const handleAttachment = (conn, locals) => {
-  const result = filterAttachment(conn.req.body, locals);
+  const result = filterAttachment({
+    bodyAttachment: conn.req.body.attachment,
+    templateAttachment: locals.docs.activity.get('attachment'),
+    template: locals.docs.activity.get('template'),
+    officeId: locals.docs.activity.get('officeId'),
+    office: locals.docs.activity.get('office'),
+  });
 
   if (!result.isValid) {
     sendResponse(conn, code.badRequest, result.message);

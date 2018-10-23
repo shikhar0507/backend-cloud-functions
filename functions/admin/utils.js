@@ -299,6 +299,7 @@ const isNonEmptyString = (str) =>
  */
 const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
 
+const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
 
 /**
  * Verifies a phone number based on the E.164 standard.
@@ -482,6 +483,7 @@ module.exports = {
   sendJSON,
   isValidDate,
   handleError,
+  isValidEmail,
   sendResponse,
   isHHMMFormat,
   disableAccount,

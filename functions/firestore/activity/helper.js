@@ -28,6 +28,7 @@
 const { getGeopointObject } = require('./../../admin/admin');
 const {
   isValidDate,
+  isValidEmail,
   isValidGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
@@ -359,12 +360,19 @@ const validateVenues = (body, venueDescriptors) => {
 /**
  * Validates the attachment object based on the `template`.
  *
- * @param {Object} body The request body.
- * @param {Object} locals Object containing local data.
+ * @param {Object} options Contains object to validate attachment object.
  * @returns {Object} `messageObject` containing `message` and `isValid` fields
  * denoting if the attachment is a valid object.
  */
-const filterAttachment = (body, locals) => {
+const filterAttachment = (options) => {
+  const {
+    bodyAttachment,
+    templateAttachment,
+    template,
+    officeId,
+    office,
+  } = options;
+
   const messageObject = {
     isValid: true,
     message: null,
@@ -375,9 +383,9 @@ const filterAttachment = (body, locals) => {
   };
 
   const invalidTypeMessage = `Expected the type of 'attachment' to be`
-    + ` of type 'Object'. Found ${typeof body.attachment}.`;
+    + ` of type 'Object'. Found ${typeof bodyAttachment}.`;
 
-  if (typeof body.attachment !== 'object') {
+  if (typeof bodyAttachment !== 'object') {
     messageObject.isValid = false;
     messageObject.message = invalidTypeMessage;
 
@@ -385,14 +393,14 @@ const filterAttachment = (body, locals) => {
   }
 
   /** The `typeof null` is also `object`. */
-  if (body.attachment === null) {
+  if (bodyAttachment === null) {
     messageObject.isValid = false;
     messageObject.message = invalidTypeMessage;
 
     return messageObject;
   }
 
-  if (Array.isArray(body.attachment)) {
+  if (Array.isArray(bodyAttachment)) {
     messageObject.isValid = false;
     messageObject.message = `Expected the type of 'attachment' to be of type`
       + ` 'Object' Found 'Array'.`;
@@ -400,8 +408,8 @@ const filterAttachment = (body, locals) => {
     return messageObject;
   }
 
-  const fields = Object.keys(locals.objects.attachment);
-  const foundFields = Object.keys(body.attachment);
+  const fields = Object.keys(templateAttachment);
+  const foundFields = Object.keys(bodyAttachment);
 
   if (fields.length !== foundFields.length) {
     messageObject.isValid = false;
@@ -416,14 +424,14 @@ const filterAttachment = (body, locals) => {
 
   /** The `forEach` loop doesn't support `break` */
   for (const field of fields) {
-    if (!body.attachment.hasOwnProperty(field)) {
+    if (!bodyAttachment.hasOwnProperty(field)) {
       messageObject.isValid = false;
       messageObject.message = `The '${field}' field is missing`
         + ` from attachment in the request body.`;
       break;
     }
 
-    const item = body.attachment[field];
+    const item = bodyAttachment[field];
 
     if (!item.hasOwnProperty('type')) {
       messageObject.isValid = false;
@@ -459,9 +467,9 @@ const filterAttachment = (body, locals) => {
       break;
     }
 
-    if (body.template === 'subscription') {
+    if (template === 'subscription') {
       /** Subscription to the office is `forbidden` */
-      if (body.attachment.Template.value === 'office') {
+      if (bodyAttachment.Template.value === 'office') {
         messageObject.isValid = false;
         messageObject.message = `Subscription of the template: 'office'`
           + ` is not allowed.`;
@@ -494,8 +502,8 @@ const filterAttachment = (body, locals) => {
       }
     }
 
-    if (body.template === 'admin') {
-      const phoneNumber = body.attachment.Admin.value;
+    if (template === 'admin') {
+      const phoneNumber = bodyAttachment.Admin.value;
 
       if (!isE164PhoneNumber(phoneNumber)) {
         messageObject.isValid = false;
@@ -524,7 +532,7 @@ const filterAttachment = (body, locals) => {
         .querySnapshotShouldExist
         .push(rootCollections
           .offices
-          .doc(locals.static.officeId)
+          .doc(officeId)
           .collection('Activities')
           .where('attachment.Name.value', '==', value)
           .where('template', '==', type)
@@ -541,8 +549,8 @@ const filterAttachment = (body, locals) => {
         break;
       }
 
-      if (body.template === 'office'
-        && body.attachment.Name.value !== body.office) {
+      if (template === 'office'
+        && bodyAttachment.Name.value !== office) {
         messageObject.isValid = false;
         messageObject.message = `The office name in the`
           + ` 'attachment.Name.value' and the`
@@ -554,7 +562,7 @@ const filterAttachment = (body, locals) => {
         .querySnapshotShouldNotExist
         .push(rootCollections
           .offices
-          .doc(locals.static.officeId)
+          .doc(officeId)
           .collection('Activities')
           .where('attachment.Name.value', '==', value)
           /**
@@ -563,7 +571,7 @@ const filterAttachment = (body, locals) => {
            * name for which to query doesn't come from the
            * request `body`.
            */
-          .where('template', '==', locals.static.template)
+          .where('template', '==', template)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)
           .get()
@@ -588,7 +596,7 @@ const filterAttachment = (body, locals) => {
     }
 
     if (type === 'email') {
-      if (value !== '' && !/\S+@\S+\.\S+/.test(value)) {
+      if (value !== '' && !isValidEmail(value)) {
         messageObject.isValid = false;
         messageObject.message = `The field ${field} should be a valid email.`;
         break;
