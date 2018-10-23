@@ -24,8 +24,10 @@
 
 'use strict';
 
+
 const {
   db,
+  auth,
   rootCollections,
 } = require('../admin/admin');
 
@@ -34,34 +36,68 @@ const {
  * Creates new docs inside `Profile` and `Updates` collection in Firestore for
  * a newly signed up user.
  *
+ * Adding custom claims here because in the admin panel, chances are that the people
+ * getting the admin custom claims *may* not have auth. And when auth doesn't exist,
+ * we cannot grant them custom claims.
+ *
+ * So, we are handling the case here. When the user logs-in the app first time,
+ * this function will grant them custom claim of all the offices for which
+ * they are an admin of.
+ *
  * @param {Object} userRecord Object with user info.
- * @returns {Promise <Object>} Batch object.
+ * @returns {Promise<Object>} Batch object.
  */
-module.exports = (userRecord) => {
-  const batch = db.batch();
-  const { uid, phoneNumber } = userRecord;
-
-  batch.set(rootCollections
-    .updates
-    .doc(uid), {
-      phoneNumber,
-    }, {
-      merge: true,
-    });
-
+module.exports = (userRecord) =>
   /**
-   * Profile *may* exist already, if the user signed
-   * up to the platform sometime in the past.
+   * Querying activities and not the usual `Offices/officeId/Activities`
+   * because we do not know which office the user belongs to.
    */
-  batch.set(rootCollections
+  rootCollections
     .profiles
-    .doc(phoneNumber), {
-      uid,
-    }, {
-      merge: true,
-    });
+    .doc(userRecord.phoneNumber)
+    .collection('Activities')
+    .where('template', '==', 'admin')
+    .where('attachment.Admin.value', '==', userRecord.phoneNumber)
+    .get()
+    .then((docs) => {
+      const batch = db.batch();
+      const { uid, phoneNumber } = userRecord;
 
-  return batch
-    .commit()
+      batch.set(rootCollections
+        .updates
+        .doc(uid), {
+          phoneNumber,
+        }, {
+          merge: true,
+        });
+
+      /**
+       * Profile *may* exist already, if the user signed
+       * up to the platform sometime in the past OR if their
+       * phone number was introduced to the system sometime
+       * in the past via an activity
+       */
+      batch.set(rootCollections
+        .profiles
+        .doc(phoneNumber), {
+          uid,
+        }, {
+          merge: true,
+        });
+
+      const customClaimsObject = {};
+
+      if (!docs.empty) customClaimsObject.admin = [];
+
+      docs.forEach((doc) => customClaimsObject.admin.push(doc.get('office')));
+
+      return Promise
+        .all([
+          auth
+            .setCustomUserClaims(uid, customClaimsObject),
+          batch
+            .commit(),
+        ]);
+    })
+    .then(console.log)
     .catch(console.error);
-};
