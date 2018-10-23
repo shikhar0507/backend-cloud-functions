@@ -577,6 +577,7 @@ module.exports = (addendumDoc) => {
     .doc(officeId)
     .collection('Addendum')
     .where('user', '==', phoneNumber)
+    .where('dateString', '==', new Date().toDateString())
     .orderBy('timestamp', 'desc')
     .limit(2)
     .get()
