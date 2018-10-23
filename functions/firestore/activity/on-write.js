@@ -153,8 +153,13 @@ const addSubscriptionToUserProfile = (locals, batch) =>
       const doc = docs.docs[0];
       const include = [];
 
-      /** The client app isn't allowed to create activities as `ADMIN`. */
-      if (doc.get('canEditRule') !== 'ADMIN') return batch.commit();
+      /** The client app isn't allowed to create activities as `ADMIN`.
+       * Since Firestore doesn't allow querying negative cases
+       * eg. where('canEditRule', '!==', 'ADMIN')
+       * we are simply not adding the subscription to user's profile
+       * since they won't be able to use that subscription in the front-end app.
+      */
+      if (doc.get('canEditRule') === 'ADMIN') return batch.commit();
 
       locals.assigneePhoneNumbersArray.forEach((phoneNumber) => {
         const addToInclude = locals.assigneesMap.get(phoneNumber).addToInclude;
@@ -846,7 +851,7 @@ module.exports = (change, context) => {
 
       console.log('locals.adminsCanEdit', locals.adminsCanEdit);
 
-      /** Document below the Offices/(OfficeId)/Activities/ collection. */
+      /** Document below the `Offices/(OfficeId)/Activities/ collection` */
       batch.set(rootCollections
         .offices
         .doc(change.after.get('officeId'))
