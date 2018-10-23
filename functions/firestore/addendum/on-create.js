@@ -183,6 +183,26 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
       .keys(payrollObject[phoneNumber])
       .filter((item) => item !== '');
 
+  if (addendumDoc.get('action') === httpsActions.changeStatus
+    && addendumDoc.get('activityData.status') === 'CANCELLED') {
+    schedulesArray.forEach((schedule) => {
+      let startTime = schedule.startTime;
+      let endTime = schedule.endTime;
+
+      if (!startTime || !endTime) return;
+      startTime = startTime.toDate().getTime();
+      endTime = endTime.toDate().getTime();
+
+      while (startTime <= endTime) {
+        const date = new Date(startTime).getDate();
+        /** Leave CANCELLED, so not reflecting that in the final payroll report */
+        payrollObject[phoneNumber][date] = deleteField();
+
+        startTime += NUM_SECS_IN_DAY;
+      }
+    });
+  }
+
   /**
    * When the whole object contains empty string, the recipients onUpdate
    * should query the addendumDocs for this user's day activity. Leaving this field
