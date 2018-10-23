@@ -3,6 +3,7 @@
 const {
   db,
   rootCollections,
+  fieldPath,
 } = require('../../admin/admin');
 const {
   handleError,
@@ -52,13 +53,15 @@ const validateAttachment = (options) => {
     };
   }
 
-  const fields = Object.toString();
-
   return messageObject;
 };
 
 
 module.exports = (conn) => {
+  /**
+   * Unlike the client-side APIs, this one simply replaces
+   * or creates the documents.
+   */
   if (conn.req.method !== 'PUT') {
     sendResponse(
       conn,
@@ -106,13 +109,15 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      `${conn.req.body.template} is not supported.`
+      `Template: '${conn.req.body.template}' is not supported`
     );
 
     return;
   }
 
-  const batch = db.batch();
+  const locals = {
+    batch: db.batch(),
+  };
 
   Promise
     .all([
@@ -129,124 +134,9 @@ module.exports = (conn) => {
         .get(),
     ])
     .then((result) => {
-      const [
-        officeDocQuery,
-        templateDocQuery,
-      ] = result;
-
-      if (templateDocQuery.empty) {
-        sendResponse(
-          conn,
-          code.badRequest,
-          `Template '${conn.req.body.template}' not found`
-        );
-
-        return;
-      }
-
-      if (templateDocQuery
-        .docs[0]
-        .get('canEditRule') !== 'ADMIN') {
-        sendResponse(
-          conn,
-          code.forbidden,
-          `The template '${conn.req.body.template}' is not supported.`
-        );
-
-        return;
-      }
-
-      if (conn.req.body.template === 'office'
-        && !officeDocQuery.empty) {
-        sendResponse(
-          conn,
-          code.conflict,
-          `An office with the name: ${conn.req.body.office} already exists`
-        );
-
-        return;
-      }
-
-      if (officeDocQuery.docs[0].get('status') === 'CANCELLED') {
-        sendResponse(
-          conn,
-          code.forbidden,
-          `The office status is CANCELLED. Cannot create an activity`
-        );
-
-        return;
-      }
-
-      const locals = {
-        batch: db.batch(),
-        officeDoc: officeDocQuery.docs[0],
-        templateDoc: templateDocQuery.docs[0],
-        /** The field `share` is an array of phoneNumbers */
-        allAssignees: new Set(conn.req.body.share),
-      };
-
-      const scheduleValid =
-        validateSchedules(
-          conn.req.body,
-          templateDocQuery.docs[0].get('schedule')
-        );
-
-      if (!scheduleValid.isValid) {
-        sendResponse(
-          conn,
-          code.badRequest,
-          scheduleValid.message
-        );
-
-        return;
-      }
-
-      const venueValid =
-        validateVenues(
-          conn.req.body,
-          templateDocQuery.docs[0].get('venue')
-        );
-
-      if (!venueValid.isValid) {
-        sendResponse(conn, code.badRequest, venueValid.message);
-
-        return;
-      }
-
-      const attachmentValid = validateAttachment({
-        requestBody: conn.req.body,
-        templateAttachment: templateDocQuery.docs[0].get('attachment'),
-        officeId: officeDocQuery.docs[0].id,
-        template: conn.req.body.template,
-      });
-
-      if (!attachmentValid.isValid) {
-        sendResponse(conn, code.badRequest, attachmentValid.message);
-
-        return;
-      }
-
-      attachmentValid
-        .phoneNumbers
-        .forEach((phoneNumber) => locals.allAssignees.add(phoneNumber));
 
 
-      if (locals.allAssignees.size === 0) {
-        sendResponse(
-          conn,
-          code.conflict,
-          `Cannot create an activity with no assignees.`
-        );
-
-        return;
-      }
-
-
-
-
-
-
-      return batch.commit();
+      return;
     })
     .catch((error) => handleError(conn, error));
 };
