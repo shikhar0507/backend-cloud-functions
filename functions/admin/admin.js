@@ -42,6 +42,11 @@ db.settings({ timestampsInSnapshots: true });
  */
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
+/**
+ * Sentinel which refers to the document id.
+ */
+const fieldPath = admin.firestore.FieldPath.documentId();
+
 /** For the worst cases where there is an omission of a `catch()` block. */
 process
   .on('unhandledRejection', console.log);
@@ -260,6 +265,7 @@ module.exports = {
   db,
   auth,
   users,
+  fieldPath,
   deleteField,
   rootCollections,
   serverTimestamp,
