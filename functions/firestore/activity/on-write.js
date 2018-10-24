@@ -112,7 +112,20 @@ const setAdminCustomClaims = (locals, batch) => {
             .commit(),
         ]);
     })
-    .catch(console.error);
+    .catch((error) => {
+      /**
+       * User who doesn't have auth will be granted admin claims
+       * when they actually sign-up to the platform (handled in `AuthOnCreate`)
+       * using the client app.
+       */
+      if (error.code === 'auth/user-not-found') {
+        return batch.commit();
+      }
+
+      console.log(error);
+
+      return Promise.resolve();
+    });
 };
 
 
