@@ -53,6 +53,10 @@ module.exports = (locals) => {
     subject: `DSR_Office_${todaysDateString}`,
   };
 
+  // Only add sheets where the
+  // TODO: visitDates (yesterday)
+  // TODO: followUpDates (today)
+  // TODO: closureDates (today)
   return Promise
     .all([
       rootCollections

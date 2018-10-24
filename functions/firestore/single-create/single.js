@@ -1,60 +1,16 @@
 'use strict';
 
 const {
-  db,
-  rootCollections,
-  fieldPath,
-} = require('../../admin/admin');
-const {
-  handleError,
   sendResponse,
   hasAdminClaims,
   hasSupportClaims,
 } = require('../../admin/utils');
 const {
-  httpsActions,
-} = require('../../admin/constants');
-const {
   code,
 } = require('../../admin/responses');
 const {
   isValidRequestBody,
-  validateSchedules,
-  validateVenues,
 } = require('../../firestore/activity/helper');
-
-const validateAttachment = (options) => {
-  const {
-    requestBody,
-    templateAttachment,
-    officeId,
-    template,
-  } = options;
-
-  const messageObject = {
-    isValid: true,
-    message: null,
-    phoneNumbers: new Set(),
-  };
-
-  if (!requestBody.attachment) {
-    return {
-      isValid: false,
-      message: `Expected the body type of 'attachment' to be of type`
-        + ` 'Object' Found ${typeof requestBody.attachment}.`,
-    };
-  }
-
-  if (Array.isArray(requestBody.attachment)) {
-    return {
-      isValid: false,
-      message: `Expected the body type of 'attachment' to be of type`
-        + ` 'Object' Found ${typeof requestBody.attachment}.`,
-    };
-  }
-
-  return messageObject;
-};
 
 
 module.exports = (conn) => {
@@ -101,7 +57,6 @@ module.exports = (conn) => {
   }
 
   if (!new Set()
-    .add('admin')
     .add('office')
     .add('product')
     .add('recipient')
@@ -115,28 +70,11 @@ module.exports = (conn) => {
     return;
   }
 
-  const locals = {
-    batch: db.batch(),
-  };
+  if (conn.req.body.hasOwnProperty('activityId')) {
+    require('./update')(conn);
 
-  Promise
-    .all([
-      rootCollections
-        .offices
-        .where('template', '==', 'office')
-        .where('attachment.Name.value', '==', conn.req.body.office)
-        .limit(1)
-        .get(),
-      rootCollections
-        .activityTemplates
-        .where('name', '==', conn.req.body.template)
-        .limit(1)
-        .get(),
-    ])
-    .then((result) => {
+    return;
+  }
 
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  require('./create')(conn);
 };
