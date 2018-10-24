@@ -628,6 +628,15 @@ const filterAttachment = (options) => {
     }
   }
 
+  if (messageObject.phoneNumbers.size === 0
+    && template === 'office') {
+    return {
+      isValid: false,
+      message: `Cannot create an office with both First and Second`
+        + ` contacts empty`,
+    };
+  }
+
   /** Set to array. */
   messageObject.phoneNumbers = [...messageObject.phoneNumbers];
 
