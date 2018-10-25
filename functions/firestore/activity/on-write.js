@@ -551,18 +551,13 @@ const addOfficeToProfile = (locals, batch) => {
   const status = activityDoc.status;
 
   const employeeOf = {
-    [office]: activityDoc,
+    [office]: officeId,
   };
 
   if (status === 'CANCELLED') {
     employeeOf[office] = deleteField();
   }
 
-  /**
-   * TODO: Remove this and update Profile `onWrite` function to not rely on
-   * data from this object. This data is redundant since we can access
-   * all employee data that is relevant for the report by reading the Office doc.
-   */
   batch.set(rootCollections
     .profiles
     .doc(employeeContact), {

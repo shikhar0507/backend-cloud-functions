@@ -31,7 +31,6 @@ const {
   deleteField,
 } = require('../../admin/admin');
 
-
 const purgeAddendum = (query, resolve, reject, count) =>
   query
     .get()
@@ -96,7 +95,6 @@ const manageAddendum = (change) => {
     .catch(console.error);
 };
 
-
 const getLocaleFromTimestamp = (countryCode, timestamp) => {
   if (timestamp) {
     // This value comes from Firestore.
@@ -108,12 +106,281 @@ const getLocaleFromTimestamp = (countryCode, timestamp) => {
   if (countryCode === '+91') {
     timestamp.setHours(timestamp.getHours() + 5);
     timestamp.setMinutes(timestamp.getMinutes() + 30);
-    const offsetted = new Date(timestamp);
+    const offset = new Date(timestamp);
 
-    return `${offsetted.toDateString()} ${offsetted.toTimeString()}`.split(' GMT')[0];
+    return `${offset.toDateString()} ${offset.toTimeString()}`.split(' GMT')[0];
   }
 
   return `${timestamp.toDateString()} ${timestamp.toTimeString()}`;
+};
+
+const getEmployeeObject = (options) => {
+  const {
+    hasSignedUp,
+  } = options;
+
+  const object = {
+    addedOn: getLocaleFromTimestamp('+91'),
+    signedUpOn: '',
+  };
+
+  if (hasSignedUp) object.signedUpOn = getLocaleFromTimestamp('+91');
+
+  return object;
+};
+
+const handleAddedToOffice = (change, options) => {
+  const {
+    phoneNumber,
+    newOffice,
+    hasSignedUp,
+    hasBeenAdded,
+    batch,
+    today,
+  } = options;
+
+  if (!hasBeenAdded) return manageAddendum(change);
+
+  return rootCollections
+    .inits
+    .where('report', '==', 'signup')
+    .where('office', '==', newOffice)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      const ref = (() => {
+        if (snapShot.empty) return rootCollections.inits.doc();
+
+        return snapShot.docs[0].ref;
+      })();
+
+      const officeId = change.after.get('employeeOf')[newOffice];
+
+      batch.set(ref, {
+        office: newOffice,
+        officeId,
+        date: today.toDateString(),
+        day: today.getDay(),
+        month: today.getMonth(),
+        year: today.getFullYear(),
+        report: 'signUp',
+        employeesObject: {
+          [phoneNumber]: getEmployeeObject({
+            hasSignedUp,
+          }),
+        },
+      }, {
+          merge: true,
+        });
+
+      return batch.commit();
+    })
+    .then(() => manageAddendum(change))
+    .catch(console.error);
+};
+
+
+const handleRemovedFromOffice = (change, options) => {
+  const {
+    phoneNumber,
+    removedOffice,
+    hasBeenRemoved,
+    batch,
+    today,
+  } = options;
+
+  if (!hasBeenRemoved) return handleAddedToOffice(change, options);
+
+  return Promise
+    .all([
+      rootCollections
+        .inits
+        .where('report', '==', 'install')
+        .where('office', '==', removedOffice)
+        .limit(1)
+        .get(),
+      rootCollections
+        .inits
+        .where('report', '==', 'signup')
+        .where('office', '==', removedOffice)
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        installDocQuery,
+        signUpDocQuery,
+      ] = result;
+
+      batch.delete(installDocQuery.docs[0].ref);
+
+      batch.set(signUpDocQuery.docs[0].ref, {
+        date: today.toDateString(),
+        day: today.getDay(),
+        month: today.getMonth(),
+        year: today.getFullYear(),
+        employeesObject: {
+          [phoneNumber]: deleteField(),
+        },
+      }, {
+          merge: true,
+        });
+
+      return batch.commit();
+    })
+    .then(() => handleAddedToOffice(change, options))
+    .catch(console.error);
+};
+
+const handleInstall = (change, options) => {
+  const {
+    phoneNumber,
+    currentOfficesList,
+    hasInstalled,
+    batch,
+    today,
+  } = options;
+
+  if (!hasInstalled) return handleRemovedFromOffice(change, options);
+
+  const promises = [];
+
+  currentOfficesList.forEach((office) => {
+    const promise = rootCollections
+      .inits
+      .where('report', '==', 'install')
+      .where('office', '==', office)
+      .limit(1)
+      .get();
+
+    promises.push(promise);
+  });
+
+  return Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot, index) => {
+        const ref = (() => {
+          if (snapShot.empty) return rootCollections.inits.doc();
+
+          return snapShot.docs[0].ref;
+        })();
+
+        const initDocObject = (() => {
+          const office = currentOfficesList[index];
+          const officeId = change.after('employeeOf')[office];
+
+          if (snapShot.empty) {
+            return {
+              office,
+              phoneNumber,
+              report: 'install',
+              officeId,
+              date: today.toDateString(),
+              day: today.getDay(),
+              month: today.getMonth(),
+              year: today.getFullYear(),
+              installs: [
+                getLocaleFromTimestamp('+91'),
+              ],
+            };
+          }
+
+          const {
+            installs,
+          } = snapShot.docs[0].data();
+
+          installs.push(getLocaleFromTimestamp('+91'));
+
+          return {
+            installs,
+            date: today.toDateString(),
+            day: today.getDay(),
+            month: today.getMonth(),
+            year: today.getFullYear(),
+          };
+        })();
+
+        batch.set(ref, initDocObject, { merge: true });
+      });
+
+      return handleRemovedFromOffice(change, options);
+    })
+    .catch(console.error);
+};
+
+
+const handleSignUp = (change, options) => {
+  const {
+    phoneNumber,
+    currentOfficesList,
+    hasSignedUp,
+    batch,
+    today,
+  } = options;
+
+  if (!hasSignedUp) return handleInstall(change, options);
+
+  /** 
+   * If has signed-up, get all current offices
+   * For each office, fetch init doc with the report signup
+   * If doc exists:
+   *  update the init doc
+   *  with employeesObject[phoneNumber] = {
+   *  addedOn,
+   * signedUpOn,
+   * }
+   * 
+   * Else create doc with the data
+   */
+
+  const promises = [];
+
+  currentOfficesList.forEach((office) => {
+    const promise = rootCollections
+      .inits
+      .where('report', '==', 'signup')
+      .where('office', '==', office)
+      .limit(1)
+      .get();
+
+    promises.push(promise);
+  });
+
+  return Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot, index) => {
+        const ref = (() => {
+          if (snapShot.empty) return rootCollections.inits.doc();
+
+          return snapShot.docs[0].ref;
+        })();
+
+        const office = currentOfficesList[index];
+
+        batch.set(ref, {
+          office,
+          officeId: change.after.get('employeeOf')[office],
+          report: 'signUp',
+          date: today.toDateString(),
+          day: today.getDay(),
+          month: today.getMonth(),
+          year: today.getFullYear(),
+          employeesObject: {
+            [phoneNumber]: getEmployeeObject({
+              hasSignedUp,
+              hasSignedUpBeforeOffice: false,
+            }),
+          },
+        }, {
+            merge: true,
+          });
+      });
+
+      return handleInstall(change, options);
+    })
+    .catch(console.error);
 };
 
 
@@ -133,50 +400,69 @@ module.exports = (change) => {
     after,
   } = change;
 
-  /** Document was deleted. For debugging only... */
   if (!after.data()) {
-    console.log('Profile was deleted.');
+    console.log('Profile Deleted');
 
     return Promise.resolve();
   }
 
   const batch = db.batch();
+
   const phoneNumber = after.id;
-  const oldOfficesList = Object.keys(before.get('employeeOf') || {});
-  const currentOfficesList = Object.keys(after.get('employeeOf') || {});
-  /**
-   * List of `offices` where this person has been added as an
-   * `employee` at this instance of the cloud function `onWrite`.
-   * In most cases, this array will only have a single element because
-   * `activity` `onWrite` function only adds a **single** field to this object
-   * at a time.
-   */
-  const addedList = currentOfficesList
-    .filter((officeName) => oldOfficesList.indexOf(officeName) === -1);
-  const removedList = oldOfficesList
-    .filter((officeName) => currentOfficesList.indexOf(officeName) === -1);
+  const oldOfficesList = Object.keys(before.get('employeeOf'));
+  const currentOfficesList = Object.keys(after.get('employeeOf'));
+
+  const newOffice = currentOfficesList
+    .filter((officeName) => !oldOfficesList.includes(officeName))[0];
+  const removedOffice = oldOfficesList
+    .filter((officeName) => !currentOfficesList.includes(officeName))[0];
   /**
    * The uid was `undefined` or `null` in the old state, but is available
    * after document `onWrite` event.
    */
   const hasSignedUp = Boolean(!before.get('uid') && after.get('uid'));
   const authDeleted = Boolean(before.get('uid') && !after.get('uid'));
-  const hasInstalled = Boolean(before.get('lastQueryFrom')
-    && before.get('lastQueryFrom') !== 0
-    && after.get('lastQueryFrom') === 0);
+  /** This can be `undefined` which will returned as `false`. */
+  const hasBeenRemoved = Boolean(removedOffice);
+  const hasBeenAdded = Boolean(newOffice);
 
-  console.log({
-    addedList,
-    removedList,
-    currentOfficesList,
-    hasSignedUp,
-    hasInstalled,
-    authDeleted,
-    phoneNumber,
-  });
+  /**
+   * If the `lastQueryFrom` value is `0`, the user probably has installed
+   * the app for the first or (has been installing it multiple) time.
+   * We log all these events to create a report based on this data
+   * for all the offices this person belongs to.
+   */
+  const hasInstalled = Boolean(
+    before.get('lastQueryFrom')
+    && before.get('lastQueryFrom') !== 0
+    && after.get('lastQueryFrom') === 0
+  );
 
   const today = new Date();
 
+  const toGetInit =
+    hasSignedUp
+    || authDeleted
+    || hasInstalled
+    || hasBeenAdded
+    || hasBeenRemoved;
+
+  if (!toGetInit) return manageAddendum(change);
+
+  const options = {
+    phoneNumber,
+    newOffice,
+    removedOffice,
+    currentOfficesList,
+    oldOfficesList,
+    hasSignedUp,
+    authDeleted,
+    hasInstalled,
+    hasBeenRemoved,
+    hasBeenAdded,
+    batch,
+    today,
+  };
 
   /**
    * What this code does...
@@ -184,161 +470,14 @@ module.exports = (change) => {
    * If has installed
    *    For each office create installs doc.
    * If has been added
-   *    For each office (added) created signup docs with addedOn field
+   *    For each office (added) created sign up docs with `addedOn` field
    * If uid written
-   *    For each office (current) create signups doc with signedUpOn field
-   * Delete addendum if new lastFromQuery > old lastFromQuery.
+   *    For each office (current) create sign up doc with `signedUpOn` field
+   * Delete addendum if new `lastFromQuery` > old `lastFromQuery`.
    *
    */
-  addedList.forEach((office) => {
-    const activityData = after.get('employeeOf')[office];
-    activityData.addedOn = getLocaleFromTimestamp('+91', activityData.timestamp);
 
-    batch.set(rootCollections
-      .inits
-      .doc(activityData.officeId), {
-        office,
-        officeId: activityData.officeId,
-        date: today.toDateString(),
-        day: today.getDay(),
-        month: today.getMonth(),
-        year: today.getFullYear(),
-        report: 'signUp',
-        employeesObject: {
-          [phoneNumber]: activityData,
-        },
-      }, {
-        merge: true,
-      });
-  });
+  console.log(options);
 
-  const toFetch = [];
-
-  currentOfficesList.forEach((office) => {
-    // Activity with which this person was added as an employee to the office in context.
-    const employeeActivity = after.get('employeeOf')[office];
-    /**
-     * If the `lastQueryFrom` value is `0`, the user probably has installed
-     * the app for the first or (has been installing it multiple) time.
-     * We log all these events to create a report based on this data
-     * for all the offices this person belongs to.
-     */
-    if (hasInstalled) {
-      toFetch.push(rootCollections
-        .inits
-        .where('phoneNumber', '==', phoneNumber)
-        .where('office', '==', office)
-        .where('report', '==', 'install')
-        .get()
-      );
-    }
-
-    const hasSignedUpBeforeOffice =
-      Boolean(
-        office === addedList[0]
-        && before.get('uid')
-        && after.get('uid')
-      );
-
-    console.log('hasSignedUpBeforeOffice:', hasSignedUpBeforeOffice);
-
-    if (hasSignedUp || hasSignedUpBeforeOffice) {
-      employeeActivity.signedUpOn =
-        getLocaleFromTimestamp('+91', employeeActivity.timestamp);
-
-      batch.set(rootCollections
-        .inits
-        .doc(employeeActivity.officeId), {
-          office,
-          officeId: employeeActivity.officeId,
-          report: 'signUp',
-          date: today.toDateString(),
-          day: today.getDay(),
-          month: today.getMonth(),
-          year: today.getFullYear(),
-          employeesObject: {
-            [phoneNumber]: employeeActivity,
-          },
-        }, {
-          merge: true,
-        });
-    }
-  });
-
-  removedList.forEach((office) => {
-    // Since the value is not present in the `after` object
-    // We will use `before`.
-    const activityData = before.get('employeeOf')[office];
-
-    batch.set(rootCollections
-      .inits
-      .doc(activityData.officeId), {
-        employeesObject: {
-          [phoneNumber]: deleteField(),
-        },
-      }, {
-        merge: true,
-      });
-
-    /** The activity with which this person was added as an employee to this office */
-    batch.delete(rootCollections
-      .inits
-      .doc(activityData.id)
-    );
-  });
-
-  return Promise
-    .all(toFetch)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) {
-          currentOfficesList.forEach((office) => {
-            const employeeActivity = after.get('employeeOf')[office];
-
-            batch.set(rootCollections
-              .inits
-              .doc(employeeActivity.id), {
-                office,
-                phoneNumber,
-                report: 'install',
-                officeId: employeeActivity.officeId,
-                date: today.toDateString(),
-                day: today.getDay(),
-                month: today.getMonth(),
-                year: today.getFullYear(),
-                installs: [
-                  getLocaleFromTimestamp('+91'),
-                ],
-              });
-          });
-        }
-
-        snapShot.forEach((doc) => {
-          const {
-            installs,
-          } = doc.data();
-
-          installs.push(getLocaleFromTimestamp('+91'));
-
-          batch.set(doc.ref, {
-            installs,
-            /**
-             * Updating the date is required for the Timer cloud function
-             * to be able to get this document.
-             */
-            date: today.toDateString(),
-            day: today.getDay(),
-            month: today.getMonth(),
-            year: today.getFullYear(),
-          }, {
-              /** This doc contains other data about his older installs for this user. */
-              merge: true,
-            });
-        });
-      });
-
-      return batch.commit();
-    })
-    .then(() => manageAddendum(change))
-    .catch(console.error);
+  return handleSignUp(change, options);
 };
