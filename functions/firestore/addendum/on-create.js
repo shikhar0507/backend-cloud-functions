@@ -110,8 +110,14 @@ const getDisplayText = (addendumDoc) => {
   }
 
   if (template === 'leave') {
-    const leaveType = addendumDoc.get('activityData.attachment.Leave Type.value');
-    displayText = leaveType || 'LEAVE';
+    displayText = (() => {
+      const leaveType =
+        addendumDoc.get('activityData.attachment.Leave Type.value');
+
+      if (leaveType) return `LEAVE - ${leaveType}`;
+
+      return `LEAVE`;
+    })();
   }
 
   if (template === 'tour plan') {
