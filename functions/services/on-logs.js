@@ -32,7 +32,6 @@ const {
 const {
   sendResponse,
   handleError,
-  isNonEmptyString,
 } = require('../admin/utils');
 
 const {
@@ -55,26 +54,6 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!conn.req.body.hasOwnProperty('message')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The request body is missing the message object.'
-    );
-
-    return;
-  }
-
-  if (!isNonEmptyString(conn.req.body.message)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'The message object in the request body should be of type string.'
-    );
-
-    return;
-  }
-
   rootCollections
     .updates
     .doc(conn.requester.uid)
@@ -83,14 +62,24 @@ module.exports = (conn) => {
       const batch = db.batch();
       const docRef = rootCollections.instant.doc();
       const body = conn.req.body;
-      body.requester = conn.requester;
-      /** This field isn't required since it has lots of extra data. */
-      delete body.requester.employeeOf;
-      body.url = conn.req.url;
-      body.updatesDoc = doc.data();
+      /** This field isn't required since it has lots of extra data */
+      delete conn.requester.employeeOf;
+
+      console.log({
+        body,
+        requester: conn.requester,
+        url: conn.req.url,
+        updatesDoc: doc.data(),
+      });
+
       batch.set(docRef, {
-        messageBody: JSON.stringify(conn.req.body, ' ', 2),
-        subject: 'A new error showed up in the Growthfile Frontend.',
+        messageBody: JSON.stringify({
+          body,
+          requester: conn.requester,
+          url: conn.req.url,
+          updatesDoc: doc.data(),
+        }, ' ', 2),
+        subject: 'A new error showed up in the Growthfile Frontend',
         action: reportingActions.clientError,
       });
 
