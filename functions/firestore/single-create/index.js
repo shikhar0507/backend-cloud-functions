@@ -10,7 +10,10 @@ const {
 } = require('../../admin/responses');
 const {
   isValidRequestBody,
-} = require('../../firestore/activity/helper');
+} = require('../activity/helper');
+const {
+  httpsActions,
+} = require('../../admin/constants');
 
 
 module.exports = (conn) => {

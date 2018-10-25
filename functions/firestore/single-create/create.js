@@ -23,6 +23,7 @@ const {
   httpsActions,
 } = require('../../admin/constants');
 
+
 const getActivityName = (options) => {
   const {
     bodyAttachment,
@@ -31,7 +32,7 @@ const getActivityName = (options) => {
   } = options;
 
   if (bodyAttachment.Name) {
-    return `${templateName.toUpperCase()}: ${bodyAttachment.Name}`;
+    return `${templateName.toUpperCase()}: ${bodyAttachment.Name.value}`;
   }
 
   return `${templateName.toUpperCase()}:`
@@ -64,47 +65,49 @@ const getCanEditValue = (options) => {
 
 
 const createDocs = (conn, locals) => {
-  locals.activityObject.activityName = getActivityName({
-    attachment: conn.req.body.attachment,
-    template: conn.req.body.template,
-    requester: conn.requester,
-  });
-
-  locals.allPhoneNumbers.forEach((phoneNumber) => {
-    const isRequester = phoneNumber === conn.requester.phoneNumber;
-
-    const isSubscription = conn.req.body.template === 'subscription';
-
-    const addToInclude = (() => {
-      if (isSubscription && isRequester) {
-        return false;
-      }
-
-      return true;
-    })();
-
-    const canEdit = getCanEditValue({
-      phoneNumber,
-      permissions: locals.permissions,
-      canEditRule: locals.activityObject.canEditRule,
+  locals
+    .activityObject
+    .activityName = getActivityName({
+      bodyAttachment: conn.req.body.attachment,
+      templateName: conn.req.body.template,
+      requester: conn.requester,
     });
 
-    locals
-      .batch
-      .set(locals
-        .activityRef
-        .collection('Assignees')
-        .doc(phoneNumber), {
-          addToInclude,
-          canEdit,
-        });
-  });
+  locals
+    .allPhoneNumbers.forEach((phoneNumber) => {
+      const isRequester = phoneNumber === conn.requester.phoneNumber;
+      const isSubscription = conn.req.body.template === 'subscription';
+
+      const addToInclude = (() => {
+        if (isSubscription && isRequester) {
+          return false;
+        }
+
+        return true;
+      })();
+
+      const canEdit = getCanEditValue({
+        phoneNumber,
+        permissions: locals.permissions,
+        canEditRule: locals.activityObject.canEditRule,
+      });
+
+      locals
+        .batch
+        .set(locals
+          .activityRef
+          .collection('Assignees')
+          .doc(phoneNumber), {
+            addToInclude,
+            canEdit,
+          });
+    });
 
   locals
     .activityObject
     .addendumDocRef = rootCollections
       .offices
-      .doc(locals.officeId)
+      .doc(locals.activityObject.officeId)
       .collection('Addendum')
       .doc();
 
@@ -127,12 +130,14 @@ const createDocs = (conn, locals) => {
         userDeviceTimestamp: new Date(conn.req.body.timestamp),
         activityId: locals.activityRef.id,
         activityName: getActivityName({
-          attachment: conn.req.body.attachment,
-          template: conn.req.body.template,
+          bodyAttachment: conn.req.body.attachment,
+          templateName: conn.req.body.template,
           requester: conn.requester,
         }),
         isSupportRequest: conn.requester.isSupportRequest,
       });
+
+  console.log('batch', locals.batch);
 
   locals
     .batch.commit()
@@ -230,74 +235,32 @@ const handleAssignees = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
-const getAttachmentObject = (attachment, template) => {
-  // stuff
-};
 
-const getActivityObject = (options) => {
+const getAttachmentObject = (options) => {
   const {
-    office,
-    officeId,
-    requester,
-    phoneNumber,
-    addendumDocRef,
     templateObject,
+    phoneNumber,
   } = options;
 
-  const activityName = (() => {
-    if (templateObject.name === 'ADMIN') {
-      return `ADMIN: ${phoneNumber}`;
-    }
+  if (templateObject.name === 'admin') {
+    templateObject.attachment.Admin.value = phoneNumber;
+  }
 
-    if (templateObject.name === 'subscription') {
-      return `SUBSCRIPTION: ${phoneNumber}`;
-    }
-  })();
+  if (templateObject.name === 'subscription') {
+    templateObject.attachment.Subscriber.value = phoneNumber;
+    templateObject.attachment.Template.value = templateObject.name;
+  }
 
-  const activityObject = {
-    office,
-    officeId,
-    addendumDocRef,
-    activityName,
-    venue: [],
-    schedule: [],
-    hidden: templateObject.hidden,
-    timestamp: serverTimestamp,
-    template: templateObject.name,
-    status: templateObject.statusOnCreate,
-    attachment: getAttachmentObject(templateObject),
-    canEditRule: templateObject.canEditRule,
-    creator: requester.phoneNumber,
-  };
-
-  return activityObject;
-};
-
-const getAddendumObject = (options) => {
-  const addendumObject = {
-    // activityData: activityObject,
-    // user: conn.requester.phoneNumber,
-    // userDisplayName: conn.requester.displayName,
-    // share: Array.from(locals.allPhoneNumbers),
-    // action: httpsActions.create,
-    // template: conn.req.body.template,
-    // location: getGeopointObject(conn.req.body.geopoint),
-    // timestamp: serverTimestamp,
-    // userDeviceTimestamp: new Date(conn.req.body.timestamp),
-    // activityId: activityRef.id,
-    // activityName: getActivityName({
-    //   bodyAttachment: adminTemplate,
-    //   templateName: 'admin',
-    //   requester: conn.requester,
-    // }),
-    // isSupportRequest: conn.requester.isSupportRequest,
-  };
-
-  return addendumObject;
+  return templateObject.attachment;
 };
 
 
-const handleOffice = (conn, locals) => {
+const createAdminAndSubscription = (conn, locals, result) => {
+  const {
+    adminTemplate,
+    subscriptionTemplate,
+  } = result;
+
   const phoneNumbersArray =
     Object
       .keys(conn.req.body.attachment)
@@ -306,10 +269,154 @@ const handleOffice = (conn, locals) => {
         const type = conn.req.body.attachment[key].type;
 
         return type === 'phoneNumber' && value !== '';
-      });
+      })
+      .map((field) => conn.req.body.attachment[field].value);
 
-  const promises = [];
 
+  console.log('phoneNumbersArray', phoneNumbersArray);
+
+  /** Avoid duplicate phone numbers which will increase */
+  new Set(phoneNumbersArray)
+    .forEach((phoneNumber) => {
+      const adminActivityRef = rootCollections
+        .activities
+        .doc();
+      const subscriptionActivityRef = rootCollections
+        .activities
+        .doc();
+      /**
+       * The `activityRef` is the reference to the Office doc when the
+       * template is `office`.
+       */
+      const adminAddendumDocRef = rootCollections
+        .offices
+        .doc(locals.activityRef.id)
+        .collection('Addendum')
+        .doc();
+      const subscriptionAddendumDocRef = rootCollections
+        .offices
+        .doc(locals.activityRef.id)
+        .collection('Addendum')
+        .doc();
+
+      const timestamp = serverTimestamp;
+      const office = conn.req.body.office;
+      const officeId = locals.activityRef.id;
+
+      const adminActivityObject = {
+        timestamp,
+        office,
+        officeId,
+        activityName: `ADMIN: ${phoneNumber}`,
+        addendumDocRef: adminAddendumDocRef,
+        attachment: getAttachmentObject({
+          phoneNumber,
+          templateObject: adminTemplate.data(),
+        }),
+        canEditRule: adminTemplate.get('canEditRule'),
+        creator: conn.requester.phoneNumber,
+        hidden: adminTemplate.get('hidden'),
+        schedule: [],
+        venue: [],
+        status: adminTemplate.get('statusOnCreate'),
+        template: 'admin',
+      };
+      const subscriptionActivityObject = {
+        timestamp,
+        office,
+        officeId,
+        activityName: `SUBSCRIPTION: ${phoneNumber}`,
+        addendumDocRef: subscriptionAddendumDocRef,
+        attachment: getAttachmentObject({
+          phoneNumber,
+          templateObject: subscriptionTemplate.data(),
+        }),
+        canEditRule: subscriptionTemplate.get('canEditRule'),
+        creator: conn.requester.phoneNumber,
+        hidden: subscriptionTemplate.get('hidden'),
+        schedule: [],
+        venue: [],
+        status: subscriptionTemplate.get('statusOnCreate'),
+        template: 'subscription',
+      };
+      const adminAddendumObject = {
+        timestamp,
+        activityData: adminActivityObject,
+        user: conn.requester.phoneNumber,
+        userDisplayName: conn.requester.displayName,
+        share: Array.from(locals.allPhoneNumbers),
+        action: httpsActions.create,
+        template: 'admin',
+        location: getGeopointObject(conn.req.body.geopoint),
+        userDeviceTimestamp: new Date(conn.req.body.timestamp),
+        activityId: adminActivityRef.id,
+        activityName: `ADMIN: ${phoneNumber}`,
+        isSupportRequest: conn.requester.isSupportRequest,
+      };
+      const subscriptionAddendumObject = {
+        timestamp,
+        activityData: subscriptionActivityObject,
+        user: conn.requester.phoneNumber,
+        userDisplayName: conn.requester.displayName,
+        share: Array.from(locals.allPhoneNumbers),
+        action: httpsActions.create,
+        template: 'subscription',
+        location: getGeopointObject(conn.req.body.geopoint),
+        userDeviceTimestamp: new Date(conn.req.body.timestamp),
+        activityId: subscriptionActivityRef.id,
+        activityName: `SUBSCRIPTION: ${phoneNumber}`,
+        isSupportRequest: conn.requester.isSupportRequest,
+      };
+
+      locals
+        .batch
+        .set(adminActivityRef, adminActivityObject);
+      locals
+        .batch
+        .set(adminAddendumDocRef, adminAddendumObject);
+      locals
+        .batch
+        .set(subscriptionActivityRef, subscriptionActivityObject);
+      locals
+        .batch
+        .set(subscriptionAddendumDocRef, subscriptionAddendumObject);
+
+      locals
+        .allPhoneNumbers
+        .forEach((phoneNumber) => {
+          /** Isn't really useful here since addToInclude is only useful for
+           * subscription template.
+           */
+          locals
+            .batch
+            .set(adminActivityRef
+              .collection('Assignees')
+              .doc(phoneNumber), {
+                canEdit: true,
+                addToInclude: true,
+              });
+
+          locals
+            .batch
+            .set(subscriptionActivityRef
+              .collection('Assignees')
+              .doc(phoneNumber), {
+                /**
+             * Person getting the subscription doesn't need to be
+             * included in the default assignees list since they themselves
+             * become an assignee of the activity created by them.
+             */
+                canEdit: false,
+                addToInclude: false,
+              });
+        });
+    });
+
+  handleAssignees(conn, locals);
+};
+
+
+const handleOffice = (conn, locals) => {
   Promise
     .all([
       rootCollections
@@ -323,62 +430,13 @@ const handleOffice = (conn, locals) => {
         .limit(1)
         .get(),
     ])
-    .then((docs) => {
-      const adminTemplate = docs.docs[0];
-      const subscriptionTemplate = docs.docs[1];
+    .then((snapShots) => {
+      const result = {
+        adminTemplate: snapShots[0].docs[0],
+        subscriptionTemplate: snapShots[1].docs[0],
+      };
 
-      /**
-       * Avoid duplicate phone numbers which will increase
-       * document reads in Firestore.
-       */
-      new Set(phoneNumbersArray)
-        .forEach((phoneNumber) => {
-          const activityRef = rootCollections
-            .activities
-            .doc();
-          const addendumDocRef = rootCollections
-            .offices
-            .doc(locals.activityRef.id)
-            .collection('Addendum')
-            .doc();
-
-          const activityObject = getActivityObject({
-            phoneNumber,
-            addendumDocRef,
-            office: conn.req.body.office,
-            officeId: locals.activityObject.officeId,
-            templateObject: locals.templateObject,
-          });
-
-          const addendumObject = {
-            activityData: activityObject,
-            user: conn.requester.phoneNumber,
-            userDisplayName: conn.requester.displayName,
-            share: Array.from(locals.allPhoneNumbers),
-            action: httpsActions.create,
-            template: conn.req.body.template,
-            location: getGeopointObject(conn.req.body.geopoint),
-            timestamp: serverTimestamp,
-            userDeviceTimestamp: new Date(conn.req.body.timestamp),
-            activityId: activityRef.id,
-            activityName: getActivityName({
-              bodyAttachment: adminTemplate,
-              templateName: 'admin',
-              requester: conn.requester,
-            }),
-            isSupportRequest: conn.requester.isSupportRequest,
-          };
-
-          locals
-            .batch
-            .set(activityRef, activityObject);
-
-          locals
-            .batch
-            .set(addendumDocRef, addendumObject);
-        });
-
-      handleAssignees(conn, locals);
+      createAdminAndSubscription(conn, locals, result);
 
       return;
     })
@@ -396,6 +454,9 @@ const handleName = (conn, locals) => {
     if (conn.req.body.template === 'office') {
       return rootCollections
         .offices
+        /** Template is always `office` at this PATH. No need to add another
+         * `where` clause.
+         */
         .where('attachment.Name.value', '==', conn.req.body.attachment.Name.value)
         .limit(1);
     }
@@ -427,6 +488,8 @@ const handleName = (conn, locals) => {
         })();
 
         sendResponse(conn, code.conflict, message);
+
+        return;
       }
 
       if (conn.req.body.template !== 'office') {
@@ -469,21 +532,7 @@ const handleResult = (conn, result) => {
     return;
   }
 
-  const activityRef = (() => {
-    if (conn.req.body.template === 'office') {
-      if (!officeQueryResult.empty) {
-        return officeQueryResult.docs[0].ref;
-      }
-
-      return rootCollections.offices.doc();
-    }
-
-    return officeQueryResult
-      .docs[0]
-      .ref
-      .collection('Activities')
-      .doc();
-  })();
+  const activityRef = rootCollections.activities.doc();
 
   const officeId = (() => {
     if (conn.req.body.template !== 'office') {
@@ -553,7 +602,9 @@ const handleResult = (conn, result) => {
     office: conn.req.body.office,
   });
 
-  if (attachmentValid.isValid) {
+  console.log('attachmentValid', attachmentValid);
+
+  if (!attachmentValid.isValid) {
     sendResponse(conn, code.badRequest, attachmentValid.message);
 
     return;
@@ -564,11 +615,19 @@ const handleResult = (conn, result) => {
     .phoneNumbers
     .forEach((phoneNumber) => locals.allPhoneNumbers.add(phoneNumber));
 
+  /**
+   * Unless explicitly stated, the Support person's number will not
+   * be added to the activity
+   */
+  if (!conn.requester.isSupportRequest) {
+    locals.allPhoneNumbers.add(conn.requester.phoneNumber);
+  }
+
   handleName(conn, locals);
 };
 
 
-module.exports = (conn) => {
+module.exports = (conn) =>
   Promise
     .all([
       rootCollections
@@ -584,4 +643,3 @@ module.exports = (conn) => {
     ])
     .then((result) => handleResult(conn, result))
     .catch((error) => handleError(conn, error));
-};
