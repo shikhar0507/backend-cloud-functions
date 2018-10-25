@@ -79,13 +79,13 @@ const handleAdminUrl = (conn, urlParts) => {
   }
 
   if (resource === 'create') {
-    require('../firestore/single-create/single')(conn);
+    require('../firestore/single-create')(conn);
 
     return;
   }
 
   if (resource === 'create-multiple') {
-    require('../firestore/bulk-create/bulk')(conn);
+    require('../firestore/bulk-create')(conn);
 
     return;
   }
@@ -99,28 +99,6 @@ const handleAdminUrl = (conn, urlParts) => {
 
 
 const handleActivitiesUrl = (conn, urlParts) => {
-  /**
-   * Can be used to verify in the activity flow to see if the request
-   * is of type support.
-   */
-  conn.requester.isSupportRequest = false;
-
-  /** URL query params are of type `string`. */
-  if (conn.req.query.support === 'true') {
-    conn.requester.isSupportRequest = true;
-  }
-
-  if (conn.requester.isSupportRequest
-    && !hasSupportClaims(conn.requester.customClaims)) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      'You do not have the permission to make support requests for activities.'
-    );
-
-    return;
-  }
-
   const resource = urlParts[2];
 
   if (resource === 'comment') {
@@ -331,6 +309,28 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         customClaims: userRecord.customClaims || null,
         creationTime: userRecord.metadata.creationTime,
       };
+
+      /**
+       * Can be used to verify in the activity flow to see if the request
+       * is of type support.
+       */
+      conn.requester.isSupportRequest = false;
+
+      /** URL query params are of type `string`. */
+      if (conn.req.query.support === 'true') {
+        conn.requester.isSupportRequest = true;
+      }
+
+      if (conn.requester.isSupportRequest
+        && !hasSupportClaims(conn.requester.customClaims)) {
+        sendResponse(
+          conn,
+          code.forbidden,
+          'You do not have the permission to make support requests for activities.'
+        );
+
+        return;
+      }
 
       const parsedUrl = require('url').parse(conn.req.url);
 
