@@ -150,9 +150,24 @@ const createDocsWithBatch = (conn, locals) => {
       _longitude: conn.req.body.venue[0].geopoint.longitude,
     };
 
+    // const accuracy = geopointOne.accuracy;
+
     const HALF_KILOMETER = 0.5;
+
+    const accuracy = (() => {
+      if (geopointOne.accuracy && geopointOne.accuracy < 0.35) {
+        return 0.5;
+      }
+
+      return 1;
+    })();
+
+    // const distanceAccurate =
+    //   haversineDistance(geopointOne, geopointTwo) < HALF_KILOMETER;
+
     const distanceAccurate =
-      haversineDistance(geopointOne, geopointTwo) < HALF_KILOMETER;
+      haversineDistance(geopointOne, geopointTwo) < accuracy;
+
 
     if (!distanceAccurate) activityData.status = 'CANCELLED';
 
