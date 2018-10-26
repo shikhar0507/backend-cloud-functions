@@ -63,6 +63,11 @@ module.exports = (conn) => {
     .add('office')
     .add('product')
     .add('recipient')
+    .add('department')
+    .add('leave-type')
+    .add('expense-type')
+    .add('supplier-type')
+    .add('customer-type')
     .has(conn.req.body.template)) {
     sendResponse(
       conn,

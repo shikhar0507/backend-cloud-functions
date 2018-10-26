@@ -1,5 +1,6 @@
 'use strict';
 
+
 const {
   filterAttachment,
   // getCanEditValue,
@@ -256,167 +257,6 @@ const getAttachmentObject = (options) => {
 };
 
 
-const createAdminAndSubscription = (conn, locals, result) => {
-  const {
-    adminTemplate,
-    subscriptionTemplate,
-  } = result;
-
-  const phoneNumbersArray =
-    Object
-      .keys(conn.req.body.attachment)
-      .filter((key) => {
-        const value = conn.req.body.attachment[key].value;
-        const type = conn.req.body.attachment[key].type;
-
-        return type === 'phoneNumber' && value !== '';
-      })
-      .map((field) => conn.req.body.attachment[field].value);
-
-
-  console.log('phoneNumbersArray', phoneNumbersArray);
-
-  /** Avoid duplicate phone numbers which will increase */
-  new Set(phoneNumbersArray)
-    .forEach((phoneNumber) => {
-      const adminActivityRef = rootCollections
-        .activities
-        .doc();
-      const subscriptionActivityRef = rootCollections
-        .activities
-        .doc();
-      /**
-       * The `activityRef` is the reference to the Office doc when the
-       * template is `office`.
-       */
-      const adminAddendumDocRef = rootCollections
-        .offices
-        .doc(locals.activityRef.id)
-        .collection('Addendum')
-        .doc();
-      const subscriptionAddendumDocRef = rootCollections
-        .offices
-        .doc(locals.activityRef.id)
-        .collection('Addendum')
-        .doc();
-
-      const timestamp = serverTimestamp;
-      const office = conn.req.body.office;
-      const officeId = locals.activityRef.id;
-
-      const adminActivityObject = {
-        timestamp,
-        office,
-        officeId,
-        activityName: `ADMIN: ${phoneNumber}`,
-        addendumDocRef: adminAddendumDocRef,
-        attachment: getAttachmentObject({
-          phoneNumber,
-          templateObject: adminTemplate.data(),
-        }),
-        canEditRule: adminTemplate.get('canEditRule'),
-        creator: conn.requester.phoneNumber,
-        hidden: adminTemplate.get('hidden'),
-        schedule: [],
-        venue: [],
-        status: adminTemplate.get('statusOnCreate'),
-        template: 'admin',
-      };
-      const subscriptionActivityObject = {
-        timestamp,
-        office,
-        officeId,
-        activityName: `SUBSCRIPTION: ${phoneNumber}`,
-        addendumDocRef: subscriptionAddendumDocRef,
-        attachment: getAttachmentObject({
-          phoneNumber,
-          templateObject: subscriptionTemplate.data(),
-        }),
-        canEditRule: subscriptionTemplate.get('canEditRule'),
-        creator: conn.requester.phoneNumber,
-        hidden: subscriptionTemplate.get('hidden'),
-        schedule: [],
-        venue: [],
-        status: subscriptionTemplate.get('statusOnCreate'),
-        template: 'subscription',
-      };
-      const adminAddendumObject = {
-        timestamp,
-        activityData: adminActivityObject,
-        user: conn.requester.phoneNumber,
-        userDisplayName: conn.requester.displayName,
-        share: Array.from(locals.allPhoneNumbers),
-        action: httpsActions.create,
-        template: 'admin',
-        location: getGeopointObject(conn.req.body.geopoint),
-        userDeviceTimestamp: new Date(conn.req.body.timestamp),
-        activityId: adminActivityRef.id,
-        activityName: `ADMIN: ${phoneNumber}`,
-        isSupportRequest: conn.requester.isSupportRequest,
-      };
-      const subscriptionAddendumObject = {
-        timestamp,
-        activityData: subscriptionActivityObject,
-        user: conn.requester.phoneNumber,
-        userDisplayName: conn.requester.displayName,
-        share: Array.from(locals.allPhoneNumbers),
-        action: httpsActions.create,
-        template: 'subscription',
-        location: getGeopointObject(conn.req.body.geopoint),
-        userDeviceTimestamp: new Date(conn.req.body.timestamp),
-        activityId: subscriptionActivityRef.id,
-        activityName: `SUBSCRIPTION: ${phoneNumber}`,
-        isSupportRequest: conn.requester.isSupportRequest,
-      };
-
-      locals
-        .batch
-        .set(adminActivityRef, adminActivityObject);
-      locals
-        .batch
-        .set(adminAddendumDocRef, adminAddendumObject);
-      locals
-        .batch
-        .set(subscriptionActivityRef, subscriptionActivityObject);
-      locals
-        .batch
-        .set(subscriptionAddendumDocRef, subscriptionAddendumObject);
-
-      locals
-        .allPhoneNumbers
-        .forEach((phoneNumber) => {
-          /** Isn't really useful here since addToInclude is only useful for
-           * subscription template.
-           */
-          locals
-            .batch
-            .set(adminActivityRef
-              .collection('Assignees')
-              .doc(phoneNumber), {
-                canEdit: true,
-                addToInclude: true,
-              });
-
-          locals
-            .batch
-            .set(subscriptionActivityRef
-              .collection('Assignees')
-              .doc(phoneNumber), {
-                /**
-             * Person getting the subscription doesn't need to be
-             * included in the default assignees list since they themselves
-             * become an assignee of the activity created by them.
-             */
-                canEdit: false,
-                addToInclude: false,
-              });
-        });
-    });
-
-  handleAssignees(conn, locals);
-};
-
-
 const handleOffice = (conn, locals) => {
   Promise
     .all([
@@ -432,12 +272,161 @@ const handleOffice = (conn, locals) => {
         .get(),
     ])
     .then((snapShots) => {
-      const result = {
-        adminTemplate: snapShots[0].docs[0],
-        subscriptionTemplate: snapShots[1].docs[0],
-      };
+      const adminTemplate = snapShots[0].docs[0];
+      const subscriptionTemplate = snapShots[1].docs[0];
 
-      createAdminAndSubscription(conn, locals, result);
+      const phoneNumbersArray =
+        Object
+          .keys(conn.req.body.attachment)
+          .filter((key) => {
+            const value = conn.req.body.attachment[key].value;
+            const type = conn.req.body.attachment[key].type;
+
+            return type === 'phoneNumber' && value !== '';
+          })
+          .map((field) => conn.req.body.attachment[field].value);
+
+
+      console.log('phoneNumbersArray', phoneNumbersArray);
+
+      /** Avoid duplicate phone numbers which will increase */
+      new Set(phoneNumbersArray)
+        .forEach((phoneNumber) => {
+          const adminActivityRef = rootCollections
+            .activities
+            .doc();
+          const subscriptionActivityRef = rootCollections
+            .activities
+            .doc();
+          /**
+           * The `activityRef` is the reference to the Office doc when the
+           * template is `office`.
+           */
+          const adminAddendumDocRef = rootCollections
+            .offices
+            .doc(locals.activityRef.id)
+            .collection('Addendum')
+            .doc();
+          const subscriptionAddendumDocRef = rootCollections
+            .offices
+            .doc(locals.activityRef.id)
+            .collection('Addendum')
+            .doc();
+
+          const timestamp = serverTimestamp;
+          const office = conn.req.body.office;
+          const officeId = locals.activityRef.id;
+
+          const adminActivityObject = {
+            timestamp,
+            office,
+            officeId,
+            activityName: `ADMIN: ${phoneNumber}`,
+            addendumDocRef: adminAddendumDocRef,
+            attachment: getAttachmentObject({
+              phoneNumber,
+              templateObject: adminTemplate.data(),
+            }),
+            canEditRule: adminTemplate.get('canEditRule'),
+            creator: conn.requester.phoneNumber,
+            hidden: adminTemplate.get('hidden'),
+            schedule: [],
+            venue: [],
+            status: adminTemplate.get('statusOnCreate'),
+            template: 'admin',
+          };
+          const subscriptionActivityObject = {
+            timestamp,
+            office,
+            officeId,
+            activityName: `SUBSCRIPTION: ${phoneNumber}`,
+            addendumDocRef: subscriptionAddendumDocRef,
+            attachment: getAttachmentObject({
+              phoneNumber,
+              templateObject: subscriptionTemplate.data(),
+            }),
+            canEditRule: subscriptionTemplate.get('canEditRule'),
+            creator: conn.requester.phoneNumber,
+            hidden: subscriptionTemplate.get('hidden'),
+            schedule: [],
+            venue: [],
+            status: subscriptionTemplate.get('statusOnCreate'),
+            template: 'subscription',
+          };
+          const adminAddendumObject = {
+            timestamp,
+            activityData: adminActivityObject,
+            user: conn.requester.phoneNumber,
+            userDisplayName: conn.requester.displayName,
+            share: Array.from(locals.allPhoneNumbers),
+            action: httpsActions.create,
+            template: 'admin',
+            location: getGeopointObject(conn.req.body.geopoint),
+            userDeviceTimestamp: new Date(conn.req.body.timestamp),
+            activityId: adminActivityRef.id,
+            activityName: `ADMIN: ${phoneNumber}`,
+            isSupportRequest: conn.requester.isSupportRequest,
+          };
+          const subscriptionAddendumObject = {
+            timestamp,
+            activityData: subscriptionActivityObject,
+            user: conn.requester.phoneNumber,
+            userDisplayName: conn.requester.displayName,
+            share: Array.from(locals.allPhoneNumbers),
+            action: httpsActions.create,
+            template: 'subscription',
+            location: getGeopointObject(conn.req.body.geopoint),
+            userDeviceTimestamp: new Date(conn.req.body.timestamp),
+            activityId: subscriptionActivityRef.id,
+            activityName: `SUBSCRIPTION: ${phoneNumber}`,
+            isSupportRequest: conn.requester.isSupportRequest,
+          };
+
+          locals
+            .batch
+            .set(adminActivityRef, adminActivityObject);
+          locals
+            .batch
+            .set(adminAddendumDocRef, adminAddendumObject);
+          locals
+            .batch
+            .set(subscriptionActivityRef, subscriptionActivityObject);
+          locals
+            .batch
+            .set(subscriptionAddendumDocRef, subscriptionAddendumObject);
+
+          locals
+            .allPhoneNumbers
+            .forEach((phoneNumber) => {
+              /** Isn't really useful here since addToInclude is only useful for
+               * subscription template.
+               */
+              locals
+                .batch
+                .set(adminActivityRef
+                  .collection('Assignees')
+                  .doc(phoneNumber), {
+                    canEdit: true,
+                    addToInclude: true,
+                  });
+
+              locals
+                .batch
+                .set(subscriptionActivityRef
+                  .collection('Assignees')
+                  .doc(phoneNumber), {
+                    /**
+                 * Person getting the subscription doesn't need to be
+                 * included in the default assignees list since they themselves
+                 * become an assignee of the activity created by them.
+                 */
+                    canEdit: false,
+                    addToInclude: false,
+                  });
+            });
+        });
+
+      handleAssignees(conn, locals);
 
       return;
     })
@@ -510,6 +499,8 @@ const handleResult = (conn, result) => {
   const [
     officeQueryResult,
     templateQueryResult,
+    subscriptionQueryResult,
+    templateSubscriptionQueryResult,
   ] = result;
 
   if (!officeQueryResult.empty
@@ -533,6 +524,21 @@ const handleResult = (conn, result) => {
     return;
   }
 
+  /**
+   * Person with the `subscription` template can use all templates regardless
+   * of their subscription.
+   */
+  if (subscriptionQueryResult.empty
+    && templateSubscriptionQueryResult.empty) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `You do not have the permission to use '${conn.req.body.template}'`
+    );
+
+    return;
+  }
+
   const activityRef = rootCollections.activities.doc();
 
   const officeId = (() => {
@@ -544,11 +550,11 @@ const handleResult = (conn, result) => {
   })();
 
   const locals = {
+    activityRef,
     batch: db.batch(),
     permissions: {},
     /** Share array */
-    allPhoneNumbers: new Set(conn.req.body.share),
-    activityRef,
+    allPhoneNumbers: new Set(),
     templateObject: templateQueryResult.docs[0].data(),
     activityObject: {
       /** Missing addendumDocRef, venue, schedule, attachment, activityName, */
@@ -639,6 +645,22 @@ module.exports = (conn) =>
       rootCollections
         .activityTemplates
         .where('name', '==', conn.req.body.template)
+        .limit(1)
+        .get(),
+      rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber)
+        .collection('Subscriptions')
+        .where('template', '==', 'subscription')
+        .where('attachment.Template.value', '==', 'subscription')
+        .limit(1)
+        .get(),
+      rootCollections
+        .profiles
+        .doc()
+        .collection('Subscription')
+        .where('template', '==', conn.req.body.template)
+        .where('attachment.Template.value', '==', conn.req.body.template)
         .limit(1)
         .get(),
     ])
