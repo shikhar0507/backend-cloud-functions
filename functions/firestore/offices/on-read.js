@@ -18,6 +18,7 @@ const {
 
 const getActivityObject = (doc) => {
   return {
+    activityId: doc.id,
     activityName: doc.get('activityName'),
     adminsCanEdit: doc.get('adminsCanEdit'),
     attachment: doc.get('attachment'),
@@ -78,14 +79,16 @@ const getActivities = (conn, locals) =>
             officeActivitiesSnapshot
               .docs[officeActivitiesSnapshot.docs.length - 1];
 
-          const timestamp = lastDoc.get('timestamp').toDate();
-
-          furthestTimestamps.push(timestamp.getTime());
-
           officeActivitiesSnapshot
             .forEach((doc) => {
               locals.jsonObject.activities.push(getActivityObject(doc));
             });
+
+          if (!lastDoc) return;
+
+          const timestamp = lastDoc.get('timestamp').toDate();
+
+          furthestTimestamps.push(timestamp.getTime());
         });
 
       /**
@@ -118,7 +121,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      'You are not allowed to access this resource.'
+      'You are not allowed to access this resource'
     );
 
     return;
