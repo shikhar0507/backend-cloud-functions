@@ -284,6 +284,7 @@ module.exports = (conn) => {
   rootCollections
     .activityTemplates
     .where('name', '==', conn.req.body.name)
+    .limit(1)
     .get()
     .then((docs) => {
       if (docs.empty) {
