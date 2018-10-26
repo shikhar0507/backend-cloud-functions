@@ -51,11 +51,6 @@ const activityHandler = functions
   .document('/Activities/{activityId}')
   .onWrite(require('./firestore/activity/on-write'));
 
-const phoneNumberUpdateHandler = functions
-  .firestore
-  .document('PhoneNumberUpdates/{docId}')
-  .onCreate(require('./firestore/profiles/index'));
-
 const reportsHandler = functions
   .firestore
   .document('Instant/{docId}')
@@ -104,6 +99,5 @@ module.exports = {
   addendumOnCreate,
   backgroundReports,
   subscriptionUpdater,
-  phoneNumberUpdateHandler,
   createOfficeNamePermutations,
 };
