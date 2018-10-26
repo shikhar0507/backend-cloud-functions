@@ -120,6 +120,7 @@ const createDocs = (conn, locals) => {
     .set(locals
       .activityObject
       .addendumDocRef, {
+        timestamp: serverTimestamp,
         activityData: locals.activityObject,
         user: conn.requester.phoneNumber,
         userDisplayName: conn.requester.displayName,

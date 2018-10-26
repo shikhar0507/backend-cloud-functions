@@ -249,7 +249,7 @@ const getProfile = (conn, pathName) =>
       const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
       if (Date.now() - authCreationTime < NUM_MILLI_SECS_IN_MINUTE) {
-        handleRequestPath(conn);
+        handleRequestPath(conn, pathName);
 
         return;
       }

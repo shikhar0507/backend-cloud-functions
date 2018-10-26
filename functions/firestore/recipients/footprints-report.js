@@ -47,15 +47,16 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
+  const today = new Date();
   locals.yesterdaysDate = getYesterdaysDateString();
   locals.messageObject.templateId = sendGridTemplateIds.footprints;
   locals.messageObject['dynamic_template_data'] = {
     office,
-    subject: `${office} Footprints Report_${locals.yesterdaysDate}`,
+    subject: `${office} Footprints Report_${today.toDateString()}`,
     date: locals.yesterdaysDate,
   };
 
-  locals.fileName = `${office} Footprints Report_${locals.yesterdaysDate}.xlsx`;
+  locals.fileName = `${office} Footprints Report_${today.toDateString()}.xlsx`;
   locals.filePath = `/tmp/${locals.fileName}`;
   console.log('locals.filePath:', locals.filePath);
 
@@ -157,7 +158,7 @@ module.exports = (locals) => {
 
       locals.messageObject.attachments.push({
         content: new Buffer(fs.readFileSync(locals.filePath)).toString('base64'),
-        fileName: `${office} Footprints Report_${locals.yesterdaysDate}.xlsx`,
+        fileName: `${office} Footprints Report_${today.toDateString()}.xlsx`,
         type: 'text/csv',
         disposition: 'attachment',
       });

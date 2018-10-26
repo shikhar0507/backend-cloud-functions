@@ -78,7 +78,7 @@ const sendResponse = (conn, statusCode, message = '') => {
  * @returns {void}
  */
 const handleError = (conn, error) => {
-  console.log({ error });
+  console.error({ error });
 
   sendResponse(
     conn,

@@ -77,3 +77,6 @@ serviceAccountKey.json
 
 # Environment variables
 env.*
+
+# Cloud Build
+cloudbuild.yaml

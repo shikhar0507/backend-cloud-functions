@@ -60,6 +60,7 @@ module.exports = (locals) => {
     office,
     officeId,
   } = locals.change.after.data();
+  const today = new Date();
 
   const yesterdaysDateString = getYesterdaysDateString();
 
@@ -78,8 +79,8 @@ module.exports = (locals) => {
 
   locals.messageObject['dynamic_template_data'] = {
     office,
-    date: yesterdaysDateString,
-    subject: `Install Report_${office}_${yesterdaysDateString}`,
+    date: today.toDateString(),
+    subject: `Install Report_${office}_${today.toDateString()}`,
   };
 
   locals.multipleInstallsMap = new Map();
@@ -94,7 +95,7 @@ module.exports = (locals) => {
         .inits
         .where('office', '==', office)
         .where('report', '==', 'install')
-        .where('date', '==', yesterdaysDateString)
+        .where('dateString', '==', yesterdaysDateString)
         .get(),
     ])
     .then((result) => {

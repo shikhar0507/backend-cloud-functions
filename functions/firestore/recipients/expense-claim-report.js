@@ -22,7 +22,8 @@ module.exports = (locals) => {
   locals.sendMail = true;
   locals.messageObject.templateId = sendGridTemplateIds.expenseClaim;
 
-  const fileName = `${office} Expense Claim Report_${new Date().toDateString()}.xlsx`;
+  const todaysDateString = new Date().toDateString();
+  const fileName = `${office} Expense Claim Report_${todaysDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
 
   return Promise

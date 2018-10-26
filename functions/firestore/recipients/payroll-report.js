@@ -384,7 +384,7 @@ module.exports = (locals) => {
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),
-        fileName: `${office} Payroll Report_${yesterdaysDateString}.csv`,
+        fileName: `${office} Payroll Report_${today.toDateString()}.csv`,
         type: 'text/csv',
         disposition: 'attachment',
       });

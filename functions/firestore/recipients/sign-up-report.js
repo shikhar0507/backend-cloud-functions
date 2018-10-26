@@ -43,6 +43,8 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
+  const today = new Date();
+
   locals.csvString =
     `Employee Name,`
     + ` Employee Contact,`
@@ -67,8 +69,8 @@ module.exports = (locals) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('date', '==', yesterdaysDateString)
-        .where('report', '==', 'signUp')
+        .where('dateString', '==', yesterdaysDateString)
+        .where('report', '==', 'signup')
         .limit(1)
         .get(),
     ])
@@ -105,7 +107,8 @@ module.exports = (locals) => {
         const employeeName = employeeData.Name;
         const employeeCode = employeeData['Employee Code'];
         const department = employeeData.Department;
-        const addedOn = employeesObject[phoneNumber].addedOn;
+        // const addedOn = employeesObject[phoneNumber].addedOn;
+        const addedOn = employeeData.createTime;
         const signedUpOn = employeesObject[phoneNumber].signedUpOn;
         const firstSupervisorPhoneNumber =
           employeeData['First Supervisor'];
@@ -117,7 +120,7 @@ module.exports = (locals) => {
         locals.csvString +=
           ` ${employeeName},`
           /**
-           * Removing this space in front of phone number makes the 
+           * Removing this space in front of phone number makes the
            * `MS Excel` believe that the phone number is a number (not string).
            */
           + ` ${phoneNumber},`
@@ -137,8 +140,8 @@ module.exports = (locals) => {
       locals.messageObject.templateId = sendGridTemplateIds.signUps;
       locals.messageObject['dynamic_template_data'] = {
         office,
-        date: new Date().toDateString(),
-        subject: `${office} Sign-Up Report_${yesterdaysDateString}`,
+        date: today.toDateString(),
+        subject: `${office} Sign-Up Report_${today.toDateString()}`,
         totalEmployees: employeesList.length,
         totalSignUps: totalSignUpsCount,
         difference: employeesList.length - totalSignUpsCount,
@@ -146,7 +149,7 @@ module.exports = (locals) => {
       locals
         .messageObject.attachments.push({
           content: new Buffer(locals.csvString).toString('base64'),
-          fileName: `${office} Sign-Up Report_${yesterdaysDateString}.csv`,
+          fileName: `${office} Sign-Up Report_${today.toDateString()}.csv`,
           type: 'text/csv',
           disposition: 'attachment',
         });

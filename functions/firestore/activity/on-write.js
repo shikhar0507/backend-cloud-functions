@@ -135,6 +135,8 @@ const handleReport = (locals, batch) => {
     batch.set(rootCollections
       .recipients
       .doc(locals.change.after.id), {
+        /** Required to use the `orderBy` clause */
+        activityId: locals.change.after.id,
         cc: locals.change.after.get('attachment.cc.value'),
         office: locals.change.after.get('office'),
         include: locals.assigneePhoneNumbersArray,

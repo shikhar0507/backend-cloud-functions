@@ -44,7 +44,7 @@ module.exports = (locals) => {
   } = locals.change.after.data();
   const todaysDateString = new Date().toDateString();
   const yesterdaysDateString = getYesterdaysDateString();
-  const fileName = `${office} DSR Report_${yesterdaysDateString}.xlsx`;
+  const fileName = `${office} DSR Report_${todaysDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
   locals.messageObject.templateId = sendGridTemplateIds.dsr;
   locals.messageObject['dynamic_template_data'] = {

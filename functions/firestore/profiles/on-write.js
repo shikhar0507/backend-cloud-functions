@@ -62,7 +62,9 @@ const purgeAddendum = (query, resolve, reject, count) =>
     .catch(reject);
 
 
-const manageAddendum = (change) => {
+const manageAddendum = (change, batch) => {
+  console.log('In manageAddendum');
+
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
   /**
@@ -73,9 +75,15 @@ const manageAddendum = (change) => {
    *
    * If any of the conditions fail, don't delete the docs.
    */
-  if (!oldFromValue) return Promise.resolve();
-  if (!newFromValue) return Promise.resolve();
-  if (newFromValue <= oldFromValue) return Promise.resolve();
+  // if (!oldFromValue) return Promise.resolve();
+  // if (!newFromValue) return Promise.resolve();
+  // if (newFromValue <= oldFromValue) return Promise.resolve();
+
+  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
+    return batch
+      .commit()
+      .catch(console.error);
+  }
 
   const query = rootCollections
     .updates
@@ -130,6 +138,8 @@ const getEmployeeObject = (options) => {
 };
 
 const handleAddedToOffice = (change, options) => {
+  console.log('In handleAddedToOffice');
+
   const {
     phoneNumber,
     newOffice,
@@ -139,7 +149,7 @@ const handleAddedToOffice = (change, options) => {
     today,
   } = options;
 
-  if (!hasBeenAdded) return manageAddendum(change);
+  if (!hasBeenAdded) return manageAddendum(change, batch);
 
   return rootCollections
     .inits
@@ -157,13 +167,13 @@ const handleAddedToOffice = (change, options) => {
       const officeId = change.after.get('employeeOf')[newOffice];
 
       batch.set(ref, {
-        office: newOffice,
         officeId,
-        date: today.toDateString(),
-        day: today.getDay(),
+        office: newOffice,
+        dateString: today.toDateString(),
+        date: today.getDate(),
         month: today.getMonth(),
         year: today.getFullYear(),
-        report: 'signUp',
+        report: 'signup',
         employeesObject: {
           [phoneNumber]: getEmployeeObject({
             hasSignedUp,
@@ -173,14 +183,17 @@ const handleAddedToOffice = (change, options) => {
           merge: true,
         });
 
-      return batch.commit();
+      console.log('addedToOfficeRef', ref.path);
+
+      return manageAddendum(change, batch);
     })
-    .then(() => manageAddendum(change))
     .catch(console.error);
 };
 
 
 const handleRemovedFromOffice = (change, options) => {
+  console.log('in handleRemovedFromOffice');
+
   const {
     phoneNumber,
     removedOffice,
@@ -212,27 +225,37 @@ const handleRemovedFromOffice = (change, options) => {
         signUpDocQuery,
       ] = result;
 
-      batch.delete(installDocQuery.docs[0].ref);
+      console.log({
+        installDocQuery: installDocQuery.size,
+        signUpDocQuery: signUpDocQuery.size,
+      });
 
-      batch.set(signUpDocQuery.docs[0].ref, {
-        date: today.toDateString(),
-        day: today.getDay(),
-        month: today.getMonth(),
-        year: today.getFullYear(),
-        employeesObject: {
-          [phoneNumber]: deleteField(),
-        },
-      }, {
-          merge: true,
-        });
+      if (!installDocQuery.empty) {
+        batch.delete(installDocQuery.docs[0].ref);
+      }
 
-      return batch.commit();
+      if (!signUpDocQuery.empty) {
+        batch.set(signUpDocQuery.docs[0].ref, {
+          dateString: today.toDateString(),
+          date: today.getDate(),
+          month: today.getMonth(),
+          year: today.getFullYear(),
+          employeesObject: {
+            [phoneNumber]: deleteField(),
+          },
+        }, {
+            merge: true,
+          });
+      }
+
+      return handleAddedToOffice(change, options);
     })
-    .then(() => handleAddedToOffice(change, options))
     .catch(console.error);
 };
 
 const handleInstall = (change, options) => {
+  console.log('in handleInstall');
+
   const {
     phoneNumber,
     currentOfficesList,
@@ -268,7 +291,7 @@ const handleInstall = (change, options) => {
 
         const initDocObject = (() => {
           const office = currentOfficesList[index];
-          const officeId = change.after('employeeOf')[office];
+          const officeId = change.after.get('employeeOf')[office];
 
           if (snapShot.empty) {
             return {
@@ -276,8 +299,8 @@ const handleInstall = (change, options) => {
               phoneNumber,
               report: 'install',
               officeId,
-              date: today.toDateString(),
-              day: today.getDay(),
+              dateString: today.toDateString(),
+              date: today.getDate(),
               month: today.getMonth(),
               year: today.getFullYear(),
               installs: [
@@ -294,12 +317,14 @@ const handleInstall = (change, options) => {
 
           return {
             installs,
-            date: today.toDateString(),
-            day: today.getDay(),
+            dateString: today.toDateString(),
+            date: today.getDate(),
             month: today.getMonth(),
             year: today.getFullYear(),
           };
         })();
+
+        console.log('installRef', ref.path, { initDocObject });
 
         batch.set(ref, initDocObject, { merge: true });
       });
@@ -311,6 +336,8 @@ const handleInstall = (change, options) => {
 
 
 const handleSignUp = (change, options) => {
+  console.log('In handleSignUp');
+
   const {
     phoneNumber,
     currentOfficesList,
@@ -321,7 +348,7 @@ const handleSignUp = (change, options) => {
 
   if (!hasSignedUp) return handleInstall(change, options);
 
-  /** 
+  /**
    * If has signed-up, get all current offices
    * For each office, fetch init doc with the report signup
    * If doc exists:
@@ -330,7 +357,7 @@ const handleSignUp = (change, options) => {
    *  addedOn,
    * signedUpOn,
    * }
-   * 
+   *
    * Else create doc with the data
    */
 
@@ -359,12 +386,14 @@ const handleSignUp = (change, options) => {
 
         const office = currentOfficesList[index];
 
+        console.log('signUpRef', ref.path);
+
         batch.set(ref, {
           office,
           officeId: change.after.get('employeeOf')[office],
-          report: 'signUp',
-          date: today.toDateString(),
-          day: today.getDay(),
+          report: 'signup',
+          dateString: today.toDateString(),
+          date: today.getDate(),
           month: today.getMonth(),
           year: today.getFullYear(),
           employeesObject: {
@@ -409,8 +438,8 @@ module.exports = (change) => {
   const batch = db.batch();
 
   const phoneNumber = after.id;
-  const oldOfficesList = Object.keys(before.get('employeeOf'));
-  const currentOfficesList = Object.keys(after.get('employeeOf'));
+  const oldOfficesList = Object.keys(before.get('employeeOf') || {});
+  const currentOfficesList = Object.keys(after.get('employeeOf') || {});
 
   const newOffice = currentOfficesList
     .filter((officeName) => !oldOfficesList.includes(officeName))[0];
@@ -447,7 +476,7 @@ module.exports = (change) => {
     || hasBeenAdded
     || hasBeenRemoved;
 
-  if (!toGetInit) return manageAddendum(change);
+  if (!toGetInit) return manageAddendum(change, batch);
 
   const options = {
     phoneNumber,
@@ -477,7 +506,7 @@ module.exports = (change) => {
    *
    */
 
-  console.log(options);
+  console.log({ options });
 
   return handleSignUp(change, options);
 };
