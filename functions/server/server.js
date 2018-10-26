@@ -398,7 +398,6 @@ const checkAuthorizationToken = (conn) => {
     .verifyIdToken(result.authToken, checkRevoked)
     .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => {
-      console.log(error);
       if (error.code === 'auth/id-token-revoked') {
         sendResponse(
           conn,

@@ -157,59 +157,89 @@ const handleReport = (locals, batch) => {
     .catch(console.error);
 };
 
-
 const addSubscriptionToUserProfile = (locals, batch) =>
-  rootCollections
-    .activityTemplates
-    .where('name', '==', locals.change.after.get('attachment.Template.value'))
-    .limit(1)
-    .get()
-    .then((docs) => {
-      const doc = docs.docs[0];
-      const include = [];
+  Promise
+    .all([
+      rootCollections
+        .activityTemplates
+        .where('name', '==', locals.change.after.get('attachment.Template.value'))
+        .limit(1)
+        .get(),
+      rootCollections
+        .offices
+        .doc(locals.change.after.get('officeId'))
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        templateDocsQuery,
+        officeDoc,
+      ] = result;
 
-      /** The client app isn't allowed to create activities as `ADMIN`.
+      const templateDoc = templateDocsQuery.docs[0];
+      const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
+      const employeeData = officeDoc.get('employeesData')[subscriberPhoneNumber];
+      const subscriptionsArray = employeeData.subscriptions || [];
+
+      subscriptionsArray.push(templateDoc.get('name'));
+
+      employeeData.subscriptions = [...new Set(subscriptionsArray)];
+
+      batch.set(officeDoc.ref, {
+        employeesData: {
+          [subscriberPhoneNumber]: employeeData,
+        },
+      }, {
+          merge: true,
+        });
+
+      /**
+       * The client app isn't allowed to create activities as `ADMIN`.
        * Since Firestore doesn't allow querying negative cases
        * eg. where('canEditRule', '!==', 'ADMIN')
        * we are simply not adding the subscription to user's profile
        * since they won't be able to use that subscription in the front-end app.
       */
-      if (doc.get('canEditRule') === 'ADMIN') return batch.commit();
+      if (templateDoc.get('canEditRule') === 'ADMIN') return batch.commit();
 
-      locals.assigneePhoneNumbersArray.forEach((phoneNumber) => {
-        const addToInclude = locals.assigneesMap.get(phoneNumber).addToInclude;
+      const include = [];
 
-        /**
-         * The user's own phone number is redundant in the include array since they
-         * are the ones creating the activity using this subscription doc.
-         */
-        if (locals.change.after.get('attachment.Subscriber.value') === phoneNumber) return;
+      locals
+        .assigneePhoneNumbersArray
+        .forEach((phoneNumber) => {
+          // const addToInclude = locals.assigneesMap.get(phoneNumber).addToInclude;
 
-        /**
-         * For the subscription template, people from
-         * the share array are not added to the include array.
-         */
-        if (!addToInclude) return;
+          /**
+           * The user's own phone number is redundant in the include array since they
+           * will be the one creating an activity using the subscription to this activity.
+           */
+          if (subscriberPhoneNumber === phoneNumber) return;
 
-        include.push(phoneNumber);
-      });
+          /**
+           * For the subscription template, people from
+           * the share array are not added to the include array.
+           */
+          if (!locals.assigneesMap.get(phoneNumber).addToInclude) return;
+
+          include.push(phoneNumber);
+        });
 
       batch.set(rootCollections
         .profiles
-        .doc(locals.change.after.get('attachment.Subscriber.value'))
+        .doc(subscriberPhoneNumber)
         .collection('Subscriptions')
         .doc(locals.change.after.id), {
           include,
-          schedule: doc.get('schedule'),
-          venue: doc.get('venue'),
-          template: doc.get('name'),
-          attachment: doc.get('attachment'),
+          schedule: templateDoc.get('schedule'),
+          venue: templateDoc.get('venue'),
+          template: templateDoc.get('name'),
+          attachment: templateDoc.get('attachment'),
           timestamp: locals.change.after.get('timestamp'),
           office: locals.change.after.get('office'),
           status: locals.change.after.get('status'),
-          canEditRule: doc.get('canEditRule'),
-          hidden: doc.get('hidden'),
-          statusOnCreate: doc.get('statusOnCreate'),
+          canEditRule: templateDoc.get('canEditRule'),
+          hidden: templateDoc.get('hidden'),
+          statusOnCreate: templateDoc.get('statusOnCreate'),
         });
 
       return batch.commit();
