@@ -25,21 +25,21 @@
 'use strict';
 
 
-const { rootCollections, users } = require('../../admin/admin');
+const { users } = require('../../admin/admin');
 const sgMail = require('@sendgrid/mail');
-const sgMailApiKey = require('../../admin/env').sgMailApiKey;
+const env = require('../../admin/env');
 
-sgMail.setApiKey(sgMailApiKey);
+sgMail.setApiKey(env.sgMailApiKey);
 
 
-const sendMails = (recipientsDoc, instantDoc) => {
-  const { include, cc } = recipientsDoc.data();
-
+module.exports = (instantDoc) => {
   const promises = [];
 
-  include.forEach(
-    (phoneNumber) => promises.push(users.getUserByPhoneNumber(phoneNumber))
-  );
+  env
+    .internalUsers
+    .forEach(
+      (phoneNumber) => promises.push(users.getUserByPhoneNumber(phoneNumber))
+    );
 
   const messages = [];
 
@@ -58,21 +58,18 @@ const sendMails = (recipientsDoc, instantDoc) => {
           const email = record.email;
           const emailVerified = record.emailVerified;
           const disabled = record.disabled;
-          const displayName = record.displayName || '';
+          const name = record.displayName || '';
 
           if (!email) return;
           if (!emailVerified) return;
           if (disabled) return;
 
           messages.push({
-            cc,
             subject,
+            cc: '',
             html: messageBody,
-            to: {
-              email,
-              name: displayName,
-            },
-            from: cc,
+            to: { email, name },
+            from: env.systemEmail,
           });
         });
 
@@ -88,14 +85,3 @@ const sendMails = (recipientsDoc, instantDoc) => {
     })
     .catch(console.error);
 };
-
-
-module.exports = (instantDoc) =>
-  rootCollections
-    .reports
-    .doc('systemReports')
-    .collection('Recipients')
-    .doc('KlQM9EzrYfTzE2cjExFp')
-    .get()
-    .then((recipientsDoc) => sendMails(recipientsDoc, instantDoc))
-    .catch(console.error);
