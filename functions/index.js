@@ -41,32 +41,32 @@ const api = functions
   .https
   .onRequest(require('./server/server'));
 
-const assigneeHandler = functions
+const assigneeOnDelete = functions
   .firestore
   .document('Activities/{activityId}/Assignees/{phoneNumber}')
   .onDelete(require('./firestore/assignees/index'));
 
-const activityHandler = functions
+const activityOnWrite = functions
   .firestore
   .document('/Activities/{activityId}')
   .onWrite(require('./firestore/activity/on-write'));
 
-const reportsHandler = functions
+const instantOnCreate = functions
   .firestore
   .document('Instant/{docId}')
   .onCreate(require('./firestore/reports/index'));
 
-const createOfficeNamePermutations = functions
+const generateOfficeNamePermutations = functions
   .firestore
   .document('Offices/{officeId}')
   .onCreate(require('./firestore/offices/background/on-create'));
 
-const profileHandler = functions
+const profileOnWrite = functions
   .firestore
   .document('Profiles/{phoneNumber}')
   .onWrite(require('./firestore/profiles/on-write'));
 
-const subscriptionUpdater = functions
+const activityTemplatesOnUpdate = functions
   .firestore
   .document('ActivityTemplates/{docId}')
   .onUpdate(require('./firestore/subscriptions/on-update'));
@@ -76,7 +76,7 @@ const timer = functions
   .document('Timers/{docId}')
   .onCreate(require('./timer/on-create'));
 
-const backgroundReports = functions
+const recipientsOnUpdate = functions
   .firestore
   .document('Recipients/{docId}')
   .onUpdate(require('./firestore/recipients/on-update'));
@@ -92,12 +92,12 @@ module.exports = {
   timer,
   authOnCreate,
   authOnDelete,
-  profileHandler,
-  reportsHandler,
-  activityHandler,
-  assigneeHandler,
+  profileOnWrite,
+  instantOnCreate,
+  activityOnWrite,
+  assigneeOnDelete,
   addendumOnCreate,
-  backgroundReports,
-  subscriptionUpdater,
-  createOfficeNamePermutations,
+  recipientsOnUpdate,
+  activityTemplatesOnUpdate,
+  generateOfficeNamePermutations,
 };
