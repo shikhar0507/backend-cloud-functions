@@ -142,6 +142,12 @@ const handleActivitiesUrl = (conn, urlParts) => {
 const handleServicesUrl = (conn, urlParts) => {
   const resource = urlParts[2];
 
+  if (resource === 'users') {
+    require('../services/users/on-read')(conn);
+
+    return;
+  }
+
   if (resource === 'permissions') {
     require('../services/on-permissions')(conn);
 
