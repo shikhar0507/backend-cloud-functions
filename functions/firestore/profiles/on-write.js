@@ -125,6 +125,7 @@ const getLocaleFromTimestamp = (countryCode, timestamp) => {
 const getEmployeeObject = (options) => {
   const {
     hasSignedUp,
+    hasSignedUpBeforeOffice,
   } = options;
 
   const object = {
