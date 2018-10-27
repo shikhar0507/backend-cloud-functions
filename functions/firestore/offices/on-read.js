@@ -7,6 +7,7 @@ const {
   sendResponse,
   isValidDate,
   hasAdminClaims,
+  hasSupportClaims,
 } = require('../../admin/utils');
 const {
   rootCollections,
@@ -49,10 +50,8 @@ const getTemplates = (conn, locals) =>
     .activityTemplates
     .get()
     .then((docs) => {
-      docs
-        .forEach((doc) => locals
-          .jsonObject
-          .templates.push(getTemplateObject(doc)));
+      docs.forEach((doc) =>
+        locals.jsonObject.templates.push(getTemplateObject(doc)));
 
       sendJSON(conn, locals.jsonObject);
 
@@ -61,49 +60,28 @@ const getTemplates = (conn, locals) =>
     .catch((error) => handleError(conn, error));
 
 
-const getActivities = (conn, locals) =>
-  Promise
-    .all(locals.activitiesToFetch)
-    .then((allOfficeActivities) => {
-      /**
-       * For each office, there will be an `activity` with the furthest
-       * `timestamp`. We are storing the `timestamp` of that `activity` and
-       * comparing those values against each other. The **furthest** among
-       *  them will be sent as the `upto` time in the read response.
-      */
-      const furthestTimestamps = [];
+const fetchActivities = (conn, locals, promise) =>
+  promise
+    .then((docs) => {
+      if (docs.empty) {
+        getTemplates(conn, locals);
 
-      allOfficeActivities
-        .forEach((officeActivitiesSnapshot) => {
-          const lastDoc =
-            officeActivitiesSnapshot
-              .docs[officeActivitiesSnapshot.docs.length - 1];
-
-          officeActivitiesSnapshot
-            .forEach((doc) => {
-              locals.jsonObject.activities.push(getActivityObject(doc));
-            });
-
-          if (!lastDoc) return;
-
-          const timestamp = lastDoc.get('timestamp').toDate();
-
-          furthestTimestamps.push(timestamp.getTime());
-        });
-
-      /**
-       * Handles the case when the `furthestTimestamps` array is empty. Not adding
-       * this check makes the upto field equal to `null`.
-      */
-      if (furthestTimestamps.length > 0) {
-        locals.jsonObject.upto = new Date(Math.max(...furthestTimestamps));
+        return;
       }
+
+      locals
+        .jsonObject
+        .upto = docs.docs[docs.size - 1].get('timestamp').toDate();
+
+      docs.forEach((doc) =>
+        locals.jsonObject.activities.push(getActivityObject(doc)));
 
       getTemplates(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
+
 
 
 module.exports = (conn) => {
@@ -117,7 +95,8 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!hasAdminClaims(conn.requester.customClaims)) {
+  if (!hasAdminClaims(conn.requester.customClaims)
+    && !hasSupportClaims(conn.requester.customClaims)) {
     sendResponse(
       conn,
       code.forbidden,
@@ -131,7 +110,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The request URL is missing the 'from' query parameter.`
+      `The request URL is missing the 'from' query parameter`
     );
 
     return;
@@ -141,7 +120,17 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The value in the 'from' query parameter is not a valid unix timestamp.`
+      `The value in the 'from' query parameter is not a valid unix timestamp`
+    );
+
+    return;
+  }
+
+  if (!conn.req.query.office) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `Invalid query param: ${conn.req.body.office}`
     );
 
     return;
@@ -156,44 +145,33 @@ module.exports = (conn) => {
       activities: [],
       templates: [],
     },
-    activitiesToFetch: [],
   };
 
-  const promises = [];
-  const officeNamesArray = conn.requester.customClaims.admin;
+  rootCollections
+    .offices
+    .where('attachment.Name.value', '==', conn.req.query.office)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      if (snapShot.empty) {
+        sendResponse(
+          conn,
+          code.badRequest,
+          `No office found with the name: ${conn.req.query.office}`
+        );
 
-  officeNamesArray
-    .forEach((name) => promises
-      .push(rootCollections
-        .offices
-        .where('attachment.Name.value', '==', name)
-        .limit(1)
-        .get()));
+        return;
+      }
 
-  Promise
-    .all(promises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        const doc = snapShot.docs[0];
-        const officeId = doc.id;
-        const status = doc.get('status');
+      const doc = snapShot.docs[0];
 
-        if (status === 'CANCELLED') return;
+      if (doc.get('status') === 'CANCELLED') {
+        sendResponse(conn, code.conflict, `This office has been deleted`);
 
-        const promise = rootCollections
-          .offices
-          .doc(officeId)
-          .collection('Activities')
-          .where('timestamp', '>', from)
-          .where('canEditRule', '==', 'ADMIN')
-          .get();
+        return;
+      }
 
-        locals.
-          activitiesToFetch
-          .push(promise);
-      });
-
-      getActivities(conn, locals);
+      fetchActivities(conn, locals);
 
       return;
     })
