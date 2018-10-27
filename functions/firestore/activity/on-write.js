@@ -178,20 +178,24 @@ const addSubscriptionToUserProfile = (locals, batch) =>
 
       const templateDoc = templateDocsQuery.docs[0];
       const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
-      const employeeData = officeDoc.get('employeesData')[subscriberPhoneNumber];
-      const subscriptionsArray = employeeData.subscriptions || [];
+      const employeesData = officeDoc.get('employeesData');
 
-      subscriptionsArray.push(templateDoc.get('name'));
+      if (employeesData && employeesData[subscriberPhoneNumber]) {
+        const employeeData = employeesData[subscriberPhoneNumber];
+        const subscriptionsArray = employeeData.subscriptions || [];
 
-      employeeData.subscriptions = [...new Set(subscriptionsArray)];
+        subscriptionsArray.push(templateDoc.get('name'));
 
-      batch.set(officeDoc.ref, {
-        employeesData: {
-          [subscriberPhoneNumber]: employeeData,
-        },
-      }, {
-          merge: true,
-        });
+        employeeData.subscriptions = [...new Set(subscriptionsArray)];
+
+        batch.set(officeDoc.ref, {
+          employeesData: {
+            [subscriberPhoneNumber]: employeeData,
+          },
+        }, {
+            merge: true,
+          });
+      }
 
       /**
        * The client app isn't allowed to create activities as `ADMIN`.
@@ -636,23 +640,6 @@ const addSupplierToOffice = (locals, batch) => {
 };
 
 
-const addNewOffice = (locals, batch) => {
-  const activityData = locals.change.after.data();
-  activityData.timestamp = serverTimestamp;
-
-  batch.set(rootCollections
-    .offices
-    .doc(locals.change.after.id),
-    activityData, {
-      merge: true,
-    });
-
-  return batch
-    .commit()
-    .catch(console.error);
-};
-
-
 const addCustomerToOffice = (locals, batch) => {
   const attachment = locals.change.after.get('attachment');
   const customerName = attachment.Name.value;
@@ -891,16 +878,20 @@ module.exports = (change, context) => {
 
       console.log('locals.adminsCanEdit', locals.adminsCanEdit);
 
-      /** Document below the `Offices/(OfficeId)/Activities/ collection` */
-      batch.set(rootCollections
-        .offices
-        .doc(change.after.get('officeId'))
-        .collection('Activities')
-        .doc(activityId), activityData);
+      const copyTo = (() => {
+        const officeRef = rootCollections.offices.doc(change.after.get('officeId'));
 
-      if (template === 'office') {
-        return addNewOffice(locals, batch);
-      }
+        if (template === 'office') {
+          return officeRef;
+        }
+
+        return officeRef.collection('Activities').doc(change.after.id);
+      })();
+
+      /** Office doc doesn't need the `adminsCanEdit` field. */
+      delete activityData.adminsCanEdit;
+
+      batch.set(copyTo, activityData, { merge: true });
 
       if (template === 'subscription') {
         return addSubscriptionToUserProfile(locals, batch);
