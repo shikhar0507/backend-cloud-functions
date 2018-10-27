@@ -376,7 +376,8 @@ const filterAttachment = (options) => {
   const messageObject = {
     isValid: true,
     message: null,
-    phoneNumbers: new Set(),
+    // phoneNumbers: new Set(),
+    phoneNumbersSet: new Set(),
     querySnapshotShouldExist: [],
     querySnapshotShouldNotExist: [],
     profileDocShouldExist: [],
@@ -526,8 +527,7 @@ const filterAttachment = (options) => {
      * the `Offices/(officeId)/Activities` will be queried for the doc
      * to EXIST.
      */
-    if (!validTypes.has(type)
-      && value !== '') {
+    if (!validTypes.has(type) && value !== '') {
       messageObject
         .querySnapshotShouldExist
         .push(rootCollections
@@ -591,14 +591,14 @@ const filterAttachment = (options) => {
        * add add in the activity assignee list.
        */
       if (value !== '') {
-        messageObject.phoneNumbers.add(value);
+        messageObject.phoneNumbersSet.add(value);
       }
     }
 
     if (type === 'email') {
       if (value !== '' && !isValidEmail(value)) {
         messageObject.isValid = false;
-        messageObject.message = `The field ${field} should be a valid email.`;
+        messageObject.message = `The field ${field} should be a valid email`;
         break;
       }
     }
@@ -628,17 +628,8 @@ const filterAttachment = (options) => {
     }
   }
 
-  if (messageObject.phoneNumbers.size === 0
-    && template === 'office') {
-    return {
-      isValid: false,
-      message: `Cannot create an office with both First and Second`
-        + ` contacts empty`,
-    };
-  }
-
-  /** Set to array. */
-  messageObject.phoneNumbers = [...messageObject.phoneNumbers];
+  /** Using `Set()` in order to avoid duplication of phone numbers in the array */
+  messageObject.phoneNumbers = [...messageObject.phoneNumbersSet.keys()];
 
   return messageObject;
 };

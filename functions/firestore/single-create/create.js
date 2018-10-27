@@ -3,7 +3,6 @@
 
 const {
   filterAttachment,
-  // getCanEditValue,
   validateSchedules,
   validateVenues,
 } = require('../activity/helper');
@@ -19,10 +18,48 @@ const {
 const {
   handleError,
   sendResponse,
+  hasSupportClaims,
 } = require('../../admin/utils');
 const {
   httpsActions,
 } = require('../../admin/constants');
+
+
+const logRequest = (options) => {
+  const {
+    conn,
+    responseCode,
+    responseMessage,
+  } = options;
+
+  const env = require('../../admin/env');
+  const sgMail = require('@sendgrid/mail');
+  sgMail.setApiKey(env.sgMailApiKey);
+
+  const messages = [];
+
+  const html = `
+    Message to client: ${responseMessage}
+  `;
+
+  env
+    .instantEmailRecipientEmails
+    .forEach((email) => {
+      messages.push({
+        html,
+        cc: env.systemEmail,
+        to: email,
+        from: env.systemEmail,
+        subject: `Admin API Used by support for`
+          + ` template: '${conn.req.body.template}'`,
+      });
+    });
+
+  sgMail
+    .sendMultiple(messages)
+    .then(() => sendResponse(conn, responseCode, responseMessage))
+    .catch((error) => handleError(conn, error));
+};
 
 
 const getActivityName = (options) => {
@@ -39,6 +76,7 @@ const getActivityName = (options) => {
   return `${templateName.toUpperCase()}:`
     + ` ${requester.displayName || requester.phoneNumber}`;
 };
+
 
 const getCanEditValue = (options) => {
   const {
@@ -139,21 +177,30 @@ const createDocs = (conn, locals) => {
         isSupportRequest: conn.requester.isSupportRequest,
       });
 
-  console.log('batch', locals.batch);
+  console.log('batch', locals.batch._writes);
 
   locals
-    .batch.commit()
-    .then(() => sendResponse(conn, code.noContent))
+    .batch
+    .commit()
+    .then(() => logRequest({
+      conn,
+      responseCode: code.noContent,
+      responseMessage: `A new Office '${conn.req.body.office}' was`
+        + ` created by '${conn.requester.phoneNumber}'`,
+    }))
     .catch((error) => handleError(conn, error));
+
+  // sendResponse(conn, code.ok, 'done');
 };
+
 
 const handleAssignees = (conn, locals) => {
   if (locals.allPhoneNumbers.size === 0) {
-    sendResponse(
+    logRequest({
       conn,
-      code.conflict,
-      `Cannot create an activity with zero assignees`
-    );
+      responseCode: code.conflict,
+      responseMessage: `Cannot create an activity with zero assignees`,
+    });
 
     return;
   }
@@ -289,7 +336,7 @@ const handleOffice = (conn, locals) => {
 
       console.log('phoneNumbersArray', phoneNumbersArray);
 
-      /** Avoid duplicate phone numbers which will increase */
+      /** Avoid duplicate phone numbers */
       new Set(phoneNumbersArray)
         .forEach((phoneNumber) => {
           const adminActivityRef = rootCollections
@@ -339,6 +386,7 @@ const handleOffice = (conn, locals) => {
             timestamp,
             office,
             officeId,
+            /** Special change by `Parastish` for subscription only */
             activityName: `SUBSCRIPTION: ${phoneNumber}`,
             addendumDocRef: subscriptionAddendumDocRef,
             attachment: getAttachmentObject({
@@ -433,8 +481,11 @@ const handleOffice = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
+
 const handleName = (conn, locals) => {
   if (!conn.req.body.attachment.hasOwnProperty('Name')) {
+    console.log('inside hasownproperty name');
+
     handleAssignees(conn, locals);
 
     return;
@@ -462,6 +513,8 @@ const handleName = (conn, locals) => {
       .limit(1);
   })();
 
+  console.log('handle name');
+
   query
     .get()
     .then((snapShot) => {
@@ -482,18 +535,23 @@ const handleName = (conn, locals) => {
         return;
       }
 
-      if (conn.req.body.template !== 'office') {
-        handleAssignees(conn, locals);
+      if (conn.req.body.template === 'office') {
+        console.log('in handle offices');
+
+        handleOffice(conn, locals);
 
         return;
       }
 
-      handleOffice(conn, locals);
+      console.log('outside handle offices');
+
+      handleAssignees(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
 };
+
 
 const handleResult = (conn, result) => {
   const [
@@ -505,21 +563,32 @@ const handleResult = (conn, result) => {
 
   if (!officeQueryResult.empty
     && officeQueryResult.docs[0].get('status') === 'CANCELLED') {
-    sendResponse(
+    logRequest({
       conn,
-      code.conflict,
-      `This office has been deleted. Cannot create an activity`
-    );
+      responseCode: code.conflict,
+      responseMessage: `This office has been deleted. Cannot create an activity`,
+    });
+
+    return;
+  }
+
+  if (officeQueryResult.empty
+    && conn.req.body.template !== 'office') {
+    logRequest({
+      conn,
+      responseCode: code.conflict,
+      responseMessage: `No office found with the name '${conn.req.body.office}'`,
+    });
 
     return;
   }
 
   if (templateQueryResult.empty) {
-    sendResponse(
+    logRequest({
       conn,
-      code.badRequest,
-      `No template found with the name: '${conn.req.body.template}'`
-    );
+      responseCode: code.badRequest,
+      responseMessage: `No template found with the name: '${conn.req.body.template}'`,
+    });
 
     return;
   }
@@ -529,12 +598,13 @@ const handleResult = (conn, result) => {
    * of their subscription.
    */
   if (subscriptionQueryResult.empty
-    && templateSubscriptionQueryResult.empty) {
-    sendResponse(
+    && templateSubscriptionQueryResult.empty
+    && !hasSupportClaims(conn.requester.customClaims)) {
+    logRequest({
       conn,
-      code.forbidden,
-      `You do not have the permission to use '${conn.req.body.template}'`
-    );
+      responseCode: code.forbidden,
+      responseMessage: `You do not have the permission to use '${conn.req.body.template}'`,
+    });
 
     return;
   }
@@ -609,15 +679,32 @@ const handleResult = (conn, result) => {
     office: conn.req.body.office,
   });
 
-  console.log('attachmentValid', attachmentValid);
-
   if (!attachmentValid.isValid) {
-    sendResponse(conn, code.badRequest, attachmentValid.message);
+    logRequest({
+      conn,
+      responseCode: code.badRequest,
+      responseMessage: attachmentValid.message,
+    });
 
     return;
   }
 
   locals.activityObject.attachment = conn.req.body.attachment;
+
+  /** Office needs to have at least one contact */
+  if (attachmentValid.phoneNumbers.length === 0
+    && conn.req.body.template === 'office') {
+    logRequest({
+      conn,
+      responseCode: code.badRequest,
+      responseMessages: `Cannot create an office with both First and Second`
+        + ` contacts empty`,
+    });
+
+    return;
+  }
+
+
   attachmentValid
     .phoneNumbers
     .forEach((phoneNumber) => locals.allPhoneNumbers.add(phoneNumber));
@@ -629,6 +716,8 @@ const handleResult = (conn, result) => {
   if (!conn.requester.isSupportRequest) {
     locals.allPhoneNumbers.add(conn.requester.phoneNumber);
   }
+
+  console.log('before handle name');
 
   handleName(conn, locals);
 };

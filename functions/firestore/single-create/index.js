@@ -2,7 +2,6 @@
 
 const {
   sendResponse,
-  hasAdminClaims,
   hasSupportClaims,
 } = require('../../admin/utils');
 const {
@@ -43,17 +42,6 @@ module.exports = (conn) => {
   /** Only `support` can create an office */
   if (conn.req.body.template === 'office'
     && !hasSupportClaims(conn.requester.customClaims)) {
-    sendResponse(conn, code.forbidden, `You cannot access this resource`);
-
-    return;
-  }
-
-  /**
-   * Only support and admin can use this endpoint. But only support
-   * can use the template `office`.
-   */
-  if (conn.req.body.template !== 'office'
-    && !hasAdminClaims(conn.requester.customClaims)) {
     sendResponse(conn, code.forbidden, `You cannot access this resource`);
 
     return;
