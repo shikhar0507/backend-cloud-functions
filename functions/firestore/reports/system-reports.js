@@ -36,7 +36,7 @@ module.exports = (instantDoc) => {
   const promises = [];
 
   env
-    .internalUsers
+    .instantEmailRecipientEmails
     .forEach(
       (phoneNumber) => promises.push(users.getUserByPhoneNumber(phoneNumber))
     );

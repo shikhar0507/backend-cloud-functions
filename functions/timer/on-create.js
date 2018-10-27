@@ -34,6 +34,7 @@ const sgMail = require('@sendgrid/mail');
 const {
   sgMailApiKey,
   systemEmail,
+  internalUsers,
 } = require('../admin/env');
 
 sgMail.setApiKey(sgMailApiKey);
@@ -66,12 +67,14 @@ module.exports = (doc) => {
       const reportDoc = result[1];
       const authFetchPromises = [];
 
-      reportDoc.get('include').forEach(
-        (phoneNumber) =>
-          authFetchPromises.push(users.getUserByPhoneNumber(phoneNumber))
-      );
+      internalUsers
+        .forEach(
+          (phoneNumber) =>
+            authFetchPromises.push(users.getUserByPhoneNumber(phoneNumber))
+        );
 
-      return Promise.all(authFetchPromises);
+      return Promise
+        .all(authFetchPromises);
     })
     .then((userRecords) => {
       const messages = [];
@@ -109,6 +112,7 @@ module.exports = (doc) => {
 
         messages.push({
           html,
+          cc: systemEmail,
           subject: 'FROM Timer function',
           to: {
             email,
