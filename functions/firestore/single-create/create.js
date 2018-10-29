@@ -719,7 +719,9 @@ const handleResult = (conn, result) => {
 
   console.log('before handle name');
 
-  handleName(conn, locals);
+  // handleName(conn, locals);
+
+  sendResponse(conn, code.ok, 'testing');
 };
 
 
@@ -740,16 +742,16 @@ module.exports = (conn) =>
         .profiles
         .doc(conn.requester.phoneNumber)
         .collection('Subscriptions')
+        .where('office', '==', conn.req.body.office)
         .where('template', '==', 'subscription')
-        .where('attachment.Template.value', '==', 'subscription')
         .limit(1)
         .get(),
       rootCollections
         .profiles
-        .doc()
+        .doc(conn.requester.phoneNumber)
         .collection('Subscription')
+        .where('office', '==', conn.req.body.office)
         .where('template', '==', conn.req.body.template)
-        .where('attachment.Template.value', '==', conn.req.body.template)
         .limit(1)
         .get(),
     ])

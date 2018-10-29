@@ -458,8 +458,8 @@ module.exports = (change) => {
 
   /**
    * If the `lastQueryFrom` value is `0`, the user probably has installed
-   * the app for the first or (has been installing it multiple) time.
-   * We log all these events to create a report based on this data
+   * the app for the first (or has been installing it multiple) time(s).
+   * We log all these events to create an `install` report based on this data
    * for all the offices this person belongs to.
    */
   const hasInstalled = Boolean(

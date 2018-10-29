@@ -204,7 +204,7 @@ const addSubscriptionToUserProfile = (locals, batch) =>
        * we are simply not adding the subscription to user's profile
        * since they won't be able to use that subscription in the front-end app.
       */
-      if (templateDoc.get('canEditRule') === 'ADMIN') return batch.commit();
+      // if (templateDoc.get('canEditRule') === 'ADMIN') return batch.commit();
 
       const include = [];
 

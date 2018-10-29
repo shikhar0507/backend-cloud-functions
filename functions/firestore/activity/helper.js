@@ -371,12 +371,15 @@ const filterAttachment = (options) => {
     template,
     officeId,
     office,
+    // templateAttachmentFields,
+    // bodyAttachmentFields,
   } = options;
 
   const messageObject = {
     isValid: true,
     message: null,
-    // phoneNumbers: new Set(),
+    typesToExist: new Map(),
+    typesToNotExist: new Map(),
     phoneNumbersSet: new Set(),
     querySnapshotShouldExist: [],
     querySnapshotShouldNotExist: [],
@@ -409,13 +412,13 @@ const filterAttachment = (options) => {
     return messageObject;
   }
 
-  const fields = Object.keys(templateAttachment);
-  const foundFields = Object.keys(bodyAttachment);
+  const templateAttachmentFields = Object.keys(templateAttachment);
+  const bodyAttachmentFields = Object.keys(bodyAttachment);
 
-  if (fields.length !== foundFields.length) {
+  if (templateAttachmentFields.length !== bodyAttachmentFields.length) {
     messageObject.isValid = false;
     messageObject.message = `The attachment in the request body should`
-      + ` have the following fields: ${fields}.`;
+      + ` have the following fields: ${templateAttachmentFields}.`;
 
     return messageObject;
   }
@@ -424,7 +427,7 @@ const filterAttachment = (options) => {
   const validTypes = require('../../admin/constants').validTypes;
 
   /** The `forEach` loop doesn't support `break` */
-  for (const field of fields) {
+  for (const field of templateAttachmentFields) {
     if (!bodyAttachment.hasOwnProperty(field)) {
       messageObject.isValid = false;
       messageObject.message = `The '${field}' field is missing`
@@ -539,6 +542,8 @@ const filterAttachment = (options) => {
           .limit(1)
           .get()
         );
+
+      messageObject.typesToExist.set(type, value);
     }
 
     if (field === 'Name') {
@@ -565,12 +570,6 @@ const filterAttachment = (options) => {
           .doc(officeId)
           .collection('Activities')
           .where('attachment.Name.value', '==', value)
-          /**
-           * Not directly using `body.template` for `template`
-           * because other than the create request, the template
-           * name for which to query doesn't come from the
-           * request `body`.
-           */
           .where('template', '==', template)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)

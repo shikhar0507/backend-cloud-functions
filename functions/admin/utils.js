@@ -61,12 +61,12 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
 const sendResponse = (conn, statusCode, message = '') => {
   conn.res.writeHead(statusCode, conn.headers);
 
-  console.log({
-    message,
-    requester: conn.requester,
-    reqBody: conn.req.body,
-    url: conn.req.url,
-  });
+  // console.log({
+  //   message,
+  //   requester: conn.requester,
+  //   reqBody: conn.req.body,
+  //   url: conn.req.url,
+  // });
 
   conn.res.end(JSON.stringify({
     message,
