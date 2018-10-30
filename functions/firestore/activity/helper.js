@@ -378,8 +378,7 @@ const filterAttachment = (options) => {
   const messageObject = {
     isValid: true,
     message: null,
-    typesToExist: new Map(),
-    typesToNotExist: new Map(),
+    nameChecks: [],
     phoneNumbersSet: new Set(),
     querySnapshotShouldExist: [],
     querySnapshotShouldNotExist: [],
@@ -531,6 +530,9 @@ const filterAttachment = (options) => {
      * to EXIST.
      */
     if (!validTypes.has(type) && value !== '') {
+
+      messageObject.nameChecks.push({ value, type });
+
       messageObject
         .querySnapshotShouldExist
         .push(rootCollections
@@ -542,8 +544,6 @@ const filterAttachment = (options) => {
           .limit(1)
           .get()
         );
-
-      messageObject.typesToExist.set(type, value);
     }
 
     if (field === 'Name') {

@@ -155,12 +155,34 @@ const sendGridTemplateIds = {
   expenseClaim: 'd-ae3a31066b0f447bbf8661570b4dc719',
 };
 
+const templatesSet = new Set()
+  .add('admin')
+  .add('branch')
+  .add('check-in')
+  .add('customer-type')
+  .add('customer')
+  .add('department')
+  .add('dsr')
+  .add('duty roster')
+  .add('employee')
+  .add('expense claim')
+  .add('expense-type')
+  .add('leave-type')
+  .add('office')
+  .add('product')
+  .add('recipient')
+  .add('subscription')
+  .add('supplier-type')
+  .add('supplier')
+  .add('tour plan');
+
 
 module.exports = {
   vowels,
   weekdays,
   validTypes,
   httpsActions,
+  templatesSet,
   canEditRules,
   templateFields,
   shareBodyFields,

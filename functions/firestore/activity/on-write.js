@@ -157,29 +157,234 @@ const handleReport = (locals, batch) => {
     .catch(console.error);
 };
 
-const addSubscriptionToUserProfile = (locals, batch) =>
+
+const handleSpecialTemplateCases = (locals, templateDoc) => {
+  const templateName = templateDoc.get('name');
+  const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
+
+  const templatesAllowed =
+    new Set()
+      .add('dsr')
+      .add('tour plan')
+      .add('duty roster');
+
+  if (!templatesAllowed.has(templateName)) return Promise.resolve();
+
+  return Promise
+    .all([
+      rootCollections
+        .activities
+        .where('office', '==', locals.change.after.get('office'))
+        .where('template', '==', 'customer')
+        .get(),
+      rootCollections
+        .activities
+        .where('office', '==', locals.change.after.get('office'))
+        .where('template', '==', 'product')
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        customerActivitiesQuery,
+        productActivitiesQuery,
+      ] = result;
+
+      const customerActivitiesBatch = db.batch();
+      const productActivitiesBatch = db.batch();
+
+      customerActivitiesQuery.forEach((doc) => {
+        customerActivitiesBatch.set(doc.ref, {
+          timestamp: serverTimestamp,
+          addendumDocRef: null,
+        });
+
+        customerActivitiesBatch.set(doc
+          .ref
+          .collection('Assignees')
+          .doc(subscriberPhoneNumber), {
+            canEdit: false,
+            addToInclude: true,
+          });
+      });
+
+      /** Adding to product only for DSR */
+      if (templateName === 'dsr') {
+        productActivitiesQuery.forEach((doc) => {
+          productActivitiesBatch.set(doc.ref, {
+            timestamp: serverTimestamp,
+            addendumDocRef: null,
+          });
+
+          productActivitiesBatch.set(doc
+            .ref
+            .collection('Assignees')
+            .doc(subscriberPhoneNumber), {
+              canEdit: false,
+              addToInclude: true,
+            });
+        });
+      }
+
+      return Promise
+        .all([
+          customerActivitiesBatch
+            .commit(),
+          productActivitiesBatch
+            .commit(),
+        ]);
+    })
+    .catch(console.error);
+};
+
+
+const handleCanEditRule = (locals, templateDoc) => {
+  if (templateDoc.get('canEditRule') !== 'ADMIN') return Promise.resolve();
+
+  const officeId = locals.change.after.get('officeId');
+  const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
+
+  return Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Activities')
+        .where('template', '==', 'admin')
+        .where('attachment.Admin.value', '==', subscriberPhoneNumber)
+        .limit(1)
+        .get(),
+      rootCollections
+        .activityTemplates
+        .where('name', '==', 'admin')
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        adminActivitiesQuery,
+        adminTemplateQuery,
+      ] = result;
+
+      /** User is already an `admin` */
+      if (!adminActivitiesQuery.empty) return new Promise();
+
+      const batch = db.batch();
+      const adminTemplateDoc = adminTemplateQuery.docs[0];
+      const activityRef = rootCollections.activities.doc();
+      const addendumDocRef =
+        rootCollections.offices.doc(officeId).collection('Addendum').doc();
+
+      const attachment = (() => {
+        const attachmentObject = adminTemplateDoc.get('attachment');
+
+        attachment.Admin.value = subscriberPhoneNumber;
+
+        return attachmentObject;
+      })();
+
+      const creator = locals.change.after.get('creator');
+      const activityName = `ADMIN: ${creator}`;
+
+      const activityData = {
+        addendumDocRef,
+        attachment,
+        activityName,
+        officeId,
+        timestamp: serverTimestamp,
+        office: locals.change.after.get('office'),
+        template: 'admin',
+        venue: [],
+        schedule: [],
+        status: adminTemplateDoc.get('statusOnCreate'),
+        canEditRule: adminTemplateDoc.get('canEditRule'),
+        hidden: adminTemplateDoc.get('hidden'),
+        creator: locals.change.after.get('creator'),
+      };
+
+      const subscriptionAddendumDoc = (() => {
+        if (!locals.addendumDoc) {
+          return {
+            location: {
+              _latitude: '',
+              _longitude: '',
+            },
+            userDisplayName: null,
+            userDeviceTimestamp: serverTimestamp,
+          };
+        }
+
+        return {
+          location: locals.addendumDoc.get('location'),
+          userDisplayName: locals.addendumDoc.get('userDisplayName'),
+          userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+        };
+      })();
+
+      const addendumData = {
+        activityData,
+        activityName,
+        user: creator,
+        location: subscriptionAddendumDoc.location,
+        userDisplayName: subscriptionAddendumDoc.userDisplayName,
+        share: [],
+        action: httpsActions.create,
+        template: 'admin',
+        timestamp: serverTimestamp,
+        userDeviceTimestamp: subscriptionAddendumDoc.userDeviceTimestamp,
+        activityId: activityRef.id,
+        isSupportRequest: false,
+      };
+
+      batch.set(activityRef, activityData);
+      batch.set(addendumDocRef, addendumData);
+
+      return batch.commit();
+    })
+    .then(() => handleSpecialTemplateCases(locals, templateDoc))
+    .catch(console.error);
+};
+
+
+const addSubscriptionToUserProfile = (locals, batch) => {
+  const templateName = locals.change.after.get('attachment.Template.value');
+  const queryTemplateName = (() => {
+    if (templateName === 'expense claim') return `expense-type`;
+
+    return `${templateName}-type`;
+  })();
+
   Promise
     .all([
       rootCollections
         .activityTemplates
-        .where('name', '==', locals.change.after.get('attachment.Template.value'))
+        .where('name', '==', templateName)
         .limit(1)
         .get(),
       rootCollections
         .offices
         .doc(locals.change.after.get('officeId'))
         .get(),
+      rootCollections
+        .activities
+        .where('office', '==', locals.change.after.get('office'))
+        .where('template', '==', queryTemplateName)
+        .get(),
     ])
     .then((result) => {
       const [
         templateDocsQuery,
         officeDoc,
+        queriedActivities,
       ] = result;
 
       const templateDoc = templateDocsQuery.docs[0];
       const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
       const employeesData = officeDoc.get('employeesData');
 
+      /**
+       * This if clause is required. Since the person getting the subscription
+       * may or may not be an employee of the office
+       */
       if (employeesData && employeesData[subscriberPhoneNumber]) {
         const employeeData = employeesData[subscriberPhoneNumber];
         const subscriptionsArray = employeeData.subscriptions || [];
@@ -246,9 +451,28 @@ const addSubscriptionToUserProfile = (locals, batch) =>
           statusOnCreate: templateDoc.get('statusOnCreate'),
         });
 
-      return batch.commit();
+      queriedActivities
+        .forEach((doc) => {
+          batch.set(doc.ref.collection('Assignees').doc(subscriberPhoneNumber), {
+            canEdit: false,
+            addToInclude: true,
+          });
+
+          batch.set(doc.ref, {
+            timestamp: serverTimestamp,
+            addendumDocRef: null,
+          });
+        });
+
+      /* eslint-disable */
+      return batch
+        .commit()
+        .then(() => templateDoc);
+      /* eslint-enable */
     })
+    .then((templateDoc) => handleCanEditRule(locals, templateDoc))
     .catch(console.error);
+};
 
 
 const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
@@ -701,6 +925,15 @@ module.exports = (change, context) => {
       .get());
   }
 
+  const hasName =
+    change.after.get('attachment').hasOwnProperty('Name');
+
+  if (hasName) {
+    promises
+      .push(rootCollections
+        .offices.doc(change.after.get('officeId')).get());
+  }
+
   console.log('locals', locals);
 
   return Promise
@@ -710,6 +943,7 @@ module.exports = (change, context) => {
         assigneesSnapShot,
         adminsSnapShot,
         addendumDoc,
+        officeDoc,
       ] = result;
 
       const allAdminPhoneNumbersSet
@@ -719,6 +953,10 @@ module.exports = (change, context) => {
 
       if (addendumDoc) {
         locals.addendumDoc = addendumDoc;
+      }
+
+      if (officeDoc) {
+        locals.officeDoc = officeDoc;
       }
 
       const authFetch = [];
@@ -872,6 +1110,18 @@ module.exports = (change, context) => {
         action: locals.addendumDoc ? locals.addendumDoc.get('action') : 'manual update',
       });
 
+      if (hasName) {
+        batch.set(locals.officeDoc.ref, {
+          namesMap: {
+            [`${template}`]: {
+              [`${change.after.get('attachment.Name.value')}`]: getValuesFromAttachment(locals.change.after),
+            },
+          },
+        }, {
+            merge: true,
+          });
+      }
+
       const activityData = change.after.data();
       activityData.timestamp = serverTimestamp;
       activityData.adminsCanEdit = locals.adminsCanEdit;
@@ -888,7 +1138,7 @@ module.exports = (change, context) => {
         return officeRef.collection('Activities').doc(change.after.id);
       })();
 
-      /** Office doc doesn't need the `adminsCanEdit` field. */
+      /** Office doc doesn't need the `adminsCanEdit` field */
       delete activityData.adminsCanEdit;
 
       batch.set(copyTo, activityData, { merge: true });

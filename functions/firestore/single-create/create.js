@@ -624,7 +624,7 @@ const handleResult = (conn, result) => {
     batch: db.batch(),
     permissions: {},
     /** Share array */
-    allPhoneNumbers: new Set(),
+    allPhoneNumbers: new Set(conn.req.body.share),
     templateObject: templateQueryResult.docs[0].data(),
     activityObject: {
       /** Missing addendumDocRef, venue, schedule, attachment, activityName, */
@@ -719,9 +719,7 @@ const handleResult = (conn, result) => {
 
   console.log('before handle name');
 
-  // handleName(conn, locals);
-
-  sendResponse(conn, code.ok, 'testing');
+  handleName(conn, locals);
 };
 
 

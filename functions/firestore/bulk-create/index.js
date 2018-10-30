@@ -18,6 +18,7 @@ const {
 const {
   validTypes,
   httpsActions,
+  templatesSet,
 } = require('../../admin/constants');
 const {
   code,
@@ -31,11 +32,13 @@ const {
 const getCanEditValue = (options) => {
   const {
     phoneNumber,
-    locals,
+    canEditRule,
+    employeesData,
     requesterPhoneNumber,
+    adminsSet,
   } = options;
 
-  const canEditRule = locals.templateDoc.get('canEditRule');
+  // const canEditRule = locals.templateDoc.get('canEditRule');
 
   if (canEditRule === 'NONE') return false;
   if (canEditRule === 'CREATOR') {
@@ -43,10 +46,12 @@ const getCanEditValue = (options) => {
   }
 
   if (canEditRule === 'EMPLOYEE') {
-    return locals
-      .officeDoc
-      .get('employeesData')
+    return employeesData
       .hasOwnProperty(phoneNumber);
+  }
+
+  if (canEditRule === 'ADMIN') {
+    return adminsSet.has(phoneNumber);
   }
 
   /** canEditRule is `ALL` */
@@ -100,156 +105,213 @@ const validateRequestBody = (requestBody) => {
   return result;
 };
 
-const handleAttachment = (conn, locals) => {
-  const attachmentsObject = locals.dataObject.attachments;
-
-  Object
-    .keys(attachmentsObject)
-    .forEach((name) => {
-      const result = filterAttachment({
-        bodyAttachment: attachmentsObject[name],
-        templateAttachment: locals.templateDoc.get('template'),
-        template: locals.templateDoc.get('name'),
-        officeId: locals.officeDoc.id,
-        office: locals.officeDoc.get('office'),
-      });
-
-      if (result.isValid) return;
-
-      locals.flaggedMap.set(name, result.message);
-    });
-};
-
-const handleAssignees = (conn, locals) => {
-  const assigneesArray = locals.dataObject.assignees;
-
-  Object
-    .keys(assigneesArray)
-    .forEach((name) => {
-      if (assigneesArray[name].each(isE164PhoneNumber)) return;
-
-      locals.flaggedMap.set(
-        name,
-        `Invalid phone numbers found for the user: ${name}`
-      );
-    });
-
-  handleAttachment(conn, locals);
-};
-
-const handleVenues = (conn, locals) => {
-  const venuesObject = locals.dataObject.venues;
-
-  Object
-    .keys(venuesObject)
-    .forEach((name) => {
-      const venuesArray = venuesObject[name];
-
-      const result = validateVenues({
-        venue: venuesArray,
-      }, locals.templateDoc.get('venue'));
-
-      if (result.isValid) return;
-
-      locals.flaggedMap.set(name, result.message);
-    });
-
-  handleAssignees(conn, locals);
-};
-
-const handleSchedules = (conn, locals) => {
-  const schedulesObject = locals.dataObject.schedules;
-
-  Object
-    .keys(schedulesObject)
-    .forEach((name) => {
-      const scheduleArray = schedulesObject[name];
-
-      const result = validateSchedules({
-        schedule: scheduleArray,
-      }, locals.templateDoc.get('schedule'));
-
-      if (result.isValid) return;
-
-      locals.flaggedMap.set(name, result.message);
-    });
-
-  handleVenues(conn, locals);
-};
-
 
 const handleDataArray = (conn, locals) => {
-  const {
-    officeDoc,
-    templateDoc,
-  } = locals;
+  const batchesArray = [];
 
-  locals.flaggedMap = new Map();
-  locals.dataMap = new Map();
+  const objectWithError = (options) => {
+    const {
+      object,
+      message,
+    } = options;
 
-  const dataObject = {
-    attachments: {},
-    assignees: {},
-    schedules: {},
-    venues: {},
+    object.success = false;
+    object.message = message;
+
+    return object;
   };
 
-  // TODO: Handle the case where the `Name` is invalid or missing
-  conn
-    .req
-    .body
-    .data
-    .forEach((object) => {
-      const attachmentValid = filterAttachment({
-        bodyAttachment: object.attachment,
-        templateAttachment: templateDoc.get('attachment'),
-        template: conn.req.body.template,
-        officeId: officeDoc.id,
-        office: officeDoc.get('attachment.Name.value'),
-      });
+  const hasName =
+    locals.templateDoc.get('attachment').hasOwnProperty('Name');
+  const namesMap = locals.officeDoc.get(`namesMap`) || {};
 
-      const name = object.attachment.Name.value;
+  conn.req.body.data.forEach((object) => {
+    const attachment = object.attachment;
+    const share = object.share;
+    const venue = object.venue;
+    const schedule = object.schedule;
 
-      if (!attachmentValid.isValid) {
-        locals.flaggedMap.set(name, attachmentValid.message);
+    // console.log('scheduleNames', locals.templateDoc.get('schedule'));
 
-        return;
-      }
+    const validSchedule = validateSchedules({
+      schedule,
+    }, locals.templateDoc.get('schedule'));
 
-      object.assignees =
-        attachmentValid
-          .phoneNumbers
-          .concat(object.assignees);
+    if (!validSchedule.isValid) {
+      locals.responseObject.push(objectWithError({
+        object,
+        message: validSchedule.message,
+      }));
 
-      const scheduleValid = validateSchedules({
-        schedule: object.schedule,
-      }, templateDoc.get('schedule'));
+      return;
+    }
 
-      if (!scheduleValid.isValid) {
-        locals.flaggedMap.set(name, scheduleValid.message);
+    const validVenue = validateVenues({
+      venue,
+    }, locals.templateDoc.get('venue'));
 
-        return;
-      }
+    if (!validVenue.isValid) {
+      locals.responseObject.push(objectWithError({
+        object,
+        message: validVenue.message,
+      }));
 
-      const venueValid = validateVenues({
-        venue: object.venue,
-      }, templateDoc.get('venue'));
+      return;
+    }
 
-      if (!venueValid.isValid) {
-        locals.flaggedMap.set(name, venueValid.message);
-
-        return;
-      }
-
-      dataObject.schedules[name] = object.schedule;
-      dataObject.venues[name] = object.venue;
-      dataObject.assignees[name] = object.assignees;
-      dataObject.attachments[name] = object.attachment;
+    const validateAttachment = filterAttachment({
+      bodyAttachment: attachment,
+      templateAttachment: locals.templateDoc.get('attachment'),
+      template: conn.req.body.template,
+      officeId: locals.officeDoc.id,
+      office: conn.req.body.office,
     });
 
-  locals.dataObject = dataObject;
+    if (!validateAttachment.isValid) {
+      locals.responseObject.push(objectWithError({
+        object,
+        message: validateAttachment.message,
+      }));
 
-  handleSchedules(conn, locals);
+      return;
+    }
+
+    validateAttachment.nameChecks.forEach((item) => {
+      const type = item.type;
+      const value = item.value;
+
+      // TODO: Remove this after `activityOnWrite` creates the namesMap.
+      /** `namesMap[type]` */
+      if (namesMap[type]
+        && !namesMap[type][value]) {
+        locals.responseObject.push(objectWithError({
+          object,
+          message: `The type '${type}' ${value} doesn't exist`,
+        }));
+
+        return;
+      }
+    });
+
+    if (hasName
+      && namesMap[conn.req.body.template]
+      && namesMap[conn.req.body.template][attachment.Name.value]) {
+      locals.responseObject.push(objectWithError({
+        object,
+        message: `${conn.req.body.template.toUpperCase()} with the`
+          + ` name '${attachment.Name.value}' already exists`,
+      }));
+
+      return;
+    }
+
+    if (conn.req.body.template === 'subscription'
+      && !templatesSet.has(attachment.Template.value)) {
+      locals.responseObject.push(objectWithError({
+        object,
+        message: `Template: '${attachment.Template.value}' doesn't exist`
+      }));
+
+      return;
+    }
+
+    validateAttachment
+      .phoneNumbers
+      .forEach((phoneNumber) => share.push(phoneNumber));
+
+    const batch = db.batch();
+    const activityRef = rootCollections.activities.doc();
+    const addendumDocRef =
+      rootCollections.offices.doc(locals.officeDoc.id)
+        .collection('Addendum').doc();
+
+    const activityName = (() => {
+      if (hasName) {
+        return `${conn.req.body.template.toUpperCase()}:`
+          + ` ${attachment.Name.value}`;
+      }
+
+      return `${conn.req.body.template.toUpperCase()}:`
+        + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
+    })();
+
+    if (conn.requester.isSupportRequest) {
+      share.push(conn.requester.phoneNumber);
+    }
+
+    console.log('activityId', activityRef.id);
+
+    const activityData = {
+      addendumDocRef,
+      venue: validVenue.venues,
+      timestamp: serverTimestamp,
+      office: conn.req.body.office,
+      template: conn.req.body.template,
+      schedule: validSchedule.schedules,
+      status: locals.templateDoc.get('statusOnCreate'),
+      attachment,
+      canEditRule: locals.templateDoc.get('canEditRule'),
+      activityName,
+      officeId: locals.officeDoc.id,
+      hidden: locals.templateDoc.get('hidden'),
+      creator: conn.requester.phoneNumber,
+    };
+    const addendumDoc = {
+      activityData,
+      user: conn.requester.phoneNumber,
+      userDisplayName: conn.requester.displayName,
+      share,
+      action: httpsActions.create,
+      template: conn.req.body.template,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      activityId: activityRef.id,
+      activityName,
+      isSupportRequest: conn.requester.isSupportRequest,
+    };
+
+    batch.set(activityRef, activityData);
+    batch.set(addendumDocRef, addendumDoc);
+
+    new Set(share)
+      .forEach((phoneNumber) => {
+
+        const addToInclude = (() => {
+          if (conn.req.body.template !== 'subscription') return true;
+
+          return phoneNumber !== attachment.Subscriber.value;
+        })();
+
+        batch.set(activityRef
+          .collection('Assignees')
+          .doc(phoneNumber), {
+            canEdit: getCanEditValue({
+              phoneNumber,
+              canEditRule: locals.templateDoc.get('canEditRule'),
+              employeesData: locals.officeDoc.get('employeesData'),
+              requesterPhoneNumber: conn.requester.phoneNumber,
+              adminsSet: locals.adminsSet,
+            }),
+            addToInclude,
+          });
+      });
+
+    console.log('batch:', batch);
+
+    batchesArray.push(batch);
+  });
+
+  // console.log('responseObject:', locals.responseObject);
+
+  const promises = [];
+
+  batchesArray.forEach((batch) => promises.push(batch.commit()));
+
+
+  // sendResponse(conn, code.ok, 'testing stuff');
+
+  sendJSON(conn, locals.responseObject);
 };
 
 
@@ -279,7 +341,14 @@ const handleResult = (conn, result) => {
   const locals = {
     officeDoc: officeQueryResult.docs[0],
     templateDoc: templateQueryResult.docs[0],
+    responseObject: [],
   };
+
+  if (locals.templateDoc.get('canEditRule') !== 'ADMIN') {
+    handleDataArray(conn, locals);
+
+    return;
+  }
 
   rootCollections
     .offices
@@ -288,18 +357,18 @@ const handleResult = (conn, result) => {
     .where('template', '==', 'admin')
     .get()
     .then((docs) => {
-      locals.adminSet = new Set();
+      locals.adminsSet = new Set();
 
-      docs
-        .forEach((doc) =>
-          locals.adminSet.add(doc.get('attachment.Admin.value')));
+      docs.forEach((doc) =>
+        locals
+          .adminsSet
+          .add(doc.get('attachment.Admin.value')));
 
       handleDataArray(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-
 };
 
 
