@@ -271,7 +271,7 @@ const handleCanEditRule = (locals, templateDoc) => {
       ] = result;
 
       /** User is already an `admin` */
-      if (!adminActivitiesQuery.empty) return new Promise();
+      if (!adminActivitiesQuery.empty) return Promise.resolve();
 
       const batch = db.batch();
       const adminTemplateDoc = adminTemplateQuery.docs[0];
@@ -282,7 +282,7 @@ const handleCanEditRule = (locals, templateDoc) => {
       const attachment = (() => {
         const attachmentObject = adminTemplateDoc.get('attachment');
 
-        attachment.Admin.value = subscriberPhoneNumber;
+        attachmentObject.Admin.value = subscriberPhoneNumber;
 
         return attachmentObject;
       })();
@@ -339,6 +339,17 @@ const handleCanEditRule = (locals, templateDoc) => {
         activityId: activityRef.id,
         isSupportRequest: false,
       };
+
+      const isAdmin =
+        (phoneNumber) => locals.adminsCanEdit.contains(phoneNumber);
+
+      locals.assigneePhoneNumbersArray.forEach((phoneNumber) => {
+        const ref = activityRef.collection('Assignees').doc(phoneNumber);
+        batch.set(ref, {
+          canEdit: isAdmin(phoneNumber),
+          addToInclude: true,
+        });
+      });
 
       batch.set(activityRef, activityData);
       batch.set(addendumDocRef, addendumData);

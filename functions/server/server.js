@@ -437,7 +437,7 @@ const handleBulkObject = (conn) => {
 
   // TODO: Add csv file name
   const filePath =
-    path.join(process.cwd(), '');
+    path.join(process.cwd(), 'subscription.csv');
 
   console.log({ filePath });
 
