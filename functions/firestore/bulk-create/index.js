@@ -16,7 +16,6 @@ const {
   isE164PhoneNumber,
 } = require('../../admin/utils');
 const {
-  validTypes,
   httpsActions,
   templatesSet,
 } = require('../../admin/constants');
@@ -38,9 +37,8 @@ const getCanEditValue = (options) => {
     adminsSet,
   } = options;
 
-  // const canEditRule = locals.templateDoc.get('canEditRule');
-
   if (canEditRule === 'NONE') return false;
+
   if (canEditRule === 'CREATOR') {
     return requesterPhoneNumber === phoneNumber;
   }
@@ -112,11 +110,11 @@ const handleDataArray = (conn, locals) => {
   const objectWithError = (options) => {
     const {
       object,
-      message,
+      reason,
     } = options;
 
     object.success = false;
-    object.message = message;
+    object.reason = reason;
 
     return object;
   };
@@ -125,13 +123,33 @@ const handleDataArray = (conn, locals) => {
     locals.templateDoc.get('attachment').hasOwnProperty('Name');
   const namesMap = locals.officeDoc.get(`namesMap`) || {};
 
-  conn.req.body.data.forEach((object) => {
+  console.log('conn.req.body.data', conn.req.body.data.length);
+
+  conn.req.body.data.forEach((object, index) => {
     const attachment = object.attachment;
     const share = object.share;
     const venue = object.venue;
     const schedule = object.schedule;
 
-    // console.log('scheduleNames', locals.templateDoc.get('schedule'));
+    if (!object.hasOwnProperty('attachment')
+      || !object.hasOwnProperty('share')
+      || !object.hasOwnProperty('venue')
+      || !object.hasOwnProperty('schedule')) {
+      const missingFieldName = (() => {
+        if (!object.hasOwnProperty('share')) return 'share';
+        if (!object.hasOwnProperty('venue')) return 'venue';
+        if (!object.hasOwnProperty('schedule')) return 'schedule';
+
+        return 'attachment';
+      })();
+
+      locals.responseObject.push(objectWithError({
+        object,
+        reason: `Missing the field: '${missingFieldName}'`,
+      }));
+
+      return;
+    }
 
     const validSchedule = validateSchedules({
       schedule,
@@ -140,7 +158,7 @@ const handleDataArray = (conn, locals) => {
     if (!validSchedule.isValid) {
       locals.responseObject.push(objectWithError({
         object,
-        message: validSchedule.message,
+        reason: validSchedule.message,
       }));
 
       return;
@@ -153,7 +171,7 @@ const handleDataArray = (conn, locals) => {
     if (!validVenue.isValid) {
       locals.responseObject.push(objectWithError({
         object,
-        message: validVenue.message,
+        reason: validVenue.message,
       }));
 
       return;
@@ -170,7 +188,7 @@ const handleDataArray = (conn, locals) => {
     if (!validateAttachment.isValid) {
       locals.responseObject.push(objectWithError({
         object,
-        message: validateAttachment.message,
+        reason: validateAttachment.message,
       }));
 
       return;
@@ -183,10 +201,10 @@ const handleDataArray = (conn, locals) => {
       // TODO: Remove this after `activityOnWrite` creates the namesMap.
       /** `namesMap[type]` */
       if (namesMap[type]
-        && !namesMap[type][value]) {
+        && !namesMap[type].hasOwnProperty(value)) {
         locals.responseObject.push(objectWithError({
           object,
-          message: `The type '${type}' ${value} doesn't exist`,
+          reason: `The type '${type}' '${value}' doesn't exist`,
         }));
 
         return;
@@ -195,10 +213,11 @@ const handleDataArray = (conn, locals) => {
 
     if (hasName
       && namesMap[conn.req.body.template]
-      && namesMap[conn.req.body.template][attachment.Name.value]) {
+      && namesMap[conn.req.body.template]
+        .hasOwnProperty(attachment.Name.value)) {
       locals.responseObject.push(objectWithError({
         object,
-        message: `${conn.req.body.template.toUpperCase()} with the`
+        reason: `${conn.req.body.template.toUpperCase()} with the`
           + ` name '${attachment.Name.value}' already exists`,
       }));
 
@@ -209,15 +228,55 @@ const handleDataArray = (conn, locals) => {
       && !templatesSet.has(attachment.Template.value)) {
       locals.responseObject.push(objectWithError({
         object,
-        message: `Template: '${attachment.Template.value}' doesn't exist`
+        reason: `Template: '${attachment.Template.value}' doesn't exist`,
       }));
 
       return;
     }
 
+    if (!share.every(isE164PhoneNumber)) {
+      locals.responseObject.push(objectWithError({
+        object,
+        reason: `Invalid phone numbers found for in the 'share' array`,
+      }));
+
+      return;
+    }
+
+    console.log('ALLOWED', index);
+
     validateAttachment
       .phoneNumbers
       .forEach((phoneNumber) => share.push(phoneNumber));
+
+    if (!conn.requester.isSupportRequest) {
+      share.push(conn.requester.phoneNumber);
+    }
+
+    if (conn.req.body.template === 'subscription'
+      && locals.officeDoc.get('employeesData')
+      && locals.officeDoc.get('employeesData')[attachment.Subscriber.value]) {
+      const employeeData = locals.officeDoc.get('employeesData')[attachment.Subscriber.value];
+
+      const firstSV = employeeData['First Supervisor'];
+      const secondSV = employeeData['Second Supervisor'];
+
+      console.log({ firstSV, secondSV });
+
+      if (firstSV) share.push(firstSV);
+      if (secondSV) share.push(secondSV);
+
+      if (employeeData.hasOwnProperty('subscriptions')
+        && employeeData.subscriptions.includes(attachment.Template.value)) {
+        locals.responseObject.push(objectWithError({
+          object,
+          reason: `'${attachment.Subscriber.value}' already has the`
+            + ` subscription to '${attachment.Template.value}'`,
+        }));
+
+        return;
+      }
+    }
 
     const batch = db.batch();
     const activityRef = rootCollections.activities.doc();
@@ -276,7 +335,7 @@ const handleDataArray = (conn, locals) => {
 
     new Set(share)
       .forEach((phoneNumber) => {
-
+        console.log('phoneNumber', phoneNumber);
         const addToInclude = (() => {
           if (conn.req.body.template !== 'subscription') return true;
 
@@ -297,21 +356,30 @@ const handleDataArray = (conn, locals) => {
           });
       });
 
-    console.log('batch:', batch);
-
     batchesArray.push(batch);
   });
 
-  // console.log('responseObject:', locals.responseObject);
+  // FIXME: Temporary solution.
+  // Will fix this using Generators
+  batchesArray.forEach((batch) => {
+    batch.commit();
 
-  const promises = [];
+    setTimeout(() => {
+      console.log('committing');
+    }, 500);
+  });
 
-  batchesArray.forEach((batch) => promises.push(batch.commit()));
+  console.log('docs created:', batchesArray.length);
 
+  const rejectedObjects = (() => {
+    if (locals.responseObject.length === 0) {
+      return null;
+    }
 
-  // sendResponse(conn, code.ok, 'testing stuff');
+    return locals.responseObject;
+  })();
 
-  sendJSON(conn, locals.responseObject);
+  sendJSON(conn, { rejectedObjects });
 };
 
 

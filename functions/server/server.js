@@ -28,6 +28,7 @@
 const {
   rootCollections,
   auth,
+  db,
 } = require('../admin/admin');
 const {
   code,
@@ -428,6 +429,133 @@ const checkAuthorizationToken = (conn) => {
         + ` Please re-authenticate.`
       );
     });
+};
+
+const handleBulkObject = (conn) => {
+  const csvtojsonV2 = require('csvtojson/v2');
+  const path = require('path');
+
+  // TODO: Add csv file name
+  const filePath =
+    path.join(process.cwd(), '');
+
+  console.log({ filePath });
+
+  Promise
+    .all([
+      rootCollections
+        .activityTemplates
+        .where('name', '==', 'subscription')
+        .limit(1)
+        .get(),
+      csvtojsonV2()
+        .fromFile(filePath),
+    ])
+    .then((result) => {
+      const [
+        templateQuery,
+        arrayOfObjects,
+      ] = result;
+      const templateObject =
+        templateQuery.docs[0].data();
+
+      console.log({ arrayOfObjects });
+
+      const myObject = {
+        timestamp: Date.now(),
+        geopoint: {
+          latitude: 28.6998822,
+          longitude: 77.2549399,
+        },
+        template: 'subscription',
+        office: 'Puja Capital',
+        data: [],
+      };
+
+      const attachmentFieldsSet =
+        new Set(Object.keys(templateObject.attachment));
+
+      const scheduleFieldsSet = new Set();
+
+      templateObject.schedule.forEach((field) => scheduleFieldsSet.add(field));
+
+      console.log({ scheduleFieldsSet });
+
+      const venueFieldsSet = new Set();
+
+      templateObject.venue.forEach((field) => venueFieldsSet.add(field));
+
+      console.log({ venueFieldsSet });
+
+      arrayOfObjects.forEach((object, index) => {
+        const fields = Object.keys(object);
+
+        const obj = {
+          attachment: {},
+          schedule: [],
+          venue: [],
+          share: [],
+        };
+
+        fields.forEach((field) => {
+          if (attachmentFieldsSet.has(field)) {
+            obj.attachment[field] = {
+              type: templateObject.attachment[field].type,
+              value: arrayOfObjects[index][field],
+            };
+          }
+
+          if (scheduleFieldsSet.has(field)) {
+            const ts = (() => {
+              const date = arrayOfObjects[index][field];
+              if (!date) return date;
+
+              return new Date(date).getTime();
+            })();
+
+            obj.schedule.push({
+              startTime: ts,
+              name: field,
+              endTime: ts,
+            });
+          }
+
+          if (venueFieldsSet.has(field)) {
+            const geopoint = (() => {
+              const split =
+                arrayOfObjects[index][field].split(',');
+
+              return {
+                latitude: split[0],
+                longitude: split[1],
+              };
+            })();
+
+            obj.venue.push({
+              venueDescriptor: field,
+              address: '',
+              geopoint,
+              location: '',
+            });
+          }
+        });
+
+        myObject.data.push(obj);
+      });
+
+      conn.req.body = myObject;
+
+      console.log(JSON.stringify(myObject, ' ', 2));
+
+      getUserAuthFromIdToken(conn, {
+        uid: 'mKf3qULcGlTeSvZnjS6ulQI2Tah1',
+      });
+
+      // sendResponse(conn, code.ok, 'testing');
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

@@ -31,6 +31,7 @@ const {
   deleteField,
 } = require('../../admin/admin');
 
+
 const purgeAddendum = (query, resolve, reject, count) =>
   query
     .get()
@@ -128,12 +129,19 @@ const getEmployeeObject = (options) => {
     hasSignedUpBeforeOffice,
   } = options;
 
+  // addedOn --> Time at which user is added to the Office.
+  // signedUpOn --> User created auth.
+  // But
+
+  const localTime = getLocaleFromTimestamp('+91');
+
   const object = {
-    addedOn: getLocaleFromTimestamp('+91'),
+    addedOn: localTime,
     signedUpOn: '',
   };
 
-  if (hasSignedUp) object.signedUpOn = getLocaleFromTimestamp('+91');
+  if (hasSignedUp) object.signedUpOn = localTime;
+  if (hasSignedUpBeforeOffice) object.signedUpOn = localTime;
 
   return object;
 };
@@ -343,6 +351,7 @@ const handleSignUp = (change, options) => {
     phoneNumber,
     currentOfficesList,
     hasSignedUp,
+    newOffice,
     batch,
     today,
   } = options;
@@ -387,6 +396,15 @@ const handleSignUp = (change, options) => {
 
         const office = currentOfficesList[index];
 
+        const hasSignedUpBeforeOffice = (() => {
+          // profile exists before being added to the office
+          //
+
+          return change.before.get('uid')
+            && change.after.get('uid')
+            && office === newOffice;
+        })();
+
         console.log('signUpRef', ref.path);
 
         batch.set(ref, {
@@ -400,7 +418,7 @@ const handleSignUp = (change, options) => {
           employeesObject: {
             [phoneNumber]: getEmployeeObject({
               hasSignedUp,
-              hasSignedUpBeforeOffice: false,
+              hasSignedUpBeforeOffice,
             }),
           },
         }, {
