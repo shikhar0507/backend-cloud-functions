@@ -435,9 +435,12 @@ const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
 
+  const office = 'IND Innovation Private Limited';
+  const templateName = 'subscription';
+
   // TODO: Add csv file name
   const filePath =
-    path.join(process.cwd(), 'subscription.csv');
+    path.join(process.cwd(), `file.csv`);
 
   console.log({ filePath });
 
@@ -445,7 +448,7 @@ const handleBulkObject = (conn) => {
     .all([
       rootCollections
         .activityTemplates
-        .where('name', '==', 'subscription')
+        .where('name', '==', templateName)
         .limit(1)
         .get(),
       csvtojsonV2()
@@ -459,16 +462,14 @@ const handleBulkObject = (conn) => {
       const templateObject =
         templateQuery.docs[0].data();
 
-      console.log({ arrayOfObjects });
-
       const myObject = {
         timestamp: Date.now(),
         geopoint: {
           latitude: 28.6998822,
           longitude: 77.2549399,
         },
-        template: 'subscription',
-        office: 'Puja Capital',
+        template: templateName,
+        office,
         data: [],
       };
 
@@ -479,13 +480,11 @@ const handleBulkObject = (conn) => {
 
       templateObject.schedule.forEach((field) => scheduleFieldsSet.add(field));
 
-      console.log({ scheduleFieldsSet });
+      // console.log({ scheduleFieldsSet });
 
       const venueFieldsSet = new Set();
 
       templateObject.venue.forEach((field) => venueFieldsSet.add(field));
-
-      console.log({ venueFieldsSet });
 
       arrayOfObjects.forEach((object, index) => {
         const fields = Object.keys(object);
@@ -526,16 +525,30 @@ const handleBulkObject = (conn) => {
                 arrayOfObjects[index][field].split(',');
 
               return {
-                latitude: split[0],
-                longitude: split[1],
+                latitude: Number(split[0]),
+                longitude: Number(split[1]),
               };
             })();
 
+            const address = (() => {
+              // if (index === 0) return '#83, 1stMain, 1st Cross Near Karnataka Bank, MICO Layout BTM 2nd Stage Bangalore - 560076';
+              // if (index === 1) return 'C-6, 2nd Floor, Main Market, Malviya Nagar, New Delhi - 110017';
+              // if (index === 2) return '122, 1st Floor, Corporate Avenue, Sonawala Road, Goregaon East, Mumbai - 400063';
+              // return '';
+            })();
+
+            const location = (() => {
+              // if (index === 0) return 'Bangalore Office';
+              // if (index === 1) return 'HO Malviya Nagar';
+              // if (index === 2) return 'Mumbai Office';
+              // return '';
+            })();
+
             obj.venue.push({
-              venueDescriptor: field,
-              address: '',
               geopoint,
-              location: '',
+              venueDescriptor: field,
+              address,
+              location,
             });
           }
         });
@@ -547,11 +560,11 @@ const handleBulkObject = (conn) => {
 
       console.log(JSON.stringify(myObject, ' ', 2));
 
-      getUserAuthFromIdToken(conn, {
-        uid: 'mKf3qULcGlTeSvZnjS6ulQI2Tah1',
-      });
+      // checkAuthorizationToken(conn);
 
-      // sendResponse(conn, code.ok, 'testing');
+      getUserAuthFromIdToken(conn, { uid: 'qYNAtPg5cMOksMk3DF2lrk2wMFP2' });
+
+      // sendResponse(conn, code.ok);
 
       return;
     })

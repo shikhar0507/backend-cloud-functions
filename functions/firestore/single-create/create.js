@@ -83,9 +83,17 @@ const getCanEditValue = (options) => {
     canEditRule,
     phoneNumber,
     permissions,
+    requestBodyTemplate,
+    attachmentPhoneNumbers,
   } = options;
 
-  if (canEditRule === 'NONE') return false;
+  if (canEditRule === 'NONE') {
+    if (requestBodyTemplate === 'office') {
+      return attachmentPhoneNumbers.includes(phoneNumber);
+    }
+
+    return false;
+  }
 
   if (canEditRule === 'CREATOR') {
     return permissions[phoneNumber].isCreator;
@@ -125,11 +133,10 @@ const createDocs = (conn, locals) => {
         return true;
       })();
 
-      const canEdit = getCanEditValue({
-        phoneNumber,
-        permissions: locals.permissions,
-        canEditRule: locals.activityObject.canEditRule,
-      });
+      /** The `canEditRule` for `Office` is `NONE` */
+      const canEdit = false;
+
+      console.log(canEdit, phoneNumber);
 
       locals
         .batch
@@ -177,8 +184,6 @@ const createDocs = (conn, locals) => {
         isSupportRequest: conn.requester.isSupportRequest,
       });
 
-  console.log('batch', locals.batch._writes);
-
   locals
     .batch
     .commit()
@@ -189,8 +194,6 @@ const createDocs = (conn, locals) => {
         + ` created by '${conn.requester.phoneNumber}'`,
     }))
     .catch((error) => handleError(conn, error));
-
-  // sendResponse(conn, code.ok, 'done');
 };
 
 
@@ -322,7 +325,8 @@ const handleOffice = (conn, locals) => {
       const adminTemplate = snapShots[0].docs[0];
       const subscriptionTemplate = snapShots[1].docs[0];
 
-      const phoneNumbersArray =
+      locals
+        .phoneNumbersArray =
         Object
           .keys(conn.req.body.attachment)
           .filter((key) => {
@@ -334,10 +338,10 @@ const handleOffice = (conn, locals) => {
           .map((field) => conn.req.body.attachment[field].value);
 
 
-      console.log('phoneNumbersArray', phoneNumbersArray);
+      console.log('phoneNumbersArray', locals.phoneNumbersArray);
 
       /** Avoid duplicate phone numbers */
-      new Set(phoneNumbersArray)
+      new Set(locals.phoneNumbersArray)
         .forEach((phoneNumber) => {
           const adminActivityRef = rootCollections
             .activities
@@ -360,15 +364,22 @@ const handleOffice = (conn, locals) => {
             .collection('Addendum')
             .doc();
 
-          const timestamp = serverTimestamp;
-          const office = conn.req.body.office;
-          const officeId = locals.activityRef.id;
+
+            const timestamp = serverTimestamp;
+            const office = conn.req.body.office;
+            const officeId = locals.activityRef.id;
+
+            console.log({
+              officeId,
+              adminActivityRef: adminActivityRef.id,
+              subscriptionActivityRef: subscriptionActivityRef.id,
+            });
 
           const adminActivityObject = {
             timestamp,
             office,
             officeId,
-            activityName: `ADMIN: ${phoneNumber}`,
+            activityName: `ADMIN: ${conn.requester.phoneNumber}`,
             addendumDocRef: adminAddendumDocRef,
             attachment: getAttachmentObject({
               phoneNumber,
@@ -387,7 +398,7 @@ const handleOffice = (conn, locals) => {
             office,
             officeId,
             /** Special change by `Parastish` for subscription only */
-            activityName: `SUBSCRIPTION: ${phoneNumber}`,
+            activityName: `SUBSCRIPTION: ${conn.requester.phoneNumber}`,
             addendumDocRef: subscriptionAddendumDocRef,
             attachment: getAttachmentObject({
               phoneNumber,
@@ -458,6 +469,10 @@ const handleOffice = (conn, locals) => {
                     addToInclude: true,
                   });
 
+              const addToInclude = (() => {
+                return subscriptionActivityObject.attachment.Subscriber.value !== phoneNumber;
+              })();
+
               locals
                 .batch
                 .set(subscriptionActivityRef
@@ -468,8 +483,8 @@ const handleOffice = (conn, locals) => {
                  * included in the default assignees list since they themselves
                  * become an assignee of the activity created by them.
                  */
-                    canEdit: false,
-                    addToInclude: false,
+                    canEdit: true,
+                    addToInclude,
                   });
             });
         });

@@ -30,13 +30,14 @@ const {
   users,
   rootCollections,
 } = require('../admin/admin');
-const sgMail = require('@sendgrid/mail');
 const {
   sgMailApiKey,
   systemEmail,
-  internalUsers,
+  instantEmailRecipientEmails,
 } = require('../admin/env');
 
+
+const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(sgMailApiKey);
 
 
@@ -51,99 +52,56 @@ module.exports = (doc) => {
 
   return Promise
     .all([
-      db
-        .doc(doc.ref.path)
+      rootCollections
+        .recipients
+        .orderBy('activityId')
+        .get(),
+      doc
+        .ref
         .set({
           sent: true,
         }, {
             merge: true,
           }),
-      rootCollections
-        .recipients
-        .doc('Good Morning')
-        .get(),
     ])
     .then((result) => {
-      const reportDoc = result[1];
-      const authFetchPromises = [];
+      const [
+        recipientsQuery,
+      ] = result;
 
-      internalUsers
-        .forEach(
-          (phoneNumber) =>
-            authFetchPromises.push(users.getUserByPhoneNumber(phoneNumber))
-        );
-
-      return Promise
-        .all(authFetchPromises);
-    })
-    .then((userRecords) => {
       const messages = [];
 
-      userRecords.forEach((userRecord) => {
-        const phoneNumber = Object.keys(userRecord)[0];
-        const record = userRecord[`${phoneNumber}`];
-
-        if (!record.uid) return;
-
-        const email = record.email;
-        const emailVerified = record.emailVerified;
-        const disabled = record.disabled;
-        const displayName = record.displayName || '';
-
-        console.log({
-          email,
-          emailVerified,
-          disabled,
-          displayName,
-        });
-
-        if (!email) return;
-        if (!emailVerified) return;
-        if (disabled) return;
-
-        let html = `
+      instantEmailRecipientEmails
+        .forEach((email) => {
+          const html = `
         <p>Date (DD-MM-YYYY): ${doc.id}</p>
         <p>Timestamp: ${doc.get('timestamp').toDate()}</p>
         `;
 
-        if (displayName) {
-          html += `<p>Hi ${displayName}</p>`;
-        }
-
-        messages.push({
-          html,
-          cc: systemEmail,
-          subject: 'FROM Timer function',
-          to: {
-            email,
-            name: displayName,
-          },
-          from: systemEmail,
+          messages.push({
+            html,
+            cc: systemEmail,
+            subject: 'FROM Timer function',
+            to: email,
+            from: systemEmail,
+          });
         });
-      });
 
       console.log({ messages });
 
-      return sgMail.sendMultiple(messages);
-    })
-    .then(() => rootCollections
-      .recipients
-      .get()
-    )
-    .then((docs) => {
       const batch = db.batch();
-      const date = new Date().toDateString();
+      const dateString = new Date().toDateString();
 
-      docs
-        .forEach(
-          (doc) => batch.set(doc.ref, {
-            date,
-          }, {
-              merge: true,
-            })
-        );
+      recipientsQuery
+        .forEach((doc) => batch.set(doc.ref, { dateString }, { merge: true }));
 
-      return batch.commit();
+      return Promise
+        .all([
+          sgMail
+            .sendMultiple(messages),
+          batch
+            .commit(),
+        ]);
     })
     .catch(console.error);
 };

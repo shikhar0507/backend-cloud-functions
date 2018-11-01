@@ -45,6 +45,8 @@ module.exports = (locals) => {
 
   const today = new Date();
 
+  console.log('Inside signup');
+
   locals.csvString =
     `Employee Name,`
     + ` Employee Contact,`
@@ -69,7 +71,8 @@ module.exports = (locals) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('dateString', '==', yesterdaysDateString)
+        // .where('dateString', '==', yesterdaysDateString)
+        .where('dateString', '==', new Date().toDateString())
         .where('report', '==', 'signup')
         .limit(1)
         .get(),
@@ -107,8 +110,7 @@ module.exports = (locals) => {
         const employeeName = employeeData.Name;
         const employeeCode = employeeData['Employee Code'];
         const department = employeeData.Department;
-        // const addedOn = employeesObject[phoneNumber].addedOn;
-        const addedOn = employeeData.createTime;
+        const addedOn = employeeData.createTime.toDate().toDateString();
         const signedUpOn = employeesObject[phoneNumber].signedUpOn;
         const firstSupervisorPhoneNumber =
           employeeData['First Supervisor'];

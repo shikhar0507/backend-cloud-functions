@@ -61,10 +61,8 @@ const setAdminCustomClaims = (locals, batch) => {
   return auth
     .getUserByPhoneNumber(phoneNumber)
     .then((userRecord) => {
-      console.log('before customClaims:', userRecord.customClaims);
-
       if (userRecord.customClaims.hasOwnProperty('admin')
-        && !userRecord.customClaims.admin.contains(office)) {
+        && !userRecord.customClaims.admin.includes(office)) {
         userRecord.customClaims.admin.push(office);
       } else {
         userRecord.customClaims.admin = [
@@ -99,8 +97,6 @@ const setAdminCustomClaims = (locals, batch) => {
         }
       }
 
-      console.log('after customClaims:', userRecord.customClaims);
-
       return Promise
         .all([
           auth
@@ -122,7 +118,7 @@ const setAdminCustomClaims = (locals, batch) => {
         return batch.commit();
       }
 
-      console.log(error);
+      console.error(error);
 
       return Promise.resolve();
     });
@@ -242,7 +238,9 @@ const handleSpecialTemplateCases = (locals) => {
 
 
 const handleCanEditRule = (locals, templateDoc) => {
-  if (templateDoc.get('canEditRule') !== 'ADMIN') return Promise.resolve();
+  if (templateDoc.get('canEditRule') !== 'ADMIN') {
+    return Promise.resolve();
+  }
 
   const officeId = locals.change.after.get('officeId');
   const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
@@ -251,9 +249,7 @@ const handleCanEditRule = (locals, templateDoc) => {
   return Promise
     .all([
       rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Activities')
+        .activities
         .where('template', '==', 'admin')
         .where('attachment.Admin.value', '==', subscriberPhoneNumber)
         .limit(1)
@@ -271,13 +267,21 @@ const handleCanEditRule = (locals, templateDoc) => {
       ] = result;
 
       /** User is already an `admin` */
-      if (!adminActivitiesQuery.empty) return Promise.resolve();
+      if (!adminActivitiesQuery.empty) {
+        console.log('Already an admin =>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>');
+
+        return Promise.resolve();
+      }
 
       const batch = db.batch();
       const adminTemplateDoc = adminTemplateQuery.docs[0];
       const activityRef = rootCollections.activities.doc();
       const addendumDocRef =
-        rootCollections.offices.doc(officeId).collection('Addendum').doc();
+        rootCollections
+          .offices
+          .doc(officeId)
+          .collection('Addendum')
+          .doc();
 
       const attachment = (() => {
         const attachmentObject = adminTemplateDoc.get('attachment');
@@ -291,6 +295,7 @@ const handleCanEditRule = (locals, templateDoc) => {
       const activityName = `ADMIN: ${creator}`;
 
       const activityData = {
+        autoCreated: true,
         addendumDocRef,
         attachment,
         activityName,
@@ -340,11 +345,14 @@ const handleCanEditRule = (locals, templateDoc) => {
         isSupportRequest: false,
       };
 
-      const isAdmin =
-        (phoneNumber) => locals.adminsCanEdit.contains(phoneNumber);
+      const isAdmin = (phoneNumber) =>
+        /** canEditRule for subscription is `ADMIN` */
+        locals.adminsCanEdit.includes(phoneNumber)
+        || phoneNumber === subscriberPhoneNumber;
 
       locals.assigneePhoneNumbersArray.forEach((phoneNumber) => {
         const ref = activityRef.collection('Assignees').doc(phoneNumber);
+
         batch.set(ref, {
           canEdit: isAdmin(phoneNumber),
           addToInclude: true,
@@ -356,7 +364,6 @@ const handleCanEditRule = (locals, templateDoc) => {
 
       return batch.commit();
     })
-    // .then(() => handleSpecialTemplateCases(locals, templateDoc))
     .catch(console.error);
 };
 
@@ -487,7 +494,7 @@ const addSubscriptionToUserProfile = (locals, batch) => {
         const employeeData = employeesData[subscriberPhoneNumber];
         const subscriptionsArray = employeeData.subscriptions || [];
 
-        subscriptionsArray.push(templateDoc.get('name'));
+        subscriptionsArray.push(templateName);
 
         employeeData.subscriptions = [...new Set(subscriptionsArray)];
 
@@ -499,15 +506,6 @@ const addSubscriptionToUserProfile = (locals, batch) => {
             merge: true,
           });
       }
-
-      /**
-       * The client app isn't allowed to create activities as `ADMIN`.
-       * Since Firestore doesn't allow querying negative cases
-       * eg. where('canEditRule', '!==', 'ADMIN')
-       * we are simply not adding the subscription to user's profile
-       * since they won't be able to use that subscription in the front-end app.
-      */
-      // if (templateDoc.get('canEditRule') === 'ADMIN') return batch.commit();
 
       const include = [];
 
@@ -820,8 +818,6 @@ const getCommentString = (locals, recipient) => {
 };
 
 const assignToActivities = (locals) => {
-  console.log('In assignToActivities');
-
   const departmentName = locals.change.after.get('attachment.Department.value');
   const branchName = locals.change.after.get('attachment.Base Location.value');
   const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
@@ -848,19 +844,10 @@ const assignToActivities = (locals) => {
         branchActivitiesQuery,
       ] = result;
 
-      console.log({
-        office,
-        departmentName,
-        branchName,
-        departmentEmpty: departmentActivitiesQuery.empty,
-        branchEmpty: branchActivitiesQuery.empty,
-      });
-
       const isAdmin = locals.adminsCanEdit.includes(phoneNumber);
-
-      console.log({ isAdmin });
-
       const departmentBatch = db.batch();
+      const branchBatch = db.batch();
+
       departmentActivitiesQuery.forEach((doc) => {
         departmentBatch.set(doc.ref, {
           timestamp: serverTimestamp,
@@ -879,7 +866,6 @@ const assignToActivities = (locals) => {
         });
       });
 
-      const branchBatch = db.batch();
       // TODO: Handle > 500 results. Batch will crash otherwise
       branchActivitiesQuery.forEach((doc) => {
         branchBatch.set(doc.ref, {
@@ -907,7 +893,6 @@ const assignToActivities = (locals) => {
             .commit(),
         ]);
     })
-    .then(() => console.log('Batch committed'))
     .catch(console.error);
 };
 
@@ -1062,13 +1047,11 @@ const addSupplierToOffice = (locals, batch) => {
 
 
 const addCustomerToOffice = (locals, batch) => {
-  const attachment = locals.change.after.get('attachment');
-  const customerName = attachment.Name.value;
-  const officeId = locals.change.after.get('officeId');
+  const customerName = locals.change.after.get('attachment.Name.value');
 
   batch.set(rootCollections
     .offices
-    .doc(officeId), {
+    .doc(locals.change.after.get('officeId')), {
       customersMap: {
         [customerName]:
           toAttachmentValues(locals.change.after),
@@ -1209,8 +1192,6 @@ module.exports = (change, context) => {
 
         /** New user introduced to the system. Saving their phone number. */
         if (!record.hasOwnProperty('uid')) {
-          console.log('Creating new profile===============>', phoneNumber, record);
-
           batch.set(rootCollections
             .profiles
             .doc(phoneNumber), {
@@ -1271,11 +1252,6 @@ module.exports = (change, context) => {
 
           const comment = getCommentString(locals, phoneNumber);
 
-          console.log({
-            phoneNumber,
-            comment,
-          });
-
           batch.set(rootCollections
             .updates
             .doc(locals.assigneesMap.get(phoneNumber).uid)
@@ -1311,7 +1287,7 @@ module.exports = (change, context) => {
       batch.set(officeDoc.ref, {
         namesMap: {
           [`${change.after.get('template')}`]: {
-            [`${change.after.get('attachment.Name.value')}`]: toAttachmentValues(locals.change.after),
+            [`${change.after.get('attachment.Name.value')}`]: true,
           },
         },
       }, {
@@ -1334,20 +1310,18 @@ module.exports = (change, context) => {
       activityData.timestamp = serverTimestamp;
       activityData.adminsCanEdit = locals.adminsCanEdit;
 
-      console.log('locals.adminsCanEdit', locals.adminsCanEdit);
-
       const copyTo = (() => {
         const officeRef = rootCollections.offices.doc(change.after.get('officeId'));
 
         if (template === 'office') {
+          /** Office doc doesn't need the `adminsCanEdit` field */
+          delete activityData.adminsCanEdit;
+
           return officeRef;
         }
 
         return officeRef.collection('Activities').doc(change.after.id);
       })();
-
-      /** Office doc doesn't need the `adminsCanEdit` field */
-      delete activityData.adminsCanEdit;
 
       batch.set(copyTo, activityData, { merge: true });
 
@@ -1377,5 +1351,17 @@ module.exports = (change, context) => {
 
       return batch.commit();
     })
-    .catch(console.error);
+    .catch((error) => {
+      console.error(error);
+
+      return db
+        .collection('CRASHED')
+        .doc(change.after.id)
+        .set({
+          context: {
+            before: change.before.data(),
+            after: change.after.data(),
+          },
+        });
+    });
 };

@@ -930,9 +930,7 @@ const isValidRequestBody = (body, endpoint) => {
 
   if (!isValidGeopoint(body.geopoint)) {
     return {
-      message: `The 'geopoint' object in the request body is invalid.`
-        + ` Please make sure that the 'latitude' and 'longitude' fields`
-        + ` are present in the 'geopoint' object with valid ranges.`,
+      message: `Your location couldn't be determined`,
       isValid: false,
     };
   }

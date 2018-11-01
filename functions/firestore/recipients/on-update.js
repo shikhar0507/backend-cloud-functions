@@ -92,12 +92,14 @@ module.exports = (change) => {
 
       if (locals.messageObject.to.length === 0) return Promise.resolve();
 
-      if (report === 'signUp') return require('./sign-up-report')(locals);
+      if (report === 'signup') return require('./sign-up-report')(locals);
       if (report === 'install') return require('./install-report')(locals);
       if (report === 'footprints') return require('./footprints-report')(locals);
       if (report === 'payroll') return require('./payroll-report')(locals);
       if (report === 'dsr') return require('./dsr-report')(locals);
       if (report === 'duty roster') return require('./duty-roster-report')(locals);
+
+      console.log('No reports sent');
 
       return Promise.resolve();
     })
