@@ -25,20 +25,24 @@
 
 'use strict';
 
-const config = require('firebase-functions').config();
+const env = require('../../admin/env');
+const config = require('firebase-functions')
+  .config();
 const { reportingActions } = require('../../admin/constants');
 const sgMail = require('@sendgrid/mail');
 
-sgMail.setApiKey(config.sgmail.key);
+sgMail.setApiKey(env.sgMailApiKey);
 
 const systemReportsHandler = (instantDoc) => {
   const messages = [];
 
   // Config doesn't support arrays. Using comma separated emails in the string
-  config
-    .internalemails
-    .instant
-    .split(',')
+  // config
+  //   .internalemails
+  //   .instant
+  //   .split(',')
+  env
+    .instantEmailRecipientEmails
     .forEach((email) => {
       const { subject, messageBody } = instantDoc.data();
 
@@ -47,7 +51,8 @@ const systemReportsHandler = (instantDoc) => {
         cc: '',
         html: messageBody,
         to: email,
-        from: config.internalemails.system,
+        // from: config.internalemails.system,
+        from: env.systemEmail,
       });
     });
 

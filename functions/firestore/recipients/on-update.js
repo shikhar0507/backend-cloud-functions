@@ -27,15 +27,13 @@
 
 const config = require('firebase-functions').config();
 
-const {
-  sgMailApiKey,
-  systemEmail,
-} = require('../../admin/env');
+const env = require('../../admin/env');
 const {
   users,
 } = require('../../admin/admin');
 const sgMail = require('@sendgrid/mail');
-sgMail.setApiKey(config.sgmail.key);
+// sgMail.setApiKey(config.sgmail.key);
+sgMail.setApiKey(env.sgMailApiKey);
 
 
 module.exports = (change) => {
@@ -47,7 +45,7 @@ module.exports = (change) => {
   } = change.after.data();
 
   if (status === 'CANCELLED') {
-    console.log('Activity status is cancelled.');
+    console.log('Activity status is cancelled');
 
     return Promise.resolve();
   }
@@ -61,7 +59,8 @@ module.exports = (change) => {
       cc,
       to: [],
       attachments: [],
-      from: config.internalemails.system,
+      // from: config.internalemails.system,
+      from: env.systemEmail,
       'dynamic_template_data': {},
     },
   };

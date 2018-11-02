@@ -9,6 +9,7 @@ const {
   isE164PhoneNumber,
   sendJSON,
   sendResponse,
+  handleError,
 } = require('../../admin/utils');
 const {
   db,
@@ -51,8 +52,6 @@ const getCanEditValue = (options) => {
 
 
 module.exports = (conn, locals) => {
-  const batchesArray = [];
-
   const objectWithError = (options) => {
     const {
       object,
@@ -70,6 +69,8 @@ module.exports = (conn, locals) => {
   const namesMap = locals.officeDoc.get(`namesMap`) || {};
 
   console.log('conn.req.body.data', conn.req.body.data.length);
+
+  const filteredObjectsArray = [];
 
   conn.req.body.data.forEach((object, index) => {
     const attachment = object.attachment;
@@ -144,9 +145,8 @@ module.exports = (conn, locals) => {
       const type = item.type;
       const value = item.value;
 
-      // TODO: Remove this after `activityOnWrite` creates the namesMap.
-      /** `namesMap[type]` */
-      if (namesMap[type]
+      if (namesMap
+        && namesMap.hasOwnProperty(type)
         && !namesMap[type].hasOwnProperty(value)) {
         locals.responseObject.push(objectWithError({
           object,
@@ -158,7 +158,7 @@ module.exports = (conn, locals) => {
     });
 
     if (hasName
-      && namesMap[conn.req.body.template]
+      && namesMap.hasOwnProperty(conn.req.body.template)
       && namesMap[conn.req.body.template]
         .hasOwnProperty(attachment.Name.value)) {
       locals.responseObject.push(objectWithError({
@@ -202,18 +202,20 @@ module.exports = (conn, locals) => {
     if (conn.req.body.template === 'subscription'
       && locals.officeDoc.get('employeesData')
       && locals.officeDoc.get('employeesData')[attachment.Subscriber.value]) {
-      const employeeData = locals.officeDoc.get('employeesData')[attachment.Subscriber.value];
-
+      const employeeData =
+        locals.officeDoc.get('employeesData')[attachment.Subscriber.value];
       const firstSV = employeeData['First Supervisor'];
       const secondSV = employeeData['Second Supervisor'];
 
-      console.log({ firstSV, secondSV });
-
+      // Both of these values can be empty strings
       if (firstSV) share.push(firstSV);
       if (secondSV) share.push(secondSV);
 
-      if (employeeData.hasOwnProperty('subscriptions')
-        && employeeData.subscriptions.includes(attachment.Template.value)) {
+      if (employeeData
+        .hasOwnProperty('subscriptions')
+        && employeeData
+          .subscriptions
+          .includes(attachment.Template.value)) {
         locals.responseObject.push(objectWithError({
           object,
           reason: `'${attachment.Subscriber.value}' already has the`
@@ -223,12 +225,6 @@ module.exports = (conn, locals) => {
         return;
       }
     }
-
-    const batch = db.batch();
-    const activityRef = rootCollections.activities.doc();
-    const addendumDocRef =
-      rootCollections.offices.doc(locals.officeDoc.id)
-        .collection('Addendum').doc();
 
     const activityName = (() => {
       if (hasName) {
@@ -244,10 +240,8 @@ module.exports = (conn, locals) => {
       share.push(conn.requester.phoneNumber);
     }
 
-    console.log('activityId', activityRef.id);
-
     const activityData = {
-      addendumDocRef,
+      // addendumDocRef,
       venue: validVenue.venues,
       timestamp: serverTimestamp,
       office: conn.req.body.office,
@@ -261,61 +255,53 @@ module.exports = (conn, locals) => {
       hidden: locals.templateDoc.get('hidden'),
       creator: conn.requester.phoneNumber,
     };
-    const addendumDoc = {
+
+    const addendumData = {
+      share,
       activityData,
+      activityName,
       user: conn.requester.phoneNumber,
       userDisplayName: conn.requester.displayName,
-      share,
       action: httpsActions.create,
       template: conn.req.body.template,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
       userDeviceTimestamp: new Date(conn.req.body.timestamp),
-      activityId: activityRef.id,
-      activityName,
+      // activityId: activityRef.id,
       isSupportRequest: conn.requester.isSupportRequest,
     };
 
-    batch.set(activityRef, activityData);
-    batch.set(addendumDocRef, addendumDoc);
+    const assigneesArray = [];
 
     new Set(share)
       .forEach((phoneNumber) => {
         console.log('phoneNumber', phoneNumber);
+
         const addToInclude = (() => {
           if (conn.req.body.template !== 'subscription') return true;
 
           return phoneNumber !== attachment.Subscriber.value;
         })();
 
-        batch.set(activityRef
-          .collection('Assignees')
-          .doc(phoneNumber), {
-            canEdit: getCanEditValue({
-              phoneNumber,
-              canEditRule: locals.templateDoc.get('canEditRule'),
-              employeesData: locals.officeDoc.get('employeesData'),
-              requesterPhoneNumber: conn.requester.phoneNumber,
-              adminsSet: locals.adminsSet,
-            }),
-            addToInclude,
-          });
+        assigneesArray.push({
+          phoneNumber,
+          canEdit: getCanEditValue({
+            phoneNumber,
+            canEditRule: locals.templateDoc.get('canEditRule'),
+            employeesData: locals.officeDoc.get('employeesData'),
+            requesterPhoneNumber: conn.requester.phoneNumber,
+            adminsSet: locals.adminsSet,
+          }),
+          addToInclude,
+        });
       });
 
-    batchesArray.push(batch);
+    filteredObjectsArray({
+      activityData,
+      addendumData,
+      assigneesArray,
+    });
   });
-
-  // FIXME: Temporary solution.
-  // Will fix this using Generators
-  batchesArray.forEach((batch) => {
-    batch.commit();
-
-    setTimeout(() => {
-      console.log('committing');
-    }, 500);
-  });
-
-  console.log('docs created:', batchesArray.length);
 
   const rejectedObjects = (() => {
     if (locals.responseObject.length === 0) {
@@ -325,5 +311,20 @@ module.exports = (conn, locals) => {
     return locals.responseObject;
   })();
 
-  sendJSON(conn, { rejectedObjects });
+  // db
+  //   .batch
+  //   .set(rootCollections.bulk.doc(), {
+  //     filteredObjectsArray,
+  //     office: conn.req.body.office,
+  //     template: conn.req.body.template,
+  //     timestamp: new Date(conn.req.body.timestamp),
+  //     geopoint: getGeopointObject(conn.req.body.geopoint),
+  //   })
+
+  console.log(filteredObjectsArray);
+
+  Promise
+    .resolve()
+    .then(() => sendJSON(conn, { rejectedObjects }))
+    .catch((error) => handleError(conn, error));
 };

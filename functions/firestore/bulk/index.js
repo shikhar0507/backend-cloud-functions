@@ -9,12 +9,11 @@ const {
   isValidDate,
   isValidGeopoint,
   isNonEmptyString,
+  hasSupportClaims,
 } = require('../../admin/utils');
 const {
   code,
 } = require('../../admin/responses');
-
-const handleDataArray = require('./create');
 
 
 const validateRequestBody = (requestBody) => {
@@ -68,6 +67,8 @@ const handleResult = (conn, result) => {
   const [
     officeQueryResult,
     templateQueryResult,
+    subscriptionTemplateQuery,
+    bodyTemplateSubscriptionQuery,
   ] = result;
 
   if (officeQueryResult.empty
@@ -87,11 +88,31 @@ const handleResult = (conn, result) => {
     return;
   }
 
+  // if (subscriptionTemplateQuery.empty
+  //   && bodyTemplateSubscriptionQuery.empty
+  //   && !hasSupportClaims(conn.requester.customClaims)) {
+  //   sendResponse(
+  //     conn,
+  //     code.forbidden,
+  //     `You are not allowed to access this resource`
+  //   );
+
+  //   return;
+  // }
+
   const locals = {
     officeDoc: officeQueryResult.docs[0],
     templateDoc: templateQueryResult.docs[0],
     responseObject: [],
   };
+
+  const handleDataArray = (() => {
+    if (conn.req.body.update) {
+      return require('./update');
+    }
+
+    return require('./create');
+  })();
 
   if (locals.templateDoc.get('canEditRule') !== 'ADMIN') {
     handleDataArray(conn, locals);
@@ -140,6 +161,24 @@ module.exports = (conn) => {
       rootCollections
         .activityTemplates
         .where('name', '==', conn.req.body.template)
+        .limit(1)
+        .get(),
+      rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber)
+        .collection('Subscriptions')
+        .where('office', '==', conn.req.body.office)
+        .where('template', '==', 'subscription')
+        .where('attachment.Template.value', '==', 'subscription')
+        .limit(1)
+        .get(),
+      rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber)
+        .collection('Subscriptions')
+        .where('office', '==', conn.req.body.office)
+        .where('template', '==', 'subscription')
+        .where('attachment.Template.value', '==', conn.req.body.template)
         .limit(1)
         .get(),
     ])

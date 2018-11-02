@@ -30,15 +30,12 @@ const {
   users,
   rootCollections,
 } = require('../admin/admin');
-const {
-  sgMailApiKey,
-  systemEmail,
-  instantEmailRecipientEmails,
-} = require('../admin/env');
+const env = require('../admin/env');
 
 const config = require('firebase-functions').config();
 const sgMail = require('@sendgrid/mail');
-sgMail.setApiKey(config.sgmail.key);
+// sgMail.setApiKey(config.sgmail.key);
+sgMail.setApiKey(env.sgMailApiKey);
 
 module.exports = (doc) => {
   if (doc.get('sent')) {
@@ -71,10 +68,12 @@ module.exports = (doc) => {
       const messages = [];
 
       // Config doesn't support arrays
-      config
-        .internalemails
-        .instant
-        .split(',')
+      // config
+      //   .internalemails
+      //   .instant
+      //   .split(',')
+      env
+        .instantEmailRecipientEmails
         .forEach((email) => {
           const html = `
         <p>Date (DD-MM-YYYY): ${doc.id}</p>
