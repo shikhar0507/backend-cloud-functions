@@ -25,6 +25,8 @@
 'use strict';
 
 
+const config = require('firebase-functions').config();
+
 const {
   sgMailApiKey,
   systemEmail,
@@ -33,7 +35,7 @@ const {
   users,
 } = require('../../admin/admin');
 const sgMail = require('@sendgrid/mail');
-sgMail.setApiKey(sgMailApiKey);
+sgMail.setApiKey(config.sgmail.key);
 
 
 module.exports = (change) => {
@@ -50,9 +52,7 @@ module.exports = (change) => {
     return Promise.resolve();
   }
 
-  console.log({
-    report,
-  });
+  console.log({ report });
 
   const locals = {
     change,
@@ -61,7 +61,7 @@ module.exports = (change) => {
       cc,
       to: [],
       attachments: [],
-      from: systemEmail,
+      from: config.internalemails.system,
       'dynamic_template_data': {},
     },
   };
@@ -90,7 +90,9 @@ module.exports = (change) => {
         });
       });
 
-      if (locals.messageObject.to.length === 0) return Promise.resolve();
+      if (locals.messageObject.to.length === 0) {
+        console.log('No recipients');
+      }
 
       if (report === 'signup') return require('./sign-up-report')(locals);
       if (report === 'install') return require('./install-report')(locals);

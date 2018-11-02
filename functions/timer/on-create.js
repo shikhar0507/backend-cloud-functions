@@ -36,10 +36,9 @@ const {
   instantEmailRecipientEmails,
 } = require('../admin/env');
 
-
+const config = require('firebase-functions').config();
 const sgMail = require('@sendgrid/mail');
-sgMail.setApiKey(sgMailApiKey);
-
+sgMail.setApiKey(config.sgmail.key);
 
 module.exports = (doc) => {
   if (doc.get('sent')) {
@@ -71,7 +70,11 @@ module.exports = (doc) => {
 
       const messages = [];
 
-      instantEmailRecipientEmails
+      // Config doesn't support arrays
+      config
+        .internalemails
+        .instant
+        .split(',')
         .forEach((email) => {
           const html = `
         <p>Date (DD-MM-YYYY): ${doc.id}</p>

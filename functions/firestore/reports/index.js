@@ -25,9 +25,40 @@
 
 'use strict';
 
-
+const config = require('firebase-functions').config();
 const { reportingActions } = require('../../admin/constants');
-const systemReportsHandler = require('./system-reports');
+const sgMail = require('@sendgrid/mail');
+
+sgMail.setApiKey(config.sgmail.key);
+
+const systemReportsHandler = (instantDoc) => {
+  const messages = [];
+
+  // Config doesn't support arrays. Using comma separated emails in the string
+  config
+    .internalemails
+    .instant
+    .split(',')
+    .forEach((email) => {
+      const { subject, messageBody } = instantDoc.data();
+
+      messages.push({
+        subject,
+        cc: '',
+        html: messageBody,
+        to: email,
+        from: config.internalemails.system,
+      });
+    });
+
+  console.info({ messages });
+
+  return sgMail
+    .sendMultiple(messages)
+    .catch((error) => {
+      console.error(error);
+    });
+};
 
 
 module.exports = (doc) => {
@@ -46,7 +77,9 @@ module.exports = (doc) => {
     reportingActions.clientError,
   ]);
 
-  if (reportActions.has(action)) return systemReportsHandler(doc);
+  if (reportActions.has(action)) {
+    return systemReportsHandler(doc);
+  }
 
   console.log('No mails sent...');
 

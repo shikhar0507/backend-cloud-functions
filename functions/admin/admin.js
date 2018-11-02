@@ -36,6 +36,15 @@ const db = admin.firestore();
 
 db.settings({ timestampsInSnapshots: true });
 
+// Don't log anything in production
+if (process.env.NODE_ENV
+  && process.env.NODE_ENV === 'production'
+  && process.env.GCLOUD_PROJECT !== 'growthfilev2-0') {
+  console.log = () => {
+    // Don't print anything to console in prod
+  };
+}
+
 /**
  * A `sentinel` which maps to the Firestore server timestamp when written to
  * a field in a document.
@@ -237,16 +246,11 @@ const rootCollections = {
    * @example `/DailyDisabled/(DD-MM-YYYY)`
    */
   dailyDisabled: db.collection('DailyDisabled'),
-  /** Contains the list of users who have changed their phone numbers
-   * for each day.
-   * @example `/DailyPhoneNumberChanges/(DD-MM-YYYY)`
-   */
-  dailyPhoneNumberChanges: db.collection('DailyPhoneNumberChanges'),
-  phoneNumberUpdates: db.collection('PhoneNumberUpdates'),
   reports: db.collection('Reports'),
   inits: db.collection('Inits'),
   recipients: db.collection('Recipients'),
   timers: db.collection('Timers'),
+  bulk: db.collection('BulkActivities'),
 };
 
 
