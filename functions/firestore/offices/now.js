@@ -106,10 +106,11 @@ module.exports = (conn) => {
       hidden: doc.get('hidden'),
       office: doc.get('office'),
       officeId: doc.get('officeId'),
-      schedule: convertToDates(doc.get('schedule')),
+      // schedule: convertToDates(doc.get('schedule')),
+      schedule: doc.get('schedule'),
       status: doc.get('status'),
       template: doc.get('template'),
-      timestamp: doc.get('timestamp').toDate(),
+      timestamp: doc.get('timestamp'),
       venue: doc.get('venue'),
     };
   };

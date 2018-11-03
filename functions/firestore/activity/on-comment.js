@@ -64,7 +64,7 @@ const createDocs = (conn, activity) => {
     comment: conn.req.body.comment,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: serverTimestamp,
-    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    userDeviceTimestamp: conn.req.body.timestamp,
     activityId: conn.req.body.activityId,
     isSupportRequest: conn.requester.isSupportRequest,
     activityData: activity.data(),

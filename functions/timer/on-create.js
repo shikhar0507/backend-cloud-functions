@@ -27,12 +27,11 @@
 
 const {
   db,
-  users,
   rootCollections,
 } = require('../admin/admin');
 const env = require('../admin/env');
 
-const config = require('firebase-functions').config();
+// const config = require('firebase-functions').config();
 const sgMail = require('@sendgrid/mail');
 // sgMail.setApiKey(config.sgmail.key);
 sgMail.setApiKey(env.sgMailApiKey);
@@ -82,10 +81,10 @@ module.exports = (doc) => {
 
           messages.push({
             html,
-            cc: systemEmail,
+            cc: env.systemEmail,
             subject: 'FROM Timer function',
             to: email,
-            from: systemEmail,
+            from: env.systemEmail,
           });
         });
 

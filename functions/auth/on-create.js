@@ -48,10 +48,6 @@ const {
  * @returns {Promise<Object>} Batch object.
  */
 module.exports = (userRecord) =>
-  /**
-   * Querying activities and not the usual `Offices/officeId/Activities`
-   * because we do not know which office the user belongs to.
-   */
   rootCollections
     .profiles
     .doc(userRecord.phoneNumber)

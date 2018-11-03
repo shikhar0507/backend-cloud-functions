@@ -45,11 +45,7 @@ if (process.env.NODE_ENV
   };
 }
 
-/**
- * A `sentinel` which maps to the Firestore server timestamp when written to
- * a field in a document.
- */
-const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+const serverTimestamp = Date.now();
 
 /**
  * Sentinel which refers to the document id.

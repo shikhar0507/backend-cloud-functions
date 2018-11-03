@@ -90,7 +90,7 @@ const manageAddendum = (change, batch) => {
     .updates
     .doc(change.after.get('uid'))
     .collection('Addendum')
-    .where('timestamp', '<', new Date(oldFromValue))
+    .where('timestamp', '<', oldFromValue)
     .orderBy('timestamp')
     .limit(500);
 
@@ -104,14 +104,7 @@ const manageAddendum = (change, batch) => {
     .catch(console.error);
 };
 
-const getLocaleFromTimestamp = (countryCode, timestamp) => {
-  if (timestamp) {
-    // This value comes from Firestore.
-    timestamp = timestamp.toDate();
-  } else {
-    timestamp = new Date();
-  }
-
+const getLocaleFromTimestamp = (countryCode, timestamp = new Date()) => {
   if (countryCode === '+91') {
     timestamp.setHours(timestamp.getHours() + 5);
     timestamp.setMinutes(timestamp.getMinutes() + 30);

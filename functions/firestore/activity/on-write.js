@@ -583,10 +583,10 @@ const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
   oldSchedule.forEach((item, index) => {
     const name = item.name;
     /** Request body ===> Update API request body. */
-    let newStartTime = newSchedule[index].startTime;
-    let newEndTime = newSchedule[index].endTime;
-    let oldStartTime = item.startTime;
-    let oldEndTime = item.endTime;
+    const newStartTime = newSchedule[index].startTime;
+    const newEndTime = newSchedule[index].endTime;
+    const oldStartTime = item.startTime;
+    const oldEndTime = item.endTime;
 
     /**
      * Values not equal to an empty string are `Date` objects.
@@ -595,21 +595,21 @@ const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
      * To get an actual `Date` object, we use the `toDate()` method
      * on Firestore custom object.
      */
-    if (newEndTime !== '') {
-      newEndTime = new Date(newEndTime).getTime();
-    }
+    // if (newEndTime !== '') {
+    //   newEndTime = new Date(newEndTime).getTime();
+    // }
 
-    if (newStartTime !== '') {
-      newStartTime = new Date(newStartTime).getTime();
-    }
+    // if (newStartTime !== '') {
+    //   newStartTime = new Date(newStartTime).getTime();
+    // }
 
-    if (oldEndTime !== '') {
-      oldEndTime = oldEndTime.toDate().getTime();
-    }
+    // if (oldEndTime !== '') {
+    //   oldEndTime = oldEndTime.toDate().getTime();
+    // }
 
-    if (oldStartTime !== '') {
-      oldStartTime = oldStartTime.toDate().getTime();
-    }
+    // if (oldStartTime !== '') {
+    //   oldStartTime = oldStartTime.toDate().getTime();
+    // }
 
     if (newEndTime === oldEndTime
       && newStartTime === oldStartTime) return;
@@ -804,18 +804,10 @@ const getCommentString = (locals, recipient) => {
     return `${pronoun} updated ${getUpdatedFieldNames(options)}`;
   }
 
-  if (action === httpsActions.updatePhoneNumber) {
-    let pronoun = `${locals.addendumDoc.get('user')} changed their`;
-
-    if (locals.addendumDoc.get('user') === recipient) pronoun = 'You changed your';
-
-    return `${pronoun} phone number from ${locals.addendumDoc.get('user')} to`
-      + ` ${locals.addendumDoc.get('updatedPhoneNumber')}`;
-  }
-
   /** Action is `comment` */
   return locals.addendumDoc.get('comment');
 };
+
 
 const assignToActivities = (locals) => {
   const departmentName = locals.change.after.get('attachment.Department.value');

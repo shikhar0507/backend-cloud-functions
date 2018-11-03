@@ -70,7 +70,7 @@ const validateSchedules = (body, scheduleNames) => {
 
     messageObject.isValid = false;
     messageObject.message = `The 'schedule' field in the request body should`
-      + ` be an array with ${scheduleNames.length} ${abbr}.`;
+      + ` be an array with ${scheduleNames.length} ${abbr}`;
 
     return messageObject;
   }
@@ -84,7 +84,7 @@ const validateSchedules = (body, scheduleNames) => {
 
     messageObject.isValid = false;
     messageObject.message = `Expected ${scheduleNames.length} ${abbr} in the`
-      + ` request body. Found ${schedules.length}.`;
+      + ` request body. Found ${schedules.length}`;
 
     return messageObject;
   }
@@ -94,7 +94,6 @@ const validateSchedules = (body, scheduleNames) => {
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < schedules.length; i++) {
     const scheduleObject = schedules[i];
-
 
     if (typeof scheduleObject !== 'object') {
       messageObject.isValid = false;
@@ -106,7 +105,7 @@ const validateSchedules = (body, scheduleNames) => {
     if (!scheduleObject.hasOwnProperty('name')) {
       messageObject.isValid = false;
       messageObject.message = `The Object at position ${i} is missing`
-        + ` the 'name' field in the schedule array.`;
+        + ` the 'name' field in the schedule array`;
       break;
     }
 
@@ -141,7 +140,7 @@ const validateSchedules = (body, scheduleNames) => {
     if (!isNonEmptyString(name)) {
       messageObject.isValid = false;
       messageObject.message = `The Object at position ${i} has an invalid`
-        + ` value in the field 'name' in the schedule array.`;
+        + ` value in the field 'name' in the schedule array`;
       break;
     }
 
@@ -163,37 +162,33 @@ const validateSchedules = (body, scheduleNames) => {
       if (!isValidDate(startTime)) {
         messageObject.isValid = false;
         messageObject.message = `The 'startTime' in the schedule '${name}'`
-          + ` should be a valid unix timestamp.`;
+          + ` should be a valid unix timestamp`;
         break;
       }
 
       if (!isValidDate(endTime)) {
         messageObject.isValid = false;
         messageObject.message = `The 'endTime' in the schedule '${name}' should`
-          + `be a valid unix timestamp.`;
+          + `be a valid unix timestamp`;
         break;
       }
 
       if (startTime > endTime) {
         messageObject.isValid = false;
         messageObject.message = `The value of 'startTime' is greater than the`
-          + ` value of 'endTime' in the schedule '${name}'.`;
+          + ` value of 'endTime' in the schedule '${name}'`;
         break;
       }
     }
 
     if (!scheduleNames.includes(name)) {
       messageObject.isValid = false;
-      messageObject.message = `The value '${name}' is an invalid schedule name.`
+      messageObject.message = `The value '${name}' is an invalid schedule name`
         + ` Use: ${scheduleNames}`;
       break;
     }
 
-    messageObject.schedules.push({
-      name,
-      startTime: startTime === '' ? '' : new Date(startTime),
-      endTime: endTime === '' ? '' : new Date(endTime),
-    });
+    messageObject.schedules.push({ name, startTime, endTime });
   }
 
   return messageObject;

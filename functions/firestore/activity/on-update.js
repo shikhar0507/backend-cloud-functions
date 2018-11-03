@@ -84,7 +84,7 @@ const updateDocsWithBatch = (conn, locals) => {
       action: httpsActions.update,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      userDeviceTimestamp: conn.req.body.timestamp,
       activityId: conn.req.body.activityId,
       /**
        * Required by `addendumOnCreate` function to delete old data from

@@ -35,6 +35,7 @@ const {
 } = require('../admin/responses');
 const {
   now,
+  sendJSON,
   handleError,
   sendResponse,
   disableAccount,
@@ -602,9 +603,7 @@ module.exports = (req, res) => {
     return;
   }
 
-  // console.log('\n'.repeat(10));
+  console.log('\n'.repeat(10));
 
   checkAuthorizationToken(conn);
-
-  // handleBulkObject(conn);
 };

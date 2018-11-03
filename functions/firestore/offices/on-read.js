@@ -28,10 +28,11 @@ const getActivityObject = (doc) => {
     hidden: doc.get('hidden'),
     office: doc.get('office'),
     officeId: doc.get('officeId'),
-    schedule: convertToDates(doc.get('schedule')),
+    // schedule: convertToDates(doc.get('schedule')),
+    schedule: doc.get('schedule'),
     status: doc.get('status'),
     template: doc.get('template'),
-    timestamp: doc.get('timestamp').toDate(),
+    timestamp: doc.get('timestamp'),
     venue: doc.get('venue'),
   };
 };
@@ -71,7 +72,7 @@ const fetchActivities = (conn, locals, promise) =>
 
       locals
         .jsonObject
-        .upto = docs.docs[docs.size - 1].get('timestamp').toDate();
+        .upto = docs.docs[docs.size - 1].get('timestamp');
 
       docs.forEach((doc) =>
         locals.jsonObject.activities.push(getActivityObject(doc)));
@@ -116,15 +117,15 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!isValidDate(conn.req.query.from)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The value in the 'from' query parameter is not a valid unix timestamp`
-    );
+  // if (!isValidDate(conn.req.query.from)) {
+  //   sendResponse(
+  //     conn,
+  //     code.badRequest,
+  //     `The value in the 'from' query parameter is not a valid unix timestamp`
+  //   );
 
-    return;
-  }
+  //   return;
+  // }
 
   if (!conn.req.query.office) {
     sendResponse(
@@ -136,12 +137,10 @@ module.exports = (conn) => {
     return;
   }
 
-  const from = new Date(parseInt(conn.req.query.from));
-
   const locals = {
     jsonObject: {
-      from,
-      upto: from,
+      from: conn.req.query.from,
+      upto: conn.req.query.from,
       activities: [],
       templates: [],
     },

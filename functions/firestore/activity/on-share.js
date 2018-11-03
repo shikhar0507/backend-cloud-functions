@@ -212,7 +212,7 @@ const handleResult = (conn, docs) => {
         action: httpsActions.share,
         location: getGeopointObject(conn.req.body.geopoint),
         timestamp: serverTimestamp,
-        userDeviceTimestamp: new Date(conn.req.body.timestamp),
+        userDeviceTimestamp: conn.req.body.timestamp,
         activityId: conn.req.body.activityId,
         activityName: activity.get('activityName'),
         isSupportRequest: conn.requester.isSupportRequest,

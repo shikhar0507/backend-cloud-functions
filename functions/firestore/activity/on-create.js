@@ -133,7 +133,7 @@ const createDocsWithBatch = (conn, locals) => {
     template: conn.req.body.template,
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: serverTimestamp,
-    userDeviceTimestamp: new Date(conn.req.body.timestamp),
+    userDeviceTimestamp: conn.req.body.timestamp,
     activityId: locals.static.activityId,
     activityName: getActivityName(conn),
     isSupportRequest: conn.requester.isSupportRequest,

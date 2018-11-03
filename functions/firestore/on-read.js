@@ -84,7 +84,7 @@ const getAddendumObject = (doc) => {
     addendumId: doc.id,
     activityId: doc.get('activityId'),
     comment: doc.get('comment'),
-    timestamp: doc.get('timestamp').toDate(),
+    timestamp: doc.get('timestamp'),
     location: doc.get('location'),
     user: doc.get('user'),
     isComment: doc.get('isComment'),
@@ -97,15 +97,9 @@ const getActivityObject = (doc) => {
     status: doc.get('status'),
     assignees: doc.get('assignees'),
     canEdit: doc.get('canEdit'),
-    /**
-     * Schedule objects can have `startTime` and `endTime`
-     * equal to either empty strings or Firestore `Date` objects.
-     * This function converts them to readable JS `Date` objects
-     * and also snips out the `Z` (offset) word.
-     */
-    schedule: convertToDates(doc.get('schedule')),
+    schedule: doc.get('schedule'),
     venue: doc.get('venue'),
-    timestamp: doc.get('timestamp').toDate(),
+    timestamp: doc.get('timestamp'),
     template: doc.get('template'),
     activityName: doc.get('activityName'),
     office: doc.get('office'),
@@ -136,8 +130,7 @@ module.exports = (conn) => {
     return;
   }
 
-  const newQuery = parseInt(conn.req.query.from);
-  const from = new Date(newQuery);
+  const from = parseInt(conn.req.query.from);
   const jsonObject = {
     from,
     upto: from,
@@ -193,7 +186,7 @@ module.exports = (conn) => {
       batch.set(rootCollections
         .profiles
         .doc(conn.requester.phoneNumber), {
-          lastQueryFrom: newQuery,
+          lastQueryFrom: from,
         }, {
           /** Profile has other stuff too. */
           merge: true,
