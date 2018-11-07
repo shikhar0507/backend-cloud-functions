@@ -29,7 +29,7 @@ const getDateAndTimeStrings = (timestamp) => {
     };
   }
 
-  const dateObject = timestamp.toDate();
+  const dateObject = new Date(timestamp);
 
   return {
     timeString: dateObject.toTimeString().split(' ')[0],
@@ -151,12 +151,9 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
 
     oldSchedulesArray.forEach((schedule) => {
       let startTime = schedule.startTime;
-      let endTime = schedule.endTime;
+      const endTime = schedule.endTime;
 
       if (!startTime || !endTime) return;
-
-      startTime = startTime.toDate().getTime();
-      endTime = endTime.toDate().getTime();
 
       while (startTime <= endTime) {
         const date = new Date(startTime).getDate();
@@ -170,11 +167,9 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
 
   schedulesArray.forEach((schedule) => {
     let startTime = schedule.startTime;
-    let endTime = schedule.endTime;
+    const endTime = schedule.endTime;
 
     if (!startTime || !endTime) return;
-    startTime = startTime.toDate().getTime();
-    endTime = endTime.toDate().getTime();
 
     while (startTime <= endTime) {
       const date = new Date(startTime).getDate();
@@ -193,11 +188,9 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
     && addendumDoc.get('activityData.status') === 'CANCELLED') {
     schedulesArray.forEach((schedule) => {
       let startTime = schedule.startTime;
-      let endTime = schedule.endTime;
+      const endTime = schedule.endTime;
 
       if (!startTime || !endTime) return;
-      startTime = startTime.toDate().getTime();
-      endTime = endTime.toDate().getTime();
 
       while (startTime <= endTime) {
         const date = new Date(startTime).getDate();
@@ -356,7 +349,7 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
 
   const user = addendumDoc.get('user');
   const action = addendumDoc.get('action');
-  const timestamp = addendumDoc.get('timestamp').toDate();
+  const timestamp = new Date(addendumDoc.get('timestamp'));
   const status = addendumDoc.get('activityData.status');
   const schedule = addendumDoc.get('activityData.schedule')[0];
   const venue = addendumDoc.get('activityData.venue')[0];
@@ -367,7 +360,11 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
     if (!schedule.startTime) return '';
 
     // Sorry. Lazyness got me. :(
-    return schedule.startTime.toDate().toTimeString().split(' GMT')[0].slice(0, 5);
+    // Returns time in HH:MM format
+    return new Date(schedule.startTime)
+      .toTimeString()
+      .split(' GMT')[0]
+      .slice(0, 5);
   })();
 
   if (!dutyRosterObject[activityId]) dutyRosterObject[activityId] = {};
@@ -377,8 +374,8 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
   dutyRosterObject[activityId].description = description;
   dutyRosterObject[activityId].reportingTime = reportingTime;
   dutyRosterObject[activityId].reportingLocation = venue.address;
-  dutyRosterObject[activityId].reportingTimeStart = schedule.startTime.toDate().getTime();
-  dutyRosterObject[activityId].reportingTimeEnd = schedule.endTime.toDate().getTime();
+  dutyRosterObject[activityId].reportingTimeStart = new Date(schedule.startTime).getTime();
+  dutyRosterObject[activityId].reportingTimeEnd = new Date(schedule.endTime).getTime();
 
   if (action === httpsActions.create) {
     const createdBy = (() => addendumDoc.get('user'))();
@@ -467,7 +464,7 @@ const handleDsrReport = (addendumDoc, batch) => {
 
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
-  const timestamp = addendumDoc.get('timestamp').toDate();
+  const timestamp = new Date(addendumDoc.get('timestamp'));
   const schedulesArray = addendumDoc.get('activityData.schedule');
 
   const promises = [];
@@ -477,8 +474,7 @@ const handleDsrReport = (addendumDoc, batch) => {
       startTime,
     } = scheduleObject;
 
-    // TODO: Handle the case when the startTime is an empty string
-    const dateString = startTime ? startTime.toDate().toDateString() : '';
+    const dateString = startTime ? new Date(startTime).toDateString() : '';
 
     const promise = rootCollections
       .inits
@@ -559,7 +555,7 @@ const handlePayrollReport = (addendumDoc, batch) => {
 
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
-  const timestamp = addendumDoc.get('timestamp').toDate();
+  const timestamp = new Date(addendumDoc.get('timestamp'));
 
   return rootCollections
     .inits
@@ -593,7 +589,7 @@ const handlePayrollReport = (addendumDoc, batch) => {
 module.exports = (addendumDoc) => {
   const phoneNumber = addendumDoc.get('user');
   const officeId = addendumDoc.get('activityData.officeId');
-  const timestamp = addendumDoc.get('timestamp').toDate();
+  const timestamp = new Date(addendumDoc.get('timestamp'));
   const date = timestamp.getDate();
   const month = timestamp.getMonth();
   const year = timestamp.getFullYear();

@@ -65,7 +65,10 @@ module.exports = (conn, locals) => {
   };
 
   const hasName =
-    locals.templateDoc.get('attachment').hasOwnProperty('Name');
+    locals
+      .templateDoc
+      .get('attachment')
+      .hasOwnProperty('Name');
   const namesMap = locals.officeDoc.get(`namesMap`) || {};
 
   console.log('conn.req.body.data', conn.req.body.data.length);

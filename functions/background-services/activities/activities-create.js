@@ -1,8 +1,16 @@
+'use strict';
+
+const {
+  rootCollections,
+  db,
+} = require('../../admin/admin');
+
+
 const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
 
-  const office = 'IND Innovation Private Limited';
+  const office = 'Growthfile';
   const templateName = 'subscription';
 
   // TODO: Add csv file name

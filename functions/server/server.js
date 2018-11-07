@@ -383,7 +383,8 @@ const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
 
-  const templateName = 'employee';
+  const templateName = 'subscription';
+  const office = 'IND Innovation Private Limited';
 
   // TODO: Add csv file name
   const filePath =
@@ -416,7 +417,7 @@ const handleBulkObject = (conn) => {
           longitude: 77.2549399,
         },
         template: templateName,
-        office: 'Puja Capital',
+        office,
         data: [],
       };
 
@@ -504,6 +505,12 @@ const handleBulkObject = (conn) => {
 
       // checkAuthorizationToken(conn);
 
+      getUserAuthFromIdToken(conn, {
+        uid: 'RDpNj5G4oaZxDYT8okF187CAQWN2',
+      });
+
+      // sendResponse(conn, code.ok, 'testing stuff');
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -564,6 +571,7 @@ const checkAuthorizationToken = (conn) => {
     });
 };
 
+
 /**
  * Handles the routing for the request from the clients.
  *
@@ -606,4 +614,6 @@ module.exports = (req, res) => {
   console.log('\n'.repeat(10));
 
   checkAuthorizationToken(conn);
+
+  // handleBulkObject(conn);
 };
