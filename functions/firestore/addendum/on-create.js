@@ -533,6 +533,7 @@ const handleDsrReport = (addendumDoc, batch) => {
           initDocData.closureObject = getClosureObject(addendumDoc, snapShot);
         }
 
+        // FIXME: This `ref` is undefined sometimes.
         batch.set(ref,
           initDocData, {
             merge: true,
@@ -669,6 +670,6 @@ module.exports = (addendumDoc) => {
 
       return handlePayrollReport(addendumDoc, batch);
     })
-    .then((batch) => batch.commit())
+    .then(() => batch.commit())
     .catch(console.error);
 };
