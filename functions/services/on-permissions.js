@@ -181,7 +181,7 @@ const validateRequestBody = (conn) => {
     logFailedRequest(
       conn,
       code.forbidden,
-      'Cannot set superUser permission for anyone.',
+      'Cannot set superUser permission for anyone',
       action
     );
 
@@ -192,7 +192,7 @@ const validateRequestBody = (conn) => {
     logFailedRequest(
       conn,
       code.badRequest,
-      `The phoneNumber field is missing from the request body.`,
+      `The phoneNumber field is missing from the request body`,
       action
     );
 
@@ -212,7 +212,7 @@ const validateRequestBody = (conn) => {
 
   /** A person *can't* change their own permissions. */
   if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
-    logFailedRequest(conn, code.forbidden, 'You cannot set your own permissions.', action);
+    logFailedRequest(conn, code.forbidden, 'You cannot set your own permissions', action);
 
     return;
   }
@@ -238,7 +238,7 @@ const validateRequestBody = (conn) => {
     logFailedRequest(
       conn,
       code.forbidden,
-      `Granting more than one permission is not allowed for a user.`,
+      `Granting more than one permission is not allowed for a user`,
       action
     );
 
@@ -250,7 +250,7 @@ const validateRequestBody = (conn) => {
     logFailedRequest(
       conn,
       code.badRequest,
-      `The 'support' field should be a boolean value 'true'.`,
+      `The 'support' field should be a boolean value 'true'`,
       action
     );
 
@@ -262,7 +262,7 @@ const validateRequestBody = (conn) => {
     logFailedRequest(
       conn,
       code.badRequest,
-      `The 'manageTemplates' field should be a boolean value 'true'.`,
+      `The 'manageTemplates' field should be a boolean value 'true'`,
       action
     );
 
@@ -285,7 +285,7 @@ module.exports = (conn) => {
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for '/api/services/permissions'`
-      + ` endpoint. Use 'PUT'.`,
+      + ` endpoint. Use 'PUT'`,
       action
     );
 
@@ -296,7 +296,7 @@ module.exports = (conn) => {
     logFailedRequest(
       conn,
       code.forbidden,
-      `You are not allowed to grant permissions.`,
+      `You are not allowed to grant permissions`,
       action
     );
 
