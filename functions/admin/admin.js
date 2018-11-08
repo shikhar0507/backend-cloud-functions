@@ -36,15 +36,6 @@ const db = admin.firestore();
 
 db.settings({ timestampsInSnapshots: true });
 
-// Don't log anything in production
-if (process.env.NODE_ENV
-  && process.env.NODE_ENV === 'production'
-  && process.env.GCLOUD_PROJECT !== 'growthfilev2-0') {
-  console.log = () => {
-    // Don't print anything to console in prod
-  };
-}
-
 const serverTimestamp = Date.now();
 
 /**
