@@ -29,6 +29,8 @@ const {
   rootCollections,
   auth,
   db,
+  serverTimestamp,
+  fieldPath,
 } = require('../admin/admin');
 const {
   code,
@@ -82,8 +84,8 @@ const handleAdminUrl = (conn, urlParts) => {
     return;
   }
 
-  if (resource === 'create') {
-    require('../firestore/single-create')(conn);
+  if (resource === 'single') {
+    require('../firestore/single')(conn);
 
     return;
   }
@@ -611,9 +613,62 @@ module.exports = (req, res) => {
     return;
   }
 
-  console.log('\n'.repeat(10));
-
   checkAuthorizationToken(conn);
 
   // handleBulkObject(conn);
+
+  // getUserAuthFromIdToken(conn, {
+  //   uid: 'RDpNj5G4oaZxDYT8okF187CAQWN2',
+  // });
+
+  // https://codeburst.io/understanding-generators-in-es6-javascript-with-examples-6728834016d5
+  // const ref1 = rootCollections.bulk.doc();
+  // const ref2 = rootCollections.bulk.doc();
+
+  // const batchesArray = [
+  //   db.batch().set(ref1, {}),
+  //   db.batch().set(ref2, {}),
+  // ];
+
+  // const makeRangeIterator = (start, end) => {
+  //   let nextIndex = start;
+  //   let iterationCount = 0;
+
+  //   const rangeIterator = {
+  //     next: () => {
+  //       let result;
+
+  //       if (nextIndex <= end) {
+  //         result = {
+  //           value: batchesArray[nextIndex].commit(),
+  //           done: false,
+  //         };
+
+  //         nextIndex++;
+  //         iterationCount++;
+
+  //         return result;
+  //       }
+  //     },
+  //   };
+
+  //   return rangeIterator;
+  // };
+
+  // const end = batchesArray.length - 1;
+  // const it = makeRangeIterator(0, end);
+  // let result = it.next();
+
+  // result
+  //   .promise
+  //   .then(() => {
+  //     while (!result.done) {
+  //       console.log(result.value);
+
+  //       result = it.next().then(() => it.next());
+  //     }
+
+  //     return;
+  //   })
+  //   .catch((error) => handleError(conn, error));
 };

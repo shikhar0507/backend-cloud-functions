@@ -250,6 +250,7 @@ const handleCanEditRule = (locals, templateDoc) => {
     .all([
       rootCollections
         .activities
+        .where('office', '==', locals.change.after.get('office'))
         .where('template', '==', 'admin')
         .where('attachment.Admin.value', '==', subscriberPhoneNumber)
         .limit(1)
@@ -429,9 +430,9 @@ const reverseSubscribeToActivities = (locals) => {
             merge: true,
           });
 
-        const ref = doc.ref.collection('Assignees').doc(phoneNumber);
+        const assigneeDocRef = doc.ref.collection('Assignees').doc(phoneNumber);
 
-        templateActivitiesBatch.set(ref, {
+        templateActivitiesBatch.set(assigneeDocRef, {
           addToInclude: true,
           canEdit: isAdmin,
         });
@@ -512,8 +513,6 @@ const addSubscriptionToUserProfile = (locals, batch) => {
       locals
         .assigneePhoneNumbersArray
         .forEach((phoneNumber) => {
-          // const addToInclude = locals.assigneesMap.get(phoneNumber).addToInclude;
-
           /**
            * The user's own phone number is redundant in the include array since they
            * will be the one creating an activity using the subscription to this activity.
@@ -549,9 +548,9 @@ const addSubscriptionToUserProfile = (locals, batch) => {
 
       queriedActivities
         .forEach((doc) => {
-          const ref = doc.ref.collection('Assignees').doc(subscriberPhoneNumber);
+          const assigneeDocRef = doc.ref.collection('Assignees').doc(subscriberPhoneNumber);
 
-          batch.set(ref, {
+          batch.set(assigneeDocRef, {
             canEdit: false,
             addToInclude: true,
           });
@@ -587,29 +586,6 @@ const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
     const newEndTime = newSchedule[index].endTime;
     const oldStartTime = item.startTime;
     const oldEndTime = item.endTime;
-
-    /**
-     * Values not equal to an empty string are `Date` objects.
-     * Firestore stores the `Date` as a custom object with two properties
-     * `seconds` and `nanoseconds`.
-     * To get an actual `Date` object, we use the `toDate()` method
-     * on Firestore custom object.
-     */
-    // if (newEndTime !== '') {
-    //   newEndTime = new Date(newEndTime).getTime();
-    // }
-
-    // if (newStartTime !== '') {
-    //   newStartTime = new Date(newStartTime).getTime();
-    // }
-
-    // if (oldEndTime !== '') {
-    //   oldEndTime = oldEndTime.toDate().getTime();
-    // }
-
-    // if (oldStartTime !== '') {
-    //   oldStartTime = oldStartTime.toDate().getTime();
-    // }
 
     if (newEndTime === oldEndTime
       && newStartTime === oldStartTime) return;
@@ -737,6 +713,7 @@ const getPronoun = (locals, recipient) => {
   return pronoun;
 };
 
+
 const getCreateActionComment = (template, pronoun) => {
   const templateNameFirstCharacter = template[0];
   const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
@@ -797,9 +774,10 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.update) {
-    const before = locals.change.before;
-    const after = locals.change.after;
-    const options = { before, after };
+    const options = {
+      before: locals.change.before,
+      after: locals.change.after,
+    };
 
     return `${pronoun} updated ${getUpdatedFieldNames(options)}`;
   }
@@ -916,7 +894,8 @@ const removeFromOffice = (activityDoc) => {
            * triggered this function. Not returning in the case of employee
            * will send this function into an infinite loop.
            */
-          if (template === 'employee') return;
+          if (template === 'employee'
+            && doc.get('office') === activityDoc.get('office')) return;
 
           if (new Set()
             .add('admin')
@@ -987,9 +966,7 @@ const addOfficeToProfile = (locals, batch) => {
     [office]: officeId,
   };
 
-  if (status === 'CANCELLED') {
-    employeeOf[office] = deleteField();
-  }
+  if (status === 'CANCELLED') employeeOf[office] = deleteField();
 
   batch.set(rootCollections
     .profiles
@@ -1019,16 +996,17 @@ const addOfficeToProfile = (locals, batch) => {
 
 
 const addSupplierToOffice = (locals, batch) => {
-  const attachment = locals.change.after.get('attachment');
-  const supplierName = attachment.Name.value;
+  const supplierName = locals.change.after.get('attachment.Name.value');
   const officeId = locals.change.after.get('officeId');
 
-  batch.set(rootCollections.offices.doc(officeId), {
-    suppliersMap: {
-      [supplierName]:
-        toAttachmentValues(locals.change.after),
-    },
-  }, {
+  batch.set(rootCollections
+    .offices
+    .doc(officeId), {
+      suppliersMap: {
+        [supplierName]:
+          toAttachmentValues(locals.change.after),
+      },
+    }, {
       merge: true,
     });
 
@@ -1244,11 +1222,18 @@ module.exports = (change, context) => {
 
           const comment = getCommentString(locals, phoneNumber);
 
+          console.log({ phoneNumber, comment });
+
           batch.set(rootCollections
             .updates
             .doc(locals.assigneesMap.get(phoneNumber).uid)
             .collection('Addendum')
-            .doc(), {
+            /**
+             * Handless duplicate addendum creation. Occasionally, the `activityOnWrite`
+             * function triggers twice/multiple times for a single write resulting in
+             * multiple addendum being created with the same text.
+             */
+            .doc(locals.addendumDoc.id), {
               comment,
               activityId,
               isComment: isComment(locals.addendumDoc.get('action')),
@@ -1279,7 +1264,7 @@ module.exports = (change, context) => {
       batch.set(officeDoc.ref, {
         namesMap: {
           [`${change.after.get('template')}`]: {
-            [`${change.after.get('attachment.Name.value')}`]: true,
+            [`${change.after.get('attachment.Name.value')}`]: change.after.get('attachment.Name.value'),
           },
         },
       }, {
@@ -1294,7 +1279,6 @@ module.exports = (change, context) => {
       console.log({
         activityId,
         template,
-        // locals,
         action: locals.addendumDoc ? locals.addendumDoc.get('action') : 'manual update',
       });
 
@@ -1351,7 +1335,7 @@ module.exports = (change, context) => {
         .doc(change.after.id)
         .set({
           context: {
-            before: change.before.data(),
+            before: change.before.data() || {},
             after: change.after.data(),
           },
         });

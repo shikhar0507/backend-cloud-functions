@@ -263,15 +263,28 @@ const handleAssignees = (conn, locals) => {
     return;
   }
 
-  /** These templates aren't allowed to be updated from the client-side app.
+  if (locals.static.template === 'employee'
+    && locals.docs.activity.get('attachment.Employee Contact.value')
+    !== conn.req.body.attachment['Employee Contact'].value) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `Phone numbers cannot be updated for the template:`
+      + ` ${locals.static.template}`
+    );
+
+    return;
+  }
+
+
+  /**
+   * These templates aren't allowed to be updated from the client-side app.
    * Updating these phone numbers is done via the admin panel.
    */
   if (new Set()
     .add('subscription')
     .add('admin')
-    .add('employee')
-    .has(locals.static.template)
-    && phoneNumbersChanged) {
+    .has(locals.static.template)) {
     sendResponse(
       conn,
       code.conflict,

@@ -66,17 +66,12 @@ module.exports = (doc) => {
 
       const messages = [];
 
-      // Config doesn't support arrays
-      // config
-      //   .internalemails
-      //   .instant
-      //   .split(',')
       env
         .instantEmailRecipientEmails
         .forEach((email) => {
           const html = `
         <p>Date (DD-MM-YYYY): ${doc.id}</p>
-        <p>Timestamp: ${doc.get('timestamp').toDate()}</p>
+        <p>Timestamp: ${new Date(doc.get('timestamp')).toJSON()}</p>
         `;
 
           messages.push({

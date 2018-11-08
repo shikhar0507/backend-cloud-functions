@@ -164,8 +164,7 @@ module.exports = (conn) => {
       if (!addendum.empty) {
         jsonObject.upto = addendum
           .docs[addendum.size - 1]
-          .get('timestamp')
-          .toDate();
+          .get('timestamp');
       }
 
       addendum.forEach((doc) =>

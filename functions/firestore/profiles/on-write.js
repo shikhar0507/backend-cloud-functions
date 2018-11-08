@@ -391,7 +391,6 @@ const handleSignUp = (change, options) => {
 
         const hasSignedUpBeforeOffice = (() => {
           // profile exists before being added to the office
-          //
 
           return change.before.get('uid')
             && change.after.get('uid')

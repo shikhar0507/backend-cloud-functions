@@ -21,6 +21,9 @@ const {
   templatesSet,
   httpsActions,
 } = require('../../admin/constants');
+const {
+  code,
+} = require('../../admin/responses');
 
 const getCanEditValue = (options) => {
   const {
@@ -71,6 +74,9 @@ module.exports = (conn, locals) => {
       .hasOwnProperty('Name');
   const namesMap = locals.officeDoc.get(`namesMap`) || {};
 
+  const namesSet = new Set();
+  let duplicatedEntriesFound = false;
+
   console.log('conn.req.body.data', conn.req.body.data.length);
 
   const filteredObjectsArray = [];
@@ -80,6 +86,13 @@ module.exports = (conn, locals) => {
     const share = object.share;
     const venue = object.venue;
     const schedule = object.schedule;
+
+    if (hasName
+      && namesSet.has(attachment.Name.value)) {
+      duplicatedEntriesFound = true;
+
+      return;
+    }
 
     if (!object.hasOwnProperty('attachment')
       || !object.hasOwnProperty('share')
@@ -269,7 +282,7 @@ module.exports = (conn, locals) => {
       template: conn.req.body.template,
       location: getGeopointObject(conn.req.body.geopoint),
       timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      userDeviceTimestamp: conn.req.body.timestamp,
       // activityId: activityRef.id,
       isSupportRequest: conn.requester.isSupportRequest,
     };
@@ -299,7 +312,11 @@ module.exports = (conn, locals) => {
         });
       });
 
-    filteredObjectsArray({
+    if (hasName) {
+      namesSet.add(attachment.Name.value);
+    }
+
+    filteredObjectsArray.push({
       activityData,
       addendumData,
       assigneesArray,
@@ -314,20 +331,30 @@ module.exports = (conn, locals) => {
     return locals.responseObject;
   })();
 
-  // db
-  //   .batch
-  //   .set(rootCollections.bulk.doc(), {
-  //     filteredObjectsArray,
-  //     office: conn.req.body.office,
-  //     template: conn.req.body.template,
-  //     timestamp: new Date(conn.req.body.timestamp),
-  //     geopoint: getGeopointObject(conn.req.body.geopoint),
-  //   })
+  const batch = db.batch();
 
-  console.log(filteredObjectsArray);
+  if (duplicatedEntriesFound) {
+    sendResponse(conn, code.badRequest, 'Duplicate entries found');
 
-  Promise
-    .resolve()
+    return;
+  }
+
+  batch
+    .set(rootCollections.bulk.doc('Test'), {
+      filteredObjectsArray,
+      office: conn.req.body.office,
+      officeId: locals.officeDoc.id,
+      template: conn.req.body.template,
+      timestamp: conn.req.body.timestamp,
+      geopoint: getGeopointObject(conn.req.body.geopoint),
+      creator: conn.requester.creator,
+      userDisplayName: conn.requester.displayName,
+    });
+
+  // console.log(filteredObjectsArray);
+
+  batch
+    .commit()
     .then(() => sendJSON(conn, { rejectedObjects }))
     .catch((error) => handleError(conn, error));
 };
