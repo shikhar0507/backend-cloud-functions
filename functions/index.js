@@ -86,6 +86,11 @@ const addendumOnCreate = functions
   .document('Offices/{officeId}/Addendum/{docId}')
   .onCreate(require('./firestore/addendum/on-create'));
 
+const bulkActivitiesOnCreate = functions
+  .firestore
+  .document('BulkActivities/{docId}')
+  .onCreate(require('./background-services/activities/activities-create'));
+
 
 module.exports = {
   api,
@@ -98,6 +103,7 @@ module.exports = {
   assigneeOnDelete,
   addendumOnCreate,
   recipientsOnUpdate,
+  bulkActivitiesOnCreate,
   activityTemplatesOnUpdate,
   generateOfficeNamePermutations,
 };

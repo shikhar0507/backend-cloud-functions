@@ -47,15 +47,7 @@ const {
  * @returns {void}
  */
 module.exports = (conn) => {
-  if (!conn.req.query.q) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      'No query parameter found in the request URL. Please use ?q=phone number in the URL.'
-    );
-
-    return;
-  }
+  if (conn.req.query.q) conn.req.query.q = [];
 
   if (conn.req.query.hasOwnProperty('superUser')
     && conn.req.query.superUser === 'true'
