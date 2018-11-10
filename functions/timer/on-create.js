@@ -71,7 +71,7 @@ module.exports = (doc) => {
         .forEach((email) => {
           const html = `
         <p>Date (DD-MM-YYYY): ${doc.id}</p>
-        <p>Timestamp: ${new Date(doc.get('timestamp')).toJSON()}</p>
+        <p>Timestamp: ${new Date(doc.get('timestamp')).toISOString()}</p>
         `;
 
           messages.push({

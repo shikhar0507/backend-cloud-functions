@@ -374,8 +374,10 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
   dutyRosterObject[activityId].description = description;
   dutyRosterObject[activityId].reportingTime = reportingTime;
   dutyRosterObject[activityId].reportingLocation = venue.address;
-  dutyRosterObject[activityId].reportingTimeStart = new Date(schedule.startTime).getTime();
-  dutyRosterObject[activityId].reportingTimeEnd = new Date(schedule.endTime).getTime();
+  dutyRosterObject[activityId].reportingTimeStart =
+    new Date(schedule.startTime).getTime();
+  dutyRosterObject[activityId].reportingTimeEnd =
+    new Date(schedule.endTime).getTime();
 
   if (action === httpsActions.create) {
     const createdBy = (() => addendumDoc.get('user'))();
@@ -414,7 +416,7 @@ const handleDutyRosterReport = (addendumDoc, batch) => {
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
 
-  Promise
+  return Promise
     .all([
       rootCollections
         .inits
@@ -628,6 +630,14 @@ module.exports = (addendumDoc) => {
         };
       })();
 
+      /**
+       * Distance travelled 0 means that user is in the same location.
+       * Not hitting Google Maps api since that is wasteful.
+       */
+      if (Math.floor(Math.round(distance.travelled)) === 0) {
+        return [null, null];
+      }
+
       return Promise
         .all([
           googleMapsClient
@@ -635,7 +645,8 @@ module.exports = (addendumDoc) => {
               latlng: getLatLngString(addendumDoc.get('location')),
             })
             .asPromise(),
-          Promise.resolve(distance),
+          Promise
+            .resolve(distance),
         ]);
     })
     .then((result) => {
@@ -646,18 +657,34 @@ module.exports = (addendumDoc) => {
 
       const placeInformation = getPlaceInformation(mapsApiResult);
 
-      console.log('distance.accumulated', distance.accumulated);
+      console.log('distance accumulated', distance ? distance.accumulated : distance);
+
+      const url = (() => {
+        if (!addendumDoc.exists) return '';
+
+        if (!result) return addendumDoc.get('url');
+
+        return placeInformation.url;
+      })();
+
+      const identifier = (() => {
+        if (!addendumDoc.exists) return '';
+
+        if (!result) return addendumDoc.get('identifier');
+
+        return placeInformation.identifier;
+      })();
 
       const updateObject = {
         date,
         month,
         year,
+        url,
+        identifier,
         accumulatedDistance: distance.accumulated.toFixed(2),
         distanceTravelled: distance.travelled,
         timeString: getTimeString('+91', timestamp),
         dateString: timestamp.toDateString(),
-        url: placeInformation.url,
-        identifier: placeInformation.identifier,
       };
 
       batch.set(addendumDoc.ref, updateObject, {
@@ -666,6 +693,6 @@ module.exports = (addendumDoc) => {
 
       return handlePayrollReport(addendumDoc, batch);
     })
-    .then(() => batch.commit())
+    .then((batch) => batch.commit())
     .catch(console.error);
 };

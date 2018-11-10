@@ -248,6 +248,13 @@ const handleCanEditRule = (locals, templateDoc) => {
   // TODO: No need to query admin activity. `locals.adminsCanEdit` array is enough for that
   return Promise
     .all([
+      /**
+       * Checking root and not in the Profile/Activities since
+       * chances are that sometimes, the ActivityOnWrite function instance
+       * hasn't triggered, or is waiting in the queue. Since activityOnWrite
+       * creates the activity in the below user profile, we simply check the
+       * Activities collection and not the Profile/Activities collection.
+       */
       rootCollections
         .activities
         .where('office', '==', locals.change.after.get('office'))
@@ -268,11 +275,7 @@ const handleCanEditRule = (locals, templateDoc) => {
       ] = result;
 
       /** User is already an `admin` */
-      if (!adminActivitiesQuery.empty) {
-        console.log('Already an admin =>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>');
-
-        return Promise.resolve();
-      }
+      if (!adminActivitiesQuery.empty) return Promise.resolve();
 
       const batch = db.batch();
       const adminTemplateDoc = adminTemplateQuery.docs[0];

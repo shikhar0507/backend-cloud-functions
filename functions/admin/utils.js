@@ -329,23 +329,6 @@ const isE164PhoneNumber = (phoneNumber) =>
   /^\+[1-9]\d{5,14}$/
     .test(phoneNumber);
 
-const convertToDates = (schedules) => {
-  const array = [];
-
-  schedules.forEach((schedule) => {
-    const name = schedule.name;
-    let startTime = schedule.startTime;
-    let endTime = schedule.endTime;
-
-    if (startTime !== '') startTime = startTime.toDate();
-    if (endTime !== '') endTime = endTime.toDate();
-
-    array.push({ name, startTime, endTime });
-  });
-
-  return array;
-};
-
 
 /**
  * Returns the server timestamp on a `GET` request.
@@ -375,50 +358,64 @@ const now = (conn) => {
     return;
   }
 
-  rootCollections
-    .updates
-    .doc(conn.requester.uid)
-    .get()
-    .then((doc) => {
+  const ddmmyyyyString = getISO8601Date();
+
+  Promise
+    .all([
+      rootCollections
+        .updates
+        .doc(conn.requester.uid)
+        .get(),
+      rootCollections
+        .timers
+        .doc(ddmmyyyyString)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        updatesDoc,
+        timerDoc,
+      ] = result;
+
       const batch = db.batch();
       const timestamp = serverTimestamp;
       const revokeSession = false;
 
-      batch.set(rootCollections
-        .timers
-        .doc(getISO8601Date()), {
+      if (!timerDoc.exists) {
+        batch.set(timerDoc.ref, {
           timestamp,
           // Prevents multiple trigger events for reports.
           sent: false,
         }, {
-          merge: true,
-        });
+            merge: true,
+          });
+      }
 
-      const getDeviceIdsObject = () => {
-        const obj = doc.get('deviceIdsObject') || {};
+      const deviceIdsObject = (() => {
+        const object = updatesDoc.get('deviceIdsObject') || {};
 
         /** Only adding when changed */
-        if (obj[conn.req.query.deviceId]
-          && doc.get('latestDeviceId') !== conn.req.query.deviceId) {
-          obj[conn.req.query.deviceId] = {
-            count: obj[conn.req.query.deviceId].count + 1,
-            timestamp: serverTimestamp,
+        if (object[conn.req.query.deviceId]
+          && updatesDoc.get('latestDeviceId') !== conn.req.query.deviceId) {
+          object[conn.req.query.deviceId] = {
+            timestamp,
+            count: object[conn.req.query.deviceId].count + 1,
           };
         } else {
-          obj[conn.req.query.deviceId] = {
+          object[conn.req.query.deviceId] = {
+            timestamp,
             count: 1,
-            timestamp: serverTimestamp,
           };
         }
 
-        return obj;
-      };
+        return object;
+      })();
 
       /** Only logging when changed. */
-      if (conn.req.query.deviceId !== doc.get('latestDeviceId')) {
-        batch.set(doc.ref, {
+      if (conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
+        batch.set(updatesDoc.ref, {
+          deviceIdsObject,
           latestDeviceId: conn.req.query.deviceId,
-          deviceIdsObject: getDeviceIdsObject(),
         }, {
             merge: true,
           });
@@ -432,22 +429,15 @@ const now = (conn) => {
             .commit(),
         ]);
     })
-    .then((result) => {
-      const [
-        revokeSession,
-      ] = result;
-
-      sendJSON(conn, {
-        revokeSession,
-        success: true,
-        timestamp: Date.now(),
-        code: code.ok,
-      });
-
-      return;
-    })
+    .then((result) => sendJSON(conn, {
+      revokeSession: result[0],
+      success: true,
+      timestamp: Date.now(),
+      code: code.ok,
+    }))
     .catch((error) => handleError(conn, error));
 };
+
 
 const reportBackgroundError = (error, context = {}) => {
   const Logging = require('@google-cloud/logging');
@@ -498,7 +488,6 @@ module.exports = {
   getISO8601Date,
   isValidGeopoint,
   hasSupportClaims,
-  convertToDates,
   isNonEmptyString,
   isE164PhoneNumber,
   hasSuperUserClaims,

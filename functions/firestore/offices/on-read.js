@@ -3,9 +3,7 @@
 const {
   sendJSON,
   handleError,
-  convertToDates,
   sendResponse,
-  isValidDate,
   hasAdminClaims,
   hasSupportClaims,
 } = require('../../admin/utils');
@@ -28,7 +26,6 @@ const getActivityObject = (doc) => {
     hidden: doc.get('hidden'),
     office: doc.get('office'),
     officeId: doc.get('officeId'),
-    // schedule: convertToDates(doc.get('schedule')),
     schedule: doc.get('schedule'),
     status: doc.get('status'),
     template: doc.get('template'),
@@ -61,8 +58,12 @@ const getTemplates = (conn, locals) =>
     .catch((error) => handleError(conn, error));
 
 
-const fetchActivities = (conn, locals, promise) =>
-  promise
+const fetchActivities = (conn, locals) => {
+  locals
+    .officeRef
+    .collection('Activities')
+    .where('timestamp', '>', locals.jsonObject.from)
+    .get()
     .then((docs) => {
       if (docs.empty) {
         getTemplates(conn, locals);
@@ -82,7 +83,7 @@ const fetchActivities = (conn, locals, promise) =>
       return;
     })
     .catch((error) => handleError(conn, error));
-
+};
 
 
 module.exports = (conn) => {
@@ -117,30 +118,22 @@ module.exports = (conn) => {
     return;
   }
 
-  // if (!isValidDate(conn.req.query.from)) {
-  //   sendResponse(
-  //     conn,
-  //     code.badRequest,
-  //     `The value in the 'from' query parameter is not a valid unix timestamp`
-  //   );
-
-  //   return;
-  // }
-
-  if (!conn.req.query.office) {
+  if (!conn.req.query.hasOwnProperty('office')) {
     sendResponse(
       conn,
       code.badRequest,
-      `Invalid query param: ${conn.req.body.office}`
+      `The request URL is missing the 'office' query parameter`
     );
 
     return;
   }
 
+  const from = Number(conn.req.query.from);
+
   const locals = {
     jsonObject: {
-      from: conn.req.query.from,
-      upto: conn.req.query.from,
+      from,
+      upto: from,
       activities: [],
       templates: [],
     },
@@ -162,13 +155,13 @@ module.exports = (conn) => {
         return;
       }
 
-      const doc = snapShot.docs[0];
-
-      if (doc.get('status') === 'CANCELLED') {
+      if (snapShot.docs[0].get('status') === 'CANCELLED') {
         sendResponse(conn, code.conflict, `This office has been deleted`);
 
         return;
       }
+
+      locals.officeRef = snapShot.docs[0].ref;
 
       fetchActivities(conn, locals);
 

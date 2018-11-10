@@ -615,6 +615,10 @@ module.exports = (req, res) => {
 
   checkAuthorizationToken(conn);
 
+  // https://developers.google.com/maps/documentation/timezone/start
+  // https://developers.google.com/maps/documentation/timezone/client-library
+  // https://stackoverflow.com/questions/16086962/how-to-get-a-time-zone-from-a-location-using-latitude-and-longitude-coordinates
+
   // handleBulkObject(conn);
 
   // getUserAuthFromIdToken(conn, {
