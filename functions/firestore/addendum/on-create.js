@@ -609,6 +609,11 @@ module.exports = (addendumDoc) => {
     .then((docs) => {
       const previousAddendumDoc = docs.docs[1];
 
+      /** 
+       * User has no activity before the creation of this
+       * addendum doc. This means that the distance travelled
+       * and accumulated will be ZERO.
+       */
       const distance = (() => {
         if (!previousAddendumDoc) {
           return {
@@ -631,10 +636,10 @@ module.exports = (addendumDoc) => {
       })();
 
       /**
-       * Distance travelled 0 means that user is in the same location.
+       * Distance travelled `0` means that user is in the same location.
        * Not hitting Google Maps api since that is wasteful.
        */
-      if (Math.floor(Math.round(distance.travelled)) === 0) {
+      if (Math.round(Math.floor(distance.travelled)) === 0) {
         return [null, null];
       }
 
@@ -657,8 +662,6 @@ module.exports = (addendumDoc) => {
 
       const placeInformation = getPlaceInformation(mapsApiResult);
 
-      console.log('distance accumulated', distance ? distance.accumulated : distance);
-
       const url = (() => {
         if (!addendumDoc.exists) return '';
 
@@ -675,17 +678,34 @@ module.exports = (addendumDoc) => {
         return placeInformation.identifier;
       })();
 
+      const accumulatedDistance = (() => {
+        if (!distance) return '0.00';
+
+        return distance.accumulated.toFixed(2);
+      })();
+
+      const distanceTravelled = (() => {
+        if (!distance) return 0;
+
+        return distance.travelled;
+      })();
+
       const updateObject = {
         date,
         month,
         year,
         url,
         identifier,
-        accumulatedDistance: distance.accumulated.toFixed(2),
-        distanceTravelled: distance.travelled,
+        accumulatedDistance,
+        distanceTravelled,
         timeString: getTimeString('+91', timestamp),
         dateString: timestamp.toDateString(),
       };
+
+      console.log({
+        updateObject,
+        path: addendumDoc.ref.path,
+      });
 
       batch.set(addendumDoc.ref, updateObject, {
         merge: true,
