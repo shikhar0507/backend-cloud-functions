@@ -9,7 +9,7 @@ const {
 const {
   rootCollections,
   db,
-  serverTimestamp,
+  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {
@@ -24,6 +24,10 @@ const {
   httpsActions,
 } = require('../../admin/constants');
 
+const moment = require('moment');
+// const serverTimestamp = Date.now();
+
+const timestamp = Number(moment().utc().format('x'));
 
 const logRequest = (options) => {
   const {
@@ -47,7 +51,7 @@ const logRequest = (options) => {
     .forEach((email) => {
       messages.push({
         html,
-        cc: env.systemEmail,
+        // cc: env.systemEmail,
         to: email,
         from: env.systemEmail,
         subject: `Admin API Used by support for`
@@ -166,7 +170,7 @@ const createDocs = (conn, locals) => {
     .set(locals
       .activityObject
       .addendumDocRef, {
-        timestamp: serverTimestamp,
+        timestamp,
         activityData: locals.activityObject,
         user: conn.requester.phoneNumber,
         userDisplayName: conn.requester.displayName,
@@ -364,8 +368,6 @@ const handleOffice = (conn, locals) => {
             .collection('Addendum')
             .doc();
 
-
-            const timestamp = serverTimestamp;
             const office = conn.req.body.office;
             const officeId = locals.activityRef.id;
 
@@ -644,7 +646,7 @@ const handleResult = (conn, result) => {
     activityObject: {
       /** Missing addendumDocRef, venue, schedule, attachment, activityName, */
       officeId,
-      timestamp: serverTimestamp,
+      timestamp,
       office: conn.req.body.office,
       template: conn.req.body.template,
       creator: conn.requester.phoneNumber,

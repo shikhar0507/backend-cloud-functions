@@ -30,9 +30,6 @@ const {
   db,
 } = require('../admin/admin');
 const {
-  convertToDates,
-} = require('../admin/utils');
-const {
   code,
 } = require('../admin/responses');
 const {
@@ -131,6 +128,7 @@ module.exports = (conn) => {
   }
 
   const from = parseInt(conn.req.query.from);
+
   const jsonObject = {
     from,
     upto: from,

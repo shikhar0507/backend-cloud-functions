@@ -36,7 +36,12 @@ const db = admin.firestore();
 
 db.settings({ timestampsInSnapshots: true });
 
-const serverTimestamp = Date.now();
+/**
+ * WARN: Don't use `Date.now()`. The cloud function caches that value resulting
+ * in the same timestamp for multiple activities even when they are created/updated
+ * at different time.
+ */
+const serverTimestamp = new Date().getTime();
 
 /**
  * Sentinel which refers to the document id.

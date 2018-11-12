@@ -34,7 +34,7 @@ const { code } = require('../../admin/responses');
 const { httpsActions } = require('../../admin/constants');
 const {
   db,
-  serverTimestamp,
+  // serverTimestamp,
   rootCollections,
   getGeopointObject,
 } = require('../../admin/admin');
@@ -42,6 +42,10 @@ const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
+
+// const serverTimestamp = Date.now();
+const moment = require('moment');
+const timestamp = Number(moment().utc().format('x'));
 
 
 /**
@@ -200,7 +204,7 @@ const handleResult = (conn, docs) => {
         .activities
         .doc(conn.req.body.activityId), {
           addendumDocRef,
-          timestamp: serverTimestamp,
+          timestamp,
         }, {
           merge: true,
         });
@@ -211,7 +215,7 @@ const handleResult = (conn, docs) => {
         share: conn.req.body.share,
         action: httpsActions.share,
         location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: serverTimestamp,
+        timestamp,
         userDeviceTimestamp: conn.req.body.timestamp,
         activityId: conn.req.body.activityId,
         activityName: activity.get('activityName'),

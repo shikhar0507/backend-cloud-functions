@@ -509,7 +509,7 @@ module.exports = (change) => {
    *
    * If has installed
    *    For each office create installs doc.
-   * If has been added
+   * If has been added (to an office)
    *    For each office (added) created sign up docs with `addedOn` field
    * If uid written
    *    For each office (current) create sign up doc with `signedUpOn` field

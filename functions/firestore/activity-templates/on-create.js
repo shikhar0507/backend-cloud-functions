@@ -25,7 +25,9 @@
 'use strict';
 
 
-const { rootCollections, serverTimestamp } = require('../../admin/admin');
+const {
+  rootCollections,
+} = require('../../admin/admin');
 const { code } = require('../../admin/responses');
 const {
   canEditRules,
@@ -39,6 +41,10 @@ const {
   isNonEmptyString,
 } = require('../../admin/utils');
 
+// const serverTimestamp = Date.now();
+
+const moment = require('moment');
+const timestamp = Number(moment().utc().format('x'));
 
 const validateTemplate = (body) => {
   const message = {
@@ -206,7 +212,7 @@ const validateTemplate = (body) => {
 
 const createDocs = (conn, locals) => {
   const templateBody = conn.req.body;
-  templateBody.timestamp = serverTimestamp;
+  templateBody.timestamp = timestamp;
 
   Promise
     .all([

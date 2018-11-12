@@ -31,12 +31,15 @@ const {
   users,
   deleteField,
   rootCollections,
-  serverTimestamp,
+  // serverTimestamp,
 } = require('../../admin/admin');
 const {
   httpsActions,
   vowels,
 } = require('../../admin/constants');
+
+const moment = require('moment');
+const timestamp = Number(moment().utc().format('x'));
 
 
 const toAttachmentValues = (activity) => {
@@ -190,7 +193,7 @@ const handleSpecialTemplateCases = (locals) => {
 
       customerActivitiesQuery.forEach((doc) => {
         customerActivitiesBatch.set(doc.ref, {
-          timestamp: serverTimestamp,
+          timestamp,
           addendumDocRef: null,
         }, {
             merge: true,
@@ -209,7 +212,7 @@ const handleSpecialTemplateCases = (locals) => {
       if (templateName === 'dsr') {
         productActivitiesQuery.forEach((doc) => {
           productActivitiesBatch.set(doc.ref, {
-            timestamp: serverTimestamp,
+            timestamp,
             addendumDocRef: null,
           }, {
               merge: true,
@@ -297,14 +300,13 @@ const handleCanEditRule = (locals, templateDoc) => {
 
       const creator = locals.change.after.get('creator');
       const activityName = `ADMIN: ${creator}`;
-
       const activityData = {
         autoCreated: true,
         addendumDocRef,
         attachment,
         activityName,
         officeId,
-        timestamp: serverTimestamp,
+        timestamp,
         office: locals.change.after.get('office'),
         template: 'admin',
         venue: [],
@@ -323,7 +325,7 @@ const handleCanEditRule = (locals, templateDoc) => {
               _longitude: '',
             },
             userDisplayName: null,
-            userDeviceTimestamp: serverTimestamp,
+            userDeviceTimestamp: timestamp,
           };
         }
 
@@ -343,7 +345,7 @@ const handleCanEditRule = (locals, templateDoc) => {
         share: [],
         action: httpsActions.create,
         template: 'admin',
-        timestamp: serverTimestamp,
+        timestamp,
         userDeviceTimestamp: subscriptionAddendumDoc.userDeviceTimestamp,
         activityId: activityRef.id,
         isSupportRequest: false,
@@ -409,7 +411,7 @@ const reverseSubscribeToActivities = (locals) => {
 
       subscriptionActivitiesQuery.forEach((doc) => {
         subscriptionsBatch.set(doc.ref, {
-          timestamp: serverTimestamp,
+          timestamp,
           addendumDocRef: null,
         }, {
             merge: true,
@@ -427,7 +429,7 @@ const reverseSubscribeToActivities = (locals) => {
 
       templateActivitiesQuery.forEach((doc) => {
         templateActivitiesBatch.set(doc.ref, {
-          timestamp: serverTimestamp,
+          timestamp,
           addendumDocRef: null,
         }, {
             merge: true,
@@ -559,7 +561,7 @@ const addSubscriptionToUserProfile = (locals, batch) => {
           });
 
           batch.set(doc.ref, {
-            timestamp: serverTimestamp,
+            timestamp,
             addendumDocRef: null,
           }, {
               merge: true,
@@ -823,7 +825,7 @@ const assignToActivities = (locals) => {
 
       departmentActivitiesQuery.forEach((doc) => {
         departmentBatch.set(doc.ref, {
-          timestamp: serverTimestamp,
+          timestamp,
           addendumDocRef: null,
         }, {
             merge: true,
@@ -842,7 +844,7 @@ const assignToActivities = (locals) => {
       // TODO: Handle > 500 results. Batch will crash otherwise
       branchActivitiesQuery.forEach((doc) => {
         branchBatch.set(doc.ref, {
-          timestamp: serverTimestamp,
+          timestamp,
           addendumDocRef: null,
         }, {
             merge: true,
@@ -905,7 +907,7 @@ const removeFromOffice = (activityDoc) => {
             .add('subscription')
             .has(template)) {
             batch.set(doc.ref, {
-              timestamp: serverTimestamp,
+              timestamp,
               status: 'CANCELLED',
               /** Avoids duplicate addendum creation for the activity. */
               addendumDocRef: null,
@@ -1178,7 +1180,7 @@ module.exports = (change, context) => {
         const activityData = change.after.data();
         activityData.canEdit = locals.assigneesMap.get(phoneNumber).canEdit;
         activityData.assignees = locals.assigneePhoneNumbersArray;
-        activityData.timestamp = serverTimestamp;
+        activityData.timestamp = timestamp;
 
         batch.set(rootCollections
           .profiles
@@ -1239,8 +1241,8 @@ module.exports = (change, context) => {
             .doc(locals.addendumDoc.id), {
               comment,
               activityId,
+              timestamp,
               isComment: isComment(locals.addendumDoc.get('action')),
-              timestamp: serverTimestamp,
               userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
               location: locals.addendumDoc.get('location'),
               user: locals.addendumDoc.get('user'),
@@ -1286,7 +1288,7 @@ module.exports = (change, context) => {
       });
 
       const activityData = change.after.data();
-      activityData.timestamp = serverTimestamp;
+      activityData.timestamp = timestamp;
       activityData.adminsCanEdit = locals.adminsCanEdit;
 
       const copyTo = (() => {

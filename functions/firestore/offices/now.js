@@ -34,7 +34,6 @@ const {
   sendJSON,
   isNonEmptyString,
   hasAdminClaims,
-  convertToDates,
   hasSupportClaims,
 } = require('../../admin/utils');
 const {
@@ -58,7 +57,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      `You are not authorized to access this resource.`
+      `You are not authorized to access this resource`
     );
 
     return;
@@ -106,7 +105,6 @@ module.exports = (conn) => {
       hidden: doc.get('hidden'),
       office: doc.get('office'),
       officeId: doc.get('officeId'),
-      // schedule: convertToDates(doc.get('schedule')),
       schedule: doc.get('schedule'),
       status: doc.get('status'),
       template: doc.get('template'),

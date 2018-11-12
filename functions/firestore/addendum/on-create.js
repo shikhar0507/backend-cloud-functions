@@ -609,7 +609,7 @@ module.exports = (addendumDoc) => {
     .then((docs) => {
       const previousAddendumDoc = docs.docs[1];
 
-      /** 
+      /**
        * User has no activity before the creation of this
        * addendum doc. This means that the distance travelled
        * and accumulated will be ZERO.
@@ -635,12 +635,20 @@ module.exports = (addendumDoc) => {
         };
       })();
 
+      console.log({ distance });
+
       /**
-       * Distance travelled `0` means that user is in the same location.
-       * Not hitting Google Maps api since that is wasteful.
+       * Previous addendum doc is present and the distance travelled is ZERO,
+       * this means that the user hasn't run moved from their previous
+       * position.
        */
-      if (Math.round(Math.floor(distance.travelled)) === 0) {
-        return [null, null];
+      if (previousAddendumDoc
+        && Math.round(Math.floor(distance.travelled)) === 0) {
+        return [
+          null,
+          distance,
+          previousAddendumDoc,
+        ];
       }
 
       return Promise
@@ -652,40 +660,49 @@ module.exports = (addendumDoc) => {
             .asPromise(),
           Promise
             .resolve(distance),
+          Promise
+            .resolve(previousAddendumDoc),
         ]);
     })
     .then((result) => {
       const [
         mapsApiResult,
         distance,
+        previousAddendumDoc,
       ] = result;
 
       const placeInformation = getPlaceInformation(mapsApiResult);
 
-      const url = (() => {
-        if (!addendumDoc.exists) return '';
+      /** url, identifier, accumulatedDistance, distanceTravelled */
 
-        if (!result) return addendumDoc.get('url');
+      const url = (() => {
+        if (previousAddendumDoc && distance.travelled === 0) {
+          return previousAddendumDoc.get('url');
+        }
 
         return placeInformation.url;
       })();
 
       const identifier = (() => {
-        if (!addendumDoc.exists) return '';
-
-        if (!result) return addendumDoc.get('identifier');
+        if (previousAddendumDoc && distance.travelled === 0) {
+          return previousAddendumDoc.get('identifier');
+        }
 
         return placeInformation.identifier;
       })();
 
       const accumulatedDistance = (() => {
-        if (!distance) return '0.00';
+        if (previousAddendumDoc && distance.travelled === 0) {
+          return previousAddendumDoc.get('accumulatedDistance');
+        }
 
         return distance.accumulated.toFixed(2);
       })();
 
       const distanceTravelled = (() => {
-        if (!distance) return 0;
+        if (previousAddendumDoc && distance.travelled === 0) {
+          return previousAddendumDoc.get('distanceTravelled');
+        }
 
         return distance.travelled;
       })();

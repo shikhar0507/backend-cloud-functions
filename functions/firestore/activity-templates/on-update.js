@@ -28,7 +28,6 @@
 
 const {
   rootCollections,
-  serverTimestamp,
   db,
 } = require('../../admin/admin');
 const { code } = require('../../admin/responses');
@@ -43,6 +42,10 @@ const {
   activityStatuses,
   reportingActions,
 } = require('../../admin/constants');
+
+const moment = require('moment');
+// const serverTimestamp = Date.now();
+const timestamp = Number(moment().utc().format('x'));
 
 
 const validateAttachment = (attachment) => {
@@ -183,7 +186,7 @@ const updateTemplateDoc = (conn, templateDoc) => {
   const batch = db.batch();
   const subject = `Template Updated in the Growthfile DB`;
   const templateObject = templateDoc.data();
-  templateObject.timestamp = serverTimestamp;
+  templateObject.timestamp = timestamp;
 
   /**
    * Replacing the original object with the updated values from

@@ -30,7 +30,7 @@ const { httpsActions } = require('../../admin/constants');
 const {
   db,
   rootCollections,
-  serverTimestamp,
+  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {
@@ -45,6 +45,10 @@ const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
+
+const moment = require('moment');
+
+const timestamp = Number(moment().utc().format('x'));
 
 
 const getActivityName = (conn) => {
@@ -105,7 +109,8 @@ const createDocsWithBatch = (conn, locals) => {
   const activityData = {
     addendumDocRef,
     venue: locals.objects.venueArray,
-    timestamp: serverTimestamp,
+    // timestamp: serverTimestamp,
+    timestamp,
     office: conn.req.body.office,
     template: conn.req.body.template,
     schedule: locals.objects.scheduleArray,
@@ -132,7 +137,7 @@ const createDocsWithBatch = (conn, locals) => {
     action: httpsActions.create,
     template: conn.req.body.template,
     location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: serverTimestamp,
+    timestamp,
     userDeviceTimestamp: conn.req.body.timestamp,
     activityId: locals.static.activityId,
     activityName: getActivityName(conn),
@@ -171,7 +176,9 @@ const createDocsWithBatch = (conn, locals) => {
   locals.batch.set(locals.docs.activityRef, activityData);
 
   /** ENDS the response. */
-  locals.batch.commit()
+  locals
+    .batch
+    .commit()
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };

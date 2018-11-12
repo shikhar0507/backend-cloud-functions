@@ -31,13 +31,17 @@ const { httpsActions } = require('../../admin/constants');
 const {
   db,
   rootCollections,
-  serverTimestamp,
+  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
+
+const moment = require('moment');
+
+const timestamp = Number(moment().utc().format('x'));
 
 
 const createDocs = (conn, activity) => {
@@ -53,7 +57,7 @@ const createDocs = (conn, activity) => {
     .activities
     .doc(conn.req.body.activityId), {
       addendumDocRef,
-      timestamp: serverTimestamp,
+      timestamp,
     }, {
       merge: true,
     });
@@ -63,7 +67,7 @@ const createDocs = (conn, activity) => {
     action: httpsActions.comment,
     comment: conn.req.body.comment,
     location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: serverTimestamp,
+    timestamp,
     userDeviceTimestamp: conn.req.body.timestamp,
     activityId: conn.req.body.activityId,
     isSupportRequest: conn.requester.isSupportRequest,

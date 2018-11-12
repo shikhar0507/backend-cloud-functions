@@ -31,13 +31,17 @@ const { httpsActions } = require('../../admin/constants');
 const {
   db,
   rootCollections,
-  serverTimestamp,
+  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
+
+const moment = require('moment');
+
+const timestamp = Number(moment().utc().format('x'));
 
 
 const createDocs = (conn, activity) => {
@@ -54,18 +58,18 @@ const createDocs = (conn, activity) => {
     .doc(conn.req.body.activityId), {
       addendumDocRef,
       status: conn.req.body.status,
-      timestamp: serverTimestamp,
+      timestamp,
     }, {
       merge: true,
     });
 
   batch.set(addendumDocRef, {
+    timestamp,
     activityData: activity.data(),
     user: conn.requester.phoneNumber,
     action: httpsActions.changeStatus,
     status: conn.req.body.status,
     location: getGeopointObject(conn.req.body.geopoint),
-    timestamp: serverTimestamp,
     userDeviceTimestamp: conn.req.body.timestamp,
     activityId: conn.req.body.activityId,
     activityName: activity.get('activityName'),
@@ -77,6 +81,7 @@ const createDocs = (conn, activity) => {
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
+
 
 const handleResult = (conn, docs) => {
   const result = checkActivityAndAssignee(
@@ -112,7 +117,7 @@ module.exports = (conn) => {
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for /change-status`
-      + ' endpoint. Use PATCH.'
+      + ' endpoint. Use PATCH'
     );
 
     return;

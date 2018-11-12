@@ -89,7 +89,7 @@ const validateSchedules = (body, scheduleNames) => {
     return messageObject;
   }
 
-  const seenName = new Map();
+  const seenNamesSet = new Set();
 
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < schedules.length; i++) {
@@ -127,7 +127,7 @@ const validateSchedules = (body, scheduleNames) => {
     const startTime = scheduleObject.startTime;
     const endTime = scheduleObject.endTime;
 
-    if (seenName.has(name)) {
+    if (seenNamesSet.has(name)) {
       messageObject.isValid = false;
       messageObject.message = `Each object in the 'schedule' array must`
         + ` have distinct value in the field 'name'`;
@@ -135,7 +135,7 @@ const validateSchedules = (body, scheduleNames) => {
     }
 
     /** All objects have unique value in the `name`. */
-    seenName.set(name, name);
+    seenNamesSet.add(name);
 
     if (!isNonEmptyString(name)) {
       messageObject.isValid = false;
@@ -243,7 +243,7 @@ const validateVenues = (body, venueDescriptors) => {
     return messageObject;
   }
 
-  const seenDescriptors = new Map();
+  const seenDescriptorsSet = new Set();
 
   /** Not using `forEach` because `break` doesn't work with it. */
   for (let i = 0; i < venues.length; i++) {
@@ -281,7 +281,7 @@ const validateVenues = (body, venueDescriptors) => {
     const address = venueObject.address;
     const location = venueObject.location;
 
-    if (seenDescriptors.has(venueDescriptor)) {
+    if (seenDescriptorsSet.has(venueDescriptor)) {
       messageObject.isValid = false;
       messageObject.message = `Each object in the 'venue' array must`
         + ` have distinct value in the field 'venueDescriptor'`;
@@ -289,7 +289,7 @@ const validateVenues = (body, venueDescriptors) => {
     }
 
     /** All objects have unique value in the `venueDescriptor`. */
-    seenDescriptors.set(venueDescriptor, venueDescriptor);
+    seenDescriptorsSet.add(venueDescriptor);
 
     if (!isNonEmptyString(venueDescriptor)) {
       messageObject.isValid = false;

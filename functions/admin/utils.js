@@ -30,9 +30,14 @@ const {
   db,
   auth,
   rootCollections,
-  serverTimestamp,
+  // serverTimestamp,
 } = require('./admin');
 
+const moment = require('moment');
+
+// const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+const timestamp = Number(moment().utc().format('x'));
 
 
 /**
@@ -222,7 +227,8 @@ const disableAccount = (conn, reason) => {
         .set({
           [conn.requester.phoneNumber]: {
             reason,
-            disabledTimestamp: serverTimestamp,
+            // disabledTimestamp: serverTimestamp,
+            disabledTimestamp: timestamp,
           },
         }, {
             /** This doc *will* have other fields too. */
@@ -233,7 +239,7 @@ const disableAccount = (conn, reason) => {
         .doc(conn.requester.phoneNumber)
         .set({
           disabledFor: reason,
-          disabledTimestamp: serverTimestamp,
+          disabledTimestamp: timestamp,
         }, {
             /** This doc may have other fields too. */
             merge: true,
@@ -352,7 +358,7 @@ const now = (conn) => {
     sendResponse(
       conn,
       code.forbidden,
-      `The request URL does not have a valid 'deviceId' param.`
+      `The request URL does not have a valid 'deviceId' param`
     );
 
     return;
@@ -378,7 +384,7 @@ const now = (conn) => {
       ] = result;
 
       const batch = db.batch();
-      const timestamp = serverTimestamp;
+      // const timestamp = serverTimestamp;
       const revokeSession = false;
 
       if (!timerDoc.exists) {

@@ -13,7 +13,7 @@ const {
 } = require('../../admin/utils');
 const {
   db,
-  serverTimestamp,
+  // serverTimestamp,
   rootCollections,
   getGeopointObject,
 } = require('../../admin/admin');
@@ -24,6 +24,10 @@ const {
 const {
   code,
 } = require('../../admin/responses');
+
+const moment = require('moment');
+// const serverTimestamp = Date.now();
+const timestamp = Number(moment().utc().format('x'));
 
 const getCanEditValue = (options) => {
   const {
@@ -259,7 +263,7 @@ module.exports = (conn, locals) => {
     const activityData = {
       // addendumDocRef,
       venue: validVenue.venues,
-      timestamp: serverTimestamp,
+      timestamp,
       office: conn.req.body.office,
       template: conn.req.body.template,
       schedule: validSchedule.schedules,
@@ -281,7 +285,7 @@ module.exports = (conn, locals) => {
       action: httpsActions.create,
       template: conn.req.body.template,
       location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: serverTimestamp,
+      timestamp,
       userDeviceTimestamp: conn.req.body.timestamp,
       // activityId: activityRef.id,
       isSupportRequest: conn.requester.isSupportRequest,
@@ -340,7 +344,7 @@ module.exports = (conn, locals) => {
   }
 
   batch
-    .set(rootCollections.bulk.doc('Test'), {
+    .set(rootCollections.bulk.doc(), {
       filteredObjectsArray,
       office: conn.req.body.office,
       officeId: locals.officeDoc.id,

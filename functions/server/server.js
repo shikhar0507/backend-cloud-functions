@@ -29,7 +29,7 @@ const {
   rootCollections,
   auth,
   db,
-  serverTimestamp,
+  // serverTimestamp,
   fieldPath,
 } = require('../admin/admin');
 const {
@@ -302,7 +302,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
           conn,
           code.forbidden,
           `This account has been temporarily disabled. Please contact`
-          + ` your admin.`
+          + ` your admin`
         );
 
         return;
@@ -319,20 +319,18 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
       /**
        * Can be used to verify in the activity flow to see if the request
        * is of type support.
+       *
+       * URL query params are of type `string`
        */
-      conn.requester.isSupportRequest = false;
-
-      /** URL query params are of type `string`. */
-      if (conn.req.query.support === 'true') {
-        conn.requester.isSupportRequest = true;
-      }
+      conn.requester.isSupportRequest =
+        conn.req.query.support === 'true';
 
       if (conn.requester.isSupportRequest
         && !hasSupportClaims(conn.requester.customClaims)) {
         sendResponse(
           conn,
           code.forbidden,
-          'You do not have the permission to make support requests for activities.'
+          'You do not have the permission to make support requests for activities'
         );
 
         return;
@@ -357,21 +355,21 @@ const headerValid = (headers) => {
   if (!headers.hasOwnProperty('authorization')) {
     return {
       isValid: false,
-      message: 'The authorization header is missing from the headers.',
+      message: 'The authorization header is missing from the headers',
     };
   }
 
   if (typeof headers.authorization !== 'string') {
     return {
       isValid: false,
-      message: 'The authorization header is not valid.',
+      message: 'The authorization header is not valid',
     };
   }
 
   if (!headers.authorization.startsWith('Bearer ')) {
     return {
       isValid: false,
-      message: `Authorization type is not 'Bearer'.`,
+      message: `Authorization type is not 'Bearer'`,
     };
   }
 
@@ -380,6 +378,62 @@ const headerValid = (headers) => {
     authToken: headers.authorization.split('Bearer ')[1],
   };
 };
+
+
+/**
+ * Verifies the `id-token` form the Authorization header in the request.
+ *
+ * @param {Object} conn Contains Express' Request and Response objects.
+ * @returns {void}
+ */
+const checkAuthorizationToken = (conn) => {
+  const result = headerValid(conn.req.headers);
+
+  if (!result.isValid) {
+    sendResponse(conn, code.forbidden, result.message);
+
+    return;
+  }
+
+  /** Checks if the token was revoked recently when set to `true` */
+  const checkRevoked = true;
+
+  auth
+    .verifyIdToken(result.authToken, checkRevoked)
+    .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
+    .catch((error) => {
+      if (error.code === 'auth/id-token-revoked') {
+        sendResponse(
+          conn,
+          code.unauthorized,
+          'The idToken was revoked recently. Please re-authenticate.'
+        );
+
+        return;
+      }
+
+      if (error.code === 'auth/argument-error') {
+        sendResponse(
+          conn,
+          code.unauthorized,
+          `The idToken in the request header is invalid/expired.`
+          + ` Please re-authenticate.`
+        );
+
+        return;
+      }
+
+      console.error(error);
+
+      sendResponse(
+        conn,
+        code.forbidden,
+        `There was an error processing the idToken sent in the request.`
+        + ` Please re-authenticate.`
+      );
+    });
+};
+
 
 const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
@@ -505,72 +559,11 @@ const handleBulkObject = (conn) => {
 
       console.log(JSON.stringify(myObject, '', 2));
 
-      // checkAuthorizationToken(conn);
-
-      getUserAuthFromIdToken(conn, {
-        uid: 'RDpNj5G4oaZxDYT8okF187CAQWN2',
-      });
-
-      // sendResponse(conn, code.ok, 'testing stuff');
+      checkAuthorizationToken(conn);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-};
-
-
-/**
- * Verifies the `id-token` form the Authorization header in the request.
- *
- * @param {Object} conn Contains Express' Request and Response objects.
- * @returns {void}
- */
-const checkAuthorizationToken = (conn) => {
-  const result = headerValid(conn.req.headers);
-
-  if (!result.isValid) {
-    sendResponse(conn, code.forbidden, result.message);
-
-    return;
-  }
-
-  /** Checks if the token was revoked recently when set to `true` */
-  const checkRevoked = true;
-
-  auth
-    .verifyIdToken(result.authToken, checkRevoked)
-    .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
-    .catch((error) => {
-      if (error.code === 'auth/id-token-revoked') {
-        sendResponse(
-          conn,
-          code.unauthorized,
-          'The idToken was revoked recently. Please re-authenticate.'
-        );
-
-        return;
-      }
-
-      if (error.code === 'auth/argument-error') {
-        sendResponse(
-          conn,
-          code.unauthorized,
-          `The idToken in the request header is invalid/expired.`
-          + ` Please re-authenticate.`
-        );
-
-        return;
-      }
-
-      console.error(error);
-
-      sendResponse(
-        conn,
-        code.forbidden,
-        `There was an error processing the idToken sent in the request.`
-        + ` Please re-authenticate.`
-      );
-    });
 };
 
 
@@ -614,65 +607,4 @@ module.exports = (req, res) => {
   }
 
   checkAuthorizationToken(conn);
-
-  // https://developers.google.com/maps/documentation/timezone/start
-  // https://developers.google.com/maps/documentation/timezone/client-library
-  // https://stackoverflow.com/questions/16086962/how-to-get-a-time-zone-from-a-location-using-latitude-and-longitude-coordinates
-
-  // handleBulkObject(conn);
-
-  // getUserAuthFromIdToken(conn, {
-  //   uid: 'RDpNj5G4oaZxDYT8okF187CAQWN2',
-  // });
-
-  // https://codeburst.io/understanding-generators-in-es6-javascript-with-examples-6728834016d5
-  // const ref1 = rootCollections.bulk.doc();
-  // const ref2 = rootCollections.bulk.doc();
-
-  // const batchesArray = [
-  //   db.batch().set(ref1, {}),
-  //   db.batch().set(ref2, {}),
-  // ];
-
-  // const makeRangeIterator = (start, end) => {
-  //   let nextIndex = start;
-  //   let iterationCount = 0;
-
-  //   const rangeIterator = {
-  //     next: () => {
-  //       let result;
-
-  //       if (nextIndex <= end) {
-  //         result = {
-  //           value: batchesArray[nextIndex].commit(),
-  //           done: false,
-  //         };
-
-  //         nextIndex++;
-  //         iterationCount++;
-
-  //         return result;
-  //       }
-  //     },
-  //   };
-
-  //   return rangeIterator;
-  // };
-
-  // const end = batchesArray.length - 1;
-  // const it = makeRangeIterator(0, end);
-  // let result = it.next();
-
-  // result
-  //   .promise
-  //   .then(() => {
-  //     while (!result.done) {
-  //       console.log(result.value);
-
-  //       result = it.next().then(() => it.next());
-  //     }
-
-  //     return;
-  //   })
-  //   .catch((error) => handleError(conn, error));
 };

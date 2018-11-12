@@ -31,7 +31,7 @@ const {
   rootCollections,
   getGeopointObject,
   db,
-  serverTimestamp,
+  // serverTimestamp,
 } = require('../../admin/admin');
 const {
   validateVenues,
@@ -45,6 +45,11 @@ const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
+
+const moment = require('moment');
+const timestamp = Number(moment().utc().format('x'));
+
+// const serverTimestamp = Date.now();
 
 
 const updateDocsWithBatch = (conn, locals) => {
@@ -61,7 +66,8 @@ const updateDocsWithBatch = (conn, locals) => {
     addendumDocRef,
     schedule: locals.objects.updatedFields.schedule,
     venue: locals.objects.updatedFields.venue,
-    timestamp: serverTimestamp,
+    // timestamp: serverTimestamp,
+    timestamp,
     attachment: conn.req.body.attachment,
   };
 
@@ -83,7 +89,7 @@ const updateDocsWithBatch = (conn, locals) => {
       user: conn.requester.phoneNumber,
       action: httpsActions.update,
       location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: serverTimestamp,
+      timestamp,
       userDeviceTimestamp: conn.req.body.timestamp,
       activityId: conn.req.body.activityId,
       /**
@@ -167,7 +173,6 @@ const handleAssignees = (conn, locals) => {
   const activityAttachment = locals.docs.activity.get('attachment');
 
   const promises = [];
-  let phoneNumbersChanged = false;
 
   bodyAttachmentFields.forEach((field) => {
     const item = conn.req.body.attachment[field];
@@ -180,8 +185,6 @@ const handleAssignees = (conn, locals) => {
 
     /** Nothing has changed, so no point in creating promises. */
     if (oldPhoneNumber === newPhoneNumber) return;
-
-    phoneNumbersChanged = true;
 
     /**
      * Number was removed so the person needs to be unassigned from
@@ -554,7 +557,7 @@ const handleResult = (conn, docs) => {
     batch: db.batch(),
     objects: {
       updatedFields: {
-        timestamp: serverTimestamp,
+        timestamp,
       },
       permissions: {},
       attachment: activity.get('attachment'),
