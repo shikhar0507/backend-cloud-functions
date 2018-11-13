@@ -381,7 +381,7 @@ const filterAttachment = (options) => {
   };
 
   const invalidTypeMessage = `Expected the type of 'attachment' to be`
-    + ` of type 'Object'. Found ${typeof bodyAttachment}.`;
+    + ` of type 'Object'. Found ${typeof bodyAttachment}`;
 
   if (typeof bodyAttachment !== 'object') {
     messageObject.isValid = false;
@@ -525,7 +525,6 @@ const filterAttachment = (options) => {
      * to EXIST.
      */
     if (!validTypes.has(type) && value !== '') {
-
       messageObject.nameChecks.push({ value, type });
 
       messageObject
@@ -541,11 +540,44 @@ const filterAttachment = (options) => {
         );
     }
 
+    if (type === 'unique') {
+      if (!isNonEmptyString(value)) {
+        messageObject.isValid = false;
+        messageObject.message = `Field '${field}' cannot have empty value`;
+
+        break;
+      }
+
+      const promise = (() => {
+        const fieldPath = `attachment[${field}].value`;
+
+        if (template === 'office') {
+          return rootCollections
+            .offices
+            .where(fieldPath, '==', value)
+            .limit(1)
+            .get();
+        }
+
+        return rootCollections
+          .offices
+          .doc(officeId)
+          .collection('Activities')
+          .where(fieldPath, '==', value)
+          .limit(1)
+          .get();
+      })();
+
+      messageObject
+        .querySnapshotShouldNotExist
+        .push(promise);
+    }
+
     if (field === 'Name') {
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
         messageObject.message = `The 'Name' field in 'attachment' should`
-          + ` be a non-empty string.`;
+          + ` be a non-empty string`;
         break;
       }
 
@@ -554,7 +586,7 @@ const filterAttachment = (options) => {
         messageObject.isValid = false;
         messageObject.message = `The office name in the`
           + ` 'attachment.Name.value' and the`
-          + ` 'office' field in the request body should be the same.`;
+          + ` 'office' field in the request body should be the same`;
         break;
       }
 

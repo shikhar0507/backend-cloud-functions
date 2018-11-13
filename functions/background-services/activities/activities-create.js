@@ -29,17 +29,14 @@ module.exports = (bulkDoc) => {
         .doc(officeId)
         .collection('Addendum')
         .doc();
-
     const activityData = activity.activityData;
     activityData.addendumDocRef = addendumDocRef;
-    // activityData.office = office;
-    // activityData.template = template;
-    // activityData.timestamp = timestamp;
-    // activityData.geopoint = geopoint;
-
+    activityData.office = office;
+    activityData.template = template;
+    activityData.timestamp = timestamp;
+    activityData.geopoint = geopoint;
     const addendumData = activity.addendumData;
     addendumData.activityId = activityRef.id;
-
     const assigneesArray = activity.assigneesArray;
 
     batch.set(activityRef, activityData);
@@ -90,10 +87,12 @@ module.exports = (bulkDoc) => {
       return rangeIterator;
     };
 
-  return Promise.resolve()
+  return Promise
+    .resolve()
     .then(() => {
-      const it = batchCommitter(0, batchesArray[batchesArray.length - 1], 1);
-
+      const start = 0;
+      const end = batchesArray[batchesArray.length - 1];
+      const it = batchCommitter(start, end);
       const result = it.next();
 
       while (!result.done) {

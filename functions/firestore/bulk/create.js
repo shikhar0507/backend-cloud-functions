@@ -77,7 +77,6 @@ module.exports = (conn, locals) => {
       .get('attachment')
       .hasOwnProperty('Name');
   const namesMap = locals.officeDoc.get(`namesMap`) || {};
-
   const namesSet = new Set();
   let duplicatedEntriesFound = false;
 

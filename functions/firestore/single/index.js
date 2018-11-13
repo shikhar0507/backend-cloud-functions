@@ -3,6 +3,7 @@
 const {
   sendResponse,
   hasSupportClaims,
+  disableAccount,
 } = require('../../admin/utils');
 const {
   code,
@@ -42,7 +43,9 @@ module.exports = (conn) => {
   /** Only `support` can create an office */
   if (conn.req.body.template === 'office'
     && !hasSupportClaims(conn.requester.customClaims)) {
-    sendResponse(conn, code.forbidden, `You cannot access this resource`);
+    // disableAccount(conn, 'You do not have the permission to access this resource');
+
+    sendResponse(conn, 'You do not have the permission to access this resource');
 
     return;
   }
