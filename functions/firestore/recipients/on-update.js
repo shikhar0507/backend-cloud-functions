@@ -90,7 +90,14 @@ module.exports = (change) => {
       });
 
       if (locals.messageObject.to.length === 0) {
-        console.log('No recipients');
+        console.log('No recipients with email OR email verified', report);
+
+        return Promise.resolve();
+      }
+
+      /** Not sending emails to anyone from dev environment */
+      if (!env.isProduction) {
+        return Promise.resolve();
       }
 
       if (report === 'signup') return require('./sign-up-report')(locals);

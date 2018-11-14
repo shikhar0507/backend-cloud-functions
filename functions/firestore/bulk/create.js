@@ -82,7 +82,7 @@ module.exports = (conn, locals) => {
 
   console.log('conn.req.body.data', conn.req.body.data.length);
 
-  const filteredObjectsArray = [];
+  const activityObjects = [];
 
   conn.req.body.data.forEach((object, index) => {
     const attachment = object.attachment;
@@ -245,49 +245,35 @@ module.exports = (conn, locals) => {
       }
     }
 
-    const activityName = (() => {
-      if (hasName) {
-        return `${conn.req.body.template.toUpperCase()}:`
-          + ` ${attachment.Name.value}`;
-      }
+    // const activityName = (() => {
+    //   if (hasName) {
+    //     return `${conn.req.body.template.toUpperCase()}:`
+    //       + ` ${attachment.Name.value}`;
+    //   }
 
-      return `${conn.req.body.template.toUpperCase()}:`
-        + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
-    })();
+    //   return `${conn.req.body.template.toUpperCase()}:`
+    //     + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
+    // })();
 
-    if (conn.requester.isSupportRequest) {
+    if (!conn.requester.isSupportRequest) {
       share.push(conn.requester.phoneNumber);
     }
 
-    const activityData = {
+    const activityObject = {
+      activityId: rootCollections.activities.doc(),
       // addendumDocRef,
       venue: validVenue.venues,
-      timestamp,
-      office: conn.req.body.office,
-      template: conn.req.body.template,
+      // timestamp,
+      // office: conn.req.body.office,
+      // template: conn.req.body.template,
       schedule: validSchedule.schedules,
-      status: locals.templateDoc.get('statusOnCreate'),
+      // status: locals.templateDoc.get('statusOnCreate'),
       attachment,
-      canEditRule: locals.templateDoc.get('canEditRule'),
-      activityName,
-      officeId: locals.officeDoc.id,
-      hidden: locals.templateDoc.get('hidden'),
-      creator: conn.requester.phoneNumber,
-    };
-
-    const addendumData = {
-      share,
-      activityData,
-      activityName,
-      user: conn.requester.phoneNumber,
-      userDisplayName: conn.requester.displayName,
-      action: httpsActions.create,
-      template: conn.req.body.template,
-      location: getGeopointObject(conn.req.body.geopoint),
-      timestamp,
-      userDeviceTimestamp: conn.req.body.timestamp,
-      // activityId: activityRef.id,
-      isSupportRequest: conn.requester.isSupportRequest,
+      // canEditRule: locals.templateDoc.get('canEditRule'),
+      // activityName,
+      // officeId: locals.officeDoc.id,
+      // hidden: locals.templateDoc.get('hidden'),
+      // creator: conn.requester.phoneNumber,
     };
 
     const assigneesArray = [];
@@ -319,11 +305,7 @@ module.exports = (conn, locals) => {
       namesSet.add(attachment.Name.value);
     }
 
-    filteredObjectsArray.push({
-      activityData,
-      addendumData,
-      assigneesArray,
-    });
+    activityObjects.push({ activityObject, assigneesArray });
   });
 
   const rejectedObjects = (() => {
@@ -343,21 +325,28 @@ module.exports = (conn, locals) => {
   }
 
   batch
-    .set(rootCollections.bulk.doc(), {
-      filteredObjectsArray,
-      office: conn.req.body.office,
-      officeId: locals.officeDoc.id,
-      template: conn.req.body.template,
-      timestamp: conn.req.body.timestamp,
-      geopoint: getGeopointObject(conn.req.body.geopoint),
-      creator: conn.requester.creator,
-      userDisplayName: conn.requester.displayName,
-    });
+    .set(rootCollections
+      .bulkActivities
+      .doc(), {
+        activityObjects,
+        action: httpsActions.create,
+        office: conn.req.body.office,
+        officeId: locals.officeDoc.id,
+        template: conn.req.body.template,
+        timestamp: conn.req.body.timestamp,
+        geopoint: getGeopointObject(conn.req.body.geopoint),
+        creator: conn.requester.phoneNumber,
+        userDisplayName: conn.requester.displayName,
+        isSupportRequest: conn.requester.isSupportRequest,
+        userDeviceTimestamp: conn.req.body.timestamp,
+      });
 
-  // console.log(filteredObjectsArray);
+  console.log(activityObjects);
 
-  batch
-    .commit()
-    .then(() => sendJSON(conn, { rejectedObjects }))
-    .catch((error) => handleError(conn, error));
+  sendJSON(conn, { rejectedObjects });
+
+  // batch
+  //   .commit()
+  //   .then(() => sendJSON(conn, { rejectedObjects }))
+  //   .catch((error) => handleError(conn, error));
 };

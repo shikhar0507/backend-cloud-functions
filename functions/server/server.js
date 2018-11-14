@@ -439,8 +439,8 @@ const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
 
-  const templateName = 'subscription';
-  const office = 'IND Innovation Private Limited';
+  const templateName = 'employee';
+  const office = 'Scooby Riders';
 
   // TODO: Add csv file name
   const filePath =
@@ -561,6 +561,8 @@ const handleBulkObject = (conn) => {
 
       checkAuthorizationToken(conn);
 
+      // sendResponse(conn, code.ok, 'done');
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -607,4 +609,42 @@ module.exports = (req, res) => {
   }
 
   checkAuthorizationToken(conn);
+
+  // handleBulkObject(conn);
+
+  // rootCollections
+  //   .activities
+  //   .where('creator', '==', '+918527801093')
+  //   .get()
+  //   .then((docs) => {
+  //     return docs.docs.map((doc) => doc.data());
+  //   })
+  // .then((data) => sendJSON(conn, { data }))
+  // .catch((error) => sendJSON(conn, error));
+
+  // https://stackoverflow.com/questions/24586110/resolve-promises-one-after-another-i-e-in-sequence
+  // const committedBatch = (batch) => batch.commit();
+
+  // (batchesArray || []).forEach((batch) => {
+
+  // });
+
+  // const promise = () => {
+  //   return new Promise((resolve, reject) => {
+  //     setTimeout(() => {
+  //       resolve('Resolved after 2 secs');
+  //     }, 2000);
+  //   });
+  // };
+
+  // const arrSize = 10;
+  // const arr = Array(arrSize).fill(promise, 0, arrSize);
+
+  // const runSerial = (tasks) => {
+  //   let result = Promise.resolve();
+
+  //   result = tasks.then(() => tasks());
+  // };
+
+  // sendResponse(conn, code.ok, 'done');
 };
