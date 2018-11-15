@@ -46,6 +46,7 @@ const getTemplateObject = (doc) => {
 const getTemplates = (conn, locals) =>
   rootCollections
     .activityTemplates
+    .where('timestamp', '>', locals.jsonObject.from)
     .get()
     .then((docs) => {
       docs.forEach((doc) =>
