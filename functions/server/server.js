@@ -45,8 +45,8 @@ const {
 } = require('../admin/utils');
 
 
-const getHeaders = () => {
-  return {
+const getHeaders = (req) => {
+  const headerObject = {
     /** The pre-flight headers */
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
@@ -58,6 +58,14 @@ const getHeaders = () => {
     'Content-Language': 'en-US',
     'Cache-Control': 'no-cache',
   };
+
+  // const isProduction = require('../admin/env').isProduction;
+
+  // if (isProduction) {
+  //   headerObject['Access-Control-Allow-Origin'] = req.get('host');
+  // }
+
+  return headerObject;
 };
 
 
@@ -439,8 +447,8 @@ const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
 
-  const templateName = 'employee';
-  const office = 'Scooby Riders';
+  const templateName = 'customer';
+  const office = 'Puja Capital';
 
   // TODO: Add csv file name
   const filePath =
@@ -543,11 +551,21 @@ const handleBulkObject = (conn) => {
                 return '';
               })();
 
+              // obj.venue.push({
+              //   geopoint,
+              //   venueDescriptor: field,
+              //   address,
+              //   location,
+              // });
+
               obj.venue.push({
-                geopoint,
-                venueDescriptor: field,
-                address,
-                location,
+                venueDescriptor: 'Customer Office',
+                address: 'Siddharth Palace, 301, 3rd Floor, Nehru Place, New Delhi, Delhi 110019',
+                geopoint: {
+                  latitude: 28.548201,
+                  longitude: 77.2496963,
+                },
+                location: 'System 3',
               });
             }
           });
@@ -559,9 +577,13 @@ const handleBulkObject = (conn) => {
 
       console.log(JSON.stringify(myObject, '', 2));
 
-      checkAuthorizationToken(conn);
+      // checkAuthorizationToken(conn);
 
-      // sendResponse(conn, code.ok, 'done');
+      // getUserAuthFromIdToken(conn, {
+      //   uid: 'hwgega5YSLTiDBS2hSd5bSv8HNL2',
+      // });
+
+      sendResponse(conn, code.ok, 'done');
 
       return;
     })
@@ -580,7 +602,7 @@ module.exports = (req, res) => {
   const conn = {
     req,
     res,
-    headers: getHeaders(),
+    headers: getHeaders(req),
   };
 
   if (!new Set()
@@ -609,42 +631,4 @@ module.exports = (req, res) => {
   }
 
   checkAuthorizationToken(conn);
-
-  // handleBulkObject(conn);
-
-  // rootCollections
-  //   .activities
-  //   .where('creator', '==', '+918527801093')
-  //   .get()
-  //   .then((docs) => {
-  //     return docs.docs.map((doc) => doc.data());
-  //   })
-  // .then((data) => sendJSON(conn, { data }))
-  // .catch((error) => sendJSON(conn, error));
-
-  // https://stackoverflow.com/questions/24586110/resolve-promises-one-after-another-i-e-in-sequence
-  // const committedBatch = (batch) => batch.commit();
-
-  // (batchesArray || []).forEach((batch) => {
-
-  // });
-
-  // const promise = () => {
-  //   return new Promise((resolve, reject) => {
-  //     setTimeout(() => {
-  //       resolve('Resolved after 2 secs');
-  //     }, 2000);
-  //   });
-  // };
-
-  // const arrSize = 10;
-  // const arr = Array(arrSize).fill(promise, 0, arrSize);
-
-  // const runSerial = (tasks) => {
-  //   let result = Promise.resolve();
-
-  //   result = tasks.then(() => tasks());
-  // };
-
-  // sendResponse(conn, code.ok, 'done');
 };

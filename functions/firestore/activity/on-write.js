@@ -878,12 +878,13 @@ const removeFromOffice = (activityDoc) => {
     office,
   } = activityDoc.data();
 
+  /** Only remove when the status is `CANCELLED` */
   if (status !== 'CANCELLED') return Promise.resolve();
 
   const phoneNumber
     = activityDoc.get('attachment.Employee Contact.value');
 
-  const runQuery = (query, resolve, reject) => {
+  const runQuery = (query, resolve, reject) =>
     query
       .get()
       .then((activityDocs) => {
@@ -943,7 +944,6 @@ const removeFromOffice = (activityDoc) => {
           });
       })
       .catch(reject);
-  };
 
   const query = rootCollections
     .profiles
@@ -1001,19 +1001,19 @@ const addOfficeToProfile = (locals, batch) => {
 
 
 const addSupplierToOffice = (locals, batch) => {
-  const supplierName = locals.change.after.get('attachment.Name.value');
-  const officeId = locals.change.after.get('officeId');
+  // const supplierName = locals.change.after.get('attachment.Name.value');
+  // const officeId = locals.change.after.get('officeId');
 
-  batch.set(rootCollections
-    .offices
-    .doc(officeId), {
-      suppliersMap: {
-        [supplierName]:
-          toAttachmentValues(locals.change.after),
-      },
-    }, {
-      merge: true,
-    });
+  // batch.set(rootCollections
+  //   .offices
+  //   .doc(officeId), {
+  //     suppliersMap: {
+  //       [supplierName]:
+  //         toAttachmentValues(locals.change.after),
+  //     },
+  //   }, {
+  //     merge: true,
+  //   });
 
   return batch
     .commit()
@@ -1022,18 +1022,18 @@ const addSupplierToOffice = (locals, batch) => {
 
 
 const addCustomerToOffice = (locals, batch) => {
-  const customerName = locals.change.after.get('attachment.Name.value');
+  // const customerName = locals.change.after.get('attachment.Name.value');
 
-  batch.set(rootCollections
-    .offices
-    .doc(locals.change.after.get('officeId')), {
-      customersMap: {
-        [customerName]:
-          toAttachmentValues(locals.change.after),
-      },
-    }, {
-      merge: true,
-    });
+  // batch.set(rootCollections
+  //   .offices
+  //   .doc(locals.change.after.get('officeId')), {
+  //     customersMap: {
+  //       [customerName]:
+  //         toAttachmentValues(locals.change.after),
+  //     },
+  //   }, {
+  //     merge: true,
+  //   });
 
   return batch
     .commit()
