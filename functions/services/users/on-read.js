@@ -47,7 +47,7 @@ const {
  * @returns {void}
  */
 module.exports = (conn) => {
-  if (conn.req.query.q) conn.req.query.q = [];
+  if (!conn.req.query.q) conn.req.query.q = [];
 
   if (conn.req.query.hasOwnProperty('superUser')
     && conn.req.query.superUser === 'true'
