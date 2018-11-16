@@ -165,13 +165,6 @@ module.exports = (conn) => {
           .get('timestamp');
       }
 
-      // FIX for when there are no addendum but only activities
-      // if (!activities.empty && addendum.empty) {
-      //   jsonObject.upto = activities
-      //     .docs[activities.size - 1]
-      //     .get('timestamp');
-      // }
-
       addendum.forEach((doc) =>
         jsonObject.addendum.push(getAddendumObject(doc)));
 
