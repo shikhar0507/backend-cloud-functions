@@ -75,14 +75,16 @@ const manageAddendum = (change, batch) => {
    * None should be 0.
    * The newer value should be greater than the older
    * value.
-   *
-   * If any of the conditions fail, don't delete the docs.
    */
-  // if (!oldFromValue) return Promise.resolve();
-  // if (!newFromValue) return Promise.resolve();
-  // if (newFromValue <= oldFromValue) return Promise.resolve();
-
   if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
+    return batch
+      .commit()
+      .catch(console.error);
+  }
+
+  if (!require('../../admin/env').isProduction) {
+    console.log('Not deleting comments');
+
     return batch
       .commit()
       .catch(console.error);
