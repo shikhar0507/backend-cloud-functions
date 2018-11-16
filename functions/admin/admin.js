@@ -255,6 +255,7 @@ const rootCollections = {
   recipients: db.collection('Recipients'),
   timers: db.collection('Timers'),
   bulkActivities: db.collection('BulkActivities'),
+  versions: db.collection('Versions'),
 };
 
 

@@ -357,6 +357,17 @@ const now = (conn) => {
     return;
   }
 
+  if (!conn.req.query.hasOwnProperty('os')
+    || !isNonEmptyString(conn.req.query.os)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `The request URL does not have a valid 'os' param`
+    );
+
+    return;
+  }
+
   const ddmmyyyyString = getISO8601Date();
 
   Promise
@@ -369,12 +380,42 @@ const now = (conn) => {
         .timers
         .doc(ddmmyyyyString)
         .get(),
+      rootCollections
+        .versions
+        .doc('version')
+        .get(),
     ])
     .then((result) => {
       const [
         updatesDoc,
         timerDoc,
+        appVersionDoc,
       ] = result;
+
+      const updateClient = (() => {
+        const {
+          iosLatestVersion,
+          androidLatestVersion,
+        } = appVersionDoc.data();
+
+        /**
+         * if version is not sent -> false
+         * if version is less -> true
+         * if version is equal -> false
+         * if version is greater -> false
+         */
+        const os = conn.req.query.os;
+        const appVersion = conn.req.query.appVersion;
+        const latestVersion = (() => {
+          if (os === 'android') return androidLatestVersion;
+
+          return iosLatestVersion;
+        })();
+
+        console.log({ appVersion, latestVersion });
+
+        return latestVersion !== appVersion;
+      })();
 
       const batch = db.batch();
       // const timestamp = serverTimestamp;
@@ -424,12 +465,15 @@ const now = (conn) => {
         .all([
           Promise
             .resolve(revokeSession),
+          Promise
+            .resolve(updateClient),
           batch
             .commit(),
         ]);
     })
     .then((result) => sendJSON(conn, {
       revokeSession: result[0],
+      updateClient: result[1],
       success: true,
       timestamp: Date.now(),
       code: code.ok,
