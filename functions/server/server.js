@@ -28,16 +28,12 @@
 const {
   rootCollections,
   auth,
-  db,
-  // serverTimestamp,
-  fieldPath,
 } = require('../admin/admin');
 const {
   code,
 } = require('../admin/responses');
 const {
   now,
-  sendJSON,
   handleError,
   sendResponse,
   disableAccount,
@@ -551,21 +547,11 @@ const handleBulkObject = (conn) => {
                 return '';
               })();
 
-              // obj.venue.push({
-              //   geopoint,
-              //   venueDescriptor: field,
-              //   address,
-              //   location,
-              // });
-
               obj.venue.push({
-                venueDescriptor: 'Customer Office',
-                address: 'Siddharth Palace, 301, 3rd Floor, Nehru Place, New Delhi, Delhi 110019',
-                geopoint: {
-                  latitude: 28.548201,
-                  longitude: 77.2496963,
-                },
-                location: 'System 3',
+                geopoint,
+                venueDescriptor: field,
+                address,
+                location,
               });
             }
           });
@@ -578,12 +564,6 @@ const handleBulkObject = (conn) => {
       console.log(JSON.stringify(myObject, '', 2));
 
       // checkAuthorizationToken(conn);
-
-      // getUserAuthFromIdToken(conn, {
-      //   uid: 'hwgega5YSLTiDBS2hSd5bSv8HNL2',
-      // });
-
-      sendResponse(conn, code.ok, 'done');
 
       return;
     })

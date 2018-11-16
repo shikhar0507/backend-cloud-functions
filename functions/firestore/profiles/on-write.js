@@ -46,6 +46,8 @@ const purgeAddendum = (query, resolve, reject, count) =>
 
       docs.forEach((doc) => batch.delete(doc.ref));
 
+      console.log('Deleted:', docs.size);
+
       /* eslint-disable */
       return batch
         .commit()

@@ -31,7 +31,6 @@ const {
   rootCollections,
   getGeopointObject,
   db,
-  // serverTimestamp,
 } = require('../../admin/admin');
 const {
   validateVenues,
@@ -45,11 +44,6 @@ const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
-
-const moment = require('moment');
-const timestamp = Number(moment().utc().format('x'));
-
-// const serverTimestamp = Date.now();
 
 
 const updateDocsWithBatch = (conn, locals) => {
@@ -66,8 +60,7 @@ const updateDocsWithBatch = (conn, locals) => {
     addendumDocRef,
     schedule: locals.objects.updatedFields.schedule,
     venue: locals.objects.updatedFields.venue,
-    // timestamp: serverTimestamp,
-    timestamp,
+    timestamp: Date.now(),
     attachment: conn.req.body.attachment,
   };
 
@@ -89,7 +82,7 @@ const updateDocsWithBatch = (conn, locals) => {
       user: conn.requester.phoneNumber,
       action: httpsActions.update,
       location: getGeopointObject(conn.req.body.geopoint),
-      timestamp,
+      timestamp: Date.now(),
       userDeviceTimestamp: conn.req.body.timestamp,
       activityId: conn.req.body.activityId,
       /**
@@ -557,7 +550,7 @@ const handleResult = (conn, docs) => {
     batch: db.batch(),
     objects: {
       updatedFields: {
-        timestamp,
+        timestamp: Date.now(),
       },
       permissions: {},
       attachment: activity.get('attachment'),

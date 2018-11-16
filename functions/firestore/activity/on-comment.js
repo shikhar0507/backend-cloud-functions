@@ -39,10 +39,6 @@ const {
   sendResponse,
 } = require('../../admin/utils');
 
-const moment = require('moment');
-
-const timestamp = Number(moment().utc().format('x'));
-
 
 const createDocs = (conn, activity) => {
   const batch = db.batch();
@@ -57,7 +53,7 @@ const createDocs = (conn, activity) => {
     .activities
     .doc(conn.req.body.activityId), {
       addendumDocRef,
-      timestamp,
+      timestamp: Date.now(),
     }, {
       merge: true,
     });
@@ -67,7 +63,7 @@ const createDocs = (conn, activity) => {
     action: httpsActions.comment,
     comment: conn.req.body.comment,
     location: getGeopointObject(conn.req.body.geopoint),
-    timestamp,
+    timestamp: Date.now(),
     userDeviceTimestamp: conn.req.body.timestamp,
     activityId: conn.req.body.activityId,
     isSupportRequest: conn.requester.isSupportRequest,

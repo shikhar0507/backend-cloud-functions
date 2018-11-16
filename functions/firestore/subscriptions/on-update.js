@@ -28,7 +28,6 @@
 const {
   rootCollections,
   db,
-  serverTimestamp,
 } = require('../../admin/admin');
 
 let count = 0;
@@ -45,7 +44,7 @@ const updateSubscriptions = (query, resolve, reject) =>
 
       docs.forEach((doc) => {
         batch.set(doc.ref, {
-          timestamp: serverTimestamp,
+          timestamp: Date.now(),
           /** Not setting this to null will copy the last action (update)
            *  to all the assignees.
            */

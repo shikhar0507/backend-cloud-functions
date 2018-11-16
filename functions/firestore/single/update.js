@@ -10,7 +10,6 @@ const {
 const {
   rootCollections,
   db,
-  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {
@@ -20,13 +19,6 @@ const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
-const {
-  httpsActions,
-} = require('../../admin/constants');
-
-const moment = require('moment');
-// const serverTimestamp = Date.now();
-const timestamp = Number(moment().utc().format('x'));
 
 
 const handleAssignees = (conn, locals) => {

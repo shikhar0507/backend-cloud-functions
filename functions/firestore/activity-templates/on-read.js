@@ -37,7 +37,8 @@ const {
 
 const getDocObject = (doc) => {
   const templateObject = {
-    timestamp: doc.get('timestamp').toDate(),
+    // This is unix timestamp (number)
+    timestamp: doc.get('timestamp'),
     createTime: doc.createTime.toDate(),
     updateTime: doc.createTime.toDate(),
   };

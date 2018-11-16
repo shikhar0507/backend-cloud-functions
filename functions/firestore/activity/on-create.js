@@ -46,10 +46,6 @@ const {
   sendResponse,
 } = require('../../admin/utils');
 
-const moment = require('moment');
-
-const timestamp = Number(moment().utc().format('x'));
-
 
 const getActivityName = (conn) => {
   if (conn.req.body.attachment.hasOwnProperty('Name')) {
@@ -109,8 +105,7 @@ const createDocsWithBatch = (conn, locals) => {
   const activityData = {
     addendumDocRef,
     venue: locals.objects.venueArray,
-    // timestamp: serverTimestamp,
-    timestamp,
+    timestamp: Date.now(),
     office: conn.req.body.office,
     template: conn.req.body.template,
     schedule: locals.objects.scheduleArray,
@@ -137,7 +132,7 @@ const createDocsWithBatch = (conn, locals) => {
     action: httpsActions.create,
     template: conn.req.body.template,
     location: getGeopointObject(conn.req.body.geopoint),
-    timestamp,
+    timestamp: Date.now(),
     userDeviceTimestamp: conn.req.body.timestamp,
     activityId: locals.static.activityId,
     activityName: getActivityName(conn),
@@ -367,12 +362,12 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
       for (const snapShot of snapShots) {
         const filters = snapShot._query._fieldFilters;
-        const argOne = filters[0]._value;
+        const argOne = filters[0].value;
 
         if (!snapShot.empty) {
           successful = false;
           message = `The name '${argOne}' already exists. Please choose`
-            + ` another name.`;
+            + ` another name`;
           break;
         }
       }

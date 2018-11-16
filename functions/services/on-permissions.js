@@ -212,7 +212,12 @@ const validateRequestBody = (conn) => {
 
   /** A person *can't* change their own permissions. */
   if (conn.requester.phoneNumber === conn.req.body.phoneNumber) {
-    logFailedRequest(conn, code.forbidden, 'You cannot set your own permissions', action);
+    logFailedRequest(
+      conn,
+      code.forbidden,
+      'You cannot set your own permissions',
+      action
+    );
 
     return;
   }

@@ -33,12 +33,6 @@ const {
   // serverTimestamp,
 } = require('./admin');
 
-const moment = require('moment');
-
-// const timestamp = admin.firestore.FieldValue.serverTimestamp();
-
-const timestamp = Number(moment().utc().format('x'));
-
 
 /**
  * Ends the response by sending the `JSON` to the client with `200 OK` response.
@@ -227,8 +221,7 @@ const disableAccount = (conn, reason) => {
         .set({
           [conn.requester.phoneNumber]: {
             reason,
-            // disabledTimestamp: serverTimestamp,
-            disabledTimestamp: timestamp,
+            disabledTimestamp: Date.now(),
           },
         }, {
             /** This doc *will* have other fields too. */
@@ -239,7 +232,7 @@ const disableAccount = (conn, reason) => {
         .doc(conn.requester.phoneNumber)
         .set({
           disabledFor: reason,
-          disabledTimestamp: timestamp,
+          disabledTimestamp: Date.now(),
         }, {
             /** This doc may have other fields too. */
             merge: true,
@@ -389,7 +382,7 @@ const now = (conn) => {
 
       if (!timerDoc.exists) {
         batch.set(timerDoc.ref, {
-          timestamp,
+          timestamp: Date.now(),
           // Prevents multiple trigger events for reports.
           sent: false,
         }, {
@@ -404,12 +397,12 @@ const now = (conn) => {
         if (object[conn.req.query.deviceId]
           && updatesDoc.get('latestDeviceId') !== conn.req.query.deviceId) {
           object[conn.req.query.deviceId] = {
-            timestamp,
+            timestamp: Date.now(),
             count: object[conn.req.query.deviceId].count + 1,
           };
         } else {
           object[conn.req.query.deviceId] = {
-            timestamp,
+            timestamp: Date.now(),
             count: 1,
           };
         }

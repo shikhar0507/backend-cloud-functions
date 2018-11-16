@@ -9,7 +9,6 @@ const {
 const {
   rootCollections,
   db,
-  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {
@@ -24,10 +23,6 @@ const {
   httpsActions,
 } = require('../../admin/constants');
 
-const moment = require('moment');
-// const serverTimestamp = Date.now();
-
-const timestamp = Number(moment().utc().format('x'));
 
 const logRequest = (options) => {
   const {
@@ -79,39 +74,6 @@ const getActivityName = (options) => {
 
   return `${templateName.toUpperCase()}:`
     + ` ${requester.displayName || requester.phoneNumber}`;
-};
-
-
-const getCanEditValue = (options) => {
-  const {
-    canEditRule,
-    phoneNumber,
-    permissions,
-    requestBodyTemplate,
-    attachmentPhoneNumbers,
-  } = options;
-
-  if (canEditRule === 'NONE') {
-    if (requestBodyTemplate === 'office') {
-      return attachmentPhoneNumbers.includes(phoneNumber);
-    }
-
-    return false;
-  }
-
-  if (canEditRule === 'CREATOR') {
-    return permissions[phoneNumber].isCreator;
-  }
-
-  if (canEditRule === 'ADMIN') {
-    return permissions[phoneNumber].isAdmin;
-  }
-
-  if (canEditRule === 'EMPLOYEE') {
-    return permissions[phoneNumber].isEmployee;
-  }
-
-  return true;
 };
 
 
@@ -170,7 +132,7 @@ const createDocs = (conn, locals) => {
     .set(locals
       .activityObject
       .addendumDocRef, {
-        timestamp,
+        timestamp: Date.now(),
         activityData: locals.activityObject,
         user: conn.requester.phoneNumber,
         userDisplayName: conn.requester.displayName,
@@ -378,7 +340,7 @@ const handleOffice = (conn, locals) => {
             });
 
           const adminActivityObject = {
-            timestamp,
+            timestamp: Date.now(),
             office,
             officeId,
             activityName: `ADMIN: ${conn.requester.phoneNumber}`,
@@ -396,7 +358,7 @@ const handleOffice = (conn, locals) => {
             template: 'admin',
           };
           const subscriptionActivityObject = {
-            timestamp,
+            timestamp: Date.now(),
             office,
             officeId,
             /** Special change by `Parastish` for subscription only */
@@ -415,7 +377,7 @@ const handleOffice = (conn, locals) => {
             template: 'subscription',
           };
           const adminAddendumObject = {
-            timestamp,
+            timestamp: Date.now(),
             activityData: adminActivityObject,
             user: conn.requester.phoneNumber,
             userDisplayName: conn.requester.displayName,
@@ -429,7 +391,7 @@ const handleOffice = (conn, locals) => {
             isSupportRequest: conn.requester.isSupportRequest,
           };
           const subscriptionAddendumObject = {
-            timestamp,
+            timestamp: Date.now(),
             activityData: subscriptionActivityObject,
             user: conn.requester.phoneNumber,
             userDisplayName: conn.requester.displayName,
@@ -646,7 +608,7 @@ const handleResult = (conn, result) => {
     activityObject: {
       /** Missing addendumDocRef, venue, schedule, attachment, activityName, */
       officeId,
-      timestamp,
+      timestamp: Date.now(),
       office: conn.req.body.office,
       template: conn.req.body.template,
       creator: conn.requester.phoneNumber,

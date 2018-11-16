@@ -31,17 +31,12 @@ const { httpsActions } = require('../../admin/constants');
 const {
   db,
   rootCollections,
-  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
-
-const moment = require('moment');
-
-const timestamp = Number(moment().utc().format('x'));
 
 
 const createDocs = (conn, activity) => {
@@ -58,13 +53,13 @@ const createDocs = (conn, activity) => {
     .doc(conn.req.body.activityId), {
       addendumDocRef,
       status: conn.req.body.status,
-      timestamp,
+      timestamp: Date.now(),
     }, {
       merge: true,
     });
 
   batch.set(addendumDocRef, {
-    timestamp,
+    timestamp: Date.now(),
     activityData: activity.data(),
     user: conn.requester.phoneNumber,
     action: httpsActions.changeStatus,

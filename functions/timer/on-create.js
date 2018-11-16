@@ -45,6 +45,9 @@ module.exports = (doc) => {
     return Promise.resolve();
   }
 
+  /** Not sending the email from non-production version. It creates confusion. */
+  if (!env.isProduction) return Promise.resolve();
+
   return Promise
     .all([
       rootCollections
@@ -71,7 +74,7 @@ module.exports = (doc) => {
         .forEach((email) => {
           const html = `
         <p>Date (DD-MM-YYYY): ${doc.id}</p>
-        <p>Timestamp: ${new Date(doc.get('timestamp')).toISOString()}</p>
+        <p>Timestamp: ${new Date(doc.get('timestamp')).toJSON()}</p>
         `;
 
           messages.push({
