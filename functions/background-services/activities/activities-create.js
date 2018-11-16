@@ -17,7 +17,7 @@ module.exports = (bulkDoc) => {
     timestamp,
   } = bulkDoc.data();
 
-  const batchesArray = [];
+  const batchFactoriesArray = [];
 
   filteredObjectsArray.forEach((activity) => {
     const batch = db.batch();
@@ -55,54 +55,24 @@ module.exports = (bulkDoc) => {
       batch.set(assigneeRef, { canEdit, addToInclude });
     });
 
-    batchesArray.push(batch);
+    const batchFactory = () => batch.commit();
+
+    batchFactoriesArray.push(batchFactory);
   });
 
-  const batchCommitter =
-    (start = 0, end) => {
-      let nextIndex = start;
-      let iterationCount = 0;
+  const executeSequentially = (promiseFactories) => {
+    let result = Promise.resolve();
 
-      const rangeIterator = {
-        next: () => {
-          let result;
+    promiseFactories.forEach((promiseFactory, index) => {
+      result = result
+        .then(promiseFactory)
+        .then(() => console.log('committed index', index));
+    });
 
-          if (nextIndex <= end) {
-            result = {
-              value: nextIndex,
-              done: false,
-              promise: batchesArray[nextIndex].commit(),
-            };
+    return result;
+  };
 
-            nextIndex++;
-            iterationCount++;
-
-            return result;
-          }
-
-          return { value: iterationCount, done: true };
-        },
-      };
-
-      return rangeIterator;
-    };
-
-  return Promise
-    .resolve()
-    .then(() => {
-      const start = 0;
-      const end = batchesArray[batchesArray.length - 1];
-      const it = batchCommitter(start, end);
-      const result = it.next();
-
-      while (!result.done) {
-        result
-          .promise
-          .then(() => it.next())
-          .catch(console.error);
-      }
-
-      return;
-    })
+  return executeSequentially(batchFactoriesArray)
+    .then((result) => console.log({ result }))
     .catch(console.error);
 };
