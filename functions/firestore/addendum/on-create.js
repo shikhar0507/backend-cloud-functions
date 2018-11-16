@@ -730,6 +730,6 @@ module.exports = (addendumDoc) => {
 
       return handlePayrollReport(addendumDoc, batch);
     })
-    .then((batch) => batch.commit())
+    .then(() => batch.commit())
     .catch(console.error);
 };
