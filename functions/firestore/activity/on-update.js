@@ -297,7 +297,8 @@ const handleAssignees = (conn, locals) => {
     return;
   }
 
-  Promise.all(promises)
+  Promise
+    .all(promises)
     .then((snapShots) => {
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;

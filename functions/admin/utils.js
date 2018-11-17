@@ -407,9 +407,9 @@ const now = (conn) => {
         const os = conn.req.query.os;
         const appVersion = conn.req.query.appVersion;
         const latestVersion = (() => {
-          if (os === 'android') return androidLatestVersion;
+          if (os === 'ios') return iosLatestVersion;
 
-          return iosLatestVersion;
+          return androidLatestVersion;
         })();
 
         console.log({ appVersion, latestVersion });

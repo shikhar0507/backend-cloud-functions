@@ -316,13 +316,14 @@ module.exports = (conn, locals) => {
     return locals.responseObject;
   })();
 
-  const batch = db.batch();
 
   if (duplicatedEntriesFound) {
     sendResponse(conn, code.badRequest, 'Duplicate entries found');
 
     return;
   }
+
+  const batch = db.batch();
 
   batch
     .set(rootCollections

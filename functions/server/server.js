@@ -42,24 +42,24 @@ const {
 
 
 const getHeaders = (req) => {
+  const NUM_SECS_IN_A_DAY = 86400;
   const headerObject = {
     /** The pre-flight headers */
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
     'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
       'Content-Type, Accept',
-    // 30 days
-    'Access-Control-Max-Age': 2592000,
+    'Access-Control-Max-Age': NUM_SECS_IN_A_DAY,
     'Content-Type': 'application/json',
     'Content-Language': 'en-US',
     'Cache-Control': 'no-cache',
   };
 
-  // const isProduction = require('../admin/env').isProduction;
+  const isProduction = require('../admin/env').isProduction;
 
-  // if (isProduction) {
-  //   headerObject['Access-Control-Allow-Origin'] = req.get('host');
-  // }
+  if (isProduction) {
+    headerObject['Access-Control-Allow-Origin'] = req.get('host');
+  }
 
   return headerObject;
 };

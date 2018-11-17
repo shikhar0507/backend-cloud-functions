@@ -815,6 +815,10 @@ const assignToActivities = (locals) => {
         branchActivitiesQuery,
       ] = result;
 
+      /**
+       * This person is an assignee of the activity, and if they are
+       * an admin, this array will include their phone number
+       */
       const isAdmin = locals.adminsCanEdit.includes(phoneNumber);
       const departmentBatch = db.batch();
       const branchBatch = db.batch();
@@ -1077,9 +1081,9 @@ module.exports = (change, context) => {
       .get());
   }
 
-  const toUpdateNameMap =
-    change.after.get('attachment').hasOwnProperty('Name')
-    && change.after.get('template') !== 'office';
+  // const toUpdateNameMap =
+  //   change.after.get('attachment').hasOwnProperty('Name')
+  //   && change.after.get('template') !== 'office';
 
   return Promise
     .all(promises)
@@ -1247,33 +1251,33 @@ module.exports = (change, context) => {
 
       return batch;
     })
-    .then(() => {
-      if (!toUpdateNameMap) return Promise.resolve();
+    // .then(() => {
+    //   if (!toUpdateNameMap) return Promise.resolve();
 
-      return rootCollections
-        .offices
-        .doc(change.after.get('officeId'))
-        .get();
-    })
-    .then((officeDoc) => {
-      if (!officeDoc) return Promise.resolve();
+    //   return rootCollections
+    //     .offices
+    //     .doc(change.after.get('officeId'))
+    //     .get();
+    // })
+    // .then((officeDoc) => {
+    //   if (!officeDoc) return Promise.resolve();
 
-      if (locals.change.after.get('template') === 'office') {
-        return Promise.resolve();
-      }
+    //   if (locals.change.after.get('template') === 'office') {
+    //     return Promise.resolve();
+    //   }
 
-      batch.set(officeDoc.ref, {
-        namesMap: {
-          [`${change.after.get('template')}`]: {
-            [`${change.after.get('attachment.Name.value')}`]: change.after.get('attachment.Name.value'),
-          },
-        },
-      }, {
-          merge: true,
-        });
+    //   batch.set(officeDoc.ref, {
+    //     namesMap: {
+    //       [`${change.after.get('template')}`]: {
+    //         [`${change.after.get('attachment.Name.value')}`]: change.after.get('attachment.Name.value'),
+    //       },
+    //     },
+    //   }, {
+    //       merge: true,
+    //     });
 
-      return batch;
-    })
+    //   return batch;
+    // })
     .then(() => {
       const template = change.after.get('template');
 

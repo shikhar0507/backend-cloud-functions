@@ -606,7 +606,9 @@ const handleResult = (conn, result) => {
     allPhoneNumbers: new Set(conn.req.body.share),
     templateObject: templateQueryResult.docs[0].data(),
     activityObject: {
-      /** Missing addendumDocRef, venue, schedule, attachment, activityName, */
+      /**
+       * Missing addendumDocRef, venue, schedule, attachment, activityName,
+       */
       officeId,
       timestamp: Date.now(),
       office: conn.req.body.office,
