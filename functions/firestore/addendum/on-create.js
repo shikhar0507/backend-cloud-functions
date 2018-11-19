@@ -464,19 +464,20 @@ const handleDsrReport = (addendumDoc, batch) => {
     return handleDutyRosterReport(addendumDoc, batch);
   }
 
+  console.log('Debugging DSR');
+
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
   const timestamp = new Date(addendumDoc.get('timestamp'));
   const schedulesArray = addendumDoc.get('activityData.schedule');
-
   const promises = [];
+  const datesArray = [];
 
   schedulesArray.forEach((scheduleObject) => {
-    const {
-      startTime,
-    } = scheduleObject;
+    const { startTime } = scheduleObject;
 
     const dateString = startTime ? new Date(startTime).toDateString() : '';
+    datesArray.push(dateString);
 
     const promise = rootCollections
       .inits
@@ -494,11 +495,11 @@ const handleDsrReport = (addendumDoc, batch) => {
     .then((snapShots) => {
       snapShots.forEach((snapShot, index) => {
         const ref = getRef(snapShot);
-        const filters = snapShot._query._fieldFilters;
-        /** The dateString should be the same in this doc as
+        /** 
+         * The `dateString` should be the same in this doc as
          * of the schedule.startTime for which the query was executed.
          */
-        const dateString = filters[2]._value;
+        const dateString = datesArray[index];
 
         const initDocData = (() => {
           if (snapShot.empty) {
