@@ -60,13 +60,6 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
 const sendResponse = (conn, statusCode, message = '') => {
   conn.res.writeHead(statusCode, conn.headers);
 
-  // console.log({
-  //   message,
-  //   requester: conn.requester,
-  //   reqBody: conn.req.body,
-  //   url: conn.req.url,
-  // });
-
   conn.res.end(JSON.stringify({
     message,
     /** 2xx codes denote success. */
@@ -84,12 +77,17 @@ const sendResponse = (conn, statusCode, message = '') => {
  * @returns {void}
  */
 const handleError = (conn, error) => {
-  console.error({ error });
+  console.error({
+    error,
+    requestBody: conn.req.body,
+    url: conn.req.url,
+    requester: conn.requester,
+  });
 
   sendResponse(
     conn,
     code.internalServerError,
-    'Please try again later.'
+    'Please try again later'
   );
 };
 
@@ -206,6 +204,8 @@ const disableAccount = (conn, reason) => {
   const messageBody = `
   <p>
     The user '${conn.requester.phoneNumber}' has been disabled in Growthfile.
+    <br>
+    <strong>Project Id</strong>: ${process.env.GCLOUD_PROJECT}
     <br>
     <strong>Reason</strong>: ${reason}
     <br>
@@ -412,7 +412,11 @@ const now = (conn) => {
           return androidLatestVersion;
         })();
 
-        console.log({ appVersion, latestVersion });
+        console.log({
+          appVersion,
+          latestVersion,
+          requester: conn.requester,
+        });
 
         return latestVersion !== appVersion;
       })();
