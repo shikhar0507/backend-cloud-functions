@@ -27,16 +27,27 @@
 
 const admin = require('firebase-admin');
 const appInitOptions = (() => {
-  const sac = require('./service_account');
-  const credential = admin.credential.cert(sac);
+  const serviceAccountKeyPath = (() => {
+    const path = require('path');
+    const env = require('./env');
 
-  /**
-   * Service account key is available in Cloud Functions environment,
-   *  but not while running the cloud functions locally.
-   */
-  if (process.env.NODE_ENV && process.env.NODE_ENV.PRODUCTION) {
-    return {};
-  }
+    /**
+     * Service account key is available in Cloud Functions environment,
+     *  but not while running the cloud functions locally.
+     */
+    if (process.env.NODE_ENV && process.env.NODE_ENV.PRODUCTION) {
+      return {};
+    }
+
+    if (env.isProduction) {
+      return path.join(__dirname, '../', 'prod.json');
+    }
+
+    return path.join(__dirname, '../', 'dev.json');
+  })();
+
+  const serviceAccountKey = require(serviceAccountKeyPath);
+  const credential = admin.credential.cert(serviceAccountKey);
 
   return { credential };
 })();
