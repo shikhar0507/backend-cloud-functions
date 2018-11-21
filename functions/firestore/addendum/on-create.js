@@ -128,7 +128,7 @@ const getDisplayText = (addendumDoc) => {
 };
 
 const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
-  const NUM_SECS_IN_DAY = 86400000;
+  const NUM_MILLI_SECS_IN_DAY = 86400000;
   const initDoc = payrollInitDocQuery.docs[0];
   const displayText = getDisplayText(addendumDoc);
   const phoneNumber = addendumDoc.get('user');
@@ -160,7 +160,7 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
         // payrollObject[phoneNumber][date] = displayText;
         delete payrollObject[phoneNumber][date];
 
-        startTime += NUM_SECS_IN_DAY;
+        startTime += NUM_MILLI_SECS_IN_DAY;
       }
     });
   }
@@ -175,7 +175,7 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
       const date = new Date(startTime).getDate();
       payrollObject[phoneNumber][date] = displayText;
 
-      startTime += NUM_SECS_IN_DAY;
+      startTime += NUM_MILLI_SECS_IN_DAY;
     }
   });
 
@@ -197,7 +197,7 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
         /** Leave CANCELLED, so not reflecting that in the final payroll report */
         payrollObject[phoneNumber][date] = deleteField();
 
-        startTime += NUM_SECS_IN_DAY;
+        startTime += NUM_MILLI_SECS_IN_DAY;
       }
     });
   }
@@ -532,7 +532,6 @@ const handleDsrReport = (addendumDoc, batch) => {
           initDocData.closureObject = getClosureObject(addendumDoc, snapShot);
         }
 
-        // FIXME: This `ref` is undefined sometimes.
         batch.set(ref,
           initDocData, {
             merge: true,
