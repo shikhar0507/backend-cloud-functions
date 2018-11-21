@@ -28,6 +28,7 @@
 const {
   rootCollections,
   auth,
+  db,
 } = require('../admin/admin');
 const {
   code,
@@ -69,6 +70,15 @@ const handleAdminUrl = (conn, urlParts) => {
   const resource = urlParts[2];
 
   console.log('resource', resource);
+
+
+  if (conn.requester.isSupportRequest
+    && !hasSupportClaims(conn.requester.customClaims)) {
+    // TODO: Send instant log here (probably)
+    sendResponse(conn, code.forbidden, 'You cannot make support requests');
+
+    return;
+  }
 
   if (resource === 'read') {
     require('../firestore/offices/on-read')(conn);
@@ -443,12 +453,13 @@ const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
 
-  const templateName = 'customer';
-  const office = 'Puja Capital';
+  // TODO: Filll this
+  const templateName = '';
+  const office = '';
 
   // TODO: Add csv file name
   const filePath =
-    path.join(process.cwd(), 'file.csv');
+    path.join(process.cwd(), 'data.csv');
 
   console.log({ filePath });
 
@@ -563,7 +574,7 @@ const handleBulkObject = (conn) => {
 
       console.log(JSON.stringify(myObject, '', 2));
 
-      // checkAuthorizationToken(conn);
+      checkAuthorizationToken(conn);
 
       return;
     })
@@ -585,9 +596,14 @@ module.exports = (req, res) => {
     headers: getHeaders(req),
   };
 
+  /** For handling CORS */
+  if (req.method === 'HEAD' || req.method === 'OPTIONS') {
+    sendResponse(conn, code.noContent);
+
+    return;
+  }
+
   if (!new Set()
-    .add('OPTIONS')
-    .add('HEAD')
     .add('GET')
     .add('POST')
     .add('PATCH')
@@ -603,12 +619,7 @@ module.exports = (req, res) => {
     return;
   }
 
-  /** For handling CORS */
-  if (req.method === 'HEAD' || req.method === 'OPTIONS') {
-    sendResponse(conn, code.noContent);
-
-    return;
-  }
+  console.log('reqBody:', conn.req.body);
 
   checkAuthorizationToken(conn);
 };
