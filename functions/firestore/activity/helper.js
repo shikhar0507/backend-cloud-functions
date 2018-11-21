@@ -62,29 +62,16 @@ const validateSchedules = (body, scheduleNames) => {
   const schedules = body.schedule;
 
   if (!Array.isArray(schedules)) {
-    let abbr = 'object';
-
-    if (scheduleNames.length > 1) {
-      abbr = 'objects';
-    }
-
     messageObject.isValid = false;
-    messageObject.message = `The 'schedule' field in the request body should`
-      + ` be an array with ${scheduleNames.length} ${abbr}`;
+    messageObject.message = `The schedule should be an array of objects`;
 
     return messageObject;
   }
 
   if (scheduleNames.length !== schedules.length) {
-    let abbr = 'schedule';
-
-    if (scheduleNames.length > 1) {
-      abbr = 'schedules';
-    }
-
     messageObject.isValid = false;
-    messageObject.message = `Expected ${scheduleNames.length} ${abbr} in the`
-      + ` request body. Found ${schedules.length}`;
+    messageObject.message = `Expected ${scheduleNames.length}`
+      + ` venues. Found ${schedules.length}`;
 
     return messageObject;
   }
@@ -104,22 +91,22 @@ const validateSchedules = (body, scheduleNames) => {
 
     if (!scheduleObject.hasOwnProperty('name')) {
       messageObject.isValid = false;
-      messageObject.message = `The Object at position ${i} is missing`
-        + ` the 'name' field in the schedule array`;
+      messageObject.message = `Missing the field 'name' in schedule at`
+        + ` position ${i}`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('startTime')) {
       messageObject.isValid = false;
-      messageObject.message = `The Object at the position ${i} is missing`
-        + ` the 'startTime' field in the schedule array`;
+      messageObject.message = `Missing the field 'startTime' in schedule at`
+        + ` position ${i}`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('endTime')) {
       messageObject.isValid = false;
-      messageObject.message = `The Object at the position ${i} is missing`
-        + ` the 'endTime' field in the schedule array`;
+      messageObject.message = `Missing the field 'endTime' in schedule at`
+        + ` position ${i}`;
       break;
     }
 
@@ -129,8 +116,7 @@ const validateSchedules = (body, scheduleNames) => {
 
     if (seenNamesSet.has(name)) {
       messageObject.isValid = false;
-      messageObject.message = `Each object in the 'schedule' array must`
-        + ` have distinct value in the field 'name'`;
+      messageObject.message = `Duplicate schedule objects found`;
       break;
     }
 
@@ -139,8 +125,7 @@ const validateSchedules = (body, scheduleNames) => {
 
     if (!isNonEmptyString(name)) {
       messageObject.isValid = false;
-      messageObject.message = `The Object at position ${i} has an invalid`
-        + ` value in the field 'name' in the schedule array`;
+      messageObject.message = `Invalid schedule name at position ${i}`;
       break;
     }
 
@@ -175,16 +160,15 @@ const validateSchedules = (body, scheduleNames) => {
 
       if (startTime > endTime) {
         messageObject.isValid = false;
-        messageObject.message = `The value of 'startTime' is greater than the`
-          + ` value of 'endTime' in the schedule '${name}'`;
+        messageObject.message = `Schedule '${name}' has start time after`
+          + ` the end time`;
         break;
       }
     }
 
     if (!scheduleNames.includes(name)) {
       messageObject.isValid = false;
-      messageObject.message = `The value '${name}' is an invalid schedule name`
-        + ` Use: ${scheduleNames}`;
+      messageObject.message = `'${name}' is not a valid schedule name`;
       break;
     }
 
@@ -213,8 +197,7 @@ const validateVenues = (body, venueDescriptors) => {
 
   if (!body.hasOwnProperty('venue')) {
     messageObject.isValid = false;
-    messageObject.message = `The 'venue' field is missing from the`
-      + ` request body.`;
+    messageObject.message = `Missing the field 'venue' from the request body`;
 
     return messageObject;
   }
@@ -223,22 +206,15 @@ const validateVenues = (body, venueDescriptors) => {
 
   if (!Array.isArray(venues)) {
     messageObject.isValid = false;
-    messageObject.message = `The 'venue' field in the request body should`
-      + ` be an array of objects.`;
+    messageObject.message = `The field venue should be an 'array' of objects`;
 
     return messageObject;
   }
 
   if (venueDescriptors.length !== venues.length) {
-    let abbr = 'venue';
-
-    if (venueDescriptors.length > 1) {
-      abbr = 'venues';
-    }
-
     messageObject.isValid = false;
     messageObject.message = `Expected ${venueDescriptors.length}`
-      + ` ${abbr} in the request body. Found ${venues.length}.`;
+      + ` venues. Found ${venues.length}`;
 
     return messageObject;
   }
@@ -251,29 +227,30 @@ const validateVenues = (body, venueDescriptors) => {
 
     if (!venueObject.hasOwnProperty('venueDescriptor')) {
       messageObject.isValid = false;
-      messageObject.message = `The venue object at position ${i} is missing the`
-        + ` field 'venueDescriptor' in venues array.`;
+      messageObject.message = `The venue at position ${i} is missing`
+        + ` the field 'venueDescriptor'`;
       break;
     }
 
     if (!venueObject.hasOwnProperty('address')) {
       messageObject.isValid = false;
-      messageObject.message = `The venue object at position ${i} is missing the`
-        + ` field 'address' in venues array.`;
+      messageObject.message = `The venue at position ${i} is missing`
+        + ` the field 'address'`;
       break;
     }
 
     if (!venueObject.hasOwnProperty('geopoint')) {
       messageObject.isValid = false;
-      messageObject.message = `The venue object at position ${i} is missing the`
-        + ` field 'geopoint' in venues array.`;
+      messageObject.message = `The venue at position ${i} is missing`
+        + ` the field 'geopoint'`;
       break;
     }
 
     if (!venueObject.hasOwnProperty('location')) {
       messageObject.isValid = false;
-      messageObject.message = `The venue object at position ${i} is missing the`
-        + ` field 'location' in venues array.`;
+
+      messageObject.message = `The venue at position ${i} is missing`
+        + ` the field 'location'`;
       break;
     }
 
@@ -283,8 +260,7 @@ const validateVenues = (body, venueDescriptors) => {
 
     if (seenDescriptorsSet.has(venueDescriptor)) {
       messageObject.isValid = false;
-      messageObject.message = `Each object in the 'venue' array must`
-        + ` have distinct value in the field 'venueDescriptor'`;
+      messageObject.message = `Duplicate venues found`;
       break;
     }
 
@@ -293,9 +269,7 @@ const validateVenues = (body, venueDescriptors) => {
 
     if (!isNonEmptyString(venueDescriptor)) {
       messageObject.isValid = false;
-      messageObject.message = `In the venue object at position ${i},`
-        + ` the 'venueDescriptor' is not valid. Expected a 'non-empty'`
-        + ` string. Found '${venueDescriptor}'.`;
+      messageObject.message = `The venue at position ${i} is an invalid string`;
       break;
     }
 
@@ -308,9 +282,9 @@ const validateVenues = (body, venueDescriptors) => {
 
     if (typeof address !== 'string') {
       messageObject.isValid = false;
-      messageObject.message = `In the venue object at position ${i},`
-        + ` the 'address' is not valid. Expected 'string'.`
-        + ` Found '${typeof address}'.`;
+
+      messageObject.message = `The venue at position ${i} has an`
+        + ` invalid address`;
       break;
     }
 
@@ -320,21 +294,9 @@ const validateVenues = (body, venueDescriptors) => {
       break;
     }
 
-    /** Client can send empty string in the request. */
-    if (typeof venueObject.geopoint !== 'object') {
-      messageObject.isValid = false;
-      messageObject.message = `In the venue object at position ${i}, the`
-        + ` 'geopoint' is not valid. Expected 'object'.`
-        + ` Found '${typeof venueObject.geopoint}'.`;
-      break;
-    }
-
     if (!isValidGeopoint(venueObject.geopoint)) {
       messageObject.isValid = false;
-      messageObject.message = `In the venue object at position ${i}, the`
-        + ` ' geopoint' is invalid. Make sure to include the fields`
-        + ` 'latitude' and 'longitude' are present in the object with`
-        + ` proper range for each field.`;
+      messageObject.message = `Invalid venue object at position ${i}`;
       break;
     }
 
@@ -411,8 +373,7 @@ const filterAttachment = (options) => {
 
   if (templateAttachmentFields.length !== bodyAttachmentFields.length) {
     messageObject.isValid = false;
-    messageObject.message = `The attachment in the request body should`
-      + ` have the following fields: ${templateAttachmentFields}.`;
+    messageObject.message = `Fields missmatch error in the attachment object`;
 
     return messageObject;
   }
