@@ -24,6 +24,7 @@
 
 'use strict';
 
+
 const {
   rootCollections,
   db,
@@ -79,7 +80,8 @@ module.exports = (conn) => {
           url: conn.req.url,
           updatesDoc: doc.data(),
         }, ' ', 2),
-        subject: 'A new error showed up in the Growthfile Frontend',
+        subject: `New Error in Growthfile Frontend`
+          + ` (${process.env.GCLOUD_PROJECT})`,
         action: reportingActions.clientError,
       });
 
