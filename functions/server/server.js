@@ -58,9 +58,9 @@ const getHeaders = (req) => {
 
   const isProduction = require('../admin/env').isProduction;
 
-  if (isProduction) {
-    headerObject['Access-Control-Allow-Origin'] = req.get('host');
-  }
+  // if (isProduction) {
+  //   headerObject['Access-Control-Allow-Origin'] = req.get('host');
+  // }
 
   return headerObject;
 };
@@ -416,34 +416,21 @@ const checkAuthorizationToken = (conn) => {
     .verifyIdToken(result.authToken, checkRevoked)
     .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => {
-      if (error.code === 'auth/id-token-revoked') {
-        sendResponse(
-          conn,
-          code.unauthorized,
-          'The idToken was revoked recently. Please re-authenticate.'
-        );
+      const reAuthMessage = 'Please restart the app';
+
+      if (error.code.startsWith('auth/')) {
+        sendResponse(conn, code.unauthorized, reAuthMessage);
 
         return;
       }
 
-      if (error.code === 'auth/argument-error') {
-        sendResponse(
-          conn,
-          code.unauthorized,
-          `The idToken in the request header is invalid/expired.`
-          + ` Please re-authenticate.`
-        );
-
-        return;
-      }
-
+      // Something crashed.
       console.error(error);
 
       sendResponse(
         conn,
         code.forbidden,
-        `There was an error processing the idToken sent in the request.`
-        + ` Please re-authenticate.`
+        ` Please re-authenticate.`
       );
     });
 };
@@ -456,6 +443,10 @@ const handleBulkObject = (conn) => {
   // TODO: Filll this
   const templateName = '';
   const office = '';
+  const geopoint = {
+    latitude: '',
+    longitude: '',
+  };
 
   // TODO: Add csv file name
   const filePath =
@@ -483,10 +474,7 @@ const handleBulkObject = (conn) => {
 
       const myObject = {
         timestamp: Date.now(),
-        geopoint: {
-          latitude: 28.6998822,
-          longitude: 77.2549399,
-        },
+        geopoint,
         template: templateName,
         office,
         data: [],

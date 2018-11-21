@@ -54,6 +54,10 @@ const logRequest = (options) => {
       });
     });
 
+  const isProduction = require('../../admin/env').isProduction;
+
+  if (!isProduction) return sendResponse(conn, responseCode, responseMessage);
+
   sgMail
     .sendMultiple(messages)
     .then(() => sendResponse(conn, responseCode, responseMessage))
@@ -330,14 +334,14 @@ const handleOffice = (conn, locals) => {
             .collection('Addendum')
             .doc();
 
-            const office = conn.req.body.office;
-            const officeId = locals.activityRef.id;
+          const office = conn.req.body.office;
+          const officeId = locals.activityRef.id;
 
-            console.log({
-              officeId,
-              adminActivityRef: adminActivityRef.id,
-              subscriptionActivityRef: subscriptionActivityRef.id,
-            });
+          console.log({
+            officeId,
+            adminActivityRef: adminActivityRef.id,
+            subscriptionActivityRef: subscriptionActivityRef.id,
+          });
 
           const adminActivityObject = {
             timestamp: Date.now(),

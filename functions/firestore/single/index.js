@@ -1,5 +1,6 @@
 'use strict';
 
+
 const {
   sendResponse,
   hasSupportClaims,
@@ -17,15 +18,11 @@ const {
 
 
 module.exports = (conn) => {
-  /**
-   * Unlike the client-side APIs, this one simply replaces
-   * or creates the documents.
-   */
-  if (conn.req.method !== 'PUT') {
+  if (conn.req.method !== 'POST') {
     sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed. Use 'PUT'`
+      `${conn.req.method} is not allowed. Use 'POST'`
     );
 
     return;
@@ -40,14 +37,18 @@ module.exports = (conn) => {
     return;
   }
 
-  /** Only `support` can create an office */
-  if (conn.req.body.template === 'office'
-    && !hasSupportClaims(conn.requester.customClaims)) {
-    // disableAccount(conn, 'You do not have the permission to access this resource');
+  if (conn.req.body.template === 'office') {
+    if (!hasSupportClaims(conn.requester.customClaims)) {
+      sendResponse(conn, code.forbidden, 'You are not authorized to create Offices');
 
-    sendResponse(conn, 'You do not have the permission to access this resource');
+      return;
+    }
 
-    return;
+    if (!conn.requester.isSupportRequest) {
+      sendResponse(conn, code.forbidden, 'You do not have the permission to access this resource');
+
+      return;
+    }
   }
 
   if (!new Set()
