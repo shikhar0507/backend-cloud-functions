@@ -139,7 +139,9 @@ const createDocsWithBatch = (conn, locals) => {
     isSupportRequest: conn.requester.isSupportRequest,
   };
 
-  if (conn.req.body.template === 'check-in') {
+  if (conn.req.body.template === 'check-in'
+    && conn.req.body.venue[0].geopoint.latitude
+    && conn.req.body.venue[0].geopoint.longitude) {
     const geopointOne = {
       _latitude: conn.req.body.geopoint.latitude,
       _longitude: conn.req.body.geopoint.longitude,
