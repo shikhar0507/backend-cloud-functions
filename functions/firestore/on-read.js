@@ -165,6 +165,12 @@ module.exports = (conn) => {
           .get('timestamp');
       }
 
+      console.log('sending in /read', {
+        activities: activities.size,
+        addendum: addendum.size,
+        subscriptions: subscriptions.size,
+      });
+
       addendum.forEach((doc) =>
         jsonObject.addendum.push(getAddendumObject(doc)));
 
