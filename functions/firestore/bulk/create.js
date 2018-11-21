@@ -9,11 +9,10 @@ const {
   isE164PhoneNumber,
   sendJSON,
   sendResponse,
-  handleError,
 } = require('../../admin/utils');
 const {
   db,
-  // serverTimestamp,
+  serverTimestamp,
   rootCollections,
   getGeopointObject,
 } = require('../../admin/admin');
@@ -21,13 +20,6 @@ const {
   templatesSet,
   httpsActions,
 } = require('../../admin/constants');
-const {
-  code,
-} = require('../../admin/responses');
-
-const moment = require('moment');
-// const serverTimestamp = Date.now();
-const timestamp = Number(moment().utc().format('x'));
 
 const getCanEditValue = (options) => {
   const {
@@ -59,6 +51,8 @@ const getCanEditValue = (options) => {
 
 
 module.exports = (conn, locals) => {
+  const batchesArray = [];
+
   const objectWithError = (options) => {
     const {
       object,
@@ -72,30 +66,16 @@ module.exports = (conn, locals) => {
   };
 
   const hasName =
-    locals
-      .templateDoc
-      .get('attachment')
-      .hasOwnProperty('Name');
+    locals.templateDoc.get('attachment').hasOwnProperty('Name');
   const namesMap = locals.officeDoc.get(`namesMap`) || {};
-  const namesSet = new Set();
-  let duplicatedEntriesFound = false;
 
   console.log('conn.req.body.data', conn.req.body.data.length);
-
-  const activityObjects = [];
 
   conn.req.body.data.forEach((object, index) => {
     const attachment = object.attachment;
     const share = object.share;
     const venue = object.venue;
     const schedule = object.schedule;
-
-    if (hasName
-      && namesSet.has(attachment.Name.value)) {
-      duplicatedEntriesFound = true;
-
-      return;
-    }
 
     if (!object.hasOwnProperty('attachment')
       || !object.hasOwnProperty('share')
@@ -164,8 +144,9 @@ module.exports = (conn, locals) => {
       const type = item.type;
       const value = item.value;
 
-      if (namesMap
-        && namesMap.hasOwnProperty(type)
+      // TODO: Remove this after `activityOnWrite` creates the namesMap.
+      /** `namesMap[type]` */
+      if (namesMap[type]
         && !namesMap[type].hasOwnProperty(value)) {
         locals.responseObject.push(objectWithError({
           object,
@@ -177,7 +158,7 @@ module.exports = (conn, locals) => {
     });
 
     if (hasName
-      && namesMap.hasOwnProperty(conn.req.body.template)
+      && namesMap[conn.req.body.template]
       && namesMap[conn.req.body.template]
         .hasOwnProperty(attachment.Name.value)) {
       locals.responseObject.push(objectWithError({
@@ -221,20 +202,18 @@ module.exports = (conn, locals) => {
     if (conn.req.body.template === 'subscription'
       && locals.officeDoc.get('employeesData')
       && locals.officeDoc.get('employeesData')[attachment.Subscriber.value]) {
-      const employeeData =
-        locals.officeDoc.get('employeesData')[attachment.Subscriber.value];
+      const employeeData = locals.officeDoc.get('employeesData')[attachment.Subscriber.value];
+
       const firstSV = employeeData['First Supervisor'];
       const secondSV = employeeData['Second Supervisor'];
 
-      // Both of these values can be empty strings
+      console.log({ firstSV, secondSV });
+
       if (firstSV) share.push(firstSV);
       if (secondSV) share.push(secondSV);
 
-      if (employeeData
-        .hasOwnProperty('subscriptions')
-        && employeeData
-          .subscriptions
-          .includes(attachment.Template.value)) {
+      if (employeeData.hasOwnProperty('subscriptions')
+        && employeeData.subscriptions.includes(attachment.Template.value)) {
         locals.responseObject.push(objectWithError({
           object,
           reason: `'${attachment.Subscriber.value}' already has the`
@@ -245,109 +224,118 @@ module.exports = (conn, locals) => {
       }
     }
 
-    // const activityName = (() => {
-    //   if (hasName) {
-    //     return `${conn.req.body.template.toUpperCase()}:`
-    //       + ` ${attachment.Name.value}`;
-    //   }
+    const batch = db.batch();
+    const activityRef = rootCollections.activities.doc();
+    const addendumDocRef =
+      rootCollections.offices.doc(locals.officeDoc.id)
+        .collection('Addendum').doc();
 
-    //   return `${conn.req.body.template.toUpperCase()}:`
-    //     + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
-    // })();
+    const activityName = (() => {
+      if (hasName) {
+        return `${conn.req.body.template.toUpperCase()}:`
+          + ` ${attachment.Name.value}`;
+      }
+
+      return `${conn.req.body.template.toUpperCase()}:`
+        + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
+    })();
 
     if (!conn.requester.isSupportRequest) {
       share.push(conn.requester.phoneNumber);
     }
 
-    const activityObject = {
-      activityId: rootCollections.activities.doc(),
-      // addendumDocRef,
+    console.log('activityId', activityRef.id);
+
+    const activityData = {
+      addendumDocRef,
       venue: validVenue.venues,
-      // timestamp,
-      // office: conn.req.body.office,
-      // template: conn.req.body.template,
+      timestamp: serverTimestamp,
+      office: conn.req.body.office,
+      template: conn.req.body.template,
       schedule: validSchedule.schedules,
-      // status: locals.templateDoc.get('statusOnCreate'),
+      status: locals.templateDoc.get('statusOnCreate'),
       attachment,
-      // canEditRule: locals.templateDoc.get('canEditRule'),
-      // activityName,
-      // officeId: locals.officeDoc.id,
-      // hidden: locals.templateDoc.get('hidden'),
-      // creator: conn.requester.phoneNumber,
+      canEditRule: locals.templateDoc.get('canEditRule'),
+      activityName,
+      officeId: locals.officeDoc.id,
+      hidden: locals.templateDoc.get('hidden'),
+      creator: conn.requester.phoneNumber,
     };
 
-    const assigneesArray = [];
+    const addendumDoc = {
+      activityData,
+      user: conn.requester.phoneNumber,
+      userDisplayName: conn.requester.displayName,
+      share,
+      action: httpsActions.create,
+      template: conn.req.body.template,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: serverTimestamp,
+      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      activityId: activityRef.id,
+      activityName,
+      isSupportRequest: conn.requester.isSupportRequest,
+    };
+
+    batch.set(activityRef, activityData);
+    batch.set(addendumDocRef, addendumDoc);
 
     new Set(share)
       .forEach((phoneNumber) => {
         console.log('phoneNumber', phoneNumber);
-
         const addToInclude = (() => {
           if (conn.req.body.template !== 'subscription') return true;
 
           return phoneNumber !== attachment.Subscriber.value;
         })();
 
-        assigneesArray.push({
-          phoneNumber,
-          canEdit: getCanEditValue({
-            phoneNumber,
-            canEditRule: locals.templateDoc.get('canEditRule'),
-            employeesData: locals.officeDoc.get('employeesData'),
-            requesterPhoneNumber: conn.requester.phoneNumber,
-            adminsSet: locals.adminsSet,
-          }),
-          addToInclude,
-        });
+        batch.set(activityRef
+          .collection('Assignees')
+          .doc(phoneNumber), {
+            canEdit: getCanEditValue({
+              phoneNumber,
+              canEditRule: locals.templateDoc.get('canEditRule'),
+              employeesData: locals.officeDoc.get('employeesData'),
+              requesterPhoneNumber: conn.requester.phoneNumber,
+              adminsSet: locals.adminsSet,
+            }),
+            addToInclude,
+          });
       });
 
-    if (hasName) {
-      namesSet.add(attachment.Name.value);
-    }
+    const batchFactory = () => batch.commit();
 
-    activityObjects.push({ activityObject, assigneesArray });
+    batchesArray.push(batchFactory);
   });
 
-  const rejectedObjects = (() => {
-    if (locals.responseObject.length === 0) {
-      return null;
-    }
+  const executeSequentially = (promiseFactories) => {
+    let result = Promise.resolve();
 
-    return locals.responseObject;
-  })();
+    promiseFactories.forEach((promiseFactory, index) => {
+      result = result
+        .then(promiseFactory)
+        .then(() => console.log('committed index', index));
+    });
 
+    return result;
+  };
 
-  if (duplicatedEntriesFound) {
-    sendResponse(conn, code.badRequest, 'Duplicate entries found');
+  executeSequentially(batchesArray)
+    .then((result) => console.log({ result }))
+    .then(() => {
+      console.log('docs created:', batchesArray.length);
 
-    return;
-  }
+      const rejectedObjects = (() => {
+        if (locals.responseObject.length === 0) {
+          return null;
+        }
 
-  const batch = db.batch();
+        return locals.responseObject;
+      })();
 
-  batch
-    .set(rootCollections
-      .bulkActivities
-      .doc(), {
-        activityObjects,
-        action: httpsActions.create,
-        office: conn.req.body.office,
-        officeId: locals.officeDoc.id,
-        template: conn.req.body.template,
-        timestamp: conn.req.body.timestamp,
-        geopoint: getGeopointObject(conn.req.body.geopoint),
-        creator: conn.requester.phoneNumber,
-        userDisplayName: conn.requester.displayName,
-        isSupportRequest: conn.requester.isSupportRequest,
-        userDeviceTimestamp: conn.req.body.timestamp,
-      });
+      return sendJSON(conn, { rejectedObjects });
+    })
+    .catch(console.error);
 
-  console.log(activityObjects);
-
-  sendJSON(conn, { rejectedObjects });
-
-  // batch
-  //   .commit()
-  //   .then(() => sendJSON(conn, { rejectedObjects }))
-  //   .catch((error) => handleError(conn, error));
+  // sendJSON(conn, { rejectedObjects });
 };

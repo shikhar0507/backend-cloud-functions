@@ -71,6 +71,7 @@ const handleResult = (conn, result) => {
     bodyTemplateSubscriptionQuery,
   ] = result;
 
+  // Offices are not created by Bulk
   if (officeQueryResult.empty
     || templateQueryResult.empty) {
     const missingMessage = (() => {
@@ -88,17 +89,17 @@ const handleResult = (conn, result) => {
     return;
   }
 
-  // if (subscriptionTemplateQuery.empty
-  //   && bodyTemplateSubscriptionQuery.empty
-  //   && !hasSupportClaims(conn.requester.customClaims)) {
-  //   sendResponse(
-  //     conn,
-  //     code.forbidden,
-  //     `You are not allowed to access this resource`
-  //   );
+  if (subscriptionTemplateQuery.empty
+    && bodyTemplateSubscriptionQuery.empty
+    && !conn.requester.isSupportRequest) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `You are not allowed to access this resource`
+    );
 
-  //   return;
-  // }
+    return;
+  }
 
   const locals = {
     officeDoc: officeQueryResult.docs[0],
