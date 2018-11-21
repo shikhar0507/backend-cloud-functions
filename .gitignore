@@ -78,8 +78,5 @@ serviceAccountKey.json
 # Environment variables
 env.*
 
-# Cloud Build
-cloudbuild.yaml
-
 # data file
 *.csv
