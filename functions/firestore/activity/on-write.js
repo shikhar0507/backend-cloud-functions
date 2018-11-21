@@ -1001,19 +1001,19 @@ const addOfficeToProfile = (locals, batch) => {
 
 
 const addSupplierToOffice = (locals, batch) => {
-  // const supplierName = locals.change.after.get('attachment.Name.value');
-  // const officeId = locals.change.after.get('officeId');
+  const supplierName = locals.change.after.get('attachment.Name.value');
+  const officeId = locals.change.after.get('officeId');
 
-  // batch.set(rootCollections
-  //   .offices
-  //   .doc(officeId), {
-  //     suppliersMap: {
-  //       [supplierName]:
-  //         toAttachmentValues(locals.change.after),
-  //     },
-  //   }, {
-  //     merge: true,
-  //   });
+  batch.set(rootCollections
+    .offices
+    .doc(officeId), {
+      suppliersMap: {
+        [supplierName]:
+          toAttachmentValues(locals.change.after),
+      },
+    }, {
+      merge: true,
+    });
 
   return batch
     .commit()
@@ -1022,18 +1022,18 @@ const addSupplierToOffice = (locals, batch) => {
 
 
 const addCustomerToOffice = (locals, batch) => {
-  // const customerName = locals.change.after.get('attachment.Name.value');
+  const customerName = locals.change.after.get('attachment.Name.value');
 
-  // batch.set(rootCollections
-  //   .offices
-  //   .doc(locals.change.after.get('officeId')), {
-  //     customersMap: {
-  //       [customerName]:
-  //         toAttachmentValues(locals.change.after),
-  //     },
-  //   }, {
-  //     merge: true,
-  //   });
+  batch.set(rootCollections
+    .offices
+    .doc(locals.change.after.get('officeId')), {
+      customersMap: {
+        [customerName]:
+          toAttachmentValues(locals.change.after),
+      },
+    }, {
+      merge: true,
+    });
 
   return batch
     .commit()
@@ -1081,9 +1081,9 @@ module.exports = (change, context) => {
       .get());
   }
 
-  // const toUpdateNameMap =
-  //   change.after.get('attachment').hasOwnProperty('Name')
-  //   && change.after.get('template') !== 'office';
+  const toUpdateNameMap =
+    change.after.get('attachment').hasOwnProperty('Name')
+    && change.after.get('template') !== 'office';
 
   return Promise
     .all(promises)
@@ -1251,33 +1251,33 @@ module.exports = (change, context) => {
 
       return batch;
     })
-    // .then(() => {
-    //   if (!toUpdateNameMap) return Promise.resolve();
+    .then(() => {
+      if (!toUpdateNameMap) return Promise.resolve();
 
-    //   return rootCollections
-    //     .offices
-    //     .doc(change.after.get('officeId'))
-    //     .get();
-    // })
-    // .then((officeDoc) => {
-    //   if (!officeDoc) return Promise.resolve();
+      return rootCollections
+        .offices
+        .doc(change.after.get('officeId'))
+        .get();
+    })
+    .then((officeDoc) => {
+      if (!officeDoc) return Promise.resolve();
 
-    //   if (locals.change.after.get('template') === 'office') {
-    //     return Promise.resolve();
-    //   }
+      if (locals.change.after.get('template') === 'office') {
+        return Promise.resolve();
+      }
 
-    //   batch.set(officeDoc.ref, {
-    //     namesMap: {
-    //       [`${change.after.get('template')}`]: {
-    //         [`${change.after.get('attachment.Name.value')}`]: change.after.get('attachment.Name.value'),
-    //       },
-    //     },
-    //   }, {
-    //       merge: true,
-    //     });
+      batch.set(officeDoc.ref, {
+        namesMap: {
+          [`${change.after.get('template')}`]: {
+            [`${change.after.get('attachment.Name.value')}`]: change.after.get('attachment.Name.value'),
+          },
+        },
+      }, {
+          merge: true,
+        });
 
-    //   return batch;
-    // })
+      return batch;
+    })
     .then(() => {
       const template = change.after.get('template');
 
