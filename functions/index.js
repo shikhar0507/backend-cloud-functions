@@ -54,7 +54,7 @@ const activityOnWrite = functions
 const instantOnCreate = functions
   .firestore
   .document('Instant/{docId}')
-  .onCreate(require('./firestore/reports/index'));
+  .onCreate(require('./firestore/instant/index'));
 
 const generateOfficeNamePermutations = functions
   .firestore
