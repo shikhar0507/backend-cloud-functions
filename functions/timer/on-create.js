@@ -30,10 +30,8 @@ const {
   rootCollections,
 } = require('../admin/admin');
 const env = require('../admin/env');
-
-// const config = require('firebase-functions').config();
 const sgMail = require('@sendgrid/mail');
-// sgMail.setApiKey(config.sgmail.key);
+
 sgMail.setApiKey(env.sgMailApiKey);
 
 module.exports = (doc) => {
@@ -45,7 +43,7 @@ module.exports = (doc) => {
     return Promise.resolve();
   }
 
-  /** Not sending the email from non-production version. It creates confusion. */
+  /** Not sending the email from non-production version */
   if (!env.isProduction) return Promise.resolve();
 
   return Promise
