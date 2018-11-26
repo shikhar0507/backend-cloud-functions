@@ -58,7 +58,11 @@ const systemReportsHandler = (instantDoc) => {
   return sgMail
     .sendMultiple(messages)
     .catch((error) => {
-      console.error(error);
+      if (error.response) {
+        console.log(error.response.body.errors);
+      } else {
+        console.error(error);
+      }
     });
 };
 
