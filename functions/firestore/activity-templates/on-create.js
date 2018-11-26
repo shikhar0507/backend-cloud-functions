@@ -209,6 +209,7 @@ const validateTemplate = (body) => {
 const createDocs = (conn, locals) => {
   const templateBody = conn.req.body;
   templateBody.timestamp = Date.now();
+  const { messageBody, subject, action } = locals;
 
   Promise
     .all([
@@ -218,11 +219,7 @@ const createDocs = (conn, locals) => {
       rootCollections
         .instant
         .doc()
-        .set({
-          messageBody: locals.messageBody,
-          subject: locals.subject,
-          action: locals.action,
-        }),
+        .set({ messageBody, subject, action }),
     ])
     .then(() => sendResponse(
       conn,
@@ -330,7 +327,7 @@ module.exports = (conn) => {
 
       const templateDocRef = rootCollections.activityTemplates.doc();
 
-      const subject = `Template Created the in Growthfile DB`;
+      const subject = `A new template has been created (${process.env.GCLOUD_PROJECT})`;
       const messageBody = `
         <p>
           The template manager: <strong>${conn.requester.phoneNumber}</strong>
@@ -347,18 +344,8 @@ module.exports = (conn) => {
 
         <hr>
 
-        <pre style="font-size: 14px;
-          border: 2px solid grey;
-          width: 450px;
-          border-left: 12px solid green;
-          border-radius: 5px;
-          font-family: monospace, monaco;
-          padding: 14px;">
-        <code>
-        ${JSON.stringify(conn.req.body, ' ', 2)}
-        </code>
-        </pre>
-      `;
+        <pre>${JSON.stringify(conn.req.body, ' ', 2)}</pre>
+        `;
 
       const locals = {
         messageBody,
@@ -367,7 +354,11 @@ module.exports = (conn) => {
         action: reportingActions.usedCustomClaims,
       };
 
+      console.log({ messageBody });
+
       createDocs(conn, locals);
+
+      // sendResponse(conn, code.ok, 'testing templates');
 
       return;
     })

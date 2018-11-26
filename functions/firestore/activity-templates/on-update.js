@@ -213,30 +213,16 @@ const updateTemplateDoc = (conn, templateDoc) => {
   <hr>
 
   <h2>Request Body</h2>
-  <pre style="font-size: 14px;
-  border: 2px solid grey;
-  width: 450px;
-  border-left: 12px solid green;
-  border-radius: 5px;
-  font-family: monaco;
-  padding: 14px;>
+  <pre>
   ${JSON.stringify(conn.req.body, ' ', 2)}
   </pre>
-
   <h2>Template Document</h2>
-  <pre style="font-size: 14px;
-  border: 2px solid grey;
-  width: 450px;
-  border-left: 12px solid green;
-  border-radius: 5px;
-  font-family: monaco;
-  padding: 14px;>
+  <pre>
   ${JSON.stringify(templateObject, ' ', 2)}
   </pre>
   `;
 
-  /** Full object doesn't require merging. */
-  batch.set(templateDoc.ref, templateObject);
+  batch.set(templateDoc.ref, templateObject, { merge: true });
 
   batch.set(rootCollections
     .instant
