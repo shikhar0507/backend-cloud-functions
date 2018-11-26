@@ -28,7 +28,6 @@
 const {
   rootCollections,
   auth,
-  db,
 } = require('../admin/admin');
 const {
   code,
@@ -40,30 +39,6 @@ const {
   disableAccount,
   hasSupportClaims,
 } = require('../admin/utils');
-
-
-const getHeaders = (req) => {
-  const NUM_SECS_IN_A_DAY = 86400;
-  const headerObject = {
-    /** The pre-flight headers */
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
-    'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
-      'Content-Type, Accept',
-    'Access-Control-Max-Age': NUM_SECS_IN_A_DAY,
-    'Content-Type': 'application/json',
-    'Content-Language': 'en-US',
-    'Cache-Control': 'no-cache',
-  };
-
-  const isProduction = require('../admin/env').isProduction;
-
-  // if (isProduction) {
-  //   headerObject['Access-Control-Allow-Origin'] = req.get('host');
-  // }
-
-  return headerObject;
-};
 
 
 const handleAdminUrl = (conn, urlParts) => {
@@ -581,7 +556,17 @@ module.exports = (req, res) => {
   const conn = {
     req,
     res,
-    headers: getHeaders(req),
+    headers: {
+      /** The pre-flight headers */
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
+      'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
+        'Content-Type, Accept',
+      'Access-Control-Max-Age': 86400,
+      'Content-Type': 'application/json',
+      'Content-Language': 'en-US',
+      'Cache-Control': 'no-cache',
+    },
   };
 
   /** For handling CORS */
@@ -601,7 +586,7 @@ module.exports = (req, res) => {
       conn,
       code.notImplemented,
       `${req.method} is not supported for any request.`
-      + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests.'
+      + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests'
     );
 
     return;
