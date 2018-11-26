@@ -108,6 +108,13 @@ module.exports = (locals) => {
 
       addendumDocs.docs.forEach((doc, index) => {
         const phoneNumber = doc.get('user');
+
+        /** 
+         * Person doesn't belong to the office and was just
+         * an assignee of the activity.
+         */
+        if (!phoneNumber) return;
+
         const department = employeesData[phoneNumber].Department;
         const name = employeesData[phoneNumber].Name;
         const baseLocation = employeesData[phoneNumber]['Base Location'];
