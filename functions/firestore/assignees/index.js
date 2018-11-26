@@ -47,11 +47,39 @@ module.exports = (doc, context) => {
   const phoneNumber = context.params.phoneNumber;
   const activityId = context.params.activityId;
 
-  return rootCollections
+  const profileRef = rootCollections
     .profiles
-    .doc(phoneNumber)
-    .collection('Activities')
-    .doc(activityId)
-    .delete()
+    .doc(phoneNumber);
+
+  return Promise
+    .all([
+      profileRef
+        .get(),
+      profileRef
+        .collection('Activities')
+        .doc(activityId)
+        .delete(),
+    ])
+    .then((result) => {
+      const [
+        profileDoc,
+      ] = result;
+
+      const timestamp = Date.now();
+      const uid = profileDoc.get('uid');
+
+      return rootCollections
+        .updates
+        .doc(uid)
+        .set({
+          timestamp,
+          isComment: 0,
+          location: null,
+          activityId,
+          userDeviceTimestamp: timestamp,
+          user: phoneNumber,
+          unassign: true,
+        });
+    })
     .catch(console.error);
 };
