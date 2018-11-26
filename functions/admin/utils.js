@@ -357,17 +357,6 @@ const now = (conn) => {
     return;
   }
 
-  if (!conn.req.query.hasOwnProperty('os')
-    || !isNonEmptyString(conn.req.query.os)) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `The request URL does not have a valid 'os' param`
-    );
-
-    return;
-  }
-
   const ddmmyyyyString = getISO8601Date();
 
   Promise
@@ -398,23 +387,21 @@ const now = (conn) => {
           androidLatestVersion,
         } = appVersionDoc.data();
 
-        /**
-         * if version is not sent -> false
-         * if version is less -> true
-         * if version is equal -> false
-         * if version is greater -> false
-         */
+        if (!conn.req.query.hasOwnProperty('os')) return true;
+
         const os = conn.req.query.os;
         const appVersion = conn.req.query.appVersion;
         const latestVersion = (() => {
           if (os === 'ios') return iosLatestVersion;
 
+          // Default is `android`
           return androidLatestVersion;
         })();
 
         console.log({
           appVersion,
           latestVersion,
+          query: conn.req.query,
           requester: conn.requester,
         });
 
