@@ -336,6 +336,4 @@ module.exports = (conn, locals) => {
       return sendJSON(conn, { rejectedObjects });
     })
     .catch(console.error);
-
-  // sendJSON(conn, { rejectedObjects });
 };

@@ -415,7 +415,6 @@ const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
 
-  // TODO: Filll this
   const templateName = '';
   const office = '';
   const geopoint = {
@@ -423,7 +422,6 @@ const handleBulkObject = (conn) => {
     longitude: '',
   };
 
-  // TODO: Add csv file name
   const filePath =
     path.join(process.cwd(), 'data.csv');
 
@@ -539,6 +537,8 @@ const handleBulkObject = (conn) => {
 
       checkAuthorizationToken(conn);
 
+      // sendResponse(conn, code.ok, 'done');
+
       return;
     })
     .catch((error) => handleError(conn, error));
@@ -569,6 +569,17 @@ module.exports = (req, res) => {
     },
   };
 
+  console.log({
+    method: req.method,
+    url: req.url,
+    body: req.body,
+    origin: req.get('origin'),
+    ip: req.get('ip'),
+    params: req.params,
+    cookies: req.cookies,
+    range: req.range,
+  });
+
   /** For handling CORS */
   if (req.method === 'HEAD' || req.method === 'OPTIONS') {
     sendResponse(conn, code.noContent);
@@ -591,8 +602,6 @@ module.exports = (req, res) => {
 
     return;
   }
-
-  console.log('reqBody:', conn.req.body);
 
   checkAuthorizationToken(conn);
 };

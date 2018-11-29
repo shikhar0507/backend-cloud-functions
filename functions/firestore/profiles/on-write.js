@@ -444,6 +444,7 @@ module.exports = (change) => {
     after,
   } = change;
 
+  /** Only for debugging */
   if (!after.data()) {
     console.log('Profile Deleted');
 
@@ -452,6 +453,8 @@ module.exports = (change) => {
 
   const batch = db.batch();
 
+  /** Profile didn't exit before; exists now. AND uid is (null OR undefined) */
+  const profileCreated = !before.data() && after.data() && !after.get('uid');
   const phoneNumber = after.id;
   const oldOfficesList = Object.keys(before.get('employeeOf') || {});
   const currentOfficesList = Object.keys(after.get('employeeOf') || {});
@@ -494,6 +497,7 @@ module.exports = (change) => {
   if (!toGetInit) return manageAddendum(change, batch);
 
   const options = {
+    profileCreated,
     phoneNumber,
     newOffice,
     removedOffice,
@@ -518,7 +522,6 @@ module.exports = (change) => {
    * If uid written
    *    For each office (current) create sign up doc with `signedUpOn` field
    * Delete addendum if new `lastFromQuery` > old `lastFromQuery`.
-   *
    */
 
   console.log({ options });

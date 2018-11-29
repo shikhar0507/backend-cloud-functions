@@ -100,12 +100,16 @@ module.exports = (change) => {
         return Promise.resolve();
       }
 
+      // Temporary
+      locals.messageObject.to.push(env.loggingAccount);
+
       if (report === 'signup') return require('./sign-up-report')(locals);
       if (report === 'install') return require('./install-report')(locals);
       if (report === 'footprints') return require('./footprints-report')(locals);
       if (report === 'payroll') return require('./payroll-report')(locals);
       if (report === 'dsr') return require('./dsr-report')(locals);
-      if (report === 'duty roster') return require('./duty-roster-report')(locals);
+      // if (report === 'duty roster') return require('./duty-roster-report')(locals);
+      // if (report === 'leave') return require('./leave-report')(locals);
 
       console.log('No reports sent');
 
