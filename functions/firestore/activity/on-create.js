@@ -53,6 +53,11 @@ const getActivityName = (conn) => {
       + ` ${conn.req.body.attachment.Name.value}`;
   }
 
+  if (conn.req.body.attachment.hasOwnProperty('Number')) {
+    return `${conn.req.body.template.toUpperCase()}:`
+      + `${conn.req.body.attachment.Number.value}`;
+  }
+
   return `${conn.req.body.template.toUpperCase()}:`
     + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
 };
@@ -296,10 +301,10 @@ const verifyUniqueness = (conn, locals) => {
 
   if (conn.req.body.template === 'subscription') {
     /**
-    * If the `Subscriber` mentioned in the `attachment` already has the
-    * subscription to the `template` for the `office`, there's no point in
-    * creating **yet** another activity.
-    */
+     * If the `Subscriber` mentioned in the `attachment` already has the
+     * subscription to the `template` for the `office`, there's no point in
+     * creating **yet** another activity.
+     */
     query = rootCollections
       .profiles
       .doc(conn.req.body.attachment.Subscriber.value)
@@ -368,8 +373,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
         if (!snapShot.empty) {
           successful = false;
-          message = `The name '${argOne}' already exists. Please choose`
-            + ` another name`;
+          message = `The value '${argOne}' already is in use`;
           break;
         }
       }
@@ -413,7 +417,7 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
 
         if (conn.req.body.template !== 'subscription') {
           argTwo = filters[1]._value;
-          message = `The ${argOne} ${argTwo} does not exist in`
+          message = `The ${argOne} ${argTwo} does not exist in `
             + ` the office: ${conn.req.body.office}.`;
         }
 
@@ -577,7 +581,7 @@ const createLocals = (conn, result) => {
       include: [],
       /**
        * Used by the `filterAttachment` function to check the duplication
-       * of entities inside the `Offices/(officeId)/Activities` collection.
+       * of entities inside the `Offices / (officeId) / Activities` collection.
        * Eg., When the template is `employee`, the `req.body.attachment.Name`
        * + `locals.static.template` will be used to query for the employee.
        * If their doc already exists, reject the request.
@@ -645,7 +649,7 @@ const createLocals = (conn, result) => {
         conn,
         code.forbidden,
         `Your subscription to the template '${conn.req.body.template}'`
-        + ` is 'CANCELLED'. Cannot create an activity`
+        + ` is 'CANCELLED'.Cannot create an activity`
       );
 
       return;
@@ -678,7 +682,7 @@ const createLocals = (conn, result) => {
       sendResponse(
         conn,
         code.forbidden,
-        `The office status is 'CANCELLED'. Cannot create an activity`
+        `The office status is 'CANCELLED'.Cannot create an activity`
       );
 
       return;
@@ -769,7 +773,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for the /create`
+      `${conn.req.method} is not allowed for the / create`
       + ' endpoint. Use POST'
     );
 

@@ -419,10 +419,11 @@ const filterAttachment = (options) => {
       break;
     }
 
-    if (typeof value !== 'string') {
+    if (typeof value !== 'string'
+      && typeof value !== 'number') {
       messageObject.isValid = false;
-      messageObject.message = `In 'attachment', expected 'string' in the`
-        + ` field: '${field}'.value Found ${typeof value}.`;
+      messageObject.message = `In 'attachment', expected 'string'`
+        + ` or 'number' in the field: '${field}'.value Found ${typeof value}.`;
       break;
     }
 
@@ -501,39 +502,6 @@ const filterAttachment = (options) => {
         );
     }
 
-    if (type === 'unique') {
-      if (!isNonEmptyString(value)) {
-        messageObject.isValid = false;
-        messageObject.message = `Field '${field}' cannot have empty value`;
-
-        break;
-      }
-
-      const promise = (() => {
-        const fieldPath = `attachment[${field}].value`;
-
-        if (template === 'office') {
-          return rootCollections
-            .offices
-            .where(fieldPath, '==', value)
-            .limit(1)
-            .get();
-        }
-
-        return rootCollections
-          .offices
-          .doc(officeId)
-          .collection('Activities')
-          .where(fieldPath, '==', value)
-          .limit(1)
-          .get();
-      })();
-
-      messageObject
-        .querySnapshotShouldNotExist
-        .push(promise);
-    }
-
     if (field === 'Name') {
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
@@ -559,6 +527,27 @@ const filterAttachment = (options) => {
           .collection('Activities')
           .where('attachment.Name.value', '==', value)
           .where('template', '==', template)
+          /** Docs exist uniquely based on `Name`, and `template`. */
+          .limit(1)
+          .get()
+        );
+    }
+
+    if (field === 'Number') {
+      if (!value || typeof value !== 'number') {
+        messageObject.isValid = false;
+        messageObject.message = `The 'Number' field in 'attachment' should`
+          + ` be a non-empty number`;
+        break;
+      }
+
+      messageObject
+        .querySnapshotShouldNotExist
+        .push(rootCollections
+          .offices
+          .doc(officeId)
+          .collection('Activities')
+          .where('attachment.Number.value', '==', value)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)
           .get()

@@ -352,6 +352,14 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
     return;
   }
 
+  if (locals.docs.activity.get('attachment').hasOwnProperty('Number')
+    && locals.docs.activity.get('attachment').Number.value
+    === conn.req.body.attachment.Number.value) {
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
   Promise
     .all(promises)
     .then((snapShots) => {
@@ -360,12 +368,11 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
       for (const snapShot of snapShots) {
         const filters = snapShot._query._fieldFilters;
-        const argOne = filters[0]._value;
+        const argOne = filters[0].value;
 
         if (!snapShot.empty) {
           successful = false;
-          message = `The name '${argOne}' already exists. Please choose`
-            + ` another name.`;
+          message = `The value ${argOne} is already in use`;
           break;
         }
       }
