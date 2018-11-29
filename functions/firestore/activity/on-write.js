@@ -1040,6 +1040,265 @@ const addCustomerToOffice = (locals, batch) => {
     .catch(console.error);
 };
 
+const canEditValue = (options) => {
+  const { locals, phoneNumber, canEditRule, employeeDocsQueryResult } = options;
+
+  if (canEditRule === 'ADMIN') {
+    return locals.adminsCanEdit.includes(phoneNumber);
+  }
+
+  if (canEditRule === 'EMPLOYEE') {
+    return !employeeDocsQueryResult.empty;
+  }
+
+  if (canEditRule === 'CREATOR') {
+    return phoneNumber === locals.change.after.get('creator');
+  }
+
+  if (canEditRule === 'ALL') return true;
+
+  return false;
+};
+
+const handleAutoAssign = (locals) => {
+  /**
+   * X gets subsc of template A:
+   *     Fetch all activities with template B
+   *         Make X an assignee
+   *     Fetch all activities with template == subscription AND attachment.Template.value == B
+   *         Make X an assignee (Add to include = true)
+   * 
+   *  Y gets subsc of template B:
+   *      Fetch all activities with template === subscription and attachment.Template.value == A
+   *         Make Y an assignee (add to include = true)
+   */
+  if (locals.change.after.get('template') !== 'subscription') {
+    return Promise.resolve();
+  }
+
+  const subscriber = locals.change.after.get('attachment.Subscriber.value');
+  const template = locals.change.after.get('attachment.Template.value');
+
+  const templatesRelationshipMap = new Map()
+    .set('employee', ['branch', 'department'])
+    .set('customer', ['customer-type'])
+    .set('supplier', ['supplier-type'])
+    .set('leave', ['leave-type'])
+    .set('expense claim', ['expense-type'])
+    .set('dsr', ['customer', 'product'])
+    .set('duty roster', ['customer'])
+    .set('tour plan', ['customer']);
+
+  const promises = [];
+
+  templatesRelationshipMap
+    .get(template)
+    .forEach((childTemplate) => {
+      const promise = rootCollections
+        .activities
+        .where('office', '==', locals.change.after.get('office'))
+        .where('template', '==', childTemplate)
+        .limit(1)
+        .get();
+      promises
+        .push(promise);
+    });
+
+  return Promise
+    .all(promises)
+    .then((snapShots) =>
+      Promise
+        .all([
+          rootCollections
+            .activityTemplates
+            .where('name', '==', template)
+            .limit(1)
+            .get(),
+          Promise
+            .resolve(snapShots),
+        ]))
+    .then((result) => {
+      const officeId = locals.change.after.get('officeId');
+
+      const employeeFetchPromise = rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Activities')
+        .where('template', '==', 'employee')
+        .where('attachment.Employee Contact.value', '==', subscriber)
+        .limit(1)
+        .get();
+
+      const [
+        templateDocsQuery,
+        snapShots,
+      ] = result;
+
+      return Promise
+        .all([
+          Promise
+            .resolve(templateDocsQuery),
+          employeeFetchPromise,
+          Promise
+            .resolve(snapShots),
+        ]);
+    })
+    .then((resolvedPromises) => {
+      const [
+        templateDocsQuery,
+        employeeDocsQueryResult,
+        snapShots,
+      ] = resolvedPromises;
+      const templateDoc = templateDocsQuery.docs[0];
+      const canEditRule = templateDoc.get('canEditRule');
+      const batch = db.batch();
+
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const activityRef = snapShot.docs[0];
+
+        batch.set(activityRef, {
+          timestamp: Date.now(),
+          addendumDocRef: null,
+        });
+
+        batch.set(activityRef
+          .collection('Assignees')
+          .doc(subscriber), {
+            canEdit: canEditValue({
+              locals,
+              subscriber,
+              canEditRule,
+              employeeDocsQueryResult,
+            }),
+            addToInclude: true,
+          }, {
+            merge: true,
+          });
+      });
+
+      return Promise
+        .all([
+          batch
+            .commit(),
+          Promise
+            .resolve(resolvedPromises),
+        ]);
+    })
+    .then((resolvedPromises) => {
+      // activities are not unique here
+      // Fetch all activities with office = current office
+      // template == subscription AND attachment.Template.value == B
+      // Make them an assignee (Add to include = true)
+
+      const relationshipMap = new Map()
+        .set('branch', ['employee'])
+        .set('department', ['employee'])
+        .set('customer-type', ['customer'])
+        .set('supplier-type', ['supplier'])
+        .set('leave-type', ['leave'])
+        .set('expense-type', ['expense claim'])
+        .set('customer', ['dsr', 'duty roster', 'tour plan'])
+        .set('product', ['dsr']);
+
+      const promises = [];
+
+      relationshipMap
+        .get(template)
+        .forEach((childTemplate) => {
+          const promise = rootCollections
+            .activities
+            .where('office', '==', locals.change.after.get('office'))
+            .where('template', '==', 'subscription')
+            .where('attachment.Template.value', '==', childTemplate)
+            .get();
+
+          promises
+            .push(promise);
+        });
+
+      return Promise
+        .all([
+          Promise
+            .resolve(resolvedPromises),
+          promises,
+        ]);
+    })
+    .then((result) => {
+      const [
+        resolvedPromises,
+        subscriptionActivitiesSnapShots,
+      ] = result;
+
+      const [
+        templateDocsQuery,
+        employeeDocsQueryResult,
+      ] = resolvedPromises;
+
+      const batch = db.batch();
+
+      subscriptionActivitiesSnapShots
+        .forEach((snapShot) => {
+          snapShot.forEach((doc) => {
+            batch.set(doc.ref, {
+              timestamp: Date.now(),
+              addendumDocRef: null,
+            }, {
+                merge: true,
+              });
+
+            batch.set(doc
+              .ref
+              .collection('Assignees')
+              .doc(subscriber), {
+                addToInclude: true,
+                canEdit: canEditValue({
+                  locals,
+                  phoneNumber: subscriber,
+                  canEditRule: templateDocsQuery.docs[0].get('canEditRule'),
+                  employeeDocsQueryResult,
+                }),
+              });
+          });
+        });
+
+      return Promise
+        .all([
+          Promise
+            .resolve(result),
+
+          batch
+            .commit(),
+        ]);
+    })
+    .then((resolvedResult) => {
+      const [
+        result,
+      ] = resolvedResult;
+      const batch = db.batch();
+
+      const [
+        resolvedPromises,
+        // subscriptionActivitiesSnapShots,
+      ] = result;
+
+      const [
+        templateDocsQuery,
+        employeeDocsQueryResult,
+      ] = resolvedPromises;
+
+      const promises = [];
+
+      // Y gets subsc of template B:
+      // Fetch all activities with template === subscription and attachment.Template.value == A
+      // Make them an assignee(add to include = true)
+
+      return batch.commit();
+    })
+    .catch(console.error);
+};
+
 
 module.exports = (change, context) => {
   /** Activity was deleted. For debugging only. */
@@ -1171,6 +1430,11 @@ module.exports = (change, context) => {
             .profiles
             .doc(phoneNumber), {
               uid: null,
+              smsContext: {
+                activityName: change.after.get('activityName'),
+                creator: change.after.get('creator'),
+                office: change.after.get('office'),
+              },
             }, {
               merge: true,
             });
@@ -1332,17 +1596,6 @@ module.exports = (change, context) => {
 
       return batch.commit();
     })
-    .catch((error) => {
-      console.error(error);
-
-      return db
-        .collection('CRASHED')
-        .doc(change.after.id)
-        .set({
-          context: {
-            before: change.before.data() || {},
-            after: change.after.data(),
-          },
-        });
-    });
+    // .then(() => handleAutoAssign(locals))
+    .catch(console.error);
 };
