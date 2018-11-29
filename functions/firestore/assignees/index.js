@@ -68,14 +68,26 @@ module.exports = (doc, context) => {
       const timestamp = Date.now();
       const uid = profileDoc.get('uid');
 
-      return rootCollections
+      /** This person may not have created their auth via OTP */
+      if (!uid) return Promise.resolve();
+
+      const addendumRef = rootCollections
         .updates
         .doc(uid)
+        .collection('Addendum')
+        .doc();
+
+      console.log('id', addendumRef.id);
+
+      return addendumRef
         .set({
           timestamp,
-          isComment: 0,
-          location: null,
           activityId,
+          isComment: 0,
+          location: {
+            _latitude: '',
+            _longitude: '',
+          },
           userDeviceTimestamp: timestamp,
           user: phoneNumber,
           unassign: true,
