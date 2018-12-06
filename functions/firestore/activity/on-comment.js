@@ -58,7 +58,13 @@ const createDocs = (conn, activity) => {
       merge: true,
     });
 
+  const now = new Date();
+
   batch.set(addendumDocRef, {
+    date: now.getDate(),
+    month: now.getMonth(),
+    year: now.getFullYear(),
+    dateString: now.toDateString(),
     user: conn.requester.phoneNumber,
     action: httpsActions.comment,
     comment: conn.req.body.comment,

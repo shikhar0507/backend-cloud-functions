@@ -28,12 +28,15 @@
 const {
   rootCollections,
   auth,
+  db,
+  users,
 } = require('../admin/admin');
 const {
   code,
 } = require('../admin/responses');
 const {
   now,
+  sendJSON,
   handleError,
   sendResponse,
   disableAccount,
@@ -281,7 +284,7 @@ const getProfile = (conn, pathName) =>
     .catch((error) => handleError(conn, error));
 
 
-const getUserAuthFromIdToken = (conn, decodedIdToken) =>
+const getUserAuthFromIdToken = (conn, decodedIdToken, customClaims) =>
   auth
     .getUser(decodedIdToken.uid)
     .then((userRecord) => {
@@ -304,6 +307,10 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         customClaims: userRecord.customClaims || null,
         creationTime: userRecord.metadata.creationTime,
       };
+
+      // console.log(customClaims);
+
+      // if (customClaims) conn.requester.customClaims = customClaims;
 
       /**
        * Can be used to verify in the activity flow to see if the request
@@ -574,10 +581,11 @@ module.exports = (req, res) => {
     url: req.url,
     body: req.body,
     origin: req.get('origin'),
-    ip: req.get('ip'),
+    ip: req.connection.remoteAddress,
     params: req.params,
     cookies: req.cookies,
     range: req.range,
+    tz: require('moment-timezone').tz.guess(),
   });
 
   /** For handling CORS */

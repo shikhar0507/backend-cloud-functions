@@ -8,6 +8,9 @@ const {
 const {
   rootCollections,
 } = require('../../admin/admin');
+const {
+  alphabetsArray,
+} = require('./report-utils');
 
 module.exports = (locals) => {
   const {
@@ -54,6 +57,33 @@ module.exports = (locals) => {
        *  11. First Supervisor
        *  12. Second Supervisor
        */
+
+      const sheet1 = workbook.addSheet('Leave');
+      sheet1.row(1).style('bold', true);
+      workbook.deleteSheet('Sheet1');
+
+      const firstRowValues = [
+        'Employee Name',
+        'Employee Contact',
+        'Annual Limit',
+        'Total Leaves Taken',
+        'Leave Dates',
+        'Total Leaves Remaining',
+        'Approved By',
+        'Reason',
+        'Department',
+        'Base Location',
+        'First Supervisor',
+        'Second Supervisor',
+      ];
+
+      firstRowValues.forEach((header, index) => {
+        sheet1
+          .cell(`${alphabetsArray[index]}1`)
+          .value(header);
+      });
+
+
 
       return;
     })

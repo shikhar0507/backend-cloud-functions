@@ -35,6 +35,7 @@ const {
 
 const {
   getYesterdaysDateString,
+  timeStringWithOffset,
 } = require('./report-utils');
 
 const xlsxPopulate = require('xlsx-populate');
@@ -48,17 +49,17 @@ module.exports = (locals) => {
   } = locals.change.after.data();
 
   const today = new Date();
-  locals.yesterdaysDate = getYesterdaysDateString();
+  const yesterdaysDateString = getYesterdaysDateString();
   locals.messageObject.templateId = sendGridTemplateIds.footprints;
   locals.messageObject['dynamic_template_data'] = {
     office,
     subject: `${office} Footprints Report_${today.toDateString()}`,
-    date: locals.yesterdaysDate,
+    date: yesterdaysDateString,
   };
 
-  locals.fileName = `${office} Footprints Report_${today.toDateString()}.xlsx`;
-  locals.filePath = `/tmp/${locals.fileName}`;
-  console.log('locals.filePath:', locals.filePath);
+  const fileName = `${office} Footprints Report_${today.toDateString()}.xlsx`;
+  const filePath = `/tmp/${fileName}`;
+  console.log({ filePath });
 
   const officeDocRef = rootCollections
     .offices
@@ -70,7 +71,7 @@ module.exports = (locals) => {
         .get(),
       officeDocRef
         .collection('Addendum')
-        .where('dateString', '==', locals.yesterdaysDate)
+        .where('dateString', '==', yesterdaysDateString)
         .orderBy('user')
         .orderBy('timestamp', 'asc')
         .get(),
@@ -113,7 +114,7 @@ module.exports = (locals) => {
          * Person doesn't belong to the office and was just
          * an assignee of the activity.
          */
-        if (!phoneNumber) return;
+        if (!employeesData[phoneNumber]) return;
 
         const department = employeesData[phoneNumber].Department;
         const name = employeesData[phoneNumber].Name;
@@ -121,12 +122,16 @@ module.exports = (locals) => {
         const url = doc.get('url');
         const identifier = doc.get('identifier');
         const accumulatedDistance = doc.get('accumulatedDistance');
+        const time = timeStringWithOffset({
+          offset: officeDoc.get('attachment.Offset.value'),
+          timestampToCovert: doc.get('timestamp'),
+        });
 
         // TODO: Add spacing for columns based on max width of the fields
         workbook
           .sheet('Sheet1')
           .cell(`A${index + 2}`)
-          .value(locals.yesterdaysDate);
+          .value(yesterdaysDateString);
         workbook
           .sheet('Sheet1')
           .cell(`B${index + 2}`)
@@ -134,7 +139,7 @@ module.exports = (locals) => {
         workbook
           .sheet('Sheet1')
           .cell(`C${index + 2}`)
-          .value(doc.get('timeString'));
+          .value(time);
         workbook
           .sheet('Sheet1')
           .cell(`D${index + 2}`)
@@ -143,6 +148,7 @@ module.exports = (locals) => {
           .sheet('Sheet1')
           .cell(`E${index + 2}`)
           .value(identifier)
+          .style({ fontColor: '0563C1', underline: true })
           .hyperlink(url);
         workbook
           .sheet('Sheet1')
@@ -154,7 +160,7 @@ module.exports = (locals) => {
           .value(baseLocation);
       });
 
-      return workbook.toFileAsync(locals.filePath);
+      return workbook.toFileAsync(filePath);
     })
     .then(() => {
       if (!locals.toSendMails) {
@@ -164,7 +170,7 @@ module.exports = (locals) => {
       }
 
       locals.messageObject.attachments.push({
-        content: new Buffer(fs.readFileSync(locals.filePath)).toString('base64'),
+        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
         fileName: `${office} Footprints Report_${today.toDateString()}.xlsx`,
         type: 'text/csv',
         disposition: 'attachment',
@@ -176,11 +182,5 @@ module.exports = (locals) => {
         .sgMail
         .sendMultiple(locals.messageObject);
     })
-    .catch((error) => {
-      if (error.response) {
-        console.log(error.response.body.errors);
-      } else {
-        console.error(error);
-      }
-    });
+    .catch(console.error);
 };

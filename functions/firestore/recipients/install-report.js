@@ -33,6 +33,7 @@ const {
 } = require('../../admin/admin');
 
 const {
+  timeStringWithOffset,
   getYesterdaysDateString,
 } = require('./report-utils');
 
@@ -101,10 +102,10 @@ module.exports = (locals) => {
     .then((result) => {
       const [
         officeDoc,
-        installDocs,
+        initDocsQuery,
       ] = result;
 
-      if (installDocs.empty) {
+      if (initDocsQuery.empty) {
         console.log('Install docs empty');
 
         /** No report to be sent since no one installed yesterday. */
@@ -115,8 +116,9 @@ module.exports = (locals) => {
       const yesterdaysStartTime = getYesterdaysStartTime();
 
       let header = 'Install Date and Time\n\n';
+      const timezone = officeDoc.get('attachment.Timezone.value');
 
-      installDocs.forEach((doc) => {
+      initDocsQuery.forEach((doc) => {
         const {
           phoneNumber,
           installs,
@@ -126,8 +128,15 @@ module.exports = (locals) => {
           officeDoc
             .get('employeesData')[phoneNumber];
 
-        installs
-          .forEach((timestampString) => header += `${timestampString}\n`);
+
+        installs.forEach((timestampNumber) => {
+          const installTimeString = timeStringWithOffset({
+            timezone,
+            timestampNumber,
+          });
+
+          header += `${installTimeString}\n`;
+        });
 
         installs.forEach((timestampString) => {
           const installTime =
@@ -188,11 +197,5 @@ module.exports = (locals) => {
         .sgMail
         .sendMultiple(locals.messageObject);
     })
-    .catch((error) => {
-      if (error.response) {
-        console.log(error.response.body.errors);
-      } else {
-        console.error(error);
-      }
-    });
+    .catch(console.error);
 };

@@ -40,6 +40,12 @@ const getPreviousDayMonth = () => {
   return yesterday.getMonth();
 };
 
+const getPreviousDayYear = () => {
+  const today = new Date();
+  const yesterday = new Date(today.setDate(today.getDate() - 1));
+
+  return yesterday.getFullYear();
+};
 
 const getNumberOfDaysInMonth = (options) => {
   const {
@@ -50,7 +56,6 @@ const getNumberOfDaysInMonth = (options) => {
   /** Month starts with 0 */
   return new Date(year, month + 1, 0).getDate();
 };
-
 
 const monthsArray = [
   'Jan',
@@ -67,9 +72,97 @@ const monthsArray = [
   'Dec',
 ];
 
+const weekdaysArray = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+];
+
+const alphabetsArray = [
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+  'K',
+  'L',
+  'M',
+  'N',
+  'O',
+  'P',
+  'Q',
+  'R',
+  'S',
+  'T',
+  'U',
+  'V',
+  'W',
+  'X',
+  'Y',
+  'Z',
+];
+
+
+const dateStringWithOffset = (options) => {
+  const {
+    timezone,
+    timestampToConvert,
+  } = options;
+
+  if (!timestampToConvert) return '';
+
+  const moment = require('moment-timezone');
+  const date = new Date(timestampToConvert);
+
+  const localTime = moment(date).format('YYYY-MM-DDTHH:mm:ss.SSS');
+  const targetZonedTime = moment.tz(localTime, timezone);
+
+  const split = targetZonedTime.toString().split(' ');
+
+  const dateString = `${split[1]} ${split[2]} ${split[3]}`;
+
+  return dateString;
+};
+
+const timeStringWithOffset = (options) => {
+  const {
+    timezone,
+    timestampToConvert,
+  } = options;
+
+  if (!timestampToConvert) return '';
+
+  const moment = require('moment-timezone');
+  const date = new Date(timestampToConvert);
+  const fmt = 'YYYY-MM-DDTHH:mm:ss.SSS';
+  const localTime = moment(date).format(fmt);
+  const targetZonedTime = moment.tz(localTime, timezone);
+
+  const split = targetZonedTime.toString().split(' ');
+
+  const timeString = split[4].split(':');
+
+  return `${timeString[0]}:${timeString[1]}`;
+};
+
+
 module.exports = {
   monthsArray,
+  weekdaysArray,
+  alphabetsArray,
+  getPreviousDayYear,
   getPreviousDayMonth,
+  dateStringWithOffset,
+  timeStringWithOffset,
   getNumberOfDaysInMonth,
   getYesterdaysDateString,
 };

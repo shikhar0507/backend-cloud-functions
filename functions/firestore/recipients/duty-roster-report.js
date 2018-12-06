@@ -8,6 +8,8 @@ const {
 } = require('../../admin/constants');
 const {
   getPreviousDayMonth,
+  getPreviousDayYear,
+  alphabetsArray,
 } = require('./report-utils');
 const xlsxPopulate = require('xlsx-populate');
 
@@ -29,7 +31,7 @@ module.exports = (locals) => {
   locals.messageObject['dynamic_template_data'] = {
     office,
     date: todaysDateString,
-    subject: `Duty Roster Report_Office_${todaysDateString}`,
+    subject: `Duty Roster Report_${office}_${todaysDateString}`,
   };
 
   return Promise
@@ -43,6 +45,7 @@ module.exports = (locals) => {
         .where('report', '==', 'duty roster')
         .where('office', '==', office)
         .where('month', '==', getPreviousDayMonth())
+        .where('year', '==', getPreviousDayYear())
         .limit(1)
         .get(),
       xlsxPopulate
@@ -79,12 +82,9 @@ module.exports = (locals) => {
         'Assignees',
       ];
 
-      const alphabets =
-        ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
-
       firstRowValues.forEach((header, index) => {
         sheet1
-          .cell(`${alphabets[index]}1`)
+          .cell(`${alphabetsArray[index]}1`)
           .value(header);
       });
 

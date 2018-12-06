@@ -41,7 +41,7 @@ const {
 const toAttachmentValues = (activity) => {
   const object = {
     activityId: activity.id,
-    createTime: activity.createTime,
+    createTime: activity.createTime.toDate().getTime(),
   };
 
   const fields = Object.keys(activity.get('attachment'));
@@ -320,7 +320,7 @@ const handleCanEditRule = (locals, templateDoc) => {
               _latitude: '',
               _longitude: '',
             },
-            userDisplayName: null,
+            userDisplayName: '',
             userDeviceTimestamp: Date.now(),
           };
         }
@@ -332,8 +332,14 @@ const handleCanEditRule = (locals, templateDoc) => {
         };
       })();
 
+      const now = new Date();
+
       const addendumData = {
         activityData,
+        date: now.getDate(),
+        month: now.getMonth(),
+        year: now.getFullYear(),
+        dateString: now.toDateString(),
         activityName,
         user: creator,
         location: subscriptionAddendumDoc.location,
@@ -347,10 +353,13 @@ const handleCanEditRule = (locals, templateDoc) => {
         isSupportRequest: false,
       };
 
-      const isAdmin = (phoneNumber) =>
+      const isAdmin = ((phoneNumber) => {
         /** canEditRule for subscription is `ADMIN` */
-        locals.adminsCanEdit.includes(phoneNumber)
-        || phoneNumber === subscriberPhoneNumber;
+        return locals.adminsCanEdit.includes(phoneNumber)
+          || phoneNumber === subscriberPhoneNumber;
+      })();
+
+      console.log({ isAdmin, subscriberPhoneNumber });
 
       locals.assigneePhoneNumbersArray.forEach((phoneNumber) => {
         const ref = activityRef.collection('Assignees').doc(phoneNumber);
@@ -1426,18 +1435,17 @@ module.exports = (change, context) => {
 
         /** New user introduced to the system. Saving their phone number. */
         if (!record.hasOwnProperty('uid')) {
-          batch.set(rootCollections
-            .profiles
-            .doc(phoneNumber), {
-              uid: null,
-              smsContext: {
-                activityName: change.after.get('activityName'),
-                creator: change.after.get('creator'),
-                office: change.after.get('office'),
-              },
-            }, {
-              merge: true,
-            });
+          // batch.set(rootCollections
+          //   .profiles
+          //   .doc(phoneNumber), {
+          //     smsContext: {
+          //       activityName: change.after.get('activityName'),
+          //       creator: change.after.get('creator'),
+          //       office: change.after.get('office'),
+          //     },
+          //   }, {
+          //     merge: true,
+          //   });
         }
 
         /** Document below the user profile. */
@@ -1489,7 +1497,23 @@ module.exports = (change, context) => {
           /** Without `uid` the doc in `Updates/(uid)` will not exist. */
           if (!locals.assigneesMap.get(phoneNumber).uid) return;
 
-          const comment = getCommentString(locals, phoneNumber);
+          /** 
+           * If the person has used up all their leaves, for the create/update
+           * flow, the comment created for them  will be from this function
+           */
+          const comment = (() => {
+            if (change.after.get('template') === 'leave'
+              && change.after.get('activityData.status') === 'CANCELLED'
+              && new Set([
+                httpsActions.create,
+                httpsActions.update,
+              ])
+                .has(locals.addendumDoc.get('action'))) {
+              return `LIMIT EXCEEDED LEAVE CANCELLED`;
+            }
+
+            return getCommentString(locals, phoneNumber);
+          })();
 
           console.log({ phoneNumber, comment });
 
@@ -1597,5 +1621,27 @@ module.exports = (change, context) => {
       return batch.commit();
     })
     // .then(() => handleAutoAssign(locals))
-    .catch(console.error);
+    .catch((error) => {
+      console.error(error);
+
+      const context = {
+        error,
+        activityId: change.after.id,
+        before: change.before.data() || {},
+        after: change.after.data(),
+      };
+
+      const instantDocRef = rootCollections.instant.doc();
+      console.log('instantDocRef:', instantDocRef.id);
+
+      const messageBody = `<pre>${JSON.stringify(context, ' ', 2)}</pre>`;
+
+      return instantDocRef
+        .set({
+          error,
+          subject: `${process.env.FUNCTION_NAME} CRASH`
+            + ` ${process.env.GCLOUD_PROJECT}`,
+          messageBody,
+        });
+    });
 };

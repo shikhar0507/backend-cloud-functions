@@ -437,9 +437,9 @@ const handleOffice = (conn, locals) => {
                     addToInclude: true,
                   });
 
-              const addToInclude = (() => {
-                return subscriptionActivityObject.attachment.Subscriber.value !== phoneNumber;
-              })();
+              const addToInclude =
+                subscriptionActivityObject.attachment.Subscriber.value
+                !== phoneNumber;
 
               locals
                 .batch
@@ -549,7 +549,8 @@ const handleResult = (conn, result) => {
     logRequest({
       conn,
       responseCode: code.conflict,
-      responseMessage: `This office has been deleted. Cannot create an activity`,
+      responseMessage: `This office has been deleted.`
+        + ` Cannot create an activity`,
     });
 
     return;
@@ -560,7 +561,8 @@ const handleResult = (conn, result) => {
     logRequest({
       conn,
       responseCode: code.conflict,
-      responseMessage: `No office found with the name '${conn.req.body.office}'`,
+      responseMessage: `No office found with the name`
+        + ` '${conn.req.body.office}'`,
     });
 
     return;
@@ -570,7 +572,8 @@ const handleResult = (conn, result) => {
     logRequest({
       conn,
       responseCode: code.badRequest,
-      responseMessage: `No template found with the name: '${conn.req.body.template}'`,
+      responseMessage: `No template found with the name:`
+        + ` '${conn.req.body.template}'`,
     });
 
     return;

@@ -32,11 +32,17 @@ const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 
+const moment = require('moment');
+
 const {
+  weekdaysArray,
   monthsArray,
   getYesterdaysDateString,
   getPreviousDayMonth,
   getNumberOfDaysInMonth,
+  getPreviousDayYear,
+  dateStringWithOffset,
+  timeStringWithOffset,
 } = require('./report-utils');
 
 
@@ -82,6 +88,7 @@ module.exports = (locals) => {
     office,
     officeId,
   } = locals.change.after.data();
+
   const yesterdaysDateString = getYesterdaysDateString();
   const countsObject = {};
   const today = new Date();
@@ -107,6 +114,7 @@ module.exports = (locals) => {
         .where('office', '==', office)
         .where('report', '==', 'payroll')
         .where('month', '==', getPreviousDayMonth())
+        .where('year', '==', getPreviousDayYear())
         .limit(1)
         .get(),
       rootCollections
@@ -127,20 +135,10 @@ module.exports = (locals) => {
         locals.toSendEmail = false;
         console.log('Init docs not found.');
 
-        return Promise.resolve(false);
+        return Promise.resolve();
       }
 
-      const weekdays = [
-        'sunday',
-        'monday',
-        'tuesday',
-        'wednesday',
-        'thursday',
-        'friday',
-        'saturday',
-      ];
-
-      const weekdayName = weekdays[yesterday.getDay()];
+      const weekdayName = weekdaysArray[yesterday.getDay() + 1];
       const prevDayStart
         = new Date(yesterday.setHours(0, 0, 0)).getTime();
       const prevDayEnd
@@ -152,22 +150,16 @@ module.exports = (locals) => {
         const scheduleArray = branchDoc.get('schedule');
 
         scheduleArray.forEach((schedule) => {
-          let startTime = schedule.startTime;
-          let endTime = schedule.endTime;
+          if (!schedule.startTime || !schedule.endTime) return;
 
-          if (startTime === '' || endTime === '') return;
-
-          startTime = startTime.toDate().getTime();
-          endTime = endTime.toDate().getTime();
-
-          if (startTime >= prevDayStart && endTime < prevDayEnd) {
+          if (schedule.startTime >= prevDayStart
+            && schedule.endTime < prevDayEnd) {
             branchesWithHoliday.add(branchName);
           }
         });
       });
 
-      const initDoc
-        = initDocsQuery.docs[0];
+      const initDoc = initDocsQuery.docs[0];
       const employeesData
         = officeDoc.get('employeesData');
       const employeesPhoneNumberList
@@ -188,6 +180,7 @@ module.exports = (locals) => {
           onDuty: 0,
           weeklyOff: 0,
         };
+
         const employeeData = employeesData[phoneNumber];
         const weeklyOff = employeeData['Weekly Off'];
         const baseLocation = employeeData['Base Location'];
@@ -253,6 +246,7 @@ module.exports = (locals) => {
       locals.payrollObject = payrollObject;
       locals.initDoc = initDocsQuery.docs[0];
       locals.employeesPhoneNumberList = employeesPhoneNumberList;
+      locals.timezone = officeDoc.get('attachment.Timezone.value');
 
       return Promise.all(promises);
     })
@@ -266,24 +260,22 @@ module.exports = (locals) => {
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;
 
-        const employeeStartTime = new Date();
-        const phoneNumber = snapShot.docs[0].get('user');
-        const dailyStartTime = locals.employeesData[phoneNumber]['Daily Start Time'];
-        employeeStartTime.setHours(Number(dailyStartTime.split(':')[0]));
-        employeeStartTime.setMinutes(Number(dailyStartTime.split(':')[1]) + 30);
+        const addendumDoc = snapShot.docs[0];
 
-        const firstCheckInTimestamp =
-          snapShot
-            .docs[0]
-            .get('timestamp')
-            .toDate()
-            .getTime();
-        const lastCheckInTimestamp =
-          snapShot
-            .docs[snapShot.size - 1]
-            .get('timestamp')
-            .toDate()
-            .getTime();
+        const employeeStartTime = new Date();
+        const phoneNumber = addendumDoc.get('user');
+        const dailyStartTime = locals.employeesData[phoneNumber]['Daily Start Time'];
+        const split = dailyStartTime.split(':');
+        const hours = Number(split[0]);
+        const minutes = Number(split[1]) + 30;
+        // employeeStartTime.setHours(Number(dailyStartTime.split(':')[0]));
+        // employeeStartTime.setMinutes(Number(dailyStartTime.split(':')[1]) + 30);
+        employeeStartTime.setHours(hours);
+        employeeStartTime.setMinutes(minutes);
+
+        const firstCheckInTimestamp = addendumDoc.get('timestamp');
+
+        const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
 
         /** Person created only 1 check-in. */
         if (firstCheckInTimestamp === lastCheckInTimestamp) {
@@ -330,31 +322,19 @@ module.exports = (locals) => {
 
       const today = new Date();
 
-      const NUM_DAYS_IN_MONTH = getNumberOfDaysInMonth({
-        year: today.getFullYear(),
-        month: today.getMonth(),
-      });
+      const NUM_DAYS_IN_MONTH = moment().daysInMonth();
 
       locals.employeesPhoneNumberList.forEach((phoneNumber) => {
+        if (!locals.employeesData[phoneNumber]) return;
+
         /**
          * Activity `createTime` is the time at which the user has been
          * on the platform.
          */
-        let liveSince = '';
-
-        /**
-         * TODO: Remove this if condition.
-         *  Once all the currently created employee activities are updated.
-         */
-        if (locals.employeesData[phoneNumber].createTime) {
-          const timestamp
-            = locals.employeesData[phoneNumber].createTime.toDate();
-          const date = timestamp.getDate();
-          const year = timestamp.getFullYear();
-          const month = monthsArray[timestamp.getMonth()];
-
-          liveSince = `${date} ${month} ${year}`;
-        }
+        const liveSince = dateStringWithOffset({
+          timestampToConvert: locals.employeesData[phoneNumber].createTime,
+          timezone: locals.timezone,
+        });
 
         locals.csvString +=
           `${locals.employeesData[phoneNumber].Name},`
@@ -394,11 +374,5 @@ module.exports = (locals) => {
 
       return locals.sgMail.sendMultiple(locals.messageObject);
     })
-    .catch((error) => {
-      if (error.response) {
-        console.log(error.response.body.errors);
-      } else {
-        console.error(error);
-      }
-    });
+    .catch(console.error);
 };

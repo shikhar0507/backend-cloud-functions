@@ -373,20 +373,20 @@ const filterAttachment = (options) => {
 
   if (templateAttachmentFields.length !== bodyAttachmentFields.length) {
     messageObject.isValid = false;
-    messageObject.message = `Fields missmatch error in the attachment object`;
+    messageObject.message = `Fields mismatch error in the attachment object`;
 
     return messageObject;
   }
 
   const rootCollections = require('../../admin/admin').rootCollections;
   const validTypes = require('../../admin/constants').validTypes;
+  const timezonesSet = require('../../admin/constants').timezonesSet;
 
   /** The `forEach` loop doesn't support `break` */
   for (const field of templateAttachmentFields) {
     if (!bodyAttachment.hasOwnProperty(field)) {
       messageObject.isValid = false;
-      messageObject.message = `The '${field}' field is missing`
-        + ` from attachment in the request body.`;
+      messageObject.message = `${field} is missing`;
       break;
     }
 
@@ -394,17 +394,13 @@ const filterAttachment = (options) => {
 
     if (!item.hasOwnProperty('type')) {
       messageObject.isValid = false;
-      messageObject.message = `The 'type' field is missing from`
-        + ` the Object '${field}' in the attachment object from`
-        + ` the request body.`;
+      messageObject.message = `${field} is missing the property 'type'`;
       break;
     }
 
     if (!item.hasOwnProperty('value')) {
       messageObject.isValid = false;
-      messageObject.message = `The 'value' field is missing from`
-        + ` the Object '${field}' in the attachment object from`
-        + ` the request body.`;
+      messageObject.message = `${field} is missing the property 'value'`;
       break;
     }
 
@@ -414,16 +410,20 @@ const filterAttachment = (options) => {
     /** Type will never be an empty string */
     if (!isNonEmptyString(type)) {
       messageObject.isValid = false;
-      messageObject.message = `The field: '${field}'.type should be a`
-        + ` non-empty string.`;
+      messageObject.message = `${field} should have an alpha-numeric value`;
       break;
     }
 
-    if (typeof value !== 'string'
+    if (field === 'Timezone' && !timezonesSet.has(value)) {
+      messageObject.isValid = false;
+      messageObject.message = `${value} is not a valid ${field}`;
+      break;
+    }
+
+    if (type === 'number'
       && typeof value !== 'number') {
       messageObject.isValid = false;
-      messageObject.message = `In 'attachment', expected 'string'`
-        + ` or 'number' in the field: '${field}'.value Found ${typeof value}.`;
+      messageObject.message = `${field} should be a number`;
       break;
     }
 
@@ -431,22 +431,19 @@ const filterAttachment = (options) => {
       /** Subscription to the office is `forbidden` */
       if (bodyAttachment.Template.value === 'office') {
         messageObject.isValid = false;
-        messageObject.message = `Subscription of the template: 'office'`
-          + ` is not allowed.`;
+        messageObject.message = `Cannot subscribe to office`;
         break;
       }
 
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
-        messageObject.message = `The value of the field ${field}.value`
-          + ` should be a non-empty string.`;
+        messageObject.message = `${field} should jave an alpha-numeric value`;
         break;
       }
 
       if (field === 'Subscriber' && !isE164PhoneNumber(value)) {
         messageObject.isValid = false;
-        messageObject.message = `The value in the field 'Subscriber' should`
-          + ` be a valid phone number.`;
+        messageObject.message = `The ${field} should be a valid phone number`;
         break;
       }
 
@@ -467,8 +464,7 @@ const filterAttachment = (options) => {
 
       if (!isE164PhoneNumber(phoneNumber)) {
         messageObject.isValid = false;
-        messageObject.message = `The phone number in `
-          + ` 'body.attachment.Admin.value' is invalid.`;
+        messageObject.message = `${field} should be a valid phone number`;
         break;
       }
 
@@ -486,7 +482,8 @@ const filterAttachment = (options) => {
      * the `Offices/(officeId)/Activities` will be queried for the doc
      * to EXIST.
      */
-    if (!validTypes.has(type) && value !== '') {
+    if (!validTypes.has(type)
+      && value !== '') {
       messageObject.nameChecks.push({ value, type });
 
       messageObject
@@ -505,8 +502,7 @@ const filterAttachment = (options) => {
     if (field === 'Name') {
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
-        messageObject.message = `The 'Name' field in 'attachment' should`
-          + ` be a non-empty string`;
+        messageObject.message = `${field} cannot be left blank`;
         break;
       }
 
@@ -534,13 +530,6 @@ const filterAttachment = (options) => {
     }
 
     if (field === 'Number') {
-      if (!value || typeof value !== 'number') {
-        messageObject.isValid = false;
-        messageObject.message = `The 'Number' field in 'attachment' should`
-          + ` be a non-empty number`;
-        break;
-      }
-
       messageObject
         .querySnapshotShouldNotExist
         .push(rootCollections
@@ -557,8 +546,7 @@ const filterAttachment = (options) => {
     if (type === 'phoneNumber') {
       if (value !== '' && !isE164PhoneNumber(value)) {
         messageObject.isValid = false;
-        messageObject.message = `In 'attachment' the field '${field}'`
-          + ` has an invalid phone number.`;
+        messageObject.message = `${field} should be a valid phone number`;
         break;
       }
 
@@ -574,7 +562,7 @@ const filterAttachment = (options) => {
     if (type === 'email') {
       if (value !== '' && !isValidEmail(value)) {
         messageObject.isValid = false;
-        messageObject.message = `The field ${field} should be a valid email`;
+        messageObject.message = `${field} should be a valid email`;
         break;
       }
     }
@@ -582,11 +570,12 @@ const filterAttachment = (options) => {
     if (type === 'weekday') {
       const weekdays = require('../../admin/constants').weekdays;
 
-      if (value !== '' && !weekdays.has(value)) {
+      if (value !== ''
+        && !weekdays.has(value)) {
         messageObject.isValid = false;
-        messageObject.message = `In 'attachment', the field ${field}`
-          + ` is an invalid 'weekday'. Use one of the`
-          + ` following: ${Array.from(weekdays.keys())}.`;
+        messageObject.message = `${field} should be a weekday.`
+          + ` Use: ${Array.from(weekdays.keys())}`;
+        break;
       }
     }
 
@@ -595,10 +584,7 @@ const filterAttachment = (options) => {
 
       if (value !== '' && !isHHMMFormat(value)) {
         messageObject.isValid = false;
-        messageObject.message = `The value in the field:` +
-          ` '${field}' is not a valid HH:MM time format. Use the`
-          + ` following regex to validate your input:`
-          + ` '^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'`;
+        messageObject.message = `${field} should be a valid HH:MM format value`;
         break;
       }
     }
@@ -678,8 +664,8 @@ const validateCreateRequestBody = (body, successMessage) => {
     const phoneNumber = body.share[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `The phone number ${phoneNumber} is invalid.`
-        + ` Please choose a valid phone number.`;
+      successMessage.message = `${phoneNumber} is invalid.`
+        + ` Please contact support`;
       successMessage.isValid = false;
       break;
     }
@@ -768,7 +754,7 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
     return {
       message: `'${body.status}' is not a valid activity status.`
         + ` Please use one of the following`
-        + ` values: ${[...activityStatuses.keys()]}.`,
+        + ` values: .`,
       isValid: false,
     };
   }
@@ -1053,6 +1039,9 @@ const haversineDistance = (geopointOne, geopointTwo) => {
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = RADIUS_OF_EARTH * c;
+
+  // We do not care about small values in KM
+  if (distance < 0.5) return 0;
 
   return distance;
 };

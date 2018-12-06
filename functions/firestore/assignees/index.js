@@ -91,6 +91,7 @@ module.exports = (doc, context) => {
           userDeviceTimestamp: timestamp,
           user: phoneNumber,
           unassign: true,
+          comment: 'You were removed',
         });
     })
     .catch(console.error);

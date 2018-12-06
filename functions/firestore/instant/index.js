@@ -26,7 +26,6 @@
 'use strict';
 
 const env = require('../../admin/env');
-const { reportingActions } = require('../../admin/constants');
 const sgMail = require('@sendgrid/mail');
 
 sgMail.setApiKey(env.sgMailApiKey);
@@ -74,20 +73,5 @@ module.exports = (doc) => {
 
   console.log({ action });
 
-  /** Only sent to a select few people... */
-  const reportActions = new Set([
-    reportingActions.authChanged,
-    reportingActions.authDeleted,
-    reportingActions.authDisabled,
-    reportingActions.usedCustomClaims,
-    reportingActions.clientError,
-  ]);
-
-  if (reportActions.has(action)) {
-    return systemReportsHandler(doc);
-  }
-
-  console.log('No mails sent...');
-
-  return Promise.resolve();
+  return systemReportsHandler(doc);
 };

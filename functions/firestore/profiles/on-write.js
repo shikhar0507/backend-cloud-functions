@@ -108,17 +108,6 @@ const manageAddendum = (change, batch) => {
     .catch(console.error);
 };
 
-const getLocaleFromTimestamp = (countryCode, timestamp = new Date()) => {
-  if (countryCode === '+91') {
-    timestamp.setHours(timestamp.getHours() + 5);
-    timestamp.setMinutes(timestamp.getMinutes() + 30);
-    const offset = new Date(timestamp);
-
-    return `${offset.toDateString()} ${offset.toTimeString()}`.split(' GMT')[0];
-  }
-
-  return `${timestamp.toDateString()} ${timestamp.toTimeString()}`;
-};
 
 const getEmployeeObject = (options) => {
   const {
@@ -126,19 +115,18 @@ const getEmployeeObject = (options) => {
     hasSignedUpBeforeOffice,
   } = options;
 
-  // addedOn --> Time at which user is added to the Office.
-  // signedUpOn --> User created auth.
-  // But
+  // If `hasSignedUpBeforeOffice`, the timestamp will be the time at
+  // which the person was added to the office
 
-  const localTime = getLocaleFromTimestamp('+91');
+  const now = Date.now();
 
   const object = {
-    addedOn: localTime,
+    addedOn: now,
     signedUpOn: '',
   };
 
-  if (hasSignedUp) object.signedUpOn = localTime;
-  if (hasSignedUpBeforeOffice) object.signedUpOn = localTime;
+  if (hasSignedUp) object.signedUpOn = now;
+  if (hasSignedUpBeforeOffice) object.signedUpOn = now;
 
   return object;
 };
@@ -214,6 +202,7 @@ const handleRemovedFromOffice = (change, options) => {
     .all([
       rootCollections
         .inits
+        .where('phoneNumber', '==', phoneNumber)
         .where('report', '==', 'install')
         .where('office', '==', removedOffice)
         .limit(1)
@@ -277,6 +266,7 @@ const handleInstall = (change, options) => {
   currentOfficesList.forEach((office) => {
     const promise = rootCollections
       .inits
+      .where('phoneNumber', '==', phoneNumber)
       .where('report', '==', 'install')
       .where('office', '==', office)
       .limit(1)
@@ -303,15 +293,13 @@ const handleInstall = (change, options) => {
             return {
               office,
               phoneNumber,
-              report: 'install',
               officeId,
+              report: 'install',
               dateString: today.toDateString(),
               date: today.getDate(),
               month: today.getMonth(),
               year: today.getFullYear(),
-              installs: [
-                getLocaleFromTimestamp('+91'),
-              ],
+              installs: [Date.now()],
             };
           }
 
@@ -319,7 +307,7 @@ const handleInstall = (change, options) => {
             installs,
           } = snapShot.docs[0].data();
 
-          installs.push(getLocaleFromTimestamp('+91'));
+          installs.push(Date.now());
 
           return {
             installs,
@@ -361,8 +349,8 @@ const handleSignUp = (change, options) => {
    * If doc exists:
    *  update the init doc
    *  with employeesObject[phoneNumber] = {
-   *  addedOn,
-   * signedUpOn,
+   *    addedOn,
+   *    signedUpOn,
    * }
    *
    * Else create doc with the data

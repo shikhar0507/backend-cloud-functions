@@ -21,22 +21,11 @@ const googleMapsClient =
       Promise: Promise,
     });
 
-const getDateAndTimeStrings = (timestamp) => {
-  if (!timestamp) {
-    return {
-      timeString: '',
-      dateString: '',
-    };
-  }
+const initDocRef = (snapShot) => {
+  if (snapShot.empty) return rootCollections.inits.doc();
 
-  const dateObject = new Date(timestamp);
-
-  return {
-    timeString: dateObject.toTimeString().split(' ')[0],
-    dateString: dateObject.toDateString(),
-  };
+  return snapShot.docs[0].ref;
 };
-
 
 const getLatLngString = (location) =>
   `${location._latitude},${location._longitude}`;
@@ -88,18 +77,6 @@ const getPlaceInformation = (mapsApiResult) => {
 };
 
 
-const getTimeString = (countryCode, timestamp) => {
-  if (countryCode === '+91') {
-    /** India is +5:30 hours ahead of UTC */
-    timestamp.setHours(timestamp.getHours() + 5);
-    timestamp.setMinutes(timestamp.getMinutes() + 30);
-  }
-
-  return new Date(timestamp)
-    .toTimeString()
-    .split(' ')[0];
-};
-
 const getDisplayText = (addendumDoc) => {
   let displayText = '';
   const status = addendumDoc.get('activityData.status');
@@ -127,6 +104,7 @@ const getDisplayText = (addendumDoc) => {
   return displayText;
 };
 
+
 const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
   const NUM_MILLI_SECS_IN_DAY = 86400000;
   const initDoc = payrollInitDocQuery.docs[0];
@@ -144,6 +122,10 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
     payrollObject[phoneNumber] = {};
   }
 
+  const shouldBreak = (startDateMonth, checkingMonth) => {
+    return startDateMonth !== checkingMonth;
+  };
+
   if (addendumDoc.get('action') === httpsActions.update) {
     console.log('inside update');
 
@@ -154,11 +136,16 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
       const endTime = schedule.endTime;
 
       if (!startTime || !endTime) return;
+      // const startTimeValue = new Date(startTime).getMonth();
 
       while (startTime <= endTime) {
-        const date = new Date(startTime).getDate();
-        // payrollObject[phoneNumber][date] = displayText;
-        delete payrollObject[phoneNumber][date];
+        // const date = new Date(startTime);
+
+        // Not breaking the loop will overwrite the current
+        // month's data.
+        // if (shouldBreak(startTime, startTime)) break;
+
+        delete payrollObject[phoneNumber][new Date(startTime).getDate()];
 
         startTime += NUM_MILLI_SECS_IN_DAY;
       }
@@ -170,10 +157,17 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
     const endTime = schedule.endTime;
 
     if (!startTime || !endTime) return;
+    const startTimeMonth = new Date(startTime).getMonth();
 
     while (startTime <= endTime) {
-      const date = new Date(startTime).getDate();
-      payrollObject[phoneNumber][date] = displayText;
+      const date = new Date(startTime);
+
+      // Not breaking the loop will overwrite the current 
+      // month's data
+      // if (startTimeMonth !== date.getMonth()) break;
+      // if (shouldBreak(startTimeMonth, date.getMonth())) break;
+
+      payrollObject[phoneNumber][date.getDate()] = displayText;
 
       startTime += NUM_MILLI_SECS_IN_DAY;
     }
@@ -194,6 +188,9 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
 
       while (startTime <= endTime) {
         const date = new Date(startTime).getDate();
+
+        // if (shouldBreak(startTimeMonth, date.getMonth())) break;
+
         /** Leave CANCELLED, so not reflecting that in the final payroll report */
         payrollObject[phoneNumber][date] = deleteField();
 
@@ -216,129 +213,128 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
 };
 
 
-const getVisitsObject = (addendumDoc, dsrInitDocsQuery) => {
-  const visitsObject = (() => {
+const getVisitObject = (addendumDoc, dsrInitDocsQuery, locals) => {
+  const visitObject = (() => {
     if (dsrInitDocsQuery.empty) return {};
 
     return dsrInitDocsQuery
       .docs[0]
-      .get('visitsObject');
+      .get('visitObject');
   })();
   const activityData = addendumDoc.get('activityData');
   const [
     visitDateSchedule,
     followUpDateSchedule,
-    // closureDateSchedule,
   ] = activityData.schedule;
-  const phoneNumber = addendumDoc.get('user');
-  const visitDateObject
-    = getDateAndTimeStrings(visitDateSchedule.startTime);
-  const followUpDateObject
-    = getDateAndTimeStrings(followUpDateSchedule.startTime);
 
-  if (!visitsObject[phoneNumber]) {
-    visitsObject[phoneNumber] = {};
-  }
+  const activityId = addendumDoc.get('activityId');
+  const template = addendumDoc.get('activityData.template');
 
-  if (visitDateObject.timeString) {
-    visitsObject[phoneNumber][visitDateObject.timeString] = {
-      visitDate: visitDateObject.dateString,
-      customer: activityData.attachment.Customer.value,
+  const objectData = (() => {
+    if (template === 'tour plan') {
+      return {
+        firstContact: '',
+        secondContact: '',
+        product1: '',
+        product2: '',
+        product3: '',
+      };
+    }
+
+    return {
       firstContact: activityData.attachment['First Contact'].value,
       secondContact: activityData.attachment['Second Contact'].value,
       product1: activityData.attachment['Product 1'].value,
       product2: activityData.attachment['Product 2'].value,
-      followUpDate: followUpDateObject.dateString,
-      comment: activityData.attachment.Comment.value,
+      product3: activityData.attachment['Product 3'].value,
     };
+  })();
+
+  if (visitDateSchedule.startTime) {
+    visitObject[activityId] = {
+      firstContact: objectData.firstContact,
+      secondContact: objectData.secondContact,
+      purpose: addendumDoc.get('activityData.template'),
+      phoneNumber: addendumDoc.get('user'),
+      visitStartTimestamp: visitDateSchedule.startTime,
+      visitEndTimestamp: visitDateSchedule.endTime,
+      customer: activityData.attachment.Customer.value,
+      product1: objectData.product1,
+      product2: objectData.product2,
+      product3: objectData.product3,
+      comment: activityData.attachment.Comment.value,
+      // TODO: Not in scopre. Pass the value from the starting of this flow.
+      actualLocation: locals.placeInformation,
+    };
+
+    if (template === 'dsr') {
+      visitObject[activityId].followUpStartTimestamp =
+        followUpDateSchedule.startTime;
+      visitObject[activityId].followUpEndTimestamp =
+        followUpDateSchedule.endTime;
+    }
   }
 
-  return visitsObject;
+  console.log({ visitObject });
+
+  return visitObject;
 };
 
-const getFollowUpsObject = (addendumDoc, dsrInitDocsQuery) => {
+const getFollowUpObject = (addendumDoc, dsrInitDocsQuery) => {
   const followUpObject = (() => {
     if (dsrInitDocsQuery.empty) return {};
 
     return dsrInitDocsQuery
       .docs[0]
-      .get('visitsObject');
+      .get('followUpObject');
   })();
+
+  const activityId = addendumDoc.get('activityId');
   const activityData = addendumDoc.get('activityData');
   const [
     visitDateSchedule,
     followUpDateSchedule,
     closureDateSchedule,
   ] = activityData.schedule;
-  const phoneNumber = addendumDoc.get('user');
-  const visitDateObject
-    = getDateAndTimeStrings(visitDateSchedule.startTime);
-  const followUpDateObject
-    = getDateAndTimeStrings(followUpDateSchedule.startTime);
-  const closureDateObject
-    = getDateAndTimeStrings(closureDateSchedule.startTime);
 
-  if (!followUpObject[phoneNumber]) {
-    followUpObject[phoneNumber] = {};
-  }
+  // if (!visitDateSchedule.startTime || !followUpDateSchedule.startTime) {
+  //   return followUpObject;
+  // }
 
-  if (followUpDateObject.timeString) {
-    followUpObject[phoneNumber][visitDateObject.timeString] = {
-      followUpDate: followUpDateObject.dateString,
+  const visitType = (() => {
+    if (closureDateSchedule.startTime) {
+      return 'Closure';
+    }
+
+    return 'Follow-Up';
+  })();
+
+  if (followUpDateSchedule.startTime || closureDateSchedule.startTime) {
+    followUpObject[activityId] = {
+      visitType,
+      visitStartTime: visitDateSchedule.startTime,
+      phoneNumber: addendumDoc.get('user'),
+      followUpStartTimestamp: followUpDateSchedule.startTime,
+      followUpEndTimestamp: followUpDateSchedule.endTime,
       customer: activityData.attachment.Customer.value,
       firstContact: activityData.attachment['First Contact'].value,
       secondContact: activityData.attachment['Second Contact'].value,
       product1: activityData.attachment['Product 1'].value,
       product2: activityData.attachment['Product 2'].value,
-      closureDate: closureDateObject.dateString,
+      product3: activityData.attachment['Product 3'].value,
+      closureStartTimestamp: closureDateSchedule.startTime,
+      closureEndTimestamp: closureDateSchedule.endTime,
       comment: activityData.attachment.Comment.value,
+      purpose: addendumDoc.get('activityData.template'),
+      actualLocation: '',
     };
   }
+
+  console.log({ followUpObject });
 
   return followUpObject;
 };
 
-
-const getClosureObject = (addendumDoc, dsrInitDocsQuery) => {
-  const closureObject = (() => {
-    if (dsrInitDocsQuery.empty) return {};
-
-    return dsrInitDocsQuery.docs[0].get('closureObject');
-  })();
-  const activityData = addendumDoc.get('activityData');
-  const [
-    visitDateSchedule,
-    followUpDateSchedule,
-    closureDateSchedule,
-  ] = activityData.schedule;
-  const phoneNumber = addendumDoc.get('user');
-  const visitDateObject
-    = getDateAndTimeStrings(visitDateSchedule.startTime);
-  const followUpDateObject
-    = getDateAndTimeStrings(followUpDateSchedule.startTime);
-  const closureDateObject
-    = getDateAndTimeStrings(closureDateSchedule.startTime);
-
-  if (!closureObject[phoneNumber]) {
-    closureObject[phoneNumber] = {};
-  }
-
-  if (followUpDateObject.timeString) {
-    closureObject[phoneNumber][visitDateObject.timeString] = {
-      visitDate: visitDateObject.dateString,
-      followUpDate: followUpDateObject.dateString,
-      customer: activityData.attachment.Customer.value,
-      firstContact: activityData.attachment['First Contact'].value,
-      secondContact: activityData.attachment['Second Contact'].value,
-      product1: activityData.attachment['Product 1'].value,
-      product2: activityData.attachment['Product 2'].value,
-      closureDate: closureDateObject.dateString,
-      comment: activityData.attachment.Comment.value,
-    };
-  }
-
-  return closureObject;
-};
 
 const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
   const dutyRosterObject = (() => {
@@ -347,52 +343,37 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
     return dutyRosterInitDocsQuery.docs[0].get('dutyRosterObject');
   })();
 
-  const user = addendumDoc.get('user');
   const action = addendumDoc.get('action');
-  const timestamp = new Date(addendumDoc.get('timestamp'));
   const status = addendumDoc.get('activityData.status');
   const schedule = addendumDoc.get('activityData.schedule')[0];
   const venue = addendumDoc.get('activityData.venue')[0];
   const activityId = addendumDoc.get('activityId');
-  const dutyType = addendumDoc.get('activityData.attachment.Duty Type.value');
   const description = addendumDoc.get('activityData.attachment.Description.value');
-  const reportingTime = (() => {
-    if (!schedule.startTime) return '';
-
-    // Sorry. Lazyness got me. :(
-    // Returns time in HH:MM format
-    return new Date(schedule.startTime)
-      .toTimeString()
-      .split(' GMT')[0]
-      .slice(0, 5);
-  })();
 
   if (!dutyRosterObject[activityId]) dutyRosterObject[activityId] = {};
 
   dutyRosterObject[activityId].status = status;
-  dutyRosterObject[activityId].dutyType = dutyType;
+  dutyRosterObject[activityId].dutyType = addendumDoc.get('activityData.attachment.Duty Type.value');
   dutyRosterObject[activityId].description = description;
-  dutyRosterObject[activityId].reportingTime = reportingTime;
+  dutyRosterObject[activityId].reportingTime = schedule.startTime;
   dutyRosterObject[activityId].reportingLocation = venue.address;
-  dutyRosterObject[activityId].reportingTimeStart =
-    new Date(schedule.startTime).getTime();
-  dutyRosterObject[activityId].reportingTimeEnd =
-    new Date(schedule.endTime).getTime();
+  dutyRosterObject[activityId].reportingTimeStart = schedule.startTime;
+  dutyRosterObject[activityId].reportingTimeEnd = schedule.endTime;
 
   if (action === httpsActions.create) {
-    const createdBy = (() => addendumDoc.get('user'))();
-    const createdOn = (() => timestamp.toDateString())();
-
-    dutyRosterObject[activityId].createdBy = createdBy;
-    dutyRosterObject[activityId].createdOn = createdOn;
+    dutyRosterObject[activityId].createdBy = addendumDoc.get('user');
+    dutyRosterObject[activityId].createdOn = addendumDoc.get('timestamp');
   }
 
+  /** 
+   * Default is empty string because unless someone updates the activity
+   * status to `CONFIRMED` or `CANCELLED` 
+   */
   const place = '';
-  const when = (() => timestamp.toDateString())();
 
   if (action === httpsActions.changeStatus) {
-    dutyRosterObject[activityId].when = when;
-    dutyRosterObject[activityId].user = user;
+    dutyRosterObject[activityId].when = addendumDoc.get('timestamp');
+    dutyRosterObject[activityId].user = addendumDoc.get('user');
     dutyRosterObject[activityId].place = place;
   }
 
@@ -401,20 +382,126 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
   return dutyRosterObject;
 };
 
-const getRef = (snapShot) => {
-  if (snapShot.empty) return rootCollections.inits.doc();
 
-  return snapShot.docs[0].ref;
+const getExpenseClaimObject = (addendumDoc, expenseClaimInitDocsQuery) => {
+  const expenseClaimObject = (() => {
+    if (expenseClaimInitDocsQuery.empty) return {};
+
+    return expenseClaimInitDocsQuery.docs[0].get('expenseClaimObject');
+  })();
+
+  const activityData = addendumDoc.get('activityData');
+  const activityId = addendumDoc.get('activityId');
+
+  if (!expenseClaimObject[activityId]) {
+    expenseClaimObject[activityId] = {};
+  }
+
+  const expenseDateStartTime = activityData.schedule[0].startTime;
+
+  if (!expenseDateStartTime) return expenseClaimObject;
+
+  expenseClaimObject[activityId] = {
+    expenseDateStartTime,
+    phoneNumber: addendumDoc.get('user'),
+    amount: activityData.attachment.Amount.value,
+    status: activityData.status,
+    expenseType: activityData.attachment['Expense Type'].value,
+    reason: activityData.attachment.Reason.value,
+    referenceNumber: activityData.attachment['Reference Number'].value,
+    expenseLocation: '',
+  };
+
+  return expenseClaimObject;
 };
 
 
-const handleDutyRosterReport = (addendumDoc, batch) => {
-  if (addendumDoc.get('template') !== 'duty roster') {
-    return batch;
+const handleExpenseClaimReport = (addendumDoc, locals) => {
+  if (addendumDoc.get('activityData.template') !== 'expense claim') {
+    // return locals.batch;
+
+    return Promise.resolve();
+  }
+
+  const startTime = addendumDoc.get('activityData').schedule[0].startTime;
+  const endTime = addendumDoc.get('activityData').schedule[0].endTime;
+
+  if (!startTime || !endTime) {
+    return Promise.resolve();
+  }
+
+  const month = new Date(startTime).getMonth();
+  const year = new Date(startTime).getFullYear();
+
+  return rootCollections
+    .inits
+    .where('report', '==', 'expense claim')
+    .where('office', '==', addendumDoc.get('activityData.office'))
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .limit(1)
+    .get()
+    .then((expenseClaimInitDocsQuery) => {
+      const ref = initDocRef(expenseClaimInitDocsQuery);
+      const expenseClaimObject =
+        getExpenseClaimObject(addendumDoc, expenseClaimInitDocsQuery);
+
+      if (addendumDoc.get('activityData.schedule')[0].startTime) {
+        expenseClaimObject[addendumDoc.get('activityId')]
+          .expenseLocation = locals.placeInformation.identifier;
+      }
+
+      console.log('Ref:', ref.path);
+
+      locals.batch.set(ref, {
+        month,
+        year,
+        expenseClaimObject,
+        report: 'expense claim',
+        office: addendumDoc.get('activityData.office'),
+        officeId: addendumDoc.get('activityData.officeId'),
+      }, {
+          merge: true,
+        });
+
+      return Promise.resolve();
+    })
+    .catch(console.error);
+};
+
+
+const handleLeaveReport = (addendumDoc, locals) => {
+  // if (addendumDoc.get('template') !== 'leave') {
+  //   return handleExpenseClaimReport(addendumDoc, locals);
+  // }
+
+  // run leave report logic
+
+  // return handleExpenseClaimReport(addendumDoc, locals);
+
+  return Promise.resolve();
+};
+
+
+const handleDutyRosterReport = (addendumDoc, locals) => {
+  if (addendumDoc.get('activityData.template') !== 'duty roster') {
+    // return handleLeaveReport(addendumDoc, locals);
+    return Promise.resolve();
   }
 
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
+
+  const startTime = addendumDoc.get('activityData.schedule')[0].startTime;
+  const endTime = addendumDoc.get('activityData.schedule')[0].endTime;
+
+  if (!startTime || !endTime) {
+    return Promise.resolve();
+  }
+
+  const date = new Date(startTime);
+  const month = date.getMonth();
+  const year = date.getFullYear();
 
   return Promise
     .all([
@@ -422,7 +509,8 @@ const handleDutyRosterReport = (addendumDoc, batch) => {
         .inits
         .where('report', '==', 'duty roster')
         .where('office', '==', office)
-        .where('month', '==', new Date().getMonth())
+        .where('month', '==', month)
+        .where('year', '==', year)
         .limit(1)
         .get(),
       rootCollections
@@ -437,114 +525,131 @@ const handleDutyRosterReport = (addendumDoc, batch) => {
         assigneesSnapshot,
       ] = result;
 
-      const ref = getRef(dutyRosterInitDocsQuery);
+      const ref = initDocRef(dutyRosterInitDocsQuery);
 
       const dutyRosterObject
         = getDutyRosterObject(addendumDoc, dutyRosterInitDocsQuery);
 
       dutyRosterObject.assignees = assigneesSnapshot.docs.map((doc) => doc.id);
 
-      batch.set(ref, {
+      locals.batch.set(ref, {
+        month,
+        year,
         office,
         officeId,
         dutyRosterObject,
         report: 'duty roster',
-        month: new Date().getMonth(),
       }, {
           merge: true,
         });
 
-      return batch;
+      return Promise.resolve();
     })
     .catch(console.error);
 };
 
-const handleDsrReport = (addendumDoc, batch) => {
-  if (addendumDoc.get('template') !== 'dsr') {
-    return handleDutyRosterReport(addendumDoc, batch);
+const handleVisitDate = (addendumDoc, locals) => {
+  if (addendumDoc.get('activityData.template') !== 'dsr'
+    && addendumDoc.get('activityData.template') !== 'tour plan'
+    || !addendumDoc.get('activityData.schedule')[0]) {
+    console.log('In handleVisitDate: resolving early');
+
+    return Promise.resolve();
   }
 
-  console.log('Debugging DSR');
+  const visitStartTime = addendumDoc.get('activityData.schedule')[0].startTime;
+  const date = new Date(visitStartTime);
+  const dateString = date.toDateString();
 
-  const office = addendumDoc.get('activityData.office');
-  const officeId = addendumDoc.get('activityData.officeId');
-  const timestamp = new Date(addendumDoc.get('timestamp'));
-  const schedulesArray = addendumDoc.get('activityData.schedule');
-  const promises = [];
-  const datesArray = [];
+  return rootCollections
+    .inits
+    .where('office', '==', addendumDoc.get('activityData.office'))
+    .where('report', '==', 'dsr')
+    .where('dateString', '==', dateString)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      const ref = initDocRef(snapShot);
 
-  schedulesArray.forEach((scheduleObject) => {
-    const { startTime } = scheduleObject;
+      const docData = {
+        dateString,
+        report: 'dsr',
+        month: date.getMonth(),
+        year: date.getFullYear(),
+        office: addendumDoc.get('activityData.office'),
+        officeId: addendumDoc.get('activityData.officeId'),
+        visitObject: getVisitObject(addendumDoc, snapShot, locals),
+      };
 
-    const dateString = startTime ? new Date(startTime).toDateString() : '';
-    datesArray.push(dateString);
+      if (snapShot.empty) {
+        docData.followUpObject = {};
+      }
 
-    const promise = rootCollections
-      .inits
-      .where('report', '==', 'dsr')
-      .where('office', '==', office)
-      .where('dateString', '==', dateString)
-      .limit(1)
-      .get();
+      console.log('visit:', ref.path);
 
-    promises.push(promise);
-  });
-
-  return Promise
-    .all(promises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot, index) => {
-        const ref = getRef(snapShot);
-        /** 
-         * The `dateString` should be the same in this doc as
-         * of the schedule.startTime for which the query was executed.
-         */
-        const dateString = datesArray[index];
-
-        const initDocData = (() => {
-          if (snapShot.empty) {
-            return {
-              office,
-              officeId,
-              dateString,
-              report: 'dsr',
-              month: timestamp.getMonth(),
-              year: timestamp.getFullYear(),
-              visitsObject: {},
-              followUpsObject: {},
-              closureObject: {},
-            };
-          }
-
-          return snapShot.docs[0].data();
-        })();
-
-        if (index === 0) {
-          initDocData.visitsObject = getVisitsObject(addendumDoc, snapShot);
-        }
-
-        if (index === 1) {
-          initDocData.followUpsObject
-            = getFollowUpsObject(addendumDoc, snapShot);
-        }
-
-        if (index === 2) {
-          initDocData.closureObject = getClosureObject(addendumDoc, snapShot);
-        }
-
-        batch.set(ref,
-          initDocData, {
-            merge: true,
-          });
-      });
-
-      return handleDutyRosterReport(addendumDoc, batch);
+      return ref.set(docData, { merge: true });
     })
     .catch(console.error);
 };
 
 
-const handlePayrollReport = (addendumDoc, batch) => {
+const handleFollowUpDate = (addendumDoc, locals) => {
+  if (addendumDoc.get('activityData.template') !== 'dsr'
+    || !addendumDoc.get('activityData.schedule')[1]) {
+    console.log('resolving early follow up');
+
+    return Promise.resolve();
+  }
+
+  const followUpStartTime = addendumDoc.get('activityData.schedule')[1].startTime;
+  const date = new Date(followUpStartTime);
+  const dateString = date.toDateString();
+
+  return rootCollections
+    .inits
+    .where('office', '==', addendumDoc.get('activityData.office'))
+    .where('report', '==', 'dsr')
+    .where('dateString', '==', dateString)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      const ref = initDocRef(snapShot);
+
+      const docData = {
+        dateString,
+        month: date.getMonth(),
+        year: date.getFullYear(),
+        office: addendumDoc.get('activityData.office'),
+        officeId: addendumDoc.get('activityData.officeId'),
+        report: 'dsr',
+        followUpObject: getFollowUpObject(addendumDoc, snapShot),
+      };
+
+      if (snapShot.empty) docData.visitObject = {};
+
+      console.log('follow up:', ref.path);
+
+      return ref.set(docData, { merge: true });
+    })
+    .catch(console.error);
+};
+
+
+const handleDsr = (addendumDoc, locals) => {
+  if (!new Set()
+    .add('dsr')
+    .add('tour plan')
+    .has(addendumDoc.get('activityData.template'))) {
+    return Promise.resolve();
+  }
+
+  return handleVisitDate(addendumDoc, locals)
+    .then(() => handleFollowUpDate(addendumDoc, locals))
+    .catch(console.error);
+};
+
+
+const handlePayrollReport = (addendumDoc, locals) => {
   const template = addendumDoc.get('activityData.template');
 
   if (!new Set()
@@ -552,37 +657,69 @@ const handlePayrollReport = (addendumDoc, batch) => {
     .add('check-in')
     .add('tour plan')
     .has(template)) {
-    return handleDsrReport(addendumDoc, batch);
+    return Promise.resolve();
   }
 
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
   const timestamp = new Date(addendumDoc.get('timestamp'));
 
+  const month = (() => {
+    if (template === 'check-in') {
+      return timestamp.getMonth();
+    }
+
+    const schedule = addendumDoc.get('activityData.schedule')[0];
+
+    if (!schedule) return '';
+
+    const startTime = addendumDoc.get('activityData.schedule')[0].startTime;
+
+    if (!startTime) return '';
+
+    return new Date(startTime).getMonth();
+  })();
+
+  const year = (() => {
+    if (template === 'check-in') {
+      return timestamp.getFullYear();
+    }
+
+    const schedule = addendumDoc.get('activityData.schedule')[0];
+    if (!schedule) return '';
+    const startTime = addendumDoc.get('activityData.schedule')[0].startTime;
+    if (!startTime) return '';
+
+    return new Date(startTime).getFullYear();
+  })();
+
+  if (!month || !year) {
+    return Promise.resolve();
+  }
+
   return rootCollections
     .inits
     .where('office', '==', office)
     .where('report', '==', 'payroll')
-    .where('month', '==', timestamp.getMonth())
-    .where('year', '==', timestamp.getFullYear())
+    .where('month', '==', month)
+    .where('year', '==', year)
     .limit(1)
     .get()
     .then((payrollInitDocQuery) => {
-      const ref = getRef(payrollInitDocQuery);
+      const ref = initDocRef(payrollInitDocQuery);
 
-      batch.set(ref, {
+      locals.batch.set(ref, {
         office,
         officeId,
-        date: timestamp.getDate(),
-        month: timestamp.getMonth(),
-        year: timestamp.getFullYear(),
-        dateString: timestamp.toDateString(),
+        month,
+        year,
+        report: 'payroll',
         payrollObject: getPayrollObject(addendumDoc, payrollInitDocQuery),
       }, {
           merge: true,
         });
 
-      return handleDsrReport(addendumDoc, batch);
+      return handleDsr(addendumDoc, locals);
     })
     .catch(console.error);
 };
@@ -592,27 +729,34 @@ module.exports = (addendumDoc) => {
   const phoneNumber = addendumDoc.get('user');
   const officeId = addendumDoc.get('activityData.officeId');
   const timestamp = new Date(addendumDoc.get('timestamp'));
-  const date = timestamp.getDate();
-  const month = timestamp.getMonth();
-  const year = timestamp.getFullYear();
-  const batch = db.batch();
+  const locals = {
+    batch: db.batch(),
+  };
 
   return rootCollections
     .offices
     .doc(officeId)
     .collection('Addendum')
     .where('user', '==', phoneNumber)
-    .where('dateString', '==', new Date().toDateString())
+    .where('dateString', '==', timestamp.toDateString())
     .orderBy('timestamp', 'desc')
     .limit(2)
     .get()
     .then((docs) => {
-      const previousAddendumDoc = docs.docs[1];
+      // const previousAddendumDoc = docs.docs[1];
+
+      const previousAddendumDoc = (() => {
+        if (docs.docs[0] && docs.docs[0].id !== addendumDoc.id) {
+          return docs.docs[0];
+        }
+
+        return docs.docs[1];
+      })();
 
       /**
        * User has no activity before the creation of this
        * addendum doc. This means that the distance travelled
-       * and accumulated will be ZERO.
+       * and accumulated will be `ZERO`.
        */
       const distance = (() => {
         if (!previousAddendumDoc) {
@@ -635,22 +779,6 @@ module.exports = (addendumDoc) => {
         };
       })();
 
-      console.log({ distance });
-
-      /**
-       * Previous addendum doc is present and the distance travelled is ZERO,
-       * this means that the user hasn't run moved from their previous
-       * position.
-       */
-      if (previousAddendumDoc
-        && Math.round(Math.floor(distance.travelled)) === 0) {
-        return [
-          null,
-          distance,
-          previousAddendumDoc,
-        ];
-      }
-
       return Promise
         .all([
           googleMapsClient
@@ -672,64 +800,55 @@ module.exports = (addendumDoc) => {
       ] = result;
 
       const placeInformation = getPlaceInformation(mapsApiResult);
-
-      /** url, identifier, accumulatedDistance, distanceTravelled */
-
-      const url = (() => {
-        if (previousAddendumDoc && distance.travelled === 0) {
-          return previousAddendumDoc.get('url');
-        }
-
-        return placeInformation.url;
-      })();
-
-      const identifier = (() => {
-        if (previousAddendumDoc && distance.travelled === 0) {
-          return previousAddendumDoc.get('identifier');
-        }
-
-        return placeInformation.identifier;
-      })();
-
-      const accumulatedDistance = (() => {
-        if (previousAddendumDoc && distance.travelled === 0) {
-          return previousAddendumDoc.get('accumulatedDistance');
-        }
-
-        return distance.accumulated.toFixed(2);
-      })();
-
-      const distanceTravelled = (() => {
-        if (previousAddendumDoc && distance.travelled === 0) {
-          return previousAddendumDoc.get('distanceTravelled');
-        }
-
-        return distance.travelled;
-      })();
+      locals.placeInformation = placeInformation;
 
       const updateObject = {
-        date,
-        month,
-        year,
-        url,
-        identifier,
-        accumulatedDistance,
-        distanceTravelled,
-        timeString: getTimeString('+91', timestamp),
-        dateString: timestamp.toDateString(),
+        url: placeInformation.url,
+        identifier: placeInformation.identifier,
+        accumulatedDistance: distance.accumulated.toFixed(2),
+        distanceTravelled: distance.travelled,
       };
 
       console.log({
+        phoneNumber,
         updateObject,
-        path: addendumDoc.ref.path,
+        distance,
+        previousAddendumDocExists: Boolean(previousAddendumDoc),
+        currPath: addendumDoc.ref.path,
+        prevPath: previousAddendumDoc ? previousAddendumDoc.ref.path : null,
       });
 
-      batch.set(addendumDoc.ref, updateObject, {
+      locals.batch.set(addendumDoc.ref, updateObject, {
         merge: true,
       });
 
-      return handlePayrollReport(addendumDoc, batch);
+      return locals.batch;
     })
-    .then(() => batch.commit())
-    .catch(console.error);
+    .then(() => handlePayrollReport(addendumDoc, locals))
+    .then(() => handleDsr(addendumDoc, locals))
+    .then(() => handleDutyRosterReport(addendumDoc, locals))
+    .then(() => handleLeaveReport(addendumDoc, locals))
+    .then(() => handleExpenseClaimReport(addendumDoc, locals))
+    .then(() => locals.batch.commit())
+    .catch((error) => {
+      console.error(error);
+
+      const instantDocRef = rootCollections.instant.doc();
+
+      console.log('crash id:', instantDocRef.id);
+
+      const context = {
+        error,
+        addendumId: addendumDoc.id,
+        doc: addendumDoc.data(),
+        instantDocId: instantDocRef.id,
+      };
+
+      return instantDocRef
+        .set({
+          subject: `${process.env.FUNCTION_NAME}`
+            + ` Crash ${process.env.GCLOUD_PROJECT}`,
+          messageBody: JSON.stringify(context, ' ', 2),
+        });
+    });
 };

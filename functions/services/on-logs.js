@@ -77,7 +77,6 @@ module.exports = (conn) => {
         messageBody: JSON.stringify({
           body,
           requester: conn.requester,
-          url: conn.req.url,
           updatesDoc: doc.data(),
         }, ' ', 2),
         subject: `New Error in Growthfile Frontend`

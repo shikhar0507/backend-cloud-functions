@@ -222,7 +222,7 @@ const updateTemplateDoc = (conn, templateDoc) => {
   </pre>
   `;
 
-  batch.set(templateDoc.ref, templateObject, { merge: true });
+  batch.set(templateDoc.ref, templateObject);
 
   batch.set(rootCollections
     .instant

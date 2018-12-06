@@ -34,6 +34,7 @@ const {
 
 const {
   getYesterdaysDateString,
+  dateStringWithOffset,
 } = require('./report-utils');
 
 
@@ -71,8 +72,7 @@ module.exports = (locals) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        // .where('dateString', '==', yesterdaysDateString)
-        .where('dateString', '==', new Date().toDateString())
+        .where('dateString', '==', yesterdaysDateString)
         .where('report', '==', 'signup')
         .limit(1)
         .get(),
@@ -80,21 +80,22 @@ module.exports = (locals) => {
     .then((result) => {
       const [
         officeDoc,
-        initDocs,
+        initDocsQuery,
       ] = result;
 
-      if (initDocs.empty) {
+      if (initDocsQuery.empty) {
         console.log('Init docs empty.', 'signUps');
 
         return Promise.resolve();
       }
 
       const allEmployeesData = officeDoc.get('employeesData');
+      const offset = Number(officeDoc.get('attachment.Offset.value'));
       let totalSignUpsCount = 0;
 
       const {
         employeesObject,
-      } = initDocs.docs[0].data();
+      } = initDocsQuery.docs[0].data();
 
       const employeesList = Object.keys(employeesObject);
 
@@ -110,14 +111,22 @@ module.exports = (locals) => {
         const employeeName = employeeData.Name;
         const employeeCode = employeeData['Employee Code'];
         const department = employeeData.Department;
-        const addedOn = employeeData.createTime.toDate().toDateString();
-        const signedUpOn = employeesObject[phoneNumber].signedUpOn;
         const firstSupervisorPhoneNumber =
           employeeData['First Supervisor'];
         const secondSupervisorPhoneNumber =
           employeeData['Second Supervisor'];
         const firstSupervisorName = getName(firstSupervisorPhoneNumber);
         const secondSupervisorName = getName(secondSupervisorPhoneNumber);
+
+        const signedUpOn = dateStringWithOffset({
+          offset,
+          timestampToCovert: employeesObject[phoneNumber].signedUpOn,
+        });
+
+        const addedOn = dateStringWithOffset({
+          offset,
+          timestampToCovert: employeeData.createTime,
+        });
 
         locals.csvString +=
           ` ${employeeName},`
@@ -160,11 +169,5 @@ module.exports = (locals) => {
 
       return locals.sgMail.send(locals.messageObject);
     })
-    .catch((error) => {
-      if (error.response) {
-        console.log(error.response.body.errors);
-      } else {
-        console.error(error);
-      }
-    });
+    .catch(console.error);
 };

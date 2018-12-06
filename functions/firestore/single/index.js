@@ -39,7 +39,9 @@ module.exports = (conn) => {
 
   if (conn.req.body.template === 'office') {
     if (!hasSupportClaims(conn.requester.customClaims)) {
-      sendResponse(conn, code.forbidden, 'You are not authorized to create Offices');
+      // sendResponse(conn, code.forbidden, 'You are not authorized to create Offices');
+
+      disableAccount(conn, 'You are not authorized to create Offices');
 
       return;
     }

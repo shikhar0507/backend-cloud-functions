@@ -107,6 +107,12 @@ const createDocsWithBatch = (conn, locals) => {
     .collection('Addendum')
     .doc();
 
+  // All leaves used up
+  if (conn.req.body.template === 'leave'
+    && locals.static.leavesBalance === 0) {
+    locals.static.statusOnCreate = 'CANCELLED';
+  }
+
   const activityData = {
     addendumDocRef,
     venue: locals.objects.venueArray,
@@ -123,8 +129,14 @@ const createDocsWithBatch = (conn, locals) => {
     creator: conn.requester.phoneNumber,
   };
 
+  const now = new Date();
+
   const addendumDocObject = {
     activityData,
+    date: now.getDate(),
+    month: now.getMonth(),
+    year: now.getFullYear(),
+    dateString: now.toDateString(),
     user: conn.requester.phoneNumber,
     userDisplayName: conn.requester.displayName,
     /**
@@ -143,6 +155,13 @@ const createDocsWithBatch = (conn, locals) => {
     activityName: getActivityName(conn),
     isSupportRequest: conn.requester.isSupportRequest,
   };
+
+  // Only putting the balance for the leave activities where
+  // which are `PENDING` or `CONFIRMED`. `CANCELLED` leaves don't count
+  if (conn.req.body.template === 'leave'
+    && activityData.status !== 'CANCELLED') {
+    addendumDocObject.leavesBalance = locals.static.leavesBalance;
+  }
 
   if (conn.req.body.template === 'check-in'
     && conn.req.body.venue[0].geopoint.latitude
@@ -167,7 +186,6 @@ const createDocsWithBatch = (conn, locals) => {
 
     const distanceAccurate =
       haversineDistance(geopointOne, geopointTwo) < accuracy;
-
 
     if (!distanceAccurate) activityData.status = 'CANCELLED';
 
@@ -285,13 +303,90 @@ const handleAssignees = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
+const handleLeave = (conn, locals) => {
+  if (conn.req.body.template !== 'leave'
+    || conn.req.body.attachment['Leave Type'].value) {
+
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
+  /**
+   * Leave created
+   * attachment.Leave Type.value
+   *   if empty:
+   *     skip this code
+   *   else:
+   *     fetch that leave-type activity
+   *       Annual Limit - 
+   */
+  Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('template', '==', 'leave-type')
+        .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
+        .limit(1)
+        .get(),
+      rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Addendum')
+        .where('template', '==', 'leave')
+        .where('user', '==', conn.requester.phoneNumber)
+        .where('year', '==', new Date().getFullYear())
+        .orderBy('timestamp', 'desc')
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      const startTime = conn.req.body.schedule[0].startTime;
+      const endTime = conn.req.body.schedule[0].endTime;
+
+      if (!startTime || !endTime) {
+        handleAssignees(conn, locals);
+
+        return;
+      }
+
+      // Adding +1 to include the start day of the leave
+      const leavesTaken =
+        Math.ceil(Math.abs((endTime - startTime) / 86400000)) + 1;
+
+      // Not checking for the doc.exists, or result[0].empty because
+      // leave-type's existance is certain when creating a leave;
+      const annualLimit =
+        result[0].docs[0].get('attachment.Annual Limit.value');
+
+      locals.static.leavesBalance = (() => {
+        if (result[1].empty) return annualLimit;
+
+        return result[1].docs[0].get('leavesBalance') - leavesTaken;
+      })();
+
+      if (locals.static.leavesBalance < 0) {
+        locals.static.statusOnCreate = 'CANCELLED';
+      }
+
+      console.log('balance', locals.static.leavesBalance);
+
+      handleAssignees(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+};
+
 
 const verifyUniqueness = (conn, locals) => {
   if (!new Set()
     .add('subscription')
     .add('admin')
     .has(conn.req.body.template)) {
-    handleAssignees(conn, locals);
+    handleLeave(conn, locals);
 
     return;
   }
@@ -344,7 +439,7 @@ const verifyUniqueness = (conn, locals) => {
         return;
       }
 
-      handleAssignees(conn, locals);
+      handleLeave(conn, locals);
 
       return;
     })
@@ -723,6 +818,12 @@ const createLocals = (conn, result) => {
 
   if (!conn.requester.isSupportRequest) {
     locals.objects.allPhoneNumbers.add(conn.requester.phoneNumber);
+  }
+
+  if (conn.req.body.template !== 'leave') {
+    handleScheduleAndVenue(conn, locals);
+
+    return;
   }
 
   handleScheduleAndVenue(conn, locals);

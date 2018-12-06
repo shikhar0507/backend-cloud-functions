@@ -64,11 +64,22 @@ const updateDocsWithBatch = (conn, locals) => {
     attachment: conn.req.body.attachment,
   };
 
+  /** 
+   * Person created the leave, with zero or negative balance. Thus
+   * activity was created with status as CANCELLED.
+   * Now, they updated the activity, with 
+   */
+  if (locals.leavesRolledBack) {
+    activityUpdateObject.status = 'PENDING';
+  }
+
   locals
     .batch
     .set(activityRef, activityUpdateObject, {
       merge: true,
     });
+
+  const now = new Date();
 
   locals
     .batch
@@ -77,8 +88,15 @@ const updateDocsWithBatch = (conn, locals) => {
        * Sequence matters here. The `activityUpdateObject` object contains updated values.
        * Priority is of the `activityUpdateObject`.
        */
-      activityData: Object
-        .assign({}, locals.docs.activity.data(), activityUpdateObject),
+      activityData: Object.assign(
+        {},
+        locals.docs.activity.data(),
+        activityUpdateObject
+      ),
+      date: now.getDate(),
+      month: now.getMonth(),
+      year: now.getFullYear(),
+      dateString: now.toDateString(),
       user: conn.requester.phoneNumber,
       action: httpsActions.update,
       location: getGeopointObject(conn.req.body.geopoint),
@@ -123,6 +141,58 @@ const updateDocsWithBatch = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
+const handleLeave = (conn, locals) => {
+  if (locals.docs.activity.get('template') !== 'leave') {
+
+    updateDocsWithBatch(conn, locals);
+
+    return;
+  }
+
+  const newScheduleObject = conn.req.body.schedule[0];
+  const oldScheduleObject = locals.docs.activity.get('schedule');
+
+  // if (!newScheduleObject.startTime || newScheduleObject.endTime) {
+  //   updateDocsWithBatch(conn, locals);
+
+  //   return;
+  // }
+
+  // Promise
+  //   .all([
+  //     rootCollections
+  //       .offices
+  //       .doc(locals.docs.activity.get('officeId'))
+  //       .collection('Activities')
+  //       .where('template', '==', 'leave-type')
+  //       .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
+  //       .limit(1)
+  //       .get(),
+  //     rootCollections
+  //       .offices
+  //       .doc(locals.docs.activity.get('officeId'))
+  //       .collection('Addendum')
+  //       .where('template', '==', 'leave')
+  //       .where('user', '==', conn.requester.phoneNumber)
+  //       .where('year', '==', new Date().getFullYear())
+  //       .orderBy('timestamp', 'desc')
+  //       .limit(1)
+  //       .get(),
+  //   ])
+  //   .then((result) => {
+  //     const [
+  //       leaveTypeQuery,
+  //       addendumDocQuery,
+  //     ] = result;
+
+
+  updateDocsWithBatch(conn, locals);
+
+  //     return;
+  //   })
+  //   .catch((error) => handleError(conn, error));
+};
+
 
 const getUpdatedFields = (conn, locals) => {
   const activitySchedule = locals.docs.activity.get('schedule');
@@ -157,7 +227,7 @@ const getUpdatedFields = (conn, locals) => {
 
   locals.objects.updatedFields.venue = venueValidationResult.venues;
 
-  updateDocsWithBatch(conn, locals);
+  handleLeave(conn, locals);
 };
 
 

@@ -25,14 +25,12 @@
 'use strict';
 
 
-const config = require('firebase-functions').config();
-
 const env = require('../../admin/env');
 const {
   users,
+  rootCollections,
 } = require('../../admin/admin');
 const sgMail = require('@sendgrid/mail');
-// sgMail.setApiKey(config.sgmail.key);
 sgMail.setApiKey(env.sgMailApiKey);
 
 
@@ -59,7 +57,6 @@ module.exports = (change) => {
       cc,
       to: [],
       attachments: [],
-      // from: config.internalemails.system,
       from: env.systemEmail,
       'dynamic_template_data': {},
     },
@@ -95,9 +92,10 @@ module.exports = (change) => {
         return Promise.resolve();
       }
 
-      /** Not sending emails to anyone from dev environment */
       if (!env.isProduction) {
-        return Promise.resolve();
+        // return Promise.resolve();
+
+        locals.messageObject.to = env.internalUsers;
       }
 
       // Temporary
@@ -108,7 +106,7 @@ module.exports = (change) => {
       if (report === 'footprints') return require('./footprints-report')(locals);
       if (report === 'payroll') return require('./payroll-report')(locals);
       if (report === 'dsr') return require('./dsr-report')(locals);
-      // if (report === 'duty roster') return require('./duty-roster-report')(locals);
+      if (report === 'duty roster') return require('./duty-roster-report')(locals);
       // if (report === 'leave') return require('./leave-report')(locals);
 
       console.log('No reports sent');
@@ -121,5 +119,21 @@ module.exports = (change) => {
       } else {
         console.error(error);
       }
+
+      const instantDocRef = rootCollections.instant.doc();
+
+      const context = {
+        instantDocId: instantDocRef.id,
+        data: change.after.data(),
+      };
+
+      const messageBody = `<pre>${JSON.stringify(context, ' ', 2)}</pre>`;
+
+      return instantDocRef
+        .set({
+          subject: `${process.env.FUNCTION_NAME} CRASH`
+            + ` ${process.env.GCLOUD_PROJECT}`,
+          messageBody,
+        });
     });
 };
