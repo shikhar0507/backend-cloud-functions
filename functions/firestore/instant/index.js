@@ -30,7 +30,15 @@ const sgMail = require('@sendgrid/mail');
 
 sgMail.setApiKey(env.sgMailApiKey);
 
-const systemReportsHandler = (instantDoc) => {
+
+
+module.exports = (instantDoc) => {
+  const {
+    action,
+  } = instantDoc.data();
+
+  console.log({ action });
+
   const messages = [];
   const { subject, messageBody } = instantDoc.data();
 
@@ -63,15 +71,4 @@ const systemReportsHandler = (instantDoc) => {
         console.error(error);
       }
     });
-};
-
-
-module.exports = (doc) => {
-  const {
-    action,
-  } = doc.data();
-
-  console.log({ action });
-
-  return systemReportsHandler(doc);
 };

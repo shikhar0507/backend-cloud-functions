@@ -268,8 +268,6 @@ module.exports = (locals) => {
         const split = dailyStartTime.split(':');
         const hours = Number(split[0]);
         const minutes = Number(split[1]) + 30;
-        // employeeStartTime.setHours(Number(dailyStartTime.split(':')[0]));
-        // employeeStartTime.setMinutes(Number(dailyStartTime.split(':')[1]) + 30);
         employeeStartTime.setHours(hours);
         employeeStartTime.setMinutes(minutes);
 

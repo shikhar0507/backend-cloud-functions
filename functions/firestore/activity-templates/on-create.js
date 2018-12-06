@@ -327,7 +327,8 @@ module.exports = (conn) => {
 
       const templateDocRef = rootCollections.activityTemplates.doc();
 
-      const subject = `A new template has been created (${process.env.GCLOUD_PROJECT})`;
+      const subject = `A new template has been created`
+        + ` (${process.env.GCLOUD_PROJECT})`;
       const messageBody = `
         <p>
           The template manager: <strong>${conn.requester.phoneNumber}</strong>

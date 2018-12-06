@@ -123,11 +123,10 @@ module.exports = (locals) => {
         const identifier = doc.get('identifier');
         const accumulatedDistance = doc.get('accumulatedDistance');
         const time = timeStringWithOffset({
-          offset: officeDoc.get('attachment.Offset.value'),
+          timezone: officeDoc.get('attachment.Timezone.value'),
           timestampToCovert: doc.get('timestamp'),
         });
 
-        // TODO: Add spacing for columns based on max width of the fields
         workbook
           .sheet('Sheet1')
           .cell(`A${index + 2}`)

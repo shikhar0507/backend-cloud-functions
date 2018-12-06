@@ -160,7 +160,5 @@ module.exports = (locals) => {
 
       return locals.sgMail.sendMultiple(locals.messageObject);
     })
-    .catch((error) => {
-      console.error(error);
-    });
+    .catch(console.error);
 };

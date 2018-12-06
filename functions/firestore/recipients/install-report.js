@@ -132,17 +132,14 @@ module.exports = (locals) => {
         installs.forEach((timestampNumber) => {
           const installTimeString = timeStringWithOffset({
             timezone,
-            timestampNumber,
+            timestampToConvert: timestampNumber,
           });
 
           header += `${installTimeString}\n`;
         });
 
-        installs.forEach((timestampString) => {
-          const installTime =
-            new Date(timestampString).getTime();
-
-          if (installTime > yesterdaysStartTime) return;
+        installs.forEach((timestampNumber) => {
+          if (timestampNumber > yesterdaysStartTime) return;
 
           locals.multipleInstallsMap.set(phoneNumber, header);
         });
@@ -169,8 +166,9 @@ module.exports = (locals) => {
           + ` ${firstSupervisorsName},`
           + ` ${firstSupervisorPhoneNumber},`
           + ` ${secondSupervisorsName},`
-          + ` ${secondSupervisorPhoneNumber}`
-          + `\n`;
+          + ` ${secondSupervisorPhoneNumber}`;
+
+        locals.csvString += `\n`;
       });
 
       locals.messageObject.attachments.push({

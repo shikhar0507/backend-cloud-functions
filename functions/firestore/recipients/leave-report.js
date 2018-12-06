@@ -83,8 +83,6 @@ module.exports = (locals) => {
           .value(header);
       });
 
-
-
       return;
     })
     .catch(console.error);

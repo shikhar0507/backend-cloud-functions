@@ -28,15 +28,12 @@
 const {
   rootCollections,
   auth,
-  db,
-  users,
 } = require('../admin/admin');
 const {
   code,
 } = require('../admin/responses');
 const {
   now,
-  sendJSON,
   handleError,
   sendResponse,
   disableAccount,
@@ -284,7 +281,7 @@ const getProfile = (conn, pathName) =>
     .catch((error) => handleError(conn, error));
 
 
-const getUserAuthFromIdToken = (conn, decodedIdToken, customClaims) =>
+const getUserAuthFromIdToken = (conn, decodedIdToken) =>
   auth
     .getUser(decodedIdToken.uid)
     .then((userRecord) => {
@@ -308,9 +305,10 @@ const getUserAuthFromIdToken = (conn, decodedIdToken, customClaims) =>
         creationTime: userRecord.metadata.creationTime,
       };
 
-      // console.log(customClaims);
-
-      // if (customClaims) conn.requester.customClaims = customClaims;
+      // Makes tesing locally easier
+      if (decodedIdToken.customClaims) {
+        conn.requester.customClaims = decodedIdToken.customClaims;
+      }
 
       /**
        * Can be used to verify in the activity flow to see if the request

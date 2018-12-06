@@ -62,15 +62,6 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      /**
-       * init doc has the following fields
-       * based on init
-       * date: new Date(expenseDateStartTime).getDate(),
-       *  phoneNumber: addendumDoc.get('user'),
-       * amount: activityData.attachment.Amount.value,
-       *  status: activityData.status,
-       */
-
       const headers = [
         'Expense Date',
         'Employee Name',

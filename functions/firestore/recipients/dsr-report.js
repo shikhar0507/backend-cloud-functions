@@ -187,8 +187,9 @@ module.exports = (locals) => {
           });
 
           const employeeName = employeesData[phoneNumber].Name;
-          const customerLocation = ''; // fetch customer activity
-          const address = ''; // fetch customer activity
+          // fetch customer activity
+          const customerLocation = '';
+          const address = '';
           const firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
           const secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
           const department = employeesData[phoneNumber].Department;
@@ -278,8 +279,6 @@ module.exports = (locals) => {
             timezone,
             timestampToConvert: followUpStartTimestamp,
           });
-
-          const customerLocation = '';
 
           const employeeName = employeesData[phoneNumber].Name;
 

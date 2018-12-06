@@ -8,7 +8,6 @@ const {
 const {
   isE164PhoneNumber,
   sendJSON,
-  sendResponse,
 } = require('../../admin/utils');
 const {
   db,
