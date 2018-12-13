@@ -11,9 +11,10 @@ const {
 } = require('../../admin/constants');
 const {
   dateStringWithOffset,
-  getPreviousDayMonth,
-  getPreviousDayYear,
+  momentDateObject,
 } = require('./report-utils');
+
+const moment = require('moment');
 
 module.exports = (locals) => {
   const {
@@ -21,7 +22,7 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
-  const todaysDateString = new Date().toDateString();
+  const todaysDateString = moment().format('ll');
 
   locals.sendMail = true;
   locals.messageObject.templateId = sendGridTemplateIds.expenseClaim;
@@ -43,8 +44,8 @@ module.exports = (locals) => {
         .inits
         .where('office', '==', office)
         .where('report', '==', 'expense claim')
-        .where('month', '==', getPreviousDayMonth())
-        .where('year', '==', getPreviousDayYear())
+        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.yesterday.YEAR)
         .get(),
       xlsxPopulate
         .fromBlankAsync(),
@@ -103,6 +104,10 @@ module.exports = (locals) => {
         });
         const phoneNumber = row.phoneNumber;
         const status = row.status;
+
+        /** Report will only contain employees data */
+        if (!employeesData[phoneNumber]) return;
+
         const employeeName = employeesData[phoneNumber].Name;
         const amount = row.amount;
         const expenseLocation = row.expenseLocation;

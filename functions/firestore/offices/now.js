@@ -53,7 +53,7 @@ module.exports = (conn) => {
   }
 
   if (!hasAdminClaims(conn.requester.customClaims)
-    || hasSupportClaims(conn.requester.customClaims)) {
+    || !hasSupportClaims(conn.requester.customClaims)) {
     sendResponse(
       conn,
       code.forbidden,
@@ -83,6 +83,34 @@ module.exports = (conn) => {
 
     return;
   }
+
+  // rootCollections
+  // .offices
+  //   .where('office', '==', conn.req.query.office)
+  //   .limit(1)
+  //   .get()
+  //   .then((snapShot) => {
+  //     if (snapShot.empty) {
+  //       sendResponse(
+  //         conn,
+  //         code.badRequest,
+  //         `No office found ${conn.req.query.office}`
+  //       );
+
+  //       return;
+  //     }
+
+  //     const activityObject = snapShot.docs[0].data();
+  //     delete activityObject.addendumDocRef;
+
+  //     sendJSON(conn, {
+  //       timestamp: Date.now(),
+  //       officeDoc: activityObject,
+  //     });
+
+  //     return;
+  //   })
+  //   .catch((error) => handleError(conn, error));
 
   const officeNamesArray = conn.requester.customClaims.admin;
   const promises = [];

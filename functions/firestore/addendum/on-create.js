@@ -106,29 +106,35 @@ const getDisplayText = (addendumDoc) => {
 
 
 const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
-  const NUM_MILLI_SECS_IN_DAY = 86400000;
+  const NUM_MILLI_SECS_IN_DAY = 86400 * 1000;
   const initDoc = payrollInitDocQuery.docs[0];
   const displayText = getDisplayText(addendumDoc);
   const phoneNumber = addendumDoc.get('user');
   const schedulesArray = addendumDoc.get('activityData.schedule');
 
-  let payrollObject = {};
+  const payrollObject = (() => {
+    if (!initDoc) return {};
 
-  if (initDoc) {
-    payrollObject = initDoc.get('payrollObject') || {};
-  }
+    return initDoc.get('payrollObject') || {};
+  })();
 
   if (!payrollObject[phoneNumber]) {
     payrollObject[phoneNumber] = {};
   }
 
-  const shouldBreak = (startDateMonth, checkingMonth) => {
-    return startDateMonth !== checkingMonth;
+  const shouldBreak = (datesObject) => {
+    const {
+      startMonth,
+      endMonth,
+      startYear,
+      endYear,
+    } = datesObject;
+
+    return startMonth !== endMonth
+      || startYear || endYear;
   };
 
   if (addendumDoc.get('action') === httpsActions.update) {
-    console.log('inside update');
-
     const oldSchedulesArray = addendumDoc.get('activityOld.schedule');
 
     oldSchedulesArray.forEach((schedule) => {
@@ -138,14 +144,24 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
       if (!startTime || !endTime) return;
       // const startTimeValue = new Date(startTime).getMonth();
 
+      const endMonth = new Date(endTime).getMonth();
+      const endYear = new Date(endTime).getFullYear();
+
       while (startTime <= endTime) {
-        // const date = new Date(startTime);
+        const date = new Date(startTime);
 
         // Not breaking the loop will overwrite the current
         // month's data.
-        // if (shouldBreak(startTime, startTime)) break;
+        if (shouldBreak({
+          startMonth: date.getMonth(),
+          startYear: date.getFullYear(),
+          endMonth,
+          endYear,
+        })) {
+          return;
+        }
 
-        delete payrollObject[phoneNumber][new Date(startTime).getDate()];
+        payrollObject[phoneNumber][date.getDate()] = deleteField();
 
         startTime += NUM_MILLI_SECS_IN_DAY;
       }
@@ -157,7 +173,9 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
     const endTime = schedule.endTime;
 
     if (!startTime || !endTime) return;
-    const startTimeMonth = new Date(startTime).getMonth();
+
+    const endMonth = new Date(endTime).getMonth();
+    const endYear = new Date(endTime).getFullYear();
 
     while (startTime <= endTime) {
       const date = new Date(startTime);
@@ -165,7 +183,14 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
       // Not breaking the loop will overwrite the current 
       // month's data
       // if (startTimeMonth !== date.getMonth()) break;
-      // if (shouldBreak(startTimeMonth, date.getMonth())) break;
+      if (shouldBreak({
+        startMonth: date.getMonth(),
+        startYear: date.getFullYear(),
+        endMonth,
+        endYear,
+      })) {
+        return;
+      }
 
       payrollObject[phoneNumber][date.getDate()] = displayText;
 
@@ -186,10 +211,20 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
 
       if (!startTime || !endTime) return;
 
-      while (startTime <= endTime) {
-        const date = new Date(startTime).getDate();
+      const endMonth = new Date(endTime).getMonth();
+      const endYear = new Date(endTime).getFullYear();
 
-        // if (shouldBreak(startTimeMonth, date.getMonth())) break;
+      while (startTime <= endTime) {
+        const date = new Date(startTime);
+
+        if (shouldBreak({
+          startMonth: date.getMonth(),
+          startYear: date.getFullYear(),
+          endMonth,
+          endYear,
+        })) {
+          return;
+        }
 
         /** Leave CANCELLED, so not reflecting that in the final payroll report */
         payrollObject[phoneNumber][date] = deleteField();
@@ -206,7 +241,7 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
    * function to skip this user.
    */
   if (nonEmptyItemsArray.length === 0) {
-    delete payrollObject[phoneNumber];
+    payrollObject[phoneNumber] = deleteField();
   }
 
   return payrollObject;
@@ -469,17 +504,101 @@ const handleExpenseClaimReport = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
+const getLeaveObject = (addendumDoc, leaveInitDocsQuery) => {
+  const leaveObject = (() => {
+    if (leaveInitDocsQuery.empty) return {};
+
+    return leaveInitDocsQuery.docs[0].get('leaveObject');
+  })();
+
+  const activityId = addendumDoc.get('activityId');
+  const status = addendumDoc.get('activityData.status');
+  const action = addendumDoc.get('action');
+
+  if (leaveObject[activityId]) {
+    leaveObject[activityId] = {};
+  }
+
+  if (action === httpsActions.changeStatus && status === 'CANCELLED') {
+    leaveObject[activityId] = deleteField();
+
+    return leaveObject;
+  }
+
+  leaveObject[activityId] = {
+    approvedBy: '',
+    annualLeavesEntitled: '',
+    reason: addendumDoc.get('activityData.attachment.Reason.value'),
+    phoneNumber: addendumDoc.get('user'),
+    leaveType: addendumDoc.get('activityData.attachment.Leave Type.value'),
+    totalLeavesRemaining: addendumDoc.get('totalLeavesRemaining'),
+    totalLeavesTaken: addendumDoc.get('totalLeavesTaken'),
+    leaveStartTimestamp: addendumDoc.get('activityData.schedule')[0].startTime,
+    leaveEndTimestamp: addendumDoc.get('activityData.schedule')[0].endTime,
+  };
+
+  if (action === httpsActions.create) {
+    leaveObject[activityId].phoneNumber = addendumDoc.get('user');
+  }
+
+  if (action === httpsActions.create
+    || action === httpsActions.update) {
+    leaveObject[activityId].annualLeavesEntitled =
+      addendumDoc.get('annualLeavesEntitled');
+  }
+
+  if (action === httpsActions.changeStatus && status === 'CONFIRMED') {
+    leaveObject[activityId].approvedBy = addendumDoc.get('user');
+  }
+
+  console.log({ leaveObject });
+
+  return leaveObject;
+};
+
 
 const handleLeaveReport = (addendumDoc, locals) => {
-  // if (addendumDoc.get('template') !== 'leave') {
-  //   return handleExpenseClaimReport(addendumDoc, locals);
-  // }
+  if (addendumDoc.get('template') !== 'leave') {
+    return Promise.resolve();
+  }
 
-  // run leave report logic
+  const leaveDatesSchedule = addendumDoc.get('activityData.schedule')[0];
 
-  // return handleExpenseClaimReport(addendumDoc, locals);
+  if (!leaveDatesSchedule.startTime || !leaveDatesSchedule.endTime) {
+    return Promise.resolve();
+  }
 
-  return Promise.resolve();
+  const leaveDateStartTimestamp = new Date(leaveDatesSchedule.startTime);
+
+  const leaveMonth = leaveDateStartTimestamp.getMonth();
+  const leaveYear = leaveDateStartTimestamp.getFullYear();
+
+  const status = addendumDoc.get('activityData.status');
+
+  if (status === 'CANCELLED') return Promise.resolve();
+
+  return rootCollections
+    .inits
+    .where('report', '==', 'leave')
+    .where('office', '==', addendumDoc.get('activityData.office'))
+    .where('year', '==', leaveYear)
+    .where('month', '==', leaveMonth)
+    .limit(1)
+    .get()
+    .then((leaveInitDocsQuery) => {
+      const ref = initDocRef(leaveInitDocsQuery);
+
+      return ref.set({
+        office: addendumDoc.get('activityData.office'),
+        report: 'leave',
+        month: leaveMonth,
+        year: leaveYear,
+        leaveObject: getLeaveObject(addendumDoc, leaveInitDocsQuery),
+      }, {
+          merge: true,
+        });
+    })
+    .catch(console.error);
 };
 
 
@@ -558,24 +677,28 @@ const handleVisitDate = (addendumDoc, locals) => {
   }
 
   const visitStartTime = addendumDoc.get('activityData.schedule')[0].startTime;
-  const date = new Date(visitStartTime);
-  const dateString = date.toDateString();
+  const visitDayStartTimestamp = new Date(visitStartTime);
+  const date = visitDayStartTimestamp.getDate();
+  const month = visitDayStartTimestamp.getMonth();
+  const year = visitDayStartTimestamp.getFullYear();
 
   return rootCollections
     .inits
     .where('office', '==', addendumDoc.get('activityData.office'))
     .where('report', '==', 'dsr')
-    .where('dateString', '==', dateString)
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
     .limit(1)
     .get()
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
 
       const docData = {
-        dateString,
+        date,
+        month,
+        year,
         report: 'dsr',
-        month: date.getMonth(),
-        year: date.getFullYear(),
         office: addendumDoc.get('activityData.office'),
         officeId: addendumDoc.get('activityData.officeId'),
         visitObject: getVisitObject(addendumDoc, snapShot, locals),
@@ -602,26 +725,30 @@ const handleFollowUpDate = (addendumDoc, locals) => {
   }
 
   const followUpStartTime = addendumDoc.get('activityData.schedule')[1].startTime;
-  const date = new Date(followUpStartTime);
-  const dateString = date.toDateString();
+  const followUpStartTimestamp = new Date(followUpStartTime);
+  const date = followUpStartTimestamp.getDate();
+  const month = followUpStartTimestamp.getMonth();
+  const year = followUpStartTimestamp.getFullYear();
 
   return rootCollections
     .inits
     .where('office', '==', addendumDoc.get('activityData.office'))
     .where('report', '==', 'dsr')
-    .where('dateString', '==', dateString)
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
     .limit(1)
     .get()
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
 
       const docData = {
-        dateString,
-        month: date.getMonth(),
-        year: date.getFullYear(),
+        date,
+        month,
+        year,
+        report: 'dsr',
         office: addendumDoc.get('activityData.office'),
         officeId: addendumDoc.get('activityData.officeId'),
-        report: 'dsr',
         followUpObject: getFollowUpObject(addendumDoc, snapShot),
       };
 
@@ -728,7 +855,6 @@ const handlePayrollReport = (addendumDoc, locals) => {
 module.exports = (addendumDoc) => {
   const phoneNumber = addendumDoc.get('user');
   const officeId = addendumDoc.get('activityData.officeId');
-  const timestamp = new Date(addendumDoc.get('timestamp'));
   const locals = {
     batch: db.batch(),
   };
@@ -738,13 +864,10 @@ module.exports = (addendumDoc) => {
     .doc(officeId)
     .collection('Addendum')
     .where('user', '==', phoneNumber)
-    .where('dateString', '==', timestamp.toDateString())
     .orderBy('timestamp', 'desc')
     .limit(2)
     .get()
     .then((docs) => {
-      // const previousAddendumDoc = docs.docs[1];
-
       const previousAddendumDoc = (() => {
         if (docs.docs[0] && docs.docs[0].id !== addendumDoc.id) {
           return docs.docs[0];

@@ -24,12 +24,128 @@
 
 'use strict';
 
+const https = require('https');
 
 const {
   db,
   rootCollections,
   deleteField,
 } = require('../../admin/admin');
+
+const sendSMS = (change) => {
+  const smsContext = change.after.get('smsContext');
+
+  // Profile doc is created and the smsContext object has been added to the profile doc.
+  const toSendSMS = !change.after.data() && change.after.data() && smsContext;
+
+  if (!toSendSMS) return Promise.resolve();
+
+  // Template substitutions allow 20 chars at most.
+  const first20Chars = (str) => str.slice(0, 19);
+
+  const {
+    downloadUrl,
+    smsgupshup,
+    isProduction,
+  } = require('../../admin/env');
+
+  // Will not send sms from test project
+  if (!isProduction) {
+    console.log('Returning early NOT PROD');
+
+    return Promise.resolve();
+  }
+
+  console.log('SENDING SMS', change.after.id);
+
+  // id: 774442
+  const templatedMessage = (() => {
+    const {
+      activityName,
+      creator,
+      office,
+    } = smsContext;
+
+    return `${first20Chars(creator)} from ${first20Chars(office)} has`
+      + ` created ${first20Chars(activityName)} and`
+      + ` included you. Download ${downloadUrl} to view more details.`;
+  })();
+
+  // Profile doc id is the phone number
+  const sendTo = (() => {
+    const env = require('../../admin/env');
+
+    if (!env.isProduction) {
+      return env.devPhoneNumber;
+    }
+
+    return change.after.id;
+  })();
+
+  const encodedMessage = `${encodeURI(templatedMessage)}`;
+  const host = `https://enterprise.smsgupshup.com`;
+  const path = `/GatewayAPI/rest?method=SendMessage`
+    + `&send_to=${sendTo}`
+    + `&msg=${encodedMessage}`
+    + `&msg_type=TEXT`
+    + `&userid=${smsgupshup.userId}`
+    + `&auth_scheme=plain`
+    + `&password=${smsgupshup.password}`
+    + `&v=1.1`
+    + `&format=text`;
+
+  const params = {
+    host,
+    path,
+    // HTTPS port is 443
+    port: 443,
+  };
+
+  return new Promise(
+    (resolve, reject) => {
+      const req = https.request(params, (res) => {
+        // reject on bad status
+        console.log('res.statusCode', res.statusCode);
+
+        if (res.statusCode > 226) {
+          reject(new Error(`statusCode=${res.statusCode}`));
+
+          return;
+        }
+
+        // cumulate data
+        let chunks = [];
+
+        res.on('data', (chunk) => chunks.push(chunk));
+
+        // resolve on end
+        res.on('end', () => {
+          chunks = Buffer.concat(chunks).toString();
+
+          if (chunks.includes('error')) {
+            reject(new Error(chunks));
+
+            return;
+          }
+
+          resolve(chunks);
+        });
+      });
+
+      // reject on request error
+      // This is not a "Second reject", just a different sort of failure
+      req.on('error', (err) => {
+        console.log('in err');
+
+        return reject(new Error(err));
+      });
+
+      // IMPORTANT
+      req.end();
+    })
+    .then(console.log)
+    .catch(console.error);
+};
 
 
 const purgeAddendum = (query, resolve, reject, count) =>
@@ -65,7 +181,7 @@ const purgeAddendum = (query, resolve, reject, count) =>
     .catch(reject);
 
 
-const manageAddendum = (change, batch) => {
+const manageAddendum = (change) => {
   console.log('In manageAddendum');
 
   const oldFromValue = change.before.get('lastQueryFrom');
@@ -77,17 +193,7 @@ const manageAddendum = (change, batch) => {
    * value.
    */
   if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return batch
-      .commit()
-      .catch(console.error);
-  }
-
-  if (!require('../../admin/env').isProduction) {
-    console.log('Not deleting comments');
-
-    return batch
-      .commit()
-      .catch(console.error);
+    return Promise.resolve();
   }
 
   const query = rootCollections
@@ -131,6 +237,7 @@ const getEmployeeObject = (options) => {
   return object;
 };
 
+
 const handleAddedToOffice = (change, options) => {
   console.log('In handleAddedToOffice');
 
@@ -143,7 +250,7 @@ const handleAddedToOffice = (change, options) => {
     today,
   } = options;
 
-  if (!hasBeenAdded) return manageAddendum(change, batch);
+  if (!hasBeenAdded) return Promise.resolve();
 
   return rootCollections
     .inits
@@ -163,7 +270,6 @@ const handleAddedToOffice = (change, options) => {
       batch.set(ref, {
         officeId,
         office: newOffice,
-        dateString: today.toDateString(),
         date: today.getDate(),
         month: today.getMonth(),
         year: today.getFullYear(),
@@ -179,7 +285,7 @@ const handleAddedToOffice = (change, options) => {
 
       console.log('addedToOfficeRef', ref.path);
 
-      return manageAddendum(change, batch);
+      return Promise.resolve();
     })
     .catch(console.error);
 };
@@ -196,7 +302,7 @@ const handleRemovedFromOffice = (change, options) => {
     today,
   } = options;
 
-  if (!hasBeenRemoved) return handleAddedToOffice(change, options);
+  if (!hasBeenRemoved) return Promise.resolve();
 
   return Promise
     .all([
@@ -231,7 +337,6 @@ const handleRemovedFromOffice = (change, options) => {
 
       if (!signUpDocQuery.empty) {
         batch.set(signUpDocQuery.docs[0].ref, {
-          dateString: today.toDateString(),
           date: today.getDate(),
           month: today.getMonth(),
           year: today.getFullYear(),
@@ -243,14 +348,12 @@ const handleRemovedFromOffice = (change, options) => {
           });
       }
 
-      return handleAddedToOffice(change, options);
+      return Promise.resolve();
     })
     .catch(console.error);
 };
 
 const handleInstall = (change, options) => {
-  console.log('in handleInstall');
-
   const {
     phoneNumber,
     currentOfficesList,
@@ -259,7 +362,7 @@ const handleInstall = (change, options) => {
     today,
   } = options;
 
-  if (!hasInstalled) return handleRemovedFromOffice(change, options);
+  if (!hasInstalled) return Promise.resolve();
 
   const promises = [];
 
@@ -295,7 +398,6 @@ const handleInstall = (change, options) => {
               phoneNumber,
               officeId,
               report: 'install',
-              dateString: today.toDateString(),
               date: today.getDate(),
               month: today.getMonth(),
               year: today.getFullYear(),
@@ -311,7 +413,6 @@ const handleInstall = (change, options) => {
 
           return {
             installs,
-            dateString: today.toDateString(),
             date: today.getDate(),
             month: today.getMonth(),
             year: today.getFullYear(),
@@ -323,15 +424,13 @@ const handleInstall = (change, options) => {
         batch.set(ref, initDocObject, { merge: true });
       });
 
-      return handleRemovedFromOffice(change, options);
+      return Promise.resolve();
     })
     .catch(console.error);
 };
 
 
 const handleSignUp = (change, options) => {
-  console.log('In handleSignUp');
-
   const {
     phoneNumber,
     currentOfficesList,
@@ -341,20 +440,7 @@ const handleSignUp = (change, options) => {
     today,
   } = options;
 
-  if (!hasSignedUp) return handleInstall(change, options);
-
-  /**
-   * If has signed-up, get all current offices
-   * For each office, fetch init doc with the report signup
-   * If doc exists:
-   *  update the init doc
-   *  with employeesObject[phoneNumber] = {
-   *    addedOn,
-   *    signedUpOn,
-   * }
-   *
-   * Else create doc with the data
-   */
+  if (!hasSignedUp) return Promise.resolve();
 
   const promises = [];
 
@@ -395,7 +481,6 @@ const handleSignUp = (change, options) => {
           office,
           officeId: change.after.get('employeeOf')[office],
           report: 'signup',
-          dateString: today.toDateString(),
           date: today.getDate(),
           month: today.getMonth(),
           year: today.getFullYear(),
@@ -410,7 +495,7 @@ const handleSignUp = (change, options) => {
           });
       });
 
-      return handleInstall(change, options);
+      return Promise.resolve();
     })
     .catch(console.error);
 };
@@ -473,17 +558,6 @@ module.exports = (change) => {
     && after.get('lastQueryFrom') === 0
   );
 
-  const today = new Date();
-
-  const toGetInit =
-    hasSignedUp
-    || authDeleted
-    || hasInstalled
-    || hasBeenAdded
-    || hasBeenRemoved;
-
-  if (!toGetInit) return manageAddendum(change, batch);
-
   const options = {
     profileCreated,
     phoneNumber,
@@ -497,7 +571,7 @@ module.exports = (change) => {
     hasBeenRemoved,
     hasBeenAdded,
     batch,
-    today,
+    today: new Date(),
   };
 
   /**
@@ -514,5 +588,12 @@ module.exports = (change) => {
 
   console.log({ options });
 
-  return handleSignUp(change, options);
+  return handleSignUp(change, options)
+    .then(() => handleInstall(change, options))
+    .then(() => handleRemovedFromOffice(change, options))
+    .then(() => handleAddedToOffice(change, options))
+    .then(() => manageAddendum(change))
+    .then(() => options.batch.commit())
+    .then(() => sendSMS(change))
+    .catch(console.error);
 };

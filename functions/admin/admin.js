@@ -235,29 +235,34 @@ const rootCollections = {
    * @example `/Activities/(auto-id)`
    */
   activities: db.collection('Activities'),
-  /** Collection containing the `Addendum` for each time an operation
+  /** 
+   * Collection containing the `Addendum` for each time an operation
    * is performed related to the activity like `comment`, `share`, `remove`,
    * or `update`.
    * @example `/Updates/(uid)/Addendum/(auto-id)`
    */
   updates: db.collection('Updates'),
-  /** Contains Templates used for creating activity.
+  /** 
+   * Contains Templates used for creating activity.
    * @example `/ActivityTemplates/(auto-id)`
    */
   activityTemplates: db.collection('ActivityTemplates'),
-  /** Contains a _unique_ doc for *each* `office` which has signed up for
+  /** 
+   * Contains a _unique_ doc for *each* `office` which has signed up for
    * the platform.
    * @example `/Offices/(autoId)'
    */
   offices: db.collection('Offices'),
-  /** Stores documents temporarily for sending an instant email
+  /** 
+   * Stores documents temporarily for sending an instant email
    * notification to any recipient. Once the report is sent,
    * the document here is deleted by the same cloud function
    * for which a document was created here.
    * @example `/Instant/(auto-id)`
    */
   instant: db.collection('Instant'),
-  /** Stores the users who are disabled on a day
+  /** 
+   * Stores the users who are disabled on a day
    * @example `/DailyDisabled/(DD-MM-YYYY)`
    */
   dailyDisabled: db.collection('DailyDisabled'),

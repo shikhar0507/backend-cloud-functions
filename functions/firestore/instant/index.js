@@ -51,11 +51,14 @@ module.exports = (instantDoc) => {
 
   env
     .instantEmailRecipientEmails
-    .forEach((email) => {
+    .forEach((recipientObject) => {
       messages.push({
         subject,
         html: `<pre>${messageBody}</pre>`,
-        to: email,
+        to: {
+          name: recipientObject.name,
+          email: recipientObject.email,
+        },
         from: env.systemEmail,
       });
     });

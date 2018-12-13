@@ -10,6 +10,7 @@ const {
 } = require('../../admin/admin');
 const {
   alphabetsArray,
+  momentDateObject,
 } = require('./report-utils');
 
 module.exports = (locals) => {
@@ -31,7 +32,13 @@ module.exports = (locals) => {
         .offices
         .doc(officeId)
         .get(),
-      // TODO: Add init docs query
+      rootCollections
+        .inits
+        .where('report', '==', 'leave')
+        .where('office', '==', office)
+        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .get(),
       xlsxPopulate
         .fromBlankAsync(),
     ])

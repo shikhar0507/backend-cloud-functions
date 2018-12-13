@@ -353,13 +353,11 @@ const handleCanEditRule = (locals, templateDoc) => {
         isSupportRequest: false,
       };
 
-      const isAdmin = ((phoneNumber) => {
+      const isAdmin = (phoneNumber) => {
         /** canEditRule for subscription is `ADMIN` */
         return locals.adminsCanEdit.includes(phoneNumber)
           || phoneNumber === subscriberPhoneNumber;
-      })();
-
-      console.log({ isAdmin, subscriberPhoneNumber });
+      };
 
       locals.assigneePhoneNumbersArray.forEach((phoneNumber) => {
         const ref = activityRef.collection('Assignees').doc(phoneNumber);
@@ -1435,17 +1433,17 @@ module.exports = (change, context) => {
 
         /** New user introduced to the system. Saving their phone number. */
         if (!record.hasOwnProperty('uid')) {
-          // batch.set(rootCollections
-          //   .profiles
-          //   .doc(phoneNumber), {
-          //     smsContext: {
-          //       activityName: change.after.get('activityName'),
-          //       creator: change.after.get('creator'),
-          //       office: change.after.get('office'),
-          //     },
-          //   }, {
-          //     merge: true,
-          //   });
+          batch.set(rootCollections
+            .profiles
+            .doc(phoneNumber), {
+              smsContext: {
+                activityName: change.after.get('activityName'),
+                creator: change.after.get('creator'),
+                office: change.after.get('office'),
+              },
+            }, {
+              merge: true,
+            });
         }
 
         /** Document below the user profile. */
@@ -1510,6 +1508,12 @@ module.exports = (change, context) => {
               ])
                 .has(locals.addendumDoc.get('action'))) {
               return `LIMIT EXCEEDED LEAVE CANCELLED`;
+            }
+
+            if (change.after.get('template') === 'check-in'
+              && locals.addendumDoc.get('action') === httpsActions.create
+              && change.after.get('status') === 'CANCELLED') {
+              return `CHECK-IN CANCELLED. INACCURATE CHECK-IN LOCATION`;
             }
 
             return getCommentString(locals, phoneNumber);
@@ -1625,7 +1629,7 @@ module.exports = (change, context) => {
       console.error(error);
 
       const context = {
-        error,
+        // error,
         activityId: change.after.id,
         before: change.before.data() || {},
         after: change.after.data(),

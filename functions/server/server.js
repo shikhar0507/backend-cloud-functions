@@ -28,12 +28,14 @@
 const {
   rootCollections,
   auth,
+  db,
 } = require('../admin/admin');
 const {
   code,
 } = require('../admin/responses');
 const {
   now,
+  sendJSON,
   handleError,
   sendResponse,
   disableAccount,
@@ -333,7 +335,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
       const parsedUrl = require('url').parse(conn.req.url);
 
       if (parsedUrl.pathname === '/now') {
-        now(conn);
+        require('../now/index')(conn);
 
         return;
       }
@@ -574,17 +576,19 @@ module.exports = (req, res) => {
     },
   };
 
-  console.log({
-    method: req.method,
-    url: req.url,
-    body: req.body,
-    origin: req.get('origin'),
-    ip: req.connection.remoteAddress,
-    params: req.params,
-    cookies: req.cookies,
-    range: req.range,
-    tz: require('moment-timezone').tz.guess(),
-  });
+  if (process.env.ENV && process.env.PRODUCTION) {
+    console.log({
+      method: req.method,
+      url: req.url,
+      body: req.body,
+      origin: req.get('origin'),
+      ip: req.connection.remoteAddress,
+      params: req.params,
+      cookies: req.cookies,
+      range: req.range,
+      tz: require('moment-timezone').tz.guess(),
+    });
+  }
 
   /** For handling CORS */
   if (req.method === 'HEAD' || req.method === 'OPTIONS') {

@@ -33,12 +33,14 @@ const {
   timeStringWithOffset,
   getYesterdaysDateString,
   alphabetsArray,
+  momentDateObject,
 } = require('./report-utils');
 const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 
 const xlsxPopulate = require('xlsx-populate');
+const moment = require('moment');
 
 module.exports = (locals) => {
   const {
@@ -46,8 +48,8 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
-  const todaysDateString = new Date().toDateString();
-  const yesterdaysDateString = getYesterdaysDateString();
+  const todaysDateString = moment().format('ll');
+
   const fileName = `DSR_${office}_${todaysDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
 
@@ -69,14 +71,18 @@ module.exports = (locals) => {
         .inits
         .where('office', '==', office)
         .where('report', '==', 'dsr')
-        .where('dateString', '==', yesterdaysDateString)
+        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
+        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.yesterday.YEAR)
         .limit(1)
         .get(),
       rootCollections
         .inits
         .where('office', '==', office)
         .where('report', '==', 'dsr')
-        .where('dateString', '==', todaysDateString)
+        .where('date', '==', momentDateObject.today.DATE_NUMBER)
+        .where('month', '==', momentDateObject.today.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.today.YEAR)
         .limit(1)
         .get(),
       xlsxPopulate
@@ -142,28 +148,25 @@ module.exports = (locals) => {
         ];
 
         visitsSheetTopRow.forEach((topRowValue, index) => {
-          console.log(`${alphabetsArray[index]}1`, topRowValue);
-
           sheet1.cell(`${alphabetsArray[index]}1`).value(topRowValue);
         });
 
         visitsActivityIdsArray.forEach((activityId, index) => {
-          console.log('id', activityId);
           const columnIndex = index + 2;
 
           const {
+            comment,
             purpose,
-            phoneNumber,
-            visitStartTimestamp,
-            visitEndTimestamp,
-            firstContact,
-            secondContact,
             product1,
             product2,
             product3,
-            followUpStartTimestamp,
-            comment,
+            phoneNumber,
+            firstContact,
+            secondContact,
             actualLocation,
+            visitEndTimestamp,
+            followUpStartTimestamp,
+            visitStartTimestamp,
           } = visitObject[activityId];
 
           if (!employeesData[phoneNumber]) return;
@@ -187,7 +190,6 @@ module.exports = (locals) => {
           });
 
           const employeeName = employeesData[phoneNumber].Name;
-          // fetch customer activity
           const customerLocation = '';
           const address = '';
           const firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
@@ -245,13 +247,10 @@ module.exports = (locals) => {
         ];
 
         followUpTopRow.forEach((topRowValue, index) => {
-          console.log(`${alphabetsArray[index]}1`, topRowValue);
-
           sheet2.cell(`${alphabetsArray[index]}1`).value(topRowValue);
         });
 
         followUpActivityIdsArray.forEach((activityId, index) => {
-          console.log('id', activityId);
           const columnIndex = index + 2;
 
           const {
@@ -349,8 +348,6 @@ module.exports = (locals) => {
 
       // Default sheet
       workbook.deleteSheet('Sheet1');
-
-      console.log(filePath);
 
       return workbook.toFileAsync(filePath);
     })

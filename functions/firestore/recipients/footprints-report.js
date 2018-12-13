@@ -35,6 +35,7 @@ const {
 
 const {
   getYesterdaysDateString,
+  momentDateObject,
   timeStringWithOffset,
 } = require('./report-utils');
 
@@ -71,7 +72,9 @@ module.exports = (locals) => {
         .get(),
       officeDocRef
         .collection('Addendum')
-        .where('dateString', '==', yesterdaysDateString)
+        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
+        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.yesterday.YEAR)
         .orderBy('user')
         .orderBy('timestamp', 'asc')
         .get(),
@@ -124,7 +127,7 @@ module.exports = (locals) => {
         const accumulatedDistance = doc.get('accumulatedDistance');
         const time = timeStringWithOffset({
           timezone: officeDoc.get('attachment.Timezone.value'),
-          timestampToCovert: doc.get('timestamp'),
+          timestampToConvert: doc.get('timestamp'),
         });
 
         workbook

@@ -379,8 +379,10 @@ const filterAttachment = (options) => {
   }
 
   const rootCollections = require('../../admin/admin').rootCollections;
-  const validTypes = require('../../admin/constants').validTypes;
-  const timezonesSet = require('../../admin/constants').timezonesSet;
+  const constants = require('../../admin/constants');
+  const validTypes = constants.validTypes;
+  const timezonesSet = constants.timezonesSet;
+  const templatesWithNumber = constants.templatesWithNumber;
 
   /** The `forEach` loop doesn't support `break` */
   for (const field of templateAttachmentFields) {
@@ -420,7 +422,8 @@ const filterAttachment = (options) => {
       break;
     }
 
-    if (type === 'number'
+    if (value !== ''
+      && type === 'number'
       && typeof value !== 'number') {
       messageObject.isValid = false;
       messageObject.message = `${field} should be a number`;
@@ -437,13 +440,13 @@ const filterAttachment = (options) => {
 
       if (!isNonEmptyString(value)) {
         messageObject.isValid = false;
-        messageObject.message = `${field} should jave an alpha-numeric value`;
+        messageObject.message = `${field} should have an alpha-numeric value`;
         break;
       }
 
       if (field === 'Subscriber' && !isE164PhoneNumber(value)) {
         messageObject.isValid = false;
-        messageObject.message = `The ${field} should be a valid phone number`;
+        messageObject.message = `${field} should be a valid phone number`;
         break;
       }
 
@@ -460,9 +463,7 @@ const filterAttachment = (options) => {
     }
 
     if (template === 'admin') {
-      const phoneNumber = bodyAttachment.Admin.value;
-
-      if (!isE164PhoneNumber(phoneNumber)) {
+      if (!isE164PhoneNumber(bodyAttachment.Admin.value)) {
         messageObject.isValid = false;
         messageObject.message = `${field} should be a valid phone number`;
         break;
@@ -472,7 +473,7 @@ const filterAttachment = (options) => {
         .profileDocShouldExist
         .push(rootCollections
           .profiles
-          .doc(phoneNumber)
+          .doc(bodyAttachment.Admin.value)
           .get()
         );
     }
@@ -482,21 +483,34 @@ const filterAttachment = (options) => {
      * the `Offices/(officeId)/Activities` will be queried for the doc
      * to EXIST.
      */
-    if (!validTypes.has(type)
-      && value !== '') {
+    if (!validTypes.has(type) && value !== '') {
+      // Used by admin api
       messageObject.nameChecks.push({ value, type });
 
-      messageObject
-        .querySnapshotShouldExist
-        .push(rootCollections
-          .offices
-          .doc(officeId)
-          .collection('Activities')
-          .where('attachment.Name.value', '==', value)
-          .where('template', '==', type)
-          .limit(1)
-          .get()
-        );
+      if (templatesWithNumber.has(type)) {
+        messageObject
+          .querySnapshotShouldExist
+          .push(rootCollections
+            .offices
+            .doc(officeId)
+            .collection('Activities')
+            .where('attachment.Number.value', '==', value)
+            .limit(1)
+            .get()
+          );
+      } else {
+        messageObject
+          .querySnapshotShouldExist
+          .push(rootCollections
+            .offices
+            .doc(officeId)
+            .collection('Activities')
+            .where('attachment.Name.value', '==', value)
+            .where('template', '==', type)
+            .limit(1)
+            .get()
+          );
+      }
     }
 
     if (field === 'Name') {
@@ -529,7 +543,15 @@ const filterAttachment = (options) => {
         );
     }
 
+    // Number and Name can't be left blank
     if (field === 'Number') {
+      if (!value) {
+        messageObject.isValid = false;
+        messageObject.message = `Number cannot be empty`;
+
+        break;
+      }
+
       messageObject
         .querySnapshotShouldNotExist
         .push(rootCollections
@@ -543,8 +565,8 @@ const filterAttachment = (options) => {
         );
     }
 
-    if (type === 'phoneNumber') {
-      if (value !== '' && !isE164PhoneNumber(value)) {
+    if (type === 'phoneNumber' && value !== '') {
+      if (!isE164PhoneNumber(value)) {
         messageObject.isValid = false;
         messageObject.message = `${field} should be a valid phone number`;
         break;
@@ -554,17 +576,13 @@ const filterAttachment = (options) => {
        * Collecting all phone numbers from attachment to
        * add add in the activity assignee list.
        */
-      if (value !== '') {
-        messageObject.phoneNumbersSet.add(value);
-      }
+      messageObject.phoneNumbersSet.add(value);
     }
 
-    if (type === 'email') {
-      if (value !== '' && !isValidEmail(value)) {
-        messageObject.isValid = false;
-        messageObject.message = `${field} should be a valid email`;
-        break;
-      }
+    if (type === 'email' && value !== '' && !isValidEmail(value)) {
+      messageObject.isValid = false;
+      messageObject.message = `${field} should be a valid email`;
+      break;
     }
 
     if (type === 'weekday') {
@@ -870,7 +888,7 @@ const isValidRequestBody = (body, endpoint) => {
     };
   }
 
-  if (typeof body.timestamp !== 'number') {
+  if (body.timestamp !== '' && typeof body.timestamp !== 'number') {
     return {
       message: `The 'timestamp' field should be a number.`,
       isValid: false,
@@ -1046,8 +1064,40 @@ const haversineDistance = (geopointOne, geopointTwo) => {
   return distance;
 };
 
+const activityName = (options) => {
+  const {
+    attachmentObject,
+    templateName,
+    requester,
+  } = options;
+
+  const {
+    displayName,
+    phoneNumber,
+  } = requester;
+
+  if (attachmentObject.hasOwnProperty('Name')) {
+    return `${templateName.toUpperCase()}: ${attachmentObject.Name.value}`;
+  }
+
+  if (attachmentObject.hasOwnProperty('Number')) {
+    return `${templateName.toUpperCase()}: ${attachmentObject.Number.value}`;
+  }
+
+  if (templateName === 'admin') {
+    return `${templateName.toUpperCase()}: ${attachmentObject.Admin.value}`;
+  }
+
+  if (templateName === 'subscriber') {
+    return `${templateName.toUpperCase()}: ${attachmentObject.Subscriber.value}`;
+  }
+
+  return `${templateName.toUpperCase()}: ${displayName || phoneNumber}`;
+};
+
 
 module.exports = {
+  activityName,
   validateVenues,
   getCanEditValue,
   validateSchedules,

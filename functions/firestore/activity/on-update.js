@@ -31,8 +31,10 @@ const {
   rootCollections,
   getGeopointObject,
   db,
+  deleteField,
 } = require('../../admin/admin');
 const {
+  activityName,
   validateVenues,
   getCanEditValue,
   filterAttachment,
@@ -59,25 +61,28 @@ const updateDocsWithBatch = (conn, locals) => {
   const activityUpdateObject = {
     addendumDocRef,
     schedule: locals.objects.updatedFields.schedule,
-    venue: locals.objects.updatedFields.venue,
+    venue: conn.req.body.schedule,
     timestamp: Date.now(),
     attachment: conn.req.body.attachment,
   };
 
-  /** 
-   * Person created the leave, with zero or negative balance. Thus
-   * activity was created with status as CANCELLED.
-   * Now, they updated the activity, with 
-   */
-  if (locals.leavesRolledBack) {
-    activityUpdateObject.status = 'PENDING';
-  }
+  const nameFieldUpdated =
+    locals.docs.activity.get('attachment').hasOwnProperty('Name')
+    && locals.docs.activity.get('attachment.Name.value')
+    !== conn.req.body.attachment.Name.value;
 
-  locals
-    .batch
-    .set(activityRef, activityUpdateObject, {
-      merge: true,
+  const numberFieldUpdated =
+    locals.docs.activity.get('attachment').hasOwnProperty('Number')
+    && locals.docs.activity.get('attachment.Number.value')
+    !== conn.req.body.attachment.Number.value;
+
+  if (nameFieldUpdated || numberFieldUpdated) {
+    activityUpdateObject.activityName = activityName({
+      attachmentObject: conn.req.body.attachment,
+      templateName: locals.docs.activity.get('template'),
+      requester: conn.requester,
     });
+  }
 
   const now = new Date();
 
@@ -124,7 +129,6 @@ const updateDocsWithBatch = (conn, locals) => {
       locals.batch.set(activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
-
           canEdit: getCanEditValue(locals, phoneNumber),
           /**
            * These people are not from the `share` array of the request body.
@@ -134,10 +138,47 @@ const updateDocsWithBatch = (conn, locals) => {
         });
     });
 
-  /** Ends the response. */
-  locals.batch
-    .commit()
-    .then(() => sendResponse(conn, code.noContent))
+  locals
+    .batch
+    .set(activityRef, activityUpdateObject, {
+      merge: true,
+    });
+
+  if (!nameFieldUpdated) {
+    /** Ends the response. */
+    locals.batch
+      .commit()
+      .then(() => sendResponse(conn, code.noContent))
+      .catch((error) => handleError(conn, error));
+
+    return;
+  }
+
+  rootCollections
+    .offices
+    .doc(locals.docs.activity.get('officeId'))
+    .get()
+    .then((doc) => {
+      const namesMap = doc.get('namesMap');
+      const oldNameValue = locals.docs.activity.get('attachment.Name.value');
+      const newNameValue = conn.req.body.attachment.Name.value;
+
+      if (namesMap.hasOwnProperty(oldNameValue)) {
+        namesMap[oldNameValue] = deleteField();
+      }
+
+      const newNamesMap = namesMap;
+
+      newNamesMap[newNameValue] = namesMap;
+
+      return doc
+        .ref
+        .set({
+          namesMap: newNamesMap,
+        }, {
+            merge: true,
+          });
+    })
     .catch((error) => handleError(conn, error));
 };
 
@@ -150,47 +191,76 @@ const handleLeave = (conn, locals) => {
   }
 
   const newScheduleObject = conn.req.body.schedule[0];
-  const oldScheduleObject = locals.docs.activity.get('schedule');
 
-  // if (!newScheduleObject.startTime || newScheduleObject.endTime) {
-  //   updateDocsWithBatch(conn, locals);
+  if (!newScheduleObject.startTime || newScheduleObject.endTime) {
+    updateDocsWithBatch(conn, locals);
 
-  //   return;
-  // }
+    return;
+  }
 
-  // Promise
-  //   .all([
-  //     rootCollections
-  //       .offices
-  //       .doc(locals.docs.activity.get('officeId'))
-  //       .collection('Activities')
-  //       .where('template', '==', 'leave-type')
-  //       .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
-  //       .limit(1)
-  //       .get(),
-  //     rootCollections
-  //       .offices
-  //       .doc(locals.docs.activity.get('officeId'))
-  //       .collection('Addendum')
-  //       .where('template', '==', 'leave')
-  //       .where('user', '==', conn.requester.phoneNumber)
-  //       .where('year', '==', new Date().getFullYear())
-  //       .orderBy('timestamp', 'desc')
-  //       .limit(1)
-  //       .get(),
-  //   ])
-  //   .then((result) => {
-  //     const [
-  //       leaveTypeQuery,
-  //       addendumDocQuery,
-  //     ] = result;
+  const leaveType = conn.req.body.attachment['Leave Type'].value;
 
+  Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(locals.docs.activity.get('officeId'))
+        .collection('Activities')
+        .where('template', '==', 'leave-type')
+        .where('attachment.Name.value', '==', leaveType)
+        .limit(1)
+        .get(),
+      rootCollections
+        .offices
+        .doc(locals.docs.activity.get('officeId'))
+        .collection('Addendum')
+        .where('template', '==', 'leave')
+        .where('activityData.attachment.Leave Type.value', '==', leaveType)
+        .where('user', '==', conn.requester.phoneNumber)
+        .where('year', '==', new Date().getFullYear())
+        .orderBy('timestamp', 'desc')
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      const startTime = conn.req.body.schedule[0].startTime;
+      const endTime = conn.req.body.schedule[0].endTime;
 
-  updateDocsWithBatch(conn, locals);
+      if (!startTime || !endTime) {
+        updateDocsWithBatch(conn, locals);
 
-  //     return;
-  //   })
-  //   .catch((error) => handleError(conn, error));
+        return;
+      }
+
+      // Adding +1 to include the start day of the leave
+      const leavesTaken =
+        Math.ceil(Math.abs((endTime - startTime) / 86400000)) + 1;
+
+      // Not checking for the doc.exists, or result[0].empty because
+      // leave-type's existance is certain when creating a leave;
+      const annualLimit =
+        result[0].docs[0].get('attachment.Annual Limit.value');
+
+      locals.leavesBalance = (() => {
+        if (result[1].empty) return annualLimit;
+
+        return result[1].docs[0].get('leavesBalance') - leavesTaken;
+      })();
+
+      if (locals.leavesBalance < 0) {
+        locals.static.statusOnCreate = 'CANCELLED';
+      }
+
+      console.log('balance', locals.leavesBalance);
+
+      locals.annaualLeavesEntitled =
+        result[0].docs[0].get('attachment.Annual Limit.value');
+
+      updateDocsWithBatch(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -210,7 +280,7 @@ const getUpdatedFields = (conn, locals) => {
     return;
   }
 
-  locals.objects.updatedFields.schedule = scheduleValidationResult.schedules;
+  // locals.objects.updatedFields.schedule = scheduleValidationResult.schedules;
 
   const venueDescriptors = [];
   activityVenue

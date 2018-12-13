@@ -57,7 +57,10 @@ module.exports = (change) => {
       cc,
       to: [],
       attachments: [],
-      from: env.systemEmail,
+      from: {
+        name: 'Growthfile',
+        email: env.systemEmail,
+      },
       'dynamic_template_data': {},
     },
   };
@@ -93,8 +96,6 @@ module.exports = (change) => {
       }
 
       if (!env.isProduction) {
-        // return Promise.resolve();
-
         locals.messageObject.to = env.internalUsers;
       }
 

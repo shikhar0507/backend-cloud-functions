@@ -25,36 +25,44 @@
 'use strict';
 
 
+const dateFormats = require('../../admin/constants').dateFormats;
+
+const momentTz = require('moment-timezone');
+
+const momentDateObject = (() => {
+  const today = (() => {
+    const momentToday = momentTz();
+
+    return {
+      MONTH_NUMBER: momentToday.month(),
+      MONTH_NAME_SHORT: momentToday.format('MMM'),
+      MONTH_NAME_LONG: momentToday.format('MMMM'),
+      DATE_NUMBER: momentToday.date(),
+      YEAR: momentToday.year(),
+    };
+  })();
+
+  const yesterday = (() => {
+    const momentYesterday = momentTz().subtract(1, 'day');
+
+    return {
+      MONTH_NUMBER: momentYesterday.month(),
+      MONTH_NAME_SHORT: momentYesterday.format('MMM'),
+      MONTH_NAME_LONG: momentYesterday.format('MMMM'),
+      DATE_NUMBER: momentYesterday.date(),
+      YEAR: momentYesterday.year(),
+    };
+  })();
+
+  return { today, yesterday };
+})();
+
+
 const getYesterdaysDateString = () => {
   const today = new Date();
   today.setDate(today.getDate() - 1);
 
   return today.toDateString();
-};
-
-
-const getPreviousDayMonth = () => {
-  const today = new Date();
-  const yesterday = new Date(today.setDate(today.getDate() - 1));
-
-  return yesterday.getMonth();
-};
-
-const getPreviousDayYear = () => {
-  const today = new Date();
-  const yesterday = new Date(today.setDate(today.getDate() - 1));
-
-  return yesterday.getFullYear();
-};
-
-const getNumberOfDaysInMonth = (options) => {
-  const {
-    month,
-    year,
-  } = options;
-
-  /** Month starts with 0 */
-  return new Date(year, month + 1, 0).getDate();
 };
 
 const monthsArray = [
@@ -111,26 +119,19 @@ const alphabetsArray = [
   'Z',
 ];
 
-
+// https://momentjs.com/docs/#/displaying/format/
 const dateStringWithOffset = (options) => {
   const {
     timezone,
     timestampToConvert,
+    format,
   } = options;
 
-  if (!timestampToConvert) return '';
+  if (!timestampToConvert || !timezone) return '';
 
-  const moment = require('moment-timezone');
-  const date = new Date(timestampToConvert);
+  const targetZonedDate = momentTz.tz(timestampToConvert, timezone);
 
-  const localTime = moment(date).format('YYYY-MM-DDTHH:mm:ss.SSS');
-  const targetZonedTime = moment.tz(localTime, timezone);
-
-  const split = targetZonedTime.toString().split(' ');
-
-  const dateString = `${split[1]} ${split[2]} ${split[3]}`;
-
-  return dateString;
+  return targetZonedDate.format(format || dateFormats.DATE);
 };
 
 const timeStringWithOffset = (options) => {
@@ -139,19 +140,11 @@ const timeStringWithOffset = (options) => {
     timestampToConvert,
   } = options;
 
-  if (!timestampToConvert) return '';
+  if (!timestampToConvert || !timezone) return '';
 
-  const moment = require('moment-timezone');
-  const date = new Date(timestampToConvert);
-  const fmt = 'YYYY-MM-DDTHH:mm:ss.SSS';
-  const localTime = moment(date).format(fmt);
-  const targetZonedTime = moment.tz(localTime, timezone);
+  const targetZonedTime = momentTz.tz(timestampToConvert, timezone);
 
-  const split = targetZonedTime.toString().split(' ');
-
-  const timeString = split[4].split(':');
-
-  return `${timeString[0]}:${timeString[1]}`;
+  return targetZonedTime.format(dateFormats.TIME);
 };
 
 
@@ -159,10 +152,8 @@ module.exports = {
   monthsArray,
   weekdaysArray,
   alphabetsArray,
-  getPreviousDayYear,
-  getPreviousDayMonth,
+  momentDateObject,
   dateStringWithOffset,
   timeStringWithOffset,
-  getNumberOfDaysInMonth,
   getYesterdaysDateString,
 };

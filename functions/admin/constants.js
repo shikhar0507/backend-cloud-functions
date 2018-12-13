@@ -156,6 +156,12 @@ const sendGridTemplateIds = {
   expenseClaim: 'd-ae3a31066b0f447bbf8661570b4dc719',
 };
 
+const templatesWithNumber = new Set()
+  .add('bill')
+  .add('invoice')
+  .add('sales order')
+  .add('purchase order');
+
 const templatesSet = new Set()
   .add('admin')
   .add('branch')
@@ -176,8 +182,15 @@ const templatesSet = new Set()
   .add('subscription')
   .add('supplier-type')
   .add('supplier')
-  .add('tour plan');
-
+  .add('tour plan')
+  .add('enquiry')
+  .add('material')
+  .add('bill')
+  .add('invoice')
+  .add('sales order')
+  .add('purchase order')
+  .add('payment')
+  .add('collection');
 
 /**
  *  Creating a Set and not using Moment's `moment.tz.names()`
@@ -778,10 +791,18 @@ const timezonesSet = new Set().add('Africa/Abidjan')
   .add('WET')
   .add('Zulu');
 
+
+const dateFormats = {
+  TIME: 'LT',
+  DATE: 'Do MMM YYYY',
+};
+
+
 module.exports = {
   vowels,
   weekdays,
   validTypes,
+  dateFormats,
   timezonesSet,
   httpsActions,
   canEditRules,
@@ -795,6 +816,7 @@ module.exports = {
   removeBodyFields,
   commentBodyFields,
   sendGridTemplateIds,
+  templatesWithNumber,
   changeStatusBodyFields,
   phoneNumberUpdateBodyFields,
 };

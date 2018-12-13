@@ -165,7 +165,7 @@ module.exports = (conn) => {
           .get('timestamp');
       }
 
-      console.log('sending in /read', {
+      console.log('sending in /read', conn.requester.phoneNumber, {
         activities: activities.size,
         addendum: addendum.size,
         subscriptions: subscriptions.size,

@@ -7,12 +7,13 @@ const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 const {
-  getPreviousDayMonth,
-  getPreviousDayYear,
+  momentDateObject,
   alphabetsArray,
 } = require('./report-utils');
+
 const xlsxPopulate = require('xlsx-populate');
 
+const moment = require('moment');
 
 
 module.exports = (locals) => {
@@ -22,7 +23,8 @@ module.exports = (locals) => {
   } = locals.change.after.data();
 
   locals.sendMail = true;
-  const todaysDateString = new Date().toDateString();
+
+  const todaysDateString = moment().format('ll');
   locals.messageObject.templateId = sendGridTemplateIds.dutyRoster;
   const fileName
     = `${office} Duty Roster Report_${todaysDateString}.xlsx`;
@@ -44,8 +46,8 @@ module.exports = (locals) => {
         .inits
         .where('report', '==', 'duty roster')
         .where('office', '==', office)
-        .where('month', '==', getPreviousDayMonth())
-        .where('year', '==', getPreviousDayYear())
+        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.yesterday.YEAR)
         .limit(1)
         .get(),
       xlsxPopulate

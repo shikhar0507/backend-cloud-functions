@@ -33,9 +33,11 @@ const {
 } = require('../../admin/admin');
 
 const {
-  timeStringWithOffset,
+  dateStringWithOffset,
   getYesterdaysDateString,
 } = require('./report-utils');
+
+const moment = require('moment');
 
 /**
  * Returns yesterday's Day start timestamp.
@@ -43,9 +45,23 @@ const {
  */
 const getYesterdaysStartTime = () => {
   const today = new Date();
-  today.setHours(0, 0, 0);
+  today.setDate(today.getDate() - 1);
 
-  return new Date(today.setDate(today.getDate() - 1));
+  const yesterday = new Date(today);
+
+  const yesterdayDate = yesterday.getDate();
+  const yesterdayMonth = yesterday.getMonth();
+  const yesterdayYear = yesterday.getFullYear();
+
+  return new Date(
+    yesterdayYear,
+    yesterdayMonth,
+    yesterdayDate,
+    0,
+    0,
+    0
+  )
+    .getTime();
 };
 
 
@@ -113,7 +129,13 @@ module.exports = (locals) => {
       }
 
       // Collecting the list of people who have multiple installs for yesterday.
-      const yesterdaysStartTime = getYesterdaysStartTime();
+      // const yesterdaysStartTime = getYesterdaysStartTime();
+
+      const yesterdaysStartTime =
+        moment()
+          .subtract(1, 'days')
+          .startOf('day')
+          .unix() * 1000;
 
       let header = 'Install Date and Time\n\n';
       const timezone = officeDoc.get('attachment.Timezone.value');
@@ -128,11 +150,12 @@ module.exports = (locals) => {
           officeDoc
             .get('employeesData')[phoneNumber];
 
-
+        // https://momentjs.com/docs/#/displaying/format/
         installs.forEach((timestampNumber) => {
-          const installTimeString = timeStringWithOffset({
+          const installTimeString = dateStringWithOffset({
             timezone,
             timestampToConvert: timestampNumber,
+            format: 'lll',
           });
 
           header += `${installTimeString}\n`;
@@ -145,7 +168,10 @@ module.exports = (locals) => {
         });
 
         /** Latest install timestamp */
-        const installedOn = installs[installs.length - 1];
+        const installedOn = dateStringWithOffset({
+          timestampToConvert: installs[installs.length - 1],
+          timezone,
+        });
         const numberOfInstalls = installs.length;
         const firstSupervisorPhoneNumber =
           employeeData['First Supervisor'];

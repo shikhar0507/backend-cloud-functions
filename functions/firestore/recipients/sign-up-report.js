@@ -33,9 +33,11 @@ const {
 } = require('../../admin/constants');
 
 const {
-  getYesterdaysDateString,
   dateStringWithOffset,
+  momentDateObject,
 } = require('./report-utils');
+
+const moment = require('moment');
 
 
 module.exports = (locals) => {
@@ -43,10 +45,6 @@ module.exports = (locals) => {
     office,
     officeId,
   } = locals.change.after.data();
-
-  const today = new Date();
-
-  console.log('Inside signup');
 
   locals.csvString =
     `Employee Name,`
@@ -61,8 +59,6 @@ module.exports = (locals) => {
     + ` Contact Number,`
     + `\n`;
 
-  const yesterdaysDateString = getYesterdaysDateString();
-
   return Promise
     .all([
       rootCollections
@@ -72,7 +68,9 @@ module.exports = (locals) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('dateString', '==', yesterdaysDateString)
+        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
+        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.yesterday.YEAR)
         .where('report', '==', 'signup')
         .limit(1)
         .get(),
@@ -148,19 +146,22 @@ module.exports = (locals) => {
         if (signedUpOn) totalSignUpsCount++;
       });
 
+      const dateString = moment().format('ll');
+
       locals.messageObject.templateId = sendGridTemplateIds.signUps;
       locals.messageObject['dynamic_template_data'] = {
         office,
-        date: today.toDateString(),
-        subject: `${office} Sign-Up Report_${today.toDateString()}`,
+        date: dateString,
+        subject: `${office} Sign-Up Report_${dateString}`,
         totalEmployees: employeesList.length,
         totalSignUps: totalSignUpsCount,
         difference: employeesList.length - totalSignUpsCount,
       };
+
       locals
         .messageObject.attachments.push({
           content: new Buffer(locals.csvString).toString('base64'),
-          fileName: `${office} Sign-Up Report_${today.toDateString()}.csv`,
+          fileName: `${office} Sign-Up Report_${dateString}.csv`,
           type: 'text/csv',
           disposition: 'attachment',
         });

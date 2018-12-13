@@ -34,6 +34,7 @@ const {
   getGeopointObject,
 } = require('../../admin/admin');
 const {
+  activityName,
   validateVenues,
   getCanEditValue,
   filterAttachment,
@@ -44,23 +45,8 @@ const {
 const {
   handleError,
   sendResponse,
+  sendJSON,
 } = require('../../admin/utils');
-
-
-const getActivityName = (conn) => {
-  if (conn.req.body.attachment.hasOwnProperty('Name')) {
-    return `${conn.req.body.template.toUpperCase()}:`
-      + ` ${conn.req.body.attachment.Name.value}`;
-  }
-
-  if (conn.req.body.attachment.hasOwnProperty('Number')) {
-    return `${conn.req.body.template.toUpperCase()}:`
-      + `${conn.req.body.attachment.Number.value}`;
-  }
-
-  return `${conn.req.body.template.toUpperCase()}:`
-    + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
-};
 
 
 const createDocsWithBatch = (conn, locals) => {
@@ -107,12 +93,6 @@ const createDocsWithBatch = (conn, locals) => {
     .collection('Addendum')
     .doc();
 
-  // All leaves used up
-  if (conn.req.body.template === 'leave'
-    && locals.static.leavesBalance === 0) {
-    locals.static.statusOnCreate = 'CANCELLED';
-  }
-
   const activityData = {
     addendumDocRef,
     venue: locals.objects.venueArray,
@@ -123,7 +103,11 @@ const createDocsWithBatch = (conn, locals) => {
     status: locals.static.statusOnCreate,
     attachment: conn.req.body.attachment,
     canEditRule: locals.static.canEditRule,
-    activityName: getActivityName(conn),
+    activityName: activityName({
+      requester: conn.requester,
+      attachmentObject: conn.req.body.attachment,
+      templateName: conn.req.body.template,
+    }),
     officeId: locals.static.officeId,
     hidden: locals.static.hidden,
     creator: conn.requester.phoneNumber,
@@ -152,15 +136,24 @@ const createDocsWithBatch = (conn, locals) => {
     timestamp: Date.now(),
     userDeviceTimestamp: conn.req.body.timestamp,
     activityId: locals.static.activityId,
-    activityName: getActivityName(conn),
+    // activityName: getActivityName(conn),
+    activityName: activityData.activityName,
     isSupportRequest: conn.requester.isSupportRequest,
   };
 
-  // Only putting the balance for the leave activities where
-  // which are `PENDING` or `CONFIRMED`. `CANCELLED` leaves don't count
-  if (conn.req.body.template === 'leave'
-    && activityData.status !== 'CANCELLED') {
-    addendumDocObject.leavesBalance = locals.static.leavesBalance;
+  if (conn.req.body.template === 'leave') {
+    // Only putting the balance for the leave activities where
+    // which are `PENDING` or `CONFIRMED`. `CANCELLED` leaves don't count
+    addendumDocObject.totalLeavesRemaining = (() => {
+      if (activityData.status === 'CANCELLED') {
+        return locals.annualLeavesEntitled;
+      }
+
+      return locals.totalLeavesRemaining;
+    })();
+
+    addendumDocObject.totalLeavesTaken = locals.totalLeavesTaken;
+    addendumDocObject.annualLeavesEntitled = locals.annualLeavesEntitled;
   }
 
   if (conn.req.body.template === 'check-in'
@@ -224,7 +217,6 @@ const handleAssignees = (conn, locals) => {
     .allPhoneNumbers
     .forEach((phoneNumber) => {
       const isRequester = phoneNumber === conn.requester.phoneNumber;
-
       /**
        * Defaults are `false`, since we don't know right now what
        * these people are in the office in context.
@@ -305,22 +297,31 @@ const handleAssignees = (conn, locals) => {
 
 const handleLeave = (conn, locals) => {
   if (conn.req.body.template !== 'leave'
-    || conn.req.body.attachment['Leave Type'].value) {
+    || !conn.req.body.attachment['Leave Type'].value) {
+    console.log('returning early.');
 
     handleAssignees(conn, locals);
 
     return;
   }
 
-  /**
-   * Leave created
-   * attachment.Leave Type.value
-   *   if empty:
-   *     skip this code
-   *   else:
-   *     fetch that leave-type activity
-   *       Annual Limit - 
-   */
+  const leaveDateSchedule = conn.req.body.schedule[0];
+
+  const startTime = leaveDateSchedule.startTime;
+  const endTime = leaveDateSchedule.endTime;
+
+  if (!startTime || !endTime) {
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
+  const leaveType = conn.req.body.attachment['Leave Type'].value;
+
+  // Adding +1 to include the start day of the leave
+  const leavesTaken =
+    Math.ceil(Math.abs((endTime - startTime) / 86400000)) + 1;
+
   Promise
     .all([
       rootCollections
@@ -328,14 +329,14 @@ const handleLeave = (conn, locals) => {
         .doc(locals.static.officeId)
         .collection('Activities')
         .where('template', '==', 'leave-type')
-        .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
+        .where('attachment.Name.value', '==', leaveType)
         .limit(1)
         .get(),
       rootCollections
         .offices
         .doc(locals.static.officeId)
         .collection('Addendum')
-        .where('template', '==', 'leave')
+        .where('activityData.attachment.Leave Type.value', '==', leaveType)
         .where('user', '==', conn.requester.phoneNumber)
         .where('year', '==', new Date().getFullYear())
         .orderBy('timestamp', 'desc')
@@ -343,35 +344,29 @@ const handleLeave = (conn, locals) => {
         .get(),
     ])
     .then((result) => {
-      const startTime = conn.req.body.schedule[0].startTime;
-      const endTime = conn.req.body.schedule[0].endTime;
-
-      if (!startTime || !endTime) {
-        handleAssignees(conn, locals);
-
-        return;
-      }
-
-      // Adding +1 to include the start day of the leave
-      const leavesTaken =
-        Math.ceil(Math.abs((endTime - startTime) / 86400000)) + 1;
-
-      // Not checking for the doc.exists, or result[0].empty because
-      // leave-type's existance is certain when creating a leave;
       const annualLimit =
         result[0].docs[0].get('attachment.Annual Limit.value');
 
-      locals.static.leavesBalance = (() => {
+      locals.totalLeavesRemaining = (() => {
         if (result[1].empty) return annualLimit;
 
-        return result[1].docs[0].get('leavesBalance') - leavesTaken;
+        console.log('lb', result[1].docs[0].id, result[1].docs[0].get('totalLeavesRemaining'));
+        console.log('lt', leavesTaken);
+
+        return result[1].docs[0].get('totalLeavesRemaining') - leavesTaken;
       })();
 
-      if (locals.static.leavesBalance < 0) {
+      if (locals.totalLeavesRemaining < 0) {
+        console.log('cancelling activity');
         locals.static.statusOnCreate = 'CANCELLED';
       }
 
-      console.log('balance', locals.static.leavesBalance);
+      console.log('balance', locals.totalLeavesRemaining);
+
+      locals.totalLeavesTaken = leavesTaken;
+
+      locals.annualLeavesEntitled =
+        result[0].docs[0].get('attachment.Annual Limit.value');
 
       handleAssignees(conn, locals);
 
@@ -412,9 +407,9 @@ const verifyUniqueness = (conn, locals) => {
        */
       .limit(1);
 
-    message = `The user: '${conn.req.body.attachment.Subscriber.value}' already`
+    message = `'${conn.req.body.attachment.Subscriber.value}' already`
       + ` has the subscription of`
-      + ` '${conn.req.body.attachment.Template.value}' for the office:`
+      + ` '${conn.req.body.attachment.Template.value}' for the`
       + ` '${conn.req.body.office}'.`;
   }
 
@@ -426,8 +421,8 @@ const verifyUniqueness = (conn, locals) => {
       .where('attachment.Admin.value', '==', conn.req.body.attachment.Admin.value)
       .limit(1);
 
-    message = `The user: '${conn.req.body.attachment.Admin.value}' is already`
-      + ` an 'Admin' of the office '${conn.req.body.office}'.`;
+    message = `'${conn.req.body.attachment.Admin.value}' is already`
+      + ` an 'Admin' of '${conn.req.body.office}'`;
   }
 
   query
@@ -465,10 +460,11 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
       for (const snapShot of snapShots) {
         const filters = snapShot._query._fieldFilters;
         const argOne = filters[0].value;
+        const parentFieldName = filters[0].field.segments[1];
 
         if (!snapShot.empty) {
           successful = false;
-          message = `The value '${argOne}' already is in use`;
+          message = `The ${parentFieldName} '${argOne}' already is in use`;
           break;
         }
       }
@@ -504,17 +500,11 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
 
       for (const snapShot of snapShots) {
         const filters = snapShot._query._fieldFilters;
-        const argOne = filters[0]._value;
-        let argTwo;
+        const [
+          argOne,
+        ] = filters;
 
-        message = `No template found with the name: ${argOne} from`
-          + ` the attachment.`;
-
-        if (conn.req.body.template !== 'subscription') {
-          argTwo = filters[1]._value;
-          message = `The ${argOne} ${argTwo} does not exist in `
-            + ` the office: ${conn.req.body.office}.`;
-        }
+        message = `${argOne.value} does not exist`;
 
         if (snapShot.empty) {
           successful = false;
@@ -596,20 +586,27 @@ const handleAttachment = (conn, locals) => {
     return;
   }
 
+  const constants = require('../../admin/constants');
+  const isSubscription = conn.req.body.template === 'subscription'
+    && conn.req.body.attachment.Template.value;
+
+  if (isSubscription
+    && !constants.templatesSet.has(conn.req.body.attachment.Template.value)) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `${conn.req.body.attachment.Template.value} doesn't exist`
+    );
+
+    return;
+  }
+
   /**
    * All phone numbers in the attachment are added to the
    * activity assignees.
    */
   result.phoneNumbers
     .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
-
-  if (result.querySnapshotShouldExist.length === 0
-    && result.querySnapshotShouldNotExist.length === 0
-    && result.profileDocShouldExist.length === 0) {
-    verifyUniqueness(conn, locals);
-
-    return;
-  }
 
   resolveProfileCheckPromises(conn, locals, result);
 };
