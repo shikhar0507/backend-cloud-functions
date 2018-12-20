@@ -32,11 +32,21 @@ const {
   deleteField,
 } = require('../../admin/admin');
 
+const {
+  reportNames,
+} = require('../../admin/constants');
+
 const sendSMS = (change) => {
+  console.log('In sendSMS');
+
   const smsContext = change.after.get('smsContext');
 
   // Profile doc is created and the smsContext object has been added to the profile doc.
-  const toSendSMS = !change.after.data() && change.after.data() && smsContext;
+  const toSendSMS = !change.after.data()
+    && change.after.data()
+    && smsContext;
+
+  console.log({ toSendSMS, phoneNumber: change.after.id });
 
   if (!toSendSMS) return Promise.resolve();
 
@@ -51,14 +61,13 @@ const sendSMS = (change) => {
 
   // Will not send sms from test project
   if (!isProduction) {
-    console.log('Returning early NOT PROD');
+    console.log('NO SMS. NOT PROD');
 
     return Promise.resolve();
   }
 
   console.log('SENDING SMS', change.after.id);
 
-  // id: 774442
   const templatedMessage = (() => {
     const {
       activityName,
@@ -72,18 +81,9 @@ const sendSMS = (change) => {
   })();
 
   // Profile doc id is the phone number
-  const sendTo = (() => {
-    const env = require('../../admin/env');
-
-    if (!env.isProduction) {
-      return env.devPhoneNumber;
-    }
-
-    return change.after.id;
-  })();
-
+  const sendTo = change.after.id;
   const encodedMessage = `${encodeURI(templatedMessage)}`;
-  const host = `https://enterprise.smsgupshup.com`;
+  const host = `enterprise.smsgupshup.com`;
   const path = `/GatewayAPI/rest?method=SendMessage`
     + `&send_to=${sendTo}`
     + `&msg=${encodedMessage}`
@@ -254,7 +254,7 @@ const handleAddedToOffice = (change, options) => {
 
   return rootCollections
     .inits
-    .where('report', '==', 'signup')
+    .where('report', '==', reportNames.SIGNUP)
     .where('office', '==', newOffice)
     .limit(1)
     .get()
@@ -309,13 +309,13 @@ const handleRemovedFromOffice = (change, options) => {
       rootCollections
         .inits
         .where('phoneNumber', '==', phoneNumber)
-        .where('report', '==', 'install')
+        .where('report', '==', reportNames.INSTALL)
         .where('office', '==', removedOffice)
         .limit(1)
         .get(),
       rootCollections
         .inits
-        .where('report', '==', 'signup')
+        .where('report', '==', reportNames.SIGNUP)
         .where('office', '==', removedOffice)
         .limit(1)
         .get(),
@@ -370,7 +370,7 @@ const handleInstall = (change, options) => {
     const promise = rootCollections
       .inits
       .where('phoneNumber', '==', phoneNumber)
-      .where('report', '==', 'install')
+      .where('report', '==', reportNames.INSTALL)
       .where('office', '==', office)
       .limit(1)
       .get();
@@ -447,7 +447,7 @@ const handleSignUp = (change, options) => {
   currentOfficesList.forEach((office) => {
     const promise = rootCollections
       .inits
-      .where('report', '==', 'signup')
+      .where('report', '==', reportNames.SIGNUP)
       .where('office', '==', office)
       .limit(1)
       .get();
@@ -526,12 +526,10 @@ module.exports = (change) => {
 
   const batch = db.batch();
 
-  /** Profile didn't exit before; exists now. AND uid is (null OR undefined) */
-  const profileCreated = !before.data() && after.data() && !after.get('uid');
+  const profileCreated = Boolean(!before.data() && after.data() && after.get('uid'));
   const phoneNumber = after.id;
   const oldOfficesList = Object.keys(before.get('employeeOf') || {});
   const currentOfficesList = Object.keys(after.get('employeeOf') || {});
-
   const newOffice = currentOfficesList
     .filter((officeName) => !oldOfficesList.includes(officeName))[0];
   const removedOffice = oldOfficesList

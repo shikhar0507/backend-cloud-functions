@@ -60,8 +60,8 @@ const updateDocsWithBatch = (conn, locals) => {
 
   const activityUpdateObject = {
     addendumDocRef,
-    schedule: locals.objects.updatedFields.schedule,
-    venue: conn.req.body.schedule,
+    schedule: conn.req.body.schedule,
+    venue: locals.objects.updatedFields.venue,
     timestamp: Date.now(),
     attachment: conn.req.body.attachment,
   };
@@ -93,27 +93,25 @@ const updateDocsWithBatch = (conn, locals) => {
        * Sequence matters here. The `activityUpdateObject` object contains updated values.
        * Priority is of the `activityUpdateObject`.
        */
-      activityData: Object.assign(
-        {},
-        locals.docs.activity.data(),
-        activityUpdateObject
-      ),
+      activityData: Object
+        .assign({}, locals.docs.activity.data(), activityUpdateObject),
       date: now.getDate(),
       month: now.getMonth(),
+      timestamp: Date.now(),
       year: now.getFullYear(),
+      action: httpsActions.update,
       dateString: now.toDateString(),
       user: conn.requester.phoneNumber,
-      action: httpsActions.update,
-      location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: Date.now(),
-      userDeviceTimestamp: conn.req.body.timestamp,
       activityId: conn.req.body.activityId,
       /**
        * Required by `addendumOnCreate` function to delete old data from
        * init docs and update it the case of new ones. e.g., schedule and venue.
        */
       activityOld: locals.docs.activity.data(),
+      userDeviceTimestamp: conn.req.body.timestamp,
+      template: locals.docs.activity.get('template'),
       isSupportRequest: conn.requester.isSupportRequest,
+      location: getGeopointObject(conn.req.body.geopoint),
     });
 
   Object
@@ -198,13 +196,43 @@ const handleLeave = (conn, locals) => {
     return;
   }
 
+  const startTimeNew = conn.req.body.schedule[0].startTime;
+  const endTimeNew = conn.req.body.schedule[0].endTime;
+
+  const startTimeOld = locals.docs.activity.get('schedule')[0].startTime;
+  const endTimeOld = locals.docs.activity.get('schedule')[0].endTime;
+
+  if (!startTimeNew || !endTimeNew) {
+    updateDocsWithBatch(conn, locals);
+
+    return;
+  }
+
+  // Adding `+1` to include the start day of the leave
+  const leavesTakenOld =
+    Math.ceil(Math.abs((endTimeNew - startTimeNew) / 86400000)) + 1;
+
+  const leavesTakenNew =
+    Math.ceil(Math.abs(endTimeNew - startTimeNew) / 86400000) + 1;
+
+  if (leavesTakenOld === leavesTakenNew) {
+    locals.annaualLeavesEntitled = '';
+    locals.leavesRemaining = leavesTakenOld;
+    locals.totalLeavesTaken = '';
+
+    updateDocsWithBatch(conn, locals);
+
+    return;
+  }
+
   const leaveType = conn.req.body.attachment['Leave Type'].value;
+  const officeId = locals.docs.activity.get('officeId');
 
   Promise
     .all([
       rootCollections
         .offices
-        .doc(locals.docs.activity.get('officeId'))
+        .doc(officeId)
         .collection('Activities')
         .where('template', '==', 'leave-type')
         .where('attachment.Name.value', '==', leaveType)
@@ -212,7 +240,7 @@ const handleLeave = (conn, locals) => {
         .get(),
       rootCollections
         .offices
-        .doc(locals.docs.activity.get('officeId'))
+        .doc(officeId)
         .collection('Addendum')
         .where('template', '==', 'leave')
         .where('activityData.attachment.Leave Type.value', '==', leaveType)
@@ -223,19 +251,6 @@ const handleLeave = (conn, locals) => {
         .get(),
     ])
     .then((result) => {
-      const startTime = conn.req.body.schedule[0].startTime;
-      const endTime = conn.req.body.schedule[0].endTime;
-
-      if (!startTime || !endTime) {
-        updateDocsWithBatch(conn, locals);
-
-        return;
-      }
-
-      // Adding +1 to include the start day of the leave
-      const leavesTaken =
-        Math.ceil(Math.abs((endTime - startTime) / 86400000)) + 1;
-
       // Not checking for the doc.exists, or result[0].empty because
       // leave-type's existance is certain when creating a leave;
       const annualLimit =
@@ -244,17 +259,25 @@ const handleLeave = (conn, locals) => {
       locals.leavesBalance = (() => {
         if (result[1].empty) return annualLimit;
 
-        return result[1].docs[0].get('leavesBalance') - leavesTaken;
+        return result[1].docs[0].get('leavesBalance') - leavesTakenOld;
       })();
 
       if (locals.leavesBalance < 0) {
         locals.static.statusOnCreate = 'CANCELLED';
       }
 
-      console.log('balance', locals.leavesBalance);
+      locals
+        .annaualLeavesEntitled =
+        result[0]
+          .docs[0]
+          .get('attachment.Annual Limit.value');
+      locals
+        .leavesRemaining =
+        result[1]
+          .docs[0]
+          .get('totalLeavesRemaining') - Math.round(leavesTakenOld - leavesTakenNew);
 
-      locals.annaualLeavesEntitled =
-        result[0].docs[0].get('attachment.Annual Limit.value');
+      locals.totalLeavesTaken = '';
 
       updateDocsWithBatch(conn, locals);
 
@@ -279,8 +302,6 @@ const getUpdatedFields = (conn, locals) => {
 
     return;
   }
-
-  // locals.objects.updatedFields.schedule = scheduleValidationResult.schedules;
 
   const venueDescriptors = [];
   activityVenue

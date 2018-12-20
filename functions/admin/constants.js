@@ -198,7 +198,8 @@ const templatesSet = new Set()
   * if a timezone exists or not is `O(n^2)`.
   * Fetching the value from a Set is `O(1)`
   */
-const timezonesSet = new Set().add('Africa/Abidjan')
+const timezonesSet = new Set()
+.add('Africa/Abidjan')
   .add('Africa/Accra')
   .add('Africa/Addis_Ababa')
   .add('Africa/Algiers')
@@ -797,17 +798,37 @@ const dateFormats = {
   DATE: 'Do MMM YYYY',
 };
 
+const reportNames = {
+  INSTALL: 'install',
+  SIGNUP: 'signup',
+  EXPENSE_CLAIM: 'expense claim',
+  DUTY_ROSTER: 'duty roster',
+  CHECK_IN: 'check-in',
+  DSR: 'dsr',
+  FOOTPRINTS: 'footprints',
+  LEAVE: 'leave',
+  PAYROLL: 'payroll',
+  TOUR_PLAN: 'tour plan',
+};
+
+const customMessages = {
+  LEAVE_CANCELLED: `LEAVE CANCELLED. LIMIT EXCEEDED`,
+  CHECK_IN_CANCELLED: `CHECK-IN CANCELLED. INACCURATE CHECK-IN LOCATION`,
+};
+
 
 module.exports = {
   vowels,
   weekdays,
   validTypes,
   dateFormats,
+  reportNames,
   timezonesSet,
   httpsActions,
   canEditRules,
   templatesSet,
   templateFields,
+  customMessages,
   shareBodyFields,
   activityStatuses,
   reportingActions,

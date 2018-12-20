@@ -121,7 +121,7 @@ const handleResult = (conn, docs) => {
       isCreator: isRequester,
     };
 
-    if (locals.static.template === 'employee') {
+    if (activity.get('canEditRule') === 'EMPLOYEE') {
       promises.push(rootCollections
         .offices
         .doc(locals.static.officeId)
@@ -133,7 +133,7 @@ const handleResult = (conn, docs) => {
       );
     }
 
-    if (locals.static.template === 'admin') {
+    if (activity.get('canEditRule') === 'ADMIN') {
       promises.push(rootCollections
         .offices
         .doc(locals.static.officeId)

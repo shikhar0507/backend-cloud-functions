@@ -30,11 +30,14 @@ const {
 } = require('../../admin/admin');
 const {
   sendGridTemplateIds,
+  reportNames,
+  dateFormats,
 } = require('../../admin/constants');
 
 const {
   dateStringWithOffset,
-  momentDateObject,
+  momentOffsetObject,
+  employeeInfo,
 } = require('./report-utils');
 
 const moment = require('moment');
@@ -56,8 +59,11 @@ module.exports = (locals) => {
     + ` First Supervisor's Name,`
     + ` Contact Number,`
     + ` Second Supervisor's Name,`
-    + ` Contact Number,`
+    + ` Contact Number`
     + `\n`;
+
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentDateObject = momentOffsetObject(timezone);
 
   return Promise
     .all([
@@ -71,7 +77,7 @@ module.exports = (locals) => {
         .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
         .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
         .where('year', '==', momentDateObject.yesterday.YEAR)
-        .where('report', '==', 'signup')
+        .where('report', '==', reportNames.SIGNUP)
         .limit(1)
         .get(),
     ])
@@ -82,13 +88,13 @@ module.exports = (locals) => {
       ] = result;
 
       if (initDocsQuery.empty) {
-        console.log('Init docs empty.', 'signUps');
 
         return Promise.resolve();
       }
 
       const allEmployeesData = officeDoc.get('employeesData');
-      const offset = Number(officeDoc.get('attachment.Offset.value'));
+      const timezone = officeDoc.get('attachment.Timezone.value');
+
       let totalSignUpsCount = 0;
 
       const {
@@ -97,33 +103,25 @@ module.exports = (locals) => {
 
       const employeesList = Object.keys(employeesObject);
 
-      const getName = (phoneNumber) => {
-        if (!allEmployeesData[phoneNumber]) return '';
-
-        return allEmployeesData[phoneNumber].Name;
-      };
-
       employeesList.forEach((phoneNumber) => {
-        const employeeData = allEmployeesData[phoneNumber];
-
-        const employeeName = employeeData.Name;
-        const employeeCode = employeeData['Employee Code'];
-        const department = employeeData.Department;
-        const firstSupervisorPhoneNumber =
-          employeeData['First Supervisor'];
-        const secondSupervisorPhoneNumber =
-          employeeData['Second Supervisor'];
-        const firstSupervisorName = getName(firstSupervisorPhoneNumber);
-        const secondSupervisorName = getName(secondSupervisorPhoneNumber);
+        const employeeDataObject = employeeInfo(allEmployeesData, phoneNumber);
+        const employeeName = employeeDataObject.name;
+        const employeeCode = employeeDataObject.employeeCode;
+        const department = employeeDataObject.employeeCode;
+        const firstSupervisorPhoneNumber = employeeDataObject.firstSupervisor;
+        const secondSupervisorPhoneNumber = employeeDataObject.secondSupervisor;
+        const firstSupervisorName =
+          employeeInfo(allEmployeesData, firstSupervisorPhoneNumber).name;
+        const secondSupervisorName =
+          employeeInfo(allEmployeesData, secondSupervisorPhoneNumber).name;
 
         const signedUpOn = dateStringWithOffset({
-          offset,
-          timestampToCovert: employeesObject[phoneNumber].signedUpOn,
+          timezone,
+          timestampToConvert: employeesObject[phoneNumber].signedUpOn,
         });
-
         const addedOn = dateStringWithOffset({
-          offset,
-          timestampToCovert: employeeData.createTime,
+          timezone,
+          timestampToConvert: employeesObject[phoneNumber].addedOn,
         });
 
         locals.csvString +=
@@ -140,19 +138,19 @@ module.exports = (locals) => {
           + `${firstSupervisorName},`
           + `${firstSupervisorPhoneNumber},`
           + `${secondSupervisorName},`
-          + `${secondSupervisorPhoneNumber},`
+          + `${secondSupervisorPhoneNumber}`
           + `\n`;
 
         if (signedUpOn) totalSignUpsCount++;
       });
 
-      const dateString = moment().format('ll');
+      const standardDateString = moment().format(dateFormats.DATE);
 
       locals.messageObject.templateId = sendGridTemplateIds.signUps;
       locals.messageObject['dynamic_template_data'] = {
         office,
-        date: dateString,
-        subject: `${office} Sign-Up Report_${dateString}`,
+        date: standardDateString,
+        subject: `Sign-Up ${office}_Report_${standardDateString}`,
         totalEmployees: employeesList.length,
         totalSignUps: totalSignUpsCount,
         difference: employeesList.length - totalSignUpsCount,
@@ -161,12 +159,15 @@ module.exports = (locals) => {
       locals
         .messageObject.attachments.push({
           content: new Buffer(locals.csvString).toString('base64'),
-          fileName: `${office} Sign-Up Report_${dateString}.csv`,
+          fileName: `${office} Sign-Up Report_${standardDateString}.csv`,
           type: 'text/csv',
           disposition: 'attachment',
         });
 
-      console.log('locals.messageObject', locals.messageObject);
+      console.log({
+        report: locals.change.after.get('report'),
+        to: locals.messageObject.to,
+      });
 
       return locals.sgMail.send(locals.messageObject);
     })

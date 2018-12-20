@@ -30,6 +30,9 @@ const {
   users,
   rootCollections,
 } = require('../../admin/admin');
+const {
+  reportNames,
+} = require('../../admin/constants');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
 
@@ -40,6 +43,7 @@ module.exports = (change) => {
     include,
     cc,
     status,
+    officeId,
   } = change.after.data();
 
   if (status === 'CANCELLED') {
@@ -95,28 +99,60 @@ module.exports = (change) => {
         return Promise.resolve();
       }
 
+      return rootCollections
+        .offices
+        .doc(officeId)
+        .get();
+    })
+    .then((officeDoc) => {
+      if (!officeDoc) return Promise.resolve();
+
       if (!env.isProduction) {
         locals.messageObject.to = env.internalUsers;
       }
 
-      // Temporary
+      locals.officeDoc = officeDoc;
+
       locals.messageObject.to.push(env.loggingAccount);
+      locals.messageObject.to.push(env.loggingAccount2);
 
-      if (report === 'signup') return require('./sign-up-report')(locals);
-      if (report === 'install') return require('./install-report')(locals);
-      if (report === 'footprints') return require('./footprints-report')(locals);
-      if (report === 'payroll') return require('./payroll-report')(locals);
-      if (report === 'dsr') return require('./dsr-report')(locals);
-      if (report === 'duty roster') return require('./duty-roster-report')(locals);
-      // if (report === 'leave') return require('./leave-report')(locals);
+      if (report === reportNames.SIGNUP) {
+        return require('./sign-up-report')(locals);
+      }
 
-      console.log('No reports sent');
+      if (report === reportNames.INSTALL) {
+        return require('./install-report')(locals);
+      }
+
+      if (report === reportNames.FOOTPRINTS) {
+        return require('./footprints-report')(locals);
+      }
+
+      if (report === reportNames.PAYROLL) {
+        return require('./payroll-report')(locals);
+      }
+
+      if (report === reportNames.DSR) {
+        return require('./dsr-report')(locals);
+      }
+
+      if (report === reportNames.DUTY_ROSTER) {
+        return require('./duty-roster-report')(locals);
+      }
+
+      if (report === reportNames.EXPENSE_CLAIM) {
+        return require('./expense-claim-report')(locals);
+      }
+
+      if (report === reportNames.LEAVE) {
+        return require('./leave-report')(locals);
+      }
 
       return Promise.resolve();
     })
     .catch((error) => {
       if (error.response) {
-        console.log(error.response.body.errors);
+        console.error(error.response.body.errors);
       } else {
         console.error(error);
       }

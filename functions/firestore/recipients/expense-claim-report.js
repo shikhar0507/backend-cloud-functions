@@ -8,10 +8,14 @@ const {
 } = require('../../admin/admin');
 const {
   sendGridTemplateIds,
+  reportNames,
+  dateFormats,
 } = require('../../admin/constants');
 const {
   dateStringWithOffset,
-  momentDateObject,
+  momentOffsetObject,
+  alphabetsArray,
+  employeeInfo,
 } = require('./report-utils');
 
 const moment = require('moment');
@@ -19,10 +23,12 @@ const moment = require('moment');
 module.exports = (locals) => {
   const {
     office,
-    officeId,
   } = locals.change.after.data();
 
-  const todaysDateString = moment().format('ll');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentDateObject = momentOffsetObject(timezone);
+
+  const todaysDateString = moment().format(dateFormats.DATE);
 
   locals.sendMail = true;
   locals.messageObject.templateId = sendGridTemplateIds.expenseClaim;
@@ -37,13 +43,9 @@ module.exports = (locals) => {
   return Promise
     .all([
       rootCollections
-        .offices
-        .doc(officeId)
-        .get(),
-      rootCollections
         .inits
         .where('office', '==', office)
-        .where('report', '==', 'expense claim')
+        .where('report', '==', reportNames.EXPENSE_CLAIM)
         .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
         .where('year', '==', momentDateObject.yesterday.YEAR)
         .get(),
@@ -52,7 +54,6 @@ module.exports = (locals) => {
     ])
     .then((result) => {
       const [
-        officeDoc,
         initDocsQuery,
         worksheet,
       ] = result;
@@ -75,9 +76,6 @@ module.exports = (locals) => {
         'Reason',
       ];
 
-      const alphabets =
-        ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
-
       const sheet1 = worksheet.sheet('Sheet1');
       sheet1.row(1).style('bold', true);
 
@@ -85,12 +83,11 @@ module.exports = (locals) => {
         .forEach(
           (header, index) => {
             sheet1
-              .cell(`${alphabets[index]}1`)
+              .cell(`${alphabetsArray[index]}1`)
               .value(header);
           });
 
-      const employeesData = officeDoc.get('employeesData');
-      const timezone = officeDoc.get('attachment.Timezone.value');
+      const employeesData = locals.officeDoc.get('employeesData');
       const expenseClaimObject = initDocsQuery.docs[0].get('expenseClaimObject');
       const activityIdsArray = Object.keys(expenseClaimObject);
 
@@ -104,11 +101,8 @@ module.exports = (locals) => {
         });
         const phoneNumber = row.phoneNumber;
         const status = row.status;
-
-        /** Report will only contain employees data */
-        if (!employeesData[phoneNumber]) return;
-
-        const employeeName = employeesData[phoneNumber].Name;
+        const employeeObject = employeeInfo(employeesData, phoneNumber);
+        const employeeName = employeeObject.name;
         const amount = row.amount;
         const expenseLocation = row.expenseLocation;
         const expenseType = row.expenseType;
@@ -123,7 +117,7 @@ module.exports = (locals) => {
         sheet1.cell(`F${columnNumber}`).value(expenseLocation);
         sheet1.cell(`G${columnNumber}`).value(expenseType);
         sheet1.cell(`H${columnNumber}`).value(referenceNumber);
-        sheet1.cell(`H${columnNumber}`).value(reason);
+        sheet1.cell(`I${columnNumber}`).value(reason);
       });
 
       return worksheet.toFileAsync(filePath);
@@ -138,6 +132,11 @@ module.exports = (locals) => {
         content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
         type: 'text/csv',
         disposition: 'attachment',
+      });
+
+      console.log({
+        report: locals.change.after.get('report'),
+        to: locals.messageObject.to,
       });
 
       return locals.sgMail.sendMultiple(locals.messageObject);

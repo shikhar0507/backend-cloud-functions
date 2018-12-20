@@ -45,7 +45,6 @@ const {
 const {
   handleError,
   sendResponse,
-  sendJSON,
 } = require('../../admin/utils');
 
 
@@ -136,24 +135,20 @@ const createDocsWithBatch = (conn, locals) => {
     timestamp: Date.now(),
     userDeviceTimestamp: conn.req.body.timestamp,
     activityId: locals.static.activityId,
-    // activityName: getActivityName(conn),
     activityName: activityData.activityName,
     isSupportRequest: conn.requester.isSupportRequest,
   };
 
-  if (conn.req.body.template === 'leave') {
-    // Only putting the balance for the leave activities where
-    // which are `PENDING` or `CONFIRMED`. `CANCELLED` leaves don't count
-    addendumDocObject.totalLeavesRemaining = (() => {
-      if (activityData.status === 'CANCELLED') {
-        return locals.annualLeavesEntitled;
-      }
 
-      return locals.totalLeavesRemaining;
-    })();
-
-    addendumDocObject.totalLeavesTaken = locals.totalLeavesTaken;
+  /**
+   * totalLeavesRemaining,
+   * totalLeavesTaken
+   */
+  if (conn.req.body.template === 'leave'
+    && conn.req.body.attachment['Leave Type'].value) {
     addendumDocObject.annualLeavesEntitled = locals.annualLeavesEntitled;
+    addendumDocObject.totalLeavesRemaining = locals.totalLeavesRemaining;
+    addendumDocObject.totalLeavesTaken = locals.totalLeavesTaken;
   }
 
   if (conn.req.body.template === 'check-in'
@@ -259,12 +254,6 @@ const handleAssignees = (conn, locals) => {
       }
     });
 
-  if (promises.length === 0) {
-    createDocsWithBatch(conn, locals);
-
-    return;
-  }
-
   Promise
     .all(promises)
     .then((snapShots) => {
@@ -298,15 +287,12 @@ const handleAssignees = (conn, locals) => {
 const handleLeave = (conn, locals) => {
   if (conn.req.body.template !== 'leave'
     || !conn.req.body.attachment['Leave Type'].value) {
-    console.log('returning early.');
-
     handleAssignees(conn, locals);
 
     return;
   }
 
   const leaveDateSchedule = conn.req.body.schedule[0];
-
   const startTime = leaveDateSchedule.startTime;
   const endTime = leaveDateSchedule.endTime;
 
@@ -317,25 +303,33 @@ const handleLeave = (conn, locals) => {
   }
 
   const leaveType = conn.req.body.attachment['Leave Type'].value;
+  const officeRef = rootCollections
+    .offices
+    .doc(locals.static.officeId);
+
+  if (!leaveType) {
+    handleAssignees(conn, locals);
+
+    return;
+  }
+
+  const NUM_MILL_SECS_DAY = 86400000;
 
   // Adding +1 to include the start day of the leave
   const leavesTaken =
-    Math.ceil(Math.abs((endTime - startTime) / 86400000)) + 1;
+    Math.ceil(Math.abs((endTime - startTime) / NUM_MILL_SECS_DAY)) + 1;
 
   Promise
     .all([
-      rootCollections
-        .offices
-        .doc(locals.static.officeId)
+      officeRef
         .collection('Activities')
         .where('template', '==', 'leave-type')
         .where('attachment.Name.value', '==', leaveType)
         .limit(1)
         .get(),
-      rootCollections
-        .offices
-        .doc(locals.static.officeId)
+      officeRef
         .collection('Addendum')
+        .where('activityData.template', '==', 'leave')
         .where('activityData.attachment.Leave Type.value', '==', leaveType)
         .where('user', '==', conn.requester.phoneNumber)
         .where('year', '==', new Date().getFullYear())
@@ -344,29 +338,55 @@ const handleLeave = (conn, locals) => {
         .get(),
     ])
     .then((result) => {
+      const [
+        leaveTypeActivityQuery,
+        leaveTypeLastAddendumQuery,
+      ] = result;
+
       const annualLimit =
-        result[0].docs[0].get('attachment.Annual Limit.value');
+        leaveTypeActivityQuery
+          .docs[0]
+          .get('attachment.Annual Limit.value');
 
-      locals.totalLeavesRemaining = (() => {
-        if (result[1].empty) return annualLimit;
+      const totalLeavesRemaining = (() => {
+        // The person hasn't taken this type of leave ever
+        if (leaveTypeLastAddendumQuery.empty) {
+          return leaveTypeActivityQuery
+            .docs[0]
+            .get('attachment.Annual Limit.value') - leavesTaken;
+        }
 
-        console.log('lb', result[1].docs[0].id, result[1].docs[0].get('totalLeavesRemaining'));
-        console.log('lt', leavesTaken);
+        // This leave logic was not implemented from the beginning, so
+        // some addendum docs may not have the field `totalLeavesRemaining`.
+        // As a fallback we are using annualLimit as the oldBalance.
+        const oldBalance =
+          leaveTypeLastAddendumQuery
+            .docs[0]
+            .get('totalLeavesRemaining') || annualLimit;
 
-        return result[1].docs[0].get('totalLeavesRemaining') - leavesTaken;
+        const remaining = oldBalance - leavesTaken;
+
+        if (remaining < 0) {
+          return annualLimit;
+        }
+
+        return remaining;
       })();
 
-      if (locals.totalLeavesRemaining < 0) {
-        console.log('cancelling activity');
+      // Leaves granted is 0. Status is thus set to`CANCELLED`.
+      if (totalLeavesRemaining === annualLimit) {
         locals.static.statusOnCreate = 'CANCELLED';
       }
 
-      console.log('balance', locals.totalLeavesRemaining);
-
+      locals.annualLeavesEntitled = annualLimit;
+      locals.totalLeavesRemaining = totalLeavesRemaining;
       locals.totalLeavesTaken = leavesTaken;
 
-      locals.annualLeavesEntitled =
-        result[0].docs[0].get('attachment.Annual Limit.value');
+      console.log({
+        annualLimit,
+        totalLeavesRemaining,
+        leavesTaken,
+      });
 
       handleAssignees(conn, locals);
 

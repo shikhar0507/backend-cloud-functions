@@ -31,7 +31,6 @@ const { httpsActions } = require('../../admin/constants');
 const {
   db,
   rootCollections,
-  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {

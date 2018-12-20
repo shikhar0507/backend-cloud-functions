@@ -31,14 +31,17 @@ const {
 
 const {
   sendGridTemplateIds,
+  dateFormats,
 } = require('../../admin/constants');
 
 const {
-  getYesterdaysDateString,
-  momentDateObject,
+  dateStringWithOffset,
+  momentOffsetObject,
   timeStringWithOffset,
+  employeeInfo,
 } = require('./report-utils');
 
+const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 const fs = require('fs');
 
@@ -49,28 +52,27 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
-  const today = new Date();
-  const yesterdaysDateString = getYesterdaysDateString();
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentDateObject = momentOffsetObject(timezone);
+
+  const standardDateString = momentTz().format(dateFormats.DATE);
   locals.messageObject.templateId = sendGridTemplateIds.footprints;
   locals.messageObject['dynamic_template_data'] = {
     office,
-    subject: `${office} Footprints Report_${today.toDateString()}`,
-    date: yesterdaysDateString,
+    subject: `Footprints Report_${office}_${standardDateString}`,
+    date: standardDateString,
   };
 
-  const fileName = `${office} Footprints Report_${today.toDateString()}.xlsx`;
+  const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
-  console.log({ filePath });
 
-  const officeDocRef = rootCollections
-    .offices
-    .doc(officeId);
+  locals.toSendMails = true;
 
   return Promise
     .all([
-      officeDocRef
-        .get(),
-      officeDocRef
+      rootCollections
+        .offices
+        .doc(officeId)
         .collection('Addendum')
         .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
         .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
@@ -83,17 +85,11 @@ module.exports = (locals) => {
     ])
     .then((result) => {
       const [
-        officeDoc,
         addendumDocs,
         workbook,
       ] = result;
 
-      locals.toSendMails = true;
-      console.log('addendumDocs.empty', addendumDocs.empty);
-
       if (addendumDocs.empty) {
-        console.log('No docs found in Addendum');
-
         locals.toSendMails = false;
 
         return Promise.resolve(false);
@@ -108,32 +104,31 @@ module.exports = (locals) => {
       workbook.sheet('Sheet1').cell('F1').value('Department');
       workbook.sheet('Sheet1').cell('G1').value('Base Location');
 
-      const employeesData = officeDoc.get('employeesData');
+      const employeesData = locals.officeDoc.get('employeesData');
+
+      const dated = dateStringWithOffset({
+        timestampToConvert: momentTz().subtract(1, 'days').unix() * 1000,
+        timezone,
+      });
 
       addendumDocs.docs.forEach((doc, index) => {
         const phoneNumber = doc.get('user');
-
-        /** 
-         * Person doesn't belong to the office and was just
-         * an assignee of the activity.
-         */
-        if (!employeesData[phoneNumber]) return;
-
-        const department = employeesData[phoneNumber].Department;
-        const name = employeesData[phoneNumber].Name;
-        const baseLocation = employeesData[phoneNumber]['Base Location'];
+        const employeeObject = employeeInfo(employeesData, phoneNumber);
+        const name = employeeObject.name;
+        const department = employeeObject.department;
+        const baseLocation = employeeObject.baseLocation;
         const url = doc.get('url');
         const identifier = doc.get('identifier');
         const accumulatedDistance = doc.get('accumulatedDistance');
         const time = timeStringWithOffset({
-          timezone: officeDoc.get('attachment.Timezone.value'),
+          timezone,
           timestampToConvert: doc.get('timestamp'),
         });
 
         workbook
           .sheet('Sheet1')
           .cell(`A${index + 2}`)
-          .value(yesterdaysDateString);
+          .value(dated);
         workbook
           .sheet('Sheet1')
           .cell(`B${index + 2}`)
@@ -166,19 +161,20 @@ module.exports = (locals) => {
     })
     .then(() => {
       if (!locals.toSendMails) {
-        console.log('inside then. Not sending mails.');
-
         return Promise.resolve();
       }
 
       locals.messageObject.attachments.push({
         content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
-        fileName: `${office} Footprints Report_${today.toDateString()}.xlsx`,
+        fileName: `Footprints ${office}_Report_${standardDateString}.xlsx`,
         type: 'text/csv',
         disposition: 'attachment',
       });
 
-      console.log('locals.messageObject', locals.messageObject);
+      console.log({
+        report: locals.change.after.get('report'),
+        to: locals.messageObject.to,
+      });
 
       return locals
         .sgMail

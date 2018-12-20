@@ -37,10 +37,12 @@ const getActivityObject = (doc) => {
 
 
 const getTemplateObject = (doc) => {
-  return {
-    name: doc.get('name'),
-    description: doc.get('comment'),
-  };
+  // return {
+  //   name: doc.get('name'),
+  //   description: doc.get('comment'),
+  // };
+
+  return doc.data();
 };
 
 
@@ -110,11 +112,11 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!conn.req.query.hasOwnProperty('from')) {
+  if (!conn.req.query.from) {
     sendResponse(
       conn,
       code.badRequest,
-      `The request URL is missing the 'from' query parameter`
+      `Invalid or missing query param 'from' in the request url`
     );
 
     return;

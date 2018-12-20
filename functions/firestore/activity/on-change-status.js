@@ -66,7 +66,11 @@ const createDocs = (conn, activity) => {
     month: now.getMonth(),
     year: now.getFullYear(),
     dateString: now.toDateString(),
-    activityData: activity.data(),
+    activityData: Object.assign({}, activity.data(), {
+      addendumDocRef,
+      status: conn.req.body.status,
+      timestamp: Date.now(),
+    }),
     user: conn.requester.phoneNumber,
     action: httpsActions.changeStatus,
     status: conn.req.body.status,

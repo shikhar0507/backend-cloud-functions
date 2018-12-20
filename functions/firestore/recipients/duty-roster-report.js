@@ -4,27 +4,38 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
+  reportNames,
   sendGridTemplateIds,
+  dateFormats,
 } = require('../../admin/constants');
 const {
-  momentDateObject,
   alphabetsArray,
+  momentOffsetObject,
+  employeeInfo,
+  timeStringWithOffset,
+  dateStringWithOffset,
 } = require('./report-utils');
 
-const xlsxPopulate = require('xlsx-populate');
 
+const xlsxPopulate = require('xlsx-populate');
 const moment = require('moment');
+
+const toMapsUrl = (geopoint) => {
+  const latitude = geopoint._latitude || geopoint.latitude;
+  const longitude = geopoint._longitude || geopoint.longitude;
+
+  return `https://www.google.com/maps/@${latitude},${longitude}`;
+};
 
 
 module.exports = (locals) => {
   const {
     office,
-    officeId,
   } = locals.change.after.data();
 
   locals.sendMail = true;
 
-  const todaysDateString = moment().format('ll');
+  const todaysDateString = moment().format(dateFormats.DATE);
   locals.messageObject.templateId = sendGridTemplateIds.dutyRoster;
   const fileName
     = `${office} Duty Roster Report_${todaysDateString}.xlsx`;
@@ -36,16 +47,15 @@ module.exports = (locals) => {
     subject: `Duty Roster Report_${office}_${todaysDateString}`,
   };
 
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentDateObject = momentOffsetObject(timezone);
+
   return Promise
     .all([
       rootCollections
-        .offices
-        .doc(officeId)
-        .get(),
-      rootCollections
         .inits
-        .where('report', '==', 'duty roster')
         .where('office', '==', office)
+        .where('report', '==', reportNames.DUTY_ROSTER)
         .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
         .where('year', '==', momentDateObject.yesterday.YEAR)
         .limit(1)
@@ -55,7 +65,6 @@ module.exports = (locals) => {
     ])
     .then((result) => {
       const [
-        officeDoc,
         initDocQuery,
         workbook,
       ] = result;
@@ -69,6 +78,8 @@ module.exports = (locals) => {
       const sheet1 = workbook.addSheet('Duty Roster');
       sheet1.row(1).style('bold', true);
       workbook.deleteSheet('Sheet1');
+
+      locals.workbook = workbook;
 
       const firstRowValues = [
         'Duty Type',
@@ -90,63 +101,101 @@ module.exports = (locals) => {
           .value(header);
       });
 
-      const employeesData = officeDoc.get('employeesData');
+      const employeesData = locals.officeDoc.get('employeesData');
+      const timezone = locals.officeDoc.get('attachment.Timezone.value');
       const dutyRosterObject = initDocQuery.docs[0].get('dutyRosterObject');
       const activityIdsArray = Object.keys(dutyRosterObject);
 
-      const promises = [];
-
       activityIdsArray.forEach((activityId, index) => {
+        const columnIndex = index + 2;
+
         const {
+          status,
           dutyType,
           description,
-          reportingTime,
-          reportingTimeStart,
-          reportingTimeEnd,
           reportingLocation,
+          reportingLocationGeopoint,
+          reportingTimeStart,
           createdBy,
           createdOn,
-          status,
+          place,
           when,
           user,
-          place,
           assignees,
         } = dutyRosterObject[activityId];
 
-        // const reportingTimeEndTimestamp = reportingTimeEnd + 3600;
+        const {
+          url,
+          identifier,
+        } = place;
 
-        // const promise =
-        //   rootCollections
-        //     .offices
-        //     .doc(officeId)
-        //     .collection('Addendum')
-        //     .where('user', '==', user)
-        //     .where('dateString', '==', createdOn)
-        //     .where('timestamp', '<=', new Date(reportingTimeStart))
-        //     .where('timestamp', '>', new Date(reportingTimeEndTimestamp))
-        //     .get();
+        const assigneesArray = [];
 
-        // promises.push(promise);
+        assignees.forEach((phoneNumber) => {
+          const employeeObject = employeeInfo(employeesData, phoneNumber);
 
-        // TODO: Implement this
-        const assigneesString = '';
+          assigneesArray.push(employeeObject.name || phoneNumber);
+        });
 
-        const columnIndex = index + 2;
+        const reportingTime = timeStringWithOffset({
+          timestampToConvert: reportingTimeStart,
+          timezone,
+        });
+
+        const createdOnTimeString = dateStringWithOffset({
+          timezone,
+          timestampToConvert: createdOn,
+        });
+
+        const creatorName =
+          employeeInfo(employeesData, createdBy).name || createdBy;
+
+        const confirmedWhen = dateStringWithOffset({
+          timezone,
+          timestampToConvert: when,
+        });
+
+        const confirmedBy = employeeInfo(employeesData, user).name || user;
 
         sheet1.cell(`A${columnIndex}`).value(dutyType);
         sheet1.cell(`B${columnIndex}`).value(description);
         sheet1.cell(`C${columnIndex}`).value(reportingTime);
-        sheet1.cell(`D${columnIndex}`).value(reportingLocation);
-        sheet1.cell(`E${columnIndex}`).value(createdBy);
-        sheet1.cell(`F${columnIndex}`).value(createdOn);
+
+        console.log(activityId, reportingLocation);
+
+        if (reportingLocation) {
+          sheet1
+            .cell(`D${columnIndex}`)
+            .value(reportingLocation)
+            .style({ fontColor: '0563C1', underline: true })
+            .hyperlink(toMapsUrl(reportingLocationGeopoint));
+        } else {
+          sheet1
+            .cell(`D${columnIndex}`)
+            .value(identifier);
+        }
+        sheet1.cell(`E${columnIndex}`).value(creatorName);
+        sheet1.cell(`F${columnIndex}`).value(createdOnTimeString);
         sheet1.cell(`G${columnIndex}`).value(status);
-        sheet1.cell(`H${columnIndex}`).value(when);
-        sheet1.cell(`I${columnIndex}`).value(user);
-        sheet1.cell(`J${columnIndex}`).value(place);
-        sheet1.cell(`K${columnIndex}`).value(assigneesString);
+        sheet1.cell(`H${columnIndex}`).value(confirmedWhen);
+        sheet1.cell(`I${columnIndex}`).value(confirmedBy);
+
+        if (place.identifier) {
+          sheet1
+            .cell(`J${columnIndex}`)
+            .value(place.identifier)
+            .style({ fontColor: '0563C1', underline: true })
+            .hyperlink(url);
+        } else {
+          sheet1
+            .cell(`J${columnIndex}`)
+            .value(place.identifier || '');
+        }
+
+        sheet1.cell(`K${columnIndex}`).value(`${assigneesArray} `);
       });
 
-      return workbook.toFileAsync(filePath);
+      return locals.workbook.toFileAsync(filePath);
     })
     .then(() => {
       if (!locals.sendMail) return Promise.resolve();

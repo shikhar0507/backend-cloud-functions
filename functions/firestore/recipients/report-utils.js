@@ -25,45 +25,34 @@
 'use strict';
 
 
-const dateFormats = require('../../admin/constants').dateFormats;
-
+const {
+  dateFormats,
+} = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
-const momentDateObject = (() => {
-  const today = (() => {
-    const momentToday = momentTz();
+const momentOffsetObject = (timezone) => {
+  const momentToday = momentTz()
+    .utc()
+    .clone()
+    .tz(timezone);
+  const momentYesterday = momentToday
+    .subtract(1, 'day');
 
-    return {
-      MONTH_NUMBER: momentToday.month(),
-      MONTH_NAME_SHORT: momentToday.format('MMM'),
-      MONTH_NAME_LONG: momentToday.format('MMMM'),
-      DATE_NUMBER: momentToday.date(),
-      YEAR: momentToday.year(),
-    };
-  })();
+  const today = {
+    MONTH_NUMBER: momentToday.month(),
+    DATE_NUMBER: momentToday.date(),
+    YEAR: momentToday.year(),
+  };
 
-  const yesterday = (() => {
-    const momentYesterday = momentTz().subtract(1, 'day');
-
-    return {
-      MONTH_NUMBER: momentYesterday.month(),
-      MONTH_NAME_SHORT: momentYesterday.format('MMM'),
-      MONTH_NAME_LONG: momentYesterday.format('MMMM'),
-      DATE_NUMBER: momentYesterday.date(),
-      YEAR: momentYesterday.year(),
-    };
-  })();
+  const yesterday = {
+    MONTH_NUMBER: momentYesterday.month(),
+    DATE_NUMBER: momentYesterday.date(),
+    YEAR: momentYesterday.year(),
+  };
 
   return { today, yesterday };
-})();
-
-
-const getYesterdaysDateString = () => {
-  const today = new Date();
-  today.setDate(today.getDate() - 1);
-
-  return today.toDateString();
 };
+
 
 const monthsArray = [
   'Jan',
@@ -90,6 +79,7 @@ const weekdaysArray = [
   'saturday',
 ];
 
+// Why generate when you can store??
 const alphabetsArray = [
   'A',
   'B',
@@ -117,6 +107,27 @@ const alphabetsArray = [
   'X',
   'Y',
   'Z',
+  'AA',
+  'AB',
+  'AC',
+  'AD',
+  'AE',
+  'AF',
+  'AG',
+  'AH',
+  'AI',
+  'AJ',
+  'AK',
+  'AK',
+  'AL',
+  'AM',
+  'AN',
+  'AO',
+  'AP',
+  'AQ',
+  'AR',
+  'AS',
+  'AT',
 ];
 
 // https://momentjs.com/docs/#/displaying/format/
@@ -131,29 +142,54 @@ const dateStringWithOffset = (options) => {
 
   const targetZonedDate = momentTz.tz(timestampToConvert, timezone);
 
-  return targetZonedDate.format(format || dateFormats.DATE);
+  return targetZonedDate
+    .format(format || dateFormats.DATE);
 };
 
 const timeStringWithOffset = (options) => {
   const {
     timezone,
     timestampToConvert,
+    format,
   } = options;
 
   if (!timestampToConvert || !timezone) return '';
 
-  const targetZonedTime = momentTz.tz(timestampToConvert, timezone);
+  const targetZonedDate = momentTz.tz(timestampToConvert, timezone);
 
-  return targetZonedTime.format(dateFormats.TIME);
+  return targetZonedDate
+    .format(format || dateFormats.TIME);
+};
+
+const employeeInfo = (employeesData, phoneNumber) => {
+  if (!employeesData[phoneNumber]) {
+    return {
+      name: '',
+      firstSupervisor: '',
+      secondSupervisor: '',
+      department: '',
+      baseLocation: '',
+      employeeCode: '',
+    };
+  }
+
+  return {
+    name: employeesData[phoneNumber].Name,
+    firstSupervisor: employeesData[phoneNumber]['First Supervisor'],
+    secondSupervisor: employeesData[phoneNumber]['Second Supervisor'],
+    department: employeesData[phoneNumber].Department,
+    baseLocation: employeesData[phoneNumber]['Base Location'],
+    employeeCode: employeesData[phoneNumber]['Employee Code'],
+  };
 };
 
 
 module.exports = {
   monthsArray,
+  employeeInfo,
   weekdaysArray,
   alphabetsArray,
-  momentDateObject,
+  momentOffsetObject,
   dateStringWithOffset,
   timeStringWithOffset,
-  getYesterdaysDateString,
 };

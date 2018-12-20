@@ -770,9 +770,7 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
 
   if (!activityStatuses.has(body.status)) {
     return {
-      message: `'${body.status}' is not a valid activity status.`
-        + ` Please use one of the following`
-        + ` values: .`,
+      message: `'${body.status}' is not a valid activity status.`,
       isValid: false,
     };
   }

@@ -31,16 +31,20 @@ const {
 const {
   dateStringWithOffset,
   timeStringWithOffset,
-  getYesterdaysDateString,
   alphabetsArray,
-  momentDateObject,
+  // momentDateObject,
+  momentOffsetObject,
+  employeeInfo,
 } = require('./report-utils');
 const {
   sendGridTemplateIds,
+  reportNames,
+  dateFormats,
 } = require('../../admin/constants');
 
 const xlsxPopulate = require('xlsx-populate');
 const moment = require('moment');
+
 
 module.exports = (locals) => {
   const {
@@ -48,29 +52,27 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
-  const todaysDateString = moment().format('ll');
-
-  const fileName = `DSR_${office}_${todaysDateString}.xlsx`;
+  const standardDateString = moment().format(dateFormats.DATE);
+  const fileName = `DSR_${office}_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
 
   locals.sendMail = true;
   locals.messageObject.templateId = sendGridTemplateIds.dsr;
   locals.messageObject['dynamic_template_data'] = {
     office,
-    date: todaysDateString,
-    subject: `DSR_${office}_${todaysDateString}`,
+    date: standardDateString,
+    subject: `DSR_${office}_${standardDateString}`,
   };
+
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentDateObject = momentOffsetObject(timezone);
 
   return Promise
     .all([
       rootCollections
-        .offices
-        .doc(officeId)
-        .get(),
-      rootCollections
         .inits
         .where('office', '==', office)
-        .where('report', '==', 'dsr')
+        .where('report', '==', reportNames.DSR)
         .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
         .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
         .where('year', '==', momentDateObject.yesterday.YEAR)
@@ -79,7 +81,7 @@ module.exports = (locals) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('report', '==', 'dsr')
+        .where('report', '==', reportNames.DSR)
         .where('date', '==', momentDateObject.today.DATE_NUMBER)
         .where('month', '==', momentDateObject.today.MONTH_NUMBER)
         .where('year', '==', momentDateObject.today.YEAR)
@@ -90,7 +92,6 @@ module.exports = (locals) => {
     ])
     .then((result) => {
       const [
-        officeDoc,
         yesterdayInitsQuery,
         todayInitsQuery,
         workbook,
@@ -102,8 +103,7 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      const employeesData = officeDoc.get('employeesData');
-      const timezone = officeDoc.get('attachment.Timezone.value');
+      const employeesData = locals.officeDoc.get('employeesData');
 
       const visitObject = (() => {
         if (yesterdayInitsQuery.empty) return {};
@@ -121,8 +121,70 @@ module.exports = (locals) => {
 
       const followUpActivityIdsArray = Object.keys(followUpObject);
 
-      if (visitsActivityIdsArray.length > 0) {
-        const sheet1 = workbook.addSheet('DSR Visits');
+      const customerFetch = [];
+
+      visitsActivityIdsArray.forEach((activityId) => {
+        const {
+          customer,
+        } = visitObject[activityId];
+
+        const promise = rootCollections
+          .offices
+          .doc(officeId)
+          .collection('Activities')
+          .where('template', '==', 'customer')
+          .where('attachment.Name.value', '==', customer)
+          .limit(1)
+          .get();
+
+        customerFetch.push(promise);
+      });
+
+      followUpActivityIdsArray.forEach((activityId) => {
+        const {
+          customer,
+        } = followUpObject[activityId];
+
+        const promise = rootCollections
+          .offices
+          .doc(officeId)
+          .collection('Activities')
+          .where('template', '==', 'customer')
+          .where('attachment.Name.value', '==', customer)
+          .limit(1)
+          .get();
+
+        customerFetch.push(promise);
+      });
+
+      locals.workbook = workbook;
+      locals.timezone = timezone;
+      locals.visitObject = visitObject;
+      locals.followUpObject = followUpObject;
+      locals.visitsActivityIdsArray = visitsActivityIdsArray;
+      locals.followUpActivityIdsArray = followUpActivityIdsArray;
+      locals.employeesData = employeesData;
+
+      return Promise.all(customerFetch);
+    })
+    .then((snapShots) => {
+      if (!locals.sendMail) {
+        return Promise.resolve();
+      }
+
+      const customersMap = new Map();
+
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const customerName = snapShot.docs[0].get('attachment.Name.value');
+        const customerLocation = snapShot.docs[0].get('venue')[0];
+
+        customersMap.set(customerName, customerLocation);
+      });
+
+      if (locals.visitsActivityIdsArray.length > 0) {
+        const sheet1 = locals.workbook.addSheet('DSR Visits');
         sheet1.row(1).style('bold', true);
 
         const visitsSheetTopRow = [
@@ -151,12 +213,11 @@ module.exports = (locals) => {
           sheet1.cell(`${alphabetsArray[index]}1`).value(topRowValue);
         });
 
-        visitsActivityIdsArray.forEach((activityId, index) => {
-          const columnIndex = index + 2;
-
+        locals.visitsActivityIdsArray.forEach((activityId, index) => {
           const {
             comment,
             purpose,
+            customer,
             product1,
             product2,
             product3,
@@ -167,35 +228,45 @@ module.exports = (locals) => {
             visitEndTimestamp,
             followUpStartTimestamp,
             visitStartTimestamp,
-          } = visitObject[activityId];
-
-          if (!employeesData[phoneNumber]) return;
+          } = locals.visitObject[activityId];
 
           const startTime = timeStringWithOffset({
-            timezone,
+            timezone: locals.timezone,
             timestampToConvert: visitStartTimestamp,
           });
           const endTime = timeStringWithOffset({
-            timezone,
+            timezone: locals.timezone,
             timestampToConvert: visitEndTimestamp,
           });
           const visitDate = dateStringWithOffset({
-            timezone,
+            timezone: locals.timezone,
             timestampToConvert: visitStartTimestamp,
           });
-
           const followUpDate = dateStringWithOffset({
-            timezone,
+            timezone: locals.timezone,
             timestampToConvert: followUpStartTimestamp,
           });
 
-          const employeeName = employeesData[phoneNumber].Name;
-          const customerLocation = '';
-          const address = '';
-          const firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
-          const secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
-          const department = employeesData[phoneNumber].Department;
-          const baseLocation = employeesData[phoneNumber]['Base Location'];
+          const employeeObject =
+            employeeInfo(locals.employeesData, phoneNumber);
+          const employeeName = employeeObject.name;
+          const department = employeeObject.department;
+          const baseLocation = employeeObject.baseLocation;
+          const firstSupervisor = employeeObject.firstSupervisor;
+          const secondSupervisor = employeeObject.secondSupervisor;
+          const customerLocation = (() => {
+            if (!customersMap.get(customer)) return '';
+
+            return customersMap.get(customer).location;
+          })();
+
+          const address = (() => {
+            if (!customersMap.get(customer)) return '';
+
+            return customersMap.get(customer).address;
+          })();
+
+          const columnIndex = index + 2;
 
           sheet1.cell(`A${columnIndex}`).value(visitDate);
           sheet1.cell(`B${columnIndex}`).value(employeeName);
@@ -219,8 +290,8 @@ module.exports = (locals) => {
         });
       }
 
-      if (followUpActivityIdsArray.length > 0) {
-        const sheet2 = workbook.addSheet('DSR Follow-Up');
+      if (locals.followUpActivityIdsArray.length > 0) {
+        const sheet2 = locals.workbook.addSheet('DSR Follow-Up');
         sheet2.row(1).style('bold', true);
 
         const followUpTopRow = [
@@ -250,37 +321,32 @@ module.exports = (locals) => {
           sheet2.cell(`${alphabetsArray[index]}1`).value(topRowValue);
         });
 
-        followUpActivityIdsArray.forEach((activityId, index) => {
+        locals.followUpActivityIdsArray.forEach((activityId, index) => {
           const columnIndex = index + 2;
 
           const {
-            visitType,
-            phoneNumber,
-            followUpStartTimestamp,
-            followUpEndTimestamp,
+            comment,
+            purpose,
             customer,
-            firstContact,
-            secondContact,
             product1,
             product2,
             product3,
-            visitDateStartTime,
-            closureStartTimestamp,
-            closureEndTimestamp,
-            comment,
-            purpose,
+            visitType,
+            phoneNumber,
+            firstContact,
+            secondContact,
             actualLocation,
-          } = followUpObject[activityId];
-
-          if (!employeesData[phoneNumber]) return;
+            visitDateStartTime,
+            closureEndTimestamp,
+            followUpEndTimestamp,
+            closureStartTimestamp,
+            followUpStartTimestamp,
+          } = locals.followUpObject[activityId];
 
           const date = dateStringWithOffset({
-            timezone,
+            timezone: locals.timezone,
             timestampToConvert: followUpStartTimestamp,
           });
-
-          const employeeName = employeesData[phoneNumber].Name;
-
           const startTime = (() => {
             let timestampToConvert = followUpStartTimestamp;
 
@@ -289,11 +355,10 @@ module.exports = (locals) => {
             }
 
             return timeStringWithOffset({
-              timezone,
+              timezone: locals.timezone,
               timestampToConvert,
             });
           })();
-
           const endTime = (() => {
             let timestampToConvert = followUpEndTimestamp;
 
@@ -302,22 +367,22 @@ module.exports = (locals) => {
             }
 
             return timeStringWithOffset({
-              timezone,
+              timezone: locals.timezone,
               timestampToConvert,
             });
           })();
-
           const visitDate = dateStringWithOffset({
-            timezone,
+            timezone: locals.timezone,
             timestampToConvert: visitDateStartTime,
           });
-
+          const employeeObject =
+            employeeInfo(locals.employeesData, phoneNumber);
+          const employeeName = employeeObject.name;
+          const department = employeeObject.department;
+          const baseLocation = employeeObject.baseLocation;
+          const firstSupervisor = employeeObject.firstSupervisor;
+          const secondSupervisor = employeeObject.secondSupervisor;
           const address = '';
-
-          const firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
-          const secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
-          const department = employeesData[phoneNumber].Department;
-          const baseLocation = employeesData[phoneNumber]['Base Location'];
 
           sheet2.cell(`A${columnIndex}`).value(date);
           sheet2.cell(`B${columnIndex}`).value(visitType);
@@ -347,18 +412,28 @@ module.exports = (locals) => {
       }
 
       // Default sheet
-      workbook.deleteSheet('Sheet1');
+      locals.workbook.deleteSheet('Sheet1');
 
-      return workbook.toFileAsync(filePath);
+      return locals.workbook.toFileAsync(filePath);
     })
     .then(() => {
-      if (!locals.sendMail) return Promise.resolve();
+      if (!locals.sendMail) {
+        return Promise.resolve();
+      }
+
+      const content =
+        new Buffer(require('fs').readFileSync(filePath)).toString('base64');
 
       locals.messageObject.attachments.push({
         fileName,
-        content: new Buffer(require('fs').readFileSync(filePath)).toString('base64'),
+        content,
         type: 'text/csv',
         disposition: 'attachment',
+      });
+
+      console.log({
+        report: locals.change.after.get('report'),
+        to: locals.messageObject.to,
       });
 
       return locals.sgMail.sendMultiple(locals.messageObject);

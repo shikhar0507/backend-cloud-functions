@@ -35,6 +35,7 @@ const {
 const {
   httpsActions,
   vowels,
+  customMessages,
 } = require('../../admin/constants');
 
 
@@ -52,13 +53,14 @@ const toAttachmentValues = (activity) => {
 };
 
 
-const setAdminCustomClaims = (locals, batch) => {
+const handleAdmin = (locals, batch) => {
   const phoneNumber = locals.change.after.get('attachment.Admin.value');
   const status = locals.change.after.get('status');
   const office = locals.change.after.get('office');
 
-  return auth
-    .getUserByPhoneNumber(phoneNumber)
+  return batch
+    .commit()
+    .then(() => auth.getUserByPhoneNumber(phoneNumber))
     .then((userRecord) => {
       if (userRecord.customClaims.hasOwnProperty('admin')
         && !userRecord.customClaims.admin.includes(office)) {
@@ -96,16 +98,11 @@ const setAdminCustomClaims = (locals, batch) => {
         }
       }
 
-      return Promise
-        .all([
-          auth
-            .setCustomUserClaims(
-              userRecord.uid,
-              userRecord.customClaims
-            ),
-          batch
-            .commit(),
-        ]);
+      return auth
+        .setCustomUserClaims(
+          userRecord.uid,
+          userRecord.customClaims
+        );
     })
     .catch((error) => {
       /**
@@ -113,25 +110,21 @@ const setAdminCustomClaims = (locals, batch) => {
        * when they actually sign-up to the platform (handled in `AuthOnCreate`)
        * using the client app.
        */
-      if (error.code === 'auth/user-not-found') {
-        return batch.commit();
+      if (error.code !== 'auth/user-not-found') {
+        console.error(error);
       }
-
-      console.error(error);
 
       return Promise.resolve();
     });
 };
 
 
-const handleReport = (locals, batch) => {
+const handleRecipient = (locals, batch) => {
   if (locals.addendumDoc
     && locals.addendumDoc.get('action') !== httpsActions.comment) {
     batch.set(rootCollections
       .recipients
       .doc(locals.change.after.id), {
-        /** Required to use the `orderBy` clause */
-        activityId: locals.change.after.id,
         cc: locals.change.after.get('attachment.cc.value'),
         office: locals.change.after.get('office'),
         include: locals.assigneePhoneNumbersArray,
@@ -153,87 +146,261 @@ const handleReport = (locals, batch) => {
 };
 
 
-const handleSpecialTemplateCases = (locals) => {
-  const templateName = locals.change.after.get('attachment.Template.value');
-  const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
 
-  const templatesAllowed =
-    new Set()
-      .add('dsr')
-      .add('tour plan')
-      .add('duty roster');
+const handleAutoAssign = (locals) => {
+  /**
+   * X gets subsc of template A:
+   *     Fetch all activities with template B
+   *         Make X an assignee
+   *     Fetch all activities with template == subscription 
+   *         AND attachment.Template.value == B
+   *             Make X an assignee (Add to include = true)
+   * 
+   *  Y gets subsc of template B:
+   *      Fetch all activities with 
+   *         template === subscription and attachment.Template.value == A
+   *             Make Y an assignee (add to include = true)
+   */
 
-  if (!templatesAllowed.has(templateName)) return Promise.resolve();
+  if (locals.change.after.get('template') !== 'subscription') {
+    return Promise.resolve();
+  }
 
-  return Promise
-    .all([
-      rootCollections
+  console.log('IN Auto assign');
+
+  const subscriber = locals.change.after.get('attachment.Subscriber.value');
+  const template = locals.change.after.get('attachment.Template.value');
+  const office = locals.change.after.get('office');
+  const officeId = locals.change.after.get('officeId');
+  const isAdmin = locals.adminsCanEdit.includes(subscriber);
+
+  const getCanEdit = (locals, phoneNumber, canEditRule) => {
+    if (canEditRule === 'NONE') {
+      return false;
+    }
+
+    if (canEditRule === 'EMPLOYEE') {
+      return locals.isEmployee;
+    }
+
+    if (canEditRule === 'ADMIN') {
+      return locals.adminsCanEdit.includes(phoneNumber);
+    }
+
+    if (canEditRule === 'CREATOR') {
+      return locals.change.after.get('creator') === phoneNumber;
+    }
+
+    // for `ALL`
+    return true;
+  };
+
+  const aRelationshipMap = new Map()
+    .set('payment', ['bill'])
+    .set('bill', ['supplier'])
+    .set('leave', ['leave-type'])
+    .set('invoice', ['customer'])
+    .set('tour plan', ['customer'])
+    .set('collection', ['invoice'])
+    .set('duty roster', ['customer'])
+    .set('customer', ['customer-type'])
+    .set('supplier', ['supplier-type'])
+    .set('dsr', ['customer', 'product'])
+    .set('expense claim', ['expense-type'])
+    .set('employee', ['branch', 'department'])
+    .set('sales order', ['product', 'customer'])
+    .set('purchase order', ['supplier', 'material']);
+  const bRelationshipMap = new Map()
+    .set('bill', ['payment'])
+    .set('branch', ['employee'])
+    .set('leave-type', ['leave'])
+    .set('invoice', ['collection'])
+    .set('department', ['employee'])
+    .set('customer-type', ['customer'])
+    .set('supplier-type', ['supplier'])
+    .set('material', ['purchase order'])
+    .set('expense-type', ['expense claim'])
+    .set('product', ['dsr', 'sales order'])
+    .set('supplier', ['bill', 'purchase order'])
+    .set('customer', ['dsr', 'duty roster', 'tour plan', 'invoice', 'sales order']);
+  const bActivitiesFetch = [];
+  const bSubscriptionActivitiesFetch = [];
+
+  // Not all templates use this logic
+  if (!aRelationshipMap.get(template)) {
+    return Promise.resolve();
+  }
+
+  aRelationshipMap
+    .get(template)
+    .forEach((childTemplate) => {
+      console.log({ childTemplate });
+
+      const promise = rootCollections
         .activities
-        .where('office', '==', locals.change.after.get('office'))
-        .where('template', '==', 'customer')
-        .get(),
-      rootCollections
+        .where('office', '==', office)
+        .where('template', '==', childTemplate)
+        .limit(1)
+        .get();
+
+      bActivitiesFetch.push(promise);
+
+      const promise2 = rootCollections
         .activities
-        .where('office', '==', locals.change.after.get('office'))
-        .where('template', '==', 'product')
-        .get(),
-    ])
-    .then((result) => {
-      const [
-        customerActivitiesQuery,
-        productActivitiesQuery,
-      ] = result;
+        .where('office', '==', office)
+        .where('template', '==', 'subscription')
+        .where('attachment.Template.value', '==', childTemplate)
+        .limit(1)
+        .get();
 
-      const customerActivitiesBatch = db.batch();
-      const productActivitiesBatch = db.batch();
+      bSubscriptionActivitiesFetch.push(promise2);
+    });
 
-      customerActivitiesQuery.forEach((doc) => {
-        customerActivitiesBatch.set(doc.ref, {
+  return rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Activities')
+    .where('template', '==', 'employee')
+    .where('attachment.Employee Contact.value', '==', subscriber)
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      locals.isEmployee = !snapShot.empty;
+
+      console.log({
+        subscriber,
+        template,
+        office,
+        isAdmin,
+        isEmployee: locals.isEmployee,
+      });
+
+      return Promise.all(bActivitiesFetch);
+    })
+    .then((snapShots) => {
+      const activityBatch = db.batch();
+      const assigneeBatch = db.batch();
+
+      // Make an assignee of child template
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const doc = snapShot.docs[0];
+
+        console.log('activity:', doc.ref.path);
+
+        activityBatch.set(doc.ref, {
           timestamp: Date.now(),
           addendumDocRef: null,
         }, {
             merge: true,
           });
 
-        customerActivitiesBatch.set(doc
-          .ref
-          .collection('Assignees')
-          .doc(subscriberPhoneNumber), {
-            canEdit: false,
-            addToInclude: true,
+        assigneeBatch.set(doc.ref.collection('Assignees').doc(subscriber), {
+          canEdit: getCanEdit(locals, subscriber, doc.get('canEditRule')),
+          addToInclude: true,
+        }, {
+            merge: true,
           });
       });
 
-      /** Adding to product only for DSR */
-      if (templateName === 'dsr') {
-        productActivitiesQuery.forEach((doc) => {
-          productActivitiesBatch.set(doc.ref, {
-            timestamp: Date.now(),
+      return Promise
+        .all([
+          activityBatch
+            .commit(),
+          assigneeBatch
+            .commit(),
+        ]);
+    })
+    .then(() => {
+      return Promise.all(bSubscriptionActivitiesFetch);
+    })
+    .then((snapShots) => {
+      const activityBatch = db.batch();
+      const assigneeBatch = db.batch();
+
+      snapShots.forEach((subscriptionActivity) => {
+        if (subscriptionActivity.empty) return;
+
+        const doc = subscriptionActivity.docs[0];
+
+        activityBatch.set(doc.ref, {
+          timestamp: Date.now(),
+          addendumDocRef: null,
+        }, {
+            merge: true,
+          });
+
+        assigneeBatch.set(doc.ref.collection('Assignees').doc(subscriber), {
+          canEdit: getCanEdit(locals, subscriber, doc.get('canEditRule')),
+          addToInclude: true,
+        });
+      });
+
+      return Promise
+        .all([
+          activityBatch
+            .commit(),
+          assigneeBatch
+            .commit(),
+        ]);
+    })
+    .then(() => {
+      // person gets subscription of b
+      // fetch all activities with template = subscription
+      // attachment.Template.value == a
+      // make y an assignee of the activity. Add to include true.
+
+      const promises = [];
+      const childTemplatesArray = bRelationshipMap.get(template);
+
+      if (!childTemplatesArray) return null;
+
+      // Subscriptions of a template can be multiple.
+      // They are unique for a person, but not as a whole.
+      childTemplatesArray.forEach((childTemplate) => {
+        const promise = rootCollections
+          .activities
+          .where('office', '==', office)
+          .where('template', '==', 'subscription')
+          .where('attachment.Template.value', '==', childTemplate)
+          .get();
+
+        promises.push(promise);
+      });
+
+      return Promise.all(promises);
+    })
+    .then((snapShots) => {
+      if (!snapShots) return null;
+
+      const batch = db.batch();
+
+      snapShots.forEach((snapShot) => {
+        snapShot.forEach((doc) => {
+          console.log('activity:', doc.ref.path);
+
+          batch.set(doc.ref, {
             addendumDocRef: null,
+            timestamp: Date.now(),
           }, {
               merge: true,
             });
 
-          productActivitiesBatch.set(doc
-            .ref
-            .collection('Assignees')
-            .doc(subscriberPhoneNumber), {
-              canEdit: false,
-              addToInclude: true,
+          batch.set(doc.ref.collection('Assignees').doc(subscriber), {
+            canEdit: getCanEdit(locals, subscriber, doc.get('canEditRule')),
+            addToInclude: true,
+          }, {
+              merge: true,
             });
         });
-      }
+      });
 
-      return Promise
-        .all([
-          customerActivitiesBatch
-            .commit(),
-          productActivitiesBatch
-            .commit(),
-        ]);
+      return batch.commit();
     })
     .catch(console.error);
 };
+
 
 
 const handleCanEditRule = (locals, templateDoc) => {
@@ -275,6 +442,7 @@ const handleCanEditRule = (locals, templateDoc) => {
 
       /** User is already an `admin` */
       if (!adminActivitiesQuery.empty) return Promise.resolve();
+      if (!locals.addendumDoc) return Promise.resolve();
 
       const batch = db.batch();
       const adminTemplateDoc = adminTemplateQuery.docs[0];
@@ -288,69 +456,43 @@ const handleCanEditRule = (locals, templateDoc) => {
 
       const attachment = (() => {
         const attachmentObject = adminTemplateDoc.get('attachment');
-
         attachmentObject.Admin.value = subscriberPhoneNumber;
 
         return attachmentObject;
       })();
 
-      const creator = locals.change.after.get('creator');
-      const activityName = `ADMIN: ${creator}`;
+      const now = new Date();
       const activityData = {
-        autoCreated: true,
-        addendumDocRef,
-        attachment,
-        activityName,
         officeId,
-        timestamp: Date.now(),
-        office: locals.change.after.get('office'),
-        template: 'admin',
+        attachment,
         venue: [],
         schedule: [],
+        addendumDocRef,
+        template: 'admin',
+        timestamp: now.getTime(),
+        hidden: adminTemplateDoc.get('hidden'),
+        office: locals.change.after.get('office'),
+        creator: locals.change.after.get('creator'),
         status: adminTemplateDoc.get('statusOnCreate'),
         canEditRule: adminTemplateDoc.get('canEditRule'),
-        hidden: adminTemplateDoc.get('hidden'),
-        creator: locals.change.after.get('creator'),
+        activityName: `ADMIN: ${locals.change.after.get('creator')}`,
       };
-
-      const subscriptionAddendumDoc = (() => {
-        if (!locals.addendumDoc) {
-          return {
-            location: {
-              _latitude: '',
-              _longitude: '',
-            },
-            userDisplayName: '',
-            userDeviceTimestamp: Date.now(),
-          };
-        }
-
-        return {
-          location: locals.addendumDoc.get('location'),
-          userDisplayName: locals.addendumDoc.get('userDisplayName'),
-          userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-        };
-      })();
-
-      const now = new Date();
-
       const addendumData = {
         activityData,
+        template: 'admin',
         date: now.getDate(),
         month: now.getMonth(),
         year: now.getFullYear(),
-        dateString: now.toDateString(),
-        activityName,
-        user: creator,
-        location: subscriptionAddendumDoc.location,
-        userDisplayName: subscriptionAddendumDoc.userDisplayName,
-        share: [],
-        action: httpsActions.create,
-        template: 'admin',
-        timestamp: Date.now(),
-        userDeviceTimestamp: subscriptionAddendumDoc.userDeviceTimestamp,
         activityId: activityRef.id,
-        isSupportRequest: false,
+        user: activityData.creator,
+        action: httpsActions.create,
+        timestamp: activityData.timestamp,
+        share: locals.addendumDoc.get('share'),
+        activityName: activityData.activityName,
+        location: locals.addendumDoc.get('location'),
+        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+        userDisplayName: locals.addendumDoc.get('userDisplayName'),
+        isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
       };
 
       const isAdmin = (phoneNumber) => {
@@ -372,87 +514,6 @@ const handleCanEditRule = (locals, templateDoc) => {
       batch.set(addendumDocRef, addendumData);
 
       return batch.commit();
-    })
-    .catch(console.error);
-};
-
-
-const reverseSubscribeToActivities = (locals) => {
-  // template is subscription
-  const phoneNumber = locals.change.after.get('attachment.Subscriber.value');
-  const templateName = locals.change.after.get('attachment.Template.value');
-  const office = locals.change.after.get('office');
-
-  const queryTemplateName = (() => {
-    if (templateName === 'expense-type') return 'expense claim';
-
-    return `${templateName}-type`;
-  })();
-
-  return Promise
-    .all([
-      rootCollections
-        .activities
-        .where('template', '==', 'subscription')
-        .where('attachment.Template.value', '==', queryTemplateName)
-        .where('office', '==', office)
-        .get(),
-      rootCollections
-        .activities
-        .where('template', '==', queryTemplateName)
-        .where('office', '==', office)
-        .get(),
-    ])
-    .then((result) => {
-      const [
-        subscriptionActivitiesQuery,
-        templateActivitiesQuery,
-      ] = result;
-
-      const subscriptionsBatch = db.batch();
-      const isAdmin = locals.adminsCanEdit.includes(phoneNumber);
-
-      subscriptionActivitiesQuery.forEach((doc) => {
-        subscriptionsBatch.set(doc.ref, {
-          timestamp: Date.now(),
-          addendumDocRef: null,
-        }, {
-            merge: true,
-          });
-
-        const ref = doc.ref.collection('Assignees').doc(phoneNumber);
-
-        subscriptionsBatch.set(ref, {
-          addToInclude: true,
-          canEdit: isAdmin,
-        });
-      });
-
-      const templateActivitiesBatch = db.batch();
-
-      templateActivitiesQuery.forEach((doc) => {
-        templateActivitiesBatch.set(doc.ref, {
-          timestamp: Date.now(),
-          addendumDocRef: null,
-        }, {
-            merge: true,
-          });
-
-        const assigneeDocRef = doc.ref.collection('Assignees').doc(phoneNumber);
-
-        templateActivitiesBatch.set(assigneeDocRef, {
-          addToInclude: true,
-          canEdit: isAdmin,
-        });
-      });
-
-      return Promise
-        .all([
-          subscriptionsBatch
-            .commit(),
-          templateActivitiesBatch
-            .commit(),
-        ]);
     })
     .catch(console.error);
 };
@@ -556,7 +617,8 @@ const addSubscriptionToUserProfile = (locals, batch) => {
 
       queriedActivities
         .forEach((doc) => {
-          const assigneeDocRef = doc.ref.collection('Assignees').doc(subscriberPhoneNumber);
+          const assigneeDocRef =
+            doc.ref.collection('Assignees').doc(subscriberPhoneNumber);
 
           batch.set(assigneeDocRef, {
             canEdit: false,
@@ -578,8 +640,7 @@ const addSubscriptionToUserProfile = (locals, batch) => {
       /* eslint-enable */
     })
     .then((templateDoc) => handleCanEditRule(locals, templateDoc))
-    .then(() => handleSpecialTemplateCases(locals))
-    .then(() => reverseSubscribeToActivities(locals))
+    // .then(() => handleAutoAssign(locals))
     .catch(console.error);
 };
 
@@ -950,7 +1011,7 @@ const removeFromOffice = (activityDoc) => {
             return runQuery(newQuery, resolve, reject);
           });
       })
-      .catch(reject);
+      .catch(new Error(reject));
 
   const query = rootCollections
     .profiles
@@ -965,7 +1026,7 @@ const removeFromOffice = (activityDoc) => {
 };
 
 
-const addOfficeToProfile = (locals, batch) => {
+const handleEmployee = (locals, batch) => {
   const activityDoc = locals.change.after.data();
   activityDoc.id = locals.change.after.id;
   const office = activityDoc.office;
@@ -1028,7 +1089,7 @@ const addSupplierToOffice = (locals, batch) => {
 };
 
 
-const addCustomerToOffice = (locals, batch) => {
+const handleCustomer = (locals, batch) => {
   const customerName = locals.change.after.get('attachment.Name.value');
 
   batch.set(rootCollections
@@ -1065,245 +1126,6 @@ const canEditValue = (options) => {
   if (canEditRule === 'ALL') return true;
 
   return false;
-};
-
-const handleAutoAssign = (locals) => {
-  /**
-   * X gets subsc of template A:
-   *     Fetch all activities with template B
-   *         Make X an assignee
-   *     Fetch all activities with template == subscription AND attachment.Template.value == B
-   *         Make X an assignee (Add to include = true)
-   * 
-   *  Y gets subsc of template B:
-   *      Fetch all activities with template === subscription and attachment.Template.value == A
-   *         Make Y an assignee (add to include = true)
-   */
-  if (locals.change.after.get('template') !== 'subscription') {
-    return Promise.resolve();
-  }
-
-  const subscriber = locals.change.after.get('attachment.Subscriber.value');
-  const template = locals.change.after.get('attachment.Template.value');
-
-  const templatesRelationshipMap = new Map()
-    .set('employee', ['branch', 'department'])
-    .set('customer', ['customer-type'])
-    .set('supplier', ['supplier-type'])
-    .set('leave', ['leave-type'])
-    .set('expense claim', ['expense-type'])
-    .set('dsr', ['customer', 'product'])
-    .set('duty roster', ['customer'])
-    .set('tour plan', ['customer']);
-
-  const promises = [];
-
-  templatesRelationshipMap
-    .get(template)
-    .forEach((childTemplate) => {
-      const promise = rootCollections
-        .activities
-        .where('office', '==', locals.change.after.get('office'))
-        .where('template', '==', childTemplate)
-        .limit(1)
-        .get();
-      promises
-        .push(promise);
-    });
-
-  return Promise
-    .all(promises)
-    .then((snapShots) =>
-      Promise
-        .all([
-          rootCollections
-            .activityTemplates
-            .where('name', '==', template)
-            .limit(1)
-            .get(),
-          Promise
-            .resolve(snapShots),
-        ]))
-    .then((result) => {
-      const officeId = locals.change.after.get('officeId');
-
-      const employeeFetchPromise = rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Activities')
-        .where('template', '==', 'employee')
-        .where('attachment.Employee Contact.value', '==', subscriber)
-        .limit(1)
-        .get();
-
-      const [
-        templateDocsQuery,
-        snapShots,
-      ] = result;
-
-      return Promise
-        .all([
-          Promise
-            .resolve(templateDocsQuery),
-          employeeFetchPromise,
-          Promise
-            .resolve(snapShots),
-        ]);
-    })
-    .then((resolvedPromises) => {
-      const [
-        templateDocsQuery,
-        employeeDocsQueryResult,
-        snapShots,
-      ] = resolvedPromises;
-      const templateDoc = templateDocsQuery.docs[0];
-      const canEditRule = templateDoc.get('canEditRule');
-      const batch = db.batch();
-
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
-
-        const activityRef = snapShot.docs[0];
-
-        batch.set(activityRef, {
-          timestamp: Date.now(),
-          addendumDocRef: null,
-        });
-
-        batch.set(activityRef
-          .collection('Assignees')
-          .doc(subscriber), {
-            canEdit: canEditValue({
-              locals,
-              subscriber,
-              canEditRule,
-              employeeDocsQueryResult,
-            }),
-            addToInclude: true,
-          }, {
-            merge: true,
-          });
-      });
-
-      return Promise
-        .all([
-          batch
-            .commit(),
-          Promise
-            .resolve(resolvedPromises),
-        ]);
-    })
-    .then((resolvedPromises) => {
-      // activities are not unique here
-      // Fetch all activities with office = current office
-      // template == subscription AND attachment.Template.value == B
-      // Make them an assignee (Add to include = true)
-
-      const relationshipMap = new Map()
-        .set('branch', ['employee'])
-        .set('department', ['employee'])
-        .set('customer-type', ['customer'])
-        .set('supplier-type', ['supplier'])
-        .set('leave-type', ['leave'])
-        .set('expense-type', ['expense claim'])
-        .set('customer', ['dsr', 'duty roster', 'tour plan'])
-        .set('product', ['dsr']);
-
-      const promises = [];
-
-      relationshipMap
-        .get(template)
-        .forEach((childTemplate) => {
-          const promise = rootCollections
-            .activities
-            .where('office', '==', locals.change.after.get('office'))
-            .where('template', '==', 'subscription')
-            .where('attachment.Template.value', '==', childTemplate)
-            .get();
-
-          promises
-            .push(promise);
-        });
-
-      return Promise
-        .all([
-          Promise
-            .resolve(resolvedPromises),
-          promises,
-        ]);
-    })
-    .then((result) => {
-      const [
-        resolvedPromises,
-        subscriptionActivitiesSnapShots,
-      ] = result;
-
-      const [
-        templateDocsQuery,
-        employeeDocsQueryResult,
-      ] = resolvedPromises;
-
-      const batch = db.batch();
-
-      subscriptionActivitiesSnapShots
-        .forEach((snapShot) => {
-          snapShot.forEach((doc) => {
-            batch.set(doc.ref, {
-              timestamp: Date.now(),
-              addendumDocRef: null,
-            }, {
-                merge: true,
-              });
-
-            batch.set(doc
-              .ref
-              .collection('Assignees')
-              .doc(subscriber), {
-                addToInclude: true,
-                canEdit: canEditValue({
-                  locals,
-                  phoneNumber: subscriber,
-                  canEditRule: templateDocsQuery.docs[0].get('canEditRule'),
-                  employeeDocsQueryResult,
-                }),
-              });
-          });
-        });
-
-      return Promise
-        .all([
-          Promise
-            .resolve(result),
-
-          batch
-            .commit(),
-        ]);
-    })
-    .then((resolvedResult) => {
-      const [
-        result,
-      ] = resolvedResult;
-      const batch = db.batch();
-
-      const [
-        resolvedPromises,
-        // subscriptionActivitiesSnapShots,
-      ] = result;
-
-      const [
-        templateDocsQuery,
-        employeeDocsQueryResult,
-      ] = resolvedPromises;
-
-      const promises = [];
-
-      // Y gets subsc of template B:
-      // Fetch all activities with template === subscription and attachment.Template.value == A
-      // Make them an assignee(add to include = true)
-
-      return batch.commit();
-    })
-    .catch(console.error);
 };
 
 
@@ -1496,24 +1318,26 @@ module.exports = (change, context) => {
           if (!locals.assigneesMap.get(phoneNumber).uid) return;
 
           /** 
-           * If the person has used up all their leaves, for the create/update
+           * If the person has used up all their leaves, for the `create`/`update`
            * flow, the comment created for them  will be from this function
            */
           const comment = (() => {
-            if (change.after.get('template') === 'leave'
-              && change.after.get('activityData.status') === 'CANCELLED'
-              && new Set([
-                httpsActions.create,
-                httpsActions.update,
-              ])
-                .has(locals.addendumDoc.get('action'))) {
-              return `LIMIT EXCEEDED LEAVE CANCELLED`;
+            const status = change.after.get('status');
+            const activityCancelled = status === 'CANCELLED';
+            const action = locals.addendumDoc.get('action');
+            const templateName = change.after.get('template');
+            const activityCreated = httpsActions.create === action;
+
+            if (templateName === 'leave') {
+              if (activityCreated && activityCancelled) {
+                return customMessages.LEAVE_CANCELLED;
+              }
             }
 
-            if (change.after.get('template') === 'check-in'
-              && locals.addendumDoc.get('action') === httpsActions.create
-              && change.after.get('status') === 'CANCELLED') {
-              return `CHECK-IN CANCELLED. INACCURATE CHECK-IN LOCATION`;
+            if (templateName === 'check-in') {
+              if (activityCreated && activityCancelled) {
+                return customMessages.CHECK_IN_CANCELLED;
+              }
             }
 
             return getCommentString(locals, phoneNumber);
@@ -1572,7 +1396,7 @@ module.exports = (change, context) => {
     })
     .then(() => {
       const template = change.after.get('template');
-
+      const status = change.after.get('status');
       console.log({
         activityId,
         template,
@@ -1582,6 +1406,7 @@ module.exports = (change, context) => {
       const activityData = change.after.data();
       activityData.timestamp = Date.now();
       activityData.adminsCanEdit = locals.adminsCanEdit;
+      activityData.isCancelled = status === 'CANCELLED';
 
       const copyTo = (() => {
         const officeRef = rootCollections.offices.doc(change.after.get('officeId'));
@@ -1603,28 +1428,27 @@ module.exports = (change, context) => {
       }
 
       if (template === 'recipient') {
-        return handleReport(locals, batch);
+        return handleRecipient(locals, batch);
       }
 
       if (template === 'admin') {
-        return setAdminCustomClaims(locals, batch);
+        return handleAdmin(locals, batch);
       }
 
       if (template === 'employee') {
-        return addOfficeToProfile(locals, batch);
+        return handleEmployee(locals, batch);
       }
 
-      if (template === 'customer') {
-        return addCustomerToOffice(locals, batch);
-      }
+      // if (template === 'customer') {
+      //   return handleCustomer(locals, batch);
+      // }
 
-      if (template === 'supplier') {
-        return addSupplierToOffice(locals, batch);
-      }
+      // if (template === 'supplier') {
+      //   return addSupplierToOffice(locals, batch);
+      // }
 
       return batch.commit();
     })
-    // .then(() => handleAutoAssign(locals))
     .catch((error) => {
       console.error(error);
 
@@ -1642,7 +1466,6 @@ module.exports = (change, context) => {
 
       return instantDocRef
         .set({
-          error,
           subject: `${process.env.FUNCTION_NAME} CRASH`
             + ` ${process.env.GCLOUD_PROJECT}`,
           messageBody,

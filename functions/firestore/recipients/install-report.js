@@ -26,60 +26,27 @@
 
 
 const {
+  reportNames,
   sendGridTemplateIds,
+  dateFormats,
 } = require('../../admin/constants');
 const {
   rootCollections,
 } = require('../../admin/admin');
-
 const {
+  employeeInfo,
+  momentOffsetObject,
   dateStringWithOffset,
-  getYesterdaysDateString,
 } = require('./report-utils');
 
-const moment = require('moment');
-
-/**
- * Returns yesterday's Day start timestamp.
- * @returns {Object} JS date object of the previous day starting timestamp.
- */
-const getYesterdaysStartTime = () => {
-  const today = new Date();
-  today.setDate(today.getDate() - 1);
-
-  const yesterday = new Date(today);
-
-  const yesterdayDate = yesterday.getDate();
-  const yesterdayMonth = yesterday.getMonth();
-  const yesterdayYear = yesterday.getFullYear();
-
-  return new Date(
-    yesterdayYear,
-    yesterdayMonth,
-    yesterdayDate,
-    0,
-    0,
-    0
-  )
-    .getTime();
-};
-
-
-const getName = (employeesData, phoneNumber) => {
-  if (!employeesData[phoneNumber]) return '';
-
-  return employeesData[phoneNumber].Name;
-};
+const momentTz = require('moment-timezone');
 
 
 module.exports = (locals) => {
-  const {
-    office,
-    officeId,
-  } = locals.change.after.data();
-  const today = new Date();
-
-  const yesterdaysDateString = getYesterdaysDateString();
+  const office = locals.change.after.get('office');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentDateObject = momentOffsetObject(timezone);
+  const standardDateString = momentTz().format(dateFormats.DATE);
 
   locals.messageObject.templateId = sendGridTemplateIds.installs;
   locals.csvString =
@@ -92,53 +59,52 @@ module.exports = (locals) => {
     + ` First Supervisor's Name,`
     + ` Contact Number,`
     + ` Second Supervisor's Name,`
-    + ` Contact Number,\n`;
+    + ` Contact Number\n`;
 
   locals.messageObject['dynamic_template_data'] = {
     office,
-    date: today.toDateString(),
-    subject: `Install Report_${office}_${today.toDateString()}`,
+    date: standardDateString,
+    subject: `Install Report_${office}_${standardDateString}`,
   };
 
   locals.multipleInstallsMap = new Map();
 
   Promise
     .all([
-      rootCollections
-        .offices
-        .doc(officeId)
-        .get(),
+      // rootCollections
+      //   .offices
+      //   .doc(officeId)
+      //   .get(),
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('report', '==', 'install')
-        .where('dateString', '==', yesterdaysDateString)
+        .where('report', '==', reportNames.INSTALL)
+        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
+        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.yesterday.YEAR)
         .get(),
     ])
     .then((result) => {
       const [
-        officeDoc,
+        // officeDoc,
         initDocsQuery,
       ] = result;
 
       if (initDocsQuery.empty) {
-        console.log('Install docs empty');
-
         /** No report to be sent since no one installed yesterday. */
         return Promise.resolve();
       }
 
-      // Collecting the list of people who have multiple installs for yesterday.
-      // const yesterdaysStartTime = getYesterdaysStartTime();
+      let header = 'Install Date and Time\n\n';
+      const timezone = locals.officeDoc.get('attachment.Timezone.value');
+      const employeesData = locals.officeDoc.get('employeesData');
 
       const yesterdaysStartTime =
-        moment()
+        momentTz()
+          .utc()
           .subtract(1, 'days')
           .startOf('day')
           .unix() * 1000;
-
-      let header = 'Install Date and Time\n\n';
-      const timezone = officeDoc.get('attachment.Timezone.value');
 
       initDocsQuery.forEach((doc) => {
         const {
@@ -146,11 +112,6 @@ module.exports = (locals) => {
           installs,
         } = doc.data();
 
-        const employeeData =
-          officeDoc
-            .get('employeesData')[phoneNumber];
-
-        // https://momentjs.com/docs/#/displaying/format/
         installs.forEach((timestampNumber) => {
           const installTimeString = dateStringWithOffset({
             timezone,
@@ -173,22 +134,24 @@ module.exports = (locals) => {
           timezone,
         });
         const numberOfInstalls = installs.length;
-        const firstSupervisorPhoneNumber =
-          employeeData['First Supervisor'];
-        const secondSupervisorPhoneNumber =
-          employeeData['Second Supervisor'];
+        const employeeObject = employeeInfo(employeesData, phoneNumber);
+        const name = employeeObject.name;
+        const firstSupervisorPhoneNumber = employeeObject.firstSupervisor;
+        const secondSupervisorPhoneNumber = employeeObject.secondSupervisor;
+        const department = employeeObject.department;
+        const employeeCode = employeeObject.employeeCode;
         const firstSupervisorsName =
-          getName(officeDoc.get('employeesData'), firstSupervisorPhoneNumber);
+          employeeInfo(employeesData, firstSupervisorPhoneNumber).name;
         const secondSupervisorsName =
-          getName(officeDoc.get('employeesData'), secondSupervisorPhoneNumber);
+          employeeInfo(employeesData, secondSupervisorPhoneNumber).name;
 
         locals.csvString +=
-          `${employeeData.Name},`
+          `${name},`
           + `${phoneNumber},`
           + `${installedOn},`
           + `${numberOfInstalls},`
-          + ` ${employeeData['Employee Code']},`
-          + `${employeeData.Department},`
+          + ` ${employeeCode},`
+          + `${department},`
           + ` ${firstSupervisorsName},`
           + ` ${firstSupervisorPhoneNumber},`
           + ` ${secondSupervisorsName},`
@@ -199,7 +162,7 @@ module.exports = (locals) => {
 
       locals.messageObject.attachments.push({
         content: new Buffer(locals.csvString).toString('base64'),
-        fileName: `${office} Install Report_${yesterdaysDateString}.csv`,
+        fileName: `${office} Install Report_${standardDateString}.csv`,
         type: 'text/csv',
         disposition: 'attachment',
       });
@@ -215,11 +178,12 @@ module.exports = (locals) => {
           });
         });
 
-      console.log('locals:', locals);
+      console.log({
+        report: locals.change.after.get('report'),
+        to: locals.messageObject.to,
+      });
 
-      return locals
-        .sgMail
-        .sendMultiple(locals.messageObject);
+      return locals.sgMail.sendMultiple(locals.messageObject);
     })
     .catch(console.error);
 };

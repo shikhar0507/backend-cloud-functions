@@ -9,6 +9,7 @@ const {
 
 const {
   httpsActions,
+  reportNames,
 } = require('../../admin/constants');
 const {
   haversineDistance,
@@ -105,9 +106,9 @@ const getDisplayText = (addendumDoc) => {
 };
 
 
-const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
+const getPayrollObject = (addendumDoc, initQuery) => {
   const NUM_MILLI_SECS_IN_DAY = 86400 * 1000;
-  const initDoc = payrollInitDocQuery.docs[0];
+  const initDoc = initQuery.docs[0];
   const displayText = getDisplayText(addendumDoc);
   const phoneNumber = addendumDoc.get('user');
   const schedulesArray = addendumDoc.get('activityData.schedule');
@@ -248,11 +249,11 @@ const getPayrollObject = (addendumDoc, payrollInitDocQuery) => {
 };
 
 
-const getVisitObject = (addendumDoc, dsrInitDocsQuery, locals) => {
+const getVisitObject = (addendumDoc, initQuery, locals) => {
   const visitObject = (() => {
-    if (dsrInitDocsQuery.empty) return {};
+    if (initQuery.empty) return {};
 
-    return dsrInitDocsQuery
+    return initQuery
       .docs[0]
       .get('visitObject');
   })();
@@ -265,7 +266,7 @@ const getVisitObject = (addendumDoc, dsrInitDocsQuery, locals) => {
   const activityId = addendumDoc.get('activityId');
   const template = addendumDoc.get('activityData.template');
 
-  const objectData = (() => {
+  const dataObject = (() => {
     if (template === 'tour plan') {
       return {
         firstContact: '',
@@ -287,18 +288,17 @@ const getVisitObject = (addendumDoc, dsrInitDocsQuery, locals) => {
 
   if (visitDateSchedule.startTime) {
     visitObject[activityId] = {
-      firstContact: objectData.firstContact,
-      secondContact: objectData.secondContact,
+      firstContact: dataObject.firstContact,
+      secondContact: dataObject.secondContact,
       purpose: addendumDoc.get('activityData.template'),
       phoneNumber: addendumDoc.get('user'),
       visitStartTimestamp: visitDateSchedule.startTime,
       visitEndTimestamp: visitDateSchedule.endTime,
       customer: activityData.attachment.Customer.value,
-      product1: objectData.product1,
-      product2: objectData.product2,
-      product3: objectData.product3,
+      product1: dataObject.product1,
+      product2: dataObject.product2,
+      product3: dataObject.product3,
       comment: activityData.attachment.Comment.value,
-      // TODO: Not in scopre. Pass the value from the starting of this flow.
       actualLocation: locals.placeInformation,
     };
 
@@ -315,11 +315,11 @@ const getVisitObject = (addendumDoc, dsrInitDocsQuery, locals) => {
   return visitObject;
 };
 
-const getFollowUpObject = (addendumDoc, dsrInitDocsQuery) => {
+const getFollowUpObject = (addendumDoc, initQuery) => {
   const followUpObject = (() => {
-    if (dsrInitDocsQuery.empty) return {};
+    if (initQuery.empty) return {};
 
-    return dsrInitDocsQuery
+    return initQuery
       .docs[0]
       .get('followUpObject');
   })();
@@ -331,11 +331,6 @@ const getFollowUpObject = (addendumDoc, dsrInitDocsQuery) => {
     followUpDateSchedule,
     closureDateSchedule,
   ] = activityData.schedule;
-
-  // if (!visitDateSchedule.startTime || !followUpDateSchedule.startTime) {
-  //   return followUpObject;
-  // }
-
   const visitType = (() => {
     if (closureDateSchedule.startTime) {
       return 'Closure';
@@ -371,11 +366,11 @@ const getFollowUpObject = (addendumDoc, dsrInitDocsQuery) => {
 };
 
 
-const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
+const getDutyRosterObject = (addendumDoc, initQuery, locals) => {
   const dutyRosterObject = (() => {
-    if (dutyRosterInitDocsQuery.empty) return {};
+    if (initQuery.empty) return {};
 
-    return dutyRosterInitDocsQuery.docs[0].get('dutyRosterObject');
+    return initQuery.docs[0].get('dutyRosterObject');
   })();
 
   const action = addendumDoc.get('action');
@@ -385,31 +380,43 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
   const activityId = addendumDoc.get('activityId');
   const description = addendumDoc.get('activityData.attachment.Description.value');
 
-  if (!dutyRosterObject[activityId]) dutyRosterObject[activityId] = {};
+  if (!dutyRosterObject[activityId]) {
+    dutyRosterObject[activityId] = {};
+  }
 
   dutyRosterObject[activityId].status = status;
   dutyRosterObject[activityId].dutyType = addendumDoc.get('activityData.attachment.Duty Type.value');
   dutyRosterObject[activityId].description = description;
-  dutyRosterObject[activityId].reportingTime = schedule.startTime;
   dutyRosterObject[activityId].reportingLocation = venue.address;
+  dutyRosterObject[activityId].reportingLocationGeopoint = venue.geopoint;
   dutyRosterObject[activityId].reportingTimeStart = schedule.startTime;
   dutyRosterObject[activityId].reportingTimeEnd = schedule.endTime;
 
   if (action === httpsActions.create) {
     dutyRosterObject[activityId].createdBy = addendumDoc.get('user');
     dutyRosterObject[activityId].createdOn = addendumDoc.get('timestamp');
+    /** 
+     * Default is empty string because unless someone updates the activity
+     * status to `CONFIRMED` or `CANCELLED` 
+     */
+    dutyRosterObject[activityId].place = {
+      identifier: '',
+      url: '',
+    };
   }
 
-  /** 
-   * Default is empty string because unless someone updates the activity
-   * status to `CONFIRMED` or `CANCELLED` 
-   */
-  const place = '';
-
   if (action === httpsActions.changeStatus) {
-    dutyRosterObject[activityId].when = addendumDoc.get('timestamp');
-    dutyRosterObject[activityId].user = addendumDoc.get('user');
-    dutyRosterObject[activityId].place = place;
+    if (status === 'CONFIRMED') {
+      dutyRosterObject[activityId].when = addendumDoc.get('timestamp');
+      dutyRosterObject[activityId].user = addendumDoc.get('user');
+      dutyRosterObject[activityId].place = locals.placeInformation;
+    }
+
+    if (status === 'PENDING' || status === 'CANCELLED') {
+      dutyRosterObject[activityId].when = '';
+      dutyRosterObject[activityId].user = '';
+      dutyRosterObject[activityId].place = '';
+    }
   }
 
   console.log({ dutyRosterObject });
@@ -418,13 +425,14 @@ const getDutyRosterObject = (addendumDoc, dutyRosterInitDocsQuery) => {
 };
 
 
-const getExpenseClaimObject = (addendumDoc, expenseClaimInitDocsQuery) => {
+const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
   const expenseClaimObject = (() => {
-    if (expenseClaimInitDocsQuery.empty) return {};
+    if (initQuery.empty) return {};
 
-    return expenseClaimInitDocsQuery.docs[0].get('expenseClaimObject');
+    return initQuery.docs[0].get('expenseClaimObject');
   })();
 
+  const action = addendumDoc.get('action');
   const activityData = addendumDoc.get('activityData');
   const activityId = addendumDoc.get('activityId');
 
@@ -438,14 +446,19 @@ const getExpenseClaimObject = (addendumDoc, expenseClaimInitDocsQuery) => {
 
   expenseClaimObject[activityId] = {
     expenseDateStartTime,
-    phoneNumber: addendumDoc.get('user'),
     amount: activityData.attachment.Amount.value,
     status: activityData.status,
     expenseType: activityData.attachment['Expense Type'].value,
     reason: activityData.attachment.Reason.value,
     referenceNumber: activityData.attachment['Reference Number'].value,
-    expenseLocation: '',
+    expenseLocation: locals.placeInformation.identifier,
   };
+
+  if (action === httpsActions.create) {
+    expenseClaimObject[activityId].user = addendumDoc.get('user');
+  }
+
+  console.log({ expenseClaimObject });
 
   return expenseClaimObject;
 };
@@ -453,24 +466,25 @@ const getExpenseClaimObject = (addendumDoc, expenseClaimInitDocsQuery) => {
 
 const handleExpenseClaimReport = (addendumDoc, locals) => {
   if (addendumDoc.get('activityData.template') !== 'expense claim') {
-    // return locals.batch;
-
     return Promise.resolve();
   }
 
-  const startTime = addendumDoc.get('activityData').schedule[0].startTime;
-  const endTime = addendumDoc.get('activityData').schedule[0].endTime;
+  const expenseDateSchedule = addendumDoc.get('activityData').schedule[0];
+
+  const startTime = expenseDateSchedule.startTime;
+  const endTime = expenseDateSchedule.endTime;
 
   if (!startTime || !endTime) {
     return Promise.resolve();
   }
 
-  const month = new Date(startTime).getMonth();
-  const year = new Date(startTime).getFullYear();
+  const startTimestamp = new Date(startTime);
+  const month = startTimestamp.getMonth();
+  const year = startTimestamp.getFullYear();
 
   return rootCollections
     .inits
-    .where('report', '==', 'expense claim')
+    .where('report', '==', reportNames.EXPENSE_CLAIM)
     .where('office', '==', addendumDoc.get('activityData.office'))
     .where('month', '==', month)
     .where('year', '==', year)
@@ -478,21 +492,15 @@ const handleExpenseClaimReport = (addendumDoc, locals) => {
     .get()
     .then((expenseClaimInitDocsQuery) => {
       const ref = initDocRef(expenseClaimInitDocsQuery);
-      const expenseClaimObject =
-        getExpenseClaimObject(addendumDoc, expenseClaimInitDocsQuery);
-
-      if (addendumDoc.get('activityData.schedule')[0].startTime) {
-        expenseClaimObject[addendumDoc.get('activityId')]
-          .expenseLocation = locals.placeInformation.identifier;
-      }
 
       console.log('Ref:', ref.path);
 
       locals.batch.set(ref, {
         month,
         year,
-        expenseClaimObject,
-        report: 'expense claim',
+        expenseClaimObject:
+          getExpenseClaimObject(addendumDoc, expenseClaimInitDocsQuery, locals),
+        report: reportNames.EXPENSE_CLAIM,
         office: addendumDoc.get('activityData.office'),
         officeId: addendumDoc.get('activityData.officeId'),
       }, {
@@ -525,27 +533,23 @@ const getLeaveObject = (addendumDoc, leaveInitDocsQuery) => {
     return leaveObject;
   }
 
-  leaveObject[activityId] = {
-    approvedBy: '',
-    annualLeavesEntitled: '',
-    reason: addendumDoc.get('activityData.attachment.Reason.value'),
-    phoneNumber: addendumDoc.get('user'),
-    leaveType: addendumDoc.get('activityData.attachment.Leave Type.value'),
-    totalLeavesRemaining: addendumDoc.get('totalLeavesRemaining'),
-    totalLeavesTaken: addendumDoc.get('totalLeavesTaken'),
-    leaveStartTimestamp: addendumDoc.get('activityData.schedule')[0].startTime,
-    leaveEndTimestamp: addendumDoc.get('activityData.schedule')[0].endTime,
-  };
+  if (action === httpsActions.create || action === httpsActions.update) {
+    leaveObject[activityId] = {
+      approvedBy: '',
+      reason: addendumDoc.get('activityData.attachment.Reason.value'),
+      leaveType: addendumDoc.get('activityData.attachment.Leave Type.value'),
+      totalLeavesRemaining: addendumDoc.get('totalLeavesRemaining') || '',
+      totalLeavesTaken: addendumDoc.get('totalLeavesTaken') || '',
+      leaveStartTimestamp: addendumDoc.get('activityData.schedule')[0].startTime,
+      leaveEndTimestamp: addendumDoc.get('activityData.schedule')[0].endTime,
+      annualLeavesEntitled: addendumDoc.get('annualLeavesEntitled') || '',
+    };
+  }
 
   if (action === httpsActions.create) {
     leaveObject[activityId].phoneNumber = addendumDoc.get('user');
   }
 
-  if (action === httpsActions.create
-    || action === httpsActions.update) {
-    leaveObject[activityId].annualLeavesEntitled =
-      addendumDoc.get('annualLeavesEntitled');
-  }
 
   if (action === httpsActions.changeStatus && status === 'CONFIRMED') {
     leaveObject[activityId].approvedBy = addendumDoc.get('user');
@@ -558,7 +562,7 @@ const getLeaveObject = (addendumDoc, leaveInitDocsQuery) => {
 
 
 const handleLeaveReport = (addendumDoc, locals) => {
-  if (addendumDoc.get('template') !== 'leave') {
+  if (addendumDoc.get('activityData.template') !== 'leave') {
     return Promise.resolve();
   }
 
@@ -568,18 +572,17 @@ const handleLeaveReport = (addendumDoc, locals) => {
     return Promise.resolve();
   }
 
-  const leaveDateStartTimestamp = new Date(leaveDatesSchedule.startTime);
+  if (!addendumDoc.get('activityData.attachment.Leave Type.value')) {
+    return Promise.resolve();
+  }
 
+  const leaveDateStartTimestamp = new Date(leaveDatesSchedule.startTime);
   const leaveMonth = leaveDateStartTimestamp.getMonth();
   const leaveYear = leaveDateStartTimestamp.getFullYear();
 
-  const status = addendumDoc.get('activityData.status');
-
-  if (status === 'CANCELLED') return Promise.resolve();
-
   return rootCollections
     .inits
-    .where('report', '==', 'leave')
+    .where('report', '==', reportNames.LEAVE)
     .where('office', '==', addendumDoc.get('activityData.office'))
     .where('year', '==', leaveYear)
     .where('month', '==', leaveMonth)
@@ -590,7 +593,7 @@ const handleLeaveReport = (addendumDoc, locals) => {
 
       return ref.set({
         office: addendumDoc.get('activityData.office'),
-        report: 'leave',
+        report: reportNames.LEAVE,
         month: leaveMonth,
         year: leaveYear,
         leaveObject: getLeaveObject(addendumDoc, leaveInitDocsQuery),
@@ -604,7 +607,6 @@ const handleLeaveReport = (addendumDoc, locals) => {
 
 const handleDutyRosterReport = (addendumDoc, locals) => {
   if (addendumDoc.get('activityData.template') !== 'duty roster') {
-    // return handleLeaveReport(addendumDoc, locals);
     return Promise.resolve();
   }
 
@@ -626,7 +628,7 @@ const handleDutyRosterReport = (addendumDoc, locals) => {
     .all([
       rootCollections
         .inits
-        .where('report', '==', 'duty roster')
+        .where('report', '==', reportNames.DUTY_ROSTER)
         .where('office', '==', office)
         .where('month', '==', month)
         .where('year', '==', year)
@@ -645,11 +647,12 @@ const handleDutyRosterReport = (addendumDoc, locals) => {
       ] = result;
 
       const ref = initDocRef(dutyRosterInitDocsQuery);
-
       const dutyRosterObject
-        = getDutyRosterObject(addendumDoc, dutyRosterInitDocsQuery);
+        = getDutyRosterObject(addendumDoc, dutyRosterInitDocsQuery, locals);
+      const activityId = addendumDoc.get('activityId');
 
-      dutyRosterObject.assignees = assigneesSnapshot.docs.map((doc) => doc.id);
+      dutyRosterObject[activityId]
+        .assignees = assigneesSnapshot.docs.map((doc) => doc.id);
 
       locals.batch.set(ref, {
         month,
@@ -657,7 +660,7 @@ const handleDutyRosterReport = (addendumDoc, locals) => {
         office,
         officeId,
         dutyRosterObject,
-        report: 'duty roster',
+        report: reportNames.DUTY_ROSTER,
       }, {
           merge: true,
         });
@@ -668,16 +671,16 @@ const handleDutyRosterReport = (addendumDoc, locals) => {
 };
 
 const handleVisitDate = (addendumDoc, locals) => {
-  if (addendumDoc.get('activityData.template') !== 'dsr'
-    && addendumDoc.get('activityData.template') !== 'tour plan'
+  if (addendumDoc.get('activityData.template') !== reportNames.DSR
+    && addendumDoc.get('activityData.template') !== reportNames.TOUR_PLAN
     || !addendumDoc.get('activityData.schedule')[0]) {
     console.log('In handleVisitDate: resolving early');
 
     return Promise.resolve();
   }
 
-  const visitStartTime = addendumDoc.get('activityData.schedule')[0].startTime;
-  const visitDayStartTimestamp = new Date(visitStartTime);
+  const visitStartSchedule = addendumDoc.get('activityData.schedule')[0];
+  const visitDayStartTimestamp = new Date(visitStartSchedule.startTime);
   const date = visitDayStartTimestamp.getDate();
   const month = visitDayStartTimestamp.getMonth();
   const year = visitDayStartTimestamp.getFullYear();
@@ -685,7 +688,7 @@ const handleVisitDate = (addendumDoc, locals) => {
   return rootCollections
     .inits
     .where('office', '==', addendumDoc.get('activityData.office'))
-    .where('report', '==', 'dsr')
+    .where('report', '==', reportNames.DSR)
     .where('date', '==', date)
     .where('month', '==', month)
     .where('year', '==', year)
@@ -698,7 +701,7 @@ const handleVisitDate = (addendumDoc, locals) => {
         date,
         month,
         year,
-        report: 'dsr',
+        report: reportNames.DSR,
         office: addendumDoc.get('activityData.office'),
         officeId: addendumDoc.get('activityData.officeId'),
         visitObject: getVisitObject(addendumDoc, snapShot, locals),
@@ -717,15 +720,15 @@ const handleVisitDate = (addendumDoc, locals) => {
 
 
 const handleFollowUpDate = (addendumDoc, locals) => {
-  if (addendumDoc.get('activityData.template') !== 'dsr'
+  if (addendumDoc.get('activityData.template') !== reportNames.DSR
     || !addendumDoc.get('activityData.schedule')[1]) {
     console.log('resolving early follow up');
 
     return Promise.resolve();
   }
 
-  const followUpStartTime = addendumDoc.get('activityData.schedule')[1].startTime;
-  const followUpStartTimestamp = new Date(followUpStartTime);
+  const followUpSchedule = addendumDoc.get('activityData.schedule')[1];
+  const followUpStartTimestamp = new Date(followUpSchedule.startTime);
   const date = followUpStartTimestamp.getDate();
   const month = followUpStartTimestamp.getMonth();
   const year = followUpStartTimestamp.getFullYear();
@@ -733,7 +736,7 @@ const handleFollowUpDate = (addendumDoc, locals) => {
   return rootCollections
     .inits
     .where('office', '==', addendumDoc.get('activityData.office'))
-    .where('report', '==', 'dsr')
+    .where('report', '==', reportNames.DSR)
     .where('date', '==', date)
     .where('month', '==', month)
     .where('year', '==', year)
@@ -746,7 +749,7 @@ const handleFollowUpDate = (addendumDoc, locals) => {
         date,
         month,
         year,
-        report: 'dsr',
+        report: reportNames.DSR,
         office: addendumDoc.get('activityData.office'),
         officeId: addendumDoc.get('activityData.officeId'),
         followUpObject: getFollowUpObject(addendumDoc, snapShot),
@@ -764,8 +767,8 @@ const handleFollowUpDate = (addendumDoc, locals) => {
 
 const handleDsr = (addendumDoc, locals) => {
   if (!new Set()
-    .add('dsr')
-    .add('tour plan')
+    .add(reportNames.DSR)
+    .add(reportNames.TOUR_PLAN)
     .has(addendumDoc.get('activityData.template'))) {
     return Promise.resolve();
   }
@@ -780,9 +783,9 @@ const handlePayrollReport = (addendumDoc, locals) => {
   const template = addendumDoc.get('activityData.template');
 
   if (!new Set()
-    .add('leave')
-    .add('check-in')
-    .add('tour plan')
+    .add(reportNames.LEAVE)
+    .add(reportNames.CHECK_IN)
+    .add(reportNames.TOUR_PLAN)
     .has(template)) {
     return Promise.resolve();
   }
@@ -790,9 +793,8 @@ const handlePayrollReport = (addendumDoc, locals) => {
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
   const timestamp = new Date(addendumDoc.get('timestamp'));
-
   const month = (() => {
-    if (template === 'check-in') {
+    if (template === reportNames.CHECK_IN) {
       return timestamp.getMonth();
     }
 
@@ -808,12 +810,13 @@ const handlePayrollReport = (addendumDoc, locals) => {
   })();
 
   const year = (() => {
-    if (template === 'check-in') {
+    if (template === reportNames.CHECK_IN) {
       return timestamp.getFullYear();
     }
 
     const schedule = addendumDoc.get('activityData.schedule')[0];
     if (!schedule) return '';
+
     const startTime = addendumDoc.get('activityData.schedule')[0].startTime;
     if (!startTime) return '';
 
@@ -827,7 +830,7 @@ const handlePayrollReport = (addendumDoc, locals) => {
   return rootCollections
     .inits
     .where('office', '==', office)
-    .where('report', '==', 'payroll')
+    .where('report', '==', reportNames.PAYROLL)
     .where('month', '==', month)
     .where('year', '==', year)
     .limit(1)
@@ -840,13 +843,13 @@ const handlePayrollReport = (addendumDoc, locals) => {
         officeId,
         month,
         year,
-        report: 'payroll',
+        report: reportNames.PAYROLL,
         payrollObject: getPayrollObject(addendumDoc, payrollInitDocQuery),
       }, {
           merge: true,
         });
 
-      return handleDsr(addendumDoc, locals);
+      return Promise.resolve();
     })
     .catch(console.error);
 };
@@ -864,6 +867,7 @@ module.exports = (addendumDoc) => {
     .doc(officeId)
     .collection('Addendum')
     .where('user', '==', phoneNumber)
+    .where('date', '==', new Date().getDate())
     .orderBy('timestamp', 'desc')
     .limit(2)
     .get()
@@ -957,11 +961,10 @@ module.exports = (addendumDoc) => {
       console.error(error);
 
       const instantDocRef = rootCollections.instant.doc();
-
       console.log('crash id:', instantDocRef.id);
 
       const context = {
-        error,
+        // error,
         addendumId: addendumDoc.id,
         doc: addendumDoc.data(),
         instantDocId: instantDocRef.id,

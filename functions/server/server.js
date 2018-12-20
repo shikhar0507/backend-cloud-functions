@@ -28,13 +28,11 @@
 const {
   rootCollections,
   auth,
-  db,
 } = require('../admin/admin');
 const {
   code,
 } = require('../admin/responses');
 const {
-  now,
   sendJSON,
   handleError,
   sendResponse,
@@ -51,7 +49,6 @@ const handleAdminUrl = (conn, urlParts) => {
 
   if (conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims)) {
-    // TODO: Send instant log here (probably)
     sendResponse(conn, code.forbidden, 'You cannot make support requests');
 
     return;
@@ -421,16 +418,13 @@ const checkAuthorizationToken = (conn) => {
 const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
-
+  const filePath = path.join(process.cwd(), 'data.csv');
   const templateName = '';
   const office = '';
   const geopoint = {
     latitude: '',
     longitude: '',
   };
-
-  const filePath =
-    path.join(process.cwd(), 'data.csv');
 
   console.log({ filePath });
 
@@ -462,7 +456,6 @@ const handleBulkObject = (conn) => {
 
       const attachmentFieldsSet =
         new Set(Object.keys(templateObject.attachment));
-
       const scheduleFieldsSet = new Set();
       const venueFieldsSet = new Set();
 
@@ -544,12 +537,11 @@ const handleBulkObject = (conn) => {
 
       checkAuthorizationToken(conn);
 
-      // sendResponse(conn, code.ok, 'done');
-
       return;
     })
     .catch((error) => handleError(conn, error));
 };
+
 
 
 /**
@@ -575,20 +567,6 @@ module.exports = (req, res) => {
       'Cache-Control': 'no-cache',
     },
   };
-
-  if (process.env.ENV && process.env.PRODUCTION) {
-    console.log({
-      method: req.method,
-      url: req.url,
-      body: req.body,
-      origin: req.get('origin'),
-      ip: req.connection.remoteAddress,
-      params: req.params,
-      cookies: req.cookies,
-      range: req.range,
-      tz: require('moment-timezone').tz.guess(),
-    });
-  }
 
   /** For handling CORS */
   if (req.method === 'HEAD' || req.method === 'OPTIONS') {
