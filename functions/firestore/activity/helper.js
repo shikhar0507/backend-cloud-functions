@@ -25,7 +25,10 @@
 'use strict';
 
 
-const { getGeopointObject } = require('./../../admin/admin');
+const {
+  getGeopointObject,
+  deleteField,
+} = require('./../../admin/admin');
 const {
   isValidDate,
   isValidEmail,
@@ -59,19 +62,17 @@ const validateSchedules = (body, scheduleNames) => {
     return messageObject;
   }
 
-  const schedules = body.schedule;
-
-  if (!Array.isArray(schedules)) {
+  if (!Array.isArray(body.schedule)) {
     messageObject.isValid = false;
     messageObject.message = `The schedule should be an array of objects`;
 
     return messageObject;
   }
 
-  if (scheduleNames.length !== schedules.length) {
+  if (scheduleNames.length !== body.schedule.length) {
     messageObject.isValid = false;
     messageObject.message = `Expected ${scheduleNames.length}`
-      + ` venues. Found ${schedules.length}`;
+      + ` venues. Found ${body.schedule.length}`;
 
     return messageObject;
   }
@@ -79,8 +80,8 @@ const validateSchedules = (body, scheduleNames) => {
   const seenNamesSet = new Set();
 
   /** Not using `forEach` because `break` doesn't work with it. */
-  for (let i = 0; i < schedules.length; i++) {
-    const scheduleObject = schedules[i];
+  for (let i = 0; i < body.schedule.length; i++) {
+    const scheduleObject = body.schedule[i];
 
     if (typeof scheduleObject !== 'object') {
       messageObject.isValid = false;
@@ -202,19 +203,17 @@ const validateVenues = (body, venueDescriptors) => {
     return messageObject;
   }
 
-  const venues = body.venue;
-
-  if (!Array.isArray(venues)) {
+  if (!Array.isArray(body.venue)) {
     messageObject.isValid = false;
     messageObject.message = `The field venue should be an 'array' of objects`;
 
     return messageObject;
   }
 
-  if (venueDescriptors.length !== venues.length) {
+  if (venueDescriptors.length !== body.venue.length) {
     messageObject.isValid = false;
     messageObject.message = `Expected ${venueDescriptors.length}`
-      + ` venues. Found ${venues.length}`;
+      + ` venues. Found ${body.venue.length}`;
 
     return messageObject;
   }
@@ -222,8 +221,8 @@ const validateVenues = (body, venueDescriptors) => {
   const seenDescriptorsSet = new Set();
 
   /** Not using `forEach` because `break` doesn't work with it. */
-  for (let i = 0; i < venues.length; i++) {
-    const venueObject = venues[i];
+  for (let i = 0; i < body.venue.length; i++) {
+    const venueObject = body.venue[i];
 
     if (!venueObject.hasOwnProperty('venueDescriptor')) {
       messageObject.isValid = false;
@@ -1087,10 +1086,32 @@ const activityName = (options) => {
   }
 
   if (templateName === 'subscriber') {
-    return `${templateName.toUpperCase()}: ${attachmentObject.Subscriber.value}`;
+    return `${templateName.toUpperCase()}:`
+      + ` ${attachmentObject.Subscriber.value}`;
   }
 
   return `${templateName.toUpperCase()}: ${displayName || phoneNumber}`;
+};
+
+const toAttachmentValues = (conn, locals) => {
+  // activityId, createTime, attachment, status
+  if (conn.req.body.status === 'CANCELLED') {
+    return deleteField();
+  }
+
+  const object = {
+    activityId: locals.docs.activityRef.id,
+    createTime: Date.now(),
+  };
+
+  const fields = Object.keys(conn.req.body.attachment);
+
+  fields
+    .forEach((field) => {
+      object[field] = conn.req.body.attachment[field].value;
+    });
+
+  return object;
 };
 
 
@@ -1102,6 +1123,7 @@ module.exports = {
   filterAttachment,
   haversineDistance,
   isValidRequestBody,
+  toAttachmentValues,
   checkActivityAndAssignee,
   getPhoneNumbersFromAttachment,
 };

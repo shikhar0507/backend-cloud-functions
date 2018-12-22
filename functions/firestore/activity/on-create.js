@@ -26,11 +26,13 @@
 
 
 const { code } = require('../../admin/responses');
-const { httpsActions } = require('../../admin/constants');
+const {
+  templatesSet,
+  httpsActions,
+} = require('../../admin/constants');
 const {
   db,
   rootCollections,
-  // serverTimestamp,
   getGeopointObject,
 } = require('../../admin/admin');
 const {
@@ -139,7 +141,6 @@ const createDocsWithBatch = (conn, locals) => {
     isSupportRequest: conn.requester.isSupportRequest,
   };
 
-
   /**
    * totalLeavesRemaining,
    * totalLeavesTaken
@@ -179,6 +180,48 @@ const createDocsWithBatch = (conn, locals) => {
 
     addendumDocObject.distanceAccurate = distanceAccurate;
   }
+
+  // if (conn.req.body.attachment.hasOwnProperty('Name') && conn.req.body.template !== 'office') {
+  //   // create names map
+
+  //   locals.batch.set(rootCollections.offices.doc(locals.static.officeId), {
+
+  //   }, {
+  //       merge: true,
+  //     });
+
+
+  // }
+
+  // if (conn.req.body.template === 'employee') {
+  //   locals.batch.set(rootCollections.offices.doc(locals.static.officeId), {
+  //     employeesData: {
+  //       [conn.req.body.attachment['Employee Contact'].value]: toAttachmentValues(),
+  //     },
+  //   }, {
+  //       merge: true,
+  //     });
+  // }
+
+  // if (conn.req.body.template === 'subscription') {
+  //   const subscriberPhoneNumber = conn.req.body.attachment.Subscriber.value;
+
+  //   const subscriptionArray = (() => {
+  //     const oldSubscriptionsMap = locals.officeDoc.get('subscriptionsMap') || {};
+
+  //     if (oldSubscriptionsMap[subscriberPhoneNumber]) {
+
+  //     }
+  //   })();
+
+  //   locals.batch.set(rootCollections.offices.doc(locals.static.officeId), {
+  //     subscriptionsMap: {
+  //       [subscriberPhoneNumber]: subscriptionArray,
+  //     },
+  //   }, {
+  //       merge: true,
+  //     });
+  // }
 
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
@@ -606,12 +649,11 @@ const handleAttachment = (conn, locals) => {
     return;
   }
 
-  const constants = require('../../admin/constants');
   const isSubscription = conn.req.body.template === 'subscription'
     && conn.req.body.attachment.Template.value;
 
   if (isSubscription
-    && !constants.templatesSet.has(conn.req.body.attachment.Template.value)) {
+    && !templatesSet.has(conn.req.body.attachment.Template.value)) {
     sendResponse(
       conn,
       code.badRequest,
@@ -625,7 +667,8 @@ const handleAttachment = (conn, locals) => {
    * All phone numbers in the attachment are added to the
    * activity assignees.
    */
-  result.phoneNumbers
+  result
+    .phoneNumbers
     .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
 
   resolveProfileCheckPromises(conn, locals, result);
@@ -784,7 +827,7 @@ const createLocals = (conn, result) => {
       sendResponse(
         conn,
         code.conflict,
-        `The office '${conn.req.body.office}' already exists.`
+        `The office '${conn.req.body.office}' already exists`
       );
 
       return;
@@ -794,13 +837,14 @@ const createLocals = (conn, result) => {
       sendResponse(
         conn,
         code.forbidden,
-        `The office status is 'CANCELLED'.Cannot create an activity`
+        `The office status is 'CANCELLED'. Cannot create an activity`
       );
 
       return;
     }
 
     locals.static.officeId = officeQueryResult.docs[0].id;
+    locals.officeDoc = officeQueryResult.docs[0];
   }
 
   conn.req.body.share.forEach((phoneNumber) => {
@@ -835,12 +879,6 @@ const createLocals = (conn, result) => {
 
   if (!conn.requester.isSupportRequest) {
     locals.objects.allPhoneNumbers.add(conn.requester.phoneNumber);
-  }
-
-  if (conn.req.body.template !== 'leave') {
-    handleScheduleAndVenue(conn, locals);
-
-    return;
   }
 
   handleScheduleAndVenue(conn, locals);

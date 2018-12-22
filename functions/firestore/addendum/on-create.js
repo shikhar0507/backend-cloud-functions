@@ -113,6 +113,8 @@ const getPayrollObject = (addendumDoc, initQuery) => {
   const phoneNumber = addendumDoc.get('user');
   const schedulesArray = addendumDoc.get('activityData.schedule');
 
+  console.log({ displayText });
+
   const payrollObject = (() => {
     if (!initDoc) return {};
 
@@ -194,6 +196,7 @@ const getPayrollObject = (addendumDoc, initQuery) => {
       }
 
       payrollObject[phoneNumber][date.getDate()] = displayText;
+      console.log(date.getDate(), displayText);
 
       startTime += NUM_MILLI_SECS_IN_DAY;
     }
@@ -244,6 +247,8 @@ const getPayrollObject = (addendumDoc, initQuery) => {
   if (nonEmptyItemsArray.length === 0) {
     payrollObject[phoneNumber] = deleteField();
   }
+
+  console.log({ payrollObject });
 
   return payrollObject;
 };
@@ -469,18 +474,25 @@ const handleExpenseClaimReport = (addendumDoc, locals) => {
     return Promise.resolve();
   }
 
-  const expenseDateSchedule = addendumDoc.get('activityData').schedule[0];
+  // const expenseDateSchedule = addendumDoc.get('activityData').schedule[0];
 
-  const startTime = expenseDateSchedule.startTime;
-  const endTime = expenseDateSchedule.endTime;
+  // const startTime = expenseDateSchedule.startTime;
+  // const endTime = expenseDateSchedule.endTime;
 
-  if (!startTime || !endTime) {
+  // if (!startTime || !endTime) {
+  //   return Promise.resolve();
+  // }
+
+  // const startTimestamp = new Date(startTime);
+  // const month = startTimestamp.getMonth();
+  // const year = startTimestamp.getFullYear();
+  if (addendumDoc.get('action') !== httpsActions.create) {
     return Promise.resolve();
   }
 
-  const startTimestamp = new Date(startTime);
-  const month = startTimestamp.getMonth();
-  const year = startTimestamp.getFullYear();
+  const timestamp = addendumDoc.get('timestamp');
+  const month = new Date(timestamp).getMonth();
+  const year = new Date(timestamp).getFullYear();
 
   return rootCollections
     .inits
@@ -782,6 +794,8 @@ const handleDsr = (addendumDoc, locals) => {
 const handlePayrollReport = (addendumDoc, locals) => {
   const template = addendumDoc.get('activityData.template');
 
+  console.log('In payroll report', template);
+
   if (!new Set()
     .add(reportNames.LEAVE)
     .add(reportNames.CHECK_IN)
@@ -827,6 +841,8 @@ const handlePayrollReport = (addendumDoc, locals) => {
     return Promise.resolve();
   }
 
+  console.log({ month, year });
+
   return rootCollections
     .inits
     .where('office', '==', office)
@@ -835,8 +851,10 @@ const handlePayrollReport = (addendumDoc, locals) => {
     .where('year', '==', year)
     .limit(1)
     .get()
-    .then((payrollInitDocQuery) => {
-      const ref = initDocRef(payrollInitDocQuery);
+    .then((initQuery) => {
+      const ref = initDocRef(initQuery);
+
+      console.log('path:', ref.path);
 
       locals.batch.set(ref, {
         office,
@@ -844,7 +862,7 @@ const handlePayrollReport = (addendumDoc, locals) => {
         month,
         year,
         report: reportNames.PAYROLL,
-        payrollObject: getPayrollObject(addendumDoc, payrollInitDocQuery),
+        payrollObject: getPayrollObject(addendumDoc, initQuery),
       }, {
           merge: true,
         });
@@ -949,9 +967,8 @@ module.exports = (addendumDoc) => {
         merge: true,
       });
 
-      return locals.batch;
+      return handlePayrollReport(addendumDoc, locals);
     })
-    .then(() => handlePayrollReport(addendumDoc, locals))
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleLeaveReport(addendumDoc, locals))

@@ -38,6 +38,11 @@ const {
 
 const sendSMS = (change) => {
   console.log('In sendSMS');
+  const {
+    downloadUrl,
+    smsgupshup,
+    isProduction,
+  } = require('../../admin/env');
 
   const smsContext = change.after.get('smsContext');
 
@@ -48,16 +53,11 @@ const sendSMS = (change) => {
 
   console.log({ toSendSMS, phoneNumber: change.after.id });
 
-  if (!toSendSMS) return Promise.resolve();
+  if (!toSendSMS) {
+    console.log('NO SMS', { toSendSMS });
 
-  // Template substitutions allow 20 chars at most.
-  const first20Chars = (str) => str.slice(0, 19);
-
-  const {
-    downloadUrl,
-    smsgupshup,
-    isProduction,
-  } = require('../../admin/env');
+    return Promise.resolve();
+  }
 
   // Will not send sms from test project
   if (!isProduction) {
@@ -65,6 +65,9 @@ const sendSMS = (change) => {
 
     return Promise.resolve();
   }
+
+  // Template substitutions allow 20 chars at most.
+  const first20Chars = (str) => str.slice(0, 19);
 
   console.log('SENDING SMS', change.after.id);
 

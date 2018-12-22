@@ -30,9 +30,9 @@ module.exports = (locals) => {
 
   const todaysDateString = moment().format(dateFormats.DATE);
 
-  locals.sendMail = true;
   locals.messageObject.templateId = sendGridTemplateIds.expenseClaim;
   locals.messageObject['dynamic_template_data'] = {
+    office,
     date: todaysDateString,
     subject: `Expense Claim Report_${office}_${todaysDateString}`,
   };

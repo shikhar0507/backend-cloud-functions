@@ -29,48 +29,26 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
-  sendGridTemplateIds,
   reportNames,
-  dateFormats,
 } = require('../../admin/constants');
-
 const {
   dateStringWithOffset,
   momentOffsetObject,
   employeeInfo,
+  alphabetsArray,
 } = require('./report-utils');
-
-const moment = require('moment');
+const xlsxPopulate = require('xlsx-populate');
 
 
 module.exports = (locals) => {
-  const {
-    office,
-    officeId,
-  } = locals.change.after.data();
-
-  locals.csvString =
-    `Employee Name,`
-    + ` Employee Contact,`
-    + ` Employee Added Date,`
-    + ` Sign-Up Date,`
-    + ` Employee Code,`
-    + ` Department,`
-    + ` First Supervisor's Name,`
-    + ` Contact Number,`
-    + ` Second Supervisor's Name,`
-    + ` Contact Number`
-    + `\n`;
-
-  const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentDateObject = momentOffsetObject(timezone);
+  const office = locals.change.after.get('office');
+  const allEmployeesData = locals.officeDoc.get('employeesData');
+  const momentDateObject = momentOffsetObject(locals.timezone);
+  const fileName = `Sign-Up Report_${office}_${locals.standardDateString}.xlsx`;
+  const filePath = `/tmp/${fileName}`;
 
   return Promise
     .all([
-      rootCollections
-        .offices
-        .doc(officeId)
-        .get(),
       rootCollections
         .inits
         .where('office', '==', office)
@@ -80,30 +58,50 @@ module.exports = (locals) => {
         .where('report', '==', reportNames.SIGNUP)
         .limit(1)
         .get(),
+      xlsxPopulate
+        .fromBlankAsync(),
     ])
     .then((result) => {
       const [
-        officeDoc,
         initDocsQuery,
+        workbook,
       ] = result;
 
       if (initDocsQuery.empty) {
+        locals.sendMail = false;
 
         return Promise.resolve();
       }
 
-      const allEmployeesData = officeDoc.get('employeesData');
-      const timezone = officeDoc.get('attachment.Timezone.value');
+      // locals.messageObject.templateId = sendGridTemplateIds.signUps;
+
+      const sheet1 = workbook.addSheet('SignUps');
+      sheet1.row(1).style('bold', true);
+      workbook.deleteSheet('Sheet1');
+
+      [
+        `Employee Name`,
+        `Employee Contact`,
+        `Employee Added Date`,
+        `Sign-Up Date`,
+        `Employee Code`,
+        `Department`,
+        `First Supervisor's Name`,
+        `Contact Number`,
+        `Second Supervisor's Name`,
+        `Contact Number`,
+      ].forEach((header, index) => {
+        sheet1
+          .cell(`${alphabetsArray[index]}1`)
+          .value(header);
+      });
 
       let totalSignUpsCount = 0;
 
-      const {
-        employeesObject,
-      } = initDocsQuery.docs[0].data();
-
+      const employeesObject = initDocsQuery.docs[0].get('employeesObject');
       const employeesList = Object.keys(employeesObject);
 
-      employeesList.forEach((phoneNumber) => {
+      employeesList.forEach((phoneNumber, index) => {
         const employeeDataObject = employeeInfo(allEmployeesData, phoneNumber);
         const employeeName = employeeDataObject.name;
         const employeeCode = employeeDataObject.employeeCode;
@@ -116,53 +114,55 @@ module.exports = (locals) => {
           employeeInfo(allEmployeesData, secondSupervisorPhoneNumber).name;
 
         const signedUpOn = dateStringWithOffset({
-          timezone,
+          timezone: locals.timezone,
           timestampToConvert: employeesObject[phoneNumber].signedUpOn,
         });
         const addedOn = dateStringWithOffset({
-          timezone,
+          timezone: locals.timezone,
           timestampToConvert: employeesObject[phoneNumber].addedOn,
         });
 
-        locals.csvString +=
-          ` ${employeeName},`
-          /**
-           * Removing this space in front of phone number makes the
-           * `MS Excel` believe that the phone number is a number (not string).
-           */
-          + ` ${phoneNumber},`
-          + `${addedOn},`
-          + `${signedUpOn},`
-          + `${employeeCode},`
-          + `${department},`
-          + `${firstSupervisorName},`
-          + `${firstSupervisorPhoneNumber},`
-          + `${secondSupervisorName},`
-          + `${secondSupervisorPhoneNumber}`
-          + `\n`;
+        const columnNumber = index + 2;
 
+        sheet1.cell(`A${columnNumber}`).value(employeeName);
+        sheet1.cell(`B${columnNumber}`).value(phoneNumber);
+        sheet1.cell(`C${columnNumber}`).value(addedOn);
+        sheet1.cell(`D${columnNumber}`).value(signedUpOn);
+        sheet1.cell(`E${columnNumber}`).value(employeeCode);
+        sheet1.cell(`F${columnNumber}`).value(department);
+        sheet1.cell(`G${columnNumber}`).value(firstSupervisorName);
+        sheet1.cell(`H${columnNumber}`).value(firstSupervisorPhoneNumber);
+        sheet1.cell(`I${columnNumber}`).value(secondSupervisorName);
+        sheet1.cell(`J${columnNumber}`).value(secondSupervisorPhoneNumber);
+
+        // This value could be an empty string
         if (signedUpOn) totalSignUpsCount++;
       });
 
-      const standardDateString = moment().format(dateFormats.DATE);
-
-      locals.messageObject.templateId = sendGridTemplateIds.signUps;
       locals.messageObject['dynamic_template_data'] = {
         office,
-        date: standardDateString,
-        subject: `Sign-Up ${office}_Report_${standardDateString}`,
+        date: locals.standardDateString,
+        subject: `Sign-Up Report_${office}_${locals.standardDateString}`,
         totalEmployees: employeesList.length,
         totalSignUps: totalSignUpsCount,
         difference: employeesList.length - totalSignUpsCount,
       };
 
-      locals
-        .messageObject.attachments.push({
-          content: new Buffer(locals.csvString).toString('base64'),
-          fileName: `${office} Sign-Up Report_${standardDateString}.csv`,
-          type: 'text/csv',
-          disposition: 'attachment',
-        });
+      return workbook.toFileAsync(filePath);
+    })
+    .then(() => {
+      if (!locals.sendMail) {
+        return Promise.resolve();
+      }
+
+      const fs = require('fs');
+
+      locals.messageObject.attachments.push({
+        fileName,
+        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
+        type: 'text/csv',
+        disposition: 'attachment',
+      });
 
       console.log({
         report: locals.change.after.get('report'),

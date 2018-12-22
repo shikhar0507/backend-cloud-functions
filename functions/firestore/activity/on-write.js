@@ -38,6 +38,8 @@ const {
   customMessages,
 } = require('../../admin/constants');
 
+const moment = require('moment-timezone');
+
 
 const toAttachmentValues = (activity) => {
   const object = {
@@ -210,19 +212,6 @@ const handleAutoAssign = (locals) => {
     .set('employee', ['branch', 'department'])
     .set('sales order', ['product', 'customer'])
     .set('purchase order', ['supplier', 'material']);
-  const bRelationshipMap = new Map()
-    .set('bill', ['payment'])
-    .set('branch', ['employee'])
-    .set('leave-type', ['leave'])
-    .set('invoice', ['collection'])
-    .set('department', ['employee'])
-    .set('customer-type', ['customer'])
-    .set('supplier-type', ['supplier'])
-    .set('material', ['purchase order'])
-    .set('expense-type', ['expense claim'])
-    .set('product', ['dsr', 'sales order'])
-    .set('supplier', ['bill', 'purchase order'])
-    .set('customer', ['dsr', 'duty roster', 'tour plan', 'invoice', 'sales order']);
   const bActivitiesFetch = [];
   const bSubscriptionActivitiesFetch = [];
 
@@ -337,66 +326,18 @@ const handleAutoAssign = (locals) => {
         });
       });
 
-      return Promise
-        .all([
-          activityBatch
-            .commit(),
-          assigneeBatch
-            .commit(),
-        ]);
-    })
-    .then(() => {
-      // person gets subscription of b
-      // fetch all activities with template = subscription
-      // attachment.Template.value == a
-      // make y an assignee of the activity. Add to include true.
+      /** 
+       * Not using `Promise.all` to commit at the same time 
+       * because we want the assigneeBatch to commit first.
+       * `Activity` batch only triggers `activityOnWrite` and handles 
+       * the include array for `subscription` activities.
+       */
 
-      const promises = [];
-      const childTemplatesArray = bRelationshipMap.get(template);
-
-      if (!childTemplatesArray) return null;
-
-      // Subscriptions of a template can be multiple.
-      // They are unique for a person, but not as a whole.
-      childTemplatesArray.forEach((childTemplate) => {
-        const promise = rootCollections
-          .activities
-          .where('office', '==', office)
-          .where('template', '==', 'subscription')
-          .where('attachment.Template.value', '==', childTemplate)
-          .get();
-
-        promises.push(promise);
-      });
-
-      return Promise.all(promises);
-    })
-    .then((snapShots) => {
-      if (!snapShots) return null;
-
-      const batch = db.batch();
-
-      snapShots.forEach((snapShot) => {
-        snapShot.forEach((doc) => {
-          console.log('activity:', doc.ref.path);
-
-          batch.set(doc.ref, {
-            addendumDocRef: null,
-            timestamp: Date.now(),
-          }, {
-              merge: true,
-            });
-
-          batch.set(doc.ref.collection('Assignees').doc(subscriber), {
-            canEdit: getCanEdit(locals, subscriber, doc.get('canEditRule')),
-            addToInclude: true,
-          }, {
-              merge: true,
-            });
-        });
-      });
-
-      return batch.commit();
+      /* eslint-disable */
+      return assigneeBatch
+        .commit()
+        .then(() => activityBatch.commit());
+      /* eslint-enable */
     })
     .catch(console.error);
 };
@@ -462,6 +403,7 @@ const handleCanEditRule = (locals, templateDoc) => {
       })();
 
       const now = new Date();
+
       const activityData = {
         officeId,
         attachment,
@@ -477,6 +419,7 @@ const handleCanEditRule = (locals, templateDoc) => {
         canEditRule: adminTemplateDoc.get('canEditRule'),
         activityName: `ADMIN: ${locals.change.after.get('creator')}`,
       };
+
       const addendumData = {
         activityData,
         template: 'admin',
@@ -519,7 +462,7 @@ const handleCanEditRule = (locals, templateDoc) => {
 };
 
 
-const addSubscriptionToUserProfile = (locals, batch) => {
+const handleSubscription = (locals, batch) => {
   const templateName = locals.change.after.get('attachment.Template.value');
   const queryTemplateName = (() => {
     if (templateName === 'expense claim') return `expense-type`;
@@ -640,7 +583,7 @@ const addSubscriptionToUserProfile = (locals, batch) => {
       /* eslint-enable */
     })
     .then((templateDoc) => handleCanEditRule(locals, templateDoc))
-    // .then(() => handleAutoAssign(locals))
+    .then(() => handleAutoAssign(locals))
     .catch(console.error);
 };
 
@@ -1108,26 +1051,6 @@ const handleCustomer = (locals, batch) => {
     .catch(console.error);
 };
 
-const canEditValue = (options) => {
-  const { locals, phoneNumber, canEditRule, employeeDocsQueryResult } = options;
-
-  if (canEditRule === 'ADMIN') {
-    return locals.adminsCanEdit.includes(phoneNumber);
-  }
-
-  if (canEditRule === 'EMPLOYEE') {
-    return !employeeDocsQueryResult.empty;
-  }
-
-  if (canEditRule === 'CREATOR') {
-    return phoneNumber === locals.change.after.get('creator');
-  }
-
-  if (canEditRule === 'ALL') return true;
-
-  return false;
-};
-
 
 module.exports = (change, context) => {
   /** Activity was deleted. For debugging only. */
@@ -1340,6 +1263,12 @@ module.exports = (change, context) => {
               }
             }
 
+            if (templateName === 'tour plan') {
+              if (activityCreated && activityCancelled) {
+                return customMessages.TOUR_PLAN_CANCELLED;
+              }
+            }
+
             return getCommentString(locals, phoneNumber);
           })();
 
@@ -1421,10 +1350,22 @@ module.exports = (change, context) => {
         return officeRef.collection('Activities').doc(change.after.id);
       })();
 
+      /** Puting them here in order to be able to query based on year
+       * on which the leave or tour plan has been created based
+       * on schedule. Querying directly based on the startTime or endTime,
+       * is not possible since they are inside an array.
+       */
+      if (template === 'leave' || template === 'tour plan') {
+        const schedule = change.after.get('schedule')[0];
+
+        activityData.startYear = moment(schedule.startTime).year();
+        activityData.endYear = moment(schedule.endTime).year();
+      }
+
       batch.set(copyTo, activityData, { merge: true });
 
       if (template === 'subscription') {
-        return addSubscriptionToUserProfile(locals, batch);
+        return handleSubscription(locals, batch);
       }
 
       if (template === 'recipient') {

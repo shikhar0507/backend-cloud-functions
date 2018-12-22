@@ -32,9 +32,48 @@ const {
 } = require('../../admin/admin');
 const {
   reportNames,
+  dateFormats,
+  sendGridTemplateIds,
 } = require('../../admin/constants');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
+const momentTz = require('moment-timezone');
+
+const getTemplateId = (report) => {
+  if (report === reportNames.SIGNUP) {
+    return sendGridTemplateIds.signUps;
+  }
+
+  if (report === reportNames.INSTALL) {
+    return sendGridTemplateIds.installs;
+  }
+
+  if (report === reportNames.FOOTPRINTS) {
+    return sendGridTemplateIds.footprints;
+  }
+
+  if (report === reportNames.PAYROLL) {
+    return sendGridTemplateIds.payroll;
+  }
+
+  if (report === reportNames.DSR) {
+    return sendGridTemplateIds.dsr;
+  }
+
+  if (report === reportNames.DUTY_ROSTER) {
+    return sendGridTemplateIds.dutyRoster;
+  }
+
+  if (report === reportNames.EXPENSE_CLAIM) {
+    return sendGridTemplateIds.expenseClaim;
+  }
+
+  if (report === reportNames.LEAVE) {
+    return sendGridTemplateIds.leave;
+  }
+
+  return null;
+};
 
 
 module.exports = (change) => {
@@ -57,10 +96,13 @@ module.exports = (change) => {
   const locals = {
     change,
     sgMail,
+    // Used for exiting early in .then() clauses if init docs query is empty.
+    sendMail: true,
     messageObject: {
       cc,
       to: [],
       attachments: [],
+      templateId: getTemplateId(report),
       from: {
         name: 'Growthfile',
         email: env.systemEmail,
@@ -99,6 +141,9 @@ module.exports = (change) => {
         return Promise.resolve();
       }
 
+      locals.messageObject.to.push(env.loggingAccount);
+      locals.messageObject.to.push(env.loggingAccount2);
+
       return rootCollections
         .offices
         .doc(officeId)
@@ -112,9 +157,12 @@ module.exports = (change) => {
       }
 
       locals.officeDoc = officeDoc;
-
-      locals.messageObject.to.push(env.loggingAccount);
-      locals.messageObject.to.push(env.loggingAccount2);
+      locals.timezone = officeDoc.get('attachment.Timezone.value');
+      locals.standardDateString = momentTz()
+        .utc()
+        .clone()
+        .tz(locals.timezone)
+        .format(dateFormats.DATE);
 
       if (report === reportNames.SIGNUP) {
         return require('./sign-up-report')(locals);

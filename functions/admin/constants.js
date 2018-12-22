@@ -199,7 +199,7 @@ const templatesSet = new Set()
   * Fetching the value from a Set is `O(1)`
   */
 const timezonesSet = new Set()
-.add('Africa/Abidjan')
+  .add('Africa/Abidjan')
   .add('Africa/Accra')
   .add('Africa/Addis_Ababa')
   .add('Africa/Algiers')
@@ -814,6 +814,8 @@ const reportNames = {
 const customMessages = {
   LEAVE_CANCELLED: `LEAVE CANCELLED. LIMIT EXCEEDED`,
   CHECK_IN_CANCELLED: `CHECK-IN CANCELLED. INACCURATE CHECK-IN LOCATION`,
+  TOUR_PLAN_CANCELLED: `TOUR PLAN CANCELLED. LEAVE ALREADY APPLIED`
+    + ` FOR THE SCHEDULE`,
 };
 
 
