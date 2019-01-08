@@ -27,6 +27,7 @@
 
 const momentTz = require('moment-timezone');
 const {
+  deleteField,
   rootCollections,
 } = require('../../admin/admin');
 const {
@@ -170,6 +171,10 @@ module.exports = (locals) => {
           weeklyOff: 0,
         };
 
+        if (!employeesData[phoneNumber]) {
+          return;
+        }
+
         const weeklyOffWeekdayName = employeesData[phoneNumber]['Weekly Off'];
         const baseLocation = employeesData[phoneNumber]['Base Location'];
 
@@ -186,8 +191,15 @@ module.exports = (locals) => {
 
             if (date > yesterdayDate) return;
 
+            // If a person's phone number doesn't exist in the employees map
+            // but exists in the payroll object, deleting their
+            // data only for the prev day to avoid putting their
+            // data in the report
+            if (!employeesData[phoneNumber]) {
+              payrollObject[phoneNumber[yesterdayDate]] = '';
+            }
+
             const status = payrollObject[phoneNumber][date];
-            const isYesterday = date === yesterdayDate;
             /** 
              * `ON DUTY` and `LEAVE` fields are handled 
              *  by `addendumOnCreate` when someone creates
@@ -329,7 +341,9 @@ module.exports = (locals) => {
       return Promise.all(checkInPromises);
     })
     .then((checkInActivitiesAddendumQuery) => {
-      if (!locals.sendMail) return Promise.resolve();
+      if (!locals.sendMail) {
+        return Promise.resolve();
+      }
 
       const yesterdayDate = momentTz()
         .utc()
@@ -400,42 +414,46 @@ module.exports = (locals) => {
         }
       });
 
-      Object.keys(locals.payrollObject).forEach((phoneNumber) => {
-        // The field in the yesterdayDate will be is caculated based 
-        // on check-ins, weekly off, duty roster etc. Not touching that.
-        if (leavesSet.has(phoneNumber)) {
-          locals.payrollObject[phoneNumber][yesterdayDate] =
-            leaveTypesMap.get(phoneNumber);
+      Object
+        .keys(locals.payrollObject)
+        .forEach((phoneNumber) => {
+          if (leavesSet.has(phoneNumber)) {
+            locals.payrollObject[phoneNumber][yesterdayDate] =
+              leaveTypesMap.get(phoneNumber);
 
-          return;
-        }
+            return;
+          }
 
-        if (onDutySet.has(phoneNumber)) {
-          locals.payrollObject[phoneNumber][yesterdayDate] = 'ON DUTY';
+          if (onDutySet.has(phoneNumber)) {
+            locals.payrollObject[phoneNumber][yesterdayDate] = 'ON DUTY';
 
-          return;
-        }
+            return;
+          }
 
-        if (branchHolidaySet.has(phoneNumber)) {
-          locals.payrollObject[phoneNumber][yesterdayDate] = 'HOLIDAY';
+          if (branchHolidaySet.has(phoneNumber)) {
+            locals.payrollObject[phoneNumber][yesterdayDate] = 'HOLIDAY';
 
-          return;
-        }
+            return;
+          }
 
-        if (weeklyOffSet.has(phoneNumber)) {
-          locals.payrollObject[phoneNumber][yesterdayDate] = 'WEEKLY OFF';
+          if (weeklyOffSet.has(phoneNumber)) {
+            locals.payrollObject[phoneNumber][yesterdayDate] = 'WEEKLY OFF';
 
-          return;
-        }
+            return;
+          }
 
-        if (locals.payrollObject[phoneNumber][yesterdayDate]) {
-          return;
-        }
+          /** 
+           * If any value has been put in the `yesterdayDate` column 
+           * for the employee, we will not put `BLANK`
+           */
+          if (locals.payrollObject[phoneNumber][yesterdayDate]) {
+            return;
+          }
 
-        // Person hasn't done anything. AND yesterday was also not
-        // a holiday, on duty, or a leave will get blank
-        locals.payrollObject[phoneNumber][yesterdayDate] = 'BLANK';
-      });
+          // Person hasn't done anything. AND yesterday was also not
+          // a holiday, on duty, or a leave will get blank
+          locals.payrollObject[phoneNumber][yesterdayDate] = 'BLANK';
+        });
 
       return locals
         .initDoc

@@ -4,6 +4,7 @@ const {
   validateSchedules,
   validateVenues,
   filterAttachment,
+  activityName,
 } = require('../activity/helper');
 const {
   isE164PhoneNumber,
@@ -11,7 +12,6 @@ const {
 } = require('../../admin/utils');
 const {
   db,
-  serverTimestamp,
   rootCollections,
   getGeopointObject,
 } = require('../../admin/admin');
@@ -19,6 +19,22 @@ const {
   templatesSet,
   httpsActions,
 } = require('../../admin/constants');
+
+const toAttachmentValues = (activityId, attachment) => {
+  const object = {
+    activityId,
+    createTime: Date.now(),
+  };
+
+  const fields = Object.keys(attachment);
+
+  fields
+    .forEach((field) => {
+      object[field] = attachment[field].value;
+    });
+
+  return object;
+};
 
 const getCanEditValue = (options) => {
   const {
@@ -64,9 +80,12 @@ module.exports = (conn, locals) => {
     return object;
   };
 
-  const hasName =
+  const templateHasName =
     locals.templateDoc.get('attachment').hasOwnProperty('Name');
   const namesMap = locals.officeDoc.get(`namesMap`) || {};
+  const newEmployeesData = locals.officeDoc.get('employeesData') || {};
+  const subscriptionsMap = locals.officeDoc.get('subscriptionsMap') || {};
+  const newSubscriptionsMap = subscriptionsMap;
 
   console.log('conn.req.body.data', conn.req.body.data.length);
 
@@ -143,8 +162,6 @@ module.exports = (conn, locals) => {
       const type = item.type;
       const value = item.value;
 
-      // TODO: Remove this after `activityOnWrite` creates the namesMap.
-      /** `namesMap[type]` */
       if (namesMap[type]
         && !namesMap[type].hasOwnProperty(value)) {
         locals.responseObject.push(objectWithError({
@@ -156,7 +173,7 @@ module.exports = (conn, locals) => {
       }
     });
 
-    if (hasName
+    if (templateHasName
       && namesMap[conn.req.body.template]
       && namesMap[conn.req.body.template]
         .hasOwnProperty(attachment.Name.value)) {
@@ -167,6 +184,12 @@ module.exports = (conn, locals) => {
       }));
 
       return;
+    }
+
+    if (templateHasName) {
+      namesMap[conn.req.body.template] = {
+        [attachment.Name.value]: null,
+      };
     }
 
     if (conn.req.body.template === 'subscription'
@@ -188,6 +211,52 @@ module.exports = (conn, locals) => {
       return;
     }
 
+    if (conn.req.body.template === 'employee') {
+      if (newEmployeesData.hasOwnProperty(attachment['Employee Contact'].value)) {
+        locals.responseObject.push(objectWithError({
+          object,
+          reason: `${attachment['Employee Contact'].value} is already an employee`,
+        }));
+
+        return;
+      }
+    }
+
+    if (conn.req.body.template === 'subscription') {
+      if (subscriptionsMap[attachment.Subscriber.value]
+        && subscriptionsMap[attachment.Subscriber.value]
+          .hasOwnProperty(attachment.Template.value)) {
+        locals.responseObject.push(objectWithError({
+          object,
+          reason: `'${attachment.Subscriber.value}' already has the`
+            + ` subscription to '${attachment.Template.value}'`,
+        }));
+
+        return;
+      }
+
+      const employeeData = locals.officeDoc.get('employeesData')[attachment.Subscriber.value];
+      console.log({ ph: attachment.Subscriber.value, employeeData });
+
+      if (employeeData) {
+        const firstSV = employeeData['First Supervisor'];
+        const secondSV = employeeData['Second Supervisor'];
+
+        console.log({ firstSV, secondSV });
+
+        if (firstSV) share.push(firstSV);
+        if (secondSV) share.push(secondSV);
+      }
+
+      if (newSubscriptionsMap[attachment.Subscriber.value]) {
+        newSubscriptionsMap[attachment.Subscriber.value][attachment.Template.value] = null;
+      } else {
+        newSubscriptionsMap[attachment.Subscriber.value] = {
+          [attachment.Template.value]: null,
+        };
+      }
+    }
+
     console.log('ALLOWED', index);
 
     validateAttachment
@@ -198,46 +267,11 @@ module.exports = (conn, locals) => {
       share.push(conn.requester.phoneNumber);
     }
 
-    if (conn.req.body.template === 'subscription'
-      && locals.officeDoc.get('employeesData')
-      && locals.officeDoc.get('employeesData')[attachment.Subscriber.value]) {
-      const employeeData = locals.officeDoc.get('employeesData')[attachment.Subscriber.value];
-
-      const firstSV = employeeData['First Supervisor'];
-      const secondSV = employeeData['Second Supervisor'];
-
-      console.log({ firstSV, secondSV });
-
-      if (firstSV) share.push(firstSV);
-      if (secondSV) share.push(secondSV);
-
-      if (employeeData.hasOwnProperty('subscriptions')
-        && employeeData.subscriptions.includes(attachment.Template.value)) {
-        locals.responseObject.push(objectWithError({
-          object,
-          reason: `'${attachment.Subscriber.value}' already has the`
-            + ` subscription to '${attachment.Template.value}'`,
-        }));
-
-        return;
-      }
-    }
-
     const batch = db.batch();
     const activityRef = rootCollections.activities.doc();
     const addendumDocRef =
       rootCollections.offices.doc(locals.officeDoc.id)
         .collection('Addendum').doc();
-
-    const activityName = (() => {
-      if (hasName) {
-        return `${conn.req.body.template.toUpperCase()}:`
-          + ` ${attachment.Name.value}`;
-      }
-
-      return `${conn.req.body.template.toUpperCase()}:`
-        + ` ${conn.requester.displayName || conn.requester.phoneNumber}`;
-    })();
 
     if (!conn.requester.isSupportRequest) {
       share.push(conn.requester.phoneNumber);
@@ -245,34 +279,52 @@ module.exports = (conn, locals) => {
 
     console.log('activityId', activityRef.id);
 
+    if (conn.req.body.template === 'employee') {
+      newEmployeesData[attachment['Employee Contact'].value] =
+        toAttachmentValues(activityRef.id, attachment);
+    }
+
+    const now = new Date();
+    const activityNameString = activityName({
+      attachmentObject: attachment,
+      templateName: conn.req.body.template,
+      requester: conn.requester,
+    });
+
     const activityData = {
       addendumDocRef,
+      attachment,
+      activityName: activityNameString,
       venue: validVenue.venues,
-      timestamp: serverTimestamp,
+      timestamp: now.getTime(),
+      date: now.getDate(),
+      month: now.getMonth(),
+      year: now.getFullYear(),
       office: conn.req.body.office,
       template: conn.req.body.template,
       schedule: validSchedule.schedules,
       status: locals.templateDoc.get('statusOnCreate'),
-      attachment,
       canEditRule: locals.templateDoc.get('canEditRule'),
-      activityName,
       officeId: locals.officeDoc.id,
       hidden: locals.templateDoc.get('hidden'),
       creator: conn.requester.phoneNumber,
     };
 
     const addendumDoc = {
+      share,
       activityData,
+      activityName: activityNameString,
+      date: now.getDate(),
+      month: now.getMonth(),
+      year: now.getFullYear(),
       user: conn.requester.phoneNumber,
       userDisplayName: conn.requester.displayName,
-      share,
       action: httpsActions.create,
       template: conn.req.body.template,
       location: getGeopointObject(conn.req.body.geopoint),
-      timestamp: serverTimestamp,
-      userDeviceTimestamp: new Date(conn.req.body.timestamp),
+      timestamp: Date.now(),
+      userDeviceTimestamp: conn.req.body.timestamp,
       activityId: activityRef.id,
-      activityName,
       isSupportRequest: conn.requester.isSupportRequest,
     };
 
@@ -282,6 +334,7 @@ module.exports = (conn, locals) => {
     new Set(share)
       .forEach((phoneNumber) => {
         console.log('phoneNumber', phoneNumber);
+
         const addToInclude = (() => {
           if (conn.req.body.template !== 'subscription') return true;
 
@@ -320,6 +373,36 @@ module.exports = (conn, locals) => {
   };
 
   executeSequentially(batchesArray)
+    .then(() => {
+      if (!new Set()
+        .add('employee')
+        .add('subscription')
+        .has(conn.req.body.template)
+        && !templateHasName) {
+        return Promise.resolve();
+      }
+
+      const data = {};
+
+      if (conn.req.body.template === 'subscription') {
+        data.subscriptionsMap = newSubscriptionsMap;
+      }
+
+      if (conn.req.body.template === 'employee') {
+        data.employeesData = newEmployeesData;
+      }
+
+      if (templateHasName) {
+        data.namesMap = namesMap;
+      }
+
+      return locals
+        .officeDoc
+        .ref
+        .set(data, {
+          merge: true,
+        });
+    })
     .then((result) => console.log({ result }))
     .then(() => {
       console.log('docs created:', batchesArray.length);

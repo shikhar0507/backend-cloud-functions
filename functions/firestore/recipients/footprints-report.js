@@ -35,7 +35,6 @@ const {
 } = require('../../admin/constants');
 
 const {
-  dateStringWithOffset,
   momentOffsetObject,
   timeStringWithOffset,
   employeeInfo,
@@ -54,7 +53,6 @@ module.exports = (locals) => {
 
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const momentDateObject = momentOffsetObject(timezone);
-
   const standardDateString = momentTz().format(dateFormats.DATE);
   locals.messageObject.templateId = sendGridTemplateIds.footprints;
   locals.messageObject['dynamic_template_data'] = {
@@ -65,8 +63,6 @@ module.exports = (locals) => {
 
   const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
-
-  locals.toSendMails = true;
 
   return Promise
     .all([
@@ -90,7 +86,7 @@ module.exports = (locals) => {
       ] = result;
 
       if (addendumDocs.empty) {
-        locals.toSendMails = false;
+        locals.sendMail = false;
 
         return Promise.resolve(false);
       }
@@ -98,20 +94,29 @@ module.exports = (locals) => {
       workbook.sheet('Sheet1').row(1).style('bold', true);
       workbook.sheet('Sheet1').cell(`A1`).value('Dated');
       workbook.sheet('Sheet1').cell('B1').value('Employee Name');
-      workbook.sheet('Sheet1').cell('C1').value('Time');
-      workbook.sheet('Sheet1').cell('D1').value('Distance Travelled');
-      workbook.sheet('Sheet1').cell('E1').value('Address');
-      workbook.sheet('Sheet1').cell('F1').value('Department');
-      workbook.sheet('Sheet1').cell('G1').value('Base Location');
+      workbook.sheet('Sheet1').cell('C1').value('Employee Contact');
+      workbook.sheet('Sheet1').cell('D1').value('Time');
+      workbook.sheet('Sheet1').cell('E1').value('Distance Travelled');
+      workbook.sheet('Sheet1').cell('F1').value('Address');
+      workbook.sheet('Sheet1').cell('G1').value('Comment');
+      workbook.sheet('Sheet1').cell('H1').value('Department');
+      workbook.sheet('Sheet1').cell('I1').value('Base Location');
 
       const employeesData = locals.officeDoc.get('employeesData');
-
-      const dated = dateStringWithOffset({
-        timestampToConvert: momentTz().subtract(1, 'days').unix() * 1000,
-        timezone,
-      });
+      const dated = momentTz()
+        .utc()
+        .clone()
+        .tz(timezone)
+        .subtract(1, 'day')
+        .format(dateFormats.DATE);
 
       addendumDocs.docs.forEach((doc, index) => {
+        const isSupportRequest = doc.get('isSupportRequest');
+
+        if (isSupportRequest) {
+          return;
+        }
+
         const phoneNumber = doc.get('user');
         const employeeObject = employeeInfo(employeesData, phoneNumber);
         const name = employeeObject.name;
@@ -119,11 +124,13 @@ module.exports = (locals) => {
         const baseLocation = employeeObject.baseLocation;
         const url = doc.get('url');
         const identifier = doc.get('identifier');
-        const accumulatedDistance = doc.get('accumulatedDistance');
+        const accumulatedDistance = Number(doc.get('accumulatedDistance') || 0);
         const time = timeStringWithOffset({
           timezone,
           timestampToConvert: doc.get('timestamp'),
         });
+        // For template === check-in, this field will be available.
+        const comment = doc.get('activityData.attachment.Comment.value') || '';
 
         workbook
           .sheet('Sheet1')
@@ -136,31 +143,39 @@ module.exports = (locals) => {
         workbook
           .sheet('Sheet1')
           .cell(`C${index + 2}`)
-          .value(time);
+          .value(phoneNumber);
         workbook
           .sheet('Sheet1')
           .cell(`D${index + 2}`)
-          .value(accumulatedDistance);
+          .value(time);
         workbook
           .sheet('Sheet1')
           .cell(`E${index + 2}`)
+          .value(accumulatedDistance);
+        workbook
+          .sheet('Sheet1')
+          .cell(`F${index + 2}`)
           .value(identifier)
           .style({ fontColor: '0563C1', underline: true })
           .hyperlink(url);
         workbook
           .sheet('Sheet1')
-          .cell(`F${index + 2}`)
+          .cell(`G${index + 2}`)
+          .value(comment);
+        workbook
+          .sheet('Sheet1')
+          .cell(`H${index + 2}`)
           .value(department);
         workbook
           .sheet('Sheet1')
-          .cell(`G${index + 2}`)
+          .cell(`I${index + 2}`)
           .value(baseLocation);
       });
 
       return workbook.toFileAsync(filePath);
     })
     .then(() => {
-      if (!locals.toSendMails) {
+      if (!locals.sendMail) {
         return Promise.resolve();
       }
 

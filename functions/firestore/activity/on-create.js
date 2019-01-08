@@ -25,10 +25,13 @@
 'use strict';
 
 
-const { code } = require('../../admin/responses');
+const {
+  code,
+} = require('../../admin/responses');
 const {
   templatesSet,
   httpsActions,
+  reportNames,
 } = require('../../admin/constants');
 const {
   db,
@@ -48,6 +51,7 @@ const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
+const momentTz = require('moment-timezone');
 
 
 const createDocsWithBatch = (conn, locals) => {
@@ -145,12 +149,12 @@ const createDocsWithBatch = (conn, locals) => {
    * totalLeavesRemaining,
    * totalLeavesTaken
    */
-  if (conn.req.body.template === 'leave'
-    && conn.req.body.attachment['Leave Type'].value) {
-    addendumDocObject.annualLeavesEntitled = locals.annualLeavesEntitled;
-    addendumDocObject.totalLeavesRemaining = locals.totalLeavesRemaining;
-    addendumDocObject.totalLeavesTaken = locals.totalLeavesTaken;
-  }
+  // if (conn.req.body.template === 'leave'
+  //   && conn.req.body.attachment['Leave Type'].value) {
+  //   addendumDocObject.annualLeavesEntitled = locals.annualLeavesEntitled;
+  //   addendumDocObject.totalLeavesRemaining = locals.totalLeavesRemaining;
+  //   addendumDocObject.totalLeavesTaken = locals.totalLeavesTaken;
+  // }
 
   if (conn.req.body.template === 'check-in'
     && conn.req.body.venue[0].geopoint.latitude
@@ -158,6 +162,7 @@ const createDocsWithBatch = (conn, locals) => {
     const geopointOne = {
       _latitude: conn.req.body.geopoint.latitude,
       _longitude: conn.req.body.geopoint.longitude,
+      accuracy: conn.req.body.geopoint.accuracy,
     };
 
     const geopointTwo = {
@@ -232,6 +237,183 @@ const createDocsWithBatch = (conn, locals) => {
     .commit()
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
+};
+
+const getDisplayText = (conn) => {
+  let displayText = '';
+
+  if (conn.req.body.template === reportNames.LEAVE) {
+    displayText = (() => {
+      const leaveType =
+        conn.req.body.attachment['Leave Type'].value;
+
+      if (!leaveType) return `LEAVE`;
+
+      return `LEAVE - ${leaveType}`;
+    })();
+  }
+
+  if (conn.req.body.template === reportNames.TOUR_PLAN) {
+    displayText = 'ON DUTY';
+  }
+
+  return displayText;
+};
+
+
+const handlePayroll = (conn, locals) => {
+  if (!new Set()
+    .add(reportNames.LEAVE)
+    .add(reportNames.CHECK_IN)
+    .add(reportNames.TOUR_PLAN)
+    .has(conn.req.body.template)) {
+    createDocsWithBatch(conn, locals);
+
+    return;
+  }
+
+  console.log('IN PAYROLL');
+  const {
+    startTime,
+    endTime,
+  } = conn.req.body.schedule[0];
+
+  if (!startTime || !endTime) {
+    createDocsWithBatch(conn, locals);
+
+    return;
+  }
+
+  const datesSet = new Set();
+  const promises = [];
+  const startTimeMoment = momentTz(startTime).startOf('days');
+  const oldDate = startTimeMoment.date();
+  let oldMonth = startTimeMoment.month();
+  let oldYear = startTimeMoment.year();
+  const endTimeMoment = momentTz(endTime).endOf('days');
+
+  const docMeta = [];
+
+  datesSet.add(`${oldDate}-${oldMonth}-${oldYear}`);
+
+  const getPromise = (month, year) => {
+    return rootCollections
+      .inits
+      .where('report', '==', 'payroll')
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .where('office', '==', conn.req.body.office)
+      .limit(1)
+      .get();
+  };
+
+  const status = (() => {
+    if (conn.req.body.template === 'leave') {
+      if (conn.req.body.attachment['Leave Type'].value) {
+        return `LEAVE - ${conn.req.body.attachment['Leave Type'].value}`;
+      }
+
+      return `LEAVE`;
+    }
+
+    return `ON DUTY`;
+  })();
+
+  docMeta.push({ month: oldMonth, year: oldYear });
+
+  promises.push(getPromise(oldMonth, oldYear));
+
+  for (let i = startTimeMoment.unix() * 1000;
+    i <= endTimeMoment.unix() * 1000;
+    i += 86400000) {
+    const newMoment = momentTz(i);
+    const newDate = newMoment.date();
+    const newMonth = newMoment.month();
+    const newYear = newMoment.year();
+
+    const dateString = `${newDate}-${newMonth}-${newYear}`;
+
+    datesSet.add(dateString);
+
+    if (oldMonth === newMonth && oldYear === newYear) {
+      continue;
+    }
+
+    oldMonth = newMonth;
+    oldYear = newYear;
+
+    docMeta.push({ month: newMonth, year: newYear });
+
+    promises.push(getPromise(newMonth, newYear));
+  }
+
+  const getValues = (status, minMaxObject) => {
+    const obj = {};
+
+    // for (let i = 0; i < )
+  };
+
+  Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot, index) => {
+        if (snapShot.empty) {
+          const month = docMeta[index].month;
+          const year = docMeta[index].year;
+          const minMaxObject = docMeta[index].minMaxObject;
+
+          const payrollObject = {
+            [conn.requester.phoneNumber]: getValues(status),
+          };
+
+          locals
+            .batch
+            .set(rootCollections.inits.doc(), {
+              payrollObject,
+              month,
+              year,
+              office: conn.req.body.office,
+              officeId: locals.static.officeId,
+              report: 'payroll',
+            });
+
+          return;
+        }
+
+        const doc = snapShot.docs[0];
+        const payrollObject = doc.get('payrollObject') || {};
+        const month = doc.get('month');
+        const year = doc.get('year');
+
+        for (const date of payrollObject[conn.requester.phoneNumber]) {
+          const dateString = `${date}-${month}-${year}`;
+
+          if (!datesSet.has(dateString)) {
+            payrollObject[conn.requester.phoneNumber][date] = status;
+
+            return;
+          }
+
+          if (payrollObject[conn.requester.phoneNumber][date].startsWith('LEAVE')
+            || payrollObject[conn.requester.phoneNumber][date] === 'ON DUTY') {
+            locals.static.statusOnCreate = 'CANCELLED';
+
+            break;
+          }
+        }
+
+        locals.batch.set(doc.ref, {
+          payrollObject,
+        }, {
+            merge: true,
+          });
+      });
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
+
+
 };
 
 
@@ -321,11 +503,13 @@ const handleAssignees = (conn, locals) => {
       });
 
       createDocsWithBatch(conn, locals);
+      // handlePayroll(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
 };
+
 
 const handleLeave = (conn, locals) => {
   if (conn.req.body.template !== 'leave'
@@ -372,7 +556,7 @@ const handleLeave = (conn, locals) => {
         .get(),
       officeRef
         .collection('Addendum')
-        .where('activityData.template', '==', 'leave')
+        // .where('activityData.template', '==', 'leave')
         .where('activityData.attachment.Leave Type.value', '==', leaveType)
         .where('user', '==', conn.requester.phoneNumber)
         .where('year', '==', new Date().getFullYear())
@@ -444,7 +628,8 @@ const verifyUniqueness = (conn, locals) => {
     .add('subscription')
     .add('admin')
     .has(conn.req.body.template)) {
-    handleLeave(conn, locals);
+    // handleLeave(conn, locals);
+    handleAssignees(conn, locals);
 
     return;
   }
@@ -497,7 +682,8 @@ const verifyUniqueness = (conn, locals) => {
         return;
       }
 
-      handleLeave(conn, locals);
+      // handleLeave(conn, locals);
+      handleAssignees(conn, locals);
 
       return;
     })

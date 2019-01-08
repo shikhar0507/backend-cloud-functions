@@ -30,6 +30,7 @@ const { code } = require('../../admin/responses');
 const { httpsActions } = require('../../admin/constants');
 const {
   db,
+  deleteField,
   rootCollections,
   getGeopointObject,
 } = require('../../admin/admin');
@@ -37,6 +38,23 @@ const {
   handleError,
   sendResponse,
 } = require('../../admin/utils');
+
+
+const toAttachmentValues = (activity) => {
+  const object = {
+    activityId: activity.id,
+    createTime: activity.createTime,
+  };
+
+  const fields = Object.keys(activity.get('attachment'));
+
+  fields
+    .forEach((field) => {
+      object[field] = activity.get('attachment')[field].value;
+    });
+
+  return object;
+};
 
 
 const createDocs = (conn, activity) => {
@@ -80,6 +98,41 @@ const createDocs = (conn, activity) => {
     activityName: activity.get('activityName'),
     isSupportRequest: conn.requester.isSupportRequest,
   });
+
+
+  if (activity.get('template') === 'employee') {
+    if (conn.req.body.status === 'CANCELLED') {
+      batch.set(rootCollections
+        .offices.doc(activity.get('officeId')), {
+          employeesData: {
+            [activity.get('attachment.Employee Contact.value')]: deleteField(),
+          },
+          namesMap: {
+            employee: {
+              [activity.get('attachment.Name.value')]: deleteField(),
+            },
+          },
+        }, {
+          merge: true,
+        });
+    } else {
+      console.log(toAttachmentValues(activity));
+
+      batch.set(rootCollections
+        .offices.doc(activity.get('officeId')), {
+          employeesData: {
+            [activity.get('attachment.Employee Contact.value')]: toAttachmentValues(activity),
+          },
+          namesMap: {
+            employee: {
+              [activity.get('attachment.Name.value')]: activity.get('attachment.Name.value'),
+            },
+          },
+        }, {
+          merge: true,
+        });
+    }
+  }
 
   batch
     .commit()

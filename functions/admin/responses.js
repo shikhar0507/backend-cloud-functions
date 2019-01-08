@@ -36,6 +36,7 @@ const code = {
   notFound: 404,
   methodNotAllowed: 405,
   conflict: 409,
+  tooManyRequests: 429,
   internalServerError: 500,
   notImplemented: 501,
 };

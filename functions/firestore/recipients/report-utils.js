@@ -35,8 +35,12 @@ const momentOffsetObject = (timezone) => {
     .utc()
     .clone()
     .tz(timezone);
-  const momentYesterday = momentToday
-    .subtract(1, 'day');
+
+  const momentYesterday = momentTz()
+    .utc()
+    .clone()
+    .tz(timezone)
+    .subtract(1, 'days');
 
   const today = {
     MONTH_NUMBER: momentToday.month(),
@@ -138,7 +142,9 @@ const dateStringWithOffset = (options) => {
     format,
   } = options;
 
-  if (!timestampToConvert || !timezone) return '';
+  if (!timestampToConvert || !timezone) {
+    return '';
+  }
 
   const targetZonedDate = momentTz.tz(timestampToConvert, timezone);
 
@@ -183,8 +189,16 @@ const employeeInfo = (employeesData, phoneNumber) => {
   };
 };
 
+const toMapsUrl = (geopoint) => {
+  const latitude = geopoint._latitude || geopoint.latitude;
+  const longitude = geopoint._longitude || geopoint.longitude;
+
+  return `https://www.google.com/maps/@${latitude},${longitude}`;
+};
+
 
 module.exports = {
+  toMapsUrl,
   monthsArray,
   employeeInfo,
   weekdaysArray,

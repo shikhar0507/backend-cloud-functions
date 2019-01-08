@@ -82,6 +82,7 @@ module.exports = (conn) => {
         subject: `New Error in Growthfile Frontend`
           + ` (${process.env.GCLOUD_PROJECT})`,
         action: reportingActions.clientError,
+        timestamp: Date.now(),
       });
 
       return batch.commit();

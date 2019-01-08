@@ -71,13 +71,33 @@ module.exports = (conn) => {
         appVersionDoc,
       ] = result;
 
+      /**
+       * The `authOnCreate` function executed, when the user signed up, but
+       * the `/api` was executed before `authOnCreate` completed. This will result
+       * in this function to crash since it assumes that the doc in the `Updates/{uid}`
+       * doc exists.
+       */
+      if (!updatesDoc.exists) {
+        sendJSON(conn, {
+          revokeSession: false,
+          updateClient: false,
+          success: true,
+          timestamp: Date.now(),
+          code: code.ok,
+        });
+
+        return null;
+      }
+
       const updateClient = (() => {
         const {
           iosLatestVersion,
           androidLatestVersion,
         } = appVersionDoc.data();
 
-        if (!conn.req.query.hasOwnProperty('os')) return true;
+        if (!conn.req.query.hasOwnProperty('os')) {
+          return true;
+        }
 
         const os = conn.req.query.os;
         const appVersion = conn.req.query.appVersion;
@@ -112,35 +132,27 @@ module.exports = (conn) => {
           });
       }
 
-      const deviceIdsObject = (() => {
-        const object = updatesDoc.get('deviceIdsObject') || {};
+      const newDeviceIdsArray = updatesDoc.get('newDeviceIdsArray') || [];
+      newDeviceIdsArray.push(conn.req.query.deviceId);
 
-        /** Only adding when changed */
-        if (object[conn.req.query.deviceId]
-          && updatesDoc.get('latestDeviceId') !== conn.req.query.deviceId) {
-          object[conn.req.query.deviceId] = {
-            timestamp: Date.now(),
-            count: object[conn.req.query.deviceId].count + 1,
-          };
-        } else {
-          object[conn.req.query.deviceId] = {
-            timestamp: Date.now(),
-            count: 1,
-          };
-        }
+      const updatesDocData = updatesDoc.data();
+      updatesDocData.lastNowRequestTimestamp = Date.now();
 
-        return object;
-      })();
+      // Saving the regestration token in the /Updates/{uid} doc 
+      // of the user to 
+      if (conn.req.query.hasOwnProperty('regestrationToken')) {
+        updatesDocData.regestrationToken = conn.req.query.regestrationToken;
+      }
 
       /** Only logging when changed. */
       if (conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
-        batch.set(updatesDoc.ref, {
-          deviceIdsObject,
-          latestDeviceId: conn.req.query.deviceId,
-        }, {
-            merge: true,
-          });
+        updatesDocData.deviceIdsArray = [...new Set(newDeviceIdsArray)];
+        updatesDocData.latestDeviceId = conn.req.query.deviceId;
       }
+
+      batch.set(updatesDoc.ref, updatesDocData, {
+        merge: true,
+      });
 
       return Promise
         .all([
@@ -152,12 +164,23 @@ module.exports = (conn) => {
             .commit(),
         ]);
     })
-    .then((result) => sendJSON(conn, {
-      revokeSession: result[0],
-      updateClient: result[1],
-      success: true,
-      timestamp: Date.now(),
-      code: code.ok,
-    }))
+    .then((result) => {
+      if (!result) {
+        return Promise.resolve();
+      }
+
+      const [
+        revokeSession,
+        updateClient,
+      ] = result;
+
+      return sendJSON(conn, {
+        revokeSession,
+        updateClient,
+        success: true,
+        timestamp: Date.now(),
+        code: code.ok,
+      });
+    })
     .catch((error) => handleError(conn, error));
 };

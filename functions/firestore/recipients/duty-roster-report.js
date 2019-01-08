@@ -2,6 +2,7 @@
 
 const {
   rootCollections,
+  users,
 } = require('../../admin/admin');
 const {
   reportNames,
@@ -14,18 +15,12 @@ const {
   employeeInfo,
   timeStringWithOffset,
   dateStringWithOffset,
+  toMapsUrl,
 } = require('./report-utils');
 
 
 const xlsxPopulate = require('xlsx-populate');
 const moment = require('moment');
-
-const toMapsUrl = (geopoint) => {
-  const latitude = geopoint._latitude || geopoint.latitude;
-  const longitude = geopoint._longitude || geopoint.longitude;
-
-  return `https://www.google.com/maps/@${latitude},${longitude}`;
-};
 
 
 module.exports = (locals) => {
@@ -49,6 +44,7 @@ module.exports = (locals) => {
 
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const momentDateObject = momentOffsetObject(timezone);
+  const authMap = new Map();
 
   return Promise
     .all([
@@ -80,6 +76,7 @@ module.exports = (locals) => {
       workbook.deleteSheet('Sheet1');
 
       locals.workbook = workbook;
+      locals.sheet1 = sheet1;
 
       const firstRowValues = [
         'Duty Type',
@@ -89,8 +86,8 @@ module.exports = (locals) => {
         'Created By',
         'Created On',
         'Status',
-        'When',
-        'User',
+        'Confirmed By',
+        'Confirmed On',
         'Place',
         'Assignees',
       ];
@@ -102,11 +99,55 @@ module.exports = (locals) => {
       });
 
       const employeesData = locals.officeDoc.get('employeesData');
-      const timezone = locals.officeDoc.get('attachment.Timezone.value');
       const dutyRosterObject = initDocQuery.docs[0].get('dutyRosterObject');
       const activityIdsArray = Object.keys(dutyRosterObject);
+      locals.employeesData = employeesData;
+      locals.dutyRosterObject = dutyRosterObject;
+      locals.activityIdsArray = activityIdsArray;
 
-      activityIdsArray.forEach((activityId, index) => {
+      const authFetch = [];
+      const tmp = new Set();
+      activityIdsArray.forEach((activityId) => {
+        const user = dutyRosterObject[activityId].user;
+        const assignees = dutyRosterObject[activityId].assignees;
+
+        assignees.forEach((phoneNumber) => {
+          authFetch.push(users.getUserByPhoneNumber(phoneNumber));
+          tmp.add(phoneNumber);
+        });
+
+        if (employeeInfo(employeesData, user).name) return;
+
+        authFetch.push(users.getUserByPhoneNumber(user));
+        tmp.add(user);
+      });
+
+      console.log({ tmp });
+
+      return Promise.all(authFetch);
+    })
+    .then((userRecords) => {
+      if (!locals.sendMail) {
+        return Promise.resolve();
+      }
+
+      userRecords.forEach((userRecord) => {
+        const phoneNumber = Object.keys(userRecord)[0];
+        const record = userRecord[`${phoneNumber}`];
+
+        if (!record) return;
+
+        authMap.set(phoneNumber, record.displayName);
+      });
+
+      return null;
+    })
+    .then(() => {
+      if (!locals.sendMail) {
+        return Promise.resolve();
+      }
+
+      locals.activityIdsArray.forEach((activityId, index) => {
         const columnIndex = index + 2;
 
         const {
@@ -116,13 +157,15 @@ module.exports = (locals) => {
           reportingLocation,
           reportingLocationGeopoint,
           reportingTimeStart,
+          reportingTimeEnd,
           createdBy,
           createdOn,
           place,
           when,
           user,
+          // phoneNumber,
           assignees,
-        } = dutyRosterObject[activityId];
+        } = locals.dutyRosterObject[activityId];
 
         const {
           url,
@@ -132,73 +175,123 @@ module.exports = (locals) => {
         const assigneesArray = [];
 
         assignees.forEach((phoneNumber) => {
-          const employeeObject = employeeInfo(employeesData, phoneNumber);
+          const employeeObject =
+            employeeInfo(locals.employeesData, phoneNumber);
 
-          assigneesArray.push(employeeObject.name || phoneNumber);
+          const name = (() => {
+            if (employeeObject.name) {
+              return employeeObject.name;
+            }
+
+            if (authMap.has(phoneNumber)
+              && authMap.get(phoneNumber).displayName) {
+              return authMap.get(phoneNumber).displayName;
+            }
+
+            return phoneNumber;
+          })();
+
+          assigneesArray.push(name);
         });
 
-        const reportingTime = timeStringWithOffset({
+        const reportingTimeStartTimestamp = timeStringWithOffset({
           timestampToConvert: reportingTimeStart,
-          timezone,
+          timezone: locals.timezone,
+          format: dateFormats.DATE_TIME,
+        });
+
+        const reportingTimeEndTimestamp = timeStringWithOffset({
+          timestampToConvert: reportingTimeEnd,
+          timezone: locals.timezone,
+          format: dateFormats.DATE_TIME,
         });
 
         const createdOnTimeString = dateStringWithOffset({
-          timezone,
+          timezone: locals.timezone,
           timestampToConvert: createdOn,
+          format: dateFormats.DATE_TIME,
         });
+        const creatorName = (() => {
+          // employeeInfo(locals.employeesData, createdBy).name || createdBy;
+          if (employeeInfo(locals.employeesData, createdBy).name) {
+            return employeeInfo(locals.employeesData, createdBy).name;
+          }
 
-        const creatorName =
-          employeeInfo(employeesData, createdBy).name || createdBy;
+          if (authMap.has(createdBy) && authMap.get(createdBy).displayName) {
+            return authMap.get(createdBy).displayName;
+          }
+
+          return createdBy;
+        })();
 
         const confirmedWhen = dateStringWithOffset({
           timezone,
           timestampToConvert: when,
+          format: dateFormats.DATE_TIME,
         });
+        const confirmedBy = (() => {
+          if (employeeInfo(locals.employeesData, user).name) {
+            return employeeInfo(locals.employeesData, user).name;
+          }
 
-        const confirmedBy = employeeInfo(employeesData, user).name || user;
+          if (authMap.get(user)
+            && authMap.get(user).displayName) {
+            return authMap.get(user).displayName;
+          }
 
-        sheet1.cell(`A${columnIndex}`).value(dutyType);
-        sheet1.cell(`B${columnIndex}`).value(description);
-        sheet1.cell(`C${columnIndex}`).value(reportingTime);
+          return user;
+        })();
 
-        console.log(activityId, reportingLocation);
+        locals.sheet1.cell(`A${columnIndex}`).value(dutyType);
+        locals.sheet1.cell(`B${columnIndex}`).value(description);
+        locals
+          .sheet1
+          .cell(`C${columnIndex}`)
+          .value(`${reportingTimeStartTimestamp} - ${reportingTimeEndTimestamp}`);
 
         if (reportingLocation) {
-          sheet1
+          locals
+            .sheet1
             .cell(`D${columnIndex}`)
             .value(reportingLocation)
             .style({ fontColor: '0563C1', underline: true })
             .hyperlink(toMapsUrl(reportingLocationGeopoint));
         } else {
-          sheet1
+          locals
+            .sheet1
             .cell(`D${columnIndex}`)
             .value(identifier);
         }
-        sheet1.cell(`E${columnIndex}`).value(creatorName);
-        sheet1.cell(`F${columnIndex}`).value(createdOnTimeString);
-        sheet1.cell(`G${columnIndex}`).value(status);
-        sheet1.cell(`H${columnIndex}`).value(confirmedWhen);
-        sheet1.cell(`I${columnIndex}`).value(confirmedBy);
+
+        locals.sheet1.cell(`E${columnIndex}`).value(creatorName);
+        locals.sheet1.cell(`F${columnIndex}`).value(createdOnTimeString);
+        locals.sheet1.cell(`G${columnIndex}`).value(status);
+        locals.sheet1.cell(`H${columnIndex}`).value(confirmedWhen);
+        locals.sheet1.cell(`I${columnIndex}`).value(confirmedBy);
 
         if (place.identifier) {
-          sheet1
+          locals
+            .sheet1
             .cell(`J${columnIndex}`)
             .value(place.identifier)
             .style({ fontColor: '0563C1', underline: true })
             .hyperlink(url);
         } else {
-          sheet1
+          locals
+            .sheet1
             .cell(`J${columnIndex}`)
             .value(place.identifier || '');
         }
 
-        sheet1.cell(`K${columnIndex}`).value(`${assigneesArray} `);
+        locals.sheet1.cell(`K${columnIndex}`).value(`${assigneesArray} `);
       });
 
       return locals.workbook.toFileAsync(filePath);
     })
     .then(() => {
-      if (!locals.sendMail) return Promise.resolve();
+      if (!locals.sendMail) {
+        return Promise.resolve();
+      }
 
       const fs = require('fs');
 

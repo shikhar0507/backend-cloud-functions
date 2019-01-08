@@ -324,13 +324,17 @@ const isE164PhoneNumber = (phoneNumber) =>
     .test(phoneNumber);
 
 
-const reportBackgroundError = (error, context = {}) => {
-  const Logging = require('@google-cloud/logging');
+const reportBackgroundError = (error, context = {}, logName) => {
+  // Nothing to log when the context is empty
+  if (Object.keys(context).length === 0) {
+    return Promise.resolve();
+  }
+
+  const { Logging } = require('@google-cloud/logging');
 
   // TODO: Implement this for background functions
   // DOCS: https://firebase.google.com/docs/functions/reporting-errors
-  const logging = Logging();
-  const logName = 'errors';
+  const logging = new Logging();
   const log = logging.log(logName);
   const metadata = {
     resource: {
@@ -351,11 +355,34 @@ const reportBackgroundError = (error, context = {}) => {
   };
 
   return new Promise((resolve, reject) => {
-    log.write(log.entry(metadata, errorEvent), (error) => {
-      if (error) return reject(error);
+    return log.write(log.entry(metadata, errorEvent), (error) => {
+      if (error) return reject(new Error(error));
 
       return resolve();
     });
+  });
+};
+
+
+const promisifiedRequest = (options) => {
+  return new Promise((resolve, reject) => {
+    const lib = require('https');
+
+    const request =
+      lib
+        .request(options, (response) => {
+          let body = '';
+
+          response
+            .on('data', (chunk) => body += chunk)
+            .on('end', () => resolve(body));
+        });
+
+    request
+      .on('error', (err) => reject(err));
+
+    request
+      .end();
   });
 };
 
@@ -375,6 +402,7 @@ module.exports = {
   isNonEmptyString,
   isE164PhoneNumber,
   hasSuperUserClaims,
+  promisifiedRequest,
   reportBackgroundError,
   hasManageTemplateClaims,
 };

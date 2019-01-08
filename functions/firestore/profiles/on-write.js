@@ -47,7 +47,7 @@ const sendSMS = (change) => {
   const smsContext = change.after.get('smsContext');
 
   // Profile doc is created and the smsContext object has been added to the profile doc.
-  const toSendSMS = !change.after.data()
+  const toSendSMS = !change.before.data()
     && change.after.data()
     && smsContext;
 
@@ -196,6 +196,8 @@ const manageAddendum = (change) => {
    * value.
    */
   if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
+    console.log('Not deleting...');
+
     return Promise.resolve();
   }
 

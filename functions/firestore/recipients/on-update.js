@@ -85,14 +85,6 @@ module.exports = (change) => {
     officeId,
   } = change.after.data();
 
-  if (status === 'CANCELLED') {
-    console.log('Activity status is cancelled');
-
-    return Promise.resolve();
-  }
-
-  console.log({ report });
-
   const locals = {
     change,
     sgMail,
@@ -110,6 +102,16 @@ module.exports = (change) => {
       'dynamic_template_data': {},
     },
   };
+
+  if (status === 'CANCELLED') {
+    locals.sendMail = false;
+    console.log('Activity status is cancelled');
+
+    return Promise.resolve();
+  }
+
+  console.log({ report });
+
 
   const authFetch = [];
 
@@ -136,6 +138,7 @@ module.exports = (change) => {
       });
 
       if (locals.messageObject.to.length === 0) {
+        locals.sendMail = false;
         console.log('No recipients with email OR email verified', report);
 
         return Promise.resolve();
@@ -150,10 +153,8 @@ module.exports = (change) => {
         .get();
     })
     .then((officeDoc) => {
-      if (!officeDoc) return Promise.resolve();
-
-      if (!env.isProduction) {
-        locals.messageObject.to = env.internalUsers;
+      if (!locals.sendMail) {
+        return Promise.resolve();
       }
 
       locals.officeDoc = officeDoc;
@@ -163,6 +164,8 @@ module.exports = (change) => {
         .clone()
         .tz(locals.timezone)
         .format(dateFormats.DATE);
+
+      locals.messageObject.templateId = getTemplateId(report);
 
       if (report === reportNames.SIGNUP) {
         return require('./sign-up-report')(locals);
@@ -199,11 +202,21 @@ module.exports = (change) => {
       return Promise.resolve();
     })
     .catch((error) => {
+      const errorObject = {
+        error,
+        contextData: {
+          office: change.after.get('office'),
+          officeId: change.after.get('officeId'),
+          report: change.after.get('report'),
+        },
+      };
+
+      // For `sendgrid`, rejection related to their `api` is in the response property
       if (error.response) {
-        console.error(error.response.body.errors);
-      } else {
-        console.error(error);
+        errorObject.sgMail = error.response.body.errors;
       }
+
+      console.error(errorObject);
 
       const instantDocRef = rootCollections.instant.doc();
 

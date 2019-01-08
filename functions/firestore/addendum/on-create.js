@@ -2,8 +2,8 @@
 
 
 const {
-  rootCollections,
   db,
+  rootCollections,
   deleteField,
 } = require('../../admin/admin');
 
@@ -12,8 +12,9 @@ const {
   reportNames,
 } = require('../../admin/constants');
 const {
-  haversineDistance,
-} = require('../activity/helper');
+  toMapsUrl,
+  momentOffsetObject,
+} = require('../recipients/report-utils');
 
 const googleMapsClient =
   require('@google/maps')
@@ -33,15 +34,25 @@ const getLatLngString = (location) =>
 
 const getLocationUrl = (plusCode) => `https://plus.codes/${plusCode}`;
 
-const getPlaceInformation = (mapsApiResult) => {
+const getPlaceInformation = (mapsApiResult, geopoint) => {
+  const value = toMapsUrl(geopoint);
+
   if (!mapsApiResult) {
     return {
-      url: '',
-      identifier: '',
+      url: value,
+      identifier: value,
     };
   }
 
   const firstResult = mapsApiResult.json.results[0];
+
+  if (!firstResult) {
+    return {
+      url: value,
+      identifier: value,
+    };
+  }
+
   const addressComponents = firstResult['address_components'];
 
   let identifier = '';
@@ -185,7 +196,6 @@ const getPayrollObject = (addendumDoc, initQuery) => {
 
       // Not breaking the loop will overwrite the current 
       // month's data
-      // if (startTimeMonth !== date.getMonth()) break;
       if (shouldBreak({
         startMonth: date.getMonth(),
         startYear: date.getFullYear(),
@@ -267,10 +277,8 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
     visitDateSchedule,
     followUpDateSchedule,
   ] = activityData.schedule;
-
   const activityId = addendumDoc.get('activityId');
   const template = addendumDoc.get('activityData.template');
-
   const dataObject = (() => {
     if (template === 'tour plan') {
       return {
@@ -290,6 +298,10 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
       product3: activityData.attachment['Product 3'].value,
     };
   })();
+
+  if (!visitObject[activityId]) {
+    visitObject[activityId] = {};
+  }
 
   if (visitDateSchedule.startTime) {
     visitObject[activityId] = {
@@ -390,7 +402,10 @@ const getDutyRosterObject = (addendumDoc, initQuery, locals) => {
   }
 
   dutyRosterObject[activityId].status = status;
-  dutyRosterObject[activityId].dutyType = addendumDoc.get('activityData.attachment.Duty Type.value');
+  // Not changing the dutyType to Name, because old data will become incompatible
+  dutyRosterObject[activityId].dutyType =
+    addendumDoc.get('activityData.attachment.Name.value')
+    || addendumDoc.get('activityData.attachment.Duty Type.value');
   dutyRosterObject[activityId].description = description;
   dutyRosterObject[activityId].reportingLocation = venue.address;
   dutyRosterObject[activityId].reportingLocationGeopoint = venue.geopoint;
@@ -415,9 +430,7 @@ const getDutyRosterObject = (addendumDoc, initQuery, locals) => {
       dutyRosterObject[activityId].when = addendumDoc.get('timestamp');
       dutyRosterObject[activityId].user = addendumDoc.get('user');
       dutyRosterObject[activityId].place = locals.placeInformation;
-    }
-
-    if (status === 'PENDING' || status === 'CANCELLED') {
+    } else {
       dutyRosterObject[activityId].when = '';
       dutyRosterObject[activityId].user = '';
       dutyRosterObject[activityId].place = '';
@@ -445,22 +458,38 @@ const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
     expenseClaimObject[activityId] = {};
   }
 
-  const expenseDateStartTime = activityData.schedule[0].startTime;
-
-  if (!expenseDateStartTime) return expenseClaimObject;
-
   expenseClaimObject[activityId] = {
-    expenseDateStartTime,
     amount: activityData.attachment.Amount.value,
     status: activityData.status,
     expenseType: activityData.attachment['Expense Type'].value,
     reason: activityData.attachment.Reason.value,
     referenceNumber: activityData.attachment['Reference Number'].value,
-    expenseLocation: locals.placeInformation.identifier,
+    confirmedAt: '',
+    confirmedBy: '',
+    confirmedOn: '',
+    user: '',
+    expenseDateStartTime: '',
+    expenseLocation: '',
   };
 
   if (action === httpsActions.create) {
-    expenseClaimObject[activityId].user = addendumDoc.get('user');
+    expenseClaimObject[activityId].phoneNumber = addendumDoc.get('user');
+    expenseClaimObject[activityId].expenseDateStartTime = addendumDoc.get('timestamp');
+    expenseClaimObject[activityId].expenseLocation = locals.placeInformation;
+  }
+
+  if (action === httpsActions.changeStatus) {
+    if (activityData.status === 'CONFIRMED') {
+      expenseClaimObject[activityId].confirmedBy = addendumDoc.get('user');
+      expenseClaimObject[activityId].confirmedOn = addendumDoc.get('timestamp');
+      expenseClaimObject[activityId].confirmedAt = locals.placeInformation;
+    } else {
+      // `PENDING` or `CONFIRMED`
+      expenseClaimObject[activityId].confirmedBy = '';
+      expenseClaimObject[activityId].confirmedOn = '';
+      expenseClaimObject[activityId].confirmedAt = '';
+
+    }
   }
 
   console.log({ expenseClaimObject });
@@ -470,23 +499,11 @@ const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
 
 
 const handleExpenseClaimReport = (addendumDoc, locals) => {
-  if (addendumDoc.get('activityData.template') !== 'expense claim') {
+  if (addendumDoc.get('activityData.template') !== reportNames.EXPENSE_CLAIM) {
     return Promise.resolve();
   }
 
-  // const expenseDateSchedule = addendumDoc.get('activityData').schedule[0];
-
-  // const startTime = expenseDateSchedule.startTime;
-  // const endTime = expenseDateSchedule.endTime;
-
-  // if (!startTime || !endTime) {
-  //   return Promise.resolve();
-  // }
-
-  // const startTimestamp = new Date(startTime);
-  // const month = startTimestamp.getMonth();
-  // const year = startTimestamp.getFullYear();
-  if (addendumDoc.get('action') !== httpsActions.create) {
+  if (addendumDoc.get('action') === httpsActions.comment) {
     return Promise.resolve();
   }
 
@@ -561,7 +578,6 @@ const getLeaveObject = (addendumDoc, leaveInitDocsQuery) => {
   if (action === httpsActions.create) {
     leaveObject[activityId].phoneNumber = addendumDoc.get('user');
   }
-
 
   if (action === httpsActions.changeStatus && status === 'CONFIRMED') {
     leaveObject[activityId].approvedBy = addendumDoc.get('user');
@@ -882,92 +898,124 @@ module.exports = (addendumDoc) => {
 
   return rootCollections
     .offices
-    .doc(officeId)
-    .collection('Addendum')
-    .where('user', '==', phoneNumber)
-    .where('date', '==', new Date().getDate())
-    .orderBy('timestamp', 'desc')
-    .limit(2)
+    .doc(addendumDoc.get('activityData.officeId'))
     .get()
+    .then((officeDoc) => {
+      const timezone = officeDoc.get('attachment.Timezone.value');
+      console.log({ timezone });
+
+      const momentDateObject = momentOffsetObject(timezone);
+      console.log({ momentDateObject });
+
+      return rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Addendum')
+        .where('user', '==', phoneNumber)
+        .where('date', '==', momentDateObject.today.DATE_NUMBER)
+        .where('month', '==', momentDateObject.today.MONTH_NUMBER)
+        .where('year', '==', momentDateObject.today.YEAR)
+        .orderBy('timestamp', 'desc')
+        .limit(2)
+        .get();
+    })
     .then((docs) => {
-      const previousAddendumDoc = (() => {
-        if (docs.docs[0] && docs.docs[0].id !== addendumDoc.id) {
-          return docs.docs[0];
-        }
+      console.log('size', docs.size);
 
-        return docs.docs[1];
-      })();
+      locals
+        .previousAddendumDoc = (() => {
+          if (docs.docs[0] && docs.docs[0].id !== addendumDoc.id) {
+            return docs.docs[0];
+          }
 
-      /**
-       * User has no activity before the creation of this
-       * addendum doc. This means that the distance travelled
-       * and accumulated will be `ZERO`.
-       */
-      const distance = (() => {
-        if (!previousAddendumDoc) {
-          return {
-            accumulated: 0,
-            travelled: 0,
-          };
-        }
+          return docs.docs[1];
+        })();
 
-        const geopointOne = previousAddendumDoc.get('location');
-        const geopointTwo = addendumDoc.get('location');
-        const distanceTravelled
-          = haversineDistance(geopointOne, geopointTwo);
-        const accumulatedDistance
-          = Number(previousAddendumDoc.get('accumulatedDistance') || 0);
+      const promises = [
+        googleMapsClient
+          .reverseGeocode({
+            latlng: getLatLngString(addendumDoc.get('location')),
+          })
+          .asPromise(),
+      ];
 
-        return {
-          accumulated: accumulatedDistance + distanceTravelled,
-          travelled: distanceTravelled,
-        };
-      })();
+      if (locals.previousAddendumDoc) {
+        promises.push(googleMapsClient
+          .distanceMatrix({
+            origins: getLatLngString(locals.previousAddendumDoc.get('location')),
+            destinations: getLatLngString(addendumDoc.get('location')),
+            units: 'metric',
+          })
+          .asPromise());
+      }
 
-      return Promise
-        .all([
-          googleMapsClient
-            .reverseGeocode({
-              latlng: getLatLngString(addendumDoc.get('location')),
-            })
-            .asPromise(),
-          Promise
-            .resolve(distance),
-          Promise
-            .resolve(previousAddendumDoc),
-        ]);
+      return Promise.all(promises);
     })
     .then((result) => {
       const [
         mapsApiResult,
-        distance,
-        previousAddendumDoc,
+        distanceMatrixApiResult,
       ] = result;
 
-      const placeInformation = getPlaceInformation(mapsApiResult);
-      locals.placeInformation = placeInformation;
+      locals.placeInformation = getPlaceInformation(
+        mapsApiResult,
+        addendumDoc.get('location')
+      );
+
+      const distanceData = (() => {
+        if (!locals.previousAddendumDoc) {
+          return {
+            accumulatedDistance: 0,
+            distanceTravelled: 0,
+          };
+        }
+
+        const value =
+          distanceMatrixApiResult
+            .json
+            .rows[0]
+            .elements[0]
+            .distance
+            .value;
+
+        console.log({ value });
+
+        const accumulatedDistance =
+          Number(locals.previousAddendumDoc.get('accumulatedDistance') || 0)
+          // value is in meters
+          + value / 1000;
+
+        return {
+          accumulatedDistance: accumulatedDistance.toFixed(2),
+          distanceTravelled: 0,
+        };
+      })();
 
       const updateObject = {
-        url: placeInformation.url,
-        identifier: placeInformation.identifier,
-        accumulatedDistance: distance.accumulated.toFixed(2),
-        distanceTravelled: distance.travelled,
+        url: locals.placeInformation.url,
+        identifier: locals.placeInformation.identifier,
+        accumulatedDistance: distanceData.accumulatedDistance,
+        distanceTravelled: distanceData.distanceTravelled,
       };
 
       console.log({
         phoneNumber,
         updateObject,
-        distance,
-        previousAddendumDocExists: Boolean(previousAddendumDoc),
+        placeInformation: locals.placeInformation,
         currPath: addendumDoc.ref.path,
-        prevPath: previousAddendumDoc ? previousAddendumDoc.ref.path : null,
+        prevPath:
+          locals.previousAddendumDoc ? locals
+            .previousAddendumDoc
+            .ref
+            .path : null,
       });
 
       locals.batch.set(addendumDoc.ref, updateObject, {
         merge: true,
       });
 
-      return handlePayrollReport(addendumDoc, locals);
+      // return handlePayrollReport(addendumDoc, locals);
+      return;
     })
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDutyRosterReport(addendumDoc, locals))

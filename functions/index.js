@@ -91,6 +91,12 @@ const bulkActivitiesOnCreate = functions
   .document('BulkActivities/{docId}')
   .onCreate(require('./background-services/activities/activities-create'));
 
+/** For sending notifications to the client app */
+const sendPushNotification = functions
+  .firestore
+  .document('Profiles/{phoneNumber}/Activities/{activityId}')
+  .onWrite(require('./firestore/profiles/activities/on-write'));
+
 
 module.exports = {
   api,
@@ -103,6 +109,7 @@ module.exports = {
   assigneeOnDelete,
   addendumOnCreate,
   recipientsOnUpdate,
+  sendPushNotification,
   bulkActivitiesOnCreate,
   activityTemplatesOnUpdate,
   generateOfficeNamePermutations,

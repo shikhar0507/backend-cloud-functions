@@ -796,6 +796,7 @@ const timezonesSet = new Set()
 const dateFormats = {
   TIME: 'LT',
   DATE: 'Do MMM YYYY',
+  DATE_TIME: 'MMM D YYYY HH[:]mm A',
 };
 
 const reportNames = {

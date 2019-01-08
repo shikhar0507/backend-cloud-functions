@@ -105,18 +105,20 @@ module.exports = (locals) => {
         const employeeDataObject = employeeInfo(allEmployeesData, phoneNumber);
         const employeeName = employeeDataObject.name;
         const employeeCode = employeeDataObject.employeeCode;
-        const department = employeeDataObject.employeeCode;
+        const department = employeeDataObject.department;
         const firstSupervisorPhoneNumber = employeeDataObject.firstSupervisor;
         const secondSupervisorPhoneNumber = employeeDataObject.secondSupervisor;
         const firstSupervisorName =
           employeeInfo(allEmployeesData, firstSupervisorPhoneNumber).name;
         const secondSupervisorName =
           employeeInfo(allEmployeesData, secondSupervisorPhoneNumber).name;
-
         const signedUpOn = dateStringWithOffset({
           timezone: locals.timezone,
           timestampToConvert: employeesObject[phoneNumber].signedUpOn,
         });
+
+        console.log({ phoneNumber }, employeesObject[phoneNumber].addedOn);
+
         const addedOn = dateStringWithOffset({
           timezone: locals.timezone,
           timestampToConvert: employeesObject[phoneNumber].addedOn,

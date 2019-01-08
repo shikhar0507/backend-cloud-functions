@@ -108,7 +108,7 @@ const handleResult = (conn, result) => {
   };
 
   const handleDataArray = (() => {
-    if (conn.req.body.update) {
+    if (conn.req.query.update === 'true') {
       return require('./update');
     }
 

@@ -26,7 +26,10 @@
 
 
 const { code } = require('../../admin/responses');
-const { httpsActions } = require('../../admin/constants');
+const {
+  httpsActions,
+  reportNames,
+} = require('../../admin/constants');
 const {
   rootCollections,
   getGeopointObject,
@@ -143,8 +146,8 @@ const updateDocsWithBatch = (conn, locals) => {
     });
 
   if (!nameFieldUpdated) {
-    /** Ends the response. */
-    locals.batch
+    locals
+      .batch
       .commit()
       .then(() => sendResponse(conn, code.noContent))
       .catch((error) => handleError(conn, error));
@@ -167,7 +170,9 @@ const updateDocsWithBatch = (conn, locals) => {
 
       const newNamesMap = namesMap;
 
-      newNamesMap[newNameValue] = namesMap;
+      newNamesMap[newNameValue] = {
+        [newNameValue]: null,
+      };
 
       return doc
         .ref
@@ -176,6 +181,178 @@ const updateDocsWithBatch = (conn, locals) => {
         }, {
             merge: true,
           });
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+const getDisplayText = (conn, locals) => {
+  let displayText = '';
+
+  if (locals.docs.activity.get('template') === reportNames.LEAVE) {
+    displayText = (() => {
+      const leaveType =
+        conn.req.body.attachment['Leave Type'].value;
+
+      if (!leaveType) return `LEAVE`;
+
+      return `LEAVE - ${leaveType}`;
+    })();
+  }
+
+  if (locals.docs.activity.get('template') === reportNames.TOUR_PLAN) {
+    displayText = 'ON DUTY';
+  }
+
+  return displayText;
+};
+
+
+const getPayrollObject = (conn, locals, initQuery) => {
+  const NUM_MILLI_SECS_IN_DAY = 86400 * 1000;
+  const displayText = getDisplayText(conn, locals);
+  const payrollObject = (() => {
+    if (!initQuery.empty) return {};
+
+    return initQuery.docs[0].get('payrollObject') || {};
+  })();
+
+  if (!payrollObject[conn.requester.phoneNumber]) {
+    payrollObject[conn.requester.phoneNumber] = {};
+  }
+
+  // conn.req.body.schedule.forEach((item) => {
+  //   const dateNumber = new Date(item.startTime).getDate();
+  //   payrollObject[conn.requester.phoneNumber][dateNumber] = displayText;
+  // });
+
+  conn.req.body.schedule.forEach((schedule) => {
+    console.log('in schedule');
+
+    let startTime = schedule.startTime;
+    const endTime = schedule.endTime;
+    console.log({ startTime, endTime });
+
+    if (!startTime || !endTime) {
+      return;
+    }
+
+    const endMonth = new Date(endTime).getMonth();
+    const endYear = new Date(endTime).getFullYear();
+
+    while (startTime <= endTime) {
+      const date = new Date(startTime);
+      const startMonth = date.getMonth();
+      const startYear = date.getFullYear();
+
+      if (startMonth !== endMonth) {
+        console.log('return month');
+
+        return;
+      }
+      if (startYear !== endYear) {
+        console.log('return year');
+
+        return;
+      }
+
+      payrollObject[conn.requester.phoneNumber][date.getDate()] = displayText;
+
+      startTime += NUM_MILLI_SECS_IN_DAY;
+    }
+  });
+
+  console.log({ payrollObject });
+
+  return payrollObject;
+};
+
+
+
+const handlePayroll = (conn, locals) => {
+  if (!new Set()
+    .add(reportNames.LEAVE)
+    .add(reportNames.CHECK_IN)
+    .add(reportNames.TOUR_PLAN)
+    .has(locals.docs.activity.get('template'))) {
+
+    updateDocsWithBatch(conn, locals);
+
+    return;
+  }
+
+  console.log('IN PAYROLL');
+
+  const ts = (() => {
+    if (locals.docs.activity.get('template') === reportNames.CHECK_IN) {
+      return {
+        month: new Date().getMonth(),
+        year: new Date().getFullYear(),
+      };
+    }
+
+    const schedule = conn.req.body.schedule[0];
+
+    if (!schedule) {
+      return {
+        month: '',
+        year: '',
+      };
+    }
+
+    const startTime = schedule.startTime;
+
+    if (!startTime) {
+      return {
+        month: '',
+        year: '',
+      };
+    }
+
+    return {
+      month: new Date(startTime).getMonth(),
+      year: new Date(startTime).getFullYear(),
+    };
+  })();
+
+  if (!ts.month || !ts.year) {
+    updateDocsWithBatch(conn, locals);
+
+    return;
+  }
+
+  rootCollections
+    .inits
+    .where('office', '==', locals.docs.activity.get('office'))
+    .where('report', '==', reportNames.PAYROLL)
+    .where('month', '==', ts.month)
+    .where('year', '==', ts.year)
+    .limit(1)
+    .get()
+    .then((initQuery) => {
+      const ref = (() => {
+        if (initQuery.empty) {
+          return rootCollections.inits.doc();
+        }
+
+        return initQuery.docs[0].ref;
+      })();
+
+      console.log(ref.path);
+
+      locals.batch.set(ref, {
+        office: conn.req.body.office,
+        officeId: locals.static.officeId,
+        month: ts.month,
+        year: ts.year,
+        report: reportNames.PAYROLL,
+        payrollObject: getPayrollObject(conn, locals, initQuery),
+      }, {
+          merge: true,
+        });
+
+      updateDocsWithBatch(conn, locals);
+
+      return;
     })
     .catch((error) => handleError(conn, error));
 };
@@ -318,7 +495,10 @@ const getUpdatedFields = (conn, locals) => {
 
   locals.objects.updatedFields.venue = venueValidationResult.venues;
 
-  handleLeave(conn, locals);
+  // handleLeave(conn, locals);
+
+  updateDocsWithBatch(conn, locals);
+  // handlePayroll(conn, locals);
 };
 
 

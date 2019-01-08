@@ -5,6 +5,7 @@ const {
   filterAttachment,
   validateSchedules,
   validateVenues,
+  activityName,
 } = require('../activity/helper');
 const {
   rootCollections,
@@ -65,27 +66,27 @@ const logRequest = (options) => {
 };
 
 
-const getActivityName = (options) => {
-  const {
-    bodyAttachment,
-    templateName,
-    requester,
-  } = options;
+// const getActivityName = (options) => {
+//   const {
+//     bodyAttachment,
+//     templateName,
+//     requester,
+//   } = options;
 
-  if (bodyAttachment.Name) {
-    return `${templateName.toUpperCase()}: ${bodyAttachment.Name.value}`;
-  }
+//   if (bodyAttachment.Name) {
+//     return `${templateName.toUpperCase()}: ${bodyAttachment.Name.value}`;
+//   }
 
-  return `${templateName.toUpperCase()}:`
-    + ` ${requester.displayName || requester.phoneNumber}`;
-};
+//   return `${templateName.toUpperCase()}:`
+//     + ` ${requester.displayName || requester.phoneNumber}`;
+// };
 
 
 const createDocs = (conn, locals) => {
   locals
     .activityObject
-    .activityName = getActivityName({
-      bodyAttachment: conn.req.body.attachment,
+    .activityName = activityName({
+      attachmentObject: conn.req.body.attachment,
       templateName: conn.req.body.template,
       requester: conn.requester,
     });
@@ -146,8 +147,8 @@ const createDocs = (conn, locals) => {
         location: getGeopointObject(conn.req.body.geopoint),
         userDeviceTimestamp: conn.req.body.timestamp,
         activityId: locals.activityRef.id,
-        activityName: getActivityName({
-          bodyAttachment: conn.req.body.attachment,
+        activityName: activityName({
+          attachmentObject: conn.req.body.attachment,
           templateName: conn.req.body.template,
           requester: conn.requester,
         }),
@@ -343,16 +344,32 @@ const handleOffice = (conn, locals) => {
             subscriptionActivityRef: subscriptionActivityRef.id,
           });
 
+          const adminAttachmentObject = getAttachmentObject({
+            phoneNumber,
+            templateObject: adminTemplate.data(),
+          });
+          const adminActivityName = activityName({
+            attachmentObject: adminAttachmentObject,
+            templateName: 'admin',
+            requester: conn.requester,
+          });
+          const subscriptionAttachmentObject = getAttachmentObject({
+            phoneNumber,
+            templateObject: subscriptionTemplate.data(),
+          });
+          const subscriptionActivityName = activityName({
+            attachmentObject: subscriptionAttachmentObject,
+            templateName: 'subscription',
+            requester: conn.requester,
+          });
+
           const adminActivityObject = {
             timestamp: Date.now(),
             office,
             officeId,
-            activityName: `ADMIN: ${conn.requester.phoneNumber}`,
+            activityName: adminActivityName,
             addendumDocRef: adminAddendumDocRef,
-            attachment: getAttachmentObject({
-              phoneNumber,
-              templateObject: adminTemplate.data(),
-            }),
+            attachment: adminAttachmentObject,
             canEditRule: adminTemplate.get('canEditRule'),
             creator: conn.requester.phoneNumber,
             hidden: adminTemplate.get('hidden'),
@@ -362,16 +379,12 @@ const handleOffice = (conn, locals) => {
             template: 'admin',
           };
           const subscriptionActivityObject = {
-            timestamp: Date.now(),
             office,
             officeId,
-            /** Special change by `Parastish` for subscription only */
-            activityName: `SUBSCRIPTION: ${conn.requester.phoneNumber}`,
+            timestamp: Date.now(),
+            activityName: subscriptionActivityName,
             addendumDocRef: subscriptionAddendumDocRef,
-            attachment: getAttachmentObject({
-              phoneNumber,
-              templateObject: subscriptionTemplate.data(),
-            }),
+            attachment: subscriptionAttachmentObject,
             canEditRule: subscriptionTemplate.get('canEditRule'),
             creator: conn.requester.phoneNumber,
             hidden: subscriptionTemplate.get('hidden'),
@@ -391,7 +404,7 @@ const handleOffice = (conn, locals) => {
             location: getGeopointObject(conn.req.body.geopoint),
             userDeviceTimestamp: conn.req.body.timestamp,
             activityId: adminActivityRef.id,
-            activityName: `ADMIN: ${phoneNumber}`,
+            activityName: adminActivityName,
             isSupportRequest: conn.requester.isSupportRequest,
           };
           const subscriptionAddendumObject = {
@@ -405,7 +418,7 @@ const handleOffice = (conn, locals) => {
             location: getGeopointObject(conn.req.body.geopoint),
             userDeviceTimestamp: conn.req.body.timestamp,
             activityId: subscriptionActivityRef.id,
-            activityName: `SUBSCRIPTION: ${phoneNumber}`,
+            activityName: subscriptionActivityName,
             isSupportRequest: conn.requester.isSupportRequest,
           };
 

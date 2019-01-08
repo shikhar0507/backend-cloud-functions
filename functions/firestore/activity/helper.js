@@ -1073,6 +1073,11 @@ const activityName = (options) => {
     phoneNumber,
   } = requester;
 
+  if (templateName === 'recipient') {
+    return `${templateName.toUpperCase()}:`
+      + ` ${attachmentObject.Name.value.toUpperCase()} REPORT`;
+  }
+
   if (attachmentObject.hasOwnProperty('Name')) {
     return `${templateName.toUpperCase()}: ${attachmentObject.Name.value}`;
   }
@@ -1085,13 +1090,14 @@ const activityName = (options) => {
     return `${templateName.toUpperCase()}: ${attachmentObject.Admin.value}`;
   }
 
-  if (templateName === 'subscriber') {
+  if (templateName === 'subscription') {
     return `${templateName.toUpperCase()}:`
       + ` ${attachmentObject.Subscriber.value}`;
   }
 
   return `${templateName.toUpperCase()}: ${displayName || phoneNumber}`;
 };
+
 
 const toAttachmentValues = (conn, locals) => {
   // activityId, createTime, attachment, status

@@ -35,6 +35,7 @@ const {
   // momentDateObject,
   momentOffsetObject,
   employeeInfo,
+  toMapsUrl,
 } = require('./report-utils');
 const {
   sendGridTemplateIds,
@@ -63,6 +64,8 @@ module.exports = (locals) => {
     date: standardDateString,
     subject: `DSR_${office}_${standardDateString}`,
   };
+
+  const customersMap = new Map();
 
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const momentDateObject = momentOffsetObject(timezone);
@@ -172,8 +175,6 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      const customersMap = new Map();
-
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;
 
@@ -227,24 +228,33 @@ module.exports = (locals) => {
             actualLocation,
             visitEndTimestamp,
             followUpStartTimestamp,
+            followUpEndTimestamp,
             visitStartTimestamp,
           } = locals.visitObject[activityId];
 
           const startTime = timeStringWithOffset({
             timezone: locals.timezone,
             timestampToConvert: visitStartTimestamp,
+            format: dateFormats.DATE_TIME,
           });
           const endTime = timeStringWithOffset({
             timezone: locals.timezone,
             timestampToConvert: visitEndTimestamp,
+            format: dateFormats.DATE_TIME,
           });
           const visitDate = dateStringWithOffset({
             timezone: locals.timezone,
             timestampToConvert: visitStartTimestamp,
           });
-          const followUpDate = dateStringWithOffset({
+          const followUpDateStart = dateStringWithOffset({
             timezone: locals.timezone,
             timestampToConvert: followUpStartTimestamp,
+            format: dateFormats.DATE_TIME,
+          });
+          const followUpDateEnd = dateStringWithOffset({
+            timezone: locals.timezone,
+            timestampToConvert: followUpEndTimestamp,
+            format: dateFormats.DATE_TIME,
           });
 
           const employeeObject =
@@ -261,7 +271,7 @@ module.exports = (locals) => {
           })();
 
           const address = (() => {
-            if (!customersMap.get(customer)) return '';
+            if (!customersMap.has(customer)) return '';
 
             return customersMap.get(customer).address;
           })();
@@ -281,7 +291,9 @@ module.exports = (locals) => {
           sheet1.cell(`K${columnIndex}`).value(product1);
           sheet1.cell(`L${columnIndex}`).value(product2);
           sheet1.cell(`M${columnIndex}`).value(product3);
-          sheet1.cell(`N${columnIndex}`).value(followUpDate);
+          sheet1
+            .cell(`N${columnIndex}`)
+            .value(`${followUpDateStart} - ${followUpDateEnd}`);
           sheet1.cell(`O${columnIndex}`).value(comment);
           sheet1.cell(`P${columnIndex}`).value(department);
           sheet1.cell(`Q${columnIndex}`).value(baseLocation);
@@ -327,6 +339,7 @@ module.exports = (locals) => {
           const {
             comment,
             purpose,
+            // customer name
             customer,
             product1,
             product2,
@@ -336,6 +349,7 @@ module.exports = (locals) => {
             firstContact,
             secondContact,
             actualLocation,
+            visitDateEndTime,
             visitDateStartTime,
             closureEndTimestamp,
             followUpEndTimestamp,
@@ -357,6 +371,7 @@ module.exports = (locals) => {
             return timeStringWithOffset({
               timezone: locals.timezone,
               timestampToConvert,
+              format: dateFormats.DATE_TIME,
             });
           })();
           const endTime = (() => {
@@ -369,12 +384,10 @@ module.exports = (locals) => {
             return timeStringWithOffset({
               timezone: locals.timezone,
               timestampToConvert,
+              format: dateFormats.DATE_TIME,
             });
           })();
-          const visitDate = dateStringWithOffset({
-            timezone: locals.timezone,
-            timestampToConvert: visitDateStartTime,
-          });
+
           const employeeObject =
             employeeInfo(locals.employeesData, phoneNumber);
           const employeeName = employeeObject.name;
@@ -382,7 +395,17 @@ module.exports = (locals) => {
           const baseLocation = employeeObject.baseLocation;
           const firstSupervisor = employeeObject.firstSupervisor;
           const secondSupervisor = employeeObject.secondSupervisor;
-          const address = '';
+          const customerData = customersMap.get(customer);
+          const visitDateStart = dateStringWithOffset({
+            timezone,
+            timestampToConvert: visitDateStartTime,
+            format: dateFormats.DATE_TIME,
+          });
+          const visitDateEnd = dateStringWithOffset({
+            timezone,
+            timestampToConvert: visitDateEndTime,
+            format: dateFormats.DATE_TIME,
+          });
 
           sheet2.cell(`A${columnIndex}`).value(date);
           sheet2.cell(`B${columnIndex}`).value(visitType);
@@ -390,7 +413,19 @@ module.exports = (locals) => {
           sheet2.cell(`D${columnIndex}`).value(customer);
           sheet2.cell(`E${columnIndex}`).value(firstContact);
           sheet2.cell(`F${columnIndex}`).value(secondContact);
-          sheet2.cell(`G${columnIndex}`).value(address);
+
+          if (customersMap.has(customer)
+            && customersMap.get(customer).address) {
+            sheet2
+              .cell(`G${columnIndex}`)
+              .value(customerData.address)
+              .style({ fontColor: '0563C1', underline: true })
+              .hyperlink(toMapsUrl(customerData.geopoint));
+          } else {
+            sheet2
+              .cell(`G${columnIndex}`)
+              .value('');
+          }
           sheet2
             .cell(`H${columnIndex}`)
             .value(actualLocation.identifier)
@@ -402,7 +437,9 @@ module.exports = (locals) => {
           sheet2.cell(`L${columnIndex}`).value(product1);
           sheet2.cell(`M${columnIndex}`).value(product2);
           sheet2.cell(`N${columnIndex}`).value(product3);
-          sheet2.cell(`O${columnIndex}`).value(visitDate);
+          sheet2
+            .cell(`O${columnIndex}`)
+            .value(`${visitDateStart} - ${visitDateEnd}`);
           sheet2.cell(`P${columnIndex}`).value(comment);
           sheet2.cell(`Q${columnIndex}`).value(department);
           sheet2.cell(`R${columnIndex}`).value(baseLocation);
@@ -412,7 +449,10 @@ module.exports = (locals) => {
       }
 
       // Default sheet
-      locals.workbook.deleteSheet('Sheet1');
+      if (locals.followUpActivityIdsArray.length > 0
+        || locals.visitsActivityIdsArray.length > 0) {
+        locals.workbook.deleteSheet('Sheet1');
+      }
 
       return locals.workbook.toFileAsync(filePath);
     })
@@ -421,12 +461,11 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      const content =
-        new Buffer(require('fs').readFileSync(filePath)).toString('base64');
+      const fs = require('fs');
 
       locals.messageObject.attachments.push({
         fileName,
-        content,
+        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
         type: 'text/csv',
         disposition: 'attachment',
       });

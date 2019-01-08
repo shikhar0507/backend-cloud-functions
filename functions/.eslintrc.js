@@ -112,5 +112,6 @@ module.exports = {
     'newline-before-return': 'warn',
     'max-params': ['warn', { 'max': 4, }],
     quotes: ['warn', 'single', { allowTemplateLiterals: true, }],
+    // complexity: ['error', 3],
   },
 };
