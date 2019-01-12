@@ -143,18 +143,8 @@ const createDocsWithBatch = (conn, locals) => {
     activityId: locals.static.activityId,
     activityName: activityData.activityName,
     isSupportRequest: conn.requester.isSupportRequest,
+    geopointAccuracy: conn.req.body.geopoint.accuracy || null,
   };
-
-  /**
-   * totalLeavesRemaining,
-   * totalLeavesTaken
-   */
-  // if (conn.req.body.template === 'leave'
-  //   && conn.req.body.attachment['Leave Type'].value) {
-  //   addendumDocObject.annualLeavesEntitled = locals.annualLeavesEntitled;
-  //   addendumDocObject.totalLeavesRemaining = locals.totalLeavesRemaining;
-  //   addendumDocObject.totalLeavesTaken = locals.totalLeavesTaken;
-  // }
 
   if (conn.req.body.template === 'check-in'
     && conn.req.body.venue[0].geopoint.latitude
@@ -186,50 +176,14 @@ const createDocsWithBatch = (conn, locals) => {
     addendumDocObject.distanceAccurate = distanceAccurate;
   }
 
-  // if (conn.req.body.attachment.hasOwnProperty('Name') && conn.req.body.template !== 'office') {
-  //   // create names map
-
-  //   locals.batch.set(rootCollections.offices.doc(locals.static.officeId), {
-
-  //   }, {
-  //       merge: true,
-  //     });
-
-
-  // }
-
-  // if (conn.req.body.template === 'employee') {
-  //   locals.batch.set(rootCollections.offices.doc(locals.static.officeId), {
-  //     employeesData: {
-  //       [conn.req.body.attachment['Employee Contact'].value]: toAttachmentValues(),
-  //     },
-  //   }, {
-  //       merge: true,
-  //     });
-  // }
-
-  // if (conn.req.body.template === 'subscription') {
-  //   const subscriberPhoneNumber = conn.req.body.attachment.Subscriber.value;
-
-  //   const subscriptionArray = (() => {
-  //     const oldSubscriptionsMap = locals.officeDoc.get('subscriptionsMap') || {};
-
-  //     if (oldSubscriptionsMap[subscriberPhoneNumber]) {
-
-  //     }
-  //   })();
-
-  //   locals.batch.set(rootCollections.offices.doc(locals.static.officeId), {
-  //     subscriptionsMap: {
-  //       [subscriberPhoneNumber]: subscriptionArray,
-  //     },
-  //   }, {
-  //       merge: true,
-  //     });
-  // }
+  if (locals.static.statusOnCreate === 'CANCELLED') {
+    addendumDocObject.cancellationMessage = locals.cancellationMessage;
+  }
 
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
+
+  console.log('statusOnCreate:', locals.static.statusOnCreate);
 
   /** ENDS the response. */
   locals
@@ -239,32 +193,268 @@ const createDocsWithBatch = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
-const getDisplayText = (conn) => {
-  let displayText = '';
 
-  if (conn.req.body.template === reportNames.LEAVE) {
-    displayText = (() => {
-      const leaveType =
-        conn.req.body.attachment['Leave Type'].value;
+const getPayrollObject = (options) => {
+  const {
+    payrollObject,
+    monthDatesMap,
+    month,
+    year,
+    phoneNumber,
+    requestBody,
+  } = options;
 
-      if (!leaveType) return `LEAVE`;
+  let datesConflicted = false;
 
-      return `LEAVE - ${leaveType}`;
-    })();
+  if (!payrollObject[phoneNumber]) {
+    payrollObject[phoneNumber] = {};
   }
 
-  if (conn.req.body.template === reportNames.TOUR_PLAN) {
-    displayText = 'ON DUTY';
+  const getStatus = () => {
+    if (requestBody.template === 'leave') {
+      if (requestBody.attachment['Leave Type'].value) {
+        return `LEAVE - ${requestBody.attachment['Leave Type'].value}`;
+      }
+
+      return `LEAVE`;
+    }
+
+    return `ON DUTY`;
+  };
+
+  const newStatus = getStatus();
+  console.log({ newStatus });
+
+  monthDatesMap
+    .get(`${month}-${year}`)
+    .forEach((date) => {
+      if (!payrollObject[phoneNumber][date]) {
+        payrollObject[phoneNumber][date] = 'BLANK';
+      }
+
+      // Creating a new leave with same dates
+      if (payrollObject[phoneNumber][date].startsWith('LEAVE')
+        && newStatus.startsWith('LEAVE')) {
+        datesConflicted = true;
+
+        return;
+      }
+
+      // Creating a leave when ON DUTY is already set
+      if (payrollObject[phoneNumber][date].startsWith('LEAVE')
+        && newStatus === 'ON DUTY') {
+        datesConflicted = true;
+
+        return;
+      }
+
+      // Creating an ON DUTY when the leave is already set
+      if (payrollObject[phoneNumber][date] === 'ON DUTY'
+        && newStatus.startsWith('LEAVE')) {
+        datesConflicted = true;
+
+        return;
+      }
+
+      // Creating ON DUTY when ON DUTY is already set
+      if (payrollObject[phoneNumber][date] === 'ON DUTY'
+        && newStatus === 'ON DUTY') {
+        datesConflicted = true;
+
+        return;
+      }
+
+      payrollObject[phoneNumber][date] = newStatus;
+    });
+
+  return {
+    payrollObject,
+    datesConflicted,
+  };
+};
+
+
+const handleLeaveOrTourPlan = (conn, locals) => {
+  const getPromiseObject = (month, year, office) => {
+    return rootCollections
+      .inits
+      .where('office', '==', office)
+      .where('report', '==', 'payroll')
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .limit(1)
+      .get();
+  };
+
+  const startTime = conn.req.body.schedule[0].startTime;
+  const endTime = conn.req.body.schedule[0].endTime;
+  const startTimeMoment = momentTz(startTime);
+  const endTimeMoment = momentTz(endTime);
+  const startTimeUnix =
+    startTimeMoment
+      .startOf('day')
+      .unix() * 1000;
+  const endTimeUnix =
+    endTimeMoment
+      .endOf('day')
+      .unix() * 1000;
+
+  const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
+
+  if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
+    console.log({
+      'maxLeavesAllowed': locals.maxLeavesAllowed,
+      'leavesTaken': leavesTakenThisTime,
+      'leavesTakenThisYear': locals.leavesTakenThisYear,
+    });
+
+    console.log('CANCELL HERE 1');
+    locals.static.statusOnCreate = 'CANCELLED';
+    locals.cancellationMessage =
+      `ACTIVITY CANCELLED. MAX LEAVES TAKEN ALREADY`;
+
+    createDocsWithBatch(conn, locals);
+
+    return;
   }
 
-  return displayText;
+  const initFetchPromises = [];
+  /**
+   * Can be used to know using the result index to see which
+   * month + year combination doc doesn't exist.
+   */
+  const docMeta = [];
+  const NUM_MILLI_SECS_IN_A_DAY = 86400000;
+  const startMoment = momentTz(startTimeUnix);
+  let oldMonthValue = startMoment.month();
+  let oldYearValue = startMoment.year();
+  /** 
+   * Stores the dates as a Set in the value field of this map
+   * so that we only update the values for the user that are for the
+   * month in context and only the dates which are in the month.
+   */
+  const monthDatesMap = new Map();
+
+  initFetchPromises.push(
+    getPromiseObject(oldMonthValue, oldYearValue, conn.req.body.office)
+  );
+
+  docMeta.push({ month: oldMonthValue, year: oldYearValue });
+
+  for (let iter = startTimeUnix; iter <= endTimeUnix; iter += NUM_MILLI_SECS_IN_A_DAY) {
+    const newMoment = momentTz(iter);
+    const newDateValue = newMoment.date();
+    const newMonthValue = newMoment.month();
+    const newYearValue = newMoment.year();
+
+    if (monthDatesMap.has(`${newMonthValue}-${newYearValue}`)) {
+      monthDatesMap
+        .get(`${newMonthValue}-${newYearValue}`)
+        .add(newDateValue);
+    } else {
+      monthDatesMap
+        .set(`${newMonthValue}-${newYearValue}`, new Set().add(newDateValue));
+    }
+
+    if (oldMonthValue === newMonthValue
+      && oldYearValue === newYearValue) {
+      continue;
+    }
+
+    oldMonthValue = newMonthValue;
+    oldYearValue = newYearValue;
+
+    console.log('fetching', { newMonthValue, newYearValue });
+
+    docMeta.push({ month: newMonthValue, year: newYearValue });
+    initFetchPromises.push(
+      getPromiseObject(newMonthValue, newYearValue, conn.req.body.office)
+    );
+  }
+
+  console.log('Num docs fetch', initFetchPromises.length);
+  let toCancel = false;
+
+  Promise
+    .all(initFetchPromises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot, index) => {
+        const monthValue = docMeta[index].month;
+        const yearValue = docMeta[index].year;
+
+        const ref = (() => {
+          if (snapShot.empty) {
+            return rootCollections.inits.doc();
+          }
+
+          return snapShot.docs[0].ref;
+        })();
+
+        const payrollObject = (() => {
+          if (snapShot.empty) {
+            return {};
+          }
+
+          return snapShot.docs[0].get('payrollObject') || {};
+        })();
+
+        console.log({ ref: ref.path });
+        console.log({ snapShotEmpty: snapShot.empty });
+        console.log({ monthDatesMap });
+
+        const updatedPayrollObject =
+          getPayrollObject({
+            month: monthValue,
+            year: yearValue,
+            phoneNumber: conn.requester.phoneNumber,
+            requestBody: conn.req.body,
+            payrollObject,
+            monthDatesMap,
+          });
+
+        locals.batch.set(ref, {
+          report: 'payroll',
+          payrollObject: updatedPayrollObject.payrollObject,
+          year: yearValue,
+          month: monthValue,
+          office: conn.req.body.office,
+        }, {
+            /** The doc may or may not exist. */
+            merge: true,
+          });
+
+        /** Using an if block to handle this boolean case becase
+         * there can be multiple iterations depending on the
+         * duration of leave or on duty.
+         * The dates may conflict on month 1, but not on month 2.
+         * So, for handling that, we are setting the toCancel to
+         * `true` if `datesConflict`.
+         */
+        if (updatedPayrollObject.datesConflicted) {
+          toCancel = true;
+        }
+      });
+
+      if (toCancel) {
+        console.log('CANCELL HERE 2', 'toCancel');
+        locals.static.statusOnCreate = 'CANCELLED';
+        locals.cancellationMessage =
+          `${conn.req.body.template.toUpperCase()} CANCELLED`;
+      }
+
+      console.log({ toCancel });
+
+      createDocsWithBatch(conn, locals);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 
 const handlePayroll = (conn, locals) => {
   if (!new Set()
     .add(reportNames.LEAVE)
-    .add(reportNames.CHECK_IN)
     .add(reportNames.TOUR_PLAN)
     .has(conn.req.body.template)) {
     createDocsWithBatch(conn, locals);
@@ -272,11 +462,8 @@ const handlePayroll = (conn, locals) => {
     return;
   }
 
-  console.log('IN PAYROLL');
-  const {
-    startTime,
-    endTime,
-  } = conn.req.body.schedule[0];
+  const startTime = conn.req.body.schedule[0].startTime;
+  const endTime = conn.req.body.schedule[0].endTime;
 
   if (!startTime || !endTime) {
     createDocsWithBatch(conn, locals);
@@ -284,136 +471,86 @@ const handlePayroll = (conn, locals) => {
     return;
   }
 
-  const datesSet = new Set();
-  const promises = [];
-  const startTimeMoment = momentTz(startTime).startOf('days');
-  const oldDate = startTimeMoment.date();
-  let oldMonth = startTimeMoment.month();
-  let oldYear = startTimeMoment.year();
-  const endTimeMoment = momentTz(endTime).endOf('days');
+  if (conn.req.body.template !== 'leave') {
+    handleLeaveOrTourPlan(conn, locals);
 
-  const docMeta = [];
-
-  datesSet.add(`${oldDate}-${oldMonth}-${oldYear}`);
-
-  const getPromise = (month, year) => {
-    return rootCollections
-      .inits
-      .where('report', '==', 'payroll')
-      .where('month', '==', month)
-      .where('year', '==', year)
-      .where('office', '==', conn.req.body.office)
-      .limit(1)
-      .get();
-  };
-
-  const status = (() => {
-    if (conn.req.body.template === 'leave') {
-      if (conn.req.body.attachment['Leave Type'].value) {
-        return `LEAVE - ${conn.req.body.attachment['Leave Type'].value}`;
-      }
-
-      return `LEAVE`;
-    }
-
-    return `ON DUTY`;
-  })();
-
-  docMeta.push({ month: oldMonth, year: oldYear });
-
-  promises.push(getPromise(oldMonth, oldYear));
-
-  for (let i = startTimeMoment.unix() * 1000;
-    i <= endTimeMoment.unix() * 1000;
-    i += 86400000) {
-    const newMoment = momentTz(i);
-    const newDate = newMoment.date();
-    const newMonth = newMoment.month();
-    const newYear = newMoment.year();
-
-    const dateString = `${newDate}-${newMonth}-${newYear}`;
-
-    datesSet.add(dateString);
-
-    if (oldMonth === newMonth && oldYear === newYear) {
-      continue;
-    }
-
-    oldMonth = newMonth;
-    oldYear = newYear;
-
-    docMeta.push({ month: newMonth, year: newYear });
-
-    promises.push(getPromise(newMonth, newYear));
+    return;
   }
 
-  const getValues = (status, minMaxObject) => {
-    const obj = {};
-
-    // for (let i = 0; i < )
-  };
+  const leaveType = conn.req.body.attachment['Leave Type'].value;
+  const startMoment = momentTz(conn.req.body.schedule[0].startTime);
+  const endMoment = momentTz(conn.req.body.schedule[0].endTime);
+  locals.maxLeavesAllowed = 0;
+  locals.leavesTakenThisYear = 0;
 
   Promise
-    .all(promises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot, index) => {
-        if (snapShot.empty) {
-          const month = docMeta[index].month;
-          const year = docMeta[index].year;
-          const minMaxObject = docMeta[index].minMaxObject;
+    .all([
+      rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('template', '==', 'leave-type')
+        .where('attachment.Name.value', '==', leaveType || null)
+        .limit(1)
+        .get(),
+      rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('creator', '==', conn.requester.phoneNumber)
+        .where('template', '==', 'leave')
+        .where('attachment.Leave Type.value', '==', leaveType || null)
+        .where('startYear', '==', startMoment.year())
+        .where('endYear', '==', endMoment.year())
+        /** Cancelled leaves don't count to the full number */
+        .where('isCancelled', '==', false)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        leaveTypeQuery,
+        leaveActivityQuery,
+      ] = result;
 
-          const payrollObject = {
-            [conn.requester.phoneNumber]: getValues(status),
-          };
+      if (!leaveTypeQuery.empty) {
+        locals
+          .maxLeavesAllowed =
+          Number(leaveTypeQuery
+            .docs[0]
+            .get('attachment.Annual Limit.value') || 0);
+      }
 
-          locals
-            .batch
-            .set(rootCollections.inits.doc(), {
-              payrollObject,
-              month,
-              year,
-              office: conn.req.body.office,
-              officeId: locals.static.officeId,
-              report: 'payroll',
-            });
+      console.log('leaveTypeSize', leaveActivityQuery.size);
 
-          return;
-        }
+      leaveActivityQuery.forEach((doc) => {
+        const {
+          startTime,
+          endTime,
+        } = doc.get('schedule')[0];
+        const start = momentTz(startTime).startOf('day').unix() * 1000;
+        const end = momentTz(endTime).endOf('day').unix() * 1000;
 
-        const doc = snapShot.docs[0];
-        const payrollObject = doc.get('payrollObject') || {};
-        const month = doc.get('month');
-        const year = doc.get('year');
-
-        for (const date of payrollObject[conn.requester.phoneNumber]) {
-          const dateString = `${date}-${month}-${year}`;
-
-          if (!datesSet.has(dateString)) {
-            payrollObject[conn.requester.phoneNumber][date] = status;
-
-            return;
-          }
-
-          if (payrollObject[conn.requester.phoneNumber][date].startsWith('LEAVE')
-            || payrollObject[conn.requester.phoneNumber][date] === 'ON DUTY') {
-            locals.static.statusOnCreate = 'CANCELLED';
-
-            break;
-          }
-        }
-
-        locals.batch.set(doc.ref, {
-          payrollObject,
-        }, {
-            merge: true,
-          });
+        locals.leavesTakenThisYear += momentTz(end).diff(start, 'days');
       });
+
+      if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
+        console.log('leavesTakenThisYear', locals.leavesTakenThisYear);
+        console.log('maxLeavesAllowed', locals.maxLeavesAllowed);
+
+        console.log('CANCELL HERE 3');
+        locals.static.statusOnCreate = 'CANCELLED';
+        locals.cancellationMessage = `${conn.req.body.template.toUpperCase()} CANCELLED`;
+
+        createDocsWithBatch(conn, locals);
+
+        return;
+      }
+
+      handleLeaveOrTourPlan(conn, locals);
 
       return;
     })
     .catch((error) => handleError(conn, error));
-
-
 };
 
 
@@ -502,188 +639,7 @@ const handleAssignees = (conn, locals) => {
         }
       });
 
-      createDocsWithBatch(conn, locals);
-      // handlePayroll(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
-
-
-const handleLeave = (conn, locals) => {
-  if (conn.req.body.template !== 'leave'
-    || !conn.req.body.attachment['Leave Type'].value) {
-    handleAssignees(conn, locals);
-
-    return;
-  }
-
-  const leaveDateSchedule = conn.req.body.schedule[0];
-  const startTime = leaveDateSchedule.startTime;
-  const endTime = leaveDateSchedule.endTime;
-
-  if (!startTime || !endTime) {
-    handleAssignees(conn, locals);
-
-    return;
-  }
-
-  const leaveType = conn.req.body.attachment['Leave Type'].value;
-  const officeRef = rootCollections
-    .offices
-    .doc(locals.static.officeId);
-
-  if (!leaveType) {
-    handleAssignees(conn, locals);
-
-    return;
-  }
-
-  const NUM_MILL_SECS_DAY = 86400000;
-
-  // Adding +1 to include the start day of the leave
-  const leavesTaken =
-    Math.ceil(Math.abs((endTime - startTime) / NUM_MILL_SECS_DAY)) + 1;
-
-  Promise
-    .all([
-      officeRef
-        .collection('Activities')
-        .where('template', '==', 'leave-type')
-        .where('attachment.Name.value', '==', leaveType)
-        .limit(1)
-        .get(),
-      officeRef
-        .collection('Addendum')
-        // .where('activityData.template', '==', 'leave')
-        .where('activityData.attachment.Leave Type.value', '==', leaveType)
-        .where('user', '==', conn.requester.phoneNumber)
-        .where('year', '==', new Date().getFullYear())
-        .orderBy('timestamp', 'desc')
-        .limit(1)
-        .get(),
-    ])
-    .then((result) => {
-      const [
-        leaveTypeActivityQuery,
-        leaveTypeLastAddendumQuery,
-      ] = result;
-
-      const annualLimit =
-        leaveTypeActivityQuery
-          .docs[0]
-          .get('attachment.Annual Limit.value');
-
-      const totalLeavesRemaining = (() => {
-        // The person hasn't taken this type of leave ever
-        if (leaveTypeLastAddendumQuery.empty) {
-          return leaveTypeActivityQuery
-            .docs[0]
-            .get('attachment.Annual Limit.value') - leavesTaken;
-        }
-
-        // This leave logic was not implemented from the beginning, so
-        // some addendum docs may not have the field `totalLeavesRemaining`.
-        // As a fallback we are using annualLimit as the oldBalance.
-        const oldBalance =
-          leaveTypeLastAddendumQuery
-            .docs[0]
-            .get('totalLeavesRemaining') || annualLimit;
-
-        const remaining = oldBalance - leavesTaken;
-
-        if (remaining < 0) {
-          return annualLimit;
-        }
-
-        return remaining;
-      })();
-
-      // Leaves granted is 0. Status is thus set to`CANCELLED`.
-      if (totalLeavesRemaining === annualLimit) {
-        locals.static.statusOnCreate = 'CANCELLED';
-      }
-
-      locals.annualLeavesEntitled = annualLimit;
-      locals.totalLeavesRemaining = totalLeavesRemaining;
-      locals.totalLeavesTaken = leavesTaken;
-
-      console.log({
-        annualLimit,
-        totalLeavesRemaining,
-        leavesTaken,
-      });
-
-      handleAssignees(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
-
-
-const verifyUniqueness = (conn, locals) => {
-  if (!new Set()
-    .add('subscription')
-    .add('admin')
-    .has(conn.req.body.template)) {
-    // handleLeave(conn, locals);
-    handleAssignees(conn, locals);
-
-    return;
-  }
-
-  let query;
-  let message;
-
-  if (conn.req.body.template === 'subscription') {
-    /**
-     * If the `Subscriber` mentioned in the `attachment` already has the
-     * subscription to the `template` for the `office`, there's no point in
-     * creating **yet** another activity.
-     */
-    query = rootCollections
-      .profiles
-      .doc(conn.req.body.attachment.Subscriber.value)
-      .collection('Subscriptions')
-      .where('template', '==', conn.req.body.attachment.Template.value)
-      .where('office', '==', conn.req.body.office)
-      /**
-       * Subscriptions are unique combinations of office + template names.
-       * More than one cannot exist for a single user.
-       */
-      .limit(1);
-
-    message = `'${conn.req.body.attachment.Subscriber.value}' already`
-      + ` has the subscription of`
-      + ` '${conn.req.body.attachment.Template.value}' for the`
-      + ` '${conn.req.body.office}'.`;
-  }
-
-  if (conn.req.body.template === 'admin') {
-    query = rootCollections
-      .offices
-      .doc(locals.static.officeId)
-      .collection('Activities')
-      .where('attachment.Admin.value', '==', conn.req.body.attachment.Admin.value)
-      .limit(1);
-
-    message = `'${conn.req.body.attachment.Admin.value}' is already`
-      + ` an 'Admin' of '${conn.req.body.office}'`;
-  }
-
-  query
-    .get()
-    .then((snapShot) => {
-      if (!snapShot.empty) {
-        sendResponse(conn, code.conflict, message);
-
-        return;
-      }
-
-      // handleLeave(conn, locals);
-      handleAssignees(conn, locals);
+      handlePayroll(conn, locals);
 
       return;
     })
@@ -695,7 +651,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
   const promises = result.querySnapshotShouldNotExist;
 
   if (promises.length === 0) {
-    verifyUniqueness(conn, locals);
+    handleAssignees(conn, locals);
 
     return;
   }
@@ -724,7 +680,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
         return;
       }
 
-      verifyUniqueness(conn, locals);
+      handleAssignees(conn, locals);
 
       return;
     })
@@ -733,16 +689,14 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
 
 const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
-  const promises = result.querySnapshotShouldExist;
-
-  if (promises.length === 0) {
+  if (result.querySnapshotShouldExist.length === 0) {
     resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
 
     return;
   }
 
   Promise
-    .all(promises)
+    .all(result.querySnapshotShouldExist)
     .then((snapShots) => {
       let successful = true;
       let message;
@@ -753,7 +707,7 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
           argOne,
         ] = filters;
 
-        message = `${argOne.value} does not exist`;
+        message = `${argOne._value} does not exist`;
 
         if (snapShot.empty) {
           successful = false;
@@ -776,16 +730,14 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
 
 
 const resolveProfileCheckPromises = (conn, locals, result) => {
-  const promises = result.profileDocShouldExist;
-
-  if (promises.length === 0) {
+  if (result.profileDocShouldExist.length === 0) {
     resolveQuerySnapshotShouldExistPromises(conn, locals, result);
 
     return;
   }
 
   Promise
-    .all(promises)
+    .all(result.profileDocShouldExist)
     .then((docs) => {
       let successful = true;
       let message = null;

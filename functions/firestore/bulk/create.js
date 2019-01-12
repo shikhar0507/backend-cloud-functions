@@ -257,7 +257,7 @@ module.exports = (conn, locals) => {
       }
     }
 
-    console.log('ALLOWED', index);
+    console.log('ALLOWED@index', index);
 
     validateAttachment
       .phoneNumbers
@@ -326,6 +326,8 @@ module.exports = (conn, locals) => {
       userDeviceTimestamp: conn.req.body.timestamp,
       activityId: activityRef.id,
       isSupportRequest: conn.requester.isSupportRequest,
+      // Only admins can bulk create
+      isAdminRequest: true,
     };
 
     batch.set(activityRef, activityData);

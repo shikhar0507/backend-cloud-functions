@@ -6,14 +6,12 @@ const {
   rootCollections,
   deleteField,
 } = require('../../admin/admin');
-
 const {
   httpsActions,
   reportNames,
 } = require('../../admin/constants');
 const {
   toMapsUrl,
-  momentOffsetObject,
 } = require('../recipients/report-utils');
 
 const googleMapsClient =
@@ -24,7 +22,9 @@ const googleMapsClient =
     });
 
 const initDocRef = (snapShot) => {
-  if (snapShot.empty) return rootCollections.inits.doc();
+  if (snapShot.empty) {
+    return rootCollections.inits.doc();
+  }
 
   return snapShot.docs[0].ref;
 };
@@ -89,196 +89,25 @@ const getPlaceInformation = (mapsApiResult, geopoint) => {
 };
 
 
-const getDisplayText = (addendumDoc) => {
-  let displayText = '';
-  const status = addendumDoc.get('activityData.status');
-  const template = addendumDoc.get('activityData.template');
-
-  if (status === 'CANCELLED') {
-    return deleteField();
+const getFieldValue = (snapShot, field) => {
+  if (snapShot.empty) {
+    return {};
   }
 
-  if (template === 'leave') {
-    displayText = (() => {
-      const leaveType =
-        addendumDoc.get('activityData.attachment.Leave Type.value');
-
-      if (leaveType) return `LEAVE - ${leaveType}`;
-
-      return `LEAVE`;
-    })();
-  }
-
-  if (template === 'tour plan') {
-    displayText = 'ON DUTY';
-  }
-
-  return displayText;
-};
-
-
-const getPayrollObject = (addendumDoc, initQuery) => {
-  const NUM_MILLI_SECS_IN_DAY = 86400 * 1000;
-  const initDoc = initQuery.docs[0];
-  const displayText = getDisplayText(addendumDoc);
-  const phoneNumber = addendumDoc.get('user');
-  const schedulesArray = addendumDoc.get('activityData.schedule');
-
-  console.log({ displayText });
-
-  const payrollObject = (() => {
-    if (!initDoc) return {};
-
-    return initDoc.get('payrollObject') || {};
-  })();
-
-  if (!payrollObject[phoneNumber]) {
-    payrollObject[phoneNumber] = {};
-  }
-
-  const shouldBreak = (datesObject) => {
-    const {
-      startMonth,
-      endMonth,
-      startYear,
-      endYear,
-    } = datesObject;
-
-    return startMonth !== endMonth
-      || startYear || endYear;
-  };
-
-  if (addendumDoc.get('action') === httpsActions.update) {
-    const oldSchedulesArray = addendumDoc.get('activityOld.schedule');
-
-    oldSchedulesArray.forEach((schedule) => {
-      let startTime = schedule.startTime;
-      const endTime = schedule.endTime;
-
-      if (!startTime || !endTime) return;
-      // const startTimeValue = new Date(startTime).getMonth();
-
-      const endMonth = new Date(endTime).getMonth();
-      const endYear = new Date(endTime).getFullYear();
-
-      while (startTime <= endTime) {
-        const date = new Date(startTime);
-
-        // Not breaking the loop will overwrite the current
-        // month's data.
-        if (shouldBreak({
-          startMonth: date.getMonth(),
-          startYear: date.getFullYear(),
-          endMonth,
-          endYear,
-        })) {
-          return;
-        }
-
-        payrollObject[phoneNumber][date.getDate()] = deleteField();
-
-        startTime += NUM_MILLI_SECS_IN_DAY;
-      }
-    });
-  }
-
-  schedulesArray.forEach((schedule) => {
-    let startTime = schedule.startTime;
-    const endTime = schedule.endTime;
-
-    if (!startTime || !endTime) return;
-
-    const endMonth = new Date(endTime).getMonth();
-    const endYear = new Date(endTime).getFullYear();
-
-    while (startTime <= endTime) {
-      const date = new Date(startTime);
-
-      // Not breaking the loop will overwrite the current 
-      // month's data
-      if (shouldBreak({
-        startMonth: date.getMonth(),
-        startYear: date.getFullYear(),
-        endMonth,
-        endYear,
-      })) {
-        return;
-      }
-
-      payrollObject[phoneNumber][date.getDate()] = displayText;
-      console.log(date.getDate(), displayText);
-
-      startTime += NUM_MILLI_SECS_IN_DAY;
-    }
-  });
-
-  const nonEmptyItemsArray
-    = Object
-      .keys(payrollObject[phoneNumber])
-      .filter((item) => item !== '');
-
-  if (addendumDoc.get('action') === httpsActions.changeStatus
-    && addendumDoc.get('activityData.status') === 'CANCELLED') {
-    schedulesArray.forEach((schedule) => {
-      let startTime = schedule.startTime;
-      const endTime = schedule.endTime;
-
-      if (!startTime || !endTime) return;
-
-      const endMonth = new Date(endTime).getMonth();
-      const endYear = new Date(endTime).getFullYear();
-
-      while (startTime <= endTime) {
-        const date = new Date(startTime);
-
-        if (shouldBreak({
-          startMonth: date.getMonth(),
-          startYear: date.getFullYear(),
-          endMonth,
-          endYear,
-        })) {
-          return;
-        }
-
-        /** Leave CANCELLED, so not reflecting that in the final payroll report */
-        payrollObject[phoneNumber][date] = deleteField();
-
-        startTime += NUM_MILLI_SECS_IN_DAY;
-      }
-    });
-  }
-
-  /**
-   * When the whole object contains empty string, the recipients onUpdate
-   * should query the addendumDocs for this user's day activity. Leaving this field
-   * here even when it is filled with objects will make the Recipients onUpdate
-   * function to skip this user.
-   */
-  if (nonEmptyItemsArray.length === 0) {
-    payrollObject[phoneNumber] = deleteField();
-  }
-
-  console.log({ payrollObject });
-
-  return payrollObject;
+  return snapShot.docs[0].get(field) || {};
 };
 
 
 const getVisitObject = (addendumDoc, initQuery, locals) => {
-  const visitObject = (() => {
-    if (initQuery.empty) return {};
-
-    return initQuery
-      .docs[0]
-      .get('visitObject');
-  })();
+  const visitObject = getFieldValue(initQuery, 'visitObject');
   const activityData = addendumDoc.get('activityData');
+  const activityId = addendumDoc.get('activityId');
+  const template = addendumDoc.get('activityData.template');
   const [
     visitDateSchedule,
     followUpDateSchedule,
   ] = activityData.schedule;
-  const activityId = addendumDoc.get('activityId');
-  const template = addendumDoc.get('activityData.template');
+
   const dataObject = (() => {
     if (template === 'tour plan') {
       return {
@@ -332,15 +161,9 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
   return visitObject;
 };
 
+
 const getFollowUpObject = (addendumDoc, initQuery) => {
-  const followUpObject = (() => {
-    if (initQuery.empty) return {};
-
-    return initQuery
-      .docs[0]
-      .get('followUpObject');
-  })();
-
+  const followUpObject = getFieldValue(initQuery, 'followUpObject');
   const activityId = addendumDoc.get('activityId');
   const activityData = addendumDoc.get('activityData');
   const [
@@ -384,12 +207,7 @@ const getFollowUpObject = (addendumDoc, initQuery) => {
 
 
 const getDutyRosterObject = (addendumDoc, initQuery, locals) => {
-  const dutyRosterObject = (() => {
-    if (initQuery.empty) return {};
-
-    return initQuery.docs[0].get('dutyRosterObject');
-  })();
-
+  const dutyRosterObject = getFieldValue(initQuery, 'dutyRosterObject');
   const action = addendumDoc.get('action');
   const status = addendumDoc.get('activityData.status');
   const schedule = addendumDoc.get('activityData.schedule')[0];
@@ -444,12 +262,7 @@ const getDutyRosterObject = (addendumDoc, initQuery, locals) => {
 
 
 const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
-  const expenseClaimObject = (() => {
-    if (initQuery.empty) return {};
-
-    return initQuery.docs[0].get('expenseClaimObject');
-  })();
-
+  const expenseClaimObject = getFieldValue(initQuery, 'expenseClaimObject');
   const action = addendumDoc.get('action');
   const activityData = addendumDoc.get('activityData');
   const activityId = addendumDoc.get('activityId');
@@ -522,8 +335,6 @@ const handleExpenseClaimReport = (addendumDoc, locals) => {
     .then((expenseClaimInitDocsQuery) => {
       const ref = initDocRef(expenseClaimInitDocsQuery);
 
-      console.log('Ref:', ref.path);
-
       locals.batch.set(ref, {
         month,
         year,
@@ -542,12 +353,7 @@ const handleExpenseClaimReport = (addendumDoc, locals) => {
 };
 
 const getLeaveObject = (addendumDoc, leaveInitDocsQuery) => {
-  const leaveObject = (() => {
-    if (leaveInitDocsQuery.empty) return {};
-
-    return leaveInitDocsQuery.docs[0].get('leaveObject');
-  })();
-
+  const leaveObject = getFieldValue(leaveInitDocsQuery, 'leaveObject');
   const activityId = addendumDoc.get('activityId');
   const status = addendumDoc.get('activityData.status');
   const action = addendumDoc.get('action');
@@ -807,81 +613,124 @@ const handleDsr = (addendumDoc, locals) => {
 };
 
 
-const handlePayrollReport = (addendumDoc, locals) => {
+const handleDailyStatusReport = (addendumDoc, locals) => {
+  const getValue = (snap, field) => {
+    if (snap.empty) {
+      return 0;
+    }
+
+    return snap.docs[0].get(field) || 0;
+  };
+
+  const action = addendumDoc.get('action');
+  const isSupportRequest = addendumDoc.get('isSupportRequest');
+  const isAdminRequest = addendumDoc.get('isAdminRequest');
+  const isAutoGenerated = addendumDoc.get('isAutoGenerated');
   const template = addendumDoc.get('activityData.template');
 
-  console.log('In payroll report', template);
-
-  if (!new Set()
-    .add(reportNames.LEAVE)
-    .add(reportNames.CHECK_IN)
-    .add(reportNames.TOUR_PLAN)
-    .has(template)) {
-    return Promise.resolve();
-  }
-
-  const office = addendumDoc.get('activityData.office');
-  const officeId = addendumDoc.get('activityData.officeId');
-  const timestamp = new Date(addendumDoc.get('timestamp'));
-  const month = (() => {
-    if (template === reportNames.CHECK_IN) {
-      return timestamp.getMonth();
-    }
-
-    const schedule = addendumDoc.get('activityData.schedule')[0];
-
-    if (!schedule) return '';
-
-    const startTime = addendumDoc.get('activityData.schedule')[0].startTime;
-
-    if (!startTime) return '';
-
-    return new Date(startTime).getMonth();
-  })();
-
-  const year = (() => {
-    if (template === reportNames.CHECK_IN) {
-      return timestamp.getFullYear();
-    }
-
-    const schedule = addendumDoc.get('activityData.schedule')[0];
-    if (!schedule) return '';
-
-    const startTime = addendumDoc.get('activityData.schedule')[0].startTime;
-    if (!startTime) return '';
-
-    return new Date(startTime).getFullYear();
-  })();
-
-  if (!month || !year) {
-    return Promise.resolve();
-  }
-
-  console.log({ month, year });
+  console.log({
+    action,
+    isSupportRequest,
+    isAdminRequest,
+    isAutoGenerated,
+  });
 
   return rootCollections
     .inits
-    .where('office', '==', office)
-    .where('report', '==', reportNames.PAYROLL)
-    .where('month', '==', month)
-    .where('year', '==', year)
+    .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+    .where('date', '==', locals.dateObject.getDate())
+    .where('month', '==', locals.dateObject.getMonth())
+    .where('year', '==', locals.dateObject.getFullYear())
     .limit(1)
     .get()
-    .then((initQuery) => {
-      const ref = initDocRef(initQuery);
+    .then((docs) => {
+      const ref = initDocRef(docs);
 
-      console.log('path:', ref.path);
+      console.log('REPORT:', ref.path);
 
-      locals.batch.set(ref, {
-        office,
-        officeId,
-        month,
-        year,
-        report: reportNames.PAYROLL,
-        payrollObject: getPayrollObject(addendumDoc, initQuery),
-      }, {
-          merge: true,
-        });
+      let totalActivities = getValue(docs, 'totalActivities');
+      let addedToday = getValue(docs, 'addedToday');
+      let withAdminApi = getValue(docs, 'withAdminApi');
+      let withClientApi = getValue(docs, 'withClientApi');
+      let autoGenerated = getValue(docs, 'autoGenerated');
+      let withSupport = getValue(docs, 'withSupport');
+      let createApi = getValue(docs, 'createApi');
+      let updateApi = getValue(docs, 'updateApi');
+      let changeStatusApi = getValue(docs, 'changeStatusApi');
+      let shareApi = getValue(docs, 'shareApi');
+      let commentApi = getValue(docs, 'commentApi');
+
+      if (action === httpsActions.create) {
+        totalActivities++;
+        addedToday++;
+        createApi++;
+      }
+
+      if (action === httpsActions.update) {
+        updateApi++;
+      }
+
+      if (action === httpsActions.changeStatus) {
+        changeStatusApi++;
+      }
+
+      if (action === httpsActions.share) {
+        shareApi++;
+      }
+
+      if (action === httpsActions.comment) {
+        commentApi++;
+      }
+
+      if (isSupportRequest) {
+        withSupport++;
+      }
+
+      if (isAutoGenerated) {
+        autoGenerated++;
+      }
+
+      if (isAdminRequest) {
+        withAdminApi++;
+      } else {
+        withClientApi++;
+      }
+
+      const dataObject = (() => {
+        if (docs.empty) return {};
+
+        return docs.docs[0].data() || {};
+      })();
+
+      dataObject.totalActivities = totalActivities;
+      dataObject.addedToday = addedToday;
+      dataObject.withAdminApi = withAdminApi;
+      dataObject.withClientApi = withClientApi;
+      dataObject.autoGenerated = autoGenerated;
+      dataObject.withSupport = withSupport;
+      dataObject.createApi = createApi;
+      dataObject.updateApi = updateApi;
+      dataObject.changeStatusApi = changeStatusApi;
+      dataObject.shareApi = shareApi;
+      dataObject.commentApi = commentApi;
+      dataObject.report = reportNames.DAILY_STATUS_REPORT;
+      dataObject.date = locals.dateObject.getDate();
+      dataObject.month = locals.dateObject.getMonth();
+      dataObject.year = locals.dateObject.getFullYear();
+
+      if (!dataObject[template]) {
+        dataObject[template] = {};
+      }
+
+      if (dataObject[template][action]) {
+        dataObject[template][action] = dataObject[template][action] + 1;
+      } else {
+        dataObject[template][action] = 1;
+      }
+
+      locals.batch.set(ref, dataObject, {
+        merge: true,
+      });
 
       return Promise.resolve();
     })
@@ -894,31 +743,20 @@ module.exports = (addendumDoc) => {
   const officeId = addendumDoc.get('activityData.officeId');
   const locals = {
     batch: db.batch(),
+    dateObject: new Date(),
   };
 
   return rootCollections
     .offices
-    .doc(addendumDoc.get('activityData.officeId'))
+    .doc(officeId)
+    .collection('Addendum')
+    .where('user', '==', phoneNumber)
+    .where('date', '==', locals.dateObject.getDate())
+    .where('month', '==', locals.dateObject.getMonth())
+    .where('year', '==', locals.dateObject.getFullYear())
+    .orderBy('timestamp', 'desc')
+    .limit(2)
     .get()
-    .then((officeDoc) => {
-      const timezone = officeDoc.get('attachment.Timezone.value');
-      console.log({ timezone });
-
-      const momentDateObject = momentOffsetObject(timezone);
-      console.log({ momentDateObject });
-
-      return rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Addendum')
-        .where('user', '==', phoneNumber)
-        .where('date', '==', momentDateObject.today.DATE_NUMBER)
-        .where('month', '==', momentDateObject.today.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.today.YEAR)
-        .orderBy('timestamp', 'desc')
-        .limit(2)
-        .get();
-    })
     .then((docs) => {
       console.log('size', docs.size);
 
@@ -1014,13 +852,13 @@ module.exports = (addendumDoc) => {
         merge: true,
       });
 
-      // return handlePayrollReport(addendumDoc, locals);
       return;
     })
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleLeaveReport(addendumDoc, locals))
     .then(() => handleExpenseClaimReport(addendumDoc, locals))
+    .then(() => handleDailyStatusReport(addendumDoc, locals))
     .then(() => locals.batch.commit())
     .catch((error) => {
       console.error(error);

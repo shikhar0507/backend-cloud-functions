@@ -3,21 +3,17 @@
 
 const {
   sendResponse,
-  isNonEmptyString,
   getISO8601Date,
   handleError,
   sendJSON,
 } = require('../admin/utils');
-
 const {
   db,
   rootCollections,
 } = require('../admin/admin');
-
 const {
   code,
 } = require('../admin/responses');
-
 
 /**
  * Returns the server timestamp on a `GET` request.
@@ -36,19 +32,6 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!conn.req.query.hasOwnProperty('deviceId')
-    || !isNonEmptyString(conn.req.query.deviceId)) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `The request URL does not have a valid 'deviceId' param`
-    );
-
-    return;
-  }
-
-  const ddmmyyyyString = getISO8601Date();
-
   Promise
     .all([
       rootCollections
@@ -57,7 +40,7 @@ module.exports = (conn) => {
         .get(),
       rootCollections
         .timers
-        .doc(ddmmyyyyString)
+        .doc(getISO8601Date())
         .get(),
       rootCollections
         .versions
@@ -133,19 +116,21 @@ module.exports = (conn) => {
       }
 
       const newDeviceIdsArray = updatesDoc.get('newDeviceIdsArray') || [];
-      newDeviceIdsArray.push(conn.req.query.deviceId);
+
+      if (conn.req.query.deviceId) {
+        newDeviceIdsArray.push(conn.req.query.deviceId);
+      }
 
       const updatesDocData = updatesDoc.data();
       updatesDocData.lastNowRequestTimestamp = Date.now();
 
-      // Saving the regestration token in the /Updates/{uid} doc 
-      // of the user to 
-      if (conn.req.query.hasOwnProperty('regestrationToken')) {
-        updatesDocData.regestrationToken = conn.req.query.regestrationToken;
+      if (conn.req.query.hasOwnProperty('registrationToken')) {
+        updatesDocData.registrationToken = conn.req.query.registrationToken;
       }
 
-      /** Only logging when changed. */
-      if (conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
+      /** Only logging when changed */
+      if (conn.req.query.deviceId
+        && conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
         updatesDocData.deviceIdsArray = [...new Set(newDeviceIdsArray)];
         updatesDocData.latestDeviceId = conn.req.query.deviceId;
       }
@@ -173,6 +158,8 @@ module.exports = (conn) => {
         revokeSession,
         updateClient,
       ] = result;
+
+      console.log({ params: conn.req.query });
 
       return sendJSON(conn, {
         revokeSession,

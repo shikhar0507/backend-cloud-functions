@@ -107,16 +107,8 @@ const handleResult = (conn, result) => {
     responseObject: [],
   };
 
-  const handleDataArray = (() => {
-    if (conn.req.query.update === 'true') {
-      return require('./update');
-    }
-
-    return require('./create');
-  })();
-
   if (locals.templateDoc.get('canEditRule') !== 'ADMIN') {
-    handleDataArray(conn, locals);
+    require('./create')(conn, locals);
 
     return;
   }
@@ -135,7 +127,7 @@ const handleResult = (conn, result) => {
           .adminsSet
           .add(doc.get('attachment.Admin.value')));
 
-      handleDataArray(conn, locals);
+      require('./create')(conn, locals);
 
       return;
     })

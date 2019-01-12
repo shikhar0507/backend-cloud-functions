@@ -115,6 +115,7 @@ const updateDocsWithBatch = (conn, locals) => {
       template: locals.docs.activity.get('template'),
       isSupportRequest: conn.requester.isSupportRequest,
       location: getGeopointObject(conn.req.body.geopoint),
+      geopointAccuracy: conn.req.body.geopoint.accuracy || null,
     });
 
   Object

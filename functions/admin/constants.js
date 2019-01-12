@@ -154,6 +154,7 @@ const sendGridTemplateIds = {
   dutyRoster: 'd-9b9c44018c3b41a8805189476a38c172',
   footprints: 'd-90095557c1c54de1a153626bb0fbe03d',
   expenseClaim: 'd-ae3a31066b0f447bbf8661570b4dc719',
+  dailyStatusReport: '',
 };
 
 const templatesWithNumber = new Set()
@@ -810,10 +811,11 @@ const reportNames = {
   LEAVE: 'leave',
   PAYROLL: 'payroll',
   TOUR_PLAN: 'tour plan',
+  DAILY_STATUS_REPORT: 'daily status report',
 };
 
 const customMessages = {
-  LEAVE_CANCELLED: `LEAVE CANCELLED. LIMIT EXCEEDED`,
+  LEAVE_CANCELLED: `LEAVE CANCELLED`,
   CHECK_IN_CANCELLED: `CHECK-IN CANCELLED. INACCURATE CHECK-IN LOCATION`,
   TOUR_PLAN_CANCELLED: `TOUR PLAN CANCELLED. LEAVE ALREADY APPLIED`
     + ` FOR THE SCHEDULE`,

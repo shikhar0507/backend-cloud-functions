@@ -21,9 +21,9 @@ module.exports = (change, context) => {
         return Promise.resolve();
       }
 
-      const regestrationToken = snapShot.docs[0].get('regestrationToken');
+      const registrationToken = snapShot.docs[0].get('registrationToken');
 
-      if (!regestrationToken) {
+      if (!registrationToken) {
         console.log('NO REGESTRATION TOKEN FOUND. EXITING...');
 
         return Promise.resolve();
@@ -36,11 +36,10 @@ module.exports = (change, context) => {
           tile: `Growthfile`,
         },
       };
-
+      const ONE_DAY = 60 * 60 * 24;
       const options = {
         priority: 'high',
-        // 1 day
-        timeToLive: 60 * 60 * 24,
+        timeToLive: ONE_DAY,
       };
 
       console.log(`Notification sent to `
@@ -48,7 +47,7 @@ module.exports = (change, context) => {
 
       return admin
         .messaging()
-        .sendToDevice(regestrationToken, payload, options);
+        .sendToDevice(registrationToken, payload, options);
     })
     .then(console.log)
     .catch(console.error);

@@ -30,6 +30,9 @@ const {
   deleteField,
 } = require('./../../admin/admin');
 const {
+  reportNames,
+} = require('../../admin/constants');
+const {
   isValidDate,
   isValidEmail,
   isValidGeopoint,
@@ -527,6 +530,14 @@ const filterAttachment = (options) => {
           + ` 'office' field in the request body should be the same`;
         break;
       }
+
+      // if (template === 'recipient'
+      //   && !reportNames[value]) {
+      //   console.log({ value });
+      //   messageObject.isValid = false;
+      //   messageObject.message = `${value} is not a valid report name`;
+      //   break;
+      // }
 
       messageObject
         .querySnapshotShouldNotExist

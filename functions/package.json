@@ -47,6 +47,7 @@
     "google-libphonenumber": "^3.1.14",
     "moment": "^2.22.2",
     "moment-timezone": "^0.5.23",
+    "mozjpeg": "^6.0.1",
     "request-promise-native": "^1.0.5",
     "winston": "^3.1.0",
     "xlsx-populate": "^1.17.0"

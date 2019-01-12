@@ -27,10 +27,8 @@
 
 const { code } = require('./responses');
 const {
-  db,
   auth,
   rootCollections,
-  // serverTimestamp,
 } = require('./admin');
 
 
@@ -74,15 +72,16 @@ const sendResponse = (conn, statusCode, message = '') => {
  *
  * @param {Object} conn Object containing Express's Request and Response objects.
  * @param {Object} error Firebase Error object.
+ * @param {string} customErrorMessage Message to send to the client.
  * @returns {void}
  */
-const handleError = (conn, error) => {
+const handleError = (conn, error, customErrorMessage) => {
   console.error(error);
 
   sendResponse(
     conn,
     code.internalServerError,
-    'Please try again later'
+    customErrorMessage || 'Please try again later'
   );
 };
 
@@ -364,8 +363,24 @@ const reportBackgroundError = (error, context = {}, logName) => {
 };
 
 
-const promisifiedRequest = (options) => {
-  return new Promise((resolve, reject) => {
+const getObjectFromSnap = (snap) => {
+  if (snap.empty) {
+    return {
+      ref: rootCollections.inits.doc(),
+      data: () => {
+        return {};
+      },
+    };
+  }
+
+  return {
+    ref: snap.docs[0].ref,
+    data: snap.docs[0].data() || {},
+  };
+};
+
+const promisifiedRequest = (options) =>
+  new Promise((resolve, reject) => {
     const lib = require('https');
 
     const request =
@@ -374,17 +389,37 @@ const promisifiedRequest = (options) => {
           let body = '';
 
           response
-            .on('data', (chunk) => body += chunk)
-            .on('end', () => resolve(body));
+            .on('data', (chunk) => {
+              body += chunk;
+            })
+            .on('end', () => {
+              let responseData = {};
+
+              try {
+                responseData = JSON.parse(body);
+              } catch (error) {
+                return reject(new Error(body));
+              }
+
+
+              if (!response.statusCode.toString().startsWith('2')) {
+                return reject(new Error(body));
+              }
+
+              return resolve(responseData);
+            });
         });
 
+    if (options.postData) {
+      request.write(options.postData);
+    }
+
     request
-      .on('error', (err) => reject(err));
+      .on('error', (error) => reject(new Error(error)));
 
     request
       .end();
   });
-};
 
 
 module.exports = {
@@ -401,6 +436,7 @@ module.exports = {
   hasSupportClaims,
   isNonEmptyString,
   isE164PhoneNumber,
+  getObjectFromSnap,
   hasSuperUserClaims,
   promisifiedRequest,
   reportBackgroundError,

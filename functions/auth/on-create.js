@@ -30,6 +30,13 @@ const {
   auth,
   rootCollections,
 } = require('../admin/admin');
+const {
+  getObjectFromSnap,
+} = require('../admin/utils');
+const {
+  reportNames,
+} = require('../admin/constants');
+const moment = require('moment');
 
 
 /**
@@ -47,17 +54,84 @@ const {
  * @param {Object} userRecord Object with user info.
  * @returns {Promise<Object>} Batch object.
  */
-module.exports = (userRecord) =>
-  rootCollections
-    .profiles
-    .doc(userRecord.phoneNumber)
-    .collection('Activities')
-    .where('template', '==', 'admin')
-    .where('attachment.Admin.value', '==', userRecord.phoneNumber)
-    .get()
-    .then((docs) => {
-      const batch = db.batch();
-      const { uid, phoneNumber } = userRecord;
+module.exports = (userRecord) => {
+  const batch = db.batch();
+  const momentToday = moment().toObject();
+  const momentYesterday = moment().subtract(1, 'days').toObject();
+
+  console.log({ momentToday, momentYesterday });
+
+  return Promise
+    .all([
+      rootCollections
+        .inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', momentToday.date)
+        .where('month', '==', momentToday.months)
+        .where('year', '==', momentToday.years)
+        .limit(1)
+        .get(),
+      rootCollections
+        .inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', momentYesterday.date)
+        .where('month', '==', momentYesterday.months)
+        .where('year', '==', momentYesterday.years)
+        .limit(1)
+        .get(),
+      rootCollections
+        .profiles
+        .doc(userRecord.phoneNumber)
+        .collection('Activities')
+        .where('template', '==', 'admin')
+        .where('attachment.Admin.value', '==', userRecord.phoneNumber)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        initSnapToday,
+        initSnapYesterday,
+        adminActivitiesSnap,
+      ] = result;
+
+      let totalUsers = 0;
+      let usersAdded = 0;
+
+      if (initSnapToday.empty) {
+        totalUsers = initSnapYesterday.docs[0].get('totalUsers');
+        usersAdded = initSnapYesterday.docs[0].get('usersAdded') || 0;
+      }
+
+      const doc = getObjectFromSnap(initSnapToday);
+
+      console.log('doc.ref', doc.ref);
+
+      batch.set(doc.ref, {
+        totalUsers: totalUsers + 1,
+        usersAdded: usersAdded + 1,
+      }, {
+          merge: true,
+        });
+
+      const customClaimsObject = {};
+
+      if (!adminActivitiesSnap.empty) {
+        customClaimsObject.admin = [];
+      }
+
+      adminActivitiesSnap
+        .forEach((doc) => {
+          const office = doc.get('office');
+
+          console.log('Admin Of:', office);
+
+          customClaimsObject.admin.push(office);
+        });
+
+      const {
+        uid,
+        phoneNumber,
+      } = userRecord;
 
       batch.set(rootCollections
         .updates
@@ -81,12 +155,6 @@ module.exports = (userRecord) =>
           merge: true,
         });
 
-      const customClaimsObject = {};
-
-      if (!docs.empty) customClaimsObject.admin = [];
-
-      docs.forEach((doc) => customClaimsObject.admin.push(doc.get('office')));
-
       return Promise
         .all([
           auth
@@ -97,3 +165,4 @@ module.exports = (userRecord) =>
     })
     .then(console.log)
     .catch(console.error);
+};

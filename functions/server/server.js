@@ -28,11 +28,15 @@
 const {
   rootCollections,
   auth,
+  deleteField,
+  fieldPath,
+  db,
 } = require('../admin/admin');
 const {
   code,
 } = require('../admin/responses');
 const {
+  sendJSON,
   handleError,
   sendResponse,
   disableAccount,
@@ -45,6 +49,7 @@ const handleAdminUrl = (conn, urlParts) => {
   const resource = urlParts[2];
 
   console.log('resource', resource);
+
 
   if (conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims)) {
@@ -155,6 +160,12 @@ const handleServicesUrl = (conn, urlParts) => {
 
   if (resource === 'logs') {
     require('../services/on-logs')(conn);
+
+    return;
+  }
+
+  if (resource === 'images') {
+    require('../services/on-images')(conn);
 
     return;
   }
@@ -371,7 +382,6 @@ const headerValid = (headers) => {
   };
 };
 
-
 const handleRejections = (conn, errorObject) => {
   if (!errorObject.code.startsWith('auth/')) {
     console.error(errorObject);
@@ -416,6 +426,135 @@ const checkAuthorizationToken = (conn) => {
     .verifyIdToken(result.authToken, checkRevoked)
     .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => handleRejections(conn, error));
+};
+
+
+const handleBulkObject = (conn) => {
+  const csvtojsonV2 = require('csvtojson/v2');
+  const path = require('path');
+  const filePath = path.join(process.cwd(), 'data.csv');
+  const templateName = '';
+  const office = '';
+  const geopoint = {
+    latitude: '',
+    longitude: '',
+  };
+
+  console.log({ filePath });
+
+  Promise
+    .all([
+      rootCollections
+        .activityTemplates
+        .where('name', '==', templateName)
+        .limit(1)
+        .get(),
+      csvtojsonV2()
+        .fromFile(filePath),
+    ])
+    .then((result) => {
+      const [
+        templateQuery,
+        arrayOfObjects,
+      ] = result;
+      const templateObject =
+        templateQuery.docs[0].data();
+
+      const myObject = {
+        office,
+        geopoint,
+        timestamp: Date.now(),
+        template: templateName,
+        data: [],
+        update: conn.req.query.hasOwnProperty('update'),
+      };
+
+      const attachmentFieldsSet =
+        new Set(Object.keys(templateObject.attachment));
+      const scheduleFieldsSet = new Set();
+      const venueFieldsSet = new Set();
+
+      templateObject
+        .schedule
+        .forEach((field) => scheduleFieldsSet.add(field));
+
+      templateObject
+        .venue
+        .forEach((field) => venueFieldsSet.add(field));
+
+      arrayOfObjects
+        .forEach((object, index) => {
+          const fields = Object.keys(object);
+          const obj = {
+            attachment: {},
+            schedule: [],
+            venue: [],
+            share: [],
+          };
+
+          fields.forEach((field) => {
+            if (attachmentFieldsSet.has(field)) {
+              obj.attachment[field] = {
+                type: templateObject.attachment[field].type,
+                value: arrayOfObjects[index][field],
+              };
+            }
+
+            if (scheduleFieldsSet.has(field)) {
+              const ts = (() => {
+                const date = arrayOfObjects[index][field];
+                if (!date) return date;
+
+                return new Date(date).getTime();
+              })();
+
+              obj.schedule.push({
+                startTime: ts,
+                name: field,
+                endTime: ts,
+              });
+            }
+
+            if (venueFieldsSet.has(field)) {
+              const geopoint = (() => {
+                const split =
+                  arrayOfObjects[index][field].split(',');
+
+                return {
+                  latitude: Number(split[0]),
+                  longitude: Number(split[1]),
+                };
+              })();
+
+              const address = (() => {
+                return '';
+              })();
+
+              const location = (() => {
+                return '';
+              })();
+
+              obj.venue.push({
+                geopoint,
+                venueDescriptor: field,
+                address,
+                location,
+              });
+            }
+          });
+
+          myObject.data.push(obj);
+        });
+
+      conn.req.body = myObject;
+
+      console.log(JSON.stringify(myObject, ' ', 2));
+
+      checkAuthorizationToken(conn);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

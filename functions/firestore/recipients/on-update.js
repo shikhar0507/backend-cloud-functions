@@ -72,6 +72,10 @@ const getTemplateId = (report) => {
     return sendGridTemplateIds.leave;
   }
 
+  if (report === reportNames.DAILY_STATUS_REPORT) {
+    return sendGridTemplateIds.dailyStatusReport;
+  }
+
   return null;
 };
 
@@ -197,6 +201,10 @@ module.exports = (change) => {
 
       if (report === reportNames.LEAVE) {
         return require('./leave-report')(locals);
+      }
+
+      if (report === reportNames.DAILY_STATUS_REPORT) {
+        return require('./daily-status-report')(locals);
       }
 
       return Promise.resolve();

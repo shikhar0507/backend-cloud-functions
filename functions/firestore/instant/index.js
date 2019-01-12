@@ -33,14 +33,10 @@ sgMail.setApiKey(env.sgMailApiKey);
 
 
 module.exports = (instantDoc) => {
-  const {
-    action,
-  } = instantDoc.data();
+  const messages = [];
+  const { subject, messageBody, action } = instantDoc.data();
 
   console.log({ action });
-
-  const messages = [];
-  const { subject, messageBody } = instantDoc.data();
 
   messages.push({
     subject,
@@ -48,6 +44,13 @@ module.exports = (instantDoc) => {
     to: env.cc,
     from: env.systemEmail,
   });
+
+  if (action === 'clientError' && !env.isProduction) {
+    env.instantEmailRecipientEmails = [{
+      email: env.frontEndDevEmail,
+      name: '',
+    }];
+  }
 
   env
     .instantEmailRecipientEmails
