@@ -46,17 +46,5 @@ module.exports = (snap, context) =>
         .messaging()
         .sendToDevice(registrationToken, payload, options);
     })
-    .then((result) => {
-      if (!result) {
-        console.log('No result...', result);
-
-        return Promise.resolve();
-      }
-
-      console.log('str', JSON.stringify(result));
-
-      return db.collection('FCMTEST').doc().set({
-        object: result,
-      });
-    })
+    .then(JSON.stringify)
     .catch(console.error);
