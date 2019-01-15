@@ -254,7 +254,7 @@ module.exports = (doc) => {
         .recipients
         .orderBy('activityId')
         .get(),
-      handleDailyStatusReport(),
+      // handleDailyStatusReport(),
       doc
         .ref
         .set({

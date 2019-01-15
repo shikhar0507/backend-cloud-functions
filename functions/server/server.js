@@ -466,7 +466,6 @@ const handleBulkObject = (conn) => {
         timestamp: Date.now(),
         template: templateName,
         data: [],
-        update: conn.req.query.hasOwnProperty('update'),
       };
 
       const attachmentFieldsSet =
@@ -550,7 +549,11 @@ const handleBulkObject = (conn) => {
 
       console.log(JSON.stringify(myObject, ' ', 2));
 
-      checkAuthorizationToken(conn);
+      // checkAuthorizationToken(conn);
+
+      getUserAuthFromIdToken(conn, {
+        uid: require('../admin/env').supportUid,
+      });
 
       return;
     })

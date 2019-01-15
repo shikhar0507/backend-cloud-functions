@@ -359,7 +359,7 @@ const getLeaveObject = (addendumDoc, leaveInitDocsQuery) => {
   const status = addendumDoc.get('activityData.status');
   const action = addendumDoc.get('action');
 
-  if (leaveObject[activityId]) {
+  if (!leaveObject[activityId]) {
     leaveObject[activityId] = {};
   }
 
