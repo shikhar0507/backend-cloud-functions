@@ -94,8 +94,8 @@ const bulkActivitiesOnCreate = functions
 /** For sending notifications to the client app */
 const sendPushNotification = functions
   .firestore
-  .document('Profiles/{phoneNumber}/Activities/{activityId}')
-  .onWrite(require('./firestore/profiles/activities/on-write'));
+  .document('Updates/{uid}/Addendum/{docId}')
+  .onCreate(require('./firestore/updates/addendum/on-create'));
 
 
 module.exports = {

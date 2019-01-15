@@ -402,7 +402,7 @@ const handleInstall = (change, options) => {
               office,
               phoneNumber,
               officeId,
-              report: 'install',
+              report: reportNames.INSTALL,
               date: today.getDate(),
               month: today.getMonth(),
               year: today.getFullYear(),
@@ -424,10 +424,44 @@ const handleInstall = (change, options) => {
           };
         })();
 
-        console.log('installRef', ref.path, { initDocObject });
-
         batch.set(ref, initDocObject, { merge: true });
       });
+
+      return rootCollections
+        .inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', today.getDate())
+        .where('month', '==', today.getMonth())
+        .where('year', '==', today.getFullYear())
+        .limit(1)
+        .get();
+    })
+    .then((docs) => {
+      console.log('In daily status report...');
+
+      const ref = (() => {
+        if (docs.empty) {
+          return rootCollections.inits.doc();
+        }
+
+        return docs.docs[0].ref;
+      })();
+
+      const installedToday = (() => {
+        if (docs.empty) return 0;
+
+        // The doc may NOT exist, since it is also handled by `AddendumOnCreate` function
+        // But that function doesn't put the field `installedToday` in the doc.
+        return docs.docs[0].get('installedToday') || 0;
+      })();
+
+      console.log({ installedToday: installedToday + 1 });
+
+      batch.set(ref, {
+        installedToday: installedToday + 1,
+      }, {
+          merge: true,
+        });
 
       return Promise.resolve();
     })

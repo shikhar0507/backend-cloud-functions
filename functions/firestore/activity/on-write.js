@@ -36,7 +36,6 @@ const {
 const {
   httpsActions,
   vowels,
-  reportNames,
   customMessages,
 } = require('../../admin/constants');
 
@@ -1364,5 +1363,11 @@ module.exports = (change, context) => {
 
       return batch.commit();
     })
-    .catch(console.error);
+    .catch((error) => {
+      console.error({
+        error,
+        context,
+        activityId: change.after.id,
+      });
+    });
 };

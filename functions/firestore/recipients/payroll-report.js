@@ -365,6 +365,13 @@ module.exports = (locals) => {
         // `dailyStartHours` is in the format `HH:MM` in the `employeesData` object.
         const dailyStartHours
           = locals.employeesData[phoneNumber]['Daily Start Time'];
+
+        if (dailyStartHours === '') {
+          locals.payrollObject[phoneNumber][yesterdayDate] = `FULL DAY`;
+
+          return;
+        }
+
         const split = dailyStartHours.split(':');
         const hours = Number(split[0]);
         const minutes = Number(split[1]);

@@ -56,8 +56,13 @@ const moment = require('moment');
  */
 module.exports = (userRecord) => {
   const batch = db.batch();
-  const momentToday = moment().toObject();
-  const momentYesterday = moment().subtract(1, 'days').toObject();
+  const momentToday = moment()
+    .utc()
+    .toObject();
+  const momentYesterday = moment()
+    .utc()
+    .subtract(1, 'days')
+    .toObject();
 
   console.log({ momentToday, momentYesterday });
 
@@ -89,20 +94,31 @@ module.exports = (userRecord) => {
     ])
     .then((result) => {
       const [
-        initSnapToday,
-        initSnapYesterday,
+        initTodayQuery,
+        initYesterdayQuery,
         adminActivitiesSnap,
       ] = result;
 
-      let totalUsers = 0;
-      let usersAdded = 0;
+      const usersAdded = (() => {
+        if (initTodayQuery.empty) {
+          return 0;
+        }
 
-      if (initSnapToday.empty) {
-        totalUsers = initSnapYesterday.docs[0].get('totalUsers');
-        usersAdded = initSnapYesterday.docs[0].get('usersAdded') || 0;
-      }
+        return initTodayQuery.docs[0].get('usersAdded') || 0;
+      })();
+      const totalUsers = (() => {
+        if (initTodayQuery.empty && initYesterdayQuery.empty) {
+          return 0;
+        }
 
-      const doc = getObjectFromSnap(initSnapToday);
+        if (initTodayQuery.empty) {
+          return initYesterdayQuery.docs[0].get('totalUsers') || 0;
+        }
+
+        return initTodayQuery.docs[0].get('totalUsers') || 0;
+      })();
+
+      const doc = getObjectFromSnap(initTodayQuery);
 
       console.log('doc.ref', doc.ref);
 

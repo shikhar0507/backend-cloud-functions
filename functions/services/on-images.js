@@ -7,6 +7,9 @@ const {
   isNonEmptyString,
   promisifiedRequest,
 } = require('../admin/utils');
+const {
+  auth,
+} = require('../admin/admin');
 const { code } = require('../admin/responses');
 const fs = require('fs');
 const url = require('url');
@@ -36,10 +39,22 @@ const getFileHash = (fileBuffer) =>
     .digest('hex');
 
 
+/**
+ * Takes in the backblaze main download url along with the fileName (uid of the uploader)
+ * and returns the downloadable pretty URL for the client to consume.
+ * 
+ * `Note`: photos.growthfile.com is behind the Cloudflare + Backblaze CDN, but only for
+ * the production project, oso the pretty url will only show up for the production and
+ * not for any other project that the code runs on.
+ * 
+ * @param {string} mainDownloadUrlStart Backblaze main download host url.
+ * @param {string} fileId File ID returned by Backblaze.
+ * @param {string} fileName Equals to the uid of the uploader.
+ * @returns {string} File download url.
+ */
 const getDownloadUrl = (mainDownloadUrlStart, fileId, fileName) => {
   if (env.isProduction) {
-    return `https://photos.growthfile.com/file/growthfile-207204/${fileName}`;
-
+    return `${env.imageCdnUrl}/${fileName}`;
   }
 
   return `https://${mainDownloadUrlStart}`
@@ -54,25 +69,14 @@ const validateRequest = (requestBody) => {
     message: null,
   };
 
-  if (!requestBody.hasOwnProperty('fileName')) {
+  if (!requestBody.hasOwnProperty('imageBase64')) {
     validationResult.message =
-      `The field 'fileName' is missing from the request body.`;
+      `The field 'imageBase64' is missing from the request body.`;
     validationResult.isValid = false;
   }
 
-  if (!requestBody.hasOwnProperty('image')) {
-    validationResult.message =
-      `The field 'image' is missing from the request body.`;
-    validationResult.isValid = false;
-  }
-
-  if (!isNonEmptyString(requestBody.fileName)) {
-    validationResult.message = `The field 'fileName' should be a 'string'.`;
-    validationResult.isValid = false;
-  }
-
-  if (!isNonEmptyString(requestBody.image)) {
-    validationResult.message = `The field 'image' should be a 'string'.`;
+  if (!isNonEmptyString(requestBody.imageBase64)) {
+    validationResult.message = `The field 'imageBase64' should be a 'string'.`;
     validationResult.isValid = false;
   }
 
@@ -98,10 +102,10 @@ module.exports = (conn) => {
   const keyWithPrefix = getKeyId(applicationKey);
   const authorization =
     `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
-  const originalFileName = `${conn.req.body.fileName}-orignal.jpg`;
+  const originalFileName = `${conn.requester.uid}-original.jpg`;
   const originalFilePath = `/tmp/${originalFileName}`;
-  const base64ImageString = conn.req.body.image.split(';base64,').pop();
-  const compressedFilePath = `/tmp/${conn.req.body.fileName}.jpg`;
+  const compressedFilePath = `/tmp/${conn.requester.uid}.jpg`;
+  const base64ImageString = conn.req.body.imageBase64.split(';base64,').pop();
 
   fs.writeFileSync(originalFilePath, base64ImageString, {
     encoding: 'base64',
@@ -144,7 +148,7 @@ module.exports = (conn) => {
         postData: fileBuffer,
         headers: {
           'Authorization': authorizationToken,
-          'X-Bz-File-Name': encodeURI(`${conn.req.body.fileName}.jpg`),
+          'X-Bz-File-Name': encodeURI(`${conn.requester.uid}.jpg`),
           'Content-Type': 'b2/x-auto',
           'Content-Length': Buffer.byteLength(fileBuffer),
           'X-Bz-Content-Sha1': getFileHash(fileBuffer),
@@ -157,10 +161,20 @@ module.exports = (conn) => {
     .then((response) => {
       console.log({ response });
 
-      const url = getDownloadUrl(mainDownloadUrlStart, response.fileId, `${conn.req.body.fileName}.jpg`);
+      const url =
+        getDownloadUrl(
+          mainDownloadUrlStart,
+          response.fileId,
+          `${conn.requester.uid}.jpg`
+        );
+
       console.log({ url });
 
-      return sendJSON(conn, url);
+      return auth
+        .updateUser(conn.requester.uid, {
+          photoURL: url,
+        });
     })
+    .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error, 'Image upload unavailable at the moment...'));
 };
