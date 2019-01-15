@@ -135,6 +135,9 @@ module.exports = (conn) => {
         updatesDocData.latestDeviceId = conn.req.query.deviceId;
       }
 
+      updatesDocData.latestDeviceOs = conn.req.query.os || '';
+      updatesDocData.latestAppVersion = conn.req.query.appVersion || '';
+
       batch.set(updatesDoc.ref, updatesDocData, {
         merge: true,
       });
