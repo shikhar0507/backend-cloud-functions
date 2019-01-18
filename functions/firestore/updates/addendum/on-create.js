@@ -3,7 +3,6 @@
 const admin = require('firebase-admin');
 
 const {
-  db,
   rootCollections,
 } = require('../../../admin/admin');
 
@@ -25,14 +24,16 @@ module.exports = (snap, context) =>
 
       const payload = {
         data: {
-          test: snap.get('comment'),
+          // test: snap.get('comment'),
+          key1: 'value1',
+          key2: 'value2',
         },
         notification: {
           body: snap.get('comment'),
           tile: `Growthfile`,
         },
       };
-      const ONE_DAY = 60 * 60 * 24;
+      const ONE_DAY = 60;
       const options = {
         priority: 'high',
         timeToLive: ONE_DAY,

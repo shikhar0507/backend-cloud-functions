@@ -30,14 +30,13 @@ const {
   deleteField,
 } = require('./../../admin/admin');
 const {
-  reportNames,
-} = require('../../admin/constants');
-const {
   isValidDate,
   isValidEmail,
   isValidGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
+  isValidBase64,
+  isValidUrl,
 } = require('../../admin/utils');
 
 
@@ -342,6 +341,7 @@ const filterAttachment = (options) => {
     querySnapshotShouldExist: [],
     querySnapshotShouldNotExist: [],
     profileDocShouldExist: [],
+    hasBase64Field: false,
   };
 
   const invalidTypeMessage = `Expected the type of 'attachment' to be`
@@ -417,6 +417,36 @@ const filterAttachment = (options) => {
       messageObject.message = `${field} should have an alpha-numeric value`;
       break;
     }
+
+    // if (type === 'base64') {
+    //   const rejectionsMsg =
+    //     `Invalid value for type base64 in the field '${field}'`;
+
+    //   if (typeof value !== 'string') {
+    //     messageObject.isValid = false;
+    //     messageObject.message = `${rejectionsMsg}.`
+    //       + ` Expected a string. Found ${typeof value}`;
+    //     break;
+    //   }
+
+    //   const isUrl = isValidUrl(value);
+    //   const base64Value = value.split(';base64,')[1];
+    //   const isBase64 = isValidBase64(base64Value);
+    //   const isEmptyString = !isNonEmptyString(value);
+
+    //   messageObject.hasBase64Field = true;
+    //   messageObject.isBase64 = isBase64;
+    //   messageObject.isBase64EmptyString = isEmptyString;
+    //   messageObject.isBase64Url = isUrl;
+    //   messageObject.base64FieldName = field;
+    //   messageObject.base64Value = base64Value;
+
+    //   if (!isUrl && !isEmptyString && !isBase64) {
+    //     messageObject.isValid = false;
+    //     messageObject.message = rejectionsMsg;
+    //     break;
+    //   }
+    // }
 
     if (field === 'Timezone' && !timezonesSet.has(value)) {
       messageObject.isValid = false;

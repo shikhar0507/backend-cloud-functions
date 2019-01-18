@@ -28,9 +28,6 @@
 const {
   rootCollections,
   auth,
-  deleteField,
-  fieldPath,
-  db,
 } = require('../admin/admin');
 const {
   code,
@@ -43,7 +40,7 @@ const {
   hasSupportClaims,
   reportBackgroundError,
 } = require('../admin/utils');
-
+const env = require('../admin/env');
 
 const handleAdminUrl = (conn, urlParts) => {
   const resource = urlParts[2];
@@ -383,6 +380,15 @@ const headerValid = (headers) => {
 };
 
 const handleRejections = (conn, errorObject) => {
+  const context = {
+    ip: conn.req.ip,
+    header: conn.req.headers,
+    url: conn.req.url,
+    origin: conn.req.get('origin'),
+  };
+
+  console.log({ context });
+
   if (!errorObject.code.startsWith('auth/')) {
     console.error(errorObject);
 
@@ -390,13 +396,6 @@ const handleRejections = (conn, errorObject) => {
 
     return;
   }
-
-  const context = {
-    ip: conn.req.ip,
-    header: conn.req.headers,
-    // latestNowRequestTimestamp: nowDoc.get('latestNowRequestTimestamp'),
-    url: conn.req.url,
-  };
 
   reportBackgroundError(errorObject, context, 'AUTH_REJECTION')
     .then(() => sendResponse(conn, code.unauthorized, 'Unauthorized'))
@@ -457,8 +456,11 @@ const handleBulkObject = (conn) => {
         templateQuery,
         arrayOfObjects,
       ] = result;
+
       const templateObject =
-        templateQuery.docs[0].data();
+        templateQuery
+          .docs[0]
+          .data();
 
       const myObject = {
         office,
@@ -480,6 +482,8 @@ const handleBulkObject = (conn) => {
       templateObject
         .venue
         .forEach((field) => venueFieldsSet.add(field));
+
+      console.log('total', arrayOfObjects.length);
 
       arrayOfObjects
         .forEach((object, index) => {
@@ -516,16 +520,6 @@ const handleBulkObject = (conn) => {
 
             if (venueFieldsSet.has(field)) {
               const geopoint = (() => {
-                const split =
-                  arrayOfObjects[index][field].split(',');
-
-                return {
-                  latitude: Number(split[0]),
-                  longitude: Number(split[1]),
-                };
-              })();
-
-              const address = (() => {
                 return '';
               })();
 
@@ -533,8 +527,15 @@ const handleBulkObject = (conn) => {
                 return '';
               })();
 
+              const address = (() => {
+                return '';
+              })();
+
               obj.venue.push({
-                geopoint,
+                geopoint: {
+                  latitude: Number(geopoint.split(',')[0]),
+                  longitude: Number(geopoint.split(',')[1]),
+                },
                 venueDescriptor: field,
                 address,
                 location,
@@ -549,11 +550,7 @@ const handleBulkObject = (conn) => {
 
       console.log(JSON.stringify(myObject, ' ', 2));
 
-      // checkAuthorizationToken(conn);
-
-      getUserAuthFromIdToken(conn, {
-        uid: require('../admin/env').supportUid,
-      });
+      checkAuthorizationToken(conn);
 
       return;
     })
@@ -584,6 +581,19 @@ module.exports = (req, res) => {
       'Cache-Control': 'no-cache',
     },
   };
+
+  console.log('origin:', conn.req.get('origin'), process.env.PRODUCTION);
+
+  if (env.isProduction
+    && !env.allowedOrigins.has(conn.req.get('origin'))) {
+    sendResponse(
+      conn,
+      code.unauthorized,
+      `Requests from domain: ${conn.req.get('origin')} are not allowed.`
+    );
+
+    return;
+  }
 
   /** For handling CORS */
   if (req.method === 'HEAD' || req.method === 'OPTIONS') {

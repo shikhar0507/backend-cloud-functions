@@ -30,6 +30,8 @@ const {
   auth,
   rootCollections,
 } = require('./admin');
+const crypto = require('crypto');
+const env = require('./env');
 
 
 /**
@@ -58,10 +60,20 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
 const sendResponse = (conn, statusCode, message = '') => {
   conn.res.writeHead(statusCode, conn.headers);
 
+  /** 2xx codes denote success. */
+  const success = statusCode <= 226;
+
+  if (!success) {
+    console.log({
+      ip: conn.req.ip,
+      header: conn.req.headers,
+      url: conn.req.url,
+    });
+  }
+
   conn.res.end(JSON.stringify({
     message,
-    /** 2xx codes denote success. */
-    success: statusCode <= 226,
+    success,
     code: statusCode,
   }));
 };
@@ -324,14 +336,8 @@ const isE164PhoneNumber = (phoneNumber) =>
 
 
 const reportBackgroundError = (error, context = {}, logName) => {
-  // Nothing to log when the context is empty
-  if (Object.keys(context).length === 0) {
-    return Promise.resolve();
-  }
-
   const { Logging } = require('@google-cloud/logging');
 
-  // TODO: Implement this for background functions
   // DOCS: https://firebase.google.com/docs/functions/reporting-errors
   const logging = new Logging();
   const log = logging.log(logName);
@@ -352,6 +358,8 @@ const reportBackgroundError = (error, context = {}, logName) => {
       resourceType: 'cloud_function',
     },
   };
+
+  console.log({ context });
 
   return new Promise((resolve, reject) => {
     return log.write(log.entry(metadata, errorEvent), (error) => {
@@ -421,24 +429,81 @@ const promisifiedRequest = (options) =>
       .end();
   });
 
+const promisifiedExecFile = (command, args) => {
+  const { execFile } = require('child_process');
+
+  return new Promise((resolve, reject) => {
+    return execFile(command, args, (error) => {
+      if (error) {
+        return reject(new Error(error));
+      }
+
+      return resolve(true);
+    });
+  });
+};
+
+/**
+ * Takes in the backblaze main download url along with the fileName (uid of the uploader)
+ * and returns the downloadable pretty URL for the client to consume.
+ * 
+ * `Note`: photos.growthfile.com is behind the Cloudflare + Backblaze CDN, but only for
+ * the production project, oso the pretty url will only show up for the production and
+ * not for any other project that the code runs on.
+ * 
+ * @param {string} mainDownloadUrlStart Backblaze main download host url.
+ * @param {string} fileId File ID returned by Backblaze.
+ * @param {string} fileName Equals to the uid of the uploader.
+ * @returns {string} File download url.
+ */
+const cloudflareCdnUrl = (mainDownloadUrlStart, fileId, fileName) => {
+  if (env.isProduction) {
+    return `${env.imageCdnUrl}/${fileName}`;
+  }
+
+  return `https://${mainDownloadUrlStart}`
+    + `/b2api/v2/b2_download_file_by_id`
+    + `?fileId=${fileId}`;
+};
+
+const getFileHash = (fileBuffer) =>
+  crypto
+    .createHash('sha1')
+    .update(fileBuffer)
+    .digest('hex');
+
+
+const isValidUrl = (suspectedUrl) =>
+  /^(ftp|http|https):\/\/[^ "]+$/
+    .test(suspectedUrl);
+
+const isValidBase64 = (suspectBase64String) =>
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
+    .test(suspectBase64String);
+
 
 module.exports = {
+  isValidUrl,
   sendJSON,
+  getFileHash,
   isValidDate,
   handleError,
   isValidEmail,
   sendResponse,
   isHHMMFormat,
+  isValidBase64,
   disableAccount,
   hasAdminClaims,
   getISO8601Date,
   isValidGeopoint,
   hasSupportClaims,
   isNonEmptyString,
+  cloudflareCdnUrl,
   isE164PhoneNumber,
   getObjectFromSnap,
   hasSuperUserClaims,
   promisifiedRequest,
+  promisifiedExecFile,
   reportBackgroundError,
   hasManageTemplateClaims,
 };

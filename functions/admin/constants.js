@@ -821,6 +821,10 @@ const customMessages = {
     + ` FOR THE SCHEDULE`,
 };
 
+const loggingTags = {
+  AUTH_REJECTIONS: 'AUTH_REJECTIONS',
+};
+
 
 module.exports = {
   vowels,
@@ -831,6 +835,7 @@ module.exports = {
   timezonesSet,
   httpsActions,
   canEditRules,
+  loggingTags,
   templatesSet,
   templateFields,
   customMessages,

@@ -89,7 +89,13 @@ const createDocs = (conn, locals) => {
       })();
 
       /** The `canEditRule` for `Office` is `NONE` */
-      const canEdit = false;
+      const canEdit = (() => {
+        if (conn.req.body.template === 'office') {
+          return false;
+        }
+
+        return locals.permissions[phoneNumber].isAdmin;
+      })();
 
       console.log(canEdit, phoneNumber);
 
@@ -181,7 +187,7 @@ const handleAssignees = (conn, locals) => {
       if (locals.activityObject.canEditRule === 'ADMIN') {
         const promise = rootCollections
           .offices
-          .doc()
+          .doc(locals.activityObject.officeId)
           .collection('Activities')
           .where('attachment.Admin.value', '==', phoneNumber)
           .where('template', '==', 'admin')
@@ -194,7 +200,7 @@ const handleAssignees = (conn, locals) => {
       if (locals.activityObject.canEditRule === 'EMPLOYEE') {
         const promise = rootCollections
           .offices
-          .doc()
+          .doc(locals.activityObject.officeId)
           .collection('Activities')
           .where('attachment.Employee Contact.value', '==', phoneNumber)
           .where('template', '==', 'employee')

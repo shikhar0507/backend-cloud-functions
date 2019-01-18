@@ -212,7 +212,6 @@ module.exports = (locals) => {
           format: dateFormats.DATE_TIME,
         });
         const creatorName = (() => {
-          // employeeInfo(locals.employeesData, createdBy).name || createdBy;
           if (employeeInfo(locals.employeesData, createdBy).name) {
             return employeeInfo(locals.employeesData, createdBy).name;
           }
@@ -224,7 +223,7 @@ module.exports = (locals) => {
           return createdBy;
         })();
 
-        const confirmedWhen = dateStringWithOffset({
+        const confirmedOn = dateStringWithOffset({
           timezone,
           timestampToConvert: when,
           format: dateFormats.DATE_TIME,
@@ -266,8 +265,8 @@ module.exports = (locals) => {
         locals.sheet1.cell(`E${columnIndex}`).value(creatorName);
         locals.sheet1.cell(`F${columnIndex}`).value(createdOnTimeString);
         locals.sheet1.cell(`G${columnIndex}`).value(status);
-        locals.sheet1.cell(`H${columnIndex}`).value(confirmedWhen);
-        locals.sheet1.cell(`I${columnIndex}`).value(confirmedBy);
+        locals.sheet1.cell(`H${columnIndex}`).value(confirmedBy);
+        locals.sheet1.cell(`I${columnIndex}`).value(confirmedOn);
 
         if (place.identifier) {
           locals

@@ -50,8 +50,16 @@ const {
 const {
   handleError,
   sendResponse,
+  promisifiedRequest,
+  promisifiedExecFile,
+  getFileHash,
+  cloudflareCdnUrl,
 } = require('../../admin/utils');
+const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
+const fs = require('fs');
+const url = require('url');
+const mozjpeg = require('mozjpeg');
 
 
 const createDocsWithBatch = (conn, locals) => {
@@ -182,8 +190,6 @@ const createDocsWithBatch = (conn, locals) => {
 
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
-
-  console.log('statusOnCreate:', locals.static.statusOnCreate);
 
   /** ENDS the response. */
   locals
@@ -539,7 +545,9 @@ const handlePayroll = (conn, locals) => {
 
         console.log('CANCELL HERE 3');
         locals.static.statusOnCreate = 'CANCELLED';
-        locals.cancellationMessage = `${conn.req.body.template.toUpperCase()} CANCELLED`;
+        locals
+          .cancellationMessage =
+          `${conn.req.body.template.toUpperCase()} CANCELLED`;
 
         createDocsWithBatch(conn, locals);
 
@@ -769,6 +777,114 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
     .catch((error) => handleError(conn, error));
 };
 
+const handleBase64 = (conn, locals, result) => {
+  if (!result.hasBase64Field) {
+    resolveProfileCheckPromises(conn, locals, result);
+
+    return;
+  }
+
+  if (result.isBase64Url) {
+    resolveProfileCheckPromises(conn, locals, result);
+
+    return;
+  }
+
+  if (result.isBase64EmptyString) {
+    resolveProfileCheckPromises(conn, locals, result);
+
+    return;
+  }
+
+  const getKeyId = (applicationKey, keyId) => `${keyId}:${applicationKey}`;
+
+  const base64ImageString = result.base64Value;
+  const activityId = locals.docs.activityRef.id;
+  let authorizationToken = '';
+  let mainDownloadUrlStart = '';
+  const bucketId = env.backblaze.buckets.images;
+  const applicationKey = env.backblaze.apiKey;
+  const keyId = env.backblaze.keyId;
+  const keyWithPrefix = getKeyId(applicationKey, keyId);
+  const authorization =
+    `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
+  const originalFileName = `${activityId}-original.jpg`;
+  const originalFilePath = `/tmp/${originalFileName}`;
+  const compressedFilePath = `/tmp/${activityId}.jpg`;
+  const fileName = `${activityId}.jpg`;
+
+  fs.writeFileSync(originalFilePath, base64ImageString, {
+    encoding: 'base64',
+  });
+
+  promisifiedExecFile(mozjpeg, ['-outfile', compressedFilePath, originalFilePath])
+    .then(() => promisifiedRequest({
+      hostname: `api.backblazeb2.com`,
+      path: `/b2api/v2/b2_authorize_account`,
+      headers: {
+        Authorization: authorization,
+      },
+    }))
+    .then((response) => {
+      authorizationToken = response.authorizationToken;
+      const newHostName = response.apiUrl.split('https://')[1];
+      console.log({ newHostName });
+      mainDownloadUrlStart = newHostName;
+
+      return promisifiedRequest({
+        hostname: newHostName,
+        path: `/b2api/v2/b2_get_upload_url?bucketId=${bucketId}`,
+        method: 'GET',
+        headers: {
+          'Authorization': authorizationToken,
+        },
+      });
+    })
+    .then((response) => {
+      authorizationToken = response.authorizationToken;
+      const fileBuffer = fs.readFileSync(compressedFilePath);
+      const uploadUrl = response.uploadUrl;
+      const parsed = url.parse(uploadUrl);
+      const options = {
+        hostname: parsed.hostname,
+        path: parsed.path,
+        method: 'POST',
+        postData: fileBuffer,
+        headers: {
+          'Authorization': authorizationToken,
+          'X-Bz-File-Name': encodeURI(fileName),
+          'Content-Type': 'b2/x-auto',
+          'Content-Length': Buffer.byteLength(fileBuffer),
+          'X-Bz-Content-Sha1': getFileHash(fileBuffer),
+          'X-Bz-Info-Author': conn.requester.phoneNumber,
+        },
+      };
+
+      return promisifiedRequest(options);
+    })
+    .then((response) => {
+      console.log({ response });
+
+      const url =
+        cloudflareCdnUrl(
+          mainDownloadUrlStart,
+          response.fileId,
+          fileName
+        );
+
+      console.log({ url });
+
+      conn.req.body.attachment[result.base64FieldName].value = url;
+
+      console.log({ attachment: conn.req.body.attachment });
+
+      resolveProfileCheckPromises(conn, locals, result);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error, 'Image upload unavailable at the moment...'));
+};
+
 
 const handleAttachment = (conn, locals) => {
   const options = {
@@ -787,20 +903,6 @@ const handleAttachment = (conn, locals) => {
     return;
   }
 
-  const isSubscription = conn.req.body.template === 'subscription'
-    && conn.req.body.attachment.Template.value;
-
-  if (isSubscription
-    && !templatesSet.has(conn.req.body.attachment.Template.value)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `${conn.req.body.attachment.Template.value} doesn't exist`
-    );
-
-    return;
-  }
-
   /**
    * All phone numbers in the attachment are added to the
    * activity assignees.
@@ -808,6 +910,8 @@ const handleAttachment = (conn, locals) => {
   result
     .phoneNumbers
     .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
+
+  // handleBase64(conn, locals, result);
 
   resolveProfileCheckPromises(conn, locals, result);
 };

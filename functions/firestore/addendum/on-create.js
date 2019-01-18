@@ -839,6 +839,12 @@ module.exports = (addendumDoc) => {
           };
         }
 
+        console.log({
+          googleMaps: distanceMatrixApiResult
+            .json
+            .rows,
+        });
+
         const value =
           distanceMatrixApiResult
             .json

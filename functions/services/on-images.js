@@ -1,11 +1,13 @@
 'use strict';
 
 const {
-  sendJSON,
   sendResponse,
   handleError,
   isNonEmptyString,
+  cloudflareCdnUrl,
   promisifiedRequest,
+  getFileHash,
+  promisifiedExecFile,
 } = require('../admin/utils');
 const {
   auth,
@@ -13,54 +15,54 @@ const {
 const { code } = require('../admin/responses');
 const fs = require('fs');
 const url = require('url');
-const crypto = require('crypto');
-const { execFile } = require('child_process');
+// const crypto = require('crypto');
+// const { execFile } = require('child_process');
 const mozjpeg = require('mozjpeg');
 const env = require('../admin/env');
 
 
-const promisifiedExecFile = (command, args) => {
-  return new Promise((resolve, reject) => {
-    return execFile(command, args, (error) => {
-      if (error) {
-        return reject(new Error(error));
-      }
+// const promisifiedExecFile = (command, args) => {
+//   return new Promise((resolve, reject) => {
+//     return execFile(command, args, (error) => {
+//       if (error) {
+//         return reject(new Error(error));
+//       }
 
-      return resolve(true);
-    });
-  });
-};
-
-
-const getFileHash = (fileBuffer) =>
-  crypto
-    .createHash('sha1')
-    .update(fileBuffer)
-    .digest('hex');
+//       return resolve(true);
+//     });
+//   });
+// };
 
 
-/**
- * Takes in the backblaze main download url along with the fileName (uid of the uploader)
- * and returns the downloadable pretty URL for the client to consume.
- * 
- * `Note`: photos.growthfile.com is behind the Cloudflare + Backblaze CDN, but only for
- * the production project, oso the pretty url will only show up for the production and
- * not for any other project that the code runs on.
- * 
- * @param {string} mainDownloadUrlStart Backblaze main download host url.
- * @param {string} fileId File ID returned by Backblaze.
- * @param {string} fileName Equals to the uid of the uploader.
- * @returns {string} File download url.
- */
-const getDownloadUrl = (mainDownloadUrlStart, fileId, fileName) => {
-  if (env.isProduction) {
-    return `${env.imageCdnUrl}/${fileName}`;
-  }
+// const getFileHash = (fileBuffer) =>
+//   crypto
+//     .createHash('sha1')
+//     .update(fileBuffer)
+//     .digest('hex');
 
-  return `https://${mainDownloadUrlStart}`
-    + `/b2api/v2/b2_download_file_by_id`
-    + `?fileId=${fileId}`;
-};
+
+// /**
+//  * Takes in the backblaze main download url along with the fileName (uid of the uploader)
+//  * and returns the downloadable pretty URL for the client to consume.
+//  * 
+//  * `Note`: photos.growthfile.com is behind the Cloudflare + Backblaze CDN, but only for
+//  * the production project, oso the pretty url will only show up for the production and
+//  * not for any other project that the code runs on.
+//  * 
+//  * @param {string} mainDownloadUrlStart Backblaze main download host url.
+//  * @param {string} fileId File ID returned by Backblaze.
+//  * @param {string} fileName Equals to the uid of the uploader.
+//  * @returns {string} File download url.
+//  */
+// const cloudflareCdnUrl = (mainDownloadUrlStart, fileId, fileName) => {
+//   if (env.isProduction) {
+//     return `${env.imageCdnUrl}/${fileName}`;
+//   }
+
+//   return `https://${mainDownloadUrlStart}`
+//     + `/b2api/v2/b2_download_file_by_id`
+//     + `?fileId=${fileId}`;
+// };
 
 
 const validateRequest = (requestBody) => {
@@ -162,7 +164,7 @@ module.exports = (conn) => {
       console.log({ response });
 
       const url =
-        getDownloadUrl(
+        cloudflareCdnUrl(
           mainDownloadUrlStart,
           response.fileId,
           `${conn.requester.uid}.jpg`
