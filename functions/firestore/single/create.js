@@ -47,7 +47,6 @@ const logRequest = (options) => {
     .forEach((email) => {
       messages.push({
         html,
-        // cc: env.systemEmail,
         to: email,
         from: env.systemEmail,
         subject: `Admin API Used by support for`
