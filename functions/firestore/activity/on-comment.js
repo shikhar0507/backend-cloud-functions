@@ -77,7 +77,7 @@ const createDocs = (conn, activity) => {
 
   batch
     .commit()
-    .then(() => sendResponse(conn, code.noContent))
+    .then(() => sendResponse(conn, code.created))
     .catch((error) => handleError(conn, error));
 };
 
