@@ -505,6 +505,7 @@ const handleDutyRosterReport = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
+
 const handleVisitDate = (addendumDoc, locals) => {
   if (addendumDoc.get('activityData.template') !== reportNames.DSR
     && addendumDoc.get('activityData.template') !== reportNames.TOUR_PLAN
@@ -548,13 +549,15 @@ const handleVisitDate = (addendumDoc, locals) => {
 
       console.log('visit:', ref.path);
 
-      return ref.set(docData, { merge: true });
+      // locals.batch.set(ref, docData, { merge: true });
+
+      return Promise.resolve();
     })
     .catch(console.error);
 };
 
 
-const handleFollowUpDate = (addendumDoc) => {
+const handleFollowUpDate = (addendumDoc, locals) => {
   if (addendumDoc.get('activityData.template') !== reportNames.DSR
     || !addendumDoc.get('activityData.schedule')[1]) {
     console.log('resolving early follow up');
@@ -594,7 +597,11 @@ const handleFollowUpDate = (addendumDoc) => {
 
       console.log('follow up:', ref.path);
 
-      return ref.set(docData, { merge: true });
+      // return ref.set(docData, { merge: true });
+
+      locals.batch.set(ref, docData, { merge: true });
+
+      return Promise.resolve();
     })
     .catch(console.error);
 };
@@ -609,7 +616,7 @@ const handleDsr = (addendumDoc, locals) => {
   }
 
   return handleVisitDate(addendumDoc, locals)
-    .then(() => handleFollowUpDate(addendumDoc))
+    .then(() => handleFollowUpDate(addendumDoc, locals))
     .catch(console.error);
 };
 
@@ -668,8 +675,6 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
       const ref = initDocRef(todayInitQuery);
 
       console.log('REPORT:', ref.path);
-
-      // let totalActivities = getValue(todayInitQuery, 'totalActivities');
 
       let totalActivities = (() => {
         if (todayInitQuery.empty) {
@@ -769,7 +774,7 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
 };
 
 
-module.exports = (addendumDoc) => {
+module.exports = (addendumDoc, context) => {
   const phoneNumber = addendumDoc.get('user');
   const officeId = addendumDoc.get('activityData.officeId');
   const locals = {

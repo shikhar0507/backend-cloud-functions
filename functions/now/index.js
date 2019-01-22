@@ -98,11 +98,12 @@ module.exports = (conn) => {
           requester: conn.requester,
         });
 
+        if (os === 'ios') return false;
+
         return latestVersion !== appVersion;
       })();
 
       const batch = db.batch();
-      // const timestamp = serverTimestamp;
       const revokeSession = false;
 
       if (!timerDoc.exists) {

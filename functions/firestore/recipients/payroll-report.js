@@ -80,7 +80,7 @@ const topRow = (timezone) => {
     + ` LATE,`
     + ` ON DUTY,`
     + ` WEEKLY OFF,`
-    + ` TOTAL WORKING DAYS`;
+    + ` TOTAL`;
 
   str += `\n`;
 
@@ -509,6 +509,8 @@ module.exports = (locals) => {
             + countsObject[phoneNumber].halfDay
             + countsObject[phoneNumber].blank
             + countsObject[phoneNumber].late
+            + countsObject[phoneNumber].holiday
+            + countsObject[phoneNumber].weeklyOff
             + countsObject[phoneNumber].onDuty;
         });
 

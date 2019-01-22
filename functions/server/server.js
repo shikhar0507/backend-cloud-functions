@@ -582,8 +582,6 @@ module.exports = (req, res) => {
     },
   };
 
-  console.log('origin:', conn.req.get('origin'), process.env.PRODUCTION);
-
   if (env.isProduction
     && !env.allowedOrigins.has(conn.req.get('origin'))) {
     sendResponse(

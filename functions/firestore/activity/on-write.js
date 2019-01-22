@@ -1219,25 +1219,29 @@ module.exports = (change, context) => {
            */
           const comment = (() => {
             const status = change.after.get('status');
-            const activityCancelled = status === 'CANCELLED';
+            const isCancelled = status === 'CANCELLED';
             const action = locals.addendumDoc.get('action');
             const templateName = change.after.get('template');
             const activityCreated = httpsActions.create === action;
 
+            if (locals.addendumDoc && locals.addendumDoc.get('cancellationMessage')) {
+              return locals.addendumDoc.get('cancellationMessage');
+            }
+
             if (templateName === 'leave') {
-              if (activityCreated && activityCancelled) {
+              if (activityCreated && isCancelled) {
                 return customMessages.LEAVE_CANCELLED;
               }
             }
 
             if (templateName === 'check-in') {
-              if (activityCreated && activityCancelled) {
+              if (activityCreated && isCancelled) {
                 return customMessages.CHECK_IN_CANCELLED;
               }
             }
 
             if (templateName === 'tour plan') {
-              if (activityCreated && activityCancelled) {
+              if (activityCreated && isCancelled) {
                 return customMessages.TOUR_PLAN_CANCELLED;
               }
             }

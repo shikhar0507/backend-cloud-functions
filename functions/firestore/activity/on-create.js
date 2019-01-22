@@ -191,10 +191,16 @@ const createDocsWithBatch = (conn, locals) => {
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
 
+  console.log({
+    msg: locals.cancellationMessage,
+  });
+
   /** ENDS the response. */
-  locals
-    .batch
-    .commit()
+  // locals
+  //   .batch
+  //   .commit()
+  Promise
+    .resolve()
     .then(() => sendResponse(conn, code.created))
     .catch((error) => handleError(conn, error));
 };
@@ -211,6 +217,7 @@ const getPayrollObject = (options) => {
   } = options;
 
   let datesConflicted = false;
+  let conflictsWith = '';
 
   if (!payrollObject[phoneNumber]) {
     payrollObject[phoneNumber] = {};
@@ -243,6 +250,8 @@ const getPayrollObject = (options) => {
         && newStatus.startsWith('LEAVE')) {
         datesConflicted = true;
 
+        conflictsWith = `LEAVE`;
+
         return;
       }
 
@@ -250,6 +259,8 @@ const getPayrollObject = (options) => {
       if (payrollObject[phoneNumber][date].startsWith('LEAVE')
         && newStatus === 'ON DUTY') {
         datesConflicted = true;
+
+        conflictsWith = `tour plan`;
 
         return;
       }
@@ -259,6 +270,8 @@ const getPayrollObject = (options) => {
         && newStatus.startsWith('LEAVE')) {
         datesConflicted = true;
 
+        conflictsWith = `LEAVE`;
+
         return;
       }
 
@@ -266,6 +279,8 @@ const getPayrollObject = (options) => {
       if (payrollObject[phoneNumber][date] === 'ON DUTY'
         && newStatus === 'ON DUTY') {
         datesConflicted = true;
+
+        conflictsWith = `tour plan`;
 
         return;
       }
@@ -276,6 +291,7 @@ const getPayrollObject = (options) => {
   return {
     payrollObject,
     datesConflicted,
+    conflictsWith,
   };
 };
 
@@ -341,9 +357,10 @@ const handleLeaveOrTourPlan = (conn, locals) => {
    */
   const monthDatesMap = new Map();
 
-  initFetchPromises.push(
-    getPromiseObject(oldMonthValue, oldYearValue, conn.req.body.office)
-  );
+  initFetchPromises
+    .push(
+      getPromiseObject(oldMonthValue, oldYearValue, conn.req.body.office)
+    );
 
   docMeta.push({ month: oldMonthValue, year: oldYearValue });
 
@@ -373,13 +390,16 @@ const handleLeaveOrTourPlan = (conn, locals) => {
     console.log('fetching', { newMonthValue, newYearValue });
 
     docMeta.push({ month: newMonthValue, year: newYearValue });
-    initFetchPromises.push(
-      getPromiseObject(newMonthValue, newYearValue, conn.req.body.office)
-    );
+
+    initFetchPromises
+      .push(
+        getPromiseObject(newMonthValue, newYearValue, conn.req.body.office)
+      );
   }
 
   console.log('Num docs fetch', initFetchPromises.length);
   let toCancel = false;
+  let conflictsWith = null;
 
   Promise
     .all(initFetchPromises)
@@ -439,13 +459,20 @@ const handleLeaveOrTourPlan = (conn, locals) => {
         if (updatedPayrollObject.datesConflicted) {
           toCancel = true;
         }
+
+        if (updatedPayrollObject.conflictsWith) {
+          conflictsWith = updatedPayrollObject.conflictsWith;
+        }
       });
 
       if (toCancel) {
         console.log('CANCELL HERE 2', 'toCancel');
-        locals.static.statusOnCreate = 'CANCELLED';
-        locals.cancellationMessage =
-          `${conn.req.body.template.toUpperCase()} CANCELLED`;
+        locals
+          .static
+          .statusOnCreate = 'CANCELLED';
+        locals
+          .cancellationMessage =
+          `${conn.req.body.template.toUpperCase()} conflict with ${conflictsWith}`;
       }
 
       console.log({ toCancel });
@@ -564,13 +591,7 @@ const handlePayroll = (conn, locals) => {
 
 const handleAssignees = (conn, locals) => {
   if (locals.objects.allPhoneNumbers.size === 0) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `Cannot create an activity without any assignees. Please`
-      + ` add some assignees for this activity using the 'share'`
-      + ` array in the request body.`
-    );
+    sendResponse(conn, code.badRequest, `No assignees found`);
 
     return;
   }
@@ -602,7 +623,8 @@ const handleAssignees = (conn, locals) => {
       if (locals.static.canEditRule === 'ADMIN') {
         promises
           .push(rootCollections
-            .offices.doc(locals.static.officeId)
+            .offices
+            .doc(locals.static.officeId)
             .collection('Activities')
             .where('attachment.Admin.value', '==', phoneNumber)
             .where('template', '==', 'admin')
@@ -614,7 +636,8 @@ const handleAssignees = (conn, locals) => {
       if (locals.static.canEditRule === 'EMPLOYEE') {
         promises
           .push(rootCollections
-            .offices.doc(locals.static.officeId)
+            .offices
+            .doc(locals.static.officeId)
             .collection('Activities')
             .where('attachment.Employee Contact.value', '==', phoneNumber)
             .where('template', '==', 'employee')
@@ -1046,7 +1069,7 @@ const createLocals = (conn, result) => {
         conn,
         code.forbidden,
         `Your subscription to the template '${conn.req.body.template}'`
-        + ` is 'CANCELLED'.Cannot create an activity`
+        + ` is 'CANCELLED'. Cannot create an activity`
       );
 
       return;

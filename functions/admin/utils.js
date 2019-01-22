@@ -409,7 +409,6 @@ const promisifiedRequest = (options) =>
                 return reject(new Error(body));
               }
 
-
               if (!response.statusCode.toString().startsWith('2')) {
                 return reject(new Error(body));
               }

@@ -11,9 +11,11 @@ module.exports = {
   extends: [
     'eslint:recommended',
     'plugin:promise/recommended',
+    'plugin:security/recommended',
   ],
   plugins: [
     'promise',
+    'security',
   ],
   env: {
     // Node.js global variables and Node.js scoping

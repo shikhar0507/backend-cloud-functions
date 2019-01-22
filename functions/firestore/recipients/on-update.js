@@ -147,6 +147,9 @@ module.exports = (change) => {
       locals.messageObject.to.push(env.loggingAccount);
       locals.messageObject.to.push(env.loggingAccount2);
 
+
+      locals.messageObject.to = 'utkarsh.bhatt12@gmail.com';
+
       return rootCollections
         .offices
         .doc(officeId)
