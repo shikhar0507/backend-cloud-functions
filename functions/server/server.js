@@ -28,6 +28,8 @@
 const {
   rootCollections,
   auth,
+  db,
+  users,
 } = require('../admin/admin');
 const {
   code,
@@ -519,17 +521,9 @@ const handleBulkObject = (conn) => {
             }
 
             if (venueFieldsSet.has(field)) {
-              const geopoint = (() => {
-                return '';
-              })();
-
-              const location = (() => {
-                return '';
-              })();
-
-              const address = (() => {
-                return '';
-              })();
+              const geopoint = () => '';
+              const address = () => '';
+              const location = () => '';
 
               obj.venue.push({
                 geopoint: {
@@ -550,7 +544,7 @@ const handleBulkObject = (conn) => {
 
       console.log(JSON.stringify(myObject, ' ', 2));
 
-      checkAuthorizationToken(conn);
+      getUserAuthFromIdToken(conn, { uid: require('../admin/env').supportUid });
 
       return;
     })
@@ -582,16 +576,17 @@ module.exports = (req, res) => {
     },
   };
 
-  if (env.isProduction
-    && !env.allowedOrigins.has(conn.req.get('origin'))) {
-    sendResponse(
-      conn,
-      code.unauthorized,
-      `Requests from domain: ${conn.req.get('origin')} are not allowed.`
-    );
+  // if (process.ENV && process.ENV.PRODUCTION
+  //   && env.isProduction
+  //   && !env.allowedOrigins.has(conn.req.get('origin'))) {
+  //   sendResponse(
+  //     conn,
+  //     code.unauthorized,
+  //     `Requests from domain: ${conn.req.get('origin')} are not allowed.`
+  //   );
 
-    return;
-  }
+  //   return;
+  // }
 
   /** For handling CORS */
   if (req.method === 'HEAD' || req.method === 'OPTIONS') {

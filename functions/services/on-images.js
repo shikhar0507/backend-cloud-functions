@@ -15,54 +15,8 @@ const {
 const { code } = require('../admin/responses');
 const fs = require('fs');
 const url = require('url');
-// const crypto = require('crypto');
-// const { execFile } = require('child_process');
 const mozjpeg = require('mozjpeg');
 const env = require('../admin/env');
-
-
-// const promisifiedExecFile = (command, args) => {
-//   return new Promise((resolve, reject) => {
-//     return execFile(command, args, (error) => {
-//       if (error) {
-//         return reject(new Error(error));
-//       }
-
-//       return resolve(true);
-//     });
-//   });
-// };
-
-
-// const getFileHash = (fileBuffer) =>
-//   crypto
-//     .createHash('sha1')
-//     .update(fileBuffer)
-//     .digest('hex');
-
-
-// /**
-//  * Takes in the backblaze main download url along with the fileName (uid of the uploader)
-//  * and returns the downloadable pretty URL for the client to consume.
-//  * 
-//  * `Note`: photos.growthfile.com is behind the Cloudflare + Backblaze CDN, but only for
-//  * the production project, oso the pretty url will only show up for the production and
-//  * not for any other project that the code runs on.
-//  * 
-//  * @param {string} mainDownloadUrlStart Backblaze main download host url.
-//  * @param {string} fileId File ID returned by Backblaze.
-//  * @param {string} fileName Equals to the uid of the uploader.
-//  * @returns {string} File download url.
-//  */
-// const cloudflareCdnUrl = (mainDownloadUrlStart, fileId, fileName) => {
-//   if (env.isProduction) {
-//     return `${env.imageCdnUrl}/${fileName}`;
-//   }
-
-//   return `https://${mainDownloadUrlStart}`
-//     + `/b2api/v2/b2_download_file_by_id`
-//     + `?fileId=${fileId}`;
-// };
 
 
 const validateRequest = (requestBody) => {
@@ -78,7 +32,8 @@ const validateRequest = (requestBody) => {
   }
 
   if (!isNonEmptyString(requestBody.imageBase64)) {
-    validationResult.message = `The field 'imageBase64' should be a 'string'.`;
+    validationResult.message = `The field 'imageBase64'`
+      + ` should be a non-empty 'string'.`;
     validationResult.isValid = false;
   }
 
@@ -94,6 +49,17 @@ module.exports = (conn) => {
     return;
   }
 
+  if (conn.req.body.imageBase64.startsWith('https://')) {
+    auth
+      .updateUser(conn.requester.uid, {
+        photoURL: conn.req.body.imageBase64,
+      })
+      .then(() => sendResponse(conn, code.noContent))
+      .catch((error) => handleError(conn, error));
+
+    return;
+  }
+
   // endpoint for enabling the frontend to upload images
   let authorizationToken = '';
   let mainDownloadUrlStart = '';
@@ -103,7 +69,7 @@ module.exports = (conn) => {
   const getKeyId = (applicationKey) => `${keyId}:${applicationKey}`;
   const keyWithPrefix = getKeyId(applicationKey);
   const authorization =
-    `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
+    `Basic ${Buffer.from(keyWithPrefix).toString('base64')}`;
   const originalFileName = `${conn.requester.uid}-original.jpg`;
   const originalFilePath = `/tmp/${originalFileName}`;
   const compressedFilePath = `/tmp/${conn.requester.uid}.jpg`;
@@ -114,15 +80,13 @@ module.exports = (conn) => {
   });
 
   promisifiedExecFile(mozjpeg, ['-outfile', compressedFilePath, originalFilePath])
-    .then(() => {
-      return promisifiedRequest({
-        hostname: `api.backblazeb2.com`,
-        path: `/b2api/v2/b2_authorize_account`,
-        headers: {
-          Authorization: authorization,
-        },
-      });
-    })
+    .then(() => promisifiedRequest({
+      hostname: `api.backblazeb2.com`,
+      path: `/b2api/v2/b2_authorize_account`,
+      headers: {
+        Authorization: authorization,
+      },
+    }))
     .then((response) => {
       authorizationToken = response.authorizationToken;
       const newHostName = response.apiUrl.split('https://')[1];

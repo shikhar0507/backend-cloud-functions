@@ -28,6 +28,7 @@
 const {
   getGeopointObject,
   deleteField,
+  rootCollections,
 } = require('./../../admin/admin');
 const {
   isValidDate,
@@ -35,9 +36,12 @@ const {
   isValidGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
-  isValidBase64,
-  isValidUrl,
 } = require('../../admin/utils');
+const {
+  validTypes,
+  timezonesSet,
+  templatesWithNumber,
+} = require('../../admin/constants');
 
 
 /**
@@ -380,12 +384,6 @@ const filterAttachment = (options) => {
     return messageObject;
   }
 
-  const rootCollections = require('../../admin/admin').rootCollections;
-  const constants = require('../../admin/constants');
-  const validTypes = constants.validTypes;
-  const timezonesSet = constants.timezonesSet;
-  const templatesWithNumber = constants.templatesWithNumber;
-
   /** The `forEach` loop doesn't support `break` */
   for (const field of templateAttachmentFields) {
     if (!bodyAttachment.hasOwnProperty(field)) {
@@ -418,35 +416,37 @@ const filterAttachment = (options) => {
       break;
     }
 
-    // if (type === 'base64') {
-    //   const rejectionsMsg =
-    //     `Invalid value for type base64 in the field '${field}'`;
+    if (typeof value !== 'number'
+      && typeof value !== 'string') {
+      messageObject.isValid = false;
+      messageObject.message = `${field} can only be a number or a string`;
+      break;
+    }
 
-    //   if (typeof value !== 'string') {
-    //     messageObject.isValid = false;
-    //     messageObject.message = `${rejectionsMsg}.`
-    //       + ` Expected a string. Found ${typeof value}`;
-    //     break;
-    //   }
+    if (type === 'base64') {
+      const rejectionMessage
+        = `Invalid value for the field '${field}' in attachment object`;
 
-    //   const isUrl = isValidUrl(value);
-    //   const base64Value = value.split(';base64,')[1];
-    //   const isBase64 = isValidBase64(base64Value);
-    //   const isEmptyString = !isNonEmptyString(value);
+      if (typeof value !== 'string') {
+        messageObject.isValid = false;
+        messageObject.message = rejectionMessage;
+        break;
+      }
 
-    //   messageObject.hasBase64Field = true;
-    //   messageObject.isBase64 = isBase64;
-    //   messageObject.isBase64EmptyString = isEmptyString;
-    //   messageObject.isBase64Url = isUrl;
-    //   messageObject.base64FieldName = field;
-    //   messageObject.base64Value = base64Value;
+      const isBase64 = value.startsWith('data:image/jpg;base64,');
+      const isUrl = value.startsWith('https://');
 
-    //   if (!isUrl && !isEmptyString && !isBase64) {
-    //     messageObject.isValid = false;
-    //     messageObject.message = rejectionsMsg;
-    //     break;
-    //   }
-    // }
+      messageObject.isBase64 = isBase64;
+      messageObject.isUrl = isUrl;
+      messageObject.base64Field = field;
+      messageObject.base64Value = value;
+
+      if (!isBase64 && !isUrl && isNonEmptyString(value)) {
+        messageObject.isValid = false;
+        messageObject.message = rejectionMessage;
+        break;
+      }
+    }
 
     if (field === 'Timezone' && !timezonesSet.has(value)) {
       messageObject.isValid = false;

@@ -24,7 +24,6 @@ module.exports = (snap, context) =>
 
       const payload = {
         data: {
-          // test: snap.get('comment'),
           key1: 'value1',
           key2: 'value2',
         },

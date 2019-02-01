@@ -37,6 +37,7 @@ const {
   httpsActions,
   vowels,
   customMessages,
+  reportNames,
 } = require('../../admin/constants');
 
 const moment = require('moment-timezone');
@@ -1313,9 +1314,19 @@ module.exports = (change, context) => {
       activityData.timestamp = Date.now();
       activityData.adminsCanEdit = locals.adminsCanEdit;
       activityData.isCancelled = status === 'CANCELLED';
+      delete activityData.addendumDocRef;
 
       const copyTo = (() => {
         const officeRef = rootCollections.offices.doc(change.after.get('officeId'));
+
+        if (locals.addendumDoc
+          && locals.addendumDoc.get('action') === httpsActions.create) {
+          const date = new Date();
+
+          activityData.creationDate = date.getDate();
+          activityData.creationMonth = date.getMonth();
+          activityData.creationYear = date.getFullYear();
+        }
 
         if (template === 'office') {
           /** Office doc doesn't need the `adminsCanEdit` field */

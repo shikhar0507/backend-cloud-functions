@@ -2,12 +2,12 @@
 
 
 const xlsxPopulate = require('xlsx-populate');
+const fs = require('fs');
 
 const {
   rootCollections,
 } = require('../../admin/admin');
 const {
-  sendGridTemplateIds,
   reportNames,
   dateFormats,
 } = require('../../admin/constants');
@@ -21,15 +21,29 @@ const {
 const momentTz = require('moment-timezone');
 
 module.exports = (locals) => {
-  const {
-    office,
-  } = locals.change.after.data();
-
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const yesterdayMoment = momentTz()
+    .utc()
+    .clone()
+    .tz(timezone)
+    .subtract(1, 'days');
   const momentDateObject = momentOffsetObject(timezone);
-  const todaysDateString = momentTz().format(dateFormats.DATE);
+  const yesterdaysDate = momentDateObject.yesterday.DATE_NUMBER;
+  const yesterdaysMonthEndDate = yesterdayMoment.endOf('months').date();
 
-  locals.messageObject.templateId = sendGridTemplateIds.expenseClaim;
+  // Not sending email until the last date of the month
+  if (yesterdaysDate !== yesterdaysMonthEndDate) {
+    console.log('Not sending emails. Not the last day of the month');
+
+    return Promise.resolve();
+  }
+
+  const office = locals.officeDoc.get('office');
+  const todaysDateString = momentTz()
+    .utc()
+    .tz(timezone)
+    .format(dateFormats.DATE);
+
   locals.messageObject['dynamic_template_data'] = {
     office,
     date: todaysDateString,
@@ -108,11 +122,11 @@ module.exports = (locals) => {
         const expenseType = row.expenseType;
         const referenceNumber = row.referenceNumber;
         const reason = row.reason;
+
         // Some older init docs may not be compatible with the logic
         // of showing url on all places of location in url.
         // Henceforth, we are short circuiting with the OR codition
         // const confirmedAt = row.confirmedAt || '';
-
         const confirmedOn = dateStringWithOffset({
           timezone,
           timestampToConvert: row.confirmedOn,
@@ -167,11 +181,9 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      const fs = require('fs');
-
       locals.messageObject.attachments.push({
         fileName,
-        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
+        content: fs.readFileSync(filePath).toString('base64'),
         type: 'text/csv',
         disposition: 'attachment',
       });

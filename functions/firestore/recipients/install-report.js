@@ -26,12 +26,12 @@
 
 
 const {
+  rootCollections,
+} = require('../../admin/admin');
+const {
   reportNames,
   dateFormats,
 } = require('../../admin/constants');
-const {
-  rootCollections,
-} = require('../../admin/admin');
 const {
   employeeInfo,
   momentOffsetObject,
@@ -40,38 +40,34 @@ const {
 } = require('./report-utils');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
+const fs = require('fs');
 
 
 module.exports = (locals) => {
-  const office = locals.change.after.get('office');
+  const office = locals.officeDoc.get('office');
   const momentDateObject = momentOffsetObject(locals.timezone);
+  const employeesData = locals.officeDoc.get('employeesData');
   const fileName = `Install Report ${office}_${locals.standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
 
-  // locals.messageObject.templateId = sendGridTemplateIds.installs;
   locals.messageObject['dynamic_template_data'] = {
     office,
     date: locals.standardDateString,
     subject: `Install Report_${office}_${locals.standardDateString}`,
   };
 
-  locals.multipleInstallsMap = new Map();
-
-  const topHeaders = [
-    'Date',
-    'Employee Name',
-    'Employee Contact',
-    'Signed Up Date',
-    'Number Of Installs',
-    // 'Install Device ID',
-    'Also Used By',
-    'Employee Code',
-    'Department',
-    'First Supervisor',
-    'Contact Number',
-    'Second Supervisor',
-    'Contact Number',
-  ];
+  // key -> deviceId
+  // value -> array of users
+  const deviceUsers = new Map();
+  const latestDeviceIdsMap = new Map();
+  const multipleInstallsMap = new Map();
+  let installsListAttachmentHeader = 'Install Date and Time\n\n';
+  const yesterdaysStartTime =
+    momentTz()
+      .utc()
+      .subtract(1, 'days')
+      .startOf('day')
+      .unix() * 1000;
 
   return Promise
     .all([
@@ -99,7 +95,20 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      locals.worksheet = worksheet;
+      const topHeaders = [
+        'Date',
+        'Employee Name',
+        'Employee Contact',
+        'Signed Up Date',
+        'Number Of Installs',
+        'Also Used By',
+        'Employee Code',
+        'Department',
+        'First Supervisor',
+        'Contact Number',
+        'Second Supervisor',
+        'Contact Number',
+      ];
 
       topHeaders.forEach((item, index) => {
         worksheet
@@ -107,15 +116,6 @@ module.exports = (locals) => {
           .cell(`${alphabetsArray[index]}1`)
           .value(item);
       });
-
-      let header = 'Install Date and Time\n\n';
-
-      const yesterdaysStartTime =
-        momentTz()
-          .utc()
-          .subtract(1, 'days')
-          .startOf('day')
-          .unix() * 1000;
 
       const promises = [];
 
@@ -125,136 +125,134 @@ module.exports = (locals) => {
           installs,
         } = doc.data();
 
-        promises
-          .push(rootCollections
-            .updates
-            .where('phoneNumber', '==', phoneNumber)
-            .limit(1)
-            .get());
+        installs
+          .forEach((timestampNumber) => {
+            const installTimeString = dateStringWithOffset({
+              timezone: locals.timezone,
+              timestampToConvert: timestampNumber,
+              format: dateFormats.DATE_TIME,
+            });
 
-        installs.forEach((timestampNumber) => {
-          const installTimeString = dateStringWithOffset({
-            timezone: locals.timezone,
-            timestampToConvert: timestampNumber,
-            format: 'lll',
+            installsListAttachmentHeader += `${installTimeString}\n`;
           });
-
-          header += `${installTimeString}\n`;
-        });
 
         installs.forEach((timestampNumber) => {
           if (timestampNumber > yesterdaysStartTime) return;
 
-          locals.multipleInstallsMap.set(phoneNumber, header);
+          multipleInstallsMap.set(phoneNumber, installsListAttachmentHeader);
         });
+
+        const promise = rootCollections
+          .updates
+          .where('phoneNumber', '==', phoneNumber)
+          .limit(1)
+          .get();
+
+        promises
+          .push(promise);
       });
 
-      locals.initDocsQuery = initDocsQuery;
-
-      locals
-        .multipleInstallsMap
+      multipleInstallsMap
         .forEach((timestampsString, phoneNumber) => {
           locals.messageObject.attachments.push({
-            content: new Buffer(timestampsString).toString('base64'),
+            content: Buffer.from(timestampsString).toString('base64'),
             fileName: `${phoneNumber}.txt`,
             type: 'text/plain',
             disposition: 'attachment',
           });
         });
 
+      locals.worksheet = worksheet;
+      locals.initDocsQuery = initDocsQuery;
+
       return Promise.all(promises);
     })
-    .then((snapShots) => {
+    .then((result) => {
       if (!locals.sendMail) {
         return Promise.resolve();
       }
 
-      const deviceMap = new Map();
-      const deviceIdMap = new Map();
-      const latestDeviceMap = new Map();
+      result.forEach((snapShot) => {
+        // Snapshot won't be empty here because users with auth
+        // are guaranteed to have a document in the `/Updates` collection
+        const updatesDoc = snapShot.docs[0];
+        const phoneNumber = updatesDoc.get('phoneNumber');
+        const deviceIdsArray = updatesDoc.get('deviceIdsArray');
+        const latestDeviceId = updatesDoc.get('latestDeviceId');
 
-      snapShots.forEach((snapShot) => {
-        const doc = snapShot.docs[0];
-        const deviceIdsArray = doc.get('deviceIdsArray') || [];
-        const latestDeviceId = doc.get('latestDeviceId') || '';
-        const phoneNumber = doc.get('phoneNumber');
-        const obj = {};
+        latestDeviceIdsMap.set(phoneNumber, latestDeviceId);
 
-        deviceIdsArray.forEach((val) => {
-          obj[val] = null;
-        });
-
-        latestDeviceMap.set(phoneNumber, latestDeviceId);
-
-        deviceIdMap.set(phoneNumber, obj);
+        const name =
+          employeeInfo(employeesData, phoneNumber).name || phoneNumber;
 
         deviceIdsArray.forEach((id) => {
-          deviceMap.set(id, phoneNumber);
+          if (!deviceUsers.has(id)) {
+            deviceUsers.set(id, [name]);
+          } else {
+
+            deviceUsers.get(id).push(name);
+            const newArr = deviceUsers.get(id);
+
+            deviceUsers.set(id, newArr);
+          }
         });
       });
 
+      console.log({ deviceUsers });
       const sheet1 = locals.worksheet.sheet('Sheet1');
-      const employeesData = locals.officeDoc.get('employeesData');
 
-      locals.initDocsQuery.docs.forEach((doc, index) => {
-        const {
-          phoneNumber,
-          installs,
-        } = doc.data();
+      locals
+        .initDocsQuery
+        .docs
+        .forEach((doc, index) => {
+          const columnIndex = index + 2;
+          const { phoneNumber, installs } = doc.data();
 
-        const columnIndex = index + 2;
-        const numberOfInstalls = installs.length;
-        const employeeObject = employeeInfo(employeesData, phoneNumber);
-        const name = employeeObject.name;
-        const firstSupervisorPhoneNumber = employeeObject.firstSupervisor;
-        const secondSupervisorPhoneNumber = employeeObject.secondSupervisor;
-        const department = employeeObject.department;
-        const employeeCode = employeeObject.employeeCode;
-        const firstSupervisorsName =
-          employeeInfo(employeesData, firstSupervisorPhoneNumber).name;
-        const secondSupervisorsName =
-          employeeInfo(employeesData, secondSupervisorPhoneNumber).name;
-        const date = dateStringWithOffset({
-          timestampToConvert: installs[installs.length - 1],
-          timezone: locals.timezone,
-          format: dateFormats.DATE_TIME,
-        });
-
-        const signedUpOn = dateStringWithOffset({
-          timestampToConvert: employeesData[phoneNumber].createTime,
-          timezone: locals.timezone,
-          format: dateFormats.DATE_TIME,
-        });
-        const installDeviceId = latestDeviceMap.get(phoneNumber);
-
-        const alsoUsedBy = (() => {
-          const people = [];
-          const arr = deviceIdMap.get(installDeviceId) || [];
-          console.log({ arr, phoneNumber });
-
-          arr.forEach((id) => {
-            const name = deviceMap.get(id) || '';
-
-            people.push(name);
+          const latestDeviceId = latestDeviceIdsMap.get(phoneNumber);
+          const numberOfInstalls = installs.length;
+          const employeeObject = employeeInfo(employeesData, phoneNumber);
+          const name = employeeObject.name;
+          const firstSupervisorPhoneNumber = employeeObject.firstSupervisor;
+          const secondSupervisorPhoneNumber = employeeObject.secondSupervisor;
+          const department = employeeObject.department;
+          const employeeCode = employeeObject.employeeCode;
+          const firstSupervisorsName =
+            employeeInfo(employeesData, firstSupervisorPhoneNumber).name;
+          const secondSupervisorsName =
+            employeeInfo(employeesData, secondSupervisorPhoneNumber).name;
+          const date = dateStringWithOffset({
+            timestampToConvert: installs[installs.length - 1],
+            timezone: locals.timezone,
+            format: dateFormats.DATE_TIME,
           });
 
-          return people;
-        })();
+          const signedUpOn = dateStringWithOffset({
+            timestampToConvert: employeesData[phoneNumber].createTime,
+            timezone: locals.timezone,
+            format: dateFormats.DATE_TIME,
+          });
 
-        sheet1.cell(`A${columnIndex}`).value(date);
-        sheet1.cell(`B${columnIndex}`).value(name);
-        sheet1.cell(`C${columnIndex}`).value(phoneNumber);
-        sheet1.cell(`D${columnIndex}`).value(signedUpOn);
-        sheet1.cell(`E${columnIndex}`).value(numberOfInstalls);
-        // sheet1.cell(`F${columnIndex}`).value(installDeviceId);
-        sheet1.cell(`F${columnIndex}`).value(`${alsoUsedBy}`);
-        sheet1.cell(`G${columnIndex}`).value(employeeCode);
-        sheet1.cell(`H${columnIndex}`).value(department);
-        sheet1.cell(`I${columnIndex}`).value(firstSupervisorsName);
-        sheet1.cell(`J${columnIndex}`).value(firstSupervisorPhoneNumber);
-        sheet1.cell(`K${columnIndex}`).value(secondSupervisorsName);
-        sheet1.cell(`L${columnIndex}`).value(secondSupervisorPhoneNumber);
-      });
+          const alsoUsedBy = (() => {
+            if (!deviceUsers.get(latestDeviceId)) return '';
+
+            return `${deviceUsers.get(latestDeviceId)}`;
+          })();
+
+          console.log(phoneNumber, alsoUsedBy);
+
+          sheet1.cell(`A${columnIndex}`).value(date);
+          sheet1.cell(`B${columnIndex}`).value(name);
+          sheet1.cell(`C${columnIndex}`).value(phoneNumber);
+          sheet1.cell(`D${columnIndex}`).value(signedUpOn);
+          sheet1.cell(`E${columnIndex}`).value(numberOfInstalls);
+          sheet1.cell(`F${columnIndex}`).value(alsoUsedBy);
+          sheet1.cell(`G${columnIndex}`).value(employeeCode);
+          sheet1.cell(`H${columnIndex}`).value(department);
+          sheet1.cell(`I${columnIndex}`).value(firstSupervisorsName);
+          sheet1.cell(`J${columnIndex}`).value(firstSupervisorPhoneNumber);
+          sheet1.cell(`K${columnIndex}`).value(secondSupervisorsName);
+          sheet1.cell(`L${columnIndex}`).value(secondSupervisorPhoneNumber);
+        });
 
       return locals.worksheet.toFileAsync(filePath);
     })
@@ -263,11 +261,9 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      const fs = require('fs');
-
       locals.messageObject.attachments.push({
-        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
-        fileName: `Install Report_${office}_${locals.standardDateString}.xlsx`,
+        fileName,
+        content: fs.readFileSync(filePath).toString('base64'),
         type: 'text/csv',
         disposition: 'attachment',
       });

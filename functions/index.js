@@ -86,20 +86,20 @@ const addendumOnCreate = functions
   .document('Offices/{officeId}/Addendum/{docId}')
   .onCreate(require('./firestore/addendum/on-create'));
 
-const bulkActivitiesOnCreate = functions
-  .firestore
-  .document('BulkActivities/{docId}')
-  .onCreate(require('./background-services/activities/activities-create'));
-
 /** For sending notifications to the client app */
 const sendPushNotification = functions
   .firestore
   .document('Updates/{uid}/Addendum/{docId}')
   .onCreate(require('./firestore/updates/addendum/on-create'));
 
+// const api2 = functions
+//   .https
+//   .onRequest(require('../functions/api2'));
+
 
 module.exports = {
   api,
+  // api2,
   timer,
   authOnCreate,
   authOnDelete,
@@ -110,7 +110,6 @@ module.exports = {
   addendumOnCreate,
   recipientsOnUpdate,
   sendPushNotification,
-  bulkActivitiesOnCreate,
   activityTemplatesOnUpdate,
   generateOfficeNamePermutations,
 };

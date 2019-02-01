@@ -38,13 +38,6 @@ module.exports = (instantDoc) => {
 
   console.log({ action });
 
-  messages.push({
-    subject,
-    html: `<pre>${messageBody}</pre>`,
-    to: env.cc,
-    from: env.systemEmail,
-  });
-
   if (action === 'clientError' && !env.isProduction) {
     env.instantEmailRecipientEmails = [{
       email: env.frontEndDevEmail,
@@ -72,7 +65,7 @@ module.exports = (instantDoc) => {
     .sendMultiple(messages)
     .catch((error) => {
       if (error.response) {
-        console.log(error.response.body.errors);
+        console.error(error.response.body.errors);
       } else {
         console.error(error);
       }

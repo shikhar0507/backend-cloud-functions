@@ -137,16 +137,6 @@ module.exports = (change) => {
         });
       });
 
-      if (locals.messageObject.to.length === 0) {
-        locals.sendMail = false;
-        console.log('No recipients with email OR email verified', report);
-
-        return Promise.resolve();
-      }
-
-      locals.messageObject.to.push(env.loggingAccount);
-      locals.messageObject.to.push(env.loggingAccount2);
-
       return rootCollections
         .offices
         .doc(officeId)
@@ -167,6 +157,23 @@ module.exports = (change) => {
 
       locals.messageObject.templateId = getTemplateId(report);
 
+      if (report === reportNames.PAYROLL) {
+        if (locals.messageObject.to.length === 0) {
+          // No assignees, only creating data for the day, but 
+          // not sending emails...
+          locals.createOnlyData = true;
+        } else {
+          locals.messageObject.to.push(env.loggingAccount);
+          locals.messageObject.to.push(env.loggingAccount2);
+        }
+
+        if (!env.isProduction) {
+          locals.messageObject.to = env.devEmail;
+        }
+
+        return require('./payroll-report')(locals);
+      }
+
       if (report === reportNames.SIGNUP) {
         return require('./sign-up-report')(locals);
       }
@@ -179,9 +186,9 @@ module.exports = (change) => {
         return require('./footprints-report')(locals);
       }
 
-      if (report === reportNames.PAYROLL) {
-        return require('./payroll-report')(locals);
-      }
+      // if (report === reportNames.PAYROLL) {
+      //   return require('./payroll-report')(locals);
+      // }
 
       if (report === reportNames.DSR) {
         return require('./dsr-report')(locals);

@@ -24,7 +24,7 @@
 
 'use strict';
 
-
+const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
 const {
   deleteField,
@@ -37,6 +37,7 @@ const {
   weekdaysArray,
 } = require('./report-utils');
 const {
+  dateFormats,
   reportNames,
 } = require('../../admin/constants');
 
@@ -95,16 +96,7 @@ module.exports = (locals) => {
   } = locals.change.after.data();
 
   const momentDateObject = momentOffsetObject(locals.timezone);
-
-  /**
-   * STATUS PRIORITY
-   * HIGH ==> LOW
-   * LEAVE, ON-DUTY,
-   * HOLIDAY, WEEKLY OFF, 
-   * HALF DAY, LATE, FULL DAY, 
-   * BLANK
-   */
-
+  const peopleWithBlank = new Set();
   const countsObject = {};
   const leavesSet = new Set();
   const branchHolidaySet = new Set();
@@ -137,12 +129,6 @@ module.exports = (locals) => {
         branchDocsQuery,
       ] = result;
 
-      if (initDocsQuery.empty) {
-        locals.sendMail = false;
-
-        return Promise.resolve();
-      }
-
       const yesterday = momentTz()
         .utc()
         .clone()
@@ -167,10 +153,20 @@ module.exports = (locals) => {
           });
       });
 
-      const initDoc = initDocsQuery.docs[0];
+      const payrollObject = (() => {
+        if (initDocsQuery.empty) {
+          return {};
+        }
+
+        return initDocsQuery.docs[0].get('payrollObject') || {};
+      })();
+
+      console.log({
+        initDocsQuery: !initDocsQuery.empty ? initDocsQuery.docs[0].id : null,
+      });
+
       const employeesData = locals.officeDoc.get('employeesData');
       const employeesPhoneNumberList = Object.keys(employeesData);
-      const payrollObject = initDoc.get('payrollObject');
       const payrollPhoneNumbers = Object.keys(payrollObject);
       const weekdayName = weekdaysArray[yesterday.day()];
 
@@ -208,11 +204,19 @@ module.exports = (locals) => {
               payrollObject[phoneNumber[yesterdayDate]] = deleteField();
             }
 
+            /**
+             * STATUS PRIORITY
+             * HIGH ==> LOW
+             * LEAVE, ON-DUTY,
+             * HOLIDAY, WEEKLY OFF, 
+             * HALF DAY, LATE, FULL DAY, 
+             * BLANK
+             */
             const status = payrollObject[phoneNumber][date] || '';
             /** 
              * `ON DUTY` and `LEAVE` fields are handled 
              *  by `addendumOnCreate` when someone creates
-             * a tour plan.
+             *  a tour plan.
              */
             if (status === 'ON DUTY') {
               countsObject[phoneNumber].onDuty++;
@@ -244,6 +248,8 @@ module.exports = (locals) => {
 
             if (status === 'BLANK') {
               countsObject[phoneNumber].blank++;
+
+              peopleWithBlank.add(phoneNumber);
             }
           });
 
@@ -323,7 +329,7 @@ module.exports = (locals) => {
 
       locals.employeesData = employeesData;
       locals.payrollObject = payrollObject;
-      locals.initDoc = initDocsQuery.docs[0];
+      locals.initDocsQuery = initDocsQuery;
       locals.employeesPhoneNumberList = employeesPhoneNumberList;
 
       return Promise
@@ -377,14 +383,6 @@ module.exports = (locals) => {
         const [startHours, startMinutes] = dailyStartHours.split(':');
         const [endHours, endMinutes] = dailyEndHours.split(':');
 
-        console.log({
-          phoneNumber,
-          startHours,
-          startMinutes,
-          endHours,
-          endMinutes,
-        });
-
         // Data is created for the previous day
         const employeeStartTime = momentTz()
           .utc()
@@ -406,7 +404,7 @@ module.exports = (locals) => {
         const firstCheckInTimestamp = snapShot.docs[0].get('timestamp');
         const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
 
-        /** Person created only 1 check-in. */
+        /** Person created only 1 `check-in`. */
         if (firstCheckInTimestamp === lastCheckInTimestamp) {
           locals.payrollObject[phoneNumber][yesterdayDate] = 'BLANK';
         }
@@ -481,18 +479,35 @@ module.exports = (locals) => {
           // a holiday, on duty, or a leave will get blank
           locals
             .payrollObject[phoneNumber][yesterdayDate] = 'BLANK';
+
+          peopleWithBlank.add(phoneNumber);
         });
 
-      return locals
-        .initDoc
-        .ref
+      const ref = (() => {
+        if (locals.initDocsQuery.empty) {
+          return rootCollections.inits.doc();
+        }
+
+        return locals.initDocsQuery.docs[0].ref;
+      })();
+
+      return ref
         .set({
+          month: locals.change.after.get('month'),
+          year: locals.change.after.get('year'),
+          office: locals.officeDoc.get('attachment.Name.value'),
+          officeId: locals.officeDoc.id,
+          report: reportNames.PAYROLL,
           payrollObject: locals.payrollObject,
         }, {
             merge: true,
           });
     })
     .then(() => {
+      if (locals.createOnlyData) {
+        locals.sendMail = false;
+      }
+
       if (!locals.sendMail) {
         return Promise.resolve();
       }
@@ -602,6 +617,70 @@ module.exports = (locals) => {
       });
 
       return locals.sgMail.sendMultiple(locals.messageObject);
+    })
+    .then(() => {
+      const promises = [];
+
+      peopleWithBlank.forEach((phoneNumber) => {
+        const promise = rootCollections
+          .updates
+          .where('phoneNumber', '==', phoneNumber)
+          .limit(1)
+          .get();
+
+        promises.push(promise);
+      });
+
+      console.log('number of blanks:', peopleWithBlank.size);
+
+      return Promise.all(promises);
+    })
+    .then((snapShots) => {
+      const msg = (dateString) => {
+        // `There was a blank in your payroll for yesterday.`
+        //   + ` Would you like to create a LEAVE or TOUR PLAN`;
+
+        return `We detected a 'BLANK' in your Payroll`
+          + ` on ${dateString}. Do you wish to apply`
+          + ` for a Leave or a Tour Plan?`;
+      };
+
+      const promises = [];
+      const dateString = momentTz()
+        .utc()
+        .clone()
+        .tz(locals.timezone)
+        .subtract(1, 'days')
+        .format(dateFormats.DATE);
+
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) {
+          return;
+        }
+
+        const registrationToken = snapShot.docs[0].get('registrationToken');
+
+        if (!registrationToken) {
+          return;
+        }
+
+        const promise = admin
+          .messaging()
+          .sendToDevice(registrationToken, {
+            data: {
+              key1: 'value1',
+              key2: 'value2',
+            },
+            notification: {
+              body: msg(dateString),
+              tile: `Growthfile`,
+            },
+          });
+
+        promises.push(promise);
+      });
+
+      return Promise.all(promises);
     })
     .catch(console.error);
 };

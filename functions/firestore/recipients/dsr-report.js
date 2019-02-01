@@ -32,7 +32,6 @@ const {
   dateStringWithOffset,
   timeStringWithOffset,
   alphabetsArray,
-  // momentDateObject,
   momentOffsetObject,
   employeeInfo,
   toMapsUrl,
@@ -44,7 +43,7 @@ const {
 } = require('../../admin/constants');
 
 const xlsxPopulate = require('xlsx-populate');
-const moment = require('moment');
+const momentTz = require('moment-timezone');
 
 
 module.exports = (locals) => {
@@ -53,12 +52,13 @@ module.exports = (locals) => {
     officeId,
   } = locals.change.after.data();
 
-  const standardDateString = moment().format(dateFormats.DATE);
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const standardDateString = momentTz()
+    .utc()
+    .tz(timezone)
+    .format(dateFormats.DATE);
   const fileName = `DSR_${office}_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
-
-  locals.sendMail = true;
-  locals.messageObject.templateId = sendGridTemplateIds.dsr;
   locals.messageObject['dynamic_template_data'] = {
     office,
     date: standardDateString,
@@ -66,8 +66,6 @@ module.exports = (locals) => {
   };
 
   const customersMap = new Map();
-
-  const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const momentDateObject = momentOffsetObject(timezone);
 
   return Promise
@@ -196,6 +194,7 @@ module.exports = (locals) => {
           'Second Contact',
           'Address',
           'Actual Location',
+          'Status',
           'Purpose',
           'Start Time',
           'End Time',
@@ -216,6 +215,7 @@ module.exports = (locals) => {
 
         locals.visitsActivityIdsArray.forEach((activityId, index) => {
           const {
+            status,
             comment,
             purpose,
             customer,
@@ -285,20 +285,21 @@ module.exports = (locals) => {
           sheet1.cell(`E${columnIndex}`).value(secondContact);
           sheet1.cell(`F${columnIndex}`).value(address);
           sheet1.cell(`G${columnIndex}`).value(actualLocation);
-          sheet1.cell(`H${columnIndex}`).value(purpose);
-          sheet1.cell(`I${columnIndex}`).value(startTime);
-          sheet1.cell(`J${columnIndex}`).value(endTime);
-          sheet1.cell(`K${columnIndex}`).value(product1);
-          sheet1.cell(`L${columnIndex}`).value(product2);
-          sheet1.cell(`M${columnIndex}`).value(product3);
+          sheet1.cell(`H${columnIndex}`).value(status);
+          sheet1.cell(`I${columnIndex}`).value(purpose);
+          sheet1.cell(`J${columnIndex}`).value(startTime);
+          sheet1.cell(`K${columnIndex}`).value(endTime);
+          sheet1.cell(`L${columnIndex}`).value(product1);
+          sheet1.cell(`M${columnIndex}`).value(product2);
+          sheet1.cell(`N${columnIndex}`).value(product3);
           sheet1
-            .cell(`N${columnIndex}`)
+            .cell(`O${columnIndex}`)
             .value(`${followUpDateStart} - ${followUpDateEnd}`);
-          sheet1.cell(`O${columnIndex}`).value(comment);
-          sheet1.cell(`P${columnIndex}`).value(department);
-          sheet1.cell(`Q${columnIndex}`).value(baseLocation);
-          sheet1.cell(`R${columnIndex}`).value(firstSupervisor);
-          sheet1.cell(`S${columnIndex}`).value(secondSupervisor);
+          sheet1.cell(`P${columnIndex}`).value(comment);
+          sheet1.cell(`Q${columnIndex}`).value(department);
+          sheet1.cell(`R${columnIndex}`).value(baseLocation);
+          sheet1.cell(`S${columnIndex}`).value(firstSupervisor);
+          sheet1.cell(`T${columnIndex}`).value(secondSupervisor);
         });
       }
 
@@ -315,6 +316,7 @@ module.exports = (locals) => {
           'Second Contact',
           'Address',
           'Actual Location',
+          'Status',
           'Purpose',
           'Start Time',
           'End Time',
@@ -337,9 +339,9 @@ module.exports = (locals) => {
           const columnIndex = index + 2;
 
           const {
+            status,
             comment,
             purpose,
-            // customer name
             customer,
             product1,
             product2,
@@ -431,20 +433,21 @@ module.exports = (locals) => {
             .value(actualLocation.identifier)
             .style({ fontColor: '0563C1', underline: true })
             .hyperlink(actualLocation.url);
-          sheet2.cell(`I${columnIndex}`).value(purpose);
-          sheet2.cell(`J${columnIndex}`).value(startTime);
-          sheet2.cell(`K${columnIndex}`).value(endTime);
-          sheet2.cell(`L${columnIndex}`).value(product1);
-          sheet2.cell(`M${columnIndex}`).value(product2);
-          sheet2.cell(`N${columnIndex}`).value(product3);
+          sheet2.cell(`I${columnIndex}`).value(status);
+          sheet2.cell(`J${columnIndex}`).value(purpose);
+          sheet2.cell(`K${columnIndex}`).value(startTime);
+          sheet2.cell(`L${columnIndex}`).value(endTime);
+          sheet2.cell(`M${columnIndex}`).value(product1);
+          sheet2.cell(`N${columnIndex}`).value(product2);
+          sheet2.cell(`O${columnIndex}`).value(product3);
           sheet2
-            .cell(`O${columnIndex}`)
+            .cell(`P${columnIndex}`)
             .value(`${visitDateStart} - ${visitDateEnd}`);
-          sheet2.cell(`P${columnIndex}`).value(comment);
-          sheet2.cell(`Q${columnIndex}`).value(department);
-          sheet2.cell(`R${columnIndex}`).value(baseLocation);
-          sheet2.cell(`S${columnIndex}`).value(firstSupervisor);
-          sheet2.cell(`T${columnIndex}`).value(secondSupervisor);
+          sheet2.cell(`Q${columnIndex}`).value(comment);
+          sheet2.cell(`R${columnIndex}`).value(department);
+          sheet2.cell(`S${columnIndex}`).value(baseLocation);
+          sheet2.cell(`T${columnIndex}`).value(firstSupervisor);
+          sheet2.cell(`U${columnIndex}`).value(secondSupervisor);
         });
       }
 
@@ -465,7 +468,7 @@ module.exports = (locals) => {
 
       locals.messageObject.attachments.push({
         fileName,
-        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
+        content: fs.readFileSync(filePath).toString('base64'),
         type: 'text/csv',
         disposition: 'attachment',
       });

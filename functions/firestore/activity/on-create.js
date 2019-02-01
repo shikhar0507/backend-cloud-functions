@@ -29,7 +29,6 @@ const {
   code,
 } = require('../../admin/responses');
 const {
-  templatesSet,
   httpsActions,
   reportNames,
 } = require('../../admin/constants');
@@ -191,16 +190,10 @@ const createDocsWithBatch = (conn, locals) => {
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
 
-  console.log({
-    msg: locals.cancellationMessage,
-  });
-
   /** ENDS the response. */
-  // locals
-  //   .batch
-  //   .commit()
-  Promise
-    .resolve()
+  locals
+    .batch
+    .commit()
     .then(() => sendResponse(conn, code.created))
     .catch((error) => handleError(conn, error));
 };
@@ -301,7 +294,7 @@ const handleLeaveOrTourPlan = (conn, locals) => {
     return rootCollections
       .inits
       .where('office', '==', office)
-      .where('report', '==', 'payroll')
+      .where('report', '==', reportNames.PAYROLL)
       .where('month', '==', month)
       .where('year', '==', year)
       .limit(1)
@@ -439,13 +432,14 @@ const handleLeaveOrTourPlan = (conn, locals) => {
           });
 
         locals.batch.set(ref, {
-          report: 'payroll',
+          report: reportNames.PAYROLL,
           payrollObject: updatedPayrollObject.payrollObject,
           year: yearValue,
           month: monthValue,
           office: conn.req.body.office,
+          officeId: locals.static.officeId,
         }, {
-            /** The doc may or may not exist. */
+            /** The doc may or may not exist yet. */
             merge: true,
           });
 
@@ -801,19 +795,23 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
 };
 
 const handleBase64 = (conn, locals, result) => {
-  if (!result.hasBase64Field) {
-    resolveProfileCheckPromises(conn, locals, result);
+  const {
+    isBase64,
+    isUrl,
+    base64Field,
+  } = result;
 
-    return;
-  }
+  console.log({
+    isBase64,
+    isUrl,
+  });
 
-  if (result.isBase64Url) {
-    resolveProfileCheckPromises(conn, locals, result);
-
-    return;
-  }
-
-  if (result.isBase64EmptyString) {
+  /**
+   * if value is base64 -> backblaze
+   * if value is empty string return;
+   * if value is url return;
+   */
+  if (!isBase64) {
     resolveProfileCheckPromises(conn, locals, result);
 
     return;
@@ -821,7 +819,7 @@ const handleBase64 = (conn, locals, result) => {
 
   const getKeyId = (applicationKey, keyId) => `${keyId}:${applicationKey}`;
 
-  const base64ImageString = result.base64Value;
+  const base64ImageString = result.base64Value.split('base64,').pop();
   const activityId = locals.docs.activityRef.id;
   let authorizationToken = '';
   let mainDownloadUrlStart = '';
@@ -897,7 +895,7 @@ const handleBase64 = (conn, locals, result) => {
 
       console.log({ url });
 
-      conn.req.body.attachment[result.base64FieldName].value = url;
+      conn.req.body.attachment[base64Field].value = url;
 
       console.log({ attachment: conn.req.body.attachment });
 
@@ -905,7 +903,7 @@ const handleBase64 = (conn, locals, result) => {
 
       return;
     })
-    .catch((error) => handleError(conn, error, 'Image upload unavailable at the moment...'));
+    .catch((error) => handleError(conn, error, 'Please try again...'));
 };
 
 
@@ -934,9 +932,9 @@ const handleAttachment = (conn, locals) => {
     .phoneNumbers
     .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
 
-  // handleBase64(conn, locals, result);
+  handleBase64(conn, locals, result);
 
-  resolveProfileCheckPromises(conn, locals, result);
+  // resolveProfileCheckPromises(conn, locals, result);
 };
 
 

@@ -564,7 +564,6 @@ module.exports = (change) => {
   }
 
   const batch = db.batch();
-
   const profileCreated = Boolean(!before.data() && after.data() && after.get('uid'));
   const phoneNumber = after.id;
   const oldOfficesList = Object.keys(before.get('employeeOf') || {});

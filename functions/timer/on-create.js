@@ -303,14 +303,10 @@ module.exports = (doc) => {
     return Promise.resolve();
   }
 
-  /** Not sending the email from non-production version */
-  if (!env.isProduction) return Promise.resolve();
-
   return Promise
     .all([
       rootCollections
         .recipients
-        .orderBy('activityId')
         .get(),
       handleDailyStatusReport(),
       doc

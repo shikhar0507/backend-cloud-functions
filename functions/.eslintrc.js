@@ -11,7 +11,6 @@ module.exports = {
   extends: [
     'eslint:recommended',
     'plugin:promise/recommended',
-    'plugin:security/recommended',
   ],
   plugins: [
     'promise',
@@ -113,7 +112,8 @@ module.exports = {
     ],
     'newline-before-return': 'warn',
     'max-params': ['warn', { 'max': 4, }],
-    quotes: ['warn', 'single', { allowTemplateLiterals: true, }],
-    // complexity: ['error', 3],
+    quotes: ['warn', 'single', {
+      allowTemplateLiterals: true,
+    }],
   },
 };

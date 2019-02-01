@@ -38,6 +38,7 @@ const {
   alphabetsArray,
 } = require('./report-utils');
 const xlsxPopulate = require('xlsx-populate');
+const fs = require('fs');
 
 
 module.exports = (locals) => {
@@ -73,8 +74,6 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      // locals.messageObject.templateId = sendGridTemplateIds.signUps;
-
       const sheet1 = workbook.addSheet('SignUps');
       sheet1.row(1).style('bold', true);
       workbook.deleteSheet('Sheet1');
@@ -102,6 +101,7 @@ module.exports = (locals) => {
       const employeesList = Object.keys(employeesObject);
 
       employeesList.forEach((phoneNumber, index) => {
+        const columnNumber = index + 2;
         const employeeDataObject = employeeInfo(allEmployeesData, phoneNumber);
         const employeeName = employeeDataObject.name;
         const employeeCode = employeeDataObject.employeeCode;
@@ -116,15 +116,12 @@ module.exports = (locals) => {
           timezone: locals.timezone,
           timestampToConvert: employeesObject[phoneNumber].signedUpOn,
         });
-
-        console.log({ phoneNumber }, employeesObject[phoneNumber].addedOn);
-
         const addedOn = dateStringWithOffset({
           timezone: locals.timezone,
           timestampToConvert: employeesObject[phoneNumber].addedOn,
         });
-
-        const columnNumber = index + 2;
+        // This value could be an empty string
+        if (signedUpOn) totalSignUpsCount++;
 
         sheet1.cell(`A${columnNumber}`).value(employeeName);
         sheet1.cell(`B${columnNumber}`).value(phoneNumber);
@@ -136,9 +133,6 @@ module.exports = (locals) => {
         sheet1.cell(`H${columnNumber}`).value(firstSupervisorPhoneNumber);
         sheet1.cell(`I${columnNumber}`).value(secondSupervisorName);
         sheet1.cell(`J${columnNumber}`).value(secondSupervisorPhoneNumber);
-
-        // This value could be an empty string
-        if (signedUpOn) totalSignUpsCount++;
       });
 
       locals.messageObject['dynamic_template_data'] = {
@@ -157,11 +151,9 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      const fs = require('fs');
-
       locals.messageObject.attachments.push({
         fileName,
-        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
+        content: fs.readFileSync(filePath).toString('base64'),
         type: 'text/csv',
         disposition: 'attachment',
       });

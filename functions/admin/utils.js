@@ -64,11 +64,13 @@ const sendResponse = (conn, statusCode, message = '') => {
   const success = statusCode <= 226;
 
   if (!success) {
-    console.log({
+    console.log(JSON.stringify({
       ip: conn.req.ip,
       header: conn.req.headers,
       url: conn.req.url,
-    });
+      body: conn.req.body,
+      requester: conn.requester,
+    }));
   }
 
   conn.res.end(JSON.stringify({
@@ -387,8 +389,8 @@ const getObjectFromSnap = (snap) => {
   };
 };
 
-const promisifiedRequest = (options) =>
-  new Promise((resolve, reject) => {
+const promisifiedRequest = (options) => {
+  return new Promise((resolve, reject) => {
     const lib = require('https');
 
     const request =
@@ -427,6 +429,7 @@ const promisifiedRequest = (options) =>
     request
       .end();
   });
+};
 
 const promisifiedExecFile = (command, args) => {
   const { execFile } = require('child_process');
@@ -481,9 +484,10 @@ const isValidBase64 = (suspectBase64String) =>
     .test(suspectBase64String);
 
 
+
 module.exports = {
-  isValidUrl,
   sendJSON,
+  isValidUrl,
   getFileHash,
   isValidDate,
   handleError,

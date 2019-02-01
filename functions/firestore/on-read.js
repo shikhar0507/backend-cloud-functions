@@ -39,9 +39,6 @@ const {
   isValidDate,
   isNonEmptyString,
 } = require('../admin/utils');
-const {
-  reportNames,
-} = require('../admin/constants');
 
 
 const validateRequest = (conn) => {

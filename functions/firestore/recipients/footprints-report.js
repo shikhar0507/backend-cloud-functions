@@ -30,7 +30,6 @@ const {
 } = require('../../admin/admin');
 
 const {
-  sendGridTemplateIds,
   dateFormats,
 } = require('../../admin/constants');
 
@@ -54,13 +53,13 @@ module.exports = (locals) => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const momentDateObject = momentOffsetObject(timezone);
   const standardDateString = momentTz().format(dateFormats.DATE);
-  locals.messageObject.templateId = sendGridTemplateIds.footprints;
   locals.messageObject['dynamic_template_data'] = {
     office,
     subject: `Footprints Report_${office}_${standardDateString}`,
     date: standardDateString,
   };
 
+  const employeesData = locals.officeDoc.get('employeesData');
   const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
 
@@ -102,7 +101,6 @@ module.exports = (locals) => {
       workbook.sheet('Sheet1').cell('H1').value('Department');
       workbook.sheet('Sheet1').cell('I1').value('Base Location');
 
-      const employeesData = locals.officeDoc.get('employeesData');
       const dated = momentTz()
         .utc()
         .clone()
@@ -111,6 +109,7 @@ module.exports = (locals) => {
         .format(dateFormats.DATE);
 
       addendumDocs.docs.forEach((doc, index) => {
+        const columnIndex = index + 2;
         const isSupportRequest = doc.get('isSupportRequest');
 
         if (isSupportRequest) {
@@ -134,41 +133,41 @@ module.exports = (locals) => {
 
         workbook
           .sheet('Sheet1')
-          .cell(`A${index + 2}`)
+          .cell(`A${columnIndex}`)
           .value(dated);
         workbook
           .sheet('Sheet1')
-          .cell(`B${index + 2}`)
+          .cell(`B${columnIndex}`)
           .value(name);
         workbook
           .sheet('Sheet1')
-          .cell(`C${index + 2}`)
+          .cell(`C${columnIndex}`)
           .value(phoneNumber);
         workbook
           .sheet('Sheet1')
-          .cell(`D${index + 2}`)
+          .cell(`D${columnIndex}`)
           .value(time);
         workbook
           .sheet('Sheet1')
-          .cell(`E${index + 2}`)
+          .cell(`E${columnIndex}`)
           .value(accumulatedDistance);
         workbook
           .sheet('Sheet1')
-          .cell(`F${index + 2}`)
+          .cell(`F${columnIndex}`)
           .value(identifier)
           .style({ fontColor: '0563C1', underline: true })
           .hyperlink(url);
         workbook
           .sheet('Sheet1')
-          .cell(`G${index + 2}`)
+          .cell(`G${columnIndex}`)
           .value(comment);
         workbook
           .sheet('Sheet1')
-          .cell(`H${index + 2}`)
+          .cell(`H${columnIndex}`)
           .value(department);
         workbook
           .sheet('Sheet1')
-          .cell(`I${index + 2}`)
+          .cell(`I${columnIndex}`)
           .value(baseLocation);
       });
 
@@ -180,7 +179,7 @@ module.exports = (locals) => {
       }
 
       locals.messageObject.attachments.push({
-        content: new Buffer(fs.readFileSync(filePath)).toString('base64'),
+        content: fs.readFileSync(filePath).toString('base64'),
         fileName: `Footprints ${office}_Report_${standardDateString}.xlsx`,
         type: 'text/csv',
         disposition: 'attachment',

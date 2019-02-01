@@ -104,6 +104,7 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
   const activityData = addendumDoc.get('activityData');
   const activityId = addendumDoc.get('activityId');
   const template = addendumDoc.get('activityData.template');
+  const status = addendumDoc.get('activityData.status');
   const [
     visitDateSchedule,
     followUpDateSchedule,
@@ -149,12 +150,16 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
       actualLocation: locals.placeInformation,
     };
 
-    if (template === 'dsr') {
+    if (template === reportNames.DSR) {
       visitObject[activityId].followUpStartTimestamp =
         followUpDateSchedule.startTime;
       visitObject[activityId].followUpEndTimestamp =
         followUpDateSchedule.endTime;
     }
+  }
+
+  if (status === 'CANCELLED') {
+    visitObject[activityId] = deleteField();
   }
 
   console.log({ visitObject });
@@ -167,6 +172,7 @@ const getFollowUpObject = (addendumDoc, initQuery) => {
   const followUpObject = getFieldValue(initQuery, 'followUpObject');
   const activityId = addendumDoc.get('activityId');
   const activityData = addendumDoc.get('activityData');
+  const status = addendumDoc.get('activityData.status');
   const [
     visitDateSchedule,
     followUpDateSchedule,
@@ -197,8 +203,13 @@ const getFollowUpObject = (addendumDoc, initQuery) => {
       closureEndTimestamp: closureDateSchedule.endTime,
       comment: activityData.attachment.Comment.value,
       purpose: addendumDoc.get('activityData.template'),
+      // Popluating in the parent function.
       actualLocation: '',
     };
+  }
+
+  if (status === 'CANCELLED') {
+    followUpObject[activityId] = deleteField();
   }
 
   console.log({ followUpObject });
@@ -288,6 +299,7 @@ const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
 
   if (action === httpsActions.create) {
     expenseClaimObject[activityId].phoneNumber = addendumDoc.get('user');
+    // Done explictly. Ignoring expense date from schedule
     expenseClaimObject[activityId].expenseDateStartTime = addendumDoc.get('timestamp');
     expenseClaimObject[activityId].expenseLocation = locals.placeInformation;
   }
@@ -336,118 +348,33 @@ const handleExpenseClaimReport = (addendumDoc, locals) => {
     .then((expenseClaimInitDocsQuery) => {
       const ref = initDocRef(expenseClaimInitDocsQuery);
 
-      locals.batch.set(ref, {
-        month,
-        year,
-        expenseClaimObject:
-          getExpenseClaimObject(addendumDoc, expenseClaimInitDocsQuery, locals),
-        report: reportNames.EXPENSE_CLAIM,
-        office: addendumDoc.get('activityData.office'),
-        officeId: addendumDoc.get('activityData.officeId'),
-      }, {
-          merge: true,
-        });
+      locals
+        .batch
+        .set(ref, {
+          month,
+          year,
+          expenseClaimObject:
+            getExpenseClaimObject(addendumDoc, expenseClaimInitDocsQuery, locals),
+          report: reportNames.EXPENSE_CLAIM,
+          office: addendumDoc.get('activityData.office'),
+          officeId: addendumDoc.get('activityData.officeId'),
+        }, {
+            merge: true,
+          });
 
       return Promise.resolve();
     })
     .catch(console.error);
 };
 
-const getLeaveObject = (addendumDoc, leaveInitDocsQuery) => {
-  const leaveObject = getFieldValue(leaveInitDocsQuery, 'leaveObject');
-  const activityId = addendumDoc.get('activityId');
-  const status = addendumDoc.get('activityData.status');
-  const action = addendumDoc.get('action');
-
-  if (!leaveObject[activityId]) {
-    leaveObject[activityId] = {};
-  }
-
-  if (action === httpsActions.changeStatus && status === 'CANCELLED') {
-    leaveObject[activityId] = deleteField();
-
-    return leaveObject;
-  }
-
-  if (action === httpsActions.create || action === httpsActions.update) {
-    leaveObject[activityId] = {
-      approvedBy: '',
-      reason: addendumDoc.get('activityData.attachment.Reason.value'),
-      leaveType: addendumDoc.get('activityData.attachment.Leave Type.value'),
-      totalLeavesRemaining: addendumDoc.get('totalLeavesRemaining') || '',
-      totalLeavesTaken: addendumDoc.get('totalLeavesTaken') || '',
-      leaveStartTimestamp: addendumDoc.get('activityData.schedule')[0].startTime,
-      leaveEndTimestamp: addendumDoc.get('activityData.schedule')[0].endTime,
-      annualLeavesEntitled: addendumDoc.get('annualLeavesEntitled') || '',
-    };
-  }
-
-  if (action === httpsActions.create) {
-    leaveObject[activityId].phoneNumber = addendumDoc.get('user');
-  }
-
-  if (action === httpsActions.changeStatus && status === 'CONFIRMED') {
-    leaveObject[activityId].approvedBy = addendumDoc.get('user');
-  }
-
-  console.log({ leaveObject });
-
-  return leaveObject;
-};
-
-
-const handleLeaveReport = (addendumDoc, locals) => {
-  if (addendumDoc.get('activityData.template') !== reportNames.LEAVE) {
-    return Promise.resolve();
-  }
-
-  const leaveDatesSchedule = addendumDoc.get('activityData.schedule')[0];
-
-  if (!leaveDatesSchedule.startTime || !leaveDatesSchedule.endTime) {
-    return Promise.resolve();
-  }
-
-  if (!addendumDoc.get('activityData.attachment.Leave Type.value')) {
-    return Promise.resolve();
-  }
-
-  const leaveDateStartTimestamp = new Date(leaveDatesSchedule.startTime);
-  const leaveMonth = leaveDateStartTimestamp.getMonth();
-  const leaveYear = leaveDateStartTimestamp.getFullYear();
-
-  return rootCollections
-    .inits
-    .where('report', '==', reportNames.LEAVE)
-    .where('office', '==', addendumDoc.get('activityData.office'))
-    .where('year', '==', leaveYear)
-    .where('month', '==', leaveMonth)
-    .limit(1)
-    .get()
-    .then((leaveInitDocsQuery) => {
-      const ref = initDocRef(leaveInitDocsQuery);
-
-      return ref.set({
-        office: addendumDoc.get('activityData.office'),
-        report: reportNames.LEAVE,
-        month: leaveMonth,
-        year: leaveYear,
-        leaveObject: getLeaveObject(addendumDoc, leaveInitDocsQuery),
-      }, {
-          merge: true,
-        });
-    })
-    .catch(console.error);
-};
-
 
 const handleDutyRosterReport = (addendumDoc, locals) => {
-  if (addendumDoc.get('activityData.template') !== 'duty roster') {
+  if (addendumDoc.get('activityData.template') !== reportNames.DUTY_ROSTER) {
     return Promise.resolve();
   }
 
   const office = addendumDoc.get('activityData.office');
   const officeId = addendumDoc.get('activityData.officeId');
-
   const startTime = addendumDoc.get('activityData.schedule')[0].startTime;
   const endTime = addendumDoc.get('activityData.schedule')[0].endTime;
 
@@ -455,15 +382,17 @@ const handleDutyRosterReport = (addendumDoc, locals) => {
     return Promise.resolve();
   }
 
-  const date = new Date(startTime);
-  const month = date.getMonth();
-  const year = date.getFullYear();
+  const dateObject = new Date(startTime);
+  const date = dateObject.getDate();
+  const month = dateObject.getMonth();
+  const year = dateObject.getFullYear();
 
   return Promise
     .all([
       rootCollections
         .inits
         .where('report', '==', reportNames.DUTY_ROSTER)
+        .where('date', '==', date)
         .where('office', '==', office)
         .where('month', '==', month)
         .where('year', '==', year)
@@ -486,10 +415,13 @@ const handleDutyRosterReport = (addendumDoc, locals) => {
         = getDutyRosterObject(addendumDoc, dutyRosterInitDocsQuery, locals);
       const activityId = addendumDoc.get('activityId');
 
-      dutyRosterObject[activityId]
-        .assignees = assigneesSnapshot.docs.map((doc) => doc.id);
+      dutyRosterObject[activityId].assignees =
+        assigneesSnapshot
+          .docs
+          .map((doc) => doc.id);
 
       locals.batch.set(ref, {
+        date,
         month,
         year,
         office,
@@ -548,8 +480,6 @@ const handleVisitDate = (addendumDoc, locals) => {
       }
 
       console.log('visit:', ref.path);
-
-      // locals.batch.set(ref, docData, { merge: true });
 
       return Promise.resolve();
     })
@@ -773,6 +703,66 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
+const handleLeaveReport = (addendumDoc, locals) => {
+  const status = addendumDoc.get('activityData.status');
+  const activityId = addendumDoc.get('activityId');
+  const office = addendumDoc.get('activityData.office');
+  const user = addendumDoc.get('user');
+  const action = addendumDoc.get('action');
+  const template = addendumDoc.get('activityData.template');
+
+  if (template !== reportNames.LEAVE) {
+    return Promise.resolve();
+  }
+
+  return rootCollections
+    .inits
+    .where('report', '==', reportNames.LEAVE)
+    .where('month', '==', locals.dateObject.getMonth())
+    .where('year', '==', locals.dateObject.getFullYear())
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      const ref = initDocRef(snapShot);
+
+      const leaveObject = (() => {
+        if (snapShot.empty) {
+          return {};
+        }
+
+        return snapShot.docs[0].get('leaveObject');
+      })();
+
+      if (!leaveObject[activityId]) {
+        leaveObject[activityId] = {
+          approvedBy: '',
+          timestamp: Date.now(),
+        };
+      }
+
+      if (status === 'CONFIRMED' && action === httpsActions.changeStatus) {
+        leaveObject[activityId].approvedBy = user;
+      }
+
+      if (status === 'CANCELLED') {
+        leaveObject[activityId] = deleteField();
+      }
+
+      locals.batch.set(ref, {
+        office,
+        month: locals.dateObject.getMonth(),
+        year: locals.dateObject.getFullYear(),
+        report: reportNames.LEAVE,
+        leaveObject,
+      }, {
+          merge: true,
+        });
+
+      return Promise.resolve();
+    })
+    .catch(console.error);
+};
+
 
 module.exports = (addendumDoc, context) => {
   const phoneNumber = addendumDoc.get('user');
@@ -844,12 +834,6 @@ module.exports = (addendumDoc, context) => {
           };
         }
 
-        console.log({
-          googleMaps: distanceMatrixApiResult
-            .json
-            .rows,
-        });
-
         const value =
           distanceMatrixApiResult
             .json
@@ -897,8 +881,8 @@ module.exports = (addendumDoc, context) => {
       return;
     })
     .then(() => handleDsr(addendumDoc, locals))
-    .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleLeaveReport(addendumDoc, locals))
+    .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleExpenseClaimReport(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))
     .then(() => locals.batch.commit())
@@ -907,11 +891,13 @@ module.exports = (addendumDoc, context) => {
 
       const instantDocRef = rootCollections.instant.doc();
       console.log('crash id:', instantDocRef.id);
+      const doc = addendumDoc.data();
+      delete doc.activityData.addendumDocRef;
 
       const context = {
         // error,
+        doc,
         addendumId: addendumDoc.id,
-        doc: addendumDoc.data(),
         instantDocId: instantDocRef.id,
       };
 

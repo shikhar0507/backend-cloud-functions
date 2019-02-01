@@ -241,7 +241,7 @@ const rootCollections = {
    */
   activityTemplates: db.collection('ActivityTemplates'),
   /** 
-   * Contains a _unique_ doc for *each* `office` which has signed up for
+   * Contains a `_unique_` doc for *each* `office` which has signed up for
    * the platform.
    * @example `/Offices/(autoId)'
    */

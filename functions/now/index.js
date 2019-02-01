@@ -15,6 +15,7 @@ const {
   code,
 } = require('../admin/responses');
 
+
 /**
  * Returns the server timestamp on a `GET` request.
  *
@@ -27,6 +28,19 @@ module.exports = (conn) => {
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for the /now endpoint.`
+    );
+
+    return;
+  }
+
+  if (conn.req.query.hasOwnProperty('registrationToken')
+    && typeof conn.req.query.registrationToken !== 'string'
+    && conn.req.query.registrationToken !== null) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The query param 'registrationToken' can either be a non-empty`
+      + ` string or 'null'`
     );
 
     return;
@@ -48,11 +62,7 @@ module.exports = (conn) => {
         .get(),
     ])
     .then((result) => {
-      const [
-        updatesDoc,
-        timerDoc,
-        appVersionDoc,
-      ] = result;
+      const [updatesDoc, timerDoc, appVersionDoc] = result;
 
       /**
        * The `authOnCreate` function executed, when the user signed up, but
@@ -61,15 +71,7 @@ module.exports = (conn) => {
        * doc exists.
        */
       if (!updatesDoc.exists) {
-        sendJSON(conn, {
-          revokeSession: false,
-          updateClient: false,
-          success: true,
-          timestamp: Date.now(),
-          code: code.ok,
-        });
-
-        return null;
+        return Promise.resolve([false, false]);
       }
 
       const updateClient = (() => {
@@ -98,6 +100,7 @@ module.exports = (conn) => {
           requester: conn.requester,
         });
 
+        // Temporary until iOS app gets updated.
         if (os === 'ios') return false;
 
         return latestVersion !== appVersion;
@@ -116,24 +119,42 @@ module.exports = (conn) => {
           });
       }
 
-      const newDeviceIdsArray = updatesDoc.get('newDeviceIdsArray') || [];
-
-      if (conn.req.query.deviceId) {
-        newDeviceIdsArray.push(conn.req.query.deviceId);
-      }
-
       const updatesDocData = updatesDoc.data();
       updatesDocData.lastNowRequestTimestamp = Date.now();
+      const oldDeviceIdsArray = updatesDoc.get('deviceIdsArray') || [];
+
+      if (conn.req.query.deviceId) {
+        oldDeviceIdsArray.push(conn.req.query.deviceId);
+        updatesDocData.latestDeviceId = conn.req.query.deviceId;
+      }
+
+      updatesDocData.deviceIdsArray = [...new Set(oldDeviceIdsArray)];
+
+      /** Only logging when changed */
+      if (conn.req.query.hasOwnProperty('deviceId')
+        && conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
+
+        if (!updatesDocData.deviceIdsObject) {
+          updatesDocData.deviceIdsObject = {};
+        }
+
+        if (!updatesDocData.deviceIdsObject[conn.req.query.deviceId]) {
+          updatesDocData.deviceIdsObject[conn.req.query.deviceId] = {};
+        }
+
+        const oldCount =
+          updatesDocData.deviceIdsObject[conn.req.query.deviceId].count || 0;
+
+        updatesDocData.deviceIdsObject = {
+          [conn.req.query.deviceId]: {
+            count: oldCount + 1,
+            timestamp: Date.now(),
+          },
+        };
+      }
 
       if (conn.req.query.hasOwnProperty('registrationToken')) {
         updatesDocData.registrationToken = conn.req.query.registrationToken;
-      }
-
-      /** Only logging when changed */
-      if (conn.req.query.deviceId
-        && conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
-        updatesDocData.deviceIdsArray = [...new Set(newDeviceIdsArray)];
-        updatesDocData.latestDeviceId = conn.req.query.deviceId;
       }
 
       updatesDocData.latestDeviceOs = conn.req.query.os || '';
