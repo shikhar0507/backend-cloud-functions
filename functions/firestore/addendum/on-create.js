@@ -552,6 +552,8 @@ const handleDsr = (addendumDoc, locals) => {
 
 
 const handleDailyStatusReport = (addendumDoc, locals) => {
+  const batch = db.batch();
+
   const getValue = (snap, field) => {
     if (snap.empty) {
       return 0;
@@ -694,11 +696,11 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
       dataObject.templateUsageObject[template][action] =
         dataObject.templateUsageObject[template][action] + 1;
 
-      locals.batch.set(ref, dataObject, {
+      batch.set(ref, dataObject, {
         merge: true,
       });
 
-      return Promise.resolve();
+      return batch.commit();
     })
     .catch(console.error);
 };
@@ -884,8 +886,8 @@ module.exports = (addendumDoc, context) => {
     .then(() => handleLeaveReport(addendumDoc, locals))
     .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleExpenseClaimReport(addendumDoc, locals))
-    .then(() => handleDailyStatusReport(addendumDoc, locals))
     .then(() => locals.batch.commit())
+    .then(() => handleDailyStatusReport(addendumDoc, locals))
     .catch((error) => {
       console.error(error);
 

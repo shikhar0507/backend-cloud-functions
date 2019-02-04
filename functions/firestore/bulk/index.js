@@ -54,7 +54,7 @@ const validateRequestBody = (requestBody) => {
     || !Array.isArray(requestBody.data)
     || requestBody.data.length === 0) {
     result.isValid = false;
-    result.message = `Data in the request body is invalid/missing`;
+    result.message = `Field 'data' in the request body is invalid/missing`;
 
     return result;
   }
@@ -122,10 +122,11 @@ const handleResult = (conn, result) => {
     .then((docs) => {
       locals.adminsSet = new Set();
 
-      docs.forEach((doc) =>
+      docs.forEach((doc) => {
         locals
           .adminsSet
-          .add(doc.get('attachment.Admin.value')));
+          .add(doc.get('attachment.Admin.value'));
+      });
 
       require('./create')(conn, locals);
 

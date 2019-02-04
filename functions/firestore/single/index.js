@@ -51,25 +51,6 @@ module.exports = (conn) => {
     }
   }
 
-  if (!new Set()
-    .add('office')
-    .add('product')
-    .add('recipient')
-    .add('department')
-    .add('leave-type')
-    .add('expense-type')
-    .add('supplier-type')
-    .add('customer-type')
-    .has(conn.req.body.template)) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `Template: '${conn.req.body.template}' is not supported`
-    );
-
-    return;
-  }
-
   if (conn.req.body.hasOwnProperty('activityId')) {
     require('./update')(conn);
 

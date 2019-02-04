@@ -45,11 +45,8 @@ const fs = require('fs');
 
 
 module.exports = (locals) => {
-  const {
-    office,
-    officeId,
-  } = locals.change.after.data();
-
+  const office = locals.officeDoc.get('office');
+  const officeId = locals.officeDoc.id;
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const momentDateObject = momentOffsetObject(timezone);
   const standardDateString = momentTz().format(dateFormats.DATE);

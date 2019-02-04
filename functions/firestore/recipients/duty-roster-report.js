@@ -1,7 +1,5 @@
 'use strict';
 
-const xlsxPopulate = require('xlsx-populate');
-const fs = require('fs');
 const {
   rootCollections,
 } = require('../../admin/admin');
@@ -18,6 +16,8 @@ const {
   toMapsUrl,
 } = require('./report-utils');
 const momentTz = require('moment-timezone');
+const xlsxPopulate = require('xlsx-populate');
+const fs = require('fs');
 
 
 const activitiesDueTodaySheet = (params) => {
@@ -291,10 +291,7 @@ const activitiesCreatedYesterdaySheet = (params) => {
 
 
 module.exports = (locals) => {
-  const {
-    office,
-  } = locals.change.after.data();
-
+  const office = locals.officeDoc.get('office');
   const fileName
     = `${office} Duty Roster Report_${locals.standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;

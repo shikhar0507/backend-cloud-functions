@@ -408,11 +408,11 @@ const promisifiedRequest = (options) => {
               try {
                 responseData = JSON.parse(body);
               } catch (error) {
-                return reject(new Error(body));
+                return reject(new Error('Error:', error));
               }
 
               if (!response.statusCode.toString().startsWith('2')) {
-                return reject(new Error(body));
+                return reject(new Error(response));
               }
 
               return resolve(responseData);

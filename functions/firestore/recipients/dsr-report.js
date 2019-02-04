@@ -37,7 +37,6 @@ const {
   toMapsUrl,
 } = require('./report-utils');
 const {
-  sendGridTemplateIds,
   reportNames,
   dateFormats,
 } = require('../../admin/constants');

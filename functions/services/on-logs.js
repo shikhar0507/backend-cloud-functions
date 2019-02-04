@@ -29,19 +29,48 @@ const {
   rootCollections,
   db,
 } = require('../admin/admin');
-
 const {
   sendResponse,
   handleError,
 } = require('../admin/utils');
-
 const {
   code,
 } = require('../admin/responses');
-
 const {
   reportingActions,
 } = require('../admin/constants');
+
+
+const handleInstant = (conn) => {
+  return rootCollections
+    .updates
+    .doc(conn.requester.uid)
+    .get()
+    .then((doc) => {
+      const batch = db.batch();
+      const emailBody = {
+        body: conn.req.body.body || {},
+        requester: conn.requester,
+        updatesDoc: doc.data(),
+      };
+
+      batch
+        .set(rootCollections
+          .instant
+          .doc(), {
+            message: conn.req.body.message,
+            messageBody: JSON.stringify(emailBody, ' ', 2),
+            subject: `New Error in Growthfile Frontend`
+              + ` (${process.env.GCLOUD_PROJECT})`,
+            action: reportingActions.clientError,
+            timestamp: Date.now(),
+          });
+
+      return batch.commit();
+    })
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
+};
 
 
 module.exports = (conn) => {
@@ -55,38 +84,21 @@ module.exports = (conn) => {
     return;
   }
 
-  rootCollections
-    .updates
-    .doc(conn.requester.uid)
-    .get()
-    .then((doc) => {
-      const batch = db.batch();
-      const docRef = rootCollections.instant.doc();
-      const body = conn.req.body;
-      /** This field isn't required since it has lots of extra data */
-      delete conn.requester.employeeOf;
+  console.log('url', conn.req.url, conn.requester);
 
-      console.log({
-        body,
-        requester: conn.requester,
-        url: conn.req.url,
-        updatesDoc: doc.data(),
-      });
+  sendResponse(conn, 204);
 
-      batch.set(docRef, {
-        messageBody: JSON.stringify({
-          body,
-          requester: conn.requester,
-          updatesDoc: doc.data(),
-        }, ' ', 2),
-        subject: `New Error in Growthfile Frontend`
-          + ` (${process.env.GCLOUD_PROJECT})`,
-        action: reportingActions.clientError,
-        timestamp: Date.now(),
-      });
+  // rootCollections
+  //   .instant
+  //   .where('message', '==', conn.req.body.message)
+  //   .limit(1)
+  //   .get()
+  //   .then((docs) => {
+  //     if (docs.exists) {
+  //       return sendResponse(conn, code.noContent);
+  //     }
 
-      return batch.commit();
-    })
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
+  //     return handleInstant(conn);
+  //   })
+  //   .catch((error) => handleError(conn, error));
 };

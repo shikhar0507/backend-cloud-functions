@@ -171,18 +171,27 @@ module.exports = (conn) => {
         subscriptions: subscriptions.size,
       });
 
-      addendum.forEach((doc) =>
-        jsonObject.addendum.push(getAddendumObject(doc)));
+      addendum
+        .forEach((doc) =>
+          jsonObject
+            .addendum
+            .push(getAddendumObject(doc)));
 
-      activities.forEach((doc) =>
-        jsonObject.activities.push(getActivityObject(doc)));
+      activities
+        .forEach((doc) =>
+          jsonObject
+            .activities
+            .push(getActivityObject(doc)));
 
-      subscriptions.forEach((doc) => {
-        /** Client side APIs don't allow admin templates. */
-        if (doc.get('canEditRule') === 'ADMIN') return;
+      subscriptions
+        .forEach((doc) => {
+          /** Client side APIs don't allow admin templates. */
+          if (doc.get('canEditRule') === 'ADMIN') return;
 
-        jsonObject.templates.push(getSubscriptionObject(doc));
-      });
+          jsonObject
+            .templates
+            .push(getSubscriptionObject(doc));
+        });
 
       const batch = db.batch();
 

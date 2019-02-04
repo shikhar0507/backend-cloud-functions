@@ -132,6 +132,7 @@ module.exports = (conn) => {
 
       /** Only logging when changed */
       if (conn.req.query.hasOwnProperty('deviceId')
+        && conn.req.query.deviceId
         && conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
 
         if (!updatesDocData.deviceIdsObject) {
@@ -159,6 +160,8 @@ module.exports = (conn) => {
 
       updatesDocData.latestDeviceOs = conn.req.query.os || '';
       updatesDocData.latestAppVersion = conn.req.query.appVersion || '';
+
+      console.log(updatesDocData);
 
       batch.set(updatesDoc.ref, updatesDocData, {
         merge: true,

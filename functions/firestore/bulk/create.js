@@ -9,6 +9,7 @@ const {
 const {
   isE164PhoneNumber,
   sendJSON,
+  handleError,
 } = require('../../admin/utils');
 const {
   db,
@@ -64,28 +65,30 @@ const getCanEditValue = (options) => {
   return true;
 };
 
+const objectWithError = (options) => {
+  const {
+    object,
+    reason,
+  } = options;
+
+  object.success = false;
+  object.reason = reason;
+
+  return object;
+};
+
 
 module.exports = (conn, locals) => {
   const batchesArray = [];
-
-  const objectWithError = (options) => {
-    const {
-      object,
-      reason,
-    } = options;
-
-    object.success = false;
-    object.reason = reason;
-
-    return object;
-  };
-
-  const templateHasName =
-    locals.templateDoc.get('attachment').hasOwnProperty('Name');
   const namesMap = locals.officeDoc.get(`namesMap`) || {};
   const newEmployeesData = locals.officeDoc.get('employeesData') || {};
   const subscriptionsMap = locals.officeDoc.get('subscriptionsMap') || {};
   const newSubscriptionsMap = subscriptionsMap;
+  const templateHasName =
+    locals
+      .templateDoc
+      .get('attachment')
+      .hasOwnProperty('Name');
 
   console.log('conn.req.body.data', conn.req.body.data.length);
 
@@ -270,8 +273,11 @@ module.exports = (conn, locals) => {
     const batch = db.batch();
     const activityRef = rootCollections.activities.doc();
     const addendumDocRef =
-      rootCollections.offices.doc(locals.officeDoc.id)
-        .collection('Addendum').doc();
+      rootCollections
+        .offices
+        .doc(locals.officeDoc.id)
+        .collection('Addendum')
+        .doc();
 
     if (!conn.requester.isSupportRequest) {
       share.push(conn.requester.phoneNumber);
@@ -326,7 +332,7 @@ module.exports = (conn, locals) => {
       userDeviceTimestamp: conn.req.body.timestamp,
       activityId: activityRef.id,
       isSupportRequest: conn.requester.isSupportRequest,
-      // Only admins can bulk create
+      // Only admins or support can create in bulk
       isAdminRequest: true,
     };
 
@@ -338,7 +344,9 @@ module.exports = (conn, locals) => {
         console.log('phoneNumber', phoneNumber);
 
         const addToInclude = (() => {
-          if (conn.req.body.template !== 'subscription') return true;
+          if (conn.req.body.template !== 'subscription') {
+            return true;
+          }
 
           return phoneNumber !== attachment.Subscriber.value;
         })();
@@ -419,5 +427,5 @@ module.exports = (conn, locals) => {
 
       return sendJSON(conn, { rejectedObjects });
     })
-    .catch(console.error);
+    .catch((error) => handleError(conn, error));
 };

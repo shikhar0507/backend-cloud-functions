@@ -25,7 +25,6 @@
 'use strict';
 
 const admin = require('firebase-admin');
-const momentTz = require('moment-timezone');
 const {
   deleteField,
   rootCollections,
@@ -40,6 +39,8 @@ const {
   dateFormats,
   reportNames,
 } = require('../../admin/constants');
+const momentTz = require('moment-timezone');
+
 
 const getZeroCountsObject = () => {
   return {
@@ -90,12 +91,10 @@ const topRow = (timezone) => {
 
 
 module.exports = (locals) => {
-  const {
-    office,
-    officeId,
-  } = locals.change.after.data();
-
+  const office = locals.officeDoc.get('office');
+  const officeId = locals.officeDoc.id;
   const momentDateObject = momentOffsetObject(locals.timezone);
+
   const peopleWithBlank = new Set();
   const countsObject = {};
   const leavesSet = new Set();
@@ -105,6 +104,19 @@ module.exports = (locals) => {
   const onDutySet = new Set();
   /** Stores the type of leave a person has taken for the day */
   const leaveTypesMap = new Map();
+  const yesterday = momentTz()
+    .utc()
+    .clone()
+    .tz(locals.timezone)
+    .subtract(1, 'days');
+  const yesterdayDate = yesterday.date();
+  const yesterdayStartTimestamp = yesterday.startOf('day').unix() * 1000;
+  const yesterdayEndTimestamp = yesterday.endOf('day').unix() * 1000;
+  const branchesWithHoliday = new Set();
+  const employeesData = locals.officeDoc.get('employeesData');
+  const employeesPhoneNumberList = Object.keys(employeesData);
+  console.log('office', locals.officeDoc.get('office'));
+  console.log('locals.createOnlyData', locals.createOnlyData);
 
   return Promise
     .all([
@@ -124,22 +136,7 @@ module.exports = (locals) => {
         .get(),
     ])
     .then((result) => {
-      const [
-        initDocsQuery,
-        branchDocsQuery,
-      ] = result;
-
-      const yesterday = momentTz()
-        .utc()
-        .clone()
-        .tz(locals.timezone)
-        .subtract(1, 'days');
-      const yesterdayDate = yesterday.date();
-      const yesterdayStartTimestamp = yesterday.startOf('day').unix() * 1000;
-      const yesterdayEndTimestamp = yesterday.endOf('day').unix() * 1000;
-      const branchesWithHoliday = new Set();
-
-      console.log({ yesterdayDate });
+      const [initDocsQuery, branchDocsQuery] = result;
 
       branchDocsQuery.forEach((branchDoc) => {
         branchDoc
@@ -165,8 +162,6 @@ module.exports = (locals) => {
         initDocsQuery: !initDocsQuery.empty ? initDocsQuery.docs[0].id : null,
       });
 
-      const employeesData = locals.officeDoc.get('employeesData');
-      const employeesPhoneNumberList = Object.keys(employeesData);
       const payrollPhoneNumbers = Object.keys(payrollObject);
       const weekdayName = weekdaysArray[yesterday.day()];
 
@@ -248,8 +243,6 @@ module.exports = (locals) => {
 
             if (status === 'BLANK') {
               countsObject[phoneNumber].blank++;
-
-              peopleWithBlank.add(phoneNumber);
             }
           });
 
@@ -407,6 +400,8 @@ module.exports = (locals) => {
         /** Person created only 1 `check-in`. */
         if (firstCheckInTimestamp === lastCheckInTimestamp) {
           locals.payrollObject[phoneNumber][yesterdayDate] = 'BLANK';
+
+          peopleWithBlank.add(phoneNumber);
         }
 
         const checkInDiff =
@@ -491,10 +486,36 @@ module.exports = (locals) => {
         return locals.initDocsQuery.docs[0].ref;
       })();
 
+      const month = (() => {
+        if (locals.change.after.get('month')) {
+          return locals.change.after.get('month');
+        }
+
+        return momentDateObject.yesterday.MONTH_NUMBER;
+      })();
+
+      const year = (() => {
+        if (locals.change.after.get('year')) {
+          return locals.change.after.get('year');
+        }
+
+        return momentDateObject.yesterday.YEAR;
+      })();
+
+      console.log(JSON.stringify({
+        momentDateObject,
+        month: locals.change.after.get('month'),
+        year: locals.change.after.get('year'),
+        office: locals.officeDoc.get('attachment.Name.value'),
+        officeId: locals.officeDoc.id,
+        report: reportNames.PAYROLL,
+        payrollObject: locals.payrollObject,
+      }));
+
       return ref
         .set({
-          month: locals.change.after.get('month'),
-          year: locals.change.after.get('year'),
+          month,
+          year,
           office: locals.officeDoc.get('attachment.Name.value'),
           officeId: locals.officeDoc.id,
           report: reportNames.PAYROLL,

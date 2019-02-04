@@ -167,12 +167,17 @@ module.exports = (change) => {
           locals.messageObject.to.push(env.loggingAccount2);
         }
 
-        if (!env.isProduction) {
-          locals.messageObject.to = env.devEmail;
-        }
-
         return require('./payroll-report')(locals);
       }
+
+      if (locals.messageObject.to.length === 0) {
+        locals.sendMail = false;
+
+        return Promise.resolve();
+      }
+
+      locals.messageObject.to.push(env.loggingAccount);
+      locals.messageObject.to.push(env.loggingAccount2);
 
       if (report === reportNames.SIGNUP) {
         return require('./sign-up-report')(locals);
@@ -185,10 +190,6 @@ module.exports = (change) => {
       if (report === reportNames.FOOTPRINTS) {
         return require('./footprints-report')(locals);
       }
-
-      // if (report === reportNames.PAYROLL) {
-      //   return require('./payroll-report')(locals);
-      // }
 
       if (report === reportNames.DSR) {
         return require('./dsr-report')(locals);
@@ -220,7 +221,7 @@ module.exports = (change) => {
 
       // For `sendgrid`, rejection related to their `api` is in the response property
       if (error.response) {
-        errorObject.sgMail = error.response.body.errors;
+        errorObject.sgMail = error.toString();
       }
 
       console.error(errorObject);

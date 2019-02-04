@@ -274,6 +274,18 @@ module.exports = (conn) => {
     message: null,
   };
 
+  if (attachment.hasOwnProperty('Name')
+    && attachment.hasOwnProperty('Number')) {
+    sendResponse(
+      conn,
+      code.badRequest,
+      `The fields 'Name' and 'Number cannot exist`
+      + ` simultaneously in attachment object.'`
+    );
+
+    return;
+  }
+
   const attachmentFields = Object.keys(attachment);
 
   for (const field of attachmentFields) {

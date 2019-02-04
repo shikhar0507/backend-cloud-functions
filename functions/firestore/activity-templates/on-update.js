@@ -68,6 +68,15 @@ const validateAttachment = (attachment) => {
     return messageObject;
   }
 
+  if (attachment.hasOwnProperty('Name')
+    && attachment.hasOwnProperty('Number')) {
+    messageObject.isValid = false;
+    messageObject.message = `The fields 'Name' and`
+      + ` 'Number cannot exist simultaneously in attachment object.'`;
+
+    return messageObject;
+  }
+
   const fields = Object.keys(attachment);
 
   for (const field of fields) {

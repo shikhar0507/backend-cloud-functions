@@ -30,6 +30,7 @@ const {
   auth,
   db,
   users,
+  deleteField,
 } = require('../admin/admin');
 const {
   code,
@@ -434,7 +435,7 @@ const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
   const filePath = path.join(process.cwd(), 'data.csv');
-  const templateName = '';
+  const templateName = 'customer';
   const office = '';
   const geopoint = {
     latitude: '',
@@ -490,16 +491,30 @@ const handleBulkObject = (conn) => {
       arrayOfObjects
         .forEach((object, index) => {
           const fields = Object.keys(object);
-          const obj = {
+          const activityObject = {
             attachment: {},
             schedule: [],
             venue: [],
             share: [],
           };
 
+          if (venueFieldsSet.size > 0) {
+            const venueObject = {
+              geopoint: {
+                latitude: Number(arrayOfObjects[index].Latitude),
+                longitude: Number(arrayOfObjects[index].Longitude),
+              },
+              location: arrayOfObjects[index].Location,
+              address: arrayOfObjects[index].Address,
+              venueDescriptor: 'Customer Office',
+            };
+
+            activityObject.venue.push(venueObject);
+          }
+
           fields.forEach((field) => {
             if (attachmentFieldsSet.has(field)) {
-              obj.attachment[field] = {
+              activityObject.attachment[field] = {
                 type: templateObject.attachment[field].type,
                 value: arrayOfObjects[index][field],
               };
@@ -513,31 +528,15 @@ const handleBulkObject = (conn) => {
                 return new Date(date).getTime();
               })();
 
-              obj.schedule.push({
+              activityObject.schedule.push({
                 startTime: ts,
                 name: field,
                 endTime: ts,
               });
             }
-
-            if (venueFieldsSet.has(field)) {
-              const geopoint = () => '';
-              const address = () => '';
-              const location = () => '';
-
-              obj.venue.push({
-                geopoint: {
-                  latitude: Number(geopoint.split(',')[0]),
-                  longitude: Number(geopoint.split(',')[1]),
-                },
-                venueDescriptor: field,
-                address,
-                location,
-              });
-            }
           });
 
-          myObject.data.push(obj);
+          myObject.data.push(activityObject);
         });
 
       conn.req.body = myObject;
@@ -576,18 +575,6 @@ module.exports = (req, res) => {
     },
   };
 
-  // if (process.ENV && process.ENV.PRODUCTION
-  //   && env.isProduction
-  //   && !env.allowedOrigins.has(conn.req.get('origin'))) {
-  //   sendResponse(
-  //     conn,
-  //     code.unauthorized,
-  //     `Requests from domain: ${conn.req.get('origin')} are not allowed.`
-  //   );
-
-  //   return;
-  // }
-
   /** For handling CORS */
   if (req.method === 'HEAD' || req.method === 'OPTIONS') {
     sendResponse(conn, code.noContent);
@@ -610,6 +597,15 @@ module.exports = (req, res) => {
 
     return;
   }
+
+  console.log('\n'.repeat(10));
+
+  // if (!conn.req.headers['x-cf-secret']
+  //   || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
+  //   sendResponse(conn, code.forbidden, 'Access forbidden');
+
+  //   return;
+  // }
 
   checkAuthorizationToken(conn);
 };

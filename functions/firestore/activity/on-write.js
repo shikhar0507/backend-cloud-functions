@@ -115,6 +115,11 @@ const handleAdmin = (locals, batch) => {
        * using the client app.
        */
       if (error.code !== 'auth/user-not-found') {
+        console.log({
+          phoneNumber,
+          office,
+        });
+
         console.error(error);
       }
 
