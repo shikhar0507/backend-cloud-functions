@@ -66,22 +66,19 @@ module.exports = (userRecord) => {
 
   console.log({ momentToday, momentYesterday });
 
-  return Promise
+  Promise
     .all([
+      rootCollections
+        .inits
+        .where('report', '==', 'counter')
+        .limit(1)
+        .get(),
       rootCollections
         .inits
         .where('report', '==', reportNames.DAILY_STATUS_REPORT)
         .where('date', '==', momentToday.date)
         .where('month', '==', momentToday.months)
         .where('year', '==', momentToday.years)
-        .limit(1)
-        .get(),
-      rootCollections
-        .inits
-        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-        .where('date', '==', momentYesterday.date)
-        .where('month', '==', momentYesterday.months)
-        .where('year', '==', momentYesterday.years)
         .limit(1)
         .get(),
       rootCollections
@@ -94,48 +91,39 @@ module.exports = (userRecord) => {
     ])
     .then((result) => {
       const [
-        initTodayQuery,
-        initYesterdayQuery,
-        adminActivitiesSnap,
+        counterDocsQuery,
+        initDocsQuery,
+        adminActivitiesQuery,
       ] = result;
 
+      const initDoc = getObjectFromSnap(initDocsQuery);
+      const counterDoc = getObjectFromSnap(counterDocsQuery);
+
       const usersAdded = (() => {
-        if (initTodayQuery.empty) {
-          return 0;
-        }
+        if (initDocsQuery.empty) return 1;
 
-        return initTodayQuery.docs[0].get('usersAdded') || 0;
-      })();
-      const totalUsers = (() => {
-        if (initTodayQuery.empty && initYesterdayQuery.empty) {
-          return 0;
-        }
-
-        if (initTodayQuery.empty) {
-          return initYesterdayQuery.docs[0].get('totalUsers') || 0;
-        }
-
-        return initTodayQuery.docs[0].get('totalUsers') || 0;
+        return initDocsQuery.docs[0].get('usersAdded') || 0;
       })();
 
-      const doc = getObjectFromSnap(initTodayQuery);
-
-      console.log('doc.ref', doc.ref);
-
-      batch.set(doc.ref, {
-        totalUsers: totalUsers + 1,
+      batch.set(initDoc.ref, {
         usersAdded: usersAdded + 1,
+      }, {
+          merge: true,
+        });
+
+      batch.set(counterDoc.ref, {
+        totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
       }, {
           merge: true,
         });
 
       const customClaimsObject = {};
 
-      if (!adminActivitiesSnap.empty) {
+      if (!adminActivitiesQuery.empty) {
         customClaimsObject.admin = [];
       }
 
-      adminActivitiesSnap
+      adminActivitiesQuery
         .forEach((doc) => {
           const office = doc.get('office');
 
@@ -179,6 +167,5 @@ module.exports = (userRecord) => {
             .commit(),
         ]);
     })
-    .then(console.log)
     .catch(console.error);
 };

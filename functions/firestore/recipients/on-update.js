@@ -162,9 +162,6 @@ module.exports = (change) => {
           // No assignees, only creating data for the day, but 
           // not sending emails...
           locals.createOnlyData = true;
-        } else {
-          locals.messageObject.to.push(env.loggingAccount);
-          locals.messageObject.to.push(env.loggingAccount2);
         }
 
         return require('./payroll-report')(locals);
@@ -175,9 +172,6 @@ module.exports = (change) => {
 
         return Promise.resolve();
       }
-
-      locals.messageObject.to.push(env.loggingAccount);
-      locals.messageObject.to.push(env.loggingAccount2);
 
       if (report === reportNames.SIGNUP) {
         return require('./sign-up-report')(locals);

@@ -24,7 +24,7 @@ const activitiesDueTodaySheet = (params) => {
   const { worksheet, dueToday, locals } = params;
 
   if (!locals.sendMail || dueToday.empty) {
-    return Promise.resolve({ locals });
+    return Promise.resolve(params);
   }
 
   const sheet2 = worksheet.addSheet('Duties Assigned For Today');
@@ -146,7 +146,7 @@ const activitiesCreatedYesterdaySheet = (params) => {
   const { worksheet, createdYesterday, locals, assigneesArrayMap } = params;
 
   if (!locals.sendMail || createdYesterday.empty) {
-    return Promise.resolve({ locals });
+    return Promise.resolve(params);
   }
 
   const queries = [];

@@ -435,11 +435,11 @@ const handleBulkObject = (conn) => {
   const csvtojsonV2 = require('csvtojson/v2');
   const path = require('path');
   const filePath = path.join(process.cwd(), 'data.csv');
-  const templateName = 'customer';
-  const office = '';
+  const templateName = 'subscription';
+  const office = 'Mind Edutainment';
   const geopoint = {
-    latitude: '',
-    longitude: '',
+    latitude: 28.549206,
+    longitude: 77.2504942,
   };
 
   console.log({ filePath });
@@ -597,8 +597,6 @@ module.exports = (req, res) => {
 
     return;
   }
-
-  console.log('\n'.repeat(10));
 
   // if (!conn.req.headers['x-cf-secret']
   //   || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
