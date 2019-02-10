@@ -157,13 +157,16 @@ module.exports = (change) => {
 
       locals.messageObject.templateId = getTemplateId(report);
 
-      if (report === reportNames.PAYROLL) {
-        if (locals.messageObject.to.length === 0) {
-          // No assignees, only creating data for the day, but 
-          // not sending emails...
-          locals.createOnlyData = true;
-        }
+      if (locals.messageObject.to.length === 0) {
+        // No assignees, only creating data for the day, but 
+        // not sending emails...
+        // Applicable only to the payroll report
+        locals.createOnlyData = true;
+      }
 
+      // Regardless of recipients status, data is
+      // created. Emails, though are not sent.
+      if (report === reportNames.PAYROLL) {
         return require('./payroll-report')(locals);
       }
 

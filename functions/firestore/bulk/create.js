@@ -37,6 +37,7 @@ const toAttachmentValues = (activityId, attachment) => {
   return object;
 };
 
+
 const getCanEditValue = (options) => {
   const {
     phoneNumber,
@@ -64,6 +65,7 @@ const getCanEditValue = (options) => {
   /** canEditRule is `ALL` */
   return true;
 };
+
 
 const objectWithError = (options) => {
   const {
@@ -110,10 +112,12 @@ module.exports = (conn, locals) => {
         return 'attachment';
       })();
 
-      locals.responseObject.push(objectWithError({
-        object,
-        reason: `Missing the field: '${missingFieldName}'`,
-      }));
+      locals
+        .responseObject
+        .push(objectWithError({
+          object,
+          reason: `Missing the field: '${missingFieldName}'`,
+        }));
 
       return;
     }
@@ -389,7 +393,7 @@ module.exports = (conn, locals) => {
         .add('subscription')
         .has(conn.req.body.template)
         && !templateHasName) {
-        return Promise.resolve();
+        return null;
       }
 
       const data = {};

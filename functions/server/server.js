@@ -431,126 +431,6 @@ const checkAuthorizationToken = (conn) => {
 };
 
 
-const handleBulkObject = (conn) => {
-  const csvtojsonV2 = require('csvtojson/v2');
-  const path = require('path');
-  const filePath = path.join(process.cwd(), 'data.csv');
-  const templateName = 'subscription';
-  const office = 'Mind Edutainment';
-  const geopoint = {
-    latitude: 28.549206,
-    longitude: 77.2504942,
-  };
-
-  console.log({ filePath });
-
-  Promise
-    .all([
-      rootCollections
-        .activityTemplates
-        .where('name', '==', templateName)
-        .limit(1)
-        .get(),
-      csvtojsonV2()
-        .fromFile(filePath),
-    ])
-    .then((result) => {
-      const [
-        templateQuery,
-        arrayOfObjects,
-      ] = result;
-
-      const templateObject =
-        templateQuery
-          .docs[0]
-          .data();
-
-      const myObject = {
-        office,
-        geopoint,
-        timestamp: Date.now(),
-        template: templateName,
-        data: [],
-      };
-
-      const attachmentFieldsSet =
-        new Set(Object.keys(templateObject.attachment));
-      const scheduleFieldsSet = new Set();
-      const venueFieldsSet = new Set();
-
-      templateObject
-        .schedule
-        .forEach((field) => scheduleFieldsSet.add(field));
-
-      templateObject
-        .venue
-        .forEach((field) => venueFieldsSet.add(field));
-
-      console.log('total', arrayOfObjects.length);
-
-      arrayOfObjects
-        .forEach((object, index) => {
-          const fields = Object.keys(object);
-          const activityObject = {
-            attachment: {},
-            schedule: [],
-            venue: [],
-            share: [],
-          };
-
-          if (venueFieldsSet.size > 0) {
-            const venueObject = {
-              geopoint: {
-                latitude: Number(arrayOfObjects[index].Latitude),
-                longitude: Number(arrayOfObjects[index].Longitude),
-              },
-              location: arrayOfObjects[index].Location,
-              address: arrayOfObjects[index].Address,
-              venueDescriptor: 'Customer Office',
-            };
-
-            activityObject.venue.push(venueObject);
-          }
-
-          fields.forEach((field) => {
-            if (attachmentFieldsSet.has(field)) {
-              activityObject.attachment[field] = {
-                type: templateObject.attachment[field].type,
-                value: arrayOfObjects[index][field],
-              };
-            }
-
-            if (scheduleFieldsSet.has(field)) {
-              const ts = (() => {
-                const date = arrayOfObjects[index][field];
-                if (!date) return date;
-
-                return new Date(date).getTime();
-              })();
-
-              activityObject.schedule.push({
-                startTime: ts,
-                name: field,
-                endTime: ts,
-              });
-            }
-          });
-
-          myObject.data.push(activityObject);
-        });
-
-      conn.req.body = myObject;
-
-      console.log(JSON.stringify(myObject, ' ', 2));
-
-      getUserAuthFromIdToken(conn, { uid: require('../admin/env').supportUid });
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
-
-
 /**
  * Handles the routing for the request from the clients.
  *
@@ -598,12 +478,13 @@ module.exports = (req, res) => {
     return;
   }
 
-  // if (!conn.req.headers['x-cf-secret']
-  //   || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
-  //   sendResponse(conn, code.forbidden, 'Access forbidden');
+  if (env.isProduction
+    && !conn.req.headers['x-cf-secret']
+    || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
+    sendResponse(conn, code.forbidden, 'Access forbidden');
 
-  //   return;
-  // }
+    return;
+  }
 
   checkAuthorizationToken(conn);
 };

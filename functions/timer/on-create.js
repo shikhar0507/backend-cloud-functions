@@ -309,6 +309,68 @@ const handleDailyStatusReport = () => {
     .catch(console.error);
 };
 
+const sendErrorReport = () => {
+  const {
+    dateFormats,
+  } = require('../admin/constants');
+  const momentTz = require('moment-timezone');
+
+  const today = momentTz().subtract(1, 'days');
+
+  return rootCollections
+    .errors
+    .where('date', '==', today.date())
+    .where('month', '==', today.month())
+    .where('year', '==', today.year())
+    .get()
+    .then((docs) => {
+      if (docs.empty) {
+        // No errors yesterday
+        return Promise.resolve();
+      }
+
+      let messageBody = '';
+
+      docs.docs.forEach((doc, index) => {
+        const {
+          affectedUsers,
+          bodyObject,
+          deviceObject,
+          message,
+        } = doc.data();
+
+        const str = `
+        <h2>${index + 1}. Error message: ${message} | ${doc.id}</h2>
+        <h3>Affected Users</h3>
+        <p>${Object.keys(affectedUsers)}</p>
+        <h3>Error Body</h3>
+        <p><pre>${JSON.stringify(bodyObject, ' ')}</pre></p>
+        <h3>Error Device</h3>
+        <p><pre>${JSON.stringify(deviceObject, ' ')}</pre></p>
+        <hr>
+        `;
+
+        messageBody += `${str}\n\n`;
+      });
+
+
+      const subject =
+        `${process.env.GCLOUD_PROJECT}`
+        + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
+
+      const sgMail = require('@sendgrid/mail');
+      sgMail.setApiKey(require('../admin/env').sgMailApiKey);
+
+      console.log('sending mail');
+
+      return rootCollections.instant.doc().set({
+        subject,
+        messageBody,
+      });
+    })
+    .catch(console.error);
+};
+
 
 module.exports = (doc) => {
   if (doc.get('sent')) {
@@ -326,6 +388,7 @@ module.exports = (doc) => {
         .recipients
         .get(),
       handleDailyStatusReport(),
+      sendErrorReport(),
       doc
         .ref
         .set({

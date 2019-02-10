@@ -36,41 +36,6 @@ const {
 const {
   code,
 } = require('../admin/responses');
-const {
-  reportingActions,
-} = require('../admin/constants');
-
-
-const handleInstant = (conn) => {
-  return rootCollections
-    .updates
-    .doc(conn.requester.uid)
-    .get()
-    .then((doc) => {
-      const batch = db.batch();
-      const emailBody = {
-        body: conn.req.body.body || {},
-        requester: conn.requester,
-        updatesDoc: doc.data(),
-      };
-
-      batch
-        .set(rootCollections
-          .instant
-          .doc(), {
-            message: conn.req.body.message,
-            messageBody: JSON.stringify(emailBody, ' ', 2),
-            subject: `New Error in Growthfile Frontend`
-              + ` (${process.env.GCLOUD_PROJECT})`,
-            action: reportingActions.clientError,
-            timestamp: Date.now(),
-          });
-
-      return batch.commit();
-    })
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
-};
 
 
 module.exports = (conn) => {
@@ -84,21 +49,72 @@ module.exports = (conn) => {
     return;
   }
 
-  console.log('url', conn.req.url, conn.requester);
+  console.warn('Error:', conn.requester, conn.req.body);
 
-  sendResponse(conn, 204);
+  const phoneNumber = conn.requester.phoneNumber;
+  const message = conn.req.body.message;
+  const dateObject = new Date();
+  const date = dateObject.getDate();
+  const month = dateObject.getMonth();
+  const year = dateObject.getFullYear();
 
-  // rootCollections
-  //   .instant
-  //   .where('message', '==', conn.req.body.message)
-  //   .limit(1)
-  //   .get()
-  //   .then((docs) => {
-  //     if (docs.exists) {
-  //       return sendResponse(conn, code.noContent);
-  //     }
+  // message, body, device
+  rootCollections
+    .errors
+    .where('message', '==', message)
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .limit(1)
+    .get()
+    .then((docs) => {
+      if (docs.empty) {
+        return rootCollections
+          .errors
+          .doc()
+          .set({
+            message,
+            date,
+            month,
+            year,
+            count: 1,
+            affectedUsers: {
+              [phoneNumber]: 1,
+            },
+            bodyObject: {
+              [phoneNumber]: conn.req.body.body || '',
+            },
+            deviceObject: {
+              [phoneNumber]: conn.req.body.device || '',
+            },
+          });
+      }
 
-  //     return handleInstant(conn);
-  //   })
-  //   .catch((error) => handleError(conn, error));
+      const doc = docs.docs[0];
+      const {
+        affectedUsers,
+        bodyObject,
+        deviceObject,
+      } = doc.data();
+
+      if (!bodyObject[phoneNumber]) {
+        bodyObject[phoneNumber] = `${conn.req.body.body || ''}`;
+      }
+
+      if (!deviceObject[phoneNumber]) {
+        deviceObject[phoneNumber] = `${conn.req.body.body || ''}`;
+      }
+
+      affectedUsers[phoneNumber] = (affectedUsers[phoneNumber] || 0) + 1;
+
+      return doc.ref.set({
+        affectedUsers,
+        bodyObject,
+        deviceObject,
+      }, {
+          merge: true,
+        });
+    })
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };

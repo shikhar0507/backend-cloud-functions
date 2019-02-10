@@ -838,16 +838,30 @@ const assignToActivities = (locals) => {
 };
 
 
-const removeFromOfficeActivities = (activityDoc) => {
+const removeFromOfficeActivities = (locals) => {
+  const activityDoc = locals.change.after;
+
   const {
     status,
     office,
   } = activityDoc.data();
 
+  let oldStatus = null;
+
   /** Only remove when the status is `CANCELLED` */
-  if (status !== 'CANCELLED') {
+  if (status === 'CANCELLED') {
     return Promise.resolve();
   }
+
+  // if (locals.change.before) {
+  //   oldStatus = locals.change.before.get('oldStatus');
+  // }
+
+  // if (oldStatus
+  //   && oldStatus === 'CANCELLED'
+  //   && status === 'CANCELLED') {
+  //   return Promise.resolve();
+  // }
 
   const phoneNumber
     = activityDoc.get('attachment.Employee Contact.value');
@@ -985,50 +999,10 @@ const handleEmployee = (locals, batch) => {
   return batch
     .commit()
     .then(() => assignToActivities(locals))
-    .then(() => removeFromOfficeActivities(locals.change.after))
+    .then(() => removeFromOfficeActivities(locals))
     .catch(console.error);
 };
 
-
-const addSupplierToOffice = (locals, batch) => {
-  const supplierName = locals.change.after.get('attachment.Name.value');
-  const officeId = locals.change.after.get('officeId');
-
-  batch.set(rootCollections
-    .offices
-    .doc(officeId), {
-      suppliersMap: {
-        [supplierName]:
-          toAttachmentValues(locals.change.after),
-      },
-    }, {
-      merge: true,
-    });
-
-  return batch
-    .commit()
-    .catch(console.error);
-};
-
-
-const handleCustomer = (locals, batch) => {
-  const customerName = locals.change.after.get('attachment.Name.value');
-
-  batch.set(rootCollections
-    .offices
-    .doc(locals.change.after.get('officeId')), {
-      customersMap: {
-        [customerName]:
-          toAttachmentValues(locals.change.after),
-      },
-    }, {
-      merge: true,
-    });
-
-  return batch
-    .commit()
-    .catch(console.error);
-};
 
 
 module.exports = (change, context) => {
@@ -1070,10 +1044,6 @@ module.exports = (change, context) => {
       .doc(change.after.get('addendumDocRef').path)
       .get());
   }
-
-  const toUpdateNameMap =
-    change.after.get('attachment').hasOwnProperty('Name')
-    && change.after.get('template') !== 'office';
 
   return Promise
     .all(promises)
@@ -1280,35 +1250,9 @@ module.exports = (change, context) => {
       return batch;
     })
     .then(() => {
-      if (!toUpdateNameMap) return Promise.resolve();
-
-      return rootCollections
-        .offices
-        .doc(change.after.get('officeId'))
-        .get();
-    })
-    .then((officeDoc) => {
-      if (!officeDoc) return Promise.resolve();
-
-      if (locals.change.after.get('template') === 'office') {
-        return Promise.resolve();
-      }
-
-      batch.set(officeDoc.ref, {
-        namesMap: {
-          [`${change.after.get('template')}`]: {
-            [`${change.after.get('attachment.Name.value')}`]: change.after.get('attachment.Name.value'),
-          },
-        },
-      }, {
-          merge: true,
-        });
-
-      return batch;
-    })
-    .then(() => {
       const template = change.after.get('template');
       const status = change.after.get('status');
+
       console.log({
         activityId,
         template,
@@ -1325,7 +1269,8 @@ module.exports = (change, context) => {
         const officeRef = rootCollections.offices.doc(change.after.get('officeId'));
 
         if (locals.addendumDoc
-          && locals.addendumDoc.get('action') === httpsActions.create) {
+          && locals.addendumDoc.get('action') === httpsActions.create
+          && template !== 'office') {
           const date = new Date();
 
           activityData.creationDate = date.getDate();
@@ -1355,7 +1300,9 @@ module.exports = (change, context) => {
         activityData.endYear = moment(schedule.endTime).year();
       }
 
-      batch.set(copyTo, activityData, { merge: true });
+      batch.set(copyTo, activityData, {
+        merge: true,
+      });
 
       if (template === 'subscription') {
         return handleSubscription(locals, batch);
@@ -1371,14 +1318,6 @@ module.exports = (change, context) => {
 
       if (template === 'employee') {
         return handleEmployee(locals, batch);
-      }
-
-      if (template === 'customer') {
-        return handleCustomer(locals, batch);
-      }
-
-      if (template === 'supplier') {
-        return addSupplierToOffice(locals, batch);
       }
 
       return batch.commit();

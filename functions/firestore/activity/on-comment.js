@@ -73,6 +73,7 @@ const createDocs = (conn, activity) => {
     activityId: conn.req.body.activityId,
     isSupportRequest: conn.requester.isSupportRequest,
     activityData: activity.data(),
+    provider: conn.req.body.geopoint.provider || null,
   });
 
   batch

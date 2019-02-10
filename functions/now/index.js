@@ -93,13 +93,6 @@ module.exports = (conn) => {
           return androidLatestVersion;
         })();
 
-        console.log({
-          appVersion,
-          latestVersion,
-          query: conn.req.query,
-          requester: conn.requester,
-        });
-
         // Temporary until iOS app gets updated.
         if (os === 'ios') return false;
 
@@ -160,8 +153,6 @@ module.exports = (conn) => {
 
       updatesDocData.latestDeviceOs = conn.req.query.os || '';
       updatesDocData.latestAppVersion = conn.req.query.appVersion || '';
-
-      console.log(updatesDocData);
 
       batch.set(updatesDoc.ref, updatesDocData, {
         merge: true,

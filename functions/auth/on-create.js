@@ -59,14 +59,8 @@ module.exports = (userRecord) => {
   const momentToday = moment()
     .utc()
     .toObject();
-  const momentYesterday = moment()
-    .utc()
-    .subtract(1, 'days')
-    .toObject();
 
-  console.log({ momentToday, momentYesterday });
-
-  Promise
+  return Promise
     .all([
       rootCollections
         .inits

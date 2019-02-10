@@ -160,6 +160,7 @@ const updateDocsWithBatch = (conn, locals) => {
       isSupportRequest: conn.requester.isSupportRequest,
       location: getGeopointObject(conn.req.body.geopoint),
       geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+      provider: conn.req.body.geopoint.provider || null,
     });
 
   Object

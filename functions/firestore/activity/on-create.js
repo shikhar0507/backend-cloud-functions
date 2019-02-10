@@ -123,6 +123,7 @@ const createDocsWithBatch = (conn, locals) => {
     officeId: locals.static.officeId,
     hidden: locals.static.hidden,
     creator: conn.requester.phoneNumber,
+    provider: conn.req.body.geopoint.provider || null,
   };
 
   const now = new Date();
@@ -238,7 +239,7 @@ const getPayrollObject = (options) => {
         payrollObject[phoneNumber][date] = 'BLANK';
       }
 
-      // Creating a new leave with same dates
+      // Creating a new leave with conflicting dates
       if (payrollObject[phoneNumber][date].startsWith('LEAVE')
         && newStatus.startsWith('LEAVE')) {
         datesConflicted = true;
@@ -248,7 +249,7 @@ const getPayrollObject = (options) => {
         return;
       }
 
-      // Creating a leave when ON DUTY is already set
+      // Creating a leave when `ON DUTY` is already set
       if (payrollObject[phoneNumber][date].startsWith('LEAVE')
         && newStatus === 'ON DUTY') {
         datesConflicted = true;
@@ -483,6 +484,7 @@ const handlePayroll = (conn, locals) => {
   if (!new Set()
     .add(reportNames.LEAVE)
     .add(reportNames.TOUR_PLAN)
+    // .add('on duty')
     .has(conn.req.body.template)) {
     createDocsWithBatch(conn, locals);
 

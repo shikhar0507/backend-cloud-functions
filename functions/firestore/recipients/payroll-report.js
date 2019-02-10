@@ -503,11 +503,10 @@ module.exports = (locals) => {
       })();
 
       console.log(JSON.stringify({
-        momentDateObject,
-        month: locals.change.after.get('month'),
-        year: locals.change.after.get('year'),
-        office: locals.officeDoc.get('attachment.Name.value'),
-        officeId: locals.officeDoc.id,
+        month,
+        year,
+        office,
+        officeId,
         report: reportNames.PAYROLL,
         payrollObject: locals.payrollObject,
       }));
@@ -516,8 +515,8 @@ module.exports = (locals) => {
         .set({
           month,
           year,
-          office: locals.officeDoc.get('attachment.Name.value'),
-          officeId: locals.officeDoc.id,
+          office,
+          officeId,
           report: reportNames.PAYROLL,
           payrollObject: locals.payrollObject,
         }, {

@@ -221,6 +221,7 @@ const handleResult = (conn, docs) => {
         activityId: conn.req.body.activityId,
         activityName: activity.get('activityName'),
         isSupportRequest: conn.requester.isSupportRequest,
+        provider: conn.req.body.geopoint.provider || null,
       });
 
       return batch.commit();

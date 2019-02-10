@@ -34,16 +34,7 @@ sgMail.setApiKey(env.sgMailApiKey);
 
 module.exports = (instantDoc) => {
   const messages = [];
-  const { subject, messageBody, action } = instantDoc.data();
-
-  console.log({ action });
-
-  if (action === 'clientError' && !env.isProduction) {
-    env.instantEmailRecipientEmails = [{
-      email: env.frontEndDevEmail,
-      name: '',
-    }];
-  }
+  const { subject, messageBody } = instantDoc.data();
 
   env
     .instantEmailRecipientEmails
@@ -58,8 +49,6 @@ module.exports = (instantDoc) => {
         from: env.systemEmail,
       });
     });
-
-  console.info({ messages });
 
   return sgMail
     .sendMultiple(messages)

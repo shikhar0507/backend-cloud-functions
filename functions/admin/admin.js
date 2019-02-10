@@ -266,6 +266,7 @@ const rootCollections = {
   bulkActivities: db.collection('BulkActivities'),
   versions: db.collection('Versions'),
   events: db.collection('Events'),
+  errors: db.collection('Errors'),
 };
 
 
