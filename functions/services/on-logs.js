@@ -49,10 +49,15 @@ module.exports = (conn) => {
     return;
   }
 
-  console.warn('Error:', conn.requester, conn.req.body);
-
   const phoneNumber = conn.requester.phoneNumber;
   const message = conn.req.body.message;
+
+  if (!message) {
+    sendResponse(conn, code.noContent);
+
+    return;
+  }
+
   const dateObject = new Date();
   const date = dateObject.getDate();
   const month = dateObject.getMonth();
@@ -105,15 +110,18 @@ module.exports = (conn) => {
         deviceObject[phoneNumber] = `${conn.req.body.body || ''}`;
       }
 
+      // Increment the count
       affectedUsers[phoneNumber] = (affectedUsers[phoneNumber] || 0) + 1;
 
-      return doc.ref.set({
-        affectedUsers,
-        bodyObject,
-        deviceObject,
-      }, {
-          merge: true,
-        });
+      return doc
+        .ref
+        .set({
+          affectedUsers,
+          bodyObject,
+          deviceObject,
+        }, {
+            merge: true,
+          });
     })
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));

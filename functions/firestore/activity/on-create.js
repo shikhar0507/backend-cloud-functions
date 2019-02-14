@@ -123,7 +123,6 @@ const createDocsWithBatch = (conn, locals) => {
     officeId: locals.static.officeId,
     hidden: locals.static.hidden,
     creator: conn.requester.phoneNumber,
-    provider: conn.req.body.geopoint.provider || null,
   };
 
   const now = new Date();
@@ -152,6 +151,7 @@ const createDocsWithBatch = (conn, locals) => {
     activityName: activityData.activityName,
     isSupportRequest: conn.requester.isSupportRequest,
     geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+    provider: conn.req.body.geopoint.provider || null,
   };
 
   if (conn.req.body.template === 'check-in'
@@ -901,9 +901,17 @@ const handleBase64 = (conn, locals, result) => {
 
       console.log({ attachment: conn.req.body.attachment });
 
-      resolveProfileCheckPromises(conn, locals, result);
+      // delete file: filePath, originalFilePath
+      try {
+        fs.unlinkSync(originalFilePath);
+        fs.unlinkSync(compressedFilePath);
 
-      return;
+        return resolveProfileCheckPromises(conn, locals, result);
+      } catch (error) {
+        console.log('ERROR DELETING FILE:', error);
+
+        return resolveProfileCheckPromises(conn, locals, result);
+      }
     })
     .catch((error) => handleError(conn, error, 'Please try again...'));
 };
@@ -935,8 +943,6 @@ const handleAttachment = (conn, locals) => {
     .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
 
   handleBase64(conn, locals, result);
-
-  // resolveProfileCheckPromises(conn, locals, result);
 };
 
 

@@ -846,22 +846,23 @@ const removeFromOfficeActivities = (locals) => {
     office,
   } = activityDoc.data();
 
-  let oldStatus = null;
 
   /** Only remove when the status is `CANCELLED` */
-  if (status === 'CANCELLED') {
+  if (status !== 'CANCELLED') {
     return Promise.resolve();
   }
 
-  // if (locals.change.before) {
-  //   oldStatus = locals.change.before.get('oldStatus');
-  // }
+  let oldStatus = null;
 
-  // if (oldStatus
-  //   && oldStatus === 'CANCELLED'
-  //   && status === 'CANCELLED') {
-  //   return Promise.resolve();
-  // }
+  if (locals.change.before) {
+    oldStatus = locals.change.before.get('oldStatus');
+  }
+
+  if (oldStatus
+    && oldStatus === 'CANCELLED'
+    && status === 'CANCELLED') {
+    return Promise.resolve();
+  }
 
   const phoneNumber
     = activityDoc.get('attachment.Employee Contact.value');
@@ -882,6 +883,7 @@ const removeFromOfficeActivities = (locals) => {
 
         docs.forEach((doc) => {
           const template = doc.get('template');
+          const activityStatus = doc.get('status');
 
           /**
            * Not touching the same activity which causes this flow
@@ -889,6 +891,11 @@ const removeFromOfficeActivities = (locals) => {
            * to an infinite spiral.
            */
           if (template === 'employee' && doc.id === activityDoc.id) {
+            return;
+          }
+
+          // No point of recancelling the already cancelled activities.
+          if (activityStatus === 'CANCELLED') {
             return;
           }
 

@@ -437,7 +437,8 @@ const handleOffice = (conn, locals) => {
 
 
 const handleName = (conn, locals) => {
-  if (!conn.req.body.attachment.hasOwnProperty('Name')) {
+  if (!conn.req.body.attachment.hasOwnProperty('Name')
+    && conn.req.body.template !== 'office') {
     console.log('inside hasownproperty name');
 
     handleAssignees(conn, locals);
@@ -445,65 +446,30 @@ const handleName = (conn, locals) => {
     return;
   }
 
-  const query = (() => {
-    if (conn.req.body.template === 'office') {
-      return rootCollections
-        .offices
-        /** Template is always `office` at this PATH. No need to add another
-         * `where` clause.
-         */
-        .where('attachment.Name.value', '==', conn.req.body.attachment.Name.value)
-        .limit(1);
-    }
+  const namesMap = locals.officeDoc.get('namesMap');
+  const name = conn.req.body.attachment.Name.value;
+  const template = conn.req.body.template;
 
-    const officeId = locals.activityObject.officeId;
+  if (namesMap[template] && namesMap[template][name]) {
+    sendResponse(
+      conn,
+      code.conflict,
+      `${template} with the name: '${name} already exists'`);
 
-    return rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
-      .where('template', '==', conn.req.body.template)
-      .where('attachment.Name.value', '==', conn.req.body.attachment.Name.value)
-      .limit(1);
-  })();
+    return;
+  }
 
-  console.log('handle name');
+  if (conn.req.body.template === 'office') {
+    console.log('in handle offices');
 
-  query
-    .get()
-    .then((snapShot) => {
-      if (!snapShot.empty) {
-        const message = (() => {
-          if (conn.req.body.template === 'office') {
-            return `An office with the name`
-              + ` ${conn.req.body.attachment.Name.value}`
-              + ` already exists.`;
-          }
+    handleOffice(conn, locals);
 
-          return `${conn.req.body.template} already exists in`
-            + ` the office: ${conn.req.body.office}`;
-        })();
+    return;
+  }
 
-        sendResponse(conn, code.conflict, message);
+  console.log('outside handle offices');
 
-        return;
-      }
-
-      if (conn.req.body.template === 'office') {
-        console.log('in handle offices');
-
-        handleOffice(conn, locals);
-
-        return;
-      }
-
-      console.log('outside handle offices');
-
-      handleAssignees(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  handleAssignees(conn, locals);
 };
 
 
@@ -521,6 +487,17 @@ const handleResult = (conn, result) => {
       conn,
       code.conflict,
       `This office has been deleted. Cannot create an activity`
+    );
+
+    return;
+  }
+
+  if (!officeQueryResult.empty
+    && conn.req.body.template === 'office') {
+    sendResponse(
+      conn,
+      code.conflict,
+      `Office '${conn.req.body.office}' already exists.`
     );
 
     return;
@@ -594,6 +571,10 @@ const handleResult = (conn, result) => {
       hidden: templateQueryResult.docs[0].get('hidden'),
     },
   };
+
+  if (conn.req.body.template !== 'office') {
+    locals.officeDoc = officeQueryResult.docs[0];
+  }
 
   {
     const result =

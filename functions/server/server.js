@@ -478,12 +478,13 @@ module.exports = (req, res) => {
     return;
   }
 
-  if (env.isProduction
-    && !conn.req.headers['x-cf-secret']
-    || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
-    sendResponse(conn, code.forbidden, 'Access forbidden');
+  if (env.isProduction) {
+    if (!conn.req.headers['x-cf-secret']
+      || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
+      sendResponse(conn, code.forbidden, 'Access forbidden');
 
-    return;
+      return;
+    }
   }
 
   checkAuthorizationToken(conn);

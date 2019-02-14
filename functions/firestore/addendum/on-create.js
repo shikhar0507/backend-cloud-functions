@@ -11,6 +11,9 @@ const {
   reportNames,
 } = require('../../admin/constants');
 const {
+  haversineDistance,
+} = require('../activity/helper');
+const {
   toMapsUrl,
 } = require('../recipients/report-utils');
 const momentTz = require('moment-timezone');
@@ -22,6 +25,7 @@ const googleMapsClient =
       Promise: Promise,
     });
 
+
 const initDocRef = (snapShot) => {
   if (snapShot.empty) {
     return rootCollections.inits.doc();
@@ -29,6 +33,7 @@ const initDocRef = (snapShot) => {
 
   return snapShot.docs[0].ref;
 };
+
 
 const getLatLngString = (location) =>
   `${location._latitude},${location._longitude}`;
@@ -552,6 +557,14 @@ const handleDsr = (addendumDoc, locals) => {
 
 
 const handleDailyStatusReport = (addendumDoc, locals) => {
+  const env = require('../../admin/env');
+
+  if (!env.isProduction) {
+    console.log('NOT PROD. NOT LOGGING DATA');
+
+    return Promise.resolve();
+  }
+
   const batch = db.batch();
 
   const getValue = (snap, field) => {
@@ -896,7 +909,7 @@ module.exports = (addendumDoc, context) => {
 
         return {
           accumulatedDistance: accumulatedDistance.toFixed(2),
-          distanceTravelled: 0,
+          distanceTravelled: value,
         };
       })();
 
@@ -907,17 +920,16 @@ module.exports = (addendumDoc, context) => {
         distanceTravelled: distanceData.distanceTravelled,
       };
 
-      console.log({
+      console.log(JSON.stringify({
         phoneNumber,
         updateObject,
         placeInformation: locals.placeInformation,
         currPath: addendumDoc.ref.path,
-        prevPath:
-          locals.previousAddendumDoc ? locals
-            .previousAddendumDoc
-            .ref
-            .path : null,
-      });
+        prevPath: locals.previousAddendumDoc ? locals
+          .previousAddendumDoc
+          .ref
+          .path : null,
+      }, ' ', 2));
 
       locals.batch.set(addendumDoc.ref, updateObject, {
         merge: true,
@@ -932,25 +944,13 @@ module.exports = (addendumDoc, context) => {
     .then(() => locals.batch.commit())
     .then(() => handleDailyStatusReport(addendumDoc, locals))
     .catch((error) => {
-      console.error(error);
-
-      const instantDocRef = rootCollections.instant.doc();
-      console.log('crash id:', instantDocRef.id);
-      const doc = addendumDoc.data();
-      delete doc.activityData.addendumDocRef;
-
       const context = {
-        // error,
-        doc,
+        error,
         addendumId: addendumDoc.id,
-        instantDocId: instantDocRef.id,
       };
 
-      return instantDocRef
-        .set({
-          subject: `${process.env.FUNCTION_NAME}`
-            + ` Crash ${process.env.GCLOUD_PROJECT}`,
-          messageBody: JSON.stringify(context, ' ', 2),
-        });
+      console.error('Context:', context);
+
+      return Promise.resolve();
     });
 };

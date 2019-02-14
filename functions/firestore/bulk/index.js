@@ -41,7 +41,7 @@ const validateRequestBody = (requestBody) => {
   }
 
   if (!requestBody.hasOwnProperty('template')
-    || isNonEmptyString(requestBody.template)) {
+    || !isNonEmptyString(requestBody.template)) {
     result.isValid = false;
     missing.push('template');
   }
@@ -235,7 +235,7 @@ const handleResult = (conn, result) => {
   if (officeQueryResult.empty
     || templateQueryResult.empty) {
     const missingMessage = (() => {
-      const message = ` name is missing/invalid`;
+      const message = `name is missing/invalid`;
 
       if (officeQueryResult.empty) {
         return `Office ${message}`;

@@ -43,6 +43,7 @@ const {
 
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
+const fs = require('fs');
 
 
 module.exports = (locals) => {
@@ -462,8 +463,6 @@ module.exports = (locals) => {
       if (!locals.sendMail) {
         return Promise.resolve();
       }
-
-      const fs = require('fs');
 
       locals.messageObject.attachments.push({
         fileName,

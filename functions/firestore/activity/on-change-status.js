@@ -97,6 +97,7 @@ const createDocs = (conn, activity) => {
     activityId: conn.req.body.activityId,
     activityName: activity.get('activityName'),
     isSupportRequest: conn.requester.isSupportRequest,
+    geopointAccuracy: conn.req.body.geopoint.accuracy || null,
     provider: conn.req.body.geopoint.provider || null,
   });
 
@@ -117,8 +118,6 @@ const createDocs = (conn, activity) => {
           merge: true,
         });
     } else {
-      console.log(toAttachmentValues(activity));
-
       batch.set(rootCollections
         .offices.doc(activity.get('officeId')), {
           employeesData: {

@@ -25,7 +25,6 @@
 'use strict';
 
 
-const env = require('../../admin/env');
 const {
   users,
   rootCollections,
@@ -35,9 +34,12 @@ const {
   dateFormats,
   sendGridTemplateIds,
 } = require('../../admin/constants');
+const env = require('../../admin/env');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
 const momentTz = require('moment-timezone');
+const fs = require('fs');
+
 
 const getTemplateId = (report) => {
   if (report === reportNames.SIGNUP) {
@@ -70,6 +72,10 @@ const getTemplateId = (report) => {
 
   if (report === reportNames.LEAVE) {
     return sendGridTemplateIds.leave;
+  }
+
+  if (report === reportNames.ENQUIRY) {
+    return sendGridTemplateIds.enquiry;
   }
 
   return null;
@@ -112,7 +118,6 @@ module.exports = (change) => {
 
   console.log({ report });
 
-
   const authFetch = [];
 
   include
@@ -144,10 +149,11 @@ module.exports = (change) => {
     })
     .then((officeDoc) => {
       if (!locals.sendMail) {
-        return Promise.resolve();
+        return Promise.resolve(null);
       }
 
       locals.officeDoc = officeDoc;
+      locals.messageObject.templateId = getTemplateId(report);
       locals.timezone = officeDoc.get('attachment.Timezone.value');
       locals.standardDateString = momentTz()
         .utc()
@@ -155,7 +161,6 @@ module.exports = (change) => {
         .tz(locals.timezone)
         .format(dateFormats.DATE);
 
-      locals.messageObject.templateId = getTemplateId(report);
 
       if (locals.messageObject.to.length === 0) {
         // No assignees, only creating data for the day, but 
@@ -204,7 +209,11 @@ module.exports = (change) => {
         return require('./leave-report')(locals);
       }
 
-      return Promise.resolve();
+      if (report === reportNames.ENQUIRY) {
+        return require('./enquiry-report')(locals);
+      }
+
+      return Promise.resolve(null);
     })
     .catch((error) => {
       const errorObject = {
@@ -216,27 +225,6 @@ module.exports = (change) => {
         },
       };
 
-      // For `sendgrid`, rejection related to their `api` is in the response property
-      if (error.response) {
-        errorObject.sgMail = error.toString();
-      }
-
       console.error(errorObject);
-
-      const instantDocRef = rootCollections.instant.doc();
-
-      const context = {
-        instantDocId: instantDocRef.id,
-        data: change.after.data(),
-      };
-
-      const messageBody = `<pre>${JSON.stringify(context, ' ', 2)}</pre>`;
-
-      return instantDocRef
-        .set({
-          subject: `${process.env.FUNCTION_NAME} CRASH`
-            + ` ${process.env.GCLOUD_PROJECT}`,
-          messageBody,
-        });
     });
 };

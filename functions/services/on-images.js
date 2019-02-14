@@ -136,10 +136,23 @@ module.exports = (conn) => {
 
       console.log({ url });
 
-      return auth
-        .updateUser(conn.requester.uid, {
-          photoURL: url,
-        });
+      try {
+        fs.unlink(compressedFilePath);
+        fs.unlink(originalFilePath);
+
+        return auth
+          .updateUser(conn.requester.uid, {
+            photoURL: url,
+          });
+
+      } catch (error) {
+        console.log('Error:', error);
+
+        return auth
+          .updateUser(conn.requester.uid, {
+            photoURL: url,
+          });
+      }
     })
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error, 'Image upload unavailable at the moment...'));

@@ -487,7 +487,8 @@ module.exports = (locals) => {
       })();
 
       const month = (() => {
-        if (locals.change.after.get('month')) {
+        if (locals.change
+          && locals.change.after.get('month')) {
           return locals.change.after.get('month');
         }
 
@@ -495,21 +496,13 @@ module.exports = (locals) => {
       })();
 
       const year = (() => {
-        if (locals.change.after.get('year')) {
+        if (locals.change
+          && locals.change.after.get('year')) {
           return locals.change.after.get('year');
         }
 
         return momentDateObject.yesterday.YEAR;
       })();
-
-      console.log(JSON.stringify({
-        month,
-        year,
-        office,
-        officeId,
-        report: reportNames.PAYROLL,
-        payrollObject: locals.payrollObject,
-      }));
 
       return ref
         .set({
@@ -632,7 +625,7 @@ module.exports = (locals) => {
         });
 
       console.log({
-        report: locals.change.after.get('report'),
+        report: 'payroll',
         to: locals.messageObject.to,
       });
 

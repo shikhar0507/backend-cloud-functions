@@ -59,6 +59,12 @@ module.exports = (locals) => {
   const employeesData = locals.officeDoc.get('employeesData');
   const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
+  const dated = momentTz()
+    .utc()
+    .clone()
+    .tz(timezone)
+    .subtract(1, 'day')
+    .format(dateFormats.DATE);
 
   return Promise
     .all([
@@ -91,27 +97,31 @@ module.exports = (locals) => {
       workbook.sheet('Sheet1').cell(`A1`).value('Dated');
       workbook.sheet('Sheet1').cell('B1').value('Employee Name');
       workbook.sheet('Sheet1').cell('C1').value('Employee Contact');
-      workbook.sheet('Sheet1').cell('D1').value('Time');
-      workbook.sheet('Sheet1').cell('E1').value('Distance Travelled');
-      workbook.sheet('Sheet1').cell('F1').value('Address');
-      workbook.sheet('Sheet1').cell('G1').value('Comment');
-      workbook.sheet('Sheet1').cell('H1').value('Department');
-      workbook.sheet('Sheet1').cell('I1').value('Base Location');
+      workbook.sheet('Sheet1').cell('D1').value('Employee Code');
+      workbook.sheet('Sheet1').cell('E1').value('Time');
+      workbook.sheet('Sheet1').cell('F1').value('Distance Travelled');
+      workbook.sheet('Sheet1').cell('G1').value('Address');
+      workbook.sheet('Sheet1').cell('H1').value('Comment');
+      workbook.sheet('Sheet1').cell('I1').value('Department');
+      workbook.sheet('Sheet1').cell('J1').value('Base Location');
 
-      const dated = momentTz()
-        .utc()
-        .clone()
-        .tz(timezone)
-        .subtract(1, 'day')
-        .format(dateFormats.DATE);
+      console.log('docs size', addendumDocs.size);
+      let count = 0;
 
-      addendumDocs.docs.forEach((doc, index) => {
-        const columnIndex = index + 2;
+      addendumDocs.forEach((doc) => {
         const isSupportRequest = doc.get('isSupportRequest');
+        const columnIndex = count + 2;
 
         if (isSupportRequest) {
           return;
         }
+
+        /**
+         * Not using count param from the `callback` function because
+         * skipping supportRequest addendum docs intereferes with
+         * the actual count resulting in blank lines.
+         */
+        count++;
 
         const phoneNumber = doc.get('user');
         const employeeObject = employeeInfo(employeesData, phoneNumber);
@@ -125,8 +135,9 @@ module.exports = (locals) => {
           timezone,
           timestampToConvert: doc.get('timestamp'),
         });
-        // For template === check-in, this field will be available.
+        // For template === `check-in`, this field will be available.
         const comment = doc.get('activityData.attachment.Comment.value') || '';
+        const employeeCode = employeeObject.employeeCode;
 
         workbook
           .sheet('Sheet1')
@@ -143,28 +154,32 @@ module.exports = (locals) => {
         workbook
           .sheet('Sheet1')
           .cell(`D${columnIndex}`)
-          .value(time);
+          .value(employeeCode);
         workbook
           .sheet('Sheet1')
           .cell(`E${columnIndex}`)
-          .value(accumulatedDistance);
+          .value(time);
         workbook
           .sheet('Sheet1')
           .cell(`F${columnIndex}`)
+          .value(accumulatedDistance);
+        workbook
+          .sheet('Sheet1')
+          .cell(`G${columnIndex}`)
           .value(identifier)
           .style({ fontColor: '0563C1', underline: true })
           .hyperlink(url);
         workbook
           .sheet('Sheet1')
-          .cell(`G${columnIndex}`)
+          .cell(`H${columnIndex}`)
           .value(comment);
         workbook
           .sheet('Sheet1')
-          .cell(`H${columnIndex}`)
+          .cell(`I${columnIndex}`)
           .value(department);
         workbook
           .sheet('Sheet1')
-          .cell(`I${columnIndex}`)
+          .cell(`J${columnIndex}`)
           .value(baseLocation);
       });
 
@@ -183,8 +198,9 @@ module.exports = (locals) => {
       });
 
       console.log({
-        report: locals.change.after.get('report'),
+        report: 'footprints',
         to: locals.messageObject.to,
+        office: locals.officeDoc.get('office'),
       });
 
       return locals

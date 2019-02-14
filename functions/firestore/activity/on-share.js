@@ -222,6 +222,7 @@ const handleResult = (conn, docs) => {
         activityName: activity.get('activityName'),
         isSupportRequest: conn.requester.isSupportRequest,
         provider: conn.req.body.geopoint.provider || null,
+        geopointAccuracy: conn.req.body.geopoint.accuracy || null,
       });
 
       return batch.commit();

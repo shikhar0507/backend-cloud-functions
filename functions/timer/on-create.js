@@ -359,13 +359,16 @@ const sendErrorReport = () => {
         + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
 
       const sgMail = require('@sendgrid/mail');
-      sgMail.setApiKey(require('../admin/env').sgMailApiKey);
+      const env = require('../admin/env');
+      sgMail.setApiKey(env.sgMailApiKey);
 
       console.log('sending mail');
 
-      return rootCollections.instant.doc().set({
+      return sgMail.send({
         subject,
-        messageBody,
+        to: env.instantEmailRecipientEmails,
+        from: { name: 'Growthile', email: 'gcloud@growthfile.com' },
+        html: messageBody,
       });
     })
     .catch(console.error);
