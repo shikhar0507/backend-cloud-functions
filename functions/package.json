@@ -36,7 +36,7 @@
   "repository": "https://github.com/Growthfilev2/backend-cloud-functions/",
   "readme": "https://github.com/Growthfilev2/backend-cloud-functions/blob/master/README.md",
   "dependencies": {
-    "@google-cloud/logging": "^4.0.1",
+    "@google-cloud/logging": "^4.4.0",
     "@google/maps": "^0.5.5",
     "@sendgrid/mail": "^6.3.1",
     "csvtojson": "^2.0.8",
@@ -44,13 +44,14 @@
     "firebase-functions": "^2.1.0",
     "firebase-tools": "^6.3.1",
     "google-libphonenumber": "^3.1.14",
+    "handlebars": "^4.1.0",
     "moment": "^2.22.2",
     "moment-timezone": "^0.5.23",
     "mozjpeg": "^6.0.1",
     "xlsx-populate": "^1.17.0"
   },
   "devDependencies": {
-    "eslint": "^5.12.0",
+    "eslint": "^5.13.0",
     "eslint-config-recommended": "^4.0.0",
     "eslint-plugin-import": "^2.14.0",
     "eslint-plugin-jsdoc": "^3.15.1",

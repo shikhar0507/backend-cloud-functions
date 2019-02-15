@@ -154,40 +154,6 @@ const createDocsWithBatch = (conn, locals) => {
     provider: conn.req.body.geopoint.provider || null,
   };
 
-  if (conn.req.body.template === 'check-in'
-    && conn.req.body.venue[0].geopoint.latitude
-    && conn.req.body.venue[0].geopoint.longitude) {
-    const geopointOne = {
-      _latitude: conn.req.body.geopoint.latitude,
-      _longitude: conn.req.body.geopoint.longitude,
-      accuracy: conn.req.body.geopoint.accuracy,
-    };
-
-    const geopointTwo = {
-      _latitude: conn.req.body.venue[0].geopoint.latitude,
-      _longitude: conn.req.body.venue[0].geopoint.longitude,
-    };
-
-    const accuracy = (() => {
-      if (geopointOne.accuracy && geopointOne.accuracy < 0.35) {
-        return 0.5;
-      }
-
-      return 1;
-    })();
-
-    const distanceAccurate =
-      haversineDistance(geopointOne, geopointTwo) < accuracy;
-
-    if (!distanceAccurate) activityData.status = 'CANCELLED';
-
-    addendumDocObject.distanceAccurate = distanceAccurate;
-  }
-
-  if (locals.static.statusOnCreate === 'CANCELLED') {
-    addendumDocObject.cancellationMessage = locals.cancellationMessage;
-  }
-
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
 

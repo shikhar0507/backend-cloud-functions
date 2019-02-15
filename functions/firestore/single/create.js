@@ -132,6 +132,26 @@ const createDocs = (conn, locals) => {
     isSupportRequest: conn.requester.isSupportRequest,
   });
 
+  if (conn.req.body.template !== 'office'
+    && conn.req.body.attachment.hasOwnProperty('Name')) {
+    const namesMap = locals.officeDoc.get('namesMap') || {};
+    const name = conn.req.body.attachment.Name.value;
+
+    if (!namesMap[conn.req.body.template]) {
+      namesMap[conn.req.body.template] = {};
+    }
+
+    namesMap[conn.req.body.template][name] = true;
+
+    locals
+      .batch
+      .set(locals.officeDoc.ref, {
+        namesMap,
+      }, {
+          merge: true,
+        });
+  }
+
   locals
     .batch
     .commit()
@@ -446,7 +466,15 @@ const handleName = (conn, locals) => {
     return;
   }
 
-  const namesMap = locals.officeDoc.get('namesMap');
+  if (conn.req.body.template === 'office') {
+    console.log('in handle offices');
+
+    handleOffice(conn, locals);
+
+    return;
+  }
+
+  const namesMap = locals.officeDoc.get('namesMap') || {};
   const name = conn.req.body.attachment.Name.value;
   const template = conn.req.body.template;
 
@@ -455,14 +483,6 @@ const handleName = (conn, locals) => {
       conn,
       code.conflict,
       `${template} with the name: '${name} already exists'`);
-
-    return;
-  }
-
-  if (conn.req.body.template === 'office') {
-    console.log('in handle offices');
-
-    handleOffice(conn, locals);
 
     return;
   }

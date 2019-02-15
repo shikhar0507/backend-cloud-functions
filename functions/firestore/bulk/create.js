@@ -194,9 +194,11 @@ module.exports = (conn, locals) => {
     }
 
     if (templateHasName) {
-      namesMap[conn.req.body.template] = {
-        [attachment.Name.value]: null,
-      };
+      if (!namesMap[conn.req.body.template]) {
+        namesMap[conn.req.body.template] = {};
+      }
+
+      namesMap[conn.req.body.template][attachment.Name.value] = true;
     }
 
     if (conn.req.body.template === 'subscription'
@@ -218,15 +220,15 @@ module.exports = (conn, locals) => {
       return;
     }
 
-    if (conn.req.body.template === 'employee') {
-      if (newEmployeesData.hasOwnProperty(attachment['Employee Contact'].value)) {
-        locals.responseObject.push(objectWithError({
-          object,
-          reason: `${attachment['Employee Contact'].value} is already an employee`,
-        }));
+    if (conn.req.body.template === 'employee'
+      && newEmployeesData.hasOwnProperty(attachment['Employee Contact'].value)) {
 
-        return;
-      }
+      locals.responseObject.push(objectWithError({
+        object,
+        reason: `${attachment['Employee Contact'].value} is already an employee`,
+      }));
+
+      return;
     }
 
     if (conn.req.body.template === 'subscription') {

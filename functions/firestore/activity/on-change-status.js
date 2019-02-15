@@ -165,7 +165,38 @@ const handleResult = (conn, docs) => {
     return;
   }
 
-  createDocs(conn, activity);
+  const template = activity.get('template');
+  const attachment = activity.get('attachment');
+  const hasName = attachment.hasOwnProperty('Name');
+  const officeId = activity.get('officeId');
+
+  if (!hasName || conn.req.body.status !== 'CANCELLED') {
+    createDocs(conn, activity);
+
+    return;
+  }
+
+  rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Activities')
+    .where('template', '==', template)
+    .where('attachment.Name.value', attachment.Name.value)
+    .where('isCancelled', '==', false)
+    .limit(2)
+    .get()
+    .then((docs) => {
+      if (docs.size > 1) {
+        sendResponse(conn, code.conflict, `Not allowed`);
+
+        return;
+      }
+
+      createDocs(conn, activity);
+
+      return;
+    })
+    .catch((error) => handleError(conn, error));
 };
 
 

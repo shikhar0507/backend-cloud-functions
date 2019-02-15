@@ -288,19 +288,25 @@ const handleAutoAssign = (locals) => {
 
         console.log('activity:', doc.ref.path);
 
-        activityBatch.set(doc.ref, {
-          timestamp: Date.now(),
-          addendumDocRef: null,
-        }, {
-            merge: true,
-          });
+        activityBatch
+          .set(doc
+            .ref, {
+              timestamp: Date.now(),
+              addendumDocRef: null,
+            }, {
+              merge: true,
+            });
 
-        assigneeBatch.set(doc.ref.collection('Assignees').doc(subscriber), {
-          canEdit: getCanEdit(locals, subscriber, doc.get('canEditRule')),
-          addToInclude: true,
-        }, {
-            merge: true,
-          });
+        assigneeBatch
+          .set(doc
+            .ref
+            .collection('Assignees')
+            .doc(subscriber), {
+              canEdit: getCanEdit(locals, subscriber, doc.get('canEditRule')),
+              addToInclude: true,
+            }, {
+              merge: true,
+            });
       });
 
       return Promise
@@ -321,17 +327,23 @@ const handleAutoAssign = (locals) => {
 
         const doc = subscriptionActivity.docs[0];
 
-        activityBatch.set(doc.ref, {
-          timestamp: Date.now(),
-          addendumDocRef: null,
-        }, {
-            merge: true,
-          });
+        activityBatch
+          .set(doc
+            .ref, {
+              timestamp: Date.now(),
+              addendumDocRef: null,
+            }, {
+              merge: true,
+            });
 
-        assigneeBatch.set(doc.ref.collection('Assignees').doc(subscriber), {
-          canEdit: getCanEdit(locals, subscriber, doc.get('canEditRule')),
-          addToInclude: true,
-        });
+        assigneeBatch
+          .set(doc
+            .ref
+            .collection('Assignees')
+            .doc(subscriber), {
+              canEdit: getCanEdit(locals, subscriber, doc.get('canEditRule')),
+              addToInclude: true,
+            });
       });
 
       /** 
@@ -879,8 +891,6 @@ const removeFromOfficeActivities = (locals) => {
 
         const batch = db.batch();
 
-        console.log('================================');
-
         docs.forEach((doc) => {
           const template = doc.get('template');
           const activityStatus = doc.get('status');
@@ -938,8 +948,6 @@ const removeFromOfficeActivities = (locals) => {
             .doc(phoneNumber));
         });
 
-        console.log('================================');
-
         /* eslint-disable */
         return batch
           .commit()
@@ -987,9 +995,7 @@ const handleEmployee = (locals, batch) => {
   const employeeContact = attachment['Employee Contact'].value;
   const status = activityDoc.status;
 
-  const employeeOf = {
-    [office]: officeId,
-  };
+  const employeeOf = { [office]: officeId };
 
   if (status === 'CANCELLED') {
     employeeOf[office] = deleteField();
@@ -1217,12 +1223,6 @@ module.exports = (change, context) => {
               }
             }
 
-            if (templateName === 'check-in') {
-              if (activityCreated && isCancelled) {
-                return customMessages.CHECK_IN_CANCELLED;
-              }
-            }
-
             if (templateName === 'tour plan') {
               if (activityCreated && isCancelled) {
                 return customMessages.TOUR_PLAN_CANCELLED;
@@ -1232,7 +1232,6 @@ module.exports = (change, context) => {
             return getCommentString(locals, phoneNumber);
           })();
 
-          console.log({ phoneNumber, comment });
 
           batch.set(rootCollections
             .updates
