@@ -46,16 +46,13 @@ const fs = require('fs');
 
 module.exports = (locals) => {
   const office = locals.officeDoc.get('office');
-  const officeId = locals.officeDoc.id;
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentDateObject = momentOffsetObject(timezone);
   const standardDateString = momentTz().format(dateFormats.DATE);
   locals.messageObject['dynamic_template_data'] = {
     office,
     subject: `Footprints Report_${office}_${standardDateString}`,
     date: standardDateString,
   };
-
   const employeesData = locals.officeDoc.get('employeesData');
   const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
@@ -65,18 +62,21 @@ module.exports = (locals) => {
     .tz(timezone)
     .subtract(1, 'day')
     .format(dateFormats.DATE);
+  const offsetObject = momentTz().tz(timezone);
+  const previousDay = offsetObject.subtract(1, 'day');
+  const dayStartTimestamp = previousDay.startOf('day').unix() * 1000;
+  const dayEndTimestamp = previousDay.endOf('day').unix() * 1000;
 
   return Promise
     .all([
-      rootCollections
-        .offices
-        .doc(officeId)
+      locals
+        .officeDoc
+        .ref
         .collection('Addendum')
-        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
-        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .where('timestamp', '>=', dayStartTimestamp)
+        .where('timestamp', '<', dayEndTimestamp)
+        .orderBy('timestamp')
         .orderBy('user')
-        .orderBy('timestamp', 'asc')
         .get(),
       xlsxPopulate
         .fromBlankAsync(),
@@ -105,7 +105,11 @@ module.exports = (locals) => {
       workbook.sheet('Sheet1').cell('I1').value('Department');
       workbook.sheet('Sheet1').cell('J1').value('Base Location');
 
-      console.log('docs size', addendumDocs.size);
+      /**
+       * Not using count param from the `callback` function because
+       * skipping supportRequest addendum docs intereferes with
+       * the actual count resulting in blank lines.
+       */
       let count = 0;
 
       addendumDocs.forEach((doc) => {
@@ -116,11 +120,6 @@ module.exports = (locals) => {
           return;
         }
 
-        /**
-         * Not using count param from the `callback` function because
-         * skipping supportRequest addendum docs intereferes with
-         * the actual count resulting in blank lines.
-         */
         count++;
 
         const phoneNumber = doc.get('user');

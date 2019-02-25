@@ -45,15 +45,19 @@ const {
 } = require('../admin/utils');
 const env = require('../admin/env');
 
+
 const handleAdminUrl = (conn, urlParts) => {
   const resource = urlParts[2];
 
   console.log('resource', resource);
 
-
   if (conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims)) {
-    sendResponse(conn, code.forbidden, 'You cannot make support requests');
+    sendResponse(
+      conn,
+      code.forbidden,
+      'You cannot make support requests'
+    );
 
     return;
   }
@@ -84,6 +88,12 @@ const handleAdminUrl = (conn, urlParts) => {
 
   if (resource === 'bulk') {
     require('../firestore/bulk')(conn);
+
+    return;
+  }
+
+  if (resource === 'change-phone-number') {
+    require('../firestore/phone-number-change')(conn);
 
     return;
   }
@@ -208,6 +218,7 @@ const handleRequestPath = (conn, parsedUrl) => {
 
 
   if (parent === 'admin') {
+    console.log('in admin');
     handleAdminUrl(conn, urlParts);
 
     return;

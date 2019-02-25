@@ -153,6 +153,8 @@ module.exports = (userRecord) => {
           merge: true,
         });
 
+      console.log({ phoneNumber, uid });
+
       return Promise
         .all([
           auth

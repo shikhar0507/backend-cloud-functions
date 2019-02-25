@@ -155,6 +155,7 @@ const sendGridTemplateIds = {
   dutyRoster: 'd-9b9c44018c3b41a8805189476a38c172',
   footprints: 'd-90095557c1c54de1a153626bb0fbe03d',
   expenseClaim: 'd-ae3a31066b0f447bbf8661570b4dc719',
+  activityReports: 'd-2972abe4d32443fab45c75d901ffb02a',
   dailyStatusReport: 'd-a48d570e46914d0d8989f77a844a26e9',
 };
 
@@ -803,6 +804,7 @@ const dateFormats = {
 };
 
 const reportNames = {
+  ACTIVIT_REPORT: 'activity report',
   ON_DUTY: 'on duty',
   ENQUIRY: 'enquiry',
   INSTALL: 'install',

@@ -62,7 +62,7 @@ const officeSource = () => {
       <section>
         <div class="single-card">
           <div class="yt-video-container">
-            <iframe fs="1" id="video-iframe" src="http://www.youtube.com/embed/{{videoId}}?enablejsapi=1" allow="fullscreen">
+            <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/{{videoId}}?enablejsapi=1" allow="fullscreen">
             </iframe>
           </div>
         </div>
@@ -235,7 +235,30 @@ const homeSource = () => {
   return source;
 };
 
+const joinPageSource = () => {
+  const source = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  ${metaHead}
+  <link rel="stylesheet" href="css/join.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Growthfile Home</title>
+</head>
+<body>
+  <h1>Join Page</h1>
+  ${jsScripts}
+  <script src="js/join.js"></script>
+</body>
+</html>`;
+
+  return source;
+};
+
 module.exports = {
+  joinPageSource,
   officeSource,
   homeSource,
 };

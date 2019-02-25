@@ -80,3 +80,9 @@ env.*
 
 # data file
 *.csv
+
+# Images
+*.jpg
+*.jpeg
+*.png
+*.gif

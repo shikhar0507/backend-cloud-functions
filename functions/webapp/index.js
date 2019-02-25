@@ -44,7 +44,7 @@ const handleOfficePage = (conn, locals) => {
     productObjectsArray: locals.productObjectsArray,
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
-    mapsApiKey: '',
+    mapsApiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
     slug: locals.slug,
   };
 
@@ -58,6 +58,15 @@ const handleOfficePage = (conn, locals) => {
 const handleHomePage = (conn) => {
   const context = {};
   const source = templates.homeSource();
+  const template = handlebars.compile(source, handlebarsOptions);
+  const result = template(context);
+
+  return conn.res.status(code.ok).send(result);
+};
+
+const handleJoinPage = (conn) => {
+  const context = {};
+  const source = templates.joinPageSource();
   const template = handlebars.compile(source, handlebarsOptions);
   const result = template(context);
 
@@ -78,13 +87,15 @@ const app = (req, res) => {
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
   const slug = getSlug(req.url);
   const conn = { req, res };
-
-  console.log('slug', slug);
-
   const locals = { slug };
 
+  if (slug === '/' || slug === '') {
+    return handleHomePage(conn);
+  }
 
-  if (slug === '/' || slug === '') return handleHomePage(conn);
+  if (slug === 'join') {
+    return handleJoinPage(conn);
+  }
 
   return rootCollections
     .offices
@@ -107,7 +118,6 @@ const app = (req, res) => {
             .ref
             .collection('Activities')
             .where('template', '==', 'branch')
-            .limit(12)
             .get(),
           docs
             .docs[0]
@@ -127,25 +137,27 @@ const app = (req, res) => {
       locals.branchDocs = branchQuery.docs;
       locals.productDocs = productQuery.docs;
 
-      locals.branchObjectsArray = branchQuery.docs.map((doc) => {
-        return {
-          name: doc.get('attachment.Name.value'),
-          address: doc.get('venue')[0].address,
-          latitude: doc.get('venue')[0].geopoint._latitude,
-          longitude: doc.get('venue')[0].geopoint._longitude,
-        };
-      });
+      locals
+        .branchObjectsArray = branchQuery.docs.map((doc) => {
+          return {
+            name: doc.get('attachment.Name.value'),
+            address: doc.get('venue')[0].address,
+            latitude: doc.get('venue')[0].geopoint._latitude,
+            longitude: doc.get('venue')[0].geopoint._longitude,
+          };
+        });
 
-      locals.productObjectsArray = productQuery.docs.map((doc) => {
-        return {
-          name: doc.get('attachment.Name.value'),
-          imageUrl: doc.get('attachment.Image Url.value'),
-          productType: doc.get('attachment.Product Type.value'),
-          brand: doc.get('attachment.Brand.value'),
-          model: doc.get('attachment.Model.value'),
-          size: doc.get('attachment.Size.value'),
-        };
-      });
+      locals
+        .productObjectsArray = productQuery.docs.map((doc) => {
+          return {
+            name: doc.get('attachment.Name.value'),
+            imageUrl: doc.get('attachment.Image Url.value'),
+            productType: doc.get('attachment.Product Type.value'),
+            brand: doc.get('attachment.Brand.value'),
+            model: doc.get('attachment.Model.value'),
+            size: doc.get('attachment.Size.value'),
+          };
+        });
 
       return handleOfficePage(conn, locals);
     })

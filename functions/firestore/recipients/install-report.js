@@ -233,7 +233,12 @@ module.exports = (locals) => {
           });
 
           const alsoUsedBy = (() => {
-            if (!deviceUsers.get(latestDeviceId)) return '';
+            const name = deviceUsers.get(latestDeviceId);
+
+            if (!name) return '';
+
+            // Avoids putting self in the `alsoUsedBy` field
+            if (name === employeeObject.name) return '';
 
             return `${deviceUsers.get(latestDeviceId)}`;
           })();

@@ -4,6 +4,7 @@ const {
   rootCollections,
   db,
   deleteField,
+  fieldPath,
 } = require('../../admin/admin');
 const {
   sendResponse,
@@ -44,24 +45,30 @@ const numberInAttachment = (phoneNumber, attachmentObject) => {
   };
 };
 
-const commitBatch = (conn, batch) => batch
-  .commit()
-  .then(() => sendResponse(conn, code.ok, 'Phone Number updated successfully.'))
-  .catch((error) => handleError(conn, error));
+const commitBatch = (conn, batch) => {
+  // return batch
+  //   .commit()
+  return Promise
+    .resolve()
+    .then(() => sendResponse(conn, code.ok, 'Phone Number updated successfully.'))
+    .catch((error) => handleError(conn, error));
+};
 
 
 const deleteAddendum = (conn, locals) => {
   const promises = [];
 
-  locals.activityIdsSet.forEach((id) => {
-    const promise = rootCollections
-      .updates
-      .where('activityId', '==', id)
-      .where('user', '==', conn.req.body.oldPhoneNumber)
-      .get();
+  locals
+    .activityIdsSet
+    .forEach((id) => {
+      const promise = rootCollections
+        .updates
+        .where('activityId', '==', id)
+        .where('user', '==', conn.req.body.oldPhoneNumber)
+        .get();
 
-    promises.push(promise);
-  });
+      promises.push(promise);
+    });
 
   Promise
     .all(promises)
@@ -106,80 +113,138 @@ const updatePayroll = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
+
 const fetchActivities = (conn, locals) => {
-  /**
-   * canEditRules
-   * ADMIN,
-   * EMPLOYEE,
-   * CREATOR,
-   */
+  const runQuery = (query, resolve, reject) => {
+    return query
+      .get()
+      .then((docs) => {
+        if (docs.empty) {
+          return 0;
+        }
 
-  locals.activityIdsSet = new Set();
+        const batch = db.batch();
 
-  return rootCollections
+        docs.forEach((doc) => {
+          locals.activityIdsSet.add(doc.id);
+
+          const activityId = doc.id;
+          const template = doc.get('template');
+          const creator = doc.get('creator');
+          const canEditRule = doc.get('canEditRule');
+          const rootActivityRef = rootCollections.activities.doc(activityId);
+          const attachmentObject = doc.get('attachment');
+          const inAttachment =
+            numberInAttachment(conn.req.body.oldPhoneNumber, attachmentObject);
+
+          if (inAttachment.found) {
+            attachmentObject[inAttachment.fieldName].value = conn.req.body.newPhoneNumber;
+
+            locals.batch.set(rootActivityRef, {
+              timestamp: Date.now(),
+              addendumDocRef: null,
+              attachmentObject: attachmentObject,
+            }, {
+                merge: true,
+              });
+          }
+
+          const addToInclude = template !== 'subscription';
+          const canEdit = (() => {
+            if (canEditRule === 'CREATOR') {
+              return creator === conn.req.body.newPhoneNumber;
+            }
+
+            if (canEditRule === 'ADMIN') {
+              return locals.newPhoneNumberIsAdmin;
+            }
+
+            if (canEditRule === 'EMPLOYEE') {
+              // If the new phone number is already an employee,
+              // code the request will be rejected in the previous step.
+              return false;
+            }
+
+            if (canEditRule === 'NONE') return false;
+
+            // canEditRule is `ALL`
+            return true;
+          })();
+
+          batch
+            .set(rootActivityRef
+              .collection('Assignees')
+              .doc(conn.req.body.newPhoneNumber), {
+                canEdit,
+                addToInclude,
+              });
+
+          batch
+            .delete(rootActivityRef
+              .collection('Assignees')
+              .doc(conn.req.body.oldPhoneNumber));
+
+          console.log({ activityId });
+        });
+
+        /* eslint-disable */
+        // return batch
+        //   .commit()
+        //   .then(() => docs.docs[docs.size - 1]);
+        return Promise
+          .resolve()
+          .then(() => docs.docs[docs.size - 1]);
+        /* eslint-enable */
+      })
+      .then((lastDoc) => {
+        if (!lastDoc) return resolve();
+
+        console.log({ lastDocId: lastDoc.id });
+
+        return process
+          .nextTick(() => {
+            const newQuery = query
+              // Using greater than sign because we need
+              // to start after the last activity which was
+              // processed by this code otherwise some activities
+              // might be updated more than once.
+              .where(fieldPath, '>', lastDoc.id);
+
+            return runQuery(newQuery, resolve, reject);
+          });
+      })
+      .catch(new Error(reject));
+  };
+
+  const query = rootCollections
     .profiles
     .doc(conn.req.body.oldPhoneNumber)
     .collection('Activities')
     .where('office', '==', conn.req.body.office)
-    .get()
-    .then((snapShot) => {
-      snapShot.forEach((doc) => {
-        locals.activityIdsSet.add(doc.id);
+    .orderBy(fieldPath)
+    .limit(200);
 
-        const activityId = doc.id;
-        const template = doc.get('template');
-        const creator = doc.get('creator');
-        const canEditRule = doc.get('canEditRule');
-        const rootActivityRef = rootCollections.activities.doc(activityId);
-        const attachmentObject = doc.get('attachment');
-        const inAttachment =
-          numberInAttachment(conn.req.body.oldPhoneNumber, attachmentObject);
-
-        if (inAttachment.found) {
-          attachmentObject[inAttachment.fieldName].value = conn.req.body.newPhoneNumber;
-
-          locals.batch.set(rootActivityRef, {
-            timestamp: Date.now(),
-            addendumDocRef: null,
-            attachmentObject: attachmentObject,
-          }, {
-              merge: true,
-            });
-        }
-
-        const addToInclude = template !== 'subscription';
-        const canEdit = (() => {
-          if (canEditRule === 'CREATOR') {
-            return creator === conn.req.body.newPhoneNumber;
-          }
-
-          if (canEditRule === 'ADMIN') {
-            return locals.newPhoneNumberIsAdmin;
-          }
-
-          if (canEditRule === 'EMPLOYEE') {
-            // If the new phone number is already an employee,
-            // code the request will be rejected in the previous step.
-            return false;
-          }
-
-          if (canEditRule === 'NONE') return false;
-
-          // canEditRule is `ALL`
-          return true;
-        })();
-
-        locals.batch.set(rootActivityRef.collection('Assignees').doc(conn.req.body.newPhoneNumber), {
-          canEdit,
-          addToInclude,
-        });
-
-        locals.batch.delete(rootActivityRef.collection('Assignees').doc(conn.req.body.oldPhoneNumber));
-      });
-
-      return updatePayroll(conn, locals);
-    })
+  return new Promise((resolve, reject) => runQuery(query, resolve, reject))
+    .then(() => updatePayroll(conn, locals))
     .catch((error) => handleError(conn, error));
+};
+
+
+const checkForAdmin = (conn, locals) => {
+  return rootCollections
+    .offices
+    .doc(locals.officeDoc.id)
+    .collection('Activities')
+    .where('attachment.Admin.value', '==', conn.req.body.newPhoneNumber)
+    .limit(1)
+    .get()
+    .then((docs) => {
+      // Not empty means the person is an admin
+      locals.newPhoneNumberIsAdmin = !docs.empty;
+
+      return fetchActivities(conn, locals);
+    })
+    .catch(console.error);
 };
 
 
@@ -200,11 +265,21 @@ const checkForEmployee = (conn, locals) => {
         .where('attachment.Employee Contact.value', '==', conn.req.body.newPhoneNumber)
         .limit(1)
         .get(),
+      rootCollections
+        .profiles
+        .doc(conn.req.body.oldPhoneNumber)
+        .get(),
+      rootCollections
+        .profiles
+        .doc(conn.req.body.newPhoneNumber)
+        .get(),
     ])
     .then((result) => {
       const [
         oldPhoneNumberQuery,
         newPhoneNumberQuery,
+        oldUserProfile,
+        newUserProfile,
       ] = result;
 
       if (oldPhoneNumberQuery.empty) {
@@ -223,10 +298,31 @@ const checkForEmployee = (conn, locals) => {
         );
       }
 
-      return fetchActivities(conn, locals);
+      const employeeOf = oldUserProfile.get('employeeOf') || {};
+
+      if (employeeOf[conn.req.body.office]) {
+        locals.batch.set(oldUserProfile.ref, {
+          employeeOf: {
+            [conn.req.body.office]: deleteField(),
+          },
+        }, {
+            merge: true,
+          });
+
+        locals.batch.set(newUserProfile.ref, {
+          employeeOf: {
+            [conn.req.body.office]: locals.officeDoc.id,
+          },
+        }, {
+            merge: true,
+          });
+      }
+
+      return checkForAdmin(conn, locals);
     })
     .catch((error) => handleError(conn, error));
 };
+
 
 const validateRequest = (body) => {
   const messageObject = {
@@ -241,7 +337,7 @@ const validateRequest = (body) => {
     return messageObject;
   }
 
-  if (!body.hasOwnProperty('oldPhoneNumber')) {
+  if (!body.hasOwnProperty('newPhoneNumber')) {
     messageObject.isValid = false;
     messageObject.message = `Request body is missing the field: 'newPhoneNumber'`;
 
@@ -281,18 +377,32 @@ const validateRequest = (body) => {
 
 
 module.exports = (conn) => {
-  /**
-   * Flow
-   * 
-   * if oldPhoneNumber is not an employee
-   *   reject
-   * if the requester is not an admin of the office
-   *   reject
-   */
+  if (conn.req.method !== 'PUT') {
+    return sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed. Use PUT`
+    );
+  }
 
   if (!conn.requester.isSupportRequest
     && !hasAdminClaims(conn.requester.customClaims)) {
-    return sendResponse(conn, code.unauthorized, 'You cannot access this resource');
+    return sendResponse(
+      conn,
+      code.unauthorized,
+      'You cannot access this resource'
+    );
+  }
+
+  if (conn.requester.isSupportRequest) {
+    if (!conn.req.body.hasOwnProperty('office')
+      || !isNonEmptyString(conn.req.body.office)) {
+      return sendResponse(
+        conn,
+        code.badRequest,
+        `Invalid/Missing 'office' name in the request body`
+      );
+    }
   }
 
   const validationResult = validateRequest(conn.req.body);
@@ -317,6 +427,7 @@ module.exports = (conn) => {
 
       const locals = {
         batch: db.batch(),
+        activityIdsSet: new Set(),
         officeDoc: officeDocsQuery.docs[0],
         timezone: officeDocsQuery.docs[0].get('attachment.Timezone.value'),
         momentObject: momentTz().tz(officeDocsQuery.docs[0].get('attachment.Timezone.value')),
