@@ -822,7 +822,7 @@ const handleLeaveReport = (addendumDoc, locals) => {
 };
 
 
-module.exports = (addendumDoc, context) => {
+module.exports = (addendumDoc) => {
   const phoneNumber = addendumDoc.get('user');
   const officeId = addendumDoc.get('activityData.officeId');
   const locals = {
@@ -892,20 +892,33 @@ module.exports = (addendumDoc, context) => {
           };
         }
 
-        const value =
-          distanceMatrixApiResult
+        const value = (() => {
+          const distanceData = distanceMatrixApiResult
             .json
             .rows[0]
             .elements[0]
-            .distance
-            .value;
+            .distance;
+
+          // maps api result in meters
+          if (distanceData) {
+            return distanceData.value / 1000;
+          }
+
+          const geopointOne = locals.previousAddendumDoc.get('location');
+          const geopointTwo = addendumDoc.get('location');
+
+          const result = haversineDistance(geopointOne, geopointTwo);
+
+          // in KM
+          return result;
+        })();
 
         console.log({ value });
 
         const accumulatedDistance =
           Number(locals.previousAddendumDoc.get('accumulatedDistance') || 0)
           // value is in meters
-          + value / 1000;
+          + value;
 
         return {
           accumulatedDistance: accumulatedDistance.toFixed(2),

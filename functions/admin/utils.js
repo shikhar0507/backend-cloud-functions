@@ -483,9 +483,17 @@ const isValidBase64 = (suspectBase64String) =>
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
     .test(suspectBase64String);
 
+const slugify = (string) => {
+  return string
+    .toLowerCase()
+    .replace(/[^\w ]+/g, '')
+    .replace(/ +/g, '-');
+};
+
 
 
 module.exports = {
+  slugify,
   sendJSON,
   isValidUrl,
   getFileHash,

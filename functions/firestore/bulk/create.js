@@ -92,8 +92,6 @@ module.exports = (conn, locals) => {
       .get('attachment')
       .hasOwnProperty('Name');
 
-  console.log('conn.req.body.data', conn.req.body.data.length);
-
   conn.req.body.data.forEach((object, index) => {
     const attachment = object.attachment;
     const share = object.share;
@@ -370,6 +368,8 @@ module.exports = (conn, locals) => {
 
     const batchFactory = () => batch.commit();
 
+    // const batchFactory = () => Promise.resolve();
+
     batchesArray.push(batchFactory);
   });
 
@@ -384,6 +384,10 @@ module.exports = (conn, locals) => {
 
     return result;
   };
+
+  // executeSequentially(batchesArray)
+  //   .then(() => sendJSON(conn, locals.responseObject))
+  //   .catch(console.error);
 
   executeSequentially(batchesArray)
     .then(() => {

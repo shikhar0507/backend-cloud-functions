@@ -92,10 +92,15 @@ const sendPushNotification = functions
   .document('Updates/{uid}/Addendum/{docId}')
   .onCreate(require('./firestore/updates/addendum/on-create'));
 
+const webapp = functions
+  .https
+  .onRequest(require('./webapp'));
+
 
 module.exports = {
   api,
   timer,
+  // webapp,
   authOnCreate,
   authOnDelete,
   profileOnWrite,

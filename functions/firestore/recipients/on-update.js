@@ -38,7 +38,8 @@ const env = require('../../admin/env');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
 const momentTz = require('moment-timezone');
-const fs = require('fs');
+const admin = require('firebase-admin');
+
 
 
 const getTemplateId = (report) => {
@@ -124,6 +125,10 @@ module.exports = (change) => {
     .forEach((phoneNumber) =>
       authFetch.push(users.getUserByPhoneNumber(phoneNumber)));
 
+  const usersWithoutEmailOrVerifiedEmail = [];
+  const withNoEmail = new Set();
+  const withUnverifiedEmail = new Set();
+
   return Promise
     .all(authFetch)
     .then((userRecords) => {
@@ -132,9 +137,21 @@ module.exports = (change) => {
         const record = userRecord[`${phoneNumber}`];
 
         if (!record.uid) return;
-        if (!record.email) return;
-        if (!record.emailVerified) return;
         if (record.disabled) return;
+
+        if (!record.email || !record.emailVerified) {
+          const promise = rootCollections
+            .updates
+            .doc(record.uid)
+            .get();
+
+          if (!record.email) withNoEmail.add(record.uid);
+          if (!record.emailVerified) withUnverifiedEmail.add(record.uid);
+
+          usersWithoutEmailOrVerifiedEmail.push(promise);
+
+          return;
+        }
 
         locals.messageObject.to.push({
           email: record.email,
@@ -160,7 +177,6 @@ module.exports = (change) => {
         .clone()
         .tz(locals.timezone)
         .format(dateFormats.DATE);
-
 
       if (locals.messageObject.to.length === 0) {
         // No assignees, only creating data for the day, but 
@@ -214,6 +230,46 @@ module.exports = (change) => {
       }
 
       return Promise.resolve(null);
+    })
+    .then(() => Promise.all(usersWithoutEmailOrVerifiedEmail))
+    .then((snapShot) => {
+      const notifications = [];
+
+      snapShot.forEach((doc) => {
+        if (!doc.exists) return;
+
+        const {
+          registrationToken,
+        } = doc.data();
+
+        if (!registrationToken) return;
+
+        const message = (() => {
+          const part = `You have been added as a recipient for the report ${report} on Growthfile`;
+
+          if (withNoEmail.has(doc.id)) {
+            return `${part}. Please set your email to receice reports`;
+          }
+
+          return `${part}. Please verifiy your email to receive reports.`;
+        })();
+
+        const promise = admin
+          .messaging()
+          .sendToDevice(registrationToken, {
+            data: {
+              verifyEmail: '1',
+            },
+            notification: {
+              body: message,
+              title: 'Growthfile',
+            },
+          });
+
+        notifications.push(promise);
+      });
+
+      return Promise.all(notifications);
     })
     .catch((error) => {
       const errorObject = {

@@ -154,6 +154,34 @@ const createDocsWithBatch = (conn, locals) => {
     provider: conn.req.body.geopoint.provider || null,
   };
 
+  if (conn.req.body.template === 'check-in'
+    && conn.req.body.venue[0].geopoint.latitude
+    && conn.req.body.venue[0].geopoint.longitude) {
+    const geopointOne = {
+      _latitude: conn.req.body.geopoint.latitude,
+      _longitude: conn.req.body.geopoint.longitude,
+      accuracy: conn.req.body.geopoint.accuracy,
+    };
+
+    const geopointTwo = {
+      _latitude: conn.req.body.venue[0].geopoint.latitude,
+      _longitude: conn.req.body.venue[0].geopoint.longitude,
+    };
+
+    const accuracy = (() => {
+      if (geopointOne.accuracy && geopointOne.accuracy < 0.35) {
+        return 0.5;
+      }
+
+      return 1;
+    })();
+
+    const distanceAccurate =
+      haversineDistance(geopointOne, geopointTwo) < accuracy;
+
+    addendumDocObject.distanceAccurate = distanceAccurate;
+  }
+
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
 
@@ -220,7 +248,7 @@ const getPayrollObject = (options) => {
         && newStatus === 'ON DUTY') {
         datesConflicted = true;
 
-        conflictsWith = `tour plan`;
+        conflictsWith = `ON DUTY`;
 
         return;
       }
@@ -240,7 +268,7 @@ const getPayrollObject = (options) => {
         && newStatus === 'ON DUTY') {
         datesConflicted = true;
 
-        conflictsWith = `tour plan`;
+        conflictsWith = `ON DUTY`;
 
         return;
       }
@@ -256,7 +284,7 @@ const getPayrollObject = (options) => {
 };
 
 
-const handleLeaveOrTourPlan = (conn, locals) => {
+const handleLeaveOrOnDuty = (conn, locals) => {
   const getPromiseObject = (month, year, office) => {
     return rootCollections
       .inits
@@ -449,8 +477,9 @@ const handleLeaveOrTourPlan = (conn, locals) => {
 const handlePayroll = (conn, locals) => {
   if (!new Set()
     .add(reportNames.LEAVE)
+    .add(reportNames.ON_DUTY)
+    // TODO: Remove this after some time
     .add(reportNames.TOUR_PLAN)
-    // .add('on duty')
     .has(conn.req.body.template)) {
     createDocsWithBatch(conn, locals);
 
@@ -467,7 +496,7 @@ const handlePayroll = (conn, locals) => {
   }
 
   if (conn.req.body.template !== 'leave') {
-    handleLeaveOrTourPlan(conn, locals);
+    handleLeaveOrOnDuty(conn, locals);
 
     return;
   }
@@ -533,7 +562,9 @@ const handlePayroll = (conn, locals) => {
         console.log('maxLeavesAllowed', locals.maxLeavesAllowed);
 
         console.log('CANCELL HERE 3');
-        locals.static.statusOnCreate = 'CANCELLED';
+        locals
+          .static
+          .statusOnCreate = 'CANCELLED';
         locals
           .cancellationMessage =
           `${conn.req.body.template.toUpperCase()} CANCELLED`;
@@ -543,7 +574,7 @@ const handlePayroll = (conn, locals) => {
         return;
       }
 
-      handleLeaveOrTourPlan(conn, locals);
+      handleLeaveOrOnDuty(conn, locals);
 
       return;
     })

@@ -181,7 +181,7 @@ const handleResult = (conn, docs) => {
     .doc(officeId)
     .collection('Activities')
     .where('template', '==', template)
-    .where('attachment.Name.value', attachment.Name.value)
+    .where('attachment.Name.value', '==', attachment.Name.value)
     .where('isCancelled', '==', false)
     .limit(2)
     .get()

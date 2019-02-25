@@ -8,7 +8,7 @@ const {
 
 
 
-module.exports = (snap, context) =>
+module.exports = (snapShot, context) =>
   rootCollections
     .updates
     .doc(context.params.uid)
@@ -24,11 +24,10 @@ module.exports = (snap, context) =>
 
       const payload = {
         data: {
-          key1: 'value1',
-          key2: 'value2',
+          read: '1',
         },
         notification: {
-          body: snap.get('comment'),
+          body: snapShot.get('comment'),
           tile: `Growthfile`,
         },
       };

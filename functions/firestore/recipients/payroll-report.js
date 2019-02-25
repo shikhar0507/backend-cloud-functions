@@ -24,6 +24,7 @@
 
 'use strict';
 
+
 const admin = require('firebase-admin');
 const {
   deleteField,
@@ -211,7 +212,7 @@ module.exports = (locals) => {
             /** 
              * `ON DUTY` and `LEAVE` fields are handled 
              *  by `addendumOnCreate` when someone creates
-             *  a tour plan.
+             *  a `on duty` (previously tour plan) activity.
              */
             if (status === 'ON DUTY') {
               countsObject[phoneNumber].onDuty++;

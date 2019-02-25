@@ -213,6 +213,7 @@ const handleAutoAssign = (locals) => {
     .set('leave', ['leave-type'])
     .set('invoice', ['customer'])
     .set('tour plan', ['customer'])
+    .set('on duty', ['customer'])
     .set('collection', ['invoice'])
     .set('duty roster', ['customer'])
     .set('customer', ['customer-type'])
@@ -1223,9 +1224,9 @@ module.exports = (change, context) => {
               }
             }
 
-            if (templateName === 'tour plan') {
+            if (templateName === 'on duty') {
               if (activityCreated && isCancelled) {
-                return customMessages.TOUR_PLAN_CANCELLED;
+                return customMessages.ON_DUTY_CANCELLED;
               }
             }
 
@@ -1299,16 +1300,14 @@ module.exports = (change, context) => {
        * on schedule. Querying directly based on the startTime or endTime,
        * is not possible since they are inside an array.
        */
-      if (template === 'leave' || template === 'tour plan') {
+      if (template === 'leave' || template === 'tour plan' || template === 'on duty') {
         const schedule = change.after.get('schedule')[0];
 
         activityData.startYear = moment(schedule.startTime).year();
         activityData.endYear = moment(schedule.endTime).year();
       }
 
-      batch.set(copyTo, activityData, {
-        merge: true,
-      });
+      batch.set(copyTo, activityData, { merge: true });
 
       if (template === 'subscription') {
         return handleSubscription(locals, batch);
@@ -1328,11 +1327,5 @@ module.exports = (change, context) => {
 
       return batch.commit();
     })
-    .catch((error) => {
-      console.error({
-        error,
-        context,
-        activityId: change.after.id,
-      });
-    });
+    .catch((error) => console.error({ error, context, activityId: change.after.id }));
 };

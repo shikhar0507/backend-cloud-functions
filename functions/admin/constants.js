@@ -165,6 +165,7 @@ const templatesWithNumber = new Set()
   .add('purchase order');
 
 const templatesSet = new Set()
+  .add('on duty')
   .add('admin')
   .add('branch')
   .add('check-in')
@@ -802,6 +803,7 @@ const dateFormats = {
 };
 
 const reportNames = {
+  ON_DUTY: 'on duty',
   ENQUIRY: 'enquiry',
   INSTALL: 'install',
   SIGNUP: 'signup',
@@ -818,9 +820,8 @@ const reportNames = {
 
 const customMessages = {
   LEAVE_CANCELLED: `LEAVE CANCELLED`,
-  CHECK_IN_CANCELLED: `CHECK-IN CANCELLED. INACCURATE CHECK-IN LOCATION`,
-  TOUR_PLAN_CANCELLED: `TOUR PLAN CANCELLED. LEAVE ALREADY APPLIED`
-    + ` FOR THE SCHEDULE`,
+  TOUR_PLAN_CANCELLED: `TOUR PLAN CANCELLED`,
+  ON_DUTY_CANCELLED: `ON DUTY CANCELLED`,
 };
 
 const loggingTags = {

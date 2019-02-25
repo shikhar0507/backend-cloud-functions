@@ -182,6 +182,12 @@ const handleRequestPath = (conn, parsedUrl) => {
   const urlParts = parsedUrl.pathname.split('/');
   const parent = urlParts[1];
 
+  if (parent === 'enquiry') {
+    require('../firestore/enquiry/index')(conn);
+
+    return;
+  }
+
   if (parent === 'read') {
     require('../firestore/on-read')(conn);
 
@@ -429,7 +435,6 @@ const checkAuthorizationToken = (conn) => {
     .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => handleRejections(conn, error));
 };
-
 
 /**
  * Handles the routing for the request from the clients.

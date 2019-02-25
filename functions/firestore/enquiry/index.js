@@ -21,6 +21,8 @@ const validateBody = (body) => {
     message: null,
   };
 
+  // TODO: Add validation
+
   return result;
 };
 
@@ -55,19 +57,16 @@ module.exports = (conn) => {
           .get(),
       ]))
     .then((result) => {
-      // if (snapShot.empty) {
-      //   createEnquiry = false;
-
-      //   return sendResponse(
-      //     conn,
-      //     code.badRequest,
-      //     `Office not found`
-      //   );
-      // }
       const [
         officeDocQuery,
         recipientsDocQuery,
       ] = result;
+
+      if (officeDocQuery.empty) {
+        createEnquiry = false;
+
+        return sendResponse(conn, code.conflict, `Office does not exist`);
+      }
 
       if (recipientsDocQuery.empty) {
         createEnquiry = false;
@@ -133,7 +132,7 @@ module.exports = (conn) => {
                 merge: true,
               }),
           Promise
-            .resolve(sendJSON(conn, {})),
+            .resolve(sendResponse(conn, code.noContent)),
         ]);
     })
     .catch((error) => handleError(conn, error));

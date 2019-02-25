@@ -25,6 +25,7 @@
 'use strict';
 
 const { db } = require('../../../admin/admin');
+const { slugify } = require('../../../admin/utils');
 
 
 const getPermutations = (officeName) => {
@@ -61,8 +62,14 @@ module.exports = (officeDoc) => {
   const batch = db.batch();
   const officeName = officeDoc.get('attachment.Name.value');
   const namePermutations = getPermutations(officeName);
+  const slug = slugify(officeName);
 
-  batch.set(officeDoc.ref, { namePermutations }, { merge: true });
+  batch.set(officeDoc.ref, {
+    namePermutations,
+    slug,
+  }, {
+      merge: true,
+    });
 
   return batch
     .commit()

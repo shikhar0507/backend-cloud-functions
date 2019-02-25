@@ -1,0 +1,24 @@
+:root {
+    --mdc-theme-primary: rgb(63, 81, 181);
+    --mdc-theme-secondary: rgb(255, 64, 129);
+    --primary-theme-light: #fbe979;
+    --primary-theme-dark: #fafafa;
+    --mdc-theme-background: #fff;
+    --html-background: #f6f6f6;
+    --main-text-color: #34495e;
+}
+
+html {
+    background-color: var(--html-background);
+    color: var(--main-text-color);
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.hidden {
+    display: none;
+}
+
+.visible {
+    display: block;
+}

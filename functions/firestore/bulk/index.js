@@ -188,17 +188,17 @@ const handleBulkRequest = (conn, locals) => {
 };
 
 const validateData = (conn, locals) => {
-  const encodedCsv = conn.req.body.encodedCsv;
+  // const encodedCsv = conn.req.body.encodedCsv;
 
-  fs.writeFileSync(filePath, encodedCsv, {
-    encoding: 'base64',
-  });
+  // fs.writeFileSync(filePath, encodedCsv, {
+  //   encoding: 'base64',
+  // });
 
-  if (locals.templateDoc.get('canEditRule') !== 'ADMIN') {
-    handleBulkRequest(conn, locals);
+  // if (locals.templateDoc.get('canEditRule') !== 'ADMIN') {
+  //   handleBulkRequest(conn, locals);
 
-    return;
-  }
+  //   return;
+  // }
 
   rootCollections
     .offices
@@ -272,14 +272,6 @@ const handleResult = (conn, result) => {
 
 
 module.exports = (conn) => {
-  const validationResult = validateRequestBody(conn.req.body);
-
-  if (!validationResult.isValid) {
-    sendResponse(conn, code.badRequest, validationResult.message);
-
-    return;
-  }
-
   if (!hasSupportClaims(conn.requester.customClaims)
     && !hasAdminClaims(conn.requester.customClaims)) {
     sendResponse(conn, code.forbidden, `You cannot access this resource`);
