@@ -24,6 +24,7 @@ module.exports = (snapShot, context) =>
 
       const payload = {
         data: {
+          // Ask the client to send a request to the /read endpoint
           read: '1',
         },
         notification: {
@@ -31,15 +32,15 @@ module.exports = (snapShot, context) =>
           tile: `Growthfile`,
         },
       };
-      const ONE_DAY = 60;
+      const ONE_MINUTE = 60;
       const options = {
         priority: 'high',
-        timeToLive: ONE_DAY,
+        timeToLive: ONE_MINUTE,
       };
 
       console.log(`Notification sent to `
         + `phoneNumber=${updatesDoc.get('phoneNumber')},`
-        + ` 'uid=${context.params.phoneNumber}'`, { payload });
+        + ` 'uid=${context.params.uid}'`, { payload });
 
       return admin
         .messaging()

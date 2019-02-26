@@ -56,19 +56,13 @@ const getZeroCountsObject = () => {
   };
 };
 
-
-const topRow = (timezone) => {
+const topRow = (yesterday) => {
   let str = ` Employee Name,`
     + ` Employee Contact,`
     + ` Department,`
     + ` Base Location,`
     + ` Live Since,`;
 
-  const yesterday = momentTz()
-    .utc()
-    .clone()
-    .tz(timezone)
-    .subtract(1, 'day');
   const monthName = monthsArray[yesterday.month()];
 
   for (let dayNumber = yesterday.date(); dayNumber >= 1; dayNumber--) {
@@ -92,10 +86,10 @@ const topRow = (timezone) => {
 
 
 module.exports = (locals) => {
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const todayFromTimestamp = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
-  const officeId = locals.officeDoc.id;
-  const momentDateObject = momentOffsetObject(locals.timezone);
-
+  // const officeId = locals.officeDoc.id;
   const peopleWithBlank = new Set();
   const countsObject = {};
   const leavesSet = new Set();
@@ -105,17 +99,21 @@ module.exports = (locals) => {
   const onDutySet = new Set();
   /** Stores the type of leave a person has taken for the day */
   const leaveTypesMap = new Map();
-  const yesterday = momentTz()
+  const branchesWithHoliday = new Set();
+  const yesterday = momentTz(todayFromTimestamp)
     .utc()
     .clone()
-    .tz(locals.timezone)
+    .tz(timezone)
     .subtract(1, 'days');
   const yesterdayDate = yesterday.date();
   const yesterdayStartTimestamp = yesterday.startOf('day').unix() * 1000;
   const yesterdayEndTimestamp = yesterday.endOf('day').unix() * 1000;
-  const branchesWithHoliday = new Set();
   const employeesData = locals.officeDoc.get('employeesData');
   const employeesPhoneNumberList = Object.keys(employeesData);
+  const standardDateString = momentTz(todayFromTimestamp)
+    .tz(timezone)
+    .format(dateFormats.DATE);
+
   console.log('office', locals.officeDoc.get('office'));
   console.log('locals.createOnlyData', locals.createOnlyData);
 
@@ -125,19 +123,22 @@ module.exports = (locals) => {
         .inits
         .where('office', '==', office)
         .where('report', '==', reportNames.PAYROLL)
-        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .where('month', '==', yesterday.month())
+        .where('year', '==', yesterday.year())
         .limit(1)
         .get(),
-      rootCollections
-        .offices
-        .doc(officeId)
+      locals
+        .officeDoc
+        .ref
         .collection('Activities')
         .where('template', '==', 'branch')
         .get(),
     ])
     .then((result) => {
-      const [initDocsQuery, branchDocsQuery] = result;
+      const [
+        initDocsQuery,
+        branchDocsQuery,
+      ] = result;
 
       branchDocsQuery.forEach((branchDoc) => {
         branchDoc
@@ -197,7 +198,7 @@ module.exports = (locals) => {
             // data only for the prev day to avoid putting their
             // data in the report
             if (!employeesData[phoneNumber]) {
-              payrollObject[phoneNumber[yesterdayDate]] = deleteField();
+              payrollObject[phoneNumber][yesterdayDate] = deleteField();
             }
 
             /**
@@ -209,6 +210,7 @@ module.exports = (locals) => {
              * BLANK
              */
             const status = payrollObject[phoneNumber][date] || '';
+
             /** 
              * `ON DUTY` and `LEAVE` fields are handled 
              *  by `addendumOnCreate` when someone creates
@@ -250,6 +252,7 @@ module.exports = (locals) => {
         if (payrollObject[phoneNumber][yesterdayDate]
           && payrollObject[phoneNumber][yesterdayDate].startsWith('LEAVE')) {
           leavesSet.add(phoneNumber);
+
           leaveTypesMap
             .set(phoneNumber, payrollObject[phoneNumber][yesterdayDate]);
 
@@ -305,14 +308,14 @@ module.exports = (locals) => {
          * Using `orderBy` ascending because first and last check-in timestamp
          * is used to calculate `LATE`, `HALF DAY`, or `FULL DAY`.
          */
-        const query = rootCollections
-          .offices
-          .doc(officeId)
+        const query = locals
+          .officeDoc
+          .ref
           .collection('Addendum')
           .where('template', '==', 'check-in')
-          .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
-          .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-          .where('year', '==', momentDateObject.yesterday.YEAR)
+          .where('date', '==', yesterdayDate)
+          .where('month', '==', yesterday.month())
+          .where('year', '==', yesterday.year())
           .where('user', '==', phoneNumber)
           .where('distanceAccurate', '==', true)
           .orderBy('timestamp', 'asc')
@@ -334,12 +337,6 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      const yesterdayDate = momentTz()
-        .utc()
-        .clone()
-        .tz(locals.timezone)
-        .subtract(1, 'days')
-        .date();
       const NUM_MILLI_SECS_IN_HOUR = 3600 * 1000;
       const EIGHT_HOURS = NUM_MILLI_SECS_IN_HOUR * 8;
       const FOUR_HOURS = NUM_MILLI_SECS_IN_HOUR * 4;
@@ -378,19 +375,16 @@ module.exports = (locals) => {
         const [endHours, endMinutes] = dailyEndHours.split(':');
 
         // Data is created for the previous day
-        const employeeStartTime = momentTz()
-          .utc()
+        const employeeStartTime = momentTz(todayFromTimestamp)
           .subtract(1, 'days')
-          .clone()
-          .tz(locals.timezone)
+          .tz(timezone)
           .hours(startHours)
           .minutes(startMinutes)
           .add(0.5, 'hours')
           .unix() * 1000;
-        const employeeEndTime = momentTz()
-          .utc()
+        const employeeEndTime = momentTz(todayFromTimestamp)
           .subtract(1, 'days')
-          .tz(locals.timezone)
+          .tz(timezone)
           .hours(endHours)
           .minutes(endMinutes)
           .unix() * 1000;
@@ -405,9 +399,9 @@ module.exports = (locals) => {
           peopleWithBlank.add(phoneNumber);
         }
 
-        const checkInDiff =
-          Math
-            .abs(lastCheckInTimestamp - firstCheckInTimestamp);
+        const checkInDiff = Math.abs(
+          lastCheckInTimestamp - firstCheckInTimestamp
+        );
 
         if (checkInDiff >= EIGHT_HOURS || lastCheckInTimestamp > employeeEndTime) {
           if (firstCheckInTimestamp >= employeeStartTime) {
@@ -436,8 +430,7 @@ module.exports = (locals) => {
         .forEach((phoneNumber) => {
           if (leavesSet.has(phoneNumber)) {
             locals
-              .payrollObject[phoneNumber][yesterdayDate] =
-              leaveTypesMap.get(phoneNumber);
+              .payrollObject[phoneNumber][yesterdayDate] = leaveTypesMap.get(phoneNumber);
 
             return;
           }
@@ -493,7 +486,7 @@ module.exports = (locals) => {
           return locals.change.after.get('month');
         }
 
-        return momentDateObject.yesterday.MONTH_NUMBER;
+        return yesterday.month();
       })();
 
       const year = (() => {
@@ -502,7 +495,7 @@ module.exports = (locals) => {
           return locals.change.after.get('year');
         }
 
-        return momentDateObject.yesterday.YEAR;
+        return yesterday.year();
       })();
 
       return ref
@@ -510,7 +503,7 @@ module.exports = (locals) => {
           month,
           year,
           office,
-          officeId,
+          officeId: locals.officeDoc.id,
           report: reportNames.PAYROLL,
           payrollObject: locals.payrollObject,
         }, {
@@ -544,14 +537,7 @@ module.exports = (locals) => {
         });
 
       locals
-        .csvString = topRow(locals.timezone);
-
-      const lastDayDate = momentTz()
-        .utc()
-        .clone()
-        .tz(locals.timezone)
-        .subtract(1, 'days')
-        .date();
+        .csvString = topRow(yesterday);
 
       locals.employeesPhoneNumberList.forEach((phoneNumber) => {
         if (!locals.employeesData[phoneNumber]) return;
@@ -561,8 +547,8 @@ module.exports = (locals) => {
          * on the platform.
          */
         const liveSince = dateStringWithOffset({
+          timezone,
           timestampToConvert: locals.employeesData[phoneNumber].createTime,
-          timezone: locals.timezone,
         });
 
         const baseLocation =
@@ -582,9 +568,7 @@ module.exports = (locals) => {
           + ` ${baseLocation},`
           + ` ${liveSince},`;
 
-        for (let date = lastDayDate; date >= 1; date--) {
-          // const status = locals.payrollObject[phoneNumber][date];
-
+        for (let date = yesterdayDate; date >= 1; date--) {
           // The OR case with empty strings is required. Omitting that will
           // cause the excel sheet to show the value `undefined` in all non available
           // dates for the employee
@@ -611,8 +595,8 @@ module.exports = (locals) => {
       locals
         .messageObject['dynamic_template_data'] = {
           office,
-          date: locals.standardDateString,
-          subject: `Payroll Report_${office}_${locals.standardDateString}`,
+          date: standardDateString,
+          subject: `Payroll Report_${office}_${standardDateString}`,
         };
 
       locals
@@ -620,7 +604,7 @@ module.exports = (locals) => {
         .attachments
         .push({
           content: Buffer.from(locals.csvString).toString('base64'),
-          fileName: `Payroll Report_${office}_${locals.standardDateString}.csv`,
+          fileName: `Payroll Report_${office}_${standardDateString}.csv`,
           type: 'text/csv',
           disposition: 'attachment',
         });
@@ -650,7 +634,8 @@ module.exports = (locals) => {
       return Promise.all(promises);
     })
     .then((snapShots) => {
-      const msg = (dateString) => {
+      const notificationMessage = () => {
+        const dateString = yesterday.format(dateFormats.DATE);
         // `There was a blank in your payroll for yesterday.`
         //   + ` Would you like to create a LEAVE or TOUR PLAN`;
 
@@ -660,12 +645,6 @@ module.exports = (locals) => {
       };
 
       const promises = [];
-      const dateString = momentTz()
-        .utc()
-        .clone()
-        .tz(locals.timezone)
-        .subtract(1, 'days')
-        .format(dateFormats.DATE);
 
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) {
@@ -686,7 +665,7 @@ module.exports = (locals) => {
               key2: 'value2',
             },
             notification: {
-              body: msg(dateString),
+              body: notificationMessage(),
               tile: `Growthfile`,
             },
           });

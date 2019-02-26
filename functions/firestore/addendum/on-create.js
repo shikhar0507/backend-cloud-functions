@@ -17,6 +17,7 @@ const {
   toMapsUrl,
 } = require('../recipients/report-utils');
 const momentTz = require('moment-timezone');
+const env = require('../../admin/env');
 
 const googleMapsClient =
   require('@google/maps')
@@ -557,8 +558,6 @@ const handleDsr = (addendumDoc, locals) => {
 
 
 const handleDailyStatusReport = (addendumDoc, locals) => {
-  const env = require('../../admin/env');
-
   if (!env.isProduction) {
     console.log('NOT PROD. NOT LOGGING DATA');
 
@@ -833,14 +832,25 @@ module.exports = (addendumDoc) => {
   return rootCollections
     .offices
     .doc(officeId)
-    .collection('Addendum')
-    .where('user', '==', phoneNumber)
-    .where('date', '==', locals.dateObject.getDate())
-    .where('month', '==', locals.dateObject.getMonth())
-    .where('year', '==', locals.dateObject.getFullYear())
-    .orderBy('timestamp', 'desc')
-    .limit(2)
     .get()
+    .then((doc) => {
+      const timezone = doc.get('attachment.Timezone.value');
+      locals.momentWithOffset = momentTz().tz(timezone);
+
+      console.log('momentWithOffset:', locals.momentWithOffset);
+
+      return rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Addendum')
+        .where('user', '==', phoneNumber)
+        .where('date', '==', locals.momentWithOffset.date())
+        .where('month', '==', locals.momentWithOffset.month())
+        .where('year', '==', locals.momentWithOffset.year())
+        .orderBy('timestamp', 'desc')
+        .limit(2)
+        .get();
+    })
     .then((docs) => {
       console.log('size', docs.size);
 
@@ -931,6 +941,9 @@ module.exports = (addendumDoc) => {
         identifier: locals.placeInformation.identifier,
         accumulatedDistance: distanceData.accumulatedDistance,
         distanceTravelled: distanceData.distanceTravelled,
+        date: locals.momentWithOffset.date(),
+        month: locals.momentWithOffset.month(),
+        year: locals.momentWithOffset.year(),
       };
 
       console.log(JSON.stringify({

@@ -26,15 +26,11 @@
 
 
 const {
-  rootCollections,
-} = require('../../admin/admin');
-
-const {
   dateFormats,
+  reportNames,
 } = require('../../admin/constants');
 
 const {
-  momentOffsetObject,
   timeStringWithOffset,
   employeeInfo,
 } = require('./report-utils');
@@ -45,24 +41,25 @@ const fs = require('fs');
 
 
 module.exports = (locals) => {
+  const todayFromTimer = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const standardDateString = momentTz().format(dateFormats.DATE);
+  const standardDateString = momentTz(todayFromTimer).tz(timezone).format(dateFormats.DATE);
+
   locals.messageObject['dynamic_template_data'] = {
     office,
     subject: `Footprints Report_${office}_${standardDateString}`,
     date: standardDateString,
   };
+
   const employeesData = locals.officeDoc.get('employeesData');
   const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
-  const dated = momentTz()
-    .utc()
-    .clone()
+  const dated = momentTz(todayFromTimer)
     .tz(timezone)
     .subtract(1, 'day')
     .format(dateFormats.DATE);
-  const offsetObject = momentTz().tz(timezone);
+  const offsetObject = momentTz(todayFromTimer).tz(timezone);
   const previousDay = offsetObject.subtract(1, 'day');
   const dayStartTimestamp = previousDay.startOf('day').unix() * 1000;
   const dayEndTimestamp = previousDay.endOf('day').unix() * 1000;
@@ -135,8 +132,14 @@ module.exports = (locals) => {
           timestampToConvert: doc.get('timestamp'),
         });
         // For template === `check-in`, this field will be available.
-        const comment = doc.get('activityData.attachment.Comment.value') || '';
+        const commentFromAttachment = doc.get('activityData.attachment.Comment.value') || '';
         const employeeCode = employeeObject.employeeCode;
+
+
+        // TODO: Handle cases other than check-ins
+        const comment = (() => {
+          return commentFromAttachment;
+        })();
 
         workbook
           .sheet('Sheet1')
@@ -197,7 +200,7 @@ module.exports = (locals) => {
       });
 
       console.log({
-        report: 'footprints',
+        report: reportNames.footprints,
         to: locals.messageObject.to,
         office: locals.officeDoc.get('office'),
       });

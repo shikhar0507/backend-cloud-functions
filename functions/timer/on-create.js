@@ -117,9 +117,9 @@ const handleActivityStatusReport = (locals) => {
 
   [
     'TOTAL',
-    'USING ADMIN API',
+    'ADMIN',
     'AUTO GENERATED',
-    'WITH SUPPORT',
+    'SUPPORT',
     'CREATE',
     'UPDATE',
     'CHANGE STATUS',
