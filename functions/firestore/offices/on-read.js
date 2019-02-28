@@ -36,14 +36,7 @@ const getActivityObject = (doc) => {
 };
 
 
-const getTemplateObject = (doc) => {
-  // return {
-  //   name: doc.get('name'),
-  //   description: doc.get('comment'),
-  // };
-
-  return doc.data();
-};
+const getTemplateObject = (doc) => doc.data();
 
 
 const getTemplates = (conn, locals) =>

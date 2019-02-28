@@ -169,6 +169,12 @@ module.exports = (change) => {
         return Promise.resolve(null);
       }
 
+      if (officeDoc.get('status') === 'CANCELLED') {
+        locals.sendMail = false;
+
+        return Promise.resolve();
+      }
+
       locals.officeDoc = officeDoc;
       locals.messageObject.templateId = getTemplateId(report);
       locals.timezone = officeDoc.get('attachment.Timezone.value');

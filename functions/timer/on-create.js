@@ -427,10 +427,14 @@ module.exports = (doc) => {
       console.log({ messages });
 
       const batch = db.batch();
-      const dateString = new Date().toDateString();
 
-      recipientsQuery
-        .forEach((doc) => batch.set(doc.ref, { dateString }, { merge: true }));
+      recipientsQuery.forEach((doc) => {
+        batch.set(doc.ref, {
+          timestamp: Date.now(),
+        }, {
+            merge: true,
+          });
+      });
 
       return Promise
         .all([

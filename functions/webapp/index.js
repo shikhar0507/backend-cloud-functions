@@ -118,6 +118,7 @@ const app = (req, res) => {
             .ref
             .collection('Activities')
             .where('template', '==', 'branch')
+            .limit(10)
             .get(),
           docs
             .docs[0]

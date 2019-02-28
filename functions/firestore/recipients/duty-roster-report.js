@@ -9,7 +9,6 @@ const {
 } = require('../../admin/constants');
 const {
   alphabetsArray,
-  momentOffsetObject,
   employeeInfo,
   timeStringWithOffset,
   dateStringWithOffset,
@@ -21,7 +20,7 @@ const fs = require('fs');
 
 
 const activitiesDueTodaySheet = (params) => {
-  const { worksheet, dueToday, locals } = params;
+  const { worksheet, dueToday, locals, timezone } = params;
 
   if (!locals.sendMail || dueToday.empty) {
     return Promise.resolve(params);
@@ -87,12 +86,12 @@ const activitiesDueTodaySheet = (params) => {
 
     const reportingTimeStartTimestamp = timeStringWithOffset({
       timestampToConvert: reportingTimeStart,
-      timezone: locals.timezone,
+      timezone,
       format: dateFormats.DATE_TIME,
     });
     const reportingTimeEndTimestamp = timeStringWithOffset({
       timestampToConvert: reportingTimeEnd,
-      timezone: locals.timezone,
+      timezone,
       format: dateFormats.DATE_TIME,
     });
     const creatorName = (() => {
@@ -103,8 +102,7 @@ const activitiesDueTodaySheet = (params) => {
       return createdBy;
     })();
 
-    const reportingTime =
-      `${reportingTimeStartTimestamp} - ${reportingTimeEndTimestamp}`;
+    const reportingTime = `${reportingTimeStartTimestamp} - ${reportingTimeEndTimestamp}`;
 
     sheet2
       .cell(`A${columnIndex}`)
@@ -143,7 +141,7 @@ const activitiesDueTodaySheet = (params) => {
 };
 
 const activitiesCreatedYesterdaySheet = (params) => {
-  const { worksheet, createdYesterday, locals, assigneesArrayMap } = params;
+  const { worksheet, createdYesterday, locals, assigneesArrayMap, timezone } = params;
 
   if (!locals.sendMail || createdYesterday.empty) {
     return Promise.resolve(params);
@@ -212,11 +210,11 @@ const activitiesCreatedYesterdaySheet = (params) => {
         const reportingSchedule = doc.get('schedule')[0];
         const venue = doc.get('venue')[0];
         const reportingTimeStart = dateStringWithOffset({
-          timezone: locals.timezone,
+          timezone,
           timestampToConvert: reportingSchedule.startTime,
         });
         const reportingTimeEnd = dateStringWithOffset({
-          timezone: locals.timezone,
+          timezone,
           timestampToConvert: reportingSchedule.endTime,
         });
 
@@ -235,9 +233,8 @@ const activitiesCreatedYesterdaySheet = (params) => {
         const creationMonth = doc.get('creationMonth');
         const creationYear = doc.get('creationYear');
         const createdOn = dateStringWithOffset({
-          timezone: locals.timezone,
+          timezone,
           timestampToConvert: momentTz()
-            .utc()
             .date(creationDate)
             .month(creationMonth)
             .year(creationYear)
@@ -292,30 +289,18 @@ const activitiesCreatedYesterdaySheet = (params) => {
 
 module.exports = (locals) => {
   const office = locals.officeDoc.get('office');
-  const fileName
-    = `${office} Duty Roster Report_${locals.standardDateString}.xlsx`;
+  const todayFromTimer = locals.change.after.get('timestamp');
+  const timezone = locals.officeDoc.get('attachment.Template.value');
+  const offsetObjectToday = momentTz(todayFromTimer).tz(timezone);
+  const momentOffsetObjectYesterday = momentTz(todayFromTimer).tz(timezone).subtract(1, 'day');
+  const standardDateString = offsetObjectToday.format(dateFormats.DATE);
+  const fileName = `${office} Duty Roster Report_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
-
   locals.messageObject['dynamic_template_data'] = {
     office,
-    date: locals.standardDateString,
-    subject: `Duty Roster Report_${office}_${locals.standardDateString}`,
+    date: standardDateString,
+    subject: `Duty Roster Report_${office}_${standardDateString}`,
   };
-
-  const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentDateObject = momentOffsetObject(timezone);
-  const officeId = locals.officeDoc.id;
-
-  locals.messageObject['dynamic_template_data'] = {
-    office,
-    date: locals.standardDateString,
-    subject: `Duty Roster Report_${office}_${locals.standardDateString}`,
-  };
-
-  const officeRef = rootCollections
-    .offices
-    .doc(officeId);
-
   const params = {
     locals,
     assigneesArrayMap: new Map(),
@@ -324,19 +309,21 @@ module.exports = (locals) => {
   return Promise
     .all([
       // duty roster activities created yesterday...
-      officeRef
+      locals
+        .officeDoc
+        .ref
         .collection('Activities')
         .where('template', '==', reportNames.DUTY_ROSTER)
-        .where('creationDate', '==', momentDateObject.yesterday.DATE_NUMBER)
-        .where('creationMonth', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('creationYear', '==', momentDateObject.yesterday.YEAR)
+        .where('creationDate', '==', momentOffsetObjectYesterday.date())
+        .where('creationMonth', '==', momentOffsetObjectYesterday.month())
+        .where('creationYear', '==', momentOffsetObjectYesterday.year())
         .get(),
       rootCollections
         .inits
         .where('report', '==', reportNames.DUTY_ROSTER)
-        .where('date', '==', momentDateObject.today.DATE_NUMBER)
-        .where('month', '==', momentDateObject.today.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.today.YEAR)
+        .where('date', '==', offsetObjectToday.date())
+        .where('month', '==', offsetObjectToday.month())
+        .where('year', '==', offsetObjectToday.year())
         .limit(1)
         .get(),
       xlsxPopulate
@@ -345,17 +332,13 @@ module.exports = (locals) => {
     .then((result) => {
       const [activityDocsQuery, initDocsQuery, worksheet] = result;
 
-      console.log({
-        activityDocsQueryEmpty: activityDocsQuery.empty,
-        initDocsQueryEmpty: initDocsQuery.empty,
-      });
-
       if (activityDocsQuery.empty && initDocsQuery.empty) {
         locals.sendMail = false;
 
         return Promise.resolve({ locals });
       }
 
+      params.timezone = timezone;
       params.worksheet = worksheet;
       params.createdYesterday = activityDocsQuery;
       params.dueToday = initDocsQuery;

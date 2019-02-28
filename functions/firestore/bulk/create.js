@@ -167,37 +167,37 @@ module.exports = (conn, locals) => {
       const type = item.type;
       const value = item.value;
 
-      if (namesMap[type]
-        && !namesMap[type].hasOwnProperty(value)) {
-        locals.responseObject.push(objectWithError({
-          object,
-          reason: `The type '${type}' '${value}' doesn't exist`,
-        }));
+      // if (namesMap[type]
+      //   && !namesMap[type].hasOwnProperty(value)) {
+      //   locals.responseObject.push(objectWithError({
+      //     object,
+      //     reason: `The type '${type}' '${value}' doesn't exist`,
+      //   }));
 
-        return;
-      }
+      //   return;
+      // }
     });
 
-    if (templateHasName
-      && namesMap[conn.req.body.template]
-      && namesMap[conn.req.body.template]
-        .hasOwnProperty(attachment.Name.value)) {
-      locals.responseObject.push(objectWithError({
-        object,
-        reason: `${conn.req.body.template.toUpperCase()} with the`
-          + ` name '${attachment.Name.value}' already exists`,
-      }));
+    // if (templateHasName
+    //   && namesMap[conn.req.body.template]
+    //   && namesMap[conn.req.body.template]
+    //     .hasOwnProperty(attachment.Name.value)) {
+    //   locals.responseObject.push(objectWithError({
+    //     object,
+    //     reason: `${conn.req.body.template.toUpperCase()} with the`
+    //       + ` name '${attachment.Name.value}' already exists`,
+    //   }));
 
-      return;
-    }
+    //   return;
+    // }
 
-    if (templateHasName) {
-      if (!namesMap[conn.req.body.template]) {
-        namesMap[conn.req.body.template] = {};
-      }
+    // if (templateHasName) {
+    //   if (!namesMap[conn.req.body.template]) {
+    //     namesMap[conn.req.body.template] = {};
+    //   }
 
-      namesMap[conn.req.body.template][attachment.Name.value] = true;
-    }
+    //   namesMap[conn.req.body.template][attachment.Name.value] = true;
+    // }
 
     if (conn.req.body.template === 'subscription'
       && !templatesSet.has(attachment.Template.value)) {

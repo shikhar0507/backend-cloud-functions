@@ -27,6 +27,7 @@
 
 const {
   dateFormats,
+  httpsActions,
   reportNames,
 } = require('../../admin/constants');
 
@@ -44,7 +45,12 @@ module.exports = (locals) => {
   const todayFromTimer = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const employeesData = locals.officeDoc.get('employeesData') || {};
   const standardDateString = momentTz(todayFromTimer).tz(timezone).format(dateFormats.DATE);
+  const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
+  const filePath = `/tmp/${fileName}`;
+  const dated = momentTz(todayFromTimer).tz(timezone).subtract(1, 'day').format(dateFormats.DATE);
+  const offsetObjectYesterday = momentTz(todayFromTimer).tz(timezone).subtract(1, 'day');
 
   locals.messageObject['dynamic_template_data'] = {
     office,
@@ -52,28 +58,17 @@ module.exports = (locals) => {
     date: standardDateString,
   };
 
-  const employeesData = locals.officeDoc.get('employeesData');
-  const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
-  const filePath = `/tmp/${fileName}`;
-  const dated = momentTz(todayFromTimer)
-    .tz(timezone)
-    .subtract(1, 'day')
-    .format(dateFormats.DATE);
-  const offsetObject = momentTz(todayFromTimer).tz(timezone);
-  const previousDay = offsetObject.subtract(1, 'day');
-  const dayStartTimestamp = previousDay.startOf('day').unix() * 1000;
-  const dayEndTimestamp = previousDay.endOf('day').unix() * 1000;
-
   return Promise
     .all([
       locals
         .officeDoc
         .ref
         .collection('Addendum')
-        .where('timestamp', '>=', dayStartTimestamp)
-        .where('timestamp', '<', dayEndTimestamp)
-        .orderBy('timestamp')
+        .where('date', '==', offsetObjectYesterday.date())
+        .where('month', '==', offsetObjectYesterday.month())
+        .where('year', '==', offsetObjectYesterday.year())
         .orderBy('user')
+        .orderBy('timestamp')
         .get(),
       xlsxPopulate
         .fromBlankAsync(),
@@ -108,6 +103,7 @@ module.exports = (locals) => {
        * the actual count resulting in blank lines.
        */
       let count = 0;
+      const distanceMap = new Map();
 
       addendumDocs.forEach((doc) => {
         const isSupportRequest = doc.get('isSupportRequest');
@@ -126,19 +122,72 @@ module.exports = (locals) => {
         const baseLocation = employeeObject.baseLocation;
         const url = doc.get('url');
         const identifier = doc.get('identifier');
-        const accumulatedDistance = Number(doc.get('accumulatedDistance') || 0);
         const time = timeStringWithOffset({
           timezone,
           timestampToConvert: doc.get('timestamp'),
         });
-        // For template === `check-in`, this field will be available.
         const commentFromAttachment = doc.get('activityData.attachment.Comment.value') || '';
         const employeeCode = employeeObject.employeeCode;
+        const distanceTravelled = (() => {
+          let value = doc.get('distanceTravelled');
 
+          if (distanceMap.has(phoneNumber)) {
+            value += distanceMap.get(phoneNumber);
+          }
 
-        // TODO: Handle cases other than check-ins
+          // Value in the map also needs to be updated otherwise
+          // it will always add only the last updated value on each iteration.
+          distanceMap.set(phoneNumber, value);
+
+          return value;
+        })();
+
         const comment = (() => {
-          return commentFromAttachment;
+          if (commentFromAttachment) {
+            return commentFromAttachment;
+          }
+
+          const action = doc.get('action');
+
+          if (action === httpsActions.create) {
+            return `Created ${doc.get('activityData.template')}`;
+          }
+
+          if (action === httpsActions.update) {
+            return `Updated details`;
+          }
+
+          if (action === httpsActions.changeStatus) {
+            const newStatus = doc.get('status');
+
+            const string = (() => {
+              if (newStatus === 'PENDING') {
+                return 'reversed';
+              }
+
+              return newStatus;
+            })();
+
+
+            return `${string.toUpperCase()} ${doc.get('activityData.template')}`;
+          }
+
+          if (action === httpsActions.share) {
+            const shareArray = doc.get('share');
+
+            const adjective = (() => {
+              if (shareArray.length > 1) {
+                return 'were';
+              }
+
+              return 'was';
+            })();
+
+            return `Phone number(s) ${doc.get('share')} ${adjective} added`;
+          }
+
+          // action is 'comment'
+          return doc.get('comment');
         })();
 
         workbook
@@ -164,7 +213,7 @@ module.exports = (locals) => {
         workbook
           .sheet('Sheet1')
           .cell(`F${columnIndex}`)
-          .value(accumulatedDistance);
+          .value(distanceTravelled);
         workbook
           .sheet('Sheet1')
           .cell(`G${columnIndex}`)
@@ -200,7 +249,7 @@ module.exports = (locals) => {
       });
 
       console.log({
-        report: reportNames.footprints,
+        report: reportNames.FOOTPRINTS,
         to: locals.messageObject.to,
         office: locals.officeDoc.get('office'),
       });

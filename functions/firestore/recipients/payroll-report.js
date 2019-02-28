@@ -31,7 +31,6 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
-  momentOffsetObject,
   dateStringWithOffset,
   monthsArray,
   weekdaysArray,
@@ -89,7 +88,6 @@ module.exports = (locals) => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const todayFromTimestamp = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
-  // const officeId = locals.officeDoc.id;
   const peopleWithBlank = new Set();
   const countsObject = {};
   const leavesSet = new Set();
@@ -100,19 +98,13 @@ module.exports = (locals) => {
   /** Stores the type of leave a person has taken for the day */
   const leaveTypesMap = new Map();
   const branchesWithHoliday = new Set();
-  const yesterday = momentTz(todayFromTimestamp)
-    .utc()
-    .clone()
-    .tz(timezone)
-    .subtract(1, 'days');
+  const yesterday = momentTz(todayFromTimestamp).tz(timezone).subtract(1, 'days');
   const yesterdayDate = yesterday.date();
   const yesterdayStartTimestamp = yesterday.startOf('day').unix() * 1000;
   const yesterdayEndTimestamp = yesterday.endOf('day').unix() * 1000;
   const employeesData = locals.officeDoc.get('employeesData');
   const employeesPhoneNumberList = Object.keys(employeesData);
-  const standardDateString = momentTz(todayFromTimestamp)
-    .tz(timezone)
-    .format(dateFormats.DATE);
+  const standardDateString = momentTz(todayFromTimestamp).tz(timezone).format(dateFormats.DATE);
 
   console.log('office', locals.officeDoc.get('office'));
   console.log('locals.createOnlyData', locals.createOnlyData);
@@ -276,6 +268,9 @@ module.exports = (locals) => {
         if (weeklyOffWeekdayName === weekdayName) {
           payrollObject[phoneNumber][yesterdayDate] = 'WEEKLY OFF';
 
+          // `Note`: Return statement should be added after this while adding
+          // something below this block.
+          // The arrangement is by order of priority
           weeklyOffSet.add(phoneNumber);
         }
       });
@@ -329,8 +324,7 @@ module.exports = (locals) => {
       locals.initDocsQuery = initDocsQuery;
       locals.employeesPhoneNumberList = employeesPhoneNumberList;
 
-      return Promise
-        .all(checkInPromises);
+      return Promise.all(checkInPromises);
     })
     .then((checkInActivitiesAddendumQuery) => {
       if (!locals.sendMail) {
@@ -348,26 +342,28 @@ module.exports = (locals) => {
           return;
         }
 
-        const addendumDoc =
-          snapShot
-            .docs[0];
-        const phoneNumber =
-          addendumDoc
-            .get('user');
+        const addendumDoc = snapShot.docs[0];
+        const phoneNumber = addendumDoc.get('user');
+        const firstCheckInTimestamp = snapShot.docs[0].get('timestamp');
+        const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
+        const checkInDiff = Math.abs(lastCheckInTimestamp - firstCheckInTimestamp);
+
         // `dailyStartHours` is in the format `HH:MM` in the `employeesData` object.
-        const dailyStartHours
-          = locals
-            .employeesData[phoneNumber]['Daily Start Time'];
-        const dailyEndHours
-          = locals
-            .employeesData[phoneNumber]['Daily End Time'];
+        const dailyStartHours = locals.employeesData[phoneNumber]['Daily Start Time'];
+        const dailyEndHours = locals.employeesData[phoneNumber]['Daily End Time'];
 
-        // People with no `startTime` or `endTime` set have variable working hours...
         if (!dailyStartHours || !dailyEndHours) {
-          locals
-            .payrollObject[phoneNumber][yesterdayDate] = `FULL DAY`;
+          if (checkInDiff >= EIGHT_HOURS) {
+            locals.payrollObject[phoneNumber][yesterdayDate] = 'FULL DAY';
 
-          return;
+            return;
+          }
+
+          if (checkInDiff >= FOUR_HOURS) {
+            locals.payrollObject[phoneNumber][yesterdayDate] = 'HALF DAY';
+
+            return;
+          }
         }
 
         // No need to convert the strings to Number becaue moment handles it automatically.
@@ -389,19 +385,14 @@ module.exports = (locals) => {
           .minutes(endMinutes)
           .unix() * 1000;
 
-        const firstCheckInTimestamp = snapShot.docs[0].get('timestamp');
-        const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
-
         /** Person created only 1 `check-in`. */
         if (firstCheckInTimestamp === lastCheckInTimestamp) {
           locals.payrollObject[phoneNumber][yesterdayDate] = 'BLANK';
 
           peopleWithBlank.add(phoneNumber);
-        }
 
-        const checkInDiff = Math.abs(
-          lastCheckInTimestamp - firstCheckInTimestamp
-        );
+          return;
+        }
 
         if (checkInDiff >= EIGHT_HOURS || lastCheckInTimestamp > employeeEndTime) {
           if (firstCheckInTimestamp >= employeeStartTime) {
@@ -422,6 +413,8 @@ module.exports = (locals) => {
         if (checkInDiff >= FOUR_HOURS) {
           locals
             .payrollObject[phoneNumber][yesterdayDate] = 'HALF DAY';
+
+          return;
         }
       });
 
@@ -610,14 +603,34 @@ module.exports = (locals) => {
         });
 
       console.log({
-        report: 'payroll',
+        report: reportNames.PAYROLL,
         to: locals.messageObject.to,
       });
 
       return locals.sgMail.sendMultiple(locals.messageObject);
     })
     .then(() => {
+      const momentToday = momentTz().tz(timezone);
+      const momentFromTimer = momentTz(todayFromTimestamp).tz(timezone);
+
+      console.log({
+        momentToday: momentToday.unix(),
+        momentFromTimer: momentFromTimer.unix(),
+      });
+
+      // Notifications are only sent when the Timer cloud function updates the timestamp
+      // in the recipients document.
+      // For any manual triggers, the notifications should be skipped.
+      if (momentToday.startOf('day').unix() !== momentFromTimer.startOf('day').unix()) {
+        console.log('No notifications sent. Not the same day.');
+
+        // Array is required otherwise `snapShots`.forEach will throw an error for being `undefined`
+        return Promise.resolve([]);
+      }
+
       const promises = [];
+
+      console.log('sending notifications');
 
       peopleWithBlank.forEach((phoneNumber) => {
         const promise = rootCollections
@@ -653,9 +666,7 @@ module.exports = (locals) => {
 
         const registrationToken = snapShot.docs[0].get('registrationToken');
 
-        if (!registrationToken) {
-          return;
-        }
+        if (!registrationToken) return;
 
         const promise = admin
           .messaging()

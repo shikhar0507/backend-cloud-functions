@@ -123,6 +123,7 @@ const createDocsWithBatch = (conn, locals) => {
     officeId: locals.static.officeId,
     hidden: locals.static.hidden,
     creator: conn.requester.phoneNumber,
+    timezone: locals.officeDoc.get('attachment.Timezone.value'),
   };
 
   const now = new Date();
@@ -168,16 +169,22 @@ const createDocsWithBatch = (conn, locals) => {
       _longitude: conn.req.body.venue[0].geopoint.longitude,
     };
 
-    const accuracy = (() => {
-      if (geopointOne.accuracy && geopointOne.accuracy < 0.35) {
-        return 0.5;
+    const maxAllowedDistance = (() => {
+      if (geopointOne.accuracy && geopointOne.accuracy < 350) {
+        return 500;
       }
 
-      return 1;
+      return 1000;
     })();
 
-    const distanceAccurate =
-      haversineDistance(geopointOne, geopointTwo) < accuracy;
+    const distanceBetweenLocations = haversineDistance(
+      geopointOne,
+      geopointTwo
+    );
+
+    const distanceAccurate = distanceBetweenLocations < maxAllowedDistance;
+
+    console.log({ distanceBetweenLocations, distanceAccurate });
 
     addendumDocObject.distanceAccurate = distanceAccurate;
   }
@@ -224,7 +231,6 @@ const getPayrollObject = (options) => {
   };
 
   const newStatus = getStatus();
-  console.log({ newStatus });
 
   monthDatesMap
     .get(`${month}-${year}`)
@@ -386,6 +392,7 @@ const handleLeaveOrOnDuty = (conn, locals) => {
   }
 
   console.log('Num docs fetch', initFetchPromises.length);
+
   let toCancel = false;
   let conflictsWith = null;
 
@@ -416,15 +423,14 @@ const handleLeaveOrOnDuty = (conn, locals) => {
         console.log({ snapShotEmpty: snapShot.empty });
         console.log({ monthDatesMap });
 
-        const updatedPayrollObject =
-          getPayrollObject({
-            month: monthValue,
-            year: yearValue,
-            phoneNumber: conn.requester.phoneNumber,
-            requestBody: conn.req.body,
-            payrollObject,
-            monthDatesMap,
-          });
+        const updatedPayrollObject = getPayrollObject({
+          month: monthValue,
+          year: yearValue,
+          phoneNumber: conn.requester.phoneNumber,
+          requestBody: conn.req.body,
+          payrollObject,
+          monthDatesMap,
+        });
 
         locals.batch.set(ref, {
           report: reportNames.PAYROLL,

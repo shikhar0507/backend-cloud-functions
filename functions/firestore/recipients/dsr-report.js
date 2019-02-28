@@ -32,7 +32,6 @@ const {
   dateStringWithOffset,
   timeStringWithOffset,
   alphabetsArray,
-  momentOffsetObject,
   employeeInfo,
   toMapsUrl,
 } = require('./report-utils');
@@ -47,16 +46,13 @@ const fs = require('fs');
 
 
 module.exports = (locals) => {
-  const {
-    office,
-    officeId,
-  } = locals.change.after.data();
-
+  const office = locals.officeDoc.get('office');
+  const employeesData = locals.officeDoc.get('employeesData');
+  const todayFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const standardDateString = momentTz()
-    .utc()
-    .tz(timezone)
-    .format(dateFormats.DATE);
+  const momentDateObjectToday = momentTz(todayFromTimer).tz(timezone);
+  const momentDateObjectYesterday = momentTz(todayFromTimer).subtract(1, 'day').tz(timezone);
+  const standardDateString = momentDateObjectToday.format(dateFormats.DATE);
   const fileName = `DSR_${office}_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
   locals.messageObject['dynamic_template_data'] = {
@@ -66,7 +62,6 @@ module.exports = (locals) => {
   };
 
   const customersMap = new Map();
-  const momentDateObject = momentOffsetObject(timezone);
 
   return Promise
     .all([
@@ -74,18 +69,18 @@ module.exports = (locals) => {
         .inits
         .where('office', '==', office)
         .where('report', '==', reportNames.DSR)
-        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
-        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .where('date', '==', momentDateObjectYesterday.date())
+        .where('month', '==', momentDateObjectYesterday.month())
+        .where('year', '==', momentDateObjectYesterday.year())
         .limit(1)
         .get(),
       rootCollections
         .inits
         .where('office', '==', office)
         .where('report', '==', reportNames.DSR)
-        .where('date', '==', momentDateObject.today.DATE_NUMBER)
-        .where('month', '==', momentDateObject.today.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.today.YEAR)
+        .where('date', '==', momentDateObjectToday.date())
+        .where('month', '==', momentDateObjectYesterday.month())
+        .where('year', '==', momentDateObjectToday.year())
         .limit(1)
         .get(),
       xlsxPopulate
@@ -103,8 +98,6 @@ module.exports = (locals) => {
 
         return Promise.resolve();
       }
-
-      const employeesData = locals.officeDoc.get('employeesData');
 
       const visitObject = (() => {
         if (yesterdayInitsQuery.empty) return {};
@@ -129,9 +122,9 @@ module.exports = (locals) => {
           customer,
         } = visitObject[activityId];
 
-        const promise = rootCollections
-          .offices
-          .doc(officeId)
+        const promise = locals
+          .officeDoc
+          .ref
           .collection('Activities')
           .where('template', '==', 'customer')
           .where('attachment.Name.value', '==', customer)
@@ -146,9 +139,9 @@ module.exports = (locals) => {
           customer,
         } = followUpObject[activityId];
 
-        const promise = rootCollections
-          .offices
-          .doc(officeId)
+        const promise = locals
+          .officeDoc
+          .ref
           .collection('Activities')
           .where('template', '==', 'customer')
           .where('attachment.Name.value', '==', customer)
@@ -159,12 +152,10 @@ module.exports = (locals) => {
       });
 
       locals.workbook = workbook;
-      locals.timezone = timezone;
       locals.visitObject = visitObject;
       locals.followUpObject = followUpObject;
       locals.visitsActivityIdsArray = visitsActivityIdsArray;
       locals.followUpActivityIdsArray = followUpActivityIdsArray;
-      locals.employeesData = employeesData;
 
       return Promise.all(customerFetch);
     })
@@ -233,32 +224,32 @@ module.exports = (locals) => {
           } = locals.visitObject[activityId];
 
           const startTime = timeStringWithOffset({
-            timezone: locals.timezone,
+            timezone,
             timestampToConvert: visitStartTimestamp,
             format: dateFormats.DATE_TIME,
           });
           const endTime = timeStringWithOffset({
-            timezone: locals.timezone,
+            timezone,
             timestampToConvert: visitEndTimestamp,
             format: dateFormats.DATE_TIME,
           });
           const visitDate = dateStringWithOffset({
-            timezone: locals.timezone,
+            timezone,
             timestampToConvert: visitStartTimestamp,
           });
           const followUpDateStart = dateStringWithOffset({
-            timezone: locals.timezone,
+            timezone,
             timestampToConvert: followUpStartTimestamp,
             format: dateFormats.DATE_TIME,
           });
           const followUpDateEnd = dateStringWithOffset({
-            timezone: locals.timezone,
+            timezone,
             timestampToConvert: followUpEndTimestamp,
             format: dateFormats.DATE_TIME,
           });
 
-          const employeeObject =
-            employeeInfo(locals.employeesData, phoneNumber);
+          const employeeObject = employeeInfo(employeesData, phoneNumber);
+
           const employeeName = employeeObject.name;
           const department = employeeObject.department;
           const baseLocation = employeeObject.baseLocation;
@@ -360,7 +351,7 @@ module.exports = (locals) => {
           } = locals.followUpObject[activityId];
 
           const date = dateStringWithOffset({
-            timezone: locals.timezone,
+            timezone,
             timestampToConvert: followUpStartTimestamp,
           });
           const startTime = (() => {
@@ -371,7 +362,7 @@ module.exports = (locals) => {
             }
 
             return timeStringWithOffset({
-              timezone: locals.timezone,
+              timezone,
               timestampToConvert,
               format: dateFormats.DATE_TIME,
             });
@@ -384,20 +375,20 @@ module.exports = (locals) => {
             }
 
             return timeStringWithOffset({
-              timezone: locals.timezone,
+              timezone,
               timestampToConvert,
               format: dateFormats.DATE_TIME,
             });
           })();
 
-          const employeeObject =
-            employeeInfo(locals.employeesData, phoneNumber);
-          const employeeName = employeeObject.name;
-          const department = employeeObject.department;
-          const baseLocation = employeeObject.baseLocation;
-          const firstSupervisor = employeeObject.firstSupervisor;
-          const secondSupervisor = employeeObject.secondSupervisor;
           const customerData = customersMap.get(customer);
+          const {
+            name,
+            department,
+            baseLocation,
+            firstSupervisor,
+            secondSupervisor,
+          } = employeeInfo(employeesData, phoneNumber);
           const visitDateStart = dateStringWithOffset({
             timezone,
             timestampToConvert: visitDateStartTime,
@@ -411,7 +402,7 @@ module.exports = (locals) => {
 
           sheet2.cell(`A${columnIndex}`).value(date);
           sheet2.cell(`B${columnIndex}`).value(visitType);
-          sheet2.cell(`C${columnIndex}`).value(employeeName);
+          sheet2.cell(`C${columnIndex}`).value(name);
           sheet2.cell(`D${columnIndex}`).value(customer);
           sheet2.cell(`E${columnIndex}`).value(firstContact);
           sheet2.cell(`F${columnIndex}`).value(secondContact);
@@ -440,8 +431,7 @@ module.exports = (locals) => {
           sheet2.cell(`M${columnIndex}`).value(product1);
           sheet2.cell(`N${columnIndex}`).value(product2);
           sheet2.cell(`O${columnIndex}`).value(product3);
-          sheet2
-            .cell(`P${columnIndex}`)
+          sheet2.cell(`P${columnIndex}`)
             .value(`${visitDateStart} - ${visitDateEnd}`);
           sheet2.cell(`Q${columnIndex}`).value(comment);
           sheet2.cell(`R${columnIndex}`).value(department);

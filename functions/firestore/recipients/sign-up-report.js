@@ -30,22 +30,27 @@ const {
 } = require('../../admin/admin');
 const {
   reportNames,
+  dateFormats,
 } = require('../../admin/constants');
 const {
   dateStringWithOffset,
-  momentOffsetObject,
   employeeInfo,
   alphabetsArray,
 } = require('./report-utils');
 const xlsxPopulate = require('xlsx-populate');
 const fs = require('fs');
+const momentTz = require('moment-timezone');
 
 
 module.exports = (locals) => {
-  const office = locals.change.after.get('office');
-  const allEmployeesData = locals.officeDoc.get('employeesData');
-  const momentDateObject = momentOffsetObject(locals.timezone);
-  const fileName = `Sign-Up Report_${office}_${locals.standardDateString}.xlsx`;
+  const office = locals.officeDoc.get('office');
+  const timestampFromTimer = locals.change.after.get('timestamp');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentWithOffsetToday = momentTz(timestampFromTimer).tz(timezone);
+  const momentWithOffsetYesterday = momentTz(timestampFromTimer).subtract(1, 'day').tz(timezone);
+  const standardDateString = momentWithOffsetToday.format(dateFormats.DATE);
+  const employeesData = locals.officeDoc.get('employeesData');
+  const fileName = `Sign-Up Report_${office}_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
 
   return Promise
@@ -53,9 +58,9 @@ module.exports = (locals) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
-        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .where('date', '==', momentWithOffsetYesterday.date())
+        .where('month', '==', momentWithOffsetYesterday.month())
+        .where('year', '==', momentWithOffsetYesterday.year())
         .where('report', '==', reportNames.SIGNUP)
         .limit(1)
         .get(),
@@ -102,16 +107,14 @@ module.exports = (locals) => {
 
       employeesList.forEach((phoneNumber, index) => {
         const columnNumber = index + 2;
-        const employeeDataObject = employeeInfo(allEmployeesData, phoneNumber);
+        const employeeDataObject = employeeInfo(employeesData, phoneNumber);
         const employeeName = employeeDataObject.name;
         const employeeCode = employeeDataObject.employeeCode;
         const department = employeeDataObject.department;
         const firstSupervisorPhoneNumber = employeeDataObject.firstSupervisor;
         const secondSupervisorPhoneNumber = employeeDataObject.secondSupervisor;
-        const firstSupervisorName =
-          employeeInfo(allEmployeesData, firstSupervisorPhoneNumber).name;
-        const secondSupervisorName =
-          employeeInfo(allEmployeesData, secondSupervisorPhoneNumber).name;
+        const firstSupervisor = employeeInfo(employeesData, firstSupervisorPhoneNumber);
+        const secondSupervisor = employeeInfo(employeesData, secondSupervisorPhoneNumber);
         const signedUpOn = dateStringWithOffset({
           timezone: locals.timezone,
           timestampToConvert: employeesObject[phoneNumber].signedUpOn,
@@ -129,16 +132,16 @@ module.exports = (locals) => {
         sheet1.cell(`D${columnNumber}`).value(signedUpOn);
         sheet1.cell(`E${columnNumber}`).value(employeeCode);
         sheet1.cell(`F${columnNumber}`).value(department);
-        sheet1.cell(`G${columnNumber}`).value(firstSupervisorName);
+        sheet1.cell(`G${columnNumber}`).value(firstSupervisor.name);
         sheet1.cell(`H${columnNumber}`).value(firstSupervisorPhoneNumber);
-        sheet1.cell(`I${columnNumber}`).value(secondSupervisorName);
+        sheet1.cell(`I${columnNumber}`).value(secondSupervisor.name);
         sheet1.cell(`J${columnNumber}`).value(secondSupervisorPhoneNumber);
       });
 
       locals.messageObject['dynamic_template_data'] = {
         office,
-        date: locals.standardDateString,
-        subject: `Sign-Up Report_${office}_${locals.standardDateString}`,
+        date: standardDateString,
+        subject: `Sign-Up Report_${office}_${standardDateString}`,
         totalEmployees: employeesList.length,
         totalSignUps: totalSignUpsCount,
         difference: employeesList.length - totalSignUpsCount,

@@ -12,38 +12,26 @@ const {
   alphabetsArray,
   employeeInfo,
   dateStringWithOffset,
-  momentOffsetObject,
 } = require('./report-utils');
 const momentTz = require('moment-timezone');
 const fs = require('fs');
 
 module.exports = (locals) => {
+  const timestampFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const yesterdayMoment = momentTz()
-    .utc()
-    .clone()
-    .tz(timezone)
-    .subtract(1, 'days');
-  const momentDateObject = momentOffsetObject(timezone);
-  const yesterdaysDate = momentDateObject.yesterday.DATE_NUMBER;
-  const yesterdaysMonthEndDate = yesterdayMoment.endOf('months').date();
-
+  const momentObjectToday = momentTz(timestampFromTimer).tz(timezone);
+  const momentObjectYesterday = momentTz(timestampFromTimer).tz(timezone).subtract(1, 'day');
   // Not sending email until the last date of the month
-  if (yesterdaysDate !== yesterdaysMonthEndDate) {
+  if (momentObjectYesterday.date() !== momentObjectYesterday.endOf('month').date()) {
     console.log('Not sending emails. Not the last day of the month');
 
     return Promise.resolve();
   }
 
   const office = locals.officeDoc.get('office');
-  const officeId = locals.officeDoc.id;
-  const standardDateString =
-    momentTz()
-      .utc()
-      .tz(timezone)
-      .format(dateFormats.DATE);
+  const standardDateString = momentObjectToday.format(dateFormats.DATE);
   const fileName = `${office} Leave Report_${standardDateString}.xlsx`;
-  const filePath = `/tmp/${locals.fileName}`;
+  const filePath = `/tmp/${fileName}`;
   const employeesData = locals.officeDoc.get('employeesData');
 
   locals.messageObject['dynamic_template_data'] = {
@@ -55,26 +43,26 @@ module.exports = (locals) => {
   /** Map of Person who approved the leave */
   const approverMap = new Map();
   const leavesLimitMap = new Map();
-  const activitiesRef = rootCollections
-    .offices
-    .doc(officeId)
+  const activitiesRef = locals
+    .officeDoc
+    .ref
     .collection('Activities');
 
   return Promise
     .all([
       activitiesRef
         .where('template', '==', reportNames.LEAVE)
-        .where('creationMonth', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('creationYear', '==', momentDateObject.yesterday.YEAR)
-        // Cancelled activities don't show up in the report
+        .where('creationMonth', '==', momentObjectYesterday.month())
+        .where('creationYear', '==', momentObjectYesterday.year())
+        // Cancelled activities should't show up in the report
         .where('isCancelled', '==', false)
         .get(),
       rootCollections
         .inits
         .where('report', '==', reportNames.LEAVE)
         .where('office', '==', office)
-        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .where('month', '==', momentObjectYesterday.month())
+        .where('year', '==', momentObjectYesterday.year())
         .limit(1)
         .get(),
       activitiesRef
@@ -91,29 +79,23 @@ module.exports = (locals) => {
         workbook,
       ] = result;
 
-      console.log({
-        leaveActivitiesQuery: leaveTypeActivitiesQuery.empty,
-        leaveTypeActivitiesQuery: leaveTypeActivitiesQuery.empty,
-        initDocsQuery: initDocsQuery.empty,
-      });
-
-      if (leaveActivitiesQuery.empty) {
+      if (leaveActivitiesQuery.empty || initDocsQuery.empty) {
         locals.sendMail = false;
 
         return Promise.resolve();
       }
 
-      console.log('initDocsQuery', initDocsQuery.docs[0].id);
-
       const leaveObject = initDocsQuery.docs[0].get('leaveObject');
 
-      Object.keys(leaveObject).forEach((activityId) => {
-        const activityObject = leaveObject[activityId];
-        const approversPhoneNumber = activityObject.approvedBy;
-        const name = employeeInfo(employeesData, approversPhoneNumber).name;
+      Object
+        .keys(leaveObject)
+        .forEach((activityId) => {
+          const activityObject = leaveObject[activityId];
+          const approversPhoneNumber = activityObject.approvedBy;
+          const name = employeeInfo(employeesData, approversPhoneNumber).name;
 
-        approverMap.set(activityId, name || approversPhoneNumber);
-      });
+          approverMap.set(activityId, name || approversPhoneNumber);
+        });
 
       leaveTypeActivitiesQuery.forEach((doc) => {
         const name = doc.get('attachment.Name.value');
@@ -163,8 +145,11 @@ module.exports = (locals) => {
           return leavesLimitMap.get(leaveType) || '';
         })();
 
-        const totalLeavesTaken = momentTz(schedule.endTime)
-          .diff(momentTz(schedule.startTime), 'days');
+        // If leave is of only 1 day, the difference will be 0
+        const startMoment = momentTz(schedule.startTime).startOf('day');
+        const endMoment = momentTz(schedule.endTime).endOf('day');
+        const totalLeavesTaken = endMoment.diff(startMoment, 'day') + 1;
+
         const leaveDates = (() => {
           const startTimeString = dateStringWithOffset({
             timezone,
@@ -259,7 +244,7 @@ module.exports = (locals) => {
       });
 
       console.log({
-        report: locals.change.after.get('report'),
+        report: reportNames.LEAVE,
         to: locals.messageObject.to,
       });
 

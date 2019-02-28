@@ -824,33 +824,21 @@ const handleLeaveReport = (addendumDoc, locals) => {
 module.exports = (addendumDoc) => {
   const phoneNumber = addendumDoc.get('user');
   const officeId = addendumDoc.get('activityData.officeId');
+  const timezone = addendumDoc.get('activityData.timezone') || 'Asia/Kolkata';
   const locals = {
     batch: db.batch(),
     dateObject: new Date(),
+    momentWithOffset: momentTz().tz(timezone),
   };
 
   return rootCollections
     .offices
     .doc(officeId)
+    .collection('Addendum')
+    .where('user', '==', phoneNumber)
+    .orderBy('timestamp', 'desc')
+    .limit(2)
     .get()
-    .then((doc) => {
-      const timezone = doc.get('attachment.Timezone.value');
-      locals.momentWithOffset = momentTz().tz(timezone);
-
-      console.log('momentWithOffset:', locals.momentWithOffset);
-
-      return rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Addendum')
-        .where('user', '==', phoneNumber)
-        .where('date', '==', locals.momentWithOffset.date())
-        .where('month', '==', locals.momentWithOffset.month())
-        .where('year', '==', locals.momentWithOffset.year())
-        .orderBy('timestamp', 'desc')
-        .limit(2)
-        .get();
-    })
     .then((docs) => {
       console.log('size', docs.size);
 

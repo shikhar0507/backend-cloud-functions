@@ -12,7 +12,10 @@ firebase.initializeApp({
 let map;
 
 function initMap() {
-  const curr = { lat: '', lng: '' };
+  const curr = {
+    lat: 28.5492074,
+    lng: 77.2505593,
+  };
 
   map = new google.maps.Map(
     document.getElementById('map'), {
@@ -205,10 +208,12 @@ function handleFabClick(event) {
     return;
   }
 
-  const submitButton = document.getElementById('enquiry-submit-button');
+  let submitButton = document.getElementById('enquiry-submit-button');
 
   if (!submitButton) {
     modal.innerHTML = modalContent();
+
+    submitButton = document.getElementById('enquiry-submit-button');
   }
 
   submitButton.onclick = function () {

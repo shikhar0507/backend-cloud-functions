@@ -44,16 +44,20 @@ const fs = require('fs');
 
 
 module.exports = (locals) => {
+  const timestampFromTimer = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
-  const momentDateObject = momentOffsetObject(locals.timezone);
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentWithOffsetToday = momentTz(timestampFromTimer).tz(timezone);
+  const momentWithOffsetYesterday = momentTz(timestampFromTimer).subtract(1, 'day').tz(timezone);
   const employeesData = locals.officeDoc.get('employeesData');
-  const fileName = `Install Report ${office}_${locals.standardDateString}.xlsx`;
+  const standardDateString = momentWithOffsetToday.format(dateFormats.DATE);
+  const fileName = `Install Report ${office}_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
 
   locals.messageObject['dynamic_template_data'] = {
     office,
-    date: locals.standardDateString,
-    subject: `Install Report_${office}_${locals.standardDateString}`,
+    date: standardDateString,
+    subject: `Install Report_${office}_${standardDateString}`,
   };
 
   // key -> deviceId
@@ -75,9 +79,9 @@ module.exports = (locals) => {
         .inits
         .where('office', '==', office)
         .where('report', '==', reportNames.INSTALL)
-        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
-        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .where('date', '==', momentWithOffsetYesterday.date())
+        .where('month', '==', momentWithOffsetYesterday.month())
+        .where('year', '==', momentWithOffsetYesterday.year())
         .get(),
       xlsxPopulate
         .fromBlankAsync(),
@@ -182,8 +186,11 @@ module.exports = (locals) => {
 
         latestDeviceIdsMap.set(phoneNumber, latestDeviceId);
 
-        const name =
-          employeeInfo(employeesData, phoneNumber).name || phoneNumber;
+        const name = employeeInfo(
+          employeesData,
+          phoneNumber
+        )
+          .name || phoneNumber;
 
         deviceIdsArray.forEach((id) => {
           if (!deviceUsers.has(id)) {
@@ -198,16 +205,16 @@ module.exports = (locals) => {
         });
       });
 
-      console.log({ deviceUsers });
       const sheet1 = locals.worksheet.sheet('Sheet1');
 
       locals
         .initDocsQuery
         .docs
         .forEach((doc, index) => {
-          const columnIndex = index + 2;
-          const { phoneNumber, installs } = doc.data();
-
+          const {
+            phoneNumber,
+            installs,
+          } = doc.data();
           const latestDeviceId = latestDeviceIdsMap.get(phoneNumber);
           const numberOfInstalls = installs.length;
           const employeeObject = employeeInfo(employeesData, phoneNumber);
@@ -222,13 +229,13 @@ module.exports = (locals) => {
             employeeInfo(employeesData, secondSupervisorPhoneNumber).name;
           const date = dateStringWithOffset({
             timestampToConvert: installs[installs.length - 1],
-            timezone: locals.timezone,
+            timezone,
             format: dateFormats.DATE_TIME,
           });
 
           const signedUpOn = dateStringWithOffset({
             timestampToConvert: employeesData[phoneNumber].createTime,
-            timezone: locals.timezone,
+            timezone,
             format: dateFormats.DATE_TIME,
           });
 
@@ -243,7 +250,7 @@ module.exports = (locals) => {
             return `${deviceUsers.get(latestDeviceId)}`;
           })();
 
-          console.log(phoneNumber, alsoUsedBy);
+          const columnIndex = index + 2;
 
           sheet1.cell(`A${columnIndex}`).value(date);
           sheet1.cell(`B${columnIndex}`).value(name);

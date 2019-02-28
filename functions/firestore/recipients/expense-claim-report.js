@@ -13,7 +13,6 @@ const {
 } = require('../../admin/constants');
 const {
   dateStringWithOffset,
-  momentOffsetObject,
   alphabetsArray,
   employeeInfo,
 } = require('./report-utils');
@@ -21,28 +20,21 @@ const {
 const momentTz = require('moment-timezone');
 
 module.exports = (locals) => {
+  const office = locals.officeDoc.get('office');
+  const timestampFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const yesterdayMoment = momentTz()
-    .utc()
-    .clone()
-    .tz(timezone)
-    .subtract(1, 'days');
-  const momentDateObject = momentOffsetObject(timezone);
-  const yesterdaysDate = momentDateObject.yesterday.DATE_NUMBER;
-  const yesterdaysMonthEndDate = yesterdayMoment.endOf('months').date();
+  const momentObjectToday = momentTz(timestampFromTimer).tz(timezone);
+  const momentObjectYesterday = momentTz(timestampFromTimer).tz(timezone).subtract(1, 'day');
 
   // Not sending email until the last date of the month
-  if (yesterdaysDate !== yesterdaysMonthEndDate) {
+  if (momentObjectYesterday.date() !== momentObjectYesterday.endOf('month').date()) {
     console.log('Not sending emails. Not the last day of the month');
 
     return Promise.resolve();
   }
 
-  const office = locals.officeDoc.get('office');
-  const todaysDateString = momentTz()
-    .utc()
-    .tz(timezone)
-    .format(dateFormats.DATE);
+  const employeesData = locals.officeDoc.get('employeesData');
+  const todaysDateString = momentObjectToday.format(dateFormats.DATE);
 
   locals.messageObject['dynamic_template_data'] = {
     office,
@@ -59,8 +51,8 @@ module.exports = (locals) => {
         .inits
         .where('office', '==', office)
         .where('report', '==', reportNames.EXPENSE_CLAIM)
-        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .where('month', '==', momentObjectYesterday.month())
+        .where('year', '==', momentObjectYesterday.year())
         .get(),
       xlsxPopulate
         .fromBlankAsync(),
@@ -101,7 +93,6 @@ module.exports = (locals) => {
           .value(header);
       });
 
-      const employeesData = locals.officeDoc.get('employeesData');
       const expenseClaimObject = initDocsQuery.docs[0].get('expenseClaimObject');
       const activityIdsArray = Object.keys(expenseClaimObject);
 
