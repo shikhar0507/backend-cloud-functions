@@ -236,11 +236,13 @@ const getPayrollObject = (options) => {
     .get(`${month}-${year}`)
     .forEach((date) => {
       if (!payrollObject[phoneNumber][date]) {
-        payrollObject[phoneNumber][date] = 'BLANK';
+        payrollObject[phoneNumber][date] = {
+          status: 'BLANK',
+        };
       }
 
       // Creating a new leave with conflicting dates
-      if (payrollObject[phoneNumber][date].startsWith('LEAVE')
+      if (payrollObject[phoneNumber][date].status.startsWith('LEAVE')
         && newStatus.startsWith('LEAVE')) {
         datesConflicted = true;
 
@@ -250,7 +252,7 @@ const getPayrollObject = (options) => {
       }
 
       // Creating a leave when `ON DUTY` is already set
-      if (payrollObject[phoneNumber][date].startsWith('LEAVE')
+      if (payrollObject[phoneNumber][date].status.startsWith('LEAVE')
         && newStatus === 'ON DUTY') {
         datesConflicted = true;
 
@@ -260,7 +262,7 @@ const getPayrollObject = (options) => {
       }
 
       // Creating an ON DUTY when the leave is already set
-      if (payrollObject[phoneNumber][date] === 'ON DUTY'
+      if (payrollObject[phoneNumber][date].status === 'ON DUTY'
         && newStatus.startsWith('LEAVE')) {
         datesConflicted = true;
 
@@ -270,7 +272,7 @@ const getPayrollObject = (options) => {
       }
 
       // Creating ON DUTY when ON DUTY is already set
-      if (payrollObject[phoneNumber][date] === 'ON DUTY'
+      if (payrollObject[phoneNumber][date].status === 'ON DUTY'
         && newStatus === 'ON DUTY') {
         datesConflicted = true;
 
@@ -279,7 +281,7 @@ const getPayrollObject = (options) => {
         return;
       }
 
-      payrollObject[phoneNumber][date] = newStatus;
+      payrollObject[phoneNumber][date].status = newStatus;
     });
 
   return {

@@ -781,14 +781,7 @@ const handleLeaveReport = (addendumDoc, locals) => {
     .get()
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
-
-      const leaveObject = (() => {
-        if (snapShot.empty) {
-          return {};
-        }
-
-        return snapShot.docs[0].get('leaveObject');
-      })();
+      const leaveObject = getFieldValue(snapShot, 'leaveObject');
 
       if (!leaveObject[activityId]) {
         leaveObject[activityId] = {
@@ -826,7 +819,6 @@ module.exports = (addendumDoc) => {
   const officeId = addendumDoc.get('activityData.officeId');
   const timezone = addendumDoc.get('activityData.timezone') || 'Asia/Kolkata';
   const locals = {
-    batch: db.batch(),
     dateObject: new Date(),
     momentWithOffset: momentTz().tz(timezone),
   };
@@ -945,11 +937,18 @@ module.exports = (addendumDoc) => {
           .path : null,
       }, ' ', 2));
 
-      locals.batch.set(addendumDoc.ref, updateObject, {
+      locals.batch = db.batch();
+
+      /** 
+       * Seperating this part out because handling even a single crash
+       * with `addendumOnCreate` cloud function messes up whole data for the user
+       * after the time of the crash. This part should remain seperated
+       * because further object/data creation is pretty simple and is not
+       * much work to recreate if anything crashes.
+       */
+      return addendumDoc.ref.set(updateObject, {
         merge: true,
       });
-
-      return;
     })
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleLeaveReport(addendumDoc, locals))
@@ -960,7 +959,7 @@ module.exports = (addendumDoc) => {
     .catch((error) => {
       const context = {
         error,
-        addendumId: addendumDoc.id,
+        docPath: addendumDoc.ref.path,
       };
 
       console.error('Context:', context);

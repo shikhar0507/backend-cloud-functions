@@ -290,7 +290,7 @@ const activitiesCreatedYesterdaySheet = (params) => {
 module.exports = (locals) => {
   const office = locals.officeDoc.get('office');
   const todayFromTimer = locals.change.after.get('timestamp');
-  const timezone = locals.officeDoc.get('attachment.Template.value');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const offsetObjectToday = momentTz(todayFromTimer).tz(timezone);
   const momentOffsetObjectYesterday = momentTz(todayFromTimer).tz(timezone).subtract(1, 'day');
   const standardDateString = offsetObjectToday.format(dateFormats.DATE);

@@ -65,7 +65,7 @@ const topRow = (yesterday) => {
   const monthName = monthsArray[yesterday.month()];
 
   for (let dayNumber = yesterday.date(); dayNumber >= 1; dayNumber--) {
-    str += `${monthName}-${dayNumber}, `;
+    str += `${monthName}-${dayNumber}, STATUS, `;
   }
 
   str += `FULL DAY,`
@@ -85,9 +85,11 @@ const topRow = (yesterday) => {
 
 
 module.exports = (locals) => {
+
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const todayFromTimestamp = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
+  const dateStatusMap = new Map();
   const peopleWithBlank = new Set();
   const countsObject = {};
   const leavesSet = new Set();
@@ -102,7 +104,7 @@ module.exports = (locals) => {
   const yesterdayDate = yesterday.date();
   const yesterdayStartTimestamp = yesterday.startOf('day').unix() * 1000;
   const yesterdayEndTimestamp = yesterday.endOf('day').unix() * 1000;
-  const employeesData = locals.officeDoc.get('employeesData');
+  const employeesData = locals.officeDoc.get('employeesData') || {};
   const employeesPhoneNumberList = Object.keys(employeesData);
   const standardDateString = momentTz(todayFromTimestamp).tz(timezone).format(dateFormats.DATE);
 
@@ -133,17 +135,15 @@ module.exports = (locals) => {
       ] = result;
 
       branchDocsQuery.forEach((branchDoc) => {
-        branchDoc
-          .get('schedule')
-          .forEach((schedule) => {
-            if (schedule.startTime >= yesterdayStartTimestamp
-              && schedule.endTime < yesterdayEndTimestamp) {
-              branchesWithHoliday
-                .add(branchDoc.get('attachment.Name.value'));
-            }
-          });
+        branchDoc.get('schedule').forEach((schedule) => {
+          if (schedule.startTime >= yesterdayStartTimestamp
+            && schedule.endTime < yesterdayEndTimestamp) {
+            branchesWithHoliday.add(branchDoc.get('attachment.Name.value'));
+          }
+        });
       });
 
+      // At the beginning of the month, payroll object can sometimes be `undefined`
       const payrollObject = (() => {
         if (initDocsQuery.empty) {
           return {};
@@ -164,15 +164,19 @@ module.exports = (locals) => {
           return;
         }
 
+        if (!countsObject[phoneNumber]) {
+          countsObject[phoneNumber] = getZeroCountsObject();
+        }
+
         const weeklyOffWeekdayName = employeesData[phoneNumber]['Weekly Off'];
         const baseLocation = employeesData[phoneNumber]['Base Location'];
 
+        const datesObject = payrollObject[phoneNumber];
+
         Object
-          .keys(payrollObject[phoneNumber])
+          .keys(datesObject)
           .forEach((date) => {
-            if (!countsObject[phoneNumber]) {
-              countsObject[phoneNumber] = getZeroCountsObject();
-            }
+            dateStatusMap.set(`${phoneNumber}: ${date}`, datesObject[date]);
 
             /**
              * Not counting anything after the current date because
@@ -193,15 +197,11 @@ module.exports = (locals) => {
               payrollObject[phoneNumber][yesterdayDate] = deleteField();
             }
 
-            /**
-             * STATUS PRIORITY
-             * HIGH ==> LOW
-             * LEAVE, ON-DUTY,
-             * HOLIDAY, WEEKLY OFF, 
-             * HALF DAY, LATE, FULL DAY, 
-             * BLANK
-             */
-            const status = payrollObject[phoneNumber][date] || '';
+            if (!payrollObject[phoneNumber][yesterdayDate]) {
+              payrollObject[phoneNumber][yesterdayDate] = {};
+            }
+
+            const status = payrollObject[phoneNumber][date].status || '';
 
             /** 
              * `ON DUTY` and `LEAVE` fields are handled 
@@ -239,40 +239,41 @@ module.exports = (locals) => {
             if (status === 'BLANK') {
               countsObject[phoneNumber].blank++;
             }
+
+            if (payrollObject[phoneNumber][yesterdayDate]
+              && payrollObject[phoneNumber][yesterdayDate].status
+              && payrollObject[phoneNumber][yesterdayDate].status.startsWith('LEAVE')) {
+              leavesSet.add(phoneNumber);
+
+              leaveTypesMap
+                .set(phoneNumber, payrollObject[phoneNumber][yesterdayDate].status);
+
+              return;
+            }
+
+            if (payrollObject[phoneNumber][yesterdayDate].status === 'ON DUTY') {
+              onDutySet.add(phoneNumber);
+
+              return;
+            }
+
+            if (branchesWithHoliday.has(baseLocation)) {
+              payrollObject[phoneNumber][yesterdayDate].status = 'HOLIDAY';
+
+              branchHolidaySet.add(phoneNumber);
+
+              return;
+            }
+
+            if (weeklyOffWeekdayName === weekdayName) {
+              payrollObject[phoneNumber][yesterdayDate].status = 'WEEKLY OFF';
+
+              // `Note`: Return statement should be added after this while adding
+              // something below this block.
+              // The arrangement is by order of priority
+              weeklyOffSet.add(phoneNumber);
+            }
           });
-
-        if (payrollObject[phoneNumber][yesterdayDate]
-          && payrollObject[phoneNumber][yesterdayDate].startsWith('LEAVE')) {
-          leavesSet.add(phoneNumber);
-
-          leaveTypesMap
-            .set(phoneNumber, payrollObject[phoneNumber][yesterdayDate]);
-
-          return;
-        }
-
-        if (payrollObject[phoneNumber][yesterdayDate] === 'ON DUTY') {
-          onDutySet.add(phoneNumber);
-
-          return;
-        }
-
-        if (branchesWithHoliday.has(baseLocation)) {
-          payrollObject[phoneNumber][yesterdayDate] = 'HOLIDAY';
-
-          branchHolidaySet.add(phoneNumber);
-
-          return;
-        }
-
-        if (weeklyOffWeekdayName === weekdayName) {
-          payrollObject[phoneNumber][yesterdayDate] = 'WEEKLY OFF';
-
-          // `Note`: Return statement should be added after this while adding
-          // something below this block.
-          // The arrangement is by order of priority
-          weeklyOffSet.add(phoneNumber);
-        }
       });
 
       const checkInPromises = [];
@@ -280,6 +281,12 @@ module.exports = (locals) => {
       employeesPhoneNumberList.forEach((phoneNumber) => {
         if (!countsObject[phoneNumber]) {
           countsObject[phoneNumber] = getZeroCountsObject();
+        }
+
+        const statusString = `${phoneNumber}: ${yesterdayDate}`;
+
+        if (!dateStatusMap.has(phoneNumber)) {
+          dateStatusMap.set(statusString, {});
         }
 
         /**
@@ -319,7 +326,6 @@ module.exports = (locals) => {
         checkInPromises.push(query);
       });
 
-      locals.employeesData = employeesData;
       locals.payrollObject = payrollObject;
       locals.initDocsQuery = initDocsQuery;
       locals.employeesPhoneNumberList = employeesPhoneNumberList;
@@ -348,22 +354,63 @@ module.exports = (locals) => {
         const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
         const checkInDiff = Math.abs(lastCheckInTimestamp - firstCheckInTimestamp);
 
+        if (!locals.payrollObject[phoneNumber][yesterdayDate]) {
+          locals.payrollObject[phoneNumber][yesterdayDate] = {};
+        }
+
+        const firstCheckInTimestampFormatted = dateStringWithOffset({
+          timezone,
+          timestampToConvert: firstCheckInTimestamp,
+          format: dateFormats.TIME,
+        });
+        const lastCheckInTimestampFormatted = dateStringWithOffset({
+          timezone,
+          timestampToConvert: lastCheckInTimestamp,
+          format: dateFormats.TIME,
+        });
+
+        // Using yesterday's date here because the check-ins are from
+        // yesterday
+        const statusString = `${phoneNumber}: ${yesterdayDate}`;
+
+        dateStatusMap.set(statusString, {
+          firstCheckInTimestampFormatted,
+          lastCheckInTimestampFormatted,
+        });
+
+        locals
+          .payrollObject[phoneNumber][yesterdayDate]
+          .firstCheckInTimestamp = firstCheckInTimestampFormatted;
+        locals
+          .payrollObject[phoneNumber][yesterdayDate]
+          .lastCheckInTimestamp = lastCheckInTimestampFormatted;
+
         // `dailyStartHours` is in the format `HH:MM` in the `employeesData` object.
-        const dailyStartHours = locals.employeesData[phoneNumber]['Daily Start Time'];
-        const dailyEndHours = locals.employeesData[phoneNumber]['Daily End Time'];
+        const dailyStartHours = employeesData[phoneNumber]['Daily Start Time'];
+        const dailyEndHours = employeesData[phoneNumber]['Daily End Time'];
 
         if (!dailyStartHours || !dailyEndHours) {
           if (checkInDiff >= EIGHT_HOURS) {
-            locals.payrollObject[phoneNumber][yesterdayDate] = 'FULL DAY';
+            locals.payrollObject[phoneNumber][yesterdayDate].status = 'FULL DAY';
+
+            countsObject[phoneNumber].fullDay++;
+
+            dateStatusMap.get(statusString).status = 'FULL DAY';
 
             return;
           }
 
           if (checkInDiff >= FOUR_HOURS) {
-            locals.payrollObject[phoneNumber][yesterdayDate] = 'HALF DAY';
+            locals.payrollObject[phoneNumber][yesterdayDate].status = 'HALF DAY';
+
+            countsObject[phoneNumber].halfDay++;
+
+            dateStatusMap.get(statusString).status = 'HALF DAY';
 
             return;
           }
+
+          return;
         }
 
         // No need to convert the strings to Number becaue moment handles it automatically.
@@ -387,7 +434,11 @@ module.exports = (locals) => {
 
         /** Person created only 1 `check-in`. */
         if (firstCheckInTimestamp === lastCheckInTimestamp) {
-          locals.payrollObject[phoneNumber][yesterdayDate] = 'BLANK';
+          locals.payrollObject[phoneNumber][yesterdayDate].status = 'BLANK';
+
+          dateStatusMap.get(statusString).status = 'BLANK';
+
+          countsObject[phoneNumber].blank++;
 
           peopleWithBlank.add(phoneNumber);
 
@@ -396,15 +447,22 @@ module.exports = (locals) => {
 
         if (checkInDiff >= EIGHT_HOURS || lastCheckInTimestamp > employeeEndTime) {
           if (firstCheckInTimestamp >= employeeStartTime) {
-            locals
-              .payrollObject[phoneNumber][yesterdayDate] = 'LATE';
+            locals.payrollObject[phoneNumber][yesterdayDate].status = 'LATE';
+
+            dateStatusMap.get(statusString).status = 'LATE';
+
+            countsObject[phoneNumber].late++;
 
             return;
           }
 
           if (firstCheckInTimestamp < employeeStartTime) {
             locals
-              .payrollObject[phoneNumber][yesterdayDate] = 'FULL DAY';
+              .payrollObject[phoneNumber][yesterdayDate].status = 'FULL DAY';
+
+            dateStatusMap.get(statusString).status = 'FULL DAY';
+
+            countsObject[phoneNumber].fullDay++;
 
             return;
           }
@@ -412,58 +470,79 @@ module.exports = (locals) => {
 
         if (checkInDiff >= FOUR_HOURS) {
           locals
-            .payrollObject[phoneNumber][yesterdayDate] = 'HALF DAY';
+            .payrollObject[phoneNumber][yesterdayDate].status = 'HALF DAY';
+
+          dateStatusMap.get(statusString).status = 'HALF DAY';
+
+          countsObject[phoneNumber].halfDay++;
 
           return;
         }
       });
 
-      Object
-        .keys(locals.payrollObject)
-        .forEach((phoneNumber) => {
-          if (leavesSet.has(phoneNumber)) {
-            locals
-              .payrollObject[phoneNumber][yesterdayDate] = leaveTypesMap.get(phoneNumber);
+      Object.keys(locals.payrollObject).forEach((phoneNumber) => {
+        const statusString = `${phoneNumber}: ${yesterdayDate}`;
 
-            return;
-          }
-
-          if (onDutySet.has(phoneNumber)) {
-            locals
-              .payrollObject[phoneNumber][yesterdayDate] = 'ON DUTY';
-
-            return;
-          }
-
-          if (branchHolidaySet.has(phoneNumber)) {
-            locals
-              .payrollObject[phoneNumber][yesterdayDate] = 'HOLIDAY';
-
-            return;
-          }
-
-          if (weeklyOffSet.has(phoneNumber)) {
-            locals
-              .payrollObject[phoneNumber][yesterdayDate] = 'WEEKLY OFF';
-
-            return;
-          }
-
-          /** 
-           * If any value has been put in the `yesterdayDate` column 
-           * for the employee, we will not put `BLANK`
-           */
-          if (locals.payrollObject[phoneNumber][yesterdayDate]) {
-            return;
-          }
-
-          // Person hasn't done anything. AND yesterday was also not
-          // a holiday, on duty, or a leave will get blank
+        if (leavesSet.has(phoneNumber)) {
           locals
-            .payrollObject[phoneNumber][yesterdayDate] = 'BLANK';
+            .payrollObject[phoneNumber][yesterdayDate]
+            .status = leaveTypesMap.get(phoneNumber);
 
-          peopleWithBlank.add(phoneNumber);
-        });
+          return;
+        }
+
+        if (onDutySet.has(phoneNumber)) {
+          locals
+            .payrollObject[phoneNumber][yesterdayDate].status = 'ON DUTY';
+
+          dateStatusMap.get(statusString).status = 'ON DUTY';
+
+          countsObject[phoneNumber].onDuty++;
+
+          return;
+        }
+
+        if (branchHolidaySet.has(phoneNumber)) {
+          locals
+            .payrollObject[phoneNumber][yesterdayDate].status = 'HOLIDAY';
+
+          dateStatusMap.get(statusString).status = 'HOLIDAY';
+
+          countsObject[phoneNumber].holiday++;
+
+          return;
+        }
+
+        if (weeklyOffSet.has(phoneNumber)) {
+          locals
+            .payrollObject[phoneNumber][yesterdayDate].status = 'WEEKLY OFF';
+
+          dateStatusMap.get(statusString).status = 'WEEKLY OFF';
+
+          countsObject[phoneNumber].weeklyOff++;
+
+          return;
+        }
+
+        /** 
+         * If any value has been put in the `yesterdayDate` column 
+         * for the employee, we will not put `BLANK`
+         */
+        if (locals.payrollObject[phoneNumber][yesterdayDate]
+          && locals.payrollObject[phoneNumber][yesterdayDate].status) {
+          return;
+        }
+
+        // Person hasn't done anything. AND yesterday was also not
+        // a holiday, on duty, or a leave will get blank
+        locals.payrollObject[phoneNumber][yesterdayDate] = { status: 'BLANK' };
+
+        dateStatusMap.get(statusString).status = 'BLANK';
+
+        countsObject[phoneNumber].blank++;
+
+        peopleWithBlank.add(phoneNumber);
+      });
 
       const ref = (() => {
         if (locals.initDocsQuery.empty) {
@@ -473,29 +552,13 @@ module.exports = (locals) => {
         return locals.initDocsQuery.docs[0].ref;
       })();
 
-      const month = (() => {
-        if (locals.change
-          && locals.change.after.get('month')) {
-          return locals.change.after.get('month');
-        }
-
-        return yesterday.month();
-      })();
-
-      const year = (() => {
-        if (locals.change
-          && locals.change.after.get('year')) {
-          return locals.change.after.get('year');
-        }
-
-        return yesterday.year();
-      })();
+      console.log('yesterday', yesterday.date());
 
       return ref
         .set({
-          month,
-          year,
           office,
+          month: yesterday.month(),
+          year: yesterday.year(),
           officeId: locals.officeDoc.id,
           report: reportNames.PAYROLL,
           payrollObject: locals.payrollObject,
@@ -532,8 +595,8 @@ module.exports = (locals) => {
       locals
         .csvString = topRow(yesterday);
 
-      locals.employeesPhoneNumberList.forEach((phoneNumber) => {
-        if (!locals.employeesData[phoneNumber]) return;
+      employeesPhoneNumberList.forEach((phoneNumber) => {
+        if (!employeesData[phoneNumber]) return;
 
         /**
          * Activity `createTime` is the time at which the user has been
@@ -541,23 +604,21 @@ module.exports = (locals) => {
          */
         const liveSince = dateStringWithOffset({
           timezone,
-          timestampToConvert: locals.employeesData[phoneNumber].createTime,
+          timestampToConvert: employeesData[phoneNumber].createTime,
         });
 
         const baseLocation =
-          locals
-            .employeesData[phoneNumber]['Base Location']
+          employeesData[phoneNumber]['Base Location']
             .replace(/,/g, ' ')
             .replace(/-/g, ' ')
             .replace(/\s\s+/g, ' ');
 
-        locals
-          .csvString +=
-          `${locals.employeesData[phoneNumber].Name},`
+        locals.csvString +=
+          `${employeesData[phoneNumber].Name},`
           // The tab character after the phone number disabled Excel's 
           // auto converting of the phone numbers into big numbers
           + ` ${phoneNumber}\t,`
-          + ` ${locals.employeesData[phoneNumber].Department},`
+          + ` ${employeesData[phoneNumber].Department},`
           + ` ${baseLocation},`
           + ` ${liveSince},`;
 
@@ -565,12 +626,27 @@ module.exports = (locals) => {
           // The OR case with empty strings is required. Omitting that will
           // cause the excel sheet to show the value `undefined` in all non available
           // dates for the employee
-          locals
-            .csvString += `${locals.payrollObject[phoneNumber][date] || ''},`;
+
+          const status = locals
+            .payrollObject[phoneNumber][date]
+            .status;
+          let firstCheckInTime = locals
+            .payrollObject[phoneNumber][date]
+            .firstCheckInTimestamp || ' ';
+          const lastCheckInTime = locals
+            .payrollObject[phoneNumber][date]
+            .lastCheckInTimestamp;
+
+          if (firstCheckInTime && lastCheckInTime) {
+            firstCheckInTime = `${firstCheckInTime} | `;
+          }
+
+          const value = `${firstCheckInTime || '-'}${lastCheckInTime || '-'}`;
+
+          locals.csvString += `${value}, ${status},`;
         }
 
-        locals.
-          csvString +=
+        locals.csvString +=
           `${countsObject[phoneNumber].fullDay},`
           + `${countsObject[phoneNumber].halfDay},`
           + `${countsObject[phoneNumber].leave},`
@@ -654,7 +730,7 @@ module.exports = (locals) => {
 
         return `We detected a 'BLANK' in your Payroll`
           + ` on ${dateString}. Do you wish to apply`
-          + ` for a Leave or a Tour Plan?`;
+          + ` for a Leave or a ON DUTY?`;
       };
 
       const promises = [];
