@@ -133,6 +133,9 @@ module.exports = (locals) => {
 
           if (distanceMap.has(phoneNumber)) {
             value += distanceMap.get(phoneNumber);
+          } else {
+            // Distance starts with 0 for every person each day
+            value = 0;
           }
 
           // Value in the map also needs to be updated otherwise

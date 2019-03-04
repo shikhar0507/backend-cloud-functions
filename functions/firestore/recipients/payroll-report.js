@@ -85,7 +85,6 @@ const topRow = (yesterday) => {
 
 
 module.exports = (locals) => {
-
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const todayFromTimestamp = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
@@ -245,8 +244,10 @@ module.exports = (locals) => {
               && payrollObject[phoneNumber][yesterdayDate].status.startsWith('LEAVE')) {
               leavesSet.add(phoneNumber);
 
-              leaveTypesMap
-                .set(phoneNumber, payrollObject[phoneNumber][yesterdayDate].status);
+              leaveTypesMap.set(
+                phoneNumber,
+                payrollObject[phoneNumber][yesterdayDate].status
+              );
 
               return;
             }
@@ -352,7 +353,9 @@ module.exports = (locals) => {
         const phoneNumber = addendumDoc.get('user');
         const firstCheckInTimestamp = snapShot.docs[0].get('timestamp');
         const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
-        const checkInDiff = Math.abs(lastCheckInTimestamp - firstCheckInTimestamp);
+        const checkInDiff = Math.abs(
+          lastCheckInTimestamp - firstCheckInTimestamp
+        );
 
         if (!locals.payrollObject[phoneNumber][yesterdayDate]) {
           locals.payrollObject[phoneNumber][yesterdayDate] = {};
@@ -445,7 +448,8 @@ module.exports = (locals) => {
           return;
         }
 
-        if (checkInDiff >= EIGHT_HOURS || lastCheckInTimestamp > employeeEndTime) {
+        if (checkInDiff >= EIGHT_HOURS
+          || lastCheckInTimestamp > employeeEndTime) {
           if (firstCheckInTimestamp >= employeeStartTime) {
             locals.payrollObject[phoneNumber][yesterdayDate].status = 'LATE';
 

@@ -13,11 +13,12 @@ const {
 const {
   code,
 } = require('../admin/responses');
-const templates = require('./templates');
-const handlebars = require('handlebars');
+// const templates = require('./templates');
+// const handlebars = require('handlebars');
 const url = require('url');
 
-const handlebarsOptions = { strict: true };
+const officePage = require('../webapp/office-page');
+const errorPage = require('../webapp/error-page');
 
 const getSlug = (requestUrl) => {
   const parsed = url.parse(requestUrl);
@@ -27,61 +28,16 @@ const getSlug = (requestUrl) => {
 };
 
 
-const send500Page = (conn, error) => {
-  console.error(error);
-  const html = `<h1>Something went wrong :(</h1>`;
-
-  return conn.res.status(500).send(html);
-};
-
-const handleOfficePage = (conn, locals) => {
-  const context = {
-    officeName: locals.officeDoc.get('office'),
-    videoId: locals.officeDoc.get('attachment.Video Id.value'),
-    officeDescription: locals.officeDoc.get('attachment.Description.value'),
-    currentYear: new Date().getFullYear(),
-    branchObjectsArray: locals.branchObjectsArray,
-    productObjectsArray: locals.productObjectsArray,
-    displayBranch: locals.branchObjectsArray.length > 0,
-    displayProducts: locals.productObjectsArray.length > 0,
-    mapsApiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
-    slug: locals.slug,
-  };
-
-  const source = templates.officeSource();
-  const template = handlebars.compile(source, handlebarsOptions);
-  const result = template(context);
-
-  return conn.res.status(code.ok).send(result);
-};
-
-const handleHomePage = (conn) => {
-  const context = {};
-  const source = templates.homeSource();
-  const template = handlebars.compile(source, handlebarsOptions);
-  const result = template(context);
-
-  return conn.res.status(code.ok).send(result);
-};
-
-const handleJoinPage = (conn) => {
-  const context = {};
-  const source = templates.joinPageSource();
-  const template = handlebars.compile(source, handlebarsOptions);
-  const result = template(context);
-
-  return conn.res.status(code.ok).send(result);
-};
-
-
 const app = (req, res) => {
   if (req.method !== 'GET') {
-    return res.status(code.methodNotAllowed).json({
-      success: false,
-      errors: [{
-        message: `Method not allowed. Use 'GET'`,
-      }],
-    });
+    return res
+      .status(code.methodNotAllowed)
+      .json({
+        success: false,
+        errors: [{
+          message: `Method not allowed. Use 'GET'`,
+        }],
+      });
   }
 
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
@@ -90,13 +46,18 @@ const app = (req, res) => {
   const locals = { slug };
 
   if (slug === '/' || slug === '') {
-    return handleHomePage(conn);
+    return officePage(conn);
   }
 
-  if (slug === 'join') {
-    return handleJoinPage(conn);
-  }
+  console.log('slug', slug);
 
+  /**
+   * const context = variables object
+   * source = html
+   * template = handlebars.compile(source, handlebarsOptions) // {strict: true}
+   * result = template(context);
+   * return result;
+   */
   return rootCollections
     .offices
     .where('slug', '==', slug)
@@ -130,10 +91,9 @@ const app = (req, res) => {
         ]);
     })
     .then((result) => {
-      const [
-        branchQuery,
-        productQuery,
-      ] = result;
+      if (!result) return Promise.resolve();
+
+      const [branchQuery, productQuery] = result;
 
       locals.branchDocs = branchQuery.docs;
       locals.productDocs = productQuery.docs;
@@ -160,9 +120,9 @@ const app = (req, res) => {
           };
         });
 
-      return handleOfficePage(conn, locals);
+      return officePage(conn, locals);
     })
-    .catch((error) => send500Page(conn, error));
+    .catch((error) => errorPage(conn, error));
 };
 
 

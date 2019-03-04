@@ -15,201 +15,179 @@ const metaHead =
 const jsScripts =
   `<script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
-  <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
   <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
+  <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
   <script>mdc.autoInit()</script>
   <script src="https://www.youtube.com/iframe_api"></script>`;
 
 
 const officeSource = () => {
-  const source =
-    `<!DOCTYPE html>
-  <html lang="en">
+  const source = `
+<!DOCTYPE html>
+<html lang="en" itemscope itemtype="https://schema.org/Article">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta itemprop="name" content="{{pageTitle}}">
+  <meta itemprop="description" content="{{pageDescription}}">
+  <meta itemprop="image" content="{{mainImageUrl}}">
   
-  <head>
-    ${metaHead}
-    <meta property="og:url" content="https://growthfile.com/{{slug}}">
-    <meta name="description" content="Your efficiency partner.">
-    <title>Growthfile - {{officeName}}</title>
-    <link rel="stylesheet" href="https://unpkg.com/nanoreset@3.0.1/nanoreset.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:500">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-    <link rel="stylesheet" href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
-    <link rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css">
-    <link rel="author" href="humans.txt">
-    <link rel="icon" href="/favicon.png">
-    <link rel="stylesheet" href="css/office.css">
-  </head>
+  <meta name="theme-color" content="#4285f4">
+  <meta name="description" content="{{pageDescription}}">
+  <meta name="robots" content="index,follow">
   
-  <body class="mdc-typography" data-office="{{officeName}}">
-    <header class="mdc-top-app-bar mdc-top-app-bar--fixed">
-      <div class="header-row-top mdc-top-app-bar__row">
-        <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-start">
-          <img src="img/logo-main.jpg" class="mdc-top-app-bar__navigation-icon">
-          <span class="mdc-top-app-bar__title">Growthfile</span>
-        </section>
-        <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-end" role="toolbar">
-          <a href="https://growthfile.com" class="material-icons mdc-top-app-bar__action-item">home</a>
-        </section>
-      </div>
-    </header>
+  <meta name="googlebot" content="index,follow">
+  <meta name="google-site-verification" content="">
+  <meta name="msvalidate.01" content="">
 
-    <div class="mdc-top-app-bar--fixed-adjust secondary-header">
-      <h1 class="mdc-typography--headline1">{{officeName}}</h1>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="google-play-app" content="app-id=com.growthfile.growthfileNew">
+  <link rel="alternate" href="android-app://com.growthfile.growthfileNew">
+
+  
+  <meta property="fb:app_id" content="">
+  <meta property="og:url" content="{{cannonicalUrl}}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{pageTitle}}">
+  <meta property="og:image" content="{{mainImageUrl}}">
+  <meta property="og:description" content="{{pageDescription}}">
+  <meta property="og:site_name" content="Growthfile">
+  <meta property="og:locale" content="en_US">
+  <meta property="article:author" content="{{officeName}}">
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:site" content="@growthfile">
+  <meta name="twitter:creator" content="@growthfile">
+  <meta name="twitter:url" content="{{cannonicalUrl}}">
+  <meta name="twitter:title" content="{{pageTitle}}">
+  <meta name="twitter:description" content="{{pageDescription}}">
+  <meta name="twitter:image" content="{{mainImageUrl}}">
+
+  <!--UC Browser-->
+  <meta name="screen-orientation" content="landscape/portrait">
+  <meta name="imagemode" content="force">
+  <meta name="wap-font-scale" content="no">
+  <meta name="layoutmode" content="fitscreen">
+  
+  <link rel="canonical" href="{{cannonicalUrl}}">
+  <link rel="author" href="humans.txt">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css" integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/fontawesome.css" integrity="sha384-4aon80D8rXCGx9ayDt85LbyUHeMWd3UiBaWliBlJ53yzm9hqN21A+o1pqoyK04h+" crossorigin="anonymous">
+
+
+  <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Palanquin" rel="stylesheet">
+  <link rel="stylesheet" href="css/office.css">
+
+  <title>Growthfile - {{officeName}}</title>
+</head>
+<body data-slug={{slug}}>
+  <header>
+    <section class="header-section-start">
+      <a id="logo" href="/">
+        <img src="img/logo-main.jpg">
+        <span>Growthfile</span>
+      </a>
+    </section>
+    <section class="header-links">
+      <a href="#" class="join-now-button">Join Now</a>
+      <a href="#" class="join-now-button">Download</a>
+    </section>
+  </header>
+
+  <div class="pad-after-header"></div>
+
+  <main>
+    <div class="youtube">
+      <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/{{videoId}}?enablejsapi=1" allow="fullscreen">
+      </iframe>
     </div>
-  
-    <main class="container">
-      <section>
-        <div class="single-card">
-          <div class="yt-video-container">
-            <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/{{videoId}}?enablejsapi=1" allow="fullscreen">
-            </iframe>
-          </div>
-        </div>
-  
-        <div class="pad single-card">
-          <h2 class="mdc-typography--headline2">About {{officeName}}</h2>
-          <div class="pad post-data-container">
-            <p class="mdc-typography--body1">{{officeDescription}}</p>
-          </div>
-        </div>
-  
-        {{#if displayBranch}}
-        <div class="pad single-card">
-          <h2 class="mdc-typography--headline2">Branches</h2>
-          <div class="box branch-box">
-            <div class="slider">
-              <ul class="mdc-list">
-                {{#each branchObjectsArray}}
-                <li class="mdc-list-item" data-name="{{this.name}}"
-                  onclick="handleBranchClick({{this.latitude}}, {{this.longitude}})">
-                  <span class="mdc-list-item__text">
-                    <span class="mdc-list-item__primary-text">{{this.name}}</span>
-                    <span class="mdc-list-item__secondary-text">{{this.address}}</span>
-                  </span>
-                </li>
-                {{/each}}
-              </ul>
-            </div>
-  
-            <div class="map-box" id="map"></div>
-          </div>
-        </div>
-        {{/if}}
-  
-        {{#if displayProducts}}
-        <div class="pad single-card">
-          <h2 class="pad mdc-typography--headline2">Products</h2>
-          <div class="box product-box">
-            {{#each productObjectsArray}}
-            <div class="pad child-card onclick="productOnClick(this)">
-              <img alt="product-image" src="img/product-placeholder.png">
-              <span class="mdc-typography--subtitle1">{{this.name}}</span>
-              <div class="card-details-container">
-                <div>Brand: {{this.brand}}</div>
-                <div>Model: {{this.model}}</div>
-                <div>Product Type: {{this.productType}}</div>
-                <div>Size: {{this.size}}</div>
-                <div>Brand: {{this.brand}}</div>
-              </div>
-            </div>
-            {{/each}}
-          </div>
-        </div>
-        {{/if}}
-      </section>
-  
-      <aside class="">
-        <span class="mdc-typography--subtitle1">Related</span>
-  
-        <div class="related-videos">
-          <ul>
-            <li>Video 1</li>
-            <li>Video 2</li>
-            <li>Video 3</li>
-          </ul>
-        </div>
-      </aside>
-    </main>
-  
-    <footer>
-      <section>
-        <div class="logo">
-          <img src="img/logo-main.jpg">
-        </div>
-        <p class="pad footer-content mdc-typography--body1"> 
-          Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.
-        </p>
-      </section>
-      <section>
-        <ul class="footer-links">
-          <li><a href="#">Privacy Policy</a></li>
-          <li><a href="#">Download</a></li>
-          <li><a href="#">Terms of Service</a></li>
+    
+    <div class="content">
+      <h1>{{pageTitle}}</h1>
+      <p>{{aboutOffice}}</p>
+    </div>
+  </main>
+
+  {{#if displayBranch}}
+  <section class="branch-section">
+    <h2>Branches</h2>
+    <div class="box">
+      <div class="branch-list-container">
+      {{#each branchObjectsArray}}
+        <ul>
+          <li class="list-item" data-latitude="{{this.latitude}}" data-longitude="{{this.longitude}}">
+            <span class="list-item-main">{{this.name}}</span>  
+            <span class="list-item-child">{{this.address}}</span>
+            <hr>
+          </li>
+        {{/each}}
         </ul>
-      </section>
-    </footer>
-  
-    <div class="fab-bottom-right">
-      <button id="enquiry-fab" class="mdc-fab" aria-label="Short Text">
-        <span class="mdc-fab__icon material-icons">short_text</span>
-      </button>
+      </div>
+      <div id="map"></div>
     </div>
+  </section>
+  {{/if}}
+
   
-    <div id="enquiry-modal" class="modal">
-      <div class="modal-content">
-        <div class="modal-head">
-          <h2 class="mdc-typography--headline2">Enquiry</h2>
+  {{#if displayProducts}}
+    <section class="product-section"></section>
+  {{/if}}
+
+  <section class="enquiry-section"></section>
+  
+  <footer>
+    <div class="footer-container">
+      <div class="footer-links">
+        <div class="footer-link-heading">Company</div>
+      </div>
+      <div class="footer-links">
+        <div class="footer-link-heading">Follow Us</div>
+          <ul>
+            <li class="social-icon">
+            <a href="#" target="_blank">
+                <i class="fab fa-facebook fa-2x"></i>
+              </a>
+            </li>
+            <li class="social-icon">
+            <a href="https://twitter.com/growthfile" target="_blank">
+              <i class="fab fa-twitter fa-2x"></i>
+              </a>
+            </li>
+            <li class="social-icon">
+              <a href="https://angel.co/growthfile" target="_blank">
+              <i class="fab fa-angellist fa-2x"></i>
+              </a>
+            </li>
+            <li class="social-icon">
+              <a href="#">
+              <i class="fab fa-linkedin-in fa-2x"></i>
+              </a>
+            </li>
+          </ul>
+      </div>
+      <div class="footer-links footer-about-growthfile">
+        <img src="img/logo-main.jpg" alt="growthfile-logo">
+        <div class="footer-link-heading">Growthfile</div>
+        <div class="footer-page-links">
+          <a href="#">Terms</a>
+          <a href="#">Privacy</a>
         </div>
-  
-        <div class="modal-text-fields-container">
-          <div class="mdc-text-field text-field mdc-text-field--fullwidth mdc-text-field--no-label mdc-ripple-upgraded">
-            <input type="text" id="name-text-field" placeholder="Your Name" class="mdc-text-field__input">
-          </div>
-  
-          <div class="mdc-text-field text-field mdc-text-field--fullwidth mdc-text-field--no-label mdc-ripple-upgraded">
-            <input type="email" id="email-text-field" placeholder="Your email" class="mdc-text-field__input">
-          </div>
-  
-          <div class="mdc-text-field text-field mdc-text-field--fullwidth mdc-text-field--no-label mdc-ripple-upgraded">
-            <input type="text" id="company-name-text-field" placeholder="Your Company Name" class="mdc-text-field__input">
-          </div>
-  
-          <div class="mdc-text-field mdc-text-field--textarea">
-            <textarea id="enquiry-textarea" class="mdc-text-field__input" rows="8" cols="40"></textarea>
-            <div class="mdc-notched-outline">
-              <div class="mdc-notched-outline__leading"></div>
-              <div class="mdc-notched-outline__notch">
-                <label for="enquiry-textarea" class="mdc-floating-label">Your Enquiry</label>
-              </div>
-              <div class="mdc-notched-outline__trailing"></div>
-            </div>
-          </div>
-        </div>
-  
-        <div class="centered">
-          <button id="enquiry-submit-button" class="mdc-button mdc-button--raised">
-            <i class="material-icons mdc-button__icon">send</i>
-            <span class="mdc-button__label">Submit</span>
-          </button>
-          <div>
-          </div>
-        </div>
+        <span>Copyright © 2019 Growthfile Analytics, Inc. All rights reserved.</span>
       </div>
     </div>
+  </footer>
 
-    <div class="hidden floating-menu">
-      <button id="floating-bottombar-fab" class="mdc-fab" aria-label="Short Text">
-        <span class="mdc-fab__icon material-icons">short_text</span>
-      </button>
-    </div>
-  
-    ${jsScripts}
-    <script src="https://maps.googleapis.com/maps/api/js?key={{mapsApiKey}}"></script>
-    <script src="js/office.js"></script>
-  </body>
-  
-  </html>`;
+  <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
+  <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key={{mapsApiKey}}"></script>
+  <script src="js/office.js"></script>
+</body>
+</html>`;
 
   return source;
 };

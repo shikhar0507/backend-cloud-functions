@@ -117,6 +117,21 @@ module.exports = (change) => {
     return Promise.resolve();
   }
 
+  if (include.length === 0) {
+    locals.sendMail = false;
+
+    return Promise.resolve();
+  }
+
+  // Not sending emails when someone is added to or removed from the recipients
+  // list
+  // if (change.before.data()
+  //   && change.before.get('include').length !== change.after.get('include').length) {
+  //   locals.sendMail = false;
+
+  //   return Promise.resolve();
+  // }
+
   console.log({ report });
 
   const authFetch = [];

@@ -88,6 +88,7 @@ const handleAdminUrl = (conn, urlParts) => {
 
   if (resource === 'bulk') {
     require('../firestore/bulk')(conn);
+    // require('../firestore/bulk/script')(conn);
 
     return;
   }
@@ -218,7 +219,6 @@ const handleRequestPath = (conn, parsedUrl) => {
 
 
   if (parent === 'admin') {
-    console.log('in admin');
     handleAdminUrl(conn, urlParts);
 
     return;
@@ -330,6 +330,8 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         customClaims: userRecord.customClaims || null,
         creationTime: userRecord.metadata.creationTime,
       };
+
+      console.log('customClaims', decodedIdToken.customClaims);
 
       // Makes tesing locally easier
       if (decodedIdToken.customClaims) {
