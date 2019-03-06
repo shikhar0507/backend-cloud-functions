@@ -1,25 +1,5 @@
 'use strict';
 
-const metaHead =
-  `<meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <meta name="robots" content="noindex, nofollow">
-  <meta name="google-site-verification" content="">
-  <meta name="msvalidate.01" content="">
-  <meta name="theme-color" content="#3f51b5">
-  <meta name="apple-mobile-web-app-status-bar-style" content="#3f51b5">
-  <meta property="og:type" content="website">`;
-
-
-const jsScripts =
-  `<script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
-  <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
-  <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
-  <script>mdc.autoInit()</script>
-  <script src="https://www.youtube.com/iframe_api"></script>`;
-
 
 const officeSource = () => {
   const source = `
@@ -74,16 +54,15 @@ const officeSource = () => {
   <link rel="author" href="humans.txt">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css" integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
-<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/fontawesome.css" integrity="sha384-4aon80D8rXCGx9ayDt85LbyUHeMWd3UiBaWliBlJ53yzm9hqN21A+o1pqoyK04h+" crossorigin="anonymous">
-
-
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+  <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
   <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css?family=Palanquin" rel="stylesheet">
   <link rel="stylesheet" href="css/office.css">
 
   <title>Growthfile - {{officeName}}</title>
 </head>
-<body data-slug={{slug}}>
+<body data-slug="{{slug}}">
   <header>
     <section class="header-section-start">
       <a id="logo" href="/">
@@ -92,14 +71,26 @@ const officeSource = () => {
       </a>
     </section>
     <section class="header-links">
-      <a href="#" class="join-now-button">Join Now</a>
-      <a href="#" class="join-now-button">Download</a>
+      <a href="https://growthfile.com/join">
+      <i class="fas fa-user"></i>
+      Join Now
+      </a>
+      <a href="https://growthfile.com/download">
+        <i class="fas fa-mobile-alt"></i>
+        Download
+      </a>
     </section>
   </header>
 
   <div class="pad-after-header"></div>
 
-  <main>
+  <div class="modal">
+    <div class="modal-content">
+      <div id="firebaseui-auth-container"></div>
+    </div>
+  </div>
+
+  <main class="pad">
     <div class="youtube">
       <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/{{videoId}}?enablejsapi=1" allow="fullscreen">
       </iframe>
@@ -112,13 +103,13 @@ const officeSource = () => {
   </main>
 
   {{#if displayBranch}}
-  <section class="branch-section">
-    <h2>Branches</h2>
+  <section class="branch-section pad">
+    <h2>Branch Offices</h2>
     <div class="box">
       <div class="branch-list-container">
+      <ul>
       {{#each branchObjectsArray}}
-        <ul>
-          <li class="list-item" data-latitude="{{this.latitude}}" data-longitude="{{this.longitude}}">
+          <li data-latitude={{this.latitude}} data-longitude={{this.longitude}} onclick="handleBranchClick({{this.latitude}},{{this.longitude}})" class="list-item">
             <span class="list-item-main">{{this.name}}</span>  
             <span class="list-item-child">{{this.address}}</span>
             <hr>
@@ -133,15 +124,70 @@ const officeSource = () => {
 
   
   {{#if displayProducts}}
-    <section class="product-section"></section>
+  <section class="product-section pad">
+    <h2>Our Products</h2>
+      <div class="products-container">
+      {{#each productObjectsArray}}
+      <div onclick="handleProductClick({{this.productDetails}})" class="product-box">
+        <img class="product-image" src="img/product-placeholder.png">
+        <div class="product-details-container">{{this.name}}</div>
+      </div>
+      {{/each}}
+      </div>
+    </section>
   {{/if}}
 
-  <section class="enquiry-section"></section>
+  <section class="enquiry-section pad">
+  <form>
+    <h2>Send an enquiry</h2>
+      <div class="form-element">
+        <input type="text" name="person-name" placeholder="John Doe"></input>
+      </div>
+
+      <div class="form-element">
+        <input type="email" name="person-email" placeholder="john@gmail.com"></input>
+      </div>
+
+      <div class="form-element">
+        <input type="phoneNumber" name="person-phone-number" placeholder="+1234567890"></input>
+      </div>
+
+      <div class="form-element">
+        <textarea type="text" name="text-area" placeholder="Enter text here..."></textarea>
+      </div>
+
+      <div class="form-element">
+        <a href="#" class="form-submit-button">
+          <i class="far fa-envelope"></i>
+          Send
+        </a>
+      </div>
+
+      <p>By completing this form, I have read and acknowledged the <a href="#">Privacy Policy</a> and agree that <span>Growthfile Inc.</span> may contact me at the email address above.</p>
+    </form>
+  </section>
   
   <footer>
     <div class="footer-container">
       <div class="footer-links">
         <div class="footer-link-heading">Company</div>
+        <ul class="footer-page-links">
+          <li>
+            <a href="https://growthfile.com/about">About</a>
+          </li>
+          <li>
+            <a href="https://growthfile.com/careers">Careers</a>
+          </li>
+          <li>
+            <a href="https://growthfile.com/help">Help</a>
+          </li>
+          <li>
+            <a href="https://growthfile.com/contact">Contact Us</a>
+          </li>
+          <li>
+            <a href="https://growthfile.com/sitemap.xml">Sitemap</a>
+          </li>
+        </ul>
       </div>
       <div class="footer-links">
         <div class="footer-link-heading">Follow Us</div>
@@ -169,8 +215,10 @@ const officeSource = () => {
           </ul>
       </div>
       <div class="footer-links footer-about-growthfile">
-        <img src="img/logo-main.jpg" alt="growthfile-logo">
-        <div class="footer-link-heading">Growthfile</div>
+        <div class="footer-logo-container">
+          <img src="img/logo-main.jpg" alt="growthfile-logo">
+          <span class="footer-link-heading">Growthfile Inc.</span>
+        </div>
         <div class="footer-page-links">
           <a href="#">Terms</a>
           <a href="#">Privacy</a>
@@ -180,6 +228,7 @@ const officeSource = () => {
     </div>
   </footer>
 
+  <script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c7f56ce7ea64f4a"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
   <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
@@ -197,7 +246,6 @@ const homeSource = () => {
     `<!DOCTYPE html>
     <html lang="en">
     <head>
-      ${metaHead}
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta http-equiv="X-UA-Compatible" content="ie=edge">
@@ -205,7 +253,6 @@ const homeSource = () => {
     </head>
     <body>
       <h1>From function</h1>
-      ${jsScripts}
       <script src="js/home.js"></script>
     </body>
     </html>`;
@@ -214,11 +261,9 @@ const homeSource = () => {
 };
 
 const joinPageSource = () => {
-  const source = `
-<!DOCTYPE html>
+  const source = `<!DOCTYPE html>
 <html lang="en">
 <head>
-  ${metaHead}
   <link rel="stylesheet" href="css/join.css">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -227,7 +272,6 @@ const joinPageSource = () => {
 </head>
 <body>
   <h1>Join Page</h1>
-  ${jsScripts}
   <script src="js/join.js"></script>
 </body>
 </html>`;
@@ -235,8 +279,43 @@ const joinPageSource = () => {
   return source;
 };
 
+const downloadPageSource = () => {
+  const source = `
+  <!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Download Growthfile App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/download.css">
+</head>
+<body>
+  <header>
+    
+  </header>
+  <div class="container">
+    <h1>Download Growthfile on your phone</h1>
+
+    <a href="https://play.google.com/store/apps/details?id=com.growthfile.growthfileNew" target="_blank">
+      <img src="img/play-store-icon.jpg" alt="google play store icon">
+    </a>
+    <a href="https://itunes.apple.com/in/app/growthfile/id1441388774?mt=8" target="_blank">
+      <img src="img/app-store-icon.jpg" alt="apple app store icon">
+    </a>
+  </div>
+
+  <script src="js/download.js"></script>
+</body>
+</html>`;
+
+  return source;
+};
+
+
 module.exports = {
   joinPageSource,
   officeSource,
   homeSource,
+  downloadPageSource,
 };

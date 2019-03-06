@@ -436,8 +436,9 @@ module.exports = (locals) => {
           .unix() * 1000;
 
         /** Person created only 1 `check-in`. */
-        if (firstCheckInTimestamp === lastCheckInTimestamp) {
-          locals.payrollObject[phoneNumber][yesterdayDate].status = 'BLANK';
+        if (firstCheckInTimestamp === lastCheckInTimestamp || checkInDiff <= FOUR_HOURS) {
+          locals
+            .payrollObject[phoneNumber][yesterdayDate].status = 'BLANK';
 
           dateStatusMap.get(statusString).status = 'BLANK';
 
@@ -451,7 +452,8 @@ module.exports = (locals) => {
         if (checkInDiff >= EIGHT_HOURS
           || lastCheckInTimestamp > employeeEndTime) {
           if (firstCheckInTimestamp >= employeeStartTime) {
-            locals.payrollObject[phoneNumber][yesterdayDate].status = 'LATE';
+            locals
+              .payrollObject[phoneNumber][yesterdayDate].status = 'LATE';
 
             dateStatusMap.get(statusString).status = 'LATE';
 

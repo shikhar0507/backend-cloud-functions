@@ -12,17 +12,16 @@ module.exports = (conn, locals) => {
     officeName: locals.officeDoc.get('office'),
     pageTitle: `About ${locals.officeDoc.get('office')}`,
     aboutOffice: locals.officeDoc.get('attachment.Description.value'),
-    pageDescription: '',
-    mainImageUrl: '',
-    cannonicalUrl: '',
+    pageDescription: locals.officeDoc.get('attachment.Description.value'),
+    mainImageUrl: 'https://webapp-test-123.firebaseapp.com/img/stellar-medical.png',
+    cannonicalUrl: `https://growthfile.com/${locals.slug}`,
     videoId: locals.officeDoc.get('attachment.Video Id.value'),
-    mapsApiKey: '',
-    slug: locals.slug,
-    // currentYear: new Date().getFullYear(),
+    mapsApiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
     branchObjectsArray: locals.branchObjectsArray,
-    // productObjectsArray: locals.productObjectsArray,
+    productObjectsArray: locals.productObjectsArray,
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
+    slug: locals.slug,
   };
 
   const source = templates.officeSource();

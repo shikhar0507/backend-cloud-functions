@@ -19,6 +19,7 @@ const url = require('url');
 
 const officePage = require('../webapp/office-page');
 const errorPage = require('../webapp/error-page');
+const downloadPage = require('../webapp/download');
 
 const getSlug = (requestUrl) => {
   const parsed = url.parse(requestUrl);
@@ -45,11 +46,15 @@ const app = (req, res) => {
   const conn = { req, res };
   const locals = { slug };
 
-  if (slug === '/' || slug === '') {
-    return officePage(conn);
+  // if (slug === '/' || slug === '') {
+  //   return officePage(conn);
+  // }
+
+  if (slug === 'download') {
+    return downloadPage(conn);
   }
 
-  console.log('slug', slug);
+  console.log('slug:', slug);
 
   /**
    * const context = variables object
@@ -108,15 +113,22 @@ const app = (req, res) => {
           };
         });
 
+      const getName = (name) => {
+
+        return name.slice(0, 8);
+      };
+
       locals
         .productObjectsArray = productQuery.docs.map((doc) => {
           return {
-            name: doc.get('attachment.Name.value'),
-            imageUrl: doc.get('attachment.Image Url.value'),
-            productType: doc.get('attachment.Product Type.value'),
-            brand: doc.get('attachment.Brand.value'),
-            model: doc.get('attachment.Model.value'),
-            size: doc.get('attachment.Size.value'),
+            name: getName(doc.get('attachment.Name.value')),
+            productDetails: JSON.stringify({
+              imageUrl: doc.get('attachment.Image Url.value'),
+              productType: doc.get('attachment.Product Type.value'),
+              brand: doc.get('attachment.Brand.value'),
+              model: doc.get('attachment.Model.value'),
+              size: doc.get('attachment.Size.value'),
+            }),
           };
         });
 

@@ -46,7 +46,7 @@ module.exports = (conn) => {
       .all([
         rootCollections
           .offices
-          .where('office', '==', conn.req.body.office)
+          .where('slug', '==', conn.req.body.office)
           .limit(1)
           .get(),
         rootCollections
@@ -74,7 +74,7 @@ module.exports = (conn) => {
         return sendResponse(
           conn,
           code.conflict,
-          `Office Doesn't accept enquiry`
+          `Office doesn't accept enquiry`
         );
       }
 

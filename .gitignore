@@ -86,3 +86,7 @@ env.*
 *.jpeg
 *.png
 *.gif
+
+# Firebase cache files
+*.cache
+*.firebase/
