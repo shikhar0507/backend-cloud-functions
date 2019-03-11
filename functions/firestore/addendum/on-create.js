@@ -105,7 +105,7 @@ const getFieldValue = (snapShot, field) => {
 };
 
 
-const getVisitObject = (addendumDoc, initQuery, locals) => {
+const getVisitObject = (addendumDoc, initQuery) => {
   const visitObject = getFieldValue(initQuery, 'visitObject');
   const activityData = addendumDoc.get('activityData');
   const activityId = addendumDoc.get('activityId');
@@ -153,14 +153,11 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
       product2: dataObject.product2,
       product3: dataObject.product3,
       comment: activityData.attachment.Comment.value,
-      actualLocation: locals.placeInformation,
     };
 
     if (template === reportNames.DSR) {
-      visitObject[activityId].followUpStartTimestamp =
-        followUpDateSchedule.startTime;
-      visitObject[activityId].followUpEndTimestamp =
-        followUpDateSchedule.endTime;
+      visitObject[activityId].followUpStartTimestamp = followUpDateSchedule.startTime;
+      visitObject[activityId].followUpEndTimestamp = followUpDateSchedule.endTime;
     }
   }
 
@@ -209,8 +206,6 @@ const getFollowUpObject = (addendumDoc, initQuery) => {
       closureEndTimestamp: closureDateSchedule.endTime,
       comment: activityData.attachment.Comment.value,
       purpose: addendumDoc.get('activityData.template'),
-      // Popluating in the parent function.
-      actualLocation: '',
     };
   }
 
@@ -316,7 +311,7 @@ const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
       expenseClaimObject[activityId].confirmedOn = addendumDoc.get('timestamp');
       expenseClaimObject[activityId].confirmedAt = locals.placeInformation;
     } else {
-      // `PENDING` or `CONFIRMED`
+      // `PENDING` or `CANCELLED`
       expenseClaimObject[activityId].confirmedBy = '';
       expenseClaimObject[activityId].confirmedOn = '';
       expenseClaimObject[activityId].confirmedAt = '';
@@ -471,14 +466,17 @@ const handleVisitDate = (addendumDoc, locals) => {
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
 
+      const visitObject = getVisitObject(addendumDoc, snapShot);
+      visitObject.actualLocation = locals.placeInformation;
+
       const docData = {
         date,
         month,
         year,
+        visitObject,
         report: reportNames.DSR,
         office: addendumDoc.get('activityData.office'),
         officeId: addendumDoc.get('activityData.officeId'),
-        visitObject: getVisitObject(addendumDoc, snapShot, locals),
       };
 
       if (snapShot.empty) {
@@ -519,21 +517,20 @@ const handleFollowUpDate = (addendumDoc, locals) => {
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
 
+      const followUpObject = getFollowUpObject(addendumDoc, snapShot);
+      followUpObject.actualLocation = locals.placeInformation;
+
       const docData = {
         date,
         month,
         year,
+        followUpObject,
         report: reportNames.DSR,
         office: addendumDoc.get('activityData.office'),
         officeId: addendumDoc.get('activityData.officeId'),
-        followUpObject: getFollowUpObject(addendumDoc, snapShot),
       };
 
       if (snapShot.empty) docData.visitObject = {};
-
-      console.log('follow up:', ref.path);
-
-      // return ref.set(docData, { merge: true });
 
       locals.batch.set(ref, docData, { merge: true });
 
