@@ -218,16 +218,16 @@ module.exports = (conn, locals) => {
       return;
     }
 
-    if (conn.req.body.template === 'employee'
-      && newEmployeesData.hasOwnProperty(attachment['Employee Contact'].value)) {
+    // if (conn.req.body.template === 'employee'
+    //   && newEmployeesData.hasOwnProperty(attachment['Employee Contact'].value)) {
 
-      locals.responseObject.push(objectWithError({
-        object,
-        reason: `${attachment['Employee Contact'].value} is already an employee`,
-      }));
+    //   locals.responseObject.push(objectWithError({
+    //     object,
+    //     reason: `${attachment['Employee Contact'].value} is already an employee`,
+    //   }));
 
-      return;
-    }
+    //   return;
+    // }
 
     if (conn.req.body.template === 'subscription') {
       if (subscriptionsMap[attachment.Subscriber.value]
@@ -385,54 +385,54 @@ module.exports = (conn, locals) => {
     return result;
   };
 
-  executeSequentially(batchesArray)
-    .then(() => sendJSON(conn, locals.responseObject))
-    .catch(console.error);
-
   // executeSequentially(batchesArray)
-  //   .then(() => {
-  //     if (!new Set()
-  //       .add('employee')
-  //       .add('subscription')
-  //       .has(conn.req.body.template)
-  //       && !templateHasName) {
-  //       return null;
-  //     }
+  //   .then(() => sendJSON(conn, locals.responseObject))
+  //   .catch(console.error);
 
-  //     const data = {};
+  executeSequentially(batchesArray)
+    .then(() => {
+      if (!new Set()
+        .add('employee')
+        .add('subscription')
+        .has(conn.req.body.template)
+        && !templateHasName) {
+        return null;
+      }
 
-  //     if (conn.req.body.template === 'subscription') {
-  //       data.subscriptionsMap = newSubscriptionsMap;
-  //     }
+      const data = {};
 
-  //     if (conn.req.body.template === 'employee') {
-  //       data.employeesData = newEmployeesData;
-  //     }
+      if (conn.req.body.template === 'subscription') {
+        data.subscriptionsMap = newSubscriptionsMap;
+      }
 
-  //     if (templateHasName) {
-  //       data.namesMap = namesMap;
-  //     }
+      if (conn.req.body.template === 'employee') {
+        data.employeesData = newEmployeesData;
+      }
 
-  //     return locals
-  //       .officeDoc
-  //       .ref
-  //       .set(data, {
-  //         merge: true,
-  //       });
-  //   })
-  //   .then((result) => console.log({ result }))
-  //   .then(() => {
-  //     console.log('docs created:', batchesArray.length);
+      if (templateHasName) {
+        data.namesMap = namesMap;
+      }
 
-  //     const rejectedObjects = (() => {
-  //       if (locals.responseObject.length === 0) {
-  //         return null;
-  //       }
+      return locals
+        .officeDoc
+        .ref
+        .set(data, {
+          merge: true,
+        });
+    })
+    .then((result) => console.log({ result }))
+    .then(() => {
+      console.log('docs created:', batchesArray.length);
 
-  //       return locals.responseObject;
-  //     })();
+      const rejectedObjects = (() => {
+        if (locals.responseObject.length === 0) {
+          return null;
+        }
 
-  //     return sendJSON(conn, { rejectedObjects });
-  //   })
-  //   .catch((error) => handleError(conn, error));
+        return locals.responseObject;
+      })();
+
+      return sendJSON(conn, { rejectedObjects });
+    })
+    .catch((error) => handleError(conn, error));
 };

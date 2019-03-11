@@ -87,8 +87,8 @@ const handleAdminUrl = (conn, urlParts) => {
   }
 
   if (resource === 'bulk') {
-    require('../firestore/bulk')(conn);
-    // require('../firestore/bulk/script')(conn);
+    // require('../firestore/bulk')(conn);
+    require('../firestore/bulk/script')(conn);
 
     return;
   }
@@ -330,8 +330,6 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         customClaims: userRecord.customClaims || null,
         creationTime: userRecord.metadata.creationTime,
       };
-
-      console.log('customClaims', decodedIdToken.customClaims);
 
       // Makes tesing locally easier
       if (decodedIdToken.customClaims) {
