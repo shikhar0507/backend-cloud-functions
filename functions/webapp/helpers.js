@@ -35,6 +35,7 @@ const officePage = (conn, locals) => {
 
 const errorPage = (conn, error) => {
   console.error(error);
+  const context = {};
 
   const source = `<h1>Something crashed</h1>`;
   const template = handlebars.compile(source, { strict: true });

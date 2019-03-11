@@ -148,6 +148,7 @@ const createDocsWithBatch = (conn, locals) => {
     location: getGeopointObject(conn.req.body.geopoint),
     timestamp: Date.now(),
     userDeviceTimestamp: conn.req.body.timestamp,
+    /** The `activityId` field is required by `addendumOnCreate` */
     activityId: locals.static.activityId,
     activityName: activityData.activityName,
     isSupportRequest: conn.requester.isSupportRequest,

@@ -24,9 +24,10 @@ const getSlug = (requestUrl) => {
 };
 
 const handleHomePage = (conn) => {
-  rootCollections
+  // https://github.com/Ghosh/micromodal
+  return rootCollections
     .offices
-    .where('office', '==', conn.req.query.office)
+    .where('office', '==', conn.req.query.office || '')
     .limit(1)
     .get()
     .then((docs) => {

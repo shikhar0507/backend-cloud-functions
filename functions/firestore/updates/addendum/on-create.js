@@ -25,8 +25,6 @@ module.exports = (snapShot, context) => {
       const registrationToken = updatesDoc.get('registrationToken');
 
       if (!registrationToken) {
-        console.log('NO REGESTRATION TOKEN FOUND. EXITING...');
-
         return Promise.resolve();
       }
 
@@ -46,14 +44,12 @@ module.exports = (snapShot, context) => {
         timeToLive: ONE_MINUTE,
       };
 
-      console.log(`Notification sent to `
-        + `phoneNumber=${updatesDoc.get('phoneNumber')},`
-        + ` 'uid=${context.params.uid}'`, { payload });
-
       return admin
         .messaging()
         .sendToDevice(registrationToken, payload, options);
     })
-    .then(JSON.stringify)
-    .catch(console.error);
+    .catch((error) => console.error({
+      error,
+      params: context.params,
+    }));
 };

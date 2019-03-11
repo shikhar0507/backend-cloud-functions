@@ -37,7 +37,6 @@ const {
 } = require('../../admin/constants');
 
 const sendSMS = (change) => {
-  console.log('In sendSMS');
   const {
     downloadUrl,
     smsgupshup,
@@ -165,8 +164,6 @@ const purgeAddendum = (query, resolve, reject, count) =>
 
       docs.forEach((doc) => batch.delete(doc.ref));
 
-      console.log('Deleted:', docs.size);
-
       /* eslint-disable */
       return batch
         .commit()
@@ -185,8 +182,6 @@ const purgeAddendum = (query, resolve, reject, count) =>
 
 
 const manageAddendum = (change) => {
-  console.log('In manageAddendum');
-
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
   /**
@@ -196,8 +191,6 @@ const manageAddendum = (change) => {
    * value.
    */
   if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    console.log('Not deleting...');
-
     return Promise.resolve();
   }
 
@@ -244,8 +237,6 @@ const getEmployeeObject = (options) => {
 
 
 const handleAddedToOffice = (change, options) => {
-  console.log('In handleAddedToOffice');
-
   const {
     phoneNumber,
     newOffice,
@@ -278,7 +269,7 @@ const handleAddedToOffice = (change, options) => {
         date: today.getDate(),
         month: today.getMonth(),
         year: today.getFullYear(),
-        report: 'signup',
+        report: reportNames.SIGNUP,
         employeesObject: {
           [phoneNumber]: getEmployeeObject({
             hasSignedUp,
@@ -288,8 +279,6 @@ const handleAddedToOffice = (change, options) => {
           merge: true,
         });
 
-      console.log('addedToOfficeRef', ref.path);
-
       return Promise.resolve();
     })
     .catch(console.error);
@@ -297,8 +286,6 @@ const handleAddedToOffice = (change, options) => {
 
 
 const handleRemovedFromOffice = (change, options) => {
-  console.log('in handleRemovedFromOffice');
-
   const {
     phoneNumber,
     removedOffice,
@@ -330,11 +317,6 @@ const handleRemovedFromOffice = (change, options) => {
         installDocQuery,
         signUpDocQuery,
       ] = result;
-
-      console.log({
-        installDocQuery: installDocQuery.size,
-        signUpDocQuery: signUpDocQuery.size,
-      });
 
       if (!installDocQuery.empty) {
         batch.delete(installDocQuery.docs[0].ref);
@@ -437,8 +419,6 @@ const handleInstall = (change, options) => {
         .get();
     })
     .then((docs) => {
-      console.log('In daily status report...');
-
       const ref = (() => {
         if (docs.empty) {
           return rootCollections.inits.doc();
@@ -454,8 +434,6 @@ const handleInstall = (change, options) => {
         // But that function doesn't put the field `installedToday` in the doc.
         return docs.docs[0].get('installedToday') || 0;
       })();
-
-      console.log({ installedToday: installedToday + 1 });
 
       batch.set(ref, {
         installedToday: installedToday + 1,
@@ -514,12 +492,10 @@ const handleSignUp = (change, options) => {
             && office === newOffice;
         })();
 
-        console.log('signUpRef', ref.path);
-
         batch.set(ref, {
           office,
           officeId: change.after.get('employeeOf')[office],
-          report: 'signup',
+          report: reportNames.SIGNUP,
           date: today.getDate(),
           month: today.getMonth(),
           year: today.getFullYear(),
@@ -558,8 +534,6 @@ module.exports = (change) => {
 
   /** Only for debugging */
   if (!after.data()) {
-    console.log('Profile Deleted');
-
     return Promise.resolve();
   }
 

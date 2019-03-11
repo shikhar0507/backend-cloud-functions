@@ -462,7 +462,7 @@ module.exports = (locals) => {
       });
 
       console.log({
-        report: locals.change.after.get('report'),
+        report: reportNames.DSR,
         to: locals.messageObject.to,
       });
 

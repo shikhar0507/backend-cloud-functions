@@ -50,50 +50,6 @@ const {
   sendResponse,
 } = require('../../admin/utils');
 
-const handleNameUpdate = (conn, locals) => {
-  if (!locals.nameFieldUpdated) {
-    locals
-      .batch
-      .commit()
-      .then(() => sendResponse(conn, code.noContent))
-      .catch((error) => handleError(conn, error));
-
-    return;
-  }
-
-  rootCollections
-    .offices
-    .doc(locals.docs.activity.get('officeId'))
-    .get()
-    .then((doc) => {
-      const namesMap = doc.get('namesMap');
-      const oldNameValue = locals.docs.activity.get('attachment.Name.value');
-      const newNameValue = conn.req.body.attachment.Name.value;
-
-      if (namesMap.hasOwnProperty(oldNameValue)) {
-        namesMap[oldNameValue] = deleteField();
-      }
-
-      const newNamesMap = namesMap;
-
-      newNamesMap[newNameValue] = {
-        [newNameValue]: null,
-      };
-
-      locals.batch.set(doc.ref, {
-        namesMap: newNamesMap,
-      }, {
-          merge: true,
-        });
-
-      return locals
-        .batch
-        .commit();
-    })
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
-};
-
 
 const updateDocsWithBatch = (conn, locals) => {
   const activityRef = rootCollections
@@ -191,7 +147,11 @@ const updateDocsWithBatch = (conn, locals) => {
       merge: true,
     });
 
-  handleNameUpdate(conn, locals);
+  return locals
+    .batch
+    .commit()
+    .then(() => sendResponse(conn, code.noContent))
+    .catch((error) => handleError(conn, error));
 };
 
 const getDisplayText = (conn, locals) => {

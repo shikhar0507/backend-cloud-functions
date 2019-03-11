@@ -240,6 +240,7 @@ const officeSource = () => {
   
   ${footerHtml}
 
+  <script src="https://unpkg.com/micromodal/dist/micromodal.min.js"></script>
   <script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c7f56ce7ea64f4a"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
@@ -323,6 +324,7 @@ const homeSource = () => {
     </div>
 
       ${footerHtml}
+      <script src="https://unpkg.com/micromodal/dist/micromodal.min.js"></script>
       <script src="js/home.js"></script>
     </body>
     </html>`;

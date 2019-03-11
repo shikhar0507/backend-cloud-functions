@@ -178,8 +178,6 @@ module.exports = (conn) => {
         updateClient,
       ] = result;
 
-      console.log({ params: conn.req.query });
-
       return sendJSON(conn, {
         revokeSession,
         updateClient,

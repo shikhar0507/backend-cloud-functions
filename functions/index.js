@@ -100,7 +100,7 @@ const webapp = functions
 module.exports = {
   api,
   timer,
-  // webapp,
+  webapp,
   authOnCreate,
   authOnDelete,
   profileOnWrite,

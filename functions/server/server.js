@@ -265,17 +265,23 @@ const getProfile = (conn, pathName) =>
         * To counter this, we allow a grace period of `60` seconds between
         * the `auth` creation and the hit time on the `api`.
         */
-      const authCreationTime =
-        new Date(conn.requester.creationTime).getTime();
+      const authCreationTime = new Date(
+        conn.requester.creationTime
+      )
+        .getTime();
       const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
       if (Date.now() - authCreationTime < NUM_MILLI_SECS_IN_MINUTE) {
-        handleRequestPath(conn, pathName);
-
-        return;
+        return handleRequestPath(conn, pathName);
       }
 
-      if (doc.get('uid') !== conn.requester.uid) {
+      /**
+       * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
+       *   run `authOnCreate` logic again.
+       */
+
+      if (doc.get('uid')
+        && doc.get('uid') !== conn.requester.uid) {
         console.log({
           authCreationTime,
           now: Date.now(),
@@ -292,18 +298,36 @@ const getProfile = (conn, pathName) =>
          * other than out provided endpoint for updating the `auth`.
          * Disabling their account because this is not allowed.
          */
-        disableAccount(
+        return disableAccount(
           conn,
           `The uid and phone number of the requester does not match.`
         );
-
-        return;
       }
 
-      handleRequestPath(conn, pathName);
+      const batch = db.batch();
 
-      return;
+      /** AuthOnCreate probably failed. This is the fallback */
+      if (!doc.get('uid')) {
+        batch
+          .set(doc.ref, {
+            uid: conn.requester.uid,
+          }, {
+              merge: true,
+            });
+
+        batch
+          .set(rootCollections
+            .updates
+            .doc(conn.requester.uid), {
+              phoneNumber: conn.requester.phoneNumber,
+            }, {
+              merge: true,
+            });
+      }
+
+      return batch.commit();
     })
+    .then(() => handleRequestPath(conn, pathName))
     .catch((error) => handleError(conn, error));
 
 
@@ -447,6 +471,7 @@ const checkAuthorizationToken = (conn) => {
     .catch((error) => handleRejections(conn, error));
 };
 
+
 /**
  * Handles the routing for the request from the clients.
  *
@@ -497,7 +522,7 @@ module.exports = (req, res) => {
   if (env.isProduction) {
     if (!conn.req.headers['x-cf-secret']
       || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
-      sendResponse(conn, code.forbidden, 'Access forbidden');
+      sendResponse(conn, code.forbidden, 'Not allowed');
 
       return;
     }

@@ -105,7 +105,7 @@ const getFieldValue = (snapShot, field) => {
 };
 
 
-const getVisitObject = (addendumDoc, initQuery) => {
+const getVisitObject = (addendumDoc, initQuery, locals) => {
   const visitObject = getFieldValue(initQuery, 'visitObject');
   const activityData = addendumDoc.get('activityData');
   const activityId = addendumDoc.get('activityId');
@@ -137,7 +137,9 @@ const getVisitObject = (addendumDoc, initQuery) => {
   })();
 
   if (!visitObject[activityId]) {
-    visitObject[activityId] = {};
+    visitObject[activityId] = {
+      actualLocation: locals.placeInformation,
+    };
   }
 
   if (visitDateSchedule.startTime) {
@@ -171,7 +173,7 @@ const getVisitObject = (addendumDoc, initQuery) => {
 };
 
 
-const getFollowUpObject = (addendumDoc, initQuery) => {
+const getFollowUpObject = (addendumDoc, initQuery, locals) => {
   const followUpObject = getFieldValue(initQuery, 'followUpObject');
   const activityId = addendumDoc.get('activityId');
   const activityData = addendumDoc.get('activityData');
@@ -206,6 +208,7 @@ const getFollowUpObject = (addendumDoc, initQuery) => {
       closureEndTimestamp: closureDateSchedule.endTime,
       comment: activityData.attachment.Comment.value,
       purpose: addendumDoc.get('activityData.template'),
+      actualLocation: locals.placeInformation,
     };
   }
 
@@ -315,7 +318,6 @@ const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
       expenseClaimObject[activityId].confirmedBy = '';
       expenseClaimObject[activityId].confirmedOn = '';
       expenseClaimObject[activityId].confirmedAt = '';
-
     }
   }
 
@@ -354,8 +356,11 @@ const handleExpenseClaimReport = (addendumDoc, locals) => {
         .set(ref, {
           month,
           year,
-          expenseClaimObject:
-            getExpenseClaimObject(addendumDoc, expenseClaimInitDocsQuery, locals),
+          expenseClaimObject: getExpenseClaimObject(
+            addendumDoc,
+            expenseClaimInitDocsQuery,
+            locals
+          ),
           report: reportNames.EXPENSE_CLAIM,
           office: addendumDoc.get('activityData.office'),
           officeId: addendumDoc.get('activityData.officeId'),
@@ -466,8 +471,7 @@ const handleVisitDate = (addendumDoc, locals) => {
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
 
-      const visitObject = getVisitObject(addendumDoc, snapShot);
-      visitObject.actualLocation = locals.placeInformation;
+      const visitObject = getVisitObject(addendumDoc, snapShot, locals);
 
       const docData = {
         date,
@@ -517,8 +521,8 @@ const handleFollowUpDate = (addendumDoc, locals) => {
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
 
-      const followUpObject = getFollowUpObject(addendumDoc, snapShot);
-      followUpObject.actualLocation = locals.placeInformation;
+      const followUpObject = getFollowUpObject(addendumDoc, snapShot, locals);
+      // followUpObject.actualLocation = locals.placeInformation;
 
       const docData = {
         date,
@@ -585,9 +589,6 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
   });
 
   const momentToday = momentTz().toObject();
-  const momentYesterday = momentTz().subtract(1, 'days').toObject();
-
-  console.log({ momentToday, momentYesterday });
 
   return Promise
     .all([
@@ -610,6 +611,7 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
         todayInitQuery,
         counterDocsQuery,
       ] = result;
+
       const initDoc = initDocRef(todayInitQuery);
 
       console.log('REPORT:', initDoc.path);
