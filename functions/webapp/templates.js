@@ -1,69 +1,63 @@
 'use strict';
 
+const metaHead = `
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="ie=edge">
+<meta itemprop="name" content="{{pageTitle}}">
+<meta itemprop="description" content="{{pageDescription}}">
+<meta itemprop="image" content="{{mainImageUrl}}">
 
-const officeSource = () => {
-  const source = `
-<!DOCTYPE html>
-<html lang="en" itemscope itemtype="https://schema.org/Article">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <meta itemprop="name" content="{{pageTitle}}">
-  <meta itemprop="description" content="{{pageDescription}}">
-  <meta itemprop="image" content="{{mainImageUrl}}">
-  
-  <meta name="theme-color" content="#4285f4">
-  <meta name="description" content="{{pageDescription}}">
-  <meta name="robots" content="index,follow">
-  
-  <meta name="googlebot" content="index,follow">
-  <meta name="google-site-verification" content="">
-  <meta name="msvalidate.01" content="">
+<meta name="theme-color" content="#4285f4">
+<meta name="description" content="{{pageDescription}}">
+<meta name="robots" content="index,follow">
 
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="google-play-app" content="app-id=com.growthfile.growthfileNew">
-  <link rel="alternate" href="android-app://com.growthfile.growthfileNew">
+<meta name="googlebot" content="index,follow">
+<meta name="google-site-verification" content="">
+<meta name="msvalidate.01" content="">
 
-  
-  <meta property="fb:app_id" content="">
-  <meta property="og:url" content="{{cannonicalUrl}}">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="{{pageTitle}}">
-  <meta property="og:image" content="{{mainImageUrl}}">
-  <meta property="og:description" content="{{pageDescription}}">
-  <meta property="og:site_name" content="Growthfile">
-  <meta property="og:locale" content="en_US">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="google-play-app" content="app-id=com.growthfile.growthfileNew">
+<link rel="alternate" href="android-app://com.growthfile.growthfileNew">
+
+<meta property="fb:app_id" content="">
+<meta property="og:url" content="{{cannonicalUrl}}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{pageTitle}}">
+<meta property="og:image" content="{{mainImageUrl}}">
+<meta property="og:description" content="{{pageDescription}}">
+<meta property="og:site_name" content="Growthfile">
+<meta property="og:locale" content="en_US">
+{{#if officeName}}
   <meta property="article:author" content="{{officeName}}">
-  
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:site" content="@growthfile">
-  <meta name="twitter:creator" content="@growthfile">
-  <meta name="twitter:url" content="{{cannonicalUrl}}">
-  <meta name="twitter:title" content="{{pageTitle}}">
-  <meta name="twitter:description" content="{{pageDescription}}">
-  <meta name="twitter:image" content="{{mainImageUrl}}">
+{{/if}}
 
-  <!--UC Browser-->
-  <meta name="screen-orientation" content="landscape/portrait">
-  <meta name="imagemode" content="force">
-  <meta name="wap-font-scale" content="no">
-  <meta name="layoutmode" content="fitscreen">
-  
-  <link rel="canonical" href="{{cannonicalUrl}}">
-  <link rel="author" href="humans.txt">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css" integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@growthfile">
+<meta name="twitter:creator" content="@growthfile">
+<meta name="twitter:url" content="{{cannonicalUrl}}">
+<meta name="twitter:title" content="{{pageTitle}}">
+<meta name="twitter:description" content="{{pageDescription}}">
+<meta name="twitter:image" content="{{mainImageUrl}}">
+
+<!--UC Browser-->
+<meta name="screen-orientation" content="landscape/portrait">
+<meta name="imagemode" content="force">
+<meta name="wap-font-scale" content="no">
+<meta name="layoutmode" content="fitscreen">
+
+<link rel="canonical" href="{{cannonicalUrl}}">
+<link rel="author" href="humans.txt">
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css" integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-  <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
   <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css?family=Palanquin" rel="stylesheet">
-  <link rel="stylesheet" href="css/office.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="css/common.css">
+`;
 
-  <title>Growthfile - {{officeName}}</title>
-</head>
-<body data-slug="{{slug}}">
-  <header>
+const header = `
+<header>
     <section class="header-section-start">
       <a id="logo" href="/">
         <img src="img/logo-main.jpg">
@@ -80,8 +74,85 @@ const officeSource = () => {
         Download
       </a>
     </section>
-  </header>
+  </header>`;
 
+const footerHtml = `
+<footer>
+<div class="footer-container">
+  <div class="footer-links">
+    <div class="footer-link-heading">Company</div>
+    <ul class="footer-page-links">
+      <li>
+        <a href="https://growthfile.com/about">About</a>
+      </li>
+      <li>
+        <a href="https://growthfile.com/careers">Careers</a>
+      </li>
+      <li>
+        <a href="https://growthfile.com/help">Help</a>
+      </li>
+      <li>
+        <a href="https://growthfile.com/contact">Contact Us</a>
+      </li>
+      <li>
+        <a href="https://growthfile.com/sitemap.xml">Sitemap</a>
+      </li>
+    </ul>
+  </div>
+  <div class="footer-links">
+    <div class="footer-link-heading">Follow Us</div>
+      <ul>
+        <li class="social-icon">
+        <a href="#" target="_blank">
+            <i class="fab fa-facebook fa-2x"></i>
+          </a>
+        </li>
+        <li class="social-icon">
+        <a href="https://twitter.com/growthfile" target="_blank">
+          <i class="fab fa-twitter fa-2x"></i>
+          </a>
+        </li>
+        <li class="social-icon">
+          <a href="https://angel.co/growthfile" target="_blank">
+          <i class="fab fa-angellist fa-2x"></i>
+          </a>
+        </li>
+        <li class="social-icon">
+          <a href="#">
+          <i class="fab fa-linkedin-in fa-2x"></i>
+          </a>
+        </li>
+      </ul>
+  </div>
+  <div class="footer-links footer-about-growthfile">
+    <div class="footer-logo-container">
+      <img src="img/logo-main.jpg" alt="growthfile-logo">
+      <span class="footer-link-heading">Growthfile Inc.</span>
+    </div>
+    <div class="footer-page-links">
+      <a href="#">Terms</a>
+      <a href="#">Privacy</a>
+    </div>
+    <span>Copyright © 2019 Growthfile Analytics, Inc. All rights reserved.</span>
+  </div>
+</div>
+</footer>`;
+
+
+const officeSource = () => {
+  const source = `
+<!DOCTYPE html>
+<html lang="en" itemscope itemtype="https://schema.org/Article">
+<head>
+  
+  ${metaHead}
+  <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
+  <link rel="stylesheet" href="css/office.css">
+
+  <title>Growthfile - {{officeName}}</title>
+</head>
+<body data-slug="{{slug}}">
+  ${header}
   <div class="pad-after-header"></div>
 
   <div class="modal">
@@ -167,66 +238,7 @@ const officeSource = () => {
     </form>
   </section>
   
-  <footer>
-    <div class="footer-container">
-      <div class="footer-links">
-        <div class="footer-link-heading">Company</div>
-        <ul class="footer-page-links">
-          <li>
-            <a href="https://growthfile.com/about">About</a>
-          </li>
-          <li>
-            <a href="https://growthfile.com/careers">Careers</a>
-          </li>
-          <li>
-            <a href="https://growthfile.com/help">Help</a>
-          </li>
-          <li>
-            <a href="https://growthfile.com/contact">Contact Us</a>
-          </li>
-          <li>
-            <a href="https://growthfile.com/sitemap.xml">Sitemap</a>
-          </li>
-        </ul>
-      </div>
-      <div class="footer-links">
-        <div class="footer-link-heading">Follow Us</div>
-          <ul>
-            <li class="social-icon">
-            <a href="#" target="_blank">
-                <i class="fab fa-facebook fa-2x"></i>
-              </a>
-            </li>
-            <li class="social-icon">
-            <a href="https://twitter.com/growthfile" target="_blank">
-              <i class="fab fa-twitter fa-2x"></i>
-              </a>
-            </li>
-            <li class="social-icon">
-              <a href="https://angel.co/growthfile" target="_blank">
-              <i class="fab fa-angellist fa-2x"></i>
-              </a>
-            </li>
-            <li class="social-icon">
-              <a href="#">
-              <i class="fab fa-linkedin-in fa-2x"></i>
-              </a>
-            </li>
-          </ul>
-      </div>
-      <div class="footer-links footer-about-growthfile">
-        <div class="footer-logo-container">
-          <img src="img/logo-main.jpg" alt="growthfile-logo">
-          <span class="footer-link-heading">Growthfile Inc.</span>
-        </div>
-        <div class="footer-page-links">
-          <a href="#">Terms</a>
-          <a href="#">Privacy</a>
-        </div>
-        <span>Copyright © 2019 Growthfile Analytics, Inc. All rights reserved.</span>
-      </div>
-    </div>
-  </footer>
+  ${footerHtml}
 
   <script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c7f56ce7ea64f4a"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
@@ -237,25 +249,6 @@ const officeSource = () => {
   <script src="js/office.js"></script>
 </body>
 </html>`;
-
-  return source;
-};
-
-const homeSource = () => {
-  const source =
-    `<!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <meta http-equiv="X-UA-Compatible" content="ie=edge">
-      <title>Growthfile Home</title>
-    </head>
-    <body>
-      <h1>From function</h1>
-      <script src="js/home.js"></script>
-    </body>
-    </html>`;
 
   return source;
 };
@@ -308,6 +301,31 @@ const downloadPageSource = () => {
   <script src="js/download.js"></script>
 </body>
 </html>`;
+
+  return source;
+};
+
+const homeSource = () => {
+  const source =
+    `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+      ${metaHead}
+      <link rel="stylesheet" href="css/home.css">
+    </head>
+    <body>
+    ${header}
+    <div class="hero">
+      <div class="banner">
+        <h1>A single app for employees of all <span>businesses</span></h1>
+        <a href="#">Join Growthfile</a>
+      </div>
+    </div>
+
+      ${footerHtml}
+      <script src="js/home.js"></script>
+    </body>
+    </html>`;
 
   return source;
 };

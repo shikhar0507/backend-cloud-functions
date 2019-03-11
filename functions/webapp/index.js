@@ -13,19 +13,32 @@ const {
 const {
   code,
 } = require('../admin/responses');
-// const templates = require('./templates');
-// const handlebars = require('handlebars');
+const helpers = require('./helpers');
 const url = require('url');
-
-const officePage = require('../webapp/office-page');
-const errorPage = require('../webapp/error-page');
-const downloadPage = require('../webapp/download');
 
 const getSlug = (requestUrl) => {
   const parsed = url.parse(requestUrl);
   const officeName = parsed.pathname;
 
   return officeName.split('/')[1];
+};
+
+const handleHomePage = (conn) => {
+  rootCollections
+    .offices
+    .where('office', '==', conn.req.query.office)
+    .limit(1)
+    .get()
+    .then((docs) => {
+      const officeDoc = docs.docs[0];
+
+      const locals = {
+        officesArray: [officeDoc, officeDoc, officeDoc, officeDoc],
+      };
+
+      return helpers.homePage(conn, locals);
+    })
+    .catch((error) => helpers.errorPage(conn, error));
 };
 
 
@@ -46,15 +59,16 @@ const app = (req, res) => {
   const conn = { req, res };
   const locals = { slug };
 
-  // if (slug === '/' || slug === '') {
-  //   return officePage(conn);
-  // }
+  console.log('slug:', slug);
 
-  if (slug === 'download') {
-    return downloadPage(conn);
+  if (slug === '/' || slug === '') {
+    return handleHomePage(conn);
   }
 
-  console.log('slug:', slug);
+  if (slug === 'download') {
+    return helpers.downloadAppPage(conn, {});
+  }
+
 
   /**
    * const context = variables object
@@ -70,9 +84,7 @@ const app = (req, res) => {
     .get()
     .then((docs) => {
       if (docs.empty) {
-        const html = `<h1>NOT FOUND<h1>`;
-
-        return res.status(code.notFound).send(html);
+        return helpers.homePage(conn, {});
       }
 
       locals.officeDoc = docs.docs[0];
@@ -132,9 +144,9 @@ const app = (req, res) => {
           };
         });
 
-      return officePage(conn, locals);
+      return helpers.officePage(conn, locals);
     })
-    .catch((error) => errorPage(conn, error));
+    .catch((error) => helpers.errorPage(conn, error));
 };
 
 
