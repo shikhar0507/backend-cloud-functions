@@ -8,8 +8,16 @@ const {
 
 
 
-module.exports = (snapShot, context) =>
-  rootCollections
+module.exports = (snapShot, context) => {
+  // Unassign notifications will go to the user when they are cancelled, 
+  // or removed as an assignee from an activity for some reason
+  // Not sending in the case of unassign because this will trigger multiple 
+  // notifications to the user
+  if (snapShot.get('unassign')) {
+    return Promise.resolve();
+  }
+
+  return rootCollections
     .updates
     .doc(context.params.uid)
     .get()
@@ -48,3 +56,4 @@ module.exports = (snapShot, context) =>
     })
     .then(JSON.stringify)
     .catch(console.error);
+};
