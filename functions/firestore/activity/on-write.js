@@ -129,24 +129,28 @@ const handleAdmin = (locals, batch) => {
 
 
 const handleRecipient = (locals, batch) => {
+  const recipientsDocRef = rootCollections.recipients.doc(locals.change.after.id);
+
   if (locals.addendumDoc
     && locals.addendumDoc.get('action') !== httpsActions.comment) {
-    batch.set(rootCollections
-      .recipients
-      .doc(locals.change.after.id), {
-        cc: locals.change.after.get('attachment.cc.value'),
-        office: locals.change.after.get('office'),
-        include: locals.assigneePhoneNumbersArray,
-        report: locals.change.after.get('attachment.Name.value'),
-        officeId: locals.change.after.get('officeId'),
-        status: locals.change.after.get('status'),
-      }, {
+    batch.set(recipientsDocRef, {
+      cc: locals.change.after.get('attachment.cc.value'),
+      office: locals.change.after.get('office'),
+      include: locals.assigneePhoneNumbersArray,
+      report: locals.change.after.get('attachment.Name.value'),
+      officeId: locals.change.after.get('officeId'),
+      status: locals.change.after.get('status'),
+    }, {
         /**
          * Required since anyone updating the this activity will cause
          * the report data to be lost.
          */
         merge: true,
       });
+  }
+
+  if (locals.change.after.get('status') === 'CANCELLED') {
+    batch.delete(recipientsDocRef);
   }
 
   return batch
@@ -474,6 +478,12 @@ const handleCanEditRule = (locals, templateDoc) => {
 const handleSubscription = (locals, batch) => {
   const templateName = locals.change.after.get('attachment.Template.value');
   console.log({ templateName });
+  const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
+  const subscriptionDocRef = rootCollections
+    .profiles
+    .doc(subscriberPhoneNumber)
+    .collection('Subscriptions')
+    .doc(locals.change.after.id);
 
   return rootCollections
     .activityTemplates
@@ -482,10 +492,6 @@ const handleSubscription = (locals, batch) => {
     .get()
     .then((templateDocsQuery) => {
       const templateDoc = templateDocsQuery.docs[0];
-      const subscriberPhoneNumber =
-        locals
-          .change
-          .after.get('attachment.Subscriber.value');
 
       const include = [];
 
@@ -507,23 +513,23 @@ const handleSubscription = (locals, batch) => {
           include.push(phoneNumber);
         });
 
-      batch.set(rootCollections
-        .profiles
-        .doc(subscriberPhoneNumber)
-        .collection('Subscriptions')
-        .doc(locals.change.after.id), {
-          include,
-          schedule: templateDoc.get('schedule'),
-          venue: templateDoc.get('venue'),
-          template: templateDoc.get('name'),
-          attachment: templateDoc.get('attachment'),
-          timestamp: locals.change.after.get('timestamp'),
-          office: locals.change.after.get('office'),
-          status: locals.change.after.get('status'),
-          canEditRule: templateDoc.get('canEditRule'),
-          hidden: templateDoc.get('hidden'),
-          statusOnCreate: templateDoc.get('statusOnCreate'),
-        });
+      batch.set(subscriptionDocRef, {
+        include,
+        schedule: templateDoc.get('schedule'),
+        venue: templateDoc.get('venue'),
+        template: templateDoc.get('name'),
+        attachment: templateDoc.get('attachment'),
+        timestamp: locals.change.after.get('timestamp'),
+        office: locals.change.after.get('office'),
+        status: locals.change.after.get('status'),
+        canEditRule: templateDoc.get('canEditRule'),
+        hidden: templateDoc.get('hidden'),
+        statusOnCreate: templateDoc.get('statusOnCreate'),
+      });
+
+      if (locals.change.after.get('status') === 'CANCELLED') {
+        batch.delete(subscriptionDocRef);
+      }
 
       /* eslint-disable */
       return batch

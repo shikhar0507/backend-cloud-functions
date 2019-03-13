@@ -96,7 +96,7 @@ const getPlaceInformation = (mapsApiResult, geopoint) => {
 };
 
 
-const getFieldValue = (snapShot, field) => {
+const getObject = (snapShot, field) => {
   if (snapShot.empty) {
     return {};
   }
@@ -105,125 +105,8 @@ const getFieldValue = (snapShot, field) => {
 };
 
 
-const getVisitObject = (addendumDoc, initQuery, locals) => {
-  const visitObject = getFieldValue(initQuery, 'visitObject');
-  const activityData = addendumDoc.get('activityData');
-  const activityId = addendumDoc.get('activityId');
-  const template = addendumDoc.get('activityData.template');
-  const status = addendumDoc.get('activityData.status');
-  const [
-    visitDateSchedule,
-    followUpDateSchedule,
-  ] = activityData.schedule;
-
-  const dataObject = (() => {
-    if (template === 'tour plan') {
-      return {
-        firstContact: '',
-        secondContact: '',
-        product1: '',
-        product2: '',
-        product3: '',
-      };
-    }
-
-    return {
-      firstContact: activityData.attachment['First Contact'].value,
-      secondContact: activityData.attachment['Second Contact'].value,
-      product1: activityData.attachment['Product 1'].value,
-      product2: activityData.attachment['Product 2'].value,
-      product3: activityData.attachment['Product 3'].value,
-    };
-  })();
-
-  if (!visitObject[activityId]) {
-    visitObject[activityId] = {
-      actualLocation: locals.placeInformation,
-    };
-  }
-
-  if (visitDateSchedule.startTime) {
-    visitObject[activityId] = {
-      firstContact: dataObject.firstContact,
-      secondContact: dataObject.secondContact,
-      purpose: addendumDoc.get('activityData.template'),
-      phoneNumber: addendumDoc.get('user'),
-      visitStartTimestamp: visitDateSchedule.startTime,
-      visitEndTimestamp: visitDateSchedule.endTime,
-      customer: activityData.attachment.Customer.value,
-      product1: dataObject.product1,
-      product2: dataObject.product2,
-      product3: dataObject.product3,
-      comment: activityData.attachment.Comment.value,
-    };
-
-    if (template === reportNames.DSR) {
-      visitObject[activityId].followUpStartTimestamp = followUpDateSchedule.startTime;
-      visitObject[activityId].followUpEndTimestamp = followUpDateSchedule.endTime;
-    }
-  }
-
-  if (status === 'CANCELLED') {
-    visitObject[activityId] = deleteField();
-  }
-
-  console.log({ visitObject });
-
-  return visitObject;
-};
-
-
-const getFollowUpObject = (addendumDoc, initQuery, locals) => {
-  const followUpObject = getFieldValue(initQuery, 'followUpObject');
-  const activityId = addendumDoc.get('activityId');
-  const activityData = addendumDoc.get('activityData');
-  const status = addendumDoc.get('activityData.status');
-  const [
-    visitDateSchedule,
-    followUpDateSchedule,
-    closureDateSchedule,
-  ] = activityData.schedule;
-  const visitType = (() => {
-    if (closureDateSchedule.startTime) {
-      return 'Closure';
-    }
-
-    return 'Follow-Up';
-  })();
-
-  if (followUpDateSchedule.startTime || closureDateSchedule.startTime) {
-    followUpObject[activityId] = {
-      visitType,
-      visitStartTime: visitDateSchedule.startTime,
-      phoneNumber: addendumDoc.get('user'),
-      followUpStartTimestamp: followUpDateSchedule.startTime,
-      followUpEndTimestamp: followUpDateSchedule.endTime,
-      customer: activityData.attachment.Customer.value,
-      firstContact: activityData.attachment['First Contact'].value,
-      secondContact: activityData.attachment['Second Contact'].value,
-      product1: activityData.attachment['Product 1'].value,
-      product2: activityData.attachment['Product 2'].value,
-      product3: activityData.attachment['Product 3'].value,
-      closureStartTimestamp: closureDateSchedule.startTime,
-      closureEndTimestamp: closureDateSchedule.endTime,
-      comment: activityData.attachment.Comment.value,
-      purpose: addendumDoc.get('activityData.template'),
-      actualLocation: locals.placeInformation,
-    };
-  }
-
-  if (status === 'CANCELLED') {
-    followUpObject[activityId] = deleteField();
-  }
-
-  console.log({ followUpObject });
-
-  return followUpObject;
-};
-
-
 const getDutyRosterObject = (addendumDoc, initQuery, locals) => {
-  const dutyRosterObject = getFieldValue(initQuery, 'dutyRosterObject');
+  const dutyRosterObject = getObject(initQuery, 'dutyRosterObject');
   const action = addendumDoc.get('action');
   const status = addendumDoc.get('activityData.status');
   const schedule = addendumDoc.get('activityData.schedule')[0];
@@ -278,7 +161,7 @@ const getDutyRosterObject = (addendumDoc, initQuery, locals) => {
 
 
 const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
-  const expenseClaimObject = getFieldValue(initQuery, 'expenseClaimObject');
+  const expenseClaimObject = getObject(initQuery, 'expenseClaimObject');
   const action = addendumDoc.get('action');
   const activityData = addendumDoc.get('activityData');
   const activityId = addendumDoc.get('activityId');
@@ -443,6 +326,134 @@ const handleDutyRosterReport = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
+const getVisitObject = (addendumDoc, initQuery, locals) => {
+  const visitObject = getObject(initQuery, 'visitObject');
+  const activityData = addendumDoc.get('activityData');
+  const activityId = addendumDoc.get('activityId');
+  const template = addendumDoc.get('activityData.template');
+  const status = addendumDoc.get('activityData.status');
+  const phoneNumber = addendumDoc.get('user');
+  const [
+    visitDateSchedule,
+    followUpDateSchedule,
+  ] = activityData.schedule;
+
+  const dataObject = (() => {
+    if (template === reportNames.TOUR_PLAN) {
+      return {
+        firstContact: '',
+        secondContact: '',
+        product1: '',
+        product2: '',
+        product3: '',
+      };
+    }
+
+    return {
+      firstContact: activityData.attachment['First Contact'].value,
+      secondContact: activityData.attachment['Second Contact'].value,
+      product1: activityData.attachment['Product 1'].value,
+      product2: activityData.attachment['Product 2'].value,
+      product3: activityData.attachment['Product 3'].value,
+    };
+  })();
+
+  if (!visitObject[phoneNumber]) {
+    visitObject[phoneNumber] = {
+      [activityId]: {},
+    };
+  }
+
+  if (visitDateSchedule.startTime) {
+    visitObject[phoneNumber][activityId] = {
+      status,
+      firstContact: dataObject.firstContact,
+      secondContact: dataObject.secondContact,
+      purpose: addendumDoc.get('activityData.template'),
+      phoneNumber: addendumDoc.get('user'),
+      visitStartTimestamp: visitDateSchedule.startTime,
+      visitEndTimestamp: visitDateSchedule.endTime,
+      customer: activityData.attachment.Customer.value,
+      product1: dataObject.product1,
+      product2: dataObject.product2,
+      product3: dataObject.product3,
+      comment: activityData.attachment.Comment.value,
+      actualLocation: locals.placeInformation,
+    };
+
+    if (template === reportNames.DSR) {
+      visitObject[phoneNumber][activityId].followUpStartTimestamp = followUpDateSchedule.startTime;
+      visitObject[phoneNumber][activityId].followUpEndTimestamp = followUpDateSchedule.endTime;
+    }
+  }
+
+  if (status === 'CANCELLED'
+    && visitObject[phoneNumber]
+    && visitObject[phoneNumber][activityId]) {
+    visitObject[phoneNumber][activityId] = deleteField();
+  }
+
+  return visitObject;
+};
+
+
+const getFollowUpObject = (addendumDoc, initQuery, locals) => {
+  const followUpObject = getObject(initQuery, 'followUpObject');
+  const activityId = addendumDoc.get('activityId');
+  const activityData = addendumDoc.get('activityData');
+  const status = addendumDoc.get('activityData.status');
+  const phoneNumber = addendumDoc.get('user');
+  const [
+    visitDateSchedule,
+    followUpDateSchedule,
+    closureDateSchedule,
+  ] = activityData.schedule;
+
+  const visitType = (() => {
+    if (closureDateSchedule.startTime) {
+      return 'Closure';
+    }
+
+    return 'Follow-Up';
+  })();
+
+  if (!followUpObject[phoneNumber]) {
+    followUpObject[phoneNumber] = {
+      [activityId]: {},
+    };
+  }
+
+  if (followUpDateSchedule.startTime || closureDateSchedule.startTime) {
+    followUpObject[phoneNumber][activityId] = {
+      visitType,
+      phoneNumber,
+      visitStartTimestamp: visitDateSchedule.startTime,
+      visitEndTimestamp: visitDateSchedule.endTime,
+      followUpStartTimestamp: followUpDateSchedule.startTime,
+      followUpEndTimestamp: followUpDateSchedule.endTime,
+      customer: activityData.attachment.Customer.value,
+      firstContact: activityData.attachment['First Contact'].value,
+      secondContact: activityData.attachment['Second Contact'].value,
+      product1: activityData.attachment['Product 1'].value,
+      product2: activityData.attachment['Product 2'].value,
+      product3: activityData.attachment['Product 3'].value,
+      closureStartTimestamp: closureDateSchedule.startTime,
+      closureEndTimestamp: closureDateSchedule.endTime,
+      comment: activityData.attachment.Comment.value,
+      purpose: addendumDoc.get('activityData.template'),
+      actualLocation: locals.placeInformation,
+    };
+  }
+
+  if (status === 'CANCELLED'
+    && followUpObject[phoneNumber]
+    && followUpObject[phoneNumber][activityId]) {
+    followUpObject[phoneNumber][activityId] = deleteField();
+  }
+
+  return followUpObject;
+};
+
 
 const handleVisitDate = (addendumDoc, locals) => {
   if (addendumDoc.get('activityData.template') !== reportNames.DSR
@@ -454,6 +465,11 @@ const handleVisitDate = (addendumDoc, locals) => {
   }
 
   const visitStartSchedule = addendumDoc.get('activityData.schedule')[0];
+
+  if (!visitStartSchedule.startTime) {
+    return Promise.resolve();
+  }
+
   const visitDayStartTimestamp = new Date(visitStartSchedule.startTime);
   const date = visitDayStartTimestamp.getDate();
   const month = visitDayStartTimestamp.getMonth();
@@ -470,26 +486,20 @@ const handleVisitDate = (addendumDoc, locals) => {
     .get()
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
-
       const visitObject = getVisitObject(addendumDoc, snapShot, locals);
 
-      const docData = {
-        date,
-        month,
-        year,
-        visitObject,
-        report: reportNames.DSR,
-        office: addendumDoc.get('activityData.office'),
-        officeId: addendumDoc.get('activityData.officeId'),
-      };
-
-      if (snapShot.empty) {
-        docData.followUpObject = {};
-      }
-
-      console.log('visit:', ref.path);
-
-      return Promise.resolve();
+      return ref
+        .set({
+          date,
+          month,
+          year,
+          visitObject,
+          report: reportNames.DSR,
+          office: addendumDoc.get('activityData.office'),
+          officeId: addendumDoc.get('activityData.officeId'),
+        }, {
+            merge: true,
+          });
     })
     .catch(console.error);
 };
@@ -504,7 +514,16 @@ const handleFollowUpDate = (addendumDoc, locals) => {
   }
 
   const followUpSchedule = addendumDoc.get('activityData.schedule')[1];
-  const followUpStartTimestamp = new Date(followUpSchedule.startTime);
+  const closureDateSchedule = addendumDoc.get('activityData.schedule')[2];
+
+  if (!followUpSchedule.startTime && !closureDateSchedule.startTime) {
+    return Promise.resolve();
+  }
+
+  // Either date can be missing
+  const followUpStartTimestamp = new Date(
+    followUpSchedule.startTime || closureDateSchedule.startTime
+  );
   const date = followUpStartTimestamp.getDate();
   const month = followUpStartTimestamp.getMonth();
   const year = followUpStartTimestamp.getFullYear();
@@ -522,9 +541,8 @@ const handleFollowUpDate = (addendumDoc, locals) => {
       const ref = initDocRef(snapShot);
 
       const followUpObject = getFollowUpObject(addendumDoc, snapShot, locals);
-      // followUpObject.actualLocation = locals.placeInformation;
 
-      const docData = {
+      return ref.set({
         date,
         month,
         year,
@@ -532,13 +550,9 @@ const handleFollowUpDate = (addendumDoc, locals) => {
         report: reportNames.DSR,
         office: addendumDoc.get('activityData.office'),
         officeId: addendumDoc.get('activityData.officeId'),
-      };
-
-      if (snapShot.empty) docData.visitObject = {};
-
-      locals.batch.set(ref, docData, { merge: true });
-
-      return Promise.resolve();
+      }, {
+          merge: true,
+        });
     })
     .catch(console.error);
 };
@@ -780,7 +794,7 @@ const handleLeaveReport = (addendumDoc, locals) => {
     .get()
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
-      const leaveObject = getFieldValue(snapShot, 'leaveObject');
+      const leaveObject = getObject(snapShot, 'leaveObject');
 
       if (!leaveObject[activityId]) {
         leaveObject[activityId] = {
@@ -942,18 +956,21 @@ module.exports = (addendumDoc) => {
        * Seperating this part out because handling even a single crash
        * with `addendumOnCreate` cloud function messes up whole data for the user
        * after the time of the crash. This part should remain seperated
-       * because further object/data creation is pretty simple and is not
-       * much work to recreate if anything crashes.
+       * because further object/data in the `Inits` collection is pretty simple 
+       * to recreate.
        */
-      return addendumDoc.ref.set(updateObject, {
-        merge: true,
-      });
+      return addendumDoc
+        .ref
+        .set(updateObject, {
+          merge: true,
+        });
     })
-    .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleLeaveReport(addendumDoc, locals))
     .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleExpenseClaimReport(addendumDoc, locals))
     .then(() => locals.batch.commit())
+    /** DSR doesn't use a batch */
+    .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))
     .catch((error) => {
       const context = {

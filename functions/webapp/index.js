@@ -126,17 +126,28 @@ const app = (req, res) => {
           };
         });
 
-      const getName = (name) => {
+      // const getName = (name) => {
 
-        return name.slice(0, 8);
-      };
+      //   return name.slice(0, 8);
+      // };
 
       locals
         .productObjectsArray = productQuery.docs.map((doc) => {
+          const name = doc.get('attachment.Name.value');
+
+          const imageUrl = (() => {
+            if (doc.get('attachment.Image Url.value')) {
+              return doc.get('attachment.Image Url.value');
+            }
+
+            return 'img/product-placeholder.png';
+          })();
+
           return {
-            name: getName(doc.get('attachment.Name.value')),
+            name,
             productDetails: JSON.stringify({
-              imageUrl: doc.get('attachment.Image Url.value'),
+              name,
+              imageUrl,
               productType: doc.get('attachment.Product Type.value'),
               brand: doc.get('attachment.Brand.value'),
               model: doc.get('attachment.Model.value'),

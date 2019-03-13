@@ -317,45 +317,37 @@ const sendErrorReport = () => {
 
   const today = momentTz().subtract(1, 'days');
 
+  const getHTMLString = (doc, index) => {
+    return `
+    <h2>${index + 1}. Error message: ${doc.get('message')} | ${doc.id}</h2>
+    <h3>First Occurrance: ${doc.createTime.toDate()}</h3>
+    <h3>Last Occurrance: ${doc.updateTime.toDate()}</h3>
+    <h3>Affected Users</h3>
+    <p>${Object.keys(doc.get('affectedUsers'))}</p>
+    <h3>Error Body</h3>
+    <p><pre>${JSON.stringify(doc.get('bodyObject'), ' ')}</pre></p>
+    <h3>Error Device</h3>
+    <p><pre>${JSON.stringify(doc.get('deviceObject'), ' ')}</pre></p>
+    <hr>`;
+  };
+
   return rootCollections
     .errors
     .where('date', '==', today.date())
     .where('month', '==', today.month())
     .where('year', '==', today.year())
     .get()
-    .then((docs) => {
-      if (docs.empty) {
+    .then((snapShot) => {
+      if (snapShot.empty) {
         // No errors yesterday
         return Promise.resolve();
       }
 
       let messageBody = '';
 
-      docs.docs.forEach((doc, index) => {
-        const {
-          affectedUsers,
-          bodyObject,
-          deviceObject,
-          message,
-        } = doc.data();
+      snapShot.docs.forEach((doc, index) => messageBody += `${getHTMLString(doc, index)}\n\n`);
 
-        const str = `
-        <h2>${index + 1}. Error message: ${message} | ${doc.id}</h2>
-        <h3>Affected Users</h3>
-        <p>${Object.keys(affectedUsers)}</p>
-        <h3>Error Body</h3>
-        <p><pre>${JSON.stringify(bodyObject, ' ')}</pre></p>
-        <h3>Error Device</h3>
-        <p><pre>${JSON.stringify(deviceObject, ' ')}</pre></p>
-        <hr>
-        `;
-
-        messageBody += `${str}\n\n`;
-      });
-
-
-      const subject =
-        `${process.env.GCLOUD_PROJECT}`
+      const subject = `${process.env.GCLOUD_PROJECT}`
         + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
 
       const sgMail = require('@sendgrid/mail');

@@ -9,12 +9,16 @@ body {
     background-color: #f6f9fc;
 }
 
+header {
+    height: 50px;
+}
+
 .pad {
     padding: 10px;
 }
 
-header {
-    height: 50px;
+input:focus {
+    border: 1px solid #039be5;
 }
 
 .pad-after-header {

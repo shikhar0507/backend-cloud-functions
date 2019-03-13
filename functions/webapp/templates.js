@@ -146,7 +146,8 @@ const officeSource = () => {
 <head>
   
   ${metaHead}
-  <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <link rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
   <link rel="stylesheet" href="css/office.css">
 
   <title>Growthfile - {{officeName}}</title>
@@ -220,7 +221,11 @@ const officeSource = () => {
       </div>
 
       <div class="form-element">
-        <input type="phoneNumber" name="person-phone-number" placeholder="+1234567890"></input>
+        <input type="tel" name="person-phone-number" placeholder="+1234567890"></input>
+      </div>
+
+      <div class="form-element">
+        <input type="text" name="person-company-name" placeholder="Your company name"></input>
       </div>
 
       <div class="form-element">
@@ -234,19 +239,20 @@ const officeSource = () => {
         </a>
       </div>
 
-      <p>By completing this form, I have read and acknowledged the <a href="#">Privacy Policy</a> and agree that <span>Growthfile Inc.</span> may contact me at the email address above.</p>
+      <p>By completing this form, you have read and acknowledged the <a href="#">Privacy Policy</a> and agree that <span>Growthfile Inc.</span> may contact you at the email address above.</p>
     </form>
   </section>
   
   ${footerHtml}
 
-  <script src="https://unpkg.com/micromodal/dist/micromodal.min.js"></script>
-  <script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c7f56ce7ea64f4a"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
   <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
   <script src="https://maps.googleapis.com/maps/api/js?key={{mapsApiKey}}"></script>
+  <script src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c7f56ce7ea64f4a"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"></script>
   <script src="js/office.js"></script>
 </body>
 </html>`;

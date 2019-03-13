@@ -33,16 +33,363 @@ const {
   timeStringWithOffset,
   alphabetsArray,
   employeeInfo,
-  toMapsUrl,
 } = require('./report-utils');
 const {
   reportNames,
   dateFormats,
 } = require('../../admin/constants');
-
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 const fs = require('fs');
+
+
+
+const handleSheetTwo = (params) => {
+  const {
+    employeeInfo,
+    alphabetsArray,
+    dateStringWithOffset,
+    timeStringWithOffset,
+  } = require('../firestore/recipients/report-utils');
+  const {
+    dateFormats,
+  } = require('../admin/constants');
+
+  const {
+    worksheet,
+    todayInitsQuery,
+    customersData,
+    employeesData,
+    timezone,
+  } = params;
+
+  if (todayInitsQuery.empty) {
+    return Promise.resolve(params);
+  }
+
+  const followUpObject = todayInitsQuery.docs[0].get('followUpObject');
+
+  if (!followUpObject) {
+    return Promise.resolve(params);
+  }
+
+  const phoneNumbers = Object.keys(followUpObject);
+
+  if (phoneNumbers.length === 0) {
+    return Promise.resolve(params);
+  }
+
+  const sheet2 = worksheet.addSheet('DSR Follow-Up');
+  sheet2.row(1).style('bold', true);
+
+  const followUpTopRow = [
+    'Date',
+    'Visit Type',
+    'Employee Name',
+    'Customer',
+    'First Contact',
+    'Second Contact',
+    'Address',
+    'Actual Location',
+    'Status',
+    'Purpose',
+    'Start Time',
+    'End Time',
+    'Product 1',
+    'Product 2',
+    'Product 3',
+    'Visit Date',
+    'Comment',
+    'Department',
+    'Base Location',
+    'First Supervisor',
+    'Second Supervisor',
+  ];
+
+  followUpTopRow.forEach((topRowValue, index) => {
+    sheet2.cell(`${alphabetsArray[index]}1`).value(topRowValue);
+  });
+
+  phoneNumbers.forEach((phoneNumber) => {
+    const activityIdsArray = Object.keys(followUpObject[phoneNumber]);
+
+    activityIdsArray.forEach((id, index) => {
+      const {
+        status,
+        comment,
+        purpose,
+        customer,
+        product1,
+        product2,
+        product3,
+        visitType,
+        firstContact,
+        secondContact,
+        actualLocation,
+        visitEndTimestamp,
+        visitStartTimestamp,
+        closureEndTimestamp,
+        followUpEndTimestamp,
+        closureStartTimestamp,
+        followUpStartTimestamp,
+      } = followUpObject[phoneNumber][id];
+
+      const date = dateStringWithOffset({
+        timezone,
+        timestampToConvert: followUpStartTimestamp,
+      });
+      const startTime = (() => {
+        let timestampToConvert = followUpStartTimestamp;
+
+        if (closureStartTimestamp) {
+          timestampToConvert = closureStartTimestamp;
+        }
+
+        return timeStringWithOffset({
+          timezone,
+          timestampToConvert,
+          format: dateFormats.DATE_TIME,
+        });
+      })();
+      const endTime = (() => {
+        let timestampToConvert = followUpEndTimestamp;
+
+        if (closureEndTimestamp) {
+          timestampToConvert = closureEndTimestamp;
+        }
+
+        return timeStringWithOffset({
+          timezone,
+          timestampToConvert,
+          format: dateFormats.DATE_TIME,
+        });
+      })();
+
+      const {
+        name,
+        department,
+        baseLocation,
+        firstSupervisor,
+        secondSupervisor,
+      } = employeeInfo(employeesData, phoneNumber);
+      const visitDateStart = dateStringWithOffset({
+        timezone,
+        timestampToConvert: visitStartTimestamp,
+        format: dateFormats.DATE_TIME,
+      });
+      const visitDateEnd = dateStringWithOffset({
+        timezone,
+        timestampToConvert: visitEndTimestamp,
+        format: dateFormats.DATE_TIME,
+      });
+
+      const columnIndex = index + 2;
+
+      sheet2.cell(`A${columnIndex}`).value(date);
+      sheet2.cell(`B${columnIndex}`).value(visitType);
+      sheet2.cell(`C${columnIndex}`).value(name);
+      sheet2.cell(`D${columnIndex}`).value(customer);
+      sheet2.cell(`E${columnIndex}`).value(firstContact);
+      sheet2.cell(`F${columnIndex}`).value(secondContact);
+
+      if (customer && customersData[customer]) {
+        sheet2
+          .cell(`G${columnIndex}`)
+          .value(customersData[customer].identifier)
+          .style({ fontColor: '0563C1', underline: true })
+          .hyperlink(customersData[customer].url);
+      } else {
+        sheet2
+          .cell(`G${columnIndex}`)
+          .value('');
+      }
+      sheet2
+        .cell(`H${columnIndex}`)
+        .value(actualLocation.identifier)
+        .style({ fontColor: '0563C1', underline: true })
+        .hyperlink(actualLocation.url);
+      sheet2.cell(`I${columnIndex}`).value(status);
+      sheet2.cell(`J${columnIndex}`).value(purpose);
+      sheet2.cell(`K${columnIndex}`).value(startTime);
+      sheet2.cell(`L${columnIndex}`).value(endTime);
+      sheet2.cell(`M${columnIndex}`).value(product1);
+      sheet2.cell(`N${columnIndex}`).value(product2);
+      sheet2.cell(`O${columnIndex}`).value(product3);
+      sheet2.cell(`P${columnIndex}`)
+        .value(`${visitDateStart} - ${visitDateEnd}`);
+      sheet2.cell(`Q${columnIndex}`).value(comment);
+      sheet2.cell(`R${columnIndex}`).value(department);
+      sheet2.cell(`S${columnIndex}`).value(baseLocation);
+      sheet2.cell(`T${columnIndex}`).value(firstSupervisor);
+      sheet2.cell(`U${columnIndex}`).value(secondSupervisor);
+    });
+  });
+
+  params.sheetTwoAdded = true;
+
+  return params;
+};
+
+
+const handleSheetOne = (params) => {
+  const {
+    worksheet,
+    yesterdayInitsQuery,
+    customersData,
+    employeesData,
+    timezone,
+  } = params;
+
+  if (yesterdayInitsQuery.empty) {
+    return Promise.resolve(params);
+  }
+
+  if (yesterdayInitsQuery.empty) {
+    return Promise.resolve(params);
+  }
+
+  const visitObject = yesterdayInitsQuery.docs[0].get('visitObject');
+
+  if (!visitObject) {
+    return Promise.resolve(params);
+  }
+
+  const phoneNumbers = Object.keys(visitObject);
+
+  if (phoneNumbers.length === 0) {
+    return Promise.resolve(params);
+  }
+
+  const sheet1 = worksheet.addSheet('DSR Visits');
+  sheet1.row(1).style('bold', true);
+
+  const visitsSheetTopRow = [
+    'Visit Date',
+    'Employee Name',
+    'Customer Location',
+    'First Contact',
+    'Second Contact',
+    'Address',
+    'Actual Location',
+    'Status',
+    'Purpose',
+    'Start Time',
+    'End Time',
+    'Product 1',
+    'Product 2',
+    'Product 3',
+    'Follow-Up Date',
+    'Comment',
+    'Department',
+    'Base Location',
+    'First Supervisor',
+    'Second Supervisor',
+  ];
+
+  visitsSheetTopRow.forEach((topRowValue, index) => {
+    sheet1.cell(`${alphabetsArray[index]}1`).value(topRowValue);
+  });
+
+  phoneNumbers.forEach((phoneNumber) => {
+    const activityIdsArray = Object.keys(visitObject[phoneNumber]);
+
+    activityIdsArray.forEach((activityId, index) => {
+      const {
+        status,
+        comment,
+        customer, // customer name
+        firstContact,
+        followUpEndTimestamp,
+        followUpStartTimestamp,
+        product1,
+        product2,
+        product3,
+        purpose,
+        secondContact,
+        visitEndTimestamp,
+        visitStartTimestamp,
+        actualLocation,
+      } = visitObject[phoneNumber][activityId];
+
+      const columnIndex = index + 2;
+
+      const startTime = timeStringWithOffset({
+        timezone,
+        timestampToConvert: visitStartTimestamp,
+        format: dateFormats.DATE_TIME,
+      });
+      const endTime = timeStringWithOffset({
+        timezone,
+        timestampToConvert: visitEndTimestamp,
+        format: dateFormats.DATE_TIME,
+      });
+      const visitDate = dateStringWithOffset({
+        timezone,
+        timestampToConvert: visitStartTimestamp,
+      });
+      const followUpDateStart = dateStringWithOffset({
+        timezone,
+        timestampToConvert: followUpStartTimestamp,
+        format: dateFormats.DATE_TIME,
+      });
+      const followUpDateEnd = dateStringWithOffset({
+        timezone,
+        timestampToConvert: followUpEndTimestamp,
+        format: dateFormats.DATE_TIME,
+      });
+
+      const employeeObject = employeeInfo(employeesData, phoneNumber);
+      const customerLocation = (() => {
+        if (!customersData[customer]) return '';
+
+        return customersData[customer].identifier;
+      })();
+
+      const url = (() => {
+        if (!customersData[customer]) return '';
+
+        return customersData[customer].url;
+      })();
+
+      const employeeName = employeeObject.name;
+      const department = employeeObject.department;
+      const baseLocation = employeeObject.baseLocation;
+      const firstSupervisor = employeeObject.firstSupervisor;
+      const secondSupervisor = employeeObject.secondSupervisor;
+
+      sheet1.cell(`A${columnIndex}`).value(visitDate);
+      sheet1.cell(`B${columnIndex}`).value(employeeName);
+      sheet1.cell(`C${columnIndex}`).value(customerLocation);
+      sheet1.cell(`D${columnIndex}`).value(firstContact);
+      sheet1.cell(`E${columnIndex}`).value(secondContact);
+      sheet1
+        .cell(`F${columnIndex}`)
+        .value(customerLocation)
+        .style({ fontColor: '0563C1', underline: true })
+        .hyperlink(url);
+      sheet1.cell(`G${columnIndex}`).value(actualLocation);
+      sheet1.cell(`H${columnIndex}`).value(status);
+      sheet1.cell(`I${columnIndex}`).value(purpose);
+      sheet1.cell(`J${columnIndex}`).value(startTime);
+      sheet1.cell(`K${columnIndex}`).value(endTime);
+      sheet1.cell(`L${columnIndex}`).value(product1);
+      sheet1.cell(`M${columnIndex}`).value(product2);
+      sheet1.cell(`N${columnIndex}`).value(product3);
+      sheet1
+        .cell(`O${columnIndex}`)
+        .value(`${followUpDateStart} - ${followUpDateEnd}`);
+      sheet1.cell(`P${columnIndex}`).value(comment);
+      sheet1.cell(`Q${columnIndex}`).value(department);
+      sheet1.cell(`R${columnIndex}`).value(baseLocation);
+      sheet1.cell(`S${columnIndex}`).value(firstSupervisor);
+      sheet1.cell(`T${columnIndex}`).value(secondSupervisor);
+    });
+  });
+
+  params.sheetOneAdded = true;
+
+  return params;
+};
 
 
 module.exports = (locals) => {
@@ -50,10 +397,11 @@ module.exports = (locals) => {
   const employeesData = locals.officeDoc.get('employeesData');
   const todayFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentDateObjectToday = momentTz(todayFromTimer).tz(timezone);
-  const momentDateObjectYesterday = momentTz(todayFromTimer).subtract(1, 'day').tz(timezone);
+  const momentDateObjectToday = momentTz(todayFromTimer).tz(timezone).startOf('day');
+  const momentDateObjectYesterday = momentTz(todayFromTimer).subtract(1, 'day').tz(timezone).startOf('day');
   const standardDateString = momentDateObjectToday.format(dateFormats.DATE);
   const fileName = `DSR_${office}_${standardDateString}.xlsx`;
+  const customersData = locals.officeDoc.get('customersData');
   const filePath = `/tmp/${fileName}`;
   locals.messageObject['dynamic_template_data'] = {
     office,
@@ -61,7 +409,7 @@ module.exports = (locals) => {
     subject: `DSR_${office}_${standardDateString}`,
   };
 
-  const customersMap = new Map();
+  let params;
 
   return Promise
     .all([
@@ -79,7 +427,7 @@ module.exports = (locals) => {
         .where('office', '==', office)
         .where('report', '==', reportNames.DSR)
         .where('date', '==', momentDateObjectToday.date())
-        .where('month', '==', momentDateObjectYesterday.month())
+        .where('month', '==', momentDateObjectToday.month())
         .where('year', '==', momentDateObjectToday.year())
         .limit(1)
         .get(),
@@ -90,364 +438,40 @@ module.exports = (locals) => {
       const [
         yesterdayInitsQuery,
         todayInitsQuery,
-        workbook,
+        worksheet,
       ] = result;
 
+      params = {
+        timezone,
+        worksheet,
+        customersData,
+        todayInitsQuery,
+        employeesData,
+        yesterdayInitsQuery,
+        sendMail: locals.sendMail,
+      };
+
       if (yesterdayInitsQuery.empty && todayInitsQuery.empty) {
+        locals.sendMail = false;
+
+        return Promise.resolve(params);
+      }
+
+      return handleSheetOne(params);
+    })
+    .then(handleSheetTwo)
+    .then((params) => {
+      if (!params.sheetOneAdded && !params.sheetTwoAdded) {
         locals.sendMail = false;
 
         return Promise.resolve();
       }
 
-      const visitObject = (() => {
-        if (yesterdayInitsQuery.empty) return {};
-
-        return yesterdayInitsQuery.docs[0].get('visitObject');
-      })();
-
-      const visitsActivityIdsArray = Object.keys(visitObject);
-
-      const followUpObject = (() => {
-        if (todayInitsQuery.empty) return {};
-
-        return todayInitsQuery.docs[0].get('followUpObject');
-      })();
-
-      const followUpActivityIdsArray = Object.keys(followUpObject);
-
-      const customerFetch = [];
-
-      visitsActivityIdsArray.forEach((activityId) => {
-        const {
-          customer,
-        } = visitObject[activityId];
-
-        const promise = locals
-          .officeDoc
-          .ref
-          .collection('Activities')
-          .where('template', '==', 'customer')
-          .where('attachment.Name.value', '==', customer)
-          .limit(1)
-          .get();
-
-        customerFetch.push(promise);
-      });
-
-      followUpActivityIdsArray.forEach((activityId) => {
-        const {
-          customer,
-        } = followUpObject[activityId];
-
-        const promise = locals
-          .officeDoc
-          .ref
-          .collection('Activities')
-          .where('template', '==', 'customer')
-          .where('attachment.Name.value', '==', customer)
-          .limit(1)
-          .get();
-
-        customerFetch.push(promise);
-      });
-
-      locals.workbook = workbook;
-      locals.visitObject = visitObject;
-      locals.followUpObject = followUpObject;
-      locals.visitsActivityIdsArray = visitsActivityIdsArray;
-      locals.followUpActivityIdsArray = followUpActivityIdsArray;
-
-      return Promise.all(customerFetch);
-    })
-    .then((snapShots) => {
-      if (!locals.sendMail) {
-        return Promise.resolve();
+      if (!params.todayInitsQuery.empty || !params.yesterdayInitsQuery.empty) {
+        params.worksheet.deleteSheet('Sheet1');
       }
 
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
-
-        const customerName = snapShot.docs[0].get('attachment.Name.value');
-        const customerLocation = snapShot.docs[0].get('venue')[0];
-
-        customersMap.set(customerName, customerLocation);
-      });
-
-      if (locals.visitsActivityIdsArray.length > 0) {
-        const sheet1 = locals.workbook.addSheet('DSR Visits');
-        sheet1.row(1).style('bold', true);
-
-        const visitsSheetTopRow = [
-          'Visit Date',
-          'Employee Name',
-          'Customer Location',
-          'First Contact',
-          'Second Contact',
-          'Address',
-          'Actual Location',
-          'Status',
-          'Purpose',
-          'Start Time',
-          'End Time',
-          'Product 1',
-          'Product 2',
-          'Product 3',
-          'Follow-Up Date',
-          'Comment',
-          'Department',
-          'Base Location',
-          'First Supervisor',
-          'Second Supervisor',
-        ];
-
-        visitsSheetTopRow.forEach((topRowValue, index) => {
-          sheet1.cell(`${alphabetsArray[index]}1`).value(topRowValue);
-        });
-
-        locals.visitsActivityIdsArray.forEach((activityId, index) => {
-          const {
-            status,
-            comment,
-            purpose,
-            customer,
-            product1,
-            product2,
-            product3,
-            phoneNumber,
-            firstContact,
-            secondContact,
-            actualLocation,
-            visitEndTimestamp,
-            followUpStartTimestamp,
-            followUpEndTimestamp,
-            visitStartTimestamp,
-          } = locals.visitObject[activityId];
-
-          const startTime = timeStringWithOffset({
-            timezone,
-            timestampToConvert: visitStartTimestamp,
-            format: dateFormats.DATE_TIME,
-          });
-          const endTime = timeStringWithOffset({
-            timezone,
-            timestampToConvert: visitEndTimestamp,
-            format: dateFormats.DATE_TIME,
-          });
-          const visitDate = dateStringWithOffset({
-            timezone,
-            timestampToConvert: visitStartTimestamp,
-          });
-          const followUpDateStart = dateStringWithOffset({
-            timezone,
-            timestampToConvert: followUpStartTimestamp,
-            format: dateFormats.DATE_TIME,
-          });
-          const followUpDateEnd = dateStringWithOffset({
-            timezone,
-            timestampToConvert: followUpEndTimestamp,
-            format: dateFormats.DATE_TIME,
-          });
-
-          const employeeObject = employeeInfo(employeesData, phoneNumber);
-
-          const employeeName = employeeObject.name;
-          const department = employeeObject.department;
-          const baseLocation = employeeObject.baseLocation;
-          const firstSupervisor = employeeObject.firstSupervisor;
-          const secondSupervisor = employeeObject.secondSupervisor;
-          const customerLocation = (() => {
-            if (!customersMap.get(customer)) return '';
-
-            return customersMap.get(customer).location;
-          })();
-
-          const address = (() => {
-            if (!customersMap.has(customer)) return '';
-
-            return customersMap.get(customer).address;
-          })();
-
-          const columnIndex = index + 2;
-
-          sheet1.cell(`A${columnIndex}`).value(visitDate);
-          sheet1.cell(`B${columnIndex}`).value(employeeName);
-          sheet1.cell(`C${columnIndex}`).value(customerLocation);
-          sheet1.cell(`D${columnIndex}`).value(firstContact);
-          sheet1.cell(`E${columnIndex}`).value(secondContact);
-          sheet1.cell(`F${columnIndex}`).value(address);
-          sheet1.cell(`G${columnIndex}`).value(actualLocation);
-          sheet1.cell(`H${columnIndex}`).value(status);
-          sheet1.cell(`I${columnIndex}`).value(purpose);
-          sheet1.cell(`J${columnIndex}`).value(startTime);
-          sheet1.cell(`K${columnIndex}`).value(endTime);
-          sheet1.cell(`L${columnIndex}`).value(product1);
-          sheet1.cell(`M${columnIndex}`).value(product2);
-          sheet1.cell(`N${columnIndex}`).value(product3);
-          sheet1
-            .cell(`O${columnIndex}`)
-            .value(`${followUpDateStart} - ${followUpDateEnd}`);
-          sheet1.cell(`P${columnIndex}`).value(comment);
-          sheet1.cell(`Q${columnIndex}`).value(department);
-          sheet1.cell(`R${columnIndex}`).value(baseLocation);
-          sheet1.cell(`S${columnIndex}`).value(firstSupervisor);
-          sheet1.cell(`T${columnIndex}`).value(secondSupervisor);
-        });
-      }
-
-      if (locals.followUpActivityIdsArray.length > 0) {
-        const sheet2 = locals.workbook.addSheet('DSR Follow-Up');
-        sheet2.row(1).style('bold', true);
-
-        const followUpTopRow = [
-          'Date',
-          'Visit Type',
-          'Employee Name',
-          'Customer',
-          'First Contact',
-          'Second Contact',
-          'Address',
-          'Actual Location',
-          'Status',
-          'Purpose',
-          'Start Time',
-          'End Time',
-          'Product 1',
-          'Product 2',
-          'Product 3',
-          'Visit Date',
-          'Comment',
-          'Department',
-          'Base Location',
-          'First Supervisor',
-          'Second Supervisor',
-        ];
-
-        followUpTopRow.forEach((topRowValue, index) => {
-          sheet2.cell(`${alphabetsArray[index]}1`).value(topRowValue);
-        });
-
-        locals.followUpActivityIdsArray.forEach((activityId, index) => {
-          const columnIndex = index + 2;
-
-          const {
-            status,
-            comment,
-            purpose,
-            customer,
-            product1,
-            product2,
-            product3,
-            visitType,
-            phoneNumber,
-            firstContact,
-            secondContact,
-            actualLocation,
-            visitDateEndTime,
-            visitDateStartTime,
-            closureEndTimestamp,
-            followUpEndTimestamp,
-            closureStartTimestamp,
-            followUpStartTimestamp,
-          } = locals.followUpObject[activityId];
-
-          const date = dateStringWithOffset({
-            timezone,
-            timestampToConvert: followUpStartTimestamp,
-          });
-          const startTime = (() => {
-            let timestampToConvert = followUpStartTimestamp;
-
-            if (closureStartTimestamp) {
-              timestampToConvert = closureStartTimestamp;
-            }
-
-            return timeStringWithOffset({
-              timezone,
-              timestampToConvert,
-              format: dateFormats.DATE_TIME,
-            });
-          })();
-          const endTime = (() => {
-            let timestampToConvert = followUpEndTimestamp;
-
-            if (closureEndTimestamp) {
-              timestampToConvert = closureEndTimestamp;
-            }
-
-            return timeStringWithOffset({
-              timezone,
-              timestampToConvert,
-              format: dateFormats.DATE_TIME,
-            });
-          })();
-
-          const customerData = customersMap.get(customer);
-          const {
-            name,
-            department,
-            baseLocation,
-            firstSupervisor,
-            secondSupervisor,
-          } = employeeInfo(employeesData, phoneNumber);
-          const visitDateStart = dateStringWithOffset({
-            timezone,
-            timestampToConvert: visitDateStartTime,
-            format: dateFormats.DATE_TIME,
-          });
-          const visitDateEnd = dateStringWithOffset({
-            timezone,
-            timestampToConvert: visitDateEndTime,
-            format: dateFormats.DATE_TIME,
-          });
-
-          sheet2.cell(`A${columnIndex}`).value(date);
-          sheet2.cell(`B${columnIndex}`).value(visitType);
-          sheet2.cell(`C${columnIndex}`).value(name);
-          sheet2.cell(`D${columnIndex}`).value(customer);
-          sheet2.cell(`E${columnIndex}`).value(firstContact);
-          sheet2.cell(`F${columnIndex}`).value(secondContact);
-
-          if (customersMap.has(customer)
-            && customersMap.get(customer).address) {
-            sheet2
-              .cell(`G${columnIndex}`)
-              .value(customerData.address)
-              .style({ fontColor: '0563C1', underline: true })
-              .hyperlink(toMapsUrl(customerData.geopoint));
-          } else {
-            sheet2
-              .cell(`G${columnIndex}`)
-              .value('');
-          }
-          sheet2
-            .cell(`H${columnIndex}`)
-            .value(actualLocation.identifier)
-            .style({ fontColor: '0563C1', underline: true })
-            .hyperlink(actualLocation.url);
-          sheet2.cell(`I${columnIndex}`).value(status);
-          sheet2.cell(`J${columnIndex}`).value(purpose);
-          sheet2.cell(`K${columnIndex}`).value(startTime);
-          sheet2.cell(`L${columnIndex}`).value(endTime);
-          sheet2.cell(`M${columnIndex}`).value(product1);
-          sheet2.cell(`N${columnIndex}`).value(product2);
-          sheet2.cell(`O${columnIndex}`).value(product3);
-          sheet2.cell(`P${columnIndex}`)
-            .value(`${visitDateStart} - ${visitDateEnd}`);
-          sheet2.cell(`Q${columnIndex}`).value(comment);
-          sheet2.cell(`R${columnIndex}`).value(department);
-          sheet2.cell(`S${columnIndex}`).value(baseLocation);
-          sheet2.cell(`T${columnIndex}`).value(firstSupervisor);
-          sheet2.cell(`U${columnIndex}`).value(secondSupervisor);
-        });
-      }
-
-      // Default sheet
-      if (locals.followUpActivityIdsArray.length > 0
-        || locals.visitsActivityIdsArray.length > 0) {
-        locals.workbook.deleteSheet('Sheet1');
-      }
-
-      return locals.workbook.toFileAsync(filePath);
+      return params.worksheet.toFileAsync(filePath);
     })
     .then(() => {
       if (!locals.sendMail) {

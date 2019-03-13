@@ -1,4 +1,4 @@
-// 'use strict';
+'use strict';
 
 
 firebase.initializeApp({
@@ -7,6 +7,23 @@ firebase.initializeApp({
   databaseURL: 'https://growthfilev2-0.firebaseio.com',
   projectId: 'growthfilev2-0',
 });
+
+const ui = new firebaseui.auth.AuthUI(firebase.auth());
+
+function showToast(message, seconds = 5) {
+  return Toastify({
+    text: message,
+    duration: seconds * 1000,
+    // destination: "https://github.com/apvarun/toastify-js",
+    newWindow: true,
+    className: 'toast',
+    close: true,
+    gravity: 'bottom', // `top` or `bottom`
+    positionLeft: true, // `true` or `false`
+    backgroundColor: 'linear-gradient(to right, #00b09b, #96c93d)',
+  })
+    .showToast();
+};
 
 // needs to be global for gMaps to work. // See docs.
 let map;
@@ -46,7 +63,7 @@ function initMap() {
 function signInSuccessWithAuthResult(authResult, redirectUrl) {
   console.log('signin success');
 
-  document.querySelector('.modal').style.display = 'none';
+  // document.querySelector('.modal').style.display = 'none';
 }
 
 function signInFailure(error) {
@@ -79,21 +96,27 @@ const uiConfig = {
   }
 };
 
-const ui = new firebaseui.auth.AuthUI(firebase.auth());
-
 
 function handleResponse(response) {
   console.log(response);
 };
 
 function handleProductClick(param) {
-  /**
-   * brand: ""
-    model: ""
-    productType: ""
-    size: ""
-   */
   console.log(param);
+
+  const html = `
+  <div class="pico-product-details">
+    <h2>Name: ${param.name}</h2>
+    <img src="${param.imageUrl}">
+    <p>Brand: ${param.brand}</p>
+    <p>Model: ${param.model}</p>
+    <p>Type: ${param.productType}</p>
+    <p>Size: ${param.size}</p>
+</div>`;
+
+  const modal = picoModal(html);
+
+  modal.show();
 };
 
 
@@ -110,14 +133,6 @@ function handleBranchClick(latitude, longitude) {
 
     map.setCenter(position);
   }
-}
-
-
-function showLoginModal() {
-  console.log('showing modal');
-
-  document.querySelector('.modal').style.display = 'block';
-  ui.start('#firebaseui-auth-container', uiConfig);
 }
 
 function sendEnquiryRequest(body) {
@@ -147,51 +162,105 @@ function sendEnquiryRequest(body) {
     .catch(console.error);
 };
 
+function validateEnquiry(enquiry) {
+  if (!enquiry.name) {
+    return {
+      valid: false,
+      message: 'Name is required',
+    };
+  }
+
+  if (!enquiry.email) {
+    return {
+      valid: false,
+      message: 'Email is required',
+    };
+  }
+
+  if (!enquiry.email.match(/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/)) {
+    return {
+      valid: false,
+      message: 'Invalid email',
+    };
+  }
+
+  if (!enquiry.companyName) {
+    return {
+      valid: false,
+      message: 'Company name is required',
+    };
+  }
+
+  if (!enquiry.phoneNumber) {
+    return {
+      valid: false,
+      message: 'Phone Number is required',
+    };
+  }
+
+  if (!enquiry.enquiryText) {
+    return {
+      valid: false,
+      message: 'Your enquiry is empty',
+    };
+  }
+
+  return {
+    valid: true,
+    message: null,
+  };
+}
+
 
 function handleEnquiry(event) {
-  const name = document.getElementsByName('person-name')[0];
-  const email = document.getElementsByName('person-email')[0];
-  const phoneNumber = document.getElementsByName('person-phone-number')[0];
-  const enquiryText = document.getElementsByName('text-area')[0];
+  event.preventDefault();
 
+  const nameInput = document.getElementsByName('person-name')[0];
+  const emailInput = document.getElementsByName('person-email')[0];
+  const phoneNumberInput = document.getElementsByName('person-phone-number')[0];
+  const personCompanyNameInput = document.getElementsByName('person-company-name')[0];
+  const enquiryTextArea = document.getElementsByName('text-area')[0];
   const enquiryObject = {
-    name: name.value,
-    email: email.value,
-    phoneNumber: phoneNumber.value,
-    enquiryText: enquiryText.value,
+    name: nameInput.value,
+    email: emailInput.value,
+    phoneNumber: phoneNumberInput.value,
+    enquiryText: enquiryTextArea.value,
+    companyName: personCompanyNameInput.value,
   };
+
+  const validationResult = validateEnquiry(enquiryObject);
+
+  console.log('valid', validationResult.valid, enquiryObject);
+
+  if (!validationResult.valid) {
+    return showToast(validationResult.message);
+  }
 
   if (!firebase.auth().currentUser) {
     localStorage.setItem('enquiryObject', JSON.stringify(enquiryObject));
 
-    return showLoginModal();
+    console.log('not logged in');
+
+    const modalContent = `<div id="firebaseui-auth-container"></div>`;
+    const fbLoginModal = picoModal(modalContent);
+    ui.start('#firebaseui-auth-container', uiConfig);
+
+    fbLoginModal.show();
   }
 
   const currentUser = firebase.auth().currentUser;
   const authUpdate = {};
 
-  if (name.value && currentUser.name !== name.value) {
-    authUpdate.display = name.value;
+  if (nameInput.value && currentUser.name !== nameInput.value) {
+    authUpdate.display = nameInput.value;
   }
-
-  // if (!currentUser.email) {
-  //   currentUser
-  //     .updateEmail(email.value)
-  //     .catch(console.error);
-  // }
-
-  // if (currentUser.email && !currentUser.emailVerified) {
-  //   currentUser
-  //     .sendEmailVerification()
-  //     .catch(console.error);
-  // }
 
   console.log('dataset', document.body.dataset);
 
   const body = {
-    enquiryText: enquiryText.value,
+    enquiryText: enquiryTextArea.value,
     office: document.body.dataset.slug,
-    companyName: 'Test Company',
+    companyName: personCompanyNameInput.value,
     timestamp: Date.now(),
     geopoint: {
       latitude: 28.5492026,
@@ -202,9 +271,11 @@ function handleEnquiry(event) {
   return sendEnquiryRequest(body);
 }
 
-const formSubmitButton = document.querySelector('.form-submit-button');
+const formSubmitAElem = document.querySelector('.form-submit-button');
 
-formSubmitButton.addEventListener('click', handleEnquiry);
+formSubmitAElem.addEventListener('click', handleEnquiry);
 
 window
-  .onload = function () { initMap() };
+  .onload = function () {
+    initMap();
+  };

@@ -46,6 +46,8 @@ module.exports = (conn) => {
     return;
   }
 
+  let removeFromOffice = [];
+
   Promise
     .all([
       rootCollections
@@ -118,6 +120,7 @@ module.exports = (conn) => {
 
       if (conn.req.query.deviceId) {
         oldDeviceIdsArray.push(conn.req.query.deviceId);
+
         updatesDocData.latestDeviceId = conn.req.query.deviceId;
       }
 
@@ -136,8 +139,7 @@ module.exports = (conn) => {
           updatesDocData.deviceIdsObject[conn.req.query.deviceId] = {};
         }
 
-        const oldCount =
-          updatesDocData.deviceIdsObject[conn.req.query.deviceId].count || 0;
+        const oldCount = updatesDocData.deviceIdsObject[conn.req.query.deviceId].count || 0;
 
         updatesDocData.deviceIdsObject = {
           [conn.req.query.deviceId]: {
@@ -147,12 +149,37 @@ module.exports = (conn) => {
         };
       }
 
-      if (conn.req.query.hasOwnProperty('registrationToken')) {
+      if (conn.req.query.hasOwnProperty('registrationToken')
+        && typeof conn.req.query.registrationToken === 'string') {
         updatesDocData.registrationToken = conn.req.query.registrationToken;
       }
 
       updatesDocData.latestDeviceOs = conn.req.query.os || '';
       updatesDocData.latestAppVersion = conn.req.query.appVersion || '';
+
+      if (updatesDocData.removeFromOffice) {
+        removeFromOffice = updatesDocData.removeFromOffice;
+
+        if (typeof conn.req.query.removeFromOffice === 'string') {
+          const index = updatesDocData.removeFromOffice.indexOf(conn.req.query.removeFromOffice);
+
+          if (index > -1) {
+            updatesDocData.removeFromOffice.splice(index, 1);
+          }
+        }
+
+        if (Array.isArray(conn.req.query.removeFromOffice)) {
+          conn.req.query.removeFromOffice.forEach((name) => {
+            const index = updatesDocData.removeFromOffice.indexOf(name);
+
+            if (index > -1) {
+              updatesDocData.removeFromOffice.splice(index, 1);
+            }
+          });
+        }
+      }
+
+      console.log(conn.req.query);
 
       batch.set(updatesDoc.ref, updatesDocData, {
         merge: true,
@@ -178,13 +205,19 @@ module.exports = (conn) => {
         updateClient,
       ] = result;
 
-      return sendJSON(conn, {
+      const responseObject = {
         revokeSession,
         updateClient,
         success: true,
         timestamp: Date.now(),
         code: code.ok,
-      });
+      };
+
+      if (removeFromOffice && removeFromOffice.length > 0) {
+        responseObject.removeFromOffice = removeFromOffice;
+      }
+
+      return sendJSON(conn, responseObject);
     })
     .catch((error) => handleError(conn, error));
 };

@@ -42,6 +42,9 @@ const {
   timezonesSet,
   templatesWithNumber,
 } = require('../../admin/constants');
+const {
+  toMapsUrl,
+} = require('../../firestore/recipients/report-utils');
 
 
 /**
@@ -1161,11 +1164,42 @@ const toAttachmentValues = (conn, locals) => {
   return object;
 };
 
+const toCustomerObject = (docData, createTime) => {
+  const attachment = docData.attachment;
+  const venue = docData.venue[0];
+  const customerOffice = {
+    url: '',
+    identifier: '',
+  };
+
+  if (venue.address) {
+    customerOffice.url = toMapsUrl(venue.geopoint);
+    customerOffice.identifier = venue.address;
+  }
+
+  const customerObject = {
+    customerOffice,
+    createTime,
+    name: attachment.Name.value,
+    firstContact: attachment['First Contact'].value,
+    secondContact: attachment['Second Contact'].value,
+    customerType: attachment['Customer Type'].value,
+    customerEmailId: attachment['Customer E-mail Id'].value,
+    customerCode: attachment['Customer Code'].value,
+    dailyStartTime: attachment['Daily Start Time'].value,
+    dailyEndTime: attachment['Daily End Time'].value,
+    weeklyOff: attachment['Weekly Off'].value,
+  };
+
+  return customerObject;
+};
+
 
 module.exports = {
   activityName,
   validateVenues,
   getCanEditValue,
+  toCustomerObject,
   validateSchedules,
   filterAttachment,
   haversineDistance,

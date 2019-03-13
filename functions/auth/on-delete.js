@@ -36,44 +36,46 @@ const { reportingActions } = require('../admin/constants');
  * @returns {Promise <Object>} Batch object.
  */
 module.exports = (userRecord) => {
-  const { uid, phoneNumber } = userRecord;
+  //   const { uid, phoneNumber } = userRecord;
 
-  const batch = db.batch();
+  //   const batch = db.batch();
 
-  batch.set(rootCollections
-    .profiles
-    .doc(phoneNumber), {
-      uid: null,
-    }, {
-      merge: true,
-    });
+  //   batch.set(rootCollections
+  //     .profiles
+  //     .doc(phoneNumber), {
+  //       uid: null,
+  //     }, {
+  //       merge: true,
+  //     });
 
-  batch.set(rootCollections
-    .updates
-    .doc(uid), {
-      phoneNumber: null,
-    }, {
-      merge: true,
-    });
+  //   batch.set(rootCollections
+  //     .updates
+  //     .doc(uid), {
+  //       phoneNumber: null,
+  //     }, {
+  //       merge: true,
+  //     });
 
-  const subject = `Auth deleted of the user: ${phoneNumber}`;
-  const messageBody = `
-    The user: ${phoneNumber} auth has has been deleted.
+  //   const subject = `Auth deleted of the user: ${phoneNumber}`;
+  //   const messageBody = `
+  //     The user: ${phoneNumber} auth has has been deleted.
 
-    <h3>User Record</h3>
-    <pre>
-${JSON.stringify(userRecord, ' ', 2)}
-    </pre>`;
+  //     <h3>User Record</h3>
+  //     <pre>
+  // ${JSON.stringify(userRecord, ' ', 2)}
+  //     </pre>`;
 
-  batch.set(rootCollections
-    .instant
-    .doc(), {
-      action: reportingActions.authDeleted,
-      subject,
-      messageBody,
-    });
+  //   batch.set(rootCollections
+  //     .instant
+  //     .doc(), {
+  //       action: reportingActions.authDeleted,
+  //       subject,
+  //       messageBody,
+  //     });
 
-  return batch
-    .commit()
-    .catch(console.error);
+  //   return batch
+  //     .commit()
+  //     .catch(console.error);
+
+  return Promise.resolve();
 };

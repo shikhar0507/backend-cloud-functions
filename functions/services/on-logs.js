@@ -58,6 +58,8 @@ module.exports = (conn) => {
     return;
   }
 
+  const MAX_THRESHOLD = 10;
+
   const dateObject = new Date();
   const date = dateObject.getDate();
   const month = dateObject.getMonth();
@@ -100,28 +102,62 @@ module.exports = (conn) => {
         affectedUsers,
         bodyObject,
         deviceObject,
+        emailSent,
       } = doc.data();
 
       if (!bodyObject[phoneNumber]) {
-        bodyObject[phoneNumber] = `${conn.req.body.body || ''}`;
+        const data = (() => {
+          if (typeof conn.req.body.body === 'string') {
+            return data;
+          }
+
+          return JSON.stringify(conn.req.body.body);
+        })();
+
+        bodyObject[phoneNumber] = `${data || ''}`;
       }
 
       if (!deviceObject[phoneNumber]) {
-        deviceObject[phoneNumber] = `${conn.req.body.body || ''}`;
+        const data = (() => {
+          if (typeof conn.req.body.device === 'string') {
+            return conn.req.body.device;
+          }
+
+          return JSON.stringify(conn.req.body.device);
+        })();
+
+        deviceObject[phoneNumber] = `${data || ''}`;
       }
+
+      const batch = db.batch();
 
       // Increment the count
       affectedUsers[phoneNumber] = (affectedUsers[phoneNumber] || 0) + 1;
 
-      return doc
-        .ref
-        .set({
-          affectedUsers,
-          bodyObject,
-          deviceObject,
-        }, {
-            merge: true,
-          });
+      const docData = {
+        affectedUsers,
+        bodyObject,
+        deviceObject,
+      };
+
+      if (!emailSent
+        && Object.keys(affectedUsers).length >= MAX_THRESHOLD) {
+        batch
+          .set(rootCollections
+            .instant
+            .doc(), {
+              subject: `Error count >= 10: '${message}': ${process.ENV.GCLOUD_PROJECT}`,
+              messageBody: JSON.stringify(docData, ' ', 2),
+            });
+
+        docData.emailSent = true;
+      }
+
+      batch.set(doc.ref, docData, {
+        merge: true,
+      });
+
+      return batch.commit();
     })
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
