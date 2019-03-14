@@ -998,31 +998,48 @@ const handleEmployee = (locals, batch) => {
   activityDoc.id = locals.change.after.id;
   const office = activityDoc.office;
   const officeId = activityDoc.officeId;
-  const attachment = activityDoc.attachment;
-  const employeeContact = attachment['Employee Contact'].value;
-  const status = activityDoc.status;
-
+  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
+  const hasBeenCancelled = locals.change.before.data()
+    && locals.change.before.get('status') === 'CONFIRMED'
+    && locals.change.after.get('status') === 'CANCELLED';
   const employeeOf = { [office]: officeId };
+  const promises = [];
 
-  if (status === 'CANCELLED') {
+  // Change of status from `CONFIRMED` to `CANCELLED`
+  if (hasBeenCancelled) {
     employeeOf[office] = deleteField();
   }
 
   batch.set(rootCollections
     .profiles
-    .doc(employeeContact), {
+    .doc(phoneNumber), {
       employeeOf,
     }, {
       merge: true,
     });
 
+  promises.push();
+
   return batch
     .commit()
+    .then(() => {
+      if (hasBeenCancelled
+        && locals.assigneesMap.has(phoneNumber)
+        && locals.assigneesMap.get(phoneNumber).uid) {
+        const uid = locals.assigneesMap.get(phoneNumber).uid;
+
+        return auth.updateUser(uid, {
+          email: '',
+          emailVerified: false,
+        });
+      }
+
+      return Promise.resolve();
+    })
     .then(() => assignToActivities(locals))
     .then(() => removeFromOfficeActivities(locals))
     .catch(console.error);
 };
-
 
 
 module.exports = (change, context) => {
@@ -1035,6 +1052,8 @@ module.exports = (change, context) => {
 
   const activityId = context.params.activityId;
   const batch = db.batch();
+  const template = change.after.get('template');
+  const status = change.after.get('status');
   const locals = {
     change,
     assigneesMap: new Map(),
@@ -1072,18 +1091,16 @@ module.exports = (change, context) => {
         assigneesSnapShot,
         adminsSnapShot,
         addendumDoc,
-        officeDoc,
       ] = result;
 
-      const allAdminPhoneNumbersSet
-        = new Set(adminsSnapShot.docs.map((doc) => doc.get('attachment.Admin.value')));
+      const allAdminPhoneNumbersSet = new Set(
+        adminsSnapShot
+          .docs
+          .map((doc) => doc.get('attachment.Admin.value'))
+      );
 
       if (addendumDoc) {
         locals.addendumDoc = addendumDoc;
-      }
-
-      if (officeDoc) {
-        locals.officeDoc = officeDoc;
       }
 
       const authFetch = [];
@@ -1121,8 +1138,7 @@ module.exports = (change, context) => {
           );
       }
 
-      return Promise
-        .all(authFetch);
+      return Promise.all(authFetch);
     })
     .then((userRecords) => {
       userRecords.forEach((userRecord) => {
@@ -1263,9 +1279,6 @@ module.exports = (change, context) => {
       return batch;
     })
     .then(() => {
-      const template = change.after.get('template');
-      const status = change.after.get('status');
-
       console.log({
         activityId,
         template,

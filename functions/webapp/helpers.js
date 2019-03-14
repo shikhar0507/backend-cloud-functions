@@ -6,15 +6,32 @@ const {
 } = require('../admin/responses');
 const handlebars = require('handlebars');
 const templates = require('../webapp/templates');
+const {
+  timezonesSet,
+} = require('../admin/constants');
 
 
 const officePage = (conn, locals) => {
+  const description = locals.officeDoc.get('attachment.Description.value') || '';
+  const parts = description.split('.');
+  let pageDescription = `${parts[0]}.`;
+
+  if (parts[1]) {
+    pageDescription += `${parts[1]}`;
+  }
+
+  const aboutOffice = (() => {
+    if (description) return description;
+
+    return `Description not present.`;
+  })();
+
   const context = {
+    aboutOffice,
     officeName: locals.officeDoc.get('office'),
     pageTitle: `About ${locals.officeDoc.get('office')}`,
-    aboutOffice: locals.officeDoc.get('attachment.Description.value'),
-    pageDescription: locals.officeDoc.get('attachment.Description.value'),
-    mainImageUrl: '',
+    pageDescription: pageDescription,
+    mainImageUrl: '/img/logo-main.jpg',
     cannonicalUrl: `https://growthfile.com/${locals.slug}`,
     videoId: locals.officeDoc.get('attachment.Video Id.value'),
     mapsApiKey: env.mapsApiKey,
@@ -22,6 +39,7 @@ const officePage = (conn, locals) => {
     productObjectsArray: locals.productObjectsArray,
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
+    displayVideo: Boolean(locals.officeDoc.get('attachment.Video Id.value')),
     slug: locals.slug,
   };
 
@@ -60,7 +78,6 @@ const homePage = (conn) => {
 
 const downloadAppPage = (conn, locals) => {
   const context = {};
-
   const source = templates.downloadPageSource();
   const template = handlebars.compile(source, { strict: true });
   const result = template(context);
@@ -70,16 +87,28 @@ const downloadAppPage = (conn, locals) => {
 
 const pageNotFound = (conn, locals) => {
   const context = {};
-
-  const source = templates.pageNotFoundSource();
+  // const source = templates.pageNotFoundSource();
+  const source = `<h1>Not found<h1>`;
   const template = handlebars.compile(source, { strict: true });
   const result = template(context);
 
   return conn.res.status(code.notFound).send(result);
 };
 
+const joinPage = (conn, locals) => {
+  const context = {
+    timezones: Array.from(timezonesSet),
+  };
+  const source = templates.joinPageSource();
+  const template = handlebars.compile(source, { strict: true });
+  const result = template(context);
+
+  return conn.res.status(code.ok).send(result);
+};
+
 
 module.exports = {
+  joinPage,
   officePage,
   errorPage,
   homePage,

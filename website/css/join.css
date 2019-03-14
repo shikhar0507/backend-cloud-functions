@@ -1,0 +1,54 @@
+header {
+    z-index: 5;
+}
+
+main {
+    text-align: center;
+    max-width: 80%;
+    margin: 0 auto;
+    /* border: 1px solid red; */
+    min-height: 400px;
+    padding: 10px 20px;
+    margin-bottom: 40px;
+}
+
+main h1 {
+    font-size: 32px;
+    color: #576871;
+}
+
+.sign-up-form {
+    margin-top: 30px;
+    border: 1px solid green;
+    padding: 30px 10px;
+}
+
+.sign-up-form p {
+    margin-bottom: 30px;
+}
+
+.sign-up-form p label {
+    font-weight: 600;
+    margin-right: 130px;
+}
+
+.sign-up-form p input {
+    height: 40px;
+    margin-left: 40px;
+    box-sizing: border-box;
+    resize: vertical;
+}
+
+.sign-up-form p input:focus {
+    border: 2px solid #1ba94c;
+}
+
+.button {
+    color: white;
+    font-size: 18px;
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-align: center;
+    background: #1ba94c;
+    box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5);
+}

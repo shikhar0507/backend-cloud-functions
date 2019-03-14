@@ -46,16 +46,6 @@ const fs = require('fs');
 
 const handleSheetTwo = (params) => {
   const {
-    employeeInfo,
-    alphabetsArray,
-    dateStringWithOffset,
-    timeStringWithOffset,
-  } = require('../firestore/recipients/report-utils');
-  const {
-    dateFormats,
-  } = require('../admin/constants');
-
-  const {
     worksheet,
     todayInitsQuery,
     customersData,

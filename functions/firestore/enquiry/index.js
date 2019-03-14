@@ -41,26 +41,50 @@ module.exports = (conn) => {
   const year = dateObject.getFullYear();
 
   return Promise
-    .resolve()
-    .then(() => Promise
-      .all([
-        rootCollections
-          .offices
-          .where('slug', '==', conn.req.body.office)
-          .limit(1)
-          .get(),
-        rootCollections
-          .recipients
-          .where('office', '==', conn.req.body.office)
-          .where('report', '==', reportNames.ENQUIRY)
-          .limit(1)
-          .get(),
-      ]))
+    .all([
+      rootCollections
+        .offices
+        .where('slug', '==', conn.req.body.office)
+        .limit(1)
+        .get(),
+      rootCollections
+        .recipients
+        .where('office', '==', conn.req.body.office)
+        .where('report', '==', reportNames.ENQUIRY)
+        .limit(1)
+        .get(),
+      rootCollections
+        .inits
+        .where('report', '==', reportNames.ENQUIRY)
+        .where('office', '==', conn.req.body.office)
+        .where('date', '==', date)
+        .where('month', '==', month)
+        .where('year', '==', year)
+        .limit(1)
+        .get(),
+    ])
     .then((result) => {
       const [
         officeDocQuery,
         recipientsDocQuery,
+        initDocsQuery,
       ] = result;
+
+      if (!initDocsQuery.empty) {
+        const enquiryArray = initDocsQuery.docs[0].get('enquiryArray');
+
+        let count = 0;
+
+        enquiryArray.forEach((item) => {
+          if (!item.phoneNumber === conn.requester.phoneNumber) return;
+
+          count++;
+        });
+
+        if (count >= 5) {
+          return sendResponse(conn, code.tooManyRequests, `Too many requests`);
+        }
+      }
 
       if (officeDocQuery.empty) {
         createEnquiry = false;

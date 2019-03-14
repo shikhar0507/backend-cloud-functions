@@ -1,27 +1,53 @@
 .hero {
-    height: 100vh;
+    height: 40vh;
     padding: 10px 20px;
+    display: flex;
+    justify-content: center;
 }
 
-.banner h1 span {
+h2 {
+    font-size: 32px;
+    margin-bottom: 30px;
+    color: #576871;
+}
+
+.banner h2 span {
     font-weight: 600;
 }
 
-.banner h1 {
-    margin-bottom: 30px;
+.header-links a {
+    line-height: 2.2em;
+}
+
+.banner h2 {}
+
+.banner {
+    text-align: center;
 }
 
 .banner a {
+    font-size: 18px;
+    padding: 10px 20px;
+    border-radius: 4px;
     text-align: center;
-    background: #1d976c;
-    /* fallback for old browsers */
-    background: -webkit-linear-gradient(to left, #1d976c, #93f9b9);
-    /* Chrome 10-25, Safari 5.1-6 */
-    background: linear-gradient(to left, #1d976c, #93f9b9);
-    /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+    background: #1ba94c;
+    box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5);
+}
+
+.section-below-hero {
+    text-align: center;
+    padding: 10px 20px;
+    margin-bottom: 40px;
+}
+
+.section-below-hero p {
+    padding: 0 15%;
 }
 
 @media (max-width: 450px) {
+    .hero {
+        height: 60vh;
+    }
     header {
         height: 30px;
         box-shadow: none;
@@ -32,12 +58,12 @@
     #logo img {
         display: none;
     }
+    #logo span {
+        display: block;
+    }
     .header-section-start {
         padding-left: unset;
         margin-top: 0.8em;
-    }
-    .header-links {
-        display: none;
     }
     .hero {
         padding-top: 6.2em;
@@ -54,7 +80,6 @@
     }
     .banner a {
         line-height: 1.5em;
-        background-color: #1ba94c;
         padding: 10px 20px;
         border-radius: 4px;
         box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5);

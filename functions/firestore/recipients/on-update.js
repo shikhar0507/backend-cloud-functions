@@ -252,6 +252,7 @@ module.exports = (change) => {
 
       return Promise.resolve(null);
     })
+    // .then(sgMail.sendMultiple)
     .then(() => Promise.all(usersWithoutEmailOrVerifiedEmail))
     .then((snapShot) => {
       const notifications = [];

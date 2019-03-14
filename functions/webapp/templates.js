@@ -56,7 +56,7 @@ const metaHead = `
   <link rel="stylesheet" href="css/common.css">
 `;
 
-const header = `
+const headerHtml = `
 <header>
     <section class="header-section-start">
       <a id="logo" href="/">
@@ -65,13 +65,13 @@ const header = `
       </a>
     </section>
     <section class="header-links">
-      <a href="https://growthfile.com/join">
-      <i class="fas fa-user"></i>
-      Join Now
+      <a href="/join">
+        <i class="fas fa-user"></i>
+        <span>Join Now</span>
       </a>
-      <a href="https://growthfile.com/download">
+      <a href="/download">
         <i class="fas fa-mobile-alt"></i>
-        Download
+        <span>Download</span>
       </a>
     </section>
   </header>`;
@@ -83,19 +83,19 @@ const footerHtml = `
     <div class="footer-link-heading">Company</div>
     <ul class="footer-page-links">
       <li>
-        <a href="https://growthfile.com/about">About</a>
+        <a href="/about">About</a>
       </li>
       <li>
-        <a href="https://growthfile.com/careers">Careers</a>
+        <a href="/careers">Careers</a>
       </li>
       <li>
-        <a href="https://growthfile.com/help">Help</a>
+        <a href="/help">Help</a>
       </li>
       <li>
-        <a href="https://growthfile.com/contact">Contact Us</a>
+        <a href="/contact">Contact Us</a>
       </li>
       <li>
-        <a href="https://growthfile.com/sitemap.xml">Sitemap</a>
+        <a href="/sitemap.xml">Sitemap</a>
       </li>
     </ul>
   </div>
@@ -130,8 +130,8 @@ const footerHtml = `
       <span class="footer-link-heading">Growthfile Inc.</span>
     </div>
     <div class="footer-page-links">
-      <a href="#">Terms</a>
-      <a href="#">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
     </div>
     <span>Copyright © 2019 Growthfile Analytics, Inc. All rights reserved.</span>
   </div>
@@ -152,21 +152,17 @@ const officeSource = () => {
 
   <title>Growthfile - {{officeName}}</title>
 </head>
-<body data-slug="{{slug}}">
-  ${header}
+<body data-slug="{{officeName}}">
+  ${headerHtml}
   <div class="pad-after-header"></div>
 
-  <div class="modal">
-    <div class="modal-content">
-      <div id="firebaseui-auth-container"></div>
-    </div>
-  </div>
-
   <main class="pad">
+  {{#if displayVideo}}
     <div class="youtube">
       <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/{{videoId}}?enablejsapi=1" allow="fullscreen">
       </iframe>
     </div>
+    {{/if}}
     
     <div class="content">
       <h1>{{pageTitle}}</h1>
@@ -194,7 +190,6 @@ const officeSource = () => {
   </section>
   {{/if}}
 
-  
   {{#if displayProducts}}
   <section class="product-section pad">
     <h2>Our Products</h2>
@@ -209,9 +204,9 @@ const officeSource = () => {
     </section>
   {{/if}}
 
-  <section class="enquiry-section pad">
+  <section class="enquiry-section">
   <form>
-    <h2>Send an enquiry</h2>
+  <h2>Send an enquiry</h2>
       <div class="form-element">
         <input type="text" name="person-name" placeholder="John Doe"></input>
       </div>
@@ -241,6 +236,8 @@ const officeSource = () => {
 
       <p>By completing this form, you have read and acknowledged the <a href="#">Privacy Policy</a> and agree that <span>Growthfile Inc.</span> may contact you at the email address above.</p>
     </form>
+    <p class="enquiry-success-message">Your enquiry has been sent successfully.</p>
+    <div class="loading-spinner"></div>
   </section>
   
   ${footerHtml}
@@ -260,6 +257,18 @@ const officeSource = () => {
   return source;
 };
 
+/**
+ * form fields
+//  * name - string
+ * schedule - Trial period -> current time to 30 days
+//  * schedule date of establishment
+//  * attachment.Name.value - name
+//  * attachment.GST Number.value
+//  * attachment.First Contact.value -> phone Number
+//  * attachment.Second Contact.value -> phone number
+//  * Timezone: -> auto select from location (and show option to change)
+ */
+
 const joinPageSource = () => {
   const source = `<!DOCTYPE html>
 <html lang="en">
@@ -269,9 +278,55 @@ const joinPageSource = () => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>Growthfile Home</title>
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css" integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Palanquin" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="css/common.css">
+  <link rel="stylesheet" href="css/join.css">
 </head>
 <body>
-  <h1>Join Page</h1>
+${headerHtml}
+<div class="pad-after-header"></div>
+  <main class="container">
+    <h1>Join Growthfile</h1>
+    <form class="sign-up-form">
+      <p>
+        <label>Office Name:</label>
+        <input type="text" placeholder="Your Office Name"></input>
+      </p>
+      <p>
+        <label>GST Number:</label>
+        <input type="text" placeholder="29 ABCDED1234F 2Z5"></input>
+      </p>
+      <p>
+        <label>First Contact:</label>
+        <input type="tel" placeholder="+911234567890"></input>
+      </p>
+      <p>
+        <label>Second Contact:</label>
+        <input type="tel" placeholder="+911234567891"></input>
+      </p>
+      <p>
+        <label>Date of Establishment:</label>
+        <input type="time" placeholder="01 01 1990"></input>
+      </p>
+      <p>
+        <label>Timezone:</label>
+        <select>
+          {{#each timezones}}
+            <option name="{{this}}">{{this}}</option>
+          {{/each}}
+        </select>
+      </p>
+      <div class="submit-container">
+        <a id="submit-form" class="button" href="#">Join Now</a>
+      </div>
+    </form>
+  </main>
+
+  ${footerHtml}
   <script src="js/join.js"></script>
 </body>
 </html>`;
@@ -288,23 +343,31 @@ const downloadPageSource = () => {
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>Download Growthfile App</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css" integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Palanquin" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="css/common.css">
   <link rel="stylesheet" href="css/download.css">
 </head>
 <body>
-  <header>
-    
-  </header>
+  ${headerHtml}
+  <div class="pad-after-header"></div>
   <div class="container">
-    <h1>Download Growthfile on your phone</h1>
+    <h2>Download Growthfile on your phone</h2>
 
-    <a href="https://play.google.com/store/apps/details?id=com.growthfile.growthfileNew" target="_blank">
-      <img src="img/play-store-icon.jpg" alt="google play store icon">
-    </a>
-    <a href="https://itunes.apple.com/in/app/growthfile/id1441388774?mt=8" target="_blank">
-      <img src="img/app-store-icon.jpg" alt="apple app store icon">
-    </a>
+    <main>
+      <a id="play-store-link" href="https://play.google.com/store/apps/details?id=com.growthfile.growthfileNew" target="_blank">
+        <img src="img/play-store-icon.jpg" alt="google play store icon">
+      </a>
+      <a id="app-store-link" href="https://itunes.apple.com/in/app/growthfile/id1441388774?mt=8" target="_blank">
+        <img src="img/app-store-icon.jpg" alt="apple app store icon">
+      </a>
+    </main>
   </div>
 
+  ${footerHtml}
   <script src="js/download.js"></script>
 </body>
 </html>`;
@@ -321,13 +384,22 @@ const homeSource = () => {
       <link rel="stylesheet" href="css/home.css">
     </head>
     <body>
-    ${header}
-    <div class="hero">
-      <div class="banner">
-        <h1>A single app for employees of all <span>businesses</span></h1>
-        <a href="#">Join Growthfile</a>
-      </div>
-    </div>
+    ${headerHtml}
+    <div class="pad-after-header"></div>
+    <main>
+      <section class="hero">
+        <div class="banner">
+          <h2>A single app for employees of all <span>businesses.</span></h2>
+          <a href="/join">Join Growthfile</a>
+        </div>
+      </section>
+      
+      <section class="section-below-hero">
+        <h2>Why Growthfile?</h2>
+        <p>Growthfile is the easiest way to manage all your business needs in one place. Our simple algorithm sends automated daily reports based on the tasks completed by your team.</p>
+      </section>
+
+    </main>
 
       ${footerHtml}
       <script src="https://unpkg.com/micromodal/dist/micromodal.min.js"></script>

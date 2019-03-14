@@ -1,8 +1,38 @@
 .container {
-    border: 1px solid black;
+    /* border: 1px solid black; */
     margin: 0 auto;
-    max-width: 80%;
+    /* max-width: 80%; */
     text-align: center;
 }
 
-.container a {}
+.container h2 {
+    font-size: 34px;
+    font-weight: 700;
+    color: #576871;
+    margin-bottom: 20px;
+}
+
+main {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 100px;
+}
+
+main a {
+    margin-bottom: 20px;
+}
+
+footer {
+    bottom: 0;
+    position: fixed;
+    width: 100%;
+}
+
+@media (max-width: 450px) {
+    footer {
+        position: unset;
+    }
+    main img {
+        max-width: 250px;
+    }
+}

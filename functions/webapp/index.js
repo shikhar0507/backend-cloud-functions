@@ -5,18 +5,13 @@
 const {
   rootCollections,
 } = require('../admin/admin');
-
-const {
-  // TODO: Try this one: https://gist.github.com/sgmurphy/3095196
-  slugify,
-} = require('../admin/utils');
 const {
   code,
 } = require('../admin/responses');
 const helpers = require('./helpers');
 const url = require('url');
 
-const getSlug = (requestUrl) => {
+const getSlugFromUrl = (requestUrl) => {
   const parsed = url.parse(requestUrl);
   const officeName = parsed.pathname;
 
@@ -24,22 +19,9 @@ const getSlug = (requestUrl) => {
 };
 
 const handleHomePage = (conn) => {
-  // https://github.com/Ghosh/micromodal
-  return rootCollections
-    .offices
-    .where('office', '==', conn.req.query.office || '')
-    .limit(1)
-    .get()
-    .then((docs) => {
-      const officeDoc = docs.docs[0];
+  const locals = {};
 
-      const locals = {
-        officesArray: [officeDoc, officeDoc, officeDoc, officeDoc],
-      };
-
-      return helpers.homePage(conn, locals);
-    })
-    .catch((error) => helpers.errorPage(conn, error));
+  return helpers.homePage(conn, locals);
 };
 
 
@@ -56,7 +38,7 @@ const app = (req, res) => {
   }
 
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
-  const slug = getSlug(req.url);
+  const slug = getSlugFromUrl(req.url);
   const conn = { req, res };
   const locals = { slug };
 
@@ -70,6 +52,9 @@ const app = (req, res) => {
     return helpers.downloadAppPage(conn, {});
   }
 
+  if (slug === 'join') {
+    return helpers.joinPage(conn, {});
+  }
 
   /**
    * const context = variables object
@@ -85,7 +70,7 @@ const app = (req, res) => {
     .get()
     .then((docs) => {
       if (docs.empty) {
-        return helpers.homePage(conn, {});
+        return helpers.pageNotFound(conn, {});
       }
 
       locals.officeDoc = docs.docs[0];

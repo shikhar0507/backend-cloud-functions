@@ -1,1 +1,28 @@
-{}
+{
+    "hosting": [
+        {
+            "site": "growthfile-website",
+            "public": "website",
+            "cleanUrls": true,
+            "trailingSlash": false,
+            "ignore": [
+                "explorer firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+            ],
+            "rewrites": [
+                {
+                    "source": "/api",
+                    "function": "api"
+                },
+                {
+                    "source": "/**",
+                    "function": "webapp"
+                }
+            ]
+        }
+    ],
+    "functions": {
+        "source": "functions"
+    }
+}

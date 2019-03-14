@@ -13,16 +13,8 @@ header {
     height: 50px;
 }
 
-.pad {
-    padding: 10px;
-}
-
 input:focus {
     border: 1px solid #039be5;
-}
-
-.pad-after-header {
-    height: 80px;
 }
 
 #logo {
@@ -166,5 +158,14 @@ footer {
     }
     .footer-links {
         margin-bottom: 40px;
+    }
+    #logo span {
+        display: none;
+    }
+    .header-links a span {
+        display: none;
+    }
+    .header-section-start {
+        padding-left: 0px;
     }
 }

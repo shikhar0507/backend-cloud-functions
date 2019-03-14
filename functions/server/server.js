@@ -272,14 +272,14 @@ const getProfile = (conn, pathName) =>
       const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
       if (Date.now() - authCreationTime < NUM_MILLI_SECS_IN_MINUTE) {
-        return handleRequestPath(conn, pathName);
+        // return handleRequestPath(conn, pathName);
+        return Promise.resolve();
       }
 
       /**
        * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
        *   run `authOnCreate` logic again.
        */
-
       if (doc.get('uid')
         && doc.get('uid') !== conn.requester.uid) {
         console.log({

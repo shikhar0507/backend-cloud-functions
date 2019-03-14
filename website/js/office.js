@@ -14,19 +14,20 @@ function showToast(message, seconds = 5) {
   return Toastify({
     text: message,
     duration: seconds * 1000,
-    // destination: "https://github.com/apvarun/toastify-js",
+    destination: '',
     newWindow: true,
     className: 'toast',
     close: true,
-    gravity: 'bottom', // `top` or `bottom`
-    positionLeft: true, // `true` or `false`
-    backgroundColor: 'linear-gradient(to right, #00b09b, #96c93d)',
+    gravity: 'top', // `top` or `bottom`
+    positionLeft: false, // `true` or `false`
+    backgroundColor: '#039be5',
   })
     .showToast();
 };
 
 // needs to be global for gMaps to work. // See docs.
 let map;
+let firebaseAuthModal;
 
 function initMap() {
   const curr = {
@@ -64,6 +65,8 @@ function signInSuccessWithAuthResult(authResult, redirectUrl) {
   console.log('signin success');
 
   // document.querySelector('.modal').style.display = 'none';
+
+  firebaseAuthModal.close();
 }
 
 function signInFailure(error) {
@@ -71,7 +74,6 @@ function signInFailure(error) {
 }
 
 function uiShown() {
-  // widget has renderred
   console.log('ui was shown');
 }
 
@@ -119,7 +121,6 @@ function handleProductClick(param) {
   modal.show();
 };
 
-
 function handleBranchClick(latitude, longitude) {
   const position = {
     lat: Number(latitude),
@@ -136,6 +137,11 @@ function handleBranchClick(latitude, longitude) {
 }
 
 function sendEnquiryRequest(body) {
+  const form = document.querySelector('.enquiry-section form');
+  const spinner = document.querySelector('.loading-spinner');
+  form.style.display = 'none';
+  spinner.style.display = 'block';
+
   return firebase
     .auth()
     .currentUser
@@ -143,21 +149,27 @@ function sendEnquiryRequest(body) {
     .then((idToken) => {
       const authorization = `Bearer ${idToken}`;
       console.log('authorization', authorization);
-
       console.log('body', body);
 
-      return fetch('https://us-central1-growthfilev2-0.cloudfunctions.net/api/enquiry', {
+      const init = {
         body: JSON.stringify(body),
         method: 'POST',
         headers: {
           'Authorization': authorization,
           'Content-Type': 'application/json',
         },
-      });
+      };
+
+      return fetch('https://api2.growthfile.com/api/enquiry', init);
     })
-    .then((response) => response.text())
+    .then((response) => response.json())
     .then((data) => {
       console.log('success', data);
+
+      const para = document.querySelector('.enquiry-success-message');
+
+      spinner.style.display = 'none';
+      para.style.display = 'block';
     })
     .catch(console.error);
 };
@@ -242,10 +254,12 @@ function handleEnquiry(event) {
     console.log('not logged in');
 
     const modalContent = `<div id="firebaseui-auth-container"></div>`;
-    const fbLoginModal = picoModal(modalContent);
+    firebaseAuthModal = picoModal(modalContent);
+    firebaseAuthModal.show();
+
     ui.start('#firebaseui-auth-container', uiConfig);
 
-    fbLoginModal.show();
+    return;
   }
 
   const currentUser = firebase.auth().currentUser;
@@ -262,10 +276,6 @@ function handleEnquiry(event) {
     office: document.body.dataset.slug,
     companyName: personCompanyNameInput.value,
     timestamp: Date.now(),
-    geopoint: {
-      latitude: 28.5492026,
-      longitude: 77.2505871,
-    },
   };
 
   return sendEnquiryRequest(body);

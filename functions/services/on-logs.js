@@ -108,7 +108,7 @@ module.exports = (conn) => {
       if (!bodyObject[phoneNumber]) {
         const data = (() => {
           if (typeof conn.req.body.body === 'string') {
-            return data;
+            return conn.req.body.body;
           }
 
           return JSON.stringify(conn.req.body.body);
@@ -140,13 +140,22 @@ module.exports = (conn) => {
         deviceObject,
       };
 
+      if (conn.req.body.locationError
+        && typeof conn.req.body.locationError === 'boolean') {
+        docData.locationError = conn.req.body.locationError;
+      }
+
       if (!emailSent
         && Object.keys(affectedUsers).length >= MAX_THRESHOLD) {
+
+        const getSubject = (message) =>
+          `Error count >= 10: '${message}': ${process.env.GCLOUD_PROJECT}`;
+
         batch
           .set(rootCollections
             .instant
             .doc(), {
-              subject: `Error count >= 10: '${message}': ${process.ENV.GCLOUD_PROJECT}`,
+              subject: getSubject(message),
               messageBody: JSON.stringify(docData, ' ', 2),
             });
 
