@@ -76,6 +76,24 @@ const handleValidation = (body) => {
   for (let iter = 0; iter < body.data.length; iter++) {
     const item = body.data[iter];
 
+    if (!Array.isArray(item.share)) {
+      return {
+        success: false,
+        message: `The field 'share' should be an array`,
+      };
+    }
+
+    for (let index = 0; index < item.share.length; index++) {
+      const phoneNumber = item.share[index];
+
+      if (isE164PhoneNumber(phoneNumber)) continue;
+
+      return {
+        success: false,
+        message: `${phoneNumber} is not a valid phone number`,
+      };
+    }
+
     if (typeof item === 'object') {
       continue;
     }
@@ -133,21 +151,6 @@ const executeSequentially = (batchFactories) => {
   return result;
 };
 
-const commitData = (conn, batchesArray, batchFactories, responseObject) => {
-  // For a single batch, no need to create batch factories
-  if (batchesArray.length === 1) {
-    return batchesArray[0]
-      .commit()
-      .then(() => sendJSON(conn, responseObject))
-      .catch((error) => handleError(conn, error));
-  }
-
-  return executeSequentially(batchFactories)
-    .then(() => sendJSON(conn, responseObject))
-    .catch((error) => handleError(conn, error));
-};
-
-
 const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
   const rule = locals.templateDoc.get('canEditRule');
 
@@ -177,11 +180,24 @@ const getEmployeeDataObject = (activityObject, phoneNumber) => {
 };
 
 
+const commitData = (conn, batchesArray, batchFactories, responseObject) => {
+  // For a single batch, no need to create batch factories
+  if (batchesArray.length === 1) {
+    return batchesArray[0]
+      .commit()
+      .catch((error) => handleError(conn, error));
+  }
+
+  return executeSequentially(batchFactories)
+    .catch((error) => handleError(conn, error));
+};
+
+
 const createObjects = (conn, locals) => {
   let totalDocsCreated = 0;
-  const employeesData = {};
   let currentBatchIndex = 0;
   let batchDocsCount = 0;
+  const employeesData = {};
   const batchFactories = [];
   const batchesArray = [];
   const timestamp = Date.now();
@@ -190,8 +206,16 @@ const createObjects = (conn, locals) => {
   const scheduleFieldsSet = new Set(locals.templateDoc.get('schedule'));
   const venueFieldsSet = new Set(locals.templateDoc.get('venue'));
 
-  conn.req.body.data.forEach((item) => {
+  conn.req.body.data.forEach((item, index) => {
     if (item.rejected) {
+
+      return;
+    }
+
+    if (conn.req.body.template === 'employee'
+      && locals.phoneNumbersToRejectSet.has(item['Employee Contact'])) {
+      conn.req.body[index].rejected = true;
+      conn.req.body[index].reason = `Phone number already in use`;
 
       return;
     }
@@ -249,11 +273,34 @@ const createObjects = (conn, locals) => {
     const objectFields = Object.keys(item);
     let scheduleCount = 0;
 
+    console.log('attachmentFieldsSet', attachmentFieldsSet);
+
     objectFields.forEach((field) => {
       const value = item[field];
       const isFromAttachment = attachmentFieldsSet.has(field);
       const isFromSchedule = scheduleFieldsSet.has(field);
       const isFromVenue = venueFieldsSet.has(field);
+
+      console.log('field', field);
+
+      // if (isEmployeeTemplate
+      //   && field === 'Employee Contact') {
+      //   batchDocsCount++;
+      //   totalDocsCreated++;
+
+      //   // const phoneNumber = activityObject.attachment[field].value;
+
+      //   employeesData[value] = getEmployeeDataObject(
+      //     activityObject,
+      //     value,
+      //   );
+
+      //   batch.set(locals.officeDoc.ref, {
+      //     employeesData,
+      //   }, {
+      //       merge: true,
+      //     });
+      // }
 
       if (isFromAttachment) {
         activityObject.attachment[field] = {
@@ -288,25 +335,25 @@ const createObjects = (conn, locals) => {
           },
         });
       }
-
-      if (isEmployeeTemplate) {
-        batchDocsCount++;
-        totalDocsCreated++;
-
-        const phoneNumber = activityObject.attachment['Employee Contact'].value;
-
-        employeesData[phoneNumber] = getEmployeeDataObject(
-          activityObject,
-          phoneNumber
-        );
-
-        batch.set(locals.officeDoc.ref, {
-          employeesData,
-        }, {
-            merge: true,
-          });
-      }
     });
+
+    if (isEmployeeTemplate) {
+      const phoneNumber = activityObject.attachment['Employee Contact'].value;
+
+      employeesData[phoneNumber] = getEmployeeDataObject(
+        activityObject,
+        phoneNumber,
+      );
+
+      batchDocsCount++;
+      totalDocsCreated++;
+
+      batch.set(locals.officeDoc.ref, {
+        employeesData,
+      }, {
+          merge: true,
+        });
+    }
 
     const addendumObject = {
       timestamp,
@@ -325,22 +372,33 @@ const createObjects = (conn, locals) => {
       isAdminRequest: true,
     };
 
-    conn.req.body.share.forEach((phoneNumber) => {
-      const ref = activityRef.collection('Assignees').doc(phoneNumber.trim());
-      const addToInclude = conn.req.body.template === 'subscription'
-        && phoneNumber !== activityObject.attachment.Subscriber.value;
-
-      const canEdit = getCanEditValue(
-        locals,
-        phoneNumber,
-        conn.requester.phoneNumber
-      );
-
-      batch.set(ref, {
-        canEdit,
-        addToInclude,
+    locals
+      .assigneesFromAttachment
+      .get(index)
+      .forEach((phoneNumber) => {
+        conn.req.body.data[index].share.push(phoneNumber);
       });
-    });
+
+    conn
+      .req
+      .body
+      .data[index]
+      .share.forEach((phoneNumber) => {
+        const ref = activityRef.collection('Assignees').doc(phoneNumber.trim());
+        const addToInclude = conn.req.body.template === 'subscription'
+          && phoneNumber !== activityObject.attachment.Subscriber.value;
+
+        const canEdit = getCanEditValue(
+          locals,
+          phoneNumber,
+          conn.requester.phoneNumber
+        );
+
+        batch.set(ref, {
+          canEdit,
+          addToInclude,
+        });
+      });
 
     // 1 activity doc, and 2 addendum object
     batch.set(activityRef, activityObject);
@@ -350,8 +408,8 @@ const createObjects = (conn, locals) => {
     // Second for addendum
     totalDocsCreated += 2;
     batchDocsCount += 2;
-    batchDocsCount += conn.req.body.share.length;
-    totalDocsCreated += conn.req.body.share.length;
+    batchDocsCount += conn.req.body.data[index].share.length;
+    totalDocsCreated += conn.req.body.data[index].share.length;
   });
 
   console.log({
@@ -361,8 +419,12 @@ const createObjects = (conn, locals) => {
 
   const responseObject = { data: conn.req.body.data, totalDocsCreated };
 
-  // return commitData(conn, batchesArray, batchFactories, responseObject);
-  return sendJSON(conn, responseObject);
+  return commitData(conn, batchesArray, batchFactories, responseObject)
+
+    // return Promise
+    //   .resolve()
+    .then(() => sendJSON(conn, responseObject))
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -370,7 +432,7 @@ const fetchDataForCanEditRule = (conn, locals) => {
   const rule = locals.templateDoc.get('canEditRule');
 
   if (rule !== 'ADMIN' && rule !== 'EMPLOYEE') {
-    return createObjects(conn, locals);
+    return Promise.resolve();
   }
 
   return locals
@@ -391,22 +453,72 @@ const fetchDataForCanEditRule = (conn, locals) => {
         set.add(phoneNumber);
       });
 
-      return createObjects(conn, locals);
+      return Promise.resolve();
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+const handleEmployees = (conn, locals) => {
+  const promises = [];
+
+  locals
+    .employeesToCheck
+    .forEach((item) => {
+      const promise = rootCollections
+        .offices
+        .doc(locals.officeDoc.id)
+        .collection('Activities')
+        .where('template', '==', 'employee')
+        .where('attachment.Employee Contact.value', '==', item.phoneNumber)
+        .where('attachment.Name.value', '==', item.name)
+        // The `statusOnCreate` is most probably `CONFIRMED` in most cases.
+        .where('status', '==', locals.templateDoc.get('statusOnCreate'))
+        .limit(1)
+        .get();
+
+      promises.push(promise);
+    });
+
+  locals.phoneNumbersToRejectSet = new Set();
+
+  return Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const doc = snapShot.docs[0];
+        const phoneNumber = doc.get('attachment.Name.value');
+
+        locals
+          .phoneNumbersToRejectSet
+          .add(phoneNumber);
+      });
+
+      return Promise.resolve();
     })
     .catch((error) => handleError(conn, error));
 };
 
 
 const handleUniqueness = (conn, locals) => {
-  const hasName = locals.templateDoc.get('attachment').hasOwnProperty('Name');
-  const hasNumber = locals.templateDoc.get('attachment').hasOwnProperty('Number');
+  const hasName = locals
+    .templateDoc
+    .get('attachment')
+    .hasOwnProperty('Name');
+  const hasNumber = locals
+    .templateDoc
+    .get('attachment')
+    .hasOwnProperty('Number');
 
   if (!hasName && !hasNumber) {
-    return sendJSON(conn, conn.req.body.data);
+    // return fetchDataForCanEditRule(conn, locals);
+    return Promise.resolve();
   }
 
   const promises = [];
   let index = 0;
+  const indexMap = new Map();
   const baseQuery = locals
     .officeDoc
     .ref
@@ -423,12 +535,14 @@ const handleUniqueness = (conn, locals) => {
   })();
 
   conn.req.body.data.forEach((item) => {
+    // Not querying anything for already rejected objects
     if (item.rejected) return;
 
+    indexMap.set(item.Name || item.Number, index);
     index++;
 
     const promise = baseQuery
-      .where(`attachment.${param}.value`, '==', item.Name)
+      .where(`attachment.${param}.value`, '==', item.Name || item.Number)
       .limit(1)
       .get();
 
@@ -439,17 +553,182 @@ const handleUniqueness = (conn, locals) => {
     .all(promises)
     .then((snapShots) => {
       snapShots.forEach((snapShot) => {
-        // Empty means that the person with the name doesn't exist. Allow creation
+        // Empty means that the person with the name/number doesn't exist.
         if (snapShot.empty) return;
 
+        const doc = snapShot.docs[0];
+        const nameOrNumber =
+          doc.get('attachment.Name.value') || doc.get('attachment.Number.value');
+        const index = indexMap.get(nameOrNumber);
+
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason =
-          `${param}`
+        conn.req.body.data[index].reason = `${param}`
           + ` '${conn.req.body.data[index].Name || conn.req.body.data[index].Number}'`
           + ` is already in use`;
       });
 
-      return fetchDataForCanEditRule(conn, locals);
+      return Promise.resolve();
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+const handleSubscriptions = (conn, locals) => {
+  if (conn.req.body.template !== 'subscription') {
+    // return handleUniqueness(conn, locals);
+    return Promise.resolve();
+  }
+
+  const promises = [];
+
+  locals.subscriptionsToCheck.forEach((item) => {
+    const {
+      phoneNumber,
+      template,
+    } = item;
+
+    const promise = locals
+      .officeDoc
+      .ref
+      .collection('Activities')
+      .where('isCancelled', '==', false)
+      .where('template', '==', 'subscription')
+      .where('attachment.Subscriber.value', '==', phoneNumber)
+      .where('attachment.Template.value', '==', template)
+      .limit(1)
+      .get();
+
+    promises.push(promise);
+  });
+
+  return Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot, index) => {
+        if (snapShot.empty) return;
+        const doc = snapShot.docs[0];
+        const phoneNumber = doc.get('attachment.Subscriber.value');
+        const template = doc.get('attachment.Template.value');
+
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `${phoneNumber} already has ${template}`;
+      });
+
+      // return handleUniqueness(conn, locals);
+      return Promise.resolve();
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+const handleAdmins = (conn, locals) => {
+  const promises = [];
+
+  if (conn.req.body.template !== 'admin') {
+    return Promise.resolve();
+  }
+
+  locals.adminToCheck.forEach((phoneNumber) => {
+    promises.push(
+      locals
+        .officeDoc
+        .ref
+        .collection('Activities')
+        .where('template', '==', 'admin')
+        .where('attachment.Admin.value', '==', phoneNumber)
+        .where('isCancelled', '==', false)
+        .limit(1)
+        .get()
+    );
+  });
+
+  const adminsToReject = new Set();
+
+  return Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot, index) => {
+        if (snapShot.empty) return;
+
+        const phoneNumber = locals.adminToCheck[index];
+
+        adminsToReject.add(phoneNumber);
+      });
+
+      conn.req.body.data.forEach((object, index) => {
+        const phoneNumber = object.Admin;
+
+        if (!phoneNumber) {
+          conn.req.body.data[index].rejected = true;
+          conn.req.body.data[index].reason =
+            `Invalid value '${phoneNumber || 'empty'}' for Admin phone number`;
+        }
+
+        if (adminsToReject.has(phoneNumber)) {
+          conn.req.body.data[index].rejected = true;
+          conn.req.body.data[index].reason = `${phoneNumber} is already an Admin`;
+        }
+      });
+
+      return Promise.resolve();
+    })
+    .catch((error) => handleError(conn, error));
+};
+
+const fetchValidTypes = (conn, locals) => {
+  const promises = [];
+  const nonExistingValuesSet = new Set();
+  const queryMap = new Map();
+
+  locals.verifyValidTypes.forEach((item, index) => {
+    // console.log('value', value);
+    const {
+      value,
+      type,
+      field,
+    } = item;
+
+    queryMap.set(index, value);
+
+    const promise = locals.officeDoc.ref.collection('Activities')
+      .where('template', '==', type)
+      .where(field, '==', value)
+      .where('isCancelled', '==', false)
+      .limit(1)
+      .get();
+
+    promises.push(promise);
+  });
+
+  return Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots.forEach((snapShot, index) => {
+        // doc should exist
+        if (!snapShot.empty) return;
+
+        // nonExistingValuesSet.add
+        const nonExistingValue = queryMap.get(index);
+
+        nonExistingValuesSet.add(nonExistingValue);
+      });
+
+      conn.req.body.data.forEach((object, index) => {
+        const fields = Object.keys(object);
+
+        fields.forEach((field) => {
+          const value = object[field];
+
+          if (!value) return;
+
+          // console.log(value);
+          if (nonExistingValuesSet.has(value)) {
+            console.log(value);
+            conn.req.body.data[index].rejected = true;
+            conn.req.body.data[index].reason = `${field} ${value} doesn't exist`;
+          }
+        });
+      });
+
+      return Promise.resolve();
     })
     .catch((error) => handleError(conn, error));
 };
@@ -463,48 +742,130 @@ const validateDataArray = (conn, locals) => {
   const venueFields = locals.templateDoc.get('venue');
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(scheduleFields);
-  const allFieldsSet = new Set(
-    [...attachmentFieldsSet],
-    ...[...scheduleFields,
-    ...venueFields]
-  );
-
-  // locals.allFieldsSet = allFieldsSet;
-
-  let duplicateRowIndex;
+  const allFieldsArray = [
+    ...attachmentFieldsSet,
+    ...scheduleFields,
+    ...venueFields,
+  ];
+  const allFieldsSet = new Set(allFieldsArray).add('share');
+  let toRejectAll = false;
+  let duplicateRowIndex = 0;
   /** 
    * Set for managing uniques from the request body.
    * If any duplicate is found rejecting all data.
    */
-  const uniques = new Set();
-  let toRejectAll = false;
-
+  const duplicatesSet = new Set();
+  const subscriptionsMap = new Map();
+  const namesToCheck = [];
+  const employeesToCheck = [];
   const checkName = locals.templateDoc.get('attachment').hasOwnProperty('Name');
-  const checkNumber = locals.templateDoc.get('attachment.').hasOwnProperty('Number');
+  const checkNumber = locals.templateDoc.get('attachment').hasOwnProperty('Number');
+  const missingFieldsMap = new Map();
+  const adminsSet = new Set();
+  const adminToCheck = [];
+  const verifyValidTypes = new Map();
+  const subscriptionsToCheck = [];
+  const namesSet = new Set();
+  const numbersSet = new Set();
+  const assigneesFromAttachment = new Map();
 
   conn.req.body.data.forEach((dataObject, index) => {
+    let fieldsMissingInCurrentObject = false;
+
     const objectProperties = Object.keys(dataObject);
+    /** TODO: This is O(n * m * q) loop most probably. Don't have
+     * much time to fully optimize this properly.
+     * Will do it later...
+      */
+    allFieldsArray.forEach((field) => {
+      if (objectProperties.includes(field)) {
+        return;
+      }
+
+      fieldsMissingInCurrentObject = true;
+
+      if (missingFieldsMap.has(index)) {
+        const fieldsSet = missingFieldsMap.get(index);
+
+        fieldsSet.add(field);
+
+        missingFieldsMap.set(index, fieldsSet);
+      } else {
+        missingFieldsMap.set(index, new Set().add(field));
+      }
+    });
+
+    if (fieldsMissingInCurrentObject) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason =
+        `Missing fields: ${[...missingFieldsMap.get(index)]}`;
+
+      return;
+    }
+
+    if (checkName || checkNumber) {
+      const value = conn.req.body.data[index].Name || conn.req.body.data[index].Number;
+
+      if (namesSet.has(value)) {
+        toRejectAll = true;
+      } else {
+        namesSet.add(value);
+      }
+    }
+
+    if (conn.req.body.template === 'subscription') {
+      const phoneNumber = conn.req.body.data[index].Subscriber;
+      const template = conn.req.body.data[index].Template;
+
+      if (subscriptionsMap.has(phoneNumber)) {
+        const set = subscriptionsMap.get(phoneNumber);
+
+        if (set.has(template)) {
+          toRejectAll = true;
+        }
+
+        set.add(template);
+
+        subscriptionsMap.set(phoneNumber, set);
+      } else {
+        subscriptionsMap.set(phoneNumber, new Set().add(template));
+      }
+
+      subscriptionsToCheck.push({
+        phoneNumber: conn.req.body.data[index].Subscriber,
+        template: conn.req.body.data[index].Template,
+      });
+    }
+
+    if (conn.req.body.template === 'admin') {
+      const phoneNumber = conn.req.body.data[index].Admin;
+
+      // Duplication
+      if (adminsSet.has(phoneNumber)) {
+        toRejectAll = true;
+      } else {
+        adminsSet.add(phoneNumber);
+      }
+
+      adminToCheck.push(phoneNumber);
+    }
+
+    if (conn.req.body.template === 'employee') {
+      const firstSupervisor = conn.req.body.data[index]['First Supervisor'];
+      const secondSupervisor = conn.req.body.data[index]['Second Supervisor'];
+
+      if (!firstSupervisor && !secondSupervisor) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Please add at least one supervisor`;
+      }
+    }
 
     objectProperties.forEach((property) => {
       const value = dataObject[property];
 
-      if (uniques.has(value)) {
+      if (duplicatesSet.has(value)) {
         duplicateRowIndex = index + 1;
         toRejectAll = true;
-      }
-
-      if (checkName && !dataObject.hasOwnProperty('Name')) {
-        conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Field 'Name' is missing`;
-
-        return;
-      }
-
-      if (checkNumber && !dataObject.hasOwnProperty('Number')) {
-        conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Field 'Number' is missing`;
-
-        return;
       }
 
       if (!allFieldsSet.has(property)) {
@@ -514,7 +875,8 @@ const validateDataArray = (conn, locals) => {
         return;
       }
 
-      if (scheduleFieldsSet.has(property)
+      if (value
+        && scheduleFieldsSet.has(property)
         && !isValidDate(value)) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `The field ${property}`
@@ -525,6 +887,12 @@ const validateDataArray = (conn, locals) => {
 
       if (attachmentFieldsSet.has(property)) {
         const type = locals.templateDoc.get('attachment')[property].type;
+
+        if (!validTypes.has(type) && value) {
+          // Used for querying activities which should exist on the
+          // basis of name
+          verifyValidTypes.set(index, { value, type, field: property });
+        }
 
         if (conn.req.body.template === 'employee'
           && property === 'Employee Contact'
@@ -546,6 +914,18 @@ const validateDataArray = (conn, locals) => {
           return;
         }
 
+        if (value && type === 'phoneNumber') {
+          if (assigneesFromAttachment.has(index)) {
+            const set = assigneesFromAttachment.get(index);
+
+            set.add(value);
+
+            assigneesFromAttachment.set(index, set);
+          } else {
+            assigneesFromAttachment.set(index, new Set().add(value));
+          }
+        }
+
         if (type === 'number'
           && typeof value !== 'number') {
           conn.req.body.data[index].rejected = true;
@@ -565,7 +945,7 @@ const validateDataArray = (conn, locals) => {
         if (property === 'Number'
           && !isNonEmptyString(value)
           && typeof value !== 'number') {
-          uniques.add(value);
+          duplicatesSet.add(value);
 
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
@@ -575,7 +955,7 @@ const validateDataArray = (conn, locals) => {
 
         if (property === 'Name'
           && !isNonEmptyString(value)) {
-          uniques.add(value);
+          duplicatesSet.add(value);
 
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
@@ -583,12 +963,10 @@ const validateDataArray = (conn, locals) => {
           return;
         }
 
-        console.log({
-          value,
-          isNonEmptyString: isNonEmptyString(value),
-        });
-
-        /** All fields past this check should only be checked if the value is non-empty string */
+        /** 
+         * All fields past this check should only be checked if 
+         * the value is non-empty string
+         */
         if (!isNonEmptyString(value)) return;
 
         if (type === 'email'
@@ -632,19 +1010,42 @@ const validateDataArray = (conn, locals) => {
         }
       }
     });
+
+    if (checkName) {
+      namesToCheck.push(conn.req.body.data[index].Name);
+    }
+
+    if (conn.req.body.template === 'employee') {
+      employeesToCheck.push({
+        name: conn.req.body.data[index].Name,
+        phoneNumber: conn.req.body.data[index]['Employee Contact'],
+      });
+    }
   });
+
+  locals.namesToCheck = namesToCheck;
+  locals.employeesToCheck = employeesToCheck;
+  locals.verifyValidTypes = verifyValidTypes;
+  locals.adminToCheck = adminToCheck;
+  locals.subscriptionsToCheck = subscriptionsToCheck;
+  locals.assigneesFromAttachment = assigneesFromAttachment;
 
   if (toRejectAll) {
     return sendResponse(
       conn,
       code.badRequest,
-      `Duplication found at index row: ${duplicateRowIndex}. 0 docs created.`
+      `Duplication found at row: ${duplicateRowIndex}. 0 docs created.`
     );
   }
 
-  // return handleUniqueness(conn, locals);
-
-  return sendJSON(conn, conn.req.body.data);
+  return fetchValidTypes(conn, locals)
+    .then(() => handleAdmins(conn, locals))
+    .then(() => handleSubscriptions(conn, locals))
+    .then(() => handleUniqueness(conn, locals))
+    .then(() => fetchDataForCanEditRule(conn, locals))
+    .then(() => handleEmployees(conn, locals))
+    .then(() => createObjects(conn, locals))
+    .catch((error) => handleError(conn, error));
 };
 
 
@@ -655,7 +1056,7 @@ module.exports = (conn) => {
    * timestamp: number
    * template: string
    * encoded: csvString
-   * location: object(latitude, longitude)
+   * location: `object(latitude, longitude)`
    */
   if (!conn.requester.isSupportRequest) {
     const isAdmin = conn.requester.customClaims.admin

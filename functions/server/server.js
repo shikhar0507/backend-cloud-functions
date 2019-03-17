@@ -99,6 +99,12 @@ const handleAdminUrl = (conn, urlParts) => {
     return;
   }
 
+  if (resource === 'employee-resign') {
+    require('../employee-resign')(conn);
+
+    return;
+  }
+
   sendResponse(
     conn,
     code.badRequest,

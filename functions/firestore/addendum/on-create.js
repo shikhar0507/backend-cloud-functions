@@ -826,6 +826,72 @@ const handleLeaveReport = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
+const logLocations = (addendumDoc, locals) => {
+  const geopointAccuracy = addendumDoc.get('geopointAccuracy');
+
+  // Only user app sends `geopointAccuracy`;
+  if (!geopointAccuracy || geopointAccuracy < 350) {
+    return Promise.resolve();
+  }
+
+  const message = 'lowGeopointAccuracy';
+  const isPoor = geopointAccuracy > 350 && geopointAccuracy < 1200;
+  const isBad = geopointAccuracy > 1200;
+  const date = locals.momentWithOffset.date();
+  const month = locals.momentWithOffset.month();
+  const year = locals.momentWithOffset.year();
+
+  return rootCollections
+    .errors
+    .where('message', '==', message)
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .limit(1)
+    .get()
+    .then((docs) => {
+      const ref = initDocRef(docs);
+
+      console.log('error doc:', ref.path, { isPoor, isBad });
+
+      const accuracyType = (() => {
+        if (isPoor) {
+          return 'poor';
+        }
+
+        return 'bad';
+      })();
+
+      const docRefsArray = (() => {
+        if (docs.empty) {
+          return [];
+        }
+
+        return docs.docs[0].get('docRefsArray') || [];
+      })();
+
+      docRefsArray.push(addendumDoc.ref.path);
+
+      return ref
+        .set({
+          message,
+          date,
+          month,
+          isPoor,
+          isBad,
+          year,
+          accuracyType,
+          docRefsArray,
+          // No need in the report because these are simply 
+          // paths to the docs.
+          skipFromErrorReport: true,
+        }, {
+            merge: true,
+          });
+    })
+    .catch(console.error);
+};
+
 
 module.exports = (addendumDoc) => {
   const phoneNumber = addendumDoc.get('user');
@@ -932,7 +998,7 @@ module.exports = (addendumDoc) => {
       const updateObject = {
         url: locals.placeInformation.url,
         identifier: locals.placeInformation.identifier,
-        accumulatedDistance: distanceData.accumulatedDistance,
+        // accumulatedDistance: distanceData.accumulatedDistance,
         distanceTravelled: distanceData.distanceTravelled,
         date: locals.momentWithOffset.date(),
         month: locals.momentWithOffset.month(),
@@ -972,6 +1038,7 @@ module.exports = (addendumDoc) => {
     /** DSR doesn't use a batch */
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))
+    .then(() => logLocations(addendumDoc))
     .catch((error) => {
       const context = {
         error,

@@ -37,6 +37,7 @@ const {
   deleteField,
 } = require('../../admin/admin');
 const {
+  toCustomerObject,
   activityName,
   validateVenues,
   getCanEditValue,
@@ -69,8 +70,7 @@ const updateDocsWithBatch = (conn, locals) => {
     attachment: conn.req.body.attachment,
   };
 
-  locals.nameFieldUpdated =
-    locals.docs.activity.get('attachment').hasOwnProperty('Name')
+  locals.nameFieldUpdated = locals.docs.activity.get('attachment').hasOwnProperty('Name')
     && locals.docs.activity.get('attachment.Name.value')
     !== conn.req.body.attachment.Name.value;
 
@@ -98,10 +98,7 @@ const updateDocsWithBatch = (conn, locals) => {
        */
       activityData: Object
         .assign({}, locals.docs.activity.data(), activityUpdateObject),
-      date: now.getDate(),
-      month: now.getMonth(),
       timestamp: Date.now(),
-      year: now.getFullYear(),
       action: httpsActions.update,
       dateString: now.toDateString(),
       user: conn.requester.phoneNumber,
@@ -147,9 +144,34 @@ const updateDocsWithBatch = (conn, locals) => {
       merge: true,
     });
 
-  return locals
-    .batch
-    .commit()
+  if (locals.docs.activity.get('template') !== 'customer') {
+    return locals
+      .batch
+      .commit()
+      .then(() => sendResponse(conn, code.noContent))
+      .catch((error) => handleError(conn, error));
+  }
+
+  rootCollections
+    .offices
+    .doc(locals.docs.activity.get('officeId'))
+    .get()
+    .then((doc) => {
+      const customersData = locals.officeDoc.get('customersData') || {};
+
+      customersData[conn.req.body.attachment.Name.value] = toCustomerObject(
+        conn.req.body,
+        locals.docs.activity.createTime.toDate().getTime(),
+      );
+
+      locals.batch.set(doc.ref, {
+        customersData,
+      }, {
+          merge: true,
+        });
+
+      return locals.batch.commit();
+    })
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
@@ -174,7 +196,6 @@ const getDisplayText = (conn, locals) => {
 
   return displayText;
 };
-
 
 const getPayrollObject = (conn, locals, initQuery) => {
   const NUM_MILLI_SECS_IN_DAY = 86400 * 1000;
@@ -234,8 +255,6 @@ const getPayrollObject = (conn, locals, initQuery) => {
 
   return payrollObject;
 };
-
-
 
 const handlePayroll = (conn, locals) => {
   if (!new Set()

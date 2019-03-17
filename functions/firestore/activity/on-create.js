@@ -38,6 +38,7 @@ const {
   getGeopointObject,
 } = require('../../admin/admin');
 const {
+  toCustomerObject,
   activityName,
   validateVenues,
   getCanEditValue,
@@ -192,6 +193,25 @@ const createDocsWithBatch = (conn, locals) => {
 
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
+
+  if (conn.req.body.template === 'customer') {
+    const customersData = locals.officeDoc.get('customersData') || {};
+
+    customersData[conn.req.body.attachment.Name.value] = toCustomerObject(
+      conn.req.body,
+      Date.now()
+    );
+
+    locals
+      .batch
+      .set(rootCollections
+        .offices
+        .doc(locals.static.officeId), {
+          customersData,
+        }, {
+          merge: true,
+        });
+  }
 
   /** ENDS the response. */
   locals
