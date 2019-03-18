@@ -56,30 +56,30 @@ const getTemplates = (conn, locals) =>
 
 
 const fetchActivities = (conn, locals) => {
-  locals
-    .officeRef
-    .collection('Activities')
-    .where('timestamp', '>', locals.jsonObject.from)
-    .get()
-    .then((docs) => {
-      if (docs.empty) {
-        getTemplates(conn, locals);
+  // locals
+  //   .officeRef
+  //   .collection('Activities')
+  //   .where('timestamp', '>', locals.jsonObject.from)
+  //   .get()
+  //   .then((docs) => {
+  //     if (docs.empty) {
+  //       getTemplates(conn, locals);
 
-        return;
-      }
+  //       return;
+  //     }
 
-      locals
-        .jsonObject
-        .upto = docs.docs[docs.size - 1].get('timestamp');
+  //     locals
+  //       .jsonObject
+  //       .upto = docs.docs[docs.size - 1].get('timestamp');
 
-      docs.forEach((doc) =>
-        locals.jsonObject.activities.push(getActivityObject(doc)));
+  //     docs.forEach((doc) =>
+  //       locals.jsonObject.activities.push(getActivityObject(doc)));
 
-      getTemplates(conn, locals);
+  getTemplates(conn, locals);
 
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+  //     return;
+  //   })
+  //   .catch((error) => handleError(conn, error));
 };
 
 

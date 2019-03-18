@@ -345,7 +345,11 @@ const sendErrorReport = () => {
 
       let messageBody = '';
 
-      snapShot.docs.forEach((doc, index) => messageBody += `${getHTMLString(doc, index)}\n\n`);
+      snapShot.docs.forEach((doc, index) => {
+        if (doc.get('skipFromErrorReport')) return;
+
+        messageBody += `${getHTMLString(doc, index)}\n\n`;
+      });
 
       const subject = `${process.env.GCLOUD_PROJECT}`
         + ` Frontend Errors ${today.format(dateFormats.DATE)}`;

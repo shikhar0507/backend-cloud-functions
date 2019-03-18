@@ -1160,6 +1160,7 @@ module.exports = (change, context) => {
 
         locals.assigneesMap.get(phoneNumber).displayName = record.displayName;
         locals.assigneesMap.get(phoneNumber).uid = record.uid;
+        locals.assigneesMap.get(phoneNumber).photoUrl = record.photoUrl;
 
         /** New user introduced to the system. Saving their phone number. */
         if (!record.hasOwnProperty('uid')) {
@@ -1179,8 +1180,30 @@ module.exports = (change, context) => {
         /** Document below the user profile. */
         const activityData = change.after.data();
         activityData.canEdit = locals.assigneesMap.get(phoneNumber).canEdit;
-        activityData.assignees = locals.assigneePhoneNumbersArray;
         activityData.timestamp = Date.now();
+        activityData.assignees = locals.assigneePhoneNumbersArray;
+
+        // activityData.assignees = (() => {
+        //   const result = [];
+
+        //   locals
+        //     .assigneePhoneNumbersArray.forEach((phoneNumber) => {
+        //       let displayName = '';
+        //       let photoUrl = '';
+
+        //       if (locals.assigneesMap.has(phoneNumber)) {
+        //         // Both of these values, unless set clould be `undefined`
+        //         displayName = locals.assigneesMap.get(phoneNumber).displayName || '';
+        //         photoUrl = locals.assigneesMap.get(phoneNumber).photoUrl || '';
+        //       }
+
+        //       const object = { phoneNumber, displayName, photoUrl };
+
+        //       result.push(object);
+        //     });
+
+        //   return result;
+        // })();
 
         batch.set(rootCollections
           .profiles

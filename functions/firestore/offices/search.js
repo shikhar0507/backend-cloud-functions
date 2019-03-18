@@ -9,6 +9,7 @@ const {
   sendResponse,
   isNonEmptyString,
   hasSupportClaims,
+  hasAdminClaims,
 } = require('../../admin/utils');
 const {
   code,
@@ -26,7 +27,19 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!hasSupportClaims(conn.requester.customClaims)) {
+  if (conn.requester.isSupportRequest
+    && !hasSupportClaims(conn.requester.customClaims)) {
+    sendResponse(
+      conn,
+      code.forbidden,
+      `Support claims not found`
+    );
+
+    return;
+  }
+
+  if (!conn.requester.isSupportRequest
+    && !hasAdminClaims(conn.requester.customClaims)) {
     sendResponse(
       conn,
       code.forbidden,

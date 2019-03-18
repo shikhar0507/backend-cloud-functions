@@ -80,6 +80,7 @@ function uiShown() {
 const uiConfig = {
   signInOptions: [{
     provider: firebase.auth.PhoneAuthProvider.PROVIDER_ID,
+    requireDisplayName: true,
     signInFlow: 'popup',
     recaptchaParameters: {
       type: 'image',
@@ -95,7 +96,7 @@ const uiConfig = {
     signInSuccessWithAuthResult,
     signInFailure,
     uiShown,
-  }
+  },
 };
 
 

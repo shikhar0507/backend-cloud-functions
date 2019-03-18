@@ -542,17 +542,18 @@ const handleFollowUpDate = (addendumDoc, locals) => {
 
       const followUpObject = getFollowUpObject(addendumDoc, snapShot, locals);
 
-      return ref.set({
-        date,
-        month,
-        year,
-        followUpObject,
-        report: reportNames.DSR,
-        office: addendumDoc.get('activityData.office'),
-        officeId: addendumDoc.get('activityData.officeId'),
-      }, {
-          merge: true,
-        });
+      return ref
+        .set({
+          date,
+          month,
+          year,
+          followUpObject,
+          report: reportNames.DSR,
+          office: addendumDoc.get('activityData.office'),
+          officeId: addendumDoc.get('activityData.officeId'),
+        }, {
+            merge: true,
+          });
     })
     .catch(console.error);
 };
@@ -850,7 +851,13 @@ const logLocations = (addendumDoc, locals) => {
     .limit(1)
     .get()
     .then((docs) => {
-      const ref = initDocRef(docs);
+      const ref = (() => {
+        if (docs.empty) {
+          return rootCollections.errors.doc();
+        }
+
+        return docs.docs[0].ref;
+      })();
 
       console.log('error doc:', ref.path, { isPoor, isBad });
 
@@ -1038,7 +1045,7 @@ module.exports = (addendumDoc) => {
     /** DSR doesn't use a batch */
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))
-    .then(() => logLocations(addendumDoc))
+    .then(() => logLocations(addendumDoc, locals))
     .catch((error) => {
       const context = {
         error,

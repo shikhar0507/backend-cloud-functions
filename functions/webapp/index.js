@@ -29,12 +29,14 @@ const fetchOfficeData = (conn, locals) => {
     .all([
       locals
         .officeDoc
+        .ref
         .collection('Activities')
         .where('template', '==', 'branch')
         .limit(10)
         .get(),
       locals
         .officeDoc
+        .ref
         .collection('Activities')
         .where('template', '==', 'product')
         .limit(10)

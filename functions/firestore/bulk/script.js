@@ -6,7 +6,6 @@ const {
   db,
 } = require('../../admin/admin');
 const {
-  hasAdminClaims,
   sendResponse,
   handleError,
   sendJSON,
@@ -70,6 +69,13 @@ const handleValidation = (body) => {
     return {
       success: false,
       message: messageString('data'),
+    };
+  }
+
+  if (body.data.length === 0) {
+    return {
+      success: false,
+      message: `Data cannot be empty`,
     };
   }
 
@@ -180,7 +186,7 @@ const getEmployeeDataObject = (activityObject, phoneNumber) => {
 };
 
 
-const commitData = (conn, batchesArray, batchFactories, responseObject) => {
+const commitData = (conn, batchesArray, batchFactories) => {
   // For a single batch, no need to create batch factories
   if (batchesArray.length === 1) {
     return batchesArray[0]
@@ -372,12 +378,15 @@ const createObjects = (conn, locals) => {
       isAdminRequest: true,
     };
 
-    locals
-      .assigneesFromAttachment
-      .get(index)
-      .forEach((phoneNumber) => {
-        conn.req.body.data[index].share.push(phoneNumber);
-      });
+    // Not all templates will have type phoneNumber in attachment.
+    if (locals.assigneesFromAttachment.has('index')) {
+      locals
+        .assigneesFromAttachment
+        .get(index)
+        .forEach((phoneNumber) => {
+          conn.req.body.data[index].share.push(phoneNumber);
+        });
+    }
 
     conn
       .req
@@ -420,9 +429,6 @@ const createObjects = (conn, locals) => {
   const responseObject = { data: conn.req.body.data, totalDocsCreated };
 
   return commitData(conn, batchesArray, batchFactories, responseObject)
-
-    // return Promise
-    //   .resolve()
     .then(() => sendJSON(conn, responseObject))
     .catch((error) => handleError(conn, error));
 };
@@ -766,14 +772,14 @@ const validateDataArray = (conn, locals) => {
   const verifyValidTypes = new Map();
   const subscriptionsToCheck = [];
   const namesSet = new Set();
-  const numbersSet = new Set();
   const assigneesFromAttachment = new Map();
 
   conn.req.body.data.forEach((dataObject, index) => {
     let fieldsMissingInCurrentObject = false;
 
     const objectProperties = Object.keys(dataObject);
-    /** TODO: This is O(n * m * q) loop most probably. Don't have
+    /** 
+     * TODO: This is O(n * m * q) loop most probably. Don't have
      * much time to fully optimize this properly.
      * Will do it later...
       */
@@ -807,15 +813,37 @@ const validateDataArray = (conn, locals) => {
       const value = conn.req.body.data[index].Name || conn.req.body.data[index].Number;
 
       if (namesSet.has(value)) {
+        duplicateRowIndex = index + 1;
         toRejectAll = true;
       } else {
         namesSet.add(value);
       }
     }
 
+    if (conn.req.body.template === 'employee'
+      && locals.officeDoc.get('employeesData')) {
+      const phoneNumber = conn.req.body.data['Employee Contact'];
+      const alreadyExists = locals.officeDoc.get('employeesData').hasOwnProperty(phoneNumber);
+
+      if (alreadyExists) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `${phoneNumber} is already an employee`;
+      }
+    }
+
     if (conn.req.body.template === 'subscription') {
       const phoneNumber = conn.req.body.data[index].Subscriber;
       const template = conn.req.body.data[index].Template;
+
+      if (template === 'office') {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Subscription of template: 'office' is not allowed`;
+      }
+
+      if (!locals.templateNamesSet.has(template)) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Template: '${template} does not exist'`;
+      }
 
       if (subscriptionsMap.has(phoneNumber)) {
         const set = subscriptionsMap.get(phoneNumber);
@@ -914,7 +942,8 @@ const validateDataArray = (conn, locals) => {
           return;
         }
 
-        if (value && type === 'phoneNumber') {
+        if (value
+          && type === 'phoneNumber') {
           if (assigneesFromAttachment.has(index)) {
             const set = assigneesFromAttachment.get(index);
 
@@ -1023,6 +1052,14 @@ const validateDataArray = (conn, locals) => {
     }
   });
 
+  conn.req.body.data.forEach((item, index) => {
+    if (!assigneesFromAttachment.has(index)
+      && conn.req.body.data[index].share.length === 0) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `No assignees found`;
+    }
+  });
+
   locals.namesToCheck = namesToCheck;
   locals.employeesToCheck = employeesToCheck;
   locals.verifyValidTypes = verifyValidTypes;
@@ -1058,18 +1095,14 @@ module.exports = (conn) => {
    * encoded: csvString
    * location: `object(latitude, longitude)`
    */
-  if (!conn.requester.isSupportRequest) {
-    const isAdmin = conn.requester.customClaims.admin
-      && conn.requester.customClaims.admin.includes(conn.req.body.office);
-    const canAccess = hasAdminClaims(conn.requester.customClaims);
-
-    if (!isAdmin || !canAccess) {
-      return sendResponse(
-        conn,
-        code.unauthorized,
-        `You are not allowed to access this resource`
-      );
-    }
+  if (!conn.requester.isSupportRequest
+    && conn.requester.customClaims.admin
+    && conn.requester.customClaims.admin.includes(conn.req.body.office)) {
+    return sendResponse(
+      conn,
+      code.unauthorized,
+      `You are not allowed to access this resource`
+    );
   }
 
   const result = handleValidation(conn.req.body);
@@ -1078,23 +1111,34 @@ module.exports = (conn) => {
     return sendResponse(conn, code.badRequest, result.message);
   }
 
+  const promises = [
+    rootCollections
+      .offices
+      .where('attachment.Name.value', '==', conn.req.body.office)
+      .limit(1)
+      .get(),
+    rootCollections
+      .activityTemplates
+      .where('name', '==', conn.req.body.template)
+      .limit(1)
+      .get(),
+  ];
+
+  if (conn.req.body.template === 'subscription') {
+    const promise = rootCollections
+      .activityTemplates
+      .get();
+
+    promises.push(promise);
+  }
+
   return Promise
-    .all([
-      rootCollections
-        .offices
-        .where('attachment.Name.value', '==', conn.req.body.office)
-        .limit(1)
-        .get(),
-      rootCollections
-        .activityTemplates
-        .where('name', '==', conn.req.body.template)
-        .limit(1)
-        .get(),
-    ])
+    .all(promises)
     .then((result) => {
       const [
         officeDocsQuery,
         templateDocsQuery,
+        templatesCollectionQuery,
       ] = result;
 
       if (officeDocsQuery.empty) {
@@ -1119,6 +1163,18 @@ module.exports = (conn) => {
         adminsSet: new Set(),
         employeesSet: new Set(),
       };
+
+      if (conn.req.body.template === 'subscription') {
+        const templateNamesSet = new Set();
+
+        templatesCollectionQuery.forEach((doc) => {
+          const name = doc.get('name');
+
+          templateNamesSet.add(name);
+        });
+
+        locals.templateNamesSet = templateNamesSet;
+      }
 
       return validateDataArray(conn, locals);
     })

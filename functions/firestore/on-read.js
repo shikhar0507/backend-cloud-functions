@@ -77,7 +77,7 @@ const validateRequest = (conn) => {
 };
 
 const getAddendumObject = (doc) => {
-  return {
+  const singleDoc = {
     addendumId: doc.id,
     activityId: doc.get('activityId'),
     comment: doc.get('comment'),
@@ -86,13 +86,40 @@ const getAddendumObject = (doc) => {
     user: doc.get('user'),
     isComment: doc.get('isComment'),
   };
+
+  return singleDoc;
+};
+
+const getAssigneesArray = (arrayOfPhoneNumbers) => {
+  // Could be a string (phoneNumber) or an object
+  const firstItem = arrayOfPhoneNumbers[0];
+
+  if (typeof firstItem !== 'string') {
+    // Items are objects with properties
+    // displayName, phoneNumber and photoUrl
+    return arrayOfPhoneNumbers;
+  }
+
+  const result = [];
+
+  // For compatilility with older activities
+  arrayOfPhoneNumbers
+    .forEach((phoneNumber) => {
+      result
+        .push({
+          phoneNumber,
+          displayName: '',
+          photoUrl: '',
+        });
+    });
+
+  return result;
 };
 
 const getActivityObject = (doc) => {
-  return {
+  const singleDoc = {
     activityId: doc.id,
     status: doc.get('status'),
-    assignees: doc.get('assignees'),
     canEdit: doc.get('canEdit'),
     schedule: doc.get('schedule'),
     venue: doc.get('venue'),
@@ -103,11 +130,15 @@ const getActivityObject = (doc) => {
     attachment: doc.get('attachment'),
     creator: doc.get('creator'),
     hidden: doc.get('hidden'),
+    // assignees: getAssigneesArray(doc.get('assignees')),
+    assignees: doc.get('assignees'),
   };
+
+  return singleDoc;
 };
 
 const getSubscriptionObject = (doc) => {
-  return {
+  const singleDoc = {
     template: doc.get('template'),
     schedule: doc.get('schedule'),
     venue: doc.get('venue'),
@@ -115,6 +146,8 @@ const getSubscriptionObject = (doc) => {
     office: doc.get('office'),
     status: doc.get('status'),
   };
+
+  return singleDoc;
 };
 
 

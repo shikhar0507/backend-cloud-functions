@@ -59,7 +59,6 @@ module.exports = (conn) => {
   }
 
   const MAX_THRESHOLD = 10;
-
   const dateObject = new Date();
   const date = dateObject.getDate();
   const month = dateObject.getMonth();
@@ -140,14 +139,13 @@ module.exports = (conn) => {
         deviceObject,
       };
 
-      if (conn.req.body.locationError
+      if (conn.req.body.hasOwnProperty('locationError')
         && typeof conn.req.body.locationError === 'boolean') {
         docData.locationError = conn.req.body.locationError;
       }
 
       if (!emailSent
         && Object.keys(affectedUsers).length >= MAX_THRESHOLD) {
-
         const getSubject = (message) =>
           `Error count >= 10: '${message}': ${process.env.GCLOUD_PROJECT}`;
 
