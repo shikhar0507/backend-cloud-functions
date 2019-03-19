@@ -490,6 +490,33 @@ const slugify = (string) => {
     .replace(/ +/g, '-');
 };
 
+const getSearchables = (string) => {
+  const nameCharactersArray = string.split('');
+  const valuesSet = new Set();
+  const charsToIgnoreSet = new Set(['.', ',', '(', ')', '/', '~', '', '[', ']']);
+  const getTrimmedString = (stringValue) => stringValue.toLowerCase().trim();
+  const getValues = (string, index) => {
+    const part = string.substr(0, index);
+
+    return getTrimmedString(part);
+  };
+
+  for (let index = 0; index < nameCharactersArray.length; index++) {
+    const result = getValues(string, index);
+    const char = getTrimmedString(nameCharactersArray[index]);
+
+    if (charsToIgnoreSet.has(char) || charsToIgnoreSet.has(result)) {
+      continue;
+    }
+
+    valuesSet.add(result);
+    valuesSet.add(char);
+  }
+
+  valuesSet.add(string.toLowerCase().trim());
+
+  return [...valuesSet];
+};
 
 
 module.exports = {
@@ -505,6 +532,7 @@ module.exports = {
   isValidBase64,
   disableAccount,
   hasAdminClaims,
+  getSearchables,
   getISO8601Date,
   isValidGeopoint,
   hasSupportClaims,

@@ -127,13 +127,13 @@ const footerHtml = `
   <div class="footer-links footer-about-growthfile">
     <div class="footer-logo-container">
       <img src="img/logo-main.jpg" alt="growthfile-logo">
-      <span class="footer-link-heading">Growthfile Inc.</span>
+      <span class="footer-link-heading">Growthfile Analytics Pvt. Ltd.</span>
     </div>
     <div class="footer-page-links">
       <a href="/terms">Terms</a>
       <a href="/privacy">Privacy</a>
     </div>
-    <span>Copyright © 2019 Growthfile Analytics, Inc. All rights reserved.</span>
+    <span>Copyright © 2019 Growthfile Analytics Pvt. Ltd. All rights reserved.</span>
   </div>
 </div>
 </footer>`;
@@ -257,18 +257,6 @@ const officeSource = () => {
   return source;
 };
 
-/**
- * form fields
-//  * name - string
- * schedule - Trial period -> current time to 30 days
-//  * schedule date of establishment
-//  * attachment.Name.value - name
-//  * attachment.GST Number.value
-//  * attachment.First Contact.value -> phone Number
-//  * attachment.Second Contact.value -> phone number
-//  * Timezone: -> auto select from location (and show option to change)
- */
-
 const joinPageSource = () => {
   const source = `<!DOCTYPE html>
 <html lang="en">
@@ -283,6 +271,7 @@ const joinPageSource = () => {
   <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css?family=Palanquin" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
   <link rel="stylesheet" href="css/common.css">
   <link rel="stylesheet" href="css/join.css">
 </head>
@@ -290,40 +279,40 @@ const joinPageSource = () => {
 ${headerHtml}
 <div class="pad-after-header"></div>
   <main class="container">
-    <h1>Join Growthfile</h1>
-    <form class="sign-up-form">
-      <p>
-        <label>Office Name:</label>
-        <input type="text" placeholder="Your Office Name"></input>
-      </p>
-      <p>
-        <label>GST Number:</label>
-        <input type="text" placeholder="29 ABCDED1234F 2Z5"></input>
-      </p>
-      <p>
-        <label>First Contact:</label>
-        <input type="tel" placeholder="+911234567890"></input>
-      </p>
-      <p>
-        <label>Second Contact:</label>
-        <input type="tel" placeholder="+911234567891"></input>
-      </p>
-      <p>
-        <label>Date of Establishment:</label>
-        <input type="time" placeholder="01 01 1990"></input>
-      </p>
-      <p>
-        <label>Timezone:</label>
-        <select>
-          {{#each timezones}}
-            <option name="{{this}}">{{this}}</option>
-          {{/each}}
-        </select>
-      </p>
-      <div class="submit-container">
-        <a id="submit-form" class="button" href="#">Join Now</a>
-      </div>
-    </form>
+  <h1>Join Growthfile</h1>
+  <div class="form-container">
+    <form class="pure-form pure-form-aligned">
+      <fieldset>
+          <div class="pure-control-group">
+            <label for="name">Your Name</label>
+            <input id="name" type="text" placeholder="Your Name">
+          </div>
+
+          <div class="pure-control-group">
+            <label for="email">Your Email</label>
+            <input id="email" type="email" placeholder="Email">
+          </div>
+
+          <div class="pure-control-group">
+            <label for="officeName">Office Name</label>
+            <input id="officeName" type="text" placeholder="Office Name">
+          </div>
+          
+          <div class="pure-control-group">
+            <label for="phoneNumber">Your Phone Number</label>
+            <input id="phoneNumber" type="tel" placeholder="+919000000000">
+          </div>
+
+          <div class="pure-controls">
+            <label for="cb" class="pure-checkbox">
+              <input id="cb" type="checkbox"> I've read the terms and conditions
+            </label>
+
+            <button type="button" class="pure-button pure-button-primary">Get Started</button>
+          </div>
+        </fieldset>
+      </form>
+    </div>
   </main>
 
   ${footerHtml}

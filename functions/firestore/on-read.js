@@ -109,11 +109,23 @@ const getAssigneesArray = (arrayOfPhoneNumbers) => {
         .push({
           phoneNumber,
           displayName: '',
-          photoUrl: '',
+          photoURL: '',
         });
     });
-
+,
   return result;
+};
+
+const getCreator = (phoneNumberOrObject) => {
+  if (typeof phoneNumberOrObject === 'string') {
+    return {
+      phoneNumber: phoneNumberOrObject,
+      displayName: '',
+      photoURL: '',
+    };
+  }
+
+  return phoneNumberOrObject;
 };
 
 const getActivityObject = (doc) => {
@@ -128,10 +140,10 @@ const getActivityObject = (doc) => {
     activityName: doc.get('activityName'),
     office: doc.get('office'),
     attachment: doc.get('attachment'),
-    creator: doc.get('creator'),
+    creator: getCreator(doc.get('creator')),
     hidden: doc.get('hidden'),
-    // assignees: getAssigneesArray(doc.get('assignees')),
-    assignees: doc.get('assignees'),
+    assignees: getAssigneesArray(doc.get('assignees')),
+    // assignees: doc.get('assignees'),
   };
 
   return singleDoc;

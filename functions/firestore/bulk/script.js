@@ -48,6 +48,14 @@ const handleValidation = (body) => {
     };
   }
 
+  // if (body.template === 'office'
+  //   && body.office !== '') {
+  //   return {
+  //     success: false,
+  //     message: 'Office cannot be specified',
+  //   };
+  // }
+
   if (!isValidDate(body.timestamp)
     || !body.hasOwnProperty('timestamp')) {
     return {
@@ -199,7 +207,7 @@ const commitData = (conn, batchesArray, batchFactories) => {
 };
 
 
-const createObjects = (conn, locals) => {
+const createObjects = (conn, locals, trialRun) => {
   let totalDocsCreated = 0;
   let currentBatchIndex = 0;
   let batchDocsCount = 0;
@@ -218,13 +226,13 @@ const createObjects = (conn, locals) => {
       return;
     }
 
-    if (conn.req.body.template === 'employee'
-      && locals.phoneNumbersToRejectSet.has(item['Employee Contact'])) {
-      conn.req.body[index].rejected = true;
-      conn.req.body[index].reason = `Phone number already in use`;
+    // if (conn.req.body.template === 'employee'
+    //   && locals.phoneNumbersToRejectSet.has(item['Employee Contact'])) {
+    //   conn.req.body[index].rejected = true;
+    //   conn.req.body[index].reason = `Phone number already in use`;
 
-      return;
-    }
+    //   return;
+    // }
 
     const batch = (() => {
       const batchPart = db.batch();
@@ -279,34 +287,11 @@ const createObjects = (conn, locals) => {
     const objectFields = Object.keys(item);
     let scheduleCount = 0;
 
-    console.log('attachmentFieldsSet', attachmentFieldsSet);
-
     objectFields.forEach((field) => {
       const value = item[field];
       const isFromAttachment = attachmentFieldsSet.has(field);
       const isFromSchedule = scheduleFieldsSet.has(field);
       const isFromVenue = venueFieldsSet.has(field);
-
-      console.log('field', field);
-
-      // if (isEmployeeTemplate
-      //   && field === 'Employee Contact') {
-      //   batchDocsCount++;
-      //   totalDocsCreated++;
-
-      //   // const phoneNumber = activityObject.attachment[field].value;
-
-      //   employeesData[value] = getEmployeeDataObject(
-      //     activityObject,
-      //     value,
-      //   );
-
-      //   batch.set(locals.officeDoc.ref, {
-      //     employeesData,
-      //   }, {
-      //       merge: true,
-      //     });
-      // }
 
       if (isFromAttachment) {
         activityObject.attachment[field] = {
@@ -428,8 +413,13 @@ const createObjects = (conn, locals) => {
 
   const responseObject = { data: conn.req.body.data, totalDocsCreated };
 
-  return commitData(conn, batchesArray, batchFactories, responseObject)
-    .then(() => sendJSON(conn, responseObject))
+  /** For testing out code */
+  if (trialRun) {
+    return Promise.resolve(responseObject);
+  }
+
+  return commitData(conn, batchesArray, batchFactories)
+    .then(() => responseObject)
     .catch((error) => handleError(conn, error));
 };
 
@@ -467,6 +457,10 @@ const fetchDataForCanEditRule = (conn, locals) => {
 const handleEmployees = (conn, locals) => {
   const promises = [];
 
+  if (conn.req.body.template !== 'employee') {
+    return Promise.resolve();
+  }
+
   locals
     .employeesToCheck
     .forEach((item) => {
@@ -485,7 +479,7 @@ const handleEmployees = (conn, locals) => {
       promises.push(promise);
     });
 
-  locals.phoneNumbersToRejectSet = new Set();
+  const phoneNumbersToRejectSet = new Set();
 
   return Promise
     .all(promises)
@@ -496,9 +490,16 @@ const handleEmployees = (conn, locals) => {
         const doc = snapShot.docs[0];
         const phoneNumber = doc.get('attachment.Name.value');
 
-        locals
-          .phoneNumbersToRejectSet
-          .add(phoneNumber);
+        phoneNumbersToRejectSet.add(phoneNumber);
+      });
+
+      conn.req.body.data.forEach((item, index) => {
+        const phoneNumber = item['Employee Contact'];
+
+        if (phoneNumbersToRejectSet.has(phoneNumber)) {
+          conn.req.body[index].rejected = true;
+          conn.req.body[index].reason = `Phone number already in use`;
+        }
       });
 
       return Promise.resolve();
@@ -518,7 +519,6 @@ const handleUniqueness = (conn, locals) => {
     .hasOwnProperty('Number');
 
   if (!hasName && !hasNumber) {
-    // return fetchDataForCanEditRule(conn, locals);
     return Promise.resolve();
   }
 
@@ -580,7 +580,6 @@ const handleUniqueness = (conn, locals) => {
 
 const handleSubscriptions = (conn, locals) => {
   if (conn.req.body.template !== 'subscription') {
-    // return handleUniqueness(conn, locals);
     return Promise.resolve();
   }
 
@@ -619,7 +618,6 @@ const handleSubscriptions = (conn, locals) => {
         conn.req.body.data[index].reason = `${phoneNumber} already has ${template}`;
       });
 
-      // return handleUniqueness(conn, locals);
       return Promise.resolve();
     })
     .catch((error) => handleError(conn, error));
@@ -684,25 +682,29 @@ const fetchValidTypes = (conn, locals) => {
   const nonExistingValuesSet = new Set();
   const queryMap = new Map();
 
-  locals.verifyValidTypes.forEach((item, index) => {
-    // console.log('value', value);
-    const {
-      value,
-      type,
-      field,
-    } = item;
+  locals
+    .verifyValidTypes
+    .forEach((item, index) => {
+      const {
+        value,
+        type,
+        // field,
+      } = item;
 
-    queryMap.set(index, value);
+      queryMap.set(index, value);
 
-    const promise = locals.officeDoc.ref.collection('Activities')
-      .where('template', '==', type)
-      .where(field, '==', value)
-      .where('isCancelled', '==', false)
-      .limit(1)
-      .get();
+      const promise = locals
+        .officeDoc
+        .ref
+        .collection('Activities')
+        .where('template', '==', type)
+        .where(`attachment.Name.value`, '==', value)
+        .where('status', '==', 'CONFIRMED')
+        .limit(1)
+        .get();
 
-    promises.push(promise);
-  });
+      promises.push(promise);
+    });
 
   return Promise
     .all(promises)
@@ -727,7 +729,6 @@ const fetchValidTypes = (conn, locals) => {
 
           // console.log(value);
           if (nonExistingValuesSet.has(value)) {
-            console.log(value);
             conn.req.body.data[index].rejected = true;
             conn.req.body.data[index].reason = `${field} ${value} doesn't exist`;
           }
@@ -849,6 +850,8 @@ const validateDataArray = (conn, locals) => {
         const set = subscriptionsMap.get(phoneNumber);
 
         if (set.has(template)) {
+          // console.log('Duplicate', phoneNumber, template);
+          duplicateRowIndex = index + 1;
           toRejectAll = true;
         }
 
@@ -870,6 +873,7 @@ const validateDataArray = (conn, locals) => {
 
       // Duplication
       if (adminsSet.has(phoneNumber)) {
+        duplicateRowIndex = index + 1;
         toRejectAll = true;
       } else {
         adminsSet.add(phoneNumber);
@@ -927,7 +931,7 @@ const validateDataArray = (conn, locals) => {
           && employeesData.hasOwnProperty(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Phone number: ${value}`
-            + ` already in use by someone else`;
+            + ` already in use by ${employeesData[value].Name}`;
 
           return;
         }
@@ -1075,13 +1079,16 @@ const validateDataArray = (conn, locals) => {
     );
   }
 
+  const trialRun = conn.req.query.trialRun === 'true';
+
   return fetchValidTypes(conn, locals)
     .then(() => handleAdmins(conn, locals))
     .then(() => handleSubscriptions(conn, locals))
     .then(() => handleUniqueness(conn, locals))
     .then(() => fetchDataForCanEditRule(conn, locals))
     .then(() => handleEmployees(conn, locals))
-    .then(() => createObjects(conn, locals))
+    .then(() => createObjects(conn, locals, trialRun))
+    .then((responseObject) => sendJSON(conn, responseObject))
     .catch((error) => handleError(conn, error));
 };
 
@@ -1141,11 +1148,21 @@ module.exports = (conn) => {
         templatesCollectionQuery,
       ] = result;
 
-      if (officeDocsQuery.empty) {
+      if (officeDocsQuery.empty
+        && conn.req.body.template !== 'office') {
         return sendResponse(
           conn,
           code.badRequest,
           `Office ${conn.req.body.office} doesn't exist`
+        );
+      }
+
+      if (!officeDocsQuery.empty
+        && conn.req.body.template === 'office') {
+        return sendResponse(
+          conn,
+          code.conflict,
+          `Office: '${conn.req.body.office} already exists'`
         );
       }
 

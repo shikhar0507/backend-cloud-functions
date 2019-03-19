@@ -2,53 +2,28 @@ header {
     z-index: 5;
 }
 
-main {
-    text-align: center;
-    max-width: 80%;
-    margin: 0 auto;
-    /* border: 1px solid red; */
-    min-height: 400px;
-    padding: 10px 20px;
-    margin-bottom: 40px;
-}
+main {}
 
 main h1 {
-    font-size: 32px;
+    text-align: center;
     color: #576871;
 }
 
-.sign-up-form {
-    margin-top: 30px;
-    border: 1px solid green;
-    padding: 30px 10px;
+.container {
+    min-height: 60vh;
 }
 
-.sign-up-form p {
-    margin-bottom: 30px;
+.form-container {
+    display: flex;
+    justify-content: center;
 }
 
-.sign-up-form p label {
-    font-weight: 600;
-    margin-right: 130px;
+form {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+    transition: all 0.3s cubic-bezier(.25, .8, .25, 1);
+    padding: 40px;
 }
 
-.sign-up-form p input {
-    height: 40px;
-    margin-left: 40px;
-    box-sizing: border-box;
-    resize: vertical;
-}
-
-.sign-up-form p input:focus {
-    border: 2px solid #1ba94c;
-}
-
-.button {
-    color: white;
-    font-size: 18px;
-    padding: 10px 20px;
-    border-radius: 4px;
-    text-align: center;
-    background: #1ba94c;
-    box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5);
+form:hover {
+    /* box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22); */
 }

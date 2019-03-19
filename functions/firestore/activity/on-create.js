@@ -123,7 +123,11 @@ const createDocsWithBatch = (conn, locals) => {
     }),
     officeId: locals.static.officeId,
     hidden: locals.static.hidden,
-    creator: conn.requester.phoneNumber,
+    creator: {
+      phoneNumber: conn.requester.phoneNumber,
+      displayName: conn.requester.displayName,
+      photoURL: conn.requester.photoURL,
+    },
     timezone: locals.officeDoc.get('attachment.Timezone.value'),
   };
 

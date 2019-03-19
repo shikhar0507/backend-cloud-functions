@@ -357,6 +357,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         uid: decodedIdToken.uid,
         phoneNumber: userRecord.phoneNumber,
         displayName: userRecord.displayName || '',
+        photoURL: userRecord.photoURL || '',
         customClaims: userRecord.customClaims || null,
         creationTime: userRecord.metadata.creationTime,
       };
