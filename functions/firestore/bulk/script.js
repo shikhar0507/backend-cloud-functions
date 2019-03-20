@@ -20,6 +20,7 @@ const {
   code,
 } = require('../../admin/responses');
 const {
+  timezonesSet,
   weekdays,
   validTypes,
   httpsActions,
@@ -29,11 +30,14 @@ const {
 const handleValidation = (body) => {
   const result = { success: true, message: null };
 
+  console.log('timestamp', body.timestamp);
+
   const messageString = (field) =>
     `Invalid/Missing field '${field}' from the request body`;
 
-  if (!isNonEmptyString(body.office)
-    || !body.hasOwnProperty('office')) {
+  if (!body.hasOwnProperty('office')
+    // Can be an empty string
+    || typeof body.office !== 'string') {
     return {
       success: false,
       message: messageString('office'),
@@ -47,14 +51,6 @@ const handleValidation = (body) => {
       message: messageString('template'),
     };
   }
-
-  // if (body.template === 'office'
-  //   && body.office !== '') {
-  //   return {
-  //     success: false,
-  //     message: 'Office cannot be specified',
-  //   };
-  // }
 
   if (!isValidDate(body.timestamp)
     || !body.hasOwnProperty('timestamp')) {
@@ -193,7 +189,6 @@ const getEmployeeDataObject = (activityObject, phoneNumber) => {
   };
 };
 
-
 const commitData = (conn, batchesArray, batchFactories) => {
   // For a single batch, no need to create batch factories
   if (batchesArray.length === 1) {
@@ -206,8 +201,8 @@ const commitData = (conn, batchesArray, batchFactories) => {
     .catch((error) => handleError(conn, error));
 };
 
-
 const createObjects = (conn, locals, trialRun) => {
+  const childActivitiesBatch = db.batch();
   let totalDocsCreated = 0;
   let currentBatchIndex = 0;
   let batchDocsCount = 0;
@@ -225,14 +220,6 @@ const createObjects = (conn, locals, trialRun) => {
 
       return;
     }
-
-    // if (conn.req.body.template === 'employee'
-    //   && locals.phoneNumbersToRejectSet.has(item['Employee Contact'])) {
-    //   conn.req.body[index].rejected = true;
-    //   conn.req.body[index].reason = `Phone number already in use`;
-
-    //   return;
-    // }
 
     const batch = (() => {
       const batchPart = db.batch();
@@ -253,10 +240,15 @@ const createObjects = (conn, locals, trialRun) => {
       return batchesArray[currentBatchIndex];
     })();
 
-    const officeRef = locals.officeDoc.ref;
     const activityRef = rootCollections.activities.doc();
-    const addendumDocRef = officeRef.collection('Addendum').doc();
+    const officeRef = (() => {
+      if (conn.req.body.template === 'office') {
+        return rootCollections.offices.doc(activityRef.id);
+      }
 
+      return locals.officeDoc.ref;
+    })();
+    const addendumDocRef = officeRef.collection('Addendum').doc();
     const params = {
       subscriber: item.Subscriber,
       admin: item.Admin,
@@ -267,18 +259,41 @@ const createObjects = (conn, locals, trialRun) => {
       phoneNumber: conn.requester.phoneNumber,
     };
 
+    const officeId = (() => {
+      if (conn.req.body.template === 'office') {
+        return officeRef.id;
+      }
+
+      return locals.officeDoc.id;
+    })();
+    const office = (() => {
+      if (conn.req.body.template === 'office') {
+        return conn.req.body.data[index].Name;
+      }
+
+      return locals.officeDoc.get('attachment.Name.value');
+    })();
+
+    const timezone = (() => {
+      if (conn.req.body.template === 'office') {
+        return conn.req.body.data[index].Timezone;
+      }
+
+      return locals.officeDoc.get('attachment.Timezone.value');
+    })();
+
     const activityObject = {
+      office,
+      timezone,
+      officeId,
       timestamp,
       addendumDocRef,
       schedule: [],
       venue: [],
       attachment: {},
       canEditRule: locals.templateDoc.get('canEditRule'),
-      timezone: locals.officeDoc.get('attachment.Timezone.value'),
       creator: conn.requester.phoneNumber,
       hidden: locals.templateDoc.get('hidden'),
-      office: locals.officeDoc.get('attachment.Name.value'),
-      officeId: locals.officeDoc.id,
       status: locals.templateDoc.get('statusOnCreate'),
       template: locals.templateDoc.get('name'),
       activityName: getActivityName(params),
@@ -398,6 +413,131 @@ const createObjects = (conn, locals, trialRun) => {
     batch.set(activityRef, activityObject);
     batch.set(addendumDocRef, addendumObject);
 
+    if (conn.req.body.template === 'office') {
+      const allPhoneNumbers = locals.officeContacts.get(index) || [];
+
+      allPhoneNumbers.forEach((phoneNumber) => {
+        // For each phoneNumber, create subscription and assignee
+        const adminActivityRef = rootCollections.activities.doc();
+        const subscriptionActivityRef = rootCollections.activities.doc();
+        const adminAddendumRef = rootCollections.offices.doc(officeId).collection('Addendum').doc();
+        const subscriptionAddendumRef = rootCollections.offices.doc(officeId).collection('Addendum').doc();
+
+        const subscriptionActivityData = {
+          office,
+          timezone,
+          officeId,
+          timestamp,
+          addendumDocRef,
+          schedule: [],
+          venue: [],
+          attachment: {
+            Subscriber: {
+              value: phoneNumber,
+              type: 'phoneNumber',
+            },
+            Template: {
+              value: 'subscription',
+              type: 'string',
+            },
+          },
+          canEditRule: locals.subscriptionTemplateDoc.get('canEditRule'),
+          creator: conn.requester.phoneNumber,
+          hidden: locals.subscriptionTemplateDoc.get('hidden'),
+          status: locals.subscriptionTemplateDoc.get('statusOnCreate'),
+          template: 'subscription',
+          activityName: `SUBSCRIPTION: ${phoneNumber}`,
+        };
+        const subscriptionAddendumData = {
+          timestamp,
+          activityData: subscriptionActivityData,
+          user: conn.requester.phoneNumber,
+          userDisplayName: conn.requester.displayName,
+          action: httpsActions.create,
+          template: 'subscription',
+          location: getGeopointObject(conn.req.body.geopoint),
+          userDeviceTimestamp: conn.req.body.timestamp,
+          activityId: subscriptionActivityRef.id,
+          activityName: subscriptionActivityData.activityName,
+          isSupportRequest: conn.requester.isSupportRequest,
+          geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+          provider: conn.req.body.geopoint.provider || null,
+          isAdminRequest: true,
+        };
+
+        const adminActivityData = {
+          office,
+          timezone,
+          officeId,
+          timestamp,
+          addendumDocRef,
+          schedule: [],
+          venue: [],
+          attachment: {
+            Admin: {
+              value: phoneNumber,
+              type: 'phoneNumber',
+            },
+          },
+          canEditRule: locals.adminTemplateDoc.get('canEditRule'),
+          creator: conn.requester.phoneNumber,
+          hidden: locals.adminTemplateDoc.get('hidden'),
+          status: locals.adminTemplateDoc.get('statusOnCreate'),
+          template: 'admin',
+          activityName: `ADMIN: ${phoneNumber}`,
+        };
+        const adminAddendumData = {
+          timestamp,
+          activityData: adminActivityData,
+          user: conn.requester.phoneNumber,
+          userDisplayName: conn.requester.displayName,
+          action: httpsActions.create,
+          template: 'admin',
+          location: getGeopointObject(conn.req.body.geopoint),
+          userDeviceTimestamp: conn.req.body.timestamp,
+          activityId: adminActivityRef.id,
+          activityName: adminActivityData.activityName,
+          isSupportRequest: conn.requester.isSupportRequest,
+          geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+          provider: conn.req.body.geopoint.provider || null,
+          isAdminRequest: true,
+        };
+
+        childActivitiesBatch.set(subscriptionActivityRef, adminActivityData);
+        childActivitiesBatch.set(subscriptionAddendumRef, subscriptionAddendumData);
+        childActivitiesBatch.set(adminAddendumRef, adminAddendumData);
+        childActivitiesBatch.set(adminActivityRef, subscriptionActivityData);
+
+        childActivitiesBatch.set(adminActivityRef.collection('Assignees').doc(phoneNumber), {
+          canEdit: true,
+          addToInclude: true,
+        });
+
+        childActivitiesBatch.set(subscriptionActivityRef.collection('Assignees').doc(phoneNumber), {
+          canEdit: true,
+          addToInclude: false,
+        });
+
+        totalDocsCreated += 6;
+        batchDocsCount += 6;
+
+        conn.req.body.data[index].share.forEach((number) => {
+          totalDocsCreated += 2;
+          batchDocsCount += 2;
+
+          childActivitiesBatch.set(adminActivityRef.collection('Assignees').doc(number), {
+            canEdit: true,
+            addToInclude: true,
+          });
+
+          childActivitiesBatch.set(subscriptionActivityRef.collection('Assignees').doc(number), {
+            canEdit: true,
+            addToInclude: true,
+          });
+        });
+      });
+    }
+
     // One doc for activity
     // Second for addendum
     totalDocsCreated += 2;
@@ -419,6 +559,7 @@ const createObjects = (conn, locals, trialRun) => {
   }
 
   return commitData(conn, batchesArray, batchFactories)
+    .then(() => childActivitiesBatch.commit())
     .then(() => responseObject)
     .catch((error) => handleError(conn, error));
 };
@@ -431,12 +572,13 @@ const fetchDataForCanEditRule = (conn, locals) => {
     return Promise.resolve();
   }
 
+  /** Office's canEditRule is `NONE`. No handling required here */
   return locals
     .officeDoc
     .ref
     .collection('Activities')
     .where('template', '==', rule.toLowerCase())
-    .where('isCancelled', '==', false)
+    .where('status', '==', 'CONFIRMED')
     .get()
     .then((docs) => {
       const set = new Set();
@@ -525,12 +667,18 @@ const handleUniqueness = (conn, locals) => {
   const promises = [];
   let index = 0;
   const indexMap = new Map();
-  const baseQuery = locals
-    .officeDoc
-    .ref
-    .collection('Activities')
-    .where('isCancelled', '==', false)
-    .where('template', '==', conn.req.body.template);
+  const baseQuery = (() => {
+    if (conn.req.body.template === 'office') {
+      return rootCollections.offices;
+    }
+
+    return locals
+      .officeDoc
+      .ref
+      .collection('Activities')
+      .where('isCancelled', '==', false)
+      .where('template', '==', conn.req.body.template);
+  })();
 
   const param = (() => {
     if (hasNumber) {
@@ -548,7 +696,7 @@ const handleUniqueness = (conn, locals) => {
     index++;
 
     const promise = baseQuery
-      .where(`attachment.${param}.value`, '==', item.Name || item.Number)
+      .where('attachment.Name.value', '==', item.Name || item.Number)
       .limit(1)
       .get();
 
@@ -566,11 +714,14 @@ const handleUniqueness = (conn, locals) => {
         const nameOrNumber =
           doc.get('attachment.Name.value') || doc.get('attachment.Number.value');
         const index = indexMap.get(nameOrNumber);
+        const value = conn.req.body.data[index].Name || conn.req.body.data[index].Number;
 
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `${param}`
-          + ` '${conn.req.body.data[index].Name || conn.req.body.data[index].Number}'`
-          + ` is already in use`;
+        conn.req.body.data[index].reason = `${param} '${value}' is already in use`;
+
+        if (conn.req.body.template === 'office') {
+          conn.req.body.data[index].reason = `Office: '${value} already exists'`;
+        }
       });
 
       return Promise.resolve();
@@ -585,25 +736,27 @@ const handleSubscriptions = (conn, locals) => {
 
   const promises = [];
 
-  locals.subscriptionsToCheck.forEach((item) => {
-    const {
-      phoneNumber,
-      template,
-    } = item;
+  locals
+    .subscriptionsToCheck
+    .forEach((item) => {
+      const {
+        phoneNumber,
+        template,
+      } = item;
 
-    const promise = locals
-      .officeDoc
-      .ref
-      .collection('Activities')
-      .where('isCancelled', '==', false)
-      .where('template', '==', 'subscription')
-      .where('attachment.Subscriber.value', '==', phoneNumber)
-      .where('attachment.Template.value', '==', template)
-      .limit(1)
-      .get();
+      const promise = locals
+        .officeDoc
+        .ref
+        .collection('Activities')
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'subscription')
+        .where('attachment.Subscriber.value', '==', phoneNumber)
+        .where('attachment.Template.value', '==', template)
+        .limit(1)
+        .get();
 
-    promises.push(promise);
-  });
+      promises.push(promise);
+    });
 
   return Promise
     .all(promises)
@@ -615,7 +768,7 @@ const handleSubscriptions = (conn, locals) => {
         const template = doc.get('attachment.Template.value');
 
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `${phoneNumber} already has ${template}`;
+        conn.req.body.data[index].reason = `${phoneNumber} already has '${template}'`;
       });
 
       return Promise.resolve();
@@ -638,7 +791,7 @@ const handleAdmins = (conn, locals) => {
         .collection('Activities')
         .where('template', '==', 'admin')
         .where('attachment.Admin.value', '==', phoneNumber)
-        .where('isCancelled', '==', false)
+        .where('status', '==', 'CONFIRMED')
         .limit(1)
         .get()
     );
@@ -688,7 +841,6 @@ const fetchValidTypes = (conn, locals) => {
       const {
         value,
         type,
-        // field,
       } = item;
 
       queryMap.set(index, value);
@@ -713,7 +865,6 @@ const fetchValidTypes = (conn, locals) => {
         // doc should exist
         if (!snapShot.empty) return;
 
-        // nonExistingValuesSet.add
         const nonExistingValue = queryMap.get(index);
 
         nonExistingValuesSet.add(nonExistingValue);
@@ -740,11 +891,40 @@ const fetchValidTypes = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
+const fetchTemplates = (conn, locals) => {
+  if (conn.req.body.template !== 'office') {
+    return Promise.resolve();
+  }
+
+  return Promise
+    .all([
+      rootCollections
+        .activityTemplates
+        .where('name', '==', 'admin')
+        .limit(1)
+        .get(),
+      rootCollections
+        .activityTemplates
+        .where('name', '==', 'subscription')
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        adminTemplateQuery,
+        subscriptionTemplateQuery,
+      ] = result;
+
+      locals.subscriptionTemplateDoc = subscriptionTemplateQuery.docs[0];
+      locals.adminTemplateDoc = adminTemplateQuery.docs[0];
+
+      return Promise.resolve();
+    })
+    .catch((error) => handleError(conn, error));
+};
+
 
 const validateDataArray = (conn, locals) => {
-  const employeesData = locals.officeDoc.get('employeesData') || {};
-  locals.rejectionObjects = [];
-  locals.successObjects = [];
   const scheduleFields = locals.templateDoc.get('schedule');
   const venueFields = locals.templateDoc.get('venue');
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
@@ -774,6 +954,9 @@ const validateDataArray = (conn, locals) => {
   const subscriptionsToCheck = [];
   const namesSet = new Set();
   const assigneesFromAttachment = new Map();
+  const officeContacts = new Map();
+  locals.rejectionObjects = [];
+  locals.successObjects = [];
 
   conn.req.body.data.forEach((dataObject, index) => {
     let fieldsMissingInCurrentObject = false;
@@ -821,6 +1004,34 @@ const validateDataArray = (conn, locals) => {
       }
     }
 
+    if (conn.req.body.template === 'office') {
+      const firstContact = conn.req.body.data[index]['First Contact'];
+      const secondContact = conn.req.body.data[index]['Second Contact'];
+      const timezone = conn.req.body.data[index].Timezone;
+
+      if (firstContact === secondContact) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Both contacts cannot be the same or empty`;
+      }
+
+      if (!firstContact && !secondContact) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `At least one contact is required`;
+      }
+
+      if (!timezone || !timezonesSet.has(timezone)) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Invalid/Missing timezone`;
+      }
+
+      const contacts = [];
+
+      if (firstContact) contacts.push(firstContact);
+      if (secondContact) contacts.push(secondContact);
+
+      officeContacts.set(index, contacts);
+    }
+
     if (conn.req.body.template === 'employee'
       && locals.officeDoc.get('employeesData')) {
       const phoneNumber = conn.req.body.data['Employee Contact'];
@@ -836,9 +1047,9 @@ const validateDataArray = (conn, locals) => {
       const phoneNumber = conn.req.body.data[index].Subscriber;
       const template = conn.req.body.data[index].Template;
 
-      if (template === 'office') {
+      if (template === 'office' || template === 'subscription') {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Subscription of template: 'office' is not allowed`;
+        conn.req.body.data[index].reason = `Subscription of template: '${template}' is not allowed`;
       }
 
       if (!locals.templateNamesSet.has(template)) {
@@ -928,10 +1139,10 @@ const validateDataArray = (conn, locals) => {
 
         if (conn.req.body.template === 'employee'
           && property === 'Employee Contact'
-          && employeesData.hasOwnProperty(value)) {
+          && locals.officeDoc.get('employeesData').hasOwnProperty(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Phone number: ${value}`
-            + ` already in use by ${employeesData[value].Name}`;
+            + ` already in use by ${locals.officeDoc.get('employeesData')[value].Name}`;
 
           return;
         }
@@ -1070,6 +1281,7 @@ const validateDataArray = (conn, locals) => {
   locals.adminToCheck = adminToCheck;
   locals.subscriptionsToCheck = subscriptionsToCheck;
   locals.assigneesFromAttachment = assigneesFromAttachment;
+  locals.officeContacts = officeContacts;
 
   if (toRejectAll) {
     return sendResponse(
@@ -1082,6 +1294,7 @@ const validateDataArray = (conn, locals) => {
   const trialRun = conn.req.query.trialRun === 'true';
 
   return fetchValidTypes(conn, locals)
+    .then(() => fetchTemplates(conn, locals))
     .then(() => handleAdmins(conn, locals))
     .then(() => handleSubscriptions(conn, locals))
     .then(() => handleUniqueness(conn, locals))
@@ -1148,21 +1361,12 @@ module.exports = (conn) => {
         templatesCollectionQuery,
       ] = result;
 
-      if (officeDocsQuery.empty
-        && conn.req.body.template !== 'office') {
+      if (conn.req.body.template !== 'office'
+        && officeDocsQuery.empty) {
         return sendResponse(
           conn,
           code.badRequest,
           `Office ${conn.req.body.office} doesn't exist`
-        );
-      }
-
-      if (!officeDocsQuery.empty
-        && conn.req.body.template === 'office') {
-        return sendResponse(
-          conn,
-          code.conflict,
-          `Office: '${conn.req.body.office} already exists'`
         );
       }
 

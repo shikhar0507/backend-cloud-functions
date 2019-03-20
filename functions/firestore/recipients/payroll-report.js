@@ -88,7 +88,6 @@ module.exports = (locals) => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const todayFromTimestamp = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
-  const dateStatusMap = new Map();
   const peopleWithBlank = new Set();
   const countsObject = {};
   const leavesSet = new Set();
@@ -169,14 +168,11 @@ module.exports = (locals) => {
 
         const weeklyOffWeekdayName = employeesData[phoneNumber]['Weekly Off'];
         const baseLocation = employeesData[phoneNumber]['Base Location'];
-
         const datesObject = payrollObject[phoneNumber];
 
         Object
           .keys(datesObject)
           .forEach((date) => {
-            dateStatusMap.set(`${phoneNumber}: ${date}`, datesObject[date]);
-
             /**
              * Not counting anything after the current date because
              * we are generating data only up to the date of yesterday.
@@ -187,7 +183,6 @@ module.exports = (locals) => {
              * status for someone.
              */
             if (date > yesterdayDate) return;
-
             // If a person's phone number doesn't exist in the employees map
             // but exists in the payroll object, deleting their
             // data only for the prev day to avoid putting their
@@ -279,15 +274,15 @@ module.exports = (locals) => {
 
       const checkInPromises = [];
 
+      console.log('employeesPhoneNumberList', employeesPhoneNumberList.length);
+
       employeesPhoneNumberList.forEach((phoneNumber) => {
         if (!countsObject[phoneNumber]) {
           countsObject[phoneNumber] = getZeroCountsObject();
         }
 
-        const statusString = `${phoneNumber}: ${yesterdayDate}`;
-
-        if (!dateStatusMap.has(phoneNumber)) {
-          dateStatusMap.set(statusString, {});
+        if (!payrollObject[phoneNumber]) {
+          payrollObject[phoneNumber] = {};
         }
 
         /**
@@ -301,10 +296,6 @@ module.exports = (locals) => {
           || onDutySet.has(phoneNumber)) {
 
           return;
-        }
-
-        if (!payrollObject[phoneNumber]) {
-          payrollObject[phoneNumber] = {};
         }
 
         /**
@@ -372,15 +363,6 @@ module.exports = (locals) => {
           format: dateFormats.TIME,
         });
 
-        // Using yesterday's date here because the check-ins are from
-        // yesterday
-        const statusString = `${phoneNumber}: ${yesterdayDate}`;
-
-        dateStatusMap.set(statusString, {
-          firstCheckInTimestampFormatted,
-          lastCheckInTimestampFormatted,
-        });
-
         locals
           .payrollObject[phoneNumber][yesterdayDate]
           .firstCheckInTimestamp = firstCheckInTimestampFormatted;
@@ -395,20 +377,14 @@ module.exports = (locals) => {
         if (!dailyStartHours || !dailyEndHours) {
           if (checkInDiff >= EIGHT_HOURS) {
             locals.payrollObject[phoneNumber][yesterdayDate].status = 'FULL DAY';
-
             countsObject[phoneNumber].fullDay++;
-
-            dateStatusMap.get(statusString).status = 'FULL DAY';
 
             return;
           }
 
           if (checkInDiff >= FOUR_HOURS) {
             locals.payrollObject[phoneNumber][yesterdayDate].status = 'HALF DAY';
-
             countsObject[phoneNumber].halfDay++;
-
-            dateStatusMap.get(statusString).status = 'HALF DAY';
 
             return;
           }
@@ -439,11 +415,7 @@ module.exports = (locals) => {
         if (firstCheckInTimestamp === lastCheckInTimestamp || checkInDiff <= FOUR_HOURS) {
           locals
             .payrollObject[phoneNumber][yesterdayDate].status = 'BLANK';
-
-          dateStatusMap.get(statusString).status = 'BLANK';
-
           countsObject[phoneNumber].blank++;
-
           peopleWithBlank.add(phoneNumber);
 
           return;
@@ -454,9 +426,6 @@ module.exports = (locals) => {
           if (firstCheckInTimestamp >= employeeStartTime) {
             locals
               .payrollObject[phoneNumber][yesterdayDate].status = 'LATE';
-
-            dateStatusMap.get(statusString).status = 'LATE';
-
             countsObject[phoneNumber].late++;
 
             return;
@@ -465,9 +434,6 @@ module.exports = (locals) => {
           if (firstCheckInTimestamp < employeeStartTime) {
             locals
               .payrollObject[phoneNumber][yesterdayDate].status = 'FULL DAY';
-
-            dateStatusMap.get(statusString).status = 'FULL DAY';
-
             countsObject[phoneNumber].fullDay++;
 
             return;
@@ -477,9 +443,6 @@ module.exports = (locals) => {
         if (checkInDiff >= FOUR_HOURS) {
           locals
             .payrollObject[phoneNumber][yesterdayDate].status = 'HALF DAY';
-
-          dateStatusMap.get(statusString).status = 'HALF DAY';
-
           countsObject[phoneNumber].halfDay++;
 
           return;
@@ -487,7 +450,7 @@ module.exports = (locals) => {
       });
 
       Object.keys(locals.payrollObject).forEach((phoneNumber) => {
-        const statusString = `${phoneNumber}: ${yesterdayDate}`;
+        // const statusString = `${phoneNumber}: ${yesterdayDate}`;
 
         if (leavesSet.has(phoneNumber)) {
           locals
@@ -500,9 +463,6 @@ module.exports = (locals) => {
         if (onDutySet.has(phoneNumber)) {
           locals
             .payrollObject[phoneNumber][yesterdayDate].status = 'ON DUTY';
-
-          dateStatusMap.get(statusString).status = 'ON DUTY';
-
           countsObject[phoneNumber].onDuty++;
 
           return;
@@ -511,9 +471,6 @@ module.exports = (locals) => {
         if (branchHolidaySet.has(phoneNumber)) {
           locals
             .payrollObject[phoneNumber][yesterdayDate].status = 'HOLIDAY';
-
-          dateStatusMap.get(statusString).status = 'HOLIDAY';
-
           countsObject[phoneNumber].holiday++;
 
           return;
@@ -522,9 +479,6 @@ module.exports = (locals) => {
         if (weeklyOffSet.has(phoneNumber)) {
           locals
             .payrollObject[phoneNumber][yesterdayDate].status = 'WEEKLY OFF';
-
-          dateStatusMap.get(statusString).status = 'WEEKLY OFF';
-
           countsObject[phoneNumber].weeklyOff++;
 
           return;
@@ -542,11 +496,7 @@ module.exports = (locals) => {
         // Person hasn't done anything. AND yesterday was also not
         // a holiday, on duty, or a leave will get blank
         locals.payrollObject[phoneNumber][yesterdayDate] = { status: 'BLANK' };
-
-        dateStatusMap.get(statusString).status = 'BLANK';
-
         countsObject[phoneNumber].blank++;
-
         peopleWithBlank.add(phoneNumber);
       });
 
@@ -602,7 +552,9 @@ module.exports = (locals) => {
         .csvString = topRow(yesterday);
 
       employeesPhoneNumberList.forEach((phoneNumber) => {
-        if (!employeesData[phoneNumber]) return;
+        if (!employeesData[phoneNumber]) {
+          return;
+        }
 
         /**
          * Activity `createTime` is the time at which the user has been
@@ -629,30 +581,32 @@ module.exports = (locals) => {
           + ` ${liveSince},`;
 
         for (let date = yesterdayDate; date >= 1; date--) {
-          // The OR case with empty strings is required. Omitting that will
-          // cause the excel sheet to show the value `undefined` in all non available
-          // dates for the employee
+          const currentEmployeeStatusObject = (() => {
+            if (!locals.payrollObject[phoneNumber][date]) {
+              return {
+                status: '',
+                firstCheckInTimestamp: '',
+                lastCheckInTimestamp: '',
+              };
+            }
 
-          const status = locals
-            .payrollObject[phoneNumber][date]
-            .status;
-          let firstCheckInTime = locals
-            .payrollObject[phoneNumber][date]
-            .firstCheckInTimestamp || ' ';
-          const lastCheckInTime = locals
-            .payrollObject[phoneNumber][date]
-            .lastCheckInTimestamp;
+            return locals.payrollObject[phoneNumber][date];
+          })();
+
+          const status = currentEmployeeStatusObject.status;
+          let firstCheckInTime = currentEmployeeStatusObject.firstCheckInTimestamp || '';
+          const lastCheckInTime = currentEmployeeStatusObject.lastCheckInTimestamp || '';
 
           if (firstCheckInTime && lastCheckInTime) {
             firstCheckInTime = `${firstCheckInTime} | `;
           }
 
           const value = `${firstCheckInTime || '-'}${lastCheckInTime || '-'}`;
-
           locals.csvString += `${value}, ${status},`;
         }
 
-        locals.csvString +=
+        locals
+          .csvString +=
           `${countsObject[phoneNumber].fullDay},`
           + `${countsObject[phoneNumber].halfDay},`
           + `${countsObject[phoneNumber].leave},`

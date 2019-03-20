@@ -203,6 +203,7 @@ const handleAutoAssign = (locals) => {
       return locals.adminsCanEdit.includes(phoneNumber);
     }
 
+    // TODO: Remove this
     if (canEditRule === 'CREATOR') {
       return locals.change.after.get('creator') === phoneNumber;
     }

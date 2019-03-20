@@ -112,7 +112,7 @@ const getAssigneesArray = (arrayOfPhoneNumbers) => {
           photoURL: '',
         });
     });
-,
+
   return result;
 };
 

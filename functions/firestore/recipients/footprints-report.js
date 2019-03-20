@@ -30,12 +30,10 @@ const {
   httpsActions,
   reportNames,
 } = require('../../admin/constants');
-
 const {
   timeStringWithOffset,
   employeeInfo,
 } = require('./report-utils');
-
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 const fs = require('fs');
