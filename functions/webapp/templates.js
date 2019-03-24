@@ -65,13 +65,17 @@ const headerHtml = `
       </a>
     </section>
     <section class="header-links">
-      <a href="/join">
-        <i class="fas fa-user"></i>
+      <a id="header-join-link" href="/join">
+      <i class="fas fa-user-plus"></i>
         <span>Join Now</span>
       </a>
-      <a href="/download">
-        <i class="fas fa-mobile-alt"></i>
+      <a id="download-app-link" href="/download">
+        <i class="fas fa-download"></i>
         <span>Download</span>
+      </a>
+      <a href="/manage">
+      <i class="fas fa-tools"></i>
+      <span>Panel</span>
       </a>
     </section>
   </header>`;
@@ -246,10 +250,11 @@ const officeSource = () => {
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
   <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
-  <script src="https://maps.googleapis.com/maps/api/js?key={{mapsApiKey}}"></script>
-  <script src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c7f56ce7ea64f4a"></script>
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key={{mapsApiKey}}"></script>
+  <script src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c7f56ce7ea64f4a"></script>
+  <script src="js/main.js"></script>
   <script src="js/office.js"></script>
 </body>
 </html>`;
@@ -272,6 +277,8 @@ const joinPageSource = () => {
   <link href="https://fonts.googleapis.com/css?family=Palanquin" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
   <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <link rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
   <link rel="stylesheet" href="css/common.css">
   <link rel="stylesheet" href="css/join.css">
 </head>
@@ -282,40 +289,72 @@ ${headerHtml}
   <h1>Join Growthfile</h1>
   <div class="form-container">
     <form class="pure-form pure-form-aligned">
-      <fieldset>
+      <fieldset class="form-step-1">
           <div class="pure-control-group">
-            <label for="name">Your Name</label>
-            <input id="name" type="text" placeholder="Your Name">
+            <label for="officeName">Office Name *</label>
+            <input id="officeName" type="text" placeholder="Acme Corporation" required>
           </div>
 
           <div class="pure-control-group">
-            <label for="email">Your Email</label>
-            <input id="email" type="email" placeholder="Email">
-          </div>
-
-          <div class="pure-control-group">
-            <label for="officeName">Office Name</label>
-            <input id="officeName" type="text" placeholder="Office Name">
+            <label for="email">Your Email *</label>
+            <input id="email" type="email" placeholder="john.doe@example.com" required>
           </div>
           
           <div class="pure-control-group">
-            <label for="phoneNumber">Your Phone Number</label>
-            <input id="phoneNumber" type="tel" placeholder="+919000000000">
+            <label for="phoneNumber">Your Contact *</label>
+            <input id="phoneNumber" type="tel" placeholder="+1234567890" required>
+          </div>
+
+          <div class="pure-control-group">
+            <label for="adminPhoneNumber">Admin Contact  </label>
+            <input id="adminPhoneNumber" type="tel" placeholder="+1234567890">
           </div>
 
           <div class="pure-controls">
             <label for="cb" class="pure-checkbox">
-              <input id="cb" type="checkbox"> I've read the terms and conditions
+              <input id="toc-checkbox" type="checkbox"> I've read the Terms and Conditions
             </label>
 
-            <button type="button" class="pure-button pure-button-primary">Get Started</button>
+            <br/>
+
+            <button id="step-1-submit" type="button" class="pure-button pure-button-primary">Get Started</button>
           </div>
         </fieldset>
+
+        <fieldset class="form-step-2 hidden">
+        <div class="pure-controls">
+          <label for="me-radio" class="pure-radio">
+            <input id="me-radio" type="radio" value="">
+            I will upload the documents.
+          </label>
+
+          <label for="someone-else-radio" class="pure-radio">
+              <input id="someone-else-radio" type="radio" value="">
+              Someone else will
+          </label>
+
+          <div id="other-person-phone-container" class="pure-control-group hidden">
+            <label for="otherPersonPhoneNumber">Contact *</label>
+            <input id="otherPersonPhoneNumber" type="tel" placeholder="+1234567890">
+          </div>
+
+          <br>
+
+          <button id="step-2-submit" type="button" class="pure-button pure-button-primary">Next</button>
+        </div>
+      </fieldset>
+
       </form>
     </div>
   </main>
 
   ${footerHtml}
+  <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
+  <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"></script>
+  <script src="js/main.js"></script>
   <script src="js/join.js"></script>
 </body>
 </html>`;
@@ -357,6 +396,12 @@ const downloadPageSource = () => {
   </div>
 
   ${footerHtml}
+  <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
+  <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"></script>
+  <script src="js/main.js"></script>
   <script src="js/download.js"></script>
 </body>
 </html>`;
@@ -391,7 +436,12 @@ const homeSource = () => {
     </main>
 
       ${footerHtml}
-      <script src="https://unpkg.com/micromodal/dist/micromodal.min.js"></script>
+      <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
+      <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
+      <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
+      <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"></script>
+      <script src="js/main.js"></script>
       <script src="js/home.js"></script>
     </body>
     </html>`;

@@ -50,25 +50,19 @@ const sendSMS = (change) => {
     && change.after.data()
     && smsContext;
 
-  console.log({ toSendSMS, phoneNumber: change.after.id });
-
   if (!toSendSMS) {
-    console.log('NO SMS', { toSendSMS });
-
     return Promise.resolve();
   }
 
   // Will not send sms from test project
   if (!isProduction) {
-    console.log('NO SMS. NOT PROD');
-
     return Promise.resolve();
   }
 
   // Template substitutions allow 20 chars at most.
   const first20Chars = (str) => str.slice(0, 19);
 
-  console.log('SENDING SMS', change.after.id);
+  console.log('SMS Sent to:', change.after.id);
 
   const templatedMessage = (() => {
     const {
@@ -595,9 +589,6 @@ module.exports = (change) => {
    *    For each office (current) create sign up doc with `signedUpOn` field
    * Delete addendum if new `lastFromQuery` > old `lastFromQuery`.
    */
-
-  console.log({ options });
-
   return handleSignUp(change, options)
     .then(() => handleInstall(change, options))
     .then(() => handleRemovedFromOffice(change, options))

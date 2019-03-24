@@ -413,14 +413,12 @@ module.exports = (doc) => {
 
           messages.push({
             html,
-            cc: env.systemEmail,
+            cc: '',
             subject: 'FROM Timer function',
             to: email,
             from: env.systemEmail,
           });
         });
-
-      console.log({ messages });
 
       const batch = db.batch();
 

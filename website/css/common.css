@@ -35,6 +35,10 @@ input:focus {
     border: none;
 }
 
+#logo span {
+    color: #576871;
+}
+
 .pad-after-header {
     height: 120px;
 }
@@ -60,7 +64,7 @@ header {
 
 .header-links {
     padding-right: 30px;
-    line-height: 1.2em;
+    line-height: 2.2em;
 }
 
 .header-links a {
@@ -149,7 +153,15 @@ footer {
     margin-right: 10px;
 }
 
+.pure-button-primary {
+    background-color: #FF851B;
+}
+
 @media (max-width: 450px) {
+    #logo img {
+        width: 40px;
+        height: 40px;
+    }
     footer {
         z-index: unset;
     }
@@ -160,7 +172,7 @@ footer {
         margin-bottom: 40px;
     }
     #logo span {
-        display: none;
+        display: unset;
     }
     .header-links a span {
         display: none;

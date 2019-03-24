@@ -179,8 +179,6 @@ module.exports = (conn) => {
         }
       }
 
-      console.log(conn.req.query);
-
       batch.set(updatesDoc.ref, updatesDocData, {
         merge: true,
       });

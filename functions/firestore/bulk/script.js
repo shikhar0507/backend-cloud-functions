@@ -30,14 +30,11 @@ const {
 const handleValidation = (body) => {
   const result = { success: true, message: null };
 
-  console.log('timestamp', body.timestamp);
-
   const messageString = (field) =>
     `Invalid/Missing field '${field}' from the request body`;
 
-  if (!body.hasOwnProperty('office')
-    // Can be an empty string
-    || typeof body.office !== 'string') {
+  if (body.template !== 'office'
+    && !isNonEmptyString(body.office)) {
     return {
       success: false,
       message: messageString('office'),
@@ -258,7 +255,6 @@ const createObjects = (conn, locals, trialRun) => {
       displayName: conn.requester.displayName,
       phoneNumber: conn.requester.phoneNumber,
     };
-
     const officeId = (() => {
       if (conn.req.body.template === 'office') {
         return officeRef.id;
@@ -273,7 +269,6 @@ const createObjects = (conn, locals, trialRun) => {
 
       return locals.officeDoc.get('attachment.Name.value');
     })();
-
     const timezone = (() => {
       if (conn.req.body.template === 'office') {
         return conn.req.body.data[index].Timezone;
@@ -379,7 +374,7 @@ const createObjects = (conn, locals, trialRun) => {
     };
 
     // Not all templates will have type phoneNumber in attachment.
-    if (locals.assigneesFromAttachment.has('index')) {
+    if (locals.assigneesFromAttachment.has(index)) {
       locals
         .assigneesFromAttachment
         .get(index)
@@ -464,7 +459,6 @@ const createObjects = (conn, locals, trialRun) => {
           provider: conn.req.body.geopoint.provider || null,
           isAdminRequest: true,
         };
-
         const adminActivityData = {
           office,
           timezone,
@@ -521,20 +515,24 @@ const createObjects = (conn, locals, trialRun) => {
         totalDocsCreated += 6;
         batchDocsCount += 6;
 
-        conn.req.body.data[index].share.forEach((number) => {
-          totalDocsCreated += 2;
-          batchDocsCount += 2;
+        conn
+          .req
+          .body
+          .data[index]
+          .share.forEach((number) => {
+            totalDocsCreated += 2;
+            batchDocsCount += 2;
 
-          childActivitiesBatch.set(adminActivityRef.collection('Assignees').doc(number), {
-            canEdit: true,
-            addToInclude: true,
-          });
+            childActivitiesBatch.set(adminActivityRef.collection('Assignees').doc(number), {
+              canEdit: true,
+              addToInclude: true,
+            });
 
-          childActivitiesBatch.set(subscriptionActivityRef.collection('Assignees').doc(number), {
-            canEdit: true,
-            addToInclude: true,
+            childActivitiesBatch.set(subscriptionActivityRef.collection('Assignees').doc(number), {
+              canEdit: true,
+              addToInclude: true,
+            });
           });
-        });
       });
     }
 
@@ -972,8 +970,6 @@ const validateDataArray = (conn, locals) => {
         return;
       }
 
-      fieldsMissingInCurrentObject = true;
-
       if (missingFieldsMap.has(index)) {
         const fieldsSet = missingFieldsMap.get(index);
 
@@ -983,12 +979,17 @@ const validateDataArray = (conn, locals) => {
       } else {
         missingFieldsMap.set(index, new Set().add(field));
       }
+
+      fieldsMissingInCurrentObject = true;
     });
 
     if (fieldsMissingInCurrentObject) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason =
         `Missing fields: ${[...missingFieldsMap.get(index)]}`;
+
+      /** Setting false for next iteration. */
+      fieldsMissingInCurrentObject = false;
 
       return;
     }
@@ -1047,6 +1048,17 @@ const validateDataArray = (conn, locals) => {
       const phoneNumber = conn.req.body.data[index].Subscriber;
       const template = conn.req.body.data[index].Template;
 
+      if (!phoneNumber) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Invalid Subscriber`;
+      }
+
+      if (!template) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Invalid template`;
+      }
+
+      /** Subscription of template office and subscription is not allowed for everyone */
       if (template === 'office' || template === 'subscription') {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Subscription of template: '${template}' is not allowed`;
@@ -1061,7 +1073,6 @@ const validateDataArray = (conn, locals) => {
         const set = subscriptionsMap.get(phoneNumber);
 
         if (set.has(template)) {
-          // console.log('Duplicate', phoneNumber, template);
           duplicateRowIndex = index + 1;
           toRejectAll = true;
         }
@@ -1139,6 +1150,8 @@ const validateDataArray = (conn, locals) => {
 
         if (conn.req.body.template === 'employee'
           && property === 'Employee Contact'
+          && locals.officeDoc.get('employeesData')
+          /** Employee already exists */
           && locals.officeDoc.get('employeesData').hasOwnProperty(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Phone number: ${value}`
@@ -1267,9 +1280,11 @@ const validateDataArray = (conn, locals) => {
     }
   });
 
-  conn.req.body.data.forEach((item, index) => {
+  conn.req.body.data.forEach((_, index) => {
     if (!assigneesFromAttachment.has(index)
-      && conn.req.body.data[index].share.length === 0) {
+      && conn.req.body.data[index].share.length === 0
+      && !conn.req.body.data[index].rejected) {
+      // If is already rejected, the response will needlessly show 'Not assignees found'
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `No assignees found`;
     }
@@ -1334,7 +1349,8 @@ module.exports = (conn) => {
   const promises = [
     rootCollections
       .offices
-      .where('attachment.Name.value', '==', conn.req.body.office)
+      /** Office field can be skipped while creating `offices` in bulk */
+      .where('attachment.Name.value', '==', conn.req.body.office || '')
       .limit(1)
       .get(),
     rootCollections

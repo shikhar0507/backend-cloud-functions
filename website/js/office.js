@@ -1,14 +1,14 @@
 'use strict';
 
 
-firebase.initializeApp({
-  apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
-  authDomain: 'growthfilev2-0.firebaseapp.com',
-  databaseURL: 'https://growthfilev2-0.firebaseio.com',
-  projectId: 'growthfilev2-0',
-});
+// firebase.initializeApp({
+//   apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
+//   authDomain: 'growthfilev2-0.firebaseapp.com',
+//   databaseURL: 'https://growthfilev2-0.firebaseio.com',
+//   projectId: 'growthfilev2-0',
+// });
 
-const ui = new firebaseui.auth.AuthUI(firebase.auth());
+// const ui = new firebaseui.auth.AuthUI(firebase.auth());
 
 function showToast(message, seconds = 5) {
   return Toastify({
@@ -67,41 +67,6 @@ function signInSuccessWithAuthResult(authResult, redirectUrl) {
   // document.querySelector('.modal').style.display = 'none';
 
   firebaseAuthModal.close();
-}
-
-function signInFailure(error) {
-  console.log('signin failed', error);
-}
-
-function uiShown() {
-  console.log('ui was shown');
-}
-
-const uiConfig = {
-  signInOptions: [{
-    provider: firebase.auth.PhoneAuthProvider.PROVIDER_ID,
-    requireDisplayName: true,
-    signInFlow: 'popup',
-    recaptchaParameters: {
-      type: 'image',
-      size: 'invisible',
-      badge: 'bottomleft',
-    },
-    defaultCountry: 'IN',
-  }],
-  tosUrl: 'https://growthfile.com/terms-of-service',
-  privacyPolicyUrl: 'https://growthfile.com/privacy-policy',
-  // https://github.com/firebase/firebaseui-web#example-with-all-parameters-used
-  callbacks: {
-    signInSuccessWithAuthResult,
-    signInFailure,
-    uiShown,
-  },
-};
-
-
-function handleResponse(response) {
-  console.log(response);
 };
 
 function handleProductClick(param) {

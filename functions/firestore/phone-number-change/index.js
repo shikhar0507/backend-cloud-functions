@@ -6,6 +6,7 @@ const {
   deleteField,
   fieldPath,
   auth,
+  users,
 } = require('../../admin/admin');
 const {
   sendResponse,
@@ -29,12 +30,13 @@ const numberInAttachment = (phoneNumber, attachmentObject) => {
   let fieldName;
 
   for (let i = 0; i < itemsArray.length; i++) {
-    const { value, type } = itemsArray[i];
+    const intermediateFieldName = itemsArray[i];
+    const { value, type } = attachmentObject[intermediateFieldName];
+
     if (type !== 'phoneNumber') continue;
     if (value !== phoneNumber) continue;
 
-    fieldName = itemsArray;
-
+    fieldName = intermediateFieldName;
     found = true;
 
     break;
@@ -106,12 +108,17 @@ const commitBatch = (conn, batch) => {
     .catch((error) => handleError(conn, error));
 };
 
-const deleteAuth = (conn, locals) => {
-  if (!locals.toDeleteAuth) {
-    return Promise.resolve();
-  }
+const deleteAuth = (oldPhoneNumber) => {
+  return users
+    .getUserByPhoneNumber(oldPhoneNumber)
+    .then((result) => result[oldPhoneNumber])
+    .then((userRecord) => {
+      if (!userRecord || !userRecord.uid) {
+        return Promise.resolve();
+      }
 
-  return auth.deleteUser(locals.oldPhoneNumberUid);
+      return auth.deleteUser(userRecord.uid);
+    });
 };
 
 
@@ -131,7 +138,7 @@ const deleteAddendum = (conn, locals) => {
     });
 
   // TODO: Handle > 500 docs here.
-  Promise
+  return Promise
     .all(promises)
     .then((snapShots) => {
       snapShots
@@ -139,8 +146,11 @@ const deleteAddendum = (conn, locals) => {
           (snapShot) => snapShot.forEach((doc) => locals.batch.delete(doc.ref))
         );
 
+      if (locals.toDeleteAuth) {
+        return deleteAuth(conn.req.body.oldPhoneNumber);
+      }
 
-      return deleteAuth(conn, locals);
+      return null;
     })
     .then(() => commitBatch(conn, locals.batch))
     .catch((error) => handleError(conn, error));
@@ -181,7 +191,7 @@ const updatePayroll = (conn, locals) => {
 };
 
 
-const fetchActivities = (conn, locals) => {
+const updateActivities = (conn, locals) => {
   let iterations = 0;
 
   const runQuery = (query, resolve, reject) => {
@@ -195,20 +205,27 @@ const fetchActivities = (conn, locals) => {
         const batch = db.batch();
 
         docs.forEach((doc) => {
-
           const activityId = doc.id;
           const rootActivityRef = rootCollections.activities.doc(activityId);
           const template = doc.get('template');
           const creator = doc.get('creator');
           const canEditRule = doc.get('canEditRule');
           const attachmentObject = doc.get('attachment');
-          // const creator = doc.get('creator');
-          const inAttachment =
-            numberInAttachment(conn.req.body.oldPhoneNumber, attachmentObject);
+          const phoneNumberInAttachment = numberInAttachment(
+            conn.req.body.oldPhoneNumber,
+            attachmentObject
+          );
+
           locals.activityIdsSet.add(activityId);
 
-          if (inAttachment.found) {
-            attachmentObject[inAttachment.fieldName].value = conn.req.body.newPhoneNumber;
+          if (phoneNumberInAttachment.found) {
+            const { fieldName } = phoneNumberInAttachment;
+
+            console.log({ fieldName });
+
+            attachmentObject[
+              fieldName
+            ].value = conn.req.body.newPhoneNumber;
           }
 
           const addToInclude = template !== 'subscription';
@@ -320,6 +337,9 @@ const fetchActivities = (conn, locals) => {
   console.log({ iterations });
 
   return new Promise((resolve, reject) => runQuery(query, resolve, reject))
+    .then(() => {
+      return console.log(locals.activityIdsSet);
+    })
     .then(() => updatePayroll(conn, locals))
     .catch((error) => handleError(conn, error));
 };
@@ -330,7 +350,7 @@ const checkForAdmin = (conn, locals) => {
     .offices
     .doc(locals.officeDoc.id)
     .collection('Activities')
-    .where('isCancelled', '==', false)
+    .where('status', '==', 'CONFIRMED')
     .where('attachment.Admin.value', '==', conn.req.body.newPhoneNumber)
     .limit(1)
     .get()
@@ -338,7 +358,7 @@ const checkForAdmin = (conn, locals) => {
       // Not empty means the person is an admin
       locals.newPhoneNumberIsAdmin = !docs.empty;
 
-      return fetchActivities(conn, locals);
+      return updateActivities(conn, locals);
     })
     .catch(console.error);
 };
@@ -353,12 +373,12 @@ const checkForEmployee = (conn, locals) => {
   return Promise
     .all([
       activitiesRef
-        .where('isCancelled', '==', false)
+        .where('status', '==', 'CONFIRMED')
         .where('attachment.Employee Contact.value', '==', conn.req.body.oldPhoneNumber)
         .limit(1)
         .get(),
       activitiesRef
-        .where('isCancelled', '==', false)
+        .where('status', '==', 'CONFIRMED')
         .where('attachment.Employee Contact.value', '==', conn.req.body.newPhoneNumber)
         .limit(1)
         .get(),
@@ -425,16 +445,40 @@ const checkForEmployee = (conn, locals) => {
         const updatesDoc = oldPhoneNumberUpdatesDocsQuery.docs[0];
         const officeList = Object.keys(employeeOf);
 
-        locals.oldPhoneNumberUid = oldPhoneNumberUpdatesDocsQuery.docs[0].get('uid');
+        locals
+          .oldPhoneNumberUid = oldPhoneNumberUpdatesDocsQuery.docs[0].id;
         // If person is only in a single office, removing auth.
-        locals.toDeleteAuth = officeList.length === 1;
+        locals
+          .toDeleteAuth = officeList.length === 1;
 
-        locals.batch.set(updatesDoc, {
-          removeFromOffice: officeList,
-        }, {
-            merge: true,
-          });
+        // Will be deleting this person's auth
+        if (officeList.length === 1) {
+          locals.batch.delete(updatesDoc.ref);
+        }
       }
+
+      const officeDocData = locals.officeDoc.data();
+      const employeesData = locals.officeDoc.get('employeesData') || {};
+
+      // This check is most probably reduntant
+      if (employeesData[conn.req.body.oldPhoneNumber]) {
+        const newDataObject = employeesData[conn.req.body.oldPhoneNumber];
+
+        employeesData[
+          conn.req.body.newPhoneNumber
+        ] = newDataObject;
+
+        if (newDataObject['Employee Contact']
+          && newDataObject['Employee Contact'] === conn.req.body.oldPhoneNumber) {
+          newDataObject['Employee Contact'] = conn.req.body.newPhoneNumber;
+        }
+
+        delete employeesData[conn.req.body.oldPhoneNumber];
+      }
+
+      officeDocData.employeesData = employeesData;
+
+      locals.batch.set(locals.officeDoc.ref, officeDocData);
 
       return checkForAdmin(conn, locals);
     })

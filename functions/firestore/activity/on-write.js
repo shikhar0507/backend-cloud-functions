@@ -131,7 +131,8 @@ const handleAdmin = (locals, batch) => {
 const handleRecipient = (locals, batch) => {
   const recipientsDocRef = rootCollections.recipients.doc(locals.change.after.id);
 
-  if (locals.addendumDoc
+  if (locals
+    .addendumDoc
     && locals.addendumDoc.get('action') !== httpsActions.comment) {
     batch.set(recipientsDocRef, {
       cc: locals.change.after.get('attachment.cc.value'),
@@ -532,13 +533,26 @@ const handleSubscription = (locals, batch) => {
         batch.delete(subscriptionDocRef);
       }
 
-      /* eslint-disable */
-      return batch
-        .commit()
-        .then(() => templateDoc);
-      /* eslint-enable */
+      if (locals.change.before.data()
+        && (locals.change.before.get('attachment.Subscriber.value')
+          !== locals.change.after.get('attachment.Subscriber.value'))) {
+        const oldDocRef = rootCollections
+          .profiles
+          .doc(locals.change.before.get('attachment.Subscriber.value'))
+          .collection('Subscriptions')
+          .doc(locals.change.after.id);
+        batch.delete(oldDocRef);
+      }
+
+      return Promise
+        .all([
+          Promise
+            .resolve(templateDoc),
+          batch
+            .commit(),
+        ]);
     })
-    .then((templateDoc) => handleCanEditRule(locals, templateDoc))
+    .then((result) => handleCanEditRule(locals, result[0]))
     .then(() => handleAutoAssign(locals))
     .catch(console.error);
 };

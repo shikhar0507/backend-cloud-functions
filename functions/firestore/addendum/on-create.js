@@ -947,10 +947,11 @@ module.exports = (addendumDoc) => {
         distanceMatrixApiResult,
       ] = result;
 
-      locals.placeInformation = getPlaceInformation(
-        mapsApiResult,
-        addendumDoc.get('location')
-      );
+      locals
+        .placeInformation = getPlaceInformation(
+          mapsApiResult,
+          addendumDoc.get('location')
+        );
 
       const distanceData = (() => {
         if (!locals.previousAddendumDoc) {
@@ -997,7 +998,6 @@ module.exports = (addendumDoc) => {
       const updateObject = {
         url: locals.placeInformation.url,
         identifier: locals.placeInformation.identifier,
-        // accumulatedDistance: distanceData.accumulatedDistance,
         distanceTravelled: distanceData.distanceTravelled,
         date: locals.momentWithOffset.date(),
         month: locals.momentWithOffset.month(),
@@ -1007,7 +1007,6 @@ module.exports = (addendumDoc) => {
       console.log(JSON.stringify({
         phoneNumber,
         updateObject,
-        placeInformation: locals.placeInformation,
         currPath: addendumDoc.ref.path,
         prevPath: locals.previousAddendumDoc ? locals
           .previousAddendumDoc

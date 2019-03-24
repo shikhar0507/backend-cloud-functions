@@ -30,22 +30,88 @@ function sendRequest(requestBody) {
       // show text that office has been created successfully.
     })
     .catch(console.error);
-}
+};
 
 document
-  .getElementById('#submit-form')
-  .onclick = function () {
-    // const result = validateForm(data);
+  .getElementById('step-1-submit')
+  .onclick = function (event) {
+    console.log('submit');
 
-    // if (!result.success) {
-    //   return showToast(result.message);
-    // }
+    const officeName = document.getElementById('officeName');
+    const userEmail = document.getElementById('email');
+    const userPhoneNumber = document.getElementById('phoneNumber');
+    const adminContact = document.getElementById('adminPhoneNumber');
+    const tocCheckbox = document.getElementById('toc-checkbox');
 
-    // if (!firebase.auth().currentUser) {
-    //   // show login box
+    // Admin contact is not required
+    if (!officeName.value || !userEmail.value || !userPhoneNumber.value) {
+      console.log('values', officeName.value, userEmail.value, userPhoneNumber.value, adminContact.value);
 
-    //   return;
-    // }
+      return false;
+    }
 
-    // return sendRequest(requestBody);
+    if (!tocCheckbox.checked) {
+      console.log('checkbox not ticked');
+
+      return;
+    }
+
+    if (!firebase.auth().currentUser) {
+      // not logged in
+      console.log('not logged in');
+
+      const modalContent = `<div id="firebaseui-auth-container"></div>`;
+      // ui.
+      firebaseAuthModal = picoModal(modalContent);
+      firebaseAuthModal.show();
+
+      ui.start('#firebaseui-auth-container', uiConfig);
+
+      return;
+    }
+
+    console.log('logged in');
+
+    document
+      .querySelector('.form-step-1')
+      .style
+      .display = 'none';
+
+    document
+      .querySelector('.form-step-2')
+      .classList
+      .toggle('hidden');
+
+    return false;
   };
+
+document
+  .querySelector('#someone-else-radio')
+  .addEventListener('change', function (event) {
+    document
+      .getElementById('other-person-phone-container')
+      .classList
+      .toggle('hidden');
+
+    document
+      .getElementById('me-radio')
+      .checked = false;
+  });
+
+document
+  .querySelector('#me-radio')
+  .addEventListener('change', function (event) {
+    document
+      .getElementById('other-person-phone-container')
+      .classList
+      .add('hidden');
+
+    document
+      .getElementById('someone-else-radio')
+      .checked = false;
+  });
+
+document
+  .querySelector('#header-join-link')
+  .style
+  .display = 'none';

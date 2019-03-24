@@ -56,21 +56,21 @@ h2 {
         line-height: 0.2em;
     }
     #logo img {
-        display: none;
+        /* display: none; */
     }
     #logo span {
-        display: block;
+        /* display: block; */
+        display: none;
     }
     .header-section-start {
         padding-left: unset;
-        margin-top: 0.8em;
+        /* margin-top: 0.8em; */
     }
     .hero {
         padding-top: 6.2em;
     }
     .hero h1 {
         padding: 10px;
-        /* background-color: ; */
         color: #576871;
         font-size: 34px;
     }
