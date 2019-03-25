@@ -33,8 +33,7 @@ const validTypes = new Map()
   .set('weekday', 'weekday')
   .set('phoneNumber', 'phoneNumber')
   .set('HH:MM', 'HH:MM')
-  .set('base64', 'base64')
-  .set('unique', 'unique');
+  .set('base64', 'base64');
 
 /** Weekdays accepted in the attachment for the field `type` of `weekday`. */
 const weekdays = new Map()

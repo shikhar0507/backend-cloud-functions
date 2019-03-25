@@ -57,14 +57,16 @@ const validateRequest = (body) => {
 
   if (!body.hasOwnProperty('oldPhoneNumber')) {
     messageObject.isValid = false;
-    messageObject.message = `Request body is missing the field: 'oldPhoneNumber'`;
+    messageObject.message =
+      `Request body is missing the field: 'oldPhoneNumber'`;
 
     return messageObject;
   }
 
   if (!body.hasOwnProperty('newPhoneNumber')) {
     messageObject.isValid = false;
-    messageObject.message = `Request body is missing the field: 'newPhoneNumber'`;
+    messageObject.message =
+      `Request body is missing the field: 'newPhoneNumber'`;
 
     return messageObject;
   }
@@ -85,14 +87,17 @@ const validateRequest = (body) => {
 
   if (!isE164PhoneNumber(body.oldPhoneNumber)) {
     messageObject.isValid = false;
-    messageObject.message = `The field 'oldPhoneNumber' should be a valid E.164 phone number`;
+    messageObject.message = `The field 'oldPhoneNumber' should be`
+      + ` a valid E.164 phone number`;
 
     return messageObject;
   }
 
   if (!isE164PhoneNumber(body.newPhoneNumber)) {
     messageObject.isValid = false;
-    messageObject.message = `The field 'newPhoneNumber' should be a valid E.164 phone number`;
+    messageObject.message =
+      `The field 'newPhoneNumber' should be`
+      + ` a valid E.164 phone number`;
 
     return messageObject;
   }
@@ -174,7 +179,10 @@ const updatePayroll = (conn, locals) => {
         // The phone number may not necessarily be in the payroll object
         // because this object is generated a day after employee creation.
         if (payrollObject[conn.req.body.oldPhoneNumber]) {
-          payrollObject[conn.req.body.newPhoneNumber] = payrollObject[conn.req.body.oldPhoneNumber];
+          payrollObject[
+            conn.req.body.newPhoneNumber
+          ] = payrollObject[conn.req.body.oldPhoneNumber];
+
           payrollObject[conn.req.body.oldPhoneNumber] = deleteField();
 
           locals.batch.set(initDoc.ref, {

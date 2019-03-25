@@ -35,6 +35,28 @@ const initDocRef = (snapShot) => {
   return snapShot.docs[0].ref;
 };
 
+const getLocalityCityState = (components) => {
+  let locality = '';
+  let city = '';
+  let state = '';
+
+  components.forEach((component) => {
+    if (component.types.includes('locality')) {
+      locality = component.long_name;
+    }
+
+    if (component.types.includes('administrative_area_level_2')) {
+      city = component.long_name;
+    }
+
+    if (component.types.includes('administrative_area_level_1')) {
+      state = component.long_name;
+    }
+  });
+
+  return { locality, city, state };
+};
+
 
 const getLatLngString = (location) =>
   `${location._latitude},${location._longitude}`;
@@ -387,6 +409,12 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
     }
   }
 
+  if (addendumDoc.get('status') === httpsActions.create) {
+    visitObject[phoneNumber][activityId].city = locals.city;
+    visitObject[phoneNumber][activityId].state = locals.state;
+    visitObject[phoneNumber][activityId].locality = locals.locality;
+  }
+
   if (status === 'CANCELLED'
     && visitObject[phoneNumber]
     && visitObject[phoneNumber][activityId]) {
@@ -443,6 +471,12 @@ const getFollowUpObject = (addendumDoc, initQuery, locals) => {
       purpose: addendumDoc.get('activityData.template'),
       actualLocation: locals.placeInformation,
     };
+  }
+
+  if (addendumDoc.get('action') === httpsActions.create) {
+    followUpObject[phoneNumber][activityId].city = locals.city;
+    followUpObject[phoneNumber][activityId].locality = locals.locality;
+    followUpObject[phoneNumber][activityId].state = locals.state;
   }
 
   if (status === 'CANCELLED'
@@ -953,6 +987,18 @@ module.exports = (addendumDoc) => {
           addendumDoc.get('location')
         );
 
+      if (mapsApiResult.json.results.length > 0) {
+        const components = mapsApiResult.json.results[0].address_components;
+
+        const { city, state, locality } = getLocalityCityState(components);
+
+        locals.city = city;
+        locals.state = state;
+        locals.locality = locality;
+
+        console.log({ city, state, locality });
+      }
+
       const distanceData = (() => {
         if (!locals.previousAddendumDoc) {
           return {
@@ -975,14 +1021,11 @@ module.exports = (addendumDoc) => {
 
           const geopointOne = locals.previousAddendumDoc.get('location');
           const geopointTwo = addendumDoc.get('location');
-
           const result = haversineDistance(geopointOne, geopointTwo);
 
           // in KM
           return result;
         })();
-
-        console.log({ value });
 
         const accumulatedDistance =
           Number(locals.previousAddendumDoc.get('accumulatedDistance') || 0)

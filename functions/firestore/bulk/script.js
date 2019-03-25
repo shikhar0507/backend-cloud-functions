@@ -27,6 +27,14 @@ const {
 } = require('../../admin/constants');
 
 
+const templateNamesObject = {
+  ADMIN: 'admin',
+  SUBSCRIPTION: 'subscription',
+  EMPLOYEE: 'employee',
+  OFFICE: 'office',
+};
+
+
 const handleValidation = (body) => {
   const result = { success: true, message: null };
 
@@ -152,7 +160,9 @@ const executeSequentially = (batchFactories) => {
   batchFactories.forEach((promiseFactory, index) => {
     result = result
       .then(promiseFactory)
-      .then(() => console.log(`Commited ${index + 1} of ${batchFactories.length}`));
+      .then(() => console.log(
+        `Commited ${index + 1} of ${batchFactories.length}`
+      ));
   });
 
   return result;
@@ -199,7 +209,6 @@ const commitData = (conn, batchesArray, batchFactories) => {
 };
 
 const createObjects = (conn, locals, trialRun) => {
-  const childActivitiesBatch = db.batch();
   let totalDocsCreated = 0;
   let currentBatchIndex = 0;
   let batchDocsCount = 0;
@@ -207,7 +216,9 @@ const createObjects = (conn, locals, trialRun) => {
   const batchFactories = [];
   const batchesArray = [];
   const timestamp = Date.now();
-  const isEmployeeTemplate = conn.req.body.template === 'employee';
+  const childActivitiesBatch = db.batch();
+  const isEmployeeTemplate =
+    conn.req.body.template === templateNamesObject.EMPLOYEE;
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(locals.templateDoc.get('schedule'));
   const venueFieldsSet = new Set(locals.templateDoc.get('venue'));
@@ -256,14 +267,14 @@ const createObjects = (conn, locals, trialRun) => {
       phoneNumber: conn.requester.phoneNumber,
     };
     const officeId = (() => {
-      if (conn.req.body.template === 'office') {
+      if (conn.req.body.template === templateNamesObject.OFFICE) {
         return officeRef.id;
       }
 
       return locals.officeDoc.id;
     })();
     const office = (() => {
-      if (conn.req.body.template === 'office') {
+      if (conn.req.body.template === templateNamesObject.OFFICE) {
         return conn.req.body.data[index].Name;
       }
 
@@ -387,7 +398,8 @@ const createObjects = (conn, locals, trialRun) => {
       .req
       .body
       .data[index]
-      .share.forEach((phoneNumber) => {
+      .share
+      .forEach((phoneNumber) => {
         const ref = activityRef.collection('Assignees').doc(phoneNumber.trim());
         const addToInclude = conn.req.body.template === 'subscription'
           && phoneNumber !== activityObject.attachment.Subscriber.value;
@@ -408,15 +420,31 @@ const createObjects = (conn, locals, trialRun) => {
     batch.set(activityRef, activityObject);
     batch.set(addendumDocRef, addendumObject);
 
-    if (conn.req.body.template === 'office') {
+    if (conn.req.body.template === templateNamesObject.OFFICE) {
       const allPhoneNumbers = locals.officeContacts.get(index) || [];
 
       allPhoneNumbers.forEach((phoneNumber) => {
         // For each phoneNumber, create subscription and assignee
-        const adminActivityRef = rootCollections.activities.doc();
-        const subscriptionActivityRef = rootCollections.activities.doc();
-        const adminAddendumRef = rootCollections.offices.doc(officeId).collection('Addendum').doc();
-        const subscriptionAddendumRef = rootCollections.offices.doc(officeId).collection('Addendum').doc();
+        const adminActivityRef =
+          rootCollections
+            .activities
+            .doc();
+        const subscriptionActivityRef =
+          rootCollections
+            .activities
+            .doc();
+        const adminAddendumRef =
+          rootCollections
+            .offices
+            .doc(officeId)
+            .collection('Addendum')
+            .doc();
+        const subscriptionAddendumRef =
+          rootCollections
+            .offices
+            .doc(officeId)
+            .collection('Addendum')
+            .doc();
 
         const subscriptionActivityData = {
           office,
@@ -432,7 +460,7 @@ const createObjects = (conn, locals, trialRun) => {
               type: 'phoneNumber',
             },
             Template: {
-              value: 'subscription',
+              value: templateNamesObject.SUBSCRIPTION,
               type: 'string',
             },
           },
@@ -440,7 +468,7 @@ const createObjects = (conn, locals, trialRun) => {
           creator: conn.requester.phoneNumber,
           hidden: locals.subscriptionTemplateDoc.get('hidden'),
           status: locals.subscriptionTemplateDoc.get('statusOnCreate'),
-          template: 'subscription',
+          template: templateNamesObject.SUBSCRIPTION,
           activityName: `SUBSCRIPTION: ${phoneNumber}`,
         };
         const subscriptionAddendumData = {
@@ -449,7 +477,7 @@ const createObjects = (conn, locals, trialRun) => {
           user: conn.requester.phoneNumber,
           userDisplayName: conn.requester.displayName,
           action: httpsActions.create,
-          template: 'subscription',
+          template: templateNamesObject.SUBSCRIPTION,
           location: getGeopointObject(conn.req.body.geopoint),
           userDeviceTimestamp: conn.req.body.timestamp,
           activityId: subscriptionActivityRef.id,
@@ -477,7 +505,7 @@ const createObjects = (conn, locals, trialRun) => {
           creator: conn.requester.phoneNumber,
           hidden: locals.adminTemplateDoc.get('hidden'),
           status: locals.adminTemplateDoc.get('statusOnCreate'),
-          template: 'admin',
+          template: templateNamesObject.ADMIN,
           activityName: `ADMIN: ${phoneNumber}`,
         };
         const adminAddendumData = {
@@ -486,7 +514,7 @@ const createObjects = (conn, locals, trialRun) => {
           user: conn.requester.phoneNumber,
           userDisplayName: conn.requester.displayName,
           action: httpsActions.create,
-          template: 'admin',
+          template: templateNamesObject.ADMIN,
           location: getGeopointObject(conn.req.body.geopoint),
           userDeviceTimestamp: conn.req.body.timestamp,
           activityId: adminActivityRef.id,
@@ -497,20 +525,30 @@ const createObjects = (conn, locals, trialRun) => {
           isAdminRequest: true,
         };
 
-        childActivitiesBatch.set(subscriptionActivityRef, adminActivityData);
-        childActivitiesBatch.set(subscriptionAddendumRef, subscriptionAddendumData);
-        childActivitiesBatch.set(adminAddendumRef, adminAddendumData);
-        childActivitiesBatch.set(adminActivityRef, subscriptionActivityData);
+        childActivitiesBatch
+          .set(subscriptionActivityRef, adminActivityData);
+        childActivitiesBatch
+          .set(subscriptionAddendumRef, subscriptionAddendumData);
+        childActivitiesBatch
+          .set(adminAddendumRef, adminAddendumData);
+        childActivitiesBatch
+          .set(adminActivityRef, subscriptionActivityData);
 
-        childActivitiesBatch.set(adminActivityRef.collection('Assignees').doc(phoneNumber), {
-          canEdit: true,
-          addToInclude: true,
-        });
+        childActivitiesBatch
+          .set(adminActivityRef
+            .collection('Assignees')
+            .doc(phoneNumber), {
+              canEdit: true,
+              addToInclude: true,
+            });
 
-        childActivitiesBatch.set(subscriptionActivityRef.collection('Assignees').doc(phoneNumber), {
-          canEdit: true,
-          addToInclude: false,
-        });
+        childActivitiesBatch
+          .set(subscriptionActivityRef
+            .collection('Assignees')
+            .doc(phoneNumber), {
+              canEdit: true,
+              addToInclude: false,
+            });
 
         totalDocsCreated += 6;
         batchDocsCount += 6;
@@ -523,15 +561,21 @@ const createObjects = (conn, locals, trialRun) => {
             totalDocsCreated += 2;
             batchDocsCount += 2;
 
-            childActivitiesBatch.set(adminActivityRef.collection('Assignees').doc(number), {
-              canEdit: true,
-              addToInclude: true,
-            });
+            childActivitiesBatch
+              .set(adminActivityRef
+                .collection('Assignees')
+                .doc(number), {
+                  canEdit: true,
+                  addToInclude: true,
+                });
 
-            childActivitiesBatch.set(subscriptionActivityRef.collection('Assignees').doc(number), {
-              canEdit: true,
-              addToInclude: true,
-            });
+            childActivitiesBatch
+              .set(subscriptionActivityRef
+                .collection('Assignees')
+                .doc(number), {
+                  canEdit: true,
+                  addToInclude: true,
+                });
           });
       });
     }
@@ -608,7 +652,7 @@ const handleEmployees = (conn, locals) => {
         .offices
         .doc(locals.officeDoc.id)
         .collection('Activities')
-        .where('template', '==', 'employee')
+        .where('template', '==', templateNamesObject.EMPLOYEE)
         .where('attachment.Employee Contact.value', '==', item.phoneNumber)
         .where('attachment.Name.value', '==', item.name)
         // The `statusOnCreate` is most probably `CONFIRMED` in most cases.
@@ -712,13 +756,17 @@ const handleUniqueness = (conn, locals) => {
         const nameOrNumber =
           doc.get('attachment.Name.value') || doc.get('attachment.Number.value');
         const index = indexMap.get(nameOrNumber);
-        const value = conn.req.body.data[index].Name || conn.req.body.data[index].Number;
+        const value =
+          conn.req.body.data[index].Name
+          || conn.req.body.data[index].Number;
 
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `${param} '${value}' is already in use`;
+        conn.req.body.data[index].reason =
+          `${param} '${value}' is already in use`;
 
         if (conn.req.body.template === 'office') {
-          conn.req.body.data[index].reason = `Office: '${value} already exists'`;
+          conn.req.body.data[index].reason =
+            `Office: '${value} already exists'`;
         }
       });
 
@@ -747,7 +795,7 @@ const handleSubscriptions = (conn, locals) => {
         .ref
         .collection('Activities')
         .where('status', '==', 'CONFIRMED')
-        .where('template', '==', 'subscription')
+        .where('template', '==', templateNamesObject.SUBSCRIPTION)
         .where('attachment.Subscriber.value', '==', phoneNumber)
         .where('attachment.Template.value', '==', template)
         .limit(1)
@@ -766,7 +814,8 @@ const handleSubscriptions = (conn, locals) => {
         const template = doc.get('attachment.Template.value');
 
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `${phoneNumber} already has '${template}'`;
+        conn.req.body.data[index].reason =
+          `${phoneNumber} already has '${template}'`;
       });
 
       return Promise.resolve();
@@ -781,19 +830,22 @@ const handleAdmins = (conn, locals) => {
     return Promise.resolve();
   }
 
-  locals.adminToCheck.forEach((phoneNumber) => {
-    promises.push(
-      locals
-        .officeDoc
-        .ref
-        .collection('Activities')
-        .where('template', '==', 'admin')
-        .where('attachment.Admin.value', '==', phoneNumber)
-        .where('status', '==', 'CONFIRMED')
-        .limit(1)
-        .get()
-    );
-  });
+  locals
+    .adminToCheck
+    .forEach((phoneNumber) => {
+      promises
+        .push(
+          locals
+            .officeDoc
+            .ref
+            .collection('Activities')
+            .where('template', '==', templateNamesObject.ADMIN)
+            .where('attachment.Admin.value', '==', phoneNumber)
+            .where('status', '==', 'CONFIRMED')
+            .limit(1)
+            .get()
+        );
+    });
 
   const adminsToReject = new Set();
 
@@ -819,7 +871,8 @@ const handleAdmins = (conn, locals) => {
 
         if (adminsToReject.has(phoneNumber)) {
           conn.req.body.data[index].rejected = true;
-          conn.req.body.data[index].reason = `${phoneNumber} is already an Admin`;
+          conn.req.body.data[index].reason =
+            `${phoneNumber} is already an Admin`;
         }
       });
 
@@ -874,12 +927,13 @@ const fetchValidTypes = (conn, locals) => {
         fields.forEach((field) => {
           const value = object[field];
 
+          /** Value could be an empty string */
           if (!value) return;
 
-          // console.log(value);
           if (nonExistingValuesSet.has(value)) {
             conn.req.body.data[index].rejected = true;
-            conn.req.body.data[index].reason = `${field} ${value} doesn't exist`;
+            conn.req.body.data[index].reason =
+              `${field} ${value} doesn't exist`;
           }
         });
       });
@@ -995,7 +1049,9 @@ const validateDataArray = (conn, locals) => {
     }
 
     if (checkName || checkNumber) {
-      const value = conn.req.body.data[index].Name || conn.req.body.data[index].Number;
+      const value =
+        conn.req.body.data[index].Name
+        || conn.req.body.data[index].Number;
 
       if (namesSet.has(value)) {
         duplicateRowIndex = index + 1;
@@ -1012,7 +1068,8 @@ const validateDataArray = (conn, locals) => {
 
       if (firstContact === secondContact) {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Both contacts cannot be the same or empty`;
+        conn.req.body.data[index].reason =
+          `Both contacts cannot be the same or empty`;
       }
 
       if (!firstContact && !secondContact) {
@@ -1040,7 +1097,8 @@ const validateDataArray = (conn, locals) => {
 
       if (alreadyExists) {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `${phoneNumber} is already an employee`;
+        conn.req.body.data[index].reason =
+          `${phoneNumber} is already an employee`;
       }
     }
 
@@ -1061,12 +1119,14 @@ const validateDataArray = (conn, locals) => {
       /** Subscription of template office and subscription is not allowed for everyone */
       if (template === 'office' || template === 'subscription') {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Subscription of template: '${template}' is not allowed`;
+        conn.req.body.data[index].reason =
+          `Subscription of template: '${template}' is not allowed`;
       }
 
       if (!locals.templateNamesSet.has(template)) {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Template: '${template} does not exist'`;
+        conn.req.body.data[index].reason =
+          `Template: '${template} does not exist'`;
       }
 
       if (subscriptionsMap.has(phoneNumber)) {
@@ -1283,8 +1343,14 @@ const validateDataArray = (conn, locals) => {
   conn.req.body.data.forEach((_, index) => {
     if (!assigneesFromAttachment.has(index)
       && conn.req.body.data[index].share.length === 0
+      /**
+       * If the object has already been rejected for some reason,
+       * it's assigneesFromAttachment map will most probably be empty.
+       * In that case, the rejection message will show 'No assignees found'
+       * even if the rejection was because of some other issue in 
+       * the object.
+       */
       && !conn.req.body.data[index].rejected) {
-      // If is already rejected, the response will needlessly show 'Not assignees found'
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `No assignees found`;
     }

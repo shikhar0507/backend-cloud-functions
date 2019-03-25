@@ -143,7 +143,6 @@ const getActivityObject = (doc) => {
     creator: getCreator(doc.get('creator')),
     hidden: doc.get('hidden'),
     assignees: getAssigneesArray(doc.get('assignees')),
-    // assignees: doc.get('assignees'),
   };
 
   return singleDoc;

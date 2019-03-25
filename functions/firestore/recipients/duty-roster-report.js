@@ -102,7 +102,8 @@ const activitiesDueTodaySheet = (params) => {
       return createdBy;
     })();
 
-    const reportingTime = `${reportingTimeStartTimestamp} - ${reportingTimeEndTimestamp}`;
+    const reportingTime =
+      `${reportingTimeStartTimestamp} - ${reportingTimeEndTimestamp}`;
 
     sheet2
       .cell(`A${columnIndex}`)
@@ -141,7 +142,13 @@ const activitiesDueTodaySheet = (params) => {
 };
 
 const activitiesCreatedYesterdaySheet = (params) => {
-  const { worksheet, createdYesterday, locals, assigneesArrayMap, timezone } = params;
+  const {
+    worksheet,
+    createdYesterday,
+    locals,
+    assigneesArrayMap,
+    timezone,
+  } = params;
 
   if (!locals.sendMail || createdYesterday.empty) {
     return Promise.resolve(params);

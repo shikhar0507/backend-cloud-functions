@@ -43,7 +43,6 @@ const momentTz = require('moment-timezone');
 const fs = require('fs');
 
 
-
 const handleSheetTwo = (params) => {
   const {
     worksheet,
@@ -79,6 +78,9 @@ const handleSheetTwo = (params) => {
     'Customer',
     'First Contact',
     'Second Contact',
+    'Locality',
+    'City',
+    'State',
     'Address',
     'Actual Location',
     'Status',
@@ -122,6 +124,9 @@ const handleSheetTwo = (params) => {
         followUpEndTimestamp,
         closureStartTimestamp,
         followUpStartTimestamp,
+        locality,
+        city,
+        state,
       } = followUpObject[phoneNumber][id];
 
       const date = dateStringWithOffset({
@@ -181,37 +186,43 @@ const handleSheetTwo = (params) => {
       sheet2.cell(`D${columnIndex}`).value(customer);
       sheet2.cell(`E${columnIndex}`).value(firstContact);
       sheet2.cell(`F${columnIndex}`).value(secondContact);
+      sheet2.cell(`G${columnIndex}`).value(locality);
+      sheet2.cell(`I${columnIndex}`).value(city);
+      sheet2.cell(`J${columnIndex}`).value(state);
 
       if (customer && customersData[customer]) {
         sheet2
-          .cell(`G${columnIndex}`)
+          .cell(`K${columnIndex}`)
           .value(customersData[customer].identifier)
           .style({ fontColor: '0563C1', underline: true })
           .hyperlink(customersData[customer].url);
       } else {
         sheet2
-          .cell(`G${columnIndex}`)
+          .cell(`K${columnIndex}`)
           .value('');
       }
+
+      console.log('actualLocation', actualLocation);
+
       sheet2
-        .cell(`H${columnIndex}`)
+        .cell(`L${columnIndex}`)
         .value(actualLocation.identifier)
         .style({ fontColor: '0563C1', underline: true })
         .hyperlink(actualLocation.url);
-      sheet2.cell(`I${columnIndex}`).value(status);
-      sheet2.cell(`J${columnIndex}`).value(purpose);
-      sheet2.cell(`K${columnIndex}`).value(startTime);
-      sheet2.cell(`L${columnIndex}`).value(endTime);
-      sheet2.cell(`M${columnIndex}`).value(product1);
-      sheet2.cell(`N${columnIndex}`).value(product2);
-      sheet2.cell(`O${columnIndex}`).value(product3);
-      sheet2.cell(`P${columnIndex}`)
+      sheet2.cell(`M${columnIndex}`).value(status);
+      sheet2.cell(`N${columnIndex}`).value(purpose);
+      sheet2.cell(`O${columnIndex}`).value(startTime);
+      sheet2.cell(`P${columnIndex}`).value(endTime);
+      sheet2.cell(`Q${columnIndex}`).value(product1);
+      sheet2.cell(`R${columnIndex}`).value(product2);
+      sheet2.cell(`S${columnIndex}`).value(product3);
+      sheet2.cell(`T${columnIndex}`)
         .value(`${visitDateStart} - ${visitDateEnd}`);
-      sheet2.cell(`Q${columnIndex}`).value(comment);
-      sheet2.cell(`R${columnIndex}`).value(department);
-      sheet2.cell(`S${columnIndex}`).value(baseLocation);
-      sheet2.cell(`T${columnIndex}`).value(firstSupervisor);
-      sheet2.cell(`U${columnIndex}`).value(secondSupervisor);
+      sheet2.cell(`U${columnIndex}`).value(comment);
+      sheet2.cell(`V${columnIndex}`).value(department);
+      sheet2.cell(`W${columnIndex}`).value(baseLocation);
+      sheet2.cell(`X${columnIndex}`).value(firstSupervisor);
+      sheet2.cell(`Y${columnIndex}`).value(secondSupervisor);
     });
   });
 
@@ -229,10 +240,6 @@ const handleSheetOne = (params) => {
     employeesData,
     timezone,
   } = params;
-
-  if (yesterdayInitsQuery.empty) {
-    return Promise.resolve(params);
-  }
 
   if (yesterdayInitsQuery.empty) {
     return Promise.resolve(params);
@@ -259,6 +266,9 @@ const handleSheetOne = (params) => {
     'Customer Location',
     'First Contact',
     'Second Contact',
+    'Locality',
+    'City',
+    'State',
     'Address',
     'Actual Location',
     'Status',
@@ -287,7 +297,8 @@ const handleSheetOne = (params) => {
       const {
         status,
         comment,
-        customer, // customer name
+        // Customer's name
+        customer,
         firstContact,
         followUpEndTimestamp,
         followUpStartTimestamp,
@@ -299,6 +310,9 @@ const handleSheetOne = (params) => {
         visitEndTimestamp,
         visitStartTimestamp,
         actualLocation,
+        locality,
+        city,
+        state,
       } = visitObject[phoneNumber][activityId];
 
       const columnIndex = index + 2;
@@ -352,27 +366,34 @@ const handleSheetOne = (params) => {
       sheet1.cell(`C${columnIndex}`).value(customerLocation);
       sheet1.cell(`D${columnIndex}`).value(firstContact);
       sheet1.cell(`E${columnIndex}`).value(secondContact);
+      sheet1.cell(`F${columnIndex}`).value(locality);
+      sheet1.cell(`G${columnIndex}`).value(city);
+      sheet1.cell(`H${columnIndex}`).value(state);
       sheet1
-        .cell(`F${columnIndex}`)
+        .cell(`I${columnIndex}`)
         .value(customerLocation)
         .style({ fontColor: '0563C1', underline: true })
         .hyperlink(url);
-      sheet1.cell(`G${columnIndex}`).value(actualLocation);
-      sheet1.cell(`H${columnIndex}`).value(status);
-      sheet1.cell(`I${columnIndex}`).value(purpose);
-      sheet1.cell(`J${columnIndex}`).value(startTime);
-      sheet1.cell(`K${columnIndex}`).value(endTime);
-      sheet1.cell(`L${columnIndex}`).value(product1);
-      sheet1.cell(`M${columnIndex}`).value(product2);
-      sheet1.cell(`N${columnIndex}`).value(product3);
       sheet1
-        .cell(`O${columnIndex}`)
+        .cell(`J${columnIndex}`)
+        .value(actualLocation.identifier)
+        .style({ fontColor: '0563C1', underline: true })
+        .hyperlink(actualLocation.url);
+      sheet1.cell(`K${columnIndex}`).value(status);
+      sheet1.cell(`L${columnIndex}`).value(purpose);
+      sheet1.cell(`M${columnIndex}`).value(startTime);
+      sheet1.cell(`N${columnIndex}`).value(endTime);
+      sheet1.cell(`O${columnIndex}`).value(product1);
+      sheet1.cell(`P${columnIndex}`).value(product2);
+      sheet1.cell(`Q${columnIndex}`).value(product3);
+      sheet1
+        .cell(`R${columnIndex}`)
         .value(`${followUpDateStart} - ${followUpDateEnd}`);
-      sheet1.cell(`P${columnIndex}`).value(comment);
-      sheet1.cell(`Q${columnIndex}`).value(department);
-      sheet1.cell(`R${columnIndex}`).value(baseLocation);
-      sheet1.cell(`S${columnIndex}`).value(firstSupervisor);
-      sheet1.cell(`T${columnIndex}`).value(secondSupervisor);
+      sheet1.cell(`S${columnIndex}`).value(comment);
+      sheet1.cell(`T${columnIndex}`).value(department);
+      sheet1.cell(`U${columnIndex}`).value(baseLocation);
+      sheet1.cell(`V${columnIndex}`).value(firstSupervisor);
+      sheet1.cell(`W${columnIndex}`).value(secondSupervisor);
     });
   });
 
@@ -381,14 +402,17 @@ const handleSheetOne = (params) => {
   return params;
 };
 
-
 module.exports = (locals) => {
   const office = locals.officeDoc.get('office');
   const employeesData = locals.officeDoc.get('employeesData');
   const todayFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const momentDateObjectToday = momentTz(todayFromTimer).tz(timezone).startOf('day');
-  const momentDateObjectYesterday = momentTz(todayFromTimer).subtract(1, 'day').tz(timezone).startOf('day');
+  const momentDateObjectYesterday =
+    momentTz(todayFromTimer)
+      .subtract(1, 'day')
+      .tz(timezone)
+      .startOf('day');
   const standardDateString = momentDateObjectToday.format(dateFormats.DATE);
   const fileName = `DSR_${office}_${standardDateString}.xlsx`;
   const customersData = locals.officeDoc.get('customersData');

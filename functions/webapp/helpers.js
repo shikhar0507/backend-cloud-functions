@@ -76,7 +76,7 @@ const homePage = (conn) => {
   return conn.res.send(result);
 };
 
-const downloadAppPage = (conn, locals) => {
+const downloadAppPage = (conn) => {
   const context = {};
   const source = templates.downloadPageSource();
   const template = handlebars.compile(source, { strict: true });
@@ -85,7 +85,7 @@ const downloadAppPage = (conn, locals) => {
   return conn.res.send(result);
 };
 
-const pageNotFound = (conn, locals) => {
+const pageNotFound = (conn) => {
   const context = {};
   // const source = templates.pageNotFoundSource();
   const source = `<h1>Not found<h1>`;
@@ -95,7 +95,7 @@ const pageNotFound = (conn, locals) => {
   return conn.res.status(code.notFound).send(result);
 };
 
-const joinPage = (conn, locals) => {
+const joinPage = (conn) => {
   const context = {
     timezones: Array.from(timezonesSet),
   };

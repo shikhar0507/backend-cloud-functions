@@ -139,7 +139,10 @@ module.exports = (conn) => {
           updatesDocData.deviceIdsObject[conn.req.query.deviceId] = {};
         }
 
-        const oldCount = updatesDocData.deviceIdsObject[conn.req.query.deviceId].count || 0;
+        const oldCount =
+          updatesDocData
+            .deviceIdsObject[conn.req.query.deviceId]
+            .count || 0;
 
         updatesDocData.deviceIdsObject = {
           [conn.req.query.deviceId]: {
@@ -161,7 +164,10 @@ module.exports = (conn) => {
         removeFromOffice = updatesDocData.removeFromOffice;
 
         if (typeof conn.req.query.removeFromOffice === 'string') {
-          const index = updatesDocData.removeFromOffice.indexOf(conn.req.query.removeFromOffice);
+          const index =
+            updatesDocData
+              .removeFromOffice
+              .indexOf(conn.req.query.removeFromOffice);
 
           if (index > -1) {
             updatesDocData.removeFromOffice.splice(index, 1);

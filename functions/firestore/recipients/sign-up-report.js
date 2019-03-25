@@ -113,8 +113,14 @@ module.exports = (locals) => {
         const department = employeeDataObject.department;
         const firstSupervisorPhoneNumber = employeeDataObject.firstSupervisor;
         const secondSupervisorPhoneNumber = employeeDataObject.secondSupervisor;
-        const firstSupervisor = employeeInfo(employeesData, firstSupervisorPhoneNumber);
-        const secondSupervisor = employeeInfo(employeesData, secondSupervisorPhoneNumber);
+        const firstSupervisor = employeeInfo(
+          employeesData,
+          firstSupervisorPhoneNumber
+        );
+        const secondSupervisor = employeeInfo(
+          employeesData,
+          secondSupervisorPhoneNumber
+        );
         const signedUpOn = dateStringWithOffset({
           timezone: locals.timezone,
           timestampToConvert: employeesObject[phoneNumber].signedUpOn,

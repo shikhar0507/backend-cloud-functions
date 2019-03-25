@@ -344,7 +344,9 @@ const handleLeaveOrOnDuty = (conn, locals) => {
 
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
 
-  if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
+  if (leavesTakenThisTime
+    + locals.leavesTakenThisYear
+    > locals.maxLeavesAllowed) {
     console.log({
       'maxLeavesAllowed': locals.maxLeavesAllowed,
       'leavesTaken': leavesTakenThisTime,
@@ -385,7 +387,9 @@ const handleLeaveOrOnDuty = (conn, locals) => {
 
   docMeta.push({ month: oldMonthValue, year: oldYearValue });
 
-  for (let iter = startTimeUnix; iter <= endTimeUnix; iter += NUM_MILLI_SECS_IN_A_DAY) {
+  for (let iter = startTimeUnix;
+    iter <= endTimeUnix;
+    iter += NUM_MILLI_SECS_IN_A_DAY) {
     const newMoment = momentTz(iter);
     const newDateValue = newMoment.date();
     const newMonthValue = newMoment.month();
@@ -494,7 +498,8 @@ const handleLeaveOrOnDuty = (conn, locals) => {
           .statusOnCreate = 'CANCELLED';
         locals
           .cancellationMessage =
-          `${conn.req.body.template.toUpperCase()} conflict with ${conflictsWith}`;
+          `${conn.req.body.template.toUpperCase()}`
+          + ` conflict with ${conflictsWith}`;
       }
 
       console.log({ toCancel });

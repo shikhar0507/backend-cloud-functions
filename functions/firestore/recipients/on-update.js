@@ -267,7 +267,9 @@ module.exports = (change) => {
         if (!registrationToken) return;
 
         const message = (() => {
-          const part = `You have been added as a recipient for the report ${report} on Growthfile`;
+          const part =
+            `You have been added as a recipient for the`
+            + ` report ${report} on Growthfile`;
 
           if (withNoEmail.has(doc.id)) {
             return `${part}. Please set your email to receice reports`;

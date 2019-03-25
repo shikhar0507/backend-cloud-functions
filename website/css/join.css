@@ -2,8 +2,6 @@ header {
     z-index: 5;
 }
 
-main {}
-
 main h1 {
     text-align: center;
     color: #576871;
@@ -34,9 +32,6 @@ form {
 }
 
 @media (max-width: 450px) {
-    form {
-        /* padding: 0; */
-    }
     .pad-after-header {
         height: 85px;
     }

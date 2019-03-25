@@ -25,57 +25,14 @@
 'use strict';
 
 
-const { rootCollections, db } = require('../admin/admin');
-const { reportingActions } = require('../admin/constants');
-
 /**
- * Sets the `uid` and `phoneNumber` fields of the user being deleted to
- * `null` inside the Updates and Profiles collection respectively.
  *
  * @param {Object} userRecord Object with user info.
  * @returns {Promise <Object>} Batch object.
  */
 module.exports = (userRecord) => {
-  //   const { uid, phoneNumber } = userRecord;
-
-  //   const batch = db.batch();
-
-  //   batch.set(rootCollections
-  //     .profiles
-  //     .doc(phoneNumber), {
-  //       uid: null,
-  //     }, {
-  //       merge: true,
-  //     });
-
-  //   batch.set(rootCollections
-  //     .updates
-  //     .doc(uid), {
-  //       phoneNumber: null,
-  //     }, {
-  //       merge: true,
-  //     });
-
-  //   const subject = `Auth deleted of the user: ${phoneNumber}`;
-  //   const messageBody = `
-  //     The user: ${phoneNumber} auth has has been deleted.
-
-  //     <h3>User Record</h3>
-  //     <pre>
-  // ${JSON.stringify(userRecord, ' ', 2)}
-  //     </pre>`;
-
-  //   batch.set(rootCollections
-  //     .instant
-  //     .doc(), {
-  //       action: reportingActions.authDeleted,
-  //       subject,
-  //       messageBody,
-  //     });
-
-  //   return batch
-  //     .commit()
-  //     .catch(console.error);
-
-  return Promise.resolve();
+  return Promise
+    .resolve(userRecord)
+    .then(console.log)
+    .catch(console.error);
 };

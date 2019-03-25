@@ -19,8 +19,6 @@ h2 {
     line-height: 2.2em;
 }
 
-.banner h2 {}
-
 .banner {
     text-align: center;
 }
@@ -55,16 +53,11 @@ h2 {
     #logo {
         line-height: 0.2em;
     }
-    #logo img {
-        /* display: none; */
-    }
     #logo span {
-        /* display: block; */
         display: none;
     }
     .header-section-start {
         padding-left: unset;
-        /* margin-top: 0.8em; */
     }
     .hero {
         padding-top: 6.2em;

@@ -34,7 +34,6 @@ const {
 } = require('../../admin/constants');
 const {
   employeeInfo,
-  momentOffsetObject,
   alphabetsArray,
   dateStringWithOffset,
 } = require('./report-utils');

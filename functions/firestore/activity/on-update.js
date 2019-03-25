@@ -34,7 +34,6 @@ const {
   rootCollections,
   getGeopointObject,
   db,
-  deleteField,
 } = require('../../admin/admin');
 const {
   toCustomerObject,
@@ -145,11 +144,13 @@ const updateDocsWithBatch = (conn, locals) => {
     });
 
   if (locals.docs.activity.get('template') !== 'customer') {
-    return locals
+    locals
       .batch
       .commit()
       .then(() => sendResponse(conn, code.noContent))
       .catch((error) => handleError(conn, error));
+
+    return;
   }
 
   rootCollections

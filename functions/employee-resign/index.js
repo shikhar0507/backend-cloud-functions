@@ -10,7 +10,6 @@ const {
   handleError,
   isNonEmptyString,
   hasAdminClaims,
-  hasSupportClaims,
 } = require('../admin/utils');
 const {
   code,
@@ -139,7 +138,11 @@ module.exports = (conn) => {
 
   if (!conn.requester.isSupportRequest) {
     if (!hasAdminClaims(conn.requester.customClaims)) {
-      sendResponse(conn, code.forbidden, `You are not allowed to access this resource`);
+      return sendResponse(
+        conn,
+        code.forbidden,
+        `You are not allowed to access this resource`
+      );
     }
   }
 

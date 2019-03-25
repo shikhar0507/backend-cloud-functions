@@ -27,7 +27,6 @@
 
 const {
   rootCollections,
-  users,
   auth,
   db,
 } = require('../admin/admin');
@@ -474,6 +473,7 @@ const checkAuthorizationToken = (conn) => {
     .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => handleRejections(conn, error));
 };
+
 
 /**
  * Handles the routing for the request from the clients.

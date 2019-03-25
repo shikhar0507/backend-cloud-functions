@@ -44,10 +44,16 @@ module.exports = (locals) => {
   const office = locals.officeDoc.get('office');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const employeesData = locals.officeDoc.get('employeesData') || {};
-  const standardDateString = momentTz(todayFromTimer).tz(timezone).format(dateFormats.DATE);
+  const standardDateString =
+    momentTz(todayFromTimer)
+      .tz(timezone)
+      .format(dateFormats.DATE);
   const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
-  const dated = momentTz(todayFromTimer).tz(timezone).subtract(1, 'day').format(dateFormats.DATE);
+  const dated = momentTz(todayFromTimer)
+    .tz(timezone)
+    .subtract(1, 'day')
+    .format(dateFormats.DATE);
   const offsetObjectYesterday = momentTz(todayFromTimer).tz(timezone).subtract(1, 'day');
 
   locals.messageObject['dynamic_template_data'] = {

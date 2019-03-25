@@ -104,7 +104,10 @@ module.exports = (locals) => {
   const yesterdayEndTimestamp = yesterday.endOf('day').unix() * 1000;
   const employeesData = locals.officeDoc.get('employeesData') || {};
   const employeesPhoneNumberList = Object.keys(employeesData);
-  const standardDateString = momentTz(todayFromTimestamp).tz(timezone).format(dateFormats.DATE);
+  const standardDateString =
+    momentTz(todayFromTimestamp)
+      .tz(timezone)
+      .format(dateFormats.DATE);
 
   console.log('office', locals.officeDoc.get('office'));
   console.log('locals.createOnlyData', locals.createOnlyData);
@@ -412,7 +415,8 @@ module.exports = (locals) => {
           .unix() * 1000;
 
         /** Person created only 1 `check-in`. */
-        if (firstCheckInTimestamp === lastCheckInTimestamp || checkInDiff <= FOUR_HOURS) {
+        if (firstCheckInTimestamp === lastCheckInTimestamp
+          || checkInDiff <= FOUR_HOURS) {
           locals
             .payrollObject[phoneNumber][yesterdayDate].status = 'BLANK';
           countsObject[phoneNumber].blank++;
