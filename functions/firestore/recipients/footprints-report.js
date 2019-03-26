@@ -133,7 +133,7 @@ module.exports = (locals) => {
         const commentFromAttachment = doc.get('activityData.attachment.Comment.value') || '';
         const employeeCode = employeeObject.employeeCode;
         const distanceTravelled = (() => {
-          let value = doc.get('distanceTravelled');
+          let value = Number(doc.get('distanceTravelled') || 0);
 
           if (distanceMap.has(phoneNumber)) {
             value += distanceMap.get(phoneNumber);
@@ -146,7 +146,7 @@ module.exports = (locals) => {
           // it will always add only the last updated value on each iteration.
           distanceMap.set(phoneNumber, value);
 
-          return value;
+          return value.toFixed(2);
         })();
 
         const comment = (() => {

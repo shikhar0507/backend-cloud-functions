@@ -263,6 +263,12 @@ const getCommentString = (locals, recipient) => {
 };
 
 const handleAdmin = (locals) => {
+  const template = locals.change.after.get('template');
+
+  if (template !== 'admin') {
+    return Promise.resolve();
+  }
+
   const phoneNumber = locals.change.after.get('attachment.Admin.value');
   const status = locals.change.after.get('status');
   const office = locals.change.after.get('office');
@@ -333,6 +339,12 @@ const handleAdmin = (locals) => {
 
 
 const handleRecipient = (locals) => {
+  const template = locals.change.after.get('template');
+
+  if (template !== 'recipient') {
+    return Promise.resolve();
+  }
+
   const batch = db.batch();
 
   const recipientsDocRef =
@@ -401,7 +413,7 @@ const handleAutoAssign = (locals) => {
     const {
       value,
       type,
-    } = field;
+    } = attachment[field];
 
     if (validTypes.has(type)) {
       return;
@@ -599,6 +611,12 @@ const handleCanEditRule = (locals, templateDoc) => {
 };
 
 const handleSubscription = (locals) => {
+  const template = locals.change.after.get('template');
+
+  if (template !== 'subscription') {
+    return Promise.resolve();
+  }
+
   const batch = db.batch();
   const templateName = locals.change.after.get('attachment.Template.value');
   const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
@@ -819,6 +837,12 @@ const removeFromOfficeActivities = (locals) => {
 };
 
 const handleEmployee = (locals) => {
+  const template = locals.change.after.get('template');
+
+  if (template !== 'employee') {
+    return Promise.resolve();
+  }
+
   const activityDoc = locals.change.after.data();
   activityDoc.id = locals.change.after.id;
   const office = activityDoc.office;
@@ -1181,25 +1205,10 @@ module.exports = (change, context) => {
 
       return batch.commit();
     })
-    .then(() => {
-      if (template === 'subscription') {
-        return handleSubscription(locals);
-      }
-
-      if (template === 'recipient') {
-        return handleRecipient(locals);
-      }
-
-      if (template === 'admin') {
-        return handleAdmin(locals);
-      }
-
-      if (template === 'employee') {
-        return handleEmployee(locals);
-      }
-
-      return Promise.resolve();
-    })
+    .then(() => handleSubscription(locals))
+    .then(() => handleRecipient(locals))
+    .then(() => handleAdmin(locals))
+    .then(() => handleEmployee(locals))
     .catch((error) => {
       console.error({
         error,

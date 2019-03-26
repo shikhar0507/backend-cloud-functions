@@ -113,8 +113,8 @@ const commitBatch = (conn, batch) => {
     .catch((error) => handleError(conn, error));
 };
 
-const deleteAuth = (oldPhoneNumber) => {
-  return users
+const deleteAuth = (oldPhoneNumber) =>
+  users
     .getUserByPhoneNumber(oldPhoneNumber)
     .then((result) => result[oldPhoneNumber])
     .then((userRecord) => {
@@ -124,7 +124,6 @@ const deleteAuth = (oldPhoneNumber) => {
 
       return auth.deleteUser(userRecord.uid);
     });
-};
 
 
 const deleteAddendum = (conn, locals) => {
@@ -226,10 +225,20 @@ const updateActivities = (conn, locals) => {
 
           locals.activityIdsSet.add(activityId);
 
+          // if (template === 'subscription') {
+          //   const Template = doc.get('attachment.Template.value');
+
+          //   if (locals.newPhoneNumberSubscriptionsSet.has(Template)) {
+          //     // Do nothing because the new phone already has the subscription
+          //     // Not transferring the subscription from old to the new number
+          //     // since that would give 2 or more subcriptions to the new
+          //     // phone number.
+          //     return;
+          //   }
+          // }
+
           if (phoneNumberInAttachment.found) {
             const { fieldName } = phoneNumberInAttachment;
-
-            console.log({ fieldName });
 
             attachmentObject[
               fieldName
@@ -403,6 +412,11 @@ const checkForEmployee = (conn, locals) => {
         .where('phoneNumber', '==', conn.req.body.oldPhoneNumber)
         .limit(1)
         .get(),
+      rootCollections
+        .profiles
+        .doc(conn.req.body.newPhoneNumber)
+        .collection('Subscriptions')
+        .get(),
     ])
     .then((result) => {
       const [
@@ -411,6 +425,7 @@ const checkForEmployee = (conn, locals) => {
         oldUserProfile,
         newUserProfile,
         oldPhoneNumberUpdatesDocsQuery,
+        newPhoneNumberSubscriptionsQuery,
       ] = result;
 
       if (oldPhoneNumberQuery.empty) {
@@ -487,6 +502,14 @@ const checkForEmployee = (conn, locals) => {
       officeDocData.employeesData = employeesData;
 
       locals.batch.set(locals.officeDoc.ref, officeDocData);
+
+      locals.newPhoneNumberSubscriptionsSet = new Set();
+
+      newPhoneNumberSubscriptionsQuery.forEach((doc) => {
+        const template = doc.get('attachment.Template.value');
+
+        locals.newPhoneNumberSubscriptionsSet.add(template);
+      });
 
       return checkForAdmin(conn, locals);
     })
