@@ -229,7 +229,6 @@ const getEmployeeObject = (options) => {
   return object;
 };
 
-
 const handleAddedToOffice = (change, options) => {
   const {
     phoneNumber,

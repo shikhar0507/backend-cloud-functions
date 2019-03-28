@@ -246,6 +246,7 @@ section p span {
         -webkit-transform: translate3d(-50%, -50%, 0) rotate(0deg);
         transform: translate3d(-50%, -50%, 0) rotate(0deg);
     }
+
     100% {
         -webkit-transform: translate3d(-50%, -50%, 0) rotate(360deg);
         transform: translate3d(-50%, -50%, 0) rotate(360deg);
@@ -257,6 +258,7 @@ section p span {
         -webkit-transform: translate3d(-50%, -50%, 0) rotate(0deg);
         transform: translate3d(-50%, -50%, 0) rotate(0deg);
     }
+
     100% {
         -webkit-transform: translate3d(-50%, -50%, 0) rotate(360deg);
         transform: translate3d(-50%, -50%, 0) rotate(360deg);
@@ -290,110 +292,152 @@ section p span {
     will-change: transform;
 }
 
+.pico-product-details h2 {
+    font-size: 32px;
+    margin-bottom: 20px;
+}
+
+.pico-product-details img {
+    margin-bottom: 20px;
+}
+
+.pico-product-details p {
+    font-size: 20px;
+    margin-bottom: 20px;
+}
+
 @media (max-width: 450px) {
     main {
         flex-direction: column;
     }
+
     main,
     section {
         max-width: 100%;
         margin: 0;
     }
+
     section h2 {
         /* font-size: 2.9em; */
         margin-bottom: 25px;
     }
+
     .pad {
         padding: 0px 10px;
     }
+
     .content>h1 {
         font-size: 1.8em;
         margin-bottom: 25px;
         color: #525f7f;
     }
+
     .youtube {
         /* margin: 0; */
     }
+
     header {
         /* display: block; */
     }
+
     header section {
         margin: unset;
     }
+
     .header-links {
         /* display: none; */
         line-height: 3.2em;
     }
+
     .header-links a {
         padding: unset;
         font-size: 16px;
     }
+
     .header-links a i {
         font-size: 20px;
         margin-right: 12px;
     }
+
     .header-links a span {
         display: none;
     }
+
     .header-section-start {
         padding-left: 0px;
     }
+
     .youtube>iframe {
         height: 250px;
     }
+
     .branch-section {
         padding: 10px 20px;
         margin-bottom: 20px;
         border-radius: 0%;
         margin-top: 20px;
     }
+
     .box {
         flex-direction: column-reverse;
         height: 500px;
     }
+
     .branch-list-container {
         margin-right: 0px;
     }
+
     .products-container {
         flex-wrap: wrap;
         justify-content: space-between;
         flex-direction: column;
     }
+
     #map {
         flex: 1;
     }
+
     .product-image {
         width: 80px;
         height: 80px;
         border-radius: 50%;
     }
+
     .product-details-container {}
+
     .enquiry-section {
         display: block;
     }
+
     .enquiry-section form {
         padding: 10px 20px;
         max-width: 90%;
         text-align: center;
     }
+
     form p {
         line-height: 1.4em;
     }
+
     .toast {
         margin-bottom: 44px;
         left: unset;
     }
+
     .pico-product-details {}
+
     .pico-product-details img {
         width: 200px;
         height: 200px;
         border: 1px solid lightgray;
         margin: 10px 0px;
     }
+
     .pico-product-details h2 {
         font-weight: 800;
         font-size: 2.2em;
     }
+
     .pico-product-details p {
         padding: 10px 0px;
     }

@@ -1,9 +1,5 @@
 function sendRequest(requestBody) {
-  const requestBody = {
-
-  };
-
-  const requestUrl = 'https://api2.growthfile.com/api/activities/create';
+  const requestUrl = 'https://api2.growthfile.com/api/activities/createOffice';
 
   const init = {
     method: 'POST',

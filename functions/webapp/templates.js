@@ -290,25 +290,25 @@ ${headerHtml}
   <main class="container">
   <h1>Join Growthfile</h1>
   <div class="form-container">
-    <form class="pure-form pure-form-aligned">
+    <form id="form" class="pure-form pure-form-aligned">
       <fieldset class="form-step-1">
           <div class="pure-control-group">
-            <label for="officeName">Office Name *</label>
+            <label for="officeName">Office Name <span class="required">*</span></label>
             <input id="officeName" type="text" placeholder="Acme Corporation" required>
           </div>
 
           <div class="pure-control-group">
-            <label for="email">Your Email *</label>
+            <label for="email">Your Email <span class="required">*</span></label>
             <input id="email" type="email" placeholder="john.doe@example.com" required>
           </div>
           
           <div class="pure-control-group">
-            <label for="phoneNumber">Your Contact *</label>
+            <label for="phoneNumber">Your Contact <span class="required">*</span></label>
             <input id="phoneNumber" type="tel" placeholder="+1234567890" required>
           </div>
 
           <div class="pure-control-group">
-            <label for="adminPhoneNumber">Admin Contact  </label>
+            <label for="adminPhoneNumber">Admin Contact </label>
             <input id="adminPhoneNumber" type="tel" placeholder="+1234567890">
           </div>
 
@@ -336,7 +336,7 @@ ${headerHtml}
           </label>
 
           <div id="other-person-phone-container" class="pure-control-group hidden">
-            <label for="otherPersonPhoneNumber">Contact *</label>
+            <label for="otherPersonPhoneNumber">Contact <span class="required">*</span></label>
             <input id="otherPersonPhoneNumber" type="tel" placeholder="+1234567890">
           </div>
 

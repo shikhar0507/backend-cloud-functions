@@ -26,17 +26,353 @@
 
 
 const {
+  rootCollections,
+} = require('../../admin/admin');
+const {
   dateFormats,
   httpsActions,
   reportNames,
 } = require('../../admin/constants');
 const {
-  timeStringWithOffset,
   employeeInfo,
+  alphabetsArray,
+  dateStringWithOffset,
+  timeStringWithOffset,
 } = require('./report-utils');
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 const fs = require('fs');
+
+
+const handleInstallReport = (locals) => {
+  const employeesData = locals.officeDoc.get('employeesData');
+  const timestampFromTimer = locals.change.after.get('timestamp');
+  const office = locals.officeDoc.get('office');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentWithOffsetToday = momentTz(timestampFromTimer).tz(timezone);
+  const standardDateString = momentWithOffsetToday.format(dateFormats.DATE);
+  const momentWithOffsetYesterday = momentTz(timestampFromTimer)
+    .subtract(1, 'day')
+    .tz(timezone);
+
+  locals.messageObject['dynamic_template_data'] = {
+    office,
+    date: standardDateString,
+    subject: `Install Report_${office}_${standardDateString}`,
+  };
+
+  // key -> deviceId
+  // value -> array of users
+  const deviceUsers = new Map();
+  const latestDeviceIdsMap = new Map();
+  const multipleInstallsMap = new Map();
+  let installsListAttachmentHeader = 'Install Date and Time\n\n';
+  const yesterdaysStartTime = momentTz()
+    .utc()
+    .subtract(1, 'days')
+    .startOf('day')
+    .unix() * 1000;
+
+  return rootCollections
+    .inits
+    .where('office', '==', office)
+    .where('report', '==', reportNames.INSTALL)
+    .where('date', '==', momentWithOffsetYesterday.date())
+    .where('month', '==', momentWithOffsetYesterday.month())
+    .where('year', '==', momentWithOffsetYesterday.year())
+    .get()
+    .then((initDocsQuery) => {
+      if (initDocsQuery.empty) {
+        /** No report to be sent since no one installed yesterday. */
+        return Promise.resolve();
+      }
+
+      locals.installsSheetAdded = true;
+
+      const promises = [];
+
+      initDocsQuery.docs.forEach((doc) => {
+        const {
+          phoneNumber,
+          installs,
+        } = doc.data();
+
+        installs
+          .forEach((timestampNumber) => {
+            const installTimeString = dateStringWithOffset({
+              timezone: locals.timezone,
+              timestampToConvert: timestampNumber,
+              format: dateFormats.DATE_TIME,
+            });
+
+            installsListAttachmentHeader += `${installTimeString}\n`;
+          });
+
+        installs.forEach((timestampNumber) => {
+          if (timestampNumber > yesterdaysStartTime) return;
+
+          multipleInstallsMap.set(phoneNumber, installsListAttachmentHeader);
+        });
+
+        const promise = rootCollections
+          .updates
+          .where('phoneNumber', '==', phoneNumber)
+          .limit(1)
+          .get();
+
+        promises
+          .push(promise);
+      });
+
+      multipleInstallsMap
+        .forEach((timestampsString, phoneNumber) => {
+          locals.messageObject.attachments.push({
+            content: Buffer.from(timestampsString).toString('base64'),
+            fileName: `${phoneNumber}.txt`,
+            type: 'text/plain',
+            disposition: 'attachment',
+          });
+        });
+
+      locals.initDocsQuery = initDocsQuery;
+
+      return Promise.all(promises);
+    })
+    .then((result) => {
+      if (!locals.sendMail || !result) {
+        return Promise.resolve();
+      }
+
+      result.forEach((snapShot) => {
+        // Snapshot won't be empty here because users with auth
+        // are guaranteed to have a document in the `/Updates` collection
+        const updatesDoc = snapShot.docs[0];
+        const phoneNumber = updatesDoc.get('phoneNumber');
+        const deviceIdsArray = updatesDoc.get('deviceIdsArray');
+        const latestDeviceId = updatesDoc.get('latestDeviceId');
+
+        latestDeviceIdsMap.set(phoneNumber, latestDeviceId);
+
+        const name = employeeInfo(
+          employeesData,
+          phoneNumber
+        )
+          .name || phoneNumber;
+
+        deviceIdsArray.forEach((id) => {
+          if (!deviceUsers.has(id)) {
+            deviceUsers.set(id, [name]);
+          } else {
+
+            deviceUsers.get(id).push(name);
+            const newArr = deviceUsers.get(id);
+
+            deviceUsers.set(id, newArr);
+          }
+        });
+      });
+
+      const installsSheet = locals.workbook.addSheet('Installs');
+      const topHeaders = [
+        'Date',
+        'Employee Name',
+        'Employee Contact',
+        'Signed Up Date',
+        'Number Of Installs',
+        'Also Used By',
+        'Employee Code',
+        'Department',
+        'First Supervisor',
+        'Contact Number',
+        'Second Supervisor',
+        'Contact Number',
+      ];
+
+      topHeaders.forEach((item, index) => {
+        installsSheet
+          .cell(`${alphabetsArray[index]}1`)
+          .value(item);
+      });
+
+      locals
+        .initDocsQuery
+        .docs
+        .forEach((doc, index) => {
+          const {
+            phoneNumber,
+            installs,
+          } = doc.data();
+
+          const latestDeviceId = latestDeviceIdsMap.get(phoneNumber);
+          const numberOfInstalls = installs.length;
+          const employeeObject = employeeInfo(employeesData, phoneNumber);
+          const name = employeeObject.name;
+          const firstSupervisorPhoneNumber = employeeObject.firstSupervisor;
+          const secondSupervisorPhoneNumber = employeeObject.secondSupervisor;
+          const department = employeeObject.department;
+          const employeeCode = employeeObject.employeeCode;
+          const firstSupervisorsName =
+            employeeInfo(employeesData, firstSupervisorPhoneNumber).name;
+          const secondSupervisorsName =
+            employeeInfo(employeesData, secondSupervisorPhoneNumber).name;
+          const date = dateStringWithOffset({
+            timestampToConvert: installs[installs.length - 1],
+            timezone,
+            format: dateFormats.DATE_TIME,
+          });
+
+          const signedUpOn = dateStringWithOffset({
+            timestampToConvert: employeesData[phoneNumber].createTime,
+            timezone,
+            format: dateFormats.DATE_TIME,
+          });
+
+          const alsoUsedBy = (() => {
+            const name = deviceUsers.get(latestDeviceId);
+
+            if (!name) return '';
+
+            // Avoids putting self in the `alsoUsedBy` field
+            if (name === employeeObject.name) return '';
+
+            return `${deviceUsers.get(latestDeviceId)}`;
+          })();
+
+          const columnIndex = index + 2;
+
+          installsSheet.cell(`A${columnIndex}`).value(date);
+          installsSheet.cell(`B${columnIndex}`).value(name);
+          installsSheet.cell(`C${columnIndex}`).value(phoneNumber);
+          installsSheet.cell(`D${columnIndex}`).value(signedUpOn);
+          installsSheet.cell(`E${columnIndex}`).value(numberOfInstalls);
+          installsSheet.cell(`F${columnIndex}`).value(alsoUsedBy);
+          installsSheet.cell(`G${columnIndex}`).value(employeeCode);
+          installsSheet.cell(`H${columnIndex}`).value(department);
+          installsSheet.cell(`I${columnIndex}`).value(firstSupervisorsName);
+          installsSheet.cell(`J${columnIndex}`).value(firstSupervisorPhoneNumber);
+          installsSheet.cell(`K${columnIndex}`).value(secondSupervisorsName);
+          installsSheet.cell(`L${columnIndex}`).value(secondSupervisorPhoneNumber);
+        });
+
+      return locals.workbook;
+    })
+    .catch(console.error);
+};
+
+const handleSignUpReport = (locals) => {
+  const office = locals.officeDoc.get('office');
+  const timestampFromTimer = locals.change.after.get('timestamp');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentWithOffsetToday = momentTz(timestampFromTimer).tz(timezone);
+  const momentWithOffsetYesterday = momentTz(timestampFromTimer).subtract(1, 'day').tz(timezone);
+  const standardDateString = momentWithOffsetToday.format(dateFormats.DATE);
+  const employeesData = locals.officeDoc.get('employeesData');
+
+  return rootCollections
+    .inits
+    .where('office', '==', office)
+    .where('date', '==', momentWithOffsetYesterday.date())
+    .where('month', '==', momentWithOffsetYesterday.month())
+    .where('year', '==', momentWithOffsetYesterday.year())
+    .where('report', '==', reportNames.SIGNUP)
+    .limit(1)
+    .get()
+    .then((initDocsQuery) => {
+      if (initDocsQuery.empty) {
+        return Promise.resolve();
+      }
+
+      locals.signupSheetAdded = true;
+
+      const signUpSheet = locals.workbook.addSheet('SignUps');
+      signUpSheet.row(1).style('bold', true);
+
+      [
+        `Employee Name`,
+        `Employee Contact`,
+        `Employee Added Date`,
+        `Sign-Up Date`,
+        `Employee Code`,
+        `Department`,
+        `First Supervisor's Name`,
+        `Contact Number`,
+        `Second Supervisor's Name`,
+        `Contact Number`,
+      ].forEach((header, index) => {
+        signUpSheet
+          .cell(`${alphabetsArray[index]}1`)
+          .value(header);
+      });
+
+      let totalSignUpsCount = 0;
+
+      const employeesObject = initDocsQuery.docs[0].get('employeesObject');
+      const employeesList = Object.keys(employeesObject);
+
+      employeesList.forEach((phoneNumber, index) => {
+        const columnNumber = index + 2;
+        const employeeDataObject = employeeInfo(employeesData, phoneNumber);
+        const employeeName = employeeDataObject.name;
+        const employeeCode = employeeDataObject.employeeCode;
+        const department = employeeDataObject.department;
+        const firstSupervisorPhoneNumber = employeeDataObject.firstSupervisor;
+        const secondSupervisorPhoneNumber = employeeDataObject.secondSupervisor;
+        const firstSupervisor = employeeInfo(
+          employeesData,
+          firstSupervisorPhoneNumber
+        );
+        const secondSupervisor = employeeInfo(
+          employeesData,
+          secondSupervisorPhoneNumber
+        );
+        const signedUpOn = dateStringWithOffset({
+          timezone: locals.timezone,
+          timestampToConvert: (() => {
+            if (employeesObject[phoneNumber]) {
+              return employeesObject[phoneNumber].signedUpOn;
+            }
+
+            return '';
+          })(),
+        });
+        const addedOn = dateStringWithOffset({
+          timezone: locals.timezone,
+          timestampToConvert: (() => {
+            if (employeesData[phoneNumber]) {
+              return employeesData[phoneNumber].createTime;
+            }
+
+            return '';
+          })(),
+        });
+        // This value could be an empty string
+        if (signedUpOn) totalSignUpsCount++;
+
+        signUpSheet.cell(`A${columnNumber}`).value(employeeName);
+        signUpSheet.cell(`B${columnNumber}`).value(phoneNumber);
+        signUpSheet.cell(`C${columnNumber}`).value(addedOn);
+        signUpSheet.cell(`D${columnNumber}`).value(signedUpOn);
+        signUpSheet.cell(`E${columnNumber}`).value(employeeCode);
+        signUpSheet.cell(`F${columnNumber}`).value(department);
+        signUpSheet.cell(`G${columnNumber}`).value(firstSupervisor.name);
+        signUpSheet.cell(`H${columnNumber}`).value(firstSupervisorPhoneNumber);
+        signUpSheet.cell(`I${columnNumber}`).value(secondSupervisor.name);
+        signUpSheet.cell(`J${columnNumber}`).value(secondSupervisorPhoneNumber);
+      });
+
+      locals.messageObject['dynamic_template_data'] = {
+        office,
+        date: standardDateString,
+        subject: `Sign-Up Report_${office}_${standardDateString}`,
+        totalEmployees: employeesList.length,
+        totalSignUps: totalSignUpsCount,
+        difference: employeesList.length - totalSignUpsCount,
+      };
+
+      return locals.workbook;
+    })
+    .catch(console.error);
+};
 
 
 module.exports = (locals) => {
@@ -54,7 +390,9 @@ module.exports = (locals) => {
     .tz(timezone)
     .subtract(1, 'day')
     .format(dateFormats.DATE);
-  const offsetObjectYesterday = momentTz(todayFromTimer).tz(timezone).subtract(1, 'day');
+  const offsetObjectYesterday = momentTz(todayFromTimer)
+    .tz(timezone)
+    .subtract(1, 'day');
 
   locals.messageObject['dynamic_template_data'] = {
     office,
@@ -89,17 +427,21 @@ module.exports = (locals) => {
         return Promise.resolve(false);
       }
 
-      workbook.sheet('Sheet1').row(1).style('bold', true);
-      workbook.sheet('Sheet1').cell(`A1`).value('Dated');
-      workbook.sheet('Sheet1').cell('B1').value('Employee Name');
-      workbook.sheet('Sheet1').cell('C1').value('Employee Contact');
-      workbook.sheet('Sheet1').cell('D1').value('Employee Code');
-      workbook.sheet('Sheet1').cell('E1').value('Time');
-      workbook.sheet('Sheet1').cell('F1').value('Distance Travelled');
-      workbook.sheet('Sheet1').cell('G1').value('Address');
-      workbook.sheet('Sheet1').cell('H1').value('Comment');
-      workbook.sheet('Sheet1').cell('I1').value('Department');
-      workbook.sheet('Sheet1').cell('J1').value('Base Location');
+      locals.footprintsSheetAdded = true;
+
+      const footprintsSheet = workbook.addSheet('Footprints');
+
+      footprintsSheet.row(1).style('bold', true);
+      footprintsSheet.cell(`A1`).value('Dated');
+      footprintsSheet.cell('B1').value('Employee Name');
+      footprintsSheet.cell('C1').value('Employee Contact');
+      footprintsSheet.cell('D1').value('Employee Code');
+      footprintsSheet.cell('E1').value('Time');
+      footprintsSheet.cell('F1').value('Distance Travelled');
+      footprintsSheet.cell('G1').value('Address');
+      footprintsSheet.cell('H1').value('Comment');
+      footprintsSheet.cell('I1').value('Department');
+      footprintsSheet.cell('J1').value('Base Location');
 
       /**
        * Not using count param from the `callback` function because
@@ -175,7 +517,6 @@ module.exports = (locals) => {
               return newStatus;
             })();
 
-
             return `${string.toUpperCase()} ${doc.get('activityData.template')}`;
           }
 
@@ -197,63 +538,75 @@ module.exports = (locals) => {
           return doc.get('comment');
         })();
 
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`A${columnIndex}`)
           .value(dated);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`B${columnIndex}`)
           .value(name);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`C${columnIndex}`)
           .value(phoneNumber);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`D${columnIndex}`)
           .value(employeeCode);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`E${columnIndex}`)
           .value(time);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`F${columnIndex}`)
           .value(distanceTravelled);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`G${columnIndex}`)
           .value(identifier)
           .style({ fontColor: '0563C1', underline: true })
           .hyperlink(url);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`H${columnIndex}`)
           .value(comment);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`I${columnIndex}`)
           .value(department);
-        workbook
-          .sheet('Sheet1')
+        footprintsSheet
           .cell(`J${columnIndex}`)
           .value(baseLocation);
       });
 
-      return workbook.toFileAsync(filePath);
+      locals.workbook = workbook;
+
+      return handleInstallReport(locals);
+    })
+    .then(() => handleSignUpReport(locals))
+    .then(() => {
+      console.log('locals', locals);
+      if (!locals.sendMail) {
+        return Promise.resolve();
+      }
+
+      if (!locals.footprintsSheetAdded
+        && !locals.signupSheetAdded
+        && !locals.installsSheetAdded) {
+        return Promise.resolve();
+      }
+
+      locals.workbook.deleteSheet('Sheet1');
+
+      return locals.workbook.toFileAsync(filePath);
     })
     .then(() => {
       if (!locals.sendMail) {
         return Promise.resolve();
       }
 
-      locals.messageObject.attachments.push({
-        content: fs.readFileSync(filePath).toString('base64'),
-        fileName: `Footprints ${office}_Report_${standardDateString}.xlsx`,
-        type: 'text/csv',
-        disposition: 'attachment',
-      });
+      locals
+        .messageObject
+        .attachments
+        .push({
+          content: fs.readFileSync(filePath).toString('base64'),
+          fileName: `Footprints ${office}_Report_${standardDateString}.xlsx`,
+          type: 'text/csv',
+          disposition: 'attachment',
+        });
 
       console.log({
         report: reportNames.FOOTPRINTS,

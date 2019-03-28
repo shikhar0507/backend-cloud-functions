@@ -1,8 +1,7 @@
 firebase.initializeApp({
-  apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
-  authDomain: 'growthfilev2-0.firebaseapp.com',
-  databaseURL: 'https://growthfilev2-0.firebaseio.com',
-  projectId: 'growthfilev2-0',
+  apiKey: 'AIzaSyA4s7gp7SFid_by1vLVZDmcKbkEcsStBAo',
+  authDomain: 'growthfile.com',
+  projectId: 'growthfile-207024',
 });
 
 function signInFailure(error) {

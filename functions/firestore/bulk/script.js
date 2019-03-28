@@ -5,6 +5,7 @@ const {
   rootCollections,
   db,
 } = require('../../admin/admin');
+const env = require('../../admin/env');
 const {
   sendResponse,
   handleError,
@@ -25,6 +26,13 @@ const {
   validTypes,
   httpsActions,
 } = require('../../admin/constants');
+const xlsxPopulate = require('xlsx-populate');
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(env.sgMailApiKey);
+const fs = require('fs');
+const {
+  alphabetsArray,
+} = require('../../firestore/recipients/report-utils');
 
 
 const templateNamesObject = {
@@ -33,7 +41,6 @@ const templateNamesObject = {
   EMPLOYEE: 'employee',
   OFFICE: 'office',
 };
-
 
 const handleValidation = (body) => {
   const result = { success: true, message: null };
@@ -154,6 +161,81 @@ const getActivityName = (params) => {
   return result;
 };
 
+const sendExcelFromResponse = (conn, locals, responseObject) => {
+  if (!conn.req.body.senderEmail) {
+    return Promise.resolve(responseObject);
+  }
+
+  const fileName = `${conn.req.body.template}--${conn.req.body.office}.xlsx`;
+  const filePath = `/tmp/${fileName}`;
+  const messageObject = {
+    to: {
+      name: conn.requester.displayName,
+      email: conn.req.body.senderEmail,
+    },
+    from: {
+      name: 'Growthfile',
+      email: env.systemEmail,
+    },
+    html: '<h1>Docs created</h1>',
+    subject: `Bulk Creation of ${conn.req.body.template} result`,
+    attachments: [],
+  };
+
+  const items = responseObject.data;
+
+  return xlsxPopulate
+    .fromBlankAsync()
+    .then((workbook) => {
+      const resultSheet = workbook.sheet('Sheet1');
+      const firstItem = items[0];
+      const objectFields = Object.keys(firstItem);
+
+      resultSheet.row(1).style('bold', true);
+
+      locals
+        .allFieldsArray
+        .forEach((value, index) => {
+          resultSheet.cell(`${alphabetsArray[index]}1`).value(value);
+        });
+
+      items.forEach((item, outerIndex) => {
+        // const alphabet = 
+        objectFields.forEach((field, innerIndex) => {
+          if (field === 'share') {
+            return;
+          }
+
+          const idx = `${alphabetsArray[innerIndex]}${outerIndex + 2}`;
+          const val = item[field];
+
+          // console.log(`${idx} ${val}`);
+
+          resultSheet.cell(idx).value(val);
+        });
+      });
+
+      locals.mySheet = workbook;
+
+      return workbook.toFileAsync(filePath);
+    })
+    .then(() => {
+      messageObject.attachments.push({
+        fileName,
+        content: fs.readFileSync(filePath).toString('base64'),
+        type: 'text/csv',
+        disposition: 'attachment',
+      });
+
+      console.log('email sent', messageObject.to);
+
+      return sgMail.sendMultiple(messageObject);
+      // return Promise.resolve();
+    })
+    .then(() => Promise.resolve(responseObject))
+    .catch((error) => handleError(conn, error));
+};
+
 const executeSequentially = (batchFactories) => {
   let result = Promise.resolve();
 
@@ -219,6 +301,8 @@ const createObjects = (conn, locals, trialRun) => {
   const childActivitiesBatch = db.batch();
   const isEmployeeTemplate =
     conn.req.body.template === templateNamesObject.EMPLOYEE;
+  const isOfficeTemplate =
+    conn.req.body.template === templateNamesObject.OFFICE;
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(locals.templateDoc.get('schedule'));
   const venueFieldsSet = new Set(locals.templateDoc.get('venue'));
@@ -267,14 +351,14 @@ const createObjects = (conn, locals, trialRun) => {
       phoneNumber: conn.requester.phoneNumber,
     };
     const officeId = (() => {
-      if (conn.req.body.template === templateNamesObject.OFFICE) {
+      if (isOfficeTemplate) {
         return officeRef.id;
       }
 
       return locals.officeDoc.id;
     })();
     const office = (() => {
-      if (conn.req.body.template === templateNamesObject.OFFICE) {
+      if (isOfficeTemplate) {
         return conn.req.body.data[index].Name;
       }
 
@@ -420,7 +504,7 @@ const createObjects = (conn, locals, trialRun) => {
     batch.set(activityRef, activityObject);
     batch.set(addendumDocRef, addendumObject);
 
-    if (conn.req.body.template === templateNamesObject.OFFICE) {
+    if (isOfficeTemplate) {
       const allPhoneNumbers = locals.officeContacts.get(index) || [];
 
       allPhoneNumbers.forEach((phoneNumber) => {
@@ -606,7 +690,6 @@ const createObjects = (conn, locals, trialRun) => {
     .catch((error) => handleError(conn, error));
 };
 
-
 const fetchDataForCanEditRule = (conn, locals) => {
   const rule = locals.templateDoc.get('canEditRule');
 
@@ -691,7 +774,6 @@ const handleEmployees = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
-
 const handleUniqueness = (conn, locals) => {
   const hasName = locals
     .templateDoc
@@ -718,7 +800,7 @@ const handleUniqueness = (conn, locals) => {
       .officeDoc
       .ref
       .collection('Activities')
-      .where('isCancelled', '==', false)
+      .where('status', '==', 'CONFIRMED')
       .where('template', '==', conn.req.body.template);
   })();
 
@@ -974,7 +1056,6 @@ const fetchTemplates = (conn, locals) => {
     })
     .catch((error) => handleError(conn, error));
 };
-
 
 const validateDataArray = (conn, locals) => {
   const scheduleFields = locals.templateDoc.get('schedule');
@@ -1363,6 +1444,7 @@ const validateDataArray = (conn, locals) => {
   locals.subscriptionsToCheck = subscriptionsToCheck;
   locals.assigneesFromAttachment = assigneesFromAttachment;
   locals.officeContacts = officeContacts;
+  locals.allFieldsArray = allFieldsArray;
 
   if (toRejectAll) {
     return sendResponse(
@@ -1382,10 +1464,10 @@ const validateDataArray = (conn, locals) => {
     .then(() => fetchDataForCanEditRule(conn, locals))
     .then(() => handleEmployees(conn, locals))
     .then(() => createObjects(conn, locals, trialRun))
+    .then((responseObject) => sendExcelFromResponse(conn, locals, responseObject))
     .then((responseObject) => sendJSON(conn, responseObject))
     .catch((error) => handleError(conn, error));
 };
-
 
 module.exports = (conn) => {
   /**
@@ -1396,14 +1478,15 @@ module.exports = (conn) => {
    * encoded: csvString
    * location: `object(latitude, longitude)`
    */
-  if (!conn.requester.isSupportRequest
-    && conn.requester.customClaims.admin
-    && conn.requester.customClaims.admin.includes(conn.req.body.office)) {
-    return sendResponse(
-      conn,
-      code.unauthorized,
-      `You are not allowed to access this resource`
-    );
+  if (!conn.requester.isSupportRequest) {
+    if (!conn.requester.customClaims.admin
+      || !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
+      return sendResponse(
+        conn,
+        code.unauthorized,
+        `You are not allowed to access this resource`
+      );
+    }
   }
 
   const result = handleValidation(conn.req.body);
@@ -1411,6 +1494,8 @@ module.exports = (conn) => {
   if (!result.success) {
     return sendResponse(conn, code.badRequest, result.message);
   }
+
+  console.log('body', conn.req.body);
 
   const promises = [
     rootCollections

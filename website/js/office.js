@@ -74,7 +74,7 @@ function handleProductClick(param) {
 
   const html = `
   <div class="pico-product-details">
-    <h2>Name: ${param.name}</h2>
+    <h2>${param.name}</h2>
     <img src="${param.imageUrl}">
     <p>Brand: ${param.brand}</p>
     <p>Model: ${param.model}</p>

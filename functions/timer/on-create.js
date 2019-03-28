@@ -43,6 +43,7 @@ const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
+const admin = require('firebase-admin');
 
 sgMail.setApiKey(env.sgMailApiKey);
 
@@ -81,7 +82,6 @@ const handleUserStatusReport = (locals) => {
   return locals;
 };
 
-
 const handleActivityStatusReport = (locals) => {
   const {
     worksheet,
@@ -96,14 +96,11 @@ const handleActivityStatusReport = (locals) => {
 
   const {
     templateUsageObject,
-    activitiesAddedToday,
     commentApi,
     createApi,
     changeStatusApi,
     shareApi,
     updateApi,
-    withAdminApi,
-    withSupport,
   } = initDocsQuery.docs[0].data();
 
   const getNumber = (templateName, action) => {
@@ -222,7 +219,6 @@ const handleActivityStatusReport = (locals) => {
 
   return locals;
 };
-
 
 const handleDailyStatusReport = () => {
   const fileName = `Growthfile Daily Status Report.xlsx`;
@@ -370,6 +366,13 @@ const sendErrorReport = () => {
     .catch(console.error);
 };
 
+const handleRelevantTime = () => {
+  // Format 27th Mar 2019
+  const relevantDate = momentTz().format(dateFormats.DATE);
+  const promises = [];
+
+  return Promise.resolve();
+};
 
 module.exports = (doc) => {
   if (doc.get('sent')) {
@@ -388,6 +391,7 @@ module.exports = (doc) => {
         .get(),
       handleDailyStatusReport(),
       sendErrorReport(),
+      handleRelevantTime(),
       doc
         .ref
         .set({

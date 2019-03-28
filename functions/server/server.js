@@ -41,7 +41,35 @@ const {
   reportBackgroundError,
 } = require('../admin/utils');
 const env = require('../admin/env');
+const url = require('url');
 
+const headerValid = (headers) => {
+  if (!headers.hasOwnProperty('authorization')) {
+    return {
+      isValid: false,
+      message: 'The authorization header is missing from the headers',
+    };
+  }
+
+  if (typeof headers.authorization !== 'string') {
+    return {
+      isValid: false,
+      message: 'The authorization header is not valid',
+    };
+  }
+
+  if (!headers.authorization.startsWith('Bearer ')) {
+    return {
+      isValid: false,
+      message: `Authorization type is not 'Bearer'`,
+    };
+  }
+
+  return {
+    isValid: true,
+    authToken: headers.authorization.split('Bearer ')[1],
+  };
+};
 
 const handleAdminUrl = (conn, urlParts) => {
   const resource = urlParts[2];
@@ -107,7 +135,6 @@ const handleAdminUrl = (conn, urlParts) => {
     `No resource found at the path: ${(conn.req.url)}.`
   );
 };
-
 
 const handleActivitiesUrl = (conn, urlParts) => {
   const resource = urlParts[2];
@@ -199,6 +226,10 @@ const handleRequestPath = (conn, parsedUrl) => {
     require('../firestore/enquiry/index')(conn);
 
     return;
+  }
+
+  if (parent == 'create-office') {
+    require('../firestore/create-office')(conn);
   }
 
   if (parent === 'read') {
@@ -397,35 +428,6 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
     })
     .catch((error) => handleError(conn, error));
 
-
-const headerValid = (headers) => {
-  if (!headers.hasOwnProperty('authorization')) {
-    return {
-      isValid: false,
-      message: 'The authorization header is missing from the headers',
-    };
-  }
-
-  if (typeof headers.authorization !== 'string') {
-    return {
-      isValid: false,
-      message: 'The authorization header is not valid',
-    };
-  }
-
-  if (!headers.authorization.startsWith('Bearer ')) {
-    return {
-      isValid: false,
-      message: `Authorization type is not 'Bearer'`,
-    };
-  }
-
-  return {
-    isValid: true,
-    authToken: headers.authorization.split('Bearer ')[1],
-  };
-};
-
 const handleRejections = (conn, errorObject) => {
   const context = {
     ip: conn.req.ip,
@@ -474,7 +476,6 @@ const checkAuthorizationToken = (conn) => {
     .catch((error) => handleRejections(conn, error));
 };
 
-
 /**
  * Handles the routing for the request from the clients.
  *
@@ -518,6 +519,15 @@ module.exports = (req, res) => {
       `${req.method} is not supported for any request.`
       + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests'
     );
+
+    return;
+  }
+
+  const parsed = url.parse(conn.req.url).pathname;
+
+  if (parsed === '/parseMail'
+    && conn.req.query.token === env.sgMailParseToken) {
+    require('../mail-parser')(conn);
 
     return;
   }

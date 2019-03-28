@@ -404,8 +404,10 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
     };
 
     if (template === reportNames.DSR) {
-      visitObject[phoneNumber][activityId].followUpStartTimestamp = followUpDateSchedule.startTime;
-      visitObject[phoneNumber][activityId].followUpEndTimestamp = followUpDateSchedule.endTime;
+      visitObject[phoneNumber][activityId]
+        .followUpStartTimestamp = followUpDateSchedule.startTime;
+      visitObject[phoneNumber][activityId]
+        .followUpEndTimestamp = followUpDateSchedule.endTime;
     }
   }
 
@@ -1039,6 +1041,9 @@ module.exports = (addendumDoc) => {
       })();
 
       const updateObject = {
+        city: locals.city,
+        state: locals.state,
+        locality: locals.locality,
         url: locals.placeInformation.url,
         identifier: locals.placeInformation.identifier,
         distanceTravelled: distanceData.distanceTravelled,

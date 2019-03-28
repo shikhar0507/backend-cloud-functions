@@ -83,8 +83,35 @@ const topRow = (yesterday) => {
   return str;
 };
 
+const getNotificationMessage = (dateString, subscriptionsSet) => {
+  let part = '';
+
+  if (subscriptionsSet.has('leave')) {
+    part = ` for a leave`;
+  }
+
+  if (subscriptionsSet.has('tour plan')) {
+    part = ` for a tour plan`;
+  }
+
+  if (subscriptionsSet.has('leave') && subscriptionsSet.has('on duty')) {
+    part = ` for a leave or a on duty`;
+  }
+
+  const baseMessage = `We detected a blank in your payroll on`
+    + ` ${dateString}.`
+    + ` Would you like to apply`;
+
+  return `${baseMessage}${part}?`;
+};
+
 
 module.exports = (locals) => {
+  const regTokenFetchPromises = [];
+  const onDutySubscriptionFetchPromises = [];
+  const leaveSubscriptionFetchPromises = [];
+  const regTokensMap = new Map();
+  const subscriptionsMap = new Map();
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const todayFromTimestamp = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
@@ -111,6 +138,8 @@ module.exports = (locals) => {
 
   console.log('office', locals.officeDoc.get('office'));
   console.log('locals.createOnlyData', locals.createOnlyData);
+
+  locals.sendNotifications = true;
 
   return Promise
     .all([
@@ -664,67 +693,175 @@ module.exports = (locals) => {
       if (momentToday.startOf('day').unix() !== momentFromTimer.startOf('day').unix()) {
         console.log('No notifications sent. Not the same day.');
 
-        // Array is required otherwise `snapShots`.forEach will throw an error for being `undefined`
+        locals.sendNotifications = false;
+
+        // Array is required otherwise `snapShots`.forEach will 
+        // throw an error for being`undefined`
         return Promise.resolve([]);
       }
-
-      const promises = [];
 
       console.log('sending notifications');
 
       peopleWithBlank.forEach((phoneNumber) => {
-        const promise = rootCollections
+        const regTokenPromise = rootCollections
           .updates
           .where('phoneNumber', '==', phoneNumber)
           .limit(1)
           .get();
 
-        promises.push(promise);
+        const leaveSubscriptionPromise = rootCollections
+          .activities
+          .where('attachment.Subscriber.value', '==', phoneNumber)
+          .where('template', '==', 'leave')
+          .where('office', '==', locals.change.after.get('office'))
+          .where('status', '==', 'CONFIRMED')
+          .limit(1)
+          .get();
+
+        const onDutySubscriptionPromise =
+          rootCollections
+            .activities
+            .where('attachment.Subscriber.value', '==', phoneNumber)
+            .where('template', '==', 'on duty')
+            .where('office', '==', locals.change.after.get('office'))
+            .where('status', '==', 'CONFIRMED')
+            .limit(1)
+            .get();
+
+        regTokenFetchPromises.push(regTokenPromise);
+        leaveSubscriptionFetchPromises.push(leaveSubscriptionPromise);
+        onDutySubscriptionFetchPromises.push(onDutySubscriptionPromise);
       });
 
       console.log('number of blanks:', peopleWithBlank.size);
 
-      return Promise.all(promises);
+      return Promise.all(regTokenFetchPromises);
     })
     .then((snapShots) => {
-      const notificationMessage = () => {
-        const dateString = yesterday.format(dateFormats.DATE);
-        // `There was a blank in your payroll for yesterday.`
-        //   + ` Would you like to create a LEAVE or TOUR PLAN`;
-
-        return `We detected a 'BLANK' in your Payroll`
-          + ` on ${dateString}. Do you wish to apply`
-          + ` for a Leave or a ON DUTY?`;
-      };
-
-      const promises = [];
-
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) {
           return;
         }
 
-        const registrationToken = snapShot.docs[0].get('registrationToken');
+        const doc = snapShot.docs[0];
 
-        if (!registrationToken) return;
+        const {
+          phoneNumber,
+          registrationToken,
+        } = doc.data();
 
-        const promise = admin
-          .messaging()
-          .sendToDevice(registrationToken, {
-            data: {
-              key1: 'value1',
-              key2: 'value2',
-            },
-            notification: {
-              body: notificationMessage(),
-              tile: `Growthfile`,
-            },
-          });
-
-        promises.push(promise);
+        regTokensMap.set(phoneNumber, registrationToken);
       });
 
-      return Promise.all(promises);
+      return Promise.all(leaveSubscriptionFetchPromises);
+    })
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) {
+          return;
+        }
+
+        const phoneNumber = snapShot.docs[0].get('attachment.Subscriber.value');
+        subscriptionsMap.set(phoneNumber, new Set().add('leave'));
+      });
+
+      return Promise.all(onDutySubscriptionFetchPromises);
+    })
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) {
+          return;
+        }
+
+        const phoneNumber = snapShot.docs[0].get('attachment.Subscriber.value');
+
+        if (subscriptionsMap.has(phoneNumber)) {
+          const set = subscriptionsMap.get(phoneNumber);
+          set.add('on duty');
+          subscriptionsMap.set(phoneNumber, set);
+        } else {
+          subscriptionsMap.set(phoneNumber, new Set().add('on duty'));
+        }
+      });
+
+      const dateString = yesterday.format(dateFormats.DATE);
+      const startTime = yesterday.startOf('days').valueOf();
+      const endTime = startTime;
+      const notificationPromises = [];
+
+      peopleWithBlank.forEach((phoneNumber) => {
+        const subscriptionsSet = subscriptionsMap.get(phoneNumber);
+
+        if (!subscriptionsSet
+          || subscriptionsSet.size === 0
+          || !regTokensMap.has(phoneNumber)) {
+          // no subscriptions or no registration token
+          return;
+        }
+
+        const payroll = {
+          data: [],
+          title: 'Growthfile',
+          body: getNotificationMessage(dateString, subscriptionsSet),
+        };
+
+        if (subscriptionsSet.has('leave')) {
+          const object = {
+            office: locals.change.after.get('office'),
+            template: 'leave',
+            schedule: [{
+              name: 'Leave Dates',
+              startTime,
+              endTime,
+            }],
+            attachment: {
+              'Number Of Days': {
+                value: 1,
+                type: 'number',
+              },
+            },
+          };
+
+          object.title = 'Alert';
+          object.body = getNotificationMessage(dateString, subscriptionsSet);
+
+          payroll.data.push(object);
+        }
+
+        if (subscriptionsSet.has('on duty')) {
+          const object = {
+            office: locals.change.after.get('office'),
+            template: 'on duty',
+            schedule: [{
+              name: 'Duty Date',
+              startTime,
+              endTime,
+            }],
+          };
+
+          object.title = 'Alert';
+          object.body = getNotificationMessage(dateString, subscriptionsSet);
+
+          payroll.data.push(object);
+        }
+
+        const singleObject = {
+          data: {
+            payroll: JSON.stringify(payroll),
+          },
+          notification: {
+            title: 'Growthfile',
+            body: getNotificationMessage(dateString, subscriptionsSet),
+          },
+        };
+
+        const regToken = regTokensMap.get(phoneNumber);
+        const promise = admin.messaging().sendToDevice(regToken, singleObject);
+
+        notificationPromises.push(promise);
+      });
+
+      return Promise.all(notificationPromises);
     })
     .catch(console.error);
 };

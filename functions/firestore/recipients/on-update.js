@@ -282,7 +282,10 @@ module.exports = (change) => {
           .messaging()
           .sendToDevice(registrationToken, {
             data: {
-              verifyEmail: '1',
+              verifyEmail: JSON.stringify({
+                body: message,
+                title: 'Reminder',
+              }),
             },
             notification: {
               body: message,

@@ -191,6 +191,39 @@ const getUserByPhoneNumber = (phoneNumber) =>
     });
 
 
+const getUserByEmail = (email) =>
+  auth.getUserByEmail(email)
+    .then((userRecord) => {
+      return {
+        [email]: userRecord,
+      };
+    })
+    .catch((error) => {
+      /** @see https://firebase.google.com/docs/auth/admin/errors */
+      if (error.code === 'auth/user-not-found'
+        || error.code === 'auth/internal-error') {
+        return {
+          [email]: {},
+        };
+      }
+
+      /**
+       * Any other cases except the ones handled above should be
+       * noted by the developers.
+       */
+      console.error(error);
+
+      /** This function relies on the user input, so chances are
+       * that all three conditions checked above may not cover
+       * all the cases. Returning a usable object regardless,
+       * so the clients can work correctly.
+       */
+      return {
+        [email]: {},
+      };
+    });
+
+
 /**
  * Disables the user account in auth.
  *
@@ -273,6 +306,7 @@ const rootCollections = {
 const users = {
   disableUser,
   getUserByUid,
+  getUserByEmail,
   createUserInAuth,
   setCustomUserClaims,
   revokeRefreshTokens,

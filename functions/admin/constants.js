@@ -803,6 +803,7 @@ const dateFormats = {
 };
 
 const reportNames = {
+  CUSTOMER: 'customer',
   ACTIVIT_REPORT: 'activity report',
   ON_DUTY: 'on duty',
   ENQUIRY: 'enquiry',

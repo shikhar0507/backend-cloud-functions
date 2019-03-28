@@ -37,18 +37,22 @@
   "readme": "https://github.com/Growthfilev2/backend-cloud-functions/blob/master/README.md",
   "dependencies": {
     "@google-cloud/bigquery": "^2.0.6",
+    "@google-cloud/functions-emulator": "^1.0.0-beta.5",
     "@google-cloud/logging": "^4.4.0",
     "@google/maps": "^0.5.5",
+    "@sendgrid/inbound-mail-parser": "^6.3.0",
     "@sendgrid/mail": "^6.3.1",
     "csvtojson": "^2.0.8",
     "firebase-admin": "~6.0.0",
     "firebase-functions": "^2.1.0",
     "firebase-tools": "^6.5.0",
+    "geofirestore": "^3.2.3",
     "google-libphonenumber": "^3.1.14",
     "handlebars": "^4.1.0",
     "moment": "^2.22.2",
     "moment-timezone": "^0.5.23",
     "mozjpeg": "^6.0.1",
+    "xlsx": "^0.14.1",
     "xlsx-populate": "^1.17.0"
   },
   "devDependencies": {

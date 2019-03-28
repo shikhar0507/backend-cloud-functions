@@ -131,14 +131,8 @@ const createDocsWithBatch = (conn, locals) => {
     timezone: locals.officeDoc.get('attachment.Timezone.value'),
   };
 
-  const now = new Date();
-
   const addendumDocObject = {
     activityData,
-    date: now.getDate(),
-    month: now.getMonth(),
-    year: now.getFullYear(),
-    dateString: now.toDateString(),
     user: conn.requester.phoneNumber,
     userDisplayName: conn.requester.displayName,
     /**
