@@ -11,6 +11,25 @@ const {
 const helpers = require('./helpers');
 const url = require('url');
 
+const getEmployeesRange = (employeesData) => {
+  const employeesList = Object.keys(employeesData);
+  const officeSize = employeesList.length;
+
+  if (officeSize >= 0 && officeSize <= 10) {
+    return `1-10`;
+  }
+
+  if (officeSize > 10 && officeSize <= 100) {
+    return `10-100`;
+  }
+
+  if (officeSize > 100 && officeSize <= 500) {
+    return `100-500`;
+  }
+
+  return `1000+`;
+};
+
 const getSlugFromUrl = (requestUrl) => {
   const parsed = url.parse(requestUrl);
   const officeName = parsed.pathname;
@@ -59,6 +78,7 @@ const fetchOfficeData = (conn, locals) => {
             address: doc.get('venue')[0].address,
             latitude: doc.get('venue')[0].geopoint._latitude,
             longitude: doc.get('venue')[0].geopoint._longitude,
+            weeklyOff: doc.get('attachment.Weekly Off.value'),
           };
         });
 
@@ -87,6 +107,9 @@ const fetchOfficeData = (conn, locals) => {
               }),
           };
         });
+
+      const employeesData = locals.officeDoc.get('employeesData');
+      locals.officeEmployeeSize = getEmployeesRange(employeesData);
 
       return helpers.officePage(conn, locals);
     })
@@ -118,11 +141,11 @@ const app = (req, res) => {
   }
 
   if (slug === 'download') {
-    return helpers.downloadAppPage(conn, {});
+    return helpers.downloadAppPage(conn);
   }
 
   if (slug === 'join') {
-    return helpers.joinPage(conn, {});
+    return helpers.joinPage(conn);
   }
 
   /**
@@ -139,7 +162,7 @@ const app = (req, res) => {
     .get()
     .then((docs) => {
       if (docs.empty) {
-        return helpers.pageNotFound(conn, {});
+        return helpers.pageNotFound(conn);
       }
 
       locals.officeDoc = docs.docs[0];

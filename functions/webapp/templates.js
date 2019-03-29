@@ -173,6 +173,10 @@ const officeSource = () => {
     <div class="content">
       <h1>{{pageTitle}}</h1>
       <p>{{aboutOffice}}</p>
+      <span class="company-size-span">
+        <i class="fas fa-users"></i>
+        {{officeEmployeeSize}}
+      </span>
     </div>
   </main>
 
@@ -184,7 +188,12 @@ const officeSource = () => {
       <ul>
       {{#each branchObjectsArray}}
           <li data-latitude={{this.latitude}} data-longitude={{this.longitude}} onclick="handleBranchClick({{this.latitude}},{{this.longitude}})" class="list-item">
-            <span class="list-item-main">{{this.name}}</span>  
+            <span class="list-item-main">{{this.name}}</span>
+            
+            {{#if this.weeklyOff}}
+            <span><i class="fas fa-door-open"></i>{{this.weeklyOff}}</spam>
+            {{/if}}
+            
             <span class="list-item-child">{{this.address}}</span>
             <hr>
           </li>
@@ -255,7 +264,16 @@ const officeSource = () => {
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"></script>
   <script src="https://maps.googleapis.com/maps/api/js?key={{mapsApiKey}}"></script>
-  <script src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c7f56ce7ea64f4a"></script>
+  <script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c9db267fe61c735"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.23/moment-timezone.min.js" integrity="sha256-N2YqgENxteUOHZbaUAP7QAEY3NlhNhHNrjbZ9bdFUiM=" crossorigin="anonymous"></script>
+  <script src="https://www.google.com/recaptcha/api.js?render=6Ld-xJoUAAAAAE9ZVKyAp3blwB8ao8xLcUYf0TPe"></script>
+  <script>
+  grecaptcha.ready(function() {
+      grecaptcha.execute('reCAPTCHA_site_key', {action: 'homepage'}).then(function(token) {
+         ...
+      });
+  });
+  </script>
   <script src="js/main.js"></script>
   <script src="js/office.js"></script>
 </body>
@@ -273,11 +291,10 @@ const joinPageSource = () => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>Growthfile Home</title>
-  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css" integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css?family=Palanquin" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css" integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
   <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <link rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
@@ -290,63 +307,38 @@ ${headerHtml}
   <main class="container">
   <h1>Join Growthfile</h1>
   <div class="form-container">
-    <form id="form" class="pure-form pure-form-aligned">
-      <fieldset class="form-step-1">
-          <div class="pure-control-group">
-            <label for="officeName">Office Name <span class="required">*</span></label>
-            <input id="officeName" type="text" placeholder="Acme Corporation" required>
-          </div>
+    <form id="form" class="pure-form pure-form-stacked">
+    <fieldset class="form-step-1">
+      <label for="email">Company Name</label>
+      <input id="officeName" class="pure-input-1" type="text" placeholder="Acme Corp.">
+      <span class="pure-form-message">This is a required field.</span>
 
-          <div class="pure-control-group">
-            <label for="email">Your Email <span class="required">*</span></label>
-            <input id="email" type="email" placeholder="john.doe@example.com" required>
-          </div>
-          
-          <div class="pure-control-group">
-            <label for="phoneNumber">Your Contact <span class="required">*</span></label>
-            <input id="phoneNumber" type="tel" placeholder="+1234567890" required>
-          </div>
+      <label for="userPhoneNumber">Contact</label>
+      <input id="userPhoneNumber" class="pure-input-1" type="tel" placeholder="+919087654321">
+      <span class="pure-form-message">This is a required field.</span>
 
-          <div class="pure-control-group">
-            <label for="adminPhoneNumber">Admin Contact </label>
-            <input id="adminPhoneNumber" type="tel" placeholder="+1234567890">
-          </div>
+      <label for="userEmail">Email</label>
+      <input id="userEmail" class="pure-input-1" type="email" placeholder="you@site.com">
+      <span class="pure-form-message">This is a required field.</span>
 
-          <div class="pure-controls">
-            <label for="cb" class="pure-checkbox">
-              <input id="toc-checkbox" type="checkbox"> I've read the Terms and Conditions
-            </label>
+      <label for="tos-checkbox" class="pure-checkbox">
+        <input id="tos-checkbox" type="checkbox"> I agree to the <a href="#">Terms of Service</a>.
+      </label>
 
-            <br/>
+      <button type="button" class="pure-button pure-button-primary">Next</button>
+    </fieldset>
 
-            <button id="step-1-submit" type="button" class="pure-button pure-button-primary">Get Started</button>
-          </div>
-        </fieldset>
+    <fieldset class="form-step-2">
+    <label for="tos-checkbox" class="pure-checkbox">
+      <input id="tos-checkbox" type="checkbox"> I'll upload the documents</a>.
+    </label>
 
-        <fieldset class="form-step-2 hidden">
-        <div class="pure-controls">
-          <label for="me-radio" class="pure-radio">
-            <input id="me-radio" type="radio" value="">
-            I will upload the documents.
-          </label>
+    <label for="tos-checkbox" class="pure-checkbox">
+      <input id="tos-checkbox" type="checkbox"> I'll upload the documents</a>.
+    </label>
 
-          <label for="someone-else-radio" class="pure-radio">
-              <input id="someone-else-radio" type="radio" value="">
-              Someone else will
-          </label>
-
-          <div id="other-person-phone-container" class="pure-control-group hidden">
-            <label for="otherPersonPhoneNumber">Contact <span class="required">*</span></label>
-            <input id="otherPersonPhoneNumber" type="tel" placeholder="+1234567890">
-          </div>
-
-          <br>
-
-          <button id="step-2-submit" type="button" class="pure-button pure-button-primary">Next</button>
-        </div>
-      </fieldset>
-
-      </form>
+    </fieldset>
+    </form>
     </div>
   </main>
 
@@ -356,6 +348,9 @@ ${headerHtml}
   <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js" integrity="sha256-4iQZ6BVL4qNKlQ27TExEhBN1HFPvAvAMbFavKKosSWQ=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.23/moment-timezone-with-data.min.js" integrity="sha256-15jnh2lee6Li94j6XCbw8PRzNZe29O/W9i97yXVyRmA=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.23/moment-timezone.min.js" integrity="sha256-N2YqgENxteUOHZbaUAP7QAEY3NlhNhHNrjbZ9bdFUiM=" crossorigin="anonymous"></script>
   <script src="js/main.js"></script>
   <script src="js/join.js"></script>
 </body>

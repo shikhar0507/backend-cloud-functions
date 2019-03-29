@@ -28,6 +28,7 @@ const officePage = (conn, locals) => {
 
   const context = {
     aboutOffice,
+    officeEmployeeSize: locals.officeEmployeeSize,
     officeName: locals.officeDoc.get('office'),
     pageTitle: `About ${locals.officeDoc.get('office')}`,
     pageDescription: pageDescription,

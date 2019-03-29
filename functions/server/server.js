@@ -228,10 +228,6 @@ const handleRequestPath = (conn, parsedUrl) => {
     return;
   }
 
-  if (parent == 'create-office') {
-    require('../firestore/create-office')(conn);
-  }
-
   if (parent === 'read') {
     require('../firestore/on-read')(conn);
 

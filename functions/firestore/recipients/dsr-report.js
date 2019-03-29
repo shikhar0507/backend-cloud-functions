@@ -607,6 +607,10 @@ module.exports = (locals) => {
       if (!params.todayInitsQuery.empty
         || !params.yesterdayInitsQuery.empty
         || !params.customerActivitiesQuery.empty) {
+        /** 
+         * Any single sheet added added makes the Sheet1 (default sheet)
+         * irrelevant.
+         */
         params.worksheet.deleteSheet('Sheet1');
       }
 

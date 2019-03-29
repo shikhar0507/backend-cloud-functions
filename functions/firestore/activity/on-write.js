@@ -31,7 +31,6 @@ const {
   users,
   deleteField,
   fieldPath,
-  getGeopointObject,
   rootCollections,
 } = require('../../admin/admin');
 const {
@@ -891,7 +890,9 @@ const createSubscription = (locals) => {
         .collection('Addendum')
         .doc();
 
-      const attachment = subscriptionTemplateQuery.get('attachment');
+      const attachment = subscriptionTemplateQuery
+        .docs[0]
+        .get('attachment');
       attachment.Template.value = 'check-in';
       attachment.Subscriber.value = phoneNumber;
 
@@ -1151,12 +1152,20 @@ module.exports = (change, context) => {
 
         /** New user introduced to the system. Saving their phone number. */
         if (!record.hasOwnProperty('uid')) {
+          const creator = (() => {
+            if (typeof change.after.get('creator') === 'string') {
+              return change.after.get('creator');
+            }
+
+            return change.after.get('creator').phoneNumber;
+          })();
+
           batch.set(rootCollections
             .profiles
             .doc(phoneNumber), {
               smsContext: {
                 activityName: change.after.get('activityName'),
-                creator: change.after.get('creator'),
+                creator,
                 office: change.after.get('office'),
               },
             }, {

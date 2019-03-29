@@ -25,16 +25,15 @@
 'use strict';
 
 const https = require('https');
-
 const {
   db,
   rootCollections,
   deleteField,
 } = require('../../admin/admin');
-
 const {
   reportNames,
 } = require('../../admin/constants');
+const env = require('../../admin/env');
 
 const sendSMS = (change) => {
   const {
@@ -71,7 +70,15 @@ const sendSMS = (change) => {
       office,
     } = smsContext;
 
-    return `${first20Chars(creator)} from ${first20Chars(office)} has`
+    const creatorName = (() => {
+      if (creator === env.supportPhoneNumber) {
+        return 'Growthfile Support';
+      }
+
+      return creator;
+    })();
+
+    return `${first20Chars(creatorName)} from ${first20Chars(office)} has`
       + ` created ${first20Chars(activityName)} and`
       + ` included you. Download ${downloadUrl} to view more details.`;
   })();

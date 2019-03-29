@@ -78,6 +78,11 @@ section p span {
     margin-bottom: 30px;
 }
 
+.company-size-span {
+    font-size: 25px;
+    float: right;
+}
+
 .branch-section {
     background-color: #039be5;
     color: white;

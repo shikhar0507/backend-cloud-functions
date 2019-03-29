@@ -1,7 +1,7 @@
 firebase.initializeApp({
-  apiKey: 'AIzaSyA4s7gp7SFid_by1vLVZDmcKbkEcsStBAo',
-  authDomain: 'growthfile.com',
-  projectId: 'growthfile-207024',
+  apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
+  authDomain: 'https://growthfilev2-0.firebaseapp.com',
+  projectId: 'growthfilev2-0',
 });
 
 function signInFailure(error) {
@@ -106,6 +106,16 @@ function changeLink(event) {
 
   return null;
 };
+
+function getSpinnerElement() {
+  const elem = document.createElement('div');
+  elem.className = 'spinner';
+  elem.style.position = 'relative';
+  elem.style.height = '40px';
+  elem.style.width = '40px';
+
+  return elem;
+}
 
 document
   .querySelector('#download-app-link')

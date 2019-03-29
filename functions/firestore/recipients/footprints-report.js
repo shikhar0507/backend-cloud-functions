@@ -578,7 +578,6 @@ module.exports = (locals) => {
     })
     .then(() => handleSignUpReport(locals))
     .then(() => {
-      console.log('locals', locals);
       if (!locals.sendMail) {
         return Promise.resolve();
       }

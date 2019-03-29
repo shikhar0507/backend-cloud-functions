@@ -63,6 +63,14 @@ const sendResponse = (conn, statusCode, message = '') => {
   /** 2xx codes denote success. */
   const success = statusCode <= 226;
 
+  /** 
+   * Requests from sendGrid are retried whenever the status 
+   * code is 4xx or 5xx. We are explicitly avoiding this.
+   */
+  if (conn.req.query.token === env.sgMailParseToken) {
+    conn.res.writeHead(200, conn.headers);
+  }
+
   if (!success) {
     console.log(JSON.stringify({
       ip: conn.req.ip,

@@ -1,17 +1,22 @@
 function sendRequest(requestBody) {
-  const requestUrl = 'https://api2.growthfile.com/api/activities/createOffice';
+  // const requestUrl = 'https://api2.growthfile.com/api/admin/bulk';
+  // const requestUrl =
+  // 'https://us-central1-growthfilev2-0.cloudfunctions.net/api/create-office';
 
+  const requestUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api/admin/bulk';
   const init = {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
     headers: {
       'Content-Type': 'application/json',
     },
   };
 
+  console.log('request sent', requestBody);
+
   return firebase
-    .auth
-    .currentUser()
+    .auth()
+    .currentUser
     .getIdToken()
     .then((idToken) => {
       init.headers['Authorization'] = `Bearer ${idToken}`;
@@ -19,12 +24,6 @@ function sendRequest(requestBody) {
       return fetch(requestUrl, init);
     })
     .then((response) => response.json())
-    .then((data) => {
-      console.log('data', data);
-
-      // hide form
-      // show text that office has been created successfully.
-    })
     .catch(console.error);
 };
 
@@ -40,8 +39,15 @@ document
     const tocCheckbox = document.getElementById('toc-checkbox');
 
     // Admin contact is not required
-    if (!officeName.value || !userEmail.value || !userPhoneNumber.value) {
-      console.log('values', officeName.value, userEmail.value, userPhoneNumber.value, adminContact.value);
+    if (!officeName.value
+      || !userEmail.value
+      || !userPhoneNumber.value) {
+      console.log(
+        officeName.value,
+        userEmail.value,
+        userPhoneNumber.value,
+        adminContact.value
+      );
 
       return false;
     }
@@ -68,17 +74,50 @@ document
 
     console.log('logged in');
 
+    const officeRequestBody = {
+      geopoint: {
+        latitude: 12.12121,
+        longitude: 23.232323,
+      },
+      timestamp: Date.now(),
+      template: 'office',
+      data: [{
+        'Name': officeName.value,
+        Description: '',
+        'Video Id': '',
+        'GST Number': '',
+        'First Contact': userPhoneNumber.value,
+        'Second Contact': adminContact.value || '',
+        'Timezone': moment.tz.guess(),
+        'Head Office': '',
+        'Date Of Establishment': '',
+        'Trial Period': '',
+      }],
+    };
+
     document
       .querySelector('.form-step-1')
       .style
       .display = 'none';
 
-    document
-      .querySelector('.form-step-2')
-      .classList
-      .toggle('hidden');
+    const spinner = getSpinnerElement();
 
-    return false;
+    document
+      .querySelector('#form')
+      .appendChild(spinner);
+
+    return sendRequest(officeRequestBody)
+      .then((json) => {
+        spinner
+          .style
+          .display = 'none';
+
+        document
+          .querySelector('.form-step-2')
+          .classList
+          .toggle('hidden');
+      })
+      .catch(console.error);
   };
 
 document

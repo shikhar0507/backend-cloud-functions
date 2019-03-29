@@ -76,6 +76,7 @@ module.exports = (conn) => {
         return Promise.resolve([false, false]);
       }
 
+      // update only if latestVersion >
       const updateClient = (() => {
         const {
           iosLatestVersion,
@@ -98,7 +99,8 @@ module.exports = (conn) => {
         // Temporary until iOS app gets updated.
         if (os === 'ios') return false;
 
-        return latestVersion !== appVersion;
+        // return latestVersion >= appVersion;
+        return false;
       })();
 
       const batch = db.batch();
