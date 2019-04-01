@@ -7,7 +7,6 @@ const {
 } = require('../../../admin/admin');
 
 
-
 module.exports = (snapShot, context) => {
   // Unassign notifications will go to the user when they are cancelled, 
   // or removed as an assignee from an activity for some reason

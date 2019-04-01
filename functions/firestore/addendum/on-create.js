@@ -201,7 +201,7 @@ const getExpenseClaimObject = (addendumDoc, initQuery, locals) => {
     confirmedAt: '',
     confirmedBy: '',
     confirmedOn: '',
-    user: '',
+    phoneNumber: '',
     expenseDateStartTime: '',
     expenseLocation: '',
   };
@@ -524,6 +524,8 @@ const handleVisitDate = (addendumDoc, locals) => {
       const ref = initDocRef(snapShot);
       const visitObject = getVisitObject(addendumDoc, snapShot, locals);
 
+      console.log('visitDate doc', ref.path);
+
       return ref
         .set({
           date,
@@ -575,6 +577,8 @@ const handleFollowUpDate = (addendumDoc, locals) => {
     .get()
     .then((snapShot) => {
       const ref = initDocRef(snapShot);
+
+      console.log('followUpDateDoc', ref.path);
 
       const followUpObject = getFollowUpObject(addendumDoc, snapShot, locals);
 
@@ -855,6 +859,45 @@ const handleLeaveReport = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
+const handleCustomer = (addendumDoc, locals) => {
+  const template = addendumDoc.get('activityData.template');
+
+  if (template !== 'customer') {
+    return Promise.resolve();
+  }
+
+  const action = addendumDoc.get('action');
+
+  if (action !== httpsActions.create
+    || action !== httpsActions.update) {
+    return Promise.resolve();
+  }
+
+  const today = new Date();
+  const office = addendumDoc.get('activityData.office');
+
+  return rootCollections
+    .inits
+    .where('office', '==', office)
+    .where('report', '==', reportNames.CUSTOMER)
+    .where('month', '==', today.getMonth())
+    .where('year', '==', today.getFullYear())
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      const ref = initDocRef(snapShot);
+      const data = {
+        month: today.getMonth(),
+        year: today.getFullYear(),
+        report: reportNames.CUSTOMER,
+        customerObject: {},
+      };
+
+      return ref.set(data, { merge: true });
+    })
+    .catch(console.error);
+};
+
 const logLocations = (addendumDoc, locals) => {
   const geopointAccuracy = addendumDoc.get('geopointAccuracy');
 
@@ -946,8 +989,6 @@ module.exports = (addendumDoc) => {
     .limit(2)
     .get()
     .then((docs) => {
-      console.log('size', docs.size);
-
       locals
         .previousAddendumDoc = (() => {
           if (docs.docs[0] && docs.docs[0].id !== addendumDoc.id) {
@@ -1081,6 +1122,7 @@ module.exports = (addendumDoc) => {
     .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleExpenseClaimReport(addendumDoc, locals))
     .then(() => locals.batch.commit())
+    // .then(() => handleCustomer(addendumDoc, locals))
     /** DSR doesn't use a batch */
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))

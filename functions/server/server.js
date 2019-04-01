@@ -38,6 +38,7 @@ const {
   sendResponse,
   disableAccount,
   hasSupportClaims,
+  hasAdminClaims,
   reportBackgroundError,
 } = require('../admin/utils');
 const env = require('../admin/env');
@@ -74,14 +75,24 @@ const headerValid = (headers) => {
 const handleAdminUrl = (conn, urlParts) => {
   const resource = urlParts[2];
 
-  console.log('resource', resource);
-
   if (conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims)) {
     sendResponse(
       conn,
       code.forbidden,
       'You cannot make support requests'
+    );
+
+    return;
+  }
+
+  /** Only support or admin is allowed */
+  if (!conn.requester.isSupportRequest
+    && !hasAdminClaims(conn.requester.customClaims)) {
+    sendResponse(
+      conn,
+      code.unauthorized,
+      `You cannot access this resource`
     );
 
     return;
@@ -125,6 +136,12 @@ const handleAdminUrl = (conn, urlParts) => {
 
   if (resource === 'employee-resign') {
     require('../employee-resign')(conn);
+
+    return;
+  }
+
+  if (resource === 'send-mail') {
+    require('../website-utils/send-excel-email')(conn);
 
     return;
   }
@@ -446,7 +463,6 @@ const handleRejections = (conn, errorObject) => {
     .then(() => sendResponse(conn, code.unauthorized, 'Unauthorized'))
     .catch((error) => handleError(conn, error));
 };
-
 
 /**
  * Verifies the `id-token` form the Authorization header in the request.

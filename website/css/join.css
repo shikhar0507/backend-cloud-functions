@@ -43,10 +43,6 @@ main h1 {
 }
 
 @media (max-width: 450px) {
-    .pad-after-header {
-        height: 85px;
-    }
-
     .container {
         min-height: unset;
     }

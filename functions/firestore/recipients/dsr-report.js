@@ -70,6 +70,7 @@ const handleSheetTwo = (params) => {
   }
 
   const sheet2 = worksheet.addSheet('DSR Follow-Up');
+  params.sheetTwoAdded = true;
   sheet2.row(1).style('bold', true);
 
   const followUpTopRow = [
@@ -203,8 +204,6 @@ const handleSheetTwo = (params) => {
           .value('');
       }
 
-      console.log('actualLocation', actualLocation);
-
       sheet2
         .cell(`L${columnIndex}`)
         .value(actualLocation.identifier)
@@ -226,8 +225,6 @@ const handleSheetTwo = (params) => {
       sheet2.cell(`Y${columnIndex}`).value(secondSupervisor);
     });
   });
-
-  params.sheetTwoAdded = true;
 
   return params;
 };
@@ -256,8 +253,8 @@ const handleSheetOne = (params) => {
   if (phoneNumbers.length === 0) {
     return Promise.resolve(params);
   }
-
   const sheet1 = worksheet.addSheet('DSR Visits');
+  params.sheetOneAdded = true;
   sheet1.row(1).style('bold', true);
 
   const visitsSheetTopRow = [
@@ -341,7 +338,6 @@ const handleSheetOne = (params) => {
         timestampToConvert: followUpEndTimestamp,
         format: dateFormats.DATE_TIME,
       });
-
       const employeeObject = employeeInfo(employeesData, phoneNumber);
       const customerLocation = (() => {
         if (!customersData[customer]) return '';
@@ -396,8 +392,6 @@ const handleSheetOne = (params) => {
       sheet1.cell(`W${columnIndex}`).value(secondSupervisor);
     });
   });
-
-  params.sheetOneAdded = true;
 
   return params;
 };
@@ -583,30 +577,20 @@ module.exports = (locals) => {
         sendMail: locals.sendMail,
       };
 
-      if (yesterdayInitsQuery.empty
-        && todayInitsQuery.empty
-        && customerActivitiesQuery.empty) {
-        locals.sendMail = false;
-
-        return Promise.resolve(params);
-      }
-
       return handleSheetOne(params);
     })
     .then(handleSheetTwo)
     .then(handleCustomerReport)
     .then((params) => {
       if (!params.sheetOneAdded
-        && !params.sheetTwoAdded
-        && params.customerReportAdded) {
+        && !params.sheetTwoAdded) {
         locals.sendMail = false;
 
         return Promise.resolve();
       }
 
-      if (!params.todayInitsQuery.empty
-        || !params.yesterdayInitsQuery.empty
-        || !params.customerActivitiesQuery.empty) {
+      if (params.sheetOneAdded
+        || params.sheetTwoAdded) {
         /** 
          * Any single sheet added added makes the Sheet1 (default sheet)
          * irrelevant.

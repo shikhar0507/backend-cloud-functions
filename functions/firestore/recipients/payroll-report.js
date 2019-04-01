@@ -139,8 +139,6 @@ module.exports = (locals) => {
   console.log('office', locals.officeDoc.get('office'));
   console.log('locals.createOnlyData', locals.createOnlyData);
 
-  locals.sendNotifications = true;
-
   return Promise
     .all([
       rootCollections
@@ -306,8 +304,6 @@ module.exports = (locals) => {
 
       const checkInPromises = [];
 
-      console.log('employeesPhoneNumberList', employeesPhoneNumberList.length);
-
       employeesPhoneNumberList.forEach((phoneNumber) => {
         if (!countsObject[phoneNumber]) {
           countsObject[phoneNumber] = getZeroCountsObject();
@@ -379,6 +375,10 @@ module.exports = (locals) => {
         const checkInDiff = Math.abs(
           lastCheckInTimestamp - firstCheckInTimestamp
         );
+
+        if (phoneNumber === '+919871571467') {
+          console.log(addendumDoc.data());
+        }
 
         if (!locals.payrollObject[phoneNumber][yesterdayDate]) {
           locals.payrollObject[phoneNumber][yesterdayDate] = {};
@@ -495,7 +495,8 @@ module.exports = (locals) => {
 
         if (onDutySet.has(phoneNumber)) {
           locals
-            .payrollObject[phoneNumber][yesterdayDate].status = 'ON DUTY';
+            .payrollObject[phoneNumber][yesterdayDate]
+            .status = 'ON DUTY';
           countsObject[phoneNumber].onDuty++;
 
           return;
@@ -503,7 +504,8 @@ module.exports = (locals) => {
 
         if (branchHolidaySet.has(phoneNumber)) {
           locals
-            .payrollObject[phoneNumber][yesterdayDate].status = 'HOLIDAY';
+            .payrollObject[phoneNumber][yesterdayDate]
+            .status = 'HOLIDAY';
           countsObject[phoneNumber].holiday++;
 
           return;
@@ -511,7 +513,8 @@ module.exports = (locals) => {
 
         if (weeklyOffSet.has(phoneNumber)) {
           locals
-            .payrollObject[phoneNumber][yesterdayDate].status = 'WEEKLY OFF';
+            .payrollObject[phoneNumber][yesterdayDate]
+            .status = 'WEEKLY OFF';
           countsObject[phoneNumber].weeklyOff++;
 
           return;
@@ -528,7 +531,9 @@ module.exports = (locals) => {
 
         // Person hasn't done anything. AND yesterday was also not
         // a holiday, on duty, or a leave will get blank
-        locals.payrollObject[phoneNumber][yesterdayDate] = { status: 'BLANK' };
+        locals.payrollObject[phoneNumber][yesterdayDate] = {
+          status: 'BLANK',
+        };
         countsObject[phoneNumber].blank++;
         peopleWithBlank.add(phoneNumber);
       });
@@ -543,17 +548,18 @@ module.exports = (locals) => {
 
       console.log('yesterday', yesterday.date());
 
-      return ref
-        .set({
-          office,
-          month: yesterday.month(),
-          year: yesterday.year(),
-          officeId: locals.officeDoc.id,
-          report: reportNames.PAYROLL,
-          payrollObject: locals.payrollObject,
-        }, {
-            merge: true,
-          });
+      // return ref
+      //   .set({
+      //     office,
+      //     month: yesterday.month(),
+      //     year: yesterday.year(),
+      //     officeId: locals.officeDoc.id,
+      //     report: reportNames.PAYROLL,
+      //     payrollObject: locals.payrollObject,
+      //   }, {
+      //       merge: true,
+      //     });
+      return null;
     })
     .then(() => {
       if (locals.createOnlyData) {
@@ -604,7 +610,8 @@ module.exports = (locals) => {
             .replace(/-/g, ' ')
             .replace(/\s\s+/g, ' ');
 
-        locals.csvString +=
+        locals
+          .csvString +=
           `${employeesData[phoneNumber].Name},`
           // The tab character after the phone number disabled Excel's 
           // auto converting of the phone numbers into big numbers
@@ -711,9 +718,10 @@ module.exports = (locals) => {
 
         const leaveSubscriptionPromise = rootCollections
           .activities
+          .where('attachment.Template.value', '==', 'leave')
           .where('attachment.Subscriber.value', '==', phoneNumber)
-          .where('template', '==', 'leave')
-          .where('office', '==', locals.change.after.get('office'))
+          .where('template', '==', 'subscription')
+          .where('office', '==', office)
           .where('status', '==', 'CONFIRMED')
           .limit(1)
           .get();
@@ -721,9 +729,10 @@ module.exports = (locals) => {
         const onDutySubscriptionPromise =
           rootCollections
             .activities
+            .where('attachment.Template.value', '==', 'on duty')
             .where('attachment.Subscriber.value', '==', phoneNumber)
-            .where('template', '==', 'on duty')
-            .where('office', '==', locals.change.after.get('office'))
+            .where('template', '==', 'subscription')
+            .where('office', '==', office)
             .where('status', '==', 'CONFIRMED')
             .limit(1)
             .get();
@@ -738,6 +747,10 @@ module.exports = (locals) => {
       return Promise.all(regTokenFetchPromises);
     })
     .then((snapShots) => {
+      if (!locals.sendNotifications) {
+        return Promise.resolve();
+      }
+
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) {
           return;
@@ -756,6 +769,10 @@ module.exports = (locals) => {
       return Promise.all(leaveSubscriptionFetchPromises);
     })
     .then((snapShots) => {
+      if (!locals.sendNotifications) {
+        return Promise.resolve();
+      }
+
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) {
           return;
@@ -768,6 +785,10 @@ module.exports = (locals) => {
       return Promise.all(onDutySubscriptionFetchPromises);
     })
     .then((snapShots) => {
+      if (!locals.sendNotifications) {
+        return Promise.resolve();
+      }
+
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) {
           return;
@@ -807,7 +828,7 @@ module.exports = (locals) => {
 
         if (subscriptionsSet.has('leave')) {
           const object = {
-            office: locals.change.after.get('office'),
+            office,
             template: 'leave',
             schedule: [{
               name: 'Leave Dates',
@@ -830,7 +851,7 @@ module.exports = (locals) => {
 
         if (subscriptionsSet.has('on duty')) {
           const object = {
-            office: locals.change.after.get('office'),
+            office,
             template: 'on duty',
             schedule: [{
               name: 'Duty Date',

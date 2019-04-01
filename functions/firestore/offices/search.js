@@ -27,23 +27,12 @@ module.exports = (conn) => {
     return;
   }
 
-  if (conn.requester.isSupportRequest
-    && !hasSupportClaims(conn.requester.customClaims)) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `Support claims not found`
-    );
-
-    return;
-  }
-
   if (!conn.requester.isSupportRequest
-    && !hasAdminClaims(conn.requester.customClaims)) {
+    && !conn.req.query.office) {
     sendResponse(
       conn,
-      code.forbidden,
-      `You are not allowed to access this resource`
+      code.badRequest,
+      `Query param 'office' invalid/missing`
     );
 
     return;

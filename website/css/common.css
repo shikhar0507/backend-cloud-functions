@@ -193,6 +193,10 @@ footer {
         grid-template: none;
     }
 
+    .footer-logo-container span {
+        line-height: unset;
+    }
+
     .footer-links {
         margin-bottom: 40px;
     }

@@ -79,6 +79,10 @@ const getTemplateId = (report) => {
     return sendGridTemplateIds.enquiry;
   }
 
+  if (report === reportNames.FOOTPRINTS_MTD) {
+    return sendGridTemplateIds.footprints;
+  }
+
   return null;
 };
 
@@ -97,6 +101,7 @@ module.exports = (change) => {
     sgMail,
     // Used for exiting early in .then() clauses if init docs query is empty.
     sendMail: true,
+    sendNotifications: true,
     messageObject: {
       cc,
       to: [],
@@ -122,15 +127,6 @@ module.exports = (change) => {
 
     return Promise.resolve();
   }
-
-  // Not sending emails when someone is added to or removed from the recipients
-  // list
-  // if (change.before.data()
-  //   && change.before.get('include').length !== change.after.get('include').length) {
-  //   locals.sendMail = false;
-
-  //   return Promise.resolve();
-  // }
 
   console.log({ report });
 
@@ -218,16 +214,12 @@ module.exports = (change) => {
         return Promise.resolve();
       }
 
-      if (report === reportNames.SIGNUP) {
-        return require('./sign-up-report')(locals);
-      }
-
-      if (report === reportNames.INSTALL) {
-        return require('./install-report')(locals);
-      }
-
       if (report === reportNames.FOOTPRINTS) {
         return require('./footprints-report')(locals);
+      }
+
+      if (report === reportNames.FOOTPRINTS_MTD) {
+        return require('./footprints-mtd-report')(locals);
       }
 
       if (report === reportNames.DSR) {
@@ -252,7 +244,6 @@ module.exports = (change) => {
 
       return Promise.resolve(null);
     })
-    // .then(sgMail.sendMultiple)
     .then(() => Promise.all(usersWithoutEmailOrVerifiedEmail))
     .then((snapShot) => {
       const notifications = [];

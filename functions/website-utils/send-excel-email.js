@@ -84,13 +84,13 @@ const sendEmail = (conn, locals) => {
 
       return Promise
         .all([
-          updatesDoc
-            .ref
-            .set({
-              officesCreated,
-            }, {
-                merge: true,
-              }),
+          // updatesDoc
+          //   .ref
+          //   .set({
+          //     officesCreated,
+          //   }, {
+          //       merge: true,
+          //     }),
           sgMail
             .sendMultiple(messageObject),
         ]);

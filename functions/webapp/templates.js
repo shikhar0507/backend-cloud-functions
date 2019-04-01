@@ -298,6 +298,7 @@ const joinPageSource = () => {
   <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <link rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" integrity="sha256-gvEnj2axkqIj4wbYhPjbWV7zttgpzBVEgHub9AAZQD4=" crossorigin="anonymous" />
   <link rel="stylesheet" href="css/common.css">
   <link rel="stylesheet" href="css/join.css">
 </head>
@@ -309,33 +310,44 @@ ${headerHtml}
   <div class="form-container">
     <form id="form" class="pure-form pure-form-stacked">
     <fieldset class="form-step-1">
-      <label for="email">Company Name</label>
-      <input id="officeName" class="pure-input-1" type="text" placeholder="Acme Corp.">
-      <span class="pure-form-message">This is a required field.</span>
+      <label for="office-name">Company Name</label>
+      <input id="office-name" class="pure-input-1" type="text" placeholder="Acme Corp.">
+      <span class="pure-form-message">required field.</span>
 
-      <label for="userPhoneNumber">Contact</label>
-      <input id="userPhoneNumber" class="pure-input-1" type="tel" placeholder="+919087654321">
-      <span class="pure-form-message">This is a required field.</span>
+      <label for="user-phone-number">Contact</label>
+      <input id="user-phone-number" class="pure-input-1" type="tel" placeholder="+919087654321">
+      <span class="pure-form-message">required field.</span>
 
-      <label for="userEmail">Email</label>
-      <input id="userEmail" class="pure-input-1" type="email" placeholder="you@site.com">
-      <span class="pure-form-message">This is a required field.</span>
+      <label for="user-email">Email</label>
+      <input id="user-email" class="pure-input-1" type="email" placeholder="you@site.com">
+      <span class="pure-form-message">required field.</span>
 
       <label for="tos-checkbox" class="pure-checkbox">
-        <input id="tos-checkbox" type="checkbox"> I agree to the <a href="#">Terms of Service</a>.
+        <input id="tos-checkbox" type="checkbox"> I agree to the <a href="#">Terms of Service</a>
       </label>
 
-      <button type="button" class="pure-button pure-button-primary">Next</button>
+      <button id="form-step-1-submit" type="button" class="pure-button pure-button-primary">Next</button>
     </fieldset>
 
-    <fieldset class="form-step-2">
-    <label for="tos-checkbox" class="pure-checkbox">
-      <input id="tos-checkbox" type="checkbox"> I'll upload the documents</a>.
+    <fieldset class="form-step-2 hidden">
+      <div>We have sent an email to <span id="display-email"></span></div>
+    </fieldset>
+
+    <fieldset class="form-step-3 hidden">
+    <label for="self-upload-checkbox" class="pure-checkbox">
+      <input id="self-upload-checkbox" type="checkbox" checked> I'll upload the documents</a>.
     </label>
 
-    <label for="tos-checkbox" class="pure-checkbox">
-      <input id="tos-checkbox" type="checkbox"> I'll upload the documents</a>.
+    <label for="other-person-checkbox" class="pure-checkbox">
+      <input id="other-person-checkbox" type="checkbox"> Someone else will</a>.
     </label>
+
+    <label>Other Contact</label>
+    <input id="other-person-input" type="tel" placeholder="+919876554321" disabled>
+
+    <br>
+
+    <button id="form-step-2-submit" type="button" class="pure-button pure-button-primary">Next</button>
 
     </fieldset>
     </form>

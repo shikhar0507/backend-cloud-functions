@@ -10,21 +10,6 @@
 
 // const ui = new firebaseui.auth.AuthUI(firebase.auth());
 
-function showToast(message, seconds = 5) {
-  return Toastify({
-    text: message,
-    duration: seconds * 1000,
-    destination: '',
-    newWindow: true,
-    className: 'toast',
-    close: true,
-    gravity: 'top', // `top` or `bottom`
-    positionLeft: false, // `true` or `false`
-    backgroundColor: '#039be5',
-  })
-    .showToast();
-};
-
 // needs to be global for gMaps to work. // See docs.
 let map;
 let firebaseAuthModal;

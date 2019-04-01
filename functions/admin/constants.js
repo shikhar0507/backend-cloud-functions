@@ -800,6 +800,8 @@ const dateFormats = {
   TIME: 'LT',
   DATE: 'Do MMM YYYY',
   DATE_TIME: 'MMM D YYYY HH[:]mm A',
+  MONTH_YEAR: 'MMMM YYYY',
+  MONTH_DATE: 'MMM DD',
 };
 
 const reportNames = {
@@ -818,6 +820,7 @@ const reportNames = {
   PAYROLL: 'payroll',
   TOUR_PLAN: 'tour plan',
   DAILY_STATUS_REPORT: 'daily status report',
+  FOOTPRINTS_MTD: 'footprints mtd',
 };
 
 const customMessages = {

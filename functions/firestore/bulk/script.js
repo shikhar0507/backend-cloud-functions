@@ -677,7 +677,11 @@ const createObjects = (conn, locals, trialRun) => {
     numberOfBatches: batchFactories.length,
   });
 
-  const responseObject = { data: conn.req.body.data, totalDocsCreated };
+  const responseObject = {
+    totalDocsCreated,
+    numberOfBatches: batchFactories.length,
+    data: conn.req.body.data,
+  };
 
   /** For testing out code */
   if (trialRun) {
@@ -1511,7 +1515,7 @@ module.exports = (conn) => {
       .get(),
   ];
 
-  if (conn.req.body.template === 'subscription') {
+  if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
     const promise = rootCollections
       .activityTemplates
       .get();
@@ -1528,7 +1532,7 @@ module.exports = (conn) => {
         templatesCollectionQuery,
       ] = result;
 
-      if (conn.req.body.template !== 'office'
+      if (conn.req.body.template !== templateNamesObject.OFFICE
         && officeDocsQuery.empty) {
         return sendResponse(
           conn,
@@ -1552,7 +1556,7 @@ module.exports = (conn) => {
         employeesSet: new Set(),
       };
 
-      if (conn.req.body.template === 'subscription') {
+      if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
         const templateNamesSet = new Set();
 
         templatesCollectionQuery.forEach((doc) => {

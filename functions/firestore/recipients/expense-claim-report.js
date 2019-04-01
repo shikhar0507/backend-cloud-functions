@@ -93,6 +93,8 @@ module.exports = (locals) => {
           .value(header);
       });
 
+      console.log('initDocsQuery.docs[0]', initDocsQuery.docs[0].id);
+
       const expenseClaimObject = initDocsQuery.docs[0].get('expenseClaimObject');
       const activityIdsArray = Object.keys(expenseClaimObject);
 
@@ -123,6 +125,7 @@ module.exports = (locals) => {
           timestampToConvert: row.confirmedOn,
           format: dateFormats.DATE_TIME,
         });
+
         const confirmedBy = employeeInfo(employeesData, row.confirmedBy).name;
         const confirmedAt = row.confirmedAt || {};
 
@@ -131,7 +134,7 @@ module.exports = (locals) => {
         sheet1.cell(`C${columnNumber}`).value(Number(amount));
         sheet1.cell(`D${columnNumber}`).value(status);
         sheet1.cell(`E${columnNumber}`).value(confirmedOn);
-        sheet1.cell(`F${columnNumber}`).value(confirmedBy);
+        sheet1.cell(`F${columnNumber}`).value(confirmedBy || row.confirmedBy);
 
         if (confirmedAt.url) {
           sheet1
@@ -146,19 +149,19 @@ module.exports = (locals) => {
         }
 
         sheet1.cell(`H${columnNumber}`).value(expenseDate);
+        sheet1.cell(`I${columnNumber}`).value(expenseType);
 
         if (expenseLocation.url) {
-          sheet1.
-            cell(`I${columnNumber}`)
+          sheet1
+            .cell(`J${columnNumber}`)
             .value(expenseLocation.identifier)
             .style({ fontColor: '0563C1', underline: true })
             .hyperlink(expenseLocation.url);
         } else {
-          sheet1.
-            cell(`I${columnNumber}`)
+          sheet1
+            .cell(`J${columnNumber}`)
             .value('');
         }
-        sheet1.cell(`J${columnNumber}`).value(expenseType);
         sheet1.cell(`K${columnNumber}`).value(referenceNumber);
         sheet1.cell(`L${columnNumber}`).value(reason);
       });
@@ -167,19 +170,28 @@ module.exports = (locals) => {
     })
     .then(() => {
       if (!locals.sendMail) {
-        console.log('not sending after worksheet');
-
         return Promise.resolve();
       }
 
-      locals.messageObject.attachments.push({
-        fileName,
-        content: fs.readFileSync(filePath).toString('base64'),
-        type: 'text/csv',
-        disposition: 'attachment',
+      locals
+        .messageObject
+        .attachments
+        .push({
+          fileName,
+          content: fs.readFileSync(filePath).toString('base64'),
+          type: 'text/csv',
+          disposition: 'attachment',
+        });
+
+      console.log({
+        report: reportNames.EXPENSE_CLAIM,
+        to: locals.messageObject.to,
+        office: locals.officeDoc.get('office'),
       });
 
-      return locals.sgMail.sendMultiple(locals.messageObject);
+      return locals
+        .sgMail
+        .sendMultiple(locals.messageObject);
     })
     .catch(console.error);
 };

@@ -308,6 +308,15 @@ const validateVenues = (body, venueDescriptors) => {
       break;
     }
 
+    // const lat = venueObject.geopoint.latitude;
+    // const long = venueObject.geopoint.longitude;
+
+    // if (location || address && (!lat || !long)) {
+    //   messageObject.isValid = false;
+    //   messageObject.message = `Invalid venue at ${i}`;
+    //   break;
+    // }
+
     venueObject.geopoint = getGeopointObject(venueObject.geopoint);
 
     messageObject.venues.push({

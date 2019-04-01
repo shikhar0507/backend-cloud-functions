@@ -27,124 +27,157 @@ function sendRequest(requestBody) {
     .catch(console.error);
 };
 
-document
-  .getElementById('step-1-submit')
-  .onclick = function (event) {
-    console.log('submit');
+function handleFormStep1(event) {
+  console.log('submit');
 
-    const officeName = document.getElementById('officeName');
-    const userEmail = document.getElementById('email');
-    const userPhoneNumber = document.getElementById('phoneNumber');
-    const adminContact = document.getElementById('adminPhoneNumber');
-    const tocCheckbox = document.getElementById('toc-checkbox');
+  // user-phone-number
+  const officeName = document.getElementById('office-name').value;
+  const userEmail = document.getElementById('user-email').value;
+  const userPhoneNumber = document.getElementById('user-phone-number').value;
+  const tocCheckbox = document.getElementById('tos-checkbox');
 
-    // Admin contact is not required
-    if (!officeName.value
-      || !userEmail.value
-      || !userPhoneNumber.value) {
-      console.log(
-        officeName.value,
-        userEmail.value,
-        userPhoneNumber.value,
-        adminContact.value
-      );
+  // Admin contact is not required
+  if (!officeName) {
+    return showToast(`Office name is required`);
+  }
 
-      return false;
-    }
+  if (!userEmail) {
+    return showToast(`Email is required`);
+  }
 
-    if (!tocCheckbox.checked) {
-      console.log('checkbox not ticked');
+  if (!userPhoneNumber) {
+    return showToast(`Phone number is required`);
+  }
 
-      return;
-    }
+  if (!tocCheckbox.checked) {
+    return showToast(`Please agree with the TOS`);
+  }
 
-    if (!firebase.auth().currentUser) {
-      // not logged in
-      console.log('not logged in');
+  console.log({ officeName, userEmail, userPhoneNumber });
 
-      const modalContent = `<div id="firebaseui-auth-container"></div>`;
-      // ui.
-      firebaseAuthModal = picoModal(modalContent);
-      firebaseAuthModal.show();
+  if (!firebase.auth().currentUser) {
+    // not logged in
+    console.log('not logged in');
 
-      ui.start('#firebaseui-auth-container', uiConfig);
+    const modalContent = `<div id="firebaseui-auth-container"></div>`;
+    // ui.
+    firebaseAuthModal = picoModal(modalContent);
+    firebaseAuthModal.show();
 
-      return;
-    }
+    ui.start('#firebaseui-auth-container', uiConfig);
 
-    console.log('logged in');
+    return;
+  }
 
-    const officeRequestBody = {
-      geopoint: {
-        latitude: 12.12121,
-        longitude: 23.232323,
-      },
-      timestamp: Date.now(),
-      template: 'office',
-      data: [{
-        'Name': officeName.value,
-        Description: '',
-        'Video Id': '',
-        'GST Number': '',
-        'First Contact': userPhoneNumber.value,
-        'Second Contact': adminContact.value || '',
-        'Timezone': moment.tz.guess(),
-        'Head Office': '',
-        'Date Of Establishment': '',
-        'Trial Period': '',
-      }],
-    };
+  console.log('logged in');
+
+  if (!firebase.auth().currentUser.email) {
+    document
+      .getElementById('display-email')
+      .innerText = userEmail;
 
     document
-      .querySelector('.form-step-1')
-      .style
-      .display = 'none';
+      .getElementById('form-step-2')
+      .classList
+      .remove('hidden');
 
-    const spinner = getSpinnerElement();
+    return firebase
+      .auth()
+      .currentUser
+      .updateProfile({
+        email: userEmail
+      })
+      .then((userRecord) => {
+        if (userRecord.emailVerified) {
+          return null;
+        }
 
-    document
-      .querySelector('#form')
-      .appendChild(spinner);
-
-    return sendRequest(officeRequestBody)
-      .then((json) => {
-        spinner
-          .style
-          .display = 'none';
-
-        document
-          .querySelector('.form-step-2')
-          .classList
-          .toggle('hidden');
+        return firebase
+          .auth()
+          .currentUser
+          .sendEmailVerification();
+      })
+      .then(() => {
       })
       .catch(console.error);
+  }
+
+
+  const officeRequestBody = {
+    geopoint: {
+      latitude: 12.12121,
+      longitude: 23.232323,
+    },
+    timestamp: Date.now(),
+    template: 'office',
+    data: [{
+      'Name': officeName.value,
+      Description: '',
+      'Video Id': '',
+      'GST Number': '',
+      'First Contact': userPhoneNumber.value,
+      'Second Contact': '',
+      'Timezone': moment.tz.guess(),
+      'Head Office': '',
+      'Date Of Establishment': '',
+      'Trial Period': '',
+    }],
+  };
+
+  document
+    .querySelector('.form-step-1')
+    .style
+    .display = 'none';
+
+  const spinner = getSpinnerElement();
+
+  document
+    .getElementById('form')
+    .appendChild(spinner);
+
+  return sendRequest(officeRequestBody)
+    .then((json) => {
+      spinner
+        .style
+        .display = 'none';
+
+      document
+        .querySelector('.form-step-2')
+        .classList
+        .toggle('hidden');
+
+      return;
+    })
+    .catch(console.error);
+};
+
+document
+  .getElementById('form-step-1-submit')
+  .onclick = handleFormStep1;
+
+document
+  .getElementById('self-upload-checkbox')
+  .onchange = function (event) {
+    document
+      .getElementById('other-person-checkbox')
+      .checked = false;
+    document
+      .getElementById('other-person-input')
+      .setAttribute('disabled', true);
   };
 
 document
-  .querySelector('#someone-else-radio')
-  .addEventListener('change', function (event) {
+  .getElementById('other-person-checkbox')
+  .onchange = function (event) {
     document
-      .getElementById('other-person-phone-container')
-      .classList
-      .toggle('hidden');
+      .getElementById('other-person-input')
+      .removeAttribute('disabled');
 
     document
-      .getElementById('me-radio')
+      .getElementById('self-upload-checkbox')
       .checked = false;
-  });
+  };
 
-document
-  .querySelector('#me-radio')
-  .addEventListener('change', function (event) {
-    document
-      .getElementById('other-person-phone-container')
-      .classList
-      .add('hidden');
-
-    document
-      .getElementById('someone-else-radio')
-      .checked = false;
-  });
 
 document
   .querySelector('#header-join-link')

@@ -49,17 +49,9 @@ const handleInstallReport = (locals) => {
   const timestampFromTimer = locals.change.after.get('timestamp');
   const office = locals.officeDoc.get('office');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentWithOffsetToday = momentTz(timestampFromTimer).tz(timezone);
-  const standardDateString = momentWithOffsetToday.format(dateFormats.DATE);
   const momentWithOffsetYesterday = momentTz(timestampFromTimer)
     .subtract(1, 'day')
     .tz(timezone);
-
-  locals.messageObject['dynamic_template_data'] = {
-    office,
-    date: standardDateString,
-    subject: `Install Report_${office}_${standardDateString}`,
-  };
 
   // key -> deviceId
   // value -> array of users
@@ -82,7 +74,7 @@ const handleInstallReport = (locals) => {
     .where('year', '==', momentWithOffsetYesterday.year())
     .get()
     .then((initDocsQuery) => {
-      if (initDocsQuery.empty) {
+      if (!locals.sendMail || initDocsQuery.empty) {
         /** No report to be sent since no one installed yesterday. */
         return Promise.resolve();
       }
@@ -100,7 +92,7 @@ const handleInstallReport = (locals) => {
         installs
           .forEach((timestampNumber) => {
             const installTimeString = dateStringWithOffset({
-              timezone: locals.timezone,
+              timezone,
               timestampToConvert: timestampNumber,
               format: dateFormats.DATE_TIME,
             });
@@ -263,9 +255,7 @@ const handleSignUpReport = (locals) => {
   const office = locals.officeDoc.get('office');
   const timestampFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentWithOffsetToday = momentTz(timestampFromTimer).tz(timezone);
   const momentWithOffsetYesterday = momentTz(timestampFromTimer).subtract(1, 'day').tz(timezone);
-  const standardDateString = momentWithOffsetToday.format(dateFormats.DATE);
   const employeesData = locals.officeDoc.get('employeesData');
 
   return rootCollections
@@ -326,7 +316,7 @@ const handleSignUpReport = (locals) => {
           secondSupervisorPhoneNumber
         );
         const signedUpOn = dateStringWithOffset({
-          timezone: locals.timezone,
+          timezone,
           timestampToConvert: (() => {
             if (employeesObject[phoneNumber]) {
               return employeesObject[phoneNumber].signedUpOn;
@@ -336,7 +326,7 @@ const handleSignUpReport = (locals) => {
           })(),
         });
         const addedOn = dateStringWithOffset({
-          timezone: locals.timezone,
+          timezone,
           timestampToConvert: (() => {
             if (employeesData[phoneNumber]) {
               return employeesData[phoneNumber].createTime;
@@ -359,15 +349,6 @@ const handleSignUpReport = (locals) => {
         signUpSheet.cell(`I${columnNumber}`).value(secondSupervisor.name);
         signUpSheet.cell(`J${columnNumber}`).value(secondSupervisorPhoneNumber);
       });
-
-      locals.messageObject['dynamic_template_data'] = {
-        office,
-        date: standardDateString,
-        subject: `Sign-Up Report_${office}_${standardDateString}`,
-        totalEmployees: employeesList.length,
-        totalSignUps: totalSignUpsCount,
-        difference: employeesList.length - totalSignUpsCount,
-      };
 
       return locals.workbook;
     })
@@ -426,8 +407,6 @@ module.exports = (locals) => {
 
         return Promise.resolve(false);
       }
-
-      locals.footprintsSheetAdded = true;
 
       const footprintsSheet = workbook.addSheet('Footprints');
 
@@ -571,6 +550,10 @@ module.exports = (locals) => {
           .cell(`J${columnIndex}`)
           .value(baseLocation);
       });
+
+      if (!addendumDocs.empty) {
+        locals.footprintsSheetAdded = true;
+      }
 
       locals.workbook = workbook;
 

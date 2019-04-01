@@ -915,7 +915,7 @@ const createSubscription = (locals) => {
         activityData,
         creator: locals.change.after.get('creator').phoneNumber,
         userDisplayName: locals.change.after.get('creator').displayName,
-        share: Array.from(),
+        share: locals.assigneePhoneNumbersArray,
         action: httpsActions.create,
         activityId: activityRef.id,
         template: 'subscription',
