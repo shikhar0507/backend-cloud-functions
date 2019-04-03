@@ -972,13 +972,30 @@ const logLocations = (addendumDoc, locals) => {
 
 
 module.exports = (addendumDoc) => {
+  const action = addendumDoc.get('action');
   const phoneNumber = addendumDoc.get('user');
+  const isInstallOrSignUpEvent = action === httpsActions.install
+    || action === httpsActions.signup;
   const officeId = addendumDoc.get('activityData.officeId');
   const timezone = addendumDoc.get('activityData.timezone') || 'Asia/Kolkata';
   const locals = {
     dateObject: new Date(),
     momentWithOffset: momentTz().tz(timezone),
   };
+  let previousGeopoint;
+  let currentGeopoint;
+
+  if (isInstallOrSignUpEvent) {
+    return addendumDoc
+      .ref
+      .set({
+        date: locals.momentWithOffset.date(),
+        month: locals.momentWithOffset.month(),
+        year: locals.momentWithOffset.year(),
+      }, {
+          merge: true,
+        });
+  }
 
   return rootCollections
     .offices
@@ -998,22 +1015,37 @@ module.exports = (addendumDoc) => {
           return docs.docs[1];
         })();
 
+      currentGeopoint = addendumDoc.get('location');
+
       const promises = [
         googleMapsClient
           .reverseGeocode({
-            latlng: getLatLngString(addendumDoc.get('location')),
+            latlng: getLatLngString(currentGeopoint),
           })
           .asPromise(),
       ];
 
       if (locals.previousAddendumDoc) {
-        promises.push(googleMapsClient
-          .distanceMatrix({
-            origins: getLatLngString(locals.previousAddendumDoc.get('location')),
-            destinations: getLatLngString(addendumDoc.get('location')),
-            units: 'metric',
-          })
-          .asPromise());
+        /** Could be undefined for install or signup events in the previous addendum */
+        previousGeopoint = locals.previousAddendumDoc.get('location');
+
+        if (!previousGeopoint) {
+          previousGeopoint = currentGeopoint;
+        }
+
+        promises
+          .push(googleMapsClient
+            .distanceMatrix({
+              /**
+               * Ordering is important here. The `legal` distance
+               * between A to B might not be the same as the legal
+               * distance between B to A.
+               */
+              origins: getLatLngString(previousGeopoint),
+              destinations: getLatLngString(currentGeopoint),
+              units: 'metric',
+            })
+            .asPromise());
       }
 
       return Promise.all(promises);
@@ -1027,7 +1059,7 @@ module.exports = (addendumDoc) => {
       locals
         .placeInformation = getPlaceInformation(
           mapsApiResult,
-          addendumDoc.get('location')
+          currentGeopoint
         );
 
       if (mapsApiResult.json.results.length > 0) {
@@ -1062,16 +1094,15 @@ module.exports = (addendumDoc) => {
             return distanceData.value / 1000;
           }
 
-          const geopointOne = locals.previousAddendumDoc.get('location');
-          const geopointTwo = addendumDoc.get('location');
-          const result = haversineDistance(geopointOne, geopointTwo);
+          const result = haversineDistance(previousGeopoint, currentGeopoint);
 
           // in KM
           return result;
         })();
 
-        const accumulatedDistance =
-          Number(locals.previousAddendumDoc.get('accumulatedDistance') || 0)
+        const accumulatedDistance = Number(
+          locals.previousAddendumDoc.get('accumulatedDistance') || 0
+        )
           // value is in meters
           + value;
 
@@ -1122,8 +1153,7 @@ module.exports = (addendumDoc) => {
     .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleExpenseClaimReport(addendumDoc, locals))
     .then(() => locals.batch.commit())
-    // .then(() => handleCustomer(addendumDoc, locals))
-    /** DSR doesn't use a batch */
+    /** NOTE DSR doesn't use a batch. Do not merge this this batch with it.*/
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))
     .then(() => logLocations(addendumDoc, locals))

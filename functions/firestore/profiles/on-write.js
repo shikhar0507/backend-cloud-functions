@@ -32,6 +32,7 @@ const {
 } = require('../../admin/admin');
 const {
   reportNames,
+  httpsActions,
 } = require('../../admin/constants');
 const env = require('../../admin/env');
 
@@ -235,6 +236,7 @@ const getEmployeeObject = (options) => {
 
   return object;
 };
+
 
 const handleAddedToOffice = (change, options) => {
   const {
@@ -516,6 +518,67 @@ const handleSignUp = (change, options) => {
 };
 
 
+const handleSignUpAndInstall = (options) => {
+  const promises = [];
+
+  if (!options.hasSignedUp
+    && !options.hasInstalled) {
+    return Promise.resolve();
+  }
+
+  options
+    .currentOfficesList
+    .forEach((office) => {
+      const promise = rootCollections
+        .offices
+        .where('office', '==', office)
+        .limit(1)
+        .get();
+
+      promises.push(promise);
+    });
+
+  return Promise
+    .all(promises)
+    .then((snapShots) => {
+      snapShots
+        .forEach((snapShot) => {
+          const doc = snapShot.docs[0];
+          const officeName = doc.get('office');
+
+          const data = {
+            timestamp: Date.now(),
+            activityData: {
+              officeId: options.change.after.get('employeeOf')[officeName],
+              office: officeName,
+            },
+            user: options.phoneNumber,
+          };
+
+          if (options.hasInstalled) {
+            data.action = httpsActions.install;
+          }
+
+          if (options.hasSignedUp) {
+            data.action = httpsActions.signup;
+          }
+
+          options
+            .batch
+            .set(doc
+              .ref
+              .collection('Addendum')
+              .doc(),
+              data,
+            );
+        });
+
+      return Promise.resolve();
+    })
+    .catch(console.error);
+};
+
+
 /**
  * Deletes the addendum docs from the `Updates/(uid)/Addendum` when the
  * `lastQueryFrom` changes in the `Profiles` doc of the user.
@@ -551,7 +614,7 @@ module.exports = (change) => {
    * after document `onWrite` event.
    */
   const hasSignedUp = Boolean(!before.get('uid') && after.get('uid'));
-  const authDeleted = Boolean(before.get('uid') && !after.get('uid'));
+  // const authDeleted = Boolean(before.get('uid') && !after.get('uid'));
   /** This can be `undefined` which will returned as `false`. */
   const hasBeenRemoved = Boolean(removedOffice);
   const hasBeenAdded = Boolean(newOffice);
@@ -569,6 +632,7 @@ module.exports = (change) => {
   );
 
   const options = {
+    change,
     profileCreated,
     phoneNumber,
     newOffice,
@@ -576,7 +640,7 @@ module.exports = (change) => {
     currentOfficesList,
     oldOfficesList,
     hasSignedUp,
-    authDeleted,
+    // authDeleted,
     hasInstalled,
     hasBeenRemoved,
     hasBeenAdded,
@@ -595,10 +659,13 @@ module.exports = (change) => {
    *    For each office (current) create sign up doc with `signedUpOn` field
    * Delete addendum if new `lastFromQuery` > old `lastFromQuery`.
    */
-  return handleSignUp(change, options)
-    .then(() => handleInstall(change, options))
-    .then(() => handleRemovedFromOffice(change, options))
-    .then(() => handleAddedToOffice(change, options))
+  // return handleSignUp(change, options)
+  // .then(() => handleInstall(change, options))
+  // .then(() => handleRemovedFromOffice(change, options))
+  // .then(() => handleAddedToOffice(change, options))
+  return Promise
+    .resolve()
+    .then(() => handleSignUpAndInstall(options))
     .then(() => manageAddendum(change))
     .then(() => options.batch.commit())
     .then(() => sendSMS(change))

@@ -132,6 +132,8 @@ const httpsActions = {
   update: 'update',
   create: 'create',
   comment: 'comment',
+  install: 'install',
+  signup: 'signup',
   changeStatus: 'change-status',
   updatePhoneNumber: 'update-phone-number',
 };

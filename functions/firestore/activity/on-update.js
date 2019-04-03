@@ -158,7 +158,7 @@ const updateDocsWithBatch = (conn, locals) => {
     .doc(locals.docs.activity.get('officeId'))
     .get()
     .then((doc) => {
-      const customersData = locals.officeDoc.get('customersData') || {};
+      const customersData = doc.get('customersData') || {};
 
       customersData[conn.req.body.attachment.Name.value] = toCustomerObject(
         conn.req.body,

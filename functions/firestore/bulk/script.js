@@ -162,16 +162,12 @@ const getActivityName = (params) => {
 };
 
 const sendExcelFromResponse = (conn, locals, responseObject) => {
-  if (!conn.req.body.senderEmail) {
-    return Promise.resolve(responseObject);
-  }
-
   const fileName = `${conn.req.body.template}--${conn.req.body.office}.xlsx`;
   const filePath = `/tmp/${fileName}`;
   const messageObject = {
     to: {
       name: conn.requester.displayName,
-      email: conn.req.body.senderEmail,
+      email: conn.req.body.senderEmail || conn.requester.email,
     },
     from: {
       name: 'Growthfile',
@@ -182,6 +178,10 @@ const sendExcelFromResponse = (conn, locals, responseObject) => {
     attachments: [],
   };
 
+  if (!messageObject.to) {
+    return Promise.resolve(responseObject);
+  }
+
   const items = responseObject.data;
 
   return xlsxPopulate
@@ -191,7 +191,9 @@ const sendExcelFromResponse = (conn, locals, responseObject) => {
       const firstItem = items[0];
       const objectFields = Object.keys(firstItem);
 
-      resultSheet.row(1).style('bold', true);
+      resultSheet
+        .row(1)
+        .style('bold', true);
 
       locals
         .allFieldsArray
@@ -209,8 +211,6 @@ const sendExcelFromResponse = (conn, locals, responseObject) => {
           const idx = `${alphabetsArray[innerIndex]}${outerIndex + 2}`;
           const val = item[field];
 
-          // console.log(`${idx} ${val}`);
-
           resultSheet.cell(idx).value(val);
         });
       });
@@ -220,20 +220,21 @@ const sendExcelFromResponse = (conn, locals, responseObject) => {
       return workbook.toFileAsync(filePath);
     })
     .then(() => {
-      messageObject.attachments.push({
-        fileName,
-        content: fs.readFileSync(filePath).toString('base64'),
-        type: 'text/csv',
-        disposition: 'attachment',
-      });
-
-      console.log('email sent', messageObject.to);
+      messageObject
+        .attachments
+        .push({
+          fileName,
+          content: fs.readFileSync(filePath).toString('base64'),
+          type: 'text/csv',
+          disposition: 'attachment',
+        });
 
       return sgMail.sendMultiple(messageObject);
-      // return Promise.resolve();
     })
     .then(() => Promise.resolve(responseObject))
-    .catch((error) => handleError(conn, error));
+    .catch((error) => {
+      console.error(error.toString());
+    });
 };
 
 const executeSequentially = (batchFactories) => {
@@ -334,7 +335,7 @@ const createObjects = (conn, locals, trialRun) => {
 
     const activityRef = rootCollections.activities.doc();
     const officeRef = (() => {
-      if (conn.req.body.template === 'office') {
+      if (conn.req.body.template === templateNamesObject.OFFICE) {
         return rootCollections.offices.doc(activityRef.id);
       }
 
@@ -382,7 +383,11 @@ const createObjects = (conn, locals, trialRun) => {
       venue: [],
       attachment: {},
       canEditRule: locals.templateDoc.get('canEditRule'),
-      creator: conn.requester.phoneNumber,
+      creator: {
+        phoneNumber: conn.requester.phoneNumber,
+        displayName: conn.requester.displayName,
+        photoURL: conn.requester.photoURL,
+      },
       hidden: locals.templateDoc.get('hidden'),
       status: locals.templateDoc.get('statusOnCreate'),
       template: locals.templateDoc.get('name'),
@@ -485,7 +490,7 @@ const createObjects = (conn, locals, trialRun) => {
       .share
       .forEach((phoneNumber) => {
         const ref = activityRef.collection('Assignees').doc(phoneNumber.trim());
-        const addToInclude = conn.req.body.template === 'subscription'
+        const addToInclude = conn.req.body.template === templateNamesObject.SUBSCRIPTION
           && phoneNumber !== activityObject.attachment.Subscriber.value;
 
         const canEdit = getCanEditValue(
@@ -728,7 +733,7 @@ const fetchDataForCanEditRule = (conn, locals) => {
 const handleEmployees = (conn, locals) => {
   const promises = [];
 
-  if (conn.req.body.template !== 'employee') {
+  if (conn.req.body.template !== templateNamesObject.EMPLOYEE) {
     return Promise.resolve();
   }
 
@@ -796,7 +801,7 @@ const handleUniqueness = (conn, locals) => {
   let index = 0;
   const indexMap = new Map();
   const baseQuery = (() => {
-    if (conn.req.body.template === 'office') {
+    if (conn.req.body.template === templateNamesObject.OFFICE) {
       return rootCollections.offices;
     }
 
@@ -862,7 +867,7 @@ const handleUniqueness = (conn, locals) => {
 };
 
 const handleSubscriptions = (conn, locals) => {
-  if (conn.req.body.template !== 'subscription') {
+  if (conn.req.body.template !== templateNamesObject.SUBSCRIPTION) {
     return Promise.resolve();
   }
 
@@ -912,7 +917,7 @@ const handleSubscriptions = (conn, locals) => {
 const handleAdmins = (conn, locals) => {
   const promises = [];
 
-  if (conn.req.body.template !== 'admin') {
+  if (conn.req.body.template !== templateNamesObject.ADMIN) {
     return Promise.resolve();
   }
 
@@ -1000,29 +1005,33 @@ const fetchValidTypes = (conn, locals) => {
     .then((snapShots) => {
       snapShots.forEach((snapShot, index) => {
         // doc should exist
-        if (!snapShot.empty) return;
+        if (!snapShot.empty) {
+          /** Doc exists, so creation is allowed */
+          return;
+        }
 
         const nonExistingValue = queryMap.get(index);
 
         nonExistingValuesSet.add(nonExistingValue);
       });
 
-      conn.req.body.data.forEach((object, index) => {
-        const fields = Object.keys(object);
+      conn
+        .req
+        .body
+        .data
+        .forEach((object, index) => {
+          const fields = Object.keys(object);
 
-        fields.forEach((field) => {
-          const value = object[field];
+          fields.forEach((field) => {
+            const value = object[field];
 
-          /** Value could be an empty string */
-          if (!value) return;
-
-          if (nonExistingValuesSet.has(value)) {
-            conn.req.body.data[index].rejected = true;
-            conn.req.body.data[index].reason =
-              `${field} ${value} doesn't exist`;
-          }
+            if (nonExistingValuesSet.has(value)) {
+              conn.req.body.data[index].rejected = true;
+              conn.req.body.data[index].reason =
+                `${field} ${value} doesn't exist`;
+            }
+          });
         });
-      });
 
       return Promise.resolve();
     })
@@ -1030,7 +1039,7 @@ const fetchValidTypes = (conn, locals) => {
 };
 
 const fetchTemplates = (conn, locals) => {
-  if (conn.req.body.template !== 'office') {
+  if (conn.req.body.template !== templateNamesObject.OFFICE) {
     return Promise.resolve();
   }
 
@@ -1038,12 +1047,12 @@ const fetchTemplates = (conn, locals) => {
     .all([
       rootCollections
         .activityTemplates
-        .where('name', '==', 'admin')
+        .where('name', '==', templateNamesObject.ADMIN)
         .limit(1)
         .get(),
       rootCollections
         .activityTemplates
-        .where('name', '==', 'subscription')
+        .where('name', '==', templateNamesObject.SUBSCRIPTION)
         .limit(1)
         .get(),
     ])
@@ -1122,6 +1131,19 @@ const validateDataArray = (conn, locals) => {
       fieldsMissingInCurrentObject = true;
     });
 
+    if (conn.req.body.template !== templateNamesObject.OFFICE) {
+      const firstContact = locals.officeDoc.get('attachment.First Contact.value');
+      const secondContact = locals.officeDoc.get('attachment.Second Contact.value');
+
+      if (firstContact) {
+        conn.req.body.data[index].share.push(firstContact);
+      }
+
+      if (secondContact) {
+        conn.req.body.data[index].share.push(secondContact);
+      }
+    }
+
     if (fieldsMissingInCurrentObject) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason =
@@ -1146,7 +1168,7 @@ const validateDataArray = (conn, locals) => {
       }
     }
 
-    if (conn.req.body.template === 'office') {
+    if (conn.req.body.template === templateNamesObject.OFFICE) {
       const firstContact = conn.req.body.data[index]['First Contact'];
       const secondContact = conn.req.body.data[index]['Second Contact'];
       const timezone = conn.req.body.data[index].Timezone;
@@ -1175,7 +1197,7 @@ const validateDataArray = (conn, locals) => {
       officeContacts.set(index, contacts);
     }
 
-    if (conn.req.body.template === 'employee'
+    if (conn.req.body.template === templateNamesObject.EMPLOYEE
       && locals.officeDoc.get('employeesData')) {
       const phoneNumber = conn.req.body.data['Employee Contact'];
       const alreadyExists = locals.officeDoc.get('employeesData').hasOwnProperty(phoneNumber);
@@ -1187,7 +1209,7 @@ const validateDataArray = (conn, locals) => {
       }
     }
 
-    if (conn.req.body.template === 'subscription') {
+    if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
       const phoneNumber = conn.req.body.data[index].Subscriber;
       const template = conn.req.body.data[index].Template;
 
@@ -1202,7 +1224,7 @@ const validateDataArray = (conn, locals) => {
       }
 
       /** Subscription of template office and subscription is not allowed for everyone */
-      if (template === 'office' || template === 'subscription') {
+      if (template === 'office' || template === templateNamesObject.SUBSCRIPTION) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
           `Subscription of template: '${template}' is not allowed`;
@@ -1235,7 +1257,7 @@ const validateDataArray = (conn, locals) => {
       });
     }
 
-    if (conn.req.body.template === 'admin') {
+    if (conn.req.body.template === templateNamesObject.ADMIN) {
       const phoneNumber = conn.req.body.data[index].Admin;
 
       // Duplication
@@ -1249,7 +1271,7 @@ const validateDataArray = (conn, locals) => {
       adminToCheck.push(phoneNumber);
     }
 
-    if (conn.req.body.template === 'employee') {
+    if (conn.req.body.template === templateNamesObject.EMPLOYEE) {
       const firstSupervisor = conn.req.body.data[index]['First Supervisor'];
       const secondSupervisor = conn.req.body.data[index]['Second Supervisor'];
 
@@ -1293,7 +1315,7 @@ const validateDataArray = (conn, locals) => {
           verifyValidTypes.set(index, { value, type, field: property });
         }
 
-        if (conn.req.body.template === 'employee'
+        if (conn.req.body.template === templateNamesObject.EMPLOYEE
           && property === 'Employee Contact'
           && locals.officeDoc.get('employeesData')
           /** Employee already exists */
@@ -1417,7 +1439,7 @@ const validateDataArray = (conn, locals) => {
       namesToCheck.push(conn.req.body.data[index].Name);
     }
 
-    if (conn.req.body.template === 'employee') {
+    if (conn.req.body.template === templateNamesObject.EMPLOYEE) {
       employeesToCheck.push({
         name: conn.req.body.data[index].Name,
         phoneNumber: conn.req.body.data[index]['Employee Contact'],
@@ -1468,7 +1490,7 @@ const validateDataArray = (conn, locals) => {
     .then(() => fetchDataForCanEditRule(conn, locals))
     .then(() => handleEmployees(conn, locals))
     .then(() => createObjects(conn, locals, trialRun))
-    .then((responseObject) => sendExcelFromResponse(conn, locals, responseObject))
+    // .then((responseObject) => sendExcelFromResponse(conn, locals, responseObject))
     .then((responseObject) => sendJSON(conn, responseObject))
     .catch((error) => handleError(conn, error));
 };
@@ -1499,13 +1521,11 @@ module.exports = (conn) => {
     return sendResponse(conn, code.badRequest, result.message);
   }
 
-  console.log('body', conn.req.body);
-
   const promises = [
     rootCollections
       .offices
       /** Office field can be skipped while creating `offices` in bulk */
-      .where('attachment.Name.value', '==', conn.req.body.office || '')
+      .where('office', '==', conn.req.body.office || '')
       .limit(1)
       .get(),
     rootCollections
@@ -1559,11 +1579,8 @@ module.exports = (conn) => {
       if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
         const templateNamesSet = new Set();
 
-        templatesCollectionQuery.forEach((doc) => {
-          const name = doc.get('name');
-
-          templateNamesSet.add(name);
-        });
+        templatesCollectionQuery
+          .forEach((doc) => templateNamesSet.add(doc.get('name')));
 
         locals.templateNamesSet = templateNamesSet;
       }

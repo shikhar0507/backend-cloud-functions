@@ -877,8 +877,12 @@ module.exports = (locals) => {
         };
 
         const regToken = regTokensMap.get(phoneNumber);
-        const promise = admin.messaging().sendToDevice(regToken, singleObject);
 
+        if (!regToken) {
+          return;
+        }
+
+        const promise = admin.messaging().sendToDevice(regToken, singleObject);
         notificationPromises.push(promise);
       });
 

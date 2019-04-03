@@ -79,10 +79,6 @@ const getTemplateId = (report) => {
     return sendGridTemplateIds.enquiry;
   }
 
-  if (report === reportNames.FOOTPRINTS_MTD) {
-    return sendGridTemplateIds.footprints;
-  }
-
   return null;
 };
 
@@ -216,10 +212,6 @@ module.exports = (change) => {
 
       if (report === reportNames.FOOTPRINTS) {
         return require('./footprints-report')(locals);
-      }
-
-      if (report === reportNames.FOOTPRINTS_MTD) {
-        return require('./footprints-mtd-report')(locals);
       }
 
       if (report === reportNames.DSR) {

@@ -75,6 +75,7 @@ module.exports = (conn) => {
       conn
         .requester = {
           isSupportRequest: false,
+          email: conn.req.body.senderEmail || '',
           uid: userRecord[conn.req.body.senderEmail].uid,
           phoneNumber: userRecord[conn.req.body.senderEmail].phoneNumber,
           displayName: userRecord[conn.req.body.senderEmail].displayName || '',

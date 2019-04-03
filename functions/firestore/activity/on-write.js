@@ -928,7 +928,7 @@ const createSubscription = (locals) => {
       };
 
       batch.set(activityRef, activityData);
-      batch.set(addendumData, addendumDocRef);
+      batch.set(addendumDocRef, addendumData);
 
       // Subscription's canEditRule is `ADMIN`;
       const getCanEdit = (phoneNumber) => {

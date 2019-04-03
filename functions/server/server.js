@@ -395,6 +395,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
 
       conn.requester = {
         uid: decodedIdToken.uid,
+        email: userRecord.email || '',
         phoneNumber: userRecord.phoneNumber,
         displayName: userRecord.displayName || '',
         photoURL: userRecord.photoURL || '',
