@@ -565,6 +565,55 @@ const queryUtils = {
   getSubscription,
 };
 
+/**
+ * Returns the `timestamp` that is closest to the current
+ * `timestamp`.
+ * 
+ * @param {Array} schedules Array of schedule objects.
+ * @param {number} now Unix timestamp.
+ * @returns {number} Unix timestamp.
+ */
+const getRelevantTime = (schedules, now = Date.now()) => {
+  const allTimestamps = [];
+
+  schedules.forEach((schedule) => {
+    const {
+      startTime,
+      endTime,
+    } = schedule;
+
+    allTimestamps.push(startTime);
+    allTimestamps.push(endTime);
+  });
+
+  const diffsArr = [];
+
+  allTimestamps
+    .forEach((curr) => {
+      const diff = curr - now;
+
+      /** This time is before current timestamp */
+      // if (diff < 0) {
+      // return;
+      // }
+
+      // if (diff)
+      diffsArr.push(diff);
+    });
+
+  let index = 0;
+  let value = diffsArr[0];
+
+  for (let i = 1; i < diffsArr.length; i++) {
+    if (diffsArr[i] < value && diffsArr[index] > 0) {
+      value = diffsArr[i];
+      index = i;
+    }
+  }
+
+  return value;
+};
+
 
 // https://github.com/freesoftwarefactory/parse-multipart
 const multipartParser = (body, contentType) => {
@@ -607,7 +656,7 @@ const multipartParser = (body, contentType) => {
   // \r\n is part of the boundary.
   boundary = `\r\n--${boundary}`;
 
-  const isRaw = typeof (body) !== 'string';
+  const isRaw = typeof body !== 'string';
 
   if (isRaw) {
     const view = new Uint8Array(body);
@@ -659,6 +708,7 @@ module.exports = {
   hasAdminClaims,
   getSearchables,
   getISO8601Date,
+  getRelevantTime,
   isValidGeopoint,
   multipartParser,
   hasSupportClaims,

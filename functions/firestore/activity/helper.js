@@ -535,9 +535,7 @@ const filterAttachment = (options) => {
         messageObject
           .querySnapshotShouldExist
           .push(rootCollections
-            .offices
-            .doc(officeId)
-            .collection('Activities')
+            .activities
             .where('attachment.Number.value', '==', value)
             .limit(1)
             .get()
@@ -546,9 +544,7 @@ const filterAttachment = (options) => {
         messageObject
           .querySnapshotShouldExist
           .push(rootCollections
-            .offices
-            .doc(officeId)
-            .collection('Activities')
+            .activities
             .where('attachment.Name.value', '==', value)
             .where('template', '==', type)
             .limit(1)
@@ -584,9 +580,7 @@ const filterAttachment = (options) => {
       messageObject
         .querySnapshotShouldNotExist
         .push(rootCollections
-          .offices
-          .doc(officeId)
-          .collection('Activities')
+          .activities
           .where('attachment.Name.value', '==', value)
           .where('template', '==', template)
           /** Docs exist uniquely based on `Name`, and `template`. */
@@ -607,9 +601,7 @@ const filterAttachment = (options) => {
       messageObject
         .querySnapshotShouldNotExist
         .push(rootCollections
-          .offices
-          .doc(officeId)
-          .collection('Activities')
+          .activities
           .where('attachment.Number.value', '==', value)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)

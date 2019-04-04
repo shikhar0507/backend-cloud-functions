@@ -43,7 +43,6 @@ const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
-const admin = require('firebase-admin');
 
 sgMail.setApiKey(env.sgMailApiKey);
 
@@ -367,11 +366,8 @@ const sendErrorReport = () => {
 };
 
 const handleRelevantTime = () => {
-  // Format 27th Mar 2019
-  const relevantDate = momentTz().format(dateFormats.DATE);
-  const promises = [];
-
-  return Promise.resolve();
+  const start = momentTz().subtract('1', 'day').startOf('day').valueOf();
+  const end = momentTz().subtract('1', 'day').endOf('day').valueOf();
 };
 
 module.exports = (doc) => {
@@ -391,7 +387,6 @@ module.exports = (doc) => {
         .get(),
       handleDailyStatusReport(),
       sendErrorReport(),
-      handleRelevantTime(),
       doc
         .ref
         .set({

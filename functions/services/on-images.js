@@ -60,7 +60,7 @@ module.exports = (conn) => {
     return;
   }
 
-  // endpoint for enabling the frontend to upload images
+  // endpoint for enabling the frontend to set images to auth
   let authorizationToken = '';
   let mainDownloadUrlStart = '';
   const bucketId = env.backblaze.buckets.images;
@@ -125,16 +125,12 @@ module.exports = (conn) => {
       return promisifiedRequest(options);
     })
     .then((response) => {
-      console.log({ response });
-
       const url =
         cloudflareCdnUrl(
           mainDownloadUrlStart,
           response.fileId,
           `${conn.requester.uid}.jpg`
         );
-
-      console.log({ url });
 
       try {
         fs.unlink(compressedFilePath);

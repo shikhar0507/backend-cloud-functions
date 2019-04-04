@@ -76,8 +76,6 @@ const handleMtdReport = (locals) => {
   const yesterdaysYear = momentYesterday.year();
   const employeesData = locals.officeDoc.get('employeesData');
 
-  console.log(locals.payrollObject);
-
   return rootCollections
     .inits
     .where('office', '==', office)
@@ -254,7 +252,7 @@ const handleMtdReport = (locals) => {
               }
 
               if (!first && !last) {
-                return '-';
+                return 'INACTIVE';
               }
 
               if (first && !last) {
@@ -291,10 +289,19 @@ const handleMtdReport = (locals) => {
 
 
 module.exports = (locals) => {
-  const todayFromTimer = locals.change.after.get('timestamp');
-  const office = locals.officeDoc.get('office');
-  const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const employeesData = locals.officeDoc.get('employeesData') || {};
+  const todayFromTimer = locals
+    .change
+    .after
+    .get('timestamp');
+  const office = locals
+    .officeDoc
+    .get('office');
+  const timezone = locals
+    .officeDoc
+    .get('attachment.Timezone.value');
+  const employeesData = locals
+    .officeDoc
+    .get('employeesData') || {};
   const standardDateString =
     momentTz(todayFromTimer)
       .tz(timezone)
@@ -349,7 +356,16 @@ module.exports = (locals) => {
         workbook,
       ] = result;
 
+      const payrollObject = (() => {
+        if (payrollInitDocQuery.empty) {
+          return {};
+        }
+
+        return payrollInitDocQuery.docs[0].get('payrollObject') || {};
+      })();
+
       locals.workbook = workbook;
+      locals.payrollObject = payrollObject;
 
       if (addendumDocs.empty) {
         locals.sendMail = false;
@@ -362,16 +378,6 @@ module.exports = (locals) => {
 
         return Promise.resolve(false);
       }
-
-      const payrollObject = (() => {
-        if (payrollInitDocQuery.empty) {
-          return {};
-        }
-
-        return payrollInitDocQuery.docs[0].get('payrollObject') || {};
-      })();
-
-      locals.payrollObject = payrollObject;
 
       const footprintsSheet = workbook.addSheet('Footprints');
 
@@ -537,7 +543,10 @@ module.exports = (locals) => {
             return;
           }
 
-          /** Increment before adding more data is required since that is  */
+          /** 
+           * Increment before adding more data is required. Not doing that will 
+           * overwrite the last entry of the sheet that was added in the loop above.
+           */
           lastIndex++;
 
           const comment = (() => {
@@ -555,7 +564,7 @@ module.exports = (locals) => {
               return `On Duty`;
             }
 
-            return `Inactive on ${dated}`;
+            return `Inactive`;
           })();
 
           const {
