@@ -29,18 +29,55 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
+  sendSMS,
+} = require('../../admin/utils');
+const {
   dateFormats,
   httpsActions,
   reportNames,
 } = require('../../admin/constants');
 const {
+  toMapsUrl,
   employeeInfo,
   alphabetsArray,
   timeStringWithOffset,
 } = require('./report-utils');
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
+const env = require('../../admin/env');
 const fs = require('fs');
+
+const getNotInstalledMessage = (numberOfDays) => {
+  if (numberOfDays === 1) {
+    return `You have not marked your attendence. Join now to avoid loss`
+      + ` of pay. ${env.downloadUrl}`;
+  }
+
+  return `You have not marked your attendence for ${numberOfDays} days.`
+    + ` Join now to avoid loss of pay. ${env.downloadUrl}`;
+};
+
+
+const sendSMSes = (smsMap) => {
+  if (!process.env.PRODUCTION || !env.isProduction) {
+    console.log('Sending SMS to users');
+
+    return Promise.resolve();
+  }
+
+  const promises = [];
+
+  smsMap
+    .forEach((phoneNumber) => {
+      const promise = sendSMS(phoneNumber, smsMap.get(phoneNumber));
+
+      promises.push(promise);
+    });
+
+  return Promise
+    .all(promises)
+    .catch(console.error);
+};
 
 
 const getDateHeaders = (momentYesterday) => {
@@ -57,7 +94,6 @@ const getDateHeaders = (momentYesterday) => {
 
   return result;
 };
-
 
 const handleMtdReport = (locals) => {
   let footprintsObject;
@@ -252,7 +288,11 @@ const handleMtdReport = (locals) => {
               }
 
               if (!first && !last) {
-                return 'INACTIVE';
+                if (locals.phoneNumbersWithAuthSet.has(phoneNumber)) {
+                  return `Inactive`;
+                }
+
+                return 'Not Installed';
               }
 
               if (first && !last) {
@@ -260,7 +300,8 @@ const handleMtdReport = (locals) => {
               }
 
               return `${first} | ${last}`;
-            })();
+            })()
+              .toUpperCase();
 
             const cell = `${alphabet}${columnIndex}`;
 
@@ -302,11 +343,11 @@ module.exports = (locals) => {
   const employeesData = locals
     .officeDoc
     .get('employeesData') || {};
-  const standardDateString =
+  const dateString =
     momentTz(todayFromTimer)
       .tz(timezone)
       .format(dateFormats.DATE);
-  const fileName = `${office} Footprints Report_${standardDateString}.xlsx`;
+  const fileName = `${office} Footprints Report_${dateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
   const dated = momentTz(todayFromTimer)
     .tz(timezone)
@@ -317,14 +358,13 @@ module.exports = (locals) => {
     .subtract(1, 'day');
   const yesterdaysDate = offsetObjectYesterday.date();
   let lastIndex;
-
-  locals.messageObject['dynamic_template_data'] = {
-    office,
-    subject: `Footprints Report_${office}_${standardDateString}`,
-    date: standardDateString,
-  };
+  let footprintsSheet;
+  const updateDocsFetchPromises = [];
 
   const activePhoneNumbersSet = new Set();
+  locals.registrationTokensMap = new Map();
+  const phoneNumbersWithAuthSet = new Set();
+  let payrollObject;
 
   return Promise
     .all([
@@ -356,7 +396,7 @@ module.exports = (locals) => {
         workbook,
       ] = result;
 
-      const payrollObject = (() => {
+      payrollObject = (() => {
         if (payrollInitDocQuery.empty) {
           return {};
         }
@@ -379,7 +419,7 @@ module.exports = (locals) => {
         return Promise.resolve(false);
       }
 
-      const footprintsSheet = workbook.addSheet('Footprints');
+      footprintsSheet = workbook.addSheet('Footprints');
 
       footprintsSheet.row(1).style('bold', true);
       footprintsSheet.cell(`A1`).value('Dated');
@@ -402,6 +442,8 @@ module.exports = (locals) => {
       const distanceMap = new Map();
 
       addendumDocs.forEach((doc) => {
+        const template = doc.get('activityData.template');
+        const action = doc.get('action');
         const isSupportRequest = doc.get('isSupportRequest');
         const columnIndex = count + 2;
 
@@ -419,8 +461,33 @@ module.exports = (locals) => {
         const name = employeeObject.name;
         const department = employeeObject.department;
         const baseLocation = employeeObject.baseLocation;
-        const url = doc.get('url');
-        const identifier = doc.get('identifier');
+        const url = (() => {
+          if (template !== 'check-in' || action !== httpsActions.create) {
+            return doc.get('url');
+          }
+
+          const venue = doc.get('activityData.venue')[0];
+
+          if (!venue.location) {
+            return doc.get('url');
+          }
+
+          return toMapsUrl(venue.geopoint);
+        })();
+        const identifier = (() => {
+          if (template !== 'check-in' || action !== httpsActions.create) {
+            return doc.get('identifier');
+          }
+
+          const venue = doc.get('activityData.venue')[0];
+
+          if (!venue.location) {
+            return doc.get('identifier');
+          }
+
+          return venue.location;
+        })();
+
         const time = timeStringWithOffset({
           timezone,
           timestampToConvert: doc.get('timestamp'),
@@ -535,6 +602,48 @@ module.exports = (locals) => {
         lastIndex = columnIndex;
       });
 
+      if (!addendumDocs.empty) {
+        locals.footprintsSheetAdded = true;
+        locals.workbook.deleteSheet('Sheet1');
+      }
+
+      Object
+        .keys(employeesData)
+        .forEach((phoneNumber) => {
+          if (activePhoneNumbersSet.has(phoneNumber)) {
+            return;
+          }
+
+          const promise = rootCollections
+            .updates
+            .where('phoneNumber', '==', phoneNumber)
+            .limit(1)
+            .get();
+
+          updateDocsFetchPromises.push(promise);
+        });
+
+      return Promise.all(updateDocsFetchPromises);
+    })
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) {
+          return;
+        }
+
+        const doc = snapShot.docs[0];
+        const phoneNumber = doc.get('phoneNumber');
+        const registrationToken = doc.get('registrationToken');
+
+        phoneNumbersWithAuthSet.add(phoneNumber);
+
+        if (registrationToken) {
+          locals
+            .registrationTokensMap
+            .set(phoneNumber, registrationToken);
+        }
+      });
+
       Object
         .keys(employeesData)
         .forEach((phoneNumber) => {
@@ -564,8 +673,13 @@ module.exports = (locals) => {
               return `On Duty`;
             }
 
-            return `Inactive`;
-          })();
+            if (phoneNumbersWithAuthSet.has(phoneNumber)) {
+              return `Inactive`;
+            }
+
+            return `Not Installed`;
+          })()
+            .toUpperCase();
 
           const {
             name,
@@ -606,12 +720,10 @@ module.exports = (locals) => {
             .value(baseLocation);
         });
 
-      if (!addendumDocs.empty) {
-        locals.footprintsSheetAdded = true;
-        locals.workbook.deleteSheet('Sheet1');
-      }
+      locals
+        .phoneNumbersWithAuthSet = phoneNumbersWithAuthSet;
 
-      return null;
+      return;
     })
     .then(() => handleMtdReport(locals))
     .then(() => {
@@ -622,16 +734,23 @@ module.exports = (locals) => {
       return locals.workbook.toFileAsync(filePath);
     })
     .then(() => {
-      if (!locals.sendMail) {
+      if (!locals.footprintsSheetAdded) {
         return Promise.resolve();
       }
+
+      locals
+        .messageObject['dynamic_template_data'] = {
+          office,
+          subject: `Footprints Report_${office}_${dateString}`,
+          date: dateString,
+        };
 
       locals
         .messageObject
         .attachments
         .push({
           content: fs.readFileSync(filePath).toString('base64'),
-          fileName: `Footprints ${office}_Report_${standardDateString}.xlsx`,
+          fileName: `Footprints ${office}_Report_${dateString}.xlsx`,
           type: 'text/csv',
           disposition: 'attachment',
         });
@@ -645,7 +764,6 @@ module.exports = (locals) => {
       return locals
         .sgMail
         .sendMultiple(locals.messageObject);
-      // return;
     })
     .catch(console.error);
 };

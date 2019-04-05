@@ -34,7 +34,7 @@ const crypto = require('crypto');
 const env = require('./env');
 const PNF = require('google-libphonenumber').PhoneNumberFormat;
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
-
+const https = require('https');
 
 /**
  * Ends the response by sending the `JSON` to the client with `200 OK` response.
@@ -586,32 +586,36 @@ const getRelevantTime = (schedules, now = Date.now()) => {
     allTimestamps.push(endTime);
   });
 
-  const diffsArr = [];
+  let result;
+  let prevDiff = 0;
 
-  allTimestamps
-    .forEach((curr) => {
-      const diff = curr - now;
+  allTimestamps.forEach((ts) => {
+    const currDif = ts - now;
 
-      /** This time is before current timestamp */
-      // if (diff < 0) {
-      // return;
-      // }
-
-      // if (diff)
-      diffsArr.push(diff);
-    });
-
-  let index = 0;
-  let value = diffsArr[0];
-
-  for (let i = 1; i < diffsArr.length; i++) {
-    if (diffsArr[i] < value && diffsArr[index] > 0) {
-      value = diffsArr[i];
-      index = i;
+    /** The ts is before current time */
+    if (currDif < 0) {
+      return;
     }
-  }
 
-  return value;
+    if (!prevDiff) {
+      prevDiff = currDif;
+      result = ts;
+
+      return;
+    }
+
+    if (prevDiff > currDif) {
+
+      return;
+    }
+
+    prevDiff = currDif;
+    result = ts;
+  });
+
+  console.log('result:', result);
+
+  return result;
 };
 
 
@@ -691,9 +695,122 @@ const multipartParser = (body, contentType) => {
   return partsByName;
 };
 
+const toTwoDecimalPlace = (val) => {
+  /** Is not float */
+  if (parseInt(val) === val) {
+    return val;
+  }
+
+  const toCeil = (number, digits) => {
+    const factor = Math.pow(10, digits);
+
+    return Math.ceil(number * factor) / factor;
+  };
+
+  const toFloor = (number, digits) => {
+    const factor = Math.pow(10, digits);
+
+    return Math.floor(number * factor) / factor;
+  };
+
+  let result;
+  const parsed = val.toFixed(3);
+  const lastDecimalValue = Number(parsed[parsed.length - 1]);
+
+  if (lastDecimalValue >= 5) {
+    result = toCeil(val, 2);
+  } else {
+    result = toFloor(val, 2);
+  }
+
+  return result;
+};
+
+const adjustedGeopoint = (geopoint) => {
+  return {
+    latitutde: toTwoDecimalPlace(
+      geopoint.latitude || geopoint._longitude
+    ),
+    longitude: toTwoDecimalPlace(
+      geopoint.longitude || geopoint._latitude
+    ),
+  };
+};
+
+const sendSMS = (phoneNumber, smsText) => {
+  const sendTo = phoneNumber;
+  const encodedMessage = `${encodeURI(smsText)}`;
+
+  const host = `enterprise.smsgupshup.com`;
+  const path = `/GatewayAPI/rest?method=SendMessage`
+    + `&send_to=${sendTo}`
+    + `&msg=${encodedMessage}`
+    + `&msg_type=TEXT`
+    + `&userid=${env.smsgupshup.userId}`
+    + `&auth_scheme=plain`
+    + `&password=${env.smsgupshup.password}`
+    + `&v=1.1`
+    + `&format=text`;
+
+  const params = {
+    host,
+    path,
+    // HTTPS port is 443
+    port: 443,
+  };
+
+  return new Promise(
+    (resolve, reject) => {
+      const req = https.request(params, (res) => {
+        // reject on bad status
+        console.log('res.statusCode', res.statusCode);
+
+        if (res.statusCode > 226) {
+          reject(new Error(`statusCode=${res.statusCode}`));
+
+          return;
+        }
+
+        // cumulate data
+        let chunks = [];
+
+        res
+          .on('data', (chunk) => chunks.push(chunk));
+
+        // resolve on end
+        res
+          .on('end', () => {
+            chunks = Buffer.concat(chunks).toString();
+
+            if (chunks.includes('error')) {
+              reject(new Error(chunks));
+
+              return;
+            }
+
+            resolve(chunks);
+          });
+      });
+
+      // reject on request error
+      // This is not a "Second reject", just a different sort of failure
+      req.on('error', (err) => {
+        console.log('in err');
+
+        return reject(new Error(err));
+      });
+
+      // IMPORTANT
+      req.end();
+    })
+    .then(console.log)
+    .catch(console.error);
+};
+
 
 module.exports = {
   slugify,
+  sendSMS,
   sendJSON,
   isValidUrl,
   queryUtils,
@@ -712,6 +829,7 @@ module.exports = {
   isValidGeopoint,
   multipartParser,
   hasSupportClaims,
+  adjustedGeopoint,
   isNonEmptyString,
   cloudflareCdnUrl,
   isE164PhoneNumber,

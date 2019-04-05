@@ -392,6 +392,7 @@ const createObjects = (conn, locals, trialRun) => {
       status: locals.templateDoc.get('statusOnCreate'),
       template: locals.templateDoc.get('name'),
       activityName: getActivityName(params),
+      createTimestamp: Date.now(),
     };
 
     const objectFields = Object.keys(item);
@@ -559,6 +560,7 @@ const createObjects = (conn, locals, trialRun) => {
           status: locals.subscriptionTemplateDoc.get('statusOnCreate'),
           template: templateNamesObject.SUBSCRIPTION,
           activityName: `SUBSCRIPTION: ${phoneNumber}`,
+          createTimestamp: Date.now(),
         };
         const subscriptionAddendumData = {
           timestamp,
@@ -596,6 +598,7 @@ const createObjects = (conn, locals, trialRun) => {
           status: locals.adminTemplateDoc.get('statusOnCreate'),
           template: templateNamesObject.ADMIN,
           activityName: `ADMIN: ${phoneNumber}`,
+          createTimestamp: Date.now(),
         };
         const adminAddendumData = {
           timestamp,

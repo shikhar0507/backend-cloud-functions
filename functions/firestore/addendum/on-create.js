@@ -14,6 +14,9 @@ const {
   haversineDistance,
 } = require('../activity/helper');
 const {
+  adjustedGeopoint,
+} = require('../../admin/utils');
+const {
   toMapsUrl,
 } = require('../recipients/report-utils');
 const momentTz = require('moment-timezone');
@@ -1122,16 +1125,20 @@ module.exports = (addendumDoc) => {
         date: locals.momentWithOffset.date(),
         month: locals.momentWithOffset.month(),
         year: locals.momentWithOffset.year(),
+        adjustedGeopoint: adjustedGeopoint(addendumDoc.get('location')),
       };
 
       console.log(JSON.stringify({
         phoneNumber,
         updateObject,
-        currPath: addendumDoc.ref.path,
-        prevPath: locals.previousAddendumDoc ? locals
-          .previousAddendumDoc
+        currPath: addendumDoc
           .ref
-          .path : null,
+          .path,
+        prevPath: locals
+          .previousAddendumDoc ? locals
+            .previousAddendumDoc
+            .ref
+            .path : null,
       }, ' ', 2));
 
       locals.batch = db.batch();

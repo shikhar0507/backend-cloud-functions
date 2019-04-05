@@ -39,6 +39,10 @@ const {
   customMessages,
   validTypes,
 } = require('../../admin/constants');
+const {
+  sendSMS,
+} = require('../../admin/utils');
+const env = require('../../admin/env');
 const moment = require('moment-timezone');
 
 const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
@@ -337,7 +341,6 @@ const handleAdmin = (locals) => {
     });
 };
 
-
 const handleRecipient = (locals) => {
   const template = locals.change.after.get('template');
 
@@ -557,6 +560,7 @@ const handleCanEditRule = (locals, templateDoc) => {
         canEditRule: adminTemplateDoc.get('canEditRule'),
         activityName: `ADMIN: ${subscriberPhoneNumber}`,
         timezone: locals.change.after.get('timezone'),
+        createTimestamp: Date.now(),
       };
 
       const user = (() => {
@@ -910,6 +914,7 @@ const createSubscription = (locals) => {
         creator: locals.change.after.get('creator'),
         timezone: locals.change.after.get('timezone'),
         canEditRule: 'ADMIN',
+        createTimestamp: Date.now(),
       };
       const addendumData = {
         activityData,
@@ -970,6 +975,30 @@ const createSubscription = (locals) => {
     .catch(console.error);
 };
 
+const sendEmployeeCreationSms = (locals) => {
+  const template = locals.change.after.get('template');
+
+  if (template !== 'employee' || !locals.addendumDoc) {
+    return Promise.resolve();
+  }
+
+  const action = locals.addendumDoc.get('action');
+
+  if (action !== httpsActions.create) {
+    return Promise.resolve();
+  }
+
+  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
+  const office = locals.change.after.get('office');
+
+  const smsText = `${office} will use Growthfile for attendence,`
+    + ` leave and on duties.`
+    + ` Download now to check-in ${env.downloadUrl}`;
+
+  return sendSMS(phoneNumber, smsText);
+};
+
+
 const handleEmployee = (locals) => {
   const template = locals.change.after.get('template');
 
@@ -1025,6 +1054,7 @@ const handleEmployee = (locals) => {
       return removeFromOfficeActivities(locals);
     })
     .then(() => createSubscription(locals))
+    // .then(() => sendEmployeeCreationSms())
     .catch(console.error);
 };
 

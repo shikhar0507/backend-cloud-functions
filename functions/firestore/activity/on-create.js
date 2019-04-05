@@ -129,6 +129,7 @@ const createDocsWithBatch = (conn, locals) => {
       photoURL: conn.requester.photoURL,
     },
     timezone: locals.officeDoc.get('attachment.Timezone.value'),
+    createTimestamp: Date.now(),
   };
 
   const addendumDocObject = {
@@ -720,7 +721,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
       for (const snapShot of snapShots) {
         const filters = snapShot._query._fieldFilters;
-        const argOne = filters[0].value;
+        const argOne = filters[0]._value;
         const parentFieldName = filters[0].field.segments[1];
 
         if (!snapShot.empty) {
