@@ -992,8 +992,8 @@ const sendEmployeeCreationSms = (locals) => {
   const office = locals.change.after.get('office');
 
   const smsText = `${office} will use Growthfile for attendence,`
-    + ` leave and on duties.`
-    + ` Download now to check-in ${env.downloadUrl}`;
+    + ` leave and duties.`
+    + ` Download now to check-in. ${env.downloadUrl}`;
 
   return sendSMS(phoneNumber, smsText);
 };
@@ -1032,6 +1032,18 @@ const handleEmployee = (locals) => {
   // Change of status from `CONFIRMED` to `CANCELLED`
   if (hasBeenCancelled) {
     employeeOf[office] = deleteField();
+
+    // Remove from employeesData map.
+    batch
+      .set(rootCollections
+        .offices
+        .doc(officeId), {
+          employeesData: {
+            [phoneNumber]: deleteField(),
+          },
+        }, {
+          merge: true,
+        });
   }
 
   batch.set(rootCollections
@@ -1054,7 +1066,7 @@ const handleEmployee = (locals) => {
       return removeFromOfficeActivities(locals);
     })
     .then(() => createSubscription(locals))
-    // .then(() => sendEmployeeCreationSms())
+    // .then(() => sendEmployeeCreationSms(locals))
     .catch(console.error);
 };
 

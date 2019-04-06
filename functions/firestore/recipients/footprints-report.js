@@ -46,39 +46,40 @@ const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 const env = require('../../admin/env');
 const fs = require('fs');
+const admin = require('firebase-admin');
 
-const getNotInstalledMessage = (numberOfDays) => {
+
+const getSMSText = (numberOfDays) => {
   if (numberOfDays === 1) {
-    return `You have not marked your attendence. Join now to avoid loss`
-      + ` of pay. ${env.downloadUrl}`;
+    return `You did not mark your attendance yesterday. Join now`
+      + ` to avoid loss of pay ${env.downloadUrl}`;
   }
 
-  return `You have not marked your attendence for ${numberOfDays} days.`
-    + ` Join now to avoid loss of pay. ${env.downloadUrl}`;
+  return `You have not marked your attendance for ${numberOfDays}`
+    + ` days. Join now to avoid loss of pay ${env.downloadUrl}`;
 };
 
 
-const sendSMSes = (smsMap) => {
-  if (!process.env.PRODUCTION || !env.isProduction) {
-    console.log('Sending SMS to users');
+const getNotificationText = (
+  dateString = momentTz().format(dateFormats.DATE)
+) =>
+  `You were inactive on ${dateString}. Please mark On Duty or a Leave`;
 
-    return Promise.resolve();
-  }
 
+const sendMultipleSMS = (inactiveDaysCountMap) => {
   const promises = [];
 
-  smsMap
-    .forEach((phoneNumber) => {
-      const promise = sendSMS(phoneNumber, smsMap.get(phoneNumber));
+  inactiveDaysCountMap.forEach((numberOfDays, phoneNumber) => {
+    const smsText = getSMSText(numberOfDays);
+    const promise = sendSMS(phoneNumber, smsText);
 
-      promises.push(promise);
-    });
+    promises.push(promise);
+  });
 
   return Promise
     .all(promises)
     .catch(console.error);
 };
-
 
 const getDateHeaders = (momentYesterday) => {
   const result = [];
@@ -93,6 +94,70 @@ const getDateHeaders = (momentYesterday) => {
   }
 
   return result;
+};
+
+
+const sendNotifications = (locals) => {
+  const promises = [];
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const startTime = momentTz()
+    .tz(timezone)
+    .subtract(1, 'day')
+    .startOf()
+    .valueOf();
+  const office = locals.officeDoc.get('office');
+
+  locals
+    .registrationTokensMap
+    .forEach((token) => {
+      const string = getNotificationText();
+
+      const payrollObject = {
+        data: [{
+          office,
+          template: 'leave',
+          schedule: [{
+            name: 'Leave Dates',
+            startTime,
+            endTime: startTime,
+          }],
+          attachment: {
+            'Number Of Days': {
+              value: 1,
+              type: 'number',
+            },
+          },
+        }, {
+          office,
+          template: 'on duty',
+          schedule: [{
+            name: 'Duty Date',
+            startTime,
+            endTime: startTime,
+          }],
+        }],
+        title: string,
+        body: string,
+      };
+
+      const promise = admin
+        .messaging()
+        .sendToDevice(token, {
+          data: {
+            payroll: JSON.stringify(payrollObject),
+          },
+          notification: {
+            title: 'Growthfile',
+            body: string,
+          },
+        });
+
+      promises.push(promise);
+    });
+
+  return Promise
+    .all(promises)
+    .catch(console.error);
 };
 
 const handleMtdReport = (locals) => {
@@ -289,10 +354,10 @@ const handleMtdReport = (locals) => {
 
               if (!first && !last) {
                 if (locals.phoneNumbersWithAuthSet.has(phoneNumber)) {
-                  return `Inactive`;
+                  return `NOT ACTIVE`;
                 }
 
-                return 'Not Installed';
+                return 'NOT INSTALLED';
               }
 
               if (first && !last) {
@@ -300,8 +365,17 @@ const handleMtdReport = (locals) => {
               }
 
               return `${first} | ${last}`;
-            })()
-              .toUpperCase();
+            })();
+
+            if (value === 'NOT ACTIVE') {
+              if (locals.inactiveDaysCountMap.has(phoneNumber)) {
+                const count = locals.inactiveDaysCountMap.get(phoneNumber) + 1;
+
+                locals.inactiveDaysCountMap.set(phoneNumber, count);
+              } else {
+                locals.inactiveDaysCountMap.set(phoneNumber, 1);
+              }
+            }
 
             const cell = `${alphabet}${columnIndex}`;
 
@@ -310,8 +384,6 @@ const handleMtdReport = (locals) => {
             alphabetIndexStart++;
           }
         });
-
-      locals.footprintsMtdSheetAdded = true;
 
       return initDocRef
         .set({
@@ -328,6 +400,17 @@ const handleMtdReport = (locals) => {
     .catch(console.error);
 };
 
+const handleNotificationsAndSms = (locals) => {
+  if (!env.isProduction) {
+    console.log('Running locally | Or Not production...');
+
+    return Promise.resolve();
+  }
+
+  return sendMultipleSMS(locals.inactiveDaysCountMap)
+    .then(() => sendNotifications(locals))
+    .catch(console.error);
+};
 
 module.exports = (locals) => {
   const todayFromTimer = locals
@@ -364,6 +447,7 @@ module.exports = (locals) => {
   const activePhoneNumbersSet = new Set();
   locals.registrationTokensMap = new Map();
   const phoneNumbersWithAuthSet = new Set();
+  locals.inactiveDaysCountMap = new Map();
   let payrollObject;
 
   return Promise
@@ -637,7 +721,8 @@ module.exports = (locals) => {
 
         phoneNumbersWithAuthSet.add(phoneNumber);
 
-        if (registrationToken) {
+        /** Notifications only sent to employees */
+        if (registrationToken && employeesData[phoneNumber]) {
           locals
             .registrationTokensMap
             .set(phoneNumber, registrationToken);
@@ -663,23 +748,22 @@ module.exports = (locals) => {
               && payrollObject[phoneNumber][yesterdaysDate]
               && payrollObject[phoneNumber][yesterdaysDate].status
               && payrollObject[phoneNumber][yesterdaysDate].status.startsWith('LEAVE')) {
-              return `On Leave`;
+              return `ON LEAVE`;
             }
 
             if (payrollObject[phoneNumber]
               && payrollObject[phoneNumber][yesterdaysDate]
               && payrollObject[phoneNumber][yesterdaysDate].status
               && payrollObject[phoneNumber][yesterdaysDate].status === 'ON DUTY') {
-              return `On Duty`;
+              return `ON DUTY`;
             }
 
             if (phoneNumbersWithAuthSet.has(phoneNumber)) {
-              return `Inactive`;
+              return `NOT ACTIVE`;
             }
 
-            return `Not Installed`;
-          })()
-            .toUpperCase();
+            return `NOT INSTALLED`;
+          })();
 
           const {
             name,
@@ -764,6 +848,18 @@ module.exports = (locals) => {
       return locals
         .sgMail
         .sendMultiple(locals.messageObject);
+    })
+    .then(() => {
+      const momentFromTimer = momentTz(todayFromTimer).tz(timezone);
+      const momentToday = momentTz().tz(timezone);
+
+      if (momentToday.startOf('day').unix() !== momentFromTimer.startOf('day').unix()) {
+        console.log('No notifications or sms sent. Not the same day.');
+
+        return Promise.resolve();
+      }
+
+      return handleNotificationsAndSms(locals);
     })
     .catch(console.error);
 };

@@ -886,7 +886,8 @@ module.exports = (locals) => {
         notificationPromises.push(promise);
       });
 
-      return Promise.all(notificationPromises);
+      // return Promise.all(notificationPromises);
+      return Promise.resolve();
     })
     .catch(console.error);
 };
