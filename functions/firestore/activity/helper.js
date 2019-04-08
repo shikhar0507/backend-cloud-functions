@@ -1195,12 +1195,26 @@ const toCustomerObject = (docData, createTime) => {
   return customerObject;
 };
 
+const toEmployeesData = (activity) => {
+  return {
+    createTime: activity.createTime.toDate().getTime(),
+    Name: activity.get('attachment.Name.value'),
+    phoneNumber: activity.get('attachment.Employee Contact.value'),
+    firstSupervisor: activity.get('attachment.First Supervisor.value'),
+    secondSupervisor: activity.get('attachment.Second Supervisor.value'),
+    department: activity.get('attachment.Department.value'),
+    baseLocation: activity.get('attachment.Base Location.value'),
+    employeeCode: activity.get('attachment.Employee Code.value'),
+  };
+};
+
 
 module.exports = {
   activityName,
   validateVenues,
   getCanEditValue,
   toCustomerObject,
+  toEmployeesData,
   validateSchedules,
   filterAttachment,
   haversineDistance,
