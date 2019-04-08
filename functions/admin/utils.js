@@ -554,7 +554,6 @@ const getAdmin = (phoneNumber, office) => {
     .activities
     .where('attachment.Admin.value', '==', phoneNumber)
     .where('office', '==', office)
-    .where('status', '==', 'CONFIRMED')
     .limit(1)
     .get();
 };
@@ -728,11 +727,11 @@ const toTwoDecimalPlace = (val) => {
 
 const adjustedGeopoint = (geopoint) => {
   return {
-    latitutde: toTwoDecimalPlace(
-      geopoint.latitude || geopoint._longitude
+    latitude: toTwoDecimalPlace(
+      geopoint.latitude || geopoint._latitude
     ),
     longitude: toTwoDecimalPlace(
-      geopoint.longitude || geopoint._latitude
+      geopoint.longitude || geopoint._longitude
     ),
   };
 };
