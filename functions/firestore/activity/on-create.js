@@ -106,6 +106,8 @@ const createDocsWithBatch = (conn, locals) => {
     .collection('Addendum')
     .doc();
 
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+
   const activityData = {
     addendumDocRef,
     venue: locals.objects.venueArray,
@@ -128,11 +130,18 @@ const createDocsWithBatch = (conn, locals) => {
       displayName: conn.requester.displayName,
       photoURL: conn.requester.photoURL,
     },
-    timezone: locals.officeDoc.get('attachment.Timezone.value'),
+    timezone,
     createTimestamp: Date.now(),
   };
 
+  const date = momentTz().tz(timezone).date();
+  const month = momentTz().tz(timezone).month();
+  const year = momentTz().tz(timezone).year();
+
   const addendumDocObject = {
+    date,
+    month,
+    year,
     activityData,
     user: conn.requester.phoneNumber,
     userDisplayName: conn.requester.displayName,

@@ -957,18 +957,20 @@ const createSubscription = (locals) => {
             .includes(office);
       };
 
-      locals.assigneesMap.forEach((object) => {
-        const canEdit = getCanEdit(object.phoneNumber);
-        const addToInclude = object.phoneNumber !== phoneNumber;
+      locals
+        .assigneePhoneNumbersArray
+        .forEach((assigneePhonNumber) => {
+          const canEdit = getCanEdit(assigneePhonNumber);
+          const addToInclude = assigneePhonNumber !== phoneNumber;
 
-        batch
-          .set(activityRef
-            .collection('Assignees')
-            .doc(object.phoneNumber), {
-              canEdit,
-              addToInclude,
-            });
-      });
+          batch
+            .set(activityRef
+              .collection('Assignees')
+              .doc(assigneePhonNumber), {
+                canEdit,
+                addToInclude,
+              });
+        });
 
       return batch.commit();
     })

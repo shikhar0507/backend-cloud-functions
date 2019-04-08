@@ -548,18 +548,17 @@ module.exports = (locals) => {
 
       console.log('yesterday', yesterday.date());
 
-      // return ref
-      //   .set({
-      //     office,
-      //     month: yesterday.month(),
-      //     year: yesterday.year(),
-      //     officeId: locals.officeDoc.id,
-      //     report: reportNames.PAYROLL,
-      //     payrollObject: locals.payrollObject,
-      //   }, {
-      //       merge: true,
-      //     });
-      return null;
+      return ref
+        .set({
+          office,
+          month: yesterday.month(),
+          year: yesterday.year(),
+          officeId: locals.officeDoc.id,
+          report: reportNames.PAYROLL,
+          payrollObject: locals.payrollObject,
+        }, {
+            merge: true,
+          });
     })
     .then(() => {
       if (locals.createOnlyData) {

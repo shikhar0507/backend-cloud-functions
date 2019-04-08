@@ -61,7 +61,7 @@ const getSMSText = (numberOfDays) => {
 
 
 const getNotificationText = (
-  dateString = momentTz().format(dateFormats.DATE)
+  dateString = momentTz().subtract(1, 'day').format(dateFormats.DATE)
 ) =>
   `You were inactive on ${dateString}. Please mark On Duty or a Leave`;
 
@@ -136,7 +136,7 @@ const sendNotifications = (locals) => {
             endTime: startTime,
           }],
         }],
-        title: string,
+        title: 'Alert',
         body: string,
       };
 
@@ -367,7 +367,7 @@ const handleMtdReport = (locals) => {
               return `${first} | ${last}`;
             })();
 
-            if (value === 'NOT ACTIVE') {
+            if (value === 'NOT INSTALLED') {
               if (locals.inactiveDaysCountMap.has(phoneNumber)) {
                 const count = locals.inactiveDaysCountMap.get(phoneNumber) + 1;
 
@@ -500,7 +500,7 @@ module.exports = (locals) => {
           year: offsetObjectYesterday.year(),
         });
 
-        return Promise.resolve(false);
+        return Promise.resolve([]);
       }
 
       footprintsSheet = workbook.addSheet('Footprints');
@@ -710,6 +710,10 @@ module.exports = (locals) => {
       return Promise.all(updateDocsFetchPromises);
     })
     .then((snapShots) => {
+      if (!locals.footprintsSheetAdded) {
+        return Promise.resolve();
+      }
+
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) {
           return;
@@ -807,7 +811,7 @@ module.exports = (locals) => {
       locals
         .phoneNumbersWithAuthSet = phoneNumbersWithAuthSet;
 
-      return;
+      return Promise.resolve();
     })
     .then(() => handleMtdReport(locals))
     .then(() => {
@@ -845,9 +849,10 @@ module.exports = (locals) => {
         office: locals.officeDoc.get('office'),
       });
 
-      return locals
-        .sgMail
-        .sendMultiple(locals.messageObject);
+      // return locals
+      //   .sgMail
+      //   .sendMultiple(locals.messageObject);
+      return Promise.resolve();
     })
     .then(() => {
       const momentFromTimer = momentTz(todayFromTimer).tz(timezone);
