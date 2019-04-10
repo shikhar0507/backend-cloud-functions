@@ -49,7 +49,63 @@ const fs = require('fs');
 const admin = require('firebase-admin');
 
 
-const getSMSText = (numberOfDays) => {
+const getComment = (doc) => {
+  if (doc.get('activityData.attachment.Comment.value')) {
+    return doc.get('activityData.attachment.Comment.value');
+  }
+
+  const action = doc.get('action');
+
+  if (action === httpsActions.signup) {
+    return `Signed up on Growthfile`;
+  }
+
+  if (action === httpsActions.install) {
+    return `Installed Growthfile`;
+  }
+
+  if (action === httpsActions.create) {
+    return `Created ${doc.get('activityData.template')}`;
+  }
+
+  if (action === httpsActions.update) {
+    return `Updated ${doc.get('activityData.template')}`;
+  }
+
+  if (action === httpsActions.changeStatus) {
+    const newStatus = doc.get('status');
+
+    const numbersString = (() => {
+      if (newStatus === 'PENDING') {
+        return 'reversed';
+      }
+
+      return newStatus;
+    })();
+
+    return `${numbersString.toUpperCase()} ${doc.get('activityData.template')}`;
+  }
+
+  if (action === httpsActions.share) {
+    const shareArray = doc.get('share');
+
+    const adjective = (() => {
+      if (shareArray.length > 1) {
+        return 'were';
+      }
+
+      return 'was';
+    })();
+
+    return `Phone number(s) ${doc.get('share')} ${adjective} added`;
+  }
+
+  // action is 'comment'
+  return doc.get('comment');
+};
+
+
+const getSMSText = (numberOfDays = 1) => {
   if (numberOfDays === 1) {
     return `You did not mark your attendance yesterday. Join now`
       + ` to avoid loss of pay ${env.downloadUrl}`;
@@ -69,12 +125,15 @@ const getNotificationText = (
 const sendMultipleSMS = (inactiveDaysCountMap) => {
   const promises = [];
 
-  inactiveDaysCountMap.forEach((numberOfDays, phoneNumber) => {
-    const smsText = getSMSText(numberOfDays);
-    const promise = sendSMS(phoneNumber, smsText);
+  inactiveDaysCountMap
+    .forEach((numberOfDays, phoneNumber) => {
+      const smsText = getSMSText(numberOfDays);
+      const promise = sendSMS(phoneNumber, smsText);
 
-    promises.push(promise);
-  });
+      console.log('sms to:', phoneNumber);
+
+      promises.push(promise);
+    });
 
   return Promise
     .all(promises)
@@ -99,17 +158,23 @@ const getDateHeaders = (momentYesterday) => {
 
 const sendNotifications = (locals) => {
   const promises = [];
+  const office = locals.officeDoc.get('office');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const startTime = momentTz()
     .tz(timezone)
     .subtract(1, 'day')
     .startOf()
     .valueOf();
-  const office = locals.officeDoc.get('office');
 
   locals
     .registrationTokensMap
-    .forEach((token) => {
+    .forEach((token, phoneNumber) => {
+      if (locals.activePhoneNumbersSet.has(phoneNumber)) {
+        return;
+      }
+
+      console.log('Notification to:', phoneNumber);
+
       const string = getNotificationText();
 
       const payrollObject = {
@@ -160,22 +225,22 @@ const sendNotifications = (locals) => {
     .catch(console.error);
 };
 
+
 const handleMtdReport = (locals) => {
   let footprintsObject;
   let initDocRef;
   let excelSheet;
   const firstAddendumPromises = [];
   const lastAddendumPromises = [];
-  const todayFromTimestamp = locals.change.after.get('timestamp');
+  const employeesData = locals.officeDoc.get('employeesData');
   const office = locals.officeDoc.get('office');
+  const todayFromTimestamp = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const officeId = locals.officeDoc.id;
   const momentWithOffset = momentTz(todayFromTimestamp).tz(timezone);
   const momentYesterday = momentWithOffset.subtract(1, 'day');
   const yesterdaysDate = momentYesterday.date();
   const yesterdaysMonth = momentYesterday.month();
   const yesterdaysYear = momentYesterday.year();
-  const employeesData = locals.officeDoc.get('employeesData');
 
   return rootCollections
     .inits
@@ -303,7 +368,6 @@ const handleMtdReport = (locals) => {
         .keys(employeesData)
         .forEach((phoneNumber, outerIndex) => {
           const employeeObject = employeeInfo(employeesData, phoneNumber);
-          const employeeName = employeeObject.name;
           const liveSince = timeStringWithOffset({
             timezone,
             format: dateFormats.DATE,
@@ -314,7 +378,7 @@ const handleMtdReport = (locals) => {
 
           excelSheet
             .cell(`A${columnIndex}`)
-            .value(employeeName);
+            .value(employeeObject.name);
           excelSheet
             .cell(`B${columnIndex}`)
             .value(phoneNumber);
@@ -328,7 +392,7 @@ const handleMtdReport = (locals) => {
             .cell(`E${columnIndex}`)
             .value(liveSince);
 
-          let alphabetIndexStart = 5;
+          let ALPHABET_INDEX_START = 5;
 
           for (let date = yesterdaysDate; date > 0; date--) {
             const {
@@ -336,13 +400,13 @@ const handleMtdReport = (locals) => {
               last,
             } = footprintsObject[phoneNumber][date] || {};
 
-            const alphabet = alphabetsArray[alphabetIndexStart];
+            const alphabet = alphabetsArray[ALPHABET_INDEX_START];
             const value = (() => {
               if (locals.payrollObject[phoneNumber]
                 && locals.payrollObject[phoneNumber][date]
                 && locals.payrollObject[phoneNumber][date].status
                 && locals.payrollObject[phoneNumber][date].status.startsWith('LEAVE')) {
-                return 'LEAVE';
+                return 'ON LEAVE';
               }
 
               if (locals.payrollObject[phoneNumber]
@@ -381,15 +445,23 @@ const handleMtdReport = (locals) => {
 
             excelSheet.cell(cell).value(value);
 
-            alphabetIndexStart++;
+            if (!footprintsObject[phoneNumber]) {
+              footprintsObject[phoneNumber] = {};
+            }
+
+            if (!footprintsObject[phoneNumber][date]) {
+              footprintsObject[phoneNumber][date] = value;
+            }
+
+            ALPHABET_INDEX_START++;
           }
         });
 
       return initDocRef
         .set({
           office,
-          officeId,
           footprintsObject,
+          officeId: locals.officeDoc.id,
           report: reportNames.FOOTPRINTS_MTD,
           month: momentYesterday.month(),
           year: momentYesterday.year(),
@@ -411,6 +483,7 @@ const handleNotificationsAndSms = (locals) => {
     .then(() => sendNotifications(locals))
     .catch(console.error);
 };
+
 
 module.exports = (locals) => {
   const todayFromTimer = locals
@@ -444,9 +517,9 @@ module.exports = (locals) => {
   let footprintsSheet;
   const updateDocsFetchPromises = [];
 
-  const activePhoneNumbersSet = new Set();
+  locals.activePhoneNumbersSet = new Set();
   locals.registrationTokensMap = new Map();
-  const phoneNumbersWithAuthSet = new Set();
+  locals.phoneNumbersWithAuthSet = new Set();
   locals.inactiveDaysCountMap = new Map();
   let payrollObject;
 
@@ -539,7 +612,7 @@ module.exports = (locals) => {
 
         const phoneNumber = doc.get('user');
 
-        activePhoneNumbersSet.add(phoneNumber);
+        locals.activePhoneNumbersSet.add(phoneNumber);
 
         const employeeObject = employeeInfo(employeesData, phoneNumber);
         const name = employeeObject.name;
@@ -576,7 +649,6 @@ module.exports = (locals) => {
           timezone,
           timestampToConvert: doc.get('timestamp'),
         });
-        const commentFromAttachment = doc.get('activityData.attachment.Comment.value') || '';
         const employeeCode = employeeObject.employeeCode;
         const distanceTravelled = (() => {
           let value = Number(doc.get('distanceTravelled') || 0);
@@ -595,60 +667,7 @@ module.exports = (locals) => {
           return value.toFixed(2);
         })();
 
-        const comment = (() => {
-          if (commentFromAttachment) {
-            return commentFromAttachment;
-          }
-
-          const action = doc.get('action');
-
-          if (action === httpsActions.signup) {
-            return `Signed up on Growthfile`;
-          }
-
-          if (action === httpsActions.install) {
-            return `Installed Growthfile`;
-          }
-
-          if (action === httpsActions.create) {
-            return `Created ${doc.get('activityData.template')}`;
-          }
-
-          if (action === httpsActions.update) {
-            return `Updated ${doc.get('activityData.template')}`;
-          }
-
-          if (action === httpsActions.changeStatus) {
-            const newStatus = doc.get('status');
-
-            const string = (() => {
-              if (newStatus === 'PENDING') {
-                return 'reversed';
-              }
-
-              return newStatus;
-            })();
-
-            return `${string.toUpperCase()} ${doc.get('activityData.template')}`;
-          }
-
-          if (action === httpsActions.share) {
-            const shareArray = doc.get('share');
-
-            const adjective = (() => {
-              if (shareArray.length > 1) {
-                return 'were';
-              }
-
-              return 'was';
-            })();
-
-            return `Phone number(s) ${doc.get('share')} ${adjective} added`;
-          }
-
-          // action is 'comment'
-          return doc.get('comment');
-        })();
+        const comment = getComment(doc);
 
         footprintsSheet
           .cell(`A${columnIndex}`)
@@ -668,11 +687,19 @@ module.exports = (locals) => {
         footprintsSheet
           .cell(`F${columnIndex}`)
           .value(distanceTravelled);
-        footprintsSheet
-          .cell(`G${columnIndex}`)
-          .value(identifier)
-          .style({ fontColor: '0563C1', underline: true })
-          .hyperlink(url);
+
+        if (identifier && url) {
+          footprintsSheet
+            .cell(`G${columnIndex}`)
+            .value(identifier)
+            .style({ fontColor: '0563C1', underline: true })
+            .hyperlink(url);
+        } else {
+          footprintsSheet
+            .cell(`G${columnIndex}`)
+            .value('');
+        }
+
         footprintsSheet
           .cell(`H${columnIndex}`)
           .value(comment);
@@ -694,10 +721,6 @@ module.exports = (locals) => {
       Object
         .keys(employeesData)
         .forEach((phoneNumber) => {
-          if (activePhoneNumbersSet.has(phoneNumber)) {
-            return;
-          }
-
           const promise = rootCollections
             .updates
             .where('phoneNumber', '==', phoneNumber)
@@ -723,7 +746,7 @@ module.exports = (locals) => {
         const phoneNumber = doc.get('phoneNumber');
         const registrationToken = doc.get('registrationToken');
 
-        phoneNumbersWithAuthSet.add(phoneNumber);
+        locals.phoneNumbersWithAuthSet.add(phoneNumber);
 
         /** Notifications only sent to employees */
         if (registrationToken && employeesData[phoneNumber]) {
@@ -737,7 +760,7 @@ module.exports = (locals) => {
         .keys(employeesData)
         .forEach((phoneNumber) => {
           /** Ignoring people who were active.during the date */
-          if (activePhoneNumbersSet.has(phoneNumber)) {
+          if (locals.activePhoneNumbersSet.has(phoneNumber)) {
             return;
           }
 
@@ -762,7 +785,7 @@ module.exports = (locals) => {
               return `ON DUTY`;
             }
 
-            if (phoneNumbersWithAuthSet.has(phoneNumber)) {
+            if (locals.phoneNumbersWithAuthSet.has(phoneNumber)) {
               return `NOT ACTIVE`;
             }
 
@@ -807,9 +830,6 @@ module.exports = (locals) => {
             .cell(`J${lastIndex}`)
             .value(baseLocation);
         });
-
-      locals
-        .phoneNumbersWithAuthSet = phoneNumbersWithAuthSet;
 
       return Promise.resolve();
     })
@@ -864,7 +884,8 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      return handleNotificationsAndSms(locals);
+      // return handleNotificationsAndSms(locals);
+      return Promise.resolve();
     })
     .catch(console.error);
 };

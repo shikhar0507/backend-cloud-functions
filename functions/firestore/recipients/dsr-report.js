@@ -340,15 +340,19 @@ const handleSheetOne = (params) => {
       });
       const employeeObject = employeeInfo(employeesData, phoneNumber);
       const customerLocation = (() => {
-        if (!customersData[customer]) return '';
+        if (!customersData[customer]) {
+          return '';
+        }
 
-        return customersData[customer].identifier;
+        return customersData[customer].customerOffice.identifier;
       })();
 
       const url = (() => {
-        if (!customersData[customer]) return '';
+        if (!customersData[customer]) {
+          return '';
+        }
 
-        return customersData[customer].url;
+        return customersData[customer].customerOffice.url;
       })();
 
       const employeeName = employeeObject.name;
@@ -365,6 +369,7 @@ const handleSheetOne = (params) => {
       sheet1.cell(`F${columnIndex}`).value(locality);
       sheet1.cell(`G${columnIndex}`).value(city);
       sheet1.cell(`H${columnIndex}`).value(state);
+
       sheet1
         .cell(`I${columnIndex}`)
         .value(customerLocation)

@@ -193,7 +193,7 @@ const toMapsUrl = (geopoint) => {
   const latitude = geopoint._latitude || geopoint.latitude;
   const longitude = geopoint._longitude || geopoint.longitude;
 
-  return `https://www.google.com/maps/@${latitude},${longitude}`;
+  return `https://maps.google.com/?q=${latitude},${longitude}`;
 };
 
 

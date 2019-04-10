@@ -1,38 +1,40 @@
 'use strict';
 
 const {
-  getGeopointObject,
-  rootCollections,
   db,
+  rootCollections,
+  getGeopointObject,
 } = require('../../admin/admin');
 const env = require('../../admin/env');
 const {
-  sendResponse,
-  handleError,
   sendJSON,
-  isNonEmptyString,
-  isValidEmail,
-  isValidGeopoint,
-  isHHMMFormat,
+  handleError,
   isValidDate,
+  isHHMMFormat,
+  sendResponse,
+  isValidEmail,
+  isEmptyObject,
+  isValidGeopoint,
+  isNonEmptyString,
   isE164PhoneNumber,
+  getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
+const {
+  alphabetsArray,
+} = require('../../firestore/recipients/report-utils');
 const {
   code,
 } = require('../../admin/responses');
 const {
-  timezonesSet,
   weekdays,
   validTypes,
   httpsActions,
+  timezonesSet,
 } = require('../../admin/constants');
 const xlsxPopulate = require('xlsx-populate');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
 const fs = require('fs');
-const {
-  alphabetsArray,
-} = require('../../firestore/recipients/report-utils');
 
 
 const templateNamesObject = {
@@ -40,6 +42,7 @@ const templateNamesObject = {
   SUBSCRIPTION: 'subscription',
   EMPLOYEE: 'employee',
   OFFICE: 'office',
+  RECIPIENT: 'recipient',
 };
 
 const handleValidation = (body) => {
@@ -48,7 +51,7 @@ const handleValidation = (body) => {
   const messageString = (field) =>
     `Invalid/Missing field '${field}' from the request body`;
 
-  if (body.template !== 'office'
+  if (body.template !== templateNamesObject.OFFICE
     && !isNonEmptyString(body.office)) {
     return {
       success: false,
@@ -146,22 +149,50 @@ const getActivityName = (params) => {
     result += `${name}`;
   } else if (number) {
     result += `${number}`;
-  } else if (template === 'admin') {
+  } else if (template === templateNamesObject.ADMIN) {
     result += `${admin}`;
-  } else if (template === 'subscription') {
+  } else if (template === templateNamesObject.SUBSCRIPTION) {
     result += `${subscriber}`;
   } else {
     result += `${displayName || phoneNumber}`;
   }
 
-  if (template === 'recipient') {
+  if (template === templateNamesObject.RECIPIENT) {
     result += ` report`;
   }
 
   return result;
 };
 
-const sendExcelFromResponse = (conn, locals, responseObject) => {
+const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
+  const rule = locals.templateDoc.get('canEditRule');
+
+  if (rule === 'NONE') return false;
+  if (rule === 'ADMIN') return locals.adminsSet.has(phoneNumber);
+  if (rule === 'EMPLOYEE') return locals.employeesSet.has(phoneNumber);
+  if (rule === 'CREATOR') return phoneNumber === requestersPhoneNumber;
+
+  // for `ALL`
+  return true;
+};
+
+const getEmployeeDataObject = (activityObject, phoneNumber) => {
+  return {
+    Name: activityObject.attachment.Name.value,
+    Designation: activityObject.attachment.Designation.value,
+    Department: activityObject.attachment.Department.value,
+    'Employee Contact': phoneNumber,
+    'Employee Code': activityObject.attachment['Employee Code'].value,
+    'Base Location': activityObject.attachment['Base Location'].value,
+    'First Supervisor': activityObject.attachment['First Supervisor'].value,
+    'Second Supervisor': activityObject.attachment['Second Supervisor'].value,
+    'Daily Start Time': activityObject.attachment['Daily Start Time'].value,
+    'Daily End Time': activityObject.attachment['Daily End Time'].value,
+    'Weekly Off': activityObject.attachment['Weekly Off'].value,
+  };
+};
+
+const sendXLSXToCreaator = (conn, locals, responseObject) => {
   const fileName = `${conn.req.body.template}--${conn.req.body.office}.xlsx`;
   const filePath = `/tmp/${fileName}`;
   const messageObject = {
@@ -251,34 +282,6 @@ const executeSequentially = (batchFactories) => {
   return result;
 };
 
-const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
-  const rule = locals.templateDoc.get('canEditRule');
-
-  if (rule === 'NONE') return false;
-  if (rule === 'ADMIN') return locals.adminsSet.has(phoneNumber);
-  if (rule === 'EMPLOYEE') return locals.employeesSet.has(phoneNumber);
-  if (rule === 'CREATOR') return phoneNumber === requestersPhoneNumber;
-
-  // for `ALL`
-  return true;
-};
-
-const getEmployeeDataObject = (activityObject, phoneNumber) => {
-  return {
-    Name: activityObject.attachment.Name.value,
-    Designation: activityObject.attachment.Designation.value,
-    Department: activityObject.attachment.Department.value,
-    'Employee Contact': phoneNumber,
-    'Employee Code': activityObject.attachment['Employee Code'].value,
-    'Base Location': activityObject.attachment['Base Location'].value,
-    'First Supervisor': activityObject.attachment['First Supervisor'].value,
-    'Second Supervisor': activityObject.attachment['Second Supervisor'].value,
-    'Daily Start Time': activityObject.attachment['Daily Start Time'].value,
-    'Daily End Time': activityObject.attachment['Daily End Time'].value,
-    'Weekly Off': activityObject.attachment['Weekly Off'].value,
-  };
-};
-
 const commitData = (conn, batchesArray, batchFactories) => {
   // For a single batch, no need to create batch factories
   if (batchesArray.length === 1) {
@@ -366,7 +369,7 @@ const createObjects = (conn, locals, trialRun) => {
       return locals.officeDoc.get('attachment.Name.value');
     })();
     const timezone = (() => {
-      if (conn.req.body.template === 'office') {
+      if (conn.req.body.template === templateNamesObject.OFFICE) {
         return conn.req.body.data[index].Timezone;
       }
 
@@ -436,6 +439,8 @@ const createObjects = (conn, locals, trialRun) => {
             longitude: '',
           },
         });
+
+        activityObject.adjustedGeopoints = [];
       }
     });
 
@@ -1330,7 +1335,7 @@ const validateDataArray = (conn, locals) => {
           return;
         }
 
-        if (conn.req.body.template === 'employee'
+        if (conn.req.body.template === templateNamesObject.EMPLOYEE
           && property === 'Employee Contact'
           && !isE164PhoneNumber(value)) {
           conn.req.body.data[index].rejected = true;
@@ -1483,7 +1488,9 @@ const validateDataArray = (conn, locals) => {
     );
   }
 
-  const trialRun = conn.req.query.trialRun === 'true';
+  /** Only support can use `trailRun` */
+  const trialRun = conn.requester.isSupportRequest
+    && conn.req.query.trialRun === 'true';
 
   return fetchValidTypes(conn, locals)
     .then(() => fetchTemplates(conn, locals))
@@ -1587,6 +1594,18 @@ module.exports = (conn) => {
 
         locals.templateNamesSet = templateNamesSet;
       }
+
+      /** 
+       * Ignoring objects where all fields have empty
+       * strings as the value.
+       */
+      conn.req.body.data.forEach((object, index) => {
+        if (!isEmptyObject(object)) {
+          return;
+        }
+
+        delete conn.req.body.data[index];
+      });
 
       return validateDataArray(conn, locals);
     })

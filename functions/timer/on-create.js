@@ -27,6 +27,7 @@
 
 const {
   db,
+  users,
   rootCollections,
   fieldPath,
 } = require('../admin/admin');
@@ -42,6 +43,8 @@ const {
 const {
   alphabetsArray,
 } = require('../firestore/recipients/report-utils');
+
+
 const fs = require('fs');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
@@ -50,240 +53,431 @@ const xlsxPopulate = require('xlsx-populate');
 
 sgMail.setApiKey(env.sgMailApiKey);
 
-const handleUserStatusReport = (locals) => {
-  const {
-    worksheet,
-    counterDocsQuery,
-    initDocsQuery,
-    profilesDocsQuery,
-  } = locals;
 
-  const sheet1 = worksheet.addSheet('USER STATUS REPORT');
-  sheet1.row(1).style('bold', true);
+const handleOfficeSheet = (locals) => {
+  let officeDocs;
+  const authFetch = [];
+  const footprintsFetch = [];
+  const recipientsFetch = [];
+  const moment = require('moment');
+  const yesterdayMoment = moment().subtract(1, 'day');
+  const yesterdaysDate = yesterdayMoment.date();
+  const dormantEmployeesCountMap = new Map();
+  const totalEmployeesCountMap = new Map();
+  const phoneNumbersSet = new Set();
+  const assigneesMap = new Map();
+  const activeCountMap = new Map();
+  const notInstalledCountMap = new Map();
+  const officeUnverifiedRecipientsMap = new Map();
+  const officeActivityReport = locals.worksheet.sheet('Office Activity Report');
 
-  const {
-    totalUsers,
-  } = counterDocsQuery.docs[0].data();
+  return rootCollections
+    .offices
+    .get()
+    .then((snapShot) => {
+      officeDocs = snapShot;
+      snapShot
+        .docs
+        .forEach((officeDoc, index) => {
+          const office = officeDoc.get('office');
+          const employeesData = officeDoc.get('employeesData') || {};
 
-  const {
-    installedToday,
-    usersAdded,
-  } = initDocsQuery.docs[0].data();
+          officeActivityReport
+            .cell(`A${index + 2}`)
+            .value(office);
 
-  sheet1.cell('A1').value('TOTAL USERS');
-  sheet1.cell('A2').value(totalUsers);
-  sheet1.cell('B1').value('USERS ADDED YESTERDAY');
-  sheet1.cell('B2').value(usersAdded);
-  sheet1.cell('C1').value('ACTIVE YESTERDAY');
-  sheet1.cell('C2').value(profilesDocsQuery.size);
-  sheet1.cell('D1').value('INSTALLED YESTERDAY');
-  sheet1.cell('D2').value(installedToday);
+          totalEmployeesCountMap.set(
+            office,
+            Object.keys(employeesData).length
+          );
 
-  return locals;
+          const footprintsPromise = rootCollections
+            .inits
+            .where('office', '==', office)
+            .where('month', '==', yesterdayMoment.month())
+            .where('year', '==', yesterdayMoment.year())
+            .where('report', '==', reportNames.FOOTPRINTS_MTD)
+            .limit(1)
+            .get();
+
+          const recipientPromise = rootCollections
+            .recipients
+            .where('office', '==', office)
+            .get();
+
+          recipientsFetch.push(recipientPromise);
+          footprintsFetch.push(footprintsPromise);
+        });
+
+      return Promise.all(footprintsFetch);
+    })
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) {
+          return;
+        }
+
+        let activeCount = 0;
+        let notInstalledCount = 0;
+        const doc = snapShot.docs[0];
+        const office = doc.get('office');
+        const footprintsObject = doc.get('footprintsObject');
+
+        Object
+          .keys(footprintsObject)
+          .forEach((phoneNumber) => {
+            const employeeStatusObject = (() => {
+              if (!footprintsObject[phoneNumber]) {
+                return footprintsObject[phoneNumber] = {};
+              }
+
+              return footprintsObject[phoneNumber];
+            })();
+
+            if (employeeStatusObject[yesterdaysDate] === 'NOT ACTIVE') {
+              activeCount++;
+            }
+
+            if (employeeStatusObject[yesterdaysDate] === 'NOT INSTALLED') {
+              notInstalledCount++;
+            }
+
+          });
+
+        activeCountMap.set(office, activeCount);
+        notInstalledCountMap.set(office, notInstalledCount);
+      });
+
+      return Promise.all(recipientsFetch);
+    })
+    .then((snapShots) => {
+      snapShots
+        .forEach((snapShot) => {
+          const office = snapShot.docs[0].get('office');
+
+          snapShot
+            .forEach((doc) => {
+              const include = doc.get('include');
+
+              include.forEach((phoneNumber) => {
+                phoneNumbersSet.add(phoneNumber);
+
+                assigneesMap.set(phoneNumber, office);
+              });
+            });
+        });
+
+      phoneNumbersSet
+        .forEach((phoneNumber) => {
+          const promise = users.getUserByPhoneNumber(phoneNumber);
+
+          authFetch.push(promise);
+        });
+
+      return Promise.all(authFetch);
+    })
+    .then((userRecords) => {
+      userRecords.forEach((userRecord) => {
+        const phoneNumber = Object.keys(userRecord)[0];
+        const record = userRecord[phoneNumber];
+
+        if (!record || !record.email || !record.emailVerified) {
+          // returns office name
+          const office = assigneesMap.get(phoneNumber);
+
+          if (officeUnverifiedRecipientsMap.has(office)) {
+            const set = officeUnverifiedRecipientsMap.get(office);
+
+            set.add(phoneNumber);
+
+            officeUnverifiedRecipientsMap.set(office, set);
+          } else {
+            officeUnverifiedRecipientsMap.set(office, new Set().add(phoneNumber));
+          }
+        }
+      });
+
+      officeDocs
+        .docs
+        .forEach((officeDoc, index) => {
+          const columnIndex = index + 2;
+          const office = officeDoc.get('office');
+          const totalEmployees = totalEmployeesCountMap.get(office);
+          const activeCount = activeCountMap.get(office);
+          const inactiveCount = totalEmployees - activeCount;
+          /** People on leave, on duty or with weekly off */
+          const dormantEmployees = dormantEmployeesCountMap.get(office) || 0;
+          const notInstalledCount = notInstalledCountMap.get(office);
+          const createdActivitiesCount = locals.createCountByOffice[office] || 0;
+          const unverifiedRecipients = Array.from(officeUnverifiedRecipientsMap.get(office) || []);
+
+          officeActivityReport
+            .cell(`B${columnIndex}`)
+            .value(totalEmployees);
+          officeActivityReport
+            .cell(`C${columnIndex}`)
+            .value(activeCount);
+          officeActivityReport
+            .cell(`D${columnIndex}`)
+            .value(inactiveCount);
+          officeActivityReport
+            .cell(`E${columnIndex}`)
+            .value(dormantEmployees);
+          officeActivityReport
+            .cell(`F${columnIndex}`)
+            .value(notInstalledCount);
+          officeActivityReport
+            .cell(`G${columnIndex}`)
+            .value(createdActivitiesCount);
+          officeActivityReport
+            .cell(`H${columnIndex}`)
+            .value(`${unverifiedRecipients}`);
+        });
+
+      return Promise.resolve();
+    })
+    .catch(console.error);
 };
 
-const handleActivityStatusReport = (locals) => {
-  const {
-    worksheet,
-    counterDocsQuery,
-    initDocsQuery,
-    activityTemplatesQuery,
-  } = locals;
-
-  const sheet2 = worksheet.addSheet('ACTIVITY STATUS REPORT');
-  sheet2.row(1).style('bold', true);
-  sheet2.column(1).style('bold', true);
-
-  const {
-    templateUsageObject,
-    commentApi,
-    createApi,
-    changeStatusApi,
-    shareApi,
-    updateApi,
-  } = initDocsQuery.docs[0].data();
-
-  const getNumber = (templateName, action) => {
-    if (!templateUsageObject[templateName]
-      || !templateUsageObject[templateName][action]) {
-      return '(not used)';
-    }
-
-    return templateUsageObject[templateName][action];
-  };
-
-  [
-    'TOTAL',
-    'ADMIN',
-    'AUTO GENERATED',
-    'SUPPORT',
-    'CREATE',
-    'UPDATE',
-    'CHANGE STATUS',
-    'SHARE',
-    'COMMENT',
-  ].forEach((header, index) => {
-    const cellIndex = `${alphabetsArray[index + 1]}1`;
-
-    sheet2.cell(cellIndex).value(header);
-  });
-
-  // RaxiOZTTUDXGuWzvaFda
-  const counterDoc = counterDocsQuery.docs[0];
-
-  const totalActivities = counterDoc.get('totalActivities');
-  const totalCreatedWithAdminApi = counterDoc.get('totalCreatedWithAdminApi');
-  const totalAutoGeneratedActivities = counterDoc.get('totalAutoGeneratedActivities');
-  const totalCreatedWithSupport = counterDoc.get('totalCreatedWithSupport');
-  const adminApiMap = counterDoc.get('adminApiMap');
-  const autoGeneratedMap = counterDoc.get('autoGeneratedMap');
-  const supportMap = counterDoc.get('supportMap');
-
-  const totalByTemplateMap = counterDoc.get('totalByTemplateMap');
-
-  sheet2.cell('A1').value('');
-  sheet2.cell('A2').value('');
-  sheet2.cell('B1').value('TOTAL');
-  // total activities
-  sheet2.cell('B2').value(totalActivities);
-  // total created using admin api
-  sheet2.cell('C2').value(totalCreatedWithAdminApi);
-  // auto generated -> admin + subscription + subscription of template with canEditRule ADMIN
-  sheet2.cell('D2').value(totalAutoGeneratedActivities);
-  // auto generated (created)
-  sheet2.cell('E2').value(totalCreatedWithSupport);
-  // created with support
-  sheet2.cell('F2').value(createApi);
-  // client update api
-  sheet2.cell('G2').value(updateApi);
-  // client change status api
-  sheet2.cell('H2').value(changeStatusApi);
-  // client create api
-  sheet2.cell('I2').value(shareApi);
-  // client comment api
-  sheet2.cell('J2').value(commentApi);
-
-  activityTemplatesQuery.docs.forEach((doc, index) => {
-    const templateName = doc.get('name');
-    const columnIndex = index + 3;
-
-    sheet2.cell(`A${columnIndex}`).value(templateName.toUpperCase());
-    // totalByTemplateMap
-    sheet2.cell(`B${columnIndex}`).value(totalByTemplateMap[templateName] || 0);
-    // adminApiMap
-    sheet2.cell(`C${columnIndex}`).value(adminApiMap[templateName] || 0);
-    // autoGeneratedMap
-    sheet2.cell(`D${columnIndex}`).value(autoGeneratedMap[templateName] || 0);
-    // supportMap
-    sheet2.cell(`E${columnIndex}`).value(supportMap[templateName] || 0);
-    // create
-    sheet2
-      .cell(`F${columnIndex}`)
-      .value(getNumber(templateName, httpsActions.create));
-    // update
-    sheet2
-      .cell(`G${columnIndex}`)
-      .value(getNumber(templateName, httpsActions.update));
-    // change status
-    sheet2
-      .cell(`H${columnIndex}`)
-      .value(getNumber(templateName, httpsActions.changeStatus));
-    // share
-    sheet2
-      .cell(`I${columnIndex}`)
-      .value(getNumber(templateName, httpsActions.share));
-    // comment
-    sheet2
-      .cell(`J${columnIndex}`)
-      .value(getNumber(templateName, httpsActions.comment));
-  });
-
-  return locals;
-};
 
 const handleDailyStatusReport = () => {
-  const fileName = `Growthfile Daily Status Report.xlsx`;
+  const date = moment().format(dateFormats.DATE);
+  const fileName = `Daily Status Report ${date}.xlsx`;
   const filePath = `/tmp/${fileName}`;
-  const yesterdayStartMoment =
-    momentTz()
-      .subtract(1, 'days')
-      .startOf('days');
-  const yesterdayMomentObject = yesterdayStartMoment.toObject();
-  const standardDateString = momentTz().format(dateFormats.DATE);
+  const yesterday = moment().subtract(1, 'day');
+  const locals = {};
+
   const messageObject = {
-    templateId: sendGridTemplateIds.dailyStatusReport,
     to: env.instantEmailRecipientEmails,
-    from: env.systemEmail,
-    attachments: [],
-    'dynamic_template_data': {
-      date: standardDateString,
-      subject: `Daily Status Report_Growthfile_${standardDateString}`,
+    from: {
+      name: 'Growthfile',
+      email: env.systemEmail,
     },
+    templateId: sendGridTemplateIds.dailyStatusReport,
+    'dynamic_template_data': {
+      date,
+      subject: `Daily Status Report_Growthfile_${date}`,
+    },
+    attachments: [],
   };
 
-  const locals = {};
+  const yesterdayStart = momentTz()
+    .subtract(1, 'day')
+    .startOf('day')
+    .valueOf();
 
   return Promise
     .all([
+      xlsxPopulate
+        .fromBlankAsync(),
       rootCollections
         .inits
-        .where('report', '==', 'counter')
+        .where('report', '==', reportNames.COUNTER)
         .limit(1)
         .get(),
       rootCollections
         .inits
         .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-        .where('date', '==', yesterdayMomentObject.date)
-        .where('month', '==', yesterdayMomentObject.months)
-        .where('year', '==', yesterdayMomentObject.years)
+        .where('date', '==', yesterday.date())
+        .where('month', '==', yesterday.month())
+        .where('year', '==', yesterday.year())
         .limit(1)
         .get(),
       rootCollections
         .profiles
-        .where('lastQueryFrom', '>=', yesterdayStartMoment.unix() * 1000)
+        .where('lastQueryFrom', '>=', yesterdayStart)
         .get(),
-      rootCollections
-        .activityTemplates
-        .orderBy('name', 'asc')
-        .get(),
-      xlsxPopulate
-        .fromBlankAsync(),
     ])
     .then((result) => {
       const [
-        counterDocsQuery,
-        initDocsQuery,
-        profilesDocsQuery,
-        activityTemplatesQuery,
         worksheet,
+        counterInitQuery,
+        yesterdayInitQuery,
+        profilesQuery,
       ] = result;
 
       locals.worksheet = worksheet;
-      locals.counterDocsQuery = counterDocsQuery;
-      locals.initDocsQuery = initDocsQuery;
-      locals.profilesDocsQuery = profilesDocsQuery;
-      locals.activityTemplatesQuery = activityTemplatesQuery;
 
-      return handleUserStatusReport(locals);
-    })
-    .then((locals) => handleActivityStatusReport(locals))
-    .then((locals) => {
-      locals.worksheet.deleteSheet('Sheet1');
+      const userStatusReport = worksheet.addSheet('User Status Report');
+      const officeReport = worksheet.addSheet('Office Activity Report');
+      const activityStatusReport = worksheet.addSheet('Activity Status Report');
+      worksheet.deleteSheet('Sheet1');
 
-      return locals;
+      userStatusReport.row(0).style('bold', true);
+      officeReport.row(0).style('bold', true);
+      activityStatusReport.row(0).style('bold', true);
+
+      [
+        'Total Auth',
+        'New Auth',
+        'Active Yesterday',
+        'New Installs',
+      ]
+        .forEach((header, index) => {
+          userStatusReport
+            .cell(`${alphabetsArray[index]}1`)
+            .value(header);
+        });
+
+      [
+        'Office',
+        'Total Users',
+        'Active',
+        'Not Active',
+        'On leave, on duty, on holiday, or on weekly off',
+        'Not Installed',
+        'Activities Created',
+        'Unverified Recipients'
+      ]
+        .forEach((header, index) => {
+          officeReport
+            .cell(`${alphabetsArray[index]}1`)
+            .value(header);
+        });
+
+      [
+        'Template',
+        'Total',
+        'Created By Admin',
+        'Created By Support',
+        'Created By App',
+        'System Created',
+        'Created Yesterday',
+        'Updated Yesterday',
+        'Changed Status Yesterday',
+        'Commented Yesterday',
+        'Shared Yesterday',
+      ]
+        .forEach((header, index) => {
+          activityStatusReport
+            .cell(`${alphabetsArray[index]}1`)
+            .value(header);
+        });
+
+      const {
+        totalUsers,
+        adminApiMap,
+        supportMap,
+        totalByTemplateMap,
+        autoGeneratedMap,
+      } = counterInitQuery.docs[0].data();
+      const {
+        usersAdded,
+        installsToday,
+        templateUsageObject,
+        createCountByOffice,
+      } = yesterdayInitQuery.docs[0].data();
+
+      /** Used in office sheet */
+      locals.createCountByOffice = createCountByOffice;
+
+      console.log('CounterDoc', counterInitQuery.docs[0].ref.path);
+      console.log('YesterdayDoc', yesterdayInitQuery.docs[0].ref.path);
+
+      userStatusReport.cell(`A2`).value(totalUsers);
+      userStatusReport.cell(`B2`).value(usersAdded);
+      // Active yesterday
+      userStatusReport.cell(`C2`).value(profilesQuery.size);
+      // new installs
+      userStatusReport.cell(`D2`).value(installsToday || 0);
+
+      [
+        'admin',
+        'branch',
+        'check-in',
+        'customer',
+        'customer-type',
+        'department',
+        'dsr',
+        'duty roster',
+        'employee',
+        'enquiry',
+        'expense claim',
+        'expense-type',
+        'leave',
+        'leave-type',
+        'office',
+        'on duty',
+        'product',
+        'recipient',
+        'subscription',
+        'tour plan'
+      ]
+        .forEach((name, index) => {
+          const position = index + 2;
+
+          activityStatusReport
+            .cell(`A${position}`)
+            .value(name);
+
+          activityStatusReport
+            .cell(`B${position}`)
+            .value(totalByTemplateMap[name] || 0);
+
+          activityStatusReport
+            .cell(`C${position}`)
+            .value(adminApiMap[name] || 0);
+
+          activityStatusReport
+            .cell(`D${position}`)
+            .value(supportMap[name] || 0);
+
+          activityStatusReport
+            .cell(`E${position}`)
+            .value(totalByTemplateMap[name] || 0 - adminApiMap[name] || 0 - supportMap[name] || 0);
+
+          activityStatusReport
+            .cell(`F${position}`)
+            .value(autoGeneratedMap[name] || 0);
+
+          const getCount = (action) => {
+            if (!templateUsageObject[name]) {
+              return 0;
+            }
+
+            return templateUsageObject[name][action] || 0;
+          };
+
+          // created
+          activityStatusReport
+            .cell(`G${position}`)
+            .value(getCount(httpsActions.create));
+          // update
+          activityStatusReport
+            .cell(`H${position}`)
+            .value(getCount(httpsActions.update));
+          // change status
+          activityStatusReport
+            .cell(`I${position}`)
+            .value(getCount(httpsActions.changeStatus));
+          // comment
+          activityStatusReport
+            .cell(`J${position}`)
+            .value(getCount(httpsActions.comment));
+          // shared
+          activityStatusReport
+            .cell(`K${position}`)
+            .value(getCount(httpsActions.share));
+        });
+
+      return handleOfficeSheet(locals);
     })
-    .then((locals) => locals.worksheet.toFileAsync(filePath))
+    .then(() => locals.worksheet.toFileAsync(filePath))
     .then(() => {
-      messageObject.attachments.push({
-        fileName,
-        content: fs.readFileSync(filePath).toString('base64'),
-        type: 'text/csv',
-        disposition: 'attachment',
-      });
+      messageObject
+        .attachments
+        .push({
+          fileName,
+          content: fs.readFileSync(filePath).toString('base64'),
+          type: 'text/csv',
+          disposition: 'attachment',
+        });
 
       return sgMail.sendMultiple(messageObject);
     })
-    .catch(console.error);
+    .catch((error) => {
+      console.error(error.toString());
+    });
 };
 
 const sendErrorReport = () => {
@@ -452,7 +646,6 @@ module.exports = (timerDoc) => {
 
       return sgMail.sendMultiple(messages);
     })
-    .then(() => handleDailyStatusReport())
     .then(() => sendErrorReport())
     // .then(() => handleRelevantTime())
     .then(() => rootCollections
@@ -472,5 +665,6 @@ module.exports = (timerDoc) => {
 
       return batch.commit();
     })
+    // .then(() => handleDailyStatusReport())
     .catch(console.error);
 };

@@ -881,12 +881,11 @@ module.exports = (locals) => {
           return;
         }
 
-        const promise = admin.messaging().sendToDevice(regToken, singleObject);
-        notificationPromises.push(promise);
+        // const promise = admin.messaging().sendToDevice(regToken, singleObject);
+        // notificationPromises.push(promise);
       });
 
-      // return Promise.all(notificationPromises);
-      return Promise.resolve();
+      return Promise.all(notificationPromises);
     })
     .catch(console.error);
 };

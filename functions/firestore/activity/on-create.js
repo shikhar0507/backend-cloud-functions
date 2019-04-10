@@ -38,22 +38,23 @@ const {
   getGeopointObject,
 } = require('../../admin/admin');
 const {
-  toCustomerObject,
   activityName,
   validateVenues,
   getCanEditValue,
   filterAttachment,
+  toCustomerObject,
   haversineDistance,
   validateSchedules,
   isValidRequestBody,
 } = require('./helper');
 const {
   handleError,
+  getFileHash,
   sendResponse,
   promisifiedRequest,
   promisifiedExecFile,
-  getFileHash,
   cloudflareCdnUrl,
+  getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
@@ -110,6 +111,7 @@ const createDocsWithBatch = (conn, locals) => {
 
   const activityData = {
     addendumDocRef,
+    timezone,
     venue: locals.objects.venueArray,
     timestamp: Date.now(),
     office: conn.req.body.office,
@@ -130,9 +132,20 @@ const createDocsWithBatch = (conn, locals) => {
       displayName: conn.requester.displayName,
       photoURL: conn.requester.photoURL,
     },
-    timezone,
     createTimestamp: Date.now(),
   };
+
+  const adjustedGeopoints = getAdjustedGeopointsFromVenue(
+    locals.objects.venueArray
+  );
+
+  console.log({ adjustedGeopoints });
+
+  if (!new Set(['check-in', 'on duty', 'leave'])
+    .has(conn.req.body.template)
+    && adjustedGeopoints) {
+    activityData.adjustedGeopoints = adjustedGeopoints;
+  }
 
   const date = momentTz().tz(timezone).date();
   const month = momentTz().tz(timezone).month();
@@ -194,9 +207,12 @@ const createDocsWithBatch = (conn, locals) => {
 
     const distanceAccurate = distanceBetweenLocations < maxAllowedDistance;
 
-    console.log({ distanceBetweenLocations, distanceAccurate });
-
     addendumDocObject.distanceAccurate = distanceAccurate;
+  }
+
+  if (conn.req.body.template === 'leave'
+    && activityData.status === 'CANCELLED') {
+    addendumDocObject.leaveCancelledMessage = ``;
   }
 
   locals.batch.set(addendumDocRef, addendumDocObject);
@@ -337,30 +353,19 @@ const handleLeaveOrOnDuty = (conn, locals) => {
   const endTime = conn.req.body.schedule[0].endTime;
   const startTimeMoment = momentTz(startTime);
   const endTimeMoment = momentTz(endTime);
-  const startTimeUnix =
-    startTimeMoment
-      .startOf('day')
-      .unix() * 1000;
-  const endTimeUnix =
-    endTimeMoment
-      .endOf('day')
-      .unix() * 1000;
+  const startTimeUnix = startTimeMoment
+    .startOf('day')
+    .unix() * 1000;
+  const endTimeUnix = endTimeMoment
+    .endOf('day')
+    .unix() * 1000;
 
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
 
-  if (leavesTakenThisTime
-    + locals.leavesTakenThisYear
-    > locals.maxLeavesAllowed) {
-    console.log({
-      'maxLeavesAllowed': locals.maxLeavesAllowed,
-      'leavesTaken': leavesTakenThisTime,
-      'leavesTakenThisYear': locals.leavesTakenThisYear,
-    });
-
+  if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
     console.log('CANCELL HERE 1');
     locals.static.statusOnCreate = 'CANCELLED';
-    locals.cancellationMessage =
-      `ACTIVITY CANCELLED. MAX LEAVES TAKEN ALREADY`;
+    locals.cancellationMessage = ``;
 
     createDocsWithBatch(conn, locals);
 
@@ -586,8 +591,6 @@ const handlePayroll = (conn, locals) => {
             .get('attachment.Annual Limit.value') || 0);
       }
 
-      console.log('leaveTypeSize', leaveActivityQuery.size);
-
       leaveActivityQuery.forEach((doc) => {
         const {
           startTime,
@@ -600,16 +603,16 @@ const handlePayroll = (conn, locals) => {
       });
 
       if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
-        console.log('leavesTakenThisYear', locals.leavesTakenThisYear);
-        console.log('maxLeavesAllowed', locals.maxLeavesAllowed);
-
         console.log('CANCELL HERE 3');
+
+        locals
+          .cancellationMessage = `LEAVE LIMIT EXCEEDED:`
+          + ` You have exceeded the limit for leave application under ${leaveType}`
+          + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
+
         locals
           .static
           .statusOnCreate = 'CANCELLED';
-        locals
-          .cancellationMessage =
-          `${conn.req.body.template.toUpperCase()} CANCELLED`;
 
         createDocsWithBatch(conn, locals);
 

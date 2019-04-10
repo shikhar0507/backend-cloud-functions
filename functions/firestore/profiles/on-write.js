@@ -35,6 +35,7 @@ const {
   httpsActions,
 } = require('../../admin/constants');
 const env = require('../../admin/env');
+const moment = require('moment');
 
 const sendSMS = (change) => {
   const {
@@ -215,309 +216,6 @@ const manageAddendum = (change) => {
 };
 
 
-const getEmployeeObject = (options) => {
-  const {
-    hasSignedUp,
-    hasSignedUpBeforeOffice,
-  } = options;
-
-  // If `hasSignedUpBeforeOffice`, the timestamp will be the time at
-  // which the person was added to the office
-
-  const now = Date.now();
-
-  const object = {
-    addedOn: now,
-    signedUpOn: '',
-  };
-
-  if (hasSignedUp) object.signedUpOn = now;
-  if (hasSignedUpBeforeOffice) object.signedUpOn = now;
-
-  return object;
-};
-
-
-const handleAddedToOffice = (change, options) => {
-  const {
-    phoneNumber,
-    newOffice,
-    hasSignedUp,
-    hasBeenAdded,
-    batch,
-    today,
-  } = options;
-
-  if (!hasBeenAdded) return Promise.resolve();
-
-  return rootCollections
-    .inits
-    .where('report', '==', reportNames.SIGNUP)
-    .where('office', '==', newOffice)
-    .limit(1)
-    .get()
-    .then((snapShot) => {
-      const ref = (() => {
-        if (snapShot.empty) return rootCollections.inits.doc();
-
-        return snapShot.docs[0].ref;
-      })();
-
-      const officeId = change.after.get('employeeOf')[newOffice];
-
-      batch.set(ref, {
-        officeId,
-        office: newOffice,
-        date: today.getDate(),
-        month: today.getMonth(),
-        year: today.getFullYear(),
-        report: reportNames.SIGNUP,
-        employeesObject: {
-          [phoneNumber]: getEmployeeObject({
-            hasSignedUp,
-          }),
-        },
-      }, {
-          merge: true,
-        });
-
-      return Promise.resolve();
-    })
-    .catch(console.error);
-};
-
-
-const handleRemovedFromOffice = (change, options) => {
-  const {
-    phoneNumber,
-    removedOffice,
-    hasBeenRemoved,
-    batch,
-    today,
-  } = options;
-
-  if (!hasBeenRemoved) return Promise.resolve();
-
-  return Promise
-    .all([
-      rootCollections
-        .inits
-        .where('phoneNumber', '==', phoneNumber)
-        .where('report', '==', reportNames.INSTALL)
-        .where('office', '==', removedOffice)
-        .limit(1)
-        .get(),
-      rootCollections
-        .inits
-        .where('report', '==', reportNames.SIGNUP)
-        .where('office', '==', removedOffice)
-        .limit(1)
-        .get(),
-    ])
-    .then((result) => {
-      const [
-        installDocQuery,
-        signUpDocQuery,
-      ] = result;
-
-      if (!installDocQuery.empty) {
-        batch.delete(installDocQuery.docs[0].ref);
-      }
-
-      if (!signUpDocQuery.empty) {
-        batch.set(signUpDocQuery.docs[0].ref, {
-          date: today.getDate(),
-          month: today.getMonth(),
-          year: today.getFullYear(),
-          employeesObject: {
-            [phoneNumber]: deleteField(),
-          },
-        }, {
-            merge: true,
-          });
-      }
-
-      return Promise.resolve();
-    })
-    .catch(console.error);
-};
-
-const handleInstall = (change, options) => {
-  const {
-    phoneNumber,
-    currentOfficesList,
-    hasInstalled,
-    batch,
-    today,
-  } = options;
-
-  if (!hasInstalled) return Promise.resolve();
-
-  const promises = [];
-
-  currentOfficesList.forEach((office) => {
-    const promise = rootCollections
-      .inits
-      .where('phoneNumber', '==', phoneNumber)
-      .where('report', '==', reportNames.INSTALL)
-      .where('office', '==', office)
-      .limit(1)
-      .get();
-
-    promises.push(promise);
-  });
-
-  return Promise
-    .all(promises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot, index) => {
-        const ref = (() => {
-          if (snapShot.empty) return rootCollections.inits.doc();
-
-          return snapShot.docs[0].ref;
-        })();
-
-        const initDocObject = (() => {
-          const office = currentOfficesList[index];
-          const officeId = change.after.get('employeeOf')[office];
-
-          if (snapShot.empty) {
-            return {
-              office,
-              phoneNumber,
-              officeId,
-              report: reportNames.INSTALL,
-              date: today.getDate(),
-              month: today.getMonth(),
-              year: today.getFullYear(),
-              installs: [Date.now()],
-            };
-          }
-
-          const {
-            installs,
-          } = snapShot.docs[0].data();
-
-          installs.push(Date.now());
-
-          return {
-            installs,
-            date: today.getDate(),
-            month: today.getMonth(),
-            year: today.getFullYear(),
-          };
-        })();
-
-        batch.set(ref, initDocObject, { merge: true });
-      });
-
-      return rootCollections
-        .inits
-        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-        .where('date', '==', today.getDate())
-        .where('month', '==', today.getMonth())
-        .where('year', '==', today.getFullYear())
-        .limit(1)
-        .get();
-    })
-    .then((docs) => {
-      const ref = (() => {
-        if (docs.empty) {
-          return rootCollections.inits.doc();
-        }
-
-        return docs.docs[0].ref;
-      })();
-
-      const installedToday = (() => {
-        if (docs.empty) return 0;
-
-        // The doc may NOT exist, since it is also handled by `AddendumOnCreate` function
-        // But that function doesn't put the field `installedToday` in the doc.
-        return docs.docs[0].get('installedToday') || 0;
-      })();
-
-      batch.set(ref, {
-        installedToday: installedToday + 1,
-      }, {
-          merge: true,
-        });
-
-      return Promise.resolve();
-    })
-    .catch(console.error);
-};
-
-
-const handleSignUp = (change, options) => {
-  const {
-    phoneNumber,
-    currentOfficesList,
-    hasSignedUp,
-    newOffice,
-    batch,
-    today,
-  } = options;
-
-  if (!hasSignedUp) return Promise.resolve();
-
-  const promises = [];
-
-  currentOfficesList.forEach((office) => {
-    const promise = rootCollections
-      .inits
-      .where('report', '==', reportNames.SIGNUP)
-      .where('office', '==', office)
-      .limit(1)
-      .get();
-
-    promises.push(promise);
-  });
-
-  return Promise
-    .all(promises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot, index) => {
-        const ref = (() => {
-          if (snapShot.empty) return rootCollections.inits.doc();
-
-          return snapShot.docs[0].ref;
-        })();
-
-        const office = currentOfficesList[index];
-
-        const hasSignedUpBeforeOffice = (() => {
-          // profile exists before being added to the office
-
-          return change.before.get('uid')
-            && change.after.get('uid')
-            && office === newOffice;
-        })();
-
-        batch.set(ref, {
-          office,
-          officeId: change.after.get('employeeOf')[office],
-          report: reportNames.SIGNUP,
-          date: today.getDate(),
-          month: today.getMonth(),
-          year: today.getFullYear(),
-          employeesObject: {
-            [phoneNumber]: getEmployeeObject({
-              hasSignedUp,
-              hasSignedUpBeforeOffice,
-            }),
-          },
-        }, {
-            merge: true,
-          });
-      });
-
-      return Promise.resolve();
-    })
-    .catch(console.error);
-};
-
-
 const handleSignUpAndInstall = (options) => {
   const promises = [];
 
@@ -538,8 +236,48 @@ const handleSignUpAndInstall = (options) => {
       promises.push(promise);
     });
 
-  return Promise
-    .all(promises)
+
+  return rootCollections
+    .inits
+    .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+    .where('date', '==', moment().date())
+    .where('month', '==', moment().month())
+    .where('year', '==', moment().year())
+    .get()
+    .then((snapShot) => {
+      const docRef = (() => {
+        if (snapShot.empty) {
+          return rootCollections.inits.doc();
+        }
+
+        return snapShot.docs[0].ref;
+      })();
+
+      const installsToday = (() => {
+        if (snapShot.empty) {
+          return 1;
+        }
+
+        /** 
+         * Doc might be created by some other event, and
+         * thus may not have the field `installsToday`.
+         */
+        return snapShot.docs[0].get('installsToday') || 1;
+      })();
+
+      options.batch.set(docRef, {
+        installsToday,
+        report: reportNames.DAILY_STATUS_REPORT,
+        date: moment().date(),
+        month: moment().month(),
+        year: moment().year(),
+      }, {
+          merge: true,
+        });
+
+      return Promise
+        .all(promises);
+    })
     .then((snapShots) => {
       snapShots
         .forEach((snapShot) => {
@@ -668,6 +406,6 @@ module.exports = (change) => {
     .then(() => handleSignUpAndInstall(options))
     .then(() => manageAddendum(change))
     .then(() => options.batch.commit())
-    .then(() => sendSMS(change))
+    // .then(() => sendSMS(change))
     .catch(console.error);
 };

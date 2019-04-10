@@ -48,6 +48,7 @@ const {
 const {
   handleError,
   sendResponse,
+  getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 
 
@@ -68,6 +69,13 @@ const updateDocsWithBatch = (conn, locals) => {
     timestamp: Date.now(),
     attachment: conn.req.body.attachment,
   };
+
+  if (locals.docs.activity.get('adjustedGeopoints')) {
+    activityUpdateObject
+      .adjustedGeopoints = getAdjustedGeopointsFromVenue(
+        locals.objects.updatedFields.venue
+      );
+  }
 
   locals.nameFieldUpdated = locals.docs.activity.get('attachment').hasOwnProperty('Name')
     && locals.docs.activity.get('attachment.Name.value')

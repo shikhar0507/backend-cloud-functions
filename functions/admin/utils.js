@@ -27,6 +27,7 @@
 
 const { code } = require('./responses');
 const {
+  db,
   auth,
   rootCollections,
 } = require('./admin');
@@ -530,40 +531,6 @@ const getSearchables = (string) => {
   return [...valuesSet];
 };
 
-const getSubscription = (phoneNumber, template) => {
-  return rootCollections
-    .activities
-    .where('template', '==', template)
-    .where('attachment.Subscriber.value', '==', phoneNumber)
-    .limit(1)
-    .get();
-};
-
-const getEmployee = (phoneNumber, office) => {
-  return rootCollections
-    .activities
-    .where('template', '==', 'employee')
-    .where('attachment.Employee Contact.value', '==', phoneNumber)
-    .where('office', '==', office)
-    .limit(1)
-    .get();
-};
-
-const getAdmin = (phoneNumber, office) => {
-  return rootCollections
-    .activities
-    .where('attachment.Admin.value', '==', phoneNumber)
-    .where('office', '==', office)
-    .limit(1)
-    .get();
-};
-
-const queryUtils = {
-  getAdmin,
-  getEmployee,
-  getSubscription,
-};
-
 /**
  * Returns the `timestamp` that is closest to the current
  * `timestamp`.
@@ -616,7 +583,6 @@ const getRelevantTime = (schedules, now = Date.now()) => {
 
   return result;
 };
-
 
 // https://github.com/freesoftwarefactory/parse-multipart
 const multipartParser = (body, contentType) => {
@@ -806,19 +772,77 @@ const sendSMS = (phoneNumber, smsText) => {
     .catch(console.error);
 };
 
+const isEmptyObject = (object) =>
+  Object
+    .keys(object)
+    .every((field) => {
+      // const value = object[x];
+
+      if (typeof object[field] === 'string' && object[field].trim() === '') {
+        return true;
+      }
+
+      return object[field] === '';
+    });
+
+
+const getAdjustedGeopointsFromVenue = (venue) => {
+  const result = [];
+
+  venue.forEach((item) => {
+    const lat = item.geopoint.latitude || item.geopoint._latitude;
+    const lng = item.geopoint.longitude || item.geopoint._longitude;
+
+    if (!lat || !lng) {
+      return;
+    }
+
+    const adj = adjustedGeopoint(item.geopoint);
+
+    result.push(`${adj.latitude},${adj.longitude}`);
+  });
+
+  if (result.length === 0) {
+    return null;
+  }
+
+  return result;
+};
+
+
+const getRegistrationToken = (phoneNumber) => {
+  return rootCollections
+    .updates
+    .where('phoneNumber', '==', phoneNumber)
+    .limit(1)
+    .get()
+    .then((docs) => {
+      if (docs.empty) {
+        return Promise.resolve(null);
+      }
+
+      const {
+        registrationToken,
+      } = docs.docs[0].data();
+
+      return Promise.resolve(registrationToken);
+    })
+    .catch(console.error);
+};
+
 
 module.exports = {
   slugify,
   sendSMS,
   sendJSON,
   isValidUrl,
-  queryUtils,
   getFileHash,
   isValidDate,
   handleError,
   isValidEmail,
   sendResponse,
   isHHMMFormat,
+  isEmptyObject,
   isValidBase64,
   disableAccount,
   hasAdminClaims,
@@ -836,6 +860,8 @@ module.exports = {
   hasSuperUserClaims,
   promisifiedRequest,
   promisifiedExecFile,
+  getRegistrationToken,
   reportBackgroundError,
   hasManageTemplateClaims,
+  getAdjustedGeopointsFromVenue,
 };

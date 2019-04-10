@@ -22,6 +22,35 @@ const getEmail = (from) => {
   return emailParts[1];
 };
 
+/**
+ * Checks custom claims and returns a boolean depending
+ * on the custom claims of the user.
+ * 
+ * @param {object} customClaims Custom claims object
+ * @param {string} officeName Name of the office
+ * @returns {boolean} if the user is support or has admin claims 
+ * with the specified office
+ */
+const toAllowRequest = (customClaims, officeName) => {
+  if (customClaims) {
+    /** Not admin and not support */
+    if (!customClaims.admin
+      && !customClaims.support) {
+      return false;
+    }
+
+    /** Is admin but not an admin of the specified office */
+    if (customClaims.admin
+      && !customClaims.admin.includes(officeName)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  return false;
+};
+
 
 module.exports = (conn) => {
   // body is of type buffer
@@ -56,7 +85,6 @@ module.exports = (conn) => {
   conn.req.body.createNotExistingDocs = true;
   const attachmentNameParts = fullFileName.split('--');
 
-
   conn.req.body.template = attachmentNameParts[0]
     .trim()
     .toLowerCase();
@@ -67,9 +95,10 @@ module.exports = (conn) => {
   return users
     .getUserByEmail(conn.req.body.senderEmail)
     .then((userRecord) => {
-      if (!userRecord[conn.req.body.senderEmail].uid
-        || userRecord[conn.req.body.senderEmail].disabled) {
-        return sendJSON(conn, code.ok);
+      const customClaims = userRecord[conn.req.body.senderEmail].customClaims;
+
+      if (!toAllowRequest(customClaims, conn.req.body.office)) {
+        return sendJSON(conn, {});
       }
 
       conn

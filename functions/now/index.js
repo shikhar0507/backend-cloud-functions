@@ -187,6 +187,14 @@ module.exports = (conn) => {
         }
       }
 
+      if (conn.req.query.hasOwnProperty('deviceBrand')) {
+        updatesDocData.latestDeviceBrand = conn.req.query.deviceBrand;
+      }
+
+      if (conn.req.query.hasOwnProperty('deviceModel')) {
+        updatesDocData.latestDeviceModel = conn.req.query.deviceModel;
+      }
+
       batch.set(updatesDoc.ref, updatesDocData, {
         merge: true,
       });
