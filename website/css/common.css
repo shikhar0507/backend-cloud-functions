@@ -82,6 +82,27 @@ header {
 }
 
 footer {
+    padding: 30px 20px;
+}
+
+footer section {
+    display: flex;
+    margin-bottom: 30px;
+}
+
+footer section div {
+    margin-right: 25px;
+}
+
+.social-links-container {
+    justify-content: center;
+}
+
+footer a {
+    color: red;
+}
+
+/* footer {
     background-color: #333;
     border-top: 1px solid #333;
     position: relative;
@@ -147,7 +168,7 @@ footer {
 
 .footer-logo-container span {
     line-height: 2.2em;
-}
+} */
 
 .social-icon {
     margin-right: 10px;
@@ -185,7 +206,7 @@ footer {
         height: 40px;
     }
 
-    footer {
+    /* footer {
         z-index: unset;
     }
 
@@ -199,17 +220,17 @@ footer {
 
     .footer-links {
         margin-bottom: 40px;
-    }
+    } */
 
     #logo span {
         display: unset;
     }
 
-    .header-links a span {
-        display: none;
-    }
+    /* .header-links a span {
+    display: none;
+}
 
-    .header-section-start {
-        padding-left: 0px;
-    }
+.header-section-start {
+    padding-left: 0px;
+} */
 }

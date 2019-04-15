@@ -27,6 +27,7 @@
 
 const {
   rootCollections,
+  db,
 } = require('../../admin/admin');
 const {
   sendSMS,
@@ -41,6 +42,7 @@ const {
   employeeInfo,
   alphabetsArray,
   timeStringWithOffset,
+  weekdaysArray,
 } = require('./report-utils');
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
@@ -227,9 +229,9 @@ const sendNotifications = (locals) => {
 
 
 const handleMtdReport = (locals) => {
-  let footprintsObject;
   let initDocRef;
   let excelSheet;
+  let footprintsObject;
   const firstAddendumPromises = [];
   const lastAddendumPromises = [];
   const employeesData = locals.officeDoc.get('employeesData');
@@ -416,6 +418,24 @@ const handleMtdReport = (locals) => {
                 return 'ON DUTY';
               }
 
+              const employeeBranch = employeesData[phoneNumber]['Base Location'];
+
+              if (locals.branchesWithHoliday.has(employeeBranch)) {
+                return 'HOLIDAY';
+              }
+
+              /** Day as in monday, tuesday etc... denoted by numbers 0 to 6 */
+              const day = momentTz()
+                .tz(timezone)
+                .date(date)
+                .month(yesterdaysMonth)
+                .year(yesterdaysYear)
+                .day();
+
+              if (employeesData[phoneNumber]['Weekly Off'] === weekdaysArray[day]) {
+                return `WEEKLY OFF`;
+              }
+
               if (!first && !last) {
                 if (locals.phoneNumbersWithAuthSet.has(phoneNumber)) {
                   return `NOT ACTIVE`;
@@ -457,25 +477,51 @@ const handleMtdReport = (locals) => {
           }
         });
 
-      return initDocRef
-        .set({
-          office,
-          footprintsObject,
-          officeId: locals.officeDoc.id,
-          report: reportNames.FOOTPRINTS_MTD,
-          month: momentYesterday.month(),
-          year: momentYesterday.year(),
-        }, {
-            merge: true,
-          });
+      const batch = db.batch();
+
+      batch.set(initDocRef, {
+        office,
+        footprintsObject,
+        officeId: locals.officeDoc.id,
+        report: reportNames.FOOTPRINTS_MTD,
+        month: momentYesterday.month(),
+        year: momentYesterday.year(),
+      }, {
+          merge: true,
+        });
+
+      const countsDocData = locals.dailyStatusInitDoc.data();
+      const countsObject = locals.dailyStatusInitDoc.get('countsObject') || {};
+
+      if (!countsObject[office]) {
+        countsObject[office] = locals.countsObject;
+      }
+
+      countsDocData.countsObject = countsObject;
+
+      console.log('countsDocData', countsDocData);
+
+      const momentFromTimer = locals.momentFromTimer;
+      const momentToday = momentTz().tz(timezone);
+
+
+      if (momentToday.startOf('day').unix() === locals.momentFromTimer.startOf('day').unix()) {
+        batch.set(locals.dailyStatusInitDoc.ref, countsDocData, {
+          merge: true,
+        });
+
+        console.log('UPDATING daily status doc');
+      }
+
+      console.log('countsObject', locals.countsObject);
+
+      return batch.commit();
     })
     .catch(console.error);
 };
 
 const handleNotificationsAndSms = (locals) => {
   if (!env.isProduction) {
-    console.log('Running locally | Or Not production...');
-
     return Promise.resolve();
   }
 
@@ -515,13 +561,23 @@ module.exports = (locals) => {
   const yesterdaysDate = offsetObjectYesterday.date();
   let lastIndex;
   let footprintsSheet;
+  let payrollObject;
   const updateDocsFetchPromises = [];
-
   locals.activePhoneNumbersSet = new Set();
   locals.registrationTokensMap = new Map();
   locals.phoneNumbersWithAuthSet = new Set();
   locals.inactiveDaysCountMap = new Map();
-  let payrollObject;
+  locals.branchesWithHoliday = new Set();
+  locals.momentFromTimer = momentTz(todayFromTimer).tz(timezone);
+
+  locals.countsObject = {
+    totalUsers: 0,
+    active: 0,
+    notActive: 0,
+    notInstalled: 0,
+    activitiesCreated: 0,
+    onLeaveWeeklyOffHoliday: 0,
+  };
 
   return Promise
     .all([
@@ -543,6 +599,21 @@ module.exports = (locals) => {
         .where('year', '==', offsetObjectYesterday.year())
         .limit(1)
         .get(),
+      rootCollections
+        .inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', offsetObjectYesterday.date())
+        .where('month', '==', offsetObjectYesterday.month())
+        .where('year', '==', offsetObjectYesterday.year())
+        .limit(1)
+        .get(),
+      locals
+        .officeDoc
+        .ref
+        .collection('Activities')
+        .where('template', '==', 'branch')
+        .where('status', '==', 'CONFIRMED')
+        .get(),
       xlsxPopulate
         .fromBlankAsync(),
     ])
@@ -550,8 +621,22 @@ module.exports = (locals) => {
       const [
         addendumDocs,
         payrollInitDocQuery,
+        dailyStatusInitQuery,
+        branchDocsQuery,
         workbook,
       ] = result;
+
+      const yesterdayStartTimestamp = offsetObjectYesterday.startOf('day').valueOf();
+      const yesterdayEndTimestamp = offsetObjectYesterday.endOf('day').valueOf();
+
+      branchDocsQuery.forEach((branchDoc) => {
+        branchDoc.get('schedule').forEach((schedule) => {
+          if (schedule.startTime >= yesterdayStartTimestamp
+            && schedule.endTime < yesterdayEndTimestamp) {
+            locals.branchesWithHoliday.add(branchDoc.get('attachment.Name.value'));
+          }
+        });
+      });
 
       payrollObject = (() => {
         if (payrollInitDocQuery.empty) {
@@ -563,6 +648,7 @@ module.exports = (locals) => {
 
       locals.workbook = workbook;
       locals.payrollObject = payrollObject;
+      locals.dailyStatusInitDoc = dailyStatusInitQuery.docs[0];
 
       if (addendumDocs.empty) {
         locals.sendMail = false;
@@ -603,6 +689,11 @@ module.exports = (locals) => {
         const action = doc.get('action');
         const isSupportRequest = doc.get('isSupportRequest');
         const columnIndex = count + 2;
+
+        /** Activities created by the app */
+        if (action === httpsActions.create && !isSupportRequest) {
+          locals.countsObject.activitiesCreated++;
+        }
 
         if (isSupportRequest) {
           return;
@@ -718,8 +809,12 @@ module.exports = (locals) => {
         locals.workbook.deleteSheet('Sheet1');
       }
 
-      Object
-        .keys(employeesData)
+      const employeePhoneNumbersArray = Object.keys(employeesData);
+
+      locals.countsObject.totalUsers = employeePhoneNumbersArray.length;
+      locals.countsObject.active = locals.activePhoneNumbersSet.size;
+
+      employeePhoneNumbersArray
         .forEach((phoneNumber) => {
           const promise = rootCollections
             .updates
@@ -785,12 +880,37 @@ module.exports = (locals) => {
               return `ON DUTY`;
             }
 
+            if (employeesData[phoneNumber]['Base Location']
+              && locals.branchesWithHoliday.has(employeesData[phoneNumber]['Base Location'])) {
+              return 'HOLIDAY';
+            }
+
+            if (employeesData[phoneNumber]['Weekly Off']
+              === weekdaysArray[offsetObjectYesterday.day()]) {
+              return 'WEEKLY OFF';
+            }
+
             if (locals.phoneNumbersWithAuthSet.has(phoneNumber)) {
               return `NOT ACTIVE`;
             }
 
             return `NOT INSTALLED`;
           })();
+
+          if (comment === 'NOT ACTIVE') {
+            locals.countsObject.notActive++;
+          }
+
+          if (comment === 'NOT INSTALLED') {
+            locals.countsObject.notInstalled++;
+          }
+
+          if (comment === 'HOLIDAY'
+            || comment === 'WEEKLY OFF'
+            || comment === 'ON DUTY'
+            || comment === 'TOUR ON LEAVE') {
+            locals.countsObject.onLeaveWeeklyOffHoliday++;
+          }
 
           const {
             name,
@@ -878,14 +998,13 @@ module.exports = (locals) => {
       const momentFromTimer = momentTz(todayFromTimer).tz(timezone);
       const momentToday = momentTz().tz(timezone);
 
-      if (momentToday.startOf('day').unix() !== momentFromTimer.startOf('day').unix()) {
-        console.log('No notifications or sms sent. Not the same day.');
+      // if (momentToday.startOf('day').unix() !== momentFromTimer.startOf('day').unix()) {
+      // console.log('No notifications or sms sent. Not the same day.');
 
-        return Promise.resolve();
-      }
+      return Promise.resolve();
+      // }
 
       // return handleNotificationsAndSms(locals);
-      return Promise.resolve();
     })
     .catch(console.error);
 };

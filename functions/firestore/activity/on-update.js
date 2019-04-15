@@ -170,8 +170,7 @@ const updateDocsWithBatch = (conn, locals) => {
 
       customersData[conn.req.body.attachment.Name.value] = toCustomerObject(
         conn.req.body,
-        locals.docs.activity.createTime.toDate().getTime(),
-      );
+        locals.docs.activity.createTime.toDate().getTime());
 
       locals.batch.set(doc.ref, {
         customersData,

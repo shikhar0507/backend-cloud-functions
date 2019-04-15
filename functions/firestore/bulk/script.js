@@ -1170,6 +1170,8 @@ const validateDataArray = (conn, locals) => {
 
       if (namesSet.has(value)) {
         duplicateRowIndex = index + 1;
+
+        console.log('duplicate', value);
         toRejectAll = true;
       } else {
         namesSet.add(value);
@@ -1250,6 +1252,8 @@ const validateDataArray = (conn, locals) => {
         if (set.has(template)) {
           duplicateRowIndex = index + 1;
           toRejectAll = true;
+
+          console.log('duplicate', phoneNumber, template);
         }
 
         set.add(template);

@@ -607,7 +607,8 @@ const handlePayroll = (conn, locals) => {
 
         locals
           .cancellationMessage = `LEAVE LIMIT EXCEEDED:`
-          + ` You have exceeded the limit for leave application under ${leaveType}`
+          + ` You have exceeded the limit for leave`
+          + ` application under ${leaveType}`
           + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
 
         locals
@@ -841,14 +842,8 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
 const handleBase64 = (conn, locals, result) => {
   const {
     isBase64,
-    isUrl,
     base64Field,
   } = result;
-
-  console.log({
-    isBase64,
-    isUrl,
-  });
 
   /**
    * if value is base64 -> backblaze
@@ -863,10 +858,10 @@ const handleBase64 = (conn, locals, result) => {
 
   const getKeyId = (applicationKey, keyId) => `${keyId}:${applicationKey}`;
 
-  const base64ImageString = result.base64Value.split('base64,').pop();
-  const activityId = locals.docs.activityRef.id;
   let authorizationToken = '';
   let mainDownloadUrlStart = '';
+  const base64ImageString = result.base64Value.split('base64,').pop();
+  const activityId = locals.docs.activityRef.id;
   const bucketId = env.backblaze.buckets.images;
   const applicationKey = env.backblaze.apiKey;
   const keyId = env.backblaze.keyId;
@@ -928,8 +923,6 @@ const handleBase64 = (conn, locals, result) => {
       return promisifiedRequest(options);
     })
     .then((response) => {
-      console.log({ response });
-
       const url =
         cloudflareCdnUrl(
           mainDownloadUrlStart,
@@ -937,21 +930,19 @@ const handleBase64 = (conn, locals, result) => {
           fileName
         );
 
-      console.log({ url });
-
       conn.req.body.attachment[base64Field].value = url;
 
-      console.log({ attachment: conn.req.body.attachment });
-
-      // delete file: filePath, originalFilePath
       try {
-        fs.unlinkSync(originalFilePath);
-        fs.unlinkSync(compressedFilePath);
+        if (fs.existsSync(originalFilePath)) {
+          fs.unlinkSync(originalFilePath);
+        }
+
+        if (fs.existsSync(compressedFilePath)) {
+          fs.unlinkSync(compressedFilePath);
+        }
 
         return resolveProfileCheckPromises(conn, locals, result);
       } catch (error) {
-        console.log('ERROR DELETING FILE:', error);
-
         return resolveProfileCheckPromises(conn, locals, result);
       }
     })

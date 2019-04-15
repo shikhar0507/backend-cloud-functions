@@ -26,6 +26,7 @@
 
 
 const {
+  db,
   getGeopointObject,
   deleteField,
   rootCollections,
@@ -1206,6 +1207,66 @@ const toEmployeesData = (activity) => {
     baseLocation: activity.get('attachment.Base Location.value'),
     employeeCode: activity.get('attachment.Employee Code.value'),
   };
+};
+
+const createSubscription = (params) => {
+  const {
+    subscriber,
+    template,
+    officeId,
+    assignees,
+  } = params;
+
+  let createActivity = true;
+  let templateDoc;
+
+  return rootCollections
+    .activities
+    .where('attachment.Subscriber.value', '==', subscriber)
+    .where('attachment.Template.value', '==', template)
+    .where('officeId', '==', officeId)
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get()
+    .then((subscriptionQuery) => {
+      if (!subscriptionQuery.empty) {
+
+        createActivity = false;
+
+        return Promise.resolve();
+      }
+
+      return Promise
+        .all([
+          rootCollections
+            .activityTemplates
+            .where('name', '==', 'subscription')
+            .limit(1)
+            .get(),
+          rootCollections
+            .activities
+            .where('officeId', '==', officeId)
+            .where('template', '==', 'admin')
+            .get(),
+        ]);
+    })
+    .then((result) => {
+      const [
+        subscriptionTemplateQuery,
+        officeAdminsQuery,
+      ] = result;
+
+      if (!createActivity) {
+        return Promise.resolve();
+      }
+
+      templateDoc = subscriptionTemplateQuery.docs[0];
+
+      const promises = [];
+
+      
+    })
+    .catch(console.error);
 };
 
 

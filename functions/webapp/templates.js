@@ -58,6 +58,10 @@ const metaHead = `
   <link rel="stylesheet" href="css/common.css">
 `;
 
+const persistentBanner = `
+<div>This is the banner...</div>
+`;
+
 const headerHtml = `
 <header>
     <section class="header-section-start">
@@ -84,65 +88,29 @@ const headerHtml = `
 
 const footerHtml = `
 <footer>
-<div class="footer-container">
-  <div class="footer-links">
-    <div class="footer-link-heading">Company</div>
-    <ul class="footer-page-links">
-      <li>
-        <a href="/about">About</a>
-      </li>
-      <li>
-        <a href="/careers">Careers</a>
-      </li>
-      <li>
-        <a href="/help">Help</a>
-      </li>
-      <li>
-        <a href="/contact">Contact Us</a>
-      </li>
-      <li>
-        <a href="/sitemap.xml">Sitemap</a>
-      </li>
-    </ul>
-  </div>
-  <div class="footer-links">
-    <div class="footer-link-heading">Follow Us</div>
-      <ul>
-        <li class="social-icon">
-        <a href="#" target="_blank">
-            <i class="fab fa-facebook fa-2x"></i>
-          </a>
-        </li>
-        <li class="social-icon">
-        <a href="https://twitter.com/growthfile" target="_blank">
-          <i class="fab fa-twitter fa-2x"></i>
-          </a>
-        </li>
-        <li class="social-icon">
-          <a href="https://angel.co/growthfile" target="_blank">
-          <i class="fab fa-angellist fa-2x"></i>
-          </a>
-        </li>
-        <li class="social-icon">
-          <a href="#">
-          <i class="fab fa-linkedin-in fa-2x"></i>
-          </a>
-        </li>
-      </ul>
-  </div>
-  <div class="footer-links footer-about-growthfile">
-    <div class="footer-logo-container">
-      <img src="img/logo-main.jpg" alt="growthfile-logo">
-      <span class="footer-link-heading">Growthfile Analytics Pvt. Ltd.</span>
+  <section class="social-links-container">
+    <div>
+      <i class="fab fa-2x fa-facebook-f"></i>
     </div>
-    <div class="footer-page-links">
-      <a href="/terms">Terms</a>
-      <a href="/privacy">Privacy</a>
+    <div>
+      <i class="fab fa-2x fa-twitter"></i>
     </div>
-    <span>Copyright © 2019 Growthfile Analytics Pvt. Ltd. All rights reserved.</span>
-  </div>
-</div>
-</footer>`;
+    <div>
+      <i class="fab fa-2x fa-linkedin"></i>
+    </div>
+  </section>
+
+  <section>
+    <span>Copyright	&copy; Growthfile. All rights reserved</span>
+  </section>
+
+  <section>
+    <a href="#">About Us | </a>
+    <a href="#">Privacy Policy | </a>
+    <a href="#">Terms & Conditions</a>
+  </section>
+</footer>
+  `;
 
 
 const officeSource = () => {
@@ -427,6 +395,7 @@ const homeSource = () => {
       <link rel="stylesheet" href="css/home.css">
     </head>
     <body>
+    ${persistentBanner}
     ${headerHtml}
     <div class="pad-after-header"></div>
     <main>
@@ -441,7 +410,6 @@ const homeSource = () => {
         <h2>Why Growthfile?</h2>
         <p>Growthfile is the easiest way to manage all your business needs in one place. Our simple algorithm sends automated daily reports based on the tasks completed by your team.</p>
       </section>
-
     </main>
 
       ${footerHtml}

@@ -28,7 +28,6 @@ const https = require('https');
 const {
   db,
   rootCollections,
-  deleteField,
 } = require('../../admin/admin');
 const {
   reportNames,
@@ -306,9 +305,7 @@ const handleSignUpAndInstall = (options) => {
             .set(doc
               .ref
               .collection('Addendum')
-              .doc(),
-              data,
-            );
+              .doc(), data);
         });
 
       return Promise.resolve();

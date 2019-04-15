@@ -38,6 +38,9 @@ const authOnDelete = functions
   .onDelete(require('./auth/on-delete'));
 
 const api = functions
+  // .runWith({
+  // timeoutSeconds: '',
+  // })
   .https
   .onRequest(require('./server/server'));
 

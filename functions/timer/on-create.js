@@ -44,7 +44,7 @@ const {
   alphabetsArray,
 } = require('../firestore/recipients/report-utils');
 
-
+const moment = require('moment');
 const fs = require('fs');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
@@ -192,7 +192,10 @@ const handleOfficeSheet = (locals) => {
 
             officeUnverifiedRecipientsMap.set(office, set);
           } else {
-            officeUnverifiedRecipientsMap.set(office, new Set().add(phoneNumber));
+            officeUnverifiedRecipientsMap.set(
+              office,
+              new Set().add(phoneNumber)
+            );
           }
         }
       });
@@ -208,8 +211,10 @@ const handleOfficeSheet = (locals) => {
           /** People on leave, on duty or with weekly off */
           const dormantEmployees = dormantEmployeesCountMap.get(office) || 0;
           const notInstalledCount = notInstalledCountMap.get(office);
-          const createdActivitiesCount = locals.createCountByOffice[office] || 0;
-          const unverifiedRecipients = Array.from(officeUnverifiedRecipientsMap.get(office) || []);
+          const createdActivitiesCount =
+            locals.createCountByOffice[office] || 0;
+          const unverifiedRecipients =
+            Array.from(officeUnverifiedRecipientsMap.get(office) || []);
 
           officeActivityReport
             .cell(`B${columnIndex}`)
@@ -327,7 +332,7 @@ const handleDailyStatusReport = () => {
         'On leave, on duty, on holiday, or on weekly off',
         'Not Installed',
         'Activities Created',
-        'Unverified Recipients'
+        'Unverified Recipients',
       ]
         .forEach((header, index) => {
           officeReport
@@ -401,7 +406,7 @@ const handleDailyStatusReport = () => {
         'product',
         'recipient',
         'subscription',
-        'tour plan'
+        'tour plan',
       ]
         .forEach((name, index) => {
           const position = index + 2;
@@ -424,7 +429,11 @@ const handleDailyStatusReport = () => {
 
           activityStatusReport
             .cell(`E${position}`)
-            .value(totalByTemplateMap[name] || 0 - adminApiMap[name] || 0 - supportMap[name] || 0);
+            .value(
+              totalByTemplateMap[name] || 0
+              - adminApiMap[name] || 0
+              - supportMap[name] || 0
+            );
 
           activityStatusReport
             .cell(`F${position}`)

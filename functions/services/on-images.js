@@ -125,7 +125,7 @@ module.exports = (conn) => {
       return promisifiedRequest(options);
     })
     .then((response) => {
-      const url =
+      const photoURL =
         cloudflareCdnUrl(
           mainDownloadUrlStart,
           response.fileId,
@@ -133,21 +133,22 @@ module.exports = (conn) => {
         );
 
       try {
-        fs.unlink(compressedFilePath);
-        fs.unlink(originalFilePath);
+        if (fs.existsSync(compressedFilePath)) {
+          fs.unlinkSync(compressedFilePath);
+        }
+
+        if (fs.existsSync(originalFilePath)) {
+          fs.unlinkSync(originalFilePath);
+        }
 
         return auth
-          .updateUser(conn.requester.uid, {
-            photoURL: url,
-          });
+          .updateUser(conn.requester.uid, { photoURL });
 
       } catch (error) {
-        console.log('Error:', error);
+        console.warn('Error:', error);
 
         return auth
-          .updateUser(conn.requester.uid, {
-            photoURL: url,
-          });
+          .updateUser(conn.requester.uid, { photoURL });
       }
     })
     .then(() => sendResponse(conn, code.noContent))

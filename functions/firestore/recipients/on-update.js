@@ -135,6 +135,7 @@ module.exports = (change) => {
   const usersWithoutEmailOrVerifiedEmail = [];
   const withNoEmail = new Set();
   const withUnverifiedEmail = new Set();
+  const unverifiedOrEmailNotSetPhoneNumbers = [];
 
   return Promise
     .all(authFetch)
@@ -151,6 +152,8 @@ module.exports = (change) => {
             .updates
             .doc(record.uid)
             .get();
+
+          unverifiedOrEmailNotSetPhoneNumbers.push(phoneNumber);
 
           if (!record.email) withNoEmail.add(record.uid);
           if (!record.emailVerified) withUnverifiedEmail.add(record.uid);
@@ -280,6 +283,34 @@ module.exports = (change) => {
       });
 
       return Promise.all(notifications);
+    })
+    .then(() => {
+      const momentYesterday = momentTz().subtract(1, 'day');
+
+      return rootCollections
+        .inits
+        .where('date', '==', momentYesterday.date())
+        .where('month', '==', momentYesterday.month())
+        .where('year', '==', momentYesterday.year())
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .limit(1)
+        .get();
+    })
+    .then((snapShot) => {
+      const doc = snapShot.docs[0];
+      const data = doc.data();
+      const office = locals.officeDoc.get('office');
+
+      if (unverifiedOrEmailNotSetPhoneNumbers.length === 0) {
+        return Promise.resolve();
+      }
+
+      data
+        .unverifiedRecipients = {
+          [office]: unverifiedOrEmailNotSetPhoneNumbers,
+        };
+
+      return doc.ref.set(data, { merge: true });
     })
     .catch((error) => {
       const errorObject = {
