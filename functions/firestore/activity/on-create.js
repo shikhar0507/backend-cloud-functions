@@ -459,10 +459,6 @@ const handleLeaveOrOnDuty = (conn, locals) => {
           return snapShot.docs[0].get('payrollObject') || {};
         })();
 
-        console.log({ ref: ref.path });
-        console.log({ snapShotEmpty: snapShot.empty });
-        console.log({ monthDatesMap });
-
         const updatedPayrollObject = getPayrollObject({
           month: monthValue,
           year: yearValue,
@@ -502,16 +498,14 @@ const handleLeaveOrOnDuty = (conn, locals) => {
 
       if (toCancel) {
         console.log('CANCELL HERE 2', 'toCancel');
-        locals
-          .static
-          .statusOnCreate = 'CANCELLED';
-        locals
-          .cancellationMessage =
-          `${conn.req.body.template.toUpperCase()}`
-          + ` conflict with ${conflictsWith}`;
+        // locals
+        //   .static
+        //   .statusOnCreate = 'CANCELLED';
+        // locals
+        //   .cancellationMessage =
+        //   `${conn.req.body.template.toUpperCase()}`
+        //   + ` conflict with ${conflictsWith}`;
       }
-
-      console.log({ toCancel });
 
       createDocsWithBatch(conn, locals);
 

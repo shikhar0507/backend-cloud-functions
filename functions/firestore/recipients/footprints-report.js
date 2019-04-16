@@ -989,22 +989,21 @@ module.exports = (locals) => {
         office: locals.officeDoc.get('office'),
       });
 
-      // return locals
-      //   .sgMail
-      //   .sendMultiple(locals.messageObject);
-      return Promise.resolve();
+      return locals
+        .sgMail
+        .sendMultiple(locals.messageObject);
     })
     .then(() => {
       const momentFromTimer = momentTz(todayFromTimer).tz(timezone);
       const momentToday = momentTz().tz(timezone);
 
-      // if (momentToday.startOf('day').unix() !== momentFromTimer.startOf('day').unix()) {
-      // console.log('No notifications or sms sent. Not the same day.');
+      if (momentToday.startOf('day').unix() !== momentFromTimer.startOf('day').unix()) {
+        console.log('No notifications or sms sent. Not the same day.');
 
-      return Promise.resolve();
-      // }
+        return Promise.resolve();
+      }
 
-      // return handleNotificationsAndSms(locals);
+      return handleNotificationsAndSms(locals);
     })
     .catch(console.error);
 };

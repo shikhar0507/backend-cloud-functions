@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    \{{> headPartial this}}
+    <link rel="stylesheet" href="css/office.css">
+    <title>Growthfile \{{officeName}}</title>
+</head>
+
+<body data-slug="{{officeName}}">
+    \{{> persistentBarPartial}}
+    \{{> headerPartial}}
+
+    <main class="pad">
+        \{{#if displayVideo}}
+        <div class="youtube">
+            <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/{{videoId}}?enablejsapi=1"
+                allow="fullscreen">
+            </iframe>
+        </div>
+        \{{/if}}
+
+        <div class="content">
+            <h1>\{{pageTitle}}</h1>
+            <p>\{{aboutOffice}}</p>
+            <span class="company-size-span">
+                <i class="fas fa-users"></i>
+                \{{officeEmployeeSize}}
+            </span>
+        </div>
+    </main>
+
+    \{{#if displayBranch}}
+    <section class="branch-section pad">
+        <h2>Branch Offices</h2>
+        <div class="box">
+            <div class="branch-list-container">
+                <ul>
+                    \{{#each branchObjectsArray}}
+                    <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}
+                        onclick="handleBranchClick(\{{this.latitude}},\{{this.longitude}})" class="list-item">
+                        <span class="list-item-main">\{{this.name}}</span>
+
+                        \{{#if this.weeklyOff}}
+                        <span><i class="fas fa-door-open"></i>\{{this.weeklyOff}}</spam>
+                            \{{/if}}
+
+                            <span class="list-item-child">\{{this.address}}</span>
+                            <hr>
+                    </li>
+                    \{{/each}}
+                </ul>
+            </div>
+            <div id="map"></div>
+        </div>
+    </section>
+    \{{/if}}
+
+    \{{#if displayProducts}}
+    <section class="product-section pad">
+        <h2>Our Products</h2>
+        <div class="products-container">
+            \{{#each productObjectsArray}}
+            <div onclick="handleProductClick(\{{this.productDetails}})" class="product-box">
+                <img class="product-image" src="img/product-placeholder.png">
+                <div class="product-details-container">\{{this.name}}</div>
+            </div>
+            \{{/each}}
+        </div>
+    </section>
+    \{{/if}}
+
+    <section class="enquiry-section">
+        <form>
+            <h2>Send an enquiry</h2>
+            <div class="form-element">
+                <input type="text" name="person-name" placeholder="John Doe"></input>
+            </div>
+
+            <div class="form-element">
+                <input type="email" name="person-email" placeholder="john@gmail.com"></input>
+            </div>
+
+            <div class="form-element">
+                <input type="tel" name="person-phone-number" placeholder="+1234567890"></input>
+            </div>
+
+            <div class="form-element">
+                <input type="text" name="person-company-name" placeholder="Your company name"></input>
+            </div>
+
+            <div class="form-element">
+                <textarea type="text" name="text-area" placeholder="Enter text here..."></textarea>
+            </div>
+
+            <div class="form-element">
+                <a href="#" class="form-submit-button">
+                    <i class="far fa-envelope"></i>
+                    Send
+                </a>
+            </div>
+
+            <p>By completing this form, you have read and acknowledged the <a href="#">Privacy Policy</a> and agree that
+                <span>Growthfile Inc.</span> may contact you at the email address above.</p>
+        </form>
+        <p class="enquiry-success-message">Your enquiry has been sent successfully.</p>
+        <div class="loading-spinner"></div>
+    </section>
+
+    \{{> footerPartial}}
+    <script src="js/office.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/5.7.2/firebase-auth.js"></script>
+    <script src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script type="text/javascript"
+        src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{mapsApiKey}}"></script>
+    <script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c9db267fe61c735"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.23/moment-timezone.min.js"
+        integrity="sha256-N2YqgENxteUOHZbaUAP7QAEY3NlhNhHNrjbZ9bdFUiM=" crossorigin="anonymous"></script>
+    <script src="https://www.google.com/recaptcha/api.js?render=6Ld-xJoUAAAAAE9ZVKyAp3blwB8ao8xLcUYf0TPe"></script>
+    <script>
+        grecaptcha.ready(function () {
+            grecaptcha.execute('reCAPTCHA_site_key', { action: 'homepage' }).then(function (token) {
+         ...
+      });
+  });
+    </script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>

@@ -48,6 +48,8 @@ const officePage = (conn, locals) => {
   const template = handlebars.compile(source, { strict: true });
   const result = template(context);
 
+  console.log('result', result);
+
   return conn.res.send(result);
 };
 
@@ -88,7 +90,6 @@ const downloadAppPage = (conn) => {
 
 const pageNotFound = (conn) => {
   const context = {};
-  // const source = templates.pageNotFoundSource();
   const source = `<h1>Not found<h1>`;
   const template = handlebars.compile(source, { strict: true });
   const result = template(context);

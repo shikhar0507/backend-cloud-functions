@@ -1,80 +1,54 @@
-.hero {
-    height: 40vh;
-    padding: 10px 20px;
+section {
+    min-height: 200px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+    border: 1px solid rgba(0, 0, 0, .09);
+    margin-bottom: 25px;
+}
+
+.header-links-container a {
+    border: 2px solid white;
+    border-radius: 3px;
+    padding: 5px 4px;
+}
+
+.section2 {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
 }
 
-h2 {
-    font-size: 32px;
-    margin-bottom: 30px;
-    color: #576871;
+.info-card {
+    margin-bottom: 10px;
+    padding: 20px 30px;
 }
 
-.banner h2 span {
-    font-weight: 600;
+.section4 {
+    padding: 20px 30px;
+    display: flex;
+    flex-direction: column;
+    min-height: unset;
 }
 
-.header-links a {
-    line-height: 2.2em;
+.section4 h2 {
+    font-size: 2em;
 }
 
-.banner {
-    text-align: center;
+.section4 h3 {
+    font-size: 1.2em;
 }
 
-.banner a {
-    font-size: 18px;
-    padding: 10px 20px;
+.section4 a {
     border-radius: 4px;
-    text-align: center;
     background: #1ba94c;
     box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5);
-}
-
-.section-below-hero {
-    text-align: center;
+    max-width: 100%;
     padding: 10px 20px;
-    margin-bottom: 40px;
+    color: white;
 }
 
-.section-below-hero p {
-    padding: 0 15%;
-}
-
-@media (max-width: 450px) {
-    .hero {
-        height: 60vh;
-    }
-    header {
-        height: 30px;
-        box-shadow: none;
-    }
-    #logo {
-        line-height: 0.2em;
-    }
-    #logo span {
-        display: none;
-    }
-    .header-section-start {
-        padding-left: unset;
-    }
-    .hero {
-        padding-top: 6.2em;
-    }
-    .hero h1 {
-        padding: 10px;
-        color: #576871;
-        font-size: 34px;
-    }
-    .banner {
-        display: flex;
-        flex-direction: column;
-    }
-    .banner a {
-        line-height: 1.5em;
-        padding: 10px 20px;
-        border-radius: 4px;
-        box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5);
-    }
+.section4 h2,
+.section4 h3,
+.section4 a {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 25px;
 }

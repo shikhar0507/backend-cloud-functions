@@ -9,7 +9,18 @@ const {
   code,
 } = require('../admin/responses');
 const helpers = require('./helpers');
+const handlebars = require('handlebars');
 const url = require('url');
+const env = require('../admin/env');
+
+const headPartial = require('./views/partials/head.hbs')();
+const headerPartial = require('./views/partials/header.hbs')();
+const persistentBarPartial = require('./views/partials/persistent-bar.hbs')();
+const footerPartial = require('./views/partials/footer.hbs')();
+handlebars.registerPartial('persistentBarPartial', persistentBarPartial);
+handlebars.registerPartial('headPartial', headPartial);
+handlebars.registerPartial('headerPartial', headerPartial);
+handlebars.registerPartial('footerPartial', footerPartial);
 
 const getEmployeesRange = (employeesData) => {
   const employeesList = Object.keys(employeesData);
@@ -23,8 +34,8 @@ const getEmployeesRange = (employeesData) => {
     return `10-100`;
   }
 
-  if (officeSize > 100 && officeSize <= 500) {
-    return `100-500`;
+  if (officeSize > 500 && officeSize <= 1000) {
+    return `500+`;
   }
 
   return `1000+`;
@@ -37,11 +48,47 @@ const getSlugFromUrl = (requestUrl) => {
   return officeName.split('/')[1];
 };
 
-const handleHomePage = (conn) => {
-  const locals = {};
+const handleOfficePage = (conn, locals) => {
+  const source = require('./views/office.hbs')();
+  const template = handlebars.compile(source, { strict: true });
 
-  return helpers.homePage(conn, locals);
+  const description = locals.officeDoc.get('attachment.Description.value') || '';
+  const parts = description.split('.');
+  let pageDescription = `${parts[0]}.`;
+
+  if (parts[1]) {
+    pageDescription += `${parts[1]}`;
+  }
+
+  const aboutOffice = (() => {
+    if (description) return description;
+
+    return `Description not present.`;
+  })();
+
+  const html = template({
+    aboutOffice,
+    officeEmployeeSize: locals.officeEmployeeSize,
+    officeName: locals.officeDoc.get('office'),
+    pageTitle: `About ${locals.officeDoc.get('office')}`,
+    pageDescription: pageDescription,
+    mainImageUrl: '/img/logo-main.jpg',
+    cannonicalUrl: `https://growthfile.com/${locals.slug}`,
+    mapsApiKey: env.mapsApiKey,
+    branchObjectsArray: locals.branchObjectsArray,
+    productObjectsArray: locals.productObjectsArray,
+    displayBranch: locals.branchObjectsArray.length > 0,
+    displayProducts: locals.productObjectsArray.length > 0,
+    // videoId: locals.officeDoc.get('attachment.Video ID.value'),
+    // displayVideo: Boolean(locals.officeDoc.get('attachment.Video ID.value')),
+    videoId: 'Sx9SJBoUAT4',
+    displayVideo: true,
+    slug: locals.slug,
+  });
+
+  return conn.res.send(html);
 };
+
 
 const fetchOfficeData = (conn, locals) => {
   return Promise
@@ -96,24 +143,40 @@ const fetchOfficeData = (conn, locals) => {
 
           return {
             name,
-            productDetails: JSON
-              .stringify({
-                name,
-                imageUrl,
-                productType: doc.get('attachment.Product Type.value'),
-                brand: doc.get('attachment.Brand.value'),
-                model: doc.get('attachment.Model.value'),
-                size: doc.get('attachment.Size.value'),
-              }),
+            productDetails: JSON.stringify({
+              name,
+              imageUrl,
+              productType: doc.get('attachment.Product Type.value'),
+              brand: doc.get('attachment.Brand.value'),
+              model: doc.get('attachment.Model.value'),
+              size: doc.get('attachment.Size.value'),
+            }),
           };
         });
 
       const employeesData = locals.officeDoc.get('employeesData');
       locals.officeEmployeeSize = getEmployeesRange(employeesData);
 
-      return helpers.officePage(conn, locals);
+      // return helpers.officePage(conn, locals);
+      return handleOfficePage(conn, locals);
     })
     .catch((error) => helpers.errorPage(conn, error));
+};
+
+const handleJoinPage = (conn) => {
+  // done
+};
+
+const handleHomePage = (conn) => {
+  const source = require('./views/index.hbs')();
+
+  const template = handlebars.compile(source, { strict: true });
+  const html = template({
+    pageTitle: 'Growthfile Home',
+    pageDescription: 'One app for employees of all offices',
+  });
+
+  return conn.res.send(html);
 };
 
 
@@ -136,17 +199,25 @@ const app = (req, res) => {
 
   console.log('slug:', slug);
 
+  conn.res.setHeader('Content-Type', 'text/html');
+
   if (slug === '/' || slug === '') {
     return handleHomePage(conn);
   }
 
-  if (slug === 'download') {
-    return helpers.downloadAppPage(conn);
-  }
-
   if (slug === 'join') {
+    // return handleJoinPage(conn);
     return helpers.joinPage(conn);
   }
+
+  // if (slug === '/' || slug === '') {
+  //   return handleHomePage(conn);
+  // }
+
+  // if (slug === 'download') {
+  //   return helpers.downloadAppPage(conn);
+  // }
+
 
   /**
    * const context = variables object

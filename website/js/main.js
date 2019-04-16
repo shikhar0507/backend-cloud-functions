@@ -132,9 +132,9 @@ function showToast(message, seconds = 5) {
     .showToast();
 };
 
-document
-  .querySelector('#download-app-link')
-  .addEventListener('click', changeLink);
+// document
+//   .querySelector('#download-app-link')
+//   .addEventListener('click', changeLink);
 
 function showPicoModal(modalContent) {
   const myModal = picoModal(modalContent);
