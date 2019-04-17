@@ -449,7 +449,7 @@ const createObjects = (conn, locals, trialRun) => {
 
       employeesData[phoneNumber] = getEmployeeDataObject(
         activityObject,
-        phoneNumber,
+        phoneNumber
       );
 
       batchDocsCount++;

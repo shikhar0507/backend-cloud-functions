@@ -1,185 +1,117 @@
-function sendRequest(requestBody) {
-  // const requestUrl = 'https://api2.growthfile.com/api/admin/bulk';
-  // const requestUrl =
-  // 'https://us-central1-growthfilev2-0.cloudfunctions.net/api/create-office';
+function validateForm() {
+  const form = document.forms[0];
+  const officeNameElement = form.elements.namedItem('office-name');
+  const firstContactElement = form.elements.namedItem('user-phone-number');
+  const firstContactDisplayNameElement = form.elements.namedItem('user-name');
+  const firstContactEmailElement = form.elements.namedItem('user-email');
+  const secondContactElement = form.elements.namedItem('second-contact-phone-number');
+  const secondContactDisplayNameElement = form.elements.namedItem('second-contact-name');
+  const secondContactEmailElement = form.elements.namedItem('second-contact-email');
 
-  const requestUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api/admin/bulk';
-  const init = {
-    method: 'POST',
-    body: JSON.stringify(requestBody),
-    headers: {
-      'Content-Type': 'application/json',
+  let valid = true;
+
+  function getWarningNode(fieldName) {
+    valid = false;
+
+    const warningNode = document.createElement('span');
+    warningNode.classList.add('warning-label');
+    warningNode.textContent = `${fieldName} is required`;
+
+    return warningNode;
+  }
+
+  if (!isNonEmptyString(officeNameElement.value)) {
+    const element = getWarningNode('Office Name');
+
+    insertAfterNode(officeNameElement, element);
+  }
+
+  if (!isNonEmptyString(firstContactElement.value)) {
+    const element = getWarningNode('Your Phone Number');
+
+    insertAfterNode(firstContactElement, element);
+  }
+
+  if (!isNonEmptyString(firstContactDisplayNameElement.value)) {
+    const element = getWarningNode('Your name');
+
+    insertAfterNode(firstContactDisplayNameElement, element);
+  }
+
+  if (!isNonEmptyString(firstContactEmailElement.value)) {
+    const element = getWarningNode('Your Email');
+
+    insertAfterNode(firstContactEmailElement, element);
+  }
+
+  if (!isNonEmptyString(secondContactElement.value)) {
+    const element = getWarningNode('Second Contact');
+
+    insertAfterNode(secondContactElement, element);
+  }
+
+  if (!isNonEmptyString(secondContactDisplayNameElement.value)) {
+    const element = getWarningNode('Second Contact Name');
+
+    insertAfterNode(secondContactDisplayNameElement, element);
+  }
+
+  if (!isNonEmptyString(secondContactEmailElement.value)) {
+    const element = getWarningNode('Second Contact Email');
+
+    insertAfterNode(secondContactEmailElement, element);
+  }
+
+  return {
+    valid,
+    values: {
+      officeName: officeNameElement.value,
+      firstContactPhoneNumber: firstContactElement.value,
+      secondContactElementPhoneNumber: secondContactElement.value,
+      firstContactDisplayName: firstContactDisplayNameElement.value,
+      secondContactDisplayName: secondContactDisplayNameElement.value,
+      firstContactEmail: firstContactEmailElement.value,
+      secondContactEmail: secondContactElement.value,
     },
-  };
+  }
+}
 
-  console.log('request sent', requestBody);
+function sendOfficeCreationRequest(values) {
 
-  return firebase
-    .auth()
-    .currentUser
-    .getIdToken()
-    .then((idToken) => {
-      init.headers['Authorization'] = `Bearer ${idToken}`;
-
-      return fetch(requestUrl, init);
-    })
-    .then((response) => response.json())
-    .catch(console.error);
 };
 
-function handleFormStep1(event) {
-  console.log('submit');
+function startOfficeCreationFlow() {
+  const result = validateForm();
 
-  // user-phone-number
-  const officeName = document.getElementById('office-name').value;
-  const userEmail = document.getElementById('user-email').value;
-  const userPhoneNumber = document.getElementById('user-phone-number').value;
-  const tocCheckbox = document.getElementById('tos-checkbox');
+  if (!result.valid) return;
 
-  // Admin contact is not required
-  if (!officeName) {
-    return showToast(`Office name is required`);
-  }
+  uiConfig
+    .defaultNationalNumber = document
+      .forms[0]
+      .elements
+      .namedItem('user-phone-number')
+      .value;
 
-  if (!userEmail) {
-    return showToast(`Email is required`);
-  }
-
-  if (!userPhoneNumber) {
-    return showToast(`Phone number is required`);
-  }
-
-  if (!tocCheckbox.checked) {
-    return showToast(`Please agree with the TOS`);
-  }
-
-  console.log({ officeName, userEmail, userPhoneNumber });
-
+  /** Not logged-in */
   if (!firebase.auth().currentUser) {
-    // not logged in
-    console.log('not logged in');
+    const fbUiElem = document.createElement('div');
+    fbUiElem.id = 'firebaseui-auth-container';
 
-    const modalContent = `<div id="firebaseui-auth-container"></div>`;
-    // ui.
-    firebaseAuthModal = picoModal(modalContent);
-    firebaseAuthModal.show();
+    document.body.appendChild(fbUiElem);
 
     ui.start('#firebaseui-auth-container', uiConfig);
 
     return;
   }
 
-  console.log('logged in');
 
-  if (!firebase.auth().currentUser.email) {
-    document
-      .getElementById('display-email')
-      .innerText = userEmail;
+  return sendOfficeCreationRequest(result.values);
+}
 
-    document
-      .getElementById('form-step-2')
-      .classList
-      .remove('hidden');
+document.addEventListener('click', (event) => {
+  event.preventDefault();
 
-    return firebase
-      .auth()
-      .currentUser
-      .updateProfile({
-        email: userEmail
-      })
-      .then((userRecord) => {
-        if (userRecord.emailVerified) {
-          return null;
-        }
-
-        return firebase
-          .auth()
-          .currentUser
-          .sendEmailVerification();
-      })
-      .then(() => {
-      })
-      .catch(console.error);
+  if (event.target === document.getElementById('form-submit-button')) {
+    startOfficeCreationFlow()
   }
-
-
-  const officeRequestBody = {
-    geopoint: {
-      latitude: 12.12121,
-      longitude: 23.232323,
-    },
-    timestamp: Date.now(),
-    template: 'office',
-    data: [{
-      'Name': officeName.value,
-      Description: '',
-      'Video Id': '',
-      'GST Number': '',
-      'First Contact': userPhoneNumber.value,
-      'Second Contact': '',
-      'Timezone': moment.tz.guess(),
-      'Head Office': '',
-      'Date Of Establishment': '',
-      'Trial Period': '',
-    }],
-  };
-
-  document
-    .querySelector('.form-step-1')
-    .style
-    .display = 'none';
-
-  const spinner = getSpinnerElement();
-
-  document
-    .getElementById('form')
-    .appendChild(spinner);
-
-  return sendRequest(officeRequestBody)
-    .then((json) => {
-      spinner
-        .style
-        .display = 'none';
-
-      document
-        .querySelector('.form-step-2')
-        .classList
-        .toggle('hidden');
-
-      return;
-    })
-    .catch(console.error);
-};
-
-document
-  .getElementById('form-step-1-submit')
-  .onclick = handleFormStep1;
-
-document
-  .getElementById('self-upload-checkbox')
-  .onchange = function (event) {
-    document
-      .getElementById('other-person-checkbox')
-      .checked = false;
-    document
-      .getElementById('other-person-input')
-      .setAttribute('disabled', true);
-  };
-
-document
-  .getElementById('other-person-checkbox')
-  .onchange = function (event) {
-    document
-      .getElementById('other-person-input')
-      .removeAttribute('disabled');
-
-    document
-      .getElementById('self-upload-checkbox')
-      .checked = false;
-  };
-
-
-document
-  .querySelector('#header-join-link')
-  .style
-  .display = 'none';
+});

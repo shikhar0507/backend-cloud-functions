@@ -865,33 +865,6 @@ const removeFromOfficeActivities = (locals) => {
 };
 
 
-const createSubscriptionOnEmployeeCreation = (locals) => {
-  const hasBeenCreated = !locals.change.before.data()
-    && locals.change.after.data();
-
-  // Only when an employee activity is created
-  if (!hasBeenCreated) {
-    return Promise.resolve();
-  }
-
-  /**
-   * Check for subscription of template check-in and leave
-   * If doesn't have subscription, create subscription activities
-   */
-  rootCollections
-    .activityTemplates
-    .where('name', '==', 'subscription')
-    .limit(1)
-    .get()
-    .then((subscriptionTemplateQuery) => Promise
-      .all([
-        createSubscription(),
-        createSubscription(),
-      ]))
-    .catch(console.error);
-};
-
-
 const handleEmployee = (locals) => {
   const template = locals.change.after.get('template');
 
@@ -958,7 +931,6 @@ const handleEmployee = (locals) => {
 
       return removeFromOfficeActivities(locals);
     })
-    .then(() => createSubscriptionOnEmployeeCreation(locals))
     // .then(() => sendEmployeeCreationSms(locals))
     .catch(console.error);
 };

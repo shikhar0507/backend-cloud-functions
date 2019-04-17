@@ -1,5 +1,30 @@
+::-webkit-input-placeholder {
+    color: #949494;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+::-moz-placeholder {
+    color: #949494;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+:-ms-input-placeholder {
+    color: #949494;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+::placeholder {
+    color: #949494;
+    font-size: 16px;
+    font-weight: 600;
+}
+
 body {
-    font-family: 'Libre Franklin', sans-serif;
+    /* font-family: 'Source Sans Pro', sans-serif; */
+    font-family: Roboto, sans-serif;
     color: #182233;
 }
 
@@ -22,20 +47,67 @@ header {
 header a {
     line-height: 40px;
     vertical-align: middle;
-    /* color: #999 */
+}
+
+section {
+    min-height: 200px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+    border: 1px solid rgba(0, 0, 0, .09);
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 25px;
+    flex-direction: column;
+    padding: 20px 30px;
 }
 
 .persistent-bar {
-    height: 30px;
-    background-color: #33373d;
+    height: 40px;
+    background-color: #89273E;
     padding: 10px 20px;
     display: flex;
     justify-content: center;
+    color: #F7C86C;
+    line-height: 33px;
+    border-width: 0px;
+    font-size: 29px;
+    text-transform: uppercase;
 }
 
-.persistent-bar a {
-    color: #d8c65f;
-    line-height: 30px;
+.logo-container {
+    display: flex;
+}
+
+.logo-container span {
+    font-size: 21px;
+    line-height: 38px;
+    margin-left: 9px;
+    color: #262626;
+    font-weight: 600;
+}
+
+.container {
+    margin: 0 auto;
+    max-width: 90%;
+}
+
+.hidden {
+    display: none;
+}
+
+.button {
+    border-radius: 4px;
+    background: #1ba94c;
+    box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5);
+    max-width: 100%;
+    padding: 10px 20px;
+    color: white;
+    border-width: 0px;
+    text-transform: uppercase;
+}
+
+.warning-label {
+    color: red;
 }
 
 footer {
@@ -53,9 +125,36 @@ footer a {
 
 .social-links a {
     margin-right: 10px;
-    /* margin-bottom: 30px; */
 }
 
 footer div {
     margin-bottom: 12px;
+}
+
+.footer-links {
+    display: flex;
+    justify-content: center;
+    text-decoration: underline;
+}
+
+@keyframes spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner:before {
+    content: '';
+    box-sizing: border-box;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 30px;
+    height: 30px;
+    margin-top: -15px;
+    margin-left: -15px;
+    border-radius: 50%;
+    border: 3px solid #ccc;
+    border-top-color: #07d;
+    animation: spinner .6s linear infinite;
 }

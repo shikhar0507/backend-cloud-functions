@@ -1,8 +1,14 @@
 <header>
-    <div class="logo-container">
+    <a href="/" class="logo-container">
         <img src="/img/logo-main.jpg" alt="Growthfile Logo" height="40" width="40">
-    </div>
+        <span class="logo-text">Growthfile</span>
+    </a>
+    \{{#if showLoginButton}}
     <div class="header-links-container">
-        <a href="#">Log in</a>
+        <a class="button" href="/login">
+            <i class="fas fa-sign-in-alt"></i>
+            <span id="header-button-text">Log in</span>
+        </a>
     </div>
+    \{{/if}}
 </header>

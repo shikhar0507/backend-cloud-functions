@@ -29,7 +29,6 @@ const {
   rootCollections,
   auth,
   db,
-  deleteField,
 } = require('../admin/admin');
 const {
   code,

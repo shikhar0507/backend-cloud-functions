@@ -164,16 +164,38 @@ const fetchOfficeData = (conn, locals) => {
 };
 
 const handleJoinPage = (conn) => {
-  // done
+  const source = require('./views/join.hbs')();
+  const template = handlebars.compile(source, { strict: true });
+  const html = template({
+    pageTitle: 'Join Growthfile',
+    showLoginButton: true,
+    showPersistentBar: false,
+  });
+
+  return conn.res.send(html);
 };
 
 const handleHomePage = (conn) => {
   const source = require('./views/index.hbs')();
-
   const template = handlebars.compile(source, { strict: true });
   const html = template({
     pageTitle: 'Growthfile Home',
     pageDescription: 'One app for employees of all offices',
+    showLoginButton: true,
+    showPersistentBar: true,
+  });
+
+  return conn.res.send(html);
+};
+
+const handleDownloadPage = (conn) => {
+  const source = require('./views/download.hbs')();
+  const template = handlebars.compile(source, { strict: true });
+  const html = template({
+    pageTitle: 'Download Growthfile App',
+    pageDescription: `Download growthfile app for your android and iOS devices.`,
+    showLoginButton: true,
+    showPersistentBar: true,
   });
 
   return conn.res.send(html);
@@ -206,17 +228,14 @@ const app = (req, res) => {
   }
 
   if (slug === 'join') {
-    // return handleJoinPage(conn);
-    return helpers.joinPage(conn);
+    return handleJoinPage(conn);
+    // return helpers.joinPage(conn);
   }
 
-  // if (slug === '/' || slug === '') {
-  //   return handleHomePage(conn);
-  // }
-
-  // if (slug === 'download') {
-  //   return helpers.downloadAppPage(conn);
-  // }
+  if (slug === 'download') {
+    // return helpers.downloadAppPage(conn);
+    return handleDownloadPage(conn);
+  }
 
 
   /**

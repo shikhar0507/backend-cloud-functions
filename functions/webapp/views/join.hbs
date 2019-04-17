@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    \{{> headPartial this}}
+    <link rel="stylesheet" href="css/join.css">
+</head>
+
+<body>
+    \{{> persistentBarPartial}}
+    \{{> headerPartial}}
+    <div class="container">
+        <section>
+            <h1>One Time Payment. Unlimited Benefits</h1>
+
+            <div class="card">
+                <div class="icon-container">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="main-text">
+                    Add as many offices and locations
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="icon-container">
+                    <i class="fas fa-rupee-sign"></i>
+                </div>
+                <div class="main-text">
+                    Fixed payment, unlimited employee addition
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="icon-container">
+                    <i class="fas fa-comment-dollar"></i>
+                </div>
+                <div class="main-text">
+                    No renewal fee, no annual fee
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="icon-container">
+                    <i class="fas fa-map-marked-alt"></i>
+                </div>
+                <div class="main-text">
+                    GPS tracking in office & meeting anywhere
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="icon-container">
+                    <i class="fas fa-envelope-open-text"></i>
+                </div>
+                <div class="main-text">
+                    Daily automatic reminders & alerts for approval
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <form>
+                <p>
+                    <label for="office-name">Office Name</label>
+                    <input name="office-name" type="text" id="office-name" placeholder="Sons and Sons Co." required>
+                </p>
+                <p>
+                    <label for="user-name">Your Name</label>
+                    <input name="user-name" type="text" id="user-name" placeholder="firstname lastname" required>
+                </p>
+                <p>
+                    <label for="user-phone-number">Your Phone Number</label>
+                    <input name="user-phone-number" type="tel" id="user-phone-number" placeholder=" +919999999999"
+                        required>
+                </p>
+                <p>
+                    <label for="user-email">Your Email</label>
+                    <input name="user-email" type="email" id="user-email" placeholder="username@site.com" required>
+                </p>
+                <p>
+                    <label for="second-contact-name">Second Contact's Name</label>
+                    <input name="second-contact-name" type="text" id="second-contact-name"
+                        placeholder="firstname lastname" required>
+                </p>
+                <p>
+                    <label for="second-contact-email">Second Contact's Email</label>
+                    <input name="second-contact-email" type="email" id="second-contact-email"
+                        placeholder="username@site.com" required>
+                </p>
+                <p>
+                    <label for="second-contact-phone-number">Second Contact's Phone Number</label>
+                    <input name="second-contact-phone-number" type="tel" id="second-contact-phone-number"
+                        placeholder=" +919999999999" required>
+                </p>
+
+                <a href="#" id="form-submit-button" class="button">
+                    <i class="fas fa-arrow-circle-right"></i>
+                    Submit
+                </a>
+            </form>
+        </section>
+    </div>
+
+    \{{> footerPartial}}
+    <script defer src="js/join.js"></script>
+</body>
+
+</html>
