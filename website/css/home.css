@@ -1,41 +1,99 @@
-.section2 {
-    margin-top: 25px;
+section {
+    min-height: unset;
 }
 
-.info-card {
-    margin-bottom: 10px;
-    padding: 20px 30px;
+.section2 {
+    margin-top: 16px;
+}
+
+section h2,
+section h3 {
+    margin-top: 16px;
+    color: #89273E;
 }
 
 section h2 {
-    font-size: 2em;
+    font-size: 34px;
 }
 
 section h3 {
-    font-size: 1.2em;
+    font-size: 18px;
 }
 
-.call-to-action {
+section h2 span {
+    font-weight: 600;
+}
+
+.call-to-action ul {
+    color: #89273E;
+}
+
+.call-to-action ul li {
     display: flex;
-    justify-content: center;
+    margin-bottom: 16px;
 }
 
-.call-to-action a,
-.call-to-action h2,
-.call-to-action h3 {
-    margin-bottom: 25px;
+.call-to-action ul li p {
+    margin-left: 10px;
 }
 
-ul {
-    margin: 0;
-    padding: 0;
+.action-icon {
+    font-size: 2em;
 }
 
-ul li {
-    margin-bottom: 10px;
-    border-bottom: 1px solid #ccc;
+.action-icons-container {
+    min-height: unset;
 }
 
-ul li:last-child {
-    border: none;
+.action-icons-container ul {
+    display: flex;
+    min-height: unset;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.action-icons-container ul li {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+    border: 1px solid rgba(0, 0, 0, .09); */
+    width: 80px;
+    margin-right: 16px;
+    padding: 10px 20px;
+}
+
+.action-icons-container ul li>* {
+    pointer-events: none;
+}
+
+.action-icons-container ul li:hover {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+    border: 1px solid rgba(0, 0, 0, .09);
+}
+
+.icon-text {
+    color: #949494;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    width: 100%;
+    margin-top: 16px;
+}
+
+/* Source: https://blog.benestudio.co/custom-file-upload-button-with-pure-css-5aacf39aa0a */
+#file-upload-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+}
+
+#file-upload-wrapper input[type=file] {
+    font-size: 100px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
 }

@@ -8,6 +8,7 @@ const {
   momentOffsetObject,
 } = require('./report-utils');
 const {
+  reportNames,
   dateFormats,
 } = require('../../admin/constants');
 const xlsxPopulate = require('xlsx-populate');
@@ -17,7 +18,7 @@ const momentTz = require('moment-timezone');
 module.exports = (locals) => {
   const office = locals.officeDoc.get('office');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentDateObject = momentOffsetObject(timezone);
+  // const momentDateObject = momentOffsetObject(timezone);
   const fileName = `${office} Enquiry Report_${locals.standardDateString}.xlsx`;
   const filePath = `/tmp/${fileName}`;
 
@@ -32,9 +33,10 @@ module.exports = (locals) => {
       rootCollections
         .inits
         .where('office', '==', office)
-        .where('date', '==', momentDateObject.yesterday.DATE_NUMBER)
-        .where('month', '==', momentDateObject.yesterday.MONTH_NUMBER)
-        .where('year', '==', momentDateObject.yesterday.YEAR)
+        .where('report', '==', reportNames.ENQUIRY)
+        .where('date', '==', '')
+        .where('month', '==', '')
+        .where('year', '==', '')
         .limit(1)
         .get(),
       xlsxPopulate
@@ -58,7 +60,10 @@ module.exports = (locals) => {
       sheet.cell('B1').value('NAME');
       sheet.cell('C1').value(`Enquirer's Contact Number`);
       sheet.cell('D1').value(`Enquirer's Email Id`);
-      sheet.cell('E1').value('Enquiry');
+      sheet.cell('E1').value('Product');
+      sheet.cell('F1').value('Enquiry');
+      sheet.cell('G1').value('Status');
+      sheet.cell('H1').value('Status Changed By');
 
       enquiryArray = initDocsQuery.docs[0].get('enquiryArray');
 

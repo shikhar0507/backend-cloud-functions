@@ -504,7 +504,6 @@ const handleMtdReport = (locals) => {
       const momentFromTimer = locals.momentFromTimer;
       const momentToday = momentTz().tz(timezone);
 
-
       if (momentToday.startOf('day').unix() === locals.momentFromTimer.startOf('day').unix()) {
         batch.set(locals.dailyStatusInitDoc.ref, countsDocData, {
           merge: true,

@@ -103,7 +103,7 @@ module.exports = (conn) => {
     );
   }
 
-  rootCollections
+  return rootCollections
     .offices
     .where('attachment.Name.value', '==', conn.req.body.office)
     .limit(1)

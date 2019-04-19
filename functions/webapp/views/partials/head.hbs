@@ -4,7 +4,13 @@
 <meta name="theme-color" content="#4285f4">
 <meta name="description" content="{{pageDescription}}">
 <meta name="robots" content="index,follow">
+
+\{{#if pageIndexable}}
 <meta name="googlebot" content="index,follow">
+\{{else}}
+<meta name="googlebot" content="noindex,nofollow">
+\{{/if}}
+
 <meta name="google-site-verification" content="">
 <meta name="msvalidate.01" content="">
 <meta name="mobile-web-app-capable" content="yes">
@@ -12,12 +18,17 @@
 
 <title>\{{pageTitle}}</title>
 
+<meta property="og:title" content="\{{pageTitle}}">
+<meta property="og:description" content="\{{pageDescription}}">
+
 <link href="https://fonts.googleapis.com/css?family=Libre+Franklin" rel="stylesheet">
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.1/css/all.css"
     integrity="sha384-50oBUHEmvpQ+1lW4y57PTFmhCaXp0ML5d60M1M7uH2+nqUivzIebhndOJK28anvf" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.0/animate.min.css"
+    integrity="sha256-HtCCUh9Hkh//8U1OwcbD8epVEUdBvuI8wj1KtqMhNkI=" crossorigin="anonymous" />
 <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">
 <link rel="stylesheet" href="css/common.css">
@@ -29,4 +40,21 @@
 <script defer src="https://www.gstatic.com/firebasejs/5.9.4/firebase-messaging.js"></script>
 <script defer src="https://cdn.firebase.com/libs/firebaseui/3.5.2/firebaseui.js"></script>
 <script defer type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c9db267fe61c735"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/picomodal/3.0.0/picoModal.min.js"
+    integrity="sha256-zzgNDyPQGPIld8YUuNDm4/2FGrW/7Qew+ypEwmNrC5o=" crossorigin="anonymous"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"
+    integrity="sha256-4iQZ6BVL4qNKlQ27TExEhBN1HFPvAvAMbFavKKosSWQ=" crossorigin="anonymous"></script>
+<script defer
+    src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.23/moment-timezone-with-data-2012-2022.min.js"
+    integrity="sha256-IxkOFTlGnMi1+sywOLJgzNosxiZyxw76GQClGo49G+U=" crossorigin="anonymous"></script>
+<script defer crossorigin="anonymous"
+    src="https://polyfill.io/v3/polyfill.min.js?features=Array.from%2CPromise%2CArray.prototype.includes%2Cdocument.querySelector"></script>
+
+<script>
+    const firebaseInitOptions = {
+        apiKey: 'AIzaSyA4s7gp7SFid_by1vLVZDmcKbkEcsStBAo',
+        authDomain: 'growthfile.com',
+        projectId: 'growthfile-207204',
+    };
+</script>
 <script defer src="js/main.js"></script>

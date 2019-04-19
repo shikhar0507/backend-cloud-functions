@@ -27,18 +27,24 @@ function getMobileOperatingSystem() {
 (function () {
   const ua = getMobileOperatingSystem();
   let elem = '';
+  let url = '';
 
   if (ua === 'unknown') return;
 
   if (ua === 'Android') {
-    // hide iOs link
     elem = document.getElementById('android-link');
+    url = 'https://play.google.com/store/apps/details?id=com.growthfile.growthfileNew';
   }
 
   if (ua === 'iOS') {
     // hide Android link
 
     elem = document.getElementById('ios-link');
+    url = 'https://itunes.apple.com/in/app/growthfile/id1441388774?mt=8';
+  }
+
+  if (url) {
+    window.location.href = url;
   }
 
   return hideElement(elem);

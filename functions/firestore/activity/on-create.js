@@ -1085,6 +1085,7 @@ const createLocals = (conn, result) => {
   }
 
   if (subscriptionQueryResult.empty
+    && conn.req.body.template !== 'enquiry'
     && !conn.requester.isSupportRequest) {
     sendResponse(
       conn,
@@ -1149,7 +1150,7 @@ const createLocals = (conn, result) => {
     locals.objects.allPhoneNumbers.add(phoneNumber);
   });
 
-  if (!conn.requester.isSupportRequest) {
+  if (!conn.requester.isSupportRequest && conn.req.body.template !== 'enquiry') {
     locals.objects.schedule = subscriptionQueryResult.docs[0].get('schedule');
     locals.objects.venue = subscriptionQueryResult.docs[0].get('venue');
     locals.objects.attachment = subscriptionQueryResult.docs[0].get('attachment');
@@ -1205,7 +1206,7 @@ const fetchDocs = (conn) => {
    * support since the requester may or may not have the subscription
    * to the template they want to use.
    */
-  if (conn.requester.isSupportRequest) {
+  if (conn.requester.isSupportRequest || conn.req.body.template === 'enquiry') {
     promises
       .push(rootCollections
         .activityTemplates

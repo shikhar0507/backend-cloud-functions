@@ -8,26 +8,45 @@
 
 <body>
     \{{> persistentBarPartial}}
-    \{{> headerPartial}}
+    \{{> headerPartial this}}
     <div class="container">
         <section>
-            <h1>One Time Payment. Unlimited Benefits</h1>
-
+            <h2>Start Quickly. Proceed without limitations</h2>
+        </section>
+        <section class="features-section">
             <div class="card">
                 <div class="icon-container">
-                    <i class="fas fa-building"></i>
+                    <i class="fas fa-robot"></i>
                 </div>
                 <div class="main-text">
-                    Add as many offices and locations
+                    Automates all your business activities
                 </div>
             </div>
 
             <div class="card">
                 <div class="icon-container">
-                    <i class="fas fa-rupee-sign"></i>
+                    <i class="far fa-file-excel"></i>
                 </div>
                 <div class="main-text">
-                    Fixed payment, unlimited employee addition
+                    Simplified and daily reporting
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="icon-container">
+                    <i class="fas fa-memory"></i>
+                </div>
+                <div class="main-text">
+                    No Training required, Go live in 30-minutes
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="icon-container">
+                    <i class="fas fa-wrench"></i>
+                </div>
+                <div class="main-text">
+                    Saves time and money increases productivity and efficiency.
                 </div>
             </div>
 
@@ -36,30 +55,12 @@
                     <i class="fas fa-comment-dollar"></i>
                 </div>
                 <div class="main-text">
-                    No renewal fee, no annual fee
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="icon-container">
-                    <i class="fas fa-map-marked-alt"></i>
-                </div>
-                <div class="main-text">
-                    GPS tracking in office & meeting anywhere
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="icon-container">
-                    <i class="fas fa-envelope-open-text"></i>
-                </div>
-                <div class="main-text">
-                    Daily automatic reminders & alerts for approval
+                    One time life time membership Rs 50000+ GST
                 </div>
             </div>
         </section>
 
-        <section>
+        <section class="join-section">
             <form>
                 <p>
                     <label for="office-name">Office Name</label>
@@ -91,7 +92,7 @@
                 <p>
                     <label for="second-contact-phone-number">Second Contact's Phone Number</label>
                     <input name="second-contact-phone-number" type="tel" id="second-contact-phone-number"
-                        placeholder=" +919999999999" required>
+                        placeholder="+919999999999" required>
                 </p>
 
                 <a href="#" id="form-submit-button" class="button">

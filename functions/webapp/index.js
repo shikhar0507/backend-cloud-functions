@@ -3,6 +3,7 @@
 // TODO: Check this out: https://oembed.com/
 
 const {
+  auth,
   rootCollections,
 } = require('../admin/admin');
 const {
@@ -21,6 +22,28 @@ handlebars.registerPartial('persistentBarPartial', persistentBarPartial);
 handlebars.registerPartial('headPartial', headPartial);
 handlebars.registerPartial('headerPartial', headerPartial);
 handlebars.registerPartial('footerPartial', footerPartial);
+
+/** 
+ * Creates a key-value pair using the cookie object
+ * Not using Express, so have to resort to this trickery.
+ * 
+ * @see https://stackoverflow.com/a/3409200/2758318
+ * @param {string} cookies Cookie string from the browser.
+ * @returns {object} The cookie object.
+ */
+const parseCookies = (cookies = '') => {
+  const cookieObject = {};
+
+  cookies
+    .split(';')
+    .forEach((cookie) => {
+      const parts = cookie.split('=');
+
+      cookieObject[parts.shift().trim()] = decodeURI(parts.join('='));
+    });
+
+  return cookieObject;
+};
 
 const getEmployeesRange = (employeesData) => {
   const employeesList = Object.keys(employeesData);
@@ -68,9 +91,12 @@ const handleOfficePage = (conn, locals) => {
 
   const html = template({
     aboutOffice,
+    userEmail: conn.requester.email || '',
+    userDisplayName: conn.requester.displayName || '',
+    userPhoneNumber: conn.requester.phoneNumber || '',
     officeEmployeeSize: locals.officeEmployeeSize,
     officeName: locals.officeDoc.get('office'),
-    pageTitle: `About ${locals.officeDoc.get('office')}`,
+    pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
     pageDescription: pageDescription,
     mainImageUrl: '/img/logo-main.jpg',
     cannonicalUrl: `https://growthfile.com/${locals.slug}`,
@@ -79,16 +105,38 @@ const handleOfficePage = (conn, locals) => {
     productObjectsArray: locals.productObjectsArray,
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
-    // videoId: locals.officeDoc.get('attachment.Video ID.value'),
-    // displayVideo: Boolean(locals.officeDoc.get('attachment.Video ID.value')),
-    videoId: 'Sx9SJBoUAT4',
-    displayVideo: true,
+    videoId: locals.officeDoc.get('attachment.Video ID.value'),
+    displayVideo: Boolean(locals.officeDoc.get('attachment.Video ID.value')),
     slug: locals.slug,
+    isLoggedIn: locals.isLoggedIn,
+    showPersistentBar: true,
+    pageIndexable: true,
   });
 
-  return conn.res.send(html);
+  return Promise.resolve(html);
 };
 
+const getLoggedInStatus = (idToken) => {
+  console.log('idToken:', idToken, '\n'.repeat(10));
+
+  return auth
+    .verifyIdToken(idToken, true)
+    .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
+    .then((userRecord) => {
+      return {
+        isLoggedIn: true,
+        phoneNumber: userRecord.phoneNumber,
+        displayName: userRecord.displayName,
+        disabled: userRecord.disabled,
+      };
+    })
+    .catch(() => {
+      return {
+        isLoggedIn: false,
+        uid: null,
+      };
+    });
+};
 
 const fetchOfficeData = (conn, locals) => {
   return Promise
@@ -109,10 +157,6 @@ const fetchOfficeData = (conn, locals) => {
         .get(),
     ])
     .then((result) => {
-      if (!result) {
-        return Promise.resolve();
-      }
-
       const [branchQuery, productQuery] = result;
 
       locals.branchDocs = branchQuery.docs;
@@ -131,78 +175,81 @@ const fetchOfficeData = (conn, locals) => {
 
       locals
         .productObjectsArray = productQuery.docs.map((doc) => {
-          const name = doc.get('attachment.Name.value');
-
-          const imageUrl = (() => {
-            if (doc.get('attachment.Image Url.value')) {
-              return doc.get('attachment.Image Url.value');
-            }
-
-            return 'img/product-placeholder.png';
-          })();
-
           return {
-            name,
-            productDetails: JSON.stringify({
-              name,
-              imageUrl,
-              productType: doc.get('attachment.Product Type.value'),
-              brand: doc.get('attachment.Brand.value'),
-              model: doc.get('attachment.Model.value'),
-              size: doc.get('attachment.Size.value'),
-            }),
+            name: doc.get('attachment.Name.value'),
+            imageUrl: doc.get('attachment.Image Url.value'),
+            productType: doc.get('attachment.Product Type.value'),
+            brand: doc.get('attachment.Brand.value'),
+            model: doc.get('attachment.Model.value'),
+            size: doc.get('attachment.Size.value'),
           };
         });
 
       const employeesData = locals.officeDoc.get('employeesData');
+
       locals.officeEmployeeSize = getEmployeesRange(employeesData);
 
-      // return helpers.officePage(conn, locals);
       return handleOfficePage(conn, locals);
     })
     .catch((error) => helpers.errorPage(conn, error));
 };
 
-const handleJoinPage = (conn) => {
+
+const handleJoinPage = (locals) => {
   const source = require('./views/join.hbs')();
   const template = handlebars.compile(source, { strict: true });
   const html = template({
     pageTitle: 'Join Growthfile',
-    showLoginButton: true,
+    isLoggedIn: locals.isLoggedIn,
     showPersistentBar: false,
+    pageIndexable: true,
+    pageDescription: 'Join Growthfile',
   });
 
-  return conn.res.send(html);
+  return html;
 };
 
-const handleHomePage = (conn) => {
+const handleHomePage = (locals) => {
   const source = require('./views/index.hbs')();
   const template = handlebars.compile(source, { strict: true });
   const html = template({
     pageTitle: 'Growthfile Home',
     pageDescription: 'One app for employees of all offices',
-    showLoginButton: true,
+    isLoggedIn: locals.isLoggedIn,
     showPersistentBar: true,
+    pageIndexable: true,
   });
 
-  return conn.res.send(html);
+  return html;
 };
 
-const handleDownloadPage = (conn) => {
+const handleDownloadPage = (locals) => {
   const source = require('./views/download.hbs')();
   const template = handlebars.compile(source, { strict: true });
   const html = template({
-    pageTitle: 'Download Growthfile App',
-    pageDescription: `Download growthfile app for your android and iOS devices.`,
-    showLoginButton: true,
+    pageTitle: 'Download Growthfile App for your Android and iOS Phones',
+    pageDescription: 'Download growthfile app for your android and iOS devices',
+    isLoggedIn: locals.isLoggedIn,
     showPersistentBar: true,
+    pageIndexable: true,
   });
 
-  return conn.res.send(html);
+  return html;
 };
 
+const handle404Page = () => '<h1>Page not found</h1>';
 
-const app = (req, res) => {
+const handleServerError = () => '<h1>Something went wrong</h1>';
+
+const getIdToken = (parsedCookies) => {
+  if (!parsedCookies.__session) {
+    return '';
+  }
+
+  return parsedCookies.__session;
+};
+
+module.exports = (req, res) => {
   if (req.method !== 'GET') {
     return res
       .status(code.methodNotAllowed)
@@ -217,49 +264,97 @@ const app = (req, res) => {
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
   const slug = getSlugFromUrl(req.url);
   const conn = { req, res };
-  const locals = { slug };
-
-  console.log('slug:', slug);
-
+  const locals = {
+    slug,
+    isLoggedIn: false,
+  };
   conn.res.setHeader('Content-Type', 'text/html');
 
-  if (slug === '/' || slug === '') {
-    return handleHomePage(conn);
-  }
+  const parsedCookies = parseCookies(req.headers.cookie);
 
-  if (slug === 'join') {
-    return handleJoinPage(conn);
-    // return helpers.joinPage(conn);
-  }
 
+  console.log('slug', slug);
+
+  const idToken = getIdToken(parsedCookies);
+  let html;
+
+  /** Download page has no logic related to auth */
   if (slug === 'download') {
-    // return helpers.downloadAppPage(conn);
-    return handleDownloadPage(conn);
+    html = handleDownloadPage(locals);
+
+    return conn.res.send(html);
   }
 
+  return getLoggedInStatus(idToken)
+    .then((result) => {
+      const {
+        uid,
+        disabled,
+        phoneNumber,
+        displayName,
+      } = result;
 
-  /**
-   * const context = variables object
-   * source = html
-   * template = handlebars.compile(source, handlebarsOptions) // {strict: true}
-   * result = template(context);
-   * return result;
-   */
-  return rootCollections
-    .offices
-    .where('slug', '==', slug)
-    .limit(1)
-    .get()
-    .then((docs) => {
-      if (docs.empty) {
-        return helpers.pageNotFound(conn);
+      console.log('result', result);
+
+      locals.isLoggedIn = uid !== null;
+
+      conn.requester = {
+        uid,
+        phoneNumber,
+        displayName,
+        disabled,
+      };
+
+      if (slug === '/' || slug === '') {
+        html = handleHomePage(locals);
       }
 
-      locals.officeDoc = docs.docs[0];
+      if (slug === 'join') {
+        html = handleJoinPage(locals);
+      }
+
+      if (html) {
+        return conn.res.send(html);
+      }
+
+      return rootCollections
+        .offices
+        .where('slug', '==', slug)
+        .limit(1)
+        .get();
+    })
+
+    .then((snapShot) => {
+      if (!snapShot || html) {
+        return Promise.resolve();
+      }
+
+      if (snapShot.empty) {
+        html = handle404Page();
+
+        return conn.res.status(code.notFound).send(html);
+      }
+
+      locals.officeDoc = snapShot.docs[0];
 
       return fetchOfficeData(conn, locals);
     })
-    .catch((error) => helpers.errorPage(conn, error));
-};
+    .then((officeHtml) => {
+      if (html) {
+        return Promise.resolve();
+      }
 
-module.exports = app;
+      html = officeHtml;
+
+      return conn.res.send(html);
+    })
+    .catch((error) => {
+      console.error('Error', error);
+      const html = handleServerError();
+
+      return conn
+        .res
+        .status(500)
+        .send(html);
+    });
+};

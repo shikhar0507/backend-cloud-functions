@@ -1,24 +1,12 @@
-'use strict';
-
-
-// firebase.initializeApp({
-//   apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
-//   authDomain: 'growthfilev2-0.firebaseapp.com',
-//   databaseURL: 'https://growthfilev2-0.firebaseio.com',
-//   projectId: 'growthfilev2-0',
-// });
-
-// const ui = new firebaseui.auth.AuthUI(firebase.auth());
-
 // needs to be global for gMaps to work. // See docs.
 let map;
 let firebaseAuthModal;
 
-function initMap() {
-  const curr = {
-    lat: 28.5492074,
-    lng: 77.2505593,
-  };
+function initMap(latitude, longitude) {
+  const curr = { lat: latitude, lng: longitude };
+
+  document.getElementById('map').style.height = '400px';
+  document.getElementById('load-map-button').style.display = 'none';
 
   map = new google.maps.Map(
     document.getElementById('map'), {
@@ -28,31 +16,7 @@ function initMap() {
   );
 
   const marker = new google.maps.Marker({ position: curr, map });
-
-  // const elems = document.querySelector('.branch-list-container ul').children;
-
-  // new Promise((resolve, reject) => {
-  //   Array.from(elems).forEach((item) => {
-  //     new google.maps.Marker({
-  //       position: {
-  //         lat: Number(item.dataset.latitude),
-  //         lng: Number(item.dataset.longitude),
-  //       },
-  //       map,
-  //     });
-  //   });
-
-  //   return resolve(true);
-  // });
 }
-
-function signInSuccessWithAuthResult(authResult, redirectUrl) {
-  console.log('signin success');
-
-  // document.querySelector('.modal').style.display = 'none';
-
-  firebaseAuthModal.close();
-};
 
 function handleProductClick(param) {
   console.log(param);
@@ -78,8 +42,6 @@ function handleBranchClick(latitude, longitude) {
     lng: Number(longitude),
   };
 
-  console.log(latitude, longitude);
-
   if (latitude && longitude) {
     const marker = new google.maps.Marker({ position, map });
 
@@ -87,156 +49,164 @@ function handleBranchClick(latitude, longitude) {
   }
 }
 
-function sendEnquiryRequest(body) {
-  const form = document.querySelector('.enquiry-section form');
-  const spinner = document.querySelector('.loading-spinner');
-  form.style.display = 'none';
-  spinner.style.display = 'block';
+function updateMapPointer(event) {
+  initMap(
+    Number(event.target.dataset.latitude),
+    Number(event.target.dataset.longitude)
+  );
+}
 
-  return firebase
-    .auth()
-    .currentUser
-    .getIdToken()
-    .then((idToken) => {
-      const authorization = `Bearer ${idToken}`;
-      console.log('authorization', authorization);
-      console.log('body', body);
+function validateForm() {
+  const userName = document.getElementsByName('user-display-name');
+  const email = document.getElementsByName('user-email');
+  const phoneNumber = document.getElementsByName('user-phone-number');
+  const enquiryText = document.getElementsByName('enquiry-text');
 
-      const init = {
-        body: JSON.stringify(body),
-        method: 'POST',
-        headers: {
-          'Authorization': authorization,
-          'Content-Type': 'application/json',
-        },
-      };
+  let valid = true;
 
-      return fetch('https://api2.growthfile.com/api/enquiry', init);
-    })
-    .then((response) => response.json())
-    .then((data) => {
-      console.log('success', data);
+  if (!isNonEmptyString(userName[0].value)) {
+    valid = false;
+    const node = getWarningNode('Your Name');
 
-      const para = document.querySelector('.enquiry-success-message');
-
-      spinner.style.display = 'none';
-      para.style.display = 'block';
-    })
-    .catch(console.error);
-};
-
-function validateEnquiry(enquiry) {
-  if (!enquiry.name) {
-    return {
-      valid: false,
-      message: 'Name is required',
-    };
+    insertAfterNode(userName[0], node);
   }
 
-  if (!enquiry.email) {
-    return {
-      valid: false,
-      message: 'Email is required',
-    };
+  if (!isNonEmptyString(email[0].value)) {
+    valid = false;
+    const node = getWarningNode('Your Email');
+
+    insertAfterNode(email[0], node);
   }
 
-  if (!enquiry.email.match(/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/)) {
-    return {
-      valid: false,
-      message: 'Invalid email',
-    };
+  if (!isNonEmptyString(phoneNumber[0].value)) {
+    valid = false;
+    const node = getWarningNode('You Contact');
+
+    insertAfterNode(phoneNumber[0], node);
   }
 
-  if (!enquiry.companyName) {
-    return {
-      valid: false,
-      message: 'Company name is required',
-    };
-  }
+  if (!isNonEmptyString(enquiryText[0].value)) {
+    valid = false;
+    const node = getWarningNode('The Enquiry Text');
 
-  if (!enquiry.phoneNumber) {
-    return {
-      valid: false,
-      message: 'Phone Number is required',
-    };
-  }
-
-  if (!enquiry.enquiryText) {
-    return {
-      valid: false,
-      message: 'Your enquiry is empty',
-    };
+    insertAfterNode(enquiryText[0], node);
   }
 
   return {
-    valid: true,
-    message: null,
-  };
+    values: {
+      email: email[0].value,
+      displayName: userName[0].value,
+      phoneNumber: phoneNumber[0].value,
+      enquiryText: enquiryText[0].value,
+      productName: document.getElementsByName('product-select')[0].value,
+    },
+    valid,
+  }
 }
 
-
-function handleEnquiry(event) {
+function startEnquiryCreationFlow(event) {
   event.preventDefault();
 
-  const nameInput = document.getElementsByName('person-name')[0];
-  const emailInput = document.getElementsByName('person-email')[0];
-  const phoneNumberInput = document.getElementsByName('person-phone-number')[0];
-  const personCompanyNameInput = document.getElementsByName('person-company-name')[0];
-  const enquiryTextArea = document.getElementsByName('text-area')[0];
-  const enquiryObject = {
-    name: nameInput.value,
-    email: emailInput.value,
-    phoneNumber: phoneNumberInput.value,
-    enquiryText: enquiryTextArea.value,
-    companyName: personCompanyNameInput.value,
-  };
+  const oldWarningLabels = document.querySelectorAll('p .warning-label');
 
-  const validationResult = validateEnquiry(enquiryObject);
+  Array
+    .from(oldWarningLabels)
+    .forEach((element) => element.style.display = 'none');
 
-  console.log('valid', validationResult.valid, enquiryObject);
+  const result = validateForm();
 
-  if (!validationResult.valid) {
-    return showToast(validationResult.message);
-  }
+  if (!result.valid) return;
 
   if (!firebase.auth().currentUser) {
-    localStorage.setItem('enquiryObject', JSON.stringify(enquiryObject));
+    const modal = showLoginBox('90%', 'fb-login-box');
 
-    console.log('not logged in');
-
-    const modalContent = `<div id="firebaseui-auth-container"></div>`;
-    firebaseAuthModal = picoModal(modalContent);
-    firebaseAuthModal.show();
-
-    ui.start('#firebaseui-auth-container', uiConfig);
+    modal.show();
 
     return;
   }
 
-  const currentUser = firebase.auth().currentUser;
-  const authUpdate = {};
+  if (!startPosition) {
+    console.log('trying to ask permission');
 
-  if (nameInput.value && currentUser.name !== nameInput.value) {
-    authUpdate.display = nameInput.value;
+    return askLocationPermission(null, startEnquiryCreationFlow);
   }
 
-  console.log('dataset', document.body.dataset);
+  const spinner = getSpinnerElement();
+  document.forms[0].innerText = '';
+  document.forms[0].style.display = 'flex';
+  document.forms[0].style.justifyContent = 'center';
 
-  const body = {
-    enquiryText: enquiryTextArea.value,
+  spinner.id = 'enquiry-fetch-spinner';
+
+  document.forms[0].appendChild(spinner);
+
+  const requestBody = {
     office: document.body.dataset.slug,
-    companyName: personCompanyNameInput.value,
     timestamp: Date.now(),
-  };
+    template: 'enquiry',
+    geopoint: {
+      latitude: startPosition.coords.latitude,
+      longitude: startPosition.coords.longitude,
+      accuracy: startPosition.accuracy,
+      provide: 'HTML5',
+    },
+    share: [],
+    schedule: [],
+    venue: [],
+    attachment: {
+      'Company Name': {
+        type: 'string',
+        value: document.body.dataset.slug,
+      },
+      Product: {
+        value: result.values.productName,
+        type: 'product',
+      },
+      'Enquiry': {
+        value: result.values.enquiryText,
+        type: 'string',
+      }
+    }
+  }
 
-  return sendEnquiryRequest(body);
-}
+  const idToken = getParsedCookies().__session;
 
-const formSubmitAElem = document.querySelector('.form-submit-button');
+  // const requestUrl = 'https://api2.growthfile.com/api/activities/create';
+  const requestUrl = 'https://us-central1-growthfilev2-0.cloudfunctions.net/api/activities/create';
 
-formSubmitAElem.addEventListener('click', handleEnquiry);
+  console.log('sending fetch request', requestBody);
 
-window
-  .onload = function () {
-    initMap();
-  };
+  return fetch(requestUrl, {
+    mode: 'cors',
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    },
+  })
+    .then((result) => result.json())
+    .then((response) => {
+      console.log('Response', response);
+
+      document
+        .getElementById('enquiry-fetch-spinner')
+        .style.display = 'none';
+
+      const span = document.createElement('span');
+      let spanText = 'Enquiry sent :)';
+
+      if (!response.success) {
+        spanText = response.message;
+        span.classList.add('success-label');
+      } else {
+        span.classList.add('warning-label');
+      }
+
+      span.innerHTML = spanText;
+      document.forms[0].appendChild(span);
+
+      return;
+    })
+    .catch(console.error);
+};

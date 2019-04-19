@@ -959,6 +959,73 @@ const logLocations = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
+const getEnquiryObject = (addendumDoc, snapShot) => {
+  const enquiryObject = getObject(snapShot, 'enquiryObject');
+  const phoneNumber = addendumDoc.get('user');
+  const action = addendumDoc.get('action');
+  const status = addendumDoc.get('status');
+  const activityId = addendumDoc.get('activityId');
+
+  if (!enquiryObject[phoneNumber]) {
+    enquiryObject[phoneNumber] = {};
+  }
+
+  if (!enquiryObject[phoneNumber][activityId]) {
+    enquiryObject[phoneNumber][activityId] = {};
+  }
+
+  enquiryObject[phoneNumber][activityId] = {
+    product: addendumDoc.get('activityData.attachment.Product.value'),
+    enquiry: addendumDoc.get('activityData.attachment.Enquiry.value'),
+    status: addendumDoc.get('activityData.status'),
+    statusChangedBy: '',
+  };
+
+  if (action === httpsActions.changeStatus) {
+    enquiryObject[phoneNumber][activityId].statusChangedBy = phoneNumber;
+  }
+
+  return enquiryObject;
+};
+
+const handleEnquiry = (addendumDoc, locals) => {
+  const template = addendumDoc.get('activityData.template');
+
+  if (template !== reportNames.ENQUIRY) {
+    return Promise.resolve();
+  }
+
+  const office = addendumDoc.get('activityData.office');
+
+  return rootCollections
+    .inits
+    .where('office', '==', office)
+    .where('report', '==', reportNames.ENQUIRY)
+    .where('date', '==', locals.dateObject.getDate())
+    .where('month', '==', locals.dateObject.getMonth())
+    .where('year', '==', locals.dateObject.getFullYear())
+    .limit(1)
+    .get()
+    .then((snapShot) => {
+      const ref = initDocRef(snapShot);
+
+      const enquiryObject = getEnquiryObject(addendumDoc, snapShot);
+
+      return ref
+        .set({
+          office,
+          report: reportNames.ENQUIRY,
+          date: locals.dateObject.getDate(),
+          month: locals.dateObject.getMonth(),
+          year: locals.dateObject.getFullYear(),
+          enquiryObject,
+        }, {
+            merge: true,
+          });
+    })
+    .catch(console.error);
+};
+
 
 module.exports = (addendumDoc) => {
   const action = addendumDoc.get('action');
@@ -1146,6 +1213,7 @@ module.exports = (addendumDoc) => {
     .then(() => handleDutyRosterReport(addendumDoc, locals))
     .then(() => handleExpenseClaimReport(addendumDoc, locals))
     .then(() => locals.batch.commit())
+    .then(() => handleEnquiry(addendumDoc, locals))
     /** NOTE DSR doesn't use a batch. Do not merge this this batch with it.*/
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))

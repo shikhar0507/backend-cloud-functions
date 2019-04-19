@@ -1,8 +1,6 @@
-firebase.initializeApp({
-  apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
-  authDomain: 'https://growthfilev2-0.firebaseapp.com',
-  projectId: 'growthfilev2-0',
-});
+let startPosition;
+
+firebase.initializeApp(firebaseInitOptions);
 
 function signInFailure(error) {
   console.log('signin failed', error);
@@ -14,6 +12,24 @@ function uiShown() {
 
 function signInSuccessWithAuthResult(authResult, redirectUrl) {
   console.log('signin success');
+
+  window.location.reload();
+};
+
+function getParsedCookies() {
+  const cookieObject = {};
+
+  document
+    .cookie
+    .split(';')
+    .forEach((cookie) => {
+      const parts = cookie.split('=');
+
+      cookieObject[parts.shift().trim()] = decodeURI(parts.join('='));
+    });
+
+  return cookieObject;
+
 };
 
 function isNonEmptyString(string) {
@@ -24,19 +40,41 @@ function insertAfterNode(currentNode, nodeToInsert) {
   currentNode.parentNode.insertBefore(nodeToInsert, currentNode.nextSibling);
 }
 
+function getModalElement(htmlContent, width) {
+  const modal = picoModal({
+    width,
+    content: htmlContent,
+    closeHtml: "<span>Close</span>",
+    closeButton: false,
+  })
+    .afterClose(function (modal) { modal.destroy(); });
+
+  return modal;
+}
+
+function getWarningNode(fieldName) {
+  valid = false;
+
+  const warningNode = document.createElement('span');
+  warningNode.classList.add('warning-label');
+  warningNode.textContent = `${fieldName} is required`;
+
+  return warningNode;
+}
+
 
 const ui = new firebaseui.auth.AuthUI(firebase.auth());
 const uiConfig = {
   signInOptions: [{
     provider: firebase.auth.PhoneAuthProvider.PROVIDER_ID,
     requireDisplayName: true,
+    defaultCountry: 'IN',
     signInFlow: 'popup',
     recaptchaParameters: {
       type: 'image',
       size: 'invisible',
       badge: 'bottomleft',
     },
-    defaultCountry: 'IN',
   }],
   tosUrl: 'https://growthfile.com/terms-of-service',
   privacyPolicyUrl: 'https://growthfile.com/privacy-policy',
@@ -68,6 +106,48 @@ function getMobileOperatingSystem() {
   return 'unknown';
 };
 
+function askLocationPermission(event, callback) {
+  if (!navigator.geolocation) {
+    console.log('geolocation not supported');
+
+    return;
+  }
+
+  function geoSuccess(position) {
+    console.log('got the permission');
+
+    // startPos.coords.latitude;
+    // startPos.coords.longitude;
+    startPosition = position;
+
+    if (typeof callback === 'function') {
+      callback(
+        startPosition.coords.latitude,
+        startPosition.coords.longitude
+      );
+    }
+  }
+
+  function geoError(error) {
+    console.log('can not get permission', error);
+
+    if (error.code === 0) {
+      console.log('An unknown error occurred');
+    }
+    if (error.code === 1) {
+      console.log('Permission denied');
+    }
+    if (error.code === 2) {
+      console.log('position unavailable (error response from location provider)');
+    }
+    if (error.code === 3) {
+      console.log('timed out');
+    }
+  }
+
+  navigator.geolocation.getCurrentPosition(geoSuccess, geoError);
+};
+
 function getSpinnerElement() {
   const elem = document.createElement('div');
   elem.className = 'spinner';
@@ -77,3 +157,86 @@ function getSpinnerElement() {
 
   return elem;
 }
+
+firebase
+  .auth()
+  .onAuthStateChanged(function (user) {
+    if (!user) {
+      console.log('Not logged in');
+
+      return;
+    }
+
+    console.log('Logged in', user);
+  });
+
+function showLoginBox(width, modalId) {
+  const modal = getModalElement(
+    '<div id="firebaseui-auth-container"></div>',
+    width,
+    modalId,
+  );
+
+  modal.show();
+  ui.start('#firebaseui-auth-container', uiConfig);
+
+  return modal;
+};
+
+
+document.addEventListener('click', (event) => {
+  if (event.target === document.getElementById('form-submit-button')) {
+    return void startOfficeCreationFlow(event)
+  }
+
+  if (event.target === document.getElementById('header-login-button')) {
+    event.preventDefault();
+
+    return void showLoginBox('90%');
+  }
+
+  if (event.target === document.getElementById('header-profile-icon')) {
+    // return void handleLogin(event);
+  }
+
+  if (event.target === document.getElementById('load-map-button')) {
+    event.preventDefault();
+
+    return void askLocationPermission(event, initMap);
+  }
+
+  if (event.target === document.getElementById('enquiry-submit-button')) {
+    return void startEnquiryCreationFlow(event);
+  }
+
+  // TODO: Refactor this name. Not very unique and might cause conflicts.
+  if (Array.from(document.querySelectorAll('.list-item')).includes(event.target)) {
+    return void updateMapPointer(event);
+  }
+
+  const loginActionElements = [
+    document.getElementById('add-employees'),
+    document.getElementById('trigger-report'),
+    document.getElementById('change-phone-number'),
+    document.getElementById('employee-resign'),
+    document.getElementById('update-recipient'),
+    document.getElementById('update-subscription'),
+    document.getElementById('update-activity'),
+  ];
+
+  if (loginActionElements.includes(event.target)) {
+    return void handleActionIconClick(event);
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+  firebase
+    .auth()
+    .addAuthTokenListener(function (idToken) {
+      if (!idToken) return;
+
+      document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`
+
+      console.log('new cookie set', idToken);
+    });
+});

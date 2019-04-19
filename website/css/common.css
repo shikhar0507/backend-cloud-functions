@@ -97,8 +97,10 @@ section {
 
 .button {
     border-radius: 4px;
-    background: #1ba94c;
-    box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5);
+    /* background: #1ba94c; */
+    /* box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5); */
+    background: #89273E;
+    box-shadow: 0 4px 12px rgb(137, 39, 62, 0.5);
     max-width: 100%;
     padding: 10px 20px;
     color: white;
@@ -106,8 +108,16 @@ section {
     text-transform: uppercase;
 }
 
+#header-profile-icon {
+    font-size: 24px;
+}
+
 .warning-label {
     color: red;
+}
+
+.success-label {
+    color: green;
 }
 
 footer {
@@ -129,12 +139,23 @@ footer a {
 
 footer div {
     margin-bottom: 12px;
+    text-align: center;
 }
 
 .footer-links {
     display: flex;
     justify-content: center;
+    flex-direction: column;
     text-decoration: underline;
+    text-align: center
+}
+
+.footer-links a {
+    margin-bottom: 10px;
+}
+
+input[readonly] {
+    background-color: #f6f6f6;
 }
 
 @keyframes spinner {
