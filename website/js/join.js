@@ -126,14 +126,13 @@ function sendOfficeCreationRequest(values) {
 
   document.forms[0].appendChild(spinner);
 
-  const requestUrl = '';
   const requestBody = {
     timestamp: Date.now(),
     office: '',
     template: 'office',
     geopoint: {
-      // latitude: 
-      // longitude:
+      latitude: startPosition.coords.latitude,
+      longitude: startPosition.coords.longitude,
     },
     data: [{
       Name: '',
@@ -150,9 +149,7 @@ function sendOfficeCreationRequest(values) {
   }
 
   const idToken = getParsedCookies().__session;
-
-  // const requestUrl = 'https://api2.growthfile.com/api/activities/create';
-  const requestUrl = 'https://us-central1-growthfilev2-0.cloudfunctions.net/api/admin/bulk';
+  const requestUrl = 'https://api2.growthfile.com/api/admin/bulk';
 
   return fetch(requestUrl, {
     mode: 'cors',

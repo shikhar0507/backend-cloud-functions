@@ -1,17 +1,46 @@
 <header>
     <a href="/" class="logo-container">
         <img src="/img/logo-main.jpg" alt="Growthfile Logo" height="40" width="40">
-        <span class="logo-text">Growthfile</span>
+        <p class="logo-text"><span>Growth</span>file</p>
     </a>
     <div class="header-links-container">
         \{{#if isLoggedIn}}
-        <a id="header-profile-icon" class="" href="#">
-            <i class="far fa-user-circle"></i>
+        <a id="header-profile-icon" href="#">
+            <i class="fas fa-bars"></i>
         </a>
+        <div class="dropdown-content">
+            <div class="menu-user-details">
+                <img width="96" height="96" src="https://source.unsplash.com/96x96/?nature,water"
+                    alt="header-profile-picture">
+                <ul>
+                    <li class="menu-details-item">
+                        \{{#if displayName}}
+                        \{{displayName}}
+                        \{{/if}}
+                    </li>
+                    <li class="menu-details-item">
+                        \{{phoneNumber}}
+                    </li>
+                    <li class="menu-details-item">
+                        \{{#if email}}
+                        \{{email}}
+                        \{{/if}}
+                        \{{#if emaiVerified}}
+                        <i class="far fa-check-circle"></i>
+                        \{{else}}
+                        <i class="fas fa-times"></i>
+                        \{{/if}}
+                    </li>
+                </ul>
+            </div>
+            <div class="text-align-right">
+                <a href="#" id="menu-logout-link">Log Out</a>
+            </div>
+        </div>
         \{{else}}
         <a id="header-login-button" class="button" href="#">
-            <i class="fas fa-sign-in-alt"></i>
             <span id="header-button-text">Log in</span>
+            <i class="fas fa-sign-in-alt"></i>
         </a>
         \{{/if}}
     </div>

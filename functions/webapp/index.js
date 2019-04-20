@@ -71,7 +71,39 @@ const getSlugFromUrl = (requestUrl) => {
   return officeName.split('/')[1];
 };
 
-const handleOfficePage = (conn, locals) => {
+const getLoggedInStatus = (idToken) => {
+  console.log('idToken:', idToken, '\n'.repeat(10));
+
+  return auth
+    .verifyIdToken(idToken, true)
+    .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
+    .then((userRecord) => {
+      return {
+        uid: userRecord.uid,
+        isLoggedIn: true,
+        email: userRecord.email,
+        phoneNumber: userRecord.phoneNumber,
+        photoUrl: userRecord.photoUrl,
+        emailVerified: userRecord.emailVerified,
+        displayName: userRecord.displayName,
+        disabled: userRecord.disabled,
+      };
+    })
+    .catch(() => {
+      return {
+        uid: null,
+        isLoggedIn: false,
+        phoneNumber: '',
+        photoUrl: '',
+        emailVerified: false,
+        displayName: '',
+        email: '',
+        disabled: '',
+      };
+    });
+};
+
+const handleOfficePage = (conn, locals, requester) => {
   const source = require('./views/office.hbs')();
   const template = handlebars.compile(source, { strict: true });
 
@@ -91,13 +123,13 @@ const handleOfficePage = (conn, locals) => {
 
   const html = template({
     aboutOffice,
-    userEmail: conn.requester.email || '',
-    userDisplayName: conn.requester.displayName || '',
-    userPhoneNumber: conn.requester.phoneNumber || '',
+    pageDescription,
+    userEmail: requester.email || '',
+    userDisplayName: requester.displayName || '',
+    userPhoneNumber: requester.phoneNumber || '',
     officeEmployeeSize: locals.officeEmployeeSize,
     officeName: locals.officeDoc.get('office'),
-    pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
-    pageDescription: pageDescription,
+    pageTitle: locals.officeDoc.get('office'),
     mainImageUrl: '/img/logo-main.jpg',
     cannonicalUrl: `https://growthfile.com/${locals.slug}`,
     mapsApiKey: env.mapsApiKey,
@@ -106,39 +138,20 @@ const handleOfficePage = (conn, locals) => {
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
     videoId: locals.officeDoc.get('attachment.Video ID.value'),
-    displayVideo: Boolean(locals.officeDoc.get('attachment.Video ID.value')),
     slug: locals.slug,
     isLoggedIn: locals.isLoggedIn,
     showPersistentBar: true,
     pageIndexable: true,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
   });
 
   return Promise.resolve(html);
 };
 
-const getLoggedInStatus = (idToken) => {
-  console.log('idToken:', idToken, '\n'.repeat(10));
-
-  return auth
-    .verifyIdToken(idToken, true)
-    .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
-    .then((userRecord) => {
-      return {
-        isLoggedIn: true,
-        phoneNumber: userRecord.phoneNumber,
-        displayName: userRecord.displayName,
-        disabled: userRecord.disabled,
-      };
-    })
-    .catch(() => {
-      return {
-        isLoggedIn: false,
-        uid: null,
-      };
-    });
-};
-
-const fetchOfficeData = (conn, locals) => {
+const fetchOfficeData = (conn, locals, requester) => {
   return Promise
     .all([
       locals
@@ -146,14 +159,12 @@ const fetchOfficeData = (conn, locals) => {
         .ref
         .collection('Activities')
         .where('template', '==', 'branch')
-        .limit(10)
         .get(),
       locals
         .officeDoc
         .ref
         .collection('Activities')
         .where('template', '==', 'product')
-        .limit(10)
         .get(),
     ])
     .then((result) => {
@@ -189,13 +200,13 @@ const fetchOfficeData = (conn, locals) => {
 
       locals.officeEmployeeSize = getEmployeesRange(employeesData);
 
-      return handleOfficePage(conn, locals);
+      return handleOfficePage(conn, locals, requester);
     })
     .catch((error) => helpers.errorPage(conn, error));
 };
 
 
-const handleJoinPage = (locals) => {
+const handleJoinPage = (locals, requester) => {
   const source = require('./views/join.hbs')();
   const template = handlebars.compile(source, { strict: true });
   const html = template({
@@ -204,12 +215,16 @@ const handleJoinPage = (locals) => {
     showPersistentBar: false,
     pageIndexable: true,
     pageDescription: 'Join Growthfile',
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
   });
 
   return html;
 };
 
-const handleHomePage = (locals) => {
+const handleHomePage = (locals, requester) => {
   const source = require('./views/index.hbs')();
   const template = handlebars.compile(source, { strict: true });
   const html = template({
@@ -218,12 +233,16 @@ const handleHomePage = (locals) => {
     isLoggedIn: locals.isLoggedIn,
     showPersistentBar: true,
     pageIndexable: true,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
   });
 
   return html;
 };
 
-const handleDownloadPage = (locals) => {
+const handleDownloadPage = (locals, requester) => {
   const source = require('./views/download.hbs')();
   const template = handlebars.compile(source, { strict: true });
   const html = template({
@@ -232,6 +251,10 @@ const handleDownloadPage = (locals) => {
     isLoggedIn: locals.isLoggedIn,
     showPersistentBar: true,
     pageIndexable: true,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
   });
 
   return html;
@@ -269,7 +292,7 @@ module.exports = (req, res) => {
     isLoggedIn: false,
   };
   conn.res.setHeader('Content-Type', 'text/html');
-
+  let requester = {};
   const parsedCookies = parseCookies(req.headers.cookie);
 
 
@@ -278,39 +301,45 @@ module.exports = (req, res) => {
   const idToken = getIdToken(parsedCookies);
   let html;
 
-  /** Download page has no logic related to auth */
-  if (slug === 'download') {
-    html = handleDownloadPage(locals);
-
-    return conn.res.send(html);
-  }
-
   return getLoggedInStatus(idToken)
     .then((result) => {
       const {
         uid,
+        email,
+        photoUrl,
         disabled,
+        isLoggedIn,
         phoneNumber,
         displayName,
+        emailVerified,
       } = result;
 
       console.log('result', result);
 
       locals.isLoggedIn = uid !== null;
 
-      conn.requester = {
-        uid,
-        phoneNumber,
-        displayName,
-        disabled,
-      };
+      if (isLoggedIn) {
+        requester = {
+          uid,
+          email,
+          photoUrl,
+          disabled,
+          phoneNumber,
+          displayName,
+          emailVerified,
+        };
+      }
 
       if (slug === '/' || slug === '') {
-        html = handleHomePage(locals);
+        html = handleHomePage(locals, requester);
       }
 
       if (slug === 'join') {
-        html = handleJoinPage(locals);
+        html = handleJoinPage(locals, requester);
+      }
+
+      if (slug === 'download') {
+        html = handleDownloadPage(locals, requester);
       }
 
       if (html) {
@@ -337,7 +366,7 @@ module.exports = (req, res) => {
 
       locals.officeDoc = snapShot.docs[0];
 
-      return fetchOfficeData(conn, locals);
+      return fetchOfficeData(conn, locals, requester);
     })
     .then((officeHtml) => {
       if (html) {

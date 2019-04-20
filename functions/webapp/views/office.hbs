@@ -9,7 +9,7 @@
 <body data-slug="\{{officeName}}">
     \{{> persistentBarPartial}}
     \{{> headerPartial}}
-    \{{#if displayVideo}}
+    \{{#if videoId}}
     <div class="youtube">
         <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/\{{videoId}}?enablejsapi=1"
             allow="fullscreen">
@@ -19,37 +19,18 @@
 
     <div class="container">
         <section>
-            <h1>\{{pageTitle}}</h1>
+            <div class="office-name-container">
+                <span>
+                    <img height="40" width="40" src="https://source.unsplash.com/96x96/?nature,water" alt="">
+                </span>
+                <h1>\{{pageTitle}}</h1>
+            </div>
             <p>\{{aboutOffice}}</p>
             <span class="company-size-span">
                 <i class="fas fa-users"></i>
                 \{{officeEmployeeSize}}
             </span>
         </section>
-
-        \{{#if displayBranch}}
-        <section class="branch-section">
-            <h2>Branch Offices</h2>
-
-            <div class="branches-box">
-                <div class="maps-container">
-                    <a class="button" id="load-map-button" href="#">Load Map</a>
-                    <div id="map"></div>
-                </div>
-
-                <div class="branch-list-container">
-                    \{{#each branchObjectsArray}}
-                    <ul>
-                        <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}} class="list-item">
-                            <span class="list-item-name">\{{this.name}}</span>
-                            <span class="list-item-address">\{{this.address}}</span>
-                        </li>
-                    </ul>
-                    \{{/each}}
-                </div>
-            </div>
-        </section>
-        \{{/if}}
 
         \{{#if displayProducts}}
         <section class="product-section">
@@ -100,7 +81,7 @@
                 </p>
                 <p>
                     {{!-- enquiry text --}}
-                    <label for="enquiry-text">Enquiry Text</label>
+                    <label for="enquiry-text">Your Enquiry</label>
                     <textarea name="enquiry-text" id="enquiry-text" cols="30" rows="10"></textarea>
                 </p>
                 \{{#if displayProducts}}
@@ -121,6 +102,30 @@
                 </a>
             </form>
         </section>
+
+        \{{#if displayBranch}}
+        <section class="branch-section">
+            <h2>Branch Offices</h2>
+
+            <div class="branches-box">
+                <div class="maps-container">
+                    <a class="button" id="load-map-button" href="#">Load Map</a>
+                    <div id="map"></div>
+                </div>
+
+                <div class="branch-list-container">
+                    \{{#each branchObjectsArray}}
+                    <ul>
+                        <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}} class="list-item">
+                            <span class="list-item-name">\{{this.name}}</span>
+                            <span class="list-item-address">\{{this.address}}</span>
+                        </li>
+                    </ul>
+                    \{{/each}}
+                </div>
+            </div>
+        </section>
+        \{{/if}}
     </div>
 
     \{{> footerPartial}}

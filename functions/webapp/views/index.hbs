@@ -9,7 +9,6 @@
 <body>
     \{{> persistentBarPartial this}}
     \{{> headerPartial this}}
-
     <div class="container">
         \{{#if isLoggedIn}}
         <section class="action-icons-container">
@@ -18,22 +17,21 @@
                     <i class="fas fa-user-plus action-icon"></i>
                     <p class="icon-text">Add Employees</p>
                 </li>
-                <li id="trigger-report">
+                <li id="trigger-reports">
                     <i class="far fa-file-excel action-icon"></i>
                     <p class="icon-text">Trigger Reports</p>
                 </li>
                 <li id="change-phone-number">
                     <i class="fas fa-phone-volume action-icon"></i>
-                    <p class="icon-text">Change Phone Number</p>
+                    <p class="icon-text">Update Phone Number</p>
                 </li>
                 <li id="employee-resign">
                     <i class="fas fa-user-minus action-icon"></i>
-                    <p class="icon-text">Employee Resign</p>
+                    <p class="icon-text">Employee Exit</p>
                 </li>
-
                 <li id="update-recipient">
                     <i class="fas fa-envelope-open-text action-icon"></i>
-                    <p class="icon-text">Update Recipients</p>
+                    <p class="icon-text">Update Report Mail Ids</p>
                 </li>
                 <li id="update-subscription">
                     <i class="far fa-file-archive action-icon"></i>
@@ -41,20 +39,17 @@
                 </li>
                 <li id="update-activity">
                     <i class="fas fa-font action-icon"></i>
-                    <p class="icon-text">Update Activity</p>
+                    <p class="icon-text">Search & Update</p>
                 </li>
             </ul>
         </section>
         <section id="action-section">
-            <h2 id="default-text">Click an action to proceed</h2>
+            <p id="default-text">Click an action to proceed</p>
         </section>
         \{{else}}
-
         <section class="section2">
             <h2>A network for <span>smart</span> business owners</h2>
-            <h3>Turn Small Biz into Smart biz</h3>
         </section>
-
         <div class="call-to-action">
             <ul>
                 <li>
@@ -75,6 +70,7 @@
                 </li>
             </ul>
         </div>
+        <section>Turn Small Biz into Smart biz</section>
         \{{/if}}
     </div>
     \{{> footerPartial}}

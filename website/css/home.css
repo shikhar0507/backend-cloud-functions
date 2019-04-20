@@ -1,19 +1,23 @@
 section {
     min-height: unset;
-}
-
-.section2 {
-    margin-top: 16px;
-}
-
-section h2,
-section h3 {
-    margin-top: 16px;
     color: #89273E;
 }
 
+/* .section2 {
+    margin-top: 16px;
+} */
+
+#default-text {
+    color: #949494;
+}
+
+.container {
+    margin-top: 16px;
+}
+
 section h2 {
-    font-size: 34px;
+    margin-top: 16px;
+    font-size: 18px;
 }
 
 section h3 {
@@ -42,7 +46,7 @@ section h2 span {
 }
 
 .action-icons-container {
-    min-height: unset;
+    /* min-height: unset; */
 }
 
 .action-icons-container ul {
@@ -50,6 +54,9 @@ section h2 span {
     min-height: unset;
     overflow-x: auto;
     overflow-y: hidden;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    color: #89273E;
 }
 
 .action-icons-container ul li {
@@ -57,20 +64,16 @@ section h2 span {
     display: flex;
     flex-direction: column;
     align-items: center;
-    /* box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-    border: 1px solid rgba(0, 0, 0, .09); */
-    width: 80px;
-    margin-right: 16px;
+    width: 90px;
+    margin-bottom: 16px;
     padding: 10px 20px;
+    font-size: 30px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+    border: 1px solid rgba(0, 0, 0, .09);
 }
 
 .action-icons-container ul li>* {
     pointer-events: none;
-}
-
-.action-icons-container ul li:hover {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-    border: 1px solid rgba(0, 0, 0, .09);
 }
 
 .icon-text {

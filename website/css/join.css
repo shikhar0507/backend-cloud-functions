@@ -1,5 +1,6 @@
 .container section {
     margin-top: 25px;
+    min-height: unset;
 }
 
 form p {

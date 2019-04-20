@@ -19,9 +19,20 @@ section {
     min-height: unset;
 }
 
+.office-name-container {
+    display: flex;
+}
+
+.office-name-container span,
+.office-name-container img {
+    border-radius: 50%;
+    margin-right: 4px;
+}
+
 .container section h1 {
-    font-size: 1.8em;
+    font-size: 24px;
     font-weight: 600;
+    line-height: 36px;
     margin-bottom: 16px;
 }
 
@@ -36,7 +47,7 @@ section {
 .product-section h2,
 .enquiry-section h2 {
     color: #89273E;
-    font-size: 2em;
+    font-size: 24px;
     margin-bottom: 30px;
 }
 
@@ -123,6 +134,7 @@ form p select {
 }
 
 .product-box {
+    cursor: pointer;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
     border: 1px solid rgba(0, 0, 0, .09);
     margin-bottom: 16px;
@@ -156,7 +168,9 @@ form p select {
 }
 
 .product-details-container {
-    display: block;
+    /* display: block; */
+    /* Visibele after click */
+    display: none;
     margin-top: 16px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
     border: 1px solid rgba(0, 0, 0, .09);
@@ -225,12 +239,12 @@ form p select {
         flex-wrap: wrap;
         max-height: unset;
         overflow-y: unset;
-        justify-content: center;
+        justify-content: flex-start;
     }
 
     .product-box {
         margin-right: 16px;
-        height: 200px;
+        /* height: 200px; */
         width: 200px;
     }
 
@@ -272,7 +286,7 @@ form p select {
         flex-wrap: wrap;
         max-height: unset;
         overflow-y: unset;
-        justify-content: center;
+        /* justify-content: center; */
     }
 
     .product-box {

@@ -66,28 +66,42 @@ function validateForm() {
 
   if (!isNonEmptyString(userName[0].value)) {
     valid = false;
-    const node = getWarningNode('Your Name');
+    const node = getWarningNode('Your Name is required');
 
     insertAfterNode(userName[0], node);
   }
 
   if (!isNonEmptyString(email[0].value)) {
     valid = false;
-    const node = getWarningNode('Your Email');
+    const node = getWarningNode('Your Email is required');
+
+    insertAfterNode(email[0], node);
+  }
+
+  if (!/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email[0].value)) {
+    valid = false;
+    const node = getWarningNode('Doesn\'t look like a valid email.');
 
     insertAfterNode(email[0], node);
   }
 
   if (!isNonEmptyString(phoneNumber[0].value)) {
     valid = false;
-    const node = getWarningNode('You Contact');
+    const node = getWarningNode('You Contact is required');
+
+    insertAfterNode(phoneNumber[0], node);
+  }
+
+  if (!/^\+[1-9]\d{5,14}$/.test(phoneNumber[0].value)) {
+    valid = false;
+    const node = getWarningNode('Doesn\'t look like a valid phone number');
 
     insertAfterNode(phoneNumber[0], node);
   }
 
   if (!isNonEmptyString(enquiryText[0].value)) {
     valid = false;
-    const node = getWarningNode('The Enquiry Text');
+    const node = getWarningNode('The Enquiry Text is required');
 
     insertAfterNode(enquiryText[0], node);
   }
@@ -104,9 +118,7 @@ function validateForm() {
   }
 }
 
-function startEnquiryCreationFlow(event) {
-  event.preventDefault();
-
+function startEnquiryCreationFlow() {
   const oldWarningLabels = document.querySelectorAll('p .warning-label');
 
   Array
@@ -135,9 +147,7 @@ function startEnquiryCreationFlow(event) {
   document.forms[0].innerText = '';
   document.forms[0].style.display = 'flex';
   document.forms[0].style.justifyContent = 'center';
-
   spinner.id = 'enquiry-fetch-spinner';
-
   document.forms[0].appendChild(spinner);
 
   const requestBody = {
@@ -170,11 +180,7 @@ function startEnquiryCreationFlow(event) {
   }
 
   const idToken = getParsedCookies().__session;
-
-  // const requestUrl = 'https://api2.growthfile.com/api/activities/create';
-  const requestUrl = 'https://us-central1-growthfilev2-0.cloudfunctions.net/api/activities/create';
-
-  console.log('sending fetch request', requestBody);
+  const requestUrl = 'https://api2.growthfile.com/api/activities/create';
 
   return fetch(requestUrl, {
     mode: 'cors',
@@ -198,9 +204,9 @@ function startEnquiryCreationFlow(event) {
 
       if (!response.success) {
         spanText = response.message;
-        span.classList.add('success-label');
-      } else {
         span.classList.add('warning-label');
+      } else {
+        span.classList.add('success-label');
       }
 
       span.innerHTML = spanText;

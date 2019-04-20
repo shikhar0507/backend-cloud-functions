@@ -18,7 +18,34 @@ function addEmployees() {
 }
 
 function triggerReport() {
+  const reportNames = [
+    'Payroll',
+    'Footprints',
+    'Duty Roster',
+    'Expense Claim',
+    'Leave',
+    'DSR',
+  ];
+  const form = document.createElement('form');
+  const select = document.createElement('select');
+  select.setAttribute('name', 'template-select');
 
+  reportNames.forEach((name) => {
+    const option = document.createElement('option');
+    option.innerHTML = name;
+    option.setAttribute('value', name.toLowerCase());
+
+    select.appendChild(option);
+  });
+
+  const button = document.createElement('button');
+  button.innerHTML = 'Send';
+  button.classList.add('button');
+
+  form.appendChild(select);
+  form.appendChild(button);
+
+  section.appendChild(form);
 }
 
 function changePhoneNumber() {
@@ -44,6 +71,8 @@ function updateActivity() {
 function handleActionIconClick(event) {
   // document.getElementById('default-text').style.display = 'none';
   section.innerHTML = '';
+
+  console.log('clicked', event.target.id);
 
   if (event.target.id === 'add-employees') {
     return void addEmployees();

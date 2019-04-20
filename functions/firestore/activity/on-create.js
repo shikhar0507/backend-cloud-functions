@@ -1146,6 +1146,16 @@ const createLocals = (conn, result) => {
     locals.officeDoc = officeQueryResult.docs[0];
   }
 
+  if (conn.req.body.template === 'enquiry') {
+    if (locals.officeDoc.get('attachment.First Contact.value')) {
+      conn.req.body.share.push(locals.officeDoc.get('attachment.First Contact.value'));
+    }
+
+    if (locals.officeDoc.get('attachment.Second Contact.value')) {
+      conn.req.body.share.push(locals.officeDoc.get('attachment.Second Contact.value'));
+    }
+  }
+
   conn.req.body.share.forEach((phoneNumber) => {
     locals.objects.allPhoneNumbers.add(phoneNumber);
   });

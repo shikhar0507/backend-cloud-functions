@@ -40,6 +40,27 @@ function insertAfterNode(currentNode, nodeToInsert) {
   currentNode.parentNode.insertBefore(nodeToInsert, currentNode.nextSibling);
 }
 
+function logoutUser(event) {
+  event.preventDefault();
+
+
+  /** User isn't logged in */
+  if (!firebase.auth().currentUser) return;
+
+  console.log('logging out user...');
+
+  document.cookie = `__session=`;
+
+  return firebase
+    .auth()
+    .signOut()
+    .then(function () {
+      window.location.reload();
+
+      return;
+    }).catch(console.error);
+};
+
 function getModalElement(htmlContent, width) {
   const modal = picoModal({
     width,
@@ -52,12 +73,12 @@ function getModalElement(htmlContent, width) {
   return modal;
 }
 
-function getWarningNode(fieldName) {
+function getWarningNode(textContent) {
   valid = false;
 
   const warningNode = document.createElement('span');
   warningNode.classList.add('warning-label');
-  warningNode.textContent = `${fieldName} is required`;
+  warningNode.textContent = textContent;
 
   return warningNode;
 }
@@ -158,18 +179,6 @@ function getSpinnerElement() {
   return elem;
 }
 
-firebase
-  .auth()
-  .onAuthStateChanged(function (user) {
-    if (!user) {
-      console.log('Not logged in');
-
-      return;
-    }
-
-    console.log('Logged in', user);
-  });
-
 function showLoginBox(width, modalId) {
   const modal = getModalElement(
     '<div id="firebaseui-auth-container"></div>',
@@ -216,7 +225,7 @@ document.addEventListener('click', (event) => {
 
   const loginActionElements = [
     document.getElementById('add-employees'),
-    document.getElementById('trigger-report'),
+    document.getElementById('trigger-reports'),
     document.getElementById('change-phone-number'),
     document.getElementById('employee-resign'),
     document.getElementById('update-recipient'),
@@ -226,6 +235,10 @@ document.addEventListener('click', (event) => {
 
   if (loginActionElements.includes(event.target)) {
     return void handleActionIconClick(event);
+  }
+
+  if (event.target === document.getElementById('menu-logout-link')) {
+    return void logoutUser(event);
   }
 });
 
@@ -238,5 +251,11 @@ document.addEventListener('DOMContentLoaded', function () {
       document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`
 
       console.log('new cookie set', idToken);
+
+      const hadSessionCookie = document.cookie.indexOf('__session=') !== -1;
+
+      if ((hadSessionCookie && idToken) || hadSessionCookie && !idToken) {
+        // window.location.reload();
+      }
     });
 });
