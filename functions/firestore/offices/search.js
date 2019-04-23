@@ -38,20 +38,9 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!conn.req.query.hasOwnProperty('query')
-    || !isNonEmptyString(conn.req.query.query)) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `Missing or invalid query parameter in the request URL.`
-    );
-
-    return;
-  }
-
   rootCollections
     .offices
-    .where('namePermutations', 'array-contains', conn.req.query.query)
+    .where('namePermutations', 'array-contains', conn.req.query.office)
     .get()
     .then((docs) => docs.docs.map((doc) => doc.get('attachment.Name.value')))
     .then((namesArray) => sendJSON(conn, namesArray))

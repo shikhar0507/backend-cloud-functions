@@ -2,6 +2,12 @@ let startPosition;
 
 firebase.initializeApp(firebaseInitOptions);
 
+function isValidPhoneNumber(phoneNumber = '') {
+  const pattern = /^\+[0-9\s\-\(\)]+$/;
+
+  return phoneNumber.search(pattern) !== -1;
+}
+
 function signInFailure(error) {
   console.log('signin failed', error);
 }
@@ -169,6 +175,11 @@ function askLocationPermission(event, callback) {
   navigator.geolocation.getCurrentPosition(geoSuccess, geoError);
 };
 
+function isValidEmail(emailString) {
+  return reg = /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/
+    .test(emailString);
+}
+
 function getSpinnerElement() {
   const elem = document.createElement('div');
   elem.className = 'spinner';
@@ -179,18 +190,55 @@ function getSpinnerElement() {
   return elem;
 }
 
-function showLoginBox(width, modalId) {
-  const modal = getModalElement(
-    '<div id="firebaseui-auth-container"></div>',
-    width,
-    modalId,
-  );
+// function showLoginBox(width, modalId) {
+//   const modal = getModalElement(
+//     '<div id="firebaseui-auth-container"></div>',
+//     width,
+//     modalId,
+//   );
 
-  modal.show();
-  ui.start('#firebaseui-auth-container', uiConfig);
+//   modal.show();
+//   ui.start('#firebaseui-auth-container', uiConfig);
 
-  return modal;
-};
+//   return modal;
+// };
+
+function sendApiRequest(apiUrl, requestBody, method) {
+  // const init = {
+  //   // body: JSON.stringify(requestBody),
+  //   headers: {
+  //     'Content-Type': 'application/json',
+  //     Authorization: `Bearer ${getParsedCookies().__session}`,
+  //   },
+  //   method,
+  // };
+
+  // if (requestBody) {
+  //   init.body = JSON.stringify(requestBody);
+  // }
+  // return fetch(init, apiUrl)
+  //   .then(function (result) {
+  //     return result.json();
+  //   })
+  //   .catch(console.error);
+  const init = {
+    method,
+    mode: 'cors',
+    cache: 'no-cache',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getParsedCookies().__session}`,
+    },
+  };
+
+  if (requestBody) {
+    init.body = JSON.stringify(requestBody);
+  }
+
+  return fetch(apiUrl, init)
+    .then(function (result) { return result })
+    .catch(console.error);
+}
 
 
 document.addEventListener('click', (event) => {
@@ -198,11 +246,11 @@ document.addEventListener('click', (event) => {
     return void startOfficeCreationFlow(event)
   }
 
-  if (event.target === document.getElementById('header-login-button')) {
-    event.preventDefault();
+  // if (event.target === document.getElementById('header-login-button')) {
+  //   event.preventDefault();
 
-    return void showLoginBox('90%');
-  }
+  //   return void showLoginBox('90%');
+  // }
 
   if (event.target === document.getElementById('header-profile-icon')) {
     // return void handleLogin(event);
@@ -231,6 +279,8 @@ document.addEventListener('click', (event) => {
     document.getElementById('update-recipient'),
     document.getElementById('update-subscription'),
     document.getElementById('update-activity'),
+    document.getElementById('view-enquiries'),
+    document.getElementById('manage-templates'),
   ];
 
   if (loginActionElements.includes(event.target)) {
@@ -242,20 +292,24 @@ document.addEventListener('click', (event) => {
   }
 });
 
-document.addEventListener('DOMContentLoaded', function () {
-  firebase
-    .auth()
-    .addAuthTokenListener(function (idToken) {
-      if (!idToken) return;
+firebase
+  .auth()
+  .onAuthStateChanged(function (user) {
+    if (user) return;
 
-      document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`
+    document.cookie = `__session=`;
+    console.log('removed session cookie');
+  });
 
-      console.log('new cookie set', idToken);
+document
+  .addEventListener('DOMContentLoaded', function () {
+    firebase
+      .auth()
+      .addAuthTokenListener(function (idToken) {
+        if (!idToken) return;
 
-      const hadSessionCookie = document.cookie.indexOf('__session=') !== -1;
+        document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`
 
-      if ((hadSessionCookie && idToken) || hadSessionCookie && !idToken) {
-        // window.location.reload();
-      }
-    });
-});
+        console.log('new cookie set', idToken);
+      });
+  });

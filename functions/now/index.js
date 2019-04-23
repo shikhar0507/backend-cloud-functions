@@ -88,8 +88,9 @@ module.exports = (conn) => {
         }
 
         const os = conn.req.query.os;
-        const appVersion = conn.req.query.appVersion;
-        const latestVersion = (() => {
+        /** Version sent by the client */
+        const usersAppVersion = Number(conn.req.query.appVersion);
+        const latestVersionFromDb = (() => {
           if (os === 'ios') return iosLatestVersion;
 
           // Default is `android`
@@ -99,8 +100,8 @@ module.exports = (conn) => {
         // Temporary until iOS app gets updated.
         if (os === 'ios') return false;
 
-        // return latestVersion >= appVersion;
-        return false;
+        // Ask to update if the client's version is behind the latest version
+        return Number(usersAppVersion) < Number(latestVersionFromDb);
       })();
 
       const batch = db.batch();

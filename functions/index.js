@@ -99,11 +99,15 @@ const webapp = functions
   .https
   .onRequest(require('./webapp'));
 
+const getUser = functions
+  .https
+  .onRequest(require('./get-user'));
 
 module.exports = {
   api,
   timer,
   webapp,
+  getUser,
   authOnCreate,
   authOnDelete,
   profileOnWrite,

@@ -29,9 +29,7 @@ body {
 }
 
 body {
-    /* font-family: 'Source Sans Pro', sans-serif; */
-    font-family: Roboto, sans-serif;
-    /* color: #182233; */
+    font-family: 'Open Sans', sans-serif;
     color: #89273E;
 }
 
@@ -67,6 +65,12 @@ section {
     margin-bottom: 25px;
     flex-direction: column;
     padding: 20px 30px;
+}
+
+.input-field {
+    border: 1px solid rgba(147, 128, 108, .25);
+    padding: 10px;
+    font-size: 100%;
 }
 
 .persistent-bar {
@@ -108,7 +112,7 @@ section {
     font-size: 21px;
     line-height: 38px;
     margin-left: 9px;
-    color: #262626;
+    color: #89273E;
 }
 
 .logo-container span {
@@ -118,6 +122,8 @@ section {
 .container {
     margin: 0 auto;
     max-width: 90%;
+    min-height: 100%;
+    margin-top: 16px;
 }
 
 .hidden {
@@ -126,8 +132,6 @@ section {
 
 .button {
     border-radius: 4px;
-    /* background: #1ba94c; */
-    /* box-shadow: 0 4px 12px rgba(27, 169, 76, 0.5); */
     background: #89273E;
     box-shadow: 0 4px 12px rgb(137, 39, 62, 0.5);
     max-width: 100%;
@@ -224,6 +228,7 @@ input[readonly] {
 }
 
 .dropdown-content {
+    animation-duration: 300ms;
     display: none;
     position: absolute;
     z-index: 1;
@@ -243,20 +248,6 @@ input[readonly] {
     padding: 15px;
 }
 
-/* .dropdown-content p {
-    font-size: 12px;
-    padding: 10px 10px;
-    display: block;
-    color: #89273E;
-    text-decoration: none;
-    margin-bottom: 16px;
-} */
-
-/* .menu-label {
-    color: black;
-    text-transform: uppercase;
-} */
-
 .menu-user-details {
     display: flex;
     min-width: 320px;
@@ -274,10 +265,6 @@ input[readonly] {
 .dropdown-content:hover {
     display: block;
 }
-
-/* .dropdown-content p:hover {
-    background: #ddd;
-} */
 
 /* https://stackoverflow.com/a/5210074/2758318 */
 #header-profile-icon:hover+.dropdown-content {

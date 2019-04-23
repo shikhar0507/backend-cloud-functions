@@ -242,6 +242,24 @@ const handleHomePage = (locals, requester) => {
   return html;
 };
 
+const handleAuthPage = (locals, requester) => {
+  const source = require('./views/auth.hbs')();
+  const template = handlebars.compile(source, { strict: true });
+  const html = template({
+    pageTitle: 'Login to Growthfile',
+    pageDescription: '',
+    isLoggedIn: locals.isLoggedIn,
+    showPersistentBar: false,
+    pageIndexable: false,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
+  });
+
+  return html;
+};
+
 const handleDownloadPage = (locals, requester) => {
   const source = require('./views/download.hbs')();
   const template = handlebars.compile(source, { strict: true });
@@ -340,6 +358,14 @@ module.exports = (req, res) => {
 
       if (slug === 'download') {
         html = handleDownloadPage(locals, requester);
+      }
+
+      if (slug === 'auth' && !locals.isLoggedIn) {
+        html = handleAuthPage(locals, requester);
+      }
+
+      if (slug === 'auth' && locals.isLoggedIn) {
+        return res.status(code.temporaryRedirect).redirect('/');
       }
 
       if (html) {

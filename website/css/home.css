@@ -72,6 +72,11 @@ section h2 span {
     border: 1px solid rgba(0, 0, 0, .09);
 }
 
+.action-icons-container ul li:hover {
+    color: #F7C86C;
+}
+
+
 .action-icons-container ul li>* {
     pointer-events: none;
 }
@@ -84,6 +89,12 @@ section h2 span {
     font-size: 11px;
     width: 100%;
     margin-top: 16px;
+}
+
+#action-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 /* Source: https://blog.benestudio.co/custom-file-upload-button-with-pure-css-5aacf39aa0a */
@@ -99,4 +110,45 @@ section h2 span {
     left: 0;
     top: 0;
     opacity: 0;
+}
+
+.table-container {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.table-container h2 {
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+table {
+    border: 1px solid #ddd;
+}
+
+table th,
+table td {
+    border: none;
+    text-align: left;
+    padding: 8px;
+}
+
+th {
+    text-align: left;
+}
+
+table tr {
+    border: 1px solid black;
+}
+
+tr:nth-child(even) {
+    background-color: #f2f2f2
+}
+
+table th {
+    padding: 10px;
+}
+
+tbody tr:first-child {
+    font-weight: 600;
 }

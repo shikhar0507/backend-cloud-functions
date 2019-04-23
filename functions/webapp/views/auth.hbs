@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    \{{> headPartial this}}
+    <link rel="stylesheet" href="css/auth.css">
+</head>
+
+<body>
+    \{{> persistentBarPartial this}}
+    \{{> headerPartial this}}
+
+    <div class="container">
+        <section>
+            <form>
+                <span id="message" class="hidden pulse"></span>
+                <fieldset>
+                    <label for="auth-phone-number">Phone Number</label>
+                    <input class="input-field" type="text" name="auth-phone-number" placeholder="+910123456789">
+                </fieldset>
+                <fieldset class="hidden animated fadeIn">
+                    <label for="">Name</label>
+                    <input class="input-field" type="text" name="auth-name">
+                    <label for="auth-email">Email</label>
+                    <input class="input-field" type="email" name="auth-email">
+                </fieldset>
+                <fieldset class="hidden animated fadeIn" id="otp-container">
+                    <label for="otp">Enter OTP here</label>
+                    <input type="number" class="input-field" name="otp">
+                </fieldset>
+
+                <button class="button" id="auth-phone-number-submit">submit</button>
+            </form>
+        </section>
+    </div>
+
+    \{{> footerPartial}}
+    <script defer src="js/auth.js"></script>
+</body>
+
+</html>

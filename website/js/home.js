@@ -1,100 +1,368 @@
 console.log('home loaded');
+
 const section = document.getElementById('action-section');
 
-function addEmployees() {
-  const fileUploadWrapper = document.createElement('div');
-  const uploadButton = document.createElement('button');
-  const input = document.createElement('input');
+function getTableHeadWithValue(value) {
+  const th = document.createElement('th');
+  th.innertText = value;
 
-  uploadButton.classList.add('button');
-  uploadButton.innerText = 'Select a file';
-  fileUploadWrapper.id = 'file-upload-wrapper';
-  input.setAttribute('type', 'file');
-
-  fileUploadWrapper.appendChild(uploadButton);
-  fileUploadWrapper.appendChild(input);
-  section.style.alignItems = 'center';
-  section.appendChild(fileUploadWrapper);
+  return th;
 }
 
-function triggerReport() {
-  const reportNames = [
-    'Payroll',
-    'Footprints',
-    'Duty Roster',
-    'Expense Claim',
-    'Leave',
-    'DSR',
-  ];
-  const form = document.createElement('form');
-  const select = document.createElement('select');
-  select.setAttribute('name', 'template-select');
+function generateBulkCreationResultTable(responseObject = []) {
+  const table = document.createElement('table');
+  const tbody = document.createElement('tbody');
+  const firstRow = document.createElement('tr');
 
-  reportNames.forEach((name) => {
-    const option = document.createElement('option');
-    option.innerHTML = name;
-    option.setAttribute('value', name.toLowerCase());
+  firstRow.appendChild(getTableHeadWithValue('Name'));
+  firstRow.appendChild(getTableHeadWithValue('Employee Contact'));
+  firstRow.appendChild(getTableHeadWithValue('Employee Code'));
+  firstRow.appendChild(getTableHeadWithValue('Designation'));
+  firstRow.appendChild(getTableHeadWithValue('Department'));
+  firstRow.appendChild(getTableHeadWithValue('Base Location'));
+  firstRow.appendChild(getTableHeadWithValue('First Supervisor'));
+  firstRow.appendChild(getTableHeadWithValue('Second Supervisor'));
+  firstRow.appendChild(getTableHeadWithValue('Third Supervisor'));
+  firstRow.appendChild(getTableHeadWithValue('Daily Start Time'));
+  firstRow.appendChild(getTableHeadWithValue('Weekly Off'));
+  firstRow.appendChild(getTableHeadWithValue('Result'));
 
-    select.appendChild(option);
+  firstRow.appendChild(resultColumn);
+  tbody.appendChild(firstRow);
+
+  responseObject.forEach((result) => {
+    const secondaryRow = document.createElement('tr');
+    const name = result.Name;
+    const employeeContact = result['Employee Contact'];
+    const employeeCode = result['Employee Code'];
+    const designation = result.Designation;
+    const department = result['Department'];
+    const baseLocation = result['Base Location'];
+    const firstSupervisor = result['First Supervisor'];
+    const secondSupervisor = result['Second Supervisor'];
+    const thirdSupervisor = result['Third Supervisor'];
+    const dailyStartTime = result['Daily Start Time'];
+    const dailyEndTime = result['Daily End Time'];
+    const weeklyOff = result['Weekly Off'];
+    const rejected = result.rejected;
+
+    secondaryRow.appendChild((getTableHeadWithValue(name)));
+    secondaryRow.appendChild(getTableHeadWithValue(employeeContact));
+    secondaryRow.appendChild(getTableHeadWithValue(employeeCode));
+    secondaryRow.appendChild(getTableHeadWithValue(designation));
+    secondaryRow.appendChild(getTableHeadWithValue(department));
+    secondaryRow.appendChild(getTableHeadWithValue(baseLocation));
+    secondaryRow.appendChild(getTableHeadWithValue(firstSupervisor));
+    secondaryRow.appendChild(getTableHeadWithValue(secondSupervisor));
+    secondaryRow.appendChild(getTableHeadWithValue(thirdSupervisor));
+    secondaryRow.appendChild(getTableHeadWithValue(dailyStartTime));
+    secondaryRow.appendChild(getTableHeadWithValue(dailyEndTime));
+    secondaryRow.appendChild(getTableHeadWithValue(weeklyOff));
+    secondaryRow.appendChild(getTableHeadWithValue(result));
+
+    tbody.appendChild(secondaryRow);
   });
 
+  console.log('tbody', tbody);
+
+  table.appendChild(tbody);
+
+  return table;
+}
+
+function createEmployeesAsSupport(event) {
+  /**
+   * Create a file upload button
+   */
+
+  const div = document.createElement('div');
+  div.id = 'file-upload-wrapper';
+  // <button class="button">Select a file</button>
+  // <input type="file"></input>
   const button = document.createElement('button');
-  button.innerHTML = 'Send';
   button.classList.add('button');
+  button.innerText = 'Submit';
+  const input = document.createElement('input');
+  input.type = 'file';
 
-  form.appendChild(select);
-  form.appendChild(button);
+  div.appendChild(button);
+  div.appendChild(input)
 
-  section.appendChild(form);
+  section.appendChild(div);
+
+
+};
+
+function addEmployeeWithSupport(options) {
+  const requestUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/api/admin/search?support=true';
+  const searchForm = document.createElement('form');
+  const searchInput = document.createElement('input');
+  const searchLink = document.createElement('a');
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Search an office';
+  searchInput.classList.add('input-field');
+  searchForm.style.direction = 'flex';
+  searchLink.classList.add('button');
+  searchLink.innerText = 'search';
+  searchForm.appendChild(searchInput);
+  searchForm.appendChild(searchLink);
+  section.appendChild(searchForm);
+
+  searchLink.onclick = function () {
+    console.log('button clicked');
+
+    /** Hide all previously warning labels */
+    document
+      .querySelectorAll('.warning-label')
+      .forEach(function (elem) { elem.style.display = 'none' });
+
+    const searchedTerm = searchInput.value;
+
+    if (!isNonEmptyString(searchedTerm)) {
+      const node = document.createElement('p');
+      node.classList.add('warning-label');
+      node.innerText = 'Invalid input';
+
+      return void insertAfterNode(searchForm, node);
+    }
+
+    console.log('searched for:', searchedTerm);
+    console.log('url', `${requestUrl}&office=${searchedTerm}`);
+
+    return sendApiRequest(`${requestUrl}&office=${searchedTerm}`, null, 'GET')
+      .then(function (response) { response.json(); })
+      .then(function (response) {
+        console.log('response', response);
+
+        const select = document.createElement('select');
+        searchForm.style.display = 'none';
+
+        response.forEach((name) => {
+          const option = document.createElement('option');
+          option.value = name;
+          option.innerHTML = name;
+
+          select.appendChild(option);
+        });
+
+        if (response.length > 0) {
+          const a = document.createElement('a');
+          a.classList.add('button');
+          a.href = '#';
+          a.textContent = 'submit';
+
+          a.onclick = function (event) {
+            createEmployeesAsSupport(event);
+          }
+
+          section.appendChild(select);
+          section.appendChild(a);
+
+        } else {
+          const p = document.createElement('p');
+          p.innerText = 'No offices found';
+          section.appendChild(p);
+        }
+
+      })
+      .catch(console.error);
+  }
 }
 
-function changePhoneNumber() {
+function addEmployeeWithAdmin() {
 
 }
 
-function employeeResign() {
+function triggerReportWithSupport() {
 
 }
 
-function updateRecipient() {
+function triggerReportWithAdmin() {
 
 }
 
-function updateSubscription() {
+function updatePhoneNumberWithSupport() {
 
 }
 
-function updateActivity() {
+function updatePhoneNumberWithAdmin() {
 
 }
+
+function employeExitWithSupport() {
+
+}
+
+function employeExitWithAdmin() {
+
+}
+
+function updateReportRecipientsWithSupport() {
+
+}
+
+function updateReportRecipientsWithAdmin() {
+
+}
+
+function updateSubscriptionWithAdmin() {
+
+}
+
+function updateSubscriptionWithSupport() {
+
+}
+
+function searchAndUpdateWithAdmin() {
+
+}
+
+function searchAndUpdateWithSupport() {
+
+}
+
+function viewEnquiries() {
+
+}
+
+/** 
+ * Only `support` and `manageTemplates` claim allow messing with the templates.
+ */
+function manageTemplates() {
+
+}
+
+function addEmployees(options) {
+
+}
+
+function triggerReport(options) {
+
+}
+
+function changePhoneNumber(options) {
+
+}
+
+function employeeResign(options) {
+
+}
+
+function updateRecipient(options) {
+
+}
+
+function updateSubscription(options) {
+
+}
+
+function updateActivity(options) {
+
+}
+
+function viewEnquiries(options) {
+
+}
+
+function manageTemplates(options) {
+
+};
 
 function handleActionIconClick(event) {
-  // document.getElementById('default-text').style.display = 'none';
-  section.innerHTML = '';
+  // Delete all elements for a clean slate
+  while (section.firstChild) {
+    section.removeChild(section.firstChild);
+  }
 
   console.log('clicked', event.target.id);
 
-  if (event.target.id === 'add-employees') {
-    return void addEmployees();
-  }
+  const options = {
+    isSupport: false,
+    isAdmin: false,
+    isTemplateManager: false,
+    officeNames: [],
+  };
 
-  if (event.target.id === 'trigger-reports') {
-    return void triggerReport();
-  }
+  return firebase
+    .auth()
+    .currentUser
+    .getIdTokenResult()
+    .then(function (getIdTokenResult) {
+      const claims = getIdTokenResult.claims;
 
-  if (event.target.id === 'change-phone-number') {
-    return void changePhoneNumber();
-  }
+      // if (claims.admin && claims.admin.length > 0) {
+      //   options.isAdmin = true;
 
-  if (event.target.id === 'employee-resign') {
-    return void employeeResign();
-  }
+      //   claims.admin.forEach((officeName) => {
+      //     options.officeNames.push(officeName);
+      //   });
+      // }
 
-  if (event.target.id === 'update-subscription') {
-    return void updateSubscription();
-  }
+      // if (claims.hasOwnProperty('support')) {
+      //   options.isSupport = claims.support
+      // }
 
-  if (event.target.id === 'update-activity') {
-    return void updateActivity();
-  }
+      // if (claims.hasOwnProperty('manageTemplates')) {
+      //   options.isTemplateManager = claims.manageTemplates;
+      // }
+
+      // console.log('options', options);
+
+      if (event.target.id === 'add-employees') {
+        if (options.isAdmin) {
+          return void addEmployeeWithAdmin(options);
+        }
+
+        return void addEmployeeWithSupport(options);
+      }
+
+      if (event.target.id === 'trigger-reports') {
+        if (options.isAdmin) {
+          return void triggerReportWithAdmin(options);
+        }
+
+        return void triggerReportWithSupport();
+      }
+
+      if (event.target.id === 'change-phone-number') {
+        if (options.isAdmin) {
+          return void updatePhoneNumberWithAdmin(options);
+        }
+
+        return updatePhoneNumberWithSupport(options);
+      }
+
+      if (event.target.id === 'employee-resign') {
+        if (options.isAdmin) {
+          return employeExitWithAdmin(options);
+        }
+
+        return employeExitWithSupport(options);
+      }
+
+      if (event.target.id === 'update-subscription') {
+        if (options.isAdmin) {
+          return updateSubscriptionWithAdmin(options);
+        }
+
+        return updateSubscriptionWithSupport(option);
+      }
+
+      if (event.target.id === 'update-activity') {
+        if (options.isAdmin) {
+          return updateSubscriptionWithSupport(options);
+        }
+
+        return updateSubscriptionWithSupport(options);
+      }
+
+      if (event.target.id === 'view-enquiries') {
+        return viewEnquiries(options);
+      }
+
+      if (event.target.id === 'manage-templates') {
+        return void manageTemplates(options);
+      }
+    })
+    .catch(console.error);
 };
