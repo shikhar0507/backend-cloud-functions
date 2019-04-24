@@ -3,10 +3,6 @@ section {
     color: #89273E;
 }
 
-/* .section2 {
-    margin-top: 16px;
-} */
-
 #default-text {
     color: #949494;
 }
@@ -35,6 +31,11 @@ section h2 span {
 .call-to-action ul li {
     display: flex;
     margin-bottom: 16px;
+    flex-direction: column;
+    text-align: center;
+    padding: 10px;
+    min-height: 100px;
+    line-height: 25px;
 }
 
 .call-to-action ul li p {

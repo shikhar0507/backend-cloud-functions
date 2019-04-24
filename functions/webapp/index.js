@@ -83,10 +83,13 @@ const getLoggedInStatus = (idToken) => {
         isLoggedIn: true,
         email: userRecord.email,
         phoneNumber: userRecord.phoneNumber,
-        photoUrl: userRecord.photoUrl,
+        photoURL: userRecord.photoURL,
         emailVerified: userRecord.emailVerified,
         displayName: userRecord.displayName,
         disabled: userRecord.disabled,
+        isSupport: userRecord.customClaims.support,
+        isAdmin: userRecord.customClaims.admin && userRecord.customClaims.admin.length > 0,
+        isTemplateManageer: userRecord.customClaims.manageTemplates,
       };
     })
     .catch(() => {
@@ -94,7 +97,7 @@ const getLoggedInStatus = (idToken) => {
         uid: null,
         isLoggedIn: false,
         phoneNumber: '',
-        photoUrl: '',
+        photoURL: '',
         emailVerified: false,
         displayName: '',
         email: '',
@@ -103,7 +106,7 @@ const getLoggedInStatus = (idToken) => {
     });
 };
 
-const handleOfficePage = (conn, locals, requester) => {
+const handleOfficePage = (locals, requester) => {
   const source = require('./views/office.hbs')();
   const template = handlebars.compile(source, { strict: true });
 
@@ -115,15 +118,18 @@ const handleOfficePage = (conn, locals, requester) => {
     pageDescription += `${parts[1]}`;
   }
 
-  const aboutOffice = (() => {
-    if (description) return description;
+  const logoURL = (() => {
+    if (locals.officeDoc.get('attachment.logoURL.value')) {
+      return locals.officeDoc.get('attachment.logoURL.value');
+    }
 
-    return `Description not present.`;
+    return `img/office-placeholder.jpg`;
   })();
 
   const html = template({
-    aboutOffice,
-    pageDescription,
+    logoURL,
+    aboutOffice: description,
+    pageDescription: pageDescription,
     userEmail: requester.email || '',
     userDisplayName: requester.displayName || '',
     userPhoneNumber: requester.phoneNumber || '',
@@ -146,6 +152,12 @@ const handleOfficePage = (conn, locals, requester) => {
     email: requester.email,
     emailVerified: requester.emailVerified,
     displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    shortDescription: locals.officeDoc.get('attachment.Short Description.value'),
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isTemplateManageer: requester.isTemplateManageer,
+    initOptions: env.webappInitOptions,
   });
 
   return Promise.resolve(html);
@@ -200,7 +212,7 @@ const fetchOfficeData = (conn, locals, requester) => {
 
       locals.officeEmployeeSize = getEmployeesRange(employeesData);
 
-      return handleOfficePage(conn, locals, requester);
+      return handleOfficePage(locals, requester);
     })
     .catch((error) => helpers.errorPage(conn, error));
 };
@@ -219,6 +231,11 @@ const handleJoinPage = (locals, requester) => {
     email: requester.email,
     emailVerified: requester.emailVerified,
     displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isTemplateManageer: requester.isTemplateManageer,
+    initOptions: env.webappInitOptions,
   });
 
   return html;
@@ -237,6 +254,11 @@ const handleHomePage = (locals, requester) => {
     email: requester.email,
     emailVerified: requester.emailVerified,
     displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isTemplateManageer: requester.isTemplateManageer,
+    initOptions: env.webappInitOptions,
   });
 
   return html;
@@ -255,6 +277,11 @@ const handleAuthPage = (locals, requester) => {
     email: requester.email,
     emailVerified: requester.emailVerified,
     displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isTemplateManageer: requester.isTemplateManageer,
+    initOptions: env.webappInitOptions,
   });
 
   return html;
@@ -273,6 +300,11 @@ const handleDownloadPage = (locals, requester) => {
     email: requester.email,
     emailVerified: requester.emailVerified,
     displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isTemplateManageer: requester.isTemplateManageer,
+    initOptions: env.webappInitOptions,
   });
 
   return html;
@@ -288,6 +320,22 @@ const getIdToken = (parsedCookies) => {
   }
 
   return parsedCookies.__session;
+};
+
+const sendEnquiryActivities = (conn, locals, requester) => {
+  const phoneNumber = requester.phoneNumber;
+
+  // return rootCollections
+  //   .profiles
+  //   .doc(phoneNumber)
+  //   .collection('Activities')
+  //   .where('template', '==', 'enquiry')
+  //   .get()
+  //   .then((docs) => {
+
+  //   });
+
+  return '';
 };
 
 module.exports = (req, res) => {
@@ -313,23 +361,35 @@ module.exports = (req, res) => {
   let requester = {};
   const parsedCookies = parseCookies(req.headers.cookie);
 
-
   console.log('slug', slug);
 
   const idToken = getIdToken(parsedCookies);
   let html;
+
+  /** 
+   * Avoids duplicate content issues since there is no native way
+   * currently to set up a redirect in the firebase hosting settings.
+   */
+  if (req.headers['x-forwarded-host'] === env.firebaseDomain) {
+    return res
+      .status(code.permanentRedirect)
+      .redirect(env.mainDomain);
+  }
 
   return getLoggedInStatus(idToken)
     .then((result) => {
       const {
         uid,
         email,
-        photoUrl,
+        isAdmin,
+        photoURL,
         disabled,
+        isSupport,
         isLoggedIn,
         phoneNumber,
         displayName,
         emailVerified,
+        isTemplateManageer,
       } = result;
 
       console.log('result', result);
@@ -340,13 +400,20 @@ module.exports = (req, res) => {
         requester = {
           uid,
           email,
-          photoUrl,
+          photoURL,
           disabled,
           phoneNumber,
           displayName,
           emailVerified,
+          isAdmin,
+          isSupport,
+          isTemplateManageer,
         };
       }
+
+      // if (slug === 'enquiry' && locals.isLoggedIn) {
+      //   return sendEnquiryActivities(conn, locals, requester);
+      // }
 
       if (slug === '/' || slug === '') {
         html = handleHomePage(locals, requester);

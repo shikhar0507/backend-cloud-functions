@@ -30,6 +30,7 @@ const code = {
   created: 201,
   accepted: 202,
   noContent: 204,
+  permanentRedirect: 301,
   temporaryRedirect: 302,
   badRequest: 400,
   unauthorized: 401,

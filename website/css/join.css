@@ -20,7 +20,7 @@ form p span {
 }
 
 form p input {
-    min-width: 100%;
+    min-width: -webkit-fill-available;
     line-height: 40px;
 }
 
@@ -44,13 +44,15 @@ section {
 }
 
 section h2 {
-    font-size: 28px;
+    font-size: 20px;
     font-weight: 600;
+    line-height: 30px;
 }
 
 .main-text {
     font-size: 20px;
     font-weight: 500;
+    line-height: 24px;
 }
 
 
@@ -65,7 +67,7 @@ section h2 {
     }
 }
 
-@media (min-width: 768px) and (max-width: 1024px) {
+@media (min-width: 768px) {
     section {
         min-height: unset;
     }
@@ -76,7 +78,7 @@ section h2 {
     }
 }
 
-@media (min-width: 1025px) and (max-width: 1280px) {
+@media (min-width: 1025px) {
     section {
         min-height: unset;
     }

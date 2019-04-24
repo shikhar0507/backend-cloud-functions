@@ -1,26 +1,17 @@
 let startPosition;
 
-firebase.initializeApp(firebaseInitOptions);
+firebase
+  .initializeApp({
+    apiKey: 'AIzaSyA4s7gp7SFid_by1vLVZDmcKbkEcsStBAo',
+    authDomain: 'growthfile.com',
+    projectId: 'growthfile-207204',
+  });
 
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
 
   return phoneNumber.search(pattern) !== -1;
 }
-
-function signInFailure(error) {
-  console.log('signin failed', error);
-}
-
-function uiShown() {
-  console.log('ui was shown');
-}
-
-function signInSuccessWithAuthResult(authResult, redirectUrl) {
-  console.log('signin success');
-
-  window.location.reload();
-};
 
 function getParsedCookies() {
   const cookieObject = {};
@@ -67,18 +58,6 @@ function logoutUser(event) {
     }).catch(console.error);
 };
 
-function getModalElement(htmlContent, width) {
-  const modal = picoModal({
-    width,
-    content: htmlContent,
-    closeHtml: "<span>Close</span>",
-    closeButton: false,
-  })
-    .afterClose(function (modal) { modal.destroy(); });
-
-  return modal;
-}
-
 function getWarningNode(textContent) {
   valid = false;
 
@@ -89,29 +68,12 @@ function getWarningNode(textContent) {
   return warningNode;
 }
 
-
-const ui = new firebaseui.auth.AuthUI(firebase.auth());
-const uiConfig = {
-  signInOptions: [{
-    provider: firebase.auth.PhoneAuthProvider.PROVIDER_ID,
-    requireDisplayName: true,
-    defaultCountry: 'IN',
-    signInFlow: 'popup',
-    recaptchaParameters: {
-      type: 'image',
-      size: 'invisible',
-      badge: 'bottomleft',
-    },
-  }],
-  tosUrl: 'https://growthfile.com/terms-of-service',
-  privacyPolicyUrl: 'https://growthfile.com/privacy-policy',
-  // https://github.com/firebase/firebaseui-web#example-with-all-parameters-used
-  callbacks: {
-    signInSuccessWithAuthResult,
-    signInFailure,
-    uiShown,
-  },
-};
+function getQueryString(field, url) {
+  const href = url ? url : window.location.href;
+  const reg = new RegExp('[?&]' + field + '=([^&#]*)', 'i');
+  const string = reg.exec(href);
+  return string ? string[1] : null;
+}
 
 function getMobileOperatingSystem() {
   var userAgent = navigator.userAgent || navigator.vendor || window.opera;
@@ -143,8 +105,6 @@ function askLocationPermission(event, callback) {
   function geoSuccess(position) {
     console.log('got the permission');
 
-    // startPos.coords.latitude;
-    // startPos.coords.longitude;
     startPosition = position;
 
     if (typeof callback === 'function') {
@@ -190,37 +150,7 @@ function getSpinnerElement() {
   return elem;
 }
 
-// function showLoginBox(width, modalId) {
-//   const modal = getModalElement(
-//     '<div id="firebaseui-auth-container"></div>',
-//     width,
-//     modalId,
-//   );
-
-//   modal.show();
-//   ui.start('#firebaseui-auth-container', uiConfig);
-
-//   return modal;
-// };
-
 function sendApiRequest(apiUrl, requestBody, method) {
-  // const init = {
-  //   // body: JSON.stringify(requestBody),
-  //   headers: {
-  //     'Content-Type': 'application/json',
-  //     Authorization: `Bearer ${getParsedCookies().__session}`,
-  //   },
-  //   method,
-  // };
-
-  // if (requestBody) {
-  //   init.body = JSON.stringify(requestBody);
-  // }
-  // return fetch(init, apiUrl)
-  //   .then(function (result) {
-  //     return result.json();
-  //   })
-  //   .catch(console.error);
   const init = {
     method,
     mode: 'cors',
@@ -244,16 +174,6 @@ function sendApiRequest(apiUrl, requestBody, method) {
 document.addEventListener('click', (event) => {
   if (event.target === document.getElementById('form-submit-button')) {
     return void startOfficeCreationFlow(event)
-  }
-
-  // if (event.target === document.getElementById('header-login-button')) {
-  //   event.preventDefault();
-
-  //   return void showLoginBox('90%');
-  // }
-
-  if (event.target === document.getElementById('header-profile-icon')) {
-    // return void handleLogin(event);
   }
 
   if (event.target === document.getElementById('load-map-button')) {
@@ -298,7 +218,7 @@ firebase
     if (user) return;
 
     document.cookie = `__session=`;
-    console.log('removed session cookie');
+    console.log('no session cookie');
   });
 
 document

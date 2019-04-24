@@ -55,6 +55,15 @@ header a {
     /* vertical-align: middle; */
 }
 
+.border {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+    border: 1px solid rgba(0, 0, 0, .09);
+}
+
+.pad {
+    padding: 20px 30px;
+}
+
 section {
     min-height: 200px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
@@ -69,7 +78,7 @@ section {
 
 .input-field {
     border: 1px solid rgba(147, 128, 108, .25);
-    padding: 10px;
+    padding: 5px 10px;
     font-size: 100%;
 }
 
@@ -141,7 +150,9 @@ section {
     text-transform: uppercase;
 }
 
-#header-profile-icon {}
+#menu-logout-link {
+    color: #89273E;
+}
 
 .warning-label {
     color: red;
@@ -155,10 +166,6 @@ footer {
     color: #89273E;
     font-size: 12px;
     padding: 20px 30px;
-    /* position: fixed; */
-    /* left: 0; */
-    /* right: 0; */
-    /* bottom: 0px; */
 }
 
 .text-align-right {
@@ -269,4 +276,8 @@ input[readonly] {
 /* https://stackoverflow.com/a/5210074/2758318 */
 #header-profile-icon:hover+.dropdown-content {
     display: block;
+}
+
+input:disabled {
+    cursor: not-allowed;
 }

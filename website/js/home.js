@@ -290,24 +290,6 @@ function handleActionIconClick(event) {
     .then(function (getIdTokenResult) {
       const claims = getIdTokenResult.claims;
 
-      // if (claims.admin && claims.admin.length > 0) {
-      //   options.isAdmin = true;
-
-      //   claims.admin.forEach((officeName) => {
-      //     options.officeNames.push(officeName);
-      //   });
-      // }
-
-      // if (claims.hasOwnProperty('support')) {
-      //   options.isSupport = claims.support
-      // }
-
-      // if (claims.hasOwnProperty('manageTemplates')) {
-      //   options.isTemplateManager = claims.manageTemplates;
-      // }
-
-      // console.log('options', options);
-
       if (event.target.id === 'add-employees') {
         if (options.isAdmin) {
           return void addEmployeeWithAdmin(options);

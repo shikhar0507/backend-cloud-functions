@@ -1,9 +1,11 @@
 .youtube {
+    /* position: relative; */
+    /* padding-bottom: 56.25%; */
+    /* padding-top: 25px; */
+    /* height: 0; */
+    /* margin-bottom: 20px; */
     position: relative;
     padding-bottom: 56.25%;
-    padding-top: 25px;
-    height: 0;
-    margin-bottom: 20px;
 }
 
 
@@ -23,6 +25,11 @@ section {
     display: flex;
 }
 
+.youtube-section {
+    border: 0;
+    padding: 0;
+}
+
 .office-name-container span,
 .office-name-container img {
     border-radius: 50%;
@@ -32,12 +39,12 @@ section {
 .container section h1 {
     font-size: 24px;
     font-weight: 600;
-    line-height: 36px;
+    line-height: 40px;
     margin-bottom: 16px;
 }
 
 .container section p {
-    font-size: 1.1em;
+    font-size: 14px;
     line-height: 20px;
     margin-bottom: 16px;
 }
@@ -85,6 +92,9 @@ section {
 .maps-container {
     font-weight: 600;
     text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 form p {
@@ -105,12 +115,12 @@ form p span {
 }
 
 form p input {
-    min-width: 100%;
+    min-width: -webkit-fill-available;
     line-height: 40px;
 }
 
 form p textarea {
-    min-width: 100%;
+    min-width: -webkit-fill-available;
     resize: vertical;
 }
 
@@ -120,10 +130,11 @@ form p select {
 }
 
 .enquiry-section {
-    text-align: center;
+    /* text-align: center; */
 }
 
 #enquiry-submit-button {
+    text-align: center;
     display: block;
     margin-top: 25px;
 }
@@ -211,12 +222,6 @@ form p select {
         margin-bottom: 16px;
     }
 
-    .youtube,
-    .container {
-        margin: 0 auto;
-        max-width: 80%;
-    }
-
     .branches-box {
         display: flex;
         flex-direction: row-reverse;
@@ -256,12 +261,6 @@ form p select {
 @media (min-width: 1281px) {
     header {
         margin-bottom: 16px;
-    }
-
-    .youtube,
-    .container {
-        margin: 0 auto;
-        max-width: 80%;
     }
 
     .branches-box {

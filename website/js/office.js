@@ -130,9 +130,7 @@ function startEnquiryCreationFlow() {
   if (!result.valid) return;
 
   if (!firebase.auth().currentUser) {
-    const modal = showLoginBox('90%', 'fb-login-box');
-
-    modal.show();
+    window.location.href = `/auth?redirect_to=${window.location.href}`;
 
     return;
   }

@@ -40,7 +40,7 @@ module.exports = (conn) => {
 
   rootCollections
     .offices
-    .where('namePermutations', 'array-contains', conn.req.query.office)
+    .where('namePermutations', 'array-contains', conn.req.query.office || conn.req.query.query)
     .get()
     .then((docs) => docs.docs.map((doc) => doc.get('attachment.Name.value')))
     .then((namesArray) => sendJSON(conn, namesArray))

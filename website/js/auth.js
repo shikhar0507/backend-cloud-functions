@@ -14,135 +14,109 @@ function getPhoneNumber() {
   return document.getElementsByName('auth-phone-number')[0].value;
 }
 
-function startSignInFlow() {
-  const phoneNumber = getPhoneNumber();
-  const appVerifier = window.recaptchaVerifier;
+function showPhoneNumberInput() {
+  document.getElementById('phone-number-container').classList.remove('hidden');
+}
+
+function showOtpInput() {
+  document.getElementById('otp-container').classList.remove('hidden');
+}
+
+function showNameEmailContainer() {
+  document.getElementById('name-email-container').classList.remove('hidden');
+}
+
+const submitButton = document.getElementById('auth-flow-start');
+
+function hideMessage() {
   const messageNode = document.getElementById('message');
 
-  console.log('In signInflow');
+  // already hidden
+  messageNode.classList.add('hidden');
+}
 
-  if (window.showFullLogin && !isNonEmptyString(getName())) {
-    messageNode.innerText = 'Name cannot be left blank';
+function setMessage(message) {
+  const messageNode = document.getElementById('message');
+  messageNode.innerText = message;
+
+  if (messageNode.classList.contains('hidden')) {
     messageNode.classList.remove('hidden');
+  }
+}
 
-    console.log('name cannot be left blank');
+function logInWithOtp() {
+  const code = getOtp();
 
-    return Promise.resolve();
+  if (!window.recaptchaResolved) {
+    setMessage('Please resolve the recaptcha');
+
+    return;
   }
 
-  if (window.showFullLogin && !isNonEmptyString(getEmail())) {
-    messageNode.innerText = 'Email cannot be left blank';
-    messageNode.classList.remove('hidden');
+  if (!isNonEmptyString(code)) {
+    setMessage('Please enter the code');
 
-    console.log('Email cannot be left blank');
-
-    return Promise.resolve();
+    return;
   }
 
-  if (window.showFullLogin && !isValidEmail(getEmail())) {
-    messageNode.innerText = 'Invalid email';
 
-    messageNode.classList.remove('hidden');
+  if (window.showFullLogin) {
+    const displayName = getName();
+    const email = getEmail();
 
-    console.log('invalid email');
+    if (!isNonEmptyString(displayName)) {
+      setMessage('Name cannot be left blank');
 
-    return Promise.resolve();
+      return;
+    }
+
+    if (!isNonEmptyString(email)) {
+      setMessage('Please enter an email');
+
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setMessage('Invalid email');
+
+      return;
+    }
   }
 
-  if (!isNonEmptyString(getOtp())) {
-    messageNode.innerText = 'Invalid code';
-
-    messageNode.classList.remove('hidden');
-
-    console.log('invalid code');
-
-    return Promise.resolve();
-  }
-
-  firebase
-    .auth()
-    .settings
-    .appVerificationDisabledForTesting = true;
-
-  return firebase
-    .auth()
-    .signInWithPhoneNumber(phoneNumber, appVerifier)
-    .then(function (confirmationResult) {
-      console.log('confirmationResult', confirmationResult);
-
-      const code = getOtp();
-
-      if (!code) {
-        const messageNode = document.getElementById('message')
-        messageNode
-          .innerText = 'Invalid code';
-        messageNode
-          .classList
-          .remove('hidden');
-
-        return Promise.resolve();
-      }
-
-      console.log('otp sent');
-
-      return confirmationResult.confirm(code);
-    })
-    .then(function (userRecord) {
-      if (!userRecord) {
-        return Promise.resolve();
-      }
-
-      console.log('signedIn', userRecord);
-
-      // window.location.reload();
-
-      const promises = [];
-      const profileUpdateObject = {};
-      const user = firebase.auth().currentUser;
-      let toUpdateProfile = false;
-
-      if (!user.email) {
-        console.log('setting email', getEmail());
-
-        toUpdateProfile = true;
-        profileUpdateObject.displayName = getName();
-      }
-
-      if (!user.displayName) {
-        console.log('setting name', getName());
-
-        toUpdateProfile = true;
-        profileUpdateObject.email = getEmail();
-      }
-
-      if (toUpdateProfile) {
-        console.log('updating profile', profileUpdateObject);
-
-        promises
-          .push(user.updateProfile(profileUpdateObject));
-      }
-
-      if (!user.emailVerified) {
-        console.log('sending email verification');
-
-        promises
-          .push(user.sendEmailVerification());
-      }
-
-      return Promise.all(promises);
-    })
+  return confirmationResult
+    .confirm(code)
     .then(function (result) {
-      if (!result) {
+      setMessage('Signin successful. Please wait...');
+
+      console.log('Signed in successfully.', result);
+
+      const user = firebase.auth().currentUser;
+
+      if (!window.showFullLogin) {
         return Promise.resolve();
       }
 
-      console.log(result);
+      console.log('Updating profile', {
+        name: getName(),
+        email: getEmail(),
+      });
 
-      const messageNode = document.getElementById('message');
+      return user
+        .updateProfile({
+          displayName: getName(),
+          email: getEmail(),
+        });
+    })
+    .then(function () {
+      const value = getQueryString('redirect_to');
 
-      messageNode.innerText = 'Login success. Please wait.';
-      messageNode.classList.remove('hidden');
+      if (value) {
+        window.location.href = value;
 
+        return;
+      }
+
+      // Redirects logge in user to home page
       window.location.reload();
 
       return Promise.resolve();
@@ -150,60 +124,80 @@ function startSignInFlow() {
     .catch(function (error) {
       console.error(error);
 
-      if (error.code && error.code === 'auth/invalid-verification-code') {
-        const messageNode = document.getElementById('message');
-        messageNode.innerText = 'Invalid verification code';
-        messageNode.classList.remove('hidden');
+      if (error.code === 'auth/invalid-verification-code') {
+        setMessage('Wrong code');
 
         return;
       }
 
-      console.error('AuthError:', error);
-      // return 
+      grecaptcha.reset(window.recaptchaWidgetId);
     });
 }
 
+function sendOtpToPhoneNumber() {
+  const phoneNumber = getPhoneNumber();
+  const appVerifier = window.recaptchaVerifier;
 
-function handleAuthFlow(event) {
-  console.log('function called handleAuthFlow');
+  return firebase
+    .auth()
+    .signInWithPhoneNumber(phoneNumber, appVerifier)
+    .then(function (confirmationResult) {
+      setMessage(`Otp sent to ${phoneNumber}`);
 
-  const messageNode = document.getElementById('message');
+      console.log('otp sent');
 
-  if (document.readyState !== 'complete') {
-    messageNode.innerText = 'Please wait a few seconds';
+      window.confirmationResult = confirmationResult;
+    })
+    .catch(console.error);
+}
 
-    messageNode.classList.toggle('hidden');
+function handleRecaptcha() {
+  window
+    .recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+      'size': 'normal',
+      'callback': function (response) {
+        // reCAPTCHA solved, allow signInWithPhoneNumber.
+        window.recaptchaResolved = true;
 
-    return Promise.resolve();
+        console.log('recaptcha solved');
+        showOtpInput();
+
+        document
+          .getElementById('recaptcha-container')
+          .style
+          .display = 'none';
+      },
+      'expired-callback': function () {
+        console.log('recaptcha expired');
+
+        setMessage('Recaptcha expired. Please reload the page');
+      }
+    });
+}
+
+function fetchAuth() {
+  const phoneNumber = getPhoneNumber();
+
+  if (!isValidPhoneNumber(phoneNumber)) {
+    setMessage('Invalid phone number');
+
+    return;
   }
 
-  const inputPhoneNumber = getPhoneNumber();
-  const submitButton = document.getElementById('auth-phone-number-submit');
-
-  if (!isValidPhoneNumber(inputPhoneNumber)) {
-    messageNode.innerText = 'Invalid phone number';
-    messageNode.classList.toggle('hidden');
-
-    console.log('invalid phone number');
-
-    return Promise.resolve();
-  }
+  document
+    .getElementsByName('auth-phone-number')[0]
+    .setAttribute('disabled', true);
 
   const apiUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/getUser';
-  const reqUrl = `${apiUrl}/?phoneNumber=${encodeURIComponent(inputPhoneNumber)}`;
+  const requestUrl = `${apiUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`;
 
-  submitButton.onclick = startSignInFlow;
-
-  /** Required in order to disable recaptcha showing again */
-  submitButton.id = '';
-
-  return sendApiRequest(reqUrl, null, 'GET')
+  return sendApiRequest(requestUrl, null, 'GET')
     .then(function (response) {
       if (!response.ok) {
-        // messageNode.innerText = response.json().message;
-        console.log('rejected api:', response);
+        // messageNode.innerText = 'Something went wrong';
+        setMessage('Something went wrong');
 
-        return Promise.resolve();
+        console.log('Rejected:', response);
       }
 
       return response.json();
@@ -213,60 +207,43 @@ function handleAuthFlow(event) {
         return Promise.resolve();
       }
 
+      console.log('response received', result);
+
       if (result.showFullLogin) {
-        const allFieldsets = document.querySelectorAll('fieldset');
-
         window.showFullLogin = true;
+        console.log('full login shown');
 
-        /** Disable the phone number input after click */
-        allFieldsets[0]
-          .children[1]
-          .setAttribute('disabled', true);
-
-        document
-          .querySelectorAll('fieldset')[1]
-          .classList
-          .toggle('hidden');
-
-        document
-          .querySelectorAll('fieldset')[2]
-          .classList
-          .toggle('hidden');
+        showNameEmailContainer();
       }
 
-      return Promise.resolve();
+      firebase
+        .auth()
+        .settings
+        .appVerificationDisabledForTesting = true;
+
+      /** Render recaptcha */
+      return recaptchaVerifier.render();
     })
-    .catch(console.error);
-};
-
-function handleRecaptcha() {
-  const messageNode = document.getElementById('message');
-  messageNode.classList.toggle('hidden');
-
-  window
-    .recaptchaVerifier = new firebase.auth.RecaptchaVerifier('auth-phone-number-submit', {
-      'size': 'invisible',
-      'callback': function (response) {
-        // reCAPTCHA solved, allow signInWithPhoneNumber.
-        console.log('recaptcha solved');
-      },
-      'expired-callback': function () {
-        console.log('recaptcha expired');
-      }
-    });
-
-  recaptchaVerifier
-    .render()
     .then(function (widgetId) {
-      window.recaptchaWidgetId = widgetId;
+      if (widgetId === undefined) {
+        return Promise.resolve();
+      }
 
-      // console.log('recaptcha rendered');
+
+      window.recaptchaWidgetId = widgetId;
+      submitButton.onclick = logInWithOtp;
+
+      console.log('recaptcha rendered');
+
+      return sendOtpToPhoneNumber();
     })
-    .catch(console.error);
+    .catch(function (error) {
+      console.error(error);
+
+      setMessage('Something went wrong');
+    });
 }
 
-document
-  .getElementById('auth-phone-number-submit')
-  .onclick = handleAuthFlow;
+submitButton.onclick = fetchAuth;
 
 handleRecaptcha();

@@ -10,8 +10,11 @@
         </a>
         <div class="dropdown-content animated fadeIn">
             <div class="menu-user-details">
-                <img width="96" height="96" src="https://source.unsplash.com/96x96/?nature,water"
-                    alt="header-profile-picture">
+                \{{#if photoURL}}
+                <img width="96" height="96" src=\{{photoURL}} alt="header-profile-picture" alt="profile image">
+                \{{else}}
+                <img width="96" height="96" src="img/person.png" alt="image not available">
+                \{{/if}}
                 <ul>
                     <li class="menu-details-item">
                         \{{#if displayName}}

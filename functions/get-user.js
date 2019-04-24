@@ -6,15 +6,14 @@ const {
 const {
   code,
 } = require('./admin/responses');
+const env = require('./admin/env');
 
 const sendJSON = (res, statusCode, data = {}) =>
   res.status(statusCode).json(data);
 
 
 module.exports = (req, res) => {
-  console.log('origin', req.get('origin'));
-
-  res.header('Access-Control-Allow-Origin', 'https://growthfile.com');
+  res.header('Access-Control-Allow-Origin', env.mainDomain);
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Content-Type', 'application/json');

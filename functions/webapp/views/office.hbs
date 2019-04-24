@@ -9,29 +9,37 @@
 <body data-slug="\{{officeName}}">
     \{{> persistentBarPartial}}
     \{{> headerPartial}}
-    \{{#if videoId}}
-    <div class="youtube">
-        <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/\{{videoId}}?enablejsapi=1"
-            allow="fullscreen">
-        </iframe>
-    </div>
-    \{{/if}}
 
     <div class="container">
-        <section>
-            <div class="office-name-container">
-                <span>
-                    <img height="40" width="40" src="https://source.unsplash.com/96x96/?nature,water" alt="">
-                </span>
-                <h1>\{{pageTitle}}</h1>
+        <section class="youtube-section">
+            \{{#if videoId}}
+            <div class="youtube">
+                <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/\{{videoId}}?enablejsapi=1"
+                    allow="fullscreen">
+                </iframe>
             </div>
-            <p>\{{aboutOffice}}</p>
-            <span class="company-size-span">
-                <i class="fas fa-users"></i>
-                \{{officeEmployeeSize}}
-            </span>
-        </section>
+            \{{/if}}
+            <div class="border pad">
+                <div class="office-name-container">
+                    <span>
+                        <img height="40" width="40" src=\{{logoURL}} alt="">
+                    </span>
+                    <h1>\{{pageTitle}}</h1>
+                </div>
+                \{{#if shortDescription}}
+                <p class="short-description">\{{shortDescription}}</p>
+                \{{/if}}
 
+                \{{#if aboutOffice}}
+                <p>\{{aboutOffice}}</p>
+                \{{/if}}
+
+                <span class="company-size-span">
+                    <i class="fas fa-users"></i>
+                    \{{officeEmployeeSize}}
+                </span>
+            </div>
+        </section>
         \{{#if displayProducts}}
         <section class="product-section">
             <h2>Our Products</h2>
@@ -109,7 +117,7 @@
 
             <div class="branches-box">
                 <div class="maps-container">
-                    <a class="button" id="load-map-button" href="#">Load Map</a>
+                    <a class="button" id="load-map-button" href="#">Load Maps</a>
                     <div id="map"></div>
                 </div>
 
