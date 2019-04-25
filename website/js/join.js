@@ -56,43 +56,72 @@ function validateForm() {
   let valid = true;
 
   if (!isNonEmptyString(officeNameElement.value)) {
-    const element = getWarningNode('Office Name');
+    const element = getWarningNode('Office Name is required');
+    valid = false;
 
     insertAfterNode(officeNameElement, element);
   }
 
   if (!isNonEmptyString(firstContactElement.value)) {
-    const element = getWarningNode('Your Phone Number');
+    const element = getWarningNode('Your phone number is required');
+
+    valid = false;
 
     insertAfterNode(firstContactElement, element);
   }
 
   if (!isNonEmptyString(firstContactDisplayNameElement.value)) {
-    const element = getWarningNode('Your name');
+    valid = false;
+    const element = getWarningNode('Your name is required');
 
     insertAfterNode(firstContactDisplayNameElement, element);
   }
 
   if (!isNonEmptyString(firstContactEmailElement.value)) {
-    const element = getWarningNode('Your Email');
+    valid = false;
+    const element = getWarningNode('Your email is required');
+
+    insertAfterNode(firstContactEmailElement, element);
+  }
+
+  if (!isValidEmail(firstContactEmailElement.value)) {
+    valid = false;
+    const element = getWarningNode('Invalid email');
 
     insertAfterNode(firstContactEmailElement, element);
   }
 
   if (!isNonEmptyString(secondContactElement.value)) {
-    const element = getWarningNode('Second Contact');
+    valid = false;
+    const element = getWarningNode('Second contact is required');
+
+    insertAfterNode(secondContactElement, element);
+  }
+
+  if (!isValidPhoneNumber(secondContactElement.value)) {
+    valid = false;
+    const element = getWarningNode('Invalid phone number');
 
     insertAfterNode(secondContactElement, element);
   }
 
   if (!isNonEmptyString(secondContactDisplayNameElement.value)) {
-    const element = getWarningNode('Second Contact Name');
+    valid = false;
+    const element = getWarningNode('Second Contact\'s Name is required');
 
     insertAfterNode(secondContactDisplayNameElement, element);
   }
 
   if (!isNonEmptyString(secondContactEmailElement.value)) {
-    const element = getWarningNode('Second Contact Email');
+    valid = false;
+    const element = getWarningNode('Second Contact\'s email is required');
+
+    insertAfterNode(secondContactEmailElement, element);
+  }
+
+  if (!isValidEmail(secondContactEmailElement.value)) {
+    valid = false;
+    const element = getWarningNode('Invalid email');
 
     insertAfterNode(secondContactEmailElement, element);
   }
@@ -102,7 +131,7 @@ function validateForm() {
     values: {
       officeName: officeNameElement.value,
       firstContactPhoneNumber: firstContactElement.value,
-      secondContactElementPhoneNumber: secondContactElement.value,
+      secondContactPhoneNumber: secondContactElement.value,
       firstContactDisplayName: firstContactDisplayNameElement.value,
       secondContactDisplayName: secondContactDisplayNameElement.value,
       firstContactEmail: firstContactEmailElement.value,
@@ -128,28 +157,29 @@ function sendOfficeCreationRequest(values) {
 
   const requestBody = {
     timestamp: Date.now(),
-    office: '',
+    office: values.officeName,
     template: 'office',
     geopoint: {
       latitude: startPosition.coords.latitude,
       longitude: startPosition.coords.longitude,
     },
     data: [{
-      Name: '',
+      share: [],
+      Name: values.officeName,
       Description: '',
       'Youtube ID': '',
       'GST Number': '',
-      'First Contact': '',
-      'Second Contact': '',
+      'First Contact': values.firstContactPhoneNumber,
+      'Second Contact': values.secondContactPhoneNumber,
       Timezone: moment.tz.guess(),
       'Head Office': '',
-      'Date of Establishment': '',
+      'Date Of Establishment': '',
       'Trial Period': '',
     }],
   }
 
   const idToken = getParsedCookies().__session;
-  const requestUrl = 'https://api2.growthfile.com/api/admin/bulk';
+  const requestUrl = 'https://api2.growthfile.com/api/admin/bulk?support=true';
 
   return fetch(requestUrl, {
     mode: 'cors',
@@ -195,25 +225,19 @@ function startOfficeCreationFlow(event) {
 
   Array
     .from(oldWarningLabels)
-    .forEach((element) => element.style.display = 'none');
+    .forEach((element) => {
+      element.style.display = 'none';
+    });
 
   const result = validateForm();
 
-  if (!result.valid) return;
+  console.log('result', result);
 
-  uiConfig
-    .signInOptions[0]
-    .defaultNationalNumber = document
-      .forms[0]
-      .elements
-      .namedItem('user-phone-number')
-      .value;
+  if (!result.valid) return;
 
   /** Not logged-in */
   if (!firebase.auth().currentUser) {
-    const modal = showLoginBox('90%', 'fb-auth-modal');
-
-    modal.how();
+    window.location.href = `/auth?redirect_to=${window.location.href}`;
 
     return;
   }

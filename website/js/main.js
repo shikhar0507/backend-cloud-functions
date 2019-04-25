@@ -40,7 +40,6 @@ function insertAfterNode(currentNode, nodeToInsert) {
 function logoutUser(event) {
   event.preventDefault();
 
-
   /** User isn't logged in */
   if (!firebase.auth().currentUser) return;
 
@@ -55,7 +54,8 @@ function logoutUser(event) {
       window.location.reload();
 
       return;
-    }).catch(console.error);
+    })
+    .catch(console.error);
 };
 
 function getWarningNode(textContent) {
@@ -233,3 +233,7 @@ document
         console.log('new cookie set', idToken);
       });
   });
+
+window.onerror = function (event) {
+  console.error('windowOnError', event);
+}

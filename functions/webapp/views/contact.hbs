@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    \{{> headPartial this}}
+    <link rel="stylesheet" href="css/contact.css">
+</head>
+
+<body>
+    \{{> persistentBarPartial this}}
+    \{{> headerPartial this}}
+    <div class="container">
+        <h1>Contact Us</h1>
+        <section>
+            <form>
+                <p>
+                    <span class="hidden animated fadeIn" id="message">Something went wrong</span>
+                </p>
+                {{!-- Name, Contact, Email, Query --}}
+                <fieldset>
+                    <p>
+                        \{{#if displayName}}
+                        <input value=\{{displayName}} class="input-field" type="text" placeholder="Name" disabled>
+                        \{{else}}
+                        <input class="input-field" type="text" placeholder="Name">
+                        \{{/if}}
+                    </p>
+                    <p>
+                        \{{#if email}}
+                        <input value=\{{email}} class="input-field" type="email" placeholder="Email" disabled>
+                        \{{else}}
+                        <input class="input-field" type="email" placeholder="Email">
+                        \{{/if}}
+                    </p>
+                </fieldset>
+                <fieldset>
+                    <p>
+                        <textarea class="input-field" name="" id="" cols="30" rows="10"></textarea>
+                    </p>
+                </fieldset>
+                <p class="submit-button-container">
+                    <button id="submit-button" class="button" type="button">Send</button>
+                </p>
+            </form>
+        </section>
+    </div>
+    \{{> footerPartial}}
+    <script defer src="js/contact.js"></script>
+</body>
+
+</html>

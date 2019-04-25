@@ -54,204 +54,195 @@ const xlsxPopulate = require('xlsx-populate');
 sgMail.setApiKey(env.sgMailApiKey);
 
 
-const handleOfficeSheet = (locals) => {
-  let officeDocs;
-  const authFetch = [];
-  const footprintsFetch = [];
-  const recipientsFetch = [];
-  const moment = require('moment');
-  const yesterdayMoment = moment().subtract(1, 'day');
-  const yesterdaysDate = yesterdayMoment.date();
-  const dormantEmployeesCountMap = new Map();
-  const totalEmployeesCountMap = new Map();
-  const phoneNumbersSet = new Set();
-  const assigneesMap = new Map();
-  const activeCountMap = new Map();
-  const notInstalledCountMap = new Map();
-  const officeUnverifiedRecipientsMap = new Map();
-  const officeActivityReport = locals.worksheet.sheet('Office Activity Report');
+const handleUserStatusReport = (worksheet, counterDoc, yesterdayInitDoc, activeYesterday) => {
+  const userStatusSheet = worksheet.addSheet('User Status');
+  userStatusSheet.row(0).style('bold', true);
 
-  return rootCollections
-    .offices
-    .get()
-    .then((snapShot) => {
-      officeDocs = snapShot;
-      snapShot
-        .docs
-        .forEach((officeDoc, index) => {
-          const office = officeDoc.get('office');
-          const employeesData = officeDoc.get('employeesData') || {};
+  userStatusSheet.cell('A1').value('Total Auth');
+  userStatusSheet.cell('B1').value('New Auth');
+  userStatusSheet.cell('C1').value('Active Yesterday');
+  userStatusSheet.cell('D1').value('New Installs');
 
-          officeActivityReport
-            .cell(`A${index + 2}`)
-            .value(office);
+  userStatusSheet.cell('A2').value(counterDoc.get('totalUsers'));
+  userStatusSheet.cell('B2').value(yesterdayInitDoc.get('usersAdded'));
 
-          totalEmployeesCountMap.set(
-            office,
-            Object.keys(employeesData).length
-          );
+  /** Filled after creating the office sheet */
+  userStatusSheet.cell('C2').value(activeYesterday);
+  userStatusSheet.cell('D2').value(yesterdayInitDoc.get('installsToday'));
+};
 
-          const footprintsPromise = rootCollections
-            .inits
-            .where('office', '==', office)
-            .where('month', '==', yesterdayMoment.month())
-            .where('year', '==', yesterdayMoment.year())
-            .where('report', '==', reportNames.FOOTPRINTS_MTD)
-            .limit(1)
-            .get();
+const handleOfficeActivityReport = (worksheet, yesterdayInitDoc) => {
+  let activeYesterday = 0;
 
-          const recipientPromise = rootCollections
-            .recipients
-            .where('office', '==', office)
-            .get();
+  const officeActivitySheet = worksheet.addSheet('Office Activity Report');
+  officeActivitySheet.row(0).style('bold', true);
 
-          recipientsFetch.push(recipientPromise);
-          footprintsFetch.push(footprintsPromise);
-        });
+  officeActivitySheet.cell('A1').value('');
+  officeActivitySheet.cell('B1').value('Total Users');
+  officeActivitySheet.cell('C1').value('Users Active Yesterday');
+  officeActivitySheet.cell('D1').value('Inactive');
+  officeActivitySheet.cell('E1').value('Others (users On Leave/On Duty/Holiday/Weekly Off');
+  officeActivitySheet.cell('F1').value('Pending Signups');
+  officeActivitySheet.cell('G1').value('Activities Created Yesterday');
+  officeActivitySheet.cell('H1').value('Unverified Recipients');
 
-      return Promise.all(footprintsFetch);
-    })
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) {
-          return;
-        }
+  const countsObject = yesterdayInitDoc.get('countsObject');
+  const createCountByOffice = yesterdayInitDoc.get('createCountByOffice');
+  const unverifiedRecipients = yesterdayInitDoc.get('unverifiedRecipients');
 
-        let activeCount = 0;
-        let notInstalledCount = 0;
-        const doc = snapShot.docs[0];
-        const office = doc.get('office');
-        const footprintsObject = doc.get('footprintsObject');
+  Object
+    .keys(countsObject)
+    .forEach((office, index) => {
+      const {
+        notInstalled,
+        totalUsers,
+        onLeaveWeeklyOffHoliday,
+        active,
+        notActive,
+      } = countsObject[office];
 
-        Object
-          .keys(footprintsObject)
-          .forEach((phoneNumber) => {
-            const employeeStatusObject = (() => {
-              if (!footprintsObject[phoneNumber]) {
-                return footprintsObject[phoneNumber] = {};
-              }
+      const createCount = createCountByOffice[office];
+      const arrayOfUnverifiedRecipients = unverifiedRecipients[office];
+      const rowIndex = index + 2;
 
-              return footprintsObject[phoneNumber];
-            })();
+      activeYesterday += active;
 
-            if (employeeStatusObject[yesterdaysDate] === 'NOT ACTIVE') {
-              activeCount++;
-            }
+      officeActivitySheet.cell(`A${rowIndex}`).value(office);
+      officeActivitySheet.cell(`B${rowIndex}`).value(totalUsers);
+      officeActivitySheet.cell(`C${rowIndex}`).value(active);
+      officeActivitySheet.cell(`D${rowIndex}`).value(notActive);
+      officeActivitySheet.cell(`E${rowIndex}`).value(onLeaveWeeklyOffHoliday);
+      officeActivitySheet.cell(`F${rowIndex}`).value(notInstalled);
+      officeActivitySheet.cell(`G${rowIndex}`).value(createCount);
+      officeActivitySheet.cell(`H${rowIndex}`).value(`${arrayOfUnverifiedRecipients || []}`);
+    });
 
-            if (employeeStatusObject[yesterdaysDate] === 'NOT INSTALLED') {
-              notInstalledCount++;
-            }
+  return activeYesterday;
+};
 
-          });
+const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => {
+  const activityStatusSheet = worksheet.addSheet('Activity Status Report');
+  activityStatusSheet.row(0).style('bold', true);
 
-        activeCountMap.set(office, activeCount);
-        notInstalledCountMap.set(office, notInstalledCount);
-      });
+  activityStatusSheet.cell('A1').value('Templates');
+  activityStatusSheet.cell('B1').value('Total');
+  activityStatusSheet.cell('C1').value('Created by Admin');
+  activityStatusSheet.cell('D1').value('Created by Support');
+  activityStatusSheet.cell('E1').value('Created by App');
+  activityStatusSheet.cell('F1').value('System Created');
+  activityStatusSheet.cell('G1').value('Created Yesterday');
+  activityStatusSheet.cell('H1').value('Updated Yesterday');
+  activityStatusSheet.cell('I1').value('Status Changed Yesterday');
+  activityStatusSheet.cell('J1').value('Shared Yesterday');
+  activityStatusSheet.cell('K1').value('Commented Yesterday');
 
-      return Promise.all(recipientsFetch);
-    })
-    .then((snapShots) => {
-      snapShots
-        .forEach((snapShot) => {
-          const office = snapShot.docs[0].get('office');
+  const {
+    adminApiMap,
+    supportMap,
+    totalByTemplateMap,
+    autoGeneratedMap,
+  } = counterDoc.data();
 
-          snapShot
-            .forEach((doc) => {
-              const include = doc.get('include');
+  const {
+    templateUsageObject,
+  } = yesterdayInitDoc.data();
 
-              include.forEach((phoneNumber) => {
-                phoneNumbersSet.add(phoneNumber);
+  const templateNames = [
+    'admin',
+    'branch',
+    'check-in',
+    'customer',
+    'customer-type',
+    'department',
+    'dsr',
+    'duty roster',
+    'employee',
+    'enquiry',
+    'expense claim',
+    'expense-type',
+    'leave',
+    'leave-type',
+    'office',
+    'on duty',
+    'product',
+    'recipient',
+    'subscription',
+    'tour plan',
+  ];
 
-                assigneesMap.set(phoneNumber, office);
-              });
-            });
-        });
+  const getValueFromMap = (map, name) => {
+    return map[name] || 0;
+  };
 
-      phoneNumbersSet
-        .forEach((phoneNumber) => {
-          const promise = users.getUserByPhoneNumber(phoneNumber);
+  templateNames.forEach((name, index) => {
+    const position = index + 2;
 
-          authFetch.push(promise);
-        });
+    activityStatusSheet
+      .cell(`A${position}`)
+      .value(name);
 
-      return Promise.all(authFetch);
-    })
-    .then((userRecords) => {
-      userRecords.forEach((userRecord) => {
-        const phoneNumber = Object.keys(userRecord)[0];
-        const record = userRecord[phoneNumber];
+    activityStatusSheet
+      .cell(`B${position}`)
+      .value(totalByTemplateMap[name] || 0);
 
-        if (!record || !record.email || !record.emailVerified) {
-          // returns office name
-          const office = assigneesMap.get(phoneNumber);
+    activityStatusSheet
+      .cell(`C${position}`)
+      .value(adminApiMap[name] || 0);
 
-          if (officeUnverifiedRecipientsMap.has(office)) {
-            const set = officeUnverifiedRecipientsMap.get(office);
+    activityStatusSheet
+      .cell(`D${position}`)
+      .value(supportMap[name] || 0);
 
-            set.add(phoneNumber);
+    const createdByApp = getValueFromMap(totalByTemplateMap, name)
+      - getValueFromMap(adminApiMap, name)
+      - getValueFromMap(supportMap, name);
 
-            officeUnverifiedRecipientsMap.set(office, set);
-          } else {
-            officeUnverifiedRecipientsMap.set(
-              office,
-              new Set().add(phoneNumber)
-            );
-          }
-        }
-      });
+    activityStatusSheet
+      .cell(`E${position}`)
 
-      officeDocs
-        .docs
-        .forEach((officeDoc, index) => {
-          const columnIndex = index + 2;
-          const office = officeDoc.get('office');
-          const totalEmployees = totalEmployeesCountMap.get(office);
-          const activeCount = activeCountMap.get(office);
-          const inactiveCount = totalEmployees - activeCount;
-          /** People on leave, on duty or with weekly off */
-          const dormantEmployees = dormantEmployeesCountMap.get(office) || 0;
-          const notInstalledCount = notInstalledCountMap.get(office);
-          const createdActivitiesCount =
-            locals.createCountByOffice[office] || 0;
-          const unverifiedRecipients =
-            Array.from(officeUnverifiedRecipientsMap.get(office) || []);
+      .value(createdByApp);
 
-          officeActivityReport
-            .cell(`B${columnIndex}`)
-            .value(totalEmployees);
-          officeActivityReport
-            .cell(`C${columnIndex}`)
-            .value(activeCount);
-          officeActivityReport
-            .cell(`D${columnIndex}`)
-            .value(inactiveCount);
-          officeActivityReport
-            .cell(`E${columnIndex}`)
-            .value(dormantEmployees);
-          officeActivityReport
-            .cell(`F${columnIndex}`)
-            .value(notInstalledCount);
-          officeActivityReport
-            .cell(`G${columnIndex}`)
-            .value(createdActivitiesCount);
-          officeActivityReport
-            .cell(`H${columnIndex}`)
-            .value(`${unverifiedRecipients}`);
-        });
+    activityStatusSheet
+      .cell(`F${position}`)
+      .value(autoGeneratedMap[name] || 0);
 
-      return Promise.resolve();
-    })
-    .catch(console.error);
+    const getCount = (action) => {
+      if (!templateUsageObject[name]) {
+        return 0;
+      }
+
+      return templateUsageObject[name][action] || 0;
+    };
+
+    // created
+    activityStatusSheet
+      .cell(`G${position}`)
+      .value(getCount(httpsActions.create));
+    // update
+    activityStatusSheet
+      .cell(`H${position}`)
+      .value(getCount(httpsActions.update));
+    // change status
+    activityStatusSheet
+      .cell(`I${position}`)
+      .value(getCount(httpsActions.changeStatus));
+    // comment
+    activityStatusSheet
+      .cell(`J${position}`)
+      .value(getCount(httpsActions.share));
+    // shared
+    activityStatusSheet
+      .cell(`K${position}`)
+      .value(getCount(httpsActions.comment));
+  });
 };
 
 
 const handleDailyStatusReport = () => {
-  const date = moment().format(dateFormats.DATE);
+  const date = moment().subtract(1, 'day').format(dateFormats.DATE);
   const fileName = `Daily Status Report ${date}.xlsx`;
   const filePath = `/tmp/${fileName}`;
   const yesterday = moment().subtract(1, 'day');
-  const locals = {};
-
   const messageObject = {
     to: env.instantEmailRecipientEmails,
     from: {
@@ -265,11 +256,9 @@ const handleDailyStatusReport = () => {
     },
     attachments: [],
   };
-
-  const yesterdayStart = momentTz()
-    .subtract(1, 'day')
-    .startOf('day')
-    .valueOf();
+  let worksheet;
+  let counterDoc;
+  let yesterdayInitDoc;
 
   return Promise
     .all([
@@ -288,191 +277,29 @@ const handleDailyStatusReport = () => {
         .where('year', '==', yesterday.year())
         .limit(1)
         .get(),
-      rootCollections
-        .profiles
-        .where('lastQueryFrom', '>=', yesterdayStart)
-        .get(),
     ])
     .then((result) => {
       const [
-        worksheet,
+        workbook,
         counterInitQuery,
         yesterdayInitQuery,
-        profilesQuery,
       ] = result;
 
-      locals.worksheet = worksheet;
+      worksheet = workbook;
+      counterDoc = counterInitQuery.docs[0];
+      yesterdayInitDoc = yesterdayInitQuery.docs[0];
+      const activeYesterday =
+        handleOfficeActivityReport(worksheet, yesterdayInitDoc);
 
-      const userStatusReport = worksheet.addSheet('User Status Report');
-      const officeReport = worksheet.addSheet('Office Activity Report');
-      const activityStatusReport = worksheet.addSheet('Activity Status Report');
       worksheet.deleteSheet('Sheet1');
 
-      userStatusReport.row(0).style('bold', true);
-      officeReport.row(0).style('bold', true);
-      activityStatusReport.row(0).style('bold', true);
+      handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
+      handleUserStatusReport(worksheet, counterDoc, yesterdayInitDoc, activeYesterday);
 
-      [
-        'Total Auth',
-        'New Auth',
-        'Active Yesterday',
-        'New Installs',
-      ]
-        .forEach((header, index) => {
-          userStatusReport
-            .cell(`${alphabetsArray[index]}1`)
-            .value(header);
-        });
-
-      [
-        'Office',
-        'Total Users',
-        'Active',
-        'Not Active',
-        'On leave, on duty, on holiday, or on weekly off',
-        'Not Installed',
-        'Activities Created',
-        'Unverified Recipients',
-      ]
-        .forEach((header, index) => {
-          officeReport
-            .cell(`${alphabetsArray[index]}1`)
-            .value(header);
-        });
-
-      [
-        'Template',
-        'Total',
-        'Created By Admin',
-        'Created By Support',
-        'Created By App',
-        'System Created',
-        'Created Yesterday',
-        'Updated Yesterday',
-        'Changed Status Yesterday',
-        'Commented Yesterday',
-        'Shared Yesterday',
-      ]
-        .forEach((header, index) => {
-          activityStatusReport
-            .cell(`${alphabetsArray[index]}1`)
-            .value(header);
-        });
-
-      const {
-        totalUsers,
-        adminApiMap,
-        supportMap,
-        totalByTemplateMap,
-        autoGeneratedMap,
-      } = counterInitQuery.docs[0].data();
-      const {
-        usersAdded,
-        installsToday,
-        templateUsageObject,
-        createCountByOffice,
-      } = yesterdayInitQuery.docs[0].data();
-
-      /** Used in office sheet */
-      locals.createCountByOffice = createCountByOffice;
-
-      console.log('CounterDoc', counterInitQuery.docs[0].ref.path);
-      console.log('YesterdayDoc', yesterdayInitQuery.docs[0].ref.path);
-
-      userStatusReport.cell(`A2`).value(totalUsers);
-      userStatusReport.cell(`B2`).value(usersAdded);
-      // Active yesterday
-      userStatusReport.cell(`C2`).value(profilesQuery.size);
-      // new installs
-      userStatusReport.cell(`D2`).value(installsToday || 0);
-
-      [
-        'admin',
-        'branch',
-        'check-in',
-        'customer',
-        'customer-type',
-        'department',
-        'dsr',
-        'duty roster',
-        'employee',
-        'enquiry',
-        'expense claim',
-        'expense-type',
-        'leave',
-        'leave-type',
-        'office',
-        'on duty',
-        'product',
-        'recipient',
-        'subscription',
-        'tour plan',
-      ]
-        .forEach((name, index) => {
-          const position = index + 2;
-
-          activityStatusReport
-            .cell(`A${position}`)
-            .value(name);
-
-          activityStatusReport
-            .cell(`B${position}`)
-            .value(totalByTemplateMap[name] || 0);
-
-          activityStatusReport
-            .cell(`C${position}`)
-            .value(adminApiMap[name] || 0);
-
-          activityStatusReport
-            .cell(`D${position}`)
-            .value(supportMap[name] || 0);
-
-          activityStatusReport
-            .cell(`E${position}`)
-            .value(
-              totalByTemplateMap[name] || 0
-              - adminApiMap[name] || 0
-              - supportMap[name] || 0
-            );
-
-          activityStatusReport
-            .cell(`F${position}`)
-            .value(autoGeneratedMap[name] || 0);
-
-          const getCount = (action) => {
-            if (!templateUsageObject[name]) {
-              return 0;
-            }
-
-            return templateUsageObject[name][action] || 0;
-          };
-
-          // created
-          activityStatusReport
-            .cell(`G${position}`)
-            .value(getCount(httpsActions.create));
-          // update
-          activityStatusReport
-            .cell(`H${position}`)
-            .value(getCount(httpsActions.update));
-          // change status
-          activityStatusReport
-            .cell(`I${position}`)
-            .value(getCount(httpsActions.changeStatus));
-          // comment
-          activityStatusReport
-            .cell(`J${position}`)
-            .value(getCount(httpsActions.comment));
-          // shared
-          activityStatusReport
-            .cell(`K${position}`)
-            .value(getCount(httpsActions.share));
-        });
-
-      return handleOfficeSheet(locals);
+      return worksheet.toFileAsync(filePath);
     })
-    .then(() => locals.worksheet.toFileAsync(filePath))
     .then(() => {
+
       messageObject
         .attachments
         .push({
@@ -482,11 +309,11 @@ const handleDailyStatusReport = () => {
           disposition: 'attachment',
         });
 
+      console.log('mail sent to', messageObject.to);
+
       return sgMail.sendMultiple(messageObject);
     })
-    .catch((error) => {
-      console.error(error.toString());
-    });
+    .catch((error) => console.log(error.toString()));
 };
 
 const sendErrorReport = () => {

@@ -7,8 +7,8 @@
 </head>
 
 <body data-slug="\{{officeName}}">
-    \{{> persistentBarPartial}}
-    \{{> headerPartial}}
+    \{{> persistentBarPartial this}}
+    \{{> headerPartial this}}
 
     <div class="container">
         <section class="youtube-section">
@@ -24,7 +24,7 @@
                     <span>
                         <img height="40" width="40" src=\{{logoURL}} alt="">
                     </span>
-                    <h1>\{{pageTitle}}</h1>
+                    <h1>\{{officeName}}</h1>
                 </div>
                 \{{#if shortDescription}}
                 <p class="short-description">\{{shortDescription}}</p>

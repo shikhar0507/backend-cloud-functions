@@ -9,7 +9,7 @@ const {
 const {
   code,
 } = require('../admin/responses');
-const helpers = require('./helpers');
+// const helpers = require('./helpers');
 const handlebars = require('handlebars');
 const url = require('url');
 const env = require('../admin/env');
@@ -22,6 +22,14 @@ handlebars.registerPartial('persistentBarPartial', persistentBarPartial);
 handlebars.registerPartial('headPartial', headPartial);
 handlebars.registerPartial('headerPartial', headerPartial);
 handlebars.registerPartial('footerPartial', footerPartial);
+
+const getIdToken = (parsedCookies) => {
+  if (!parsedCookies.__session) {
+    return '';
+  }
+
+  return parsedCookies.__session;
+};
 
 /** 
  * Creates a key-value pair using the cookie object
@@ -72,8 +80,6 @@ const getSlugFromUrl = (requestUrl) => {
 };
 
 const getLoggedInStatus = (idToken) => {
-  console.log('idToken:', idToken, '\n'.repeat(10));
-
   return auth
     .verifyIdToken(idToken, true)
     .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
@@ -89,7 +95,7 @@ const getLoggedInStatus = (idToken) => {
         disabled: userRecord.disabled,
         isSupport: userRecord.customClaims.support,
         isAdmin: userRecord.customClaims.admin && userRecord.customClaims.admin.length > 0,
-        isTemplateManageer: userRecord.customClaims.manageTemplates,
+        isTemplateManager: userRecord.customClaims.manageTemplates,
       };
     })
     .catch(() => {
@@ -102,6 +108,9 @@ const getLoggedInStatus = (idToken) => {
         displayName: '',
         email: '',
         disabled: '',
+        isSupport: false,
+        isAdmin: false,
+        isTemplateManager: false,
       };
     });
 };
@@ -135,7 +144,7 @@ const handleOfficePage = (locals, requester) => {
     userPhoneNumber: requester.phoneNumber || '',
     officeEmployeeSize: locals.officeEmployeeSize,
     officeName: locals.officeDoc.get('office'),
-    pageTitle: locals.officeDoc.get('office'),
+    pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
     mainImageUrl: '/img/logo-main.jpg',
     cannonicalUrl: `https://growthfile.com/${locals.slug}`,
     mapsApiKey: env.mapsApiKey,
@@ -156,7 +165,7 @@ const handleOfficePage = (locals, requester) => {
     shortDescription: locals.officeDoc.get('attachment.Short Description.value'),
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManageer: requester.isTemplateManageer,
+    isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
   });
 
@@ -213,8 +222,7 @@ const fetchOfficeData = (conn, locals, requester) => {
       locals.officeEmployeeSize = getEmployeesRange(employeesData);
 
       return handleOfficePage(locals, requester);
-    })
-    .catch((error) => helpers.errorPage(conn, error));
+    });
 };
 
 
@@ -234,7 +242,7 @@ const handleJoinPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManageer: requester.isTemplateManageer,
+    isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
   });
 
@@ -257,7 +265,7 @@ const handleHomePage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManageer: requester.isTemplateManageer,
+    isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
   });
 
@@ -280,7 +288,7 @@ const handleAuthPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManageer: requester.isTemplateManageer,
+    isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
   });
 
@@ -303,8 +311,50 @@ const handleDownloadPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManageer: requester.isTemplateManageer,
-    initOptions: env.webappInitOptions,
+    isTemplateManager: requester.isTemplateManager,
+  });
+
+  return html;
+};
+
+
+const handleContactPage = (locals, requester) => {
+  const source = require('./views/contact.hbs')();
+  const template = handlebars.compile(source, { strict: true });
+  const html = template({
+    pageTitle: 'Contact Us | Growthfile',
+    pageDescription: 'Please fill the form to contact us',
+    isLoggedIn: locals.isLoggedIn,
+    showPersistentBar: true,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isTemplateManager: requester.isTemplateManager,
+  });
+
+  return html;
+};
+
+const handleTermsAndConditionsPage = (locals, requester) => {
+  const source = require('./views/terms-and-conditions.hbs')();
+  const template = handlebars.compile(source, { strict: true });
+  const html = template({
+    pageTitle: 'Terms and Conditions | Growthfile',
+    pageDescription: 'Terms and conditions for Growthfile',
+    isLoggedIn: locals.isLoggedIn,
+    showPersistentBar: true,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isTemplateManager: requester.isTemplateManager,
   });
 
   return html;
@@ -314,28 +364,25 @@ const handle404Page = () => '<h1>Page not found</h1>';
 
 const handleServerError = () => '<h1>Something went wrong</h1>';
 
-const getIdToken = (parsedCookies) => {
-  if (!parsedCookies.__session) {
-    return '';
-  }
+const handlePrivacyPolicyPage = (locals, requester) => {
+  const source = require('./views/privacy-policy.hbs')();
+  const template = handlebars.compile(source, { strict: true });
+  const html = template({
+    pageTitle: 'Privacy Policy | Growthfile',
+    pageDescription: 'Privacy Policy for Growthfile Analytics Pvt. Ltd.',
+    isLoggedIn: locals.isLoggedIn,
+    showPersistentBar: true,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isTemplateManager: requester.isTemplateManager,
+  });
 
-  return parsedCookies.__session;
-};
-
-const sendEnquiryActivities = (conn, locals, requester) => {
-  const phoneNumber = requester.phoneNumber;
-
-  // return rootCollections
-  //   .profiles
-  //   .doc(phoneNumber)
-  //   .collection('Activities')
-  //   .where('template', '==', 'enquiry')
-  //   .get()
-  //   .then((docs) => {
-
-  //   });
-
-  return '';
+  return html;
 };
 
 module.exports = (req, res) => {
@@ -389,7 +436,7 @@ module.exports = (req, res) => {
         phoneNumber,
         displayName,
         emailVerified,
-        isTemplateManageer,
+        isTemplateManager,
       } = result;
 
       console.log('result', result);
@@ -407,16 +454,24 @@ module.exports = (req, res) => {
           emailVerified,
           isAdmin,
           isSupport,
-          isTemplateManageer,
+          isTemplateManager,
         };
       }
 
-      // if (slug === 'enquiry' && locals.isLoggedIn) {
-      //   return sendEnquiryActivities(conn, locals, requester);
-      // }
-
       if (slug === '/' || slug === '') {
         html = handleHomePage(locals, requester);
+      }
+
+      if (slug === 'contact') {
+        html = handleContactPage(locals, requester);
+      }
+
+      if (slug === 'privacy-policy') {
+        html = handlePrivacyPolicyPage(locals, requester);
+      }
+
+      if (slug === 'terms-and-conditions') {
+        html = handleTermsAndConditionsPage(locals, requester);
       }
 
       if (slug === 'join') {
@@ -472,6 +527,7 @@ module.exports = (req, res) => {
     })
     .catch((error) => {
       console.error('Error', error);
+
       const html = handleServerError();
 
       return conn

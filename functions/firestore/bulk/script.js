@@ -473,10 +473,10 @@ const createObjects = (conn, locals, trialRun) => {
       userDeviceTimestamp: conn.req.body.timestamp,
       activityId: activityRef.id,
       activityName: activityObject.activityName,
-      isSupportRequest: conn.requester.isSupportRequest,
       geopointAccuracy: conn.req.body.geopoint.accuracy || null,
       provider: conn.req.body.geopoint.provider || null,
-      isAdminRequest: true,
+      isSupportRequest: locals.isSupportRequest,
+      isAdminRequest: locals.isAdminRequest,
     };
 
     // Not all templates will have type phoneNumber in attachment.
@@ -578,10 +578,10 @@ const createObjects = (conn, locals, trialRun) => {
           userDeviceTimestamp: conn.req.body.timestamp,
           activityId: subscriptionActivityRef.id,
           activityName: subscriptionActivityData.activityName,
-          isSupportRequest: conn.requester.isSupportRequest,
           geopointAccuracy: conn.req.body.geopoint.accuracy || null,
           provider: conn.req.body.geopoint.provider || null,
-          isAdminRequest: true,
+          isSupportRequest: locals.isSupportRequest,
+          isAdminRequest: locals.isAdminRequest,
         };
         const adminActivityData = {
           office,
@@ -616,10 +616,10 @@ const createObjects = (conn, locals, trialRun) => {
           userDeviceTimestamp: conn.req.body.timestamp,
           activityId: adminActivityRef.id,
           activityName: adminActivityData.activityName,
-          isSupportRequest: conn.requester.isSupportRequest,
+          isSupportRequest: locals.isSupportRequest,
+          isAdminRequest: locals.isAdminRequest,
           geopointAccuracy: conn.req.body.geopoint.accuracy || null,
           provider: conn.req.body.geopoint.provider || null,
-          isAdminRequest: true,
         };
 
         childActivitiesBatch
@@ -1610,6 +1610,14 @@ module.exports = (conn) => {
 
         delete conn.req.body.data[index];
       });
+
+      const isSupportRequest = conn.requester.isSupportRequest;
+      const isAdminRequest = !isSupportRequest
+        && conn.requester.customClaims.admin
+        && conn.requester.customClaims.admin.length > 0;
+
+      locals.isSupportRequest = isSupportRequest;
+      locals.isAdminRequest = isAdminRequest;
 
       return validateDataArray(conn, locals);
     })
