@@ -241,6 +241,9 @@ module.exports = (change) => {
     })
     .then(() => Promise.all(usersWithoutEmailOrVerifiedEmail))
     .then((snapShot) => {
+      if (!locals.sendMail) {
+        return Promise.resolve(null);
+      }
       const notifications = [];
 
       snapShot.forEach((doc) => {
@@ -285,6 +288,10 @@ module.exports = (change) => {
       return Promise.all(notifications);
     })
     .then(() => {
+      if (!locals.sendMail) {
+        return Promise.resolve(null);
+      }
+
       const momentYesterday = momentTz().subtract(1, 'day');
 
       return rootCollections
@@ -297,6 +304,10 @@ module.exports = (change) => {
         .get();
     })
     .then((snapShot) => {
+      if (!locals.sendMail) {
+        return Promise.resolve(null);
+      }
+
       const doc = snapShot.docs[0];
       const data = doc.data();
       const office = locals.officeDoc.get('office');
