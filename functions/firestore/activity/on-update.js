@@ -152,16 +152,14 @@ const updateDocsWithBatch = (conn, locals) => {
     });
 
   if (locals.docs.activity.get('template') !== 'customer') {
-    locals
+    return locals
       .batch
       .commit()
       .then(() => sendResponse(conn, code.noContent))
       .catch((error) => handleError(conn, error));
-
-    return;
   }
 
-  rootCollections
+  return rootCollections
     .offices
     .doc(locals.docs.activity.get('officeId'))
     .get()
@@ -205,186 +203,30 @@ const getDisplayText = (conn, locals) => {
   return displayText;
 };
 
-const getPayrollObject = (conn, locals, initQuery) => {
-  const NUM_MILLI_SECS_IN_DAY = 86400 * 1000;
-  const displayText = getDisplayText(conn, locals);
-  const payrollObject = (() => {
-    if (!initQuery.empty) return {};
-
-    return initQuery.docs[0].get('payrollObject') || {};
-  })();
-
-  if (!payrollObject[conn.requester.phoneNumber]) {
-    payrollObject[conn.requester.phoneNumber] = {};
-  }
-
-  // conn.req.body.schedule.forEach((item) => {
-  //   const dateNumber = new Date(item.startTime).getDate();
-  //   payrollObject[conn.requester.phoneNumber][dateNumber] = displayText;
-  // });
-
-  conn.req.body.schedule.forEach((schedule) => {
-    console.log('in schedule');
-
-    let startTime = schedule.startTime;
-    const endTime = schedule.endTime;
-    console.log({ startTime, endTime });
-
-    if (!startTime || !endTime) {
-      return;
-    }
-
-    const endMonth = new Date(endTime).getMonth();
-    const endYear = new Date(endTime).getFullYear();
-
-    while (startTime <= endTime) {
-      const date = new Date(startTime);
-      const startMonth = date.getMonth();
-      const startYear = date.getFullYear();
-
-      if (startMonth !== endMonth) {
-        console.log('return month');
-
-        return;
-      }
-      if (startYear !== endYear) {
-        console.log('return year');
-
-        return;
-      }
-
-      payrollObject[conn.requester.phoneNumber][date.getDate()] = displayText;
-
-      startTime += NUM_MILLI_SECS_IN_DAY;
-    }
-  });
-
-  console.log({ payrollObject });
-
-  return payrollObject;
-};
-
-const handlePayroll = (conn, locals) => {
-  if (!new Set()
-    .add(reportNames.LEAVE)
-    .add(reportNames.CHECK_IN)
-    .add(reportNames.TOUR_PLAN)
-    .has(locals.docs.activity.get('template'))) {
-
-    updateDocsWithBatch(conn, locals);
-
-    return;
-  }
-
-  console.log('IN PAYROLL');
-
-  const ts = (() => {
-    if (locals.docs.activity.get('template') === reportNames.CHECK_IN) {
-      return {
-        month: new Date().getMonth(),
-        year: new Date().getFullYear(),
-      };
-    }
-
-    const schedule = conn.req.body.schedule[0];
-
-    if (!schedule) {
-      return {
-        month: '',
-        year: '',
-      };
-    }
-
-    const startTime = schedule.startTime;
-
-    if (!startTime) {
-      return {
-        month: '',
-        year: '',
-      };
-    }
-
-    return {
-      month: new Date(startTime).getMonth(),
-      year: new Date(startTime).getFullYear(),
-    };
-  })();
-
-  if (!ts.month || !ts.year) {
-    updateDocsWithBatch(conn, locals);
-
-    return;
-  }
-
-  rootCollections
-    .inits
-    .where('office', '==', locals.docs.activity.get('office'))
-    .where('report', '==', reportNames.PAYROLL)
-    .where('month', '==', ts.month)
-    .where('year', '==', ts.year)
-    .limit(1)
-    .get()
-    .then((initQuery) => {
-      const ref = (() => {
-        if (initQuery.empty) {
-          return rootCollections.inits.doc();
-        }
-
-        return initQuery.docs[0].ref;
-      })();
-
-      console.log(ref.path);
-
-      locals.batch.set(ref, {
-        office: conn.req.body.office,
-        officeId: locals.static.officeId,
-        month: ts.month,
-        year: ts.year,
-        report: reportNames.PAYROLL,
-        payrollObject: getPayrollObject(conn, locals, initQuery),
-      }, {
-          merge: true,
-        });
-
-      updateDocsWithBatch(conn, locals);
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
-};
 
 const handleLeave = (conn, locals) => {
   if (locals.docs.activity.get('template') !== 'leave') {
-
-    updateDocsWithBatch(conn, locals);
-
-    return;
+    return updateDocsWithBatch(conn, locals);
   }
 
   const newScheduleObject = conn.req.body.schedule[0];
 
   if (!newScheduleObject.startTime || newScheduleObject.endTime) {
-    updateDocsWithBatch(conn, locals);
-
-    return;
+    return updateDocsWithBatch(conn, locals);
   }
 
   const startTimeNew = conn.req.body.schedule[0].startTime;
   const endTimeNew = conn.req.body.schedule[0].endTime;
-
   const startTimeOld = locals.docs.activity.get('schedule')[0].startTime;
   const endTimeOld = locals.docs.activity.get('schedule')[0].endTime;
 
   if (!startTimeNew || !endTimeNew) {
-    updateDocsWithBatch(conn, locals);
-
-    return;
+    return updateDocsWithBatch(conn, locals);
   }
 
   // Adding `+1` to include the start day of the leave
   const leavesTakenOld =
     Math.ceil(Math.abs((endTimeNew - startTimeNew) / 86400000)) + 1;
-
   const leavesTakenNew =
     Math.ceil(Math.abs(endTimeNew - startTimeNew) / 86400000) + 1;
 
@@ -393,15 +235,13 @@ const handleLeave = (conn, locals) => {
     locals.leavesRemaining = leavesTakenOld;
     locals.totalLeavesTaken = '';
 
-    updateDocsWithBatch(conn, locals);
-
-    return;
+    return updateDocsWithBatch(conn, locals);
   }
 
   const leaveType = conn.req.body.attachment['Leave Type'].value;
   const officeId = locals.docs.activity.get('officeId');
 
-  Promise
+  return Promise
     .all([
       rootCollections
         .offices
@@ -426,14 +266,16 @@ const handleLeave = (conn, locals) => {
     .then((result) => {
       // Not checking for the doc.exists, or result[0].empty because
       // leave-type's existance is certain when creating a leave;
-      const annualLimit =
-        result[0].docs[0].get('attachment.Annual Limit.value');
+      const annualLimit = result[0]
+        .docs[0]
+        .get('attachment.Annual Limit.value');
 
-      locals.leavesBalance = (() => {
-        if (result[1].empty) return annualLimit;
+      locals
+        .leavesBalance = (() => {
+          if (result[1].empty) return annualLimit;
 
-        return result[1].docs[0].get('leavesBalance') - leavesTakenOld;
-      })();
+          return result[1].docs[0].get('leavesBalance') - leavesTakenOld;
+        })();
 
       if (locals.leavesBalance < 0) {
         locals.static.statusOnCreate = 'CANCELLED';
@@ -450,11 +292,9 @@ const handleLeave = (conn, locals) => {
           .docs[0]
           .get('totalLeavesRemaining') - Math.round(leavesTakenOld - leavesTakenNew);
 
-      locals.totalLeavesTaken = '';
+      locals.totalLeavesTaken = 0;
 
-      updateDocsWithBatch(conn, locals);
-
-      return;
+      return updateDocsWithBatch(conn, locals);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -467,13 +307,10 @@ const getUpdatedFields = (conn, locals) => {
   const scheduleNames = [];
   activitySchedule.forEach((schedule) => scheduleNames.push(schedule.name));
 
-  const scheduleValidationResult
-    = validateSchedules(conn.req.body, scheduleNames);
+  const scheduleValidationResult = validateSchedules(conn.req.body, scheduleNames);
 
   if (!scheduleValidationResult.isValid) {
-    sendResponse(conn, code.badRequest, scheduleValidationResult.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, scheduleValidationResult.message);
   }
 
   const venueDescriptors = [];
@@ -484,16 +321,14 @@ const getUpdatedFields = (conn, locals) => {
     = validateVenues(conn.req.body, venueDescriptors);
 
   if (!venueValidationResult.isValid) {
-    sendResponse(conn, code.badRequest, venueValidationResult.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, venueValidationResult.message);
   }
 
   locals.objects.updatedFields.venue = venueValidationResult.venues;
 
   // handleLeave(conn, locals);
 
-  updateDocsWithBatch(conn, locals);
+  return updateDocsWithBatch(conn, locals);
   // handlePayroll(conn, locals);
 };
 
@@ -587,26 +422,22 @@ const handleAssignees = (conn, locals) => {
     .has(locals.static.template)
     && conn.req.body.attachment.Name.value
     !== locals.docs.activity.get('attachment').Name.value) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.conflict,
       `The ${locals.static.template} name cannot be edited.`
     );
-
-    return;
   }
 
   if (locals.static.template === 'employee'
     && locals.docs.activity.get('attachment.Employee Contact.value')
     !== conn.req.body.attachment['Employee Contact'].value) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.conflict,
       `Phone numbers cannot be updated for the template:`
       + ` ${locals.static.template}`
     );
-
-    return;
   }
 
 
@@ -618,23 +449,19 @@ const handleAssignees = (conn, locals) => {
     .add('subscription')
     .add('admin')
     .has(locals.static.template)) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.conflict,
       `Phone numbers cannot be updated for the template:`
       + ` ${locals.static.template}`
     );
-
-    return;
   }
 
   if (promises.length === 0) {
-    getUpdatedFields(conn, locals);
-
-    return;
+    return getUpdatedFields(conn, locals);
   }
 
-  Promise
+  return Promise
     .all(promises)
     .then((snapShots) => {
       snapShots.forEach((snapShot) => {
@@ -659,9 +486,7 @@ const handleAssignees = (conn, locals) => {
         }
       });
 
-      getUpdatedFields(conn, locals);
-
-      return;
+      return getUpdatedFields(conn, locals);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -671,9 +496,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
   const promises = result.querySnapshotShouldNotExist;
 
   if (promises.length === 0) {
-    handleAssignees(conn, locals);
-
-    return;
+    return handleAssignees(conn, locals);
   }
 
   /**
@@ -684,17 +507,13 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
   if (locals.docs.activity.get('attachment').hasOwnProperty('Name')
     && locals.docs.activity.get('attachment').Name.value
     === conn.req.body.attachment.Name.value) {
-    handleAssignees(conn, locals);
-
-    return;
+    return handleAssignees(conn, locals);
   }
 
   if (locals.docs.activity.get('attachment').hasOwnProperty('Number')
     && locals.docs.activity.get('attachment').Number.value
     === conn.req.body.attachment.Number.value) {
-    handleAssignees(conn, locals);
-
-    return;
+    return handleAssignees(conn, locals);
   }
 
   Promise
@@ -704,7 +523,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
       let message = null;
 
       for (const snapShot of snapShots) {
-        const filters = snapShot._query._fieldFilters;
+        const filters = snapShot.query._queryOptions.fieldFilters;
         const argOne = filters[0].value;
 
         if (!snapShot.empty) {
@@ -715,14 +534,10 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
       }
 
       if (!successful) {
-        sendResponse(conn, code.badRequest, message);
-
-        return;
+        return sendResponse(conn, code.badRequest, message);
       }
 
-      handleAssignees(conn, locals);
-
-      return;
+      return handleAssignees(conn, locals);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -732,9 +547,7 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
   const promises = result.querySnapshotShouldExist;
 
   if (promises.length === 0) {
-    resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
-
-    return;
+    return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
   }
 
   Promise
@@ -744,8 +557,8 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
       let message;
 
       for (const snapShot of snapShots) {
-        const filters = snapShot._query._fieldFilters;
-        const argOne = filters[0]._value;
+        const filters = snapShot.query._queryOptions.fieldFilters;
+        const argOne = filters[0].value;
         let argTwo;
 
         message = `No template found with the name: ${argOne} from`
@@ -764,14 +577,10 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
       }
 
       if (!successful) {
-        sendResponse(conn, code.badRequest, message);
-
-        return;
+        return sendResponse(conn, code.badRequest, message);
       }
 
-      resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
-
-      return;
+      return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -781,9 +590,7 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
   const promises = result.profileDocShouldExist;
 
   if (promises.length === 0) {
-    resolveQuerySnapshotShouldExistPromises(conn, locals, result);
-
-    return;
+    return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
   }
 
   Promise
@@ -819,14 +626,10 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
       }
 
       if (!successful) {
-        sendResponse(conn, code.badRequest, message);
-
-        return;
+        return sendResponse(conn, code.badRequest, message);
       }
 
-      resolveQuerySnapshotShouldExistPromises(conn, locals, result);
-
-      return;
+      return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -842,9 +645,7 @@ const handleAttachment = (conn, locals) => {
   });
 
   if (!result.isValid) {
-    sendResponse(conn, code.badRequest, result.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, result.message);
   }
 
   /**
@@ -854,24 +655,20 @@ const handleAttachment = (conn, locals) => {
    */
   if (conn.req.body.template === 'office'
     && conn.req.body.attachment.Name.value !== locals.static.office) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.conflict,
       `Updating the 'Name' of an 'Office' is not allowed.`
     );
-
-    return;
   }
 
   if (result.querySnapshotShouldExist.length === 0
     && result.querySnapshotShouldNotExist.length === 0
     && result.profileDocShouldExist.length === 0) {
-    handleAssignees(conn, locals);
-
-    return;
+    return handleAssignees(conn, locals);
   }
 
-  resolveProfileCheckPromises(conn, locals, result);
+  return resolveProfileCheckPromises(conn, locals, result);
 };
 
 
@@ -882,14 +679,10 @@ const handleResult = (conn, docs) => {
   );
 
   if (!result.isValid) {
-    sendResponse(conn, code.badRequest, result.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, result.message);
   }
 
-  const [
-    activity,
-  ] = docs;
+  const [activityDoc] = docs;
 
   const locals = {
     batch: db.batch(),
@@ -898,48 +691,44 @@ const handleResult = (conn, docs) => {
         timestamp: Date.now(),
       },
       permissions: {},
-      attachment: activity.get('attachment'),
+      attachment: activityDoc.get('attachment'),
     },
     docs: {
-      activity,
+      activity: activityDoc,
     },
     static: {
-      officeId: activity.get('officeId'),
-      canEditRule: activity.get('canEditRule'),
-      template: activity.get('template'),
-      office: activity.get('office'),
+      officeId: activityDoc.get('officeId'),
+      canEditRule: activityDoc.get('canEditRule'),
+      template: activityDoc.get('template'),
+      office: activityDoc.get('office'),
     },
   };
 
-  handleAttachment(conn, locals);
+  return handleAttachment(conn, locals);
 };
 
 
 module.exports = (conn) => {
   if (conn.req.method !== 'PATCH') {
-    sendResponse(
+    return sendResponse(
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for the /update endpoint.`
       + ` Use PATCH.`
     );
-
-    return;
   }
 
   const result = isValidRequestBody(conn.req.body, httpsActions.update);
 
   if (!result.isValid) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.badRequest,
       result.message
     );
-
-    return;
   }
 
-  Promise
+  return Promise
     .all([
       rootCollections
         .activities

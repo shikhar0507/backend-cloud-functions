@@ -46,6 +46,7 @@ const {
   haversineDistance,
   validateSchedules,
   isValidRequestBody,
+  setOnLeaveAndOnDuty,
 } = require('./helper');
 const {
   handleError,
@@ -139,8 +140,6 @@ const createDocsWithBatch = (conn, locals) => {
     locals.objects.venueArray
   );
 
-  console.log({ adjustedGeopoints });
-
   if (!new Set(['check-in', 'on duty', 'leave'])
     .has(conn.req.body.template)
     && adjustedGeopoints) {
@@ -210,9 +209,8 @@ const createDocsWithBatch = (conn, locals) => {
     addendumDocObject.distanceAccurate = distanceAccurate;
   }
 
-  if (conn.req.body.template === 'leave'
-    && activityData.status === 'CANCELLED') {
-    addendumDocObject.leaveCancelledMessage = ``;
+  if (locals.cancellationMessage) {
+    addendumDocObject.cancellationMessage = locals.cancellationMessage;
   }
 
   locals.batch.set(addendumDocRef, addendumDocObject);
@@ -238,278 +236,56 @@ const createDocsWithBatch = (conn, locals) => {
   }
 
   /** ENDS the response. */
-  locals
+  return locals
     .batch
     .commit()
     .then(() => sendResponse(conn, code.created))
     .catch((error) => handleError(conn, error));
 };
 
-
-const getPayrollObject = (options) => {
-  const {
-    payrollObject,
-    monthDatesMap,
-    month,
-    year,
-    phoneNumber,
-    requestBody,
-  } = options;
-
-  let datesConflicted = false;
-  let conflictsWith = '';
-
-  if (!payrollObject[phoneNumber]) {
-    payrollObject[phoneNumber] = {};
-  }
-
-  const getStatus = () => {
-    if (requestBody.template === 'leave') {
-      if (requestBody.attachment['Leave Type'].value) {
-        return `LEAVE - ${requestBody.attachment['Leave Type'].value}`;
-      }
-
-      return `LEAVE`;
-    }
-
-    return `ON DUTY`;
-  };
-
-  const newStatus = getStatus();
-
-  monthDatesMap
-    .get(`${month}-${year}`)
-    .forEach((date) => {
-      if (!payrollObject[phoneNumber][date]) {
-        payrollObject[phoneNumber][date] = {
-          status: 'BLANK',
-        };
-      }
-
-      // Creating a new leave with conflicting dates
-      if (payrollObject[phoneNumber][date].status.startsWith('LEAVE')
-        && newStatus.startsWith('LEAVE')) {
-        datesConflicted = true;
-
-        conflictsWith = `LEAVE`;
-
-        return;
-      }
-
-      // Creating a leave when `ON DUTY` is already set
-      if (payrollObject[phoneNumber][date].status.startsWith('LEAVE')
-        && newStatus === 'ON DUTY') {
-        datesConflicted = true;
-
-        conflictsWith = `ON DUTY`;
-
-        return;
-      }
-
-      // Creating an ON DUTY when the leave is already set
-      if (payrollObject[phoneNumber][date].status === 'ON DUTY'
-        && newStatus.startsWith('LEAVE')) {
-        datesConflicted = true;
-
-        conflictsWith = `LEAVE`;
-
-        return;
-      }
-
-      // Creating ON DUTY when ON DUTY is already set
-      if (payrollObject[phoneNumber][date].status === 'ON DUTY'
-        && newStatus === 'ON DUTY') {
-        datesConflicted = true;
-
-        conflictsWith = `ON DUTY`;
-
-        return;
-      }
-
-      payrollObject[phoneNumber][date].status = newStatus;
-    });
-
-  return {
-    payrollObject,
-    datesConflicted,
-    conflictsWith,
-  };
-};
-
-
 const handleLeaveOrOnDuty = (conn, locals) => {
-  const getPromiseObject = (month, year, office) => {
-    return rootCollections
-      .inits
-      .where('office', '==', office)
-      .where('report', '==', reportNames.PAYROLL)
-      .where('month', '==', month)
-      .where('year', '==', year)
-      .limit(1)
-      .get();
-  };
-
   const startTime = conn.req.body.schedule[0].startTime;
   const endTime = conn.req.body.schedule[0].endTime;
   const startTimeMoment = momentTz(startTime);
   const endTimeMoment = momentTz(endTime);
-  const startTimeUnix = startTimeMoment
-    .startOf('day')
-    .unix() * 1000;
-  const endTimeUnix = endTimeMoment
-    .endOf('day')
-    .unix() * 1000;
 
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
+
+  console.log({
+    leavesTakenThisTime,
+    leavesTakenThisTimeType: typeof leavesTakenThisTime,
+    leavesTakenThisYear: locals.leavesTakenThisYear,
+    leavesTakenThisYearType: typeof locals.leavesTakenThisYear,
+    maxLeavesAllowed: locals.maxLeavesAllowed,
+    maxLeavesAllowedType: typeof locals.maxLeavesAllowed,
+  });
 
   if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
     console.log('CANCELL HERE 1');
     locals.static.statusOnCreate = 'CANCELLED';
-    locals.cancellationMessage = ``;
+    locals.cancellationMessage = `Leave limit exceeded by `;
 
-    createDocsWithBatch(conn, locals);
-
-    return;
+    return createDocsWithBatch(conn, locals);
   }
 
-  const initFetchPromises = [];
-  /**
-   * Can be used to know using the result index to see which
-   * month + year combination doc doesn't exist.
-   */
-  const docMeta = [];
-  const NUM_MILLI_SECS_IN_A_DAY = 86400000;
-  const startMoment = momentTz(startTimeUnix);
-  let oldMonthValue = startMoment.month();
-  let oldYearValue = startMoment.year();
-  /** 
-   * Stores the dates as a Set in the value field of this map
-   * so that we only update the values for the user that are for the
-   * month in context and only the dates which are in the month.
-   */
-  const monthDatesMap = new Map();
+  return setOnLeaveAndOnDuty(
+    conn.requester.phoneNumber,
+    locals.officeDoc.id,
+    startTime,
+    endTime,
+    conn.req.body.template
+  )
+    .then((result) => {
+      const { success, message } = result;
 
-  initFetchPromises
-    .push(
-      getPromiseObject(oldMonthValue, oldYearValue, conn.req.body.office)
-    );
+      console.log('setOnLeaveAndOnDuty', result);
 
-  docMeta.push({ month: oldMonthValue, year: oldYearValue });
-
-  for (let iter = startTimeUnix;
-    iter <= endTimeUnix;
-    iter += NUM_MILLI_SECS_IN_A_DAY) {
-    const newMoment = momentTz(iter);
-    const newDateValue = newMoment.date();
-    const newMonthValue = newMoment.month();
-    const newYearValue = newMoment.year();
-
-    if (monthDatesMap.has(`${newMonthValue}-${newYearValue}`)) {
-      monthDatesMap
-        .get(`${newMonthValue}-${newYearValue}`)
-        .add(newDateValue);
-    } else {
-      monthDatesMap
-        .set(`${newMonthValue}-${newYearValue}`, new Set().add(newDateValue));
-    }
-
-    if (oldMonthValue === newMonthValue
-      && oldYearValue === newYearValue) {
-      continue;
-    }
-
-    oldMonthValue = newMonthValue;
-    oldYearValue = newYearValue;
-
-    console.log('fetching', { newMonthValue, newYearValue });
-
-    docMeta.push({ month: newMonthValue, year: newYearValue });
-
-    initFetchPromises
-      .push(
-        getPromiseObject(newMonthValue, newYearValue, conn.req.body.office)
-      );
-  }
-
-  console.log('Num docs fetch', initFetchPromises.length);
-
-  let toCancel = false;
-  let conflictsWith = null;
-
-  Promise
-    .all(initFetchPromises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot, index) => {
-        const monthValue = docMeta[index].month;
-        const yearValue = docMeta[index].year;
-
-        const ref = (() => {
-          if (snapShot.empty) {
-            return rootCollections.inits.doc();
-          }
-
-          return snapShot.docs[0].ref;
-        })();
-
-        const payrollObject = (() => {
-          if (snapShot.empty) {
-            return {};
-          }
-
-          return snapShot.docs[0].get('payrollObject') || {};
-        })();
-
-        const updatedPayrollObject = getPayrollObject({
-          month: monthValue,
-          year: yearValue,
-          phoneNumber: conn.requester.phoneNumber,
-          requestBody: conn.req.body,
-          payrollObject,
-          monthDatesMap,
-        });
-
-        locals.batch.set(ref, {
-          report: reportNames.PAYROLL,
-          payrollObject: updatedPayrollObject.payrollObject,
-          year: yearValue,
-          month: monthValue,
-          office: conn.req.body.office,
-          officeId: locals.static.officeId,
-        }, {
-            /** The doc may or may not exist yet. */
-            merge: true,
-          });
-
-        /** Using an if block to handle this boolean case becase
-         * there can be multiple iterations depending on the
-         * duration of leave or on duty.
-         * The dates may conflict on month 1, but not on month 2.
-         * So, for handling that, we are setting the toCancel to
-         * `true` if `datesConflict`.
-         */
-        if (updatedPayrollObject.datesConflicted) {
-          toCancel = true;
-        }
-
-        if (updatedPayrollObject.conflictsWith) {
-          conflictsWith = updatedPayrollObject.conflictsWith;
-        }
-      });
-
-      if (toCancel) {
-        console.log('CANCELL HERE 2', 'toCancel');
-        // locals
-        //   .static
-        //   .statusOnCreate = 'CANCELLED';
-        // locals
-        //   .cancellationMessage =
-        //   `${conn.req.body.template.toUpperCase()}`
-        //   + ` conflict with ${conflictsWith}`;
+      if (!success) {
+        locals.static.statusOnCreate = 'CANCELLED';
+        locals.cancellationMessage = message;
       }
 
-      createDocsWithBatch(conn, locals);
-
-      return;
+      return createDocsWithBatch(conn, locals);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -522,33 +298,31 @@ const handlePayroll = (conn, locals) => {
     // TODO: Remove this after some time
     .add(reportNames.TOUR_PLAN)
     .has(conn.req.body.template)) {
-    createDocsWithBatch(conn, locals);
-
-    return;
+    return createDocsWithBatch(conn, locals);
   }
 
   const startTime = conn.req.body.schedule[0].startTime;
   const endTime = conn.req.body.schedule[0].endTime;
 
   if (!startTime || !endTime) {
-    createDocsWithBatch(conn, locals);
-
-    return;
+    return createDocsWithBatch(conn, locals);
   }
 
   if (conn.req.body.template !== 'leave') {
-    handleLeaveOrOnDuty(conn, locals);
-
-    return;
+    return handleLeaveOrOnDuty(conn, locals);
   }
 
   const leaveType = conn.req.body.attachment['Leave Type'].value;
   const startMoment = momentTz(conn.req.body.schedule[0].startTime);
   const endMoment = momentTz(conn.req.body.schedule[0].endTime);
-  locals.maxLeavesAllowed = 0;
+  locals.maxLeavesAllowed = Number.POSITIVE_INFINITY;
   locals.leavesTakenThisYear = 0;
 
-  Promise
+  if (!leaveType) {
+    locals.maxLeavesAllowed = 20;
+  }
+
+  return Promise
     .all([
       rootCollections
         .offices
@@ -609,14 +383,10 @@ const handlePayroll = (conn, locals) => {
           .static
           .statusOnCreate = 'CANCELLED';
 
-        createDocsWithBatch(conn, locals);
-
-        return;
+        return createDocsWithBatch(conn, locals);
       }
 
-      handleLeaveOrOnDuty(conn, locals);
-
-      return;
+      return handleLeaveOrOnDuty(conn, locals);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -624,9 +394,7 @@ const handlePayroll = (conn, locals) => {
 
 const handleAssignees = (conn, locals) => {
   if (locals.objects.allPhoneNumbers.size === 0) {
-    sendResponse(conn, code.badRequest, `No assignees found`);
-
-    return;
+    return sendResponse(conn, code.badRequest, `No assignees found`);
   }
 
   const promises = [];
@@ -646,26 +414,6 @@ const handleAssignees = (conn, locals) => {
         isCreator: isRequester,
       };
 
-      /**
-       * No docs will exist if the template is `office`
-       * since this template itself is used to create
-       * the office. No use of adding promises to the array.
-       */
-      if (conn.req.body.template === 'office') return;
-
-      if (locals.static.canEditRule === 'ADMIN') {
-        promises
-          .push(rootCollections
-            .offices
-            .doc(locals.static.officeId)
-            .collection('Activities')
-            .where('attachment.Admin.value', '==', phoneNumber)
-            .where('template', '==', 'admin')
-            .limit(1)
-            .get()
-          );
-      }
-
       if (locals.static.canEditRule === 'EMPLOYEE') {
         promises
           .push(rootCollections
@@ -680,7 +428,7 @@ const handleAssignees = (conn, locals) => {
       }
     });
 
-  Promise
+  return Promise
     .all(promises)
     .then((snapShots) => {
       snapShots.forEach((snapShot) => {
@@ -689,13 +437,7 @@ const handleAssignees = (conn, locals) => {
         let phoneNumber;
         const doc = snapShot.docs[0];
         const template = doc.get('template');
-        const isAdmin = template === 'admin';
         const isEmployee = template === 'employee';
-
-        if (isAdmin) {
-          phoneNumber = doc.get('attachment.Admin.value');
-          locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
-        }
 
         if (isEmployee) {
           phoneNumber = doc.get('attachment.Employee Contact.value');
@@ -703,9 +445,7 @@ const handleAssignees = (conn, locals) => {
         }
       });
 
-      handlePayroll(conn, locals);
-
-      return;
+      return handlePayroll(conn, locals);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -715,38 +455,32 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
   const promises = result.querySnapshotShouldNotExist;
 
   if (promises.length === 0) {
-    handleAssignees(conn, locals);
-
-    return;
+    return handleAssignees(conn, locals);
   }
 
-  Promise
+  return Promise
     .all(promises)
     .then((snapShots) => {
       let successful = true;
       let message = null;
 
       for (const snapShot of snapShots) {
-        const filters = snapShot._query._fieldFilters;
-        const argOne = filters[0]._value;
-        const parentFieldName = filters[0].field.segments[1];
+        const filters = snapShot.query._queryOptions.fieldFilters;
+        const value = filters[0].value;
+        const type = filters[1].value;
 
         if (!snapShot.empty) {
           successful = false;
-          message = `The ${parentFieldName} '${argOne}' already is in use`;
+          message = `The ${type} '${value}' already is in use`;
           break;
         }
       }
 
       if (!successful) {
-        sendResponse(conn, code.badRequest, message);
-
-        return;
+        return sendResponse(conn, code.badRequest, message);
       }
 
-      handleAssignees(conn, locals);
-
-      return;
+      return handleAssignees(conn, locals);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -754,24 +488,22 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
 const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
   if (result.querySnapshotShouldExist.length === 0) {
-    resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
-
-    return;
+    return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
   }
 
-  Promise
+  return Promise
     .all(result.querySnapshotShouldExist)
     .then((snapShots) => {
       let successful = true;
       let message;
 
       for (const snapShot of snapShots) {
-        const filters = snapShot._query._fieldFilters;
-        const [
-          argOne,
-        ] = filters;
+        console.log('should:', snapShot.query._queryOptions.fieldFilters);
+        const filters = snapShot.query._queryOptions.fieldFilters;
+        const value = filters[0].value;
+        const type = filters[1].value;
 
-        message = `${argOne._value} does not exist`;
+        message = `${type} ${value} does not exist`;
 
         if (snapShot.empty) {
           successful = false;
@@ -779,15 +511,11 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
         }
       }
 
-      if (!successful) {
-        sendResponse(conn, code.badRequest, message);
-
-        return;
+      if (!successful && conn.req.body.template !== 'dsr') {
+        return sendResponse(conn, code.badRequest, message);
       }
 
-      resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
-
-      return;
+      return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -795,12 +523,10 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
 
 const resolveProfileCheckPromises = (conn, locals, result) => {
   if (result.profileDocShouldExist.length === 0) {
-    resolveQuerySnapshotShouldExistPromises(conn, locals, result);
-
-    return;
+    return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
   }
 
-  Promise
+  return Promise
     .all(result.profileDocShouldExist)
     .then((docs) => {
       let successful = true;
@@ -821,14 +547,10 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
       }
 
       if (!successful) {
-        sendResponse(conn, code.badRequest, message);
-
-        return;
+        return sendResponse(conn, code.badRequest, message);
       }
 
-      resolveQuerySnapshotShouldExistPromises(conn, locals, result);
-
-      return;
+      return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -845,9 +567,7 @@ const handleBase64 = (conn, locals, result) => {
    * if value is url return;
    */
   if (!isBase64) {
-    resolveProfileCheckPromises(conn, locals, result);
-
-    return;
+    return resolveProfileCheckPromises(conn, locals, result);
   }
 
   const getKeyId = (applicationKey, keyId) => `${keyId}:${applicationKey}`;
@@ -871,7 +591,7 @@ const handleBase64 = (conn, locals, result) => {
     encoding: 'base64',
   });
 
-  promisifiedExecFile(mozjpeg, ['-outfile', compressedFilePath, originalFilePath])
+  return promisifiedExecFile(mozjpeg, ['-outfile', compressedFilePath, originalFilePath])
     .then(() => promisifiedRequest({
       hostname: `api.backblazeb2.com`,
       path: `/b2api/v2/b2_authorize_account`,
@@ -956,9 +676,7 @@ const handleAttachment = (conn, locals) => {
   const result = filterAttachment(options);
 
   if (!result.isValid) {
-    sendResponse(conn, code.badRequest, result.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, result.message);
   }
 
   /**
@@ -969,7 +687,7 @@ const handleAttachment = (conn, locals) => {
     .phoneNumbers
     .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
 
-  handleBase64(conn, locals, result);
+  return handleBase64(conn, locals, result);
 };
 
 
@@ -978,9 +696,7 @@ const handleScheduleAndVenue = (conn, locals) => {
     validateSchedules(conn.req.body, locals.objects.schedule);
 
   if (!scheduleValidationResult.isValid) {
-    sendResponse(conn, code.badRequest, scheduleValidationResult.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, scheduleValidationResult.message);
   }
 
   locals.objects.scheduleArray = scheduleValidationResult.schedules;
@@ -989,9 +705,7 @@ const handleScheduleAndVenue = (conn, locals) => {
     validateVenues(conn.req.body, locals.objects.venue);
 
   if (!venueValidationResult.isValid) {
-    sendResponse(conn, code.badRequest, venueValidationResult.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, venueValidationResult.message);
   }
 
   /**
@@ -1001,7 +715,7 @@ const handleScheduleAndVenue = (conn, locals) => {
    */
   locals.objects.venueArray = venueValidationResult.venues;
 
-  handleAttachment(conn, locals);
+  return handleAttachment(conn, locals);
 };
 
 
@@ -1075,38 +789,32 @@ const createLocals = (conn, result) => {
 
   if (officeQueryResult.empty
     && conn.req.body.template !== 'office') {
-    sendResponse(
+    return sendResponse(
       conn,
       code.forbidden,
       `No office found with the name: '${conn.req.body.office}'`
     );
-
-    return;
   }
 
   if (subscriptionQueryResult.empty
     && conn.req.body.template !== 'enquiry'
     && !conn.requester.isSupportRequest) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.forbidden,
       `No subscription found for the template: '${conn.req.body.template}'`
       + ` with the office '${conn.req.body.office}'`
     );
-
-    return;
   }
 
   if (!subscriptionQueryResult.empty) {
     if (subscriptionQueryResult.docs[0].get('status') === 'CANCELLED') {
-      sendResponse(
+      return sendResponse(
         conn,
         code.forbidden,
         `Your subscription to the template '${conn.req.body.template}'`
         + ` is 'CANCELLED'. Cannot create an activity`
       );
-
-      return;
     }
 
     /**
@@ -1123,23 +831,19 @@ const createLocals = (conn, result) => {
 
   if (!officeQueryResult.empty) {
     if (conn.req.body.template === 'office') {
-      sendResponse(
+      return sendResponse(
         conn,
         code.conflict,
         `The office '${conn.req.body.office}' already exists`
       );
-
-      return;
     }
 
     if (officeQueryResult.docs[0].get('status') === 'CANCELLED') {
-      sendResponse(
+      return sendResponse(
         conn,
         code.forbidden,
         `The office status is 'CANCELLED'. Cannot create an activity`
       );
-
-      return;
     }
 
     locals.static.officeId = officeQueryResult.docs[0].id;
@@ -1169,13 +873,11 @@ const createLocals = (conn, result) => {
     locals.static.hidden = subscriptionQueryResult.docs[0].get('hidden');
   } else {
     if (templateQueryResult.empty) {
-      sendResponse(
+      return sendResponse(
         conn,
         code.badRequest,
         `No template found with the name: '${conn.req.body.template}'`
       );
-
-      return;
     }
 
     locals.objects.schedule = templateQueryResult.docs[0].get('schedule');
@@ -1190,7 +892,7 @@ const createLocals = (conn, result) => {
     locals.objects.allPhoneNumbers.add(conn.requester.phoneNumber);
   }
 
-  handleScheduleAndVenue(conn, locals);
+  return handleScheduleAndVenue(conn, locals);
 };
 
 
@@ -1226,7 +928,7 @@ const fetchDocs = (conn) => {
       );
   }
 
-  Promise
+  return Promise
     .all(promises)
     .then((result) => createLocals(conn, result))
     .catch((error) => handleError(conn, error));
@@ -1235,23 +937,19 @@ const fetchDocs = (conn) => {
 
 module.exports = (conn) => {
   if (conn.req.method !== 'POST') {
-    sendResponse(
+    return sendResponse(
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for the / create`
       + ' endpoint. Use POST'
     );
-
-    return;
   }
 
   const bodyResult = isValidRequestBody(conn.req.body, httpsActions.create);
 
   if (!bodyResult.isValid) {
-    sendResponse(conn, code.badRequest, bodyResult.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, bodyResult.message);
   }
 
-  fetchDocs(conn);
+  return fetchDocs(conn);
 };

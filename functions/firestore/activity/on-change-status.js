@@ -25,12 +25,18 @@
 'use strict';
 
 
-const { isValidRequestBody, checkActivityAndAssignee } = require('./helper');
+const {
+  isValidRequestBody,
+  checkActivityAndAssignee,
+  setOnLeaveAndOnDuty,
+  cancelLeaveOrDuty,
+} = require('./helper');
 const { code } = require('../../admin/responses');
-const { httpsActions } = require('../../admin/constants');
+const {
+  httpsActions,
+} = require('../../admin/constants');
 const {
   db,
-  deleteField,
   rootCollections,
   getGeopointObject,
 } = require('../../admin/admin');
@@ -39,30 +45,55 @@ const {
   sendResponse,
 } = require('../../admin/utils');
 
+const handleLeaveAndOnDuty = (conn, activityDoc) => {
+  const hasBeenCancelled = activityDoc.get('status') !== 'CANCELLED'
+    && conn.req.body.status === 'CANCELLED';
+  const isLeaveOrOnDuty = new Set(['leave', 'on duty'])
+    .has(activityDoc.get('template'));
 
-const toAttachmentValues = (activity) => {
-  const object = {
-    activityId: activity.id,
-    createTime: activity.createTime,
-  };
+  if (!isLeaveOrOnDuty) {
+    return Promise.resolve({});
+  }
 
-  const fields = Object.keys(activity.get('attachment'));
+  const schedule = activityDoc.get('schedule')[0];
+  const startTime = schedule.startTime;
+  const endTime = schedule.endTime;
+  const template = activityDoc.get('template');
+  const officeId = activityDoc.get('officeId');
+  const creator = activityDoc.get('creator');
+  const phoneNumber = (() => {
+    if (typeof creator === 'string') {
+      return creator;
+    }
 
-  fields
-    .forEach((field) => {
-      object[field] = activity.get('attachment')[field].value;
-    });
+    return creator.phoneNumber;
+  })();
 
-  return object;
+  if (hasBeenCancelled) {
+    return cancelLeaveOrDuty(
+      phoneNumber,
+      officeId,
+      startTime,
+      endTime,
+      template
+    );
+  } else {
+    return setOnLeaveAndOnDuty(
+      phoneNumber,
+      officeId,
+      startTime,
+      endTime,
+      template
+    );
+  }
 };
 
 
-const createDocs = (conn, activity) => {
+const createDocs = (conn, activityDoc) => {
   const batch = db.batch();
-
   const addendumDocRef = rootCollections
     .offices
-    .doc(activity.get('officeId'))
+    .doc(activityDoc.get('officeId'))
     .collection('Addendum')
     .doc();
 
@@ -77,14 +108,13 @@ const createDocs = (conn, activity) => {
     });
 
   const now = new Date();
-
-  batch.set(addendumDocRef, {
+  const addendumData = {
     timestamp: Date.now(),
     date: now.getDate(),
     month: now.getMonth(),
     year: now.getFullYear(),
     dateString: now.toDateString(),
-    activityData: Object.assign({}, activity.data(), {
+    activityData: Object.assign({}, activityDoc.data(), {
       addendumDocRef,
       status: conn.req.body.status,
       timestamp: Date.now(),
@@ -95,47 +125,27 @@ const createDocs = (conn, activity) => {
     location: getGeopointObject(conn.req.body.geopoint),
     userDeviceTimestamp: conn.req.body.timestamp,
     activityId: conn.req.body.activityId,
-    activityName: activity.get('activityName'),
+    activityName: activityDoc.get('activityName'),
     isSupportRequest: conn.requester.isSupportRequest,
     geopointAccuracy: conn.req.body.geopoint.accuracy || null,
     provider: conn.req.body.geopoint.provider || null,
-  });
+  };
 
+  const hasBeenCancelled = activityDoc.get('status') !== 'CANCELLED'
+    && conn.req.body.status === 'CANCELLED';
 
-  if (activity.get('template') === 'employee') {
-    if (conn.req.body.status === 'CANCELLED') {
-      batch.set(rootCollections
-        .offices.doc(activity.get('officeId')), {
-          employeesData: {
-            [activity.get('attachment.Employee Contact.value')]: deleteField(),
-          },
-          namesMap: {
-            employee: {
-              [activity.get('attachment.Name.value')]: deleteField(),
-            },
-          },
-        }, {
-          merge: true,
-        });
-    } else {
-      batch.set(rootCollections
-        .offices.doc(activity.get('officeId')), {
-          employeesData: {
-            [activity.get('attachment.Employee Contact.value')]: toAttachmentValues(activity),
-          },
-          namesMap: {
-            employee: {
-              [activity.get('attachment.Name.value')]: activity.get('attachment.Name.value'),
-            },
-          },
-        }, {
-          merge: true,
-        });
-    }
-  }
+  return handleLeaveAndOnDuty(conn, activityDoc)
+    .then((result) => {
+      console.log('result', result);
 
-  batch
-    .commit()
+      if (result.message && hasBeenCancelled) {
+        addendumData.cancellationMessage = result.message;
+      }
+
+      batch.set(addendumDocRef, addendumData);
+
+      return batch.commit();
+    })
     .then(() => sendResponse(conn, code.noContent))
     .catch((error) => handleError(conn, error));
 };
@@ -148,35 +158,31 @@ const handleResult = (conn, docs) => {
   );
 
   if (!result.isValid) {
-    sendResponse(conn, code.badRequest, result.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, result.message);
   }
 
-  const [activity] = docs;
+  const [
+    activityDoc,
+  ] = docs;
 
-  if (activity.get('status') === conn.req.body.status) {
-    sendResponse(
+  if (activityDoc.get('status') === conn.req.body.status) {
+    return sendResponse(
       conn,
       code.conflict,
       `The activity status is already '${conn.req.body.status}'.`
     );
-
-    return;
   }
 
-  const template = activity.get('template');
-  const attachment = activity.get('attachment');
+  const template = activityDoc.get('template');
+  const attachment = activityDoc.get('attachment');
   const hasName = attachment.hasOwnProperty('Name');
-  const officeId = activity.get('officeId');
+  const officeId = activityDoc.get('officeId');
 
   if (!hasName || conn.req.body.status !== 'CANCELLED') {
-    createDocs(conn, activity);
-
-    return;
+    return createDocs(conn, activityDoc);
   }
 
-  rootCollections
+  return rootCollections
     .offices
     .doc(officeId)
     .collection('Activities')
@@ -187,14 +193,10 @@ const handleResult = (conn, docs) => {
     .get()
     .then((docs) => {
       if (docs.size > 1) {
-        sendResponse(conn, code.conflict, `Not allowed`);
-
-        return;
+        return sendResponse(conn, code.conflict, 'Not allowed');
       }
 
-      createDocs(conn, activity);
-
-      return;
+      return createDocs(conn, activityDoc);
     })
     .catch((error) => handleError(conn, error));
 };
@@ -202,29 +204,25 @@ const handleResult = (conn, docs) => {
 
 module.exports = (conn) => {
   if (conn.req.method !== 'PATCH') {
-    sendResponse(
+    return sendResponse(
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for /change-status`
       + ' endpoint. Use PATCH'
     );
-
-    return;
   }
 
   const result = isValidRequestBody(conn.req.body, httpsActions.changeStatus);
 
   if (!result.isValid) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.badRequest,
       result.message
     );
-
-    return;
   }
 
-  Promise
+  return Promise
     .all([
       rootCollections
         .activities

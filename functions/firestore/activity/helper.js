@@ -41,11 +41,13 @@ const {
 const {
   validTypes,
   timezonesSet,
+  dateFormats,
   templatesWithNumber,
 } = require('../../admin/constants');
 const {
   toMapsUrl,
 } = require('../../firestore/recipients/report-utils');
+const moment = require('moment-timezone');
 
 
 /**
@@ -1209,6 +1211,340 @@ const toEmployeesData = (activity) => {
   };
 };
 
+const getMonthYearPairs = (startTime, endTime, timezone) => {
+  const NUM_MILLI_SECS_IN_A_DAY = 86400000;
+  const pairs = [];
+  let monthTemp = '';
+  let yearTemp = '';
+  // Note: Not sure if timezone is relevant here
+  const startTimeUnix = moment(startTime)
+    .tz(timezone)
+    .startOf('day')
+    .valueOf();
+  const endTimeUnix = moment(endTime)
+    .tz(timezone)
+    .endOf('day')
+    .valueOf();
+
+  for (let iter = startTimeUnix; iter <= endTimeUnix; iter += NUM_MILLI_SECS_IN_A_DAY) {
+    const newMoment = moment(iter).tz(timezone);
+    /**
+     * Note: The `toString` method is required because 0 is a falsy value.
+     * Not converting it to a string will result in `monthChanged` flag
+     * to always be false in the some cases.
+     *
+     * Eg: 29 April 2019 to 30 April 2020
+     */
+    const newMonthValue = newMoment.month().toString();
+    const newYearValue = newMoment.year().toString();
+    const monthChanged = monthTemp.toString() && monthTemp !== newMonthValue;
+    const yearChanged = yearTemp.toString() && yearTemp !== newYearValue;
+
+    if (!monthTemp || !yearTemp || yearChanged || monthChanged) {
+      pairs.push({
+        year: Number(newYearValue),
+        month: Number(newMonthValue),
+      });
+    }
+
+    monthTemp = newMonthValue;
+    yearTemp = newYearValue;
+  }
+
+  return pairs;
+};
+
+const getStatusObject = (snapShot) => {
+  if (snapShot.empty) {
+    return {};
+  }
+
+  return snapShot.docs[0].get('statusObject') || {};
+};
+
+const getMonthlyDocRef = (snapShot, officeDoc) => {
+  if (snapShot.empty) {
+    return officeDoc.ref.collection('Monthly').doc();
+  }
+
+  return snapShot.docs[0].ref;
+};
+
+const getAllDatesSet = (startTime, endTime, timezone) => {
+  const datesSet = new Set();
+
+  const start = moment(startTime).tz(timezone).startOf('day');
+  const end = moment(endTime).tz(timezone).endOf('day');
+  datesSet.add(start.format());
+
+  while (start.add(1, 'days').diff(end) < 0) {
+    const dateString = start.format();
+
+    datesSet.add(dateString);
+  }
+
+  return datesSet;
+};
+
+const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusToSet) => {
+  const response = {
+    success: true,
+    message: null,
+  };
+
+  if (!['leave', 'on-duty'].includes(statusToSet)) {
+    throw new Error(
+      `The field 'statusToSet' should be a non-empty string`
+      + ` with one of the the values: ${['leave', 'on-duty']}`
+    );
+  }
+
+  if (!startTime || !endTime) {
+    return Promise.resolve(response);
+  }
+
+  let timezone;
+  let officeDoc;
+  const batch = db.batch();
+  const monthYearIndexes = [];
+  const conflictingDates = [];
+  const ON_LEAVE_CONFLICT_MESSAGE = 'Leave already applied for the following date(s)';
+  const ON_DUTY_CONFLICT_MESSAGE = 'Duty already applied for the following date(s)';
+
+  return rootCollections
+    .offices
+    .doc(officeId)
+    .get()
+    .then((doc) => {
+      officeDoc = doc;
+      timezone = officeDoc.get('attachment.Timezone.value');
+      const monthYearPairs = getMonthYearPairs(
+        startTime,
+        endTime,
+        timezone
+      );
+      const promises = [];
+
+      monthYearPairs.forEach((pair) => {
+        const promise = officeDoc
+          .ref
+          .collection('Monthly')
+          .where('phoneNumber', '==', phoneNumber)
+          .where('month', '==', pair.month)
+          .where('year', '==', pair.year)
+          .limit(1)
+          .get();
+
+        promises.push(promise);
+
+        monthYearIndexes.push({
+          month: pair.month,
+          year: pair.year,
+        });
+      });
+
+      return Promise.all(promises);
+    })
+    .then((snapShots) => {
+      const allDateStringsSet = getAllDatesSet(startTime, endTime, timezone);
+
+      snapShots.forEach((snapShot, index) => {
+        const { month, year } = monthYearIndexes[index];
+        const monthlyDocRef = getMonthlyDocRef(snapShot, officeDoc);
+        const statusObject = getStatusObject(snapShot);
+
+        allDateStringsSet.forEach((dateString) => {
+          const dateObject = moment(dateString);
+          const readableDate = moment(dateString).format(dateFormats.DATE);
+
+          if (month !== dateObject.month()) return;
+          if (year !== dateObject.year()) return;
+
+          if (!statusObject[dateObject.date()]) {
+            statusObject[dateObject.date()] = {};
+          }
+
+          const { onLeave, onDuty } = statusObject[dateObject.date()];
+
+          if (onLeave && statusToSet === 'leave') {
+            conflictingDates.push(readableDate);
+            response.message = ON_LEAVE_CONFLICT_MESSAGE;
+
+            return;
+          }
+
+          if (onLeave && statusToSet === 'on duty') {
+            conflictingDates.push(readableDate);
+            response.message = ON_LEAVE_CONFLICT_MESSAGE;
+
+            return;
+          }
+
+          if (onDuty && statusToSet === 'on duty') {
+            conflictingDates.push(readableDate);
+            response.message = ON_DUTY_CONFLICT_MESSAGE;
+
+            return;
+          }
+
+          if (onDuty && statusToSet === 'leave') {
+            conflictingDates.push(readableDate);
+            response.message = ON_DUTY_CONFLICT_MESSAGE;
+
+            return;
+          }
+
+          if (statusToSet === 'leave') {
+            statusObject[dateObject.date()].onLeave = true;
+          }
+
+          if (statusToSet === 'on duty') {
+            statusObject[dateObject.date()].onDuty = true;
+          }
+        });
+
+        console.log('monthlyDocRef', monthlyDocRef);
+
+        batch.set(monthlyDocRef, {
+          month,
+          year,
+          phoneNumber,
+          statusObject,
+        }, {
+            merge: true,
+          });
+      });
+
+      const datesString = (() => {
+        if (conflictingDates.length < 2) {
+          return conflictingDates;
+        }
+
+        let string = '';
+
+        conflictingDates.forEach((date, index) => {
+          const isLast = index === conflictingDates.length - 1;
+
+          if (isLast) {
+            string += `and ${date}`;
+
+            return;
+          }
+
+          string += `${date}, `;
+        });
+
+        return string.trim();
+      })();
+
+      // Message set means conflict between dates
+      if (response.message) {
+        response.message = `${response.message}: ${datesString}`;
+        response.success = false;
+
+        return Promise.resolve();
+      }
+
+      return batch.commit();
+    })
+    .then(console.log)
+    .then(() => response)
+    .catch(console.error);
+};
+
+const cancelLeaveOrDuty = (phoneNumber, officeId, startTime, endTime, template) => {
+  const response = {
+    success: true,
+    message: '',
+  };
+
+  let officeDoc;
+  let timezone;
+  const batch = db.batch();
+  const monthYearIndexes = [];
+
+  if (!['leave', 'on-duty'].includes(template)) {
+    throw new Error(
+      `The field 'template' should be a non-empty string`
+      + ` with one of the the values: ${['leave', 'on-duty']}`
+    );
+  }
+
+  return rootCollections
+    .offices
+    .doc(officeId)
+    .get()
+    .then((doc) => {
+      officeDoc = doc;
+      timezone = officeDoc.get('attachment.Timezone.value');
+
+      const promises = [];
+      const dateMonthPairs = getMonthYearPairs(startTime, endTime, timezone);
+
+      dateMonthPairs.forEach((pair) => {
+        const promise = officeDoc
+          .ref
+          .collection('Monthly')
+          .where('phoneNumber', '==', phoneNumber)
+          .where('month', '==', pair.month)
+          .where('year', '==', pair.year)
+          .limit(1)
+          .get();
+
+        promises.push(promise);
+
+        monthYearIndexes.push({ month: pair.month, year: pair.year });
+      });
+
+      return Promise.all(promises);
+    })
+    .then((snapShots) => {
+      const allDateStringsSet = getAllDatesSet(startTime, endTime, timezone);
+
+      snapShots.forEach((snapShot, index) => {
+        const doc = snapShot.docs[0];
+        const { month, year } = monthYearIndexes[index];
+
+        const statusObject = getStatusObject(snapShot);
+
+        allDateStringsSet.forEach((dateString) => {
+          const dateObject = moment(dateString);
+
+          if (month !== dateObject.month()) return;
+          if (year !== dateObject.year()) return;
+
+          if (!statusObject[dateObject.date()]) {
+            return;
+          }
+
+          if (template === 'leave' && statusObject[dateObject.date()].onLeave) {
+            statusObject[dateObject.date()].onLeave = false;
+          }
+
+          if (template === 'on duty' && statusObject[dateObject.date()].onDuty) {
+            statusObject[dateObject.date()].onDuty = false;
+          }
+        });
+
+        // The doc may not exist always
+        if (!snapShot.empty) {
+          batch.set(doc.ref, {
+            month,
+            year,
+            phoneNumber,
+            statusObject,
+          }, {
+              merge: true,
+            });
+        }
+      });
+
+      return batch.commit();
+    })
+    .then(() => response)
+    .catch(console.error);
+};
+
 
 module.exports = {
   activityName,
@@ -1217,6 +1553,8 @@ module.exports = {
   toCustomerObject,
   toEmployeesData,
   validateSchedules,
+  setOnLeaveAndOnDuty,
+  cancelLeaveOrDuty,
   filterAttachment,
   haversineDistance,
   isValidRequestBody,

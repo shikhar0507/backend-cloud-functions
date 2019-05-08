@@ -36,7 +36,6 @@ const {
 const {
   httpsActions,
   vowels,
-  customMessages,
   validTypes,
 } = require('../../admin/constants');
 const {
@@ -424,7 +423,7 @@ const handleAutoAssign = (locals) => {
    * Flow:
    * Iterate over attachment fields
    * Extract the type and value field combinations
-   * Fetch activities with those and make the 
+   * Fetch activities with those and make the
    * subscriber as an assignee of those activity
    */
   const officeId = locals.change.after.get('officeId');
@@ -1149,31 +1148,13 @@ module.exports = (change, context) => {
         .forEach((phoneNumber) => {
           /** Without `uid` the doc in `Updates/(uid)` will not exist. */
           if (!locals.assigneesMap.get(phoneNumber).uid) return;
-          /** 
+          /**
            * If the person has used up all their leaves, for the `create`/`update`
            * flow, the comment created for them  will be from this function
            */
           const comment = (() => {
-            const status = change.after.get('status');
-            const isCancelled = status === 'CANCELLED';
-            const action = locals.addendumDoc.get('action');
-            const templateName = change.after.get('template');
-            const activityCreated = httpsActions.create === action;
-
             if (locals.addendumDoc && locals.addendumDoc.get('cancellationMessage')) {
               return locals.addendumDoc.get('cancellationMessage');
-            }
-
-            if (templateName === 'leave') {
-              if (activityCreated && isCancelled) {
-                return customMessages.LEAVE_CANCELLED;
-              }
-            }
-
-            if (templateName === 'on duty') {
-              if (activityCreated && isCancelled) {
-                return customMessages.ON_DUTY_CANCELLED;
-              }
             }
 
             return getCommentString(locals, phoneNumber);
@@ -1241,7 +1222,7 @@ module.exports = (change, context) => {
         return officeRef.collection('Activities').doc(change.after.id);
       })();
 
-      /** 
+      /**
        * Puting them here in order to be able to query based on year
        * on which the leave or tour plan has been created based
        * on schedule. Querying directly based on the startTime or endTime,

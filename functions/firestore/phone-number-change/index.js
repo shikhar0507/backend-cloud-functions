@@ -18,9 +18,6 @@ const {
 const {
   code,
 } = require('../../admin/responses');
-const {
-  reportNames,
-} = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
 
@@ -106,12 +103,11 @@ const validateRequest = (body) => {
 };
 
 
-const commitBatch = (conn, batch) => {
-  return batch
+const commitBatch = (conn, batch) =>
+  batch
     .commit()
     .then(() => sendResponse(conn, code.ok, 'Phone Number updated successfully.'))
     .catch((error) => handleError(conn, error));
-};
 
 const deleteAuth = (oldPhoneNumber) =>
   users
@@ -160,40 +156,72 @@ const deleteAddendum = (conn, locals) => {
     .catch((error) => handleError(conn, error));
 };
 
+const handleMonthlyDocs = (conn, locals) => {
+  let iterations = 0;
 
-const updatePayroll = (conn, locals) => {
-  return rootCollections
-    .inits
-    .where('office', '==', conn.req.body.office)
-    .where('report', '==', reportNames.PAYROLL)
-    .where('month', '==', locals.momentObject.month())
-    .where('year', '==', locals.momentObject.year())
-    .limit(1)
-    .get()
-    .then((snapShot) => {
-      if (!snapShot.empty) {
-        const initDoc = snapShot.docs[0];
-        const payrollObject = initDoc.get('payrollObject');
+  const runQuery = (query, resolve, reject) => {
+    return query
+      .get()
+      .then((docs) => {
+        if (docs.empty) {
+          return [0];
+        }
 
-        // The phone number may not necessarily be in the payroll object
-        // because this object is generated a day after employee creation.
-        if (payrollObject[conn.req.body.oldPhoneNumber]) {
-          payrollObject[
-            conn.req.body.newPhoneNumber
-          ] = payrollObject[conn.req.body.oldPhoneNumber];
+        const batch = db.batch();
 
-          payrollObject[conn.req.body.oldPhoneNumber] = deleteField();
-
-          locals.batch.set(initDoc.ref, {
-            payrollObject,
+        docs.forEach((doc) => {
+          batch.set(doc.ref, {
+            phoneNumber: conn.req.body.newPhoneNumber,
           }, {
               merge: true,
             });
-        }
-      }
+        });
 
-      return deleteAddendum(conn, locals);
-    })
+        return Promise
+          .all([
+            Promise
+              .resolve(docs.docs[docs.size - 1]),
+            batch
+              .commit(),
+          ]);
+      })
+      .then((result) => {
+        iterations++;
+
+        const [lastDoc] = result;
+
+        if (!lastDoc) {
+          console.log('number of iterations for monthly docs', iterations);
+
+          return resolve();
+        }
+
+        console.log({ lastDocId: lastDoc.id });
+
+        return process
+          .nextTick(() => {
+            const newQuery = query
+              .where(fieldPath, '>', lastDoc.id);
+
+            return runQuery(newQuery, resolve, reject);
+          });
+      })
+      .catch(reject);
+  };
+
+  const MAX_UPDATES_AT_ONCE = 499;
+  const query = locals
+    .officeDoc
+    .ref
+    .collection('Monthly')
+    .where('phoneNumber', '==', conn.req.body.newPhoneNumber)
+    .orderBy(fieldPath)
+    .limit(MAX_UPDATES_AT_ONCE);
+
+  return new Promise((resolve, reject) => {
+    return runQuery(query, resolve, reject);
+  })
+    .then(() => deleteAddendum(conn, locals))
     .catch((error) => handleError(conn, error));
 };
 
@@ -318,7 +346,9 @@ const updateActivities = (conn, locals) => {
 
         const [lastDoc] = result;
 
-        if (!lastDoc) return resolve();
+        if (!lastDoc) {
+          return resolve();
+        }
 
         console.log({ lastDocId: lastDoc.id });
 
@@ -339,7 +369,7 @@ const updateActivities = (conn, locals) => {
 
   /**
    * Updating 200 activities at most in a singe loop
-   * because firestore's batch only allows 500 docs to be 
+   * because firestore's batch only allows 500 docs to be
    * updated at once.
    */
   const MAX_UPDATES_AT_ONCE = 200;
@@ -353,17 +383,20 @@ const updateActivities = (conn, locals) => {
 
   console.log({ iterations });
 
-  return new Promise((resolve, reject) => runQuery(query, resolve, reject))
+  return new Promise((resolve, reject) => {
+    return runQuery(query, resolve, reject);
+  })
     .then(() => {
-      return console.log(locals.activityIdsSet);
+      console.log(locals.activityIdsSet);
+
+      return handleMonthlyDocs(conn, locals);
     })
-    .then(() => updatePayroll(conn, locals))
     .catch((error) => handleError(conn, error));
 };
 
 
-const checkForAdmin = (conn, locals) => {
-  return rootCollections
+const checkForAdmin = (conn, locals) =>
+  rootCollections
     .offices
     .doc(locals.officeDoc.id)
     .collection('Activities')
@@ -377,8 +410,7 @@ const checkForAdmin = (conn, locals) => {
 
       return updateActivities(conn, locals);
     })
-    .catch(console.error);
-};
+    .catch((error) => handleError(conn, error));
 
 
 const checkForEmployee = (conn, locals) => {

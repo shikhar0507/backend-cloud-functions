@@ -213,6 +213,7 @@ module.exports = (conn) => {
         activities: activities.size,
         addendum: addendum.size,
         subscriptions: subscriptions.size,
+        from: conn.req.query.from,
       });
 
       addendum

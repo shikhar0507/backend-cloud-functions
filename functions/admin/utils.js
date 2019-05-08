@@ -31,11 +31,23 @@ const {
   auth,
   rootCollections,
 } = require('./admin');
+const {
+  dateFormats,
+  httpsActions,
+  sendGridTemplateIds,
+  reportNames,
+} = require('../admin/constants');
 const crypto = require('crypto');
 const env = require('./env');
 const PNF = require('google-libphonenumber').PhoneNumberFormat;
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 const https = require('https');
+const fs = require('fs');
+const xlsxPopulate = require('xlsx-populate');
+const moment = require('moment-timezone');
+const sgMail = require('@sendgrid/mail');
+
+sgMail.setApiKey(env.sgMailApiKey);
 
 /**
  * Ends the response by sending the `JSON` to the client with `200 OK` response.
@@ -66,8 +78,8 @@ const sendResponse = (conn, statusCode, message = '') => {
   /** 2xx codes denote success. */
   const success = statusCode <= 226;
 
-  /** 
-   * Requests from sendGrid are retried whenever the status 
+  /**
+   * Requests from sendGrid are retried whenever the status
    * code is 4xx or 5xx. We are explicitly avoiding this.
    */
   if (conn.req.query.token === env.sgMailParseToken) {
@@ -461,11 +473,11 @@ const promisifiedExecFile = (command, args) => {
 /**
  * Takes in the backblaze main download url along with the fileName (uid of the uploader)
  * and returns the downloadable pretty URL for the client to consume.
- * 
+ *
  * `Note`: photos.growthfile.com is behind the Cloudflare + Backblaze CDN, but only for
  * the production project, oso the pretty url will only show up for the production and
  * not for any other project that the code runs on.
- * 
+ *
  * @param {string} mainDownloadUrlStart Backblaze main download host url.
  * @param {string} fileId File ID returned by Backblaze.
  * @param {string} fileName Equals to the uid of the uploader.
@@ -534,7 +546,7 @@ const getSearchables = (string) => {
 /**
  * Returns the `timestamp` that is closest to the current
  * `timestamp`.
- * 
+ *
  * @param {Array} schedules Array of schedule objects.
  * @param {number} now Unix timestamp.
  * @returns {number} Unix timestamp.
@@ -811,6 +823,12 @@ const getAdjustedGeopointsFromVenue = (venue) => {
 
 
 const getRegistrationToken = (phoneNumber) => {
+  const result = {
+    phoneNumber,
+    registrationToken: null,
+    updatesDocExists: false,
+  };
+
   return rootCollections
     .updates
     .where('phoneNumber', '==', phoneNumber)
@@ -818,16 +836,300 @@ const getRegistrationToken = (phoneNumber) => {
     .get()
     .then((docs) => {
       if (docs.empty) {
-        return Promise.resolve(null);
+        return Promise.resolve(result);
       }
 
       const {
         registrationToken,
       } = docs.docs[0].data();
 
-      return Promise.resolve(registrationToken);
+      result.registrationToken = registrationToken;
+      result.updatesDocExists = !docs.empty;
+
+      return result;
     })
     .catch(console.error);
+};
+
+const handleUserStatusReport = (worksheet, counterDoc, yesterdayInitDoc, activeYesterday) => {
+  const userStatusSheet = worksheet.addSheet('User Status');
+  userStatusSheet.row(0).style('bold', true);
+
+  userStatusSheet.cell('A1').value('Total Auth');
+  userStatusSheet.cell('B1').value('New Auth');
+  userStatusSheet.cell('C1').value('Active Yesterday');
+  userStatusSheet.cell('D1').value('New Installs');
+
+  userStatusSheet.cell('A2').value(counterDoc.get('totalUsers'));
+  userStatusSheet.cell('B2').value(yesterdayInitDoc.get('usersAdded'));
+
+  /** Filled after creating the office sheet */
+  userStatusSheet.cell('C2').value(activeYesterday);
+  userStatusSheet.cell('D2').value(yesterdayInitDoc.get('installsToday'));
+};
+
+const handleOfficeActivityReport = (worksheet, yesterdayInitDoc) => {
+  let activeYesterday = 0;
+
+  const officeActivitySheet = worksheet.addSheet('Office Activity Report');
+  officeActivitySheet.row(0).style('bold', true);
+
+  officeActivitySheet.cell('A1').value('');
+  officeActivitySheet.cell('B1').value('Total Users');
+  officeActivitySheet.cell('C1').value('Users Active Yesterday');
+  officeActivitySheet.cell('D1').value('Inactive');
+  officeActivitySheet.cell('E1').value('Others (users On Leave/On Duty/Holiday/Weekly Off');
+  officeActivitySheet.cell('F1').value('Pending Signups');
+  officeActivitySheet.cell('G1').value('Activities Created Yesterday');
+  officeActivitySheet.cell('H1').value('Unverified Recipients');
+
+  const countsObject = yesterdayInitDoc.get('countsObject');
+  const createCountByOffice = yesterdayInitDoc.get('createCountByOffice');
+  const unverifiedRecipients = yesterdayInitDoc.get('unverifiedRecipients');
+
+  Object
+    .keys(countsObject)
+    .forEach((office, index) => {
+      const {
+        notInstalled,
+        totalUsers,
+        onLeaveWeeklyOffHoliday,
+        active,
+        notActive,
+      } = countsObject[office];
+
+      const createCount = createCountByOffice[office];
+      const arrayOfUnverifiedRecipients = unverifiedRecipients[office];
+      const rowIndex = index + 2;
+
+      activeYesterday += active;
+
+      officeActivitySheet.cell(`A${rowIndex}`).value(office);
+      officeActivitySheet.cell(`B${rowIndex}`).value(totalUsers);
+      officeActivitySheet.cell(`C${rowIndex}`).value(active);
+      officeActivitySheet.cell(`D${rowIndex}`).value(notActive);
+      officeActivitySheet.cell(`E${rowIndex}`).value(onLeaveWeeklyOffHoliday);
+      officeActivitySheet.cell(`F${rowIndex}`).value(notInstalled);
+      officeActivitySheet.cell(`G${rowIndex}`).value(createCount);
+      officeActivitySheet
+        .cell(`H${rowIndex}`)
+        .value(`${arrayOfUnverifiedRecipients || []}`);
+    });
+
+  return activeYesterday;
+};
+
+
+const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => {
+  const activityStatusSheet = worksheet.addSheet('Activity Status Report');
+  activityStatusSheet.row(0).style('bold', true);
+
+  activityStatusSheet.cell('A1').value('Templates');
+  activityStatusSheet.cell('B1').value('Total');
+  activityStatusSheet.cell('C1').value('Created by Admin');
+  activityStatusSheet.cell('D1').value('Created by Support');
+  activityStatusSheet.cell('E1').value('Created by App');
+  activityStatusSheet.cell('F1').value('System Created');
+  activityStatusSheet.cell('G1').value('Created Yesterday');
+  activityStatusSheet.cell('H1').value('Updated Yesterday');
+  activityStatusSheet.cell('I1').value('Status Changed Yesterday');
+  activityStatusSheet.cell('J1').value('Shared Yesterday');
+  activityStatusSheet.cell('K1').value('Commented Yesterday');
+
+  const {
+    adminApiMap,
+    supportMap,
+    totalByTemplateMap,
+    autoGeneratedMap,
+  } = counterDoc.data();
+
+  const {
+    templateUsageObject,
+  } = yesterdayInitDoc.data();
+
+  const templateNames = [
+    'admin',
+    'branch',
+    'check-in',
+    'customer',
+    'customer-type',
+    'department',
+    'dsr',
+    'duty roster',
+    'employee',
+    'enquiry',
+    'expense claim',
+    'expense-type',
+    'leave',
+    'leave-type',
+    'office',
+    'on duty',
+    'product',
+    'recipient',
+    'subscription',
+    'tour plan',
+  ];
+
+  const getValueFromMap = (map, name) => {
+    return map[name] || 0;
+  };
+
+  templateNames.forEach((name, index) => {
+    const position = index + 2;
+
+    activityStatusSheet
+      .cell(`A${position}`)
+      .value(name);
+
+    activityStatusSheet
+      .cell(`B${position}`)
+      .value(totalByTemplateMap[name] || 0);
+
+    activityStatusSheet
+      .cell(`C${position}`)
+      .value(adminApiMap[name] || 0);
+
+    activityStatusSheet
+      .cell(`D${position}`)
+      .value(supportMap[name] || 0);
+
+    const createdByApp = getValueFromMap(totalByTemplateMap, name)
+      - getValueFromMap(adminApiMap, name)
+      - getValueFromMap(supportMap, name);
+
+    activityStatusSheet
+      .cell(`E${position}`)
+
+      .value(createdByApp);
+
+    activityStatusSheet
+      .cell(`F${position}`)
+      .value(autoGeneratedMap[name] || 0);
+
+    const getCount = (action) => {
+      if (!templateUsageObject[name]) {
+        return 0;
+      }
+
+      return templateUsageObject[name][action] || 0;
+    };
+
+    // created
+    activityStatusSheet
+      .cell(`G${position}`)
+      .value(getCount(httpsActions.create));
+    // update
+    activityStatusSheet
+      .cell(`H${position}`)
+      .value(getCount(httpsActions.update));
+    // change status
+    activityStatusSheet
+      .cell(`I${position}`)
+      .value(getCount(httpsActions.changeStatus));
+    // comment
+    activityStatusSheet
+      .cell(`J${position}`)
+      .value(getCount(httpsActions.share));
+    // shared
+    activityStatusSheet
+      .cell(`K${position}`)
+      .value(getCount(httpsActions.comment));
+  });
+};
+
+const handleDailyStatusReport = () => {
+  const date = moment().subtract(1, 'day').format(dateFormats.DATE);
+  const fileName = `Daily Status Report ${date}.xlsx`;
+  const yesterday = moment().subtract(1, 'day');
+  const messageObject = {
+    from: {
+      name: 'Growthfile',
+      email: env.systemEmail,
+    },
+    templateId: sendGridTemplateIds.dailyStatusReport,
+    'dynamic_template_data': {
+      date,
+      subject: `Daily Status Report_Growthfile_${date}`,
+    },
+    attachments: [],
+  };
+
+  let worksheet;
+  let counterDoc;
+  let yesterdayInitDoc;
+
+  return Promise
+    .all([
+      xlsxPopulate
+        .fromBlankAsync(),
+      rootCollections
+        .inits
+        .where('report', '==', reportNames.COUNTER)
+        .limit(1)
+        .get(),
+      rootCollections
+        .inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', yesterday.date())
+        .where('month', '==', yesterday.month())
+        .where('year', '==', yesterday.year())
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        workbook,
+        counterInitQuery,
+        yesterdayInitQuery,
+      ] = result;
+
+      worksheet = workbook;
+      counterDoc = counterInitQuery.docs[0];
+      yesterdayInitDoc = yesterdayInitQuery.docs[0];
+      const activeYesterday =
+        handleOfficeActivityReport(worksheet, yesterdayInitDoc);
+
+      worksheet.deleteSheet('Sheet1');
+
+      handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
+      handleUserStatusReport(worksheet, counterDoc, yesterdayInitDoc, activeYesterday);
+
+      return worksheet.outputAsync('base64');
+    })
+    .then((content) => {
+      messageObject.to = env.dailyStatusReportRecipients;
+      messageObject
+        .attachments
+        .push({
+          fileName,
+          content,
+          type: 'text/csv',
+          disposition: 'attachment',
+        });
+
+      console.log('mail sent to', messageObject.to);
+
+      return sgMail.sendMultiple(messageObject);
+    })
+    .catch(console.error);
+};
+
+
+const generateDates = (startTime, endTime) => {
+  const numberOfDays = moment(startTime).diff(moment(endTime), 'days');
+  const dates = [];
+
+  for (let i = 0; i <= numberOfDays; i++) {
+    const mm = moment(startTime).add(i, 'day');
+    const value = mm.toDate().toDateString();
+
+    dates.push(value);
+  }
+
+  return {
+    numberOfDays,
+    dates,
+  };
 };
 
 
@@ -843,6 +1145,7 @@ module.exports = {
   sendResponse,
   isHHMMFormat,
   isEmptyObject,
+  generateDates,
   isValidBase64,
   disableAccount,
   hasAdminClaims,
@@ -862,6 +1165,7 @@ module.exports = {
   promisifiedExecFile,
   getRegistrationToken,
   reportBackgroundError,
+  handleDailyStatusReport,
   hasManageTemplateClaims,
   getAdjustedGeopointsFromVenue,
 };

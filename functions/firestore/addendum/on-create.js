@@ -1,6 +1,5 @@
 'use strict';
 
-
 const {
   db,
   rootCollections,
@@ -130,9 +129,9 @@ const getDutyRosterObject = (addendumDoc, initQuery, locals) => {
   if (action === httpsActions.create) {
     dutyRosterObject[activityId].createdBy = addendumDoc.get('user');
     dutyRosterObject[activityId].createdOn = addendumDoc.get('timestamp');
-    /** 
+    /**
      * Default is empty string because unless someone updates the activity
-     * status to `CONFIRMED` or `CANCELLED` 
+     * status to `CONFIRMED` or `CANCELLED`
      */
     dutyRosterObject[activityId].place = {
       identifier: '',
@@ -383,7 +382,7 @@ const getVisitObject = (addendumDoc, initQuery, locals) => {
     }
   }
 
-  if (addendumDoc.get('status') === httpsActions.create) {
+  if (addendumDoc.get('action') === httpsActions.create) {
     visitObject[phoneNumber][activityId].city = locals.city;
     visitObject[phoneNumber][activityId].state = locals.state;
     visitObject[phoneNumber][activityId].locality = locals.locality;
@@ -949,7 +948,7 @@ const logLocations = (addendumDoc, locals) => {
           year,
           accuracyType,
           docRefsArray,
-          // No need in the report because these are simply 
+          // No need in the report because these are simply
           // paths to the docs.
           skipFromErrorReport: true,
         }, {
@@ -1196,11 +1195,11 @@ module.exports = (addendumDoc) => {
 
       locals.batch = db.batch();
 
-      /** 
+      /**
        * Seperating this part out because handling even a single crash
        * with `addendumOnCreate` cloud function messes up whole data for the user
        * after the time of the crash. This part should remain seperated
-       * because further object/data in the `Inits` collection is pretty simple 
+       * because further object/data in the `Inits` collection is pretty simple
        * to recreate.
        */
       return addendumDoc

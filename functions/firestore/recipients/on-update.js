@@ -27,6 +27,7 @@
 
 const {
   users,
+  auth,
   rootCollections,
 } = require('../../admin/admin');
 const {
@@ -39,8 +40,6 @@ const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
-
-
 
 const getTemplateId = (report) => {
   if (report === reportNames.SIGNUP) {
@@ -136,6 +135,9 @@ module.exports = (change) => {
   const withNoEmail = new Set();
   const withUnverifiedEmail = new Set();
   const unverifiedOrEmailNotSetPhoneNumbers = [];
+  const verificationBugCustomClaimPromises = [];
+  const uidMap = new Map();
+  const removeCustomClaimsBugger = [];
 
   return Promise
     .all(authFetch)
@@ -146,6 +148,8 @@ module.exports = (change) => {
 
         if (!record.uid) return;
         if (record.disabled) return;
+
+        uidMap.set(phoneNumber, record.uid);
 
         if (!record.email || !record.emailVerified) {
           const promise = rootCollections
@@ -195,7 +199,7 @@ module.exports = (change) => {
         .format(dateFormats.DATE);
 
       if (locals.messageObject.to.length === 0) {
-        // No assignees, only creating data for the day, but 
+        // No assignees, only creating data for the day, but
         // not sending emails...
         // Applicable only to the payroll report
         locals.createOnlyData = true;
@@ -321,7 +325,16 @@ module.exports = (change) => {
           [office]: unverifiedOrEmailNotSetPhoneNumbers,
         };
 
-      return doc.ref.set(data, { merge: true });
+      return Promise
+        .all([
+          verificationBugCustomClaimPromises,
+          removeCustomClaimsBugger,
+          doc
+            .ref
+            .set(data, {
+              merge: true,
+            }),
+        ]);
     })
     .catch((error) => {
       const errorObject = {
