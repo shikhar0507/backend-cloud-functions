@@ -1292,10 +1292,10 @@ const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusTo
     message: null,
   };
 
-  if (!['leave', 'on-duty'].includes(statusToSet)) {
+  if (!['leave', 'on duty'].includes(statusToSet)) {
     throw new Error(
       `The field 'statusToSet' should be a non-empty string`
-      + ` with one of the the values: ${['leave', 'on-duty']}`
+      + ` with one of the the values: ${['leave', 'on duty']}`
     );
   }
 
@@ -1463,10 +1463,10 @@ const cancelLeaveOrDuty = (phoneNumber, officeId, startTime, endTime, template) 
   const batch = db.batch();
   const monthYearIndexes = [];
 
-  if (!['leave', 'on-duty'].includes(template)) {
+  if (!['leave', 'on duty'].includes(template)) {
     throw new Error(
       `The field 'template' should be a non-empty string`
-      + ` with one of the the values: ${['leave', 'on-duty']}`
+      + ` with one of the the values: ${['leave', 'on duty']}`
     );
   }
 
@@ -1545,6 +1545,153 @@ const cancelLeaveOrDuty = (phoneNumber, officeId, startTime, endTime, template) 
     .catch(console.error);
 };
 
+/**
+ * Creates an activity for the specified Office and template
+ * for a subscriber.
+ *
+ * @param {Object} options Object with Firestore officeDoc (@type FirestoreDocument), templateDoc (@type FirestoreDocument),
+ * subscriber (phone number), creator (phone number) and assignees (array of phone numbers).
+ * @returns {Object} result object with properties: success and messages.
+ */
+const createSubscriptionActivity = (options) => {
+  const {
+    officeDoc,
+    templateDoc,
+    subscriber,
+    creator,
+    assignees,
+  } = options;
+  const batch = db.batch();
+  const timestamp = Date.now();
+  const response = { success: false, message: [] };
+  const adminPromises = [];
+  let subscriptionTemplateDoc;
+  const adminsSet = new Set();
+
+  if (!creator || !creator.hasOwnProperty('')) {
+    response.success = false;
+    response.message.push(
+      `The parm 'creator' should be an object with `
+    );
+  }
+
+  if (!assignees
+    || Array.isArray(assignees)
+    || !assignees.length) {
+    response.success = false;
+    response.message.push(
+      `The param 'assignees' should be a non-empty array of`
+      + ` valid E.164 phone numbers.`
+    );
+
+    return Promise.resolve(response);
+  }
+
+  assignees.forEach((phoneNumber) => {
+    const promise = rootCollections
+      .activities
+      .where('template', '==', 'admin')
+      .where('attachment.Admin.value', '==', phoneNumber)
+      .where('office', '==', officeDoc.get('office'))
+      .limit(1)
+      .get();
+
+    adminPromises.push(promise);
+  });
+
+  return Promise
+    .all([
+      rootCollections
+        .activities
+        .where('template', '==', templateDoc.get('name'))
+        .limit(1)
+        .get(),
+      rootCollections
+        .activityTemplates
+        .where('template', '==', 'subscription')
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        subscriptionQuery,
+        subscriptionTemplateQuery,
+      ] = result;
+
+      if (!subscriptionQuery.empty) {
+        response.success = false;
+
+        throw new Error(response);
+      }
+
+      subscriptionTemplateDoc = subscriptionTemplateQuery.docs[0];
+
+      return Promise.all(adminPromises);
+    })
+    .then((snapShots) => {
+      snapShots.forEach((snapShot) => {
+        if (snapShot.empty) return;
+
+        const doc = snapShot.docs[0];
+        const adminPhoneNumber = doc.get('attachment.Admin.value');
+
+        adminsSet.add(adminPhoneNumber);
+      });
+
+      const activityDocRef = rootCollections.activities.doc();
+      const addendumDocRef = officeDoc.ref.collection('Addendum').doc();
+      const attachment = subscriptionTemplateDoc.get('attachment');
+      attachment.Subscriber.value = subscriber;
+      attachment.Template.value = templateDoc.get('name');
+      const activityData = {
+        creator,
+        timestamp,
+        attachment,
+        addendumDocRef,
+        office: officeDoc.get('office'),
+        officeId: officeDoc.id,
+        hidden: subscriptionTemplateDoc.get('hidden'),
+        schedule: [],
+        venue: [],
+        activityName: `SUBSCRIPTION: ${subscriber}`,
+        canEditRule: subscriptionTemplateDoc.get('canEditRule'),
+        template: subscriptionTemplateDoc.get('name'),
+        timezone: officeDoc.get('attachment.Timezone.value'),
+      };
+      const addendumDocData = {
+        timestamp,
+        activityData,
+        office: officeDoc.get('office'),
+      };
+
+      batch.set(activityDocRef, activityData);
+      batch.set(addendumDocRef, addendumDocData);
+
+      assignees.forEach((phoneNumber) => {
+        const ref = activityDocRef
+          .collection('Assignees')
+          .doc(phoneNumber);
+
+        batch.set(ref, {
+          canEdit: adminsSet.has(phoneNumber),
+          addToInclude: phoneNumber !== subscriber,
+        });
+      });
+
+      return batch.commit();
+    })
+    .then(() => response)
+    .catch((error) => {
+      if (!response.success) {
+        return response;
+      }
+
+      console.error(error);
+
+      return Promise.resolve();
+    });
+};
+
 
 module.exports = {
   activityName,
@@ -1560,5 +1707,6 @@ module.exports = {
   isValidRequestBody,
   toAttachmentValues,
   checkActivityAndAssignee,
+  createSubscriptionActivity,
   getPhoneNumbersFromAttachment,
 };

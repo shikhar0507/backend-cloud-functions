@@ -259,7 +259,8 @@ const commitMultipleBatches = (batchesArray) => {
   batchesArray.forEach((batch, index) => {
     result = batch
       .commit()
-      .then(() => console.log(`Commited: ${index}`));
+      .then(() => console.log(`Commited: ${index}`))
+      .catch((error) => console.error('BatchError:', error));
   });
 
   return result;
@@ -512,8 +513,16 @@ const handleSheetTwo = (locals) => {
           for (let date = yesterdaysDate; date >= 1; date--) {
             const statusObject = getStatusObject(
               locals.statusObjectMap,
-              phoneNumber,
+              phoneNumber
             );
+
+            if (!statusObject[date]) {
+              statusObject[date] = {
+                firstAction: '',
+                lastAction: '',
+              };
+            }
+
             const { firstAction, lastAction } = statusObject[date] || {};
             const statusValueOnDate = (() => {
               if (date === yesterdaysDate) {

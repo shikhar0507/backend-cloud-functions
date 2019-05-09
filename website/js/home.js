@@ -94,7 +94,7 @@ function createEmployeesAsSupport(event) {
 };
 
 function addEmployeeWithSupport(options) {
-  const requestUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/api/admin/search?support=true';
+  const requestUrl = `${apiBaseUrl}/admin/search?support=true`;
   const searchForm = document.createElement('form');
   const searchInput = document.createElement('input');
   const searchLink = document.createElement('a');
@@ -225,7 +225,7 @@ function viewEnquiries() {
 
 }
 
-/** 
+/**
  * Only `support` and `manageTemplates` claim allow messing with the templates.
  */
 function manageTemplates() {

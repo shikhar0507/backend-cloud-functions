@@ -188,7 +188,7 @@ function fetchAuth() {
     .getElementsByName('auth-phone-number')[0]
     .setAttribute('disabled', true);
 
-  const apiUrl = 'http://localhost:5001/growthfilev2-0/us-central1/getUser';
+  const apiUrl = getUserBaseUrl;
   const requestUrl = `${apiUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`;
 
   return sendApiRequest(requestUrl, null, 'GET')

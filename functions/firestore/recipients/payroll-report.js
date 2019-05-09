@@ -275,43 +275,45 @@ module.exports = (locals) => {
                * and late are put in the repot on the current date - 1 at runtime.
                */
               if (statusObject[dateNumber].holiday) {
-                if (dateNumber !== yesterdayDate) {
-                  statusObject[yesterdayDate].blank = false;
-                  branchHolidaySet.add(phoneNumber);
-                }
+                // if (dateNumber !== yesterdayDate) {
+                // statusObject[yesterdayDate].blank = false;
+                // branchHolidaySet.add(phoneNumber);
+                // }
 
                 countsObject[phoneNumber].holiday++;
               }
 
               if (statusObject[dateNumber].weeklyOff) {
-                if (dateNumber !== yesterdayDate) {
-                  statusObject[yesterdayDate].blank = false;
-                  weeklyOffSet.add(phoneNumber);
-                }
+                // if (dateNumber !== yesterdayDate) {
+                // statusObject[yesterdayDate].blank = false;
+                // weeklyOffSet.add(phoneNumber);
+                // }
 
                 countsObject[phoneNumber].weeklyOff++;
               }
 
               if (statusObject[dateNumber].halfDay) {
-                if (dateNumber !== yesterdayDate) {
-                  statusObject[yesterdayDate].blank = false;
-                }
+                // if (dateNumber !== yesterdayDate) {
+                //   statusObject[yesterdayDate].blank = false;
+                // }
 
                 countsObject[phoneNumber].halfDay++;
               }
 
               if (statusObject[dateNumber].fullDay) {
-                if (dateNumber !== yesterdayDate) {
-                  statusObject[yesterdayDate].blank = false;
-                  countsObject[phoneNumber].fullDay++;
-                }
+                // if (dateNumber !== yesterdayDate) {
+                //   statusObject[yesterdayDate].blank = false;
+                // }
+
+                countsObject[phoneNumber].fullDay++;
               }
 
               if (statusObject[dateNumber].late) {
-                if (dateNumber !== yesterdayDate) {
-                  statusObject[yesterdayDate].blank = false;
-                  countsObject[phoneNumber].late++;
-                }
+                // if (dateNumber !== yesterdayDate) {
+                //   statusObject[yesterdayDate].blank = false;
+                // }
+
+                countsObject[phoneNumber].late++;
               }
 
               if (statusObject[dateNumber].blank) {
@@ -396,6 +398,8 @@ module.exports = (locals) => {
         checkInPromises.push(query);
       });
 
+      console.log('number of promises:', checkInPromises.length);
+
       return Promise.all(checkInPromises);
     })
     .then((checkInActivitiesAddendumQuery) => {
@@ -415,6 +419,9 @@ module.exports = (locals) => {
 
         const addendumDoc = snapShot.docs[0];
         const phoneNumber = addendumDoc.get('user');
+
+        console.log('phoneNumber', phoneNumber);
+
         const firstCheckInTimestamp = snapShot.docs[0].get('timestamp');
         const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
         const checkInDiff = Math.abs(lastCheckInTimestamp - firstCheckInTimestamp);
@@ -443,6 +450,8 @@ module.exports = (locals) => {
           .firstCheckIn = firstCheckInTimestampFormatted;
         statusObject[yesterdayDate]
           .lastCheckIn = lastCheckInTimestampFormatted;
+
+        console.log(phoneNumber, firstCheckInTimestampFormatted, lastCheckInTimestampFormatted);
 
         // `dailyStartHours` is in the format `HH:MM` in the `employeesData` object.
         const dailyStartHours = employeesData[phoneNumber]['Daily Start Time'];
@@ -665,13 +674,13 @@ module.exports = (locals) => {
             ALPHABET_INDEX_START++;
           }
 
-          let totalDays = 0;
+          let totalWorkDays = 0;
 
           sheet
             .cell(`${alphabetsArray[ALPHABET_INDEX_START]}${columnIndex}`)
             .value(countsObject[phoneNumber].fullDay);
 
-          totalDays += countsObject[phoneNumber].fullDay;
+          totalWorkDays += countsObject[phoneNumber].fullDay;
 
           ALPHABET_INDEX_START++;
 
@@ -679,7 +688,7 @@ module.exports = (locals) => {
             .cell(`${alphabetsArray[ALPHABET_INDEX_START]}${columnIndex}`)
             .value(countsObject[phoneNumber].halfDay);
 
-          totalDays += countsObject[phoneNumber].halfDay;
+          totalWorkDays += countsObject[phoneNumber].halfDay;
 
           ALPHABET_INDEX_START++;
 
@@ -687,7 +696,7 @@ module.exports = (locals) => {
             .cell(`${alphabetsArray[ALPHABET_INDEX_START]}${columnIndex}`)
             .value(countsObject[phoneNumber].onLeave);
 
-          totalDays += countsObject[phoneNumber].onLeave;
+          totalWorkDays += countsObject[phoneNumber].onLeave;
 
           ALPHABET_INDEX_START++;
 
@@ -701,7 +710,7 @@ module.exports = (locals) => {
             .cell(`${alphabetsArray[ALPHABET_INDEX_START]}${columnIndex}`)
             .value(countsObject[phoneNumber].blank);
 
-          totalDays += countsObject[phoneNumber].blank;
+          totalWorkDays += countsObject[phoneNumber].blank;
 
           ALPHABET_INDEX_START++;
 
@@ -709,7 +718,7 @@ module.exports = (locals) => {
             .cell(`${alphabetsArray[ALPHABET_INDEX_START]}${columnIndex}`)
             .value(countsObject[phoneNumber].late);
 
-          totalDays += countsObject[phoneNumber].late;
+          totalWorkDays += countsObject[phoneNumber].late;
 
           ALPHABET_INDEX_START++;
 
@@ -717,7 +726,7 @@ module.exports = (locals) => {
             .cell(`${alphabetsArray[ALPHABET_INDEX_START]}${columnIndex}`)
             .value(countsObject[phoneNumber].onDuty);
 
-          totalDays += countsObject[phoneNumber].onDuty;
+          totalWorkDays += countsObject[phoneNumber].onDuty;
 
           ALPHABET_INDEX_START++;
 
@@ -729,7 +738,7 @@ module.exports = (locals) => {
 
           sheet
             .cell(`${alphabetsArray[ALPHABET_INDEX_START]}${columnIndex}`)
-            .value(totalDays);
+            .value(totalWorkDays);
 
           counter++;
         });
@@ -765,6 +774,7 @@ module.exports = (locals) => {
       });
 
       return locals.sgMail.sendMultiple(locals.messageObject);
+      // return Promise.resolve();
     })
     .catch(console.error);
 };

@@ -75,30 +75,11 @@ const createDocsWithBatch = (conn, locals) => {
         addToInclude = false;
       }
 
-      let canEdit = getCanEditValue(locals, phoneNumber);
-
-      /**
-       * When the template is `admin`, the person who's being added
-       * as an admin, should have the edit rights of the activity starting
-       * from this activity (if `canEditRule` is `ADMIN`).
-       *
-       * Explicitly setting this here because the check for admin
-       * in the path `Offices/(officeId)/Activities` will not result in a
-       * document for this person. Because of that, the canEdit value will
-       * be `false` for them.
-       *
-       * The following block counters that.
-       */
-      if (conn.req.body.template === 'admin'
-        && phoneNumber === conn.req.body.attachment.Admin.value) {
-        canEdit = true;
-      }
-
       locals.batch.set(locals.docs.activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
           addToInclude,
-          canEdit,
+          canEdit: getCanEditValue(locals, phoneNumber),
         });
     });
 
@@ -248,7 +229,6 @@ const handleLeaveOrOnDuty = (conn, locals) => {
   const endTime = conn.req.body.schedule[0].endTime;
   const startTimeMoment = momentTz(startTime);
   const endTimeMoment = momentTz(endTime);
-
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
 
   console.log({
@@ -263,7 +243,8 @@ const handleLeaveOrOnDuty = (conn, locals) => {
   if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
     console.log('CANCELL HERE 1');
     locals.static.statusOnCreate = 'CANCELLED';
-    locals.cancellationMessage = `Leave limit exceeded by `;
+    locals.cancellationMessage = `Leave limit exceeded by`
+      + ` ${locals.maxLeavesAllowed - leavesTakenThisTime + locals.leavesTakenThisYear}`;
 
     return createDocsWithBatch(conn, locals);
   }
@@ -471,7 +452,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
         if (!snapShot.empty) {
           successful = false;
-          message = `The ${type} '${value}' already is in use`;
+          message = `The ${type} '${value}' already exists`;
           break;
         }
       }
@@ -498,10 +479,11 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
       let message;
 
       for (const snapShot of snapShots) {
-        console.log('should:', snapShot.query._queryOptions.fieldFilters);
         const filters = snapShot.query._queryOptions.fieldFilters;
         const value = filters[0].value;
         const type = filters[1].value;
+
+        console.log({ value, type });
 
         message = `${type} ${value} does not exist`;
 

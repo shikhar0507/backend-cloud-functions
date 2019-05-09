@@ -7,6 +7,10 @@ firebase
     projectId: 'growthfile-207204',
   });
 
+const apiBaseUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/api';
+const getUserBaseUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/getUser';
+const webappBaseUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/webapp';
+
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
 
@@ -157,7 +161,6 @@ function sendApiRequest(apiUrl, requestBody, method) {
     cache: 'no-cache',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getParsedCookies().__session}`,
     },
   };
 
@@ -165,7 +168,14 @@ function sendApiRequest(apiUrl, requestBody, method) {
     init.body = JSON.stringify(requestBody);
   }
 
-  return fetch(apiUrl, init)
+  return firebase
+    .auth()
+    .currentUser
+    .getIdToken(function (idToken) {
+      init.headers['Authorization'] = `Bearer: ${idToken}`;
+
+      return fetch(apiUrl, init);
+    })
     .then(function (result) { return result })
     .catch(console.error);
 }

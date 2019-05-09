@@ -30,7 +30,6 @@ const {
   auth,
   users,
   deleteField,
-  fieldPath,
   rootCollections,
 } = require('../../admin/admin');
 const {
@@ -43,6 +42,7 @@ const {
 } = require('../../admin/utils');
 const env = require('../../admin/env');
 const moment = require('moment-timezone');
+const admin = require('firebase-admin');
 
 
 const sendEmployeeCreationSms = (locals) => {
@@ -61,9 +61,8 @@ const sendEmployeeCreationSms = (locals) => {
   const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
   const office = locals.change.after.get('office');
 
-  const smsText = `${office} will use Growthfile for attendence,`
-    + ` leave and duties.`
-    + ` Download now to check-in. ${env.downloadUrl}`;
+  const smsText = `${office} will use Growthfile for attendance and leave.`
+    + ` Download now to CHECK-IN ${env.downloadUrl}`;
 
   return sendSMS(phoneNumber, smsText);
 };
@@ -844,7 +843,7 @@ const removeFromOfficeActivities = (locals) => {
               // to start after the last activity which was
               // processed by this code otherwise some activities
               // might be updated more than once.
-              .where(fieldPath, '>', lastDoc.id);
+              .where(admin.firestore.FieldPath.documentId(), '>', lastDoc.id);
 
             return runQuery(newQuery, resolve, reject);
           });
@@ -856,11 +855,82 @@ const removeFromOfficeActivities = (locals) => {
     .doc(phoneNumber)
     .collection('Activities')
     .where('office', '==', office)
-    .orderBy(fieldPath)
+    .orderBy(admin.firestore.FieldPath.documentId())
     .limit(250);
 
   return new Promise((resolve, reject) => runQuery(query, resolve, reject))
     .catch(console.error);
+};
+
+const handleMonthlyDocs = (locals, hasBeenCancelled) => {
+  const template = locals.change.after.get('template');
+
+  if (template !== 'employee' || !hasBeenCancelled) {
+    return Promise.resolve();
+  }
+
+  /** Employee has been cancelled. Remove the docs from /Monthly collection */
+
+  const officeId = locals.change.after.get('officeId');
+  const phoneNumber =
+    locals.change.after.get('attachment.Employee Contact.value');
+
+  const runQuery = (query, resolve, reject) => {
+    return query
+      .get()
+      .then((docs) => {
+        if (docs.empty) {
+          return [0];
+        }
+
+        const batch = db.batch();
+
+        docs.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+
+        return Promise
+          .all([
+            docs.docs[docs.size - 1],
+            batch.commit(),
+          ]);
+      })
+      .then((result) => {
+        const [lastDoc] = result;
+
+        /** Done with all docs */
+        if (!lastDoc) return resolve();
+
+        return process
+          .nextTick(() => {
+            const newQuery = query
+              .startAfter(admin.firestore.FieldPath.documentId(), lastDoc.id);
+
+            return runQuery(newQuery, resolve, reject);
+          });
+      })
+      .catch(reject);
+  };
+
+  return rootCollections
+    .offices
+    .doc(officeId)
+    .get()
+    .then((doc) => {
+      const baseQuery = doc
+        .ref
+        .collection('Monthly')
+        .where('phoneNumber', '==', phoneNumber)
+        .orderBy(admin.firestore.FieldPath.documentId())
+        .limit(499)
+        .get();
+
+      return new Promise((resolve, reject) => {
+        return runQuery(baseQuery, resolve, reject);
+      });
+    })
+    .catch(console.error);
+
 };
 
 
@@ -930,7 +1000,8 @@ const handleEmployee = (locals) => {
 
       return removeFromOfficeActivities(locals);
     })
-    // .then(() => sendEmployeeCreationSms(locals))
+    .then(() => sendEmployeeCreationSms(locals))
+    .then(() => handleMonthlyDocs(locals, hasBeenCancelled))
     .catch(console.error);
 };
 
@@ -1209,7 +1280,12 @@ module.exports = (change, context) => {
           activityData.creationYear = date.getFullYear();
 
           activityData
-            .creationTimestamp = locals.change.after.createTime.toDate().getTime();
+            .creationTimestamp = locals
+              .change
+              .after
+              .createTime
+              .toDate()
+              .getTime();
         }
 
         if (template === 'office') {

@@ -29,7 +29,6 @@ const admin = require('firebase-admin');
 const xlsxPopulate = require('xlsx-populate');
 
 
-
 module.exports = (locals) => {
   let worksheet;
   let dsrSheet;
@@ -96,7 +95,6 @@ module.exports = (locals) => {
           .get();
 
         customerAddendumPromises.push(addendumPromise);
-
         customerPromises.push(customerPromise);
       });
 
