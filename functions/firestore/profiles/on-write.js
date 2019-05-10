@@ -235,13 +235,14 @@ const handleSignUpAndInstall = (options) => {
       promises.push(promise);
     });
 
+  const momentToday = moment();
 
   return rootCollections
     .inits
     .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-    .where('date', '==', moment().date())
-    .where('month', '==', moment().month())
-    .where('year', '==', moment().year())
+    .where('date', '==', momentToday.date())
+    .where('month', '==', momentToday.month())
+    .where('year', '==', momentToday.year())
     .get()
     .then((snapShot) => {
       const docRef = (() => {
@@ -257,7 +258,7 @@ const handleSignUpAndInstall = (options) => {
           return 1;
         }
 
-        /** 
+        /**
          * Doc might be created by some other event, and
          * thus may not have the field `installsToday`.
          */

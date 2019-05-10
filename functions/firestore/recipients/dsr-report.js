@@ -585,7 +585,7 @@ module.exports = (locals) => {
       return handleSheetOne(params);
     })
     .then(handleSheetTwo)
-    .then(handleCustomerReport)
+    // .then(handleCustomerReport)
     .then((params) => {
       if (!params.sheetOneAdded
         && !params.sheetTwoAdded) {
@@ -596,7 +596,7 @@ module.exports = (locals) => {
 
       if (params.sheetOneAdded
         || params.sheetTwoAdded) {
-        /** 
+        /**
          * Any single sheet added added makes the Sheet1 (default sheet)
          * irrelevant.
          */

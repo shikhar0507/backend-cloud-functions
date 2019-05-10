@@ -17,7 +17,6 @@ const {
   isValidGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
-  getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 const {
   alphabetsArray,
@@ -25,6 +24,9 @@ const {
 const {
   code,
 } = require('../../admin/responses');
+const {
+  forSalesReport,
+} = require('../activity/helper');
 const {
   weekdays,
   validTypes,
@@ -233,7 +235,7 @@ const sendXLSXToCreaator = (conn, locals, responseObject) => {
         });
 
       items.forEach((item, outerIndex) => {
-        // const alphabet = 
+        // const alphabet =
         objectFields.forEach((field, innerIndex) => {
           if (field === 'share') {
             return;
@@ -396,6 +398,7 @@ const createObjects = (conn, locals, trialRun) => {
       template: locals.templateDoc.get('name'),
       activityName: getActivityName(params),
       createTimestamp: Date.now(),
+      forSalesReport: forSalesReport(locals.templateDoc.get('name')),
     };
 
     const objectFields = Object.keys(item);
@@ -566,6 +569,7 @@ const createObjects = (conn, locals, trialRun) => {
           template: templateNamesObject.SUBSCRIPTION,
           activityName: `SUBSCRIPTION: ${phoneNumber}`,
           createTimestamp: Date.now(),
+          forSalesReport: false,
         };
         const subscriptionAddendumData = {
           timestamp,
@@ -604,6 +608,7 @@ const createObjects = (conn, locals, trialRun) => {
           template: templateNamesObject.ADMIN,
           activityName: `ADMIN: ${phoneNumber}`,
           createTimestamp: Date.now(),
+          forSalesReport: false,
         };
         const adminAddendumData = {
           timestamp,
@@ -649,7 +654,6 @@ const createObjects = (conn, locals, trialRun) => {
 
         totalDocsCreated += 6;
         batchDocsCount += 6;
-
         conn
           .req
           .body
@@ -1091,7 +1095,7 @@ const validateDataArray = (conn, locals) => {
   const allFieldsSet = new Set(allFieldsArray).add('share');
   let toRejectAll = false;
   let duplicateRowIndex = 0;
-  /** 
+  /**
    * Set for managing uniques from the request body.
    * If any duplicate is found rejecting all data.
    */
@@ -1116,11 +1120,11 @@ const validateDataArray = (conn, locals) => {
     let fieldsMissingInCurrentObject = false;
 
     const objectProperties = Object.keys(dataObject);
-    /** 
+    /**
      * TODO: This is O(n * m * q) loop most probably. Don't have
      * much time to fully optimize this properly.
      * Will do it later...
-      */
+     */
     allFieldsArray.forEach((field) => {
       if (objectProperties.includes(field)) {
         return;
@@ -1252,8 +1256,6 @@ const validateDataArray = (conn, locals) => {
         if (set.has(template)) {
           duplicateRowIndex = index + 1;
           toRejectAll = true;
-
-          console.log('duplicate', phoneNumber, template);
         }
 
         set.add(template);
@@ -1399,9 +1401,10 @@ const validateDataArray = (conn, locals) => {
           return;
         }
 
-        /** 
-         * All fields past this check should only be checked if 
-         * the value is non-empty string
+        /**
+         * All fields past this check should only be checked if
+         * the value is non-empty string because they are not
+         * required.
          */
         if (!isNonEmptyString(value)) return;
 
@@ -1466,7 +1469,7 @@ const validateDataArray = (conn, locals) => {
        * If the object has already been rejected for some reason,
        * it's assigneesFromAttachment map will most probably be empty.
        * In that case, the rejection message will show 'No assignees found'
-       * even if the rejection was because of some other issue in 
+       * even if the rejection was because of some other issue in
        * the object.
        */
       && !conn.req.body.data[index].rejected) {
@@ -1599,7 +1602,7 @@ module.exports = (conn) => {
         locals.templateNamesSet = templateNamesSet;
       }
 
-      /** 
+      /**
        * Ignoring objects where all fields have empty
        * strings as the value.
        */

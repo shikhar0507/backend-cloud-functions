@@ -1,9 +1,7 @@
 'use strict';
 
-const momentTz = require('moment-timezone');
 const {
   timeStringWithOffset,
-  dateStringWithOffset,
   employeeInfo,
   toMapsUrl,
   alphabetsArray,
@@ -25,6 +23,7 @@ const {
 const env = require('../../admin/env');
 const admin = require('firebase-admin');
 const xlsxPopulate = require('xlsx-populate');
+const momentTz = require('moment-timezone');
 
 const getComment = (doc) => {
   if (doc.get('activityData.attachment.Comment.value')) {
@@ -1118,7 +1117,8 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      if (!isDateToday) {
+      /** Counter docs doesn't exist in non-production project */
+      if (!isDateToday || !env.isProduction) {
         return Promise.resolve();
       }
 
@@ -1140,7 +1140,8 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      if (!isDateToday) {
+      /** SMS and Notifications shouldn't be sent from non-production. */
+      if (!isDateToday || !env.isProduction) {
         return Promise.resolve();
       }
 

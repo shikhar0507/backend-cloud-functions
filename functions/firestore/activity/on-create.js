@@ -40,6 +40,7 @@ const {
 const {
   activityName,
   validateVenues,
+  forSalesReport,
   getCanEditValue,
   filterAttachment,
   toCustomerObject,
@@ -115,6 +116,7 @@ const createDocsWithBatch = (conn, locals) => {
       photoURL: conn.requester.photoURL,
     },
     createTimestamp: Date.now(),
+    forSalesReport: forSalesReport(conn.req.body.template),
   };
 
   const adjustedGeopoints = getAdjustedGeopointsFromVenue(

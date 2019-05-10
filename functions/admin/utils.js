@@ -36,18 +36,28 @@ const {
   httpsActions,
   sendGridTemplateIds,
   reportNames,
+  timezonesSet,
 } = require('../admin/constants');
 const crypto = require('crypto');
 const env = require('./env');
 const PNF = require('google-libphonenumber').PhoneNumberFormat;
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 const https = require('https');
-const fs = require('fs');
 const xlsxPopulate = require('xlsx-populate');
 const moment = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
 
 sgMail.setApiKey(env.sgMailApiKey);
+
+const isValidTimezone = (timezone) => timezonesSet.has(timezone);
+
+const isValidStatus = (status) =>
+  new Set(['CANCELLED', 'CONFIRMED', 'PENDING'])
+    .has(status);
+
+const isValidCanEditRule = (canEditRule) =>
+  new Set(['NONE', 'ALL', 'EMPLOYEE', 'ADMIN', 'CREATOR'])
+    .has(canEditRule);
 
 /**
  * Ends the response by sending the `JSON` to the client with `200 OK` response.
@@ -1037,7 +1047,7 @@ const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => 
   });
 };
 
-const handleDailyStatusReport = () => {
+const handleDailyStatusReport = (toEmail) => {
   const date = moment().subtract(1, 'day').format(dateFormats.DATE);
   const fileName = `Daily Status Report ${date}.xlsx`;
   const yesterday = moment().subtract(1, 'day');
@@ -1097,7 +1107,7 @@ const handleDailyStatusReport = () => {
       return worksheet.outputAsync('base64');
     })
     .then((content) => {
-      messageObject.to = env.dailyStatusReportRecipients;
+      messageObject.to = toEmail || env.dailyStatusReportRecipients;
       messageObject
         .attachments
         .push({
@@ -1132,6 +1142,53 @@ const generateDates = (startTime, endTime) => {
   };
 };
 
+const handleRecipientErrors = (context) => {
+  const {
+    office,
+    report,
+    error,
+  } = context;
+
+  const momentToday = moment();
+  const date = momentToday.date();
+  const month = momentToday.month();
+  const year = momentToday.year();
+
+  return rootCollections
+    .errors
+    .where('report', '==', report)
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .limit(1)
+    .get()
+    .then((docs) => {
+      const ref = (() => {
+        if (docs.empty) {
+          return rootCollections.errors.doc();
+        }
+
+        return docs.docs[0].ref;
+      })();
+
+      const data = docs.docs[0] ? docs.docs[0].data() : {};
+
+      data.date = date;
+      data.month = month;
+      data.year = year;
+      data.report = report;
+      data.officesAffected = data.officesAffected || [];
+      data.includeInDailyStatusReport = false;
+
+      if (!data.officesAffected.includes(office)) {
+        data.officesAffected.push(office);
+      }
+
+      return ref.set(data, { merge: true });
+    })
+    .catch(Promise.reject);
+};
+
 
 module.exports = {
   slugify,
@@ -1147,10 +1204,12 @@ module.exports = {
   isEmptyObject,
   generateDates,
   isValidBase64,
+  isValidStatus,
   disableAccount,
   hasAdminClaims,
   getSearchables,
   getISO8601Date,
+  isValidTimezone,
   getRelevantTime,
   isValidGeopoint,
   multipartParser,
@@ -1161,6 +1220,7 @@ module.exports = {
   isE164PhoneNumber,
   getObjectFromSnap,
   hasSuperUserClaims,
+  isValidCanEditRule,
   promisifiedRequest,
   promisifiedExecFile,
   getRegistrationToken,

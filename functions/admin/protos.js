@@ -1,154 +1,205 @@
 'use strict';
 
+const {
+  isNonEmptyString,
+  isValidGeopoint,
+  isValidTimezone,
+  isValidStatus,
+  isE164PhoneNumber,
+  isValidUrl,
+  isValidCanEditRule,
+} = require('../admin/utils');
 
-class Activity {
-  constructor(params) {
-    if (!params) {
-      throw new Error('Missing params');
+const validateSchedules = (scheduleArray) => {
+  const result = { success: true, message: [] };
+
+  scheduleArray.forEach((schedule, index) => {
+    const { startTime, endTime, name } = schedule;
+
+    if (!startTime
+      || !endTime
+      || !name
+      || typeof startTime !== 'number'
+      || typeof endTime !== 'number'
+      || !isNonEmptyString(name)) {
+      result.success = false;
+      result
+        .message
+        .push(`Invalid Schedule at index: ${index}`);
     }
 
-    const {
-      attachment,
-      canEditRule,
-      creator,
-      hidden,
-      office,
-      officeId,
-      schedule,
-      venue,
-      template,
-      status,
-      timezone,
-      activityName,
-    } = params;
+    if (startTime > endTime) {
+      result.success = false;
+      result
+        .message
+        .push(
+          `The startTime cannot be greater than endTime at index: ${index}`
+        );
+    }
+  });
 
+  return result;
+};
+
+const validateVenues = (venueArray) => {
+  const result = { success: true, message: [] };
+
+  venueArray.forEach((venue, index) => {
+    const { venueDescriptor, address, location, geopoint } = venue;
+
+    if (!isNonEmptyString(venueDescriptor)
+      || !isNonEmptyString(address)
+      || !isNonEmptyString(location)
+      || !isValidGeopoint(geopoint)) {
+      result.success = false;
+      result
+        .message
+        .push(`Invalid venue at index: ${index}`);
+    }
+  });
+
+  return result;
+};
+
+class Activity {
+  constructor(templateName) {
+    this.template = templateName;
     this.timestamp = Date.now();
-    this.addendumDocref = null;
-    this.attachment = attachment;
-    this.canEditRule = canEditRule;
-    this.creator = creator;
-    this.hidden = hidden;
-    this.office = office;
-    this.officeId = officeId;
-    this.schedule = schedule;
-    this.venue = venue;
-    this.template = template;
-    this.status = status;
+  }
+
+  set setTimezone(timezone) {
+    if (!isValidTimezone(timezone)) {
+      throw new Error(`Invalid timezone: '${timezone}'`);
+    }
+
     this.timezone = timezone;
-    this.activityName = activityName;
   }
 
-  set setAddendumDocRef(addendumDocref) {
-    this.addendumDocref = addendumDocref;
-  }
-
-  set setAttachment(attachment) {
-    this.attachment = attachment;
-  }
-
-  set setVenue(venue) {
-    this.venue = venue;
-  }
-
-  set setSchedule(schedule) {
-    this.schedule = schedule;
+  set setActivityName(displayName) {
+    this.activityName = `${this.template}: ${displayName}`;
   }
 
   set setStatus(status) {
+    if (!isValidStatus(status)) {
+      throw new Error(`Invalid status: ${status}`);
+    }
+
     this.status = status;
   }
 
-  get getActivityObject() {
+  set setCanEditRule(canEditRule) {
+    if (!isValidCanEditRule(canEditRule)) {
+      throw new Error('Invalid canEditRule');
+    }
+
+    this.canEditRule = canEditRule;
+  }
+
+  set setOffice(office) {
+    if (!isNonEmptyString(office)) {
+      throw new Error('Office name cannot be empty string');
+    }
+
+    this.office = office;
+  }
+
+  set setOfficeId(officeId) {
+    if (!isNonEmptyString(officeId)) {
+      throw new Error('OfficeId should be a non-empty string');
+    }
+
+    this.officeId = officeId;
+  }
+
+  set setHidden(number) {
+    if (typeof number !== 'number' || ![0, 1].includes(number)) {
+      throw new Error(
+        'The value should be a number and can only have the values 0 or 1'
+      );
+    }
+
+    this.hidden = number;
+  }
+
+  set setCreator(creator) {
+    if (typeof creator !== 'object') {
+      throw new Error(
+        `The 'creator' should be an object with the following
+        `+ ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
+      );
+    }
+    const {
+      displayName,
+      phoneNumber,
+      photoURL,
+    } = creator;
+
+    if (!isNonEmptyString(displayName)) {
+      throw new Error(
+        'The displayName should be a non-empty string',
+      );
+    }
+
+    if (!isE164PhoneNumber(phoneNumber)) {
+      throw new Error('Invalid phone number');
+    }
+
+    if (photoURL && !isValidUrl(photoURL)) {
+      throw new Error('The photoURL should be a valid URL');
+    }
+
+    this.creator = {
+      phoneNumber,
+      displayName,
+      photoURL,
+    };
+  }
+
+  set setSchedule(scheduleArray) {
+    const result = validateSchedules(scheduleArray);
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+
+    this.schedule = scheduleArray;
+  }
+
+  set setVenue(venueArray) {
+    const result = validateVenues(venueArray);
+
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+
+    this.venue = venueArray;
+  }
+
+  setStuff(stuff) {
+    this.stuff = stuff;
+  }
+
+  toObject() {
     return this;
-  }
-
-  get getStatus() {
-    return this.status;
-  }
-
-  get getCreator() {
-    return this.creator;
-  }
-
-  get getCanEditRule() {
-    return this.canEditRule;
-  }
-
-  get getAttachment() {
-    return this.attachment;
-  }
-
-  get getOffice() {
-    return this.office;
-  }
-
-  get getOfficeId() {
-    return this.officeId;
   }
 }
 
-class Addendum {
-  constructor(params) {
-    const {
-      action,
-      activityData,
-      activityName,
-      geopointAccuracy,
-      isSupportRequest,
-      isAdminRequest,
-      location,
-      provider,
-      user,
-      userDeviceTimestamp,
-    } = params;
-
-    this.action = action;
-    this.activityData = activityData;
-    this.activityName = activityName;
-    this.geopointAccuracy = geopointAccuracy;
-    this.isSupportRequest = isSupportRequest;
-    this.isAdminRequest = isAdminRequest;
-    this.location = location;
-    this.provider = provider;
-    this.timestamp = Date.now();
-    this.user = user;
-    this.userDeviceTimestamp = userDeviceTimestamp;
+class Creator {
+  constructor(phoneNumber, displayName, photoURL) {
+    this.phoneNumber = phoneNumber;
+    this.displayName = displayName;
+    this.photoURL = photoURL;
   }
 
-  set setAction(action) {
-    this.action = action;
-  }
-
-  set setActivityData(activityData) {
-    this.activityData = activityData;
-  }
-
-  set setActivityName(activityName) {
-    this.activityName = activityName;
-  }
-
-  set setGeopointAccuracy(geopointAccuracy) {
-    this.geopointAccuracy = geopointAccuracy;
-  }
-
-  set setIsSupportRequest(isSupportRequest) {
-    this.isSupportRequest = isSupportRequest;
-  }
-
-  set setIsAdminRequest(isAdminRequest) {
-    this.isAdminRequest = isAdminRequest;
-  }
-
-  set setUser(user) {
-    this.user = user;
-  }
-
-  set setUserDeviceTimestamp(userDeviceTimestamp) {
-    this.userDeviceTimestamp = userDeviceTimestamp;
+  toObject() {
+    return {
+      phoneNumber: this.phoneNumber,
+      displayName: this.displayName,
+      photoURL: this.photoURL,
+    };
   }
 }
 
 module.exports = {
   Activity,
-  Addendum,
+  Creator,
 };

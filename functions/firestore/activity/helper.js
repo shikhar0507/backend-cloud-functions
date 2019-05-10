@@ -49,6 +49,8 @@ const {
 } = require('../../firestore/recipients/report-utils');
 const moment = require('moment-timezone');
 
+const forSalesReport = (template) =>
+  new Set(['dsr', 'customer']).has(template);
 
 /**
  * Validates the schedules where the there is a name field present,
@@ -1168,6 +1170,24 @@ const toAttachmentValues = (conn, locals) => {
   return object;
 };
 
+const toProductObject = (docData, createTime) => {
+  const attachment = docData.attachment;
+
+  return {
+    createTime,
+    Name: attachment.Name.value,
+    'Product Type': attachment['Product Type'].value,
+    'Product Description': attachment['Product Description'].value,
+    Brand: attachment.Brand.value,
+    Model: attachment.Model.value,
+    'Stock Keeping Unit': attachment['Stock Keeping Unit'].value,
+    Size: attachment.Size.value,
+    Variant: attachment.Variant.value,
+    'Unit Value': attachment['Unit Value'].value,
+    GST: attachment.GST.value,
+  };
+};
+
 const toCustomerObject = (docData, createTime) => {
   const attachment = docData.attachment;
   const venue = docData.venue[0];
@@ -1694,18 +1714,20 @@ const createSubscriptionActivity = (options) => {
 
 
 module.exports = {
+  forSalesReport,
   activityName,
   validateVenues,
   getCanEditValue,
+  toProductObject,
   toCustomerObject,
   toEmployeesData,
   validateSchedules,
-  setOnLeaveAndOnDuty,
   cancelLeaveOrDuty,
   filterAttachment,
   haversineDistance,
   isValidRequestBody,
   toAttachmentValues,
+  setOnLeaveAndOnDuty,
   checkActivityAndAssignee,
   createSubscriptionActivity,
   getPhoneNumbersFromAttachment,
