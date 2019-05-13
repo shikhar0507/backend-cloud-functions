@@ -27,23 +27,6 @@ section h2 span {
 .call-to-action ul {
     color: #89273E;
 }
-.cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    grid-gap: 30px;
-    /* max-width: 960px; */
-    margin: 0 auto 30px;
-}
-.cards div {
-    position: relative;
-    display: block;
-    text-align: center;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-    border: 1px solid rgba(0, 0, 0, .09);
-    margin-bottom: 16px;
-    padding: 10px 20px;
-    /* font-size: 30px; */
-}  
 
  
 .action-icon {
@@ -63,60 +46,9 @@ section h2 span {
     align-items: center;
 }
 
-/* Source: https://blog.benestudio.co/custom-file-upload-button-with-pure-css-5aacf39aa0a */
-#file-upload-wrapper {
-    position: relative;
-    overflow: hidden;
-    display: inline-block;
-}
-
-#file-upload-wrapper input[type=file] {
-    font-size: 100px;
-    position: absolute;
-    left: 0;
-    top: 0;
-    opacity: 0;
-}
-
-.table-container {
-    overflow-x: auto;
-    max-width: 100%;
-}
-
-.table-container h2 {
-    font-weight: 600;
-    margin-bottom: 16px;
-}
-
-table {
-    border: 1px solid #ddd;
-}
-
-table th,
-table td {
-    border: none;
+#upload-result-error {
+    overflow-y: auto;
     text-align: left;
-    padding: 8px;
+    
+    /* height: 300px; */
 }
-
-th {
-    text-align: left;
-}
-
-table tr {
-    border: 1px solid black;
-}
-
-tr:nth-child(even) {
-    background-color: #f2f2f2
-}
-
-table th {
-    padding: 10px;
-}
-
-tbody tr:first-child {
-    font-weight: 600;
-}
-
-
