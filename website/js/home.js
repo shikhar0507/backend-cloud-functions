@@ -36,16 +36,16 @@ function excelUploadContainer(id) {
 
 }
 
-function BulkCreateErrorContainer(originalData,rejectedOnes){
+function BulkCreateErrorContainer(originalData, rejectedOnes) {
   const cont = document.getElementById('upload-result-error')
   cont.innerHTML = '';
   const frag = document.createDocumentFragment();
-  if(rejectedOnes.length >=2){
+  if (rejectedOnes.length >= 2) {
     cont.style.height = '200px';
   }
-  rejectedOnes.forEach(function(value,idx){
+  rejectedOnes.forEach(function (value, idx) {
     const span = document.createElement('span')
-    span.textContent  = 'Error at row number : '+originalData[idx].__rowNum__
+    span.textContent = 'Error at row number : ' + originalData[idx].__rowNum__
     const p = document.createElement('p')
     p.textContent = value.reason
     p.className = 'warning-label'
@@ -64,7 +64,7 @@ function createEmployeesAsSupport(office, template) {
 
   const modal = createModal(excelUploadContainer('upload-employee'))
   const upload = modal.querySelector('#upload-employee')
-  const notificationLabel =  modal.querySelector('.notification-label')
+  const notificationLabel = modal.querySelector('.notification-label')
   upload.addEventListener('change', function (evt) {
     evt.stopPropagation();
     evt.preventDefault();
@@ -75,7 +75,7 @@ function createEmployeesAsSupport(office, template) {
 
     reader.onload = function (e) {
       const data = e.target.result;
-     
+
       e.target.ressul
       const wb = XLSX.read(data, {
         type: 'binary'
@@ -110,13 +110,13 @@ function createEmployeesAsSupport(office, template) {
             return response.json();
           })
           .then(function (response) {
-            const rejectedOnes = response.data.filter((val)=> val.rejected);
-            if(!rejectedOnes.length) {
+            const rejectedOnes = response.data.filter((val) => val.rejected);
+            if (!rejectedOnes.length) {
               notificationLabel.className = 'notification-label success-label'
               notificationLabel.textContent = 'Success';
               return;
             }
-            notificationLabel.textContent ='';
+            notificationLabel.textContent = '';
             BulkCreateErrorContainer(jsonData, rejectedOnes)
           }).catch(console.error);
       }).catch(function (error) {
@@ -171,40 +171,42 @@ function addEmployeeWithSupport(options) {
     console.log('searched for:', searchedTerm);
     console.log('url', `${requestUrl}&office=${searchedTerm}`);
 
-    // return sendApiRequest(`${requestUrl}&office=${searchedTerm}`, null, 'GET')
-    //   .then(function (response) { return response.json(); })
-    //   .then(function (response) {
-    var response = ['Puja Capital']
-    console.log('response', response);
-    const select = document.createElement('select');
-    searchForm.style.display = 'none';
-    if (!response.length) {
-      const p = document.createElement('p');
-      p.innerText = 'No offices found';
-      section.appendChild(p);
-      return;
-    }
-    const a = document.createElement('a');
-    a.classList.add('button');
-    a.href = '#';
-    a.textContent = 'submit';
-    a.onclick = function (event) {
-      const office = select.options[select.selectedIndex].value
-      createEmployeesAsSupport(office, 'employee');
-    }
+    return sendApiRequest(`${requestUrl}&office=${searchedTerm}`, null, 'GET')
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (response) {
 
-    section.appendChild(select);
-    section.appendChild(a);
+        console.log('response', response);
+        const select = document.createElement('select');
+        searchForm.style.display = 'none';
+        if (!response.length) {
+          const p = document.createElement('p');
+          p.innerText = 'No offices found';
+          section.appendChild(p);
+          return;
+        }
+        const a = document.createElement('a');
+        a.classList.add('button');
+        a.href = '#';
+        a.textContent = 'submit';
+        a.onclick = function (event) {
+          const office = select.options[select.selectedIndex].value
+          createEmployeesAsSupport(office, 'employee');
+        }
 
-    response.forEach((name) => {
-      const option = document.createElement('option');
-      option.value = name;
-      option.innerHTML = name;
-      select.appendChild(option);
-    });
+        section.appendChild(select);
+        section.appendChild(a);
 
-    // })
-    // .catch(console.error);
+        response.forEach((name) => {
+          const option = document.createElement('option');
+          option.value = name;
+          option.innerHTML = name;
+          select.appendChild(option);
+        });
+
+      })
+      .catch(console.error);
   }
 }
 
