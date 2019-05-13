@@ -1,6 +1,6 @@
 # Cloud Functions for Growthfile
 
-This is the repository for cloud functions running on Firebase Growthfile back-end.
+This is the repository for cloud functions running on Firebase Growthfile back-end
 
 ## File Structure
 
