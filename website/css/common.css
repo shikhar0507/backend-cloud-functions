@@ -69,10 +69,6 @@ header {
     border: 1px solid rgba(0, 0, 0, .09);
 }
 
-header a {
-    /* line-height: 40px; */
-    /* vertical-align: middle; */
-}
 
 .border {
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
@@ -276,9 +272,6 @@ input[readonly] {
     min-width: 320px;
 }
 
-.menu-user-details ul li {
-    /* font-size: 13px; */
-}
 
 .dropdown-content div img {
     margin-right: 16px;
