@@ -77,76 +77,56 @@ const handleAdminUrl = (conn, urlParts) => {
 
   if (conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims)) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.forbidden,
       'You cannot make support requests'
     );
-
-    return;
   }
 
   /** Only support or admin is allowed */
   if (!conn.requester.isSupportRequest
     && !hasAdminClaims(conn.requester.customClaims)) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.unauthorized,
       `You cannot access this resource`
     );
-
-    return;
   }
 
   if (resource === 'read') {
-    require('../firestore/offices/on-read')(conn);
-
-    return;
+    return require('../firestore/offices/on-read')(conn);
   }
 
   if (resource === 'now') {
-    require('../firestore/offices/now')(conn);
-
-    return;
+    return require('../firestore/offices/now')(conn);
   }
 
   if (resource === 'search') {
-    require('../firestore/offices/search')(conn);
-
-    return;
+    return require('../firestore/offices/search')(conn);
   }
 
   if (resource === 'single') {
-    require('../firestore/single')(conn);
-
-    return;
+    return require('../firestore/single')(conn);
   }
 
   if (resource === 'bulk') {
-    require('../firestore/bulk/script')(conn);
-
-    return;
+    return require('../firestore/bulk/script')(conn);
   }
 
   if (resource === 'change-phone-number') {
-    require('../firestore/phone-number-change')(conn);
-
-    return;
+    return require('../firestore/phone-number-change')(conn);
   }
 
   if (resource === 'employee-resign') {
-    require('../employee-resign')(conn);
-
-    return;
+    return require('../employee-resign')(conn);
   }
 
   if (resource === 'send-mail') {
-    require('../website-utils/send-excel-email')(conn);
-
-    return;
+    return require('../website-utils/send-excel-email')(conn);
   }
 
-  sendResponse(
+  return sendResponse(
     conn,
     code.badRequest,
     `No resource found at the path: ${(conn.req.url)}.`
@@ -157,36 +137,26 @@ const handleActivitiesUrl = (conn, urlParts) => {
   const resource = urlParts[2];
 
   if (resource === 'comment') {
-    require('../firestore/activity/on-comment')(conn);
-
-    return;
+    return require('../firestore/activity/on-comment')(conn);
   }
 
   if (resource === 'create') {
-    require('../firestore/activity/on-create')(conn);
-
-    return;
+    return require('../firestore/activity/on-create')(conn);
   }
 
   if (resource === 'update') {
-    require('../firestore/activity/on-update')(conn);
-
-    return;
+    return require('../firestore/activity/on-update')(conn);
   }
 
   if (resource === 'share') {
-    require('../firestore/activity/on-share')(conn);
-
-    return;
+    return require('../firestore/activity/on-share')(conn);
   }
 
   if (resource === 'change-status') {
-    require('../firestore/activity/on-change-status')(conn);
-
-    return;
+    return require('../firestore/activity/on-change-status')(conn);
   }
 
-  sendResponse(
+  return sendResponse(
     conn,
     code.notFound,
     `No resource found at the path: ${(conn.req.url)}.`
@@ -198,30 +168,22 @@ const handleServicesUrl = (conn, urlParts) => {
   const resource = urlParts[2];
 
   if (resource === 'permissions') {
-    require('../services/on-permissions')(conn);
-
-    return;
+    return require('../services/on-permissions')(conn);
   }
 
   if (resource === 'templates') {
-    require('../services/on-templates')(conn);
-
-    return;
+    return require('../services/on-templates')(conn);
   }
 
   if (resource === 'logs') {
-    require('../services/on-logs')(conn);
-
-    return;
+    return require('../services/on-logs')(conn);
   }
 
   if (resource === 'images') {
-    require('../services/on-images')(conn);
-
-    return;
+    return require('../services/on-images')(conn);
   }
 
-  sendResponse(
+  return sendResponse(
     conn,
     code.notFound,
     `No resource found at the path: ${(conn.req.url)}.`
@@ -233,32 +195,27 @@ const handleRequestPath = (conn, parsedUrl) => {
   const urlParts = parsedUrl.pathname.split('/');
   const parent = urlParts[1];
 
-  if (parent === 'read') {
-    require('../firestore/on-read')(conn);
+  // if (parent === 'now') {
+  //   return require('../now')(conn);
+  // }
 
-    return;
+  if (parent === 'read') {
+    return require('../firestore/on-read')(conn);
   }
 
   if (parent === 'activities') {
-    handleActivitiesUrl(conn, urlParts);
-
-    return;
+    return handleActivitiesUrl(conn, urlParts);
   }
 
   if (parent === 'services') {
-    handleServicesUrl(conn, urlParts);
-
-    return;
+    return handleServicesUrl(conn, urlParts);
   }
-
 
   if (parent === 'admin') {
-    handleAdminUrl(conn, urlParts);
-
-    return;
+    return handleAdminUrl(conn, urlParts);
   }
 
-  sendResponse(
+  return sendResponse(
     conn,
     code.notFound,
     `No resource found at the path: ${conn.req.url}`
@@ -272,8 +229,12 @@ const getProfile = (conn, pathName) =>
     .doc(conn.requester.phoneNumber)
     .get()
     .then((doc) => {
-      conn.requester.lastQueryFrom = doc.get('lastQueryFrom');
-      conn.requester.employeeOf = doc.get('employeeOf');
+      conn
+        .requester
+        .lastQueryFrom = doc.get('lastQueryFrom');
+      conn
+        .requester
+        .employeeOf = doc.get('employeeOf') || {};
       /**
         * When a user signs up for the first time, the `authOnCreate`
         * cloud function creates two docs in the Firestore.
@@ -299,13 +260,13 @@ const getProfile = (conn, pathName) =>
         * To counter this, we allow a grace period of `60` seconds between
         * the `auth` creation and the hit time on the `api`.
         */
-      const authCreationTime = new Date(
+      const AUTH_CREATION_TIMESTAMP = new Date(
         conn.requester.creationTime
       )
         .getTime();
       const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
-      if (Date.now() - authCreationTime < NUM_MILLI_SECS_IN_MINUTE) {
+      if (Date.now() - AUTH_CREATION_TIMESTAMP < NUM_MILLI_SECS_IN_MINUTE) {
         // return handleRequestPath(conn, pathName);
         return Promise.resolve();
       }
@@ -317,14 +278,14 @@ const getProfile = (conn, pathName) =>
       if (doc.get('uid')
         && doc.get('uid') !== conn.requester.uid) {
         console.log({
-          authCreationTime,
+          authCreationTime: AUTH_CREATION_TIMESTAMP,
           now: Date.now(),
           msg: `The uid and phone number of the requester does not match.`,
           phoneNumber: doc.id,
           profileUid: doc.get('uid'),
           authUid: conn.requester.uid,
           gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
-          diff: Date.now() - authCreationTime,
+          diff: Date.now() - AUTH_CREATION_TIMESTAMP,
         });
 
         /**
@@ -371,14 +332,12 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
     .then((userRecord) => {
       if (userRecord.disabled) {
         /** Users with disabled accounts cannot request any operation **/
-        sendResponse(
+        return sendResponse(
           conn,
           code.forbidden,
           `This account has been temporarily disabled. Please contact`
           + ` your admin`
         );
-
-        return;
       }
 
       conn.requester = {
@@ -407,26 +366,20 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
 
       if (conn.requester.isSupportRequest
         && !hasSupportClaims(conn.requester.customClaims)) {
-        sendResponse(
+        return sendResponse(
           conn,
           code.forbidden,
           'You do not have the permission to make support requests for activities'
         );
-
-        return;
       }
 
-      const parsedUrl = require('url').parse(conn.req.url);
+      const parsedUrl = url.parse(conn.req.url);
 
       if (parsedUrl.pathname === '/now') {
-        require('../now/index')(conn);
-
-        return;
+        return require('../now/index')(conn);
       }
 
-      getProfile(conn, parsedUrl);
-
-      return;
+      return getProfile(conn, parsedUrl);
     })
     .catch((error) => handleError(conn, error));
 
@@ -443,12 +396,10 @@ const handleRejections = (conn, errorObject) => {
   if (!errorObject.code.startsWith('auth/')) {
     console.error(errorObject);
 
-    sendResponse(conn, code.internalServerError, 'Something went wrong');
-
-    return;
+    return sendResponse(conn, code.internalServerError, 'Something went wrong');
   }
 
-  reportBackgroundError(errorObject, context, 'AUTH_REJECTION')
+  return reportBackgroundError(errorObject, context, 'AUTH_REJECTION')
     .then(() => sendResponse(conn, code.unauthorized, 'Unauthorized'))
     .catch((error) => handleError(conn, error));
 };
@@ -463,15 +414,13 @@ const checkAuthorizationToken = (conn) => {
   const result = headerValid(conn.req.headers);
 
   if (!result.isValid) {
-    sendResponse(conn, code.forbidden, result.message);
-
-    return;
+    return sendResponse(conn, code.forbidden, result.message);
   }
 
   /** Checks if the token was revoked recently when set to `true` */
   const checkRevoked = true;
 
-  auth
+  return auth
     .verifyIdToken(result.authToken, checkRevoked)
     .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => handleRejections(conn, error));
@@ -504,9 +453,7 @@ module.exports = (req, res) => {
 
   /** For handling CORS */
   if (req.method === 'HEAD' || req.method === 'OPTIONS') {
-    sendResponse(conn, code.noContent);
-
-    return;
+    return sendResponse(conn, code.noContent);
   }
 
   if (!new Set()
@@ -515,31 +462,25 @@ module.exports = (req, res) => {
     .add('PATCH')
     .add('PUT')
     .has(req.method)) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.notImplemented,
       `${req.method} is not supported for any request.`
       + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests'
     );
-
-    return;
   }
 
   const parsed = url.parse(conn.req.url).pathname;
 
   if (parsed === '/parseMail'
     && conn.req.query.token === env.sgMailParseToken) {
-    require('../mail-parser')(conn);
-
-    return;
+    return require('../mail-parser')(conn);
   }
 
   if (env.isProduction) {
     if (!conn.req.headers['x-cf-secret']
       || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
-      sendResponse(conn, code.forbidden, 'Not allowed');
-
-      return;
+      return sendResponse(conn, code.forbidden, 'Not allowed');
     }
   }
 

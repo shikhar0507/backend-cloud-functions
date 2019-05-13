@@ -41,7 +41,7 @@ const {
   sendSMS,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
-const moment = require('moment-timezone');
+const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 
 
@@ -862,75 +862,75 @@ const removeFromOfficeActivities = (locals) => {
     .catch(console.error);
 };
 
+
+const deleteMonthlyDocs = () => {
+  // TODO: Implement this...
+  return Promise.resolve();
+};
+
+
 const handleMonthlyDocs = (locals, hasBeenCancelled) => {
   const template = locals.change.after.get('template');
+  const office = locals.change.after.get('office');
+  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
 
-  if (template !== 'employee' || !hasBeenCancelled) {
+  if (template !== 'employee') {
     return Promise.resolve();
   }
 
-  /** Employee has been cancelled. Remove the docs from /Monthly collection */
+  if (hasBeenCancelled) {
+    return deleteMonthlyDocs(locals);
+  }
 
-  const officeId = locals.change.after.get('officeId');
-  const phoneNumber =
-    locals.change.after.get('attachment.Employee Contact.value');
+  let timezone;
+  let officeDoc;
+  let momentToday;
+  const batch = db.batch();
 
-  const runQuery = (query, resolve, reject) => {
-    return query
-      .get()
-      .then((docs) => {
-        if (docs.empty) {
-          return [0];
-        }
-
-        const batch = db.batch();
-
-        docs.forEach((doc) => {
-          batch.delete(doc.ref);
-        });
-
-        return Promise
-          .all([
-            docs.docs[docs.size - 1],
-            batch.commit(),
-          ]);
-      })
-      .then((result) => {
-        const [lastDoc] = result;
-
-        /** Done with all docs */
-        if (!lastDoc) return resolve();
-
-        return process
-          .nextTick(() => {
-            const newQuery = query
-              .startAfter(admin.firestore.FieldPath.documentId(), lastDoc.id);
-
-            return runQuery(newQuery, resolve, reject);
-          });
-      })
-      .catch(reject);
-  };
-
+  // Create doc for the current month.
   return rootCollections
     .offices
-    .doc(officeId)
+    .where('office', '==', office)
+    .limit(1)
     .get()
-    .then((doc) => {
-      const baseQuery = doc
+    .then((docs) => {
+      officeDoc = docs.docs[0];
+      timezone = officeDoc.get('attachment.Timezone.value');
+      momentToday = momentTz().tz(timezone);
+
+      return officeDoc
         .ref
         .collection('Monthly')
-        .where('phoneNumber', '==', phoneNumber)
-        .orderBy(admin.firestore.FieldPath.documentId())
-        .limit(499)
+        .where('date', '==', momentToday.date())
+        .where('month', '==', momentToday.month())
+        .where('year', '==', momentToday.year())
+        .limit(1)
         .get();
+    })
+    .then((snapShot) => {
+      /** Doc already exists. No need to do anything */
+      if (!snapShot.empty) {
+        return Promise.resolve();
+      }
 
-      return new Promise((resolve, reject) => {
-        return runQuery(baseQuery, resolve, reject);
-      });
+      batch.set(officeDoc
+        .ref
+        .collection('Monthly')
+        .doc(), {
+          phoneNumber,
+          month: momentToday.month(),
+          year: momentToday.year(),
+          statusObject: {
+            [momentToday.date()]: {
+              firstAction: '',
+              lastAction: '',
+            },
+          },
+        });
+
+      return batch.commit();
     })
     .catch(console.error);
-
 };
 
 
@@ -1307,8 +1307,8 @@ module.exports = (change, context) => {
       if (template === 'leave' || template === 'tour plan' || template === 'on duty') {
         const schedule = change.after.get('schedule')[0];
 
-        activityData.startYear = moment(schedule.startTime).year();
-        activityData.endYear = moment(schedule.endTime).year();
+        activityData.startYear = momentTz(schedule.startTime).year();
+        activityData.endYear = momentTz(schedule.endTime).year();
       }
 
       batch.set(copyTo, activityData, { merge: true });

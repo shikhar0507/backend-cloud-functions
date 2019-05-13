@@ -33,124 +33,7 @@ const {
   reportNames,
   httpsActions,
 } = require('../../admin/constants');
-const env = require('../../admin/env');
 const moment = require('moment');
-
-const sendSMS = (change) => {
-  const {
-    downloadUrl,
-    smsgupshup,
-    isProduction,
-  } = require('../../admin/env');
-
-  const smsContext = change.after.get('smsContext');
-
-  // Profile doc is created and the smsContext object has been added to the profile doc.
-  const toSendSMS = !change.before.data()
-    && change.after.data()
-    && smsContext;
-
-  if (!toSendSMS) {
-    return Promise.resolve();
-  }
-
-  // Will not send sms from test project
-  if (!isProduction) {
-    return Promise.resolve();
-  }
-
-  // Template substitutions allow 20 chars at most.
-  const first20Chars = (str) => str.slice(0, 19);
-
-  console.log('SMS Sent to:', change.after.id);
-
-  const templatedMessage = (() => {
-    const {
-      activityName,
-      creator,
-      office,
-    } = smsContext;
-
-    const creatorName = (() => {
-      if (creator === env.supportPhoneNumber) {
-        return 'Growthfile Support';
-      }
-
-      return creator;
-    })();
-
-    return `${first20Chars(creatorName)} from ${first20Chars(office)} has`
-      + ` created ${first20Chars(activityName)} and`
-      + ` included you. Download ${downloadUrl} to view more details.`;
-  })();
-
-  // Profile doc id is the phone number
-  const sendTo = change.after.id;
-  const encodedMessage = `${encodeURI(templatedMessage)}`;
-  const host = `enterprise.smsgupshup.com`;
-  const path = `/GatewayAPI/rest?method=SendMessage`
-    + `&send_to=${sendTo}`
-    + `&msg=${encodedMessage}`
-    + `&msg_type=TEXT`
-    + `&userid=${smsgupshup.userId}`
-    + `&auth_scheme=plain`
-    + `&password=${smsgupshup.password}`
-    + `&v=1.1`
-    + `&format=text`;
-
-  const params = {
-    host,
-    path,
-    // HTTPS port is 443
-    port: 443,
-  };
-
-  return new Promise(
-    (resolve, reject) => {
-      const req = https.request(params, (res) => {
-        // reject on bad status
-        console.log('res.statusCode', res.statusCode);
-
-        if (res.statusCode > 226) {
-          reject(new Error(`statusCode=${res.statusCode}`));
-
-          return;
-        }
-
-        // cumulate data
-        let chunks = [];
-
-        res.on('data', (chunk) => chunks.push(chunk));
-
-        // resolve on end
-        res.on('end', () => {
-          chunks = Buffer.concat(chunks).toString();
-
-          if (chunks.includes('error')) {
-            reject(new Error(chunks));
-
-            return;
-          }
-
-          resolve(chunks);
-        });
-      });
-
-      // reject on request error
-      // This is not a "Second reject", just a different sort of failure
-      req.on('error', (err) => {
-        console.log('in err');
-
-        return reject(new Error(err));
-      });
-
-      // IMPORTANT
-      req.end();
-    })
-    .then(console.log)
-    .catch(console.error);
-};
-
 
 const purgeAddendum = (query, resolve, reject, count) =>
   query
@@ -210,7 +93,6 @@ const manageAddendum = (change) => {
     Promise(
       (resolve, reject) => purgeAddendum(query, resolve, reject, count)
     )
-    .then((count) => console.log(`Rounds:`, count))
     .catch(console.error);
 };
 
@@ -376,7 +258,6 @@ module.exports = (change) => {
     currentOfficesList,
     oldOfficesList,
     hasSignedUp,
-    // authDeleted,
     hasInstalled,
     hasBeenRemoved,
     hasBeenAdded,
@@ -395,15 +276,10 @@ module.exports = (change) => {
    *    For each office (current) create sign up doc with `signedUpOn` field
    * Delete addendum if new `lastFromQuery` > old `lastFromQuery`.
    */
-  // return handleSignUp(change, options)
-  // .then(() => handleInstall(change, options))
-  // .then(() => handleRemovedFromOffice(change, options))
-  // .then(() => handleAddedToOffice(change, options))
   return Promise
     .resolve()
     .then(() => handleSignUpAndInstall(options))
     .then(() => manageAddendum(change))
     .then(() => options.batch.commit())
-    // .then(() => sendSMS(change))
     .catch(console.error);
 };
