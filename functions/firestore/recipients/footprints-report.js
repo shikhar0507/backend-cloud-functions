@@ -134,16 +134,15 @@ const handleNotifications = (locals) => {
         || statusObject[yesterdaysDate].lastAction
         /** Should be an employee. Non-employees should not get notifications */
         || !employeesData[phoneNumber]
-        /** Tokens are not set for people who have done something during the day
+        /**
+         * Tokens are not set for people who have done something during the day
          * OR they have not installed the app
-         * OR they have not used the app for quite a while (i.e., they used the app
-         * before we implemented notifications in the app)
+         * OR they have not used the app for quite a while (i.e., they last used the app
+         * before we implemented notifications)
          */
         || !token) {
         return;
       }
-
-      console.log('sending notifications', phoneNumber);
 
       const promise = admin
         .messaging()
@@ -194,8 +193,6 @@ const handleSms = (locals) => {
 
   const promises = [];
   const yesterdaysDate = locals.momentYesterday.date();
-
-  console.log(locals.notInstalledSet);
   const employeesData = locals.officeDoc.get('employeesData');
 
   locals
@@ -210,7 +207,6 @@ const handleSms = (locals) => {
       const numberOfDays = getNumberOfDays(statusObject, yesterdaysDate);
       const smsText = getSMSText(numberOfDays);
       const promise = sendSMS(phoneNumber, smsText);
-      console.log('sms', phoneNumber, numberOfDays);
 
       promises.push(promise);
     });
@@ -253,7 +249,6 @@ const getStatusObject = (statusObjectMap, phoneNumber) =>
 
 const commitMultipleBatches = (batchesArray) => {
   let result = Promise.resolve();
-  console.log('Number of batches', batchesArray.length);
 
   batchesArray.forEach((batch, index) => {
     result = batch
@@ -321,15 +316,12 @@ const handleSheetTwo = (locals) => {
       phoneNumbersByQueryIndex.push(phoneNumber);
     });
 
-  let totalDocs = 0;
-
   return Promise
     .all(firstActionPromises)
     .then((snapShots) => {
       let batch = batchesArray[currentBatchIndex];
 
       snapShots.forEach((snapShot, index) => {
-        totalDocs++;
         numberOfDocsInCurrentBatch++;
 
         if (numberOfDocsInCurrentBatch === 499) {
@@ -406,7 +398,6 @@ const handleSheetTwo = (locals) => {
       let batch = batchesArray[currentBatchIndex];
 
       snapShots.forEach((snapShot, index) => {
-        totalDocs++;
         numberOfDocsInCurrentBatch++;
 
         if (numberOfDocsInCurrentBatch === 499) {
@@ -471,11 +462,6 @@ const handleSheetTwo = (locals) => {
         }, {
             merge: true,
           });
-      });
-
-      console.log({
-        numberOfBatches: batchesArray.length,
-        totalDocs,
       });
 
       return commitMultipleBatches(batchesArray);
@@ -651,9 +637,6 @@ module.exports = (locals) => {
     /** People on Leave, Weekly Off or Holiday (from branch) */
     onLeaveWeeklyOffHoliday: 0,
   };
-
-  console.log('report triggered for:', dateString);
-  console.log('data sent for:', dated);
 
   return Promise
     .all([
@@ -1113,10 +1096,6 @@ module.exports = (locals) => {
         .sendMultiple(locals.messageObject);
     })
     .then(() => {
-      if (!locals.sendMail) {
-        return Promise.resolve();
-      }
-
       /** Counter docs doesn't exist in non-production project */
       if (!isDateToday || !env.isProduction) {
         return Promise.resolve();
@@ -1124,7 +1103,6 @@ module.exports = (locals) => {
 
       const doc = dailyStatusDoc.docs[0];
       const oldCountsObject = doc.get('countsObject') || {};
-
       oldCountsObject[office] = counterObject;
 
       return doc

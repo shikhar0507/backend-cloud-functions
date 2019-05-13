@@ -574,14 +574,6 @@ const filterAttachment = (options) => {
         break;
       }
 
-      // if (template === 'recipient'
-      //   && !reportNames[value]) {
-      //   console.log({ value });
-      //   messageObject.isValid = false;
-      //   messageObject.message = `${value} is not a valid report name`;
-      //   break;
-      // }
-
       messageObject
         .querySnapshotShouldNotExist
         .push(rootCollections
@@ -1293,11 +1285,11 @@ const getMonthlyDocRef = (snapShot, officeDoc) => {
 const getAllDatesSet = (startTime, endTime, timezone) => {
   const datesSet = new Set();
 
-  const start = moment(startTime).tz(timezone).startOf('day');
-  const end = moment(endTime).tz(timezone).endOf('day');
+  const start = moment(startTime).tz(timezone);
+  const end = moment(endTime).tz(timezone);
   datesSet.add(start.format());
 
-  while (start.add(1, 'days').diff(end) < 0) {
+  while (start.add(1, 'days').diff(end) <= 0) {
     const dateString = start.format();
 
     datesSet.add(dateString);
@@ -1374,10 +1366,11 @@ const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusTo
         const statusObject = getStatusObject(snapShot);
 
         allDateStringsSet.forEach((dateString) => {
-          const dateObject = moment(dateString);
-          const readableDate = moment(dateString).format(dateFormats.DATE);
+          const dateObject = moment(dateString).tz(timezone);
+          const readableDate = dateObject.clone().format(dateFormats.DATE);
 
           if (month !== dateObject.month()) return;
+
           if (year !== dateObject.year()) return;
 
           if (!statusObject[dateObject.date()]) {
@@ -1422,8 +1415,6 @@ const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusTo
             statusObject[dateObject.date()].onDuty = true;
           }
         });
-
-        console.log('monthlyDocRef', monthlyDocRef);
 
         batch.set(monthlyDocRef, {
           month,
@@ -1524,11 +1515,10 @@ const cancelLeaveOrDuty = (phoneNumber, officeId, startTime, endTime, template) 
       snapShots.forEach((snapShot, index) => {
         const doc = snapShot.docs[0];
         const { month, year } = monthYearIndexes[index];
-
         const statusObject = getStatusObject(snapShot);
 
         allDateStringsSet.forEach((dateString) => {
-          const dateObject = moment(dateString);
+          const dateObject = moment(dateString).tz(timezone);
 
           if (month !== dateObject.month()) return;
           if (year !== dateObject.year()) return;
