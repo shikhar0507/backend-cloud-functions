@@ -130,7 +130,7 @@ function addEmployeeWithSupport(options) {
     console.log('url', `${requestUrl}&office=${searchedTerm}`);
 
     return sendApiRequest(`${requestUrl}&office=${searchedTerm}`, null, 'GET')
-      .then(function (response) { response.json(); })
+      .then(function (response) { return response.json(); })
       .then(function (response) {
         console.log('response', response);
 

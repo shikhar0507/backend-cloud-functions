@@ -12,6 +12,17 @@
     <div class="container">
         \{{#if isLoggedIn}}
         <section class="action-icons-container">
+        <section id="action-section">
+            <p id="default-text">Click to proceed</p>
+
+            {{!-- <div class="hidden" id="file-upload-wrapper">
+                <button class="button">Select a file</button>
+                <input type="file">
+            </div>
+            <div class="hidden" class="table-container">
+                <h2>Activity Result</h2>
+            </div> --}}
+        </section>
             <ul>
                 <li id="add-employees">
                     <i class="fas fa-user-plus action-icon"></i>
@@ -51,17 +62,7 @@
                 </li>
             </ul>
         </section>
-        <section id="action-section">
-            <p id="default-text">Click to proceed</p>
-
-            {{!-- <div class="hidden" id="file-upload-wrapper">
-                <button class="button">Select a file</button>
-                <input type="file">
-            </div>
-            <div class="hidden" class="table-container">
-                <h2>Activity Result</h2>
-            </div> --}}
-        </section>
+   
         \{{else}}
         <section class="section2">
             <h2>A network for <span>smart</span> business owners</h2>

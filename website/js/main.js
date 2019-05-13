@@ -10,7 +10,7 @@ firebase
 const apiBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api';
 const getUserBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/getUser';
 const webappBaseUrl ='http://localhost:5001/growthfilev2-0/us-central1/webapp'
- 
+const searchUrl = apiBaseUrl+'/admin/search'
 
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
@@ -168,17 +168,23 @@ function sendApiRequest(apiUrl, requestBody, method) {
   if (requestBody) {
     init.body = JSON.stringify(requestBody);
   }
+  const urlScheme = new URL(apiUrl);
+  console.log(urlScheme);
+  const baseUrl = urlScheme.origin + urlScheme.pathname;
+  if(baseUrl === apiBaseUrl || baseUrl === searchUrl) {
 
-  return firebase
+    return firebase
     .auth()
     .currentUser
-    .getIdToken(function (idToken) {
-      init.headers['Authorization'] = `Bearer: ${idToken}`;
-
+    .getIdToken(false).then(function (idToken) {
+      init.headers['Authorization'] = `Bearer ${idToken}`;
+      
       return fetch(apiUrl, init);
     })
     .then(function (result) { return result })
     .catch(console.error);
+  }
+  return fetch(apiUrl,init);
 }
 
 
