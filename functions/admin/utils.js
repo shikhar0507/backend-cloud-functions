@@ -746,50 +746,53 @@ const sendSMS = (phoneNumber, smsText) => {
     port: 443,
   };
 
-  return new Promise(
-    (resolve, reject) => {
-      const req = https.request(params, (res) => {
-        // reject on bad status
-        console.log('res.statusCode', res.statusCode);
+  return new Promise((resolve, reject) => {
+    const req = https.request(params, (res) => {
+      // reject on bad status
+      console.log('res.statusCode', res.statusCode);
 
-        if (res.statusCode > 226) {
-          reject(new Error(`statusCode=${res.statusCode}`));
+      if (res.statusCode > 226) {
+        reject(new Error(`statusCode=${res.statusCode}`));
+
+        return;
+      }
+
+      // cumulate data
+      let chunks = [];
+
+      res
+        .on('data', (chunk) => chunks.push(chunk));
+
+      // resolve on end
+      res
+        .on('end', () => {
+          chunks = Buffer.concat(chunks).toString();
+
+          if (chunks.includes('error')) {
+            reject(new Error(chunks));
+
+            return;
+          }
+
+          resolve(chunks);
 
           return;
-        }
+        });
+    });
 
-        // cumulate data
-        let chunks = [];
+    // reject on request error
+    // This is not a "Second reject", just a different sort of failure
+    req.on('error', (err) => {
+      console.log('in err');
 
-        res
-          .on('data', (chunk) => chunks.push(chunk));
+      reject(new Error(err));
 
-        // resolve on end
-        res
-          .on('end', () => {
-            chunks = Buffer.concat(chunks).toString();
+      return;
+    });
 
-            if (chunks.includes('error')) {
-              reject(new Error(chunks));
-
-              return;
-            }
-
-            resolve(chunks);
-          });
-      });
-
-      // reject on request error
-      // This is not a "Second reject", just a different sort of failure
-      req.on('error', (err) => {
-        console.log('in err');
-
-        return reject(new Error(err));
-      });
-
-      // IMPORTANT
-      req.end();
-    })
+    // IMPORTANT otherwise socket won't close.
+    req.end();
+  })
     .then(console.log)
     .catch(console.error);
 };
@@ -798,8 +801,6 @@ const isEmptyObject = (object) =>
   Object
     .keys(object)
     .every((field) => {
-      // const value = object[x];
-
       if (typeof object[field] === 'string' && object[field].trim() === '') {
         return true;
       }
@@ -830,7 +831,6 @@ const getAdjustedGeopointsFromVenue = (venue) => {
 
   return result;
 };
-
 
 const getRegistrationToken = (phoneNumber) => {
   const result = {
@@ -1096,13 +1096,19 @@ const handleDailyStatusReport = (toEmail) => {
       worksheet = workbook;
       counterDoc = counterInitQuery.docs[0];
       yesterdayInitDoc = yesterdayInitQuery.docs[0];
-      const activeYesterday =
-        handleOfficeActivityReport(worksheet, yesterdayInitDoc);
+      const activeYesterday = handleOfficeActivityReport(
+        worksheet,
+        yesterdayInitDoc
+      );
+      handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
+      handleUserStatusReport(
+        worksheet,
+        counterDoc,
+        yesterdayInitDoc,
+        activeYesterday
+      );
 
       worksheet.deleteSheet('Sheet1');
-
-      handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
-      handleUserStatusReport(worksheet, counterDoc, yesterdayInitDoc, activeYesterday);
 
       return worksheet.outputAsync('base64');
     })
@@ -1126,7 +1132,9 @@ const handleDailyStatusReport = (toEmail) => {
 
 
 const generateDates = (startTime, endTime) => {
-  const numberOfDays = moment(startTime).diff(moment(endTime), 'days');
+  const momentStart = moment(startTime);
+  const momentEnd = moment(endTime);
+  const numberOfDays = momentEnd.diff(momentStart, 'days');
   const dates = [];
 
   for (let i = 0; i <= numberOfDays; i++) {
@@ -1137,7 +1145,7 @@ const generateDates = (startTime, endTime) => {
   }
 
   return {
-    numberOfDays,
+    numberOfDays: dates.length,
     dates,
   };
 };

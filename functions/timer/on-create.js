@@ -27,7 +27,6 @@
 
 const {
   db,
-  users,
   rootCollections,
   fieldPath,
 } = require('../admin/admin');
@@ -237,7 +236,6 @@ const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => 
   });
 };
 
-
 const handleDailyStatusReport = () => {
   const date = moment().subtract(1, 'day').format(dateFormats.DATE);
   const fileName = `Daily Status Report ${date}.xlsx`;
@@ -446,7 +444,7 @@ const handleRelevantTime = () => {
 
 module.exports = (timerDoc) => {
   if (timerDoc.get('sent')) {
-    // Helps to check if email is sent already. 
+    // Helps to check if email is sent already.
     // Cloud functions sometimes trigger multiple times
     // For a single write.
     return Promise.resolve();
@@ -483,11 +481,32 @@ module.exports = (timerDoc) => {
       return sgMail.sendMultiple(messages);
     })
     .then(() => sendErrorReport())
-    // .then(() => handleRelevantTime())
-    .then(() => rootCollections
-      .recipients
-      .get())
-    .then((recipientsQuery) => {
+    .then(() => {
+      const momentYesterday = moment()
+        .subtract(1, 'day')
+        .startOf('day');
+
+      return Promise
+        .all([
+          rootCollections
+            .recipients
+            .get(),
+          rootCollections
+            .inits
+            .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+            .where('date', '==', momentYesterday.date())
+            .where('month', '==', momentYesterday.month())
+            .where('year', '==', momentYesterday.year())
+            .limit(1)
+            .get(),
+        ]);
+    })
+    .then((result) => {
+      const [
+        recipientsQuery,
+        counterDocsQuery,
+      ] = result;
+
       const batch = db.batch();
 
       recipientsQuery
@@ -499,8 +518,18 @@ module.exports = (timerDoc) => {
             });
         });
 
+      batch.set(counterDocsQuery.docs[0].ref, {
+        /**
+         * Storing this value in the daily status report counts doc in order
+         * to check if all reports have finished their work.
+         */
+        expectedRecipientTriggersCount: recipientsQuery.size,
+        recipientsTriggeredToday: 0,
+      }, {
+          merge: true,
+        });
+
       return batch.commit();
     })
-    // .then(() => handleDailyStatusReport())
     .catch(console.error);
 };

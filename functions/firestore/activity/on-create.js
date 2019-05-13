@@ -243,10 +243,9 @@ const handleLeaveOrOnDuty = (conn, locals) => {
   });
 
   if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
-    console.log('CANCELL HERE 1');
     locals.static.statusOnCreate = 'CANCELLED';
-    locals.cancellationMessage = `Leave limit exceeded by`
-      + ` ${locals.maxLeavesAllowed - leavesTakenThisTime + locals.leavesTakenThisYear}`;
+    locals.cancellationMessage = `LEAVE CANCELLED: Leave limit exceeded by`
+      + ` ${leavesTakenThisTime + locals.leavesTakenThisYear - locals.maxLeavesAllowed} days.`;
 
     return createDocsWithBatch(conn, locals);
   }
@@ -265,7 +264,7 @@ const handleLeaveOrOnDuty = (conn, locals) => {
 
       if (!success) {
         locals.static.statusOnCreate = 'CANCELLED';
-        locals.cancellationMessage = message;
+        locals.cancellationMessage = `LEAVE CANCELLED: ${message}`;
       }
 
       return createDocsWithBatch(conn, locals);

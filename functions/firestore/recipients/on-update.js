@@ -29,12 +29,16 @@ const {
   users,
   auth,
   rootCollections,
+  db,
 } = require('../../admin/admin');
 const {
   reportNames,
   dateFormats,
   sendGridTemplateIds,
 } = require('../../admin/constants');
+const {
+  handleDailyStatusReport,
+} = require('../../admin/utils');
 const env = require('../../admin/env');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
@@ -42,14 +46,6 @@ const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 
 const getTemplateId = (report) => {
-  if (report === reportNames.SIGNUP) {
-    return sendGridTemplateIds.signUps;
-  }
-
-  if (report === reportNames.INSTALL) {
-    return sendGridTemplateIds.installs;
-  }
-
   if (report === reportNames.FOOTPRINTS) {
     return sendGridTemplateIds.footprints;
   }
@@ -96,7 +92,7 @@ module.exports = (change) => {
   };
 
   /**
-   * A temporary polyfill for using Object.values since sendgrid has
+   * A temporary polyfill for using `Object.values` since sendgrid has
    * probably removed support for Node 6, but the Node 8 runtime is still
    * suffering from "connection error" issue at this time.
    * Will remove this after a few days.
@@ -112,6 +108,8 @@ module.exports = (change) => {
     // Used for exiting early in .then() clauses if init docs query is empty.
     sendMail: true,
     sendNotifications: true,
+    sendSMS: true,
+    createOnlyData: false,
     messageObject: {
       cc,
       to: [],
@@ -143,8 +141,10 @@ module.exports = (change) => {
   const authFetch = [];
 
   include
-    .forEach((phoneNumber) =>
-      authFetch.push(users.getUserByPhoneNumber(phoneNumber)));
+    .forEach((phoneNumber) => {
+      authFetch
+        .push(users.getUserByPhoneNumber(phoneNumber));
+    });
 
   const usersWithoutEmailOrVerifiedEmail = [];
   const withNoEmail = new Set();
@@ -152,7 +152,7 @@ module.exports = (change) => {
   const unverifiedOrEmailNotSetPhoneNumbers = [];
   const verificationBugCustomClaimPromises = [];
   const uidMap = new Map();
-  const removeCustomClaimsBugger = [];
+  const batch = db.batch();
 
   return Promise
     .all(authFetch)
@@ -263,14 +263,13 @@ module.exports = (change) => {
       if (!locals.sendMail) {
         return Promise.resolve(null);
       }
+
       const notifications = [];
 
       snapShot.forEach((doc) => {
         if (!doc.exists) return;
 
-        const {
-          registrationToken,
-        } = doc.data();
+        const { registrationToken } = doc.data();
 
         if (!registrationToken) return;
 
@@ -327,29 +326,38 @@ module.exports = (change) => {
         return Promise.resolve(null);
       }
 
-      const doc = snapShot.docs[0];
-      const data = doc.data();
+      const dailyStatusDoc = snapShot.docs[0];
+      const data = dailyStatusDoc.data();
       const office = locals.officeDoc.get('office');
-
-      if (unverifiedOrEmailNotSetPhoneNumbers.length === 0) {
-        return Promise.resolve();
-      }
+      const expectedRecipientTriggersCount = dailyStatusDoc.get('expectedRecipientTriggersCount');
+      const recipientsTriggeredToday = dailyStatusDoc.get('recipientsTriggeredToday');
 
       data
         .unverifiedRecipients = {
           [office]: unverifiedOrEmailNotSetPhoneNumbers,
         };
+      data.recipientsTriggeredToday = recipientsTriggeredToday + 1;
 
-      return Promise
-        .all([
-          verificationBugCustomClaimPromises,
-          removeCustomClaimsBugger,
-          doc
-            .ref
-            .set(data, {
-              merge: true,
-            }),
-        ]);
+      batch.set(dailyStatusDoc.ref, data, {
+        merge: true,
+      });
+
+      const promises = [
+        verificationBugCustomClaimPromises,
+        batch
+          .commit(),
+      ];
+
+      /**
+       * When all recipient function instances have completed their work,
+       * we trigger the daily status report. We are doing this because
+       *
+       */
+      if (expectedRecipientTriggersCount === recipientsTriggeredToday) {
+        promises.push(handleDailyStatusReport());
+      }
+
+      return Promise.all(promises);
     })
     .catch((error) => {
       const errorObject = {

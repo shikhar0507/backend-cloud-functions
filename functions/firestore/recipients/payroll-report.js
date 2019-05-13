@@ -32,11 +32,7 @@ const getDefaultStatusObject = () => {
 };
 
 const executeSequentially = (batchFactories, batch) => {
-  console.log('batchFactories size', batchFactories.length);
-
   if (batchFactories.length === 0) {
-    console.log('comitting single batch');
-
     return batch.commit();
   }
 
@@ -59,8 +55,6 @@ const commitMultiBatch = (statusObjectsMap, docRefsMap, momentYesterday) => {
   let batch = db.batch();
   const batchFactories = [];
   let currentDocsCount = 0;
-
-  console.log('statusObjectsMap size:', statusObjectsMap.size);
 
   statusObjectsMap.forEach((statusObject, phoneNumber) => {
     currentDocsCount++;
@@ -206,8 +200,6 @@ module.exports = (locals) => {
           }
         });
       });
-
-      console.log('monthlyDocsQuery:', monthlyDocsQuery.size);
 
       monthlyDocsQuery
         .docs
@@ -398,8 +390,6 @@ module.exports = (locals) => {
         checkInPromises.push(query);
       });
 
-      console.log('number of promises:', checkInPromises.length);
-
       return Promise.all(checkInPromises);
     })
     .then((checkInActivitiesAddendumQuery) => {
@@ -419,9 +409,6 @@ module.exports = (locals) => {
 
         const addendumDoc = snapShot.docs[0];
         const phoneNumber = addendumDoc.get('user');
-
-        console.log('phoneNumber', phoneNumber);
-
         const firstCheckInTimestamp = snapShot.docs[0].get('timestamp');
         const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
         const checkInDiff = Math.abs(lastCheckInTimestamp - firstCheckInTimestamp);
@@ -450,8 +437,6 @@ module.exports = (locals) => {
           .firstCheckIn = firstCheckInTimestampFormatted;
         statusObject[yesterdayDate]
           .lastCheckIn = lastCheckInTimestampFormatted;
-
-        console.log(phoneNumber, firstCheckInTimestampFormatted, lastCheckInTimestampFormatted);
 
         // `dailyStartHours` is in the format `HH:MM` in the `employeesData` object.
         const dailyStartHours = employeesData[phoneNumber]['Daily Start Time'];
@@ -774,7 +759,6 @@ module.exports = (locals) => {
       });
 
       return locals.sgMail.sendMultiple(locals.messageObject);
-      // return Promise.resolve();
     })
     .catch(console.error);
 };
