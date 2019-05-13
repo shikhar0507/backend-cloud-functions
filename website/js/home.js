@@ -101,7 +101,8 @@ function addEmployeeWithSupport(options) {
   searchInput.type = 'text';
   searchInput.placeholder = 'Search an office';
   searchInput.classList.add('input-field');
-  searchForm.style.direction = 'flex';
+  searchForm.style.display = 'inherit';
+  
   searchLink.classList.add('button');
   searchLink.innerText = 'search';
   searchForm.appendChild(searchInput);
@@ -152,6 +153,8 @@ function addEmployeeWithSupport(options) {
           a.textContent = 'submit';
 
           a.onclick = function (event) {
+            a.textContent = 'clear';
+
             createEmployeesAsSupport(event);
           }
 

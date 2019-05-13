@@ -27,69 +27,34 @@ section h2 span {
 .call-to-action ul {
     color: #89273E;
 }
-
-.call-to-action ul li {
-    display: flex;
-    margin-bottom: 16px;
-    flex-direction: column;
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-gap: 30px;
+    /* max-width: 960px; */
+    margin: 0 auto 30px;
+}
+.cards div {
+    position: relative;
+    display: block;
     text-align: center;
-    padding: 10px;
-    min-height: 100px;
-    line-height: 25px;
-}
-
-.call-to-action ul li p {
-    margin-left: 10px;
-}
-
-.action-icon {
-    font-size: 2em;
-}
-
-.action-icons-container {
-    /* min-height: unset; */
-}
-
-.action-icons-container ul {
-    display: flex;
-    min-height: unset;
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    color: #89273E;
-}
-
-.action-icons-container ul li {
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 90px;
-    margin-bottom: 16px;
-    padding: 10px 20px;
-    font-size: 30px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
     border: 1px solid rgba(0, 0, 0, .09);
+    margin-bottom: 16px;
+    padding: 10px 20px;
+    /* font-size: 30px; */
+}  
+
+ 
+.action-icon {
+    font-size: 2.5em;
 }
 
-.action-icons-container ul li:hover {
-    color: #F7C86C;
-}
-
-
-.action-icons-container ul li>* {
-    pointer-events: none;
-}
 
 .icon-text {
     color: #949494;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 11px;
-    width: 100%;
-    margin-top: 16px;
+    margin-top: 10px;
+    margin-bottom: 0px
 }
 
 #action-section {
@@ -153,3 +118,5 @@ table th {
 tbody tr:first-child {
     font-weight: 600;
 }
+
+
