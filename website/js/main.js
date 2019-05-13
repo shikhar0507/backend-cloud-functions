@@ -10,8 +10,6 @@ firebase
 const apiBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api';
 const getUserBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/getUser';
 const webappBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/webapp';
-// const searchUrl = apiBaseUrl + '/admin/search';
-// const createUrl = apiBaseUrl + '/admin/bulk';
 
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
