@@ -1,15 +1,5 @@
 const submitButton = document.getElementById('submit-button');
 
-function setMessage(messageString) {
-  const messageNode = document.getElementById('message');
-
-  messageNode.innerText = messageString;
-
-  /** Make the element visible if hidden */
-  if (messageNode.classList.contains('hidden')) {
-    messageNode.classList.remove('hidden');
-  }
-}
 
 submitButton.onclick = function () {
   if (!firebase.auth().currentUser) {

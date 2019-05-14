@@ -34,13 +34,6 @@ function hideMessage() {
   messageNode.classList.add('hidden');
 }
 
-function setMessage(message) {
-  const messageNode = document.getElementById('message');
-  messageNode.innerText = message;
-  messageNode.classList.remove('hidden');
-
-}
-
 function logInWithOtp() {
   const code = getOtp();
 
