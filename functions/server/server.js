@@ -484,5 +484,5 @@ module.exports = (req, res) => {
     }
   }
 
-  checkAuthorizationToken(conn);
+  return checkAuthorizationToken(conn);
 };

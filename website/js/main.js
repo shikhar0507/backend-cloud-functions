@@ -2,15 +2,15 @@ let startPosition;
 
 firebase
   .initializeApp({
-    apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
+    apiKey: 'AIzaSyA4s7gp7SFid_by1vLVZDmcKbkEcsStBAo',
     authDomain: 'growthfile.com',
-    projectId: 'growthfilev2-0',
+    projectId: 'growthfile-207204',
   });
 
-const apiBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api';
-const getUserBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/getUser';
-const webappBaseUrl ='http://localhost:5001/growthfilev2-0/us-central1/webapp'
- 
+const apiBaseUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/api';
+const getUserBaseUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/getUser';
+const webappBaseUrl = 'https://us-central1-growthfile-207204.cloudfunctions.net/webapp';
+
 
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
