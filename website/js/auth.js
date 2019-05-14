@@ -38,10 +38,8 @@ function hideMessage() {
 function setMessage(message) {
   const messageNode = document.getElementById('message');
   messageNode.innerText = message;
+  messageNode.classList.remove('hidden');
 
-  if (messageNode.classList.contains('hidden')) {
-    messageNode.classList.remove('hidden');
-  }
 }
 
 function logInWithOtp() {
@@ -89,11 +87,13 @@ function logInWithOtp() {
       setMessage('Signin successful. Please wait...');
 
       console.log('Signed in successfully.', result);
-
       const user = firebase.auth().currentUser;
+
 
       if (!window.showFullLogin) {
         return Promise.resolve();
+        // window.location.reload();
+        // return;
       }
 
       console.log('Updating profile', {
@@ -101,25 +101,26 @@ function logInWithOtp() {
         email: getEmail(),
       });
 
-      return user
-        .updateProfile({
-          displayName: getName(),
-          email: getEmail(),
-        });
+      return user.updateProfile({
+        displayName:getName()
+      })
+
     })
     .then(function () {
-      const value = getQueryString('redirect_to');
-
-      if (value) {
-        window.location.href = value;
-
+     
+      const user = firebase.auth().currentUser;
+      
+      if (window.showFullLogin) {
+        user.updateEmail(getEmail()).then(function(){
+          user.sendEmailVerification().then(function(){
+            submitButton.classList.add('hidden')
+            setMessage('Verification Email has been sent to '+getEmail()+' . Please Verify Your Email to continue.')
+            document.querySelector('.container form').appendChild(getSpinnerElement())
+          })
+        })
         return;
       }
-
-      // Redirects logge in user to home page
       window.location.reload();
-
-      return Promise.resolve();
     })
     .catch(function (error) {
       console.error(error);

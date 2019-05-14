@@ -125,15 +125,19 @@ function createModal(actionContent) {
   div.id = 'modal'
   const content = document.createElement('div')
   content.className = 'modal-content';
+ 
   const close = document.createElement('span')
   close.className = 'close fa fa-window-close'
   close.onclick = function () {
     div.remove();
   }
+  
   const actionContainer = document.createElement('div')
   actionContainer.className = 'action-container mt-30';
   actionContainer.appendChild(actionContent);
+ 
   content.appendChild(close)
+  
   content.appendChild(actionContainer);
   div.appendChild(content)
   return div;
