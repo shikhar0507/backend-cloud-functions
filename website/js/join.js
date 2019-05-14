@@ -143,7 +143,7 @@ function validateForm() {
 function sendOfficeCreationRequest(values) {
 
   // console.log('creating office');
-  
+
   const spinner = getSpinnerElement();
   document.forms[0].innerText = '';
   document.forms[0].style.display = 'flex';
@@ -152,7 +152,7 @@ function sendOfficeCreationRequest(values) {
   spinner.id = 'join-fetch-spinner';
 
   document.forms[0].appendChild(spinner);
-  getLocation().then(function(location){
+  getLocation().then(function (location) {
     const requestBody = {
       timestamp: Date.now(),
       office: values.officeName,
@@ -175,10 +175,10 @@ function sendOfficeCreationRequest(values) {
         'Trial Period': '',
       }],
     }
-  
+
     const idToken = getParsedCookies().__session;
     const requestUrl = 'https://api2.growthfile.com/api/admin/bulk?support=true';
-  
+
     return fetch(requestUrl, {
       mode: 'cors',
       method: 'POST',
@@ -191,32 +191,32 @@ function sendOfficeCreationRequest(values) {
       .then((result) => result.json())
       .then((response) => {
         console.log('Response', response);
-  
+
         document
           .getElementById('join-fetch-spinner')
           .style.display = 'none';
-  
+
         const span = document.createElement('span');
-  
+
         let spanText = 'Office Created Successfully';
-  
+
         if (!response.success) {
           spanText = response.message;
           span.classList.add('warning-label');
         } else {
           span.classList.add('success-label');
         }
-  
+
         span.innerHTML = spanText;
         document.forms[0].appendChild(span);
-  
+
         // redirect to the home page
         return;
       })
       .catch(console.error);
   }).catch(console.error)
 
-  
+
 
 };
 

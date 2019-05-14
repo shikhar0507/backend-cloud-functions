@@ -27,8 +27,6 @@ submitButton.onclick = function () {
 
         return;
       }
-
-
     })
     .catch(console.error);
 }

@@ -1,10 +1,8 @@
-
-
 firebase
   .initializeApp({
-    apiKey: 'AIzaSyA4s7gp7SFid_by1vLVZDmcKbkEcsStBAo',
+    apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
     authDomain: 'growthfile.com',
-    projectId: 'growthfile-207204',
+    projectId: 'growthfilev2-0',
   });
 
 const apiBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api';
