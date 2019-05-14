@@ -261,6 +261,3 @@ document
       });
   });
 
-window.onerror = function (event) {
-  console.error('windowOnError', event);
-}

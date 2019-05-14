@@ -31,7 +31,6 @@ const submitButton = document.getElementById('auth-flow-start');
 function hideMessage() {
   const messageNode = document.getElementById('message');
 
-  // already hidden
   messageNode.classList.add('hidden');
 }
 
@@ -89,17 +88,7 @@ function logInWithOtp() {
       console.log('Signed in successfully.', result);
       const user = firebase.auth().currentUser;
 
-
-      if (!window.showFullLogin) {
-        return Promise.resolve();
-        // window.location.reload();
-        // return;
-      }
-
-      console.log('Updating profile', {
-        name: getName(),
-        email: getEmail(),
-      });
+      if (!window.showFullLogin)  return Promise.resolve();
 
       return user.updateProfile({
         displayName:getName()
@@ -107,7 +96,11 @@ function logInWithOtp() {
 
     })
     .then(function () {
-     
+      const value = getQueryString('redirect_to');
+      if (value) {
+        window.location.href = value;
+        return;
+      }
       const user = firebase.auth().currentUser;
       
       if (window.showFullLogin) {
@@ -116,7 +109,11 @@ function logInWithOtp() {
             submitButton.classList.add('hidden')
             setMessage('Verification Email has been sent to '+getEmail()+' . Please Verify Your Email to continue.')
             document.querySelector('.container form').appendChild(getSpinnerElement())
+          }).catch(function(error){
+            setMessage(error.message)
           })
+        }).catch(function(error){
+          setMessage(error.message)
         })
         return;
       }
