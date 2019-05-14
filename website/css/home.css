@@ -28,68 +28,16 @@ section h2 span {
     color: #89273E;
 }
 
-.call-to-action ul li {
-    display: flex;
-    margin-bottom: 16px;
-    flex-direction: column;
-    text-align: center;
-    padding: 10px;
-    min-height: 100px;
-    line-height: 25px;
-}
-
-.call-to-action ul li p {
-    margin-left: 10px;
-}
-
+ 
 .action-icon {
-    font-size: 2em;
+    font-size: 2.5em;
 }
 
-.action-icons-container {
-    /* min-height: unset; */
-}
-
-.action-icons-container ul {
-    display: flex;
-    min-height: unset;
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    color: #89273E;
-}
-
-.action-icons-container ul li {
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 90px;
-    margin-bottom: 16px;
-    padding: 10px 20px;
-    font-size: 30px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-    border: 1px solid rgba(0, 0, 0, .09);
-}
-
-.action-icons-container ul li:hover {
-    color: #F7C86C;
-}
-
-
-.action-icons-container ul li>* {
-    pointer-events: none;
-}
 
 .icon-text {
     color: #949494;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 11px;
-    width: 100%;
-    margin-top: 16px;
+    margin-top: 10px;
+    margin-bottom: 0px
 }
 
 #action-section {
@@ -98,58 +46,9 @@ section h2 span {
     align-items: center;
 }
 
-/* Source: https://blog.benestudio.co/custom-file-upload-button-with-pure-css-5aacf39aa0a */
-#file-upload-wrapper {
-    position: relative;
-    overflow: hidden;
-    display: inline-block;
-}
-
-#file-upload-wrapper input[type=file] {
-    font-size: 100px;
-    position: absolute;
-    left: 0;
-    top: 0;
-    opacity: 0;
-}
-
-.table-container {
-    overflow-x: auto;
-    max-width: 100%;
-}
-
-.table-container h2 {
-    font-weight: 600;
-    margin-bottom: 16px;
-}
-
-table {
-    border: 1px solid #ddd;
-}
-
-table th,
-table td {
-    border: none;
+#upload-result-error {
+    overflow-y: auto;
     text-align: left;
-    padding: 8px;
-}
-
-th {
-    text-align: left;
-}
-
-table tr {
-    border: 1px solid black;
-}
-
-tr:nth-child(even) {
-    background-color: #f2f2f2
-}
-
-table th {
-    padding: 10px;
-}
-
-tbody tr:first-child {
-    font-weight: 600;
+    
+    /* height: 300px; */
 }

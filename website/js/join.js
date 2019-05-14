@@ -141,11 +141,9 @@ function validateForm() {
 }
 
 function sendOfficeCreationRequest(values) {
-  // console.log('creating office');
-  if (!startPosition) {
-    return askLocationPermission({}, sendOfficeCreationRequest);
-  }
 
+  // console.log('creating office');
+  
   const spinner = getSpinnerElement();
   document.forms[0].innerText = '';
   document.forms[0].style.display = 'flex';
@@ -154,68 +152,72 @@ function sendOfficeCreationRequest(values) {
   spinner.id = 'join-fetch-spinner';
 
   document.forms[0].appendChild(spinner);
-
-  const requestBody = {
-    timestamp: Date.now(),
-    office: values.officeName,
-    template: 'office',
-    geopoint: {
-      latitude: startPosition.coords.latitude,
-      longitude: startPosition.coords.longitude,
-    },
-    data: [{
-      share: [],
-      Name: values.officeName,
-      Description: '',
-      'Youtube ID': '',
-      'GST Number': '',
-      'First Contact': values.firstContactPhoneNumber,
-      'Second Contact': values.secondContactPhoneNumber,
-      Timezone: moment.tz.guess(),
-      'Head Office': '',
-      'Date Of Establishment': '',
-      'Trial Period': '',
-    }],
-  }
-
-  const idToken = getParsedCookies().__session;
-  const requestUrl = 'https://api2.growthfile.com/api/admin/bulk?support=true';
-
-  return fetch(requestUrl, {
-    mode: 'cors',
-    method: 'POST',
-    body: JSON.stringify(requestBody),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`,
-    },
-  })
-    .then((result) => result.json())
-    .then((response) => {
-      console.log('Response', response);
-
-      document
-        .getElementById('join-fetch-spinner')
-        .style.display = 'none';
-
-      const span = document.createElement('span');
-
-      let spanText = 'Office Created Successfully';
-
-      if (!response.success) {
-        spanText = response.message;
-        span.classList.add('warning-label');
-      } else {
-        span.classList.add('success-label');
-      }
-
-      span.innerHTML = spanText;
-      document.forms[0].appendChild(span);
-
-      // redirect to the home page
-      return;
+  getLocation().then(function(location){
+    const requestBody = {
+      timestamp: Date.now(),
+      office: values.officeName,
+      template: 'office',
+      geopoint: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+      data: [{
+        share: [],
+        Name: values.officeName,
+        Description: '',
+        'Youtube ID': '',
+        'GST Number': '',
+        'First Contact': values.firstContactPhoneNumber,
+        'Second Contact': values.secondContactPhoneNumber,
+        Timezone: moment.tz.guess(),
+        'Head Office': '',
+        'Date Of Establishment': '',
+        'Trial Period': '',
+      }],
+    }
+  
+    const idToken = getParsedCookies().__session;
+    const requestUrl = 'https://api2.growthfile.com/api/admin/bulk?support=true';
+  
+    return fetch(requestUrl, {
+      mode: 'cors',
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
     })
-    .catch(console.error);
+      .then((result) => result.json())
+      .then((response) => {
+        console.log('Response', response);
+  
+        document
+          .getElementById('join-fetch-spinner')
+          .style.display = 'none';
+  
+        const span = document.createElement('span');
+  
+        let spanText = 'Office Created Successfully';
+  
+        if (!response.success) {
+          spanText = response.message;
+          span.classList.add('warning-label');
+        } else {
+          span.classList.add('success-label');
+        }
+  
+        span.innerHTML = spanText;
+        document.forms[0].appendChild(span);
+  
+        // redirect to the home page
+        return;
+      })
+      .catch(console.error);
+  }).catch(console.error)
+
+  
+
 };
 
 function startOfficeCreationFlow(event) {
