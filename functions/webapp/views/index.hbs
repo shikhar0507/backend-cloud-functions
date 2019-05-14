@@ -12,9 +12,9 @@
     <div class="container">
         \{{#if isLoggedIn}}
         <section class="action-icons-container">
-        <section id="action-section">
-            <p id="default-text">Click to proceed</p>
-        </section>
+            <section id="action-section">
+                <p id="default-text">Click to proceed</p>
+            </section>
             <div class="cards">
                 <div id="add-employees">
                     <i class="fas fa-user-plus action-icon"></i>
@@ -52,9 +52,9 @@
                     <i class="fas fa-file-alt action-icon"></i>
                     <p class="icon-text">Manage Templates</p>
                 </div>
-            </ul>
+                </ul>
         </section>
-   
+
         \{{else}}
         <section class="section2">
             <h2>A network for <span>smart</span> business owners</h2>
@@ -75,16 +75,18 @@
                 </div>
                 <div>
                     <i class="fas fa-2x fa-cogs action-icon"></i>
-                    <p class="icon-text">Make your business more efficient by automating your office flows using our mobile app</p>
+                    <p class="icon-text">Make your business more efficient by automating your office flows using our
+                        mobile app</p>
                 </div>
-            </ul>
+                </ul>
+            </div>
+            <section>Turn Small Biz into Smart biz</section>
+            \{{/if}}
         </div>
-        <section>Turn Small Biz into Smart biz</section>
-        \{{/if}}
-    </div>
-    \{{> footerPartial}}
-    <div id='modal-box'></div>
-    <script src="js/home.js"></script>
+        \{{> footerPartial}}
+        <div id='modal-box'></div>
+        \{{> scriptsPartial}}
+        <script src="js/home.js"></script>
 </body>
 
 </html>
