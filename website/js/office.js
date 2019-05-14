@@ -120,7 +120,6 @@ function validateForm() {
 
 function startEnquiryCreationFlow() {
   const oldWarningLabels = document.querySelectorAll('p .warning-label');
-
   Array
     .from(oldWarningLabels)
     .forEach((element) => element.style.display = 'none');
@@ -131,15 +130,9 @@ function startEnquiryCreationFlow() {
 
   if (!firebase.auth().currentUser) {
     window.location.href = `/auth?redirect_to=${window.location.href}`;
-
     return;
   }
 
-  if (!startPosition) {
-    console.log('trying to ask permission');
-
-    return askLocationPermission(null, startEnquiryCreationFlow);
-  }
 
   const spinner = getSpinnerElement();
   document.forms[0].innerText = '';
@@ -148,69 +141,72 @@ function startEnquiryCreationFlow() {
   spinner.id = 'enquiry-fetch-spinner';
   document.forms[0].appendChild(spinner);
 
-  const requestBody = {
-    office: document.body.dataset.slug,
-    timestamp: Date.now(),
-    template: 'enquiry',
-    geopoint: {
-      latitude: startPosition.coords.latitude,
-      longitude: startPosition.coords.longitude,
-      accuracy: startPosition.accuracy,
-      provide: 'HTML5',
-    },
-    share: [],
-    schedule: [],
-    venue: [],
-    attachment: {
-      'Company Name': {
-        type: 'string',
-        value: document.body.dataset.slug,
+  getLocation().then(function(location){
+    const requestBody = {
+      office: document.body.dataset.slug,
+      timestamp: Date.now(),
+      template: 'enquiry',
+      geopoint: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        provider: 'HTML5',
       },
-      Product: {
-        value: result.values.productName,
-        type: 'product',
-      },
-      'Enquiry': {
-        value: result.values.enquiryText,
-        type: 'string',
+      share: [],
+      schedule: [],
+      venue: [],
+      attachment: {
+        'Company Name': {
+          type: 'string',
+          value: document.body.dataset.slug,
+        },
+        Product: {
+          value: result.values.productName,
+          type: 'product',
+        },
+        'Enquiry': {
+          value: result.values.enquiryText,
+          type: 'string',
+        }
       }
     }
-  }
-
-  const idToken = getParsedCookies().__session;
-  const requestUrl = 'https://api2.growthfile.com/api/activities/create';
-
-  return fetch(requestUrl, {
-    mode: 'cors',
-    method: 'POST',
-    body: JSON.stringify(requestBody),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`,
-    },
-  })
-    .then((result) => result.json())
-    .then((response) => {
-      console.log('Response', response);
-
-      document
-        .getElementById('enquiry-fetch-spinner')
-        .style.display = 'none';
-
-      const span = document.createElement('span');
-      let spanText = 'Enquiry sent :)';
-
-      if (!response.success) {
-        spanText = response.message;
-        span.classList.add('warning-label');
-      } else {
-        span.classList.add('success-label');
-      }
-
-      span.innerHTML = spanText;
-      document.forms[0].appendChild(span);
-
-      return;
+  
+    const idToken = getParsedCookies().__session;
+    const requestUrl = 'https://api2.growthfile.com/api/activities/create';
+  
+    return fetch(requestUrl, {
+      mode: 'cors',
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
     })
-    .catch(console.error);
+      .then((result) => result.json())
+      .then((response) => {
+        console.log('Response', response);
+  
+        document
+          .getElementById('enquiry-fetch-spinner')
+          .style.display = 'none';
+  
+        const span = document.createElement('span');
+        let spanText = 'Enquiry sent :)';
+  
+        if (!response.success) {
+          spanText = response.message;
+          span.classList.add('warning-label');
+        } else {
+          span.classList.add('success-label');
+        }
+  
+        span.innerHTML = spanText;
+        document.forms[0].appendChild(span);
+  
+        return;
+      })
+      .catch(console.error);    
+  }).catch(console.error)
+
 };

@@ -2,94 +2,133 @@ console.log('home loaded');
 
 const section = document.getElementById('action-section');
 
-function getTableHeadWithValue(value) {
-  const th = document.createElement('th');
-  th.innertText = value;
 
-  return th;
+function excelUploadContainer(id) {
+  const container = document.createElement('div')
+
+  const uploadContainer = document.createElement('div')
+  uploadContainer.className = 'upload-container'
+  const input = document.createElement('input')
+  input.type = 'file';
+  input.id = id;
+  input.accept = '.xlsx, .xls , .csv'
+  const label = document.createElement('label')
+  label.textContent = 'Upload File';
+  uploadContainer.appendChild(label);
+  uploadContainer.appendChild(input);
+  const p = document.createElement('p')
+  p.className = 'notification-label';
+  uploadContainer.appendChild(p);
+  const result = document.createElement('div')
+  result.id = 'upload-result-error';
+  uploadContainer.appendChild(result)
+
+  const downloadContainer = document.createElement('div');
+  downloadContainer.className = 'download-container mt-30';
+  const button = document.createElement('button')
+  button.className = 'button'
+  button.textContent = 'Download Sample';
+  downloadContainer.appendChild(button)
+  container.appendChild(uploadContainer);
+  container.appendChild(downloadContainer);
+
+  return container;
+
 }
 
-function generateBulkCreationResultTable(responseObject = []) {
-  const table = document.createElement('table');
-  const tbody = document.createElement('tbody');
-  const firstRow = document.createElement('tr');
-
-  firstRow.appendChild(getTableHeadWithValue('Name'));
-  firstRow.appendChild(getTableHeadWithValue('Employee Contact'));
-  firstRow.appendChild(getTableHeadWithValue('Employee Code'));
-  firstRow.appendChild(getTableHeadWithValue('Designation'));
-  firstRow.appendChild(getTableHeadWithValue('Department'));
-  firstRow.appendChild(getTableHeadWithValue('Base Location'));
-  firstRow.appendChild(getTableHeadWithValue('First Supervisor'));
-  firstRow.appendChild(getTableHeadWithValue('Second Supervisor'));
-  firstRow.appendChild(getTableHeadWithValue('Third Supervisor'));
-  firstRow.appendChild(getTableHeadWithValue('Daily Start Time'));
-  firstRow.appendChild(getTableHeadWithValue('Weekly Off'));
-  firstRow.appendChild(getTableHeadWithValue('Result'));
-
-  firstRow.appendChild(resultColumn);
-  tbody.appendChild(firstRow);
-
-  responseObject.forEach((result) => {
-    const secondaryRow = document.createElement('tr');
-    const name = result.Name;
-    const employeeContact = result['Employee Contact'];
-    const employeeCode = result['Employee Code'];
-    const designation = result.Designation;
-    const department = result['Department'];
-    const baseLocation = result['Base Location'];
-    const firstSupervisor = result['First Supervisor'];
-    const secondSupervisor = result['Second Supervisor'];
-    const thirdSupervisor = result['Third Supervisor'];
-    const dailyStartTime = result['Daily Start Time'];
-    const dailyEndTime = result['Daily End Time'];
-    const weeklyOff = result['Weekly Off'];
-    const rejected = result.rejected;
-
-    secondaryRow.appendChild((getTableHeadWithValue(name)));
-    secondaryRow.appendChild(getTableHeadWithValue(employeeContact));
-    secondaryRow.appendChild(getTableHeadWithValue(employeeCode));
-    secondaryRow.appendChild(getTableHeadWithValue(designation));
-    secondaryRow.appendChild(getTableHeadWithValue(department));
-    secondaryRow.appendChild(getTableHeadWithValue(baseLocation));
-    secondaryRow.appendChild(getTableHeadWithValue(firstSupervisor));
-    secondaryRow.appendChild(getTableHeadWithValue(secondSupervisor));
-    secondaryRow.appendChild(getTableHeadWithValue(thirdSupervisor));
-    secondaryRow.appendChild(getTableHeadWithValue(dailyStartTime));
-    secondaryRow.appendChild(getTableHeadWithValue(dailyEndTime));
-    secondaryRow.appendChild(getTableHeadWithValue(weeklyOff));
-    secondaryRow.appendChild(getTableHeadWithValue(result));
-
-    tbody.appendChild(secondaryRow);
-  });
-
-  console.log('tbody', tbody);
-
-  table.appendChild(tbody);
-
-  return table;
+function BulkCreateErrorContainer(originalData, rejectedOnes) {
+  const cont = document.getElementById('upload-result-error')
+  cont.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  if (rejectedOnes.length >= 2) {
+    cont.style.height = '200px';
+  }
+  rejectedOnes.forEach(function (value, idx) {
+    const span = document.createElement('span')
+    span.textContent = 'Error at row number : ' + originalData[idx].__rowNum__
+    const p = document.createElement('p')
+    p.textContent = value.reason
+    p.className = 'warning-label'
+    frag.appendChild(span)
+    frag.appendChild(p)
+  })
+  cont.appendChild(frag);
 }
 
-function createEmployeesAsSupport(event) {
+function createEmployeesAsSupport(office, template) {
   /**
    * Create a file upload button
    */
 
-  const div = document.createElement('div');
-  div.id = 'file-upload-wrapper';
-  // <button class="button">Select a file</button>
-  // <input type="file"></input>
-  const button = document.createElement('button');
-  button.classList.add('button');
-  button.innerText = 'Submit';
-  const input = document.createElement('input');
-  input.type = 'file';
+  const url = apiBaseUrl + '/admin/bulk?support=true'
 
-  div.appendChild(button);
-  div.appendChild(input)
+  const modal = createModal(excelUploadContainer('upload-employee'))
+  const upload = modal.querySelector('#upload-employee')
+  const notificationLabel = modal.querySelector('.notification-label')
+  upload.addEventListener('change', function (evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
 
-  section.appendChild(div);
+    const files = evt.target.files;
+    const file = files[0];
+    const reader = new FileReader();
 
+    reader.onload = function (e) {
+      const data = e.target.result;
+
+      e.target.ressul
+      const wb = XLSX.read(data, {
+        type: 'binary'
+      });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(ws, {
+        blankRows: false,
+        defval: '',
+        raw: false
+      });
+      if (!jsonData.length) {
+        notificationLabel.className = 'notification-label warning-label'
+        notificationLabel.textContent = 'File is Empty'
+        return;
+      };
+      jsonData.forEach(function (val) {
+        val.share = [];
+      })
+
+      getLocation().then(function (location) {
+
+        const body = {
+          office: office,
+          template: template,
+          data: jsonData,
+          timestamp: Date.now(),
+          geopoint: location
+        }
+
+        return sendApiRequest(`${url}`, body, 'POST')
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (response) {
+            const rejectedOnes = response.data.filter((val) => val.rejected);
+            if (!rejectedOnes.length) {
+              notificationLabel.className = 'notification-label success-label'
+              notificationLabel.textContent = 'Success';
+              return;
+            }
+            notificationLabel.textContent = '';
+            BulkCreateErrorContainer(jsonData, rejectedOnes)
+          }).catch(console.error);
+      }).catch(function (error) {
+        notificationLabel.className = 'notification-label warning-label'
+        notificationLabel.textContent = error.message;
+      })
+
+    }
+    reader.readAsBinaryString(file);
+    console.log(evt);
+  });
+  document.getElementById('modal-box').appendChild(modal);
 
 };
 
@@ -101,7 +140,8 @@ function addEmployeeWithSupport(options) {
   searchInput.type = 'text';
   searchInput.placeholder = 'Search an office';
   searchInput.classList.add('input-field');
-  searchForm.style.direction = 'flex';
+  searchForm.style.display = 'inherit';
+
   searchLink.classList.add('button');
   searchLink.innerText = 'search';
   searchForm.appendChild(searchInput);
@@ -114,7 +154,9 @@ function addEmployeeWithSupport(options) {
     /** Hide all previously warning labels */
     document
       .querySelectorAll('.warning-label')
-      .forEach(function (elem) { elem.style.display = 'none' });
+      .forEach(function (elem) {
+        elem.style.display = 'none'
+      });
 
     const searchedTerm = searchInput.value;
 
@@ -130,39 +172,38 @@ function addEmployeeWithSupport(options) {
     console.log('url', `${requestUrl}&office=${searchedTerm}`);
 
     return sendApiRequest(`${requestUrl}&office=${searchedTerm}`, null, 'GET')
-      .then(function (response) { response.json(); })
       .then(function (response) {
-        console.log('response', response);
+        return response.json();
+      })
+      .then(function (response) {
 
+        console.log('response', response);
         const select = document.createElement('select');
         searchForm.style.display = 'none';
+        if (!response.length) {
+          const p = document.createElement('p');
+          p.innerText = 'No offices found';
+          section.appendChild(p);
+          return;
+        }
+        const a = document.createElement('a');
+        a.classList.add('button');
+        a.href = '#';
+        a.textContent = 'submit';
+        a.onclick = function (event) {
+          const office = select.options[select.selectedIndex].value
+          createEmployeesAsSupport(office, 'employee');
+        }
+
+        section.appendChild(select);
+        section.appendChild(a);
 
         response.forEach((name) => {
           const option = document.createElement('option');
           option.value = name;
           option.innerHTML = name;
-
           select.appendChild(option);
         });
-
-        if (response.length > 0) {
-          const a = document.createElement('a');
-          a.classList.add('button');
-          a.href = '#';
-          a.textContent = 'submit';
-
-          a.onclick = function (event) {
-            createEmployeesAsSupport(event);
-          }
-
-          section.appendChild(select);
-          section.appendChild(a);
-
-        } else {
-          const p = document.createElement('p');
-          p.innerText = 'No offices found';
-          section.appendChild(p);
-        }
 
       })
       .catch(console.error);
@@ -269,6 +310,7 @@ function manageTemplates(options) {
 };
 
 function handleActionIconClick(event) {
+  event.preventDefault();
   // Delete all elements for a clean slate
   while (section.firstChild) {
     section.removeChild(section.firstChild);

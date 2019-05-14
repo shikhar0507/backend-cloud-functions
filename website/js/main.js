@@ -1,4 +1,4 @@
-let startPosition;
+
 
 firebase
   .initializeApp({
@@ -9,8 +9,7 @@ firebase
 
 const apiBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api';
 const getUserBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/getUser';
-const webappBaseUrl ='http://localhost:5001/growthfilev2-0/us-central1/webapp'
- 
+const webappBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/webapp';
 
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
@@ -100,46 +99,6 @@ function getMobileOperatingSystem() {
   return 'unknown';
 };
 
-function askLocationPermission(event, callback) {
-  if (!navigator.geolocation) {
-    console.log('geolocation not supported');
-
-    return;
-  }
-
-  function geoSuccess(position) {
-    console.log('got the permission');
-
-    startPosition = position;
-
-    if (typeof callback === 'function') {
-      callback(
-        startPosition.coords.latitude,
-        startPosition.coords.longitude
-      );
-    }
-  }
-
-  function geoError(error) {
-    console.log('can not get permission', error);
-
-    if (error.code === 0) {
-      console.log('An unknown error occurred');
-    }
-    if (error.code === 1) {
-      console.log('Permission denied');
-    }
-    if (error.code === 2) {
-      console.log('position unavailable (error response from location provider)');
-    }
-    if (error.code === 3) {
-      console.log('timed out');
-    }
-  }
-
-  navigator.geolocation.getCurrentPosition(geoSuccess, geoError);
-};
-
 function isValidEmail(emailString) {
   return reg = /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/
     .test(emailString);
@@ -155,6 +114,50 @@ function getSpinnerElement() {
   return elem;
 }
 
+/** Create Modal box */
+function createModal(actionContent) {
+  if (document.getElementById('modal')) {
+    ocument.getElementById('modal').remove();
+  };
+
+  const div = document.createElement('div');
+  div.className = 'modal';
+  div.id = 'modal'
+  const content = document.createElement('div')
+  content.className = 'modal-content';
+  const close = document.createElement('span')
+  close.className = 'close fa fa-window-close'
+  close.onclick = function () {
+    div.remove();
+  }
+  const actionContainer = document.createElement('div')
+  actionContainer.className = 'action-container mt-30';
+  actionContainer.appendChild(actionContent);
+  content.appendChild(close)
+  content.appendChild(actionContainer);
+  div.appendChild(content)
+  return div;
+
+}
+
+function getLocation() {
+
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation)  return reject('Geolocation is Not Supported')
+
+    navigator.geolocation.getCurrentPosition(function (position) {
+      return resolve({
+        'latitude': 28.551548,
+        'longitude': 77.2462627
+      })
+    },function(error){
+      console.log(error);
+      
+      return reject(error)
+    })
+  })
+}
+
 function sendApiRequest(apiUrl, requestBody, method) {
   const init = {
     method,
@@ -168,21 +171,30 @@ function sendApiRequest(apiUrl, requestBody, method) {
   if (requestBody) {
     init.body = JSON.stringify(requestBody);
   }
+  const urlScheme = new URL(apiUrl);
+  console.log(urlScheme);
+  const baseUrl = urlScheme.origin + urlScheme.pathname;
+  if (baseUrl === getUserBaseUrl) return fetch(apiUrl, init);
 
   return firebase
     .auth()
     .currentUser
-    .getIdToken(function (idToken) {
-      init.headers['Authorization'] = `Bearer: ${idToken}`;
+    .getIdToken(false).then(function (idToken) {
+      init.headers['Authorization'] = `Bearer ${idToken}`;
 
       return fetch(apiUrl, init);
     })
-    .then(function (result) { return result })
+    .then(function (result) {
+      return result
+    })
     .catch(console.error);
+
 }
 
 
 document.addEventListener('click', (event) => {
+  console.log(event.target);
+
   if (event.target === document.getElementById('form-submit-button')) {
     return void startOfficeCreationFlow(event)
   }
