@@ -31,17 +31,7 @@ const submitButton = document.getElementById('auth-flow-start');
 function hideMessage() {
   const messageNode = document.getElementById('message');
 
-  // already hidden
   messageNode.classList.add('hidden');
-}
-
-function setMessage(message) {
-  const messageNode = document.getElementById('message');
-  messageNode.innerText = message;
-
-  if (messageNode.classList.contains('hidden')) {
-    messageNode.classList.remove('hidden');
-  }
 }
 
 function logInWithOtp() {
@@ -89,37 +79,38 @@ function logInWithOtp() {
       setMessage('Signin successful. Please wait...');
 
       console.log('Signed in successfully.', result);
-
       const user = firebase.auth().currentUser;
 
-      if (!window.showFullLogin) {
-        return Promise.resolve();
-      }
+      if (!window.showFullLogin)  return Promise.resolve();
 
-      console.log('Updating profile', {
-        name: getName(),
-        email: getEmail(),
-      });
+      return user.updateProfile({
+        displayName:getName()
+      })
 
-      return user
-        .updateProfile({
-          displayName: getName(),
-          email: getEmail(),
-        });
     })
     .then(function () {
       const value = getQueryString('redirect_to');
-
       if (value) {
         window.location.href = value;
-
         return;
       }
-
-      // Redirects logge in user to home page
+      const user = firebase.auth().currentUser;
+      
+      if (window.showFullLogin) {
+        user.updateEmail(getEmail()).then(function(){
+          user.sendEmailVerification().then(function(){
+            submitButton.classList.add('hidden')
+            setMessage('Verification Email has been sent to '+getEmail()+' . Please Verify Your Email to continue.')
+            document.querySelector('.container form').appendChild(getSpinnerElement())
+          }).catch(function(error){
+            setMessage(error.message)
+          })
+        }).catch(function(error){
+          setMessage(error.message)
+        })
+        return;
+      }
       window.location.reload();
-
-      return Promise.resolve();
     })
     .catch(function (error) {
       console.error(error);

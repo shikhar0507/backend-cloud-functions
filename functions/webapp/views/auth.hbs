@@ -12,7 +12,7 @@
 
     <div class="container">
         <section>
-            <span id="message" class="hidden animated fadeIn"></span>
+            <p id="message" class="hidden animated fadeIn"></span>
             <form>
                 <fieldset id="phone-number-container" class="animated fadeIn">
                     <label for="auth-phone-number">Phone Number</label>
@@ -31,12 +31,14 @@
                     <input type="text" class="input-field" name="otp">
                 </fieldset>
                 <div id="recaptcha-container"></div>
+                
                 <a href="#" class="button" id="auth-flow-start">Submit</a>
             </form>
         </section>
     </div>
 
     \{{> footerPartial}}
+    <div id='modal-box'></div>
     <script defer src="js/auth.js"></script>
 </body>
 

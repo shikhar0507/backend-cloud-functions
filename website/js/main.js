@@ -123,20 +123,31 @@ function createModal(actionContent) {
   div.id = 'modal'
   const content = document.createElement('div')
   content.className = 'modal-content';
+ 
   const close = document.createElement('span')
   close.className = 'close fa fa-window-close'
   close.onclick = function () {
     div.remove();
   }
+  
   const actionContainer = document.createElement('div')
   actionContainer.className = 'action-container mt-30';
   actionContainer.appendChild(actionContent);
+ 
   content.appendChild(close)
+  
   content.appendChild(actionContainer);
   div.appendChild(content)
   return div;
+}
+
+function setMessage(message) {
+  const messageNode = document.getElementById('message');
+  messageNode.innerText = message;
+  messageNode.classList.remove('hidden');
 
 }
+
 
 function getLocation() {
 
@@ -145,8 +156,8 @@ function getLocation() {
 
     navigator.geolocation.getCurrentPosition(function (position) {
       return resolve({
-        'latitude': 28.551548,
-        'longitude': 77.2462627
+        'latitude': position.coords.latitude,
+        'longitude': position.coords.longitude
       })
     }, function (error) {
       console.log(error);
@@ -254,7 +265,3 @@ document
         console.log('new cookie set', idToken);
       });
   });
-
-window.onerror = function (event) {
-  console.error('windowOnError', event);
-}
