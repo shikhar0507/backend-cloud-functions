@@ -1630,6 +1630,9 @@ const createSubscriptionActivity = (options) => {
 
       if (!subscriptionQuery.empty) {
         response.success = false;
+        response.message.push(
+          `${subscriber} already has the subscription for template: ${templateDoc.get('name')}`
+        );
 
         throw new Error(response);
       }

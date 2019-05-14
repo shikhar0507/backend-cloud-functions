@@ -238,7 +238,6 @@ const isHHMMFormat = (string) =>
  * @returns {void}
  */
 const disableAccount = (conn, reason) => {
-  const { reportingActions } = require('../admin/constants');
   const docId = getISO8601Date();
 
   const subject = `User Disabled: '${conn.requester.phoneNumber}'`;
@@ -284,8 +283,6 @@ const disableAccount = (conn, reason) => {
         .set({
           messageBody,
           subject,
-          action: reportingActions.authDisabled,
-          substitutions: {},
         }),
       auth
         .updateUser(conn.requester.uid, {

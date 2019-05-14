@@ -31,10 +31,10 @@ const getIdToken = (parsedCookies) => {
   return parsedCookies.__session;
 };
 
-/** 
+/**
  * Creates a key-value pair using the cookie object
  * Not using Express, so have to resort to this trickery.
- * 
+ *
  * @see https://stackoverflow.com/a/3409200/2758318
  * @param {string} cookies Cookie string from the browser.
  * @returns {object} The cookie object.
@@ -385,6 +385,38 @@ const handlePrivacyPolicyPage = (locals, requester) => {
   return html;
 };
 
+const getUserEnquiries = (conn, requester) => {
+  const json = {};
+  const validTemplatesForJSON = new Set(['enquiry']);
+
+  if (!conn.req.query.template
+    || !validTemplatesForJSON.has(conn.req.query.template)) {
+    return Promise.resolve(json);
+  }
+
+  return rootCollections
+    .profiles
+    .doc(requester.phoneNumber)
+    .collection('Activities')
+    .where('template', '==', conn.req.query.template)
+    .get()
+    .then((docs) => {
+      docs.forEach((doc) => {
+        json[doc.id] = {
+          activityId: doc.id,
+          creator: doc.get('creator'),
+          status: doc.get('status'),
+          template: doc.get('template'),
+          companyName: doc.get('attachment.Company Name.value'),
+          product: doc.get('attachment.Product.value'),
+          enquiry: doc.get('attachment.Enquiry.value'),
+        };
+      });
+
+      return json;
+    });
+};
+
 module.exports = (req, res) => {
   if (req.method !== 'GET') {
     return res
@@ -413,7 +445,7 @@ module.exports = (req, res) => {
   const idToken = getIdToken(parsedCookies);
   let html;
 
-  /** 
+  /**
    * Avoids duplicate content issues since there is no native way
    * currently to set up a redirect in the firebase hosting settings.
    */
@@ -490,6 +522,10 @@ module.exports = (req, res) => {
         return res.status(code.temporaryRedirect).redirect('/');
       }
 
+      if (slug === 'json') {
+        return getUserEnquiries(conn, requester);
+      }
+
       if (html) {
         return conn.res.send(html);
       }
@@ -501,18 +537,26 @@ module.exports = (req, res) => {
         .get();
     })
 
-    .then((snapShot) => {
-      if (!snapShot || html) {
+    .then((result) => {
+      if (!result || html) {
         return Promise.resolve();
       }
 
-      if (snapShot.empty) {
+      if (slug === 'json') {
+        html = result;
+
+        conn.res.setHeader('Content-Type', 'application/json');
+
+        return conn.res.send(html);
+      }
+
+      if (result.empty) {
         html = handle404Page();
 
         return conn.res.status(code.notFound).send(html);
       }
 
-      locals.officeDoc = snapShot.docs[0];
+      locals.officeDoc = result.docs[0];
 
       return fetchOfficeData(conn, locals, requester);
     })

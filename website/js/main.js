@@ -1,5 +1,3 @@
-
-
 firebase
   .initializeApp({
     apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
@@ -154,16 +152,16 @@ function setMessage(message) {
 function getLocation() {
 
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation)  return reject('Geolocation is Not Supported')
+    if (!navigator.geolocation) return reject('Geolocation is Not Supported')
 
     navigator.geolocation.getCurrentPosition(function (position) {
       return resolve({
         'latitude': position.coords.latitude,
         'longitude': position.coords.longitude
       })
-    },function(error){
+    }, function (error) {
       console.log(error);
-      
+
       return reject(error)
     })
   })
@@ -267,4 +265,3 @@ document
         console.log('new cookie set', idToken);
       });
   });
-
