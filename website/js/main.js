@@ -1,12 +1,5 @@
 'use strict';
 
-const apiBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api';
-const getUserBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/getUser';
-
-const x = {
-  "apiBaseUrl": "http://localhost:5001/growthfilev2-0/us-central1/api",
-  "getUserBaseUrl": "http://localhost:5001/growthfilev2-0/us-central1/getUser",
-}
 
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
