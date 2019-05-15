@@ -12,8 +12,8 @@ section {
 }
 
 section h2 {
-    margin-top: 16px;
-    font-size: 18px;
+    /* margin-top: 16px; */
+    /* font-size: 18px; */
 }
 
 section h3 {
@@ -47,4 +47,50 @@ section h2 span {
 #upload-result-error {
     overflow-y: auto;
     text-align: left;
+}
+
+.features-section {
+    padding: unset;
+    box-shadow: unset;
+    border: unset;
+}
+
+section h1 {
+    font-weight: 800;
+    font-size: 35px;
+    margin-bottom: 16px;
+    line-height: 38px;
+}
+
+.featured-companies {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.feature-header {
+    display: flex;
+    line-height: 30px;
+    justify-content: center;
+    font-size: 30px;
+}
+
+.feature-header i {
+    margin-right: 10px;
+}
+
+.features {
+    display: flex;
+    flex-direction: column;
+}
+
+.features span {
+    margin-bottom: 16px;
+}
+
+.features a {
+    text-align: center;
+}
+
+.feature {
+    padding: 5px 0;
 }

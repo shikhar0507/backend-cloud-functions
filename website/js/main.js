@@ -241,6 +241,10 @@ document.addEventListener('click', (event) => {
     return void updateMapPointer(event);
   }
 
+  if (event.target === document.querySelector('#header-hamburger-icon')) {
+    document.querySelector('aside').classList.toggle('hidden');
+  }
+
   const loginActionElements = [
     document.getElementById('add-employees'),
     document.getElementById('trigger-reports'),

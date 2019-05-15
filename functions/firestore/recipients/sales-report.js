@@ -95,33 +95,20 @@ const productDetailsCell = (productsArray, comment) => {
 
 
 module.exports = (locals) => {
-  let worksheet;
-  let dsrSheet;
-  let addendumDocsArray;
-  const office = locals.officeDoc.get('office');
-  const employeesData = locals.officeDoc.get('employeesData');
-  const todayFromTimer = locals.change.after.get('timestamp');
+  const timestampFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentToday = momentTz(todayFromTimer).tz(timezone);
-  const yesterdaysStartTime = momentToday.startOf('day').valueOf();
-  const yesterdaysEndTime = momentToday.endOf('day').valueOf();
+  const momentToday = momentTz(timestampFromTimer).tz(timezone);
+  const momentYesterday = momentToday.clone().subtract(1, 'day');
+  const yesterdayStart = momentYesterday.startOf('day');
+  const yesterdayEnd = momentYesterday.endOf('day');
   const visitDate = dateStringWithOffset({
+    timestampToConvert: yesterdayStart.valueOf(),
     timezone,
-    timestampToConvert: yesterdaysStartTime,
-    format: dateFormats.DATE,
   });
 
-  /** Used for fetching customer details. We only have 'name' */
-  const customerFetchPromises = [];
-  /** Used for getting customer history */
-  const customerAddendumPromises = [];
-  const productFetchPromises = [];
-  const customersSet = new Set();
-  const productsSet = new Set();
-  const productDetailsMap = new Map();
-  const customersDetailsMap = new Map();
-  const customersData = {};
-  const productsData = {};
+  let worksheet;
+  let addendumDocs;
+
 
   return Promise
     .all([
@@ -130,9 +117,9 @@ module.exports = (locals) => {
         .ref
         .collection('Addendum')
         .where('activityData.forSalesReport', '==', true)
-        .where('timestamp', '>=', yesterdaysStartTime)
-        .where('timestamp', '<=', yesterdaysEndTime)
-        .orderBy('timestamp', 'asc')
+        .where('timestamp', '>=', yesterdayStart.valueOf())
+        .where('timestamp', '<=', yesterdayEnd.valueOf())
+        .orderBy('timestamp')
         .orderBy('user')
         .get(),
       xlsxPopulate
@@ -140,171 +127,40 @@ module.exports = (locals) => {
     ])
     .then((result) => {
       const [
-        addendumDocsQuery,
+        docs,
         workbook,
       ] = result;
 
-      console.log('found addendumDocsQuery:', addendumDocsQuery.size);
-
-      addendumDocsArray = addendumDocsQuery.docs;
       worksheet = workbook;
-      dsrSheet = worksheet.addSheet('DSR Sheet');
-      dsrSheet.row(0).style('bold', true);
+      addendumDocs = docs;
 
-      [
-        'Visit Date',
-        'Employee',
-        'Visit Location',
-        'Customer Details',
-        'Customer History',
-        'Product Details',
-        'Visit Time',
-        'DSR Updated At',
-        'DSR Updated From',
-        'Follow Up Date',
-        'Employee Details',
-      ]
-        .forEach((value, index) => {
-          dsrSheet
-            .cell(`${alphabetsArray[index]}1`)
-            .value(value);
-        });
+      console.log('addendumDocs', addendumDocs.size);
 
-      addendumDocsArray.forEach((doc) => {
+      addendumDocs.forEach((doc) => {
+        const template = doc.get('activityData.template');
+        const geopoint = doc.get('location');
         const customerName = doc.get('activityData.attachment.Customer.value');
-        const product1 = doc.get('activityData.attachment.Product 1.value');
-        const product2 = doc.get('activityData.attachment.Product 2.value');
-        const product3 = doc.get('activityData.attachment.Product 3.value');
-
-        if (customerName) customersSet.add(customerName);
-        if (product1) productsSet.add(product1);
-        if (product2) productsSet.add(product2);
-        if (product3) productsSet.add(product3);
-      });
-
-      customersSet.forEach((name) => {
-        const promise = rootCollections
-          .activities
-          .where('office', '==', office)
-          .where('template', '==', 'customer')
-          .where('attachment.Name.value', '==', name)
-          .limit(1)
-          .get();
-
-        customerFetchPromises.push(promise);
-      });
-
-      productsSet.forEach((name) => {
-        const promise = rootCollections
-          .activities
-          .where('office', '==', office)
-          .where('template', '==', 'product')
-          .where('attachment.Name.value', '==', name)
-          .limit(1)
-          .get();
-
-        productFetchPromises.push(promise);
-      });
-
-      customersSet.forEach((customerName) => {
-        // const geopoint = doc.get('location');
-        // const adjustedGp = adjustedGeopoint(geopoint);
-        const customerAddendumPromise = rootCollections
-          .activities
-          .where('template', '==', 'customer')
-          .where('attachment.Name.value', '==', customerName)
-          // .where('adjustedGeopoints', 'array-contains', adjustedGp)
-          .limit(1)
-          .get();
-
-        customerAddendumPromises.push(customerAddendumPromise);
-      });
-
-      return Promise
-        .all([
-          Promise
-            .all(customerFetchPromises),
-          Promise
-            .all(productFetchPromises),
-          Promise
-            .all(customerAddendumPromises),
-        ]);
-    })
-    .then((result) => {
-      console.log(result);
-      const [
-        customersQuery,
-        productsQuery,
-        customerAddendumQuery,
-      ] = result;
-
-      customersQuery.forEach((doc) => {
-        const name = doc.get('attachment.Name.value');
-
-        customersData[name] = toCustomerObject(doc.data(), doc.createTime);
-      });
-
-      productsQuery.forEach((doc) => {
-        const name = doc.get('attachment.Name.value');
-
-        productsData[name] = toProductObject(doc.data(), doc.createTime);
-      });
-
-      customerAddendumQuery.forEach((snapShot) => {
-        if (snapShot.empty) return;
-
-        const doc = snapShot.docs[0];
-        /** Customer activity */
-        const name = doc.get('activityData.attachment.Name.value');
-        const creator = (() => {
-          if (typeof doc.get('activityData.creator') === 'string') {
-            return doc.get('activityData.creator');
+        const productOne = doc.get('activityData.attachment.Product 1.value');
+        const productTwo = doc.get('activityData.attachment.Product 2.value');
+        const productThree = doc.get('activityData.attachment.Product 3.value');
+        const phoneNumber = doc.get('user');
+        const timestamp = doc.get('timestamp');
+        const followUpTimestamp = (() => {
+          if (template === 'dsr') {
+            return doc.get('activityData.schedule')[0].startTime;
           }
 
-          return doc.get('activityData.creator').phoneNumber;
+          return '';
         })();
-        const visitorName = (() => {
-          if (employeesData[doc.get('user')]) {
-            return employeesData[doc.get('user')].Name;
-          }
 
-          return doc.get('user');
-        })();
-        const createDateString = dateStringWithOffset({
+        const followUpDate = dateStringWithOffset({
+          timestampToConvert: followUpTimestamp,
           timezone,
-          timestampToConvert: customersData[name].createTime,
-          format: dateFormats.DATE,
         });
-        customersData[name].history = customerHistoryCell(
-          creator,
-          createDateString,
-          visitorName
-        );
       });
 
 
-      addendumDocsArray.forEach((doc, index) => {
-        const rowIndex = index + 2;
-        // const alphabet = alphabetsArray[index];
-        dsrSheet
-          .cell(`A${rowIndex}`)
-          .value(visitDate);
-        dsrSheet
-          .cell(`B${rowIndex}`)
-          .value(`${employeesData[doc.get('user')].Name | doc.get('user')}`);
-
-        const visitLocation = '';
-
-        dsrSheet
-          .cell(`C${rowIndex}`)
-          .value(`${visitLocation}`);
-
-        dsrSheet
-          .cell(``)
-          .value(`D${customerDetails}`)
-      });
-
-      return Promise.resolve();
+      return Promise.all([]);
     })
     .catch(console.error);
 };

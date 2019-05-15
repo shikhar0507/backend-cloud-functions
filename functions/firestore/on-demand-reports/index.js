@@ -54,7 +54,7 @@ const fetchRecipientsDoc = (conn, officeDoc) => {
       ];
 
       for (let iter = 0; iter < numberOfDays; iter++) {
-        const newMoment = startDay.add(1, 'day');
+        const newMoment = startDay.clone().add(1, 'day');
 
         timestampsArray.push(newMoment.valueOf());
       }
