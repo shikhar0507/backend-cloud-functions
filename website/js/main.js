@@ -1,13 +1,5 @@
-firebase
-  .initializeApp({
-    apiKey: 'AIzaSyCadBqkHUJwdcgKT11rp_XWkbQLFAy80JQ',
-    authDomain: 'growthfile.com',
-    projectId: 'growthfilev2-0',
-  });
+'use strict';
 
-const apiBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/api';
-const getUserBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/getUser';
-const webappBaseUrl = 'http://localhost:5001/growthfilev2-0/us-central1/webapp';
 
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
@@ -123,19 +115,19 @@ function createModal(actionContent) {
   div.id = 'modal'
   const content = document.createElement('div')
   content.className = 'modal-content';
- 
+
   const close = document.createElement('span')
   close.className = 'close fa fa-window-close'
   close.onclick = function () {
     div.remove();
   }
-  
+
   const actionContainer = document.createElement('div')
   actionContainer.className = 'action-container mt-30';
   actionContainer.appendChild(actionContent);
- 
+
   content.appendChild(close)
-  
+
   content.appendChild(actionContainer);
   div.appendChild(content)
   return div;
@@ -197,7 +189,6 @@ function sendApiRequest(apiUrl, requestBody, method) {
       return result
     })
     .catch(console.error);
-
 }
 
 
@@ -253,8 +244,36 @@ firebase
     console.log('no session cookie');
   });
 
+function setGlobals() {
+  /** Config already set. */
+  if (window.globalsSet) {
+    console.log('config already set');
+
+    return;
+  }
+
+  return fetch('/config')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (result) {
+      window.globalsSet = true;
+
+      Object
+        .keys(result)
+        .forEach(function (key) {
+          console.log(key, result[key]);
+          window[key] = result[key];
+        });
+
+      console.log('config set:', result);
+    })
+    .catch(console.error);
+}
+
 document
   .addEventListener('DOMContentLoaded', function () {
+    console.log('init domcontentloaded');
     firebase
       .auth()
       .addAuthTokenListener(function (idToken) {
@@ -263,5 +282,7 @@ document
         document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`
 
         console.log('new cookie set', idToken);
+
+        return setGlobals();
       });
   });

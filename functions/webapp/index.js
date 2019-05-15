@@ -18,6 +18,8 @@ const headPartial = require('./views/partials/head.hbs')();
 const headerPartial = require('./views/partials/header.hbs')();
 const persistentBarPartial = require('./views/partials/persistent-bar.hbs')();
 const footerPartial = require('./views/partials/footer.hbs')();
+const scriptsPartial = require('./views/partials/scripts.hbs')();
+handlebars.registerPartial('scriptsPartial', scriptsPartial);
 handlebars.registerPartial('persistentBarPartial', persistentBarPartial);
 handlebars.registerPartial('headPartial', headPartial);
 handlebars.registerPartial('headerPartial', headerPartial);
@@ -389,7 +391,8 @@ const getUserEnquiries = (conn, requester) => {
   const json = {};
   const validTemplatesForJSON = new Set(['enquiry']);
 
-  if (!conn.req.query.template
+  if (!requester.isLoggedIn
+    || !conn.req.query.template
     || !validTemplatesForJSON.has(conn.req.query.template)) {
     return Promise.resolve(json);
   }
@@ -436,6 +439,8 @@ module.exports = (req, res) => {
     slug,
     isLoggedIn: false,
   };
+
+  conn.res.set('Cache-Control', 'public, max-age=300, s-maxage=600');
   conn.res.setHeader('Content-Type', 'text/html');
   let requester = {};
   const parsedCookies = parseCookies(req.headers.cookie);
@@ -453,6 +458,17 @@ module.exports = (req, res) => {
     return res
       .status(code.permanentRedirect)
       .redirect(env.mainDomain);
+  }
+
+  if (slug === 'config') {
+    const json = {
+      apiBaseUrl: env.apiBaseUrl,
+      getUserBaseUrl: env.getUserBaseUrl,
+    };
+
+    conn.res.setHeader('Content-Type', 'application/json');
+
+    return conn.res.json(json);
   }
 
   return getLoggedInStatus(idToken)
@@ -490,7 +506,7 @@ module.exports = (req, res) => {
         };
       }
 
-      if (slug === '/' || slug === '') {
+      if (!slug) {
         html = handleHomePage(locals, requester);
       }
 

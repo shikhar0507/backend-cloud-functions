@@ -81,10 +81,10 @@ function logInWithOtp() {
       console.log('Signed in successfully.', result);
       const user = firebase.auth().currentUser;
 
-      if (!window.showFullLogin)  return Promise.resolve();
+      if (!window.showFullLogin) return Promise.resolve();
 
       return user.updateProfile({
-        displayName:getName()
+        displayName: getName()
       })
 
     })
@@ -95,17 +95,17 @@ function logInWithOtp() {
         return;
       }
       const user = firebase.auth().currentUser;
-      
+
       if (window.showFullLogin) {
-        user.updateEmail(getEmail()).then(function(){
-          user.sendEmailVerification().then(function(){
+        user.updateEmail(getEmail()).then(function () {
+          user.sendEmailVerification().then(function () {
             submitButton.classList.add('hidden')
-            setMessage('Verification Email has been sent to '+getEmail()+' . Please Verify Your Email to continue.')
+            setMessage('Verification Email has been sent to ' + getEmail() + ' . Please Verify Your Email to continue.')
             document.querySelector('.container form').appendChild(getSpinnerElement())
-          }).catch(function(error){
+          }).catch(function (error) {
             setMessage(error.message)
           })
-        }).catch(function(error){
+        }).catch(function (error) {
           setMessage(error.message)
         })
         return;
@@ -189,6 +189,8 @@ function fetchAuth() {
         setMessage('Something went wrong');
 
         console.log('Rejected:', response);
+
+        return null;
       }
 
       return response.json();
@@ -206,11 +208,6 @@ function fetchAuth() {
 
         showNameEmailContainer();
       }
-
-      firebase
-        .auth()
-        .settings
-        .appVerificationDisabledForTesting = true;
 
       /** Render recaptcha */
       return recaptchaVerifier.render();
