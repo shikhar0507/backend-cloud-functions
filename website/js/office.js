@@ -3,8 +3,8 @@ let map;
 
 function initMap(latitude, longitude) {
   const curr = {
-    lat: latitude || sessionStorage.getItem('latitude'),
-    lng: longitude || sessionStorage.getItem('longitude')
+    lat: latitude || Number(sessionStorage.getItem('latitude')),
+    lng: longitude || Number(sessionStorage.getItem('longitude')),
   };
 
   document.getElementById('map').style.height = '400px';

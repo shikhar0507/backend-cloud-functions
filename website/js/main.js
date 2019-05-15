@@ -162,6 +162,8 @@ function getLocation(callback) {
         sessionStorage.setItem('latitude', latitude);
         sessionStorage.setItem('longitude', longitude);
 
+        if (typeof callback === 'function') callback();
+
         return resolve({
           latitude,
           longitude,
@@ -173,9 +175,6 @@ function getLocation(callback) {
         return reject(error)
       });
   })
-    .then(function () {
-      if (typeof callback === 'function') callback();
-    });
 }
 
 function sendApiRequest(apiUrl, requestBody, method) {
@@ -191,11 +190,19 @@ function sendApiRequest(apiUrl, requestBody, method) {
   if (requestBody) {
     init.body = JSON.stringify(requestBody);
   }
+
   const urlScheme = new URL(apiUrl);
-  // console.log(urlScheme);
 
   console.log('init:', init);
-  const baseUrl = urlScheme.origin + urlScheme.pathname;
+  const baseUrl = `${urlScheme.origin}${urlScheme.pathname}`
+    /** Removes the trailing slash in the url */
+    .slice(0, -1);
+
+  console.log({
+    baseUrl,
+    getUserBaseUrl,
+  });
+
   if (baseUrl === getUserBaseUrl) return fetch(apiUrl, init);
 
   return firebase
@@ -265,17 +272,10 @@ firebase
   });
 
 function setGlobals() {
-  /** Config already set. */
-  if (window.globalsSet) {
-    console.log('config already set');
-
-    return;
-  }
+  console.log('fetching config');
 
   return fetch('/config')
-    .then(function (response) {
-      return response.json();
-    })
+    .then(function (response) { return response.json() })
     .then(function (result) {
       window.globalsSet = true;
 
@@ -291,9 +291,11 @@ function setGlobals() {
     .catch(console.error);
 }
 
+
 document
   .addEventListener('DOMContentLoaded', function () {
-    console.log('init domcontentloaded');
+    setGlobals();
+
     firebase
       .auth()
       .addAuthTokenListener(function (idToken) {
@@ -302,7 +304,5 @@ document
         document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`
 
         console.log('new cookie set', idToken);
-
-        return setGlobals();
       });
   });
