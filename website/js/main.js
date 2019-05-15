@@ -294,7 +294,7 @@ function setGlobals() {
 
 
 document
-  .addEventListener('DOMContentLoaded', function () {
+  .addEventListener('load', function () {
     setGlobals();
 
     firebase
