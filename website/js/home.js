@@ -169,7 +169,7 @@ function searchAndUpdateWithSupport() {
 
 }
 
-function viewEnquiries() {
+function viewEnquiries(options) {
 
 }
 
@@ -282,6 +282,54 @@ function updateActivity(options) {
 
 function viewEnquiries(options) {
 
+  const table = document.createElement('table');
+  table.id = 'enquiry-table'
+  const head = document.createElement('thead');
+  const headTr = document.createElement('tr');
+  const headerNames = ['S.No','Status','Creator','Company','Product','Enquiry'];
+  headerNames.forEach(function(name){
+    const th = document.createElement('th');
+    th.textContent = name
+    headTr.appendChild(th);
+  })
+  head.appendChild(headTr);
+  table.appendChild(head);
+
+  sendApiRequest('http://localhost:5015/json?template=enquiry', null, 'GET')
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (response) {
+            const body = document.createElement('tbody')
+            console.log(response);
+            Object.keys(response).forEach(function(id,idx){
+              const tr = document.createElement('tr');
+              const indexCol = document.createElement('td');
+              indexCol.textContent = idx +1;
+              const statusRow = document.createElement('td');
+              statusRow.textContent = response[id].status;
+              const creatorRow = document.createElement('td');
+              creatorRow.textContent = response[id].creator.displayName || response[i].creator.phoneNumber
+              const companyRow = document.createElement('td')
+              companyRow.textContent = response[id].companyName || '-';
+              const productRow = document.createElement('td');
+              productRow.textContent = response[id].product || '-';
+              const enquiryRow = document.createElement('td');
+              enquiryRow.textContent = response[id].enquiry || '-';
+              tr.appendChild(indexCol);
+              tr.appendChild(statusRow);
+              tr.appendChild(creatorRow);
+              tr.appendChild(companyRow);
+              tr.appendChild(productRow);
+              tr.appendChild(enquiryRow);
+              body.appendChild(tr)
+             
+            })
+            table.appendChild(body)
+         
+            document.getElementById('modal-box').appendChild(createModal(table));
+
+  })
 }
 
 function manageTemplates(options) {
@@ -318,6 +366,7 @@ function handleActionIconClick(event) {
       }
 
       if (event.target.id === 'trigger-reports') {
+       
         if (options.isAdmin) {
           return void triggerReportWithAdmin(options);
         }
