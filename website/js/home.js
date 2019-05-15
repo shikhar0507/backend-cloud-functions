@@ -2,6 +2,70 @@ console.log('home loaded');
 
 const section = document.getElementById('action-section');
 
+const options = {
+  isSupport: false,
+  isAdmin: false,
+  isTemplateManager: false,
+  officeNames: [],
+};
+
+
+function createSearchForm(requestUrl, type) {
+  const searchForm = document.createElement('form');
+  const searchInput = document.createElement('input');
+  const searchLink = document.createElement('a');
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Search an office';
+  searchInput.classList.add('input-field');
+  searchForm.style.display = 'inherit';
+  searchLink.onclick = function () {
+
+    sendApiRequest(`${requestUrl}&office=${searchInput.value}`, null, 'GET')
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (response) {
+
+        console.log('response', response);
+        const select = document.createElement('select');
+        searchForm.style.display = 'none';
+        if (!response.length) {
+          const p = document.createElement('p');
+          p.innerText = 'No Result found';
+          section.appendChild(p);
+          return;
+        }
+        const a = document.createElement('a');
+        a.classList.add('button');
+        a.href = '#';
+        a.textContent = 'submit';
+        a.onclick = function (event) {
+          if (type === 'add-employees') {
+            options.officeNames.push(select.options[select.selectedIndex].value);
+            addEmployees(options);
+          }
+        }
+
+        section.appendChild(select);
+        section.appendChild(a);
+
+        response.forEach((name) => {
+          const option = document.createElement('option');
+          option.value = name;
+          option.innerHTML = name;
+          select.appendChild(option);
+        });
+
+      })
+
+  }
+  searchLink.classList.add('button');
+  searchLink.innerText = 'search';
+  searchForm.appendChild(searchInput);
+  searchForm.appendChild(searchLink);
+  return searchForm;
+
+}
 
 function excelUploadContainer(id) {
   const container = document.createElement('div')
@@ -55,164 +119,7 @@ function BulkCreateErrorContainer(originalData, rejectedOnes) {
   cont.appendChild(frag);
 }
 
-function createEmployeesAsSupport(office, template) {
-  /**
-   * Create a file upload button
-   */
 
-  const url = apiBaseUrl + '/admin/bulk?support=true'
-
-  const modal = createModal(excelUploadContainer('upload-employee'))
-  const upload = modal.querySelector('#upload-employee')
-  const notificationLabel = modal.querySelector('.notification-label')
-  upload.addEventListener('change', function (evt) {
-    evt.stopPropagation();
-    evt.preventDefault();
-
-    const files = evt.target.files;
-    const file = files[0];
-    const reader = new FileReader();
-
-    reader.onload = function (e) {
-      const data = e.target.result;
-
-      e.target.ressul
-      const wb = XLSX.read(data, {
-        type: 'binary'
-      });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(ws, {
-        blankRows: false,
-        defval: '',
-        raw: false
-      });
-      if (!jsonData.length) {
-        notificationLabel.className = 'notification-label warning-label'
-        notificationLabel.textContent = 'File is Empty'
-        return;
-      };
-      jsonData.forEach(function (val) {
-        val.share = [];
-      })
-
-      getLocation().then(function (location) {
-
-        const body = {
-          office: office,
-          template: template,
-          data: jsonData,
-          timestamp: Date.now(),
-          geopoint: location
-        }
-
-        return sendApiRequest(`${url}`, body, 'POST')
-          .then(function (response) {
-            return response.json();
-          })
-          .then(function (response) {
-            const rejectedOnes = response.data.filter((val) => val.rejected);
-            if (!rejectedOnes.length) {
-              notificationLabel.className = 'notification-label success-label'
-              notificationLabel.textContent = 'Success';
-              return;
-            }
-            notificationLabel.textContent = '';
-            BulkCreateErrorContainer(jsonData, rejectedOnes)
-          }).catch(console.error);
-      }).catch(function (error) {
-        notificationLabel.className = 'notification-label warning-label'
-        notificationLabel.textContent = error.message;
-      })
-
-    }
-    reader.readAsBinaryString(file);
-    console.log(evt);
-  });
-  document.getElementById('modal-box').appendChild(modal);
-
-};
-
-function addEmployeeWithSupport(options) {
-  const requestUrl = `${apiBaseUrl}/admin/search?support=true`;
-  const searchForm = document.createElement('form');
-  const searchInput = document.createElement('input');
-  const searchLink = document.createElement('a');
-  searchInput.type = 'text';
-  searchInput.placeholder = 'Search an office';
-  searchInput.classList.add('input-field');
-  searchForm.style.display = 'inherit';
-
-  searchLink.classList.add('button');
-  searchLink.innerText = 'search';
-  searchForm.appendChild(searchInput);
-  searchForm.appendChild(searchLink);
-  section.appendChild(searchForm);
-
-  searchLink.onclick = function () {
-    console.log('button clicked');
-
-    /** Hide all previously warning labels */
-    document
-      .querySelectorAll('.warning-label')
-      .forEach(function (elem) {
-        elem.style.display = 'none'
-      });
-
-    const searchedTerm = searchInput.value;
-
-    if (!isNonEmptyString(searchedTerm)) {
-      const node = document.createElement('p');
-      node.classList.add('warning-label');
-      node.innerText = 'Invalid input';
-
-      return void insertAfterNode(searchForm, node);
-    }
-
-    console.log('searched for:', searchedTerm);
-    console.log('url', `${requestUrl}&office=${searchedTerm}`);
-
-    return sendApiRequest(`${requestUrl}&office=${searchedTerm}`, null, 'GET')
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (response) {
-
-        console.log('response', response);
-        const select = document.createElement('select');
-        searchForm.style.display = 'none';
-        if (!response.length) {
-          const p = document.createElement('p');
-          p.innerText = 'No offices found';
-          section.appendChild(p);
-          return;
-        }
-        const a = document.createElement('a');
-        a.classList.add('button');
-        a.href = '#';
-        a.textContent = 'submit';
-        a.onclick = function (event) {
-          const office = select.options[select.selectedIndex].value
-          createEmployeesAsSupport(office, 'employee');
-        }
-
-        section.appendChild(select);
-        section.appendChild(a);
-
-        response.forEach((name) => {
-          const option = document.createElement('option');
-          option.value = name;
-          option.innerHTML = name;
-          select.appendChild(option);
-        });
-
-      })
-      .catch(console.error);
-  }
-}
-
-function addEmployeeWithAdmin() {
-
-}
 
 function triggerReportWithSupport() {
 
@@ -274,7 +181,79 @@ function manageTemplates() {
 }
 
 function addEmployees(options) {
+  /**
+   * Create a file upload button
+   */
 
+  const url = apiBaseUrl + '/admin/bulk?support=true'
+
+  const modal = createModal(excelUploadContainer('upload-employee'))
+  const upload = modal.querySelector('#upload-employee')
+  const notificationLabel = modal.querySelector('.notification-label')
+  upload.addEventListener('change', function (evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+
+    const files = evt.target.files;
+    const file = files[0];
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+      const data = e.target.result;
+
+      e.target.ressul
+      const wb = XLSX.read(data, {
+        type: 'binary'
+      });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(ws, {
+        blankRows: false,
+        defval: '',
+        raw: false
+      });
+      if (!jsonData.length) {
+        notificationLabel.className = 'notification-label warning-label'
+        notificationLabel.textContent = 'File is Empty'
+        return;
+      };
+      jsonData.forEach(function (val) {
+        val.share = [];
+      })
+
+      getLocation().then(function (location) {
+
+        const body = {
+          office: options.officeNames[0],
+          template: 'employee',
+          data: jsonData,
+          timestamp: Date.now(),
+          geopoint: location
+        }
+
+        return sendApiRequest(`${url}`, body, 'POST')
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (response) {
+            const rejectedOnes = response.data.filter((val) => val.rejected);
+            if (!rejectedOnes.length) {
+              notificationLabel.className = 'notification-label success-label'
+              notificationLabel.textContent = 'Success';
+              return;
+            }
+            notificationLabel.textContent = '';
+            BulkCreateErrorContainer(jsonData, rejectedOnes)
+          }).catch(console.error);
+      }).catch(function (error) {
+        notificationLabel.className = 'notification-label warning-label'
+        notificationLabel.textContent = error.message;
+      })
+
+    }
+    reader.readAsBinaryString(file);
+    console.log(evt);
+  });
+  document.getElementById('modal-box').appendChild(modal);
 }
 
 function triggerReport(options) {
@@ -318,26 +297,24 @@ function handleActionIconClick(event) {
 
   console.log('clicked', event.target.id);
 
-  const options = {
-    isSupport: false,
-    isAdmin: false,
-    isTemplateManager: false,
-    officeNames: [],
-  };
-
   return firebase
     .auth()
     .currentUser
     .getIdTokenResult()
     .then(function (getIdTokenResult) {
       const claims = getIdTokenResult.claims;
+      options.isSupport = claims.support;
+      if (Array.isArray(claims.admin)) {
+        if (claims.admin.length > 0) {
+          options.isAdmin = true
+          options.officeNames = claims.admin
+        }
+      }
+      options.isTemplateManager = claims.templateManager;
 
       if (event.target.id === 'add-employees') {
-        if (options.isAdmin) {
-          return void addEmployeeWithAdmin(options);
-        }
-
-        return void addEmployeeWithSupport(options);
+        if (options.isSupport) return section.appendChild(createSearchForm(`${apiBaseUrl}/admin/search?support=true`, event.target.id))
+        addEmployees(options);
       }
 
       if (event.target.id === 'trigger-reports') {
