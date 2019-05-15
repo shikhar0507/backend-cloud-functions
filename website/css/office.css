@@ -190,12 +190,22 @@ form p select {
     background: white;
 }
 
+@media (min-width: 360px) {
+    .maps-container {
+        display: unset;
+    }
+}
+
 @media (min-width: 481px) and (max-width: 767px) {
 
     .youtube,
     .container {
         margin: 0 auto;
         max-width: 80%;
+    }
+
+    .maps-container {
+        display: unset;
     }
 }
 
@@ -212,6 +222,10 @@ form p select {
         overflow-y: auto;
         flex-direction: column;
         flex-wrap: wrap;
+    }
+
+    .maps-container {
+        display: unset;
     }
 }
 
@@ -256,6 +270,10 @@ form p select {
     #enquiry-submit-button {
         text-align: center;
     }
+
+    .maps-container {
+        display: unset;
+    }
 }
 
 @media (min-width: 1281px) {
@@ -296,5 +314,9 @@ form p select {
 
     #enquiry-submit-button {
         text-align: center;
+    }
+
+    .maps-container {
+        display: unset;
     }
 }

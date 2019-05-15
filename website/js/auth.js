@@ -179,10 +179,11 @@ function fetchAuth() {
     .getElementsByName('auth-phone-number')[0]
     .setAttribute('disabled', true);
 
-  const apiUrl = getUserBaseUrl;
-  const requestUrl = `${apiUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`;
-
-  return sendApiRequest(requestUrl, null, 'GET')
+  return sendApiRequest(
+    `${getUserBaseUrl}/?phoneNumber=${encodeURIComponent(phoneNumber)}`,
+    null,
+    'GET'
+  )
     .then(function (response) {
       if (!response.ok) {
         // messageNode.innerText = 'Something went wrong';

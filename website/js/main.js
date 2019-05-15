@@ -53,7 +53,7 @@ function logoutUser(event) {
 };
 
 function getWarningNode(textContent) {
-  valid = false;
+  // valid = false;
 
   const warningNode = document.createElement('span');
   warningNode.classList.add('warning-label');
@@ -66,6 +66,7 @@ function getQueryString(field, url) {
   const href = url ? url : window.location.href;
   const reg = new RegExp('[?&]' + field + '=([^&#]*)', 'i');
   const string = reg.exec(href);
+
   return string ? string[1] : null;
 }
 
@@ -94,12 +95,16 @@ function isValidEmail(emailString) {
     .test(emailString);
 }
 
-function getSpinnerElement() {
+function getSpinnerElement(id) {
   const elem = document.createElement('div');
   elem.className = 'spinner';
   elem.style.position = 'relative';
   elem.style.height = '40px';
   elem.style.width = '40px';
+
+  if (id) {
+    elem.id = id;
+  }
 
   return elem;
 }
@@ -141,23 +146,37 @@ function setMessage(message) {
 }
 
 
-function getLocation() {
+function getLocation(callback) {
+  let latitude;
+  let longitude;
 
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject('Geolocation is Not Supported')
 
-    navigator.geolocation.getCurrentPosition(function (position) {
-      return resolve({
-        'latitude': position.coords.latitude,
-        'longitude': position.coords.longitude
-      })
-    }, function (error) {
-      console.log(error);
+    navigator
+      .geolocation
+      .getCurrentPosition(function (position) {
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
 
-      return reject(error)
-    })
+        sessionStorage.setItem('latitude', latitude);
+        sessionStorage.setItem('longitude', longitude);
+
+        if (typeof callback === 'function') callback();
+
+        return resolve({
+          latitude,
+          longitude,
+          accuracy: position.accuracy,
+        })
+      }, function (error) {
+        console.error(error);
+
+        return reject(error)
+      });
   })
 }
+
 
 function sendApiRequest(apiUrl, requestBody, method) {
   const init = {
@@ -172,15 +191,26 @@ function sendApiRequest(apiUrl, requestBody, method) {
   if (requestBody) {
     init.body = JSON.stringify(requestBody);
   }
+
   const urlScheme = new URL(apiUrl);
-  console.log(urlScheme);
-  const baseUrl = urlScheme.origin + urlScheme.pathname;
+
+  console.log('init:', init);
+  const baseUrl = `${urlScheme.origin}${urlScheme.pathname}`
+    /** Removes the trailing slash in the url */
+    .slice(0, -1);
+
+  console.log({
+    baseUrl,
+    getUserBaseUrl,
+  });
+
   if (baseUrl === getUserBaseUrl) return fetch(apiUrl, init);
 
   return firebase
     .auth()
     .currentUser
-    .getIdToken(false).then(function (idToken) {
+    .getIdToken(false)
+    .then(function (idToken) {
       init.headers['Authorization'] = `Bearer ${idToken}`;
 
       return fetch(apiUrl, init);
@@ -200,9 +230,7 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target === document.getElementById('load-map-button')) {
-    event.preventDefault();
-
-    return void askLocationPermission(event, initMap);
+    return getLocation(initMap);
   }
 
   if (event.target === document.getElementById('enquiry-submit-button')) {
@@ -245,17 +273,10 @@ firebase
   });
 
 function setGlobals() {
-  /** Config already set. */
-  if (window.globalsSet) {
-    console.log('config already set');
-
-    return;
-  }
+  console.log('fetching config');
 
   return fetch('/config')
-    .then(function (response) {
-      return response.json();
-    })
+    .then(function (response) { return response.json() })
     .then(function (result) {
       window.globalsSet = true;
 
@@ -271,9 +292,11 @@ function setGlobals() {
     .catch(console.error);
 }
 
+
 document
   .addEventListener('DOMContentLoaded', function () {
-    console.log('init domcontentloaded');
+    setGlobals();
+
     firebase
       .auth()
       .addAuthTokenListener(function (idToken) {
@@ -282,7 +305,5 @@ document
         document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`
 
         console.log('new cookie set', idToken);
-
-        return setGlobals();
       });
   });

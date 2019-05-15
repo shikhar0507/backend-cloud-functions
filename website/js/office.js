@@ -1,9 +1,11 @@
 // needs to be global for gMaps to work. // See docs.
 let map;
-let firebaseAuthModal;
 
 function initMap(latitude, longitude) {
-  const curr = { lat: latitude, lng: longitude };
+  const curr = {
+    lat: latitude || Number(sessionStorage.getItem('latitude')),
+    lng: longitude || Number(sessionStorage.getItem('longitude')),
+  };
 
   document.getElementById('map').style.height = '400px';
   document.getElementById('load-map-button').style.display = 'none';
@@ -43,7 +45,7 @@ function handleBranchClick(latitude, longitude) {
   };
 
   if (latitude && longitude) {
-    const marker = new google.maps.Marker({ position, map });
+    new google.maps.Marker({ position, map });
 
     map.setCenter(position);
   }
@@ -56,7 +58,7 @@ function updateMapPointer(event) {
   );
 }
 
-function validateForm() {
+function validateEnquiryForm() {
   const userName = document.getElementsByName('user-display-name');
   const email = document.getElementsByName('user-email');
   const phoneNumber = document.getElementsByName('user-phone-number');
@@ -122,91 +124,86 @@ function startEnquiryCreationFlow() {
   const oldWarningLabels = document.querySelectorAll('p .warning-label');
   Array
     .from(oldWarningLabels)
-    .forEach((element) => element.style.display = 'none');
+    .forEach(function (element) {
+      element.parentNode.removeChild(element);
+    });
 
-  const result = validateForm();
+  const result = validateEnquiryForm();
 
   if (!result.valid) return;
 
   if (!firebase.auth().currentUser) {
+    // TODO: Storage from data with onbeforeunload event on this page.
     window.location.href = `/auth?redirect_to=${window.location.href}`;
     return;
   }
 
-
-  const spinner = getSpinnerElement();
+  const spinner = getSpinnerElement('enquiry-fetch-spinner');
   document.forms[0].innerText = '';
   document.forms[0].style.display = 'flex';
   document.forms[0].style.justifyContent = 'center';
-  spinner.id = 'enquiry-fetch-spinner';
   document.forms[0].appendChild(spinner);
 
-  getLocation().then(function(location){
-    const requestBody = {
-      office: document.body.dataset.slug,
-      timestamp: Date.now(),
-      template: 'enquiry',
-      geopoint: {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        accuracy: location.accuracy,
-        provider: 'HTML5',
-      },
-      share: [],
-      schedule: [],
-      venue: [],
-      attachment: {
-        'Company Name': {
-          type: 'string',
-          value: document.body.dataset.slug,
+  getLocation()
+    .then(function (location) {
+      const requestBody = {
+        office: document.body.dataset.slug,
+        timestamp: Date.now(),
+        template: 'enquiry',
+        geopoint: {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+          provider: 'HTML5',
         },
-        Product: {
-          value: result.values.productName,
-          type: 'product',
-        },
-        'Enquiry': {
-          value: result.values.enquiryText,
-          type: 'string',
+        share: [],
+        schedule: [],
+        venue: [],
+        attachment: {
+          'Company Name': {
+            type: 'string',
+            value: document.body.dataset.slug,
+          },
+          Product: {
+            value: result.values.productName,
+            type: 'product',
+          },
+          'Enquiry': {
+            value: result.values.enquiryText,
+            type: 'string',
+          }
         }
       }
-    }
-  
-    const idToken = getParsedCookies().__session;
-    const requestUrl = 'https://api2.growthfile.com/api/activities/create';
-  
-    return fetch(requestUrl, {
-      mode: 'cors',
-      method: 'POST',
-      body: JSON.stringify(requestBody),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`,
-      },
-    })
-      .then((result) => result.json())
-      .then((response) => {
-        console.log('Response', response);
-  
-        document
-          .getElementById('enquiry-fetch-spinner')
-          .style.display = 'none';
-  
-        const span = document.createElement('span');
-        let spanText = 'Enquiry sent :)';
-  
-        if (!response.success) {
-          spanText = response.message;
-          span.classList.add('warning-label');
-        } else {
-          span.classList.add('success-label');
-        }
-  
-        span.innerHTML = spanText;
-        document.forms[0].appendChild(span);
-  
-        return;
-      })
-      .catch(console.error);    
-  }).catch(console.error)
 
+      // const idToken = getParsedCookies().__session;
+
+      sendApiRequest(
+        `${apiBaseUrl}/activities/create`,
+        requestBody,
+        'POST'
+      )
+        .then(function (result) { return result.json(); })
+        .then(function (response) {
+          console.log('Response', response);
+
+          document
+            .getElementById('enquiry-fetch-spinner')
+            .style.display = 'none';
+
+          const span = document.createElement('span');
+          let spanText = 'Enquiry sent :)';
+
+          if (!response.success) {
+            spanText = response.message;
+            span.classList.add('warning-label');
+          } else {
+            span.classList.add('success-label');
+          }
+
+          span.innerHTML = spanText;
+          document.forms[0].appendChild(span);
+
+          return;
+        });
+    }).catch(console.error)
 };

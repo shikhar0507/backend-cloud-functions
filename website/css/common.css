@@ -31,6 +31,7 @@ body {
 body {
     font-family: 'Open Sans', sans-serif;
     color: #89273E;
+    line-height: 1.6em;
 }
 
 h1 {
@@ -49,15 +50,16 @@ h2 {
 
 p {
     margin-bottom: 16px;
-    line-height: 20px;
+    /* line-height: 20px; */
 }
 
 a {
     text-decoration: none;
+    color: #89273E;
 }
 
-.mt-30{
-margin-top: 30px;
+.mt-30 {
+    margin-top: 30px;
 }
 
 header {
@@ -71,6 +73,7 @@ header {
     padding: 10px 20px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
     border: 1px solid rgba(0, 0, 0, .09);
+    line-height: 40px;
 }
 
 
@@ -105,9 +108,9 @@ section {
     display: flex;
     justify-content: center;
     color: #F7C86C;
-    line-height: 33px;
+    /* line-height: 33px; */
     border-width: 0px;
-    font-size: 29px;
+    font-size: 20px;
     text-transform: uppercase;
 }
 
@@ -122,7 +125,7 @@ section {
 }
 
 .header-links-container {
-    line-height: 40px;
+    /* line-height: 40px; */
 }
 
 .header-login-button {
@@ -135,7 +138,8 @@ section {
 
 .logo-text {
     font-size: 21px;
-    line-height: 38px;
+    /* same height as the header */
+    /* line-height: 40px; */
     margin-left: 9px;
     color: #89273E;
 }
@@ -146,7 +150,7 @@ section {
 
 .container {
     margin: 0 auto;
-    max-width: 90%;
+    max-width: 60%;
     min-height: 100%;
     margin-top: 16px;
 }
@@ -177,6 +181,7 @@ section {
 .success-label {
     color: green;
 }
+
 
 footer {
     color: #89273E;
@@ -265,7 +270,7 @@ input[readonly] {
     border-color: rgba(0, 0, 0, .2);
     border-radius: 4px;
     /* padding: 10px 20px; */
-    line-height: 20px;
+    /* line-height: 20px; */
     font-size: 13px;
     color: #89273E;
     padding: 15px;
@@ -346,6 +351,7 @@ input:disabled {
     text-align: center;
 
 }
+
 .modal .close {
     color: #aaaaaa;
     float: right;
@@ -358,4 +364,10 @@ input:disabled {
     color: #000;
     text-decoration: none;
     cursor: pointer;
+}
+
+@media (min-width: 400px) {
+    .container {
+        max-width: 80%;
+    }
 }

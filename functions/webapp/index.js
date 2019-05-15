@@ -9,6 +9,11 @@ const {
 const {
   code,
 } = require('../admin/responses');
+const {
+  isNonEmptyString,
+  hasAdminClaims,
+  hasSupportClaims,
+} = require('../admin/utils');
 // const helpers = require('./helpers');
 const handlebars = require('handlebars');
 const url = require('url');
@@ -96,7 +101,8 @@ const getLoggedInStatus = (idToken) => {
         displayName: userRecord.displayName,
         disabled: userRecord.disabled,
         isSupport: userRecord.customClaims.support,
-        isAdmin: userRecord.customClaims.admin && userRecord.customClaims.admin.length > 0,
+        isAdmin: userRecord.customClaims.admin
+          && userRecord.customClaims.admin.length > 0,
         isTemplateManager: userRecord.customClaims.manageTemplates,
       };
     })
@@ -174,7 +180,12 @@ const handleOfficePage = (locals, requester) => {
   return Promise.resolve(html);
 };
 
-const fetchOfficeData = (conn, locals, requester) => {
+const getBranchOpenStatus = (doc) => {
+  // return true;
+
+};
+
+const fetchOfficeData = (locals, requester) => {
   return Promise
     .all([
       locals
@@ -195,16 +206,27 @@ const fetchOfficeData = (conn, locals, requester) => {
 
       locals.branchDocs = branchQuery.docs;
       locals.productDocs = productQuery.docs;
+      locals.branchObjectsArray = [];
 
       locals
-        .branchObjectsArray = branchQuery.docs.map((doc) => {
-          return {
+        .branchDocs
+        .forEach((doc) => {
+          /** Currently branch has only 1 venue */
+          const venue = doc.get('venue')[0];
+
+          if (!venue.geopoint.latitude || !venue.geopoint._latitude) {
+            return;
+          }
+
+          locals.branchObjectsArray.push({
             name: doc.get('attachment.Name.value'),
-            address: doc.get('venue')[0].address,
-            latitude: doc.get('venue')[0].geopoint._latitude,
-            longitude: doc.get('venue')[0].geopoint._longitude,
+            address: venue.address,
+            /** Not sure why I'm doing this... */
+            latitude: venue.geopoint._latitude || venue.geopoint.latitude,
+            longitude: venue.geopoint._longitude || venue.geopoint.longitude,
             weeklyOff: doc.get('attachment.Weekly Off.value'),
-          };
+            openStatus: getBranchOpenStatus(doc),
+          });
         });
 
       locals
@@ -387,32 +409,86 @@ const handlePrivacyPolicyPage = (locals, requester) => {
   return html;
 };
 
-const getUserEnquiries = (conn, requester) => {
+const jsonApi = (conn, requester) => {
   const json = {};
-  const validTemplatesForJSON = new Set(['enquiry']);
+  const allowedTemplates = new Set(['enquiry']);
 
-  if (!requester.isLoggedIn
-    || !conn.req.query.template
-    || !validTemplatesForJSON.has(conn.req.query.template)) {
-    return Promise.resolve(json);
+  if (!requester.isLoggedIn) return json;
+
+  if (conn.req.query.template
+    && !conn.req.query.office
+    && !conn.req.query.query) {
+    if (!allowedTemplates.has(conn.req.query.query)) {
+      return json;
+    }
+
+    return rootCollections
+      .profiles
+      .doc(requester.phoneNumber)
+      .collection('Activities')
+      .where('template', '==', conn.req.query.template)
+      .get()
+      .then((docs) => {
+        docs.forEach((doc) => {
+          json[doc.id] = doc.data();
+        });
+
+        return json;
+      });
+  }
+
+  if (isNonEmptyString(conn.req.query.office)) {
+    return json;
+  }
+
+  if (!hasAdminClaims(conn.requester.customClaims)
+    && !hasSupportClaims(conn.requester.customClaims)) {
+    return json;
+  }
+
+  if (hasAdminClaims(conn.requester.customClaims)
+    && conn.requester.customClaims.admin.includes(conn.req.query.office)) {
+    return json;
   }
 
   return rootCollections
-    .profiles
-    .doc(requester.phoneNumber)
-    .collection('Activities')
-    .where('template', '==', conn.req.query.template)
+    .offices
+    .where('office', '==', conn.req.query.office)
+    .limit(1)
     .get()
+    .then((docs) => {
+      let baseQuery = docs
+        .docs[0]
+        .ref
+        .collection('Activities')
+        .where('template', '==', conn.req.query.template);
+
+      if (conn.req.query.query) {
+        baseQuery = baseQuery
+          .where('searchables', 'array-contains', conn.req.query.query);
+      }
+
+      const MAX_RESULTS = 10;
+
+      return baseQuery
+        .limit(MAX_RESULTS)
+        .get();
+    })
     .then((docs) => {
       docs.forEach((doc) => {
         json[doc.id] = {
           activityId: doc.id,
-          creator: doc.get('creator'),
           status: doc.get('status'),
+          canEdit: doc.get('canEdit'),
+          schedule: doc.get('schedule'),
+          venue: doc.get('venue'),
+          timestamp: doc.get('timestamp'),
           template: doc.get('template'),
-          companyName: doc.get('attachment.Company Name.value'),
-          product: doc.get('attachment.Product.value'),
-          enquiry: doc.get('attachment.Enquiry.value'),
+          activityName: doc.get('activityName'),
+          office: doc.get('office'),
+          attachment: doc.get('attachment'),
+          creator: doc.get('creator'),
+          hidden: doc.get('hidden'),
         };
       });
 
@@ -539,7 +615,7 @@ module.exports = (req, res) => {
       }
 
       if (slug === 'json') {
-        return getUserEnquiries(conn, requester);
+        return jsonApi(conn, requester);
       }
 
       if (html) {
@@ -574,7 +650,7 @@ module.exports = (req, res) => {
 
       locals.officeDoc = result.docs[0];
 
-      return fetchOfficeData(conn, locals, requester);
+      return fetchOfficeData(locals, requester);
     })
     .then((officeHtml) => {
       if (html) {
@@ -592,7 +668,7 @@ module.exports = (req, res) => {
 
       return conn
         .res
-        .status(500)
+        .status(code.internalServerError)
         .send(html);
     });
 };
