@@ -3,10 +3,6 @@
     min-height: unset;
 }
 
-form p {
-    margin: 25px 0px;
-}
-
 form p label {
     text-transform: uppercase;
     display: inline-block;
@@ -55,6 +51,9 @@ section h2 {
     line-height: 24px;
 }
 
+.join-section {
+    margin-bottom: 16px;
+}
 
 @media (min-width: 481px) and (max-width: 767px) {
     section {
@@ -103,7 +102,6 @@ section h2 {
 
     .join-section {
         margin: 0 auto;
-        max-width: 50%;
     }
 
 }
