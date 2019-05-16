@@ -348,10 +348,7 @@ const filterAttachment = (options) => {
     bodyAttachment,
     templateAttachment,
     template,
-    officeId,
     office,
-    // templateAttachmentFields,
-    // bodyAttachmentFields,
   } = options;
 
   const messageObject = {
