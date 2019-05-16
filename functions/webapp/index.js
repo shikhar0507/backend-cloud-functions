@@ -422,6 +422,7 @@ const handlePrivacyPolicyPage = (locals, requester) => {
 };
 
 const jsonApi = (conn, requester) => {
+  console.log("Requester",requester);
   const json = {};
   const allowedTemplates = new Set(['enquiry']);
 
@@ -429,8 +430,8 @@ const jsonApi = (conn, requester) => {
     return json;
   }
 
-  if (conn.req.query.template
-    && !conn.req.query.office
+  if (conn.req.query.template 
+    && !conn.req.query.office 
     && !conn.req.query.query) {
     if (!allowedTemplates.has(conn.req.query.template)) {
       return json;
@@ -462,19 +463,21 @@ const jsonApi = (conn, requester) => {
       });
   }
 
-  if (isNonEmptyString(conn.req.query.office)) {
+  if (!isNonEmptyString(conn.req.query.office)) {
+    
     return json;
   }
+  console.log(conn.requester)
+  // if (!hasAdminClaims(conn.requester.customClaims)
+  //   && !hasSupportClaims(conn.requester.customClaims)) {
+  //     console.log("not valid")
+  //   return json;
+  // }
 
-  if (!hasAdminClaims(conn.requester.customClaims)
-    && !hasSupportClaims(conn.requester.customClaims)) {
-    return json;
-  }
-
-  if (hasAdminClaims(conn.requester.customClaims)
-    && conn.requester.customClaims.admin.includes(conn.req.query.office)) {
-    return json;
-  }
+  // if (hasAdminClaims(conn.requester.customClaims)
+  //   && conn.requester.customClaims.admin.includes(conn.req.query.office)) {
+  //   return json;
+  // }
 
   return rootCollections
     .offices

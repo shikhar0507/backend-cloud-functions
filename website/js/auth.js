@@ -180,7 +180,7 @@ function fetchAuth() {
     .setAttribute('disabled', true);
 
   return sendApiRequest(
-    `${getUserBaseUrl}/?phoneNumber=${encodeURIComponent(phoneNumber)}`,
+    `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`,
     null,
     'GET'
   )
