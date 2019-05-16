@@ -14,18 +14,26 @@
         \{{#if isLoggedIn}}
         <div class="office-selection">
           \{{#if isSupport}}
-           <form style="display: inherit;">
-                   <input type="text" placeholder="Search an office" class="input-field">
-                   <a class="button" id='search-office'>search</a>
+           <form id='office-search-form' class="form-inline">
+                <label for="office">Search Office</label>
+                <input type="text" placeholder="Search an office" class="input-field" id='office-search-field' oninput="toggleSearchButton(this)">
+                
+                <ul></ul>
+                <button class="button button-search invisible" onclick="searchOffice()">search</button>
+                <button class="invisible button" id='continue' onclick="startAdmin(document.getElementById('office-search-field').value)">Conitnue</button>
             </form> 
            
             \{{else}} \{{#if isAdmin}}
-                <select id='office-selector'>
-                    \{{#each adminOffices}}
-                        <option value=\{{this}}>\{{this}}</option>
-                    \{{/each}}
-                 </select>
-                 <button class="button" id='select-office'>Select</button>
+             <form id='office-search-form' class="form-inline">
+                 <span class="select-dropdown">
+                    <select id='office-selector'>
+                        \{{#each adminOffices}}
+                            <option value="\{{this}}">\{{this}}</option>
+                        \{{/each}}
+                    </select>
+                 </span>
+                <button class="button" id='continue' onclick="startAdmin(document.getElementById('office-selector').value)">Conitnue</button>
+            </form> 
             \{{else}}
             <p>Normal user</p>
             \{{/if}} 

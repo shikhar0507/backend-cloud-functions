@@ -1,16 +1,56 @@
 console.log('home loaded');
-function initSelectors(){
+function searchOffice(){
+  document.getElementById('continue').classList.add('invisible');
+  const url = `${apiBaseUrl}/admin/search?support=true`
+  const input = document.getElementById('office-search-field')
+  const ul = document.querySelector('#office-search-form ul')
+  ul.appendChild(getSpinnerElement().center())
+  // if(!value) return label.textContent = 'No Office Name Entered'
+  // label.textContent = '';
+  sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (response) {
+        // ul.querySelector('.spinner').remove();
+        console.log('response', response);
+        // if (!response.length) return label.textContent = 'No Offices Found'
+        ul.innerHTML = '';
+        response.forEach(function(name){
+          const li = document.createElement('li')
+          li.textContent = name;
+          li.onclick = function(){
+            input.value = name;
+            document.querySelector('.button-search').classList.add('invisible');
+            
+            document.getElementById('continue').classList.remove('invisible');
+            [...ul.querySelectorAll('li')].forEach(function(el){
+               el.remove();
+            })
+          }
+          ul.appendChild(li)
+        })
+    
 
-  firebase
-  .auth()
-  .currentUser
-  .getIdTokenResult()
-  .then(function (getIdTokenResult) {
-    const claims = getIdTokenResult.claims;
-    console.log(claims)
-  })
+      })
+  console.log('clicked')
 }
-initSelectors()
+
+
+function toggleSearchButton(e){
+  console.log(e);
+  if(!e.value) {
+    document.querySelector('.button-search').classList.add('invisible');
+  }
+  else {
+    document.querySelector('.button-search').classList.remove('invisible');
+  }
+  document.getElementById("continue").classList.add('invisible');
+}
+
+function startAdmin(office){
+  console.log(office);
+}
 const section = document.getElementById('action-section');
 
 const options = {

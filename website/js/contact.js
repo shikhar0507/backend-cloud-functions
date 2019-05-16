@@ -8,7 +8,6 @@ submitButton.onclick = function () {
     return;
   }
 
-  const spinner = getSpinnerElement();
 
   return sendApiRequest('', requestBody, 'POST')
     .then(function (response) {

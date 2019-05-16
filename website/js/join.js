@@ -144,7 +144,7 @@ function sendOfficeCreationRequest(values) {
 
   // console.log('creating office');
 
-  const spinner = getSpinnerElement();
+  const spinner = getSpinnerElement().default();
   document.forms[0].innerText = '';
   document.forms[0].style.display = 'flex';
   document.forms[0].style.justifyContent = 'center';

@@ -105,8 +105,16 @@ function getSpinnerElement(id) {
   if (id) {
     elem.id = id;
   }
+  return {
+    center: function(){
+      elem.classList.add('spinner-center')
+      return elem;
+    },
+    default:function(){
+      return elem;
+    }
+  }
 
-  return elem;
 }
 
 /** Create Modal box */

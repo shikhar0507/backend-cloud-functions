@@ -101,7 +101,7 @@ function logInWithOtp() {
           user.sendEmailVerification().then(function () {
             submitButton.classList.add('hidden')
             setMessage('Verification Email has been sent to ' + getEmail() + ' . Please Verify Your Email to continue.')
-            document.querySelector('.container form').appendChild(getSpinnerElement())
+            document.querySelector('.container form').appendChild(getSpinnerElement().default())
           }).catch(function (error) {
             setMessage(error.message)
           })
