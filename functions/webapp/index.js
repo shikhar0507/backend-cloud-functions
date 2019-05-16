@@ -183,9 +183,8 @@ const handleOfficePage = (locals, requester) => {
   return Promise.resolve(html);
 };
 
-const getBranchOpenStatus = (doc) => {
-  // return true;
-
+const getBranchOpenStatus = () => {
+  return null;
 };
 
 const fetchOfficeData = (locals, requester) => {
@@ -416,12 +415,14 @@ const jsonApi = (conn, requester) => {
   const json = {};
   const allowedTemplates = new Set(['enquiry']);
 
-  if (!requester.isLoggedIn) return json;
+  if (!requester.uid) {
+    return json;
+  }
 
   if (conn.req.query.template
     && !conn.req.query.office
     && !conn.req.query.query) {
-    if (!allowedTemplates.has(conn.req.query.query)) {
+    if (!allowedTemplates.has(conn.req.query.template)) {
       return json;
     }
 
@@ -433,7 +434,18 @@ const jsonApi = (conn, requester) => {
       .get()
       .then((docs) => {
         docs.forEach((doc) => {
-          json[doc.id] = doc.data();
+          json[doc.id] = {
+            activityId: doc.id,
+            status: doc.get('status'),
+            canEdit: doc.get('canEdit'),
+            schedule: doc.get('schedule'),
+            venue: doc.get('venue'),
+            timestamp: doc.get('timestamp'),
+            template: doc.get('template'),
+            office: doc.get('office'),
+            attachment: doc.get('attachment'),
+            creator: doc.get('creator'),
+          }
         });
 
         return json;
@@ -566,7 +578,7 @@ module.exports = (req, res) => {
         isTemplateManager,
       } = result;
 
-      console.log('result', result);
+      console.log('phoneNumber:', result.phoneNumber);
 
       locals.isLoggedIn = uid !== null;
 
