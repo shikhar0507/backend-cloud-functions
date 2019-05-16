@@ -7,17 +7,18 @@
 </head>
 
 <body>
-    \{{> persistentBarPartial this}}
-    \{{> headerPartial this}}
     <div class="container">
-        \{{> asidePartial}}
         <section>
+            <div class="logo-main">
+                <img width="100" height="100" alt="" src="img/logo-main.jpg">
+            </div>
             <div>
                 <p id="message" class="hidden animated fadeIn"></span>
                     <form>
+                        <h1>Login to Growthfile</h1>
                         <fieldset id="phone-number-container" class="animated fadeIn">
-                            <label for="auth-phone-number">Phone Number</label>
-                            <input class="input-field" type="text" name="auth-phone-number" placeholder="+910123456789">
+                            <input class="input-field" type="text" name="auth-phone-number"
+                                placeholder="(+91) Phone Number">
                         </fieldset>
 
                         <fieldset id="name-email-container" class="hidden animated fadeIn">

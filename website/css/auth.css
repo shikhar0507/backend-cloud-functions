@@ -12,6 +12,7 @@ fieldset {
 label,
 .input-field {
     margin-bottom: 16px;
+    height: 35px;
 }
 
 form label {
@@ -30,4 +31,10 @@ form label {
 
 section {
     min-height: unset;
+}
+
+.logo-main {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
 }
