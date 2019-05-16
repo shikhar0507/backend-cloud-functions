@@ -300,6 +300,7 @@ function setGlobals() {
 
 window
   .addEventListener('load', function () {
+   
     setGlobals();
     
     firebase

@@ -1,7 +1,7 @@
 console.log('home loaded');
 function initSelectors(){
- 
-   firebase
+
+  firebase
   .auth()
   .currentUser
   .getIdTokenResult()
