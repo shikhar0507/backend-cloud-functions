@@ -24,11 +24,14 @@ const headerPartial = require('./views/partials/header.hbs')();
 const persistentBarPartial = require('./views/partials/persistent-bar.hbs')();
 const footerPartial = require('./views/partials/footer.hbs')();
 const scriptsPartial = require('./views/partials/scripts.hbs')();
+const asidePartial = require('./views/partials/aside.hbs')();
+
 handlebars.registerPartial('scriptsPartial', scriptsPartial);
 handlebars.registerPartial('persistentBarPartial', persistentBarPartial);
 handlebars.registerPartial('headPartial', headPartial);
 handlebars.registerPartial('headerPartial', headerPartial);
 handlebars.registerPartial('footerPartial', footerPartial);
+handlebars.registerPartial('asidePartial', asidePartial);
 
 const getIdToken = (parsedCookies) => {
   if (!parsedCookies.__session) {
