@@ -205,7 +205,7 @@ function sendApiRequest(apiUrl, requestBody, method) {
   console.log('init:', init);
   const baseUrl = `${urlScheme.origin}${urlScheme.pathname}`
     /** Removes the trailing slash in the url */
-    .slice(0, -1);
+
 
   console.log({
     baseUrl,
@@ -254,21 +254,6 @@ document.addEventListener('click', (event) => {
     document.querySelector('aside').classList.toggle('hidden');
   }
 
-  const loginActionElements = [
-    document.getElementById('add-employees'),
-    document.getElementById('trigger-reports'),
-    document.getElementById('change-phone-number'),
-    document.getElementById('employee-resign'),
-    document.getElementById('update-recipient'),
-    document.getElementById('update-subscription'),
-    document.getElementById('update-activity'),
-    document.getElementById('view-enquiries'),
-    document.getElementById('manage-templates'),
-  ];
-
-  if (loginActionElements.includes(event.target)) {
-    return void handleActionIconClick(event);
-  }
 
   if (event.target === document.getElementById('menu-logout-link')) {
     return void logoutUser(event);

@@ -40,40 +40,40 @@
             \{{/if}}
         </div>
        
-
+        
        
         <section class="action-icons-container hidden">
-          
             <div class="cards">
-                <div id="add-employees">
+             \{{#if isSupport}}
+                <div id="add-employees" onclick="addNew()">
                     <i class="fas fa-user-plus action-icon"></i>
                     <p class="icon-text">Add Employees</p>
                 </div>
-                <div id="trigger-reports">
+                <div id="trigger-reports" onclick="triggerReports()">
                     <i class="far fa-file-excel action-icon"></i>
                     <p class="icon-text">Trigger Reports</p>
                 </div>
-                <div id="change-phone-number">
+                <div id="change-phone-number" onclick="changePhoneNumber()">
                     <i class="fas fa-phone-volume action-icon"></i>
                     <p class="icon-text">Update Phone Number</p>
                 </div>
-                <div id="employee-resign">
+                <div id="employee-resign" onclick="employeeExis()">
                     <i class="fas fa-user-minus action-icon"></i>
                     <p class="icon-text">Employee Exit</p>
                 </div>
-                <div id="update-recipient">
+                <div id="update-recipient" onclick="updateEmailInReports()">
                     <i class="fas fa-envelope-open-text action-icon"></i>
                     <p class="icon-text">Update Report Mail Ids</p>
                 </div>
-                <div id="update-subscription">
+                <div id="update-subscription" onclick="updateSubscription()">
                     <i class="far fa-file-archive action-icon"></i>
                     <p class="icon-text">Update Subscriptions</p>
                 </div>
-                <div id="update-activity">
+                <div id="update-activity" onclick="searchAndUpdate()">
                     <i class="fas fa-font action-icon"></i>
                     <p class="icon-text">Search & Update</p>
                 </div>
-                <div id="view-enquiries">
+                <div id="view-enquiries" onclick="viewEnquiries()">
                     <i class="fas fa-question action-icon"></i>
                     <p class="icon-text">View Enquiries</p>
                 </div>
@@ -81,8 +81,53 @@
                     <i class="fas fa-file-alt action-icon"></i>
                     <p class="icon-text">Manage Templates</p>
                 </div>
-                </ul>
+                \{{else}} \{{#if isAdmin}}
+                   <div id="add-employees" onclick="addNew()">
+                    <i class="fas fa-user-plus action-icon"></i>
+                    <p class="icon-text">Add Employees</p>
+                </div>
+                <div id="trigger-reports" onclick="triggerReports()">
+                    <i class="far fa-file-excel action-icon"></i>
+                    <p class="icon-text">Trigger Reports</p>
+                </div>
+                <div id="change-phone-number" onclick="changePhoneNumber()">
+                    <i class="fas fa-phone-volume action-icon"></i>
+                    <p class="icon-text">Update Phone Number</p>
+                </div>
+                <div id="employee-resign" onclick="employeeExis()">
+                    <i class="fas fa-user-minus action-icon"></i>
+                    <p class="icon-text">Employee Exit</p>
+                </div>
+                <div id="update-recipient" onclick="updateEmailInReports()">
+                    <i class="fas fa-envelope-open-text action-icon"></i>
+                    <p class="icon-text">Update Report Mail Ids</p>
+                </div>
+                <div id="update-subscription" onclick="updateSubscription()">
+                    <i class="far fa-file-archive action-icon"></i>
+                    <p class="icon-text">Update Subscriptions</p>
+                </div>
+                <div id="update-activity" onclick="searchAndUpdate()">
+                    <i class="fas fa-font action-icon"></i>
+                    <p class="icon-text">Search & Update</p>
+                </div>
+                <div id="view-enquiries" onclick="viewEnquiries()">
+                    <i class="fas fa-question action-icon"></i>
+                    <p class="icon-text">View Enquiries</p>
+                </div>
+                <div id="manage-templates">
+                    <i class="fas fa-file-alt action-icon"></i>
+                    <p class="icon-text">Manage Templates</p>
+                </div>
+                  \{{else}}
+           <div id="view-enquiries" onclick="viewEnquiries()">
+                    <i class="fas fa-question action-icon"></i>
+                    <p class="icon-text">View Enquiries</p>
+                </div>
+            \{{/if}} 
+            \{{/if}}
+                
         </section>
+
         \{{else}}
         <aside class="sidebar hidden animated fadeIn">
             <p>

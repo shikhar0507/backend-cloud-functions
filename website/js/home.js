@@ -1,5 +1,7 @@
 console.log('home loaded');
-function searchOffice(){
+let office;
+
+function searchOffice() {
   document.getElementById('continue').classList.add('invisible');
   const url = `${apiBaseUrl}/admin/search?support=true`
   const input = document.getElementById('office-search-field')
@@ -8,58 +10,53 @@ function searchOffice(){
   // if(!value) return label.textContent = 'No Office Name Entered'
   // label.textContent = '';
   sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (response) {
-        // ul.querySelector('.spinner').remove();
-        console.log('response', response);
-        // if (!response.length) return label.textContent = 'No Offices Found'
-        ul.innerHTML = '';
-        response.forEach(function(name){
-          const li = document.createElement('li')
-          li.textContent = name;
-          li.onclick = function(){
-            input.value = name;
-            document.querySelector('.button-search').classList.add('invisible');
-            
-            document.getElementById('continue').classList.remove('invisible');
-            [...ul.querySelectorAll('li')].forEach(function(el){
-               el.remove();
-            })
-          }
-          ul.appendChild(li)
-        })
-    
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      // ul.querySelector('.spinner').remove();
+      console.log('response', response);
+      // if (!response.length) return label.textContent = 'No Offices Found'
+      ul.innerHTML = '';
+      response.forEach(function (name) {
+        const li = document.createElement('li')
+        li.textContent = name;
+        li.onclick = function () {
+          input.value = name;
+          document.querySelector('.button-search').classList.add('invisible');
 
+          document.getElementById('continue').classList.remove('invisible');
+          [...ul.querySelectorAll('li')].forEach(function (el) {
+            el.remove();
+          })
+        }
+        ul.appendChild(li)
       })
+
+
+    })
   console.log('clicked')
 }
 
 
-function toggleSearchButton(e){
+function toggleSearchButton(e) {
   console.log(e);
-  if(!e.value) {
+  if (!e.value) {
     document.querySelector('.button-search').classList.add('invisible');
-  }
-  else {
+  } else {
     document.querySelector('.button-search').classList.remove('invisible');
   }
   document.getElementById("continue").classList.add('invisible');
 }
 
-function startAdmin(office){
+function startAdmin(officeName) {
+  office = officeName;
   document.getElementById('office-search-form').classList.add('hidden');
-  document.querySelector('.action-icons-container').classList.remove('hidden')
+  document.querySelector('.action-icons-container').classList.remove('hidden');
+
 }
 const section = document.getElementById('action-section');
 
-const options = {
-  isSupport: false,
-  isAdmin: false,
-  isTemplateManager: false,
-  officeNames: [],
-};
 
 
 function createSearchForm(requestUrl, type) {
@@ -121,7 +118,8 @@ function createSearchForm(requestUrl, type) {
 
 function excelUploadContainer(id) {
   const container = document.createElement('div')
-
+  const templateName = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
+  
   const uploadContainer = document.createElement('div')
   uploadContainer.className = 'upload-container'
   const input = document.createElement('input')
@@ -232,16 +230,14 @@ function manageTemplates() {
 
 }
 
-function addEmployees(options) {
-  /**
-   * Create a file upload button
-   */
+function addNew() {
 
+  console.log(office)
   const url = apiBaseUrl + '/admin/bulk?support=true'
-
   const modal = createModal(excelUploadContainer('upload-employee'))
   const upload = modal.querySelector('#upload-employee')
-  const notificationLabel = modal.querySelector('.notification-label')
+  const notificationLabel = modal.querySelector('.notification-label');
+
   upload.addEventListener('change', function (evt) {
     evt.stopPropagation();
     evt.preventDefault();
@@ -338,8 +334,8 @@ function viewEnquiries(options) {
   table.id = 'enquiry-table'
   const head = document.createElement('thead');
   const headTr = document.createElement('tr');
-  const headerNames = ['S.No','Status','Creator','Company','Product','Enquiry'];
-  headerNames.forEach(function(name){
+  const headerNames = ['S.No', 'Status', 'Creator', 'Company', 'Product', 'Enquiry'];
+  headerNames.forEach(function (name) {
     const th = document.createElement('th');
     th.textContent = name
     headTr.appendChild(th);
@@ -347,41 +343,41 @@ function viewEnquiries(options) {
   head.appendChild(headTr);
   table.appendChild(head);
 
-  sendApiRequest('http://localhost:5015/json?template=enquiry', null, 'GET')
-          .then(function (response) {
-            return response.json();
-          })
-          .then(function (response) {
-            const body = document.createElement('tbody')
-            console.log(response);
-            Object.keys(response).forEach(function(id,idx){
-              const tr = document.createElement('tr');
-              const indexCol = document.createElement('td');
-              indexCol.textContent = idx +1;
-              const statusRow = document.createElement('td');
-              statusRow.textContent = response[id].status;
-              const creatorRow = document.createElement('td');
-              creatorRow.textContent = response[id].creator.displayName || response[i].creator.phoneNumber
-              const companyRow = document.createElement('td')
-              companyRow.textContent = response[id].companyName || '-';
-              const productRow = document.createElement('td');
-              productRow.textContent = response[id].product || '-';
-              const enquiryRow = document.createElement('td');
-              enquiryRow.textContent = response[id].enquiry || '-';
-              tr.appendChild(indexCol);
-              tr.appendChild(statusRow);
-              tr.appendChild(creatorRow);
-              tr.appendChild(companyRow);
-              tr.appendChild(productRow);
-              tr.appendChild(enquiryRow);
-              body.appendChild(tr)
-             
-            })
-            table.appendChild(body)
-         
-            document.getElementById('modal-box').appendChild(createModal(table));
+  sendApiRequest('http://localhost:5025/json?template=enquiry', null, 'GET')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      const body = document.createElement('tbody')
+      console.log(response);
+      Object.keys(response).forEach(function (id, idx) {
+        const tr = document.createElement('tr');
+        const indexCol = document.createElement('td');
+        indexCol.textContent = idx + 1;
+        const statusRow = document.createElement('td');
+        statusRow.textContent = response[id].status;
+        const creatorRow = document.createElement('td');
+        creatorRow.textContent = response[id].creator.displayName || response[i].creator.phoneNumber
+        const companyRow = document.createElement('td')
+        companyRow.textContent = response[id].companyName || '-';
+        const productRow = document.createElement('td');
+        productRow.textContent = response[id].product || '-';
+        const enquiryRow = document.createElement('td');
+        enquiryRow.textContent = response[id].enquiry || '-';
+        tr.appendChild(indexCol);
+        tr.appendChild(statusRow);
+        tr.appendChild(creatorRow);
+        tr.appendChild(companyRow);
+        tr.appendChild(productRow);
+        tr.appendChild(enquiryRow);
+        body.appendChild(tr)
 
-  })
+      })
+      table.appendChild(body)
+
+      document.getElementById('modal-box').appendChild(createModal(table));
+
+    })
 }
 
 function manageTemplates(options) {
@@ -419,7 +415,7 @@ function handleActionIconClick(event) {
       }
 
       if (event.target.id === 'trigger-reports') {
-       
+
         if (options.isAdmin) {
           return void triggerReportWithAdmin(options);
         }

@@ -145,7 +145,7 @@ function sendOtpToPhoneNumber() {
 function handleRecaptcha() {
   window
     .recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-      'size': 'normal',
+      'size': 'invisible',
       'callback': function (response) {
         // reCAPTCHA solved, allow signInWithPhoneNumber.
         window.recaptchaResolved = true;
