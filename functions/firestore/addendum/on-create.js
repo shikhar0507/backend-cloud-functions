@@ -847,45 +847,6 @@ const handleLeaveReport = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
-const handleCustomer = (addendumDoc, locals) => {
-  const template = addendumDoc.get('activityData.template');
-
-  if (template !== 'customer') {
-    return Promise.resolve();
-  }
-
-  const action = addendumDoc.get('action');
-
-  if (action !== httpsActions.create
-    || action !== httpsActions.update) {
-    return Promise.resolve();
-  }
-
-  const today = new Date();
-  const office = addendumDoc.get('activityData.office');
-
-  return rootCollections
-    .inits
-    .where('office', '==', office)
-    .where('report', '==', reportNames.CUSTOMER)
-    .where('month', '==', today.getMonth())
-    .where('year', '==', today.getFullYear())
-    .limit(1)
-    .get()
-    .then((snapShot) => {
-      const ref = initDocRef(snapShot);
-      const data = {
-        month: today.getMonth(),
-        year: today.getFullYear(),
-        report: reportNames.CUSTOMER,
-        customerObject: {},
-      };
-
-      return ref.set(data, { merge: true });
-    })
-    .catch(console.error);
-};
-
 const logLocations = (addendumDoc, locals) => {
   const geopointAccuracy = addendumDoc.get('geopointAccuracy');
 
@@ -962,7 +923,6 @@ const getEnquiryObject = (addendumDoc, snapShot) => {
   const enquiryObject = getObject(snapShot, 'enquiryObject');
   const phoneNumber = addendumDoc.get('user');
   const action = addendumDoc.get('action');
-  const status = addendumDoc.get('status');
   const activityId = addendumDoc.get('activityId');
 
   if (!enquiryObject[phoneNumber]) {

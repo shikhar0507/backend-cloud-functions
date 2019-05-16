@@ -16,24 +16,24 @@ const {
 } = require('../../admin/responses');
 
 
-const getActivityObject = (doc) => {
-  return {
-    activityId: doc.id,
-    activityName: doc.get('activityName'),
-    adminsCanEdit: doc.get('adminsCanEdit'),
-    attachment: doc.get('attachment'),
-    canEditRule: doc.get('canEditRule'),
-    creator: doc.get('creator'),
-    hidden: doc.get('hidden'),
-    office: doc.get('office'),
-    officeId: doc.get('officeId'),
-    schedule: doc.get('schedule'),
-    status: doc.get('status'),
-    template: doc.get('template'),
-    timestamp: doc.get('timestamp'),
-    venue: doc.get('venue'),
-  };
-};
+// const getActivityObject = (doc) => {
+//   return {
+//     activityId: doc.id,
+//     activityName: doc.get('activityName'),
+//     adminsCanEdit: doc.get('adminsCanEdit'),
+//     attachment: doc.get('attachment'),
+//     canEditRule: doc.get('canEditRule'),
+//     creator: doc.get('creator'),
+//     hidden: doc.get('hidden'),
+//     office: doc.get('office'),
+//     officeId: doc.get('officeId'),
+//     schedule: doc.get('schedule'),
+//     status: doc.get('status'),
+//     template: doc.get('template'),
+//     timestamp: doc.get('timestamp'),
+//     venue: doc.get('venue'),
+//   };
+// };
 
 
 const getTemplateObject = (doc) => doc.data();

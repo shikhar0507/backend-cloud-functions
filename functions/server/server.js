@@ -106,10 +106,6 @@ const handleAdminUrl = (conn, urlParts) => {
     return require('../firestore/offices/search')(conn);
   }
 
-  if (resource === 'single') {
-    return require('../firestore/single')(conn);
-  }
-
   if (resource === 'bulk') {
     return require('../firestore/bulk/script')(conn);
   }

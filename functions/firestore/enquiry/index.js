@@ -4,9 +4,9 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
-  sendJSON,
   handleError,
   sendResponse,
+  isNonEmptyString,
 } = require('../../admin/utils');
 const {
   code,
@@ -21,7 +21,35 @@ const validateBody = (body) => {
     message: null,
   };
 
-  // TODO: Add validation
+  if (!body.hasOwnProperty('office')) {
+    result.isValid = false;
+    result.message = `Missing field 'office' in the request body`;
+  }
+
+  if (!isNonEmptyString(body.office)) {
+    result.isValid = false;
+    result.message = `Field 'office' should be a non-empty string`;
+  }
+
+  if (!body.hasOwnProperty('companyName')) {
+    result.isValid = false;
+    result.message = `Missing field 'companyName' in the request body`;
+  }
+
+  if (!isNonEmptyString(body.companyName)) {
+    result.isValid = false;
+    result.message = `Field 'companyName' should be a non-empty string`;
+  }
+
+  if (!body.hasOwnProperty('enquiryText')) {
+    result.isValid = false;
+    result.message = `Missing field 'enquiryText' in the request body`;
+  }
+
+  if (!isNonEmptyString(body.enquiryText)) {
+    result.isValid = false;
+    result.message = `Field 'enquiryText' should be a non-empty string`;
+  }
 
   return result;
 };

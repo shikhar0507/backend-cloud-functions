@@ -27,7 +27,6 @@
 
 const { code } = require('./responses');
 const {
-  db,
   auth,
   rootCollections,
 } = require('./admin');
@@ -40,12 +39,12 @@ const {
 } = require('../admin/constants');
 const crypto = require('crypto');
 const env = require('./env');
-const PNF = require('google-libphonenumber').PhoneNumberFormat;
-const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 const https = require('https');
 const xlsxPopulate = require('xlsx-populate');
 const moment = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
+// const PNF = require('google-libphonenumber').PhoneNumberFormat;
+// const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 
 sgMail.setApiKey(env.sgMailApiKey);
 
@@ -1145,53 +1144,6 @@ const generateDates = (startTime, endTime) => {
     numberOfDays: dates.length,
     dates,
   };
-};
-
-const handleRecipientErrors = (context) => {
-  const {
-    office,
-    report,
-    error,
-  } = context;
-
-  const momentToday = moment();
-  const date = momentToday.date();
-  const month = momentToday.month();
-  const year = momentToday.year();
-
-  return rootCollections
-    .errors
-    .where('report', '==', report)
-    .where('date', '==', date)
-    .where('month', '==', month)
-    .where('year', '==', year)
-    .limit(1)
-    .get()
-    .then((docs) => {
-      const ref = (() => {
-        if (docs.empty) {
-          return rootCollections.errors.doc();
-        }
-
-        return docs.docs[0].ref;
-      })();
-
-      const data = docs.docs[0] ? docs.docs[0].data() : {};
-
-      data.date = date;
-      data.month = month;
-      data.year = year;
-      data.report = report;
-      data.officesAffected = data.officesAffected || [];
-      data.includeInDailyStatusReport = false;
-
-      if (!data.officesAffected.includes(office)) {
-        data.officesAffected.push(office);
-      }
-
-      return ref.set(data, { merge: true });
-    })
-    .catch(Promise.reject);
 };
 
 

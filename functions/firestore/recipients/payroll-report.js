@@ -140,8 +140,6 @@ module.exports = (locals) => {
   const weeklyOffSet = new Set();
   /** People with the status ON DUTY */
   const onDutySet = new Set();
-  /** Stores the type of leave a person has taken for the day */
-  const leaveTypesMap = new Map();
   const branchesWithHoliday = new Set();
   const yesterday = momentTz(todayFromTimestamp).tz(timezone).subtract(1, 'days');
   const yesterdayDate = yesterday.date();
@@ -397,9 +395,7 @@ module.exports = (locals) => {
         return Promise.resolve();
       }
 
-      checkInActivitiesAddendumQuery.forEach((snapShot, index) => {
-        // const phoneNumber = phoneNumbersByQueryIndex[index];
-
+      checkInActivitiesAddendumQuery.forEach((snapShot) => {
         if (snapShot.empty) {
           // This person did nothing on the day. Report will
           // show `BLANK` for the date

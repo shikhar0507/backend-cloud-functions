@@ -1,6 +1,7 @@
 'use strict';
 
 const {
+  db,
   rootCollections,
 } = require('../../admin/admin');
 const {
@@ -16,14 +17,18 @@ const momentTz = require('moment-timezone');
 
 
 const triggerReports = (options) => {
-  const {
-    timestampsArray,
-    recipientsDoc,
-  } = options;
+  const { timestampsArray, recipientsDoc } = options;
+  const batch = db.batch();
 
-  const promisesArray = [];
+  timestampsArray.forEach((timestamp) => {
+    batch.set(recipientsDoc.ref, {
+      timestamp,
+    }, {
+        merge: true,
+      });
+  });
 
-  return Promise.resolve();
+  return batch.commit();
 };
 
 
@@ -58,7 +63,6 @@ const fetchRecipientsDoc = (conn, officeDoc) => {
 
         timestampsArray.push(newMoment.valueOf());
       }
-
 
       const options = {
         officeDoc,

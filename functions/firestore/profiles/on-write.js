@@ -24,7 +24,7 @@
 
 'use strict';
 
-const https = require('https');
+
 const {
   db,
   rootCollections,
