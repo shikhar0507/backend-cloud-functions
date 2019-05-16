@@ -10,8 +10,31 @@
     \{{> persistentBarPartial this}}
     \{{> headerPartial this}}
     <div class="container">
+       
         \{{#if isLoggedIn}}
-        <section class="action-icons-container">
+        <div class="office-selection">
+          \{{#if isSupport}}
+           <form style="display: inherit;">
+                   <input type="text" placeholder="Search an office" class="input-field">
+                   <a class="button" id='search-office'>search</a>
+            </form> 
+           
+            \{{else}} \{{#if isAdmin}}
+                <select id='office-selector'>
+                    \{{#each adminOffices}}
+                        <option value=\{{this}}>\{{this}}</option>
+                    \{{/each}}
+                 </select>
+                 <button class="button" id='select-office'>Select</button>
+            \{{else}}
+            <p>Normal user</p>
+            \{{/if}} 
+            \{{/if}}
+        </div>
+       
+
+       
+        <section class="action-icons-container hidden">
             <section id="action-section">
                 <p id="default-text">Click to proceed</p>
             </section>
@@ -131,6 +154,7 @@
     <div id='modal-box'></div>
     \{{> scriptsPartial}}
     <script src="js/home.js"></script>
+ 
 </body>
 
 </html>

@@ -1,5 +1,16 @@
 console.log('home loaded');
-
+function initSelectors(){
+ 
+   firebase
+  .auth()
+  .currentUser
+  .getIdTokenResult()
+  .then(function (getIdTokenResult) {
+    const claims = getIdTokenResult.claims;
+    console.log(claims)
+  })
+}
+initSelectors()
 const section = document.getElementById('action-section');
 
 const options = {
@@ -351,6 +362,7 @@ function handleActionIconClick(event) {
     .getIdTokenResult()
     .then(function (getIdTokenResult) {
       const claims = getIdTokenResult.claims;
+      console.log(claims)
       options.isSupport = claims.support;
       if (Array.isArray(claims.admin)) {
         if (claims.admin.length > 0) {

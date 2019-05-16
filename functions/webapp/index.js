@@ -91,6 +91,13 @@ const getLoggedInStatus = (idToken) => {
     .verifyIdToken(idToken, true)
     .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
     .then((userRecord) => {
+      const isAdmin = userRecord.customClaims.admin
+      && userRecord.customClaims.admin.length > 0;
+      let adminOffices;
+      if(isAdmin) {
+        adminOffices = userRecord.customClaims.admin;
+      }
+
       return {
         uid: userRecord.uid,
         isLoggedIn: true,
@@ -101,8 +108,8 @@ const getLoggedInStatus = (idToken) => {
         displayName: userRecord.displayName,
         disabled: userRecord.disabled,
         isSupport: userRecord.customClaims.support,
-        isAdmin: userRecord.customClaims.admin
-          && userRecord.customClaims.admin.length > 0,
+        isAdmin: isAdmin,
+        adminOffices: adminOffices,
         isTemplateManager: userRecord.customClaims.manageTemplates,
       };
     })
@@ -274,8 +281,10 @@ const handleJoinPage = (locals, requester) => {
 };
 
 const handleHomePage = (locals, requester) => {
+  console.log("request",requester);
   const source = require('./views/index.hbs')();
   const template = handlebars.compile(source, { strict: true });
+ 
   const html = template({
     pageTitle: 'Growthfile Home',
     pageDescription: 'One app for employees of all offices',
@@ -287,8 +296,9 @@ const handleHomePage = (locals, requester) => {
     emailVerified: requester.emailVerified,
     displayName: requester.displayName,
     photoURL: requester.photoURL,
-    isSupport: requester.support,
+    isSupport: false,
     isAdmin: requester.isAdmin,
+    adminOffices:requester.adminOffices,
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
   });
@@ -549,6 +559,7 @@ module.exports = (req, res) => {
 
   return getLoggedInStatus(idToken)
     .then((result) => {
+     
       const {
         uid,
         email,
@@ -563,7 +574,7 @@ module.exports = (req, res) => {
         isTemplateManager,
       } = result;
 
-      console.log('result', result);
+   
 
       locals.isLoggedIn = uid !== null;
 
@@ -579,10 +590,12 @@ module.exports = (req, res) => {
           isAdmin,
           isSupport,
           isTemplateManager,
+          
         };
       }
 
       if (!slug) {
+        requester.adminOffices = result.adminOffices;
         html = handleHomePage(locals, requester);
       }
 

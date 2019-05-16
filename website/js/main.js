@@ -279,7 +279,7 @@ function setGlobals() {
     .then(function (response) { return response.json() })
     .then(function (result) {
       window.globalsSet = true;
-
+     
       Object
         .keys(result)
         .forEach(function (key) {
@@ -293,10 +293,11 @@ function setGlobals() {
 }
 
 
-document
+
+window
   .addEventListener('load', function () {
     setGlobals();
-
+    
     firebase
       .auth()
       .addAuthTokenListener(function (idToken) {
