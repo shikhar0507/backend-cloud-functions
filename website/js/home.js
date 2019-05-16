@@ -49,7 +49,8 @@ function toggleSearchButton(e){
 }
 
 function startAdmin(office){
-  console.log(office);
+  document.getElementById('office-search-form').classList.add('hidden');
+  document.querySelector('.action-icons-container').classList.remove('hidden')
 }
 const section = document.getElementById('action-section');
 
