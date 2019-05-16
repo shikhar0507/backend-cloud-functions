@@ -45,7 +45,6 @@
 
 section {
     min-height: unset;
-    color: #89273E;
 }
 
 #default-text {
@@ -56,25 +55,12 @@ section {
     margin-top: 16px;
 }
 
-section h2 {
-    /* margin-top: 16px; */
-    /* font-size: 18px; */
-}
-
 section h3 {
     font-size: 18px;
 }
 
 section h2 span {
     font-weight: 600;
-}
-
-.call-to-action ul {
-    color: #89273E;
-}
-
-.action-icon {
-    font-size: 2.5em;
 }
 
 .icon-text {
@@ -194,9 +180,9 @@ tr:nth-child(even) {
 
 section h1 {
     font-weight: 800;
-    font-size: 35px;
+    font-size: 44px;
     margin-bottom: 16px;
-    line-height: 38px;
+    line-height: 44px;
 }
 
 .featured-companies {
