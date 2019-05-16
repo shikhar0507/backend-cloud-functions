@@ -29,9 +29,9 @@
                         \{{email}}
                         \{{/if}}
                         \{{#if emaiVerified}}
-                        <i class="far fa-check-circle"></i>
+                        <i class="fas fa-check-circle"></i>
                         \{{else}}
-                        <i class="fas fa-times"></i>
+                        <i class="fas fa-times-circle"></i>
                         \{{/if}}
                     </li>
                 </ul>
@@ -41,10 +41,10 @@
             </div>
         </div>
         \{{else}}
-        <a id="header-login-button" class="button" href="/auth">
-            <span id="header-button-text">Log in</span>
-            <i class="fas fa-sign-in-alt"></i>
+        <a id="header-hamburger-icon" href="#">
+            <i class="fas fa-bars"></i>
         </a>
-        \{{/if}}
+    </div>
+    \{{/if}}
     </div>
 </header>

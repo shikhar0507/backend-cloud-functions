@@ -65,16 +65,11 @@ const cancelEmployee = (conn, officeDoc) => {
         .where('phoneNumber', '==', conn.req.body.phoneNumber)
         .limit(1)
         .get(),
-      // rootCollections
-      //   .profiles
-      //   .doc(conn.req.body.phoneNumber)
-      //   .get(),
     ])
     .then((result) => {
       const [
         employeeActivityQuery,
         updatesDocQuery,
-        // profileDoc,
       ] = result;
 
       if (employeeActivityQuery.empty) {

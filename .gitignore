@@ -89,4 +89,4 @@ env.*
 
 # Firebase cache files
 *.cache
-*.firebase/
+.firebase/

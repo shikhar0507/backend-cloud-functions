@@ -78,20 +78,36 @@
                 </ul>
         </section>
         \{{else}}
-        <section>
+        <aside class="sidebar hidden animated fadeIn">
+            <p>
+                <a href="/auth">Login</a>
+            </p>
+            <p>
+                <a href="#">Features</a>
+            </p>
+            <p>
+                <a href="#">Pricing</a>
+            </p>
+        </aside>
+        <section class="features-section">
             <h1>A habit for highly effective businesses</h1>
-            <span>Do what you are suppose to do, Everytime</span>
-            <button class="button">Start Now</button>
+            <div class="features">
+                <span>Do what you are suppose to do.</span>
+                <a href="/join" class="button">Start For Free</a>
+            </div>
+            <div class="featured-companies">
+                {{!-- TODO: Put companies here --}}
+            </div>
         </section>
-        <section>
-            <div>
-                <i class="fas fa-2x fa-robot"></i>
+        <section class="features-section">
+            <div class="feature-header">
+                <i class="fas fa-robot"></i>
                 <h2>Automation</h2>
             </div>
             <span>Increase your teams productivity by automating office activities</span>
             <div class="features">
                 <div class="feature">
-                    <i class="fas fa-rupee-sign"></i>
+                    <i class="fas fa-chart-pie"></i>
                     <span>Payroll</span>
                 </div>
                 <div class="feature">
@@ -111,40 +127,47 @@
             <span>One app for all</span>
             <span>No training. Go live in 30 minutes</span>
         </section>
-        <section>
-            <div>
-                <i class="fas fa-2x fa-plug"></i>
+        <section class="features-section">
+            <div class="feature-header">
+                <i class="fas fa-plug"></i>
                 <h2>Plug & Play</h2>
             </div>
             <div class="features">
                 <div class="feature">
+                    <i class="fas fa-mobile"></i>
                     <span>Use our mobile page builder tool</span>
                 </div>
                 <div class="feature">
+                    <i class="far fa-lightbulb"></i>
                     <span>Use our program's learning to keep the page always updated</span>
                 </div>
                 <div class="feature">
+                    <i class="fas fa-share-alt"></i>
                     <span>Plug and play across social media platforms</span>
                 </div>
                 <div class="feature">
+                    <i class="fab fa-internet-explorer"></i>
                     <span>Ensure consistent messaging of your company across the web</span>
                 </div>
             </div>
         </section>
-        <section>
-            <div>
-                <i class="fas fa-2x fa-arrow-up"></i>
-                <h2>Get the <span class="utils-bold">UNLIMITED</span> advantage</h2>
+        <section class="features-section">
+            <div class="feature-header">
+                <i class="fas fa-arrow-up"></i>
+                <h2>Unlimited Advantage</h2>
             </div>
             <div class="features">
                 <div class="feature">
+                    <i class="fas fa-rupee-sign"></i>
                     <span>One time cost for a lifetime membership</span>
                 </div>
                 <div class="feature">
+                    <i class="fas fa-user-friends"></i>
                     <span>No per-office, per-employee costs</span>
                 </div>
                 <div class="feature">
-                    <span>Unlimited usage. Maximum benefit</span>
+                    <i class="fas fa-signal"></i>
+                    <span>Unlimited usage</span>
                 </div>
             </div>
         </section>
