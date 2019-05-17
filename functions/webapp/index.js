@@ -467,7 +467,7 @@ const jsonApi = (conn, requester) => {
     
     return json;
   }
-  console.log(conn.requester)
+
   // if (!hasAdminClaims(conn.requester.customClaims)
   //   && !hasSupportClaims(conn.requester.customClaims)) {
   //     console.log("not valid")

@@ -9,32 +9,33 @@ function searchOffice() {
   ul.appendChild(getSpinnerElement().center())
   // if(!value) return label.textContent = 'No Office Name Entered'
   // label.textContent = '';
-  sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
-    .then(function (response) {
-      return response.json();
-    })
-    .then(function (response) {
-      // ul.querySelector('.spinner').remove();
-      console.log('response', response);
-      // if (!response.length) return label.textContent = 'No Offices Found'
-      ul.innerHTML = '';
-      response.forEach(function (name) {
-        const li = document.createElement('li')
-        li.textContent = name;
-        li.onclick = function () {
-          input.value = name;
-          document.querySelector('.button-search').classList.add('invisible');
+  // sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
+  //   .then(function (response) {
+  //     return response.json();
+  //   })
+  //   .then(function (response) {
+  //     // ul.querySelector('.spinner').remove();
+  //     console.log('response', response);
+  // if (!response.length) return label.textContent = 'No Offices Found'
+  ul.innerHTML = '';
+  var response = ['Puja Capital']
+  response.forEach(function (name) {
+    const li = document.createElement('li')
+    li.textContent = name;
+    li.onclick = function () {
+      input.value = name;
+      document.querySelector('.button-search').classList.add('invisible');
 
-          document.getElementById('continue').classList.remove('invisible');
-          [...ul.querySelectorAll('li')].forEach(function (el) {
-            el.remove();
-          })
-        }
-        ul.appendChild(li)
+      document.getElementById('continue').classList.remove('invisible');
+      [...ul.querySelectorAll('li')].forEach(function (el) {
+        el.remove();
       })
+    }
+    ul.appendChild(li)
+  })
 
 
-    })
+  // })
   console.log('clicked')
 }
 
@@ -116,36 +117,66 @@ function createSearchForm(requestUrl, type) {
 
 }
 
-function excelUploadContainer(id) {
+function excelUploadContainer(id, office) {
   const container = document.createElement('div')
-  const templateName = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
-  
-  const uploadContainer = document.createElement('div')
-  uploadContainer.className = 'upload-container'
-  const input = document.createElement('input')
-  input.type = 'file';
-  input.id = id;
-  input.accept = '.xlsx, .xls , .csv'
-  const label = document.createElement('label')
-  label.textContent = 'Upload File';
-  uploadContainer.appendChild(label);
-  uploadContainer.appendChild(input);
-  const p = document.createElement('p')
-  p.className = 'notification-label';
-  uploadContainer.appendChild(p);
-  const result = document.createElement('div')
-  result.id = 'upload-result-error';
-  uploadContainer.appendChild(result)
+  const fileContainer = document.createElement('div')
+  fileContainer.id = 'file-container'
+  const templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
+  const span = document.createElement('span');
+  span.className = 'select-dropdown'
 
-  const downloadContainer = document.createElement('div');
-  downloadContainer.className = 'download-container mt-30';
-  const button = document.createElement('button')
-  button.className = 'button'
-  button.textContent = 'Download Sample';
-  downloadContainer.appendChild(button)
-  container.appendChild(uploadContainer);
-  container.appendChild(downloadContainer);
+  const select = document.createElement('select')
+  const defalOption = document.createElement('option')
+  defalOption.selected = "true"
+  defalOption.disabled = "disabled"
+  defalOption.textContent = 'Choose Type'
+  select.appendChild(defalOption);
 
+  templateNames.forEach(function (name) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option)
+  })
+  span.appendChild(select);
+  select.addEventListener('change', function (evt) {
+    console.log(evt)
+    if (fileContainer) {
+      fileContainer.innerHTML = '';
+    }
+    const uploadContainer = document.createElement('div')
+    uploadContainer.className = 'upload-container'
+    const input = document.createElement('input')
+    input.type = 'file';
+    input.id = id;
+    input.accept = '.xlsx, .xls , .csv'
+    input.onchange = function (inputEvt) {
+      fileToJson(evt.target.value, office, inputEvt)
+    }
+    const label = document.createElement('label')
+    label.textContent = 'Upload File';
+    uploadContainer.appendChild(label);
+    uploadContainer.appendChild(input);
+    const p = document.createElement('p')
+    p.className = 'notification-label';
+    uploadContainer.appendChild(p);
+    const result = document.createElement('div')
+    result.id = 'upload-result-error';
+    uploadContainer.appendChild(result)
+
+    const downloadContainer = document.createElement('div');
+    downloadContainer.className = 'download-container mt-30';
+    const button = document.createElement('button')
+    button.className = 'button'
+    button.textContent = 'Download Sample';
+    downloadContainer.appendChild(button)
+    fileContainer.appendChild(uploadContainer);
+    fileContainer.appendChild(downloadContainer);
+    container.appendChild(fileContainer)
+  })
+
+
+  container.appendChild(span)
   return container;
 
 }
@@ -230,77 +261,89 @@ function manageTemplates() {
 
 }
 
+function fileToJson(template, office, evt) {
+  const notificationLabel = modal.querySelector('.notification-label');
+  const url = apiBaseUrl + '/admin/bulk?support=true'
+  evt.stopPropagation();
+  evt.preventDefault();
+
+  const files = evt.target.files;
+  const file = files[0];
+  const reader = new FileReader();
+
+  reader.onload = function (e) {
+    const data = e.target.result;
+
+    e.target.ressul
+    const wb = XLSX.read(data, {
+      type: 'binary'
+    });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const jsonData = XLSX.utils.sheet_to_json(ws, {
+      blankRows: false,
+      defval: '',
+      raw: false
+    });
+    if (!jsonData.length) {
+      if(notificationLabel) {
+
+        notificationLabel.className = 'notification-label warning-label'
+        notificationLabel.textContent = 'File is Empty'
+      }
+      return;
+    };
+    jsonData.forEach(function (val) {
+      val.share = [];
+    })
+
+    getLocation().then(function (location) {
+
+      const body = {
+        office: office,
+        template: template,
+        data: jsonData,
+        timestamp: Date.now(),
+        geopoint: location
+      }
+
+      return sendApiRequest(`${url}`, body, 'POST')
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (response) {
+          const rejectedOnes = response.data.filter((val) => val.rejected);
+          if (!rejectedOnes.length) {
+            if(notificationLabel) {
+
+              notificationLabel.className = 'notification-label success-label'
+              notificationLabel.textContent = 'Success';
+            }
+            return;
+          }
+          notificationLabel.textContent = '';
+          BulkCreateErrorContainer(jsonData, rejectedOnes)
+        }).catch(console.error);
+    }).catch(function (error) {
+      if(notificationLabel) {
+
+        notificationLabel.className = 'notification-label warning-label'
+        notificationLabel.textContent = error.message;
+      }
+    })
+
+  }
+  reader.readAsBinaryString(file);
+  console.log(evt);
+
+}
+
 function addNew() {
 
   console.log(office)
-  const url = apiBaseUrl + '/admin/bulk?support=true'
-  const modal = createModal(excelUploadContainer('upload-employee'))
-  const upload = modal.querySelector('#upload-employee')
-  const notificationLabel = modal.querySelector('.notification-label');
 
-  upload.addEventListener('change', function (evt) {
-    evt.stopPropagation();
-    evt.preventDefault();
+  const modal = createModal(excelUploadContainer('create-new', office))
 
-    const files = evt.target.files;
-    const file = files[0];
-    const reader = new FileReader();
 
-    reader.onload = function (e) {
-      const data = e.target.result;
-
-      e.target.ressul
-      const wb = XLSX.read(data, {
-        type: 'binary'
-      });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(ws, {
-        blankRows: false,
-        defval: '',
-        raw: false
-      });
-      if (!jsonData.length) {
-        notificationLabel.className = 'notification-label warning-label'
-        notificationLabel.textContent = 'File is Empty'
-        return;
-      };
-      jsonData.forEach(function (val) {
-        val.share = [];
-      })
-
-      getLocation().then(function (location) {
-
-        const body = {
-          office: options.officeNames[0],
-          template: 'employee',
-          data: jsonData,
-          timestamp: Date.now(),
-          geopoint: location
-        }
-
-        return sendApiRequest(`${url}`, body, 'POST')
-          .then(function (response) {
-            return response.json();
-          })
-          .then(function (response) {
-            const rejectedOnes = response.data.filter((val) => val.rejected);
-            if (!rejectedOnes.length) {
-              notificationLabel.className = 'notification-label success-label'
-              notificationLabel.textContent = 'Success';
-              return;
-            }
-            notificationLabel.textContent = '';
-            BulkCreateErrorContainer(jsonData, rejectedOnes)
-          }).catch(console.error);
-      }).catch(function (error) {
-        notificationLabel.className = 'notification-label warning-label'
-        notificationLabel.textContent = error.message;
-      })
-
-    }
-    reader.readAsBinaryString(file);
-    console.log(evt);
-  });
   document.getElementById('modal-box').appendChild(modal);
 }
 
