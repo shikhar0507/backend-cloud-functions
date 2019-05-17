@@ -2,14 +2,11 @@
 
 const {
   users,
-} = require('../admin/admin');
+} = require('../../admin/admin');
 const {
   sendJSON,
   multipartParser,
-} = require('../admin/utils');
-const {
-  code,
-} = require('../admin/responses');
+} = require('../../admin/utils');
 const XLSX = require('xlsx');
 
 
@@ -25,10 +22,10 @@ const getEmail = (from) => {
 /**
  * Checks custom claims and returns a boolean depending
  * on the custom claims of the user.
- * 
+ *
  * @param {object} customClaims Custom claims object
  * @param {string} officeName Name of the office
- * @returns {boolean} if the user is support or has admin claims 
+ * @returns {boolean} if the user is support or has admin claims
  * with the specified office
  */
 const toAllowRequest = (customClaims, officeName) => {

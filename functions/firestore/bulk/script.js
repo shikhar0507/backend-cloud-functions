@@ -18,9 +18,9 @@ const {
   isNonEmptyString,
   isE164PhoneNumber,
 } = require('../../admin/utils');
-const {
-  alphabetsArray,
-} = require('../../firestore/recipients/report-utils');
+// const {
+//   alphabetsArray,
+// } = require('../../firestore/recipients/report-utils');
 const {
   code,
 } = require('../../admin/responses');
@@ -33,10 +33,10 @@ const {
   httpsActions,
   timezonesSet,
 } = require('../../admin/constants');
-const xlsxPopulate = require('xlsx-populate');
+// const xlsxPopulate = require('xlsx-populate');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
-const fs = require('fs');
+// const fs = require('fs');
 
 
 const templateNamesObject = {
@@ -194,81 +194,81 @@ const getEmployeeDataObject = (activityObject, phoneNumber) => {
   };
 };
 
-const sendXLSXToCreaator = (conn, locals, responseObject) => {
-  const fileName = `${conn.req.body.template}--${conn.req.body.office}.xlsx`;
-  const filePath = `/tmp/${fileName}`;
-  const messageObject = {
-    to: {
-      name: conn.requester.displayName,
-      email: conn.req.body.senderEmail || conn.requester.email,
-    },
-    from: {
-      name: 'Growthfile',
-      email: env.systemEmail,
-    },
-    html: '<h1>Docs created</h1>',
-    subject: `Bulk Creation of ${conn.req.body.template} result`,
-    attachments: [],
-  };
+// const sendXLSXToCreaator = (conn, locals, responseObject) => {
+//   const fileName = `${conn.req.body.template}--${conn.req.body.office}.xlsx`;
+//   const filePath = `/tmp/${fileName}`;
+//   const messageObject = {
+//     to: {
+//       name: conn.requester.displayName,
+//       email: conn.req.body.senderEmail || conn.requester.email,
+//     },
+//     from: {
+//       name: 'Growthfile',
+//       email: env.systemEmail,
+//     },
+//     html: '<h1>Docs created</h1>',
+//     subject: `Bulk Creation of ${conn.req.body.template} result`,
+//     attachments: [],
+//   };
 
-  if (!messageObject.to) {
-    return Promise.resolve(responseObject);
-  }
+//   if (!messageObject.to) {
+//     return Promise.resolve(responseObject);
+//   }
 
-  const items = responseObject.data;
+//   const items = responseObject.data;
 
-  return xlsxPopulate
-    .fromBlankAsync()
-    .then((workbook) => {
-      const resultSheet = workbook.sheet('Sheet1');
-      const firstItem = items[0];
-      const objectFields = Object.keys(firstItem);
+//   return xlsxPopulate
+//     .fromBlankAsync()
+//     .then((workbook) => {
+//       const resultSheet = workbook.sheet('Sheet1');
+//       const firstItem = items[0];
+//       const objectFields = Object.keys(firstItem);
 
-      resultSheet
-        .row(1)
-        .style('bold', true);
+//       resultSheet
+//         .row(1)
+//         .style('bold', true);
 
-      locals
-        .allFieldsArray
-        .forEach((value, index) => {
-          resultSheet.cell(`${alphabetsArray[index]}1`).value(value);
-        });
+//       locals
+//         .allFieldsArray
+//         .forEach((value, index) => {
+//           resultSheet.cell(`${alphabetsArray[index]}1`).value(value);
+//         });
 
-      items.forEach((item, outerIndex) => {
-        // const alphabet =
-        objectFields.forEach((field, innerIndex) => {
-          if (field === 'share') {
-            return;
-          }
+//       items.forEach((item, outerIndex) => {
+//         // const alphabet =
+//         objectFields.forEach((field, innerIndex) => {
+//           if (field === 'share') {
+//             return;
+//           }
 
-          const idx = `${alphabetsArray[innerIndex]}${outerIndex + 2}`;
-          const val = item[field];
+//           const idx = `${alphabetsArray[innerIndex]}${outerIndex + 2}`;
+//           const val = item[field];
 
-          resultSheet.cell(idx).value(val);
-        });
-      });
+//           resultSheet.cell(idx).value(val);
+//         });
+//       });
 
-      locals.mySheet = workbook;
+//       locals.mySheet = workbook;
 
-      return workbook.toFileAsync(filePath);
-    })
-    .then(() => {
-      messageObject
-        .attachments
-        .push({
-          fileName,
-          content: fs.readFileSync(filePath).toString('base64'),
-          type: 'text/csv',
-          disposition: 'attachment',
-        });
+//       return workbook.toFileAsync(filePath);
+//     })
+//     .then(() => {
+//       messageObject
+//         .attachments
+//         .push({
+//           fileName,
+//           content: fs.readFileSync(filePath).toString('base64'),
+//           type: 'text/csv',
+//           disposition: 'attachment',
+//         });
 
-      return sgMail.sendMultiple(messageObject);
-    })
-    .then(() => Promise.resolve(responseObject))
-    .catch((error) => {
-      console.error(error.toString());
-    });
-};
+//       return sgMail.sendMultiple(messageObject);
+//     })
+//     .then(() => Promise.resolve(responseObject))
+//     .catch((error) => {
+//       console.error(error.toString());
+//     });
+// };
 
 const executeSequentially = (batchFactories) => {
   let result = Promise.resolve();
@@ -985,6 +985,10 @@ const handleAdmins = (conn, locals) => {
 };
 
 const fetchValidTypes = (conn, locals) => {
+  if (conn.req.body.template === 'office') {
+    return Promise.resolve();
+  }
+
   const promises = [];
   const nonExistingValuesSet = new Set();
   const queryMap = new Map();

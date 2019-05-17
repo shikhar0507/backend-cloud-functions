@@ -27,7 +27,6 @@
 
 const { code } = require('./responses');
 const {
-  db,
   auth,
   rootCollections,
 } = require('./admin');
@@ -40,12 +39,14 @@ const {
 } = require('../admin/constants');
 const crypto = require('crypto');
 const env = require('./env');
-const PNF = require('google-libphonenumber').PhoneNumberFormat;
-const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 const https = require('https');
 const xlsxPopulate = require('xlsx-populate');
 const moment = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
+const { execFile } = require('child_process');
+const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
+
+
 
 sgMail.setApiKey(env.sgMailApiKey);
 
@@ -238,9 +239,6 @@ const isHHMMFormat = (string) =>
  * @returns {void}
  */
 const disableAccount = (conn, reason) => {
-  const docId = getISO8601Date();
-
-  const subject = `User Disabled: '${conn.requester.phoneNumber}'`;
   const messageBody = `
   <p>
     The user '${conn.requester.phoneNumber}' has been disabled in Growthfile.
@@ -253,20 +251,8 @@ const disableAccount = (conn, reason) => {
   </p>
   `;
 
-  Promise
+  return Promise
     .all([
-      rootCollections
-        .dailyDisabled
-        .doc(docId)
-        .set({
-          [conn.requester.phoneNumber]: {
-            reason,
-            disabledTimestamp: Date.now(),
-          },
-        }, {
-            /** This doc *will* have other fields too. */
-            merge: true,
-          }),
       rootCollections
         .profiles
         .doc(conn.requester.phoneNumber)
@@ -282,7 +268,7 @@ const disableAccount = (conn, reason) => {
         .doc()
         .set({
           messageBody,
-          subject,
+          subject: `User Disabled: '${conn.requester.phoneNumber}'`,
         }),
       auth
         .updateUser(conn.requester.uid, {
@@ -293,8 +279,35 @@ const disableAccount = (conn, reason) => {
       conn,
       code.forbidden,
       `This account has been temporarily disabled. Please contact your admin.`
-    ))
-    .catch((error) => handleError(conn, error));
+    ));
+};
+
+const headerValid = (headers) => {
+  if (!headers.hasOwnProperty('authorization')) {
+    return {
+      isValid: false,
+      message: 'The authorization header is missing from the headers',
+    };
+  }
+
+  if (typeof headers.authorization !== 'string') {
+    return {
+      isValid: false,
+      message: 'The authorization header is not valid',
+    };
+  }
+
+  if (!headers.authorization.startsWith('Bearer ')) {
+    return {
+      isValid: false,
+      message: `Authorization type is not 'Bearer'`,
+    };
+  }
+
+  return {
+    isValid: true,
+    authToken: headers.authorization.split('Bearer ')[1],
+  };
 };
 
 
@@ -351,20 +364,29 @@ const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
  * @param {string} phoneNumber A phone number.
  * @returns {boolean} If the string is a *valid* __E.164__ phone number.
  * @see https://en.wikipedia.org/wiki/E.164
- * @see https://stackoverflow.com/a/23299989
- * @description RegExp *Explained*...
- * * `^`: Matches the beginning of the string, or the beginning of a line
- * if the multiline flag (m) is enabled.
- * * `\+`: Matches the `+` character
- * * `[1-9]`: Matches the character in range `1` to `9`
- * * `\d`: Matches any digit character
- * * `{5-14}`: Match between 5 and 14 characters after the preceding `+` token
- * * `$`: Matches the end of the string, or the end of a line if the multiple
- * flag (m) is enabled.
  */
-const isE164PhoneNumber = (phoneNumber) =>
-  /^\+[1-9]\d{5,14}$/
-    .test(phoneNumber);
+const isE164PhoneNumber = (phoneNumber) => {
+  if (typeof phoneNumber !== 'string' || phoneNumber.trim() !== phoneNumber) {
+    return false;
+  }
+
+  /** Currently handling only INDIA. */
+  const COUNTRY_CODE = 'IN';
+
+  try {
+    const parsedPhoneNumberObject = phoneUtil.parseAndKeepRawInput(phoneNumber, COUNTRY_CODE);
+
+    return phoneUtil
+      .isPossibleNumber(parsedPhoneNumberObject)
+      && phoneUtil
+        .isValidNumberForRegion(parsedPhoneNumberObject, COUNTRY_CODE);
+  } catch (error) {
+    /**
+     * Error was thrown by the library. i.e., the phone number is invalid
+     */
+    return false;
+  }
+};
 
 
 const reportBackgroundError = (error, context = {}, logName) => {
@@ -464,8 +486,6 @@ const promisifiedRequest = (options) => {
 };
 
 const promisifiedExecFile = (command, args) => {
-  const { execFile } = require('child_process');
-
   return new Promise((resolve, reject) => {
     return execFile(command, args, (error) => {
       if (error) {
@@ -1147,53 +1167,6 @@ const generateDates = (startTime, endTime) => {
   };
 };
 
-const handleRecipientErrors = (context) => {
-  const {
-    office,
-    report,
-    error,
-  } = context;
-
-  const momentToday = moment();
-  const date = momentToday.date();
-  const month = momentToday.month();
-  const year = momentToday.year();
-
-  return rootCollections
-    .errors
-    .where('report', '==', report)
-    .where('date', '==', date)
-    .where('month', '==', month)
-    .where('year', '==', year)
-    .limit(1)
-    .get()
-    .then((docs) => {
-      const ref = (() => {
-        if (docs.empty) {
-          return rootCollections.errors.doc();
-        }
-
-        return docs.docs[0].ref;
-      })();
-
-      const data = docs.docs[0] ? docs.docs[0].data() : {};
-
-      data.date = date;
-      data.month = month;
-      data.year = year;
-      data.report = report;
-      data.officesAffected = data.officesAffected || [];
-      data.includeInDailyStatusReport = false;
-
-      if (!data.officesAffected.includes(office)) {
-        data.officesAffected.push(office);
-      }
-
-      return ref.set(data, { merge: true });
-    })
-    .catch(Promise.reject);
-};
-
 
 module.exports = {
   slugify,
@@ -1201,6 +1174,7 @@ module.exports = {
   sendJSON,
   isValidUrl,
   getFileHash,
+  headerValid,
   isValidDate,
   handleError,
   isValidEmail,

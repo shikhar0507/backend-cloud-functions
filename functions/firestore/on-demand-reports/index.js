@@ -1,50 +1,114 @@
 'use strict';
 
 const {
+  db,
   rootCollections,
 } = require('../../admin/admin');
 const {
   sendResponse,
-  hasAdminClaims,
-  hasSupportClaims,
   handleError,
+  isValidDate,
+  isNonEmptyString,
 } = require('../../admin/utils');
 const {
   code,
 } = require('../../admin/responses');
 const momentTz = require('moment-timezone');
 
+const validateRequestBody = (requestBody) => {
+  const result = { isValid: true, message: null };
 
-const triggerReports = (options) => {
-  const {
-    timestampsArray,
-    recipientsDoc,
-  } = options;
+  if (!isValidDate(requestBody.startTime) || !isValidDate(requestBody.endTime)) {
+    result.isValid = false;
+    result.message = `Fields 'startTime' and 'endTime' should be valid unix timestamps`;
+  }
 
-  const promisesArray = [];
+  if (!isNonEmptyString(requestBody.office)) {
+    result.isValid = false;
+    result.message = `Field: 'office' should be a non-empty string`;
+  }
 
-  return Promise.resolve();
+  const names = new Set(['footprints', 'payroll', 'expense claim',])
+
+  if (!names.has(requestBody.report)) {
+    result.isValid = false;
+    result.message = `Report: '${requestBody.report}' is not a valid report name`;
+  }
+
+  if (!isNonEmptyString(requestBody.report)) {
+    result.isValid = false;
+    result.message = `Field: 'report' should be a non-empty string`;
+  }
+
+  return result;
 };
 
 
-const fetchRecipientsDoc = (conn, officeDoc) => {
-  rootCollections
-    .recipients
-    .where('report', '==', conn.req.body.report)
-    .where('office', '==', conn.req.body.office)
-    .limit(1)
-    .get()
-    .then((snapShot) => {
-      if (snapShot.empty) {
+module.exports = (conn) => {
+  /**
+   * If is admin, the user can only trigger reports for the offices for which
+   * they are an admin of.
+   */
+  if (conn.requester.customClaims.admin
+    && !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
+    return sendResponse(conn, code.forbidden, 'Operation not allowed');
+  }
+
+  if (conn.req.body.startTime && !conn.req.body.endTime) {
+    conn.req.body.endTime = conn.req.body.startTime;
+  }
+
+  const result = validateRequestBody(conn.req.body);
+
+  if (!result.isValid) {
+    return sendResponse(conn, code.badRequest, result.message);
+  }
+
+  const batch = db.batch();
+
+  return Promise
+    .all([
+      // rootCollections
+      //   .updates
+      //   .where('phoneNumber', '==', conn.requester.phoneNumber)
+      //   .limit(1)
+      //   .get(),
+      rootCollections
+        .offices
+        .where('attachment.Name.value', '==', conn.req.body.office)
+        .limit(1)
+        .get(),
+      rootCollections
+        .recipients
+        .where('report', '==', conn.req.body.report)
+        .where('office', '==', conn.req.body.office)
+        .limit(1)
+        .get(),
+    ])
+    .then((result) => {
+      const [
+        // updatesDocQuery,
+        officeDocQuery,
+        recipientDocsQuery,
+      ] = result;
+
+      if (officeDocQuery.empty) {
         return sendResponse(
           conn,
           code.badRequest,
-          `The recipient for the office: '${conn.req.body.office}'`
-          + ` for the report: '${conn.req.body.report}' does not exist`
+          `Office: '${conn.req.body.office}' not found`
         );
       }
 
-      const timezone = officeDoc.get('attachment.Timezone.value');
+      if (recipientDocsQuery.empty) {
+        return sendResponse(
+          conn,
+          code.badRequest,
+          `No recipient found for ${conn.req.body.office} for the report: ${conn.req.body.report}`
+        );
+      }
+
+      const timezone = officeDocQuery.docs[0].get('attachment.Timezone.value');
       const startDay = momentTz().tz(timezone).startOf('day');
       const endDay = momentTz().tz(timezone).endOf('day');
       const numberOfDays = Math.abs(endDay.diff(startDay, 'day'));
@@ -59,67 +123,20 @@ const fetchRecipientsDoc = (conn, officeDoc) => {
         timestampsArray.push(newMoment.valueOf());
       }
 
+      timestampsArray.forEach((timestamp) => {
+        batch.set(recipientDocsQuery.docs[0].ref, {
+          timestamp,
+        }, {
+            merge: true,
+          });
+      });
 
-      const options = {
-        officeDoc,
-        recipientsDoc: snapShot.docs[0],
-      };
-
-      return triggerReports(options);
-    })
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
-};
-
-
-module.exports = (conn) => {
-  /**
-   * Request body
-   * {
-   *   startDay: unix
-   *   endDay: unix
-   *   office: string
-   *   report: string
-   * }
-   */
-
-  if (!conn.requester.isSupportRequest) {
-    if (!hasAdminClaims(conn.requester.customClaims)
-      || !conn.requester.customClaims.includes(conn.req.body.office)) {
-      return sendResponse(
-        conn,
-        code.forbidden,
-        'You cannot access this resource'
-      );
-    }
-  }
-
-  if (conn.requester.isSupportRequest
-    && !hasSupportClaims(conn.requester.customClaims)) {
-    return sendResponse(
-      conn,
-      code.forbidden,
-      'You cannot access this resource'
-    );
-  }
-
-  return rootCollections
-    .offices
-    .where('attachment.Name.value', '==', conn.req.body.office)
-    .limit(1)
-    .get()
-    .then((docs) => {
-      if (docs.empty) {
-        return sendResponse(
-          conn,
-          code.badRequest,
-          `Office: '${conn.req.body.office}' does not exist`
-        );
-      }
-
-      const officeDoc = docs.docs[0];
-
-      return fetchRecipientsDoc(conn, officeDoc);
+      return Promise
+        .all([
+          batch
+            .commit(),
+          sendResponse(conn, code.ok),
+        ]);
     })
     .catch((error) => handleError(conn, error));
 };

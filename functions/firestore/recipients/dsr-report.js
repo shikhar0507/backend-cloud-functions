@@ -33,7 +33,6 @@ const {
   timeStringWithOffset,
   alphabetsArray,
   employeeInfo,
-  toMapsUrl,
 } = require('./report-utils');
 const {
   reportNames,
@@ -399,112 +398,6 @@ const handleSheetOne = (params) => {
   });
 
   return params;
-};
-
-const handleCustomerReport = (params) => {
-  // const {
-  //   worksheet,
-  //   employeesData,
-  //   timezone,
-  //   todayInitsQuery,
-  //   yesterdayInitsQuery,
-  //   customerActivitiesQuery,
-  // } = params;
-
-  // if (yesterdayInitsQuery.empty
-  //   && todayInitsQuery.empty) {
-  //   return Promise.resolve(params);
-  // }
-
-  // if (customerActivitiesQuery.empty) {
-  //   return Promise.resolve(params);
-  // }
-
-  // params.customerReportAdded = true;
-
-  // const customerSheet = worksheet.addSheet('Customers');
-
-  // customerActivitiesQuery.forEach((doc) => {
-  //   /**
-  //    * Created On
-  //    * Customer Name
-  //    * Created By
-  //    * Customer Contacts (comma seperated phno)
-  //    * Locality
-  //    * City,
-  //    * State
-  //    * Address
-  //    * Customer Type
-  //    * Customer Email-ID
-  //    * Customer Code
-  //    * Working Hours
-  //    * Weekly Off
-  //    */
-  //   const createdOn = dateStringWithOffset({
-  //     timezone,
-  //     timestampToConvert: doc.createTime.toDate().getTime(),
-  //   });
-  //   const customerName = doc.get('attachment.Name.value');
-  //   const createdBy = (() => {
-  //     let phoneNumber;
-  //     if (typeof doc.get('creator') === 'string') {
-  //       phoneNumber = doc.get('creator');
-  //     }
-
-  //     phoneNumber = doc.get('creator').phoneNumber;
-
-  //     return employeeInfo(employeesData, phoneNumber).name || phoneNumber;
-  //   })();
-
-  //   const customerContacts = (() => {
-  //     let str = '';
-  //     let name1 = '';
-  //     let name2 = '';
-
-  //     const firstContact = doc.get('attachment.First Contact.value');
-  //     const secondContact = doc.get('attachment.Second Contact.value');
-
-  //     if (firstContact) {
-  //       name1 = employeeInfo(employeesData, firstContact).name || firstContact;
-
-  //       str = `${name1}`;
-  //     }
-
-  //     if (secondContact) {
-  //       name2 = employeeInfo(employeesData, secondContact).name || secondContact;
-
-  //       if (str) {
-  //         str += `, and ${name2}`;
-  //       } else {
-  //         str = `${name2}`;
-  //       }
-  //     }
-
-  //     return str;
-  //   })();
-
-  //   const locality = '';
-  //   const city = '';
-  //   const state = '';
-  //   const schedule = doc.geT('schedule')[0];
-
-  //   const address = (() => {
-  //     if (!schedule.name) return '';
-
-  //     return {
-  //       url: toMapsUrl(schedule.geopoint),
-  //       identifier: schedule.address,
-  //     };
-  //   })();
-
-  //   const customerType = doc.get('attachment.Customer Type.value');
-  //   const customerEmailId = doc.get('attachment.Customer Email-Id.value');
-  //   const customerCode = doc.get('attachment.Customer Code.value');
-  //   const workingHours = doc.get('attachment.Working Hours.value');
-  //   const weeklyOff = doc.get('attachment.Weekly Off.value');
-  // });
-
-  return Promise.resolve(params);
 };
 
 module.exports = (locals) => {

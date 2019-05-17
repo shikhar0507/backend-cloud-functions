@@ -27,7 +27,6 @@
 
 const {
   users,
-  auth,
   rootCollections,
   db,
 } = require('../../admin/admin');

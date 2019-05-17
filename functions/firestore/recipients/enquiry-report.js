@@ -4,23 +4,21 @@ const {
   rootCollections,
   users,
 } = require('../../admin/admin');
-const {
-  momentOffsetObject,
-} = require('./report-utils');
+// const {
+//   momentOffsetObject,
+// } = require('./report-utils');
 const {
   reportNames,
   dateFormats,
 } = require('../../admin/constants');
 const xlsxPopulate = require('xlsx-populate');
-const fs = require('fs');
 const momentTz = require('moment-timezone');
 
 module.exports = (locals) => {
   const office = locals.officeDoc.get('office');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   // const momentDateObject = momentOffsetObject(timezone);
-  const fileName = `${office} Enquiry Report_${locals.standardDateString}.xlsx`;
-  const filePath = `/tmp/${fileName}`;
+  // const fileName = `${office} Enquiry Report_${locals.standardDateString}.xlsx`;
 
   const authMap = new Map();
 

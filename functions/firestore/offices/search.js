@@ -7,9 +7,6 @@ const {
   sendJSON,
   handleError,
   sendResponse,
-  isNonEmptyString,
-  hasSupportClaims,
-  hasAdminClaims,
 } = require('../../admin/utils');
 const {
   code,

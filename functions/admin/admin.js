@@ -287,16 +287,10 @@ const rootCollections = {
    * @example `/Instant/(auto-id)`
    */
   instant: db.collection('Instant'),
-  /**
-   * Stores the users who are disabled on a day
-   * @example `/DailyDisabled/(DD-MM-YYYY)`
-   */
-  dailyDisabled: db.collection('DailyDisabled'),
   reports: db.collection('Reports'),
   inits: db.collection('Inits'),
   recipients: db.collection('Recipients'),
   timers: db.collection('Timers'),
-  bulkActivities: db.collection('BulkActivities'),
   versions: db.collection('Versions'),
   events: db.collection('Events'),
   errors: db.collection('Errors'),

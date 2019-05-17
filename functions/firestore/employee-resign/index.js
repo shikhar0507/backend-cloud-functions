@@ -3,17 +3,17 @@
 const {
   rootCollections,
   db,
-} = require('../admin/admin');
+} = require('../../admin/admin');
 const {
   sendResponse,
   isE164PhoneNumber,
   handleError,
   isNonEmptyString,
   hasAdminClaims,
-} = require('../admin/utils');
+} = require('../../admin/utils');
 const {
   code,
-} = require('../admin/responses');
+} = require('../../admin/responses');
 
 const validator = (body) => {
   if (!body.hasOwnProperty('office')) {

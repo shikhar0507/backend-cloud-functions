@@ -823,7 +823,6 @@ const reportNames = {
   PAYROLL: 'payroll',
   TOUR_PLAN: 'tour plan',
   DAILY_STATUS_REPORT: 'daily status report',
-  FOOTPRINTS_MTD: 'footprints mtd',
 };
 
 const customMessages = {
