@@ -214,12 +214,15 @@ function createTriggerReportContainer() {
   startDateInput.type = 'date';
   startDateInput.value = moment().format('DD/MM/YYYY');
   startDateInput.id = 'start-time'
+  startDateInput.className = 'input-field'
   const endDateLabel = document.createElement('label')
   endDateLabel.textContent = 'To';
   const endDateInput = document.createElement('input')
   endDateInput.type = 'date'
   endDateInput.value = moment().format('DD/MM/YYYY');
   endDateInput.id = 'end-time'
+  endDateInput.className = 'input-field'
+
   const triggerButton = document.createElement('a')
   triggerButton.className = 'button mt-10 hidden'
   triggerButton.textContent = 'Trigger'
