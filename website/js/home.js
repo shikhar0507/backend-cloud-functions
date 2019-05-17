@@ -122,25 +122,19 @@ function excelUploadContainer(claim) {
   const fileContainer = document.createElement('div')
   fileContainer.id = 'file-container'
   const templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
-  const span = document.createElement('span');
-  span.className = 'select-dropdown'
+ 
 
-  const select = document.createElement('select')
-  const defalOption = document.createElement('option')
-  defalOption.selected = "true"
-  defalOption.disabled = "disabled"
-  defalOption.textContent = 'Choose Type'
-  select.appendChild(defalOption);
+  const selectBox = customSelect('Choose Type');
 
   templateNames.forEach(function (name) {
     const option = document.createElement('option');
     option.value = name;
     option.textContent = name;
-    select.appendChild(option)
+    selectBox.querySelector('select').appendChild(option)
   })
   span.appendChild(select);
-  select.addEventListener('change', function (evt) {
-   
+  selectBox.querySelector('select').addEventListener('change', function (evt) {
+
     if (fileContainer) {
       fileContainer.innerHTML = '';
     }
@@ -148,10 +142,10 @@ function excelUploadContainer(claim) {
     uploadContainer.className = 'upload-container'
     const input = document.createElement('input')
     input.type = 'file';
-  
+
     input.accept = '.xlsx, .xls , .csv'
     input.onchange = function (inputEvt) {
-      fileToJson(evt.target.value,claim, inputEvt)
+      fileToJson(evt.target.value, claim, inputEvt)
     }
     const label = document.createElement('label')
     label.textContent = 'Upload File';
@@ -181,6 +175,7 @@ function excelUploadContainer(claim) {
 
 }
 
+
 function BulkCreateErrorContainer(originalData, rejectedOnes) {
   const cont = document.getElementById('upload-result-error')
   cont.innerHTML = '';
@@ -200,6 +195,48 @@ function BulkCreateErrorContainer(originalData, rejectedOnes) {
   cont.appendChild(frag);
 }
 
+function customSelect(text){
+  const span = document.createElement('span')
+  span.className = 'select-dropdown'
+  const select = document.createElement('select')
+  const defaultOption = document.createElement('option')
+  defaultOption.selected = "true"
+  defaultOption.disabled = "disabled"
+  defaultOption.textContent = text
+  select.appendChild(defaultOption)
+  span.appendChild(select);
+
+  return span;
+}
+
+function createTriggerReportContainer() {
+  const container = document.createElement('div')
+
+ 
+  sendApiRequest(`http://localhost:5015/json?template=recipient&office=${office}`, null, 'GET').then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+    
+      const keys = Object.keys(response);
+      if (!keys.length) return container.textContent = 'No Reports Found';
+      const selectBox = customSelect('Select Report')
+      keys.forEach(function (id) {
+        const option = document.createElement('option')
+        option.value = keys[id].attachment.Name.value;
+        option.textContent = keys[id].attachment.Name.value;
+        selectBox.querySelector('select').appendChild(option)
+      })
+      selectBox.querySelector('select').addEventListener('change', function (evt) {
+
+      })
+    
+
+      console.log(response);
+    })
+  container.appendChild(span);
+  return container;
+}
 
 
 function triggerReportWithSupport() {
@@ -264,7 +301,7 @@ function manageTemplates() {
 function fileToJson(template, claim, evt) {
   const notificationLabel = modal.querySelector('.notification-label');
   let url = apiBaseUrl + '/admin/bulk';
-  claim.isSupport ?  url = url +'?support=true' : '';
+  claim.isSupport ? url = url + '?support=true' : '';
   evt.stopPropagation();
   evt.preventDefault();
 
@@ -286,7 +323,7 @@ function fileToJson(template, claim, evt) {
       raw: false
     });
     if (!jsonData.length) {
-      if(notificationLabel) {
+      if (notificationLabel) {
 
         notificationLabel.className = 'notification-label warning-label'
         notificationLabel.textContent = 'File is Empty'
@@ -314,7 +351,7 @@ function fileToJson(template, claim, evt) {
         .then(function (response) {
           const rejectedOnes = response.data.filter((val) => val.rejected);
           if (!rejectedOnes.length) {
-            if(notificationLabel) {
+            if (notificationLabel) {
 
               notificationLabel.className = 'notification-label success-label'
               notificationLabel.textContent = 'Success';
@@ -325,7 +362,7 @@ function fileToJson(template, claim, evt) {
           BulkCreateErrorContainer(jsonData, rejectedOnes)
         }).catch(console.error);
     }).catch(function (error) {
-      if(notificationLabel) {
+      if (notificationLabel) {
 
         notificationLabel.className = 'notification-label warning-label'
         notificationLabel.textContent = error.message;
@@ -338,11 +375,19 @@ function fileToJson(template, claim, evt) {
 
 }
 
-function addNew(isSupport,isAdmin) {
+function addNew(isSupport, isAdmin) {
   console.log(isSupport);
   console.log(isAdmin)
   console.log(office)
-  const modal = createModal(excelUploadContainer({isSupport:isSupport,isAdmin:isAdmin}))
+  const modal = createModal(excelUploadContainer({
+    isSupport: isSupport,
+    isAdmin: isAdmin
+  }))
+  document.getElementById('modal-box').appendChild(modal);
+}
+
+function triggerReports() {
+  const modal = createModal(createTriggerReportContainer())
   document.getElementById('modal-box').appendChild(modal);
 }
 
@@ -371,7 +416,7 @@ function updateActivity(options) {
 }
 
 function viewEnquiries() {
-  
+
   const table = document.createElement('table');
   table.id = 'enquiry-table'
   const head = document.createElement('thead');
