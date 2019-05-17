@@ -370,8 +370,8 @@ function updateActivity(options) {
 
 }
 
-function viewEnquiries(options) {
-
+function viewEnquiries() {
+  
   const table = document.createElement('table');
   table.id = 'enquiry-table'
   const head = document.createElement('thead');
@@ -385,7 +385,7 @@ function viewEnquiries(options) {
   head.appendChild(headTr);
   table.appendChild(head);
 
-  sendApiRequest('http://localhost:5025/json?template=enquiry', null, 'GET')
+  sendApiRequest('http://localhost:5015/json?template=enquiry', null, 'GET')
     .then(function (response) {
       return response.json();
     })
@@ -401,11 +401,11 @@ function viewEnquiries(options) {
         const creatorRow = document.createElement('td');
         creatorRow.textContent = response[id].creator.displayName || response[i].creator.phoneNumber
         const companyRow = document.createElement('td')
-        companyRow.textContent = response[id].companyName || '-';
+        companyRow.textContent = response[id].attachment['Company Name'].value || '-';
         const productRow = document.createElement('td');
-        productRow.textContent = response[id].product || '-';
+        productRow.textContent = response[id].attachment.Product.value || '-';
         const enquiryRow = document.createElement('td');
-        enquiryRow.textContent = response[id].enquiry || '-';
+        enquiryRow.textContent = response[id].attachment.Enquiry.value || '-';
         tr.appendChild(indexCol);
         tr.appendChild(statusRow);
         tr.appendChild(creatorRow);
