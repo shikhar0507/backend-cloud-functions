@@ -6,14 +6,14 @@ const {
   getISO8601Date,
   handleError,
   sendJSON,
-} = require('../admin/utils');
+} = require('../../admin/utils');
 const {
   db,
   rootCollections,
-} = require('../admin/admin');
+} = require('../../admin/admin');
 const {
   code,
-} = require('../admin/responses');
+} = require('../../admin/responses');
 
 
 /**

@@ -2,11 +2,11 @@
 
 const {
   users,
-} = require('../admin/admin');
+} = require('../../admin/admin');
 const {
   sendJSON,
   multipartParser,
-} = require('../admin/utils');
+} = require('../../admin/utils');
 const XLSX = require('xlsx');
 
 

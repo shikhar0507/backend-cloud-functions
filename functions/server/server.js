@@ -36,191 +36,91 @@ const {
 const {
   handleError,
   sendResponse,
+  headerValid,
   disableAccount,
   hasSupportClaims,
   hasAdminClaims,
   reportBackgroundError,
+  hasManageTemplateClaims,
 } = require('../admin/utils');
 const env = require('../admin/env');
-const url = require('url');
+const routes = require('../routes');
 
-const headerValid = (headers) => {
-  if (!headers.hasOwnProperty('authorization')) {
-    return {
-      isValid: false,
-      message: 'The authorization header is missing from the headers',
-    };
+
+const handleResource = (conn) => {
+  const resource = routes(conn.req);
+
+  /** 404 */
+  if (!resource.func) {
+    return sendResponse(
+      conn,
+      code.notFound,
+      `The path: '${conn.req.url}' was not found on this server.`
+    );
   }
 
-  if (typeof headers.authorization !== 'string') {
-    return {
-      isValid: false,
-      message: 'The authorization header is not valid',
-    };
-  }
+  const rejectAdminRequest = resource
+    .checkAdmin
+    && !hasAdminClaims(conn.requester.customClaims);
+  const rejectSupportRequest = resource
+    .checkSupport
+    && !hasSupportClaims(conn.requester.customClaims);
+  const rejectManageTemplatesRequest = resource
+    .checkManageTemplates
+    && !hasManageTemplateClaims(conn.requester.customClaims);
 
-  if (!headers.authorization.startsWith('Bearer ')) {
-    return {
-      isValid: false,
-      message: `Authorization type is not 'Bearer'`,
-    };
-  }
-
-  return {
-    isValid: true,
-    authToken: headers.authorization.split('Bearer ')[1],
-  };
-};
-
-const handleAdminUrl = (conn, urlParts) => {
-  const resource = urlParts[2];
-
-  if (conn.requester.isSupportRequest
-    && !hasSupportClaims(conn.requester.customClaims)) {
+  if (rejectAdminRequest
+    || rejectSupportRequest
+    || rejectManageTemplatesRequest) {
     return sendResponse(
       conn,
       code.forbidden,
-      'You cannot make support requests'
+      `You are not allowed to access this resource`
     );
   }
 
-  /** Only support or admin is allowed */
-  if (!conn.requester.isSupportRequest
-    && !hasAdminClaims(conn.requester.customClaims)) {
-    return sendResponse(
-      conn,
-      code.unauthorized,
-      `You cannot access this resource`
-    );
-  }
-
-  if (resource === 'read') {
-    return require('../firestore/offices/on-read')(conn);
-  }
-
-  if (resource === 'now') {
-    return require('../firestore/offices/now')(conn);
-  }
-
-  if (resource === 'search') {
-    return require('../firestore/offices/search')(conn);
-  }
-
-  if (resource === 'bulk') {
-    return require('../firestore/bulk/script')(conn);
-  }
-
-  if (resource === 'change-phone-number') {
-    return require('../firestore/phone-number-change')(conn);
-  }
-
-  if (resource === 'employee-resign') {
-    return require('../employee-resign')(conn);
-  }
-
-  if (resource === 'send-mail') {
-    return require('../website-utils/send-excel-email')(conn);
-  }
-
-  return sendResponse(
-    conn,
-    code.badRequest,
-    `No resource found at the path: ${(conn.req.url)}.`
-  );
-};
-
-const handleActivitiesUrl = (conn, urlParts) => {
-  const resource = urlParts[2];
-
-  if (resource === 'comment') {
-    return require('../firestore/activity/on-comment')(conn);
-  }
-
-  if (resource === 'create') {
-    return require('../firestore/activity/on-create')(conn);
-  }
-
-  if (resource === 'update') {
-    return require('../firestore/activity/on-update')(conn);
-  }
-
-  if (resource === 'share') {
-    return require('../firestore/activity/on-share')(conn);
-  }
-
-  if (resource === 'change-status') {
-    return require('../firestore/activity/on-change-status')(conn);
-  }
-
-  return sendResponse(
-    conn,
-    code.notFound,
-    `No resource found at the path: ${(conn.req.url)}.`
-  );
+  return resource.func(conn);
 };
 
 
-const handleServicesUrl = (conn, urlParts) => {
-  const resource = urlParts[2];
+const getProfile = (conn) => {
+  const batch = db.batch();
+  /**
+    * When a user signs up for the first time, the `authOnCreate`
+    * cloud function creates two docs in the Firestore.
+    *
+    * `Profiles/(phoneNumber)`, & `Updates/(uid)`.
+    *
+    * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
+    * It has one field `uid` = the uid from the auth.
+    *
+    * The `Updates` doc has the `doc-id` as the `uid` from the auth
+    * and one field `phoneNumber` = phoneNumber from auth.
+    *
+    * When a user signs up via the user facing app, they instantly hit
+    * the `/api` endpoint. In normal flow, the
+    * `getProfile` is called.
+    *
+    * It compares the `uid` from profile doc and the `uid` from auth.
+    * If the `authOnCreate` hasn't completed execution in this time,
+    * chances are that this doc won't be found and getting the uid
+    * from this non-existing doc will result in `disableAccount` function
+    * being called.
+    *
+    * To counter this, we allow a grace period of `60` seconds between
+    * the `auth` creation and the hit time on the `api`.
+    */
+  const AUTH_CREATION_TIMESTAMP = new Date(
+    conn.requester.creationTime
+  )
+    .getTime();
+  const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
-  if (resource === 'permissions') {
-    return require('../services/on-permissions')(conn);
+  if (Date.now() - AUTH_CREATION_TIMESTAMP < NUM_MILLI_SECS_IN_MINUTE) {
+    return handleResource(conn);
   }
 
-  if (resource === 'templates') {
-    return require('../services/on-templates')(conn);
-  }
-
-  if (resource === 'logs') {
-    return require('../services/on-logs')(conn);
-  }
-
-  if (resource === 'images') {
-    return require('../services/on-images')(conn);
-  }
-
-  return sendResponse(
-    conn,
-    code.notFound,
-    `No resource found at the path: ${(conn.req.url)}.`
-  );
-};
-
-
-const handleRequestPath = (conn, parsedUrl) => {
-  const urlParts = parsedUrl.pathname.split('/');
-  const parent = urlParts[1];
-
-  // if (parent === 'now') {
-  //   return require('../now')(conn);
-  // }
-
-  if (parent === 'read') {
-    return require('../firestore/on-read')(conn);
-  }
-
-  if (parent === 'activities') {
-    return handleActivitiesUrl(conn, urlParts);
-  }
-
-  if (parent === 'services') {
-    return handleServicesUrl(conn, urlParts);
-  }
-
-  if (parent === 'admin') {
-    return handleAdminUrl(conn, urlParts);
-  }
-
-  return sendResponse(
-    conn,
-    code.notFound,
-    `No resource found at the path: ${conn.req.url}`
-  );
-};
-
-
-const getProfile = (conn, pathName) =>
-  rootCollections
+  return rootCollections
     .profiles
     .doc(conn.requester.phoneNumber)
     .get()
@@ -231,41 +131,6 @@ const getProfile = (conn, pathName) =>
       conn
         .requester
         .employeeOf = doc.get('employeeOf') || {};
-      /**
-        * When a user signs up for the first time, the `authOnCreate`
-        * cloud function creates two docs in the Firestore.
-        *
-        * `Profiles/(phoneNumber)`, & `Updates/(uid)`.
-        *
-        * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
-        * It has one field `uid` = the uid from the auth.
-        *
-        * The `Updates` doc has the `doc-id` as the `uid` from the auth
-        * and one field `phoneNumber` = phoneNumber from auth.
-        *
-        * When a user signs up via the user facing app, they instantly hit
-        * the `/api` endpoint. In normal flow, the
-        * `getProfile` is called.
-        *
-        * It compares the `uid` from profile doc and the `uid` from auth.
-        * If the `authOnCreate` hasn't completed execution in this time,
-        * chances are that this doc won't be found and getting the uid
-        * from this non-existing doc will result in `disableAccount` function
-        * being called.
-        *
-        * To counter this, we allow a grace period of `60` seconds between
-        * the `auth` creation and the hit time on the `api`.
-        */
-      const AUTH_CREATION_TIMESTAMP = new Date(
-        conn.requester.creationTime
-      )
-        .getTime();
-      const NUM_MILLI_SECS_IN_MINUTE = 60000;
-
-      if (Date.now() - AUTH_CREATION_TIMESTAMP < NUM_MILLI_SECS_IN_MINUTE) {
-        // return handleRequestPath(conn, pathName);
-        return Promise.resolve();
-      }
 
       /**
        * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
@@ -295,8 +160,6 @@ const getProfile = (conn, pathName) =>
         );
       }
 
-      const batch = db.batch();
-
       /** AuthOnCreate probably failed. This is the fallback */
       if (!doc.get('uid')) {
         batch
@@ -316,14 +179,18 @@ const getProfile = (conn, pathName) =>
             });
       }
 
-      return batch.commit();
+      return Promise
+        .all([
+          batch
+            .commit(),
+          handleResource(conn),
+        ]);
     })
-    .then(() => handleRequestPath(conn, pathName))
     .catch((error) => handleError(conn, error));
+};
 
-
-const getUserAuthFromIdToken = (conn, decodedIdToken) =>
-  auth
+const getUserAuthFromIdToken = (conn, decodedIdToken) => {
+  return auth
     .getUser(decodedIdToken.uid)
     .then((userRecord) => {
       if (userRecord.disabled) {
@@ -344,40 +211,24 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) =>
         photoURL: userRecord.photoURL || '',
         customClaims: userRecord.customClaims || null,
         creationTime: userRecord.metadata.creationTime,
+        /**
+         * Can be used to verify in the activity flow to see if the request
+         * is of type support.
+         *
+         * URL query params are of type `string`
+         */
+        isSupportRequest: conn.req.query.support === 'true',
       };
 
-      // Makes tesing locally easier
-      if (decodedIdToken.customClaims) {
-        conn.requester.customClaims = decodedIdToken.customClaims;
+      if (routes(conn.req).func === '/now') {
+        return require('../firestore/now')(conn);
       }
 
-      /**
-       * Can be used to verify in the activity flow to see if the request
-       * is of type support.
-       *
-       * URL query params are of type `string`
-       */
-      conn.requester.isSupportRequest =
-        conn.req.query.support === 'true';
-
-      if (conn.requester.isSupportRequest
-        && !hasSupportClaims(conn.requester.customClaims)) {
-        return sendResponse(
-          conn,
-          code.forbidden,
-          'You do not have the permission to make support requests for activities'
-        );
-      }
-
-      const parsedUrl = url.parse(conn.req.url);
-
-      if (parsedUrl.pathname === '/now') {
-        return require('../now/index')(conn);
-      }
-
-      return getProfile(conn, parsedUrl);
+      return getProfile(conn);
     })
     .catch((error) => handleError(conn, error));
+};
+
 
 const handleRejections = (conn, errorObject) => {
   const context = {
@@ -431,13 +282,15 @@ const checkAuthorizationToken = (conn) => {
  * @returns {void}
  */
 module.exports = (req, res) => {
+  const allowedMethods = ['OPTIONS', 'HEAD', 'POST', 'GET', 'PATCH', 'PUT'];
+
   const conn = {
     req,
     res,
     headers: {
       /** The pre-flight headers */
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'OPTIONS, HEAD, POST, GET, PATCH, PUT',
+      'Access-Control-Allow-Methods': `${allowedMethods}`,
       'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
         'Content-Type, Accept',
       'Access-Control-Max-Age': 86400,
@@ -452,12 +305,7 @@ module.exports = (req, res) => {
     return sendResponse(conn, code.noContent);
   }
 
-  if (!new Set()
-    .add('GET')
-    .add('POST')
-    .add('PATCH')
-    .add('PUT')
-    .has(req.method)) {
+  if (!allowedMethods.includes(req.method)) {
     return sendResponse(
       conn,
       code.notImplemented,
@@ -466,9 +314,7 @@ module.exports = (req, res) => {
     );
   }
 
-  const parsed = url.parse(conn.req.url).pathname;
-
-  if (parsed === '/parseMail'
+  if (routes(conn.req).func === '/parseMail'
     && conn.req.query.token === env.sgMailParseToken) {
     return require('../mail-parser')(conn);
   }
