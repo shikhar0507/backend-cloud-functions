@@ -119,11 +119,10 @@ function createSearchForm(requestUrl, type) {
 
 function excelUploadContainer(claim) {
   const container = document.createElement('div')
+
+  const templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
   const fileContainer = document.createElement('div')
   fileContainer.id = 'file-container'
-  const templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
- 
-
   const selectBox = customSelect('Choose Type');
 
   templateNames.forEach(function (name) {
@@ -132,45 +131,35 @@ function excelUploadContainer(claim) {
     option.textContent = name;
     selectBox.querySelector('select').appendChild(option)
   })
-  span.appendChild(select);
-  selectBox.querySelector('select').addEventListener('change', function (evt) {
+  container.appendChild(selectBox);
 
-    if (fileContainer) {
-      fileContainer.innerHTML = '';
-    }
-    const uploadContainer = document.createElement('div')
-    uploadContainer.className = 'upload-container'
-    const input = document.createElement('input')
-    input.type = 'file';
+  const uploadContainer = document.createElement('div')
+  uploadContainer.className = 'upload-container'
+  const input = document.createElement('input')
+  input.type = 'file';
 
-    input.accept = '.xlsx, .xls , .csv'
-    input.onchange = function (inputEvt) {
-      fileToJson(evt.target.value, claim, inputEvt)
-    }
-    const label = document.createElement('label')
-    label.textContent = 'Upload File';
-    uploadContainer.appendChild(label);
-    uploadContainer.appendChild(input);
-    const p = document.createElement('p')
-    p.className = 'notification-label';
-    uploadContainer.appendChild(p);
-    const result = document.createElement('div')
-    result.id = 'upload-result-error';
-    uploadContainer.appendChild(result)
+  input.accept = '.xlsx, .xls , .csv'
 
-    const downloadContainer = document.createElement('div');
-    downloadContainer.className = 'download-container mt-30';
-    const button = document.createElement('button')
-    button.className = 'button'
-    button.textContent = 'Download Sample';
-    downloadContainer.appendChild(button)
-    fileContainer.appendChild(uploadContainer);
-    fileContainer.appendChild(downloadContainer);
-    container.appendChild(fileContainer)
-  })
+  const label = document.createElement('label')
+  label.textContent = 'Upload File';
+  uploadContainer.appendChild(label);
+  uploadContainer.appendChild(input);
+
+  const result = document.createElement('div')
+  result.id = 'upload-result-error';
+  uploadContainer.appendChild(result)
+
+  const downloadContainer = document.createElement('div');
+  downloadContainer.className = 'download-container mt-20';
+  const button = document.createElement('button')
+  button.className = 'button'
+  button.textContent = 'Download Sample';
+  downloadContainer.appendChild(button)
+  fileContainer.appendChild(uploadContainer);
+  fileContainer.appendChild(downloadContainer);
+  container.appendChild(fileContainer)
 
 
-  container.appendChild(span)
   return container;
 
 }
@@ -181,7 +170,7 @@ function BulkCreateErrorContainer(originalData, rejectedOnes) {
   cont.innerHTML = '';
   const frag = document.createDocumentFragment();
   if (rejectedOnes.length >= 2) {
-    cont.style.height = '200px';
+    cont.style.height = '150px';
   }
   rejectedOnes.forEach(function (value, idx) {
     const span = document.createElement('span')
@@ -195,7 +184,7 @@ function BulkCreateErrorContainer(originalData, rejectedOnes) {
   cont.appendChild(frag);
 }
 
-function customSelect(text){
+function customSelect(text) {
   const span = document.createElement('span')
   span.className = 'select-dropdown'
   const select = document.createElement('select')
@@ -210,31 +199,61 @@ function customSelect(text){
 }
 
 function createTriggerReportContainer() {
-  const container = document.createElement('div')
 
- 
+  const container = document.createElement('form')
+  container.className = 'form-inline';
+  container.style.textAlign = 'center';
+
+  const reportSelection = document.createElement('div')
+  reportSelection.id = 'select-report-container'
+
+
+  const startDateLabel = document.createElement('label')
+  startDateLabel.textContent = 'From'
+  const startDateInput = document.createElement('input');
+  startDateInput.type = 'date';
+  startDateInput.value = moment().format('DD/MM/YYYY');
+  startDateInput.id = 'start-time'
+  const endDateLabel = document.createElement('label')
+  endDateLabel.textContent = 'To';
+  const endDateInput = document.createElement('input')
+  endDateInput.type = 'date'
+  endDateInput.value = moment().format('DD/MM/YYYY');
+  endDateInput.id = 'end-time'
+  const triggerButton = document.createElement('a')
+  triggerButton.className = 'button mt-10'
+  triggerButton.textContent = 'Trigger'
+  triggerButton.id = 'trigger-report'
+  let reportSelected;
+  const selectBox = customSelect('Select Report')
+
   sendApiRequest(`http://localhost:5015/json?template=recipient&office=${office}`, null, 'GET').then(function (response) {
       return response.json();
     })
     .then(function (response) {
-    
+
       const keys = Object.keys(response);
       if (!keys.length) return container.textContent = 'No Reports Found';
-      const selectBox = customSelect('Select Report')
       keys.forEach(function (id) {
         const option = document.createElement('option')
-        option.value = keys[id].attachment.Name.value;
-        option.textContent = keys[id].attachment.Name.value;
+        option.value = response[id].attachment.Name.value;
+        option.textContent = response[id].attachment.Name.value;
         selectBox.querySelector('select').appendChild(option)
       })
-      selectBox.querySelector('select').addEventListener('change', function (evt) {
 
-      })
-    
 
-      console.log(response);
     })
-  container.appendChild(span);
+  reportSelection.appendChild(selectBox)
+  container.appendChild(reportSelection)
+  container.appendChild(startDateLabel)
+  container.appendChild(startDateInput)
+  container.appendChild(endDateLabel)
+  container.appendChild(endDateInput)
+
+  container.appendChild(triggerButton)
+  const recap = document.createElement('div');
+  recap.id = 'recaptcha-container';
+  container.appendChild(recap)
   return container;
 }
 
@@ -298,97 +317,169 @@ function manageTemplates() {
 
 }
 
-function fileToJson(template, claim, evt) {
-  const notificationLabel = modal.querySelector('.notification-label');
+function fileToJson(template, claim, data, modal) {
+  const notificationLabel = new showLabel(modal.querySelector('#action-label'));
   let url = apiBaseUrl + '/admin/bulk';
   claim.isSupport ? url = url + '?support=true' : '';
-  evt.stopPropagation();
-  evt.preventDefault();
 
-  const files = evt.target.files;
-  const file = files[0];
-  const reader = new FileReader();
+  const wb = XLSX.read(data, {
+    type: 'binary'
+  });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const jsonData = XLSX.utils.sheet_to_json(ws, {
+    blankRows: false,
+    defval: '',
+    raw: false
+  });
+  if (!jsonData.length) return;
+  notificationLabel.warning('File is Empty')
 
-  reader.onload = function (e) {
-    const data = e.target.result;
+  jsonData.forEach(function (val) {
+    val.share = [];
+  })
 
-    e.target.ressul
-    const wb = XLSX.read(data, {
-      type: 'binary'
-    });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const jsonData = XLSX.utils.sheet_to_json(ws, {
-      blankRows: false,
-      defval: '',
-      raw: false
-    });
-    if (!jsonData.length) {
-      if (notificationLabel) {
+  getLocation().then(function (location) {
 
-        notificationLabel.className = 'notification-label warning-label'
-        notificationLabel.textContent = 'File is Empty'
-      }
-      return;
-    };
-    jsonData.forEach(function (val) {
-      val.share = [];
-    })
+    const body = {
+      office: office,
+      template: template,
+      data: jsonData,
+      timestamp: Date.now(),
+      geopoint: location
+    }
 
-    getLocation().then(function (location) {
+    return sendApiRequest(`${url}`, body, 'POST')
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (response) {
+        const rejectedOnes = response.data.filter((val) => val.rejected);
+        if (!rejectedOnes.length) return notificationLabel.success('Success')
+        notificationLabel.success('')
 
-      const body = {
-        office: office,
-        template: template,
-        data: jsonData,
-        timestamp: Date.now(),
-        geopoint: location
-      }
-
-      return sendApiRequest(`${url}`, body, 'POST')
-        .then(function (response) {
-          return response.json();
-        })
-        .then(function (response) {
-          const rejectedOnes = response.data.filter((val) => val.rejected);
-          if (!rejectedOnes.length) {
-            if (notificationLabel) {
-
-              notificationLabel.className = 'notification-label success-label'
-              notificationLabel.textContent = 'Success';
-            }
-            return;
-          }
-          notificationLabel.textContent = '';
-          BulkCreateErrorContainer(jsonData, rejectedOnes)
-        }).catch(console.error);
-    }).catch(function (error) {
-      if (notificationLabel) {
-
-        notificationLabel.className = 'notification-label warning-label'
-        notificationLabel.textContent = error.message;
-      }
-    })
-
-  }
-  reader.readAsBinaryString(file);
-  console.log(evt);
+        BulkCreateErrorContainer(jsonData, rejectedOnes)
+      }).catch(console.error);
+  }).catch(notificationLabel.warning)
 
 }
 
+
+
 function addNew(isSupport, isAdmin) {
-  console.log(isSupport);
-  console.log(isAdmin)
-  console.log(office)
+  let templateSelected;
   const modal = createModal(excelUploadContainer({
     isSupport: isSupport,
     isAdmin: isAdmin
   }))
+
+  modal.querySelector('select').addEventListener('change', function (evt) {
+    templateSelected = evt.target.value
+  })
+  modal.querySelector('input').onchange = function (inputEvt) {
+    if (!templateSelected) {
+      modal.querySelector("#action-label").textContent = 'Please Select A Type'
+      modal.querySelector("#action-label").classList.add('warning-label');
+      return;
+    }
+    modal.querySelector("#action-label").textContent = ''
+    inputEvt.stopPropagation();
+    inputEvt.preventDefault();
+    const files = inputEvt.target.files;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const data = e.target.result;
+
+      fileToJson(templateSelected, {
+        isSupport: isSupport,
+        isAdmin: isAdmin
+      }, data, modal)
+    }
+    reader.readAsBinaryString(file);
+
+  }
+
   document.getElementById('modal-box').appendChild(modal);
 }
 
+function showLabel(el) {
+  this.el = el;
+}
+showLabel.prototype.success = function (text) {
+  if (!this.el) return;
+  this.el.textContent = text
+  this.el.className = 'success-label'
+}
+showLabel.prototype.warning = function (text) {
+  if (!this.el) return;
+  this.el.textContent = text
+  this.el.className = 'warning-label'
+}
+
+
 function triggerReports() {
+
   const modal = createModal(createTriggerReportContainer())
+  const label = new showLabel(modal.querySelector('#action-label'))
+
+  let selectedReport;
+  modal.querySelector('select').addEventListener('change', function (evt) {
+    selectedReport = evt.target.value
+  })
+  modal.querySelector('#trigger-report').onclick = function () {
+    if (!selectedReport) {
+      label.warning('Select A report')
+      return;
+    }
+    const startTime = moment(modal.querySelector('#start-time').value).valueOf()
+    const endTime = moment(modal.querySelector('#end-time').value).valueOf()
+    if (!startTime) {
+      label.warning('Select A Start Time')
+      return;
+    }
+    if (!endTime) {
+      label.warning('Select An End Time')
+      return;
+    }
+    window.recaptchaVerifier = handleRecaptcha();
+    window.recaptchaVerifier.render();
+    window.recaptchaVerifier.verify().then(function(token){
+      console.log(token)
+
+    }).catch(console.log)
+
+    // handleRecaptcha().then(function (verifier) {
+
+    //   label.success('')
+    //   sendApiRequest(`${apiBaseUrl}admin/trigger-report`, {
+    //       office: office,
+    //       report: selectedReport,
+    //       startTime: startTime,
+    //       endTime: endTime
+    //     }, 'POST').then(function (response) {
+    //       return response.json();
+    //     })
+    //     .then(function (response) {
+    //       console.log(response);
+    //       label.success(`${selectedReport} successfully triggered`)
+
+    //     }).catch(function (error) {
+    //       label.warning('Please Try again Later')
+    //     })
+    // }).catch(console.log)
+
+    // if (window.recaptchaVerifier) {
+    //   window.recaptchaVerifier.clear();
+    // }
+    // window.recaptchaVerifier.render();
+  }
+
+
   document.getElementById('modal-box').appendChild(modal);
+}
+
+function sendReport() {
+
 }
 
 function triggerReport(options) {

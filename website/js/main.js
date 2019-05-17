@@ -1,7 +1,13 @@
 'use strict';
 
-
-function isValidPhoneNumber(phoneNumber = '') {
+function handleRecaptcha() {
+  return new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+    'size': 'normal'
+  });
+}
+  
+  
+  function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
 
   return phoneNumber.search(pattern) !== -1;
@@ -136,7 +142,10 @@ function createModal(actionContent) {
   }
 
   const actionContainer = document.createElement('div')
-  actionContainer.className = 'action-container mt-30';
+  actionContainer.className = 'action-container mt-20';
+  const actionNotification = document.createElement('span');
+  actionNotification.id = 'action-label'
+  actionContainer.appendChild(actionNotification)
   actionContainer.appendChild(actionContent);
 
   content.appendChild(close)
