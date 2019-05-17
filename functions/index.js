@@ -32,11 +32,6 @@ const authOnCreate = functions
   .user()
   .onCreate(require('./auth/on-create'));
 
-const authOnDelete = functions
-  .auth
-  .user()
-  .onDelete(require('./auth/on-delete'));
-
 const api = functions
   .https
   .onRequest(require('./server/server'));
@@ -106,7 +101,6 @@ module.exports = {
   webapp,
   getUser,
   authOnCreate,
-  authOnDelete,
   profileOnWrite,
   instantOnCreate,
   activityOnWrite,
