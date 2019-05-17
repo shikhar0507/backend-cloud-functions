@@ -985,6 +985,10 @@ const handleAdmins = (conn, locals) => {
 };
 
 const fetchValidTypes = (conn, locals) => {
+  if (conn.req.body.template === 'office') {
+    return Promise.resolve();
+  }
+
   const promises = [];
   const nonExistingValuesSet = new Set();
   const queryMap = new Map();
