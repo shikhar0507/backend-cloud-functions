@@ -221,7 +221,7 @@ function createTriggerReportContainer() {
   endDateInput.value = moment().format('DD/MM/YYYY');
   endDateInput.id = 'end-time'
   const triggerButton = document.createElement('a')
-  triggerButton.className = 'button mt-10'
+  triggerButton.className = 'button mt-10 hidden'
   triggerButton.textContent = 'Trigger'
   triggerButton.id = 'trigger-report'
   let reportSelected;
@@ -253,6 +253,7 @@ function createTriggerReportContainer() {
   container.appendChild(triggerButton)
   const recap = document.createElement('div');
   recap.id = 'recaptcha-container';
+  recap.className = 'mt-10'
   container.appendChild(recap)
   return container;
 }
@@ -425,57 +426,54 @@ function triggerReports() {
   let selectedReport;
   modal.querySelector('select').addEventListener('change', function (evt) {
     selectedReport = evt.target.value
-  })
-  modal.querySelector('#trigger-report').onclick = function () {
-    if (!selectedReport) {
-      label.warning('Select A report')
-      return;
-    }
-    const startTime = moment(modal.querySelector('#start-time').value).valueOf()
-    const endTime = moment(modal.querySelector('#end-time').value).valueOf()
-    if (!startTime) {
-      label.warning('Select A Start Time')
-      return;
-    }
-    if (!endTime) {
-      label.warning('Select An End Time')
-      return;
-    }
-    window.recaptchaVerifier = handleRecaptcha();
-    window.recaptchaVerifier.render();
-    window.recaptchaVerifier.verify().then(function(token){
-      console.log(token)
-
-    }).catch(console.log)
-
-    // handleRecaptcha().then(function (verifier) {
-
-    //   label.success('')
-    //   sendApiRequest(`${apiBaseUrl}admin/trigger-report`, {
-    //       office: office,
-    //       report: selectedReport,
-    //       startTime: startTime,
-    //       endTime: endTime
-    //     }, 'POST').then(function (response) {
-    //       return response.json();
-    //     })
-    //     .then(function (response) {
-    //       console.log(response);
-    //       label.success(`${selectedReport} successfully triggered`)
-
-    //     }).catch(function (error) {
-    //       label.warning('Please Try again Later')
-    //     })
-    // }).catch(console.log)
-
-    // if (window.recaptchaVerifier) {
-    //   window.recaptchaVerifier.clear();
-    // }
-    // window.recaptchaVerifier.render();
-  }
-
-
+  });
   document.getElementById('modal-box').appendChild(modal);
+
+  window.recaptchaVerifier = handleRecaptcha();
+  recaptchaVerifier.render();
+  recaptchaVerifier.verify().then(function (token) {
+    console.log(token)
+    modal.querySelector('#trigger-report').classList.remove('hidden');
+    document.getElementById('recaptcha-container').classList.add('hidden');
+    modal.querySelector('#trigger-report').onclick = function () {
+      if (!selectedReport) {
+        label.warning('Select A report')
+        return;
+      }
+      const startTime = moment(modal.querySelector('#start-time').value).valueOf()
+      const endTime = moment(modal.querySelector('#end-time').value).valueOf()
+      if (!startTime) {
+        label.warning('Select A Start Time')
+        return;
+      }
+      if (!endTime) {
+        label.warning('Select An End Time')
+        return;
+      }
+
+      label.success('')
+      sendApiRequest(`${apiBaseUrl}admin/trigger-report`, {
+          office: office,
+          report: selectedReport,
+          startTime: startTime,
+          endTime: endTime
+        }, 'POST').then(function (response) {
+          return response.json();
+        })
+        .then(function (response) {
+          if(response.success) {
+            label.success(`${selectedReport} successfully triggered`)
+          }
+          else {
+            label.warning('Please Try Again Later');
+          }
+        }).catch(function (error) {
+          label.warning('Please Try again Later')
+        })
+    }
+  }).catch(function(error){
+    label.warning(error.message)
+  })
 }
 
 function sendReport() {
