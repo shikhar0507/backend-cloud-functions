@@ -264,7 +264,7 @@ const handleLeaveOrOnDuty = (conn, locals) => {
 
       if (!success) {
         locals.static.statusOnCreate = 'CANCELLED';
-        locals.cancellationMessage = `LEAVE CANCELLED: ${message}`;
+        locals.cancellationMessage = `${conn.req.body.template.toUpperCase()} CANCELLED: ${message}`;
       }
 
       return createDocsWithBatch(conn, locals);
@@ -277,8 +277,6 @@ const handlePayroll = (conn, locals) => {
   if (!new Set()
     .add(reportNames.LEAVE)
     .add(reportNames.ON_DUTY)
-    // TODO: Remove this after some time
-    .add(reportNames.TOUR_PLAN)
     .has(conn.req.body.template)) {
     return createDocsWithBatch(conn, locals);
   }
