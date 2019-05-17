@@ -117,7 +117,7 @@ function createSearchForm(requestUrl, type) {
 
 }
 
-function excelUploadContainer(id, office) {
+function excelUploadContainer(claim) {
   const container = document.createElement('div')
   const fileContainer = document.createElement('div')
   fileContainer.id = 'file-container'
@@ -140,7 +140,7 @@ function excelUploadContainer(id, office) {
   })
   span.appendChild(select);
   select.addEventListener('change', function (evt) {
-    console.log(evt)
+   
     if (fileContainer) {
       fileContainer.innerHTML = '';
     }
@@ -148,10 +148,10 @@ function excelUploadContainer(id, office) {
     uploadContainer.className = 'upload-container'
     const input = document.createElement('input')
     input.type = 'file';
-    input.id = id;
+  
     input.accept = '.xlsx, .xls , .csv'
     input.onchange = function (inputEvt) {
-      fileToJson(evt.target.value, office, inputEvt)
+      fileToJson(evt.target.value,claim, inputEvt)
     }
     const label = document.createElement('label')
     label.textContent = 'Upload File';
@@ -261,9 +261,10 @@ function manageTemplates() {
 
 }
 
-function fileToJson(template, office, evt) {
+function fileToJson(template, claim, evt) {
   const notificationLabel = modal.querySelector('.notification-label');
-  const url = apiBaseUrl + '/admin/bulk?support=true'
+  let url = apiBaseUrl + '/admin/bulk';
+  claim.isSupport ?  url = url +'?support=true' : '';
   evt.stopPropagation();
   evt.preventDefault();
 
@@ -337,13 +338,11 @@ function fileToJson(template, office, evt) {
 
 }
 
-function addNew() {
-
+function addNew(isSupport,isAdmin) {
+  console.log(isSupport);
+  console.log(isAdmin)
   console.log(office)
-
-  const modal = createModal(excelUploadContainer('create-new', office))
-
-
+  const modal = createModal(excelUploadContainer({isSupport:isSupport,isAdmin:isAdmin}))
   document.getElementById('modal-box').appendChild(modal);
 }
 

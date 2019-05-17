@@ -45,7 +45,7 @@
         <section class="action-icons-container hidden">
             <div class="cards">
              \{{#if isSupport}}
-                <div id="add-employees" onclick="addNew()">
+                <div id="add-employees" onclick="addNew(true)">
                     <i class="fas fa-user-plus action-icon"></i>
                     <p class="icon-text">Create New</p>
                 </div>
@@ -82,7 +82,7 @@
                     <p class="icon-text">Manage Templates</p>
                 </div>
                 \{{else}} \{{#if isAdmin}}
-                   <div id="add-employees" onclick="addNew()">
+                   <div id="add-employees" onclick="addNew(false,true)">
                     <i class="fas fa-user-plus action-icon"></i>
                     <p class="icon-text">Create New</p>
                 </div>
