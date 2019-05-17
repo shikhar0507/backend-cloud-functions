@@ -298,7 +298,7 @@ const handleHomePage = (locals, requester) => {
     emailVerified: requester.emailVerified,
     displayName: requester.displayName,
     photoURL: requester.photoURL,
-    isSupport: false,
+    isSupport: requester.isSupport,
     isAdmin: requester.isAdmin,
     adminOffices:requester.adminOffices,
     isTemplateManager: requester.isTemplateManager,

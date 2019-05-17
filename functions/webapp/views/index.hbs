@@ -19,8 +19,8 @@
                 <input type="text" placeholder="Search an office" class="input-field" id='office-search-field' oninput="toggleSearchButton(this)">
                 
                 <ul></ul>
-                <button class="button button-search invisible" onclick="searchOffice()">search</button>
-                <button class="invisible button" id='continue' onclick="startAdmin(document.getElementById('office-search-field').value)">Conitnue</button>
+                <button type="button" class="button button-search invisible" onclick="searchOffice()">search</button>
+                <button type="button" class="invisible button" id='continue' onclick="startAdmin(document.getElementById('office-search-field').value)">Conitnue</button>
             </form> 
            
             \{{else}} \{{#if isAdmin}}

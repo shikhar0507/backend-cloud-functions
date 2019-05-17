@@ -1,5 +1,6 @@
 console.log('home loaded');
 let office;
+const section = document.getElementById('action-section');
 
 function searchOffice() {
   document.getElementById('continue').classList.add('invisible');
@@ -7,18 +8,17 @@ function searchOffice() {
   const input = document.getElementById('office-search-field')
   const ul = document.querySelector('#office-search-form ul')
   ul.appendChild(getSpinnerElement().center())
-  // if(!value) return label.textContent = 'No Office Name Entered'
-  // label.textContent = '';
-  // sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
-  //   .then(function (response) {
-  //     return response.json();
-  //   })
-  //   .then(function (response) {
-  //     // ul.querySelector('.spinner').remove();
-  //     console.log('response', response);
-  // if (!response.length) return label.textContent = 'No Offices Found'
+
+  sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      // ul.querySelector('.spinner').remove();
+      console.log('response', response);
+  if (!response.length) return label.textContent = 'No Offices Found'
   ul.innerHTML = '';
-  var response = ['Puja Capital']
+
   response.forEach(function (name) {
     const li = document.createElement('li')
     li.textContent = name;
@@ -35,7 +35,7 @@ function searchOffice() {
   })
 
 
-  // })
+  })
   console.log('clicked')
 }
 
@@ -54,9 +54,7 @@ function startAdmin(officeName) {
   office = officeName;
   document.getElementById('office-search-form').classList.add('hidden');
   document.querySelector('.action-icons-container').classList.remove('hidden');
-
 }
-const section = document.getElementById('action-section');
 
 
 
