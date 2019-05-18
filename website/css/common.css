@@ -427,8 +427,8 @@ input:disabled {
 }
 
 .modal .modal-content .action-container {
-    max-height: 400px;
-  
+    max-height: 400px;  
+    overflow-y: auto;
     text-align: center;
 
 }
