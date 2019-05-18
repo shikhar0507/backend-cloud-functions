@@ -242,7 +242,6 @@ function createTriggerReportContainer() {
         selectBox.querySelector('select').appendChild(option)
       })
 
-
     })
   reportSelection.appendChild(selectBox)
   container.appendChild(reportSelection)
@@ -259,65 +258,6 @@ function createTriggerReportContainer() {
   return container;
 }
 
-
-function triggerReportWithSupport() {
-
-}
-
-function triggerReportWithAdmin() {
-
-}
-
-function updatePhoneNumberWithSupport() {
-
-}
-
-function updatePhoneNumberWithAdmin() {
-
-}
-
-function employeExitWithSupport() {
-
-}
-
-function employeExitWithAdmin() {
-
-}
-
-function updateReportRecipientsWithSupport() {
-
-}
-
-function updateReportRecipientsWithAdmin() {
-
-}
-
-function updateSubscriptionWithAdmin() {
-
-}
-
-function updateSubscriptionWithSupport() {
-
-}
-
-function searchAndUpdateWithAdmin() {
-
-}
-
-function searchAndUpdateWithSupport() {
-
-}
-
-function viewEnquiries(options) {
-
-}
-
-/**
- * Only `support` and `manageTemplates` claim allow messing with the templates.
- */
-function manageTemplates() {
-
-}
 
 function fileToJson(template, claim, data, modal) {
   const notificationLabel = new showLabel(modal.querySelector('#action-label'));
@@ -477,34 +417,6 @@ function triggerReports() {
   })
 }
 
-function sendReport() {
-
-}
-
-function triggerReport(options) {
-
-}
-
-function changePhoneNumber(options) {
-
-}
-
-function employeeResign(options) {
-
-}
-
-function updateRecipient(options) {
-
-}
-
-function updateSubscription(options) {
-
-}
-
-function updateActivity(options) {
-
-}
-
 function viewEnquiries() {
 
   const table = document.createElement('table');
@@ -557,88 +469,5 @@ function viewEnquiries() {
     })
 }
 
-function manageTemplates(options) {
 
-};
 
-function handleActionIconClick(event) {
-  event.preventDefault();
-  // Delete all elements for a clean slate
-  while (section.firstChild) {
-    section.removeChild(section.firstChild);
-  }
-
-  console.log('clicked', event.target.id);
-
-  return firebase
-    .auth()
-    .currentUser
-    .getIdTokenResult()
-    .then(function (getIdTokenResult) {
-      const claims = getIdTokenResult.claims;
-      console.log(claims)
-      options.isSupport = claims.support;
-      if (Array.isArray(claims.admin)) {
-        if (claims.admin.length > 0) {
-          options.isAdmin = true
-          options.officeNames = claims.admin
-        }
-      }
-      options.isTemplateManager = claims.templateManager;
-
-      if (event.target.id === 'add-employees') {
-        if (options.isSupport) return section.appendChild(createSearchForm(`${apiBaseUrl}/admin/search?support=true`, event.target.id))
-        addEmployees(options);
-      }
-
-      if (event.target.id === 'trigger-reports') {
-
-        if (options.isAdmin) {
-          return void triggerReportWithAdmin(options);
-        }
-
-        return void triggerReportWithSupport();
-      }
-
-      if (event.target.id === 'change-phone-number') {
-        if (options.isAdmin) {
-          return void updatePhoneNumberWithAdmin(options);
-        }
-
-        return updatePhoneNumberWithSupport(options);
-      }
-
-      if (event.target.id === 'employee-resign') {
-        if (options.isAdmin) {
-          return employeExitWithAdmin(options);
-        }
-
-        return employeExitWithSupport(options);
-      }
-
-      if (event.target.id === 'update-subscription') {
-        if (options.isAdmin) {
-          return updateSubscriptionWithAdmin(options);
-        }
-
-        return updateSubscriptionWithSupport(option);
-      }
-
-      if (event.target.id === 'update-activity') {
-        if (options.isAdmin) {
-          return updateSubscriptionWithSupport(options);
-        }
-
-        return updateSubscriptionWithSupport(options);
-      }
-
-      if (event.target.id === 'view-enquiries') {
-        return viewEnquiries(options);
-      }
-
-      if (event.target.id === 'manage-templates') {
-        return void manageTemplates(options);
-      }
-    })
-    .catch(console.error);
-};
