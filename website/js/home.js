@@ -216,8 +216,8 @@ function fileToJson(template, claim, data, modal) {
     defval: '',
     raw: false
   });
-  if (!jsonData.length) return;
-  notificationLabel.warning('File is Empty')
+  if (!jsonData.length) return  notificationLabel.warning('File is Empty');
+
 
   jsonData.forEach(function (val) {
     val.share = [];
@@ -369,6 +369,7 @@ function viewEnquiries() {
 
   const table = document.createElement('table');
   table.id = 'enquiry-table'
+  table.className = 'overflow-table'
   const head = document.createElement('thead');
   const headTr = document.createElement('tr');
   const headerNames = ['S.No', 'Status', 'Creator', 'Company', 'Product', 'Enquiry'];
