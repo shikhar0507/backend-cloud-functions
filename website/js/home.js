@@ -228,7 +228,7 @@ function createTriggerReportContainer() {
   let reportSelected;
   const selectBox = customSelect('Select Report')
 
-  sendApiRequest(`http://localhost:5015/json?template=recipient&office=${office}`, null, 'GET').then(function (response) {
+  sendApiRequest(`${window.location.href}/json?template=recipient&office=${office}`, null, 'GET').then(function (response) {
       return response.json();
     })
     .then(function (response) {
@@ -520,7 +520,7 @@ function viewEnquiries() {
   head.appendChild(headTr);
   table.appendChild(head);
 
-  sendApiRequest('http://localhost:5015/json?template=enquiry', null, 'GET')
+  sendApiRequest(window.location.href+'/json?template=enquiry', null, 'GET')
     .then(function (response) {
       return response.json();
     })
