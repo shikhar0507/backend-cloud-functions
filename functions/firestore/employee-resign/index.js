@@ -57,6 +57,7 @@ const cancelEmployee = (conn, officeDoc) => {
         .ref
         .collection('Activities')
         .where('template', '==', 'employee')
+        .where('office', '==', conn.req.body.office)
         .where('attachment.Employee Contact.value', '==', conn.req.body.phoneNumber)
         .limit(1)
         .get(),
@@ -76,7 +77,7 @@ const cancelEmployee = (conn, officeDoc) => {
         sendResponse(
           conn,
           code.badRequest,
-          `${conn.req.body.phoneNumber} does not belong to an employee`
+          `No employee found with the phone number: ${conn.req.body.phoneNumber}`
         );
       }
 
