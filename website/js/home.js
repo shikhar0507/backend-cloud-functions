@@ -58,63 +58,6 @@ function startAdmin(officeName) {
 
 
 
-function createSearchForm(requestUrl, type) {
-  const searchForm = document.createElement('form');
-  const searchInput = document.createElement('input');
-  const searchLink = document.createElement('a');
-  searchInput.type = 'text';
-  searchInput.placeholder = 'Search an office';
-  searchInput.classList.add('input-field');
-  searchForm.style.display = 'inherit';
-  searchLink.onclick = function () {
-
-    sendApiRequest(`${requestUrl}&office=${searchInput.value}`, null, 'GET')
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (response) {
-
-        console.log('response', response);
-        const select = document.createElement('select');
-        searchForm.style.display = 'none';
-        if (!response.length) {
-          const p = document.createElement('p');
-          p.innerText = 'No Result found';
-          section.appendChild(p);
-          return;
-        }
-        const a = document.createElement('a');
-        a.classList.add('button');
-        a.href = '#';
-        a.textContent = 'submit';
-        a.onclick = function (event) {
-          if (type === 'add-employees') {
-            options.officeNames.push(select.options[select.selectedIndex].value);
-            addEmployees(options);
-          }
-        }
-
-        section.appendChild(select);
-        section.appendChild(a);
-
-        response.forEach((name) => {
-          const option = document.createElement('option');
-          option.value = name;
-          option.innerHTML = name;
-          select.appendChild(option);
-        });
-
-      })
-
-  }
-  searchLink.classList.add('button');
-  searchLink.innerText = 'search';
-  searchForm.appendChild(searchInput);
-  searchForm.appendChild(searchLink);
-  return searchForm;
-
-}
-
 function excelUploadContainer(claim) {
   const container = document.createElement('div')
 
