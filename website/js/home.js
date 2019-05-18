@@ -412,5 +412,40 @@ function viewEnquiries() {
     })
 }
 
+function searchBar(labelText,id){
+  const conatiner  = document.createElement('div')
+  const label = document.createElement('label')
+  label.textContent = labelText;
+  const input = document.createElement('input')
+  input.type = 'text';
+  input.className = 'input-field';
+  input.id = id;
+  const ul = document.createElement("ul");
+  ul.id = 'search-results'
+  const button = document.createElement('button');
+  button.className = 'button';
+  button.textContent = 'Search'
+  conatiner.appendChild(label);
+  conatiner.appendChild(input)
+  conatiner.appendChild(button)
+  conatiner.appendChild(ul);
+  
+  return conatiner;
+}
 
+function employeeExit(){
+  const search = searchBar('Search Employee','employee-search');
+  const input = search.querySelector('input');
+  const submit = search.querySelector('button');
+  submit.onclick = function(){
+    
+    sendApiRequest(`${window.location.href}json?template=employee&office=${office}&query=${input.value}`,null,'GET').then(function(res){
+      return res.json()
+    }).then(function(response){
+        console.log(response);
+
+    }).catch(console.error)
+  }
+  document.getElementById('modal-box').appendChild(createModal(search))
+}
 
