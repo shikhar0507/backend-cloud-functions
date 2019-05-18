@@ -16,26 +16,26 @@ function searchOffice() {
     .then(function (response) {
       // ul.querySelector('.spinner').remove();
       console.log('response', response);
-  if (!response.length) return label.textContent = 'No Offices Found'
-  ul.innerHTML = '';
+      if (!response.length) return label.textContent = 'No Offices Found'
+      ul.innerHTML = '';
 
-  response.forEach(function (name) {
-    const li = document.createElement('li')
-    li.textContent = name;
-    li.onclick = function () {
-      input.value = name;
-      document.querySelector('.button-search').classList.add('invisible');
+      response.forEach(function (name) {
+        const li = document.createElement('li')
+        li.textContent = name;
+        li.onclick = function () {
+          input.value = name;
+          document.querySelector('.button-search').classList.add('invisible');
 
-      document.getElementById('continue').classList.remove('invisible');
-      [...ul.querySelectorAll('li')].forEach(function (el) {
-        el.remove();
+          document.getElementById('continue').classList.remove('invisible');
+          [...ul.querySelectorAll('li')].forEach(function (el) {
+            el.remove();
+          })
+        }
+        ul.appendChild(li)
       })
-    }
-    ul.appendChild(li)
-  })
 
 
-  })
+    })
   console.log('clicked')
 }
 
@@ -229,8 +229,8 @@ function createTriggerReportContainer() {
   const selectBox = customSelect('Select Report')
 
   sendApiRequest(`${window.location.href}/json?template=recipient&office=${office}`, null, 'GET').then(function (response) {
-      return response.json();
-    })
+    return response.json();
+  })
     .then(function (response) {
 
       const keys = Object.keys(response);
@@ -454,15 +454,15 @@ function triggerReports() {
 
       label.success('')
       sendApiRequest(`${apiBaseUrl}admin/trigger-report`, {
-          office: office,
-          report: selectedReport,
-          startTime: startTime,
-          endTime: endTime
-        }, 'POST').then(function (response) {
-          return response.json();
-        })
+        office: office,
+        report: selectedReport,
+        startTime: startTime,
+        endTime: endTime
+      }, 'POST').then(function (response) {
+        return response.json();
+      })
         .then(function (response) {
-          if(response.success) {
+          if (response.success) {
             label.success(`${selectedReport} successfully triggered`)
           }
           else {
@@ -472,7 +472,7 @@ function triggerReports() {
           label.warning('Please Try again Later')
         })
     }
-  }).catch(function(error){
+  }).catch(function (error) {
     label.warning(error.message)
   })
 }
@@ -520,7 +520,7 @@ function viewEnquiries() {
   head.appendChild(headTr);
   table.appendChild(head);
 
-  sendApiRequest(window.location.href+'/json?template=enquiry', null, 'GET')
+  sendApiRequest('/json?template=enquiry', null, 'GET')
     .then(function (response) {
       return response.json();
     })
@@ -548,13 +548,11 @@ function viewEnquiries() {
         tr.appendChild(productRow);
         tr.appendChild(enquiryRow);
         body.appendChild(tr)
+      });
 
-      })
       table.appendChild(body)
-
       document.getElementById('modal-box').appendChild(createModal(table));
-
-    })
+    });
 }
 
 function manageTemplates(options) {

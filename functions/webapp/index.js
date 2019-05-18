@@ -95,9 +95,9 @@ const getLoggedInStatus = (idToken) => {
     .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
     .then((userRecord) => {
       const isAdmin = userRecord.customClaims.admin
-      && userRecord.customClaims.admin.length > 0;
+        && userRecord.customClaims.admin.length > 0;
       let adminOffices;
-      if(isAdmin) {
+      if (isAdmin) {
         adminOffices = userRecord.customClaims.admin;
       }
 
@@ -110,6 +110,7 @@ const getLoggedInStatus = (idToken) => {
         emailVerified: userRecord.emailVerified,
         displayName: userRecord.displayName,
         disabled: userRecord.disabled,
+        customClaims: userRecord.customClaims,
         isSupport: userRecord.customClaims.support,
         isAdmin: isAdmin,
         adminOffices: adminOffices,
@@ -283,10 +284,10 @@ const handleJoinPage = (locals, requester) => {
 };
 
 const handleHomePage = (locals, requester) => {
-  console.log("request",requester);
+  console.log("request", requester);
   const source = require('./views/index.hbs')();
   const template = handlebars.compile(source, { strict: true });
- 
+
   const html = template({
     pageTitle: 'Growthfile Home',
     pageDescription: 'One app for employees of all offices',
@@ -300,7 +301,7 @@ const handleHomePage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.isSupport,
     isAdmin: requester.isAdmin,
-    adminOffices:requester.adminOffices,
+    adminOffices: requester.adminOffices,
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
   });
@@ -422,7 +423,6 @@ const handlePrivacyPolicyPage = (locals, requester) => {
 };
 
 const jsonApi = (conn, requester) => {
-  console.log("Requester",requester);
   const json = {};
   const allowedTemplates = new Set(['enquiry']);
 
@@ -430,8 +430,8 @@ const jsonApi = (conn, requester) => {
     return json;
   }
 
-  if (conn.req.query.template 
-    && !conn.req.query.office 
+  if (conn.req.query.template
+    && !conn.req.query.office
     && !conn.req.query.query) {
     if (!allowedTemplates.has(conn.req.query.template)) {
       return json;
@@ -464,20 +464,23 @@ const jsonApi = (conn, requester) => {
   }
 
   if (!isNonEmptyString(conn.req.query.office)) {
-    
     return json;
   }
 
-  // if (!hasAdminClaims(conn.requester.customClaims)
-  //   && !hasSupportClaims(conn.requester.customClaims)) {
-  //     console.log("not valid")
-  //   return json;
-  // }
+  if (!hasAdminClaims(requester.customClaims)
+    && !hasSupportClaims(requester.customClaims)) {
+    return json;
+  }
 
-  // if (hasAdminClaims(conn.requester.customClaims)
-  //   && conn.requester.customClaims.admin.includes(conn.req.query.office)) {
-  //   return json;
-  // }
+  /**
+   * Admin claims are found, but the claims.admin array doesn't contain
+   * the office which which was sent in the request body.
+   */
+  if (hasAdminClaims(requester.customClaims)
+    && !requester.customClaims.admin.includes(conn.req.query.office)) {
+
+    return json;
+  }
 
   return rootCollections
     .offices
@@ -565,19 +568,18 @@ module.exports = (req, res) => {
   }
 
   if (slug === 'config') {
-    const json = {
-      apiBaseUrl: env.apiBaseUrl,
-      getUserBaseUrl: env.getUserBaseUrl,
-    };
-
     conn.res.setHeader('Content-Type', 'application/json');
 
-    return conn.res.json(json);
+    return conn
+      .res
+      .json({
+        apiBaseUrl: env.apiBaseUrl,
+        getUserBaseUrl: env.getUserBaseUrl,
+      });
   }
 
   return getLoggedInStatus(idToken)
     .then((result) => {
-     
       const {
         uid,
         email,
@@ -588,6 +590,7 @@ module.exports = (req, res) => {
         isLoggedIn,
         phoneNumber,
         displayName,
+        customClaims,
         emailVerified,
         isTemplateManager,
       } = result;
@@ -608,7 +611,7 @@ module.exports = (req, res) => {
           isAdmin,
           isSupport,
           isTemplateManager,
-          
+          customClaims,
         };
       }
 
@@ -694,7 +697,6 @@ module.exports = (req, res) => {
     })
     .catch((error) => {
       console.error('Error', error);
-
       const html = handleServerError();
 
       return conn
