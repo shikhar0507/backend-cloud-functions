@@ -216,8 +216,8 @@ function fileToJson(template, claim, data, modal) {
     defval: '',
     raw: false
   });
-  if (!jsonData.length) return;
-  notificationLabel.warning('File is Empty')
+  if (!jsonData.length) return  notificationLabel.warning('File is Empty');
+
 
   jsonData.forEach(function (val) {
     val.share = [];
@@ -336,7 +336,7 @@ function triggerReports() {
       }
 
       label.success('')
-      sendApiRequest(`${apiBaseUrl}admin/trigger-report`, {
+      sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
         office: office,
         report: selectedReport,
         startTime: startTime,

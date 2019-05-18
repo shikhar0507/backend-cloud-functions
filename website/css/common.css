@@ -423,7 +423,8 @@ input:disabled {
     margin: auto;
     padding: 20px;
     border: 1px solid #888;
-    width: 40%;
+    width: 80%;
+    overflow-y: auto;
 }
 
 .modal .modal-content .action-container {
@@ -458,6 +459,6 @@ input:disabled {
 }
 @media (max-width: 800px) {
     .modal .modal-content {
-        width: 80%;
+        /* width: 80%; */
     }
 }
