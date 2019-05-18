@@ -167,12 +167,12 @@ const getActivityName = (params) => {
 };
 
 const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
-  const rule = locals.templateDoc.get('canEditRule');
+  const canEditRule = locals.templateDoc.get('canEditRule');
 
-  if (rule === 'NONE') return false;
-  if (rule === 'ADMIN') return locals.adminsSet.has(phoneNumber);
-  if (rule === 'EMPLOYEE') return locals.employeesSet.has(phoneNumber);
-  if (rule === 'CREATOR') return phoneNumber === requestersPhoneNumber;
+  if (canEditRule === 'NONE') return false;
+  if (canEditRule === 'ADMIN') return locals.adminsSet.has(phoneNumber);
+  if (canEditRule === 'EMPLOYEE') return locals.employeesSet.has(phoneNumber);
+  if (canEditRule === 'CREATOR') return phoneNumber === requestersPhoneNumber;
 
   // for `ALL`
   return true;
@@ -305,10 +305,8 @@ const createObjects = (conn, locals, trialRun) => {
   const batchesArray = [];
   const timestamp = Date.now();
   const childActivitiesBatch = db.batch();
-  const isEmployeeTemplate =
-    conn.req.body.template === templateNamesObject.EMPLOYEE;
-  const isOfficeTemplate =
-    conn.req.body.template === templateNamesObject.OFFICE;
+  const isEmployeeTemplate = conn.req.body.template === templateNamesObject.EMPLOYEE;
+  const isOfficeTemplate = conn.req.body.template === templateNamesObject.OFFICE;
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(locals.templateDoc.get('schedule'));
   const venueFieldsSet = new Set(locals.templateDoc.get('venue'));
@@ -517,169 +515,6 @@ const createObjects = (conn, locals, trialRun) => {
     // 1 activity doc, and 2 addendum object
     batch.set(activityRef, activityObject);
     batch.set(addendumDocRef, addendumObject);
-
-    if (isOfficeTemplate) {
-      const allPhoneNumbers = locals.officeContacts.get(index) || [];
-
-      allPhoneNumbers.forEach((phoneNumber) => {
-        // For each phoneNumber, create subscription and assignee
-        const adminActivityRef =
-          rootCollections
-            .activities
-            .doc();
-        const subscriptionActivityRef =
-          rootCollections
-            .activities
-            .doc();
-        const adminAddendumRef =
-          rootCollections
-            .offices
-            .doc(officeId)
-            .collection('Addendum')
-            .doc();
-        const subscriptionAddendumRef =
-          rootCollections
-            .offices
-            .doc(officeId)
-            .collection('Addendum')
-            .doc();
-
-        const subscriptionActivityData = {
-          office,
-          timezone,
-          officeId,
-          timestamp,
-          addendumDocRef,
-          schedule: [],
-          venue: [],
-          attachment: {
-            Subscriber: {
-              value: phoneNumber,
-              type: 'phoneNumber',
-            },
-            Template: {
-              value: templateNamesObject.SUBSCRIPTION,
-              type: 'string',
-            },
-          },
-          canEditRule: locals.subscriptionTemplateDoc.get('canEditRule'),
-          creator: conn.requester.phoneNumber,
-          hidden: locals.subscriptionTemplateDoc.get('hidden'),
-          status: locals.subscriptionTemplateDoc.get('statusOnCreate'),
-          template: templateNamesObject.SUBSCRIPTION,
-          activityName: `SUBSCRIPTION: ${phoneNumber}`,
-          createTimestamp: Date.now(),
-          forSalesReport: false,
-        };
-        const subscriptionAddendumData = {
-          timestamp,
-          activityData: subscriptionActivityData,
-          user: conn.requester.phoneNumber,
-          userDisplayName: conn.requester.displayName,
-          action: httpsActions.create,
-          template: templateNamesObject.SUBSCRIPTION,
-          location: getGeopointObject(conn.req.body.geopoint),
-          userDeviceTimestamp: conn.req.body.timestamp,
-          activityId: subscriptionActivityRef.id,
-          activityName: subscriptionActivityData.activityName,
-          geopointAccuracy: conn.req.body.geopoint.accuracy || null,
-          provider: conn.req.body.geopoint.provider || null,
-          isSupportRequest: locals.isSupportRequest,
-          isAdminRequest: locals.isAdminRequest,
-        };
-        const adminActivityData = {
-          office,
-          timezone,
-          officeId,
-          timestamp,
-          addendumDocRef,
-          schedule: [],
-          venue: [],
-          attachment: {
-            Admin: {
-              value: phoneNumber,
-              type: 'phoneNumber',
-            },
-          },
-          canEditRule: locals.adminTemplateDoc.get('canEditRule'),
-          creator: conn.requester.phoneNumber,
-          hidden: locals.adminTemplateDoc.get('hidden'),
-          status: locals.adminTemplateDoc.get('statusOnCreate'),
-          template: templateNamesObject.ADMIN,
-          activityName: `ADMIN: ${phoneNumber}`,
-          createTimestamp: Date.now(),
-          forSalesReport: false,
-        };
-        const adminAddendumData = {
-          timestamp,
-          activityData: adminActivityData,
-          user: conn.requester.phoneNumber,
-          userDisplayName: conn.requester.displayName,
-          action: httpsActions.create,
-          template: templateNamesObject.ADMIN,
-          location: getGeopointObject(conn.req.body.geopoint),
-          userDeviceTimestamp: conn.req.body.timestamp,
-          activityId: adminActivityRef.id,
-          activityName: adminActivityData.activityName,
-          isSupportRequest: locals.isSupportRequest,
-          isAdminRequest: locals.isAdminRequest,
-          geopointAccuracy: conn.req.body.geopoint.accuracy || null,
-          provider: conn.req.body.geopoint.provider || null,
-        };
-
-        childActivitiesBatch
-          .set(subscriptionActivityRef, adminActivityData);
-        childActivitiesBatch
-          .set(subscriptionAddendumRef, subscriptionAddendumData);
-        childActivitiesBatch
-          .set(adminAddendumRef, adminAddendumData);
-        childActivitiesBatch
-          .set(adminActivityRef, subscriptionActivityData);
-
-        childActivitiesBatch
-          .set(adminActivityRef
-            .collection('Assignees')
-            .doc(phoneNumber), {
-              canEdit: true,
-              addToInclude: true,
-            });
-
-        childActivitiesBatch
-          .set(subscriptionActivityRef
-            .collection('Assignees')
-            .doc(phoneNumber), {
-              canEdit: true,
-              addToInclude: false,
-            });
-
-        totalDocsCreated += 6;
-        batchDocsCount += 6;
-        conn
-          .req
-          .body
-          .data[index]
-          .share.forEach((number) => {
-            totalDocsCreated += 2;
-            batchDocsCount += 2;
-
-            childActivitiesBatch
-              .set(adminActivityRef
-                .collection('Assignees')
-                .doc(number), {
-                  canEdit: true,
-                  addToInclude: true,
-                });
-
-            childActivitiesBatch
-              .set(subscriptionActivityRef
-                .collection('Assignees')
-                .doc(number), {
-                  canEdit: true,
-                  addToInclude: true,
-                });
-          });
-      });
-    }
 
     // One doc for activity
     // Second for addendum
@@ -1512,8 +1347,7 @@ const validateDataArray = (conn, locals) => {
     .then(() => handleEmployees(conn, locals))
     .then(() => createObjects(conn, locals, trialRun))
     // .then((responseObject) => sendExcelFromResponse(conn, locals, responseObject))
-    .then((responseObject) => sendJSON(conn, responseObject))
-    .catch((error) => handleError(conn, error));
+    .then((responseObject) => sendJSON(conn, responseObject));
 };
 
 module.exports = (conn) => {
