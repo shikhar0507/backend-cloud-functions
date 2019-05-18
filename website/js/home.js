@@ -336,7 +336,7 @@ function triggerReports() {
       }
 
       label.success('')
-      sendApiRequest(`${apiBaseUrl}admin/trigger-report`, {
+      sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
         office: office,
         report: selectedReport,
         startTime: startTime,
