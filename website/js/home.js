@@ -171,7 +171,7 @@ function createTriggerReportContainer() {
   let reportSelected;
   const selectBox = customSelect('Select Report')
 
-  sendApiRequest(`${window.location.href}/json?template=recipient&office=${office}`, null, 'GET').then(function (response) {
+  sendApiRequest(`${getPageHref()}json?template=recipient&office=${office}`, null, 'GET').then(function (response) {
       return response.json();
     })
     .then(function (response) {
@@ -360,6 +360,11 @@ function triggerReports() {
   })
 }
 
+function getPageHref(){
+ return location.protocol+'//'+location.host+location.pathname+(location.search?location.search:"")
+
+}
+
 function viewEnquiries() {
 
   const table = document.createElement('table');
@@ -375,7 +380,7 @@ function viewEnquiries() {
   head.appendChild(headTr);
   table.appendChild(head);
 
-  sendApiRequest(window.location.href+'/json?template=enquiry', null, 'GET')
+  sendApiRequest(`${getPageHref()}json?template=enquiry`, null, 'GET')
     .then(function (response) {
       return response.json();
     })
@@ -434,18 +439,18 @@ function searchBar(labelText,id){
 }
 
 function employeeExit(){
-  const search = searchBar('Search Employee','employee-search');
-  const input = search.querySelector('input');
-  const submit = search.querySelector('button');
-  submit.onclick = function(){
+  // const search = searchBar('Search Employee','employee-search');
+  // const input = search.querySelector('input');
+  // const submit = search.querySelector('button');
+  // submit.onclick = function(){
     
-    sendApiRequest(`${window.location.href}json?template=employee&office=${office}&query=${input.value}`,null,'GET').then(function(res){
-      return res.json()
-    }).then(function(response){
-        console.log(response);
+  //   sendApiRequest(`${getPageHref()}json?template=employee&office=${office}&query=${input.value}`,null,'GET').then(function(res){
+  //     return res.json()
+  //   }).then(function(response){
+  //       console.log(response);
 
-    }).catch(console.error)
-  }
-  document.getElementById('modal-box').appendChild(createModal(search))
+  //   }).catch(console.error)
+  // }
+  // document.getElementById('modal-box').appendChild(createModal(search))
 }
 
