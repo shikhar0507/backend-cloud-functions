@@ -10,41 +10,70 @@
     \{{> persistentBarPartial this}}
     \{{> headerPartial this}}
     <div class="container">
+       
         \{{#if isLoggedIn}}
-        <section class="action-icons-container">
-            <section id="action-section">
-                <p id="default-text">Click to proceed</p>
-            </section>
+        <div class="office-selection">
+          \{{#if isSupport}}
+           <form id='office-search-form' class="form-inline">
+                <label for="office">Search Office</label>
+                <input type="text" placeholder="Search an office" class="input-field" id='office-search-field' oninput="toggleSearchButton(this)">
+                
+                <ul></ul>
+                <button type="button" class="button button-search invisible" onclick="searchOffice()">search</button>
+                <button type="button" class="invisible button" id='continue' onclick="startAdmin(document.getElementById('office-search-field').value)">Conitnue</button>
+            </form> 
+           
+            \{{else}} \{{#if isAdmin}}
+             <form id='office-search-form' class="form-inline">
+                 <span class="select-dropdown">
+                    <select id='office-selector'>
+                        \{{#each adminOffices}}
+                            <option value="\{{this}}">\{{this}}</option>
+                        \{{/each}}
+                    </select>
+                 </span>
+                <a class="button" id='continue' onclick="startAdmin(document.getElementById('office-selector').value)">Conitnue</a>
+            </form> 
+            \{{else}}
+            <p>Normal user</p>
+            \{{/if}} 
+            \{{/if}}
+        </div>
+       
+        
+       
+        <section class="action-icons-container hidden">
             <div class="cards">
-                <div id="add-employees">
+             \{{#if isSupport}}
+                <div id="add-employees" onclick="addNew(true)">
                     <i class="fas fa-user-plus action-icon"></i>
-                    <p class="icon-text">Add Employees</p>
+                    <p class="icon-text">Create New</p>
                 </div>
-                <div id="trigger-reports">
+                <div id="trigger-reports" onclick="triggerReports(true)">
                     <i class="far fa-file-excel action-icon"></i>
                     <p class="icon-text">Trigger Reports</p>
                 </div>
-                <div id="change-phone-number">
+                <div id="change-phone-number" onclick="changePhoneNumber()">
                     <i class="fas fa-phone-volume action-icon"></i>
                     <p class="icon-text">Update Phone Number</p>
                 </div>
-                <div id="employee-resign">
+                <div id="employee-resign" onclick="employeeExis()">
                     <i class="fas fa-user-minus action-icon"></i>
                     <p class="icon-text">Employee Exit</p>
                 </div>
-                <div id="update-recipient">
+                <div id="update-recipient" onclick="updateEmailInReports()">
                     <i class="fas fa-envelope-open-text action-icon"></i>
                     <p class="icon-text">Update Report Mail Ids</p>
                 </div>
-                <div id="update-subscription">
+                <div id="update-subscription" onclick="updateSubscription()">
                     <i class="far fa-file-archive action-icon"></i>
                     <p class="icon-text">Update Subscriptions</p>
                 </div>
-                <div id="update-activity">
+                <div id="update-activity" onclick="searchAndUpdate()">
                     <i class="fas fa-font action-icon"></i>
                     <p class="icon-text">Search & Update</p>
                 </div>
-                <div id="view-enquiries">
+                <div id="view-enquiries" onclick="viewEnquiries()">
                     <i class="fas fa-question action-icon"></i>
                     <p class="icon-text">View Enquiries</p>
                 </div>
@@ -52,8 +81,53 @@
                     <i class="fas fa-file-alt action-icon"></i>
                     <p class="icon-text">Manage Templates</p>
                 </div>
-                </ul>
+                \{{else}} \{{#if isAdmin}}
+                   <div id="add-employees" onclick="addNew(false,true)">
+                    <i class="fas fa-user-plus action-icon"></i>
+                    <p class="icon-text">Create New</p>
+                </div>
+                <div id="trigger-reports" onclick="triggerReports(false,true)">
+                    <i class="far fa-file-excel action-icon"></i>
+                    <p class="icon-text">Trigger Reports</p>
+                </div>
+                <div id="change-phone-number" onclick="changePhoneNumber()">
+                    <i class="fas fa-phone-volume action-icon"></i>
+                    <p class="icon-text">Update Phone Number</p>
+                </div>
+                <div id="employee-resign" onclick="employeeExis()">
+                    <i class="fas fa-user-minus action-icon"></i>
+                    <p class="icon-text">Employee Exit</p>
+                </div>
+                <div id="update-recipient" onclick="updateEmailInReports()">
+                    <i class="fas fa-envelope-open-text action-icon"></i>
+                    <p class="icon-text">Update Report Mail Ids</p>
+                </div>
+                <div id="update-subscription" onclick="updateSubscription()">
+                    <i class="far fa-file-archive action-icon"></i>
+                    <p class="icon-text">Update Subscriptions</p>
+                </div>
+                <div id="update-activity" onclick="searchAndUpdate()">
+                    <i class="fas fa-font action-icon"></i>
+                    <p class="icon-text">Search & Update</p>
+                </div>
+                <div id="view-enquiries" onclick="viewEnquiries()">
+                    <i class="fas fa-question action-icon"></i>
+                    <p class="icon-text">View Enquiries</p>
+                </div>
+                <div id="manage-templates">
+                    <i class="fas fa-file-alt action-icon"></i>
+                    <p class="icon-text">Manage Templates</p>
+                </div>
+                  \{{else}}
+           <div id="view-enquiries" onclick="viewEnquiries()">
+                    <i class="fas fa-question action-icon"></i>
+                    <p class="icon-text">View Enquiries</p>
+                </div>
+            \{{/if}} 
+            \{{/if}}
+                
         </section>
+
         \{{else}}
         \{{> asidePartial}}
         <section class="features-section">
@@ -144,6 +218,7 @@
     <div id='modal-box'></div>
     \{{> scriptsPartial}}
     <script src="js/home.js"></script>
+ 
 </body>
 
 </html>

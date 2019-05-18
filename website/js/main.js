@@ -1,7 +1,13 @@
 'use strict';
 
-
-function isValidPhoneNumber(phoneNumber = '') {
+function handleRecaptcha() {
+  return new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+    'size': 'normal'
+  });
+}
+  
+  
+  function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
 
   return phoneNumber.search(pattern) !== -1;
@@ -91,7 +97,7 @@ function getMobileOperatingSystem() {
 };
 
 function isValidEmail(emailString) {
-  return /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/
+  return reg = /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/
     .test(emailString);
 }
 
@@ -105,8 +111,16 @@ function getSpinnerElement(id) {
   if (id) {
     elem.id = id;
   }
+  return {
+    center: function(){
+      elem.classList.add('spinner-center')
+      return elem;
+    },
+    default:function(){
+      return elem;
+    }
+  }
 
-  return elem;
 }
 
 /** Create Modal box */
@@ -128,7 +142,10 @@ function createModal(actionContent) {
   }
 
   const actionContainer = document.createElement('div')
-  actionContainer.className = 'action-container mt-30';
+  actionContainer.className = 'action-container mt-20';
+  const actionNotification = document.createElement('span');
+  actionNotification.id = 'action-label'
+  actionContainer.appendChild(actionNotification)
   actionContainer.appendChild(actionContent);
 
   content.appendChild(close)
@@ -177,6 +194,7 @@ function getLocation(callback) {
   })
 }
 
+
 function sendApiRequest(apiUrl, requestBody, method) {
   const init = {
     method,
@@ -196,7 +214,7 @@ function sendApiRequest(apiUrl, requestBody, method) {
   console.log('init:', init);
   const baseUrl = `${urlScheme.origin}${urlScheme.pathname}`
     /** Removes the trailing slash in the url */
-    .slice(0, -1);
+
 
   console.log({
     baseUrl,
@@ -245,21 +263,6 @@ document.addEventListener('click', (event) => {
     document.querySelector('aside').classList.toggle('hidden');
   }
 
-  const loginActionElements = [
-    document.getElementById('add-employees'),
-    document.getElementById('trigger-reports'),
-    document.getElementById('change-phone-number'),
-    document.getElementById('employee-resign'),
-    document.getElementById('update-recipient'),
-    document.getElementById('update-subscription'),
-    document.getElementById('update-activity'),
-    document.getElementById('view-enquiries'),
-    document.getElementById('manage-templates'),
-  ];
-
-  if (loginActionElements.includes(event.target)) {
-    return void handleActionIconClick(event);
-  }
 
   if (event.target === document.getElementById('menu-logout-link')) {
     return void logoutUser(event);
@@ -282,7 +285,7 @@ function setGlobals() {
     .then(function (response) { return response.json() })
     .then(function (result) {
       window.globalsSet = true;
-
+     
       Object
         .keys(result)
         .forEach(function (key) {
@@ -296,10 +299,12 @@ function setGlobals() {
 }
 
 
-document
-  .addEventListener('DOMContentLoaded', function () {
-    setGlobals();
 
+window
+  .addEventListener('load', function () {
+   
+    setGlobals();
+    
     firebase
       .auth()
       .addAuthTokenListener(function (idToken) {

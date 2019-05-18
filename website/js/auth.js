@@ -34,7 +34,8 @@ function hideMessage() {
   messageNode.classList.add('hidden');
 }
 
-function logInWithOtp() {
+function logInWithOtp(confirmationResult) {
+
   const code = getOtp();
 
   if (!window.recaptchaResolved) {
@@ -101,7 +102,7 @@ function logInWithOtp() {
           user.sendEmailVerification().then(function () {
             submitButton.classList.add('hidden')
             setMessage('Verification Email has been sent to ' + getEmail() + ' . Please Verify Your Email to continue.')
-            document.querySelector('.container form').appendChild(getSpinnerElement())
+            document.querySelector('.container form').appendChild(getSpinnerElement().default())
           }).catch(function (error) {
             setMessage(error.message)
           })
@@ -128,43 +129,20 @@ function logInWithOtp() {
 function sendOtpToPhoneNumber() {
   const phoneNumber = getPhoneNumber();
   const appVerifier = window.recaptchaVerifier;
+  return new Promise(function(resolve,reject){
 
-  return firebase
+    return firebase
     .auth()
     .signInWithPhoneNumber(phoneNumber, appVerifier)
     .then(function (confirmationResult) {
-      setMessage(`Otp sent to ${phoneNumber}`);
-
-      console.log('otp sent');
-
-      window.confirmationResult = confirmationResult;
+      return resolve(confirmationResult)
     })
-    .catch(console.error);
-}
-
-function handleRecaptcha() {
-  window
-    .recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-      'size': 'normal',
-      'callback': function (response) {
-        // reCAPTCHA solved, allow signInWithPhoneNumber.
-        window.recaptchaResolved = true;
-
-        console.log('recaptcha solved');
-        showOtpInput();
-
-        document
-          .getElementById('recaptcha-container')
-          .style
-          .display = 'none';
-      },
-      'expired-callback': function () {
-        console.log('recaptcha expired');
-
-        setMessage('Recaptcha expired. Please reload the page');
-      }
+    .catch(function(error){
+      return reject(error)
     });
+  })
 }
+
 
 function fetchAuth() {
   const phoneNumber = getPhoneNumber();
@@ -180,10 +158,10 @@ function fetchAuth() {
     .setAttribute('disabled', true);
 
   return sendApiRequest(
-    `${getUserBaseUrl}/?phoneNumber=${encodeURIComponent(phoneNumber)}`,
-    null,
-    'GET'
-  )
+      `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`,
+      null,
+      'GET'
+    )
     .then(function (response) {
       if (!response.ok) {
         // messageNode.innerText = 'Something went wrong';
@@ -203,36 +181,52 @@ function fetchAuth() {
 
       console.log('response received', result);
 
+
       if (result.showFullLogin) {
         window.showFullLogin = true;
         console.log('full login shown');
-
         showNameEmailContainer();
       }
+      window.recaptchaVerifier = handleRecaptcha();
 
       /** Render recaptcha */
-      return recaptchaVerifier.render();
+      return window.recaptchaVerifier.render();
     })
     .then(function (widgetId) {
       if (widgetId === undefined) {
         return Promise.resolve();
       }
 
-
+      submitButton.classList.add('hidden')
       window.recaptchaWidgetId = widgetId;
-      submitButton.onclick = logInWithOtp;
+
+      window.recaptchaVerifier.verify().then(function () {
+        window.recaptchaResolved = true
+        sendOtpToPhoneNumber().then(function(confirmResult){
+          setMessage(`Otp sent to ${phoneNumber}`);
+          showOtpInput();
+          document
+          .getElementById('recaptcha-container')
+          .style
+          .display = 'none';
+          submitButton.classList.remove('hidden')
+          submitButton.onclick = function(){
+            logInWithOtp(confirmResult)
+          }
+        })
+       
+      })
+   
 
       console.log('recaptcha rendered');
 
-      return sendOtpToPhoneNumber();
+    
     })
     .catch(function (error) {
       console.error(error);
-
+      window.recaptchaResolved = false
       setMessage('Something went wrong');
     });
 }
 
 submitButton.onclick = fetchAuth;
-
-handleRecaptcha();

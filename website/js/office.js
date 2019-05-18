@@ -138,7 +138,7 @@ function startEnquiryCreationFlow() {
     return;
   }
 
-  const spinner = getSpinnerElement('enquiry-fetch-spinner');
+  const spinner = getSpinnerElement('enquiry-fetch-spinner').default();
   document.forms[0].innerText = '';
   document.forms[0].style.display = 'flex';
   document.forms[0].style.justifyContent = 'center';
