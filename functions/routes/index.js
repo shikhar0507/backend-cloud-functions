@@ -35,22 +35,23 @@ module.exports = (req) => {
       break;
     case 'admin/search':
       checkAdmin = true;
+      checkSupport = true;
       func = require('../firestore/offices/search');
       break;
     case 'admin/bulk':
       checkAdmin = true;
+      checkSupport = true;
       func = require('../firestore/bulk/script');
       break;
     case 'change-phone-number':
       checkAdmin = true;
+      checkSupport = true;
       func = require('../firestore/phone-number-change');
       break;
     case 'remove-employee':
       checkAdmin = true;
+      checkSupport = true;
       func = require('../firestore/employee-resign');
-      break;
-    case 'send-email':
-      func = require('../firestore/mail-parser');
       break;
     case 'services/permissions':
       checkSuperuser = true;
@@ -79,6 +80,16 @@ module.exports = (req) => {
       break;
     case 'admin/trigger-report':
       func = require('./../firestore/on-demand-reports');
+      break;
+    case 'admin/now':
+      checkAdmin = true;
+      checkSupport = true;
+      func = require('./../firestore/offices/now');
+      break;
+    case 'admin/read':
+      checkAdmin = true;
+      checkSupport = true;
+      func = require('./../firestore/offices/on-read');
       break;
     default:
       func = null;

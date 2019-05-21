@@ -61,7 +61,8 @@ const handleResource = (conn) => {
 
   const rejectAdminRequest = resource
     .checkAdmin
-    && !hasAdminClaims(conn.requester.customClaims);
+    && !hasAdminClaims(conn.requester.customClaims)
+    && !conn.requester.isSupportRequest;
   const rejectSupportRequest = resource
     .checkSupport
     && !hasSupportClaims(conn.requester.customClaims);
