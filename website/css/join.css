@@ -44,15 +44,13 @@ section {
 }
 
 section h2 {
-    font-size: 20px;
-    font-weight: 600;
-    line-height: 30px;
+    line-height: 28px;
 }
 
 .main-text {
-    font-size: 20px;
+    /* font-size: 20px; */
     font-weight: 500;
-    line-height: 24px;
+    /* line-height: 24px; */
 }
 
 .join-section {
@@ -65,7 +63,6 @@ section h2 {
     }
 
     section h2 {
-        font-size: 16px;
         text-transform: uppercase;
     }
 }
@@ -76,7 +73,6 @@ section h2 {
     }
 
     section h2 {
-        font-size: 16px;
         text-transform: uppercase;
     }
 }
@@ -92,7 +88,7 @@ section h2 {
     }
 
     .main-text {
-        font-size: 16px;
+        /* font-size: 16px; */
     }
 
     .card {
