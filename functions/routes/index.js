@@ -43,7 +43,7 @@ module.exports = (req) => {
       checkSupport = true;
       func = require('../firestore/bulk/script');
       break;
-    case 'change-phone-number':
+    case 'admin/change-phone-number':
       checkAdmin = true;
       checkSupport = true;
       func = require('../firestore/phone-number-change');
