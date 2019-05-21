@@ -14,10 +14,14 @@ const {
   hasAdminClaims,
   hasSupportClaims,
 } = require('../admin/utils');
+// const {
+//   weekdays,
+// } = require('../admin/constants');
 // const helpers = require('./helpers');
 const handlebars = require('handlebars');
 const url = require('url');
 const env = require('../admin/env');
+// const momentTz = require('moment-timezone');
 
 const headPartial = require('./views/partials/head.hbs')();
 const headerPartial = require('./views/partials/header.hbs')();
@@ -203,10 +207,37 @@ const handleOfficePage = (locals, requester) => {
 };
 
 const getBranchOpenStatus = () => {
-  return null;
+  const result = {
+    isOpen: true,
+    isClosed: false,
+    isClosingSoon: false,
+    isOnHoliday: false,
+  };
+
+  // const currentMoment = momentTz().tz(timezone);
+  // const dayStartMoment = currentMoment.startOf('day').valueOf();
+  // const weekdayStartTime = doc.get('attachment.Weekday Start Time.value');
+  // const weekdayEndTime = doc.get('attachment.Weekday End Time.value');
+  // const saturdayStartTime = doc.get('attachment.Saturday Start Time.value');
+  // const saturdayEndTime = doc.get('attachment.Saturday End Time.value');
+  // const weeklyOff = doc.get('attachment.Weekly Off.value');
+  // const schedulesArray = doc.get('schedule');
+
+  // // Branch holidays
+  // schedulesArray.forEach((schedule) => {
+  //   const { startTime, endTime } = schedule;
+
+  //   if (startTime < dayStartMoment || endTime > dayStartMoment) return;
+
+  //   result.isOnHoliday = true;
+  // });
+
+  return result;
 };
 
 const fetchOfficeData = (locals, requester) => {
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+
   return Promise
     .all([
       locals
@@ -239,14 +270,22 @@ const fetchOfficeData = (locals, requester) => {
             return;
           }
 
+          const {
+            isOpen,
+            isClosed,
+            isClosingSoon
+          } = getBranchOpenStatus(doc, timezone);
+
           locals.branchObjectsArray.push({
+            isOpen,
+            isClosed,
+            isClosingSoon,
             name: doc.get('attachment.Name.value'),
             address: venue.address,
             /** Not sure why I'm doing this... */
             latitude: venue.geopoint._latitude || venue.geopoint.latitude,
             longitude: venue.geopoint._longitude || venue.geopoint.longitude,
             weeklyOff: doc.get('attachment.Weekly Off.value'),
-            openStatus: getBranchOpenStatus(doc),
           });
         });
 

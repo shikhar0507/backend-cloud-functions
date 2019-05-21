@@ -52,7 +52,7 @@
                         \{{else}}
                         <i class="far fa-image"></i>
                         \{{/if}}
-                        <div class="product-name-container">\{{this.name}}</div>
+                        <div class="product-name-container bold">\{{this.name}}</div>
                     </div>
 
                     <div class="product-details-container">
@@ -104,10 +104,12 @@
                     </select>
                 </p>
                 \{{/if}}
-                <a class="button" id="enquiry-submit-button" href="#">
-                    Submit
-                    <i class="fas fa-arrow-right"></i>
-                </a>
+                <p class="m0-auto fit-content">
+                    <a class="button" id="enquiry-submit-button" href="#">
+                        Submit
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </p>
             </form>
         </section>
 
@@ -125,8 +127,20 @@
                     \{{#each branchObjectsArray}}
                     <ul>
                         <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}} class="list-item">
-                            <span class="list-item-name">\{{this.name}}</span>
+                            <span class="list-item-name bold">\{{this.name}}</span>
                             <span class="list-item-address">\{{this.address}}</span>
+                            \{{#if this.isOpen}}
+                            <span class="branch-status bg-green col-white">OPEN</span>
+                            \{{/if}}
+                            \{{#if this.isClosed}}
+                            <span class="branch-status bg-red col-white">CLOSED</span>
+                            \{{/if}}
+                            \{{#if this.isClosingSoon}}
+                            <span class="branch-status bg-orange col-white">CLOSING SOON</span>
+                            \{{/if}}
+                            \{{#if this.isOnHoliday}}
+                            <span class="branch-status bg-orange col-white">BRANCH HOLIDAY</span>
+                            \{{/if}}
                         </li>
                     </ul>
                     \{{/each}}

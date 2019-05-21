@@ -93,9 +93,7 @@ section {
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
     border: 1px solid rgba(0, 0, 0, .09);
     margin-bottom: 25px;
-    margin-bottom: 25px;
     padding: 20px 30px;
-    background-color: white;
 }
 
 .input-field {
@@ -127,6 +125,27 @@ section {
     border-radius: 50%;
 }
 
+.bg-magenta {
+    /* TODO: Use this everywhere instead of hardcoding */
+    background: #89273E;
+}
+
+.bg-green {
+    background: #1E8E3E;
+}
+
+.bg-red {
+    background: #DB4437;
+}
+
+.bg-orange {
+    background: #EF6C00;
+}
+
+.col-white {
+    color: white;
+}
+
 /** Helpers **/
 .mt-30 {
     margin-top: 30px;
@@ -150,6 +169,14 @@ section {
 
 .bold {
     font-weight: 600;
+}
+
+.m0-auto {
+    margin: 0 auto;
+}
+
+.fit-content {
+    max-width: fit-content;
 }
 
 .header-links-container {

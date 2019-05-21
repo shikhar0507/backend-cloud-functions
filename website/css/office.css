@@ -19,6 +19,7 @@
 
 section {
     min-height: unset;
+    background: #f9f9fa;
 }
 
 .office-name-container {
@@ -37,24 +38,29 @@ section {
 }
 
 .container section h1 {
-    font-size: 24px;
+    /* font-size: 24px; */
     font-weight: 600;
-    line-height: 40px;
+    /* line-height: 40px; */
     margin-bottom: 16px;
 }
 
 .container section p {
-    font-size: 14px;
-    line-height: 20px;
+    /* font-size: 14px; */
+    /* line-height: 20px; */
     margin-bottom: 16px;
 }
 
+.branch-status {
+    max-width: fit-content;
+    padding: 2px;
+    font-size: 13px;
+}
 
 .branch-section h2,
 .product-section h2,
 .enquiry-section h2 {
     color: #89273E;
-    font-size: 24px;
+    /* font-size: 24px; */
     margin-bottom: 30px;
 }
 
@@ -80,13 +86,13 @@ section {
 }
 
 .list-item-name {
-    font-size: 1.2em;
+    /* font-size: 1.2em; */
     margin-bottom: 10px;
 }
 
 .list-item-address {
     color: #949494;
-    line-height: 18px;
+    /* line-height: 18px; */
 }
 
 .maps-container {
@@ -116,7 +122,7 @@ form p span {
 
 form p input {
     min-width: -webkit-fill-available;
-    line-height: 40px;
+    min-height: 35px;
 }
 
 form p textarea {
@@ -152,23 +158,23 @@ form p select {
     display: flex;
     flex-direction: column;
     padding: 10px 20px;
-    background: #89273E;
+    background: #f9f9fa;
 }
 
 .product-box i {
-    font-size: 40px;
+    /* font-size: 40px; */
 }
 
 .product-name-container {
     display: flex;
     align-items: center;
     margin-left: 16px;
-    color: white;
+    /* color: white; */
 }
 
 .product-image-name-container {
     display: flex;
-    color: white;
+    /* color: white; */
     flex-direction: row;
 }
 
@@ -176,18 +182,19 @@ form p select {
 .product-box img {
     height: 40px;
     width: 40px;
+    font-size: 40px;
 }
 
 .product-details-container {
     /* display: block; */
     /* Visibele after click */
-    display: none;
+    /* display: none; */
     margin-top: 16px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
     border: 1px solid rgba(0, 0, 0, .09);
     padding: 10px 5px;
-    color: #89273E;
-    background: white;
+    /* color: #89273E; */
+    /* background: white; */
 }
 
 @media (min-width: 360px) {
@@ -196,13 +203,18 @@ form p select {
     }
 }
 
-@media (min-width: 481px) and (max-width: 767px) {
-
-    .youtube,
+@media (max-width: 768px) {
     .container {
-        margin: 0 auto;
-        max-width: 80%;
+        max-width: unset;
     }
+}
+
+@media (min-width: 481px) and (max-width: 767px) {
+    /* .youtube,
+.container {
+    margin: 0 auto;
+    max-width: 80%;
+} */
 
     .maps-container {
         display: unset;
@@ -212,7 +224,7 @@ form p select {
 @media (min-width: 768px) and (max-width: 1024px) {
     .product-box {
         width: 150px;
-        height: 150px;
+        /* height: 150px; */
         margin-right: 16px;
     }
 
@@ -304,8 +316,8 @@ form p select {
 
     .product-box {
         margin-right: 16px;
-        height: 200px;
-        width: 200px;
+        /* height: 200px; */
+        /* width: 200px; */
     }
 
     .enquiry-section {
