@@ -155,6 +155,7 @@ function createTriggerReportContainer() {
   startDateInput.type = 'date';
   startDateInput.value = moment().format('DD/MM/YYYY');
   startDateInput.id = 'start-time'
+  startDateInput.style.width = '100%'
   startDateInput.className = 'input-field'
   const endDateLabel = document.createElement('label')
   endDateLabel.textContent = 'To';
@@ -162,6 +163,7 @@ function createTriggerReportContainer() {
   endDateInput.type = 'date'
   endDateInput.value = moment().format('DD/MM/YYYY');
   endDateInput.id = 'end-time'
+  endDateInput.style.width = '100%'
   endDateInput.className = 'input-field'
 
   const triggerButton = document.createElement('a')
@@ -216,7 +218,7 @@ function fileToJson(template, claim, data, modal) {
     defval: '',
     raw: false
   });
-  if (!jsonData.length) return  notificationLabel.warning('File is Empty');
+  if (!jsonData.length) return notificationLabel.warning('File is Empty');
 
 
   jsonData.forEach(function (val) {

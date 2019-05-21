@@ -810,8 +810,7 @@ const sendSMS = (phoneNumber, smsText) => {
     // IMPORTANT otherwise socket won't close.
     req.end();
   })
-    .then(console.log)
-    .catch(console.error);
+    .then(console.log);
 };
 
 const isEmptyObject = (object) =>

@@ -5,9 +5,9 @@ function handleRecaptcha() {
     'size': 'normal'
   });
 }
-  
-  
-  function isValidPhoneNumber(phoneNumber = '') {
+
+
+function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
 
   return phoneNumber.search(pattern) !== -1;
@@ -112,11 +112,11 @@ function getSpinnerElement(id) {
     elem.id = id;
   }
   return {
-    center: function(){
+    center: function () {
       elem.classList.add('spinner-center')
       return elem;
     },
-    default:function(){
+    default: function () {
       return elem;
     }
   }
@@ -213,7 +213,7 @@ function sendApiRequest(apiUrl, requestBody, method) {
 
   console.log('init:', init);
   const baseUrl = `${urlScheme.origin}${urlScheme.pathname}`
-    /** Removes the trailing slash in the url */
+  /** Removes the trailing slash in the url */
 
 
   console.log({
@@ -285,7 +285,7 @@ function setGlobals() {
     .then(function (response) { return response.json() })
     .then(function (result) {
       window.globalsSet = true;
-     
+
       Object
         .keys(result)
         .forEach(function (key) {
@@ -302,9 +302,9 @@ function setGlobals() {
 
 window
   .addEventListener('load', function () {
-   
+
     setGlobals();
-    
+
     firebase
       .auth()
       .addAuthTokenListener(function (idToken) {

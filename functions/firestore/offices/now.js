@@ -33,8 +33,6 @@ const {
   handleError,
   sendJSON,
   isNonEmptyString,
-  hasAdminClaims,
-  hasSupportClaims,
 } = require('../../admin/utils');
 const {
   code,
@@ -47,17 +45,6 @@ module.exports = (conn) => {
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed. Use 'GET'`
-    );
-
-    return;
-  }
-
-  if (!hasAdminClaims(conn.requester.customClaims)
-    && !hasSupportClaims(conn.requester.customClaims)) {
-    sendResponse(
-      conn,
-      code.forbidden,
-      `You are not authorized to access this resource`
     );
 
     return;

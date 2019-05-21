@@ -88,5 +88,5 @@ env.*
 *.gif
 
 # Firebase cache files
-*.cache
+.cache/
 .firebase/

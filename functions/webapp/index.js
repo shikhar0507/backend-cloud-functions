@@ -615,6 +615,7 @@ module.exports = (req, res) => {
         };
       }
 
+      /** Home page */
       if (!slug) {
         requester.adminOffices = result.adminOffices;
         html = handleHomePage(locals, requester);
@@ -671,9 +672,7 @@ module.exports = (req, res) => {
       if (slug === 'json') {
         html = result;
 
-        conn.res.setHeader('Content-Type', 'application/json');
-
-        return conn.res.send(html);
+        return conn.res.json(html);
       }
 
       if (result.empty) {
