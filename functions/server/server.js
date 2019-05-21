@@ -317,7 +317,7 @@ module.exports = (req, res) => {
 
   if (routes(conn.req).func === '/parseMail'
     && conn.req.query.token === env.sgMailParseToken) {
-    return require('../mail-parser')(conn);
+    return require('../firestore/mail-parser')(conn);
   }
 
   if (env.isProduction) {
