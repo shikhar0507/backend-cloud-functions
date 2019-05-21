@@ -4,6 +4,9 @@ const {
   auth,
 } = require('./admin/admin');
 const {
+  isE164PhoneNumber,
+} = require('./admin/utils');
+const {
   code,
 } = require('./admin/responses');
 const env = require('./admin/env');
@@ -34,8 +37,24 @@ module.exports = (req, res) => {
     });
   }
 
-  console.log('url', req.url);
-  console.log('phoneNumber', req.query.phoneNumber);
+  if (!isE164PhoneNumber(req.query.phoneNumber)) {
+    return sendJSON(res, code.badRequest, {
+      showFullLogin: false,
+      success: false,
+      message: `Invalid phone number`,
+    });
+  }
+
+  console.log('origin:', req.get('origin'));
+
+  /** No OTP in non-production environment */
+  if (!env.isProduction) {
+    return sendJSON(res, code.badRequest, {
+      showFullLogin: false,
+      success: true,
+      message: ``,
+    });
+  }
 
   return auth
     .getUserByPhoneNumber(req.query.phoneNumber)
@@ -51,7 +70,15 @@ module.exports = (req, res) => {
       });
     })
     .catch((error) => {
-      console.log('AutError', error.code);
+      console.log('AuthError', error.code, JSON.stringify(req.query));
+
+      if (error.code === 'auth/invalid-phone-number') {
+        return sendJSON(res, code.badRequest, {
+          showFullLogin: true,
+          success: true,
+          message: 'Invalid phone number',
+        });
+      }
 
       if (error.code.startsWith('auth/')) {
         return sendJSON(res, code.ok, {
