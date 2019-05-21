@@ -39,7 +39,7 @@
             </form>
             \{{else}}
             {{!-- <p>Normal user</p> --}}
-            <section class="action-icons-container hidden">
+            <section class="action-icons-container">
                 <div class="cards">
                     <div id="view-enquiries" onclick="viewEnquiries()">
                         <i class="fas fa-question action-icon"></i>
@@ -139,14 +139,46 @@
 
         \{{else}}
         \{{> asidePartial}}
-        <section class="features-section">
+        <section class="features-section section-one">
             <h1>A habit for highly effective businesses</h1>
             <div class="features">
-                <span>Do what you are suppose to do.</span>
-                <a href="/join" class="button">Start For Free</a>
+                <a href="/join" class="button">Start Now</a>
             </div>
-            <div class="featured-companies">
-                {{!-- TODO: Put companies here --}}
+            <div class="featured-offices">
+                <div class="office border">
+                    <a href="/gazraj-security">
+                        <img src="img/gazraj-security.jpg" alt="">
+                    </a>
+                    <div class="office-text-container">
+                        <span class="office-name bold mb-8">Gazraj Security</span>
+                        <span class="office-description-short">Manned Security Services</span>
+                        <span class="office-description-long">Growthfile is used by their supervisor to monitor and
+                            quality check of their guards across their customer locations</span>
+                    </div>
+                </div>
+                <div class="office border">
+                    <a href="/mind-edutainment">
+                        <img src="img/mind-edutainment-pvt-ltd.jpg" alt="">
+                    </a>
+                    <div class="office-text-container">
+                        <span class="office-name bold mb-8">Mind Edutainment Pvt. Ltd.</span>
+                        <span class="office-description-short">High Order Thinking School Curriculum</span>
+                        <span class="office-description-long">Mind Edutainment is using Growthfile to administer the
+                            location of their facilitators for monthly payroll computation
+                            across multiple schools in India</span>
+                    </div>
+                </div>
+                <div class="office border">
+                    <a href="/system3net">
+                        <img src="img/system3-net.jpg" alt="">
+                    </a>
+                    <div class="office-text-container">
+                        <span class="office-name bold mb-8">System3.net</span>
+                        <span class="office-description-short">IT Service Provider</span>
+                        <span class="office-description-long">System3 is using Growthfile to manage field employees for
+                            customer visits and customer location duties</span>
+                    </div>
+                </div>
             </div>
         </section>
         <section class="features-section">

@@ -32,8 +32,9 @@ body {
     font-family: Karla, 'Open Sans', sans-serif;
     /* color: #89273E; */
     color: #444;
+    /* Golden Ratio */
     line-height: 1.61803398875em;
-    background-color: #f9f9f9;
+    /* background-color: #f9f9f9; */
 }
 
 h1 {
@@ -123,18 +124,34 @@ section {
 
 .logo-container {
     display: flex;
+    border-radius: 50%;
 }
 
 /** Helpers **/
 .mt-30 {
     margin-top: 30px;
 }
-.mt-20{
+
+.mt-20 {
     margin-top: 20px;
 }
+
 .mt-10 {
     margin-top: 10px;
 }
+
+.mb-8 {
+    margin-bottom: 8px;
+}
+
+.mb-16 {
+    margin-bottom: 16px;
+}
+
+.bold {
+    font-weight: 600;
+}
+
 .header-links-container {
     /* line-height: 40px; */
 }
@@ -163,11 +180,13 @@ section {
     min-height: 100%;
     margin-top: 16px;
 }
+
 @media (max-width:320px) {
     .container {
         max-width: 95%;
     }
 }
+
 @media (min-width:321px) and (max-width:360px) {
     .container {
         max-width: 90%;
@@ -428,7 +447,7 @@ input:disabled {
 }
 
 .modal .modal-content .action-container {
-    max-height: 400px;  
+    max-height: 400px;
     text-align: center;
 
 }
@@ -457,6 +476,17 @@ input:disabled {
         max-width: 80%;
     }
 }
+
+@media (max-width: 400px) {
+    .header-hamburger-icon {
+        display: none;
+    }
+
+    .header-login-button {
+        display: block;
+    }
+}
+
 @media (max-width: 800px) {
     .modal .modal-content {
         /* width: 80%; */

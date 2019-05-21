@@ -29,10 +29,10 @@ function searchOffice() {
           document.getElementById('continue').classList.remove('invisible');
           [...ul.querySelectorAll('li')].forEach(function (el) {
             el.remove();
-          })
+          });
         }
         ul.appendChild(li)
-      })
+      });
 
 
     })
@@ -390,7 +390,23 @@ function viewEnquiries() {
     .then(function (response) {
       const body = document.createElement('tbody')
       console.log(response);
-      Object.keys(response).forEach(function (id, idx) {
+
+      const responseItems = Object.keys(response);
+      console.log('responseItems', responseItems);
+
+      if (responseItems.length === 0) {
+        const emptyResultSpan = document.createElement('span');
+
+        emptyResultSpan.innerText = 'No enquiries found. Please create one...';
+
+        document
+          .getElementById('modal-box')
+          .appendChild(createModal('No enquiries found.Please create one...'));
+
+        return;
+      }
+
+      responseItems.forEach(function (id, idx) {
         const tr = document.createElement('tr');
         const indexCol = document.createElement('td');
         indexCol.textContent = idx + 1;

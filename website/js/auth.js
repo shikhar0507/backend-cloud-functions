@@ -129,17 +129,17 @@ function logInWithOtp(confirmationResult) {
 function sendOtpToPhoneNumber() {
   const phoneNumber = getPhoneNumber();
   const appVerifier = window.recaptchaVerifier;
-  return new Promise(function(resolve,reject){
+  return new Promise(function (resolve, reject) {
 
     return firebase
-    .auth()
-    .signInWithPhoneNumber(phoneNumber, appVerifier)
-    .then(function (confirmationResult) {
-      return resolve(confirmationResult)
-    })
-    .catch(function(error){
-      return reject(error)
-    });
+      .auth()
+      .signInWithPhoneNumber(phoneNumber, appVerifier)
+      .then(function (confirmationResult) {
+        return resolve(confirmationResult)
+      })
+      .catch(function (error) {
+        return reject(error)
+      });
   })
 }
 
@@ -157,20 +157,29 @@ function fetchAuth() {
     .getElementsByName('auth-phone-number')[0]
     .setAttribute('disabled', true);
 
-  return sendApiRequest(
-      `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`,
-      null,
-      'GET'
-    )
+  let rejectionMessage = '';
+  const init = {
+    method: 'GET',
+    mode: 'cors',
+    cache: 'no-cache',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  };
+
+  return fetch(
+    `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`,
+    init
+  )
     .then(function (response) {
-      if (!response.ok) {
-        // messageNode.innerText = 'Something went wrong';
-        setMessage('Something went wrong');
+      console.log('URL:', `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`);
+      // if (!response.ok) {
+      //   setMessage('Something went wrong');
 
-        console.log('Rejected:', response);
+      //   console.log('Rejected:', response);
 
-        return null;
-      }
+      //   return Promise.resolve();
+      // }
 
       return response.json();
     })
@@ -179,8 +188,13 @@ function fetchAuth() {
         return Promise.resolve();
       }
 
-      console.log('response received', result);
+      if (!result.success) {
+        rejectionMessage = result.message;
 
+        return Promise.resolve();
+      }
+
+      console.log('response received', result);
 
       if (result.showFullLogin) {
         window.showFullLogin = true;
@@ -202,30 +216,26 @@ function fetchAuth() {
 
       window.recaptchaVerifier.verify().then(function () {
         window.recaptchaResolved = true
-        sendOtpToPhoneNumber().then(function(confirmResult){
+        sendOtpToPhoneNumber().then(function (confirmResult) {
           setMessage(`Otp sent to ${phoneNumber}`);
           showOtpInput();
           document
-          .getElementById('recaptcha-container')
-          .style
-          .display = 'none';
+            .getElementById('recaptcha-container')
+            .style
+            .display = 'none';
           submitButton.classList.remove('hidden')
-          submitButton.onclick = function(){
+          submitButton.onclick = function () {
             logInWithOtp(confirmResult)
           }
-        })
-       
-      })
-   
+        });
+      });
 
       console.log('recaptcha rendered');
-
-    
     })
     .catch(function (error) {
       console.error(error);
       window.recaptchaResolved = false
-      setMessage('Something went wrong');
+      setMessage(rejectionMessage || 'Something went wrong');
     });
 }
 

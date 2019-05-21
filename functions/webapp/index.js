@@ -94,14 +94,17 @@ const getLoggedInStatus = (idToken) => {
     .verifyIdToken(idToken, true)
     .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
     .then((userRecord) => {
-      const isAdmin = userRecord.customClaims.admin
-        && userRecord.customClaims.admin.length > 0;
+      const customClaims = userRecord.customClaims || {};
+
       let adminOffices;
+      const isAdmin = customClaims.admin
+        && customClaims.admin.length > 0;
       if (isAdmin) {
-        adminOffices = userRecord.customClaims.admin;
+        adminOffices = customClaims.admin;
       }
 
       return {
+        customClaims,
         uid: userRecord.uid,
         isLoggedIn: true,
         email: userRecord.email,
@@ -110,15 +113,16 @@ const getLoggedInStatus = (idToken) => {
         emailVerified: userRecord.emailVerified,
         displayName: userRecord.displayName,
         disabled: userRecord.disabled,
-        customClaims: userRecord.customClaims,
-        isSupport: userRecord.customClaims.support,
+        isSupport: customClaims.support,
         isAdmin: isAdmin,
         adminOffices: adminOffices,
-        isTemplateManager: userRecord.customClaims.manageTemplates,
+        isTemplateManager: customClaims.manageTemplates,
       };
     })
-    .catch(() => {
-      return {
+    .catch((error) => {
+      console.log('ERROR:', error);
+
+      const result = {
         uid: null,
         isLoggedIn: false,
         phoneNumber: '',
@@ -130,7 +134,14 @@ const getLoggedInStatus = (idToken) => {
         isSupport: false,
         isAdmin: false,
         isTemplateManager: false,
+        clearCookie: new Set([
+          'auth/id-token-expired',
+          'auth/id-token-revoked',
+        ])
+          .has(error.code),
       };
+
+      return result;
     });
 };
 
@@ -578,6 +589,8 @@ module.exports = (req, res) => {
       });
   }
 
+  console.log('idToken', idToken);
+
   return getLoggedInStatus(idToken)
     .then((result) => {
       const {
@@ -613,6 +626,11 @@ module.exports = (req, res) => {
           isTemplateManager,
           customClaims,
         };
+      }
+
+      /** Ask client to log-out the user */
+      if (result.clearCookie) {
+        conn.res.clearCookie('__session');
       }
 
       /** Home page */
@@ -663,7 +681,6 @@ module.exports = (req, res) => {
         .limit(1)
         .get();
     })
-
     .then((result) => {
       if (!result || html) {
         return Promise.resolve();

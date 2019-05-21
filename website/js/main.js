@@ -97,7 +97,7 @@ function getMobileOperatingSystem() {
 };
 
 function isValidEmail(emailString) {
-  return reg = /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/
+  return /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/
     .test(emailString);
 }
 
@@ -126,7 +126,7 @@ function getSpinnerElement(id) {
 /** Create Modal box */
 function createModal(actionContent) {
   if (document.getElementById('modal')) {
-    ocument.getElementById('modal').remove();
+    document.getElementById('modal').remove();
   };
 
   const div = document.createElement('div');
@@ -146,10 +146,14 @@ function createModal(actionContent) {
   const actionNotification = document.createElement('span');
   actionNotification.id = 'action-label'
   actionContainer.appendChild(actionNotification)
-  actionContainer.appendChild(actionContent);
+
+  if (typeof actionContent == 'string') {
+    div.innerText = actionContent;
+
+    return div;
+  }
 
   content.appendChild(close)
-
   content.appendChild(actionContainer);
   div.appendChild(content)
   return div;
@@ -205,23 +209,9 @@ function sendApiRequest(apiUrl, requestBody, method) {
     },
   };
 
-  if (requestBody) {
+  if (requestBody && init.method !== 'GET') {
     init.body = JSON.stringify(requestBody);
   }
-
-  const urlScheme = new URL(apiUrl);
-
-  console.log('init:', init);
-  const baseUrl = `${urlScheme.origin}${urlScheme.pathname}`
-  /** Removes the trailing slash in the url */
-
-
-  console.log({
-    baseUrl,
-    getUserBaseUrl,
-  });
-
-  if (baseUrl === getUserBaseUrl) return fetch(apiUrl, init);
 
   return firebase
     .auth()
@@ -233,7 +223,7 @@ function sendApiRequest(apiUrl, requestBody, method) {
       return fetch(apiUrl, init);
     })
     .then(function (result) {
-      return result
+      return result;
     })
     .catch(console.error);
 }

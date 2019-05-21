@@ -189,11 +189,6 @@ section h1 {
     line-height: 44px;
 }
 
-.featured-companies {
-    margin-top: 16px;
-    text-align: center;
-}
-
 .feature-header {
     display: flex;
     line-height: 30px;
@@ -220,4 +215,57 @@ section h1 {
 
 .feature {
     padding: 5px 0;
+}
+
+.featured-offices {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.office>* {
+    /* pointer-events: none; */
+}
+
+.office {
+    margin-bottom: 16px;
+    padding: 4px;
+    cursor: pointer;
+}
+
+.office-text-container {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.office-description-short {
+    /* background-color: red; */
+}
+
+.office-description-long {
+    /* background-color: green; */
+    color: #80868b;
+    font-style: italic;
+}
+
+.office a img {
+    max-width: 100%;
+}
+
+.section-one {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+@media (min-width: 768px) {
+    .container {
+        /* color: green; */
+    }
+
+    .featured-offices {
+        display: flex;
+        flex-direction: row;
+    }
 }
