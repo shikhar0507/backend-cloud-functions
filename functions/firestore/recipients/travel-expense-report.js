@@ -93,8 +93,7 @@ module.exports = (locals) => {
         let rowIndex;
         const phoneNumber = doc.get('user');
         const distanceTravelled = doc.get('distanceTravelled') || 0;
-        const template = doc.get('template');
-        const action = doc.get('action');
+
 
         if (!distanceTravelled) {
           return;
@@ -126,13 +125,16 @@ module.exports = (locals) => {
           format: dateFormats.TIME,
         });
         const identifier = (() => {
+          const template = doc.get('template');
+          const action = doc.get('action');
+
           if (template !== 'check-in' || action !== httpsActions.create) {
             return doc.get('identifier');
           }
 
           const venue = doc.get('activityData.venue')[0];
 
-          if (!venue.location) {
+          if (!venue || !venue.location) {
             return doc.get('identifier');
           }
 
