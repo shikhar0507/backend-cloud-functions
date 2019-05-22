@@ -230,8 +230,6 @@ function sendApiRequest(apiUrl, requestBody, method) {
 
 
 document.addEventListener('click', (event) => {
-  console.log(event.target);
-
   if (event.target === document.getElementById('form-submit-button')) {
     return void startOfficeCreationFlow(event)
   }
