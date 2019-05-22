@@ -229,15 +229,21 @@ function fileToJson(template, claim, data, modal) {
   const wb = XLSX.read(data, {
     type: 'binary'
   });
+
   const ws = wb.Sheets[wb.SheetNames[0]];
+
   const jsonData = XLSX.utils.sheet_to_json(ws, {
     blankRows: false,
     defval: '',
     raw: false
   });
   if (!jsonData.length) return notificationLabel.warning('File is Empty');
+  console.log(jsonData);
 
   jsonData.forEach(function (val) {
+    if(val['Date of Establishment']) {
+      val['Date of Establishment'] = moment(val['Date of Establishment']).valueOf();
+    }
     val.share = [];
   })
 
@@ -259,7 +265,6 @@ function fileToJson(template, claim, data, modal) {
         const rejectedOnes = response.data.filter((val) => val.rejected);
         if (!rejectedOnes.length) return notificationLabel.success('Success')
         notificationLabel.success('')
-
         BulkCreateErrorContainer(jsonData, rejectedOnes)
       }).catch(console.error);
   }).catch(function (message) {
