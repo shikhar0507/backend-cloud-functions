@@ -4,9 +4,11 @@ const section = document.getElementById('action-section');
 
 function searchOffice() {
   document.getElementById('continue').classList.add('invisible');
+  document.getElementById('create-office').classList.add('invisible')
   const url = `${apiBaseUrl}/admin/search?support=true`
   const input = document.getElementById('office-search-field')
   const ul = document.querySelector('#office-search-form ul')
+  ul.innerHTML = ''
   ul.appendChild(getSpinnerElement().center())
 
   sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
@@ -14,11 +16,15 @@ function searchOffice() {
       return response.json();
     })
     .then(function (response) {
-      // ul.querySelector('.spinner').remove();
       console.log('response', response);
-      if (!response.length) return label.textContent = 'No Offices Found'
-      ul.innerHTML = '';
-
+      ul.innerHTML = ''
+      if (!response.length) {
+        const li = document.createElement('li')
+        li.textContent = 'No Office Found';
+        ul.appendChild(li);
+        return;
+      }
+      
       response.forEach(function (name) {
         const li = document.createElement('li')
         li.textContent = name;
@@ -27,6 +33,7 @@ function searchOffice() {
           document.querySelector('.button-search').classList.add('invisible');
 
           document.getElementById('continue').classList.remove('invisible');
+
           [...ul.querySelectorAll('li')].forEach(function (el) {
             el.remove();
           });
@@ -44,8 +51,11 @@ function toggleSearchButton(e) {
   console.log(e);
   if (!e.value) {
     document.querySelector('.button-search').classList.add('invisible');
+    document.getElementById('create-office').classList.remove('invisible')
+
   } else {
     document.querySelector('.button-search').classList.remove('invisible');
+    document.getElementById('create-office').classList.add('invisible')
   }
   document.getElementById("continue").classList.add('invisible');
 }
@@ -62,11 +72,10 @@ function excelUploadContainer(template) {
   const container = document.createElement('div')
   let templateNames;
 
-  if(template) {
+  if (template) {
     templateNames = [template]
-  }
-  else {
-     templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
+  } else {
+    templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
   }
   const fileContainer = document.createElement('div')
   fileContainer.id = 'file-container'
@@ -180,13 +189,13 @@ function createTriggerReportContainer() {
   const selectBox = customSelect('Select Report')
   const templateName = 'recipient'
   sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET').then(function (response) {
-    return response.json();
-  })
+      return response.json();
+    })
     .then(function (response) {
-    
-      if(!Object.keys(response).length) return container.textContent = 'No Reports Found';
 
-   
+      if (!Object.keys(response).length) return container.textContent = 'No Reports Found';
+
+
       response.recipient.forEach(function (data) {
 
         const option = document.createElement('option')
@@ -253,14 +262,14 @@ function fileToJson(template, claim, data, modal) {
 
         BulkCreateErrorContainer(jsonData, rejectedOnes)
       }).catch(console.error);
-  }).catch(function(message){
+  }).catch(function (message) {
     notificationLabel.warning(message)
   });
 }
 
 
 
-function addNew(isSupport, isAdmin,template) {
+function addNew(isSupport, isAdmin, template) {
   let templateSelected;
   const modal = createModal(excelUploadContainer(template))
 
@@ -344,18 +353,17 @@ function triggerReports() {
 
       label.success('')
       sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
-        office: office,
-        report: selectedReport,
-        startTime: startTime,
-        endTime: endTime
-      }, 'POST').then(function (response) {
-        return response.json();
-      })
+          office: office,
+          report: selectedReport,
+          startTime: startTime,
+          endTime: endTime
+        }, 'POST').then(function (response) {
+          return response.json();
+        })
         .then(function (response) {
           if (response.success) {
             label.success(`${selectedReport} successfully triggered`)
-          }
-          else {
+          } else {
             label.warning('Please Try Again Later');
           }
         }).catch(function (error) {
@@ -366,35 +374,36 @@ function triggerReports() {
     label.warning(error.message)
   })
 }
-function searchAndUpdate(){
+
+function searchAndUpdate() {
   const container = document.createElement('div');
   const ul = document.createElement('ul')
-  const search = searchBar('Search','search-all');
+  const search = searchBar('Search', 'search-all');
   const label = new showLabel(document.getElementById('action-label'))
-  search.querySelector('button').onclick = function(){
+  search.querySelector('button').onclick = function () {
     const input = search.querySelector('input')
-    sendApiRequest(`${getPageHref()}/json?office=${office}&query=${input.value}`,null,'GET').then(function(res){
+    sendApiRequest(`${getPageHref()}/json?office=${office}&query=${input.value}`, null, 'GET').then(function (res) {
       return res.json()
-    }).then(function(response){
-      if(response.status !== 'ok') return label.warning('Please Try Again Later')
+    }).then(function (response) {
+      if (response.status !== 'ok') return label.warning('Please Try Again Later')
       console.log(response)
-      ul.innerHTML = '';  
+      ul.innerHTML = '';
 
-    }).catch(function(error){
+    }).catch(function (error) {
       label.warning(error.message)
     })
   }
   const form = document.createElement('form')
   form.className = 'form-inline'
   form.appendChild(search);
-  
+
   container.appendChild(form);
   container.appendChild(ul);
   const modal = createModal(container);
   document.getElementById('modal-box').appendChild(modal)
 }
 
-function createActivityList(data){
+function createActivityList(data) {
 
 }
 
@@ -418,7 +427,7 @@ function viewEnquiries() {
   })
   head.appendChild(headTr);
   table.appendChild(head);
-  const spinner= getSpinnerElement().center()
+  const spinner = getSpinnerElement().center()
   document.getElementById('modal-box').appendChild(createModal(spinner));
   const label = new showLabel(document.getElementById('action-label'));
   const templateName = 'enquiry'
@@ -427,7 +436,7 @@ function viewEnquiries() {
       return response.json();
     })
     .then(function (response) {
-      
+
       if (!Object.keys(response).length) {
         spinner.remove();
         return label.warning('No enquiries found.');
@@ -460,8 +469,8 @@ function viewEnquiries() {
 
       table.appendChild(body);
       spinner.remove();
-      
-     createModal(table);
+
+      createModal(table);
     });
 }
 
@@ -471,7 +480,7 @@ function searchBar(id) {
   input.type = 'text';
   input.className = 'input-field';
   input.id = id;
-  
+
   const button = document.createElement('button');
   button.className = 'button';
   button.textContent = 'Search'
@@ -489,7 +498,7 @@ function searchBarWithList(labelText, id) {
   baseSearchBar.appendChild(label);
   baseSearchBar.appendChild(ul)
   return baseSearchBar
-  
+
 }
 
 function employeeExit() {
