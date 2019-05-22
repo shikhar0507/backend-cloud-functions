@@ -792,8 +792,6 @@ const sendSMS = (phoneNumber, smsText) => {
           }
 
           resolve(chunks);
-
-          return;
         });
     });
 
@@ -809,8 +807,7 @@ const sendSMS = (phoneNumber, smsText) => {
 
     // IMPORTANT otherwise socket won't close.
     req.end();
-  })
-    .then(console.log);
+  });
 };
 
 const isEmptyObject = (object) =>
@@ -1166,6 +1163,35 @@ const generateDates = (startTime, endTime) => {
   };
 };
 
+const getSitemapXmlString = () => {
+  const getUrlItem = (slug, updateTime) => {
+    return `<url>
+      <loc>https://growthfile.com/${slug}</loc>
+      <lastmod>${updateTime.toDate().toJSON()}</lastmod>
+    </url>`
+  };
+  const start = `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
+  const end = '</urlset>';
+  let result = start;
+
+  return rootCollections
+    .offices
+    .get()
+    .then((docs) => {
+
+
+      docs.forEach((doc) => {
+        result += getUrlItem(doc.get('slug'), doc.updateTime);
+      });
+
+      result += end;
+
+      // Use res.header('Content-Type', 'text/xml');
+      return result;
+    })
+    .catch(console.error);
+};
+
 
 module.exports = {
   slugify,
@@ -1200,6 +1226,7 @@ module.exports = {
   hasSuperUserClaims,
   isValidCanEditRule,
   promisifiedRequest,
+  getSitemapXmlString,
   promisifiedExecFile,
   getRegistrationToken,
   reportBackgroundError,
