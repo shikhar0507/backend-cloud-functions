@@ -1166,9 +1166,9 @@ const generateDates = (startTime, endTime) => {
 const getSitemapXmlString = () => {
   const getUrlItem = (slug, updateTime) => {
     return `<url>
-      <loc>https://growthfile.com/${slug}</loc>
+      <loc>${env.mainDomain}/${slug}</loc>
       <lastmod>${updateTime.toDate().toJSON()}</lastmod>
-    </url>`
+    </url>`;
   };
   const start = `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
   const end = '</urlset>';
@@ -1178,7 +1178,11 @@ const getSitemapXmlString = () => {
     .offices
     .get()
     .then((docs) => {
-
+      // For homepage
+      result += `<url>
+      <loc>${env.mainDomain}</loc>
+        <lastmod>${new Date().toJSON()}</lastmod>
+      </url>`;
 
       docs.forEach((doc) => {
         result += getUrlItem(doc.get('slug'), doc.updateTime);
