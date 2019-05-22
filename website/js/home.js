@@ -58,10 +58,16 @@ function startAdmin(officeName) {
 
 
 
-function excelUploadContainer(claim) {
+function excelUploadContainer(template) {
   const container = document.createElement('div')
+  let templateNames;
 
-  const templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
+  if(template) {
+    templateNames = [template]
+  }
+  else {
+     templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
+  }
   const fileContainer = document.createElement('div')
   fileContainer.id = 'file-container'
   const selectBox = customSelect('Choose Type');
@@ -172,18 +178,20 @@ function createTriggerReportContainer() {
   triggerButton.id = 'trigger-report'
   let reportSelected;
   const selectBox = customSelect('Select Report')
-
-  sendApiRequest(`${getPageHref()}json?template=recipient&office=${office}`, null, 'GET').then(function (response) {
+  const templateName = 'recipient'
+  sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET').then(function (response) {
     return response.json();
   })
     .then(function (response) {
+    
+      if(!Object.keys(response).length) return container.textContent = 'No Reports Found';
 
-      const keys = Object.keys(response);
-      if (!keys.length) return container.textContent = 'No Reports Found';
-      keys.forEach(function (id) {
+   
+      response.recipient.forEach(function (data) {
+
         const option = document.createElement('option')
-        option.value = response[id].attachment.Name.value;
-        option.textContent = response[id].attachment.Name.value;
+        option.value = data.attachment.Name.value;
+        option.textContent = data.attachment.Name.value;
         selectBox.querySelector('select').appendChild(option)
       })
 
@@ -220,7 +228,6 @@ function fileToJson(template, claim, data, modal) {
   });
   if (!jsonData.length) return notificationLabel.warning('File is Empty');
 
-
   jsonData.forEach(function (val) {
     val.share = [];
   })
@@ -228,7 +235,7 @@ function fileToJson(template, claim, data, modal) {
   getLocation().then(function (location) {
 
     const body = {
-      office: office,
+      office: office || '',
       template: template,
       data: jsonData,
       timestamp: Date.now(),
@@ -246,18 +253,16 @@ function fileToJson(template, claim, data, modal) {
 
         BulkCreateErrorContainer(jsonData, rejectedOnes)
       }).catch(console.error);
-  }).catch(notificationLabel.warning)
-
+  }).catch(function(message){
+    notificationLabel.warning(message)
+  });
 }
 
 
 
-function addNew(isSupport, isAdmin) {
+function addNew(isSupport, isAdmin,template) {
   let templateSelected;
-  const modal = createModal(excelUploadContainer({
-    isSupport: isSupport,
-    isAdmin: isAdmin
-  }))
+  const modal = createModal(excelUploadContainer(template))
 
   modal.querySelector('select').addEventListener('change', function (evt) {
     templateSelected = evt.target.value
@@ -361,6 +366,37 @@ function triggerReports() {
     label.warning(error.message)
   })
 }
+function searchAndUpdate(){
+  const container = document.createElement('div');
+  const ul = document.createElement('ul')
+  const search = searchBar('Search','search-all');
+  const label = new showLabel(document.getElementById('action-label'))
+  search.querySelector('button').onclick = function(){
+    const input = search.querySelector('input')
+    sendApiRequest(`${getPageHref()}/json?office=${office}&query=${input.value}`,null,'GET').then(function(res){
+      return res.json()
+    }).then(function(response){
+      if(response.status !== 'ok') return label.warning('Please Try Again Later')
+      console.log(response)
+      ul.innerHTML = '';  
+
+    }).catch(function(error){
+      label.warning(error.message)
+    })
+  }
+  const form = document.createElement('form')
+  form.className = 'form-inline'
+  form.appendChild(search);
+  
+  container.appendChild(form);
+  container.appendChild(ul);
+  const modal = createModal(container);
+  document.getElementById('modal-box').appendChild(modal)
+}
+
+function createActivityList(data){
+
+}
 
 function getPageHref() {
   return location.protocol + '//' + location.host + location.pathname + (location.search ? location.search : "")
@@ -382,44 +418,37 @@ function viewEnquiries() {
   })
   head.appendChild(headTr);
   table.appendChild(head);
-
-  sendApiRequest(`${getPageHref()}json?template=enquiry`, null, 'GET')
+  const spinner= getSpinnerElement().center()
+  document.getElementById('modal-box').appendChild(createModal(spinner));
+  const label = new showLabel(document.getElementById('action-label'));
+  const templateName = 'enquiry'
+  sendApiRequest(`${getPageHref()}json?template=${templateName}`, null, 'GET')
     .then(function (response) {
       return response.json();
     })
     .then(function (response) {
-      const body = document.createElement('tbody')
-      console.log(response);
+      
+      if (!Object.keys(response).length) {
+        spinner.remove();
+        return label.warning('No enquiries found.');
 
-      const responseItems = Object.keys(response);
-      console.log('responseItems', responseItems);
-
-      if (responseItems.length === 0) {
-        const emptyResultSpan = document.createElement('span');
-
-        emptyResultSpan.innerText = 'No enquiries found. Please create one...';
-
-        document
-          .getElementById('modal-box')
-          .appendChild(createModal('No enquiries found.Please create one...'));
-
-        return;
       }
+      const body = document.createElement('tbody')
 
-      responseItems.forEach(function (id, idx) {
+      response.enquiry.forEach(function (record, idx) {
         const tr = document.createElement('tr');
         const indexCol = document.createElement('td');
         indexCol.textContent = idx + 1;
         const statusRow = document.createElement('td');
-        statusRow.textContent = response[id].status;
+        statusRow.textContent = record.status;
         const creatorRow = document.createElement('td');
-        creatorRow.textContent = response[id].creator.displayName || response[i].creator.phoneNumber
+        creatorRow.textContent = record.creator.displayName || response[i].creator.phoneNumber
         const companyRow = document.createElement('td')
-        companyRow.textContent = response[id].attachment['Company Name'].value || '-';
+        companyRow.textContent = record.attachment['Company Name'].value || '-';
         const productRow = document.createElement('td');
-        productRow.textContent = response[id].attachment.Product.value || '-';
+        productRow.textContent = record.attachment.Product.value || '-';
         const enquiryRow = document.createElement('td');
-        enquiryRow.textContent = response[id].attachment.Enquiry.value || '-';
+        enquiryRow.textContent = record.attachment.Enquiry.value || '-';
         tr.appendChild(indexCol);
         tr.appendChild(statusRow);
         tr.appendChild(creatorRow);
@@ -429,30 +458,38 @@ function viewEnquiries() {
         body.appendChild(tr)
       });
 
-      table.appendChild(body)
-      document.getElementById('modal-box').appendChild(createModal(table));
+      table.appendChild(body);
+      spinner.remove();
+      
+     createModal(table);
     });
 }
 
-function searchBar(labelText, id) {
-  const conatiner = document.createElement('div')
-  const label = document.createElement('label')
-  label.textContent = labelText;
+function searchBar(id) {
+  const conatiner = document.createDocumentFragment()
   const input = document.createElement('input')
   input.type = 'text';
   input.className = 'input-field';
   input.id = id;
-  const ul = document.createElement("ul");
-  ul.id = 'search-results'
+  
   const button = document.createElement('button');
   button.className = 'button';
   button.textContent = 'Search'
-  conatiner.appendChild(label);
   conatiner.appendChild(input)
   conatiner.appendChild(button)
-  conatiner.appendChild(ul);
-
   return conatiner;
+}
+
+function searchBarWithList(labelText, id) {
+  const label = document.createElement('label')
+  label.textContent = labelText;
+  const ul = document.createElement("ul");
+  ul.id = 'search-results'
+  const baseSearchBar = searchBar(id);
+  baseSearchBar.appendChild(label);
+  baseSearchBar.appendChild(ul)
+  return baseSearchBar
+  
 }
 
 function employeeExit() {

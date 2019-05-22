@@ -472,6 +472,11 @@ input:disabled {
     width: 80%;
     overflow-y: auto;
 }
+.modal .modal-content #action-label {
+    text-align: center;
+    margin: 0 auto;
+    max-width: 300px;
+}
 
 .modal .modal-content .action-container {
     max-height: 400px;

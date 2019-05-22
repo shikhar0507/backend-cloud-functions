@@ -1,10 +1,10 @@
 // needs to be global for gMaps to work. // See docs.
 let map;
 
-function initMap(latitude, longitude) {
+function initMap(location) {
   const curr = {
-    lat: latitude || Number(sessionStorage.getItem('latitude')),
-    lng: longitude || Number(sessionStorage.getItem('longitude')),
+    lat: location.latitude,
+    lng: location.longitude
   };
 
   document.getElementById('map').style.height = '400px';
@@ -17,7 +17,10 @@ function initMap(latitude, longitude) {
     }
   );
 
-  const marker = new google.maps.Marker({ position: curr, map });
+  const marker = new google.maps.Marker({
+    position: curr,
+    map
+  });
 }
 
 function handleProductClick(param) {
@@ -45,17 +48,20 @@ function handleBranchClick(latitude, longitude) {
   };
 
   if (latitude && longitude) {
-    new google.maps.Marker({ position, map });
+    new google.maps.Marker({
+      position,
+      map
+    });
 
     map.setCenter(position);
   }
 }
 
 function updateMapPointer(event) {
-  initMap(
-    Number(event.target.dataset.latitude),
-    Number(event.target.dataset.longitude)
-  );
+  initMap({
+    latitude: Number(event.target.dataset.latitude),
+    longitude: Number(event.target.dataset.longitude)
+  })
 }
 
 function validateEnquiryForm() {
@@ -178,11 +184,13 @@ function startEnquiryCreationFlow() {
       // const idToken = getParsedCookies().__session;
 
       sendApiRequest(
-        `${apiBaseUrl}/activities/create`,
-        requestBody,
-        'POST'
-      )
-        .then(function (result) { return result.json(); })
+          `${apiBaseUrl}/activities/create`,
+          requestBody,
+          'POST'
+        )
+        .then(function (result) {
+          return result.json();
+        })
         .then(function (response) {
           console.log('Response', response);
 

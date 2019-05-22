@@ -126,12 +126,16 @@ function getSpinnerElement(id) {
 /** Create Modal box */
 function createModal(actionContent) {
   if (document.getElementById('modal')) {
-    document.getElementById('modal').remove();
+    // document.getElementById('modal').remove();
+    setContentInModal(actionContent,document.querySelector('#modal .action-container'))
+    return;
   };
 
   const div = document.createElement('div');
   div.className = 'modal';
   div.id = 'modal'
+ 
+
   const content = document.createElement('div')
   content.className = 'modal-content';
 
@@ -140,23 +144,33 @@ function createModal(actionContent) {
   close.onclick = function () {
     div.remove();
   }
+  content.appendChild(close)
 
   const actionContainer = document.createElement('div')
-  actionContainer.className = 'action-container mt-20';
-  const actionNotification = document.createElement('span');
+  actionContainer.className = 'action-container mt-10';
+  const actionNotification = document.createElement('p');
   actionNotification.id = 'action-label'
-  actionContainer.appendChild(actionNotification)
-
-  if (typeof actionContent == 'string') {
-    div.innerText = actionContent;
-
-    return div;
-  }
-
-  content.appendChild(close)
+  content.appendChild(actionNotification)
+  setContentInModal(actionContent,actionContainer)
   content.appendChild(actionContainer);
   div.appendChild(content)
   return div;
+}
+
+function isDomElementString(el){
+  return typeof el == 'string';
+}
+function setContentInModal(el,parent){
+  console.log(el)
+  console.log(parent);
+
+  if(isDomElementString(el)) {
+    parent.innerHTML = el;
+  }
+  else {
+    parent.appendChild(el);
+  }
+  
 }
 
 function setMessage(message) {
@@ -167,33 +181,27 @@ function setMessage(message) {
 }
 
 
-function getLocation(callback) {
-  let latitude;
-  let longitude;
-
+function getLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject('Geolocation is Not Supported')
-
     navigator
       .geolocation
       .getCurrentPosition(function (position) {
-        latitude = position.coords.latitude;
-        longitude = position.coords.longitude;
-
-        sessionStorage.setItem('latitude', latitude);
-        sessionStorage.setItem('longitude', longitude);
-
-        if (typeof callback === 'function') callback();
-
         return resolve({
-          latitude,
-          longitude,
-          accuracy: position.accuracy,
+          latitude : position.coords.latitude,
+          longitude : position.coords.longitude,
+          accuracy :position.coords.accuracy
         })
       }, function (error) {
-        console.error(error);
-
-        return reject(error)
+        let message ;
+        switch(error.code) {
+          case 1:
+          message = 'Please Enable Location';
+          break;
+          default:
+          message = error.message;
+        }
+        return reject(message)
       });
   })
 }
@@ -235,7 +243,11 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target === document.getElementById('load-map-button')) {
-    return getLocation(initMap);
+    return getLocation().then(initMap).catch(function(message){
+      if(document.getElementById('map')) {
+        document.getElementById('map').innerHTML = `<p style='text-align:center;margin-top:20px;' class='warning-label'>${message}</p>`
+      }
+    })
   }
 
   if (event.target === document.getElementById('enquiry-submit-button')) {
