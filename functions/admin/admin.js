@@ -294,6 +294,7 @@ const rootCollections = {
   versions: db.collection('Versions'),
   events: db.collection('Events'),
   errors: db.collection('Errors'),
+  sitemaps: db.collection('Sitemaps'),
 };
 
 

@@ -124,9 +124,24 @@ const getLoggedInStatus = (idToken) => {
       };
     })
     .catch((error) => {
-      console.log('ERROR:', error);
+      const authError = new Set(['auth/invalid-argument'])
+        .has(error.code);
+
+      if (authError) {
+        throw new Error(error);
+      }
+
+      const clearCookie = new Set([
+        'auth/id-token-expired',
+        'auth/id-token-revoked',
+        'auth/session-cookie-expired',
+        'auth/session-cookie-revoked',
+        'auth/invalid-session-cookie-duration',
+      ])
+        .has(error.code);
 
       const result = {
+        clearCookie,
         uid: null,
         isLoggedIn: false,
         phoneNumber: '',
@@ -138,11 +153,6 @@ const getLoggedInStatus = (idToken) => {
         isSupport: false,
         isAdmin: false,
         isTemplateManager: false,
-        clearCookie: new Set([
-          'auth/id-token-expired',
-          'auth/id-token-revoked',
-        ])
-          .has(error.code),
       };
 
       return result;
@@ -623,8 +633,26 @@ module.exports = (req, res) => {
       .redirect(env.mainDomain);
   }
 
+  if (slug === 'sitemap') {
+    return rootCollections
+      .sitemaps
+      .doc('growthfile.com')
+      .get()
+      .then((doc) => {
+        conn.res.set('Content-Type', 'text/xml');
+
+        return conn.res.send(doc.get('sitemap'));
+      })
+      .catch((error) => {
+        console.error(error);
+        const html = handleServerError();
+
+        return conn.res.status(code.internalServerError).send(html);
+      });
+  }
+
   if (slug === 'config') {
-    conn.res.setHeader('Content-Type', 'application/json');
+    conn.res.set('Content-Type', 'application/json');
 
     return conn
       .res

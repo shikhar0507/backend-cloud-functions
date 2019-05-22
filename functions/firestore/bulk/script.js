@@ -18,9 +18,6 @@ const {
   isNonEmptyString,
   isE164PhoneNumber,
 } = require('../../admin/utils');
-// const {
-//   alphabetsArray,
-// } = require('../../firestore/recipients/report-utils');
 const {
   code,
 } = require('../../admin/responses');
@@ -33,10 +30,12 @@ const {
   httpsActions,
   timezonesSet,
 } = require('../../admin/constants');
-// const xlsxPopulate = require('xlsx-populate');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
-// const fs = require('fs');
+// const xlsxPopulate = require('xlsx-populate');
+// const {
+//   alphabetsArray,
+// } = require('../../firestore/recipients/report-utils');
 
 
 const templateNamesObject = {
@@ -49,10 +48,10 @@ const templateNamesObject = {
 
 const handleValidation = (body) => {
   const result = { success: true, message: null };
-
   const messageString = (field) =>
-    `Invalid/Missing field '${field}' from the request body`;
+    `Invalid/Missing field '${field}' found in the request body`;
 
+  /** Field 'office' can be skipped. */
   if (body.template !== templateNamesObject.OFFICE
     && !isNonEmptyString(body.office)) {
     return {
@@ -106,7 +105,7 @@ const handleValidation = (body) => {
     if (!Array.isArray(item.share)) {
       return {
         success: false,
-        message: `The field 'share' should be an array`,
+        message: `Invalid/missing field 'share' in data object at index: ${iter}`,
       };
     }
 
@@ -117,11 +116,11 @@ const handleValidation = (body) => {
 
       return {
         success: false,
-        message: `${phoneNumber} is not a valid phone number`,
+        message: `Invalid phoneNumber '${phoneNumber}' in data object at index: ${iter}`,
       };
     }
 
-    if (typeof item === 'object') {
+    if (Object.prototype.toString.call(item) === '[object Object]') {
       continue;
     }
 
@@ -196,7 +195,6 @@ const getEmployeeDataObject = (activityObject, phoneNumber) => {
 
 // const sendXLSXToCreaator = (conn, locals, responseObject) => {
 //   const fileName = `${conn.req.body.template}--${conn.req.body.office}.xlsx`;
-//   const filePath = `/tmp/${fileName}`;
 //   const messageObject = {
 //     to: {
 //       name: conn.requester.displayName,
@@ -250,24 +248,22 @@ const getEmployeeDataObject = (activityObject, phoneNumber) => {
 
 //       locals.mySheet = workbook;
 
-//       return workbook.toFileAsync(filePath);
+
+//       return workbook.outputAsync('base64');
 //     })
-//     .then(() => {
+//     .then((content) => {
 //       messageObject
 //         .attachments
 //         .push({
 //           fileName,
-//           content: fs.readFileSync(filePath).toString('base64'),
-//           type: 'text/csv',
+//           content,
+//           type: xlsxPopulate.MIME_TYPE,
 //           disposition: 'attachment',
 //         });
 
 //       return sgMail.sendMultiple(messageObject);
 //     })
-//     .then(() => Promise.resolve(responseObject))
-//     .catch((error) => {
-//       console.error(error.toString());
-//     });
+//     .then(() => Promise.resolve(responseObject));
 // };
 
 const executeSequentially = (batchFactories) => {
