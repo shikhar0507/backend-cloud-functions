@@ -222,7 +222,6 @@ function fileToJson(template, claim, data, modal) {
   });
   if (!jsonData.length) return notificationLabel.warning('File is Empty');
 
-
   jsonData.forEach(function (val) {
     val.share = [];
   })
@@ -248,7 +247,9 @@ function fileToJson(template, claim, data, modal) {
 
         BulkCreateErrorContainer(jsonData, rejectedOnes)
       }).catch(console.error);
-  }).catch(notificationLabel.warning);
+  }).catch(function(message){
+    notificationLabel.warning(message)
+  });
 }
 
 
@@ -366,7 +367,7 @@ function searchAndUpdate(){
   const container = document.createElement('div');
   const ul = document.createElement('ul')
   const search = searchBar('Search','search-all');
-  const label = new showLabel(search.querySelector('label'))
+  const label = new showLabel(document.getElementById('action-label'))
   search.querySelector('button').onclick = function(){
     const input = search.querySelector('input')
     sendApiRequest(`${getPageHref()}/json?office=${office}&query=${input.value}`,null,'GET').then(function(res){
@@ -374,7 +375,7 @@ function searchAndUpdate(){
     }).then(function(response){
       if(response.status !== 'ok') return label.warning('Please Try Again Later')
       console.log(response)
-      ul.innerHTML = '';
+      ul.innerHTML = '';  
 
     }).catch(function(error){
       label.warning(error.message)
@@ -383,9 +384,9 @@ function searchAndUpdate(){
   const form = document.createElement('form')
   form.className = 'form-inline'
   form.appendChild(search);
+  
   container.appendChild(form);
   container.appendChild(ul);
-
   const modal = createModal(container);
   document.getElementById('modal-box').appendChild(modal)
 }
@@ -461,10 +462,8 @@ function viewEnquiries() {
     });
 }
 
-function searchBar(labelText, id) {
-  const conatiner = document.createElement('div')
-  const label = document.createElement('label')
-  label.textContent = labelText;
+function searchBar(id) {
+  const conatiner = document.createDocumentFragment()
   const input = document.createElement('input')
   input.type = 'text';
   input.className = 'input-field';
@@ -473,18 +472,20 @@ function searchBar(labelText, id) {
   const button = document.createElement('button');
   button.className = 'button';
   button.textContent = 'Search'
-  conatiner.appendChild(label);
   conatiner.appendChild(input)
   conatiner.appendChild(button)
-  return;
+  return conatiner;
 }
 
 function searchBarWithList(labelText, id) {
-  
+  const label = document.createElement('label')
+  label.textContent = labelText;
   const ul = document.createElement("ul");
   ul.id = 'search-results'
-  searchBar(labelText, id).appendChild(ul)
-  return searchBar
+  const baseSearchBar = searchBar(id);
+  baseSearchBar.appendChild(label);
+  baseSearchBar.appendChild(ul)
+  return baseSearchBar
   
 }
 
