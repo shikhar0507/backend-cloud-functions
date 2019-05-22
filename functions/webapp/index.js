@@ -124,9 +124,24 @@ const getLoggedInStatus = (idToken) => {
       };
     })
     .catch((error) => {
-      console.log('ERROR:', error);
+      const authError = new Set(['auth/invalid-argument'])
+        .has(error.code);
+
+      if (authError) {
+        throw new Error(error);
+      }
+
+      const clearCookie = new Set([
+        'auth/id-token-expired',
+        'auth/id-token-revoked',
+        'auth/session-cookie-expired',
+        'auth/session-cookie-revoked',
+        'auth/invalid-session-cookie-duration',
+      ])
+        .has(error.code);
 
       const result = {
+        clearCookie,
         uid: null,
         isLoggedIn: false,
         phoneNumber: '',
@@ -138,11 +153,6 @@ const getLoggedInStatus = (idToken) => {
         isSupport: false,
         isAdmin: false,
         isTemplateManager: false,
-        clearCookie: new Set([
-          'auth/id-token-expired',
-          'auth/id-token-revoked',
-        ])
-          .has(error.code),
       };
 
       return result;
