@@ -495,17 +495,11 @@ const jsonApi = (conn, requester) => {
       .get()
       .then((docs) => {
         docs.forEach((doc) => {
-          json[doc.id] = {
-            activityId: doc.id,
-            status: doc.get('status'),
-            canEdit: doc.get('canEdit'),
-            schedule: doc.get('schedule'),
-            venue: doc.get('venue'),
-            timestamp: doc.get('timestamp'),
-            template: doc.get('template'),
-            office: doc.get('office'),
-            attachment: doc.get('attachment'),
-            creator: doc.get('creator'),
+          if(!json[doc.get('template')]) {
+            json[doc.get('template')] = [createJsonRecord(doc)];
+          }
+          else {
+            json[doc.get('template')].push(createJsonRecord(doc))
           }
         });
 
@@ -538,17 +532,19 @@ const jsonApi = (conn, requester) => {
     .limit(1)
     .get()
     .then((docs) => {
+      
       let baseQuery = docs
         .docs[0]
         .ref
         .collection('Activities')
-        .where('template', '==', conn.req.query.template);
-
+      
+      if(conn.req.query.template) {
+        baseQuery = baseQuery.where('template', '==', conn.req.query.template);
+      }
       if (conn.req.query.query) {
         baseQuery = baseQuery
           .where('searchables', 'array-contains', conn.req.query.query);
       }
-
       const MAX_RESULTS = 10;
 
       return baseQuery
@@ -556,27 +552,37 @@ const jsonApi = (conn, requester) => {
         .get();
     })
     .then((docs) => {
-      docs.forEach((doc) => {
-        json[doc.id] = {
-          activityId: doc.id,
-          status: doc.get('status'),
-          canEdit: doc.get('canEdit'),
-          schedule: doc.get('schedule'),
-          venue: doc.get('venue'),
-          timestamp: doc.get('timestamp'),
-          template: doc.get('template'),
-          activityName: doc.get('activityName'),
-          office: doc.get('office'),
-          attachment: doc.get('attachment'),
-          creator: doc.get('creator'),
-          hidden: doc.get('hidden'),
-        };
+      console.log(docs)
+      docs.forEach((doc) => { 
+        if(!json[doc.get('template')]) {
+          json[doc.get('template')] = [createJsonRecord(doc)];
+        }
+        else {
+          json[doc.get('template')].push(createJsonRecord(doc))
+        }
       });
-
+      console.log(json)
       return json;
     });
 };
 
+function createJsonRecord(doc){
+  return {
+    activityId: doc.id,
+    status: doc.get('status'),
+    canEdit: doc.get('canEdit'),
+    schedule: doc.get('schedule'),
+    venue: doc.get('venue'),
+    timestamp: doc.get('timestamp'),
+    template: doc.get('template'),
+    activityName: doc.get('activityName'),
+    office: doc.get('office'),
+    attachment: doc.get('attachment'),
+    creator: doc.get('creator'),
+    hidden: doc.get('hidden'),
+  };
+  
+}
 module.exports = (req, res) => {
   if (req.method !== 'GET') {
     return res
