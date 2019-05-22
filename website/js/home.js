@@ -58,10 +58,16 @@ function startAdmin(officeName) {
 
 
 
-function excelUploadContainer(claim) {
+function excelUploadContainer(template) {
   const container = document.createElement('div')
+  let templateNames;
 
-  const templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
+  if(template) {
+    templateNames = [template]
+  }
+  else {
+     templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
+  }
   const fileContainer = document.createElement('div')
   fileContainer.id = 'file-container'
   const selectBox = customSelect('Choose Type');
@@ -229,7 +235,7 @@ function fileToJson(template, claim, data, modal) {
   getLocation().then(function (location) {
 
     const body = {
-      office: office,
+      office: office || '',
       template: template,
       data: jsonData,
       timestamp: Date.now(),
@@ -254,12 +260,9 @@ function fileToJson(template, claim, data, modal) {
 
 
 
-function addNew(isSupport, isAdmin) {
+function addNew(isSupport, isAdmin,template) {
   let templateSelected;
-  const modal = createModal(excelUploadContainer({
-    isSupport: isSupport,
-    isAdmin: isAdmin
-  }))
+  const modal = createModal(excelUploadContainer(template))
 
   modal.querySelector('select').addEventListener('change', function (evt) {
     templateSelected = evt.target.value
