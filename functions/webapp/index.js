@@ -627,8 +627,26 @@ module.exports = (req, res) => {
       .redirect(env.mainDomain);
   }
 
+  if (slug === 'sitemap') {
+    return rootCollections
+      .sitemaps
+      .doc('growthfile.com')
+      .get()
+      .then((doc) => {
+        conn.res.set('Content-Type', 'text/xml');
+
+        return conn.res.send(doc.get('sitemap'));
+      })
+      .catch((error) => {
+        console.error(error);
+        const html = handleServerError();
+
+        return conn.res.status(code.internalServerError).send(html);
+      });
+  }
+
   if (slug === 'config') {
-    conn.res.setHeader('Content-Type', 'application/json');
+    conn.res.set('Content-Type', 'application/json');
 
     return conn
       .res
