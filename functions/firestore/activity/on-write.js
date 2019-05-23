@@ -56,7 +56,8 @@ const sendEmployeeCreationSms = (locals) => {
   }
 
   const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
-  const office = locals.change.after.get('office');
+  /** Only 20 chars are allowed by smsgupshup */
+  const office = locals.change.after.get('office').substring(0, 20);
 
   const smsText = `${office} will use Growthfile for attendance and leave.`
     + ` Download now to CHECK-IN ${env.downloadUrl}`;
