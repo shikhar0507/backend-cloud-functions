@@ -36,6 +36,7 @@ const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 const {
+  isValidDate,
   handleDailyStatusReport,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
@@ -84,11 +85,20 @@ module.exports = (change) => {
     cc,
     status,
     officeId,
+    timestamp,
   } = change.after.data();
 
   const valuesPolyfill = (object) => {
     return Object.keys(object).map((key) => object[key]);
   };
+
+  if (!isValidDate(timestamp)) {
+    /**
+     * This check is required since writing invalid value to
+     *  this function might spoil data in the `/Monthly` docs.
+     */
+    throw new Error('Invalid timestamp passed');
+  }
 
   /**
    * A temporary polyfill for using `Object.values` since sendgrid has

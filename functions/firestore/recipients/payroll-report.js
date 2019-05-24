@@ -31,9 +31,9 @@ const getDefaultStatusObject = () => {
   };
 };
 
-const executeSequentially = (batchFactories, batch) => {
+const executeSequentially = (batchFactories, firstBatch) => {
   if (batchFactories.length === 0) {
-    return batch.commit();
+    return firstBatch.commit();
   }
 
   let result = Promise.resolve();
@@ -50,7 +50,8 @@ const executeSequentially = (batchFactories, batch) => {
 
 const getRef = (docRefsMap, phoneNumber) =>
   docRefsMap.get(phoneNumber);
-// statusObjectsMap, docRefsMap, yesterday
+
+
 const commitMultiBatch = (statusObjectsMap, docRefsMap, momentYesterday) => {
   let batch = db.batch();
   const batchFactories = [];
@@ -68,7 +69,7 @@ const commitMultiBatch = (statusObjectsMap, docRefsMap, momentYesterday) => {
       currentDocsCount = 0;
     }
 
-    const ref = getRef(docRefsMap, phoneNumber, statusObject);
+    const ref = getRef(docRefsMap, phoneNumber);
 
     batch.set(ref, {
       statusObject,
@@ -236,6 +237,10 @@ module.exports = (locals) => {
                * status for someone.
                */
               if (dateNumber > yesterdayDate) return;
+
+              if (!statusObject[dateNumber]) {
+                statusObject[dateNumber] = {};
+              }
 
               if (statusObject[dateNumber].onLeave) {
                 if (dateNumber === yesterdayDate) {
@@ -533,7 +538,8 @@ module.exports = (locals) => {
         statusObjectsMap.set(phoneNumber, statusObject);
       });
 
-      return commitMultiBatch(statusObjectsMap, docRefsMap, yesterday);
+      // return commitMultiBatch(statusObjectsMap, docRefsMap, yesterday);
+      return Promise.resolve();
     })
     .then(() => {
       if (locals.createOnlyData) {
@@ -552,6 +558,8 @@ module.exports = (locals) => {
         });
 
       let counter = 2;
+
+      console.log(statusObjectsMap);
 
       employeesPhoneNumberList
         .forEach((phoneNumber, index) => {
@@ -587,6 +595,17 @@ module.exports = (locals) => {
            */
           for (let date = yesterday.date(); date >= 1; date--) {
             const statusColumnValue = (() => {
+              console.log(phoneNumber, date, statusObject[date]);
+
+              /**
+               * Employee/user created in dates which are not the
+               * start or end of the month. Dates from 1 to the current date
+               * will be `undefined`thus crashing the code.
+               */
+              if (!statusObject[date]) {
+                statusObject[date] = {};
+              }
+
               if (statusObject[date].onLeave) {
                 return 'LEAVE';
               }
