@@ -585,73 +585,97 @@ const createAutoSubscription = (locals, templateName, subscriber) => {
 const handleAutoAssign = (locals) => {
   const template = locals.change.after.get('template');
   const status = locals.change.after.get('status');
+
   if (template !== 'subscription' || status === 'CANCELLED') {
     return Promise.resolve();
   }
+
+  console.log('In autoassign');
 
   /**
    * Flow:
    * Iterate over attachment fields
    * Extract the type and value field combinations
    * Fetch activities with those and make the
-   * subscriber as an assignee of those activity
+   * subscriber as an assignee of those activities
    */
   const officeId = locals.change.after.get('officeId');
-  const attachment = locals.change.after.get('attachment');
-  const fields = Object.keys(attachment);
-  const activityFetchPromises = [];
-  const baseDocRef = rootCollections.offices.doc(officeId);
-  const phoneNumber = locals.change.after.get('attachment.Subscriber.value');
+  const subscriptionTemplate = locals
+    .change
+    .after
+    .get('attachment.Template.value');
+  const officeDocRef = rootCollections.offices.doc(officeId);
+  const phoneNumber = locals
+    .change
+    .after
+    .get('attachment.Subscriber.value');
+  /**
+   * Two batches in order to update activities only after all assignees
+   * have been created in the /Activities/{id}/Assignees collectino
+   */
   const activityBatch = db.batch();
   const assigneeBatch = db.batch();
-
-  fields.forEach((field) => {
-    const {
-      value,
-      type,
-    } = attachment[field];
-
-    if (validTypes.has(type)) {
-      return;
-    }
-
-    const promise = baseDocRef
-      .collection('Activities')
-      .where('template', '==', type)
-      .where(`attachment.Name.value`, '==', value)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get();
-
-    activityFetchPromises.push(promise);
-  });
-
   let isAdmin = false;
   let isEmployee = false;
+  const activityFetchPromises = [];
 
-  return Promise
-    .all([
-      baseDocRef
-        .collection('Activities')
-        .where('attachment.Admin.value', '==', phoneNumber)
-        .where('status', '==', 'CONFIRMED')
-        .limit(1)
-        .get(),
-      baseDocRef
-        .collection('Activities')
-        .where('attachment.Employee Contact.value', '==', phoneNumber)
-        .where('status', '==', 'CONFIRMED')
-        .limit(1)
-        .get(),
-    ])
+  console.log('subscriptionTemplate', subscriptionTemplate);
+
+  return rootCollections
+    .activityTemplates
+    .where('name', '==', subscriptionTemplate)
+    .limit(1)
+    .get()
+    .then((docs) => {
+      const doc = docs.docs[0];
+      const attachment = doc.get('attachment');
+      const fields = Object.keys(attachment);
+
+      fields.forEach((field) => {
+        const { value, type } = attachment[field];
+
+        console.log('templates', type, value, field);
+
+        if (validTypes.has(type) || value === '') {
+          return;
+        }
+
+        const promise = officeDocRef
+          .collection('Activities')
+          .where('template', '==', type)
+          .where(`attachment.Name.value`, '==', value)
+          .where('status', '==', 'CONFIRMED')
+          .limit(1)
+          .get();
+
+        activityFetchPromises.push(promise);
+      });
+
+      console.log('promises', activityFetchPromises.length);
+
+      return Promise
+        .all([
+          officeDocRef
+            .collection('Activities')
+            .where('attachment.Admin.value', '==', phoneNumber)
+            .where('status', '==', 'CONFIRMED')
+            .limit(1)
+            .get(),
+          officeDocRef
+            .collection('Activities')
+            .where('attachment.Employee Contact.value', '==', phoneNumber)
+            .where('status', '==', 'CONFIRMED')
+            .limit(1)
+            .get(),
+        ]);
+    })
     .then((result) => {
       const [adminQuery, employeeQuery] = result;
 
       isAdmin = !adminQuery.empty;
       isEmployee = !employeeQuery.empty;
 
-      return Promise
-        .all(activityFetchPromises);
+      return Promise.all(activityFetchPromises);
     })
     .then((snapShots) => {
       snapShots.forEach((snapShot) => {
@@ -670,6 +694,8 @@ const handleAutoAssign = (locals) => {
 
           return false;
         })();
+
+        console.log('Updating:', doc.ref.path);
 
         activityBatch
           .set(doc.ref, {
@@ -777,9 +803,16 @@ const handleSubscription = (locals) => {
         batch.delete(subscriptionDocRef);
       }
 
-      if (locals.change.before.data()
+      /**
+       * Delete subscription doc from old profile
+       * if the phone number has been changed in the
+       * subscription activity.
+       */
+      const subscriberChanged = locals.change.before.data()
         && (locals.change.before.get('attachment.Subscriber.value')
-          !== locals.change.after.get('attachment.Subscriber.value'))) {
+          !== locals.change.after.get('attachment.Subscriber.value'));
+
+      if (subscriberChanged) {
         const oldDocRef = rootCollections
           .profiles
           .doc(locals.change.before.get('attachment.Subscriber.value'))
@@ -802,9 +835,12 @@ const handleSubscription = (locals) => {
         templateDoc,
       ] = result;
 
-      return handleCanEditRule(locals, templateDoc);
+      return Promise
+        .all([
+          handleAutoAssign(locals),
+          handleCanEditRule(locals, templateDoc)
+        ]);
     })
-    .then(() => handleAutoAssign(locals))
     .catch(console.error);
 };
 
@@ -980,7 +1016,7 @@ const handleMonthlyDocs = (locals, hasBeenCancelled) => {
       return officeDoc
         .ref
         .collection('Monthly')
-        .where('date', '==', momentToday.date())
+        .where('phoneNumber', '==', phoneNumber)
         .where('month', '==', momentToday.month())
         .where('year', '==', momentToday.year())
         .limit(1)
@@ -1480,19 +1516,6 @@ module.exports = (change, context) => {
 
         return officeRef.collection('Activities').doc(change.after.id);
       })();
-
-      /**
-       * Puting them here in order to be able to query based on year
-       * on which the leave or tour plan has been created based
-       * on schedule. Querying directly based on the startTime or endTime,
-       * is not possible since they are inside an array.
-       */
-      if (template === 'leave' || template === 'tour plan' || template === 'on duty') {
-        const schedule = change.after.get('schedule')[0];
-
-        activityData.startYear = momentTz(schedule.startTime).year();
-        activityData.endYear = momentTz(schedule.endTime).year();
-      }
 
       batch.set(copyTo, activityData, { merge: true });
 
