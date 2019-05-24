@@ -24,7 +24,7 @@ function searchOffice() {
         ul.appendChild(li);
         return;
       }
-      
+
       response.forEach(function (name) {
         const li = document.createElement('li')
         li.textContent = name;
@@ -189,8 +189,8 @@ function createTriggerReportContainer() {
   const selectBox = customSelect('Select Report')
   const templateName = 'recipient'
   sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET').then(function (response) {
-      return response.json();
-    })
+    return response.json();
+  })
     .then(function (response) {
 
       if (!Object.keys(response).length) return container.textContent = 'No Reports Found';
@@ -241,8 +241,8 @@ function fileToJson(template, claim, data, modal) {
   console.log(jsonData);
 
   jsonData.forEach(function (val) {
-    if(val['Date of Establishment']) {
-      val['Date of Establishment'] = moment(val['Date of Establishment']).valueOf();
+    if (val['Date Of Establishment']) {
+      val['Date Of Establishment'] = moment(val['Date of Establishment']).valueOf();
     }
     val.share = [];
   })
@@ -358,13 +358,13 @@ function triggerReports() {
 
       label.success('')
       sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
-          office: office,
-          report: selectedReport,
-          startTime: startTime,
-          endTime: endTime
-        }, 'POST').then(function (response) {
-          return response.json();
-        })
+        office: office,
+        report: selectedReport,
+        startTime: startTime,
+        endTime: endTime
+      }, 'POST').then(function (response) {
+        return response.json();
+      })
         .then(function (response) {
           if (response.success) {
             label.success(`${selectedReport} successfully triggered`)
@@ -436,7 +436,7 @@ function viewEnquiries() {
   document.getElementById('modal-box').appendChild(createModal(spinner));
   const label = new showLabel(document.getElementById('action-label'));
   const templateName = 'enquiry'
-  sendApiRequest(`${getPageHref()}json?template=${templateName}`, null, 'GET')
+  sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET')
     .then(function (response) {
       return response.json();
     })
@@ -460,7 +460,12 @@ function viewEnquiries() {
         const companyRow = document.createElement('td')
         companyRow.textContent = record.attachment['Company Name'].value || '-';
         const productRow = document.createElement('td');
-        productRow.textContent = record.attachment.Product.value || '-';
+        if (record.attachment.Product) {
+          productRow.textContent = record.attachment.Product.value || '-';
+        }
+        else {
+          productRow.textContent = ''
+        }
         const enquiryRow = document.createElement('td');
         enquiryRow.textContent = record.attachment.Enquiry.value || '-';
         tr.appendChild(indexCol);
