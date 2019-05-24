@@ -190,13 +190,13 @@ const handleOfficePage = (locals, requester) => {
     officeName: locals.officeDoc.get('office'),
     pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
     mainImageUrl: '/img/logo-main.jpg',
-    cannonicalUrl: `https://growthfile.com/${locals.slug}`,
+    cannonicalUrl: `${env.mainDomain}/locals.slug`,
     mapsApiKey: env.mapsApiKey,
     branchObjectsArray: locals.branchObjectsArray,
     productObjectsArray: locals.productObjectsArray,
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
-    videoId: locals.officeDoc.get('attachment.Video ID.value'),
+    videoId: locals.officeDoc.get('attachment.Youtube ID.value'),
     slug: locals.slug,
     isLoggedIn: locals.isLoggedIn,
     showPersistentBar: true,
@@ -210,7 +210,6 @@ const handleOfficePage = (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
-    initOptions: env.webappInitOptions,
   });
 
   return Promise.resolve(html);
@@ -505,7 +504,7 @@ const jsonApi = (conn, requester) => {
       .get()
       .then((docs) => {
         docs.forEach((doc) => {
-          if(!json[doc.get('template')]) {
+          if (!json[doc.get('template')]) {
             json[doc.get('template')] = [createJsonRecord(doc)];
           }
           else {
@@ -542,13 +541,13 @@ const jsonApi = (conn, requester) => {
     .limit(1)
     .get()
     .then((docs) => {
-      
+
       let baseQuery = docs
         .docs[0]
         .ref
         .collection('Activities')
-      
-      if(conn.req.query.template) {
+
+      if (conn.req.query.template) {
         baseQuery = baseQuery.where('template', '==', conn.req.query.template);
       }
       if (conn.req.query.query) {
@@ -563,8 +562,8 @@ const jsonApi = (conn, requester) => {
     })
     .then((docs) => {
       console.log(docs)
-      docs.forEach((doc) => { 
-        if(!json[doc.get('template')]) {
+      docs.forEach((doc) => {
+        if (!json[doc.get('template')]) {
           json[doc.get('template')] = [createJsonRecord(doc)];
         }
         else {
@@ -576,7 +575,7 @@ const jsonApi = (conn, requester) => {
     });
 };
 
-function createJsonRecord(doc){
+function createJsonRecord(doc) {
   return {
     activityId: doc.id,
     status: doc.get('status'),
@@ -591,7 +590,7 @@ function createJsonRecord(doc){
     creator: doc.get('creator'),
     hidden: doc.get('hidden'),
   };
-  
+
 }
 module.exports = (req, res) => {
   if (req.method !== 'GET') {
