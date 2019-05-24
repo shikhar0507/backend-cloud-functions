@@ -370,16 +370,11 @@ const isE164PhoneNumber = (phoneNumber) => {
     return false;
   }
 
-  /** Currently handling only INDIA. */
-  const COUNTRY_CODE = 'IN';
-
   try {
-    const parsedPhoneNumberObject = phoneUtil.parseAndKeepRawInput(phoneNumber, COUNTRY_CODE);
+    const parsedPhoneNumberObject = phoneUtil.parseAndKeepRawInput(phoneNumber);
 
     return phoneUtil
-      .isPossibleNumber(parsedPhoneNumberObject)
-      && phoneUtil
-        .isValidNumberForRegion(parsedPhoneNumberObject, COUNTRY_CODE);
+      .isPossibleNumber(parsedPhoneNumberObject);
   } catch (error) {
     /**
      * Error was thrown by the library. i.e., the phone number is invalid
