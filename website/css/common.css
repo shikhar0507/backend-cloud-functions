@@ -64,7 +64,7 @@ aside {
     text-transform: uppercase;
 }
 
-header {
+.header {
     display: -webkit-box;
     display: -moz-box;
     display: -ms-flexbox;
@@ -125,6 +125,10 @@ section {
     border-radius: 50%;
 }
 
+.bg-white {
+    background: white;
+}
+
 .bg-magenta {
     /* TODO: Use this everywhere instead of hardcoding */
     background: #89273E;
@@ -144,6 +148,14 @@ section {
 
 .col-white {
     color: white;
+}
+
+.col-blue {
+    color: #1f4d72;
+}
+
+.col-light-blue {
+    color: #51a4d5;
 }
 
 /** Helpers **/
@@ -167,6 +179,10 @@ section {
     margin-bottom: 16px;
 }
 
+.mt-16 {
+    margin-top: 16px;
+}
+
 .bold {
     font-weight: 600;
 }
@@ -177,6 +193,26 @@ section {
 
 .fit-content {
     max-width: fit-content;
+}
+
+.flexed {
+    display: flex;
+}
+
+.fw-400 {
+    font-weight: 400;
+}
+
+.ft-size-20 {
+    font-size: 20px;
+}
+
+.lh-20 {
+    line-height: 20px;
+}
+
+.blue-gradient {
+    background: linear-gradient(180deg, #edf1f2 0, #f6f8f9);
 }
 
 .header-links-container {
@@ -203,21 +239,8 @@ section {
 
 .container {
     margin: 0 auto;
-    max-width: 90%;
     min-height: 100%;
     margin-top: 16px;
-}
-
-@media (max-width:320px) {
-    .container {
-        max-width: 95%;
-    }
-}
-
-@media (min-width:321px) and (max-width:360px) {
-    .container {
-        max-width: 90%;
-    }
 }
 
 .hidden {
@@ -240,10 +263,6 @@ section {
     text-transform: uppercase;
 }
 
-#menu-logout-link {
-    /* color: #89273E; */
-}
-
 .warning-label {
     color: red;
 }
@@ -253,7 +272,6 @@ section {
 }
 
 footer {
-    /* color: #89273E; */
     font-size: 12px;
     padding: 20px 30px;
 }
@@ -264,10 +282,6 @@ footer {
 
 #header-hamburger-icon>* {
     pointer-events: none;
-}
-
-footer a {
-    /* color: #89273E; */
 }
 
 .social-links {
@@ -326,7 +340,6 @@ input[readonly] {
 #header-profile-icon {
     position: relative;
     display: inline-block;
-    /* color: #89273E; */
 }
 
 .select-dropdown {
@@ -472,6 +485,7 @@ input:disabled {
     width: 80%;
     overflow-y: auto;
 }
+
 .modal .modal-content #action-label {
     text-align: center;
     margin: 0 auto;
@@ -503,9 +517,9 @@ input:disabled {
     cursor: pointer;
 }
 
-@media (min-width: 400px) {
+@media (min-width: 426px) {
     .container {
-        max-width: 80%;
+        max-width: 60%;
     }
 }
 

@@ -590,8 +590,6 @@ const handleAutoAssign = (locals) => {
     return Promise.resolve();
   }
 
-  console.log('In autoassign');
-
   /**
    * Flow:
    * Iterate over attachment fields
@@ -618,8 +616,6 @@ const handleAutoAssign = (locals) => {
   let isAdmin = false;
   let isEmployee = false;
   const activityFetchPromises = [];
-
-  console.log('subscriptionTemplate', subscriptionTemplate);
 
   return rootCollections
     .activityTemplates
@@ -650,8 +646,6 @@ const handleAutoAssign = (locals) => {
 
         activityFetchPromises.push(promise);
       });
-
-      console.log('promises', activityFetchPromises.length);
 
       return Promise
         .all([
@@ -694,8 +688,6 @@ const handleAutoAssign = (locals) => {
 
           return false;
         })();
-
-        console.log('Updating:', doc.ref.path);
 
         activityBatch
           .set(doc.ref, {
