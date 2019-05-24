@@ -296,66 +296,37 @@ const handleAdmin = (locals) => {
   const phoneNumber = locals.change.after.get('attachment.Admin.value');
   const status = locals.change.after.get('status');
   const office = locals.change.after.get('office');
+  let customClaims = {};
 
   return auth
     .getUserByPhoneNumber(phoneNumber)
     .then((userRecord) => {
-      if (userRecord.customClaims
-        && userRecord.customClaims.hasOwnProperty('admin')
-        && !userRecord.customClaims.admin.includes(office)) {
-        userRecord.customClaims.admin.push(office);
-      } else {
-        userRecord.customClaims = {};
+      customClaims = userRecord.customClaims || {};
 
-        userRecord.customClaims.admin = [
-          office,
-        ];
+      /** Duplication is not ideal. */
+      if (customClaims.admin && !customClaims.admin.includes(office)) {
+        customClaims.admin.push(office);
       }
 
-      /**
-       * The `statusOnCreate` for `admin` template is `CONFIRMED`.
-       * This block should not run when the activity has been
-       * created by someone.
-       * In the case of `/change-status` however, chances are
-       * that the status becomes `CANCELLED`.
-       *
-       * When that happens, the name of the office from
-       * the `admin` array is removed from the `customClaims.admin`
-       * of the admin user.
-       */
-      if (status === 'CANCELLED') {
-        const index = userRecord.customClaims.admin.indexOf(office);
+      if (!customClaims.admin) {
+        customClaims = { admin: [office] };
+      }
 
-        /**
-         * The user already is `admin` of another office.
-         * Preserving their older permission for that case..
-         * If this office is already present in the user's custom claims,
-         * there's no need to add it again.
-         * This fixes the case of duplication in the `offices` array in the
-         * custom claims.
-         */
-        if (index > -1) {
-          userRecord.customClaims.admin.splice(index, 1);
-        }
+      if (status === 'CANCELLED' && customClaims.admin && customClaims.admin.includes(office)) {
+        const index = customClaims.admin.includes(office);
+
+        customClaims.admin.splice(index, 1);
       }
 
       return auth
-        .setCustomUserClaims(
-          userRecord.uid,
-          userRecord.customClaims
-        );
+        .setCustomUserClaims(userRecord.uid, customClaims);
     })
     .catch((error) => {
-      /**
-       * User who doesn't have auth will be granted admin claims
-       * when they actually sign-up to the platform (handled in `AuthOnCreate`)
-       * using the client app.
-       */
-      if (error.code !== 'auth/user-not-found') {
-        console.error(error);
+      if (error.code === 'auth/user-not-found') {
+        return Promise.resolve();
       }
 
-      return Promise.resolve();
+      console.error(error);
     });
 };
 
