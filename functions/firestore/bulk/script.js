@@ -187,6 +187,7 @@ const getEmployeeDataObject = (activityObject, phoneNumber) => {
     'Base Location': activityObject.attachment['Base Location'].value,
     'First Supervisor': activityObject.attachment['First Supervisor'].value,
     'Second Supervisor': activityObject.attachment['Second Supervisor'].value,
+    'Third Supervisor': activityObject.attachment['Third Supervisor'].value,
     'Daily Start Time': activityObject.attachment['Daily Start Time'].value,
     'Daily End Time': activityObject.attachment['Daily End Time'].value,
     'Weekly Off': activityObject.attachment['Weekly Off'].value,

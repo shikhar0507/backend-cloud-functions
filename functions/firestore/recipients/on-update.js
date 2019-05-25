@@ -36,6 +36,7 @@ const {
   sendGridTemplateIds,
 } = require('../../admin/constants');
 const {
+  isValidDate,
   handleDailyStatusReport,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
@@ -84,11 +85,20 @@ module.exports = (change) => {
     cc,
     status,
     officeId,
+    timestamp,
   } = change.after.data();
 
   const valuesPolyfill = (object) => {
     return Object.keys(object).map((key) => object[key]);
   };
+
+  if (!isValidDate(timestamp)) {
+    /**
+     * This check is required since writing invalid value to
+     *  this function might spoil data in the `/Monthly` docs.
+     */
+    throw new Error('Invalid timestamp passed');
+  }
 
   /**
    * A temporary polyfill for using `Object.values` since sendgrid has
@@ -215,7 +225,6 @@ module.exports = (change) => {
       if (locals.messageObject.to.length === 0) {
         // No assignees, only creating data for the day, but
         // not sending emails...
-        // Applicable only to the payroll report
         locals.createOnlyData = true;
       }
 
@@ -225,14 +234,14 @@ module.exports = (change) => {
         return require('./payroll-report')(locals);
       }
 
+      if (report === reportNames.FOOTPRINTS) {
+        return require('./footprints-report')(locals);
+      }
+
       if (locals.messageObject.to.length === 0) {
         locals.sendMail = false;
 
         return Promise.resolve();
-      }
-
-      if (report === reportNames.FOOTPRINTS) {
-        return require('./footprints-report')(locals);
       }
 
       if (report === reportNames.DSR) {
@@ -350,7 +359,6 @@ module.exports = (change) => {
       /**
        * When all recipient function instances have completed their work,
        * we trigger the daily status report. We are doing this because
-       *
        */
       if (expectedRecipientTriggersCount === recipientsTriggeredToday) {
         promises.push(handleDailyStatusReport());

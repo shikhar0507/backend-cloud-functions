@@ -22,22 +22,21 @@
             <div class="border pad">
                 <div class="office-name-container">
                     <span>
-                        <img height="40" width="40" src=\{{logoURL}} alt="">
+                        <img height="68" width="68" src=\{{logoURL}} alt="">
                     </span>
                     <h1>\{{officeName}}</h1>
                 </div>
+                <span class="flexed border bg-white pad mb-16">
+                    <span>Company Size:</span>
+                    <span class="bold"> \{{officeEmployeeSize}}</span>
+                </span>
                 \{{#if shortDescription}}
-                <p class="short-description">\{{shortDescription}}</p>
+                <p class="short-description border pad bg-white">\{{shortDescription}}</p>
                 \{{/if}}
 
                 \{{#if aboutOffice}}
-                <p>\{{aboutOffice}}</p>
+                <p class="border pad bg-white">\{{aboutOffice}}</p>
                 \{{/if}}
-
-                <span class="company-size-span">
-                    <i class="fas fa-users"></i>
-                    \{{officeEmployeeSize}}
-                </span>
             </div>
         </section>
         \{{#if displayProducts}}

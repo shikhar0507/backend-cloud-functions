@@ -162,14 +162,13 @@ const getLoggedInStatus = (idToken) => {
 const handleOfficePage = (locals, requester) => {
   const source = require('./views/office.hbs')();
   const template = handlebars.compile(source, { strict: true });
+  const description = (() => {
+    if (env.isProduction) {
+      return locals.officeDoc.get('attachment.Description.value') || '';
+    }
 
-  const description = locals.officeDoc.get('attachment.Description.value') || '';
-  const parts = description.split('.');
-  let pageDescription = `${parts[0]}.`;
-
-  if (parts[1]) {
-    pageDescription += `${parts[1]}`;
-  }
+    return `Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, and going through the cites of the word in classical literature, discovered the undoubtable source.`;
+  })();
 
   const logoURL = (() => {
     if (locals.officeDoc.get('attachment.logoURL.value')) {
@@ -179,10 +178,28 @@ const handleOfficePage = (locals, requester) => {
     return `img/office-placeholder.jpg`;
   })();
 
+  const videoId = (() => {
+    if (env.isProduction) {
+      return locals.officeDoc.get('attachment.Youtube ID.value');
+    }
+
+    return 'jCyEX6u-Yhs';
+  })();
+
+  const shortDescription = (() => {
+    if (env.isProduction) {
+      return locals.officeDoc.get('attachment.Short Description.value') || '';
+    }
+
+    return `Lorem Ipsum is simply dummy text of the printing and typesetting industry.`;
+  })();
+
   const html = template({
     logoURL,
+    videoId,
+    shortDescription,
     aboutOffice: description,
-    pageDescription: pageDescription,
+    pageDescription: shortDescription,
     userEmail: requester.email || '',
     userDisplayName: requester.displayName || '',
     userPhoneNumber: requester.phoneNumber || '',
@@ -190,13 +207,12 @@ const handleOfficePage = (locals, requester) => {
     officeName: locals.officeDoc.get('office'),
     pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
     mainImageUrl: '/img/logo-main.jpg',
-    cannonicalUrl: `https://growthfile.com/${locals.slug}`,
+    cannonicalUrl: `${env.mainDomain}/locals.slug`,
     mapsApiKey: env.mapsApiKey,
     branchObjectsArray: locals.branchObjectsArray,
     productObjectsArray: locals.productObjectsArray,
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
-    videoId: locals.officeDoc.get('attachment.Video ID.value'),
     slug: locals.slug,
     isLoggedIn: locals.isLoggedIn,
     showPersistentBar: true,
@@ -206,11 +222,9 @@ const handleOfficePage = (locals, requester) => {
     emailVerified: requester.emailVerified,
     displayName: requester.displayName,
     photoURL: requester.photoURL,
-    shortDescription: locals.officeDoc.get('attachment.Short Description.value'),
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
-    initOptions: env.webappInitOptions,
   });
 
   return Promise.resolve(html);
@@ -505,7 +519,7 @@ const jsonApi = (conn, requester) => {
       .get()
       .then((docs) => {
         docs.forEach((doc) => {
-          if(!json[doc.get('template')]) {
+          if (!json[doc.get('template')]) {
             json[doc.get('template')] = [createJsonRecord(doc)];
           }
           else {
@@ -542,13 +556,13 @@ const jsonApi = (conn, requester) => {
     .limit(1)
     .get()
     .then((docs) => {
-      
+
       let baseQuery = docs
         .docs[0]
         .ref
         .collection('Activities')
-      
-      if(conn.req.query.template) {
+
+      if (conn.req.query.template) {
         baseQuery = baseQuery.where('template', '==', conn.req.query.template);
       }
       if (conn.req.query.query) {
@@ -563,8 +577,8 @@ const jsonApi = (conn, requester) => {
     })
     .then((docs) => {
       console.log(docs)
-      docs.forEach((doc) => { 
-        if(!json[doc.get('template')]) {
+      docs.forEach((doc) => {
+        if (!json[doc.get('template')]) {
           json[doc.get('template')] = [createJsonRecord(doc)];
         }
         else {
@@ -576,7 +590,7 @@ const jsonApi = (conn, requester) => {
     });
 };
 
-function createJsonRecord(doc){
+function createJsonRecord(doc) {
   return {
     activityId: doc.id,
     status: doc.get('status'),
@@ -591,7 +605,7 @@ function createJsonRecord(doc){
     creator: doc.get('creator'),
     hidden: doc.get('hidden'),
   };
-  
+
 }
 module.exports = (req, res) => {
   if (req.method !== 'GET') {
