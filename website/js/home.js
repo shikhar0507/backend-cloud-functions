@@ -190,8 +190,8 @@ function createTriggerReportContainer() {
   const selectBox = customSelect('Select Report')
   const templateName = 'recipient'
   sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET').then(function (response) {
-    return response.json();
-  })
+      return response.json();
+    })
     .then(function (response) {
 
       if (!Object.keys(response).length) return container.textContent = 'No Reports Found';
@@ -359,13 +359,13 @@ function triggerReports() {
 
       label.success('')
       sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
-        office: office,
-        report: selectedReport,
-        startTime: startTime,
-        endTime: endTime
-      }, 'POST').then(function (response) {
-        return response.json();
-      })
+          office: office,
+          report: selectedReport,
+          startTime: startTime,
+          endTime: endTime
+        }, 'POST').then(function (response) {
+          return response.json();
+        })
         .then(function (response) {
           if (response.success) {
             label.success(`${selectedReport} successfully triggered`)
@@ -388,10 +388,22 @@ function searchAndUpdate() {
   let label;
 
   let chooseType;
-
+  let chooseValue;
+  let editValue;
+  let activtyChoosen;
   search.querySelector('button').onclick = function () {
+    activtyChoosen = ''
     if (chooseType) {
       chooseType.remove();
+    }
+    if(chooseValue) {
+      chooseValue.remove();
+    }
+    if (editValue) {
+      editValue.remove()
+    }
+    if (document.getElementById('edit-values')) {
+      document.getElementById('edit-values').remove();
     }
     console.log(search)
     const input = search.querySelector('input')
@@ -404,15 +416,17 @@ function searchAndUpdate() {
       return res.json()
     }).then(function (response) {
       console.log(response)
+
       // if (response.status !== 'ok') return label.warning('Please Try Again Later')
       ul.innerHTML = '';
 
       console.log(response)
       const types = Object.keys(response);
-
-      let chooseValue;
-      let editValue;
-      let activtyChoosen;
+      if(!types.length) {
+        label.warning('No results Found');
+        return
+      }
+      label.warning('');
       chooseType = customSelect('Choose Type')
       types.forEach(function (name) {
         const option = document.createElement('option');
@@ -588,8 +602,7 @@ function viewEnquiries() {
         const productRow = document.createElement('td');
         if (record.attachment.Product) {
           productRow.textContent = record.attachment.Product.value || '-';
-        }
-        else {
+        } else {
           productRow.textContent = ''
         }
         const enquiryRow = document.createElement('td');
