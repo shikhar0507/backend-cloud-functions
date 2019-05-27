@@ -127,14 +127,14 @@ function getSpinnerElement(id) {
 function createModal(actionContent) {
   if (document.getElementById('modal')) {
     // document.getElementById('modal').remove();
-    setContentInModal(actionContent,document.querySelector('#modal .action-container'))
+    setContentInModal(actionContent, document.querySelector('#modal .action-container'))
     return;
   };
 
   const div = document.createElement('div');
   div.className = 'modal';
   div.id = 'modal'
- 
+
 
   const content = document.createElement('div')
   content.className = 'modal-content';
@@ -151,33 +151,31 @@ function createModal(actionContent) {
   const actionNotification = document.createElement('p');
   actionNotification.id = 'action-label'
   content.appendChild(actionNotification)
-  setContentInModal(actionContent,actionContainer)
+  setContentInModal(actionContent, actionContainer)
   content.appendChild(actionContainer);
   div.appendChild(content)
   return div;
 }
 
-function isDomElementString(el){
+function isDomElementString(el) {
   return typeof el == 'string';
 }
-function setContentInModal(el,parent){
+
+function setContentInModal(el, parent) {
   console.log(el)
   console.log(parent);
 
-  if(isDomElementString(el)) {
+  if (isDomElementString(el)) {
     parent.innerHTML = el;
-  }
-  else {
+  } else {
     parent.appendChild(el);
   }
-  
 }
 
 function setMessage(message) {
   const messageNode = document.getElementById('message');
   messageNode.innerText = message;
   messageNode.classList.remove('hidden');
-
 }
 
 
@@ -188,18 +186,18 @@ function getLocation() {
       .geolocation
       .getCurrentPosition(function (position) {
         return resolve({
-          latitude : position.coords.latitude,
-          longitude : position.coords.longitude,
-          accuracy :position.coords.accuracy
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
         })
       }, function (error) {
-        let message ;
-        switch(error.code) {
+        let message;
+        switch (error.code) {
           case 1:
-          message = 'Please Enable Location';
-          break;
+            message = 'Please Enable Location';
+            break;
           default:
-          message = error.message;
+            message = error.message;
         }
         return reject(message)
       });
@@ -243,8 +241,8 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target === document.getElementById('load-map-button')) {
-    return getLocation().then(initMap).catch(function(message){
-      if(document.getElementById('map')) {
+    return getLocation().then(initMap).catch(function (message) {
+      if (document.getElementById('map')) {
         document.getElementById('map').innerHTML = `<p style='text-align:center;margin-top:20px;' class='warning-label'>${message}</p>`
       }
     })
@@ -299,7 +297,6 @@ function setGlobals() {
 }
 
 
-
 window
   .addEventListener('load', function () {
 
@@ -310,7 +307,7 @@ window
       .addAuthTokenListener(function (idToken) {
         if (!idToken) return;
 
-        document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`
+        document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
 
         console.log('new cookie set', idToken);
       });

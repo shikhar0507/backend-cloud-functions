@@ -190,8 +190,8 @@ function createTriggerReportContainer() {
   const selectBox = customSelect('Select Report')
   const templateName = 'recipient'
   sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET').then(function (response) {
-      return response.json();
-    })
+    return response.json();
+  })
     .then(function (response) {
 
       if (!Object.keys(response).length) return container.textContent = 'No Reports Found';
@@ -359,13 +359,13 @@ function triggerReports() {
 
       label.success('')
       sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
-          office: office,
-          report: selectedReport,
-          startTime: startTime,
-          endTime: endTime
-        }, 'POST').then(function (response) {
-          return response.json();
-        })
+        office: office,
+        report: selectedReport,
+        startTime: startTime,
+        endTime: endTime
+      }, 'POST').then(function (response) {
+        return response.json();
+      })
         .then(function (response) {
           if (response.success) {
             label.success(`${selectedReport} successfully triggered`)
@@ -396,7 +396,7 @@ function searchAndUpdate() {
     if (chooseType) {
       chooseType.remove();
     }
-    if(chooseValue) {
+    if (chooseValue) {
       chooseValue.remove();
     }
     if (editValue) {
@@ -422,7 +422,7 @@ function searchAndUpdate() {
 
       console.log(response)
       const types = Object.keys(response);
-      if(!types.length) {
+      if (!types.length) {
         label.warning('No results Found');
         return
       }
@@ -665,4 +665,130 @@ function employeeExit() {
   //   }).catch(console.error)
   // }
   // document.getElementById('modal-box').appendChild(createModal(search))
+}
+
+function handleUpdateAuthRequest(phoneNumber, displayName, email) {
+  console.log('Sending fetch request');
+  const messageNode = document.getElementById('message');
+
+  console.log('request', { phoneNumber, displayName, email });
+
+  return sendApiRequest(
+    `${apiBaseUrl}/update-auth`,
+    {
+      phoneNumber,
+      displayName,
+      email,
+    },
+    'POST')
+    .then(function (response) {
+      if (!response.ok) {
+        return Promise.resolve();
+      }
+
+      return response.json();
+    })
+    .then(function (json) {
+      console.log('result', json);
+
+      if (!json.success) {
+        messageNode.innerText = json.message;
+
+        return;
+      }
+
+      messageNode.classList.remove('warning-label');
+      messageNode.classList.add('success-label');
+      messageNode.innerText = json.message
+        || 'Auth updated successfully...';
+      messageNode.classList.remove('hidden');
+
+      return;
+    })
+    .catch(function (error) {
+      console.error(error);
+    });
+}
+
+function updateAuth() {
+  console.log('Update auth called');
+  const message = document.createElement('p');
+  message.classList.add('warning-label', 'mb-8', 'hidden');
+  message.id = 'message';
+  const actionContent = document.createElement('form');
+  actionContent.id = 'update-auth-form';
+  actionContent.classList.add('flexed', 'pad');
+  actionContent.style.flexDirection = 'column';
+
+  const modalTitle = document.createElement('h2');
+  const phoneNumberInput = document.createElement('input');
+  phoneNumberInput.id = 'phoneNumberInput';
+  const displayNameInput = document.createElement('input');
+  displayNameInput.id = 'displayNameInput';
+  const emailInput = document.createElement('input');
+  emailInput.id = 'emailInput';
+  displayNameInput.classList.add('input-field', 'mb-8');
+  displayNameInput.placeholder = 'Person Name';
+  modalTitle.innerText = 'Update Auth';
+  phoneNumberInput.classList.add('input-field', 'mb-8');
+  phoneNumberInput.placeholder = '(+91) phone number';
+  emailInput.placeholder = 'Email';
+
+  emailInput.classList.add('input-field', 'mb-8');
+
+  phoneNumberInput.value = '+918527801093';
+  displayNameInput.value = 'Utkarsh Bhatt';
+  emailInput.value = 'utkarsh.bhatt12@gmail.com';
+
+  const a = document.createElement('a');
+  a.classList.add('button');
+  a.innerText = 'Update Email';
+
+  a.onclick = function () {
+    console.log('on click called');
+    const phoneNumber = document.getElementById('phoneNumberInput').value;
+
+    if (!isValidPhoneNumber(phoneNumber)) {
+      message.innerText = 'Invalid Phone Number';
+      message.classList.remove('hidden');
+
+      return;
+    }
+
+    const displayName = document.getElementById('displayNameInput').value;
+
+    if (!isNonEmptyString(displayName)) {
+      message.innerText = 'Invalid display name';
+
+      message.classList.remove('hidden');
+
+      return;
+    }
+
+    const email = document.getElementById('emailInput').value;
+
+    if (!isValidEmail(email)) {
+      message.innerText = 'Invalid email';
+
+      message.classList.remove('hidden');
+
+      return;
+    }
+
+    return handleUpdateAuthRequest(
+      phoneNumber,
+      displayName,
+      email
+    );
+  };
+
+  actionContent.appendChild(modalTitle);
+  actionContent.appendChild(message);
+  actionContent.appendChild(phoneNumberInput);
+  actionContent.appendChild(displayNameInput);
+  actionContent.appendChild(emailInput);
+  actionContent.appendChild(a);
+
+  const modal = createModal(actionContent);
+  document.getElementById('modal-box').appendChild(modal)
 }

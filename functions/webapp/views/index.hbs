@@ -22,12 +22,13 @@
 
                 <button type="button" class="button button-search invisible" onclick="searchOffice()">search</button>
                 <button type="button" class="invisible button" id='continue'
-                    onclick="startAdmin(document.getElementById('office-search-field').value)">Conitnue</button>
+                    onclick="startAdmin(document.getElementById('office-search-field').value)">Contunue</button>
                 <button type="button" class="button" id='create-office' onclick="addNew(true,false,'office')">Create
                     Office</button>
             </form>
 
-            \{{else}} \{{#if isAdmin}}
+            \{{else}}
+            \{{#if isAdmin}}
             <form id='office-search-form' class="form-inline">
                 <span class="select-dropdown">
                     <select id='office-selector'>
@@ -56,6 +57,10 @@
         <section class="action-icons-container hidden">
             <div class="cards">
                 \{{#if isSupport}}
+                <div id="update-auth" onclick="updateAuth()">
+                    <i class="fas fa-user-edit action-icon"></i>
+                    <p class="icon-text">Update Auth</p>
+                </div>
                 <div id="add-employees" onclick="addNew(true)">
                     <i class="fas fa-user-plus action-icon"></i>
                     <p class="icon-text">Create New</p>
@@ -92,7 +97,8 @@
                     <i class="fas fa-file-alt action-icon"></i>
                     <p class="icon-text">Manage Templates</p>
                 </div>
-                \{{else}} \{{#if isAdmin}}
+                \{{else}}
+                \{{#if isAdmin}}
                 <div id="add-employees" onclick="addNew(false,true)">
                     <i class="fas fa-user-plus action-icon"></i>
                     <p class="icon-text">Create New</p>
@@ -136,9 +142,7 @@
                 </div>
                 \{{/if}}
                 \{{/if}}
-
         </section>
-
         \{{else}}
         \{{> asidePartial}}
         <section class="features-section section-one">
@@ -265,7 +269,7 @@
         \{{/if}}
     </div>
     \{{> footerPartial}}
-    <div id='modal-box'></div>
+    <div id="modal-box"></div>
     \{{> scriptsPartial}}
     <script src="js/home.js"></script>
 

@@ -21,6 +21,7 @@ const {
 const handlebars = require('handlebars');
 const url = require('url');
 const env = require('../admin/env');
+const admin = require('firebase-admin');
 // const momentTz = require('moment-timezone');
 
 const headPartial = require('./views/partials/head.hbs')();
@@ -623,10 +624,20 @@ const handleEmailVerificationFlow = (conn) => {
         return conn.res.status(code.temporaryRedirect).redirect('/');
       }
 
-      return auth
-        .updateUser(conn.req.query.uid, {
-          emailVerified: true,
-        });
+      return Promise
+        .all([
+          auth
+            .updateUser(conn.req.query.uid, {
+              emailVerified: true,
+            }),
+          doc
+            .ref
+            .set({
+              emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
+            }, {
+                merge: true,
+              })
+        ]);
     })
     .then(() => {
       // TODO: Also set __session cookie in order to login the user.
