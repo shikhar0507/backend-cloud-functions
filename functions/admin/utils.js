@@ -83,7 +83,7 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
  * @param {string} [message] Response message for the request.
  * @returns {void}
  */
-const sendResponse = (conn, statusCode, message = '') => {
+const sendResponse = (conn, statusCode = code.ok, message = '') => {
   conn.res.writeHead(statusCode, conn.headers);
 
   /** 2xx codes denote success. */
@@ -94,7 +94,7 @@ const sendResponse = (conn, statusCode, message = '') => {
    * code is 4xx or 5xx. We are explicitly avoiding this.
    */
   if (conn.req.query.token === env.sgMailParseToken) {
-    conn.res.writeHead(200, conn.headers);
+    conn.res.writeHead(code.ok, conn.headers);
   }
 
   if (!success) {
