@@ -16,6 +16,7 @@ function searchOffice() {
       return response.json();
     })
     .then(function (response) {
+
       console.log('response', response);
       ul.innerHTML = ''
       if (!response.length) {
@@ -189,8 +190,8 @@ function createTriggerReportContainer() {
   const selectBox = customSelect('Select Report')
   const templateName = 'recipient'
   sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET').then(function (response) {
-    return response.json();
-  })
+      return response.json();
+    })
     .then(function (response) {
 
       if (!Object.keys(response).length) return container.textContent = 'No Reports Found';
@@ -243,7 +244,7 @@ function fileToJson(template, claim, data, modal) {
   jsonData.forEach(function (val) {
     if (val['Date Of Establishment']) {
       val['Date Of Establishment'] = moment(val['Date of Establishment']).valueOf();
-    }
+    };
     val.share = [];
   })
 
@@ -358,13 +359,13 @@ function triggerReports() {
 
       label.success('')
       sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
-        office: office,
-        report: selectedReport,
-        startTime: startTime,
-        endTime: endTime
-      }, 'POST').then(function (response) {
-        return response.json();
-      })
+          office: office,
+          report: selectedReport,
+          startTime: startTime,
+          endTime: endTime
+        }, 'POST').then(function (response) {
+          return response.json();
+        })
         .then(function (response) {
           if (response.success) {
             label.success(`${selectedReport} successfully triggered`)
@@ -384,28 +385,167 @@ function searchAndUpdate() {
   const container = document.createElement('div');
   const ul = document.createElement('ul')
   const search = searchBar('Search', 'search-all');
-  const label = new showLabel(document.getElementById('action-label'))
+  let label;
+
+  let chooseType;
+  let chooseValue;
+  let editValue;
+  let activtyChoosen;
   search.querySelector('button').onclick = function () {
+    activtyChoosen = ''
+    if (chooseType) {
+      chooseType.remove();
+    }
+    if(chooseValue) {
+      chooseValue.remove();
+    }
+    if (editValue) {
+      editValue.remove()
+    }
+    if (document.getElementById('edit-values')) {
+      document.getElementById('edit-values').remove();
+    }
+    console.log(search)
     const input = search.querySelector('input')
-    sendApiRequest(`${getPageHref()}/json?office=${office}&query=${input.value}`, null, 'GET').then(function (res) {
+    let value = input.value
+    if (isValidPhoneNumber(value)) {
+      value = value.replace('+', '%2B')
+    }
+
+    sendApiRequest(`${getPageHref()}/json?office=${office}&query=${value}`, null, 'GET').then(function (res) {
       return res.json()
     }).then(function (response) {
-      if (response.status !== 'ok') return label.warning('Please Try Again Later')
       console.log(response)
+
+      // if (response.status !== 'ok') return label.warning('Please Try Again Later')
       ul.innerHTML = '';
+
+      console.log(response)
+      const types = Object.keys(response);
+      if(!types.length) {
+        label.warning('No results Found');
+        return
+      }
+      label.warning('');
+      chooseType = customSelect('Choose Type')
+      types.forEach(function (name) {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        chooseType.querySelector('select').appendChild(option)
+      })
+      chooseType.addEventListener('change', function (evt) {
+        if (chooseValue) {
+          chooseValue.remove();
+        }
+        if (editValue) {
+          editValue.remove()
+        }
+        if (document.getElementById('edit-values')) {
+          document.getElementById('edit-values').remove();
+        }
+        chooseValue = customSelect('Choose ' + evt.target.value);
+
+        response[evt.target.value].forEach(function (value) {
+          const option = document.createElement('option');
+          option.value = JSON.stringify(value);
+          option.textContent = value.activityName;
+          chooseValue.querySelector('select').appendChild(option)
+        })
+        form.appendChild(chooseValue);
+        chooseValue.addEventListener('change', function (evt) {
+          if (editValue) {
+            editValue.remove()
+          }
+          if (document.getElementById('edit-values')) {
+            document.getElementById('edit-values').remove();
+          }
+          const value = JSON.parse(evt.target.value);
+          activtyChoosen = value;
+          editValue = customSelect('Edit  ' + value.activityName);
+
+          Object.keys(value.attachment).forEach(function (attachmentName) {
+            let option = document.createElement('option');
+
+            option.value = attachmentName
+            option.textContent = attachmentName
+            editValue.querySelector('select').appendChild(option)
+          })
+
+          editValue.addEventListener('change', function (evt) {
+            const editCont = document.createElement('div')
+            editCont.id = 'edit-values'
+            const attachmentName = evt.target.value;
+            console.log(attachmentName)
+            if (activtyChoosen.attachment[attachmentName].type === 'string') {
+              const oldlabel = document.createElement('label')
+              oldlabel.textContent = 'Current ' + attachmentName
+
+              const input = document.createElement('input');
+              input.value = activtyChoosen.attachment[attachmentName].value;
+              input.style.width = '100%'
+              input.disabled = 'true'
+              editCont.appendChild(oldlabel);
+              editCont.appendChild(input);
+
+              const newlabel = document.createElement('label')
+              newlabel.textContent = 'New ' + attachmentName
+
+              const changeInput = document.createElement('input')
+              changeInput.style.width = '100%'
+              editCont.appendChild(newlabel);
+              editCont.appendChild(changeInput);
+              const submit = document.createElement('button')
+              submit.className = 'button mt-10'
+              submit.textContent = 'Submit'
+
+              submit.onclick = function () {
+                activtyChoosen.attachment[attachmentName].value = changeInput.value;
+
+                getLocation().then(function (location) {
+                  activtyChoosen.geopoint = location
+                  activtyChoosen.timestamp = Date.now()
+
+                  sendApiRequest(`${apiBaseUrl}/activities/update?support=true`, activtyChoosen, 'PATCH').then(function (res) {
+                    console.log(res)
+                    return res.json()
+                  }).then(function (response) {
+                    if (!response.success) {
+                      label.warning(response.message)
+                      return;
+                    }
+                    label.success('success');
+
+                    console.log(response)
+                  }).catch(console.log)
+                }).catch(function (errorMessage) {
+                  label.warning(errorMessage);
+                })
+
+              }
+              editCont.appendChild(submit)
+              form.appendChild(editCont)
+            }
+            console.log(evt.target.value)
+          });
+          form.appendChild(editValue)
+        });
+      })
+      form.appendChild(chooseType);
 
     }).catch(function (error) {
       label.warning(error.message)
     })
   }
-  const form = document.createElement('form')
+  const form = document.createElement('div')
   form.className = 'form-inline'
   form.appendChild(search);
 
   container.appendChild(form);
   container.appendChild(ul);
   const modal = createModal(container);
-  document.getElementById('modal-box').appendChild(modal)
+  document.getElementById('modal-box').appendChild(modal);
+  label = new showLabel(document.getElementById('action-label'))
 }
 
 function createActivityList(data) {
@@ -462,8 +602,7 @@ function viewEnquiries() {
         const productRow = document.createElement('td');
         if (record.attachment.Product) {
           productRow.textContent = record.attachment.Product.value || '-';
-        }
-        else {
+        } else {
           productRow.textContent = ''
         }
         const enquiryRow = document.createElement('td');
@@ -485,7 +624,7 @@ function viewEnquiries() {
 }
 
 function searchBar(id) {
-  const conatiner = document.createDocumentFragment()
+  const conatiner = document.createElement('div')
   const input = document.createElement('input')
   input.type = 'text';
   input.className = 'input-field';
@@ -494,6 +633,7 @@ function searchBar(id) {
   const button = document.createElement('button');
   button.className = 'button';
   button.textContent = 'Search'
+  button.id = 'search'
   conatiner.appendChild(input)
   conatiner.appendChild(button)
   return conatiner;
