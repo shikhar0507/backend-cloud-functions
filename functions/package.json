@@ -37,6 +37,7 @@
   "readme": "https://github.com/Growthfilev2/backend-cloud-functions/blob/master/README.md",
   "dependencies": {
     "@google-cloud/logging": "^4.5.1",
+    "@google-cloud/storage": "^2.5.0",
     "@google/maps": "^0.5.5",
     "@sendgrid/mail": "^6.3.1",
     "csvtojson": "^2.0.8",
