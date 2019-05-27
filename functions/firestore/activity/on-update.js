@@ -155,7 +155,7 @@ const updateDocsWithBatch = (conn, locals) => {
     return locals
       .batch
       .commit()
-      .then(() => sendResponse(conn, code.noContent))
+      .then(() => sendResponse(conn, code.ok, 'Success'))
       .catch((error) => handleError(conn, error));
   }
 
@@ -178,7 +178,7 @@ const updateDocsWithBatch = (conn, locals) => {
 
       return locals.batch.commit();
     })
-    .then(() => sendResponse(conn, code.noContent))
+    .then(() => sendResponse(conn, code.ok, 'Success'))
     .catch((error) => handleError(conn, error));
 };
 
