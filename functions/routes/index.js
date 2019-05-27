@@ -91,6 +91,10 @@ module.exports = (req) => {
       checkSupport = true;
       func = require('./../firestore/offices/on-read');
       break;
+    case 'update-auth':
+      checkSupport = true;
+      func = require('./../services/update-auth');
+      break;
     default:
       func = null;
   }

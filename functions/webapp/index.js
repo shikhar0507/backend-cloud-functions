@@ -606,8 +606,40 @@ function createJsonRecord(doc) {
     creator: doc.get('creator'),
     hidden: doc.get('hidden'),
   };
-
 }
+
+const handleEmailVerificationFlow = (conn) => {
+  if (!isNonEmptyString(conn.req.query.uid)) {
+    return conn.res.status(code.temporaryRedirect).redirect('/');
+  }
+
+  return rootCollections
+    .updates
+    .doc(conn.req.query.uid)
+    .get()
+    .then((doc) => {
+      if (!doc.exists
+        || !doc.get('emailVerificationRequestPending')) {
+        return conn.res.status(code.temporaryRedirect).redirect('/');
+      }
+
+      return auth
+        .updateUser(conn.req.query.uid, {
+          emailVerified: true,
+        });
+    })
+    .then(() => {
+      // TODO: Also set __session cookie in order to login the user.
+      return conn.res.status(code.temporaryRedirect).redirect('/');
+    })
+    .catch((error) => {
+      console.error(error);
+      const html = handleServerError();
+
+      return conn.res.status(code.internalServerError).send(html);
+    });
+};
+
 module.exports = (req, res) => {
   if (req.method !== 'GET') {
     return res
@@ -675,6 +707,10 @@ module.exports = (req, res) => {
         apiBaseUrl: env.apiBaseUrl,
         getUserBaseUrl: env.getUserBaseUrl,
       });
+  }
+
+  if (slug === 'verify-email') {
+    return handleEmailVerificationFlow(conn);
   }
 
   console.log('idToken', idToken);

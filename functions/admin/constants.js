@@ -157,6 +157,7 @@ const sendGridTemplateIds = {
   footprints: 'd-90095557c1c54de1a153626bb0fbe03d',
   expenseClaim: 'd-ae3a31066b0f447bbf8661570b4dc719',
   activityReports: 'd-2972abe4d32443fab45c75d901ffb02a',
+  verificationEmail: 'd-7645b372912a490eb2062cf5cc076041',
   dailyStatusReport: 'd-a48d570e46914d0d8989f77a844a26e9',
 };
 

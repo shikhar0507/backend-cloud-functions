@@ -11,7 +11,7 @@ function getOtp() {
 }
 
 function getPhoneNumber() {
-  return document.getElementsByName('auth-phone-number')[0].value;
+  return document.getElementsByName('auth-phone-number')[0].value;;
 }
 
 function showPhoneNumberInput() {
