@@ -597,12 +597,10 @@ const handleAutoAssign = (locals) => {
    * Fetch activities with those and make the
    * subscriber as an assignee of those activities
    */
-  const officeId = locals.change.after.get('officeId');
   const subscriptionTemplate = locals
     .change
     .after
     .get('attachment.Template.value');
-  const officeDocRef = rootCollections.offices.doc(officeId);
   const phoneNumber = locals
     .change
     .after
@@ -636,8 +634,8 @@ const handleAutoAssign = (locals) => {
           return;
         }
 
-        const promise = officeDocRef
-          .collection('Activities')
+        const promise = rootCollections
+          .activities
           .where('template', '==', type)
           .where(`attachment.Name.value`, '==', value)
           .where('status', '==', 'CONFIRMED')
@@ -649,14 +647,14 @@ const handleAutoAssign = (locals) => {
 
       return Promise
         .all([
-          officeDocRef
-            .collection('Activities')
+          rootCollections
+            .activities
             .where('attachment.Admin.value', '==', phoneNumber)
             .where('status', '==', 'CONFIRMED')
             .limit(1)
             .get(),
-          officeDocRef
-            .collection('Activities')
+          rootCollections
+            .activities
             .where('attachment.Employee Contact.value', '==', phoneNumber)
             .where('status', '==', 'CONFIRMED')
             .limit(1)

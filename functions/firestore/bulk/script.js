@@ -551,10 +551,8 @@ const fetchDataForCanEditRule = (conn, locals) => {
   }
 
   /** Office's canEditRule is `NONE`. No handling required here */
-  return locals
-    .officeDoc
-    .ref
-    .collection('Activities')
+  return rootCollections
+    .activities
     .where('template', '==', rule.toLowerCase())
     .where('status', '==', 'CONFIRMED')
     .get()
@@ -585,9 +583,7 @@ const handleEmployees = (conn, locals) => {
     .employeesToCheck
     .forEach((item) => {
       const promise = rootCollections
-        .offices
-        .doc(locals.officeDoc.id)
-        .collection('Activities')
+        .activities
         .where('template', '==', templateNamesObject.EMPLOYEE)
         .where('attachment.Employee Contact.value', '==', item.phoneNumber)
         .where('attachment.Name.value', '==', item.name)
@@ -649,10 +645,8 @@ const handleUniqueness = (conn, locals) => {
       return rootCollections.offices;
     }
 
-    return locals
-      .officeDoc
-      .ref
-      .collection('Activities')
+    return rootCollections
+      .activities
       .where('status', '==', 'CONFIRMED')
       .where('template', '==', conn.req.body.template);
   })();
@@ -725,10 +719,8 @@ const handleSubscriptions = (conn, locals) => {
         template,
       } = item;
 
-      const promise = locals
-        .officeDoc
-        .ref
-        .collection('Activities')
+      const promise = rootCollections
+        .activities
         .where('status', '==', 'CONFIRMED')
         .where('template', '==', templateNamesObject.SUBSCRIPTION)
         .where('attachment.Subscriber.value', '==', phoneNumber)
@@ -770,10 +762,8 @@ const handleAdmins = (conn, locals) => {
     .forEach((phoneNumber) => {
       promises
         .push(
-          locals
-            .officeDoc
-            .ref
-            .collection('Activities')
+          rootCollections
+            .activities
             .where('template', '==', templateNamesObject.ADMIN)
             .where('attachment.Admin.value', '==', phoneNumber)
             .where('status', '==', 'CONFIRMED')
@@ -835,10 +825,8 @@ const fetchValidTypes = (conn, locals) => {
 
       queryMap.set(index, value);
 
-      const promise = locals
-        .officeDoc
-        .ref
-        .collection('Activities')
+      const promise = rootCollections
+        .activities
         .where('template', '==', type)
         .where(`attachment.Name.value`, '==', value)
         .where('status', '==', 'CONFIRMED')
