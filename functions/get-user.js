@@ -49,7 +49,7 @@ module.exports = (req, res) => {
 
   /** No OTP in non-production environment */
   if (!env.isProduction) {
-    return sendJSON(res, code.badRequest, {
+    return sendJSON(res, code.ok, {
       showFullLogin: false,
       success: true,
       message: ``,
