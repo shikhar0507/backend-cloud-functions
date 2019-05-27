@@ -535,6 +535,7 @@ const jsonApi = (conn, requester) => {
     return json;
   }
 
+  /** Not allowed to read stuff unless the user is admin or support */
   if (!hasAdminClaims(requester.customClaims)
     && !hasSupportClaims(requester.customClaims)) {
     return json;
@@ -556,23 +557,23 @@ const jsonApi = (conn, requester) => {
     .limit(1)
     .get()
     .then((docs) => {
-
       let baseQuery = docs
         .docs[0]
         .ref
-        .collection('Activities')
+        .collection('Activities');
 
       if (conn.req.query.template) {
         baseQuery = baseQuery.where('template', '==', conn.req.query.template);
       }
+
       if (conn.req.query.query) {
         baseQuery = baseQuery
           .where('searchables', 'array-contains', conn.req.query.query);
       }
-      const MAX_RESULTS = 10;
+
+      console.log('QUERY:', conn.req.query);
 
       return baseQuery
-        .limit(MAX_RESULTS)
         .get();
     })
     .then((docs) => {
