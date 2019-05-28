@@ -10,7 +10,6 @@
     \{{> persistentBarPartial this}}
     \{{> headerPartial this}}
     <div class="container">
-
         \{{#if isLoggedIn}}
         <div class="office-selection">
             \{{#if isSupport}}
@@ -47,6 +46,123 @@
                     <div id="view-enquiries" onclick="viewEnquiries()">
                         <i class="fas fa-question action-icon"></i>
                         <p class="icon-text">View Enquiries</p>
+                    </div>
+                </div>
+            </section>
+            <section>
+                {{!-- <h2 class="fw-400">See our customers' growth</h2> --}}
+                <div class="featured-offices">
+                    <div class="office border pad">
+                        <a href="/gazraj-security">
+                            <img src="img/gazraj-security.jpg" alt="">
+                        </a>
+                        <div class="office-text-container">
+                            <span class="office-name mb-8 mt-16 col-blue ft-size-20">Gazraj Security</span>
+                            <span class="office-description-short col-light-blue">Manned Security Services</span>
+                            <span class="office-description-long">Growthfile is used by their supervisor to
+                                monitor
+                                and
+                                quality check of their guards across their customer locations</span>
+                        </div>
+                    </div>
+                    <div class="office border pad">
+                        <a href="/mind-edutainment">
+                            <img src="img/mind-edutainment-pvt-ltd.jpg" alt="">
+                        </a>
+                        <div class="office-text-container">
+                            <span class="office-name mb-8 mt-16 col-blue ft-size-20">Mind Edutainment Pvt. Ltd.</span>
+                            <span class="office-description-short col-light-blue">High Order Thinking School
+                                Curriculum</span>
+                            <span class="office-description-long">Mind Edutainment is using Growthfile to
+                                administer
+                                the
+                                location of their facilitators for monthly payroll computation
+                                across multiple schools in India</span>
+                        </div>
+                    </div>
+                    <div class="office border pad">
+                        <a href="/system3net">
+                            <img src="img/system3-net.jpg" alt="">
+                        </a>
+                        <div class="office-text-container">
+                            <span class="office-name mb-8 mt-16 col-blue ft-size-20">System3.net</span>
+                            <span class="office-description-short col-light-blue">IT Service Provider</span>
+                            <span class="office-description-long">System3 is using Growthfile to manage field
+                                employees for
+                                customer visits and customer location duties</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="features-section blue-gradient">
+                <div class="feature-header col-blue">
+                    <i class="fas fa-robot mb-16"></i>
+                    <h2 class="fw-400">Automation</h2>
+                </div>
+                <span>Increase your teams productivity by automating office activities</span>
+                <div class="features">
+                    <div class="border pad bg-white mb-8">
+                        <i class="fas fa-chart-pie ft-size-20"></i>
+                        <span>Payroll</span>
+                    </div>
+                    <div class="border pad bg-white mb-8">
+                        <i class="fas fa-hand-pointer ft-size-20"></i>
+                        <span>Sales</span>
+                    </div>
+                    <div class="border pad bg-white mb-8">
+                        <i class="fas fa-wallet ft-size-20"></i>
+                        <span>Expense Claim</span>
+                    </div>
+                    <div class="border pad bg-white mb-8">
+                        <i class="fas fa-crosshairs ft-size-20"></i>
+                        <span>Duty Assignment and more...</span>
+                    </div>
+                </div>
+                <span>Reliable and verified data</span>
+                <span>One app for all</span>
+                <span>No training. Go live in 30 minutes</span>
+            </section>
+            <section class="features-section">
+                <div class="feature-header col-blue mb-8">
+                    <i class="fas fa-plug mb-16"></i>
+                    <h2 class="fw-400">Plug & Play</h2>
+                </div>
+                <div class="features">
+                    <div class="border pad mb-8">
+                        <i class="fas fa-mobile ft-size-20"></i>
+                        <span>Use our mobile page builder tool</span>
+                    </div>
+                    <div class="border pad mb-8">
+                        <i class="far fa-lightbulb ft-size-20"></i>
+                        <span>Use our program's learning to keep the page always updated</span>
+                    </div>
+                    <div class="border pad mb-8">
+                        <i class="fas fa-share-alt ft-size-20"></i>
+                        <span>Plug and play across social media platforms</span>
+                    </div>
+                    <div class="border pad mb-8">
+                        <i class="fab fa-internet-explorer ft-size-20"></i>
+                        <span>Ensure consistent messaging of your company across the web</span>
+                    </div>
+                </div>
+            </section>
+            <section class="features-section blue-gradient">
+                <div class="feature-header col-blue">
+                    <i class="fas fa-arrow-up mb-16"></i>
+                    <h2 class="fw-400">Unlimited Advantage</h2>
+                </div>
+                <div class="features">
+                    <div class="border pad bg-white mb-8">
+                        <i class="fas fa-rupee-sign ft-size-20"></i>
+                        <span>One time cost for a lifetime membership</span>
+                    </div>
+                    <div class="border pad bg-white mb-8">
+                        <i class="fas fa-user-friends ft-size-20"></i>
+                        <span>No per-office, per-employee costs</span>
+                    </div>
+                    <div class="border pad bg-white mb-8">
+                        <i class="fas fa-signal ft-size-20"></i>
+                        <span>Unlimited usage</span>
                     </div>
                 </div>
             </section>
@@ -152,7 +268,7 @@
             </div>
         </section>
         <section>
-            <h2 class="fw-400">See our customers' growth</h2>
+            {{!-- <h2 class="fw-400">See our customers' growth</h2> --}}
             <div class="featured-offices">
                 <div class="office border pad">
                     <a href="/gazraj-security">
@@ -161,7 +277,7 @@
                     <div class="office-text-container">
                         <span class="office-name mb-8 mt-16 col-blue ft-size-20">Gazraj Security</span>
                         <span class="office-description-short col-light-blue">Manned Security Services</span>
-                        <span class="office-description-long mt-16">Growthfile is used by their supervisor to monitor
+                        <span class="office-description-long">Growthfile is used by their supervisor to monitor
                             and
                             quality check of their guards across their customer locations</span>
                     </div>
@@ -174,7 +290,7 @@
                         <span class="office-name mb-8 mt-16 col-blue ft-size-20">Mind Edutainment Pvt. Ltd.</span>
                         <span class="office-description-short col-light-blue">High Order Thinking School
                             Curriculum</span>
-                        <span class="office-description-long mt-16">Mind Edutainment is using Growthfile to administer
+                        <span class="office-description-long">Mind Edutainment is using Growthfile to administer
                             the
                             location of their facilitators for monthly payroll computation
                             across multiple schools in India</span>
@@ -187,7 +303,7 @@
                     <div class="office-text-container">
                         <span class="office-name mb-8 mt-16 col-blue ft-size-20">System3.net</span>
                         <span class="office-description-short col-light-blue">IT Service Provider</span>
-                        <span class="office-description-long mt-16">System3 is using Growthfile to manage field
+                        <span class="office-description-long">System3 is using Growthfile to manage field
                             employees for
                             customer visits and customer location duties</span>
                     </div>

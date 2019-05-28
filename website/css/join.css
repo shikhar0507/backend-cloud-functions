@@ -1,5 +1,5 @@
 .container section {
-    margin-top: 25px;
+    /* margin-top: 25px; */
     min-height: unset;
 }
 
@@ -29,7 +29,6 @@ form p input {
     text-align: center;
     font-size: 80px;
     margin: 10px 0px;
-    color: #F0B243;
 }
 
 .card {
@@ -55,7 +54,16 @@ section h2 {
 }
 
 .join-section {
-    margin-bottom: 16px;
+    background-color: unset;
+}
+
+.join-section input {
+    border: 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.join-section input:focus {
+    outline: none;
 }
 
 @media (min-width: 481px) and (max-width: 767px) {
@@ -78,33 +86,35 @@ section h2 {
     }
 }
 
-@media (min-width: 1025px) {
-    section {
-        min-height: unset;
-    }
-
-    .features-section {
-        display: flex;
+@media (min-width: 960px) {
+    .join-section form p {
         flex-direction: row;
     }
 
-    .main-text {
-        /* font-size: 16px; */
+    .join-section {
+        display: table;
+        /* max-height: max-content; */
+        /* max-height: -moz-max-content; */
     }
 
-    .card {
-        width: 200px;
-        padding: 10px 20px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-        border: 1px solid rgba(0, 0, 0, .09);
-        margin-bottom: 16px;
+    .container {
+        max-width: unset;
+        min-height: unset;
+        display: flex;
+        justify-content: center;
+    }
+
+    .features-section {
         margin-right: 16px;
     }
 
-    .join-section {
-        margin: 0 auto;
+    .icon-container {
+        font-size: 40px;
     }
-
 }
 
-@media (min-width: 1281px) {}
+@media (min-width: 1025px) {
+    .container {
+        max-width: 70%;
+    }
+}

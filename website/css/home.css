@@ -238,12 +238,14 @@ section h1 {
 
 .office-description-short {
     /* background-color: red; */
+    font-size: 12px;
 }
 
 .office-description-long {
     /* background-color: green; */
     color: #80868b;
     font-style: italic;
+    display: none;
 }
 
 .office a img {

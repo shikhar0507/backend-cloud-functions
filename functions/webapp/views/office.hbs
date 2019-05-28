@@ -22,7 +22,8 @@
             <div class="border pad">
                 <div class="office-name-container">
                     <span>
-                        <img height="68" width="68" src=\{{logoURL}} alt="">
+                        <img height="68" width="68" src=\{{logoURL}} alt="company logo"
+                            onerror="this.onerror=null;this.src='img/office-placeholder.jpg'">
                     </span>
                     <h1>\{{officeName}}</h1>
                 </div>
@@ -46,7 +47,8 @@
                 <div class="product-box" onclick="handleProductClick(this)">
                     <div class="product-image-name-container">
                         \{{#if this.imageUrl}}
-                        <img src=\{{this.imageUrl}} alt="product \{{this.name}}">
+                        <img onerror="this.onerror=null;this.src='img/office-placeholder.jpg'" src=\{{this.imageUrl}}
+                            alt="product \{{this.name}}">
                         \{{else}}
                         <i class="far fa-image"></i>
                         \{{/if}}
@@ -153,7 +155,7 @@
                                 </a>
                                 \{{/if}}
                                 <a class="col-light-blue pad-10" rel="noopener" target="_blank"
-                                    href="https://maps.google.com/?q\{{this.latitude}},{{this.longitude}}">
+                                    href="\{{this.mapsUrl}}">
                                     <i class="fas fa-directions"></i>
                                 </a>
                             </div>

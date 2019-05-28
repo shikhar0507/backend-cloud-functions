@@ -145,6 +145,12 @@ function sendOtpToPhoneNumber() {
 
 
 function fetchAuth() {
+  const phoneNumberInput = document.getElementsByName('auth-phone-number')[0];
+
+  if (!phoneNumberInput.value.startsWith('+')) {
+    phoneNumberInput.value = `+${phoneNumberInput.value}`;
+  }
+
   const phoneNumber = getPhoneNumber();
 
   if (!isValidPhoneNumber(phoneNumber)) {
@@ -190,6 +196,8 @@ function fetchAuth() {
 
       if (!result.success) {
         rejectionMessage = result.message;
+
+        setMessage(rejectionMessage);
 
         return Promise.resolve();
       }

@@ -175,7 +175,7 @@ function startEnquiryCreationFlow() {
             .style.display = 'none';
 
           const span = document.createElement('span');
-          let spanText = 'Enquiry sent :)';
+          let spanText = 'Enquiry sent successfully';
 
           if (!response.success) {
             spanText = response.message;

@@ -17,6 +17,9 @@ const {
 const {
   dateFormats,
 } = require('../admin/constants');
+const {
+  toMapsUrl,
+} = require('../firestore/recipients/report-utils');
 const url = require('url');
 const env = require('../admin/env');
 const admin = require('firebase-admin');
@@ -175,7 +178,9 @@ const handleOfficePage = (locals, requester) => {
       return locals.officeDoc.get('attachment.logoURL.value');
     }
 
-    return `img/office-placeholder.jpg`;
+    const slug = locals.officeDoc.get('slug');
+
+    return `img/logo-${slug}.png`;
   })();
 
   const videoId = (() => {
@@ -249,8 +254,6 @@ const getBranchOpenStatus = (doc, timezone) => {
   const weeklyOff = doc.get('attachment.Weekly Off.value') || 'tuesday';
   const isSaturday = todaysDay === 'saturday';
   const MILLS_IN_1_HOUR = 3600000;
-
-  console.log({ currentTimestamp, todaysDay, weekdayStartTime, weekdayEndTime, saturdayStartTime, saturdayEndTime, weeklyOff });
 
   if (todaysDay === weeklyOff) {
     result.isClosed = true;
@@ -370,7 +373,14 @@ const fetchOfficeData = (locals, requester) => {
             return `+911234567890`;
           })();
 
+          /** Not sure why I'm doing this... */
+          const latitude = venue.geopoint._latitude || venue.geopoint.latitude;
+          const longitude = venue.geopoint._longitude || venue.geopoint.longitude;
+
           locals.branchObjectsArray.push({
+            address: venue.address,
+            latitude,
+            longitude,
             isOpen,
             isClosed,
             isClosingSoon,
@@ -378,19 +388,23 @@ const fetchOfficeData = (locals, requester) => {
             closingTime,
             branchContact,
             name: doc.get('attachment.Name.value'),
-            address: venue.address,
-            /** Not sure why I'm doing this... */
-            latitude: venue.geopoint._latitude || venue.geopoint.latitude,
-            longitude: venue.geopoint._longitude || venue.geopoint.longitude,
             weeklyOff: doc.get('attachment.Weekly Off.value'),
+            mapsUrl: toMapsUrl({ latitude, longitude }),
           });
         });
 
+      const office = locals.officeDoc.get('office');
+
       locals
         .productObjectsArray = productQuery.docs.map((doc) => {
+          const name = doc.get('attachment.Name.value');
+          const imageUrl = `img/${name}-${office}.png`.replace(/\s+/g, '-');
+
+          console.log({ name, imageUrl });
+
           return {
-            name: doc.get('attachment.Name.value'),
-            imageUrl: doc.get('attachment.Image Url.value'),
+            imageUrl,
+            name,
             productType: doc.get('attachment.Product Type.value'),
             brand: doc.get('attachment.Brand.value'),
             model: doc.get('attachment.Model.value'),
@@ -650,7 +664,6 @@ const jsonApi = (conn, requester) => {
         .get();
     })
     .then((docs) => {
-      console.log(docs)
       docs.forEach((doc) => {
         if (!json[doc.get('template')]) {
           json[doc.get('template')] = [createJsonRecord(doc)];

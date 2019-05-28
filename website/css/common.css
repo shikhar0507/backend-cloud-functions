@@ -1,25 +1,25 @@
 ::-webkit-input-placeholder {
     color: #949494;
     font-size: 16px;
-    font-weight: 600;
+    /* font-weight: 600; */
 }
 
 ::-moz-placeholder {
     color: #949494;
     font-size: 16px;
-    font-weight: 600;
+    /* font-weight: 600; */
 }
 
 :-ms-input-placeholder {
     color: #949494;
     font-size: 16px;
-    font-weight: 600;
+    /* font-weight: 600; */
 }
 
 ::placeholder {
     color: #949494;
     font-size: 16px;
-    font-weight: 600;
+    /* font-weight: 600; */
 }
 
 html,
@@ -102,9 +102,16 @@ section {
 }
 
 .input-field {
-    border: 1px solid rgba(147, 128, 108, .25);
     padding: 5px 10px;
     font-size: 100%;
+    border: 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.input-field:focus {
+    outline: 0;
+    outline: none;
+    outline-style: none;
 }
 
 .persistent-bar {
@@ -128,6 +135,10 @@ section {
 .logo-container {
     display: flex;
     border-radius: 50%;
+}
+
+.tac {
+    text-align: center;
 }
 
 .bg-white {
