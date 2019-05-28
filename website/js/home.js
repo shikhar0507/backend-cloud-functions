@@ -412,7 +412,7 @@ function searchAndUpdate() {
       value = value.replace('+', '%2B')
     }
 
-    sendApiRequest(`${getPageHref()}/json?office=${office}&query=${value}`, null, 'GET').then(function (res) {
+    sendApiRequest(`${getPageHref()}json?office=${office}&query=${value}`, null, 'GET').then(function (res) {
       return res.json()
     }).then(function (response) {
       console.log(response)
@@ -735,10 +735,6 @@ function updateAuth() {
   emailInput.placeholder = 'Email';
 
   emailInput.classList.add('input-field', 'mb-8');
-
-  phoneNumberInput.value = '+918527801093';
-  displayNameInput.value = 'Utkarsh Bhatt';
-  emailInput.value = 'utkarsh.bhatt12@gmail.com';
 
   const a = document.createElement('a');
   a.classList.add('button');
