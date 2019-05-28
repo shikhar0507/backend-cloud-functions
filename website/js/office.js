@@ -65,47 +65,9 @@ function updateMapPointer(event) {
 }
 
 function validateEnquiryForm() {
-  const userName = document.getElementsByName('user-display-name');
-  const email = document.getElementsByName('user-email');
-  const phoneNumber = document.getElementsByName('user-phone-number');
   const enquiryText = document.getElementsByName('enquiry-text');
 
   let valid = true;
-
-  if (!isNonEmptyString(userName[0].value)) {
-    valid = false;
-    const node = getWarningNode('Your Name is required');
-
-    insertAfterNode(userName[0], node);
-  }
-
-  if (!isNonEmptyString(email[0].value)) {
-    valid = false;
-    const node = getWarningNode('Your Email is required');
-
-    insertAfterNode(email[0], node);
-  }
-
-  if (!/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email[0].value)) {
-    valid = false;
-    const node = getWarningNode('Doesn\'t look like a valid email.');
-
-    insertAfterNode(email[0], node);
-  }
-
-  if (!isNonEmptyString(phoneNumber[0].value)) {
-    valid = false;
-    const node = getWarningNode('You Contact is required');
-
-    insertAfterNode(phoneNumber[0], node);
-  }
-
-  if (!/^\+[1-9]\d{5,14}$/.test(phoneNumber[0].value)) {
-    valid = false;
-    const node = getWarningNode('Doesn\'t look like a valid phone number');
-
-    insertAfterNode(phoneNumber[0], node);
-  }
 
   if (!isNonEmptyString(enquiryText[0].value)) {
     valid = false;
@@ -115,14 +77,11 @@ function validateEnquiryForm() {
   }
 
   return {
+    valid,
     values: {
-      email: email[0].value,
-      displayName: userName[0].value,
-      phoneNumber: phoneNumber[0].value,
       enquiryText: enquiryText[0].value,
       productName: document.getElementsByName('product-select')[0].value,
     },
-    valid,
   }
 }
 
@@ -139,8 +98,16 @@ function startEnquiryCreationFlow() {
   if (!result.valid) return;
 
   if (!firebase.auth().currentUser) {
-    // TODO: Storage from data with onbeforeunload event on this page.
+    const enquiryText = result.values.enquiryText;
+    const productName = result.values.productName;
+
+    console.log('form stored to localstorage');
+
+    localStorage.setItem('enquiryText', enquiryText);
+    localStorage.setItem('productName', productName);
+
     window.location.href = `/auth?redirect_to=${window.location.href}`;
+
     return;
   }
 
@@ -181,18 +148,24 @@ function startEnquiryCreationFlow() {
         }
       }
 
-      // const idToken = getParsedCookies().__session;
-
       sendApiRequest(
-          `${apiBaseUrl}/activities/create`,
-          requestBody,
-          'POST'
-        )
+        `${apiBaseUrl}/activities/create`,
+        requestBody,
+        'POST'
+      )
         .then(function (result) {
           return result.json();
         })
         .then(function (response) {
           console.log('Response', response);
+
+          if (localStorage.getItem('enquiryText')) {
+            localStorage.removeItem('enquiryText');
+          }
+
+          if (localStorage.getItem('productName')) {
+            localStorage.removeItem('productName');
+          }
 
           document
             .getElementById('enquiry-fetch-spinner')
@@ -215,3 +188,21 @@ function startEnquiryCreationFlow() {
         });
     }).catch(console.error)
 };
+
+window.onload = function () {
+  if (localStorage.getItem('enquiryText')) {
+    console.log('setting enquiryText from localstorage');
+
+    document
+      .getElementById('enquiry-text')
+      .value = localStorage.getItem('enquiryText');
+  }
+
+  if (localStorage.getItem('productName')) {
+    console.log('setting productName from localstorage');
+
+    document
+      .getElementById('product-select')
+      .value = localStorage.getItem('productName');
+  }
+}

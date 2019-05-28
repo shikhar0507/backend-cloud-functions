@@ -56,10 +56,18 @@
 
                     <div class="product-details-container">
                         <ul>
+                            \{{#if this.productType}}
                             <li>TYPE: \{{this.productType}}</li>
+                            \{{/if}}
+                            \{{#if this.brand}}
                             <li>BRAND: \{{this.brand}}</li>
+                            \{{/if}}
+                            \{{#if this.model}}
                             <li>MODEL: \{{this.model}}</li>
+                            \{{/if}}
+                            \{{#if this.size}}
                             <li>SIZE: \{{this.size}}</li>
+                            \{{/if}}
                         </ul>
                     </div>
                 </div>
@@ -71,21 +79,6 @@
         <section class="enquiry-section">
             <h2>Send Us An Enquiry</h2>
             <form>
-                <p>
-                    {{!-- Your name --}}
-                    <label for="user-display-name">Your Name</label>
-                    <input class="input-field" type="text" name="user-display-name" value="\{{userDisplayName}}">
-                </p>
-                <p>
-                    {{!-- your email --}}
-                    <label for="user-email">Your Email</label>
-                    <input class="input-field" type="text" name="user-email" value="\{{userEmail}}">
-                </p>
-                <p>
-                    {{!-- your contact --}}
-                    <label for="user-phone-number">Your Contact</label>
-                    <input class="input-field" type="tel" name="user-phone-number" value="\{{userPhoneNumber}}">
-                </p>
                 <p>
                     {{!-- enquiry text --}}
                     <label for="enquiry-text">Your Enquiry</label>
