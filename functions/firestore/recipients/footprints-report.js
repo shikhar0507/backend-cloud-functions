@@ -566,7 +566,7 @@ const handleSheetTwo = (locals) => {
                 return `${firstAction} | ${lastAction || firstAction}`;
               }
 
-              return 'NOT INACTIVE';
+              return 'NOT ACTIVE';
             })();
 
             const alphabet = alphabetsArray[ALPHABET_INDEX_START];
