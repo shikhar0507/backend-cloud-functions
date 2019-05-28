@@ -170,7 +170,12 @@ module.exports = (change) => {
         const phoneNumber = Object.keys(userRecord)[0];
         const record = userRecord[`${phoneNumber}`];
 
-        if (!record.uid) return;
+        if (!record.uid) {
+          unverifiedOrEmailNotSetPhoneNumbers.push(phoneNumber);
+
+          return;
+        }
+
         if (record.disabled) return;
 
         uidMap.set(phoneNumber, record.uid);
