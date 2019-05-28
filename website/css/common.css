@@ -78,6 +78,11 @@ aside {
     line-height: 40px;
 }
 
+.raised {
+    box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .14),
+        0 3px 1px -2px rgba(0, 0, 0, .2),
+        0 1px 5px 0 rgba(0, 0, 0, .12);
+}
 
 .border {
     box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
@@ -129,9 +134,25 @@ section {
     background: white;
 }
 
+.col-gray {
+    color: #949494;
+}
+
 .bg-magenta {
     /* TODO: Use this everywhere instead of hardcoding */
     background: #89273E;
+}
+
+.col-green {
+    color: #1E8E3E;
+}
+
+.col-red {
+    color: #DB4437;
+}
+
+.col-orange {
+    color: #EF6C00;
 }
 
 .bg-green {
@@ -156,6 +177,10 @@ section {
 
 .col-light-blue {
     color: #51a4d5;
+}
+
+.no-ptr-evt {
+    pointer-events: none;
 }
 
 /** Helpers **/
@@ -197,6 +222,26 @@ section {
 
 .flexed {
     display: flex;
+}
+
+.flexed-column {
+    flex-direction: column;
+}
+
+.flexed-row {
+    flex-direction: row;
+}
+
+.flexed-jc-center {
+    justify-content: center;
+}
+
+.flexed-js-ai-center {
+    align-items: center;
+}
+
+.pad-10 {
+    padding: 10px;
 }
 
 .fw-400 {

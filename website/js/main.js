@@ -282,12 +282,9 @@ function setGlobals() {
   return fetch('/config')
     .then(function (response) { return response.json() })
     .then(function (result) {
-      window.globalsSet = true;
-
       Object
         .keys(result)
         .forEach(function (key) {
-          console.log(key, result[key]);
           window[key] = result[key];
         });
 
@@ -296,11 +293,17 @@ function setGlobals() {
     .catch(console.error);
 }
 
+function checkDnt() {
+  const dntEnabled = navigator.doNotTrack === 1;
+
+  console.log({ dntEnabled });
+}
+
 
 window
   .addEventListener('load', function () {
-
     setGlobals();
+    checkDnt();
 
     firebase
       .auth()

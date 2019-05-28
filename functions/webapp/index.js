@@ -14,15 +14,14 @@ const {
   hasAdminClaims,
   hasSupportClaims,
 } = require('../admin/utils');
-// const {
-//   weekdays,
-// } = require('../admin/constants');
-// const helpers = require('./helpers');
-const handlebars = require('handlebars');
+const {
+  dateFormats,
+} = require('../admin/constants');
 const url = require('url');
 const env = require('../admin/env');
 const admin = require('firebase-admin');
-// const momentTz = require('moment-timezone');
+const momentTz = require('moment-timezone');
+const handlebars = require('handlebars');
 
 const headPartial = require('./views/partials/head.hbs')();
 const headerPartial = require('./views/partials/header.hbs')();
@@ -68,7 +67,7 @@ const parseCookies = (cookies = '') => {
   return cookieObject;
 };
 
-const getEmployeesRange = (employeesData) => {
+const getEmployeesRange = (employeesData = {}) => {
   const employeesList = Object.keys(employeesData);
   const officeSize = employeesList.length;
 
@@ -184,6 +183,7 @@ const handleOfficePage = (locals, requester) => {
       return locals.officeDoc.get('attachment.Youtube ID.value');
     }
 
+    // NOTE: Just for testing
     return 'jCyEX6u-Yhs';
   })();
 
@@ -231,31 +231,78 @@ const handleOfficePage = (locals, requester) => {
   return Promise.resolve(html);
 };
 
-const getBranchOpenStatus = () => {
+const getBranchOpenStatus = (doc, timezone) => {
   const result = {
-    isOpen: true,
+    isOpen: false,
     isClosed: false,
     isClosingSoon: false,
-    isOnHoliday: false,
+    openingTime: '',
+    closingTime: '',
   };
+  const currentMoment = momentTz().tz(timezone);
+  const currentTimestamp = currentMoment.valueOf();
+  const todaysDay = currentMoment.format('dddd').toLowerCase();
+  const weekdayStartTime = doc.get('attachment.Weekday Start Time.value');
+  const weekdayEndTime = doc.get('attachment.Weekday End Time.value');
+  const saturdayStartTime = doc.get('attachment.Saturday Start Time.value');
+  const saturdayEndTime = doc.get('attachment.Saturday End Time.value');
+  const weeklyOff = doc.get('attachment.Weekly Off.value') || 'tuesday';
+  const isSaturday = todaysDay === 'saturday';
+  const MILLS_IN_1_HOUR = 3600000;
 
-  // const currentMoment = momentTz().tz(timezone);
-  // const dayStartMoment = currentMoment.startOf('day').valueOf();
-  // const weekdayStartTime = doc.get('attachment.Weekday Start Time.value');
-  // const weekdayEndTime = doc.get('attachment.Weekday End Time.value');
-  // const saturdayStartTime = doc.get('attachment.Saturday Start Time.value');
-  // const saturdayEndTime = doc.get('attachment.Saturday End Time.value');
-  // const weeklyOff = doc.get('attachment.Weekly Off.value');
-  // const schedulesArray = doc.get('schedule');
+  console.log({ currentTimestamp, todaysDay, weekdayStartTime, weekdayEndTime, saturdayStartTime, saturdayEndTime, weeklyOff });
 
-  // // Branch holidays
-  // schedulesArray.forEach((schedule) => {
-  //   const { startTime, endTime } = schedule;
+  if (todaysDay === weeklyOff) {
+    result.isClosed = true;
+    const nextDayMoment = currentMoment.startOf('day').add(1, 'day');
+    const isNextDaySaturday = nextDayMoment.format('dddd').toLowerCase() === 'saturday';
 
-  //   if (startTime < dayStartMoment || endTime > dayStartMoment) return;
+    if (isNextDaySaturday) {
+      result.openingTime = momentTz(saturdayStartTime).tz(timezone).format(dateFormats.TIME);
 
-  //   result.isOnHoliday = true;
-  // });
+      return result;
+    }
+
+    result.openingTime = momentTz(weekdayStartTime).tz(timezone).format(dateFormats.DATE);
+
+    return result;
+  }
+
+  if (isSaturday) {
+    if (currentMoment < saturdayStartTime || currentMoment > saturdayEndTime) {
+      result.isClosed = true;
+      result.openingTime = momentTz(saturdayStartTime)
+        .tz(timezone)
+        .format(dateFormats.TIME);
+
+      return result;
+    }
+
+    if (currentMoment >= saturdayStartTime && currentMoment <= saturdayEndTime) {
+      result.isOpen = true;
+
+      return result;
+    }
+
+    result.isOpen = true;
+
+    return result;
+  }
+
+  if (weekdayStartTime >= currentTimestamp && weekdayEndTime <= currentTimestamp) {
+    const diff = weekdayEndTime - currentTimestamp;
+
+    if (diff <= MILLS_IN_1_HOUR) {
+      result.isClosingSoon = true;
+      result.closingTime = momentTz(weekdayEndTime).format(dateFormats.TIME);
+
+      return result;
+    }
+
+    result.isOpen = true;
+
+    return result;
+  }
 
   return result;
 };
@@ -295,16 +342,41 @@ const fetchOfficeData = (locals, requester) => {
             return;
           }
 
-          const {
-            isOpen,
-            isClosed,
-            isClosingSoon
-          } = getBranchOpenStatus(doc, timezone);
+          const openStatusResult = getBranchOpenStatus(doc, timezone);
+          let isOpen = openStatusResult.isOpen;
+          let isClosed = openStatusResult.isClosed;
+          let closingTime = openStatusResult.closingTime;
+          let openingTime = openStatusResult.openingTime;
+          let isClosingSoon = openStatusResult.isClosingSoon;
+
+          // Dates are not set
+          if (isClosed
+            && closingTime === 'Invalid date'
+            || openingTime === 'Invalid date') {
+            isClosed = false;
+            isOpen = true;
+            openingTime = '';
+            closingTime = '';
+          }
+
+          const branchContact = (() => {
+            if (env.isProduction) {
+              return doc.get('attachment.First Contact.value')
+                || doc.get('attachment.Second Contact.value')
+                || '';
+            }
+
+            // Some random number for the purpose of testing
+            return `+911234567890`;
+          })();
 
           locals.branchObjectsArray.push({
             isOpen,
             isClosed,
             isClosingSoon,
+            openingTime,
+            closingTime,
+            branchContact,
             name: doc.get('attachment.Name.value'),
             address: venue.address,
             /** Not sure why I'm doing this... */
@@ -671,7 +743,6 @@ module.exports = (req, res) => {
     isLoggedIn: false,
   };
 
-  conn.res.set('Cache-Control', 'public, max-age=300, s-maxage=600');
   conn.res.setHeader('Content-Type', 'text/html');
   let requester = {};
   const parsedCookies = parseCookies(req.headers.cookie);
@@ -710,8 +781,6 @@ module.exports = (req, res) => {
   }
 
   if (slug === 'config') {
-    conn.res.set('Content-Type', 'application/json');
-
     return conn
       .res
       .json({
@@ -742,8 +811,6 @@ module.exports = (req, res) => {
         emailVerified,
         isTemplateManager,
       } = result;
-
-      console.log('phoneNumber:', result.phoneNumber);
 
       locals.isLoggedIn = uid !== null;
 

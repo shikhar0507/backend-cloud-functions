@@ -14,8 +14,8 @@
         <section class="youtube-section">
             \{{#if videoId}}
             <div class="youtube">
-                <iframe fs="1" id="video-iframe" src="https://www.youtube.com/embed/\{{videoId}}?enablejsapi=1"
-                    allow="fullscreen">
+                <iframe fs="1" id="ytplayer" src="https://www.youtube.com/embed/\{{videoId}}?enablejsapi=1"
+                    allow="fullscreen" autoplay="1">
                 </iframe>
             </div>
             \{{/if}}
@@ -33,7 +33,6 @@
                 \{{#if shortDescription}}
                 <p class="short-description border pad bg-white">\{{shortDescription}}</p>
                 \{{/if}}
-
                 \{{#if aboutOffice}}
                 <p class="border pad bg-white">\{{aboutOffice}}</p>
                 \{{/if}}
@@ -44,7 +43,7 @@
             <h2>Our Products</h2>
             <div class="products-container">
                 \{{#each productObjectsArray}}
-                <div class="product-box">
+                <div class="product-box" onclick="handleProductClick(this)">
                     <div class="product-image-name-container">
                         \{{#if this.imageUrl}}
                         <img src=\{{this.imageUrl}} alt="product \{{this.name}}">
@@ -54,19 +53,30 @@
                         <div class="product-name-container bold">\{{this.name}}</div>
                     </div>
 
-                    <div class="product-details-container">
+                    <div class="product-details-container hidden animated fadeIn">
                         <ul>
                             \{{#if this.productType}}
-                            <li>TYPE: \{{this.productType}}</li>
+                            <li>
+                                <span class="bold">TYPE:</span>
+                                \{{this.productType}}
+                            </li>
                             \{{/if}}
                             \{{#if this.brand}}
-                            <li>BRAND: \{{this.brand}}</li>
+                            <li>
+                                <span class="bold">BRAND:</span>
+                                \{{this.brand}}</li>
                             \{{/if}}
                             \{{#if this.model}}
-                            <li>MODEL: \{{this.model}}</li>
+                            <li>
+                                <span class="bold">MODEL:</span>
+                                \{{this.model}}
+                            </li>
                             \{{/if}}
                             \{{#if this.size}}
-                            <li>SIZE: \{{this.size}}</li>
+                            <li>
+                                <span class="bold">SIZE:</span>
+                                \{{this.size}}
+                            </li>
                             \{{/if}}
                         </ul>
                     </div>
@@ -111,31 +121,45 @@
 
             <div class="branches-box">
                 <div class="maps-container">
-                    <a class="button" id="load-map-button" href="#">Load Maps</a>
+                    <a id="load-map-button" href="#">
+                        <img
+                            src="https://maps.googleapis.com/maps/api/staticmap?center=New+Delhi&zoom=13&size=400x300&maptype=roadmap&key=\{{mapsApiKey}}">
+                    </a>
                     <div id="map"></div>
                 </div>
 
                 <div class="branch-list-container">
-                    \{{#each branchObjectsArray}}
                     <ul>
-                        <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}} class="list-item">
-                            <span class="list-item-name bold">\{{this.name}}</span>
-                            <span class="list-item-address">\{{this.address}}</span>
-                            \{{#if this.isOpen}}
-                            <span class="branch-status bg-green col-white">OPEN</span>
-                            \{{/if}}
-                            \{{#if this.isClosed}}
-                            <span class="branch-status bg-red col-white">CLOSED</span>
-                            \{{/if}}
-                            \{{#if this.isClosingSoon}}
-                            <span class="branch-status bg-orange col-white">CLOSING SOON</span>
-                            \{{/if}}
-                            \{{#if this.isOnHoliday}}
-                            <span class="branch-status bg-orange col-white">BRANCH HOLIDAY</span>
-                            \{{/if}}
+                        \{{#each branchObjectsArray}}
+                        <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}
+                            class="list-item flexed flexed-row">
+                            <div class="flexed flexed-column no-ptr-evt">
+                                <span class="mb-16 bold">\{{this.name}}</span>
+                                <span class="col-gray">\{{this.address}}</span>
+                                \{{#if this.isOpen}}
+                                <span class="branch-status col-green">Open now</span>
+                                \{{/if}}
+                                \{{#if this.isClosed}}
+                                <span class="branch-status col-red">Opens at \{{this.openingTime}}</span>
+                                \{{/if}}
+                                \{{#if this.isClosingSoon}}
+                                <span class="branch-status col-orange">Closes at \{{this.closingTime}}</span>
+                                \{{/if}}
+                            </div>
+                            <div class="flexed flexed-row flexed-jc-center flexed-js-ai-center">
+                                \{{#if this.branchContact}}
+                                <a class="col-light-blue pad-10" href="tel:\{{this.branchContact}}">
+                                    <i class="fas fa-phone"></i>
+                                </a>
+                                \{{/if}}
+                                <a class="col-light-blue pad-10" rel="noopener" target="_blank"
+                                    href="https://maps.google.com/?q\{{this.latitude}},{{this.longitude}}">
+                                    <i class="fas fa-directions"></i>
+                                </a>
+                            </div>
                         </li>
+                        \{{/each}}
                     </ul>
-                    \{{/each}}
                 </div>
             </div>
         </section>

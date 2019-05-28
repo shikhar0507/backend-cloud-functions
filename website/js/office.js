@@ -23,22 +23,19 @@ function initMap(location) {
   });
 }
 
-function handleProductClick(param) {
-  console.log(param);
+function handleProductClick(elem) {
+  console.log('elem:', elem);
 
-  const html = `
-  <div class="pico-product-details">
-    <h2>${param.name}</h2>
-    <img src="${param.imageUrl}">
-    <p>Brand: ${param.brand}</p>
-    <p>Model: ${param.model}</p>
-    <p>Type: ${param.productType}</p>
-    <p>Size: ${param.size}</p>
-</div>`;
+  const detailsContainer = elem
+    .querySelector('.product-details-container');
 
-  const modal = picoModal(html);
 
-  modal.show();
+  /** Only shows the details when some detail is present */
+  if (detailsContainer.querySelector('.product-details-container ul').childElementCount) {
+    detailsContainer
+      .classList
+      .toggle('hidden');
+  }
 };
 
 function handleBranchClick(latitude, longitude) {
@@ -66,6 +63,7 @@ function updateMapPointer(event) {
 
 function validateEnquiryForm() {
   const enquiryText = document.getElementsByName('enquiry-text');
+  const productSelect = document.getElementsByName('product-select')[0];
 
   let valid = true;
 
@@ -80,7 +78,7 @@ function validateEnquiryForm() {
     valid,
     values: {
       enquiryText: enquiryText[0].value,
-      productName: document.getElementsByName('product-select')[0].value,
+      productName: productSelect ? productSelect.value : '',
     },
   }
 }
@@ -103,8 +101,13 @@ function startEnquiryCreationFlow() {
 
     console.log('form stored to localstorage');
 
-    localStorage.setItem('enquiryText', enquiryText);
-    localStorage.setItem('productName', productName);
+    if (enquiryText) {
+      localStorage.setItem('enquiryText', enquiryText);
+    }
+
+    if (productName) {
+      localStorage.setItem('productName', productName);
+    }
 
     window.location.href = `/auth?redirect_to=${window.location.href}`;
 
@@ -186,7 +189,22 @@ function startEnquiryCreationFlow() {
 
           return;
         });
-    }).catch(console.error)
+    }).catch(function (error) {
+      if (error === 'Please Enable Location') {
+        const spinner = document.getElementById('enquiry-fetch-spinner');
+        spinner.classList.add('hidden');
+
+        const form = document.forms[0];
+        const warningP = document.createElement('p');
+        warningP.classList.add('warning-label');
+        warningP.innerText = 'Location access is required';
+        form.appendChild(warningP);
+
+        return;
+      }
+
+      console.error(error);
+    })
 };
 
 window.onload = function () {

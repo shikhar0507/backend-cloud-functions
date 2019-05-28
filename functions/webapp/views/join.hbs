@@ -15,7 +15,7 @@
             <h2>Start quickly and proceed without limitations</h2>
         </section>
         <section class="features-section">
-            <div class="card">
+            <div class="card raised">
                 <div class="icon-container">
                     <i class="fas fa-robot"></i>
                 </div>
@@ -24,7 +24,7 @@
                 </div>
             </div>
 
-            <div class="card">
+            <div class="card raised">
                 <div class="icon-container">
                     <i class="far fa-file-excel"></i>
                 </div>
@@ -33,7 +33,7 @@
                 </div>
             </div>
 
-            <div class="card">
+            <div class="card raised">
                 <div class="icon-container">
                     <i class="fas fa-memory"></i>
                 </div>
@@ -42,7 +42,7 @@
                 </div>
             </div>
 
-            <div class="card">
+            <div class="card raised">
                 <div class="icon-container">
                     <i class="fas fa-wrench"></i>
                 </div>
@@ -51,7 +51,7 @@
                 </div>
             </div>
 
-            <div class="card">
+            <div class="card raised">
                 <div class="icon-container">
                     <i class="fas fa-comment-dollar"></i>
                 </div>
@@ -64,45 +64,34 @@
         <section class="join-section">
             <form>
                 <p>
-                    <label for="office-name">Office Name</label>
-                    <input class="input-field" name="office-name" type="text" id="office-name"
-                        placeholder="Sons and Sons Co." required>
-                </p>
-                <p>
-                    <label for="user-name">Your Name</label>
-                    <input class="input-field" name="user-name" type="text" id="user-name"
-                        placeholder="firstname lastname" required>
-                </p>
-                <p>
                     <label for="user-phone-number">Your Phone Number</label>
-                    <input class="input-field" name="user-phone-number" type="tel" id="user-phone-number"
-                        placeholder=" +919999999999" required>
+                    <input class="input-field" name="user-phone-number" type="tel" id="user-phone-number" required>
                 </p>
-                <p>
-                    <label for="user-email">Your Email</label>
-                    <input class="input-field" name="user-email" type="email" id="user-email"
-                        placeholder="username@site.com" required>
+                <p class="hidden animated fadeIn">
+                    <label for="office-name">Office Name</label>
+                    <input class="input-field" name="office-name" type="text" id="office-name" required>
                 </p>
-                <p>
+                <p class="hidden animated fadeIn">
                     <label for="second-contact-name">Second Contact's Name</label>
                     <input class="input-field" class="input-field" name="second-contact-name" type="text"
-                        id="second-contact-name" placeholder="firstname lastname" required>
+                        id="second-contact-name" required>
                 </p>
-                <p>
+                <p class="hidden animated fadeIn">
                     <label for="second-contact-email">Second Contact's Email</label>
                     <input class="input-field" name="second-contact-email" type="email" id="second-contact-email"
-                        placeholder="username@site.com" required>
+                        required>
                 </p>
-                <p>
+                <p class="hidden animated fadeIn">
                     <label for="second-contact-phone-number">Second Contact's Phone Number</label>
                     <input class="input-field" name="second-contact-phone-number" type="tel"
-                        id="second-contact-phone-number" placeholder="+919999999999" required>
+                        id="second-contact-phone-number" required>
                 </p>
-
-                <a href="#" id="form-submit-button" class="button">
-                    <i class="fas fa-arrow-circle-right"></i>
-                    Submit
-                </a>
+                <p class="animated fadeIn">
+                    <a href="#" id="form-submit-button" class="button">
+                        Submit
+                        <i class="fas fa-arrow-circle-right"></i>
+                    </a>
+                </p>
             </form>
         </section>
     </div>
