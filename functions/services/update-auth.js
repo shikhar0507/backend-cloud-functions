@@ -58,6 +58,21 @@ const getUserFromAuth = (phoneNumber) => {
     photoURL: null,
   };
 
+  const valuesPolyfill = (object) => {
+    return Object.keys(object).map((key) => object[key]);
+  };
+
+  /**
+   * A temporary polyfill for using `Object.values` since sendgrid has
+   * probably removed support for Node 6, but the Node 8 runtime is still
+   * suffering from "connection error" issue at this time.
+   * Will remove this after a few days.
+   *
+   * @see https://github.com/sendgrid/sendgrid-nodejs/issues/929
+   * @see https://github.com/firebase/firebase-functions/issues/429
+   */
+  Object.values = Object.values || valuesPolyfill;
+
   return auth
     .getUserByPhoneNumber(phoneNumber)
     .then((userRecord) => {
@@ -141,6 +156,7 @@ module.exports = (conn) => {
 
           return auth
             .createUser({
+              phoneNumber: conn.req.body.phoneNumber,
               email: conn.req.body.email,
               displayName: conn.req.body.displayName,
             });
