@@ -538,8 +538,7 @@ module.exports = (locals) => {
         statusObjectsMap.set(phoneNumber, statusObject);
       });
 
-      // return commitMultiBatch(statusObjectsMap, docRefsMap, yesterday);
-      return Promise.resolve();
+      return commitMultiBatch(statusObjectsMap, docRefsMap, yesterday);
     })
     .then(() => {
       if (locals.createOnlyData) {

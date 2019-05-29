@@ -295,6 +295,7 @@ const rootCollections = {
   events: db.collection('Events'),
   errors: db.collection('Errors'),
   sitemaps: db.collection('Sitemaps'),
+  officeJoinRequests: db.collection('Office Join Requests'),
 };
 
 

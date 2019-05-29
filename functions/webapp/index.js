@@ -244,16 +244,27 @@ const getBranchOpenStatus = (doc, timezone) => {
     openingTime: '',
     closingTime: '',
   };
-  const currentMoment = momentTz().tz(timezone);
-  const currentTimestamp = currentMoment.valueOf();
-  const todaysDay = currentMoment.format('dddd').toLowerCase();
+
   const weekdayStartTime = doc.get('attachment.Weekday Start Time.value');
   const weekdayEndTime = doc.get('attachment.Weekday End Time.value');
   const saturdayStartTime = doc.get('attachment.Saturday Start Time.value');
   const saturdayEndTime = doc.get('attachment.Saturday End Time.value');
-  const weeklyOff = doc.get('attachment.Weekly Off.value') || 'tuesday';
-  const isSaturday = todaysDay === 'saturday';
+  const weeklyOff = doc.get('attachment.Weekly Off.value');
+
+  // Nothing is set
+  if (!weekdayStartTime
+    && !weekdayEndTime
+    && !saturdayStartTime
+    && !saturdayEndTime
+    && !weeklyOff) {
+    return result;
+  }
+
+  const currentMoment = momentTz().tz(timezone);
+  const currentTimestamp = currentMoment.valueOf();
+  const todaysDay = currentMoment.format('dddd').toLowerCase();
   const MILLS_IN_1_HOUR = 3600000;
+  const isSaturday = todaysDay === 'saturday';
 
   if (todaysDay === weeklyOff) {
     result.isClosed = true;
@@ -378,7 +389,6 @@ const fetchOfficeData = (locals, requester) => {
           const longitude = venue.geopoint._longitude || venue.geopoint.longitude;
 
           locals.branchObjectsArray.push({
-            address: venue.address,
             latitude,
             longitude,
             isOpen,
@@ -387,6 +397,7 @@ const fetchOfficeData = (locals, requester) => {
             openingTime,
             closingTime,
             branchContact,
+            address: venue.address,
             name: doc.get('attachment.Name.value'),
             weeklyOff: doc.get('attachment.Weekly Off.value'),
             mapsUrl: toMapsUrl({ latitude, longitude }),
@@ -582,19 +593,32 @@ const handlePrivacyPolicyPage = (locals, requester) => {
   return html;
 };
 
-const jsonApi = (conn, requester) => {
+const createJsonRecord = (doc) => {
+  return {
+    activityId: doc.id,
+    status: doc.get('status'),
+    canEdit: doc.get('canEdit'),
+    schedule: doc.get('schedule'),
+    venue: doc.get('venue'),
+    timestamp: doc.get('timestamp'),
+    template: doc.get('template'),
+    activityName: doc.get('activityName'),
+    office: doc.get('office'),
+    attachment: doc.get('attachment'),
+    creator: doc.get('creator'),
+    hidden: doc.get('hidden'),
+  };
+};
+
+const handleJsonGetRequest = (conn, requester) => {
   const json = {};
   const allowedTemplates = new Set(['enquiry']);
-
-  if (!requester.uid) {
-    return json;
-  }
 
   if (conn.req.query.template
     && !conn.req.query.office
     && !conn.req.query.query) {
     if (!allowedTemplates.has(conn.req.query.template)) {
-      return json;
+      return Promise.resolve({});
     }
 
     return rootCollections
@@ -609,22 +633,22 @@ const jsonApi = (conn, requester) => {
             json[doc.get('template')] = [createJsonRecord(doc)];
           }
           else {
-            json[doc.get('template')].push(createJsonRecord(doc))
+            json[doc.get('template')].push(createJsonRecord(doc));
           }
         });
 
-        return json;
+        return Promise.resolve(json);
       });
   }
 
   if (!isNonEmptyString(conn.req.query.office)) {
-    return json;
+    return Promise.resolve({});
   }
 
   /** Not allowed to read stuff unless the user is admin or support */
   if (!hasAdminClaims(requester.customClaims)
     && !hasSupportClaims(requester.customClaims)) {
-    return json;
+    return Promise.resolve({});
   }
 
   /**
@@ -634,7 +658,7 @@ const jsonApi = (conn, requester) => {
   if (hasAdminClaims(requester.customClaims)
     && !requester.customClaims.admin.includes(conn.req.query.office)) {
 
-    return json;
+    return Promise.resolve({});
   }
 
   return rootCollections
@@ -668,30 +692,67 @@ const jsonApi = (conn, requester) => {
           json[doc.get('template')] = [createJsonRecord(doc)];
         }
         else {
-          json[doc.get('template')].push(createJsonRecord(doc))
+          json[doc.get('template')].push(createJsonRecord(doc));
         }
       });
-      console.log(json)
-      return json;
+      console.log(json);
+
+      return Promise.resolve(json);
     });
 };
 
-function createJsonRecord(doc) {
-  return {
-    activityId: doc.id,
-    status: doc.get('status'),
-    canEdit: doc.get('canEdit'),
-    schedule: doc.get('schedule'),
-    venue: doc.get('venue'),
-    timestamp: doc.get('timestamp'),
-    template: doc.get('template'),
-    activityName: doc.get('activityName'),
-    office: doc.get('office'),
-    attachment: doc.get('attachment'),
-    creator: doc.get('creator'),
-    hidden: doc.get('hidden'),
-  };
-}
+const handleOfficeJoinRequest = () => {
+  return Promise.resolve({});
+};
+
+const handleJsonPostRequest = (conn) => {
+  const json = {};
+
+  if (!conn.req.query.action) {
+    return Promise.resolve({});
+  }
+
+  if (conn.req.query.action === 'parse-mail') {
+    conn.requester = {
+      phoneNumber: '',
+      uid: '',
+      customClaims: '',
+      email: '',
+      displayName: '',
+      photoURL: '',
+      isSupportRequest: conn.req.query.isSupport === 'true',
+    };
+
+    return require('../firestore/mail-parser')(conn);
+  }
+
+  if (conn.req.query.action === 'track-mail') {
+    return require('../firestore/mail-tracker')(conn);
+  }
+
+  if (conn.req.query.action === 'create-office') {
+    return handleOfficeJoinRequest(conn);
+  }
+
+  return json;
+};
+
+const jsonApi = (conn, requester) => {
+  if (!requester.uid) {
+    return Promise.resolve({});
+  }
+
+  if (conn.req.method === 'GET') {
+    return handleJsonGetRequest(conn, requester);
+  }
+
+  if (conn.req.method === 'POST') {
+    return handleJsonPostRequest(conn, requester);
+  }
+
+  return Promise.resolve({});
+};
+
 
 const handleEmailVerificationFlow = (conn) => {
   if (!isNonEmptyString(conn.req.query.uid)) {
@@ -736,17 +797,6 @@ const handleEmailVerificationFlow = (conn) => {
 };
 
 module.exports = (req, res) => {
-  if (req.method !== 'GET') {
-    return res
-      .status(code.methodNotAllowed)
-      .json({
-        success: false,
-        errors: [{
-          message: `Method not allowed. Use 'GET'`,
-        }],
-      });
-  }
-
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
   const slug = getSlugFromUrl(req.url);
   const conn = { req, res };
@@ -755,7 +805,19 @@ module.exports = (req, res) => {
     isLoggedIn: false,
   };
 
-  conn.res.setHeader('Content-Type', 'text/html');
+  // Only GET and POST are allowed
+  if (!new Set(['GET', 'POST'])
+    .has(req.method)) {
+    return res
+      .status(code.methodNotAllowed)
+      .json({
+        success: false,
+        errors: [{
+          message: `Method not allowed. Use 'GET' or 'POST'`,
+        }],
+      });
+  }
+
   let requester = {};
   const parsedCookies = parseCookies(req.headers.cookie);
 

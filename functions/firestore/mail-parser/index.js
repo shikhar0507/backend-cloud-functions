@@ -7,7 +7,11 @@ const {
   sendJSON,
   multipartParser,
 } = require('../../admin/utils');
+const {
+  code,
+} = require('../../admin/responses');
 const XLSX = require('xlsx');
+const env = require('../../admin/env');
 
 
 const getEmail = (from) => {
@@ -50,11 +54,12 @@ const toAllowRequest = (customClaims, officeName) => {
 
 
 module.exports = (conn) => {
+  if (conn.req.query.token !== env.sgMailParseToken) {
+    return sendJSON(conn, code.ok);
+  }
+
   // body is of type buffer
-  const body = conn.req.body;
-  const headers = conn.req.headers;
-  const contentType = headers['content-type'];
-  const parsedData = multipartParser(body, contentType);
+  const parsedData = multipartParser(conn.req.body, conn.req.headers['content-type']);
   const attachmentInfo = Buffer.from(parsedData['attachment-info']).toString();
   const fullFileName = JSON.parse(attachmentInfo).attachment1.filename;
   const excelFile = parsedData[fullFileName];
@@ -71,23 +76,30 @@ module.exports = (conn) => {
     });
 
   arrayOfObjects
-    .forEach((_, index) => arrayOfObjects[index].share = []);
+    .forEach((_, index) => {
+      if (Array.isArray(arrayOfObjects[index].share)) {
+        return;
+      }
+
+      arrayOfObjects[index].share = [];
+    });
 
   // Reset the body and creating custom object for consumption
   // by the bulk creation function
-  conn.req.body = {};
-  conn.req.body.data = arrayOfObjects;
-  conn.req.body.timestamp = Date.now();
-  conn.req.body.senderEmail = getEmail(parsedData.from);
-  conn.req.body.createNotExistingDocs = true;
   const attachmentNameParts = fullFileName.split('--');
 
-  conn.req.body.template = attachmentNameParts[0]
-    .trim()
-    .toLowerCase();
-  conn.req.body.office = attachmentNameParts[1]
-    .split('.xlsx')[0]
-    .trim();
+  conn.req.body = {
+    data: arrayOfObjects,
+    timestamp: Date.now(),
+    senderEmail: getEmail(parsedData.from),
+    createNotExistingDocs: true,
+    template: attachmentNameParts[0]
+      .trim()
+      .toLowerCase(),
+    office: attachmentNameParts[1]
+      .split('.xlsx')[0]
+      .trim(),
+  };
 
   return users
     .getUserByEmail(conn.req.body.senderEmail)
@@ -108,7 +120,7 @@ module.exports = (conn) => {
           customClaims: userRecord[conn.req.body.senderEmail].customClaims,
         };
 
-      // FIX: This is just a placeholder
+      // TODO: This is just a placeholder
       conn.req.body.geopoint = {
         latitude: 12.12121,
         longitude: 12.1212,

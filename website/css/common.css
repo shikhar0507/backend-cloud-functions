@@ -39,7 +39,7 @@
 
 html,
 body {
-    height: 100%;
+    /* height: 100%; */
     overflow-y: auto;
 }
 
@@ -72,7 +72,8 @@ p {
 
 a {
     text-decoration: none;
-    color: #444;
+    /* color: #444; */
+    color: inherit;
 }
 
 aside {
@@ -110,10 +111,6 @@ aside {
 
 section {
     min-height: 200px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-    border: 1px solid rgba(0, 0, 0, .09);
-    margin-bottom: 25px;
-    padding: 20px 30px;
 }
 
 .input-field {
@@ -159,6 +156,10 @@ section {
 
 .tac {
     text-align: center;
+}
+
+.ttuc {
+    text-transform: uppercase;
 }
 
 .bg-white {
@@ -267,8 +268,17 @@ section {
     justify-content: center;
 }
 
+/* TODO: Remove this */
 .flexed-js-ai-center {
     align-items: center;
+}
+
+.flexed-ai-center {
+    align-items: center;
+}
+
+.mr-16 {
+    margin-right: 16px;
 }
 
 .pad-10 {
@@ -315,8 +325,8 @@ section {
 
 .container {
     margin: 0 auto;
-    min-height: 100%;
-    margin-top: 16px;
+    /* min-height: 100%; */
+    /* margin-top: 16px; */
 }
 
 .hidden {
@@ -348,8 +358,10 @@ section {
 }
 
 footer {
-    font-size: 12px;
-    background-color: #89273E;
+    /* position: absolute; */
+    /* bottom: 0; */
+    /* left: 0; */
+    /* right: 0; */
 }
 
 .text-align-right {
@@ -361,8 +373,8 @@ footer {
 }
 
 .social-links {
-    display: flex;
-    justify-content: center;
+    /* display: flex; */
+    /* justify-content: center; */
 }
 
 .social-links a {
@@ -593,12 +605,6 @@ input:disabled {
     cursor: pointer;
 }
 
-@media (min-width: 426px) {
-    .container {
-        max-width: 60%;
-    }
-}
-
 @media (max-width: 400px) {
     .header-hamburger-icon {
         display: none;
@@ -606,12 +612,6 @@ input:disabled {
 
     .header-login-button {
         display: block;
-    }
-}
-
-@media (max-width: 800px) {
-    .modal .modal-content {
-        /* width: 80%; */
     }
 }
 

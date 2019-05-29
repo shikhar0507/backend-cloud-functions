@@ -335,4 +335,4 @@ module.exports = (locals) => {
         .sendMultiple(locals.messageObject);
     })
     .catch(console.error);
-}
+};

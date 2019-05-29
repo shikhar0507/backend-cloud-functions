@@ -9,7 +9,7 @@
 <body data-slug="\{{officeName}}">
     \{{> persistentBarPartial this}}
     \{{> headerPartial this}}
-    <div class="container">
+    <div class="container mt-16">
         \{{> asidePartial}}
         <section class="youtube-section">
             \{{#if videoId}}
@@ -40,7 +40,7 @@
             </div>
         </section>
         \{{#if displayProducts}}
-        <section class="product-section">
+        <section class="product-section pad">
             <h2>Our Products</h2>
             <div class="products-container">
                 \{{#each productObjectsArray}}
@@ -88,13 +88,13 @@
         </section>
         \{{/if}}
 
-        <section class="enquiry-section">
+        <section class="enquiry-section pad">
             <h2>Send Us An Enquiry</h2>
             <form>
                 <p>
                     {{!-- enquiry text --}}
-                    <label for="enquiry-text">Your Enquiry</label>
-                    <textarea class="input-field" name="enquiry-text" id="enquiry-text" cols="30" rows="5"></textarea>
+                    <textarea placeholder="Type here..." class="input-field" name="enquiry-text" id="enquiry-text"
+                        cols="30" rows="5"></textarea>
                 </p>
                 \{{#if displayProducts}}
                 <p>
@@ -122,7 +122,7 @@
             <h2>Branch Offices</h2>
 
             <div class="branches-box">
-                <div class="maps-container">
+                <div class="tac">
                     <a class="hidden" id="load-map-button" href="#">
                         <img
                             src="https://maps.googleapis.com/maps/api/staticmap?center=New+Delhi&zoom=13&size=400x300&maptype=roadmap&key=\{{mapsApiKey}}">
@@ -130,39 +130,38 @@
                     <div id="map"></div>
                 </div>
 
-                <div class="branch-list-container">
-                    <ul>
-                        \{{#each branchObjectsArray}}
-                        <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}
-                            class="list-item flexed flexed-row">
-                            <div class="flexed flexed-column no-ptr-evt">
-                                <span class="mb-16 bold">\{{this.name}}</span>
-                                <span class="col-gray">\{{this.address}}</span>
-                                \{{#if this.isOpen}}
-                                <span class="branch-status col-green">Open now</span>
-                                \{{/if}}
-                                \{{#if this.isClosed}}
-                                <span class="branch-status col-red">Opens at \{{this.openingTime}}</span>
-                                \{{/if}}
-                                \{{#if this.isClosingSoon}}
-                                <span class="branch-status col-orange">Closes at \{{this.closingTime}}</span>
-                                \{{/if}}
-                            </div>
-                            <div class="flexed flexed-row flexed-jc-center flexed-js-ai-center">
-                                \{{#if this.branchContact}}
-                                <a class="col-light-blue pad-10" href="tel:\{{this.branchContact}}">
-                                    <i class="fas fa-phone"></i>
-                                </a>
-                                \{{/if}}
-                                <a class="col-light-blue pad-10" rel="noopener" target="_blank"
-                                    href="\{{this.mapsUrl}}">
-                                    <i class="fas fa-directions"></i>
-                                </a>
-                            </div>
-                        </li>
-                        \{{/each}}
-                    </ul>
-                </div>
+                {{!-- <div class="branch-list-container pad"> --}}
+                <ul class="branch-list-container pad">
+                    \{{#each branchObjectsArray}}
+                    <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}
+                        class="list-item flexed flexed-row">
+                        <div class="flexed flexed-column no-ptr-evt">
+                            <span class="mb-8 bold">\{{this.name}}</span>
+                            <span class="col-gray">\{{this.address}}</span>
+                            \{{#if this.isOpen}}
+                            <span class="branch-status col-green">Open now</span>
+                            \{{/if}}
+                            \{{#if this.isClosed}}
+                            <span class="branch-status col-red">Opens at \{{this.openingTime}}</span>
+                            \{{/if}}
+                            \{{#if this.isClosingSoon}}
+                            <span class="branch-status col-orange">Closes at \{{this.closingTime}}</span>
+                            \{{/if}}
+                        </div>
+                        <div class="flexed flexed-row flexed-jc-center flexed-js-ai-center ft-size-20">
+                            \{{#if this.branchContact}}
+                            <a class="col-light-blue pad-10" href="tel:\{{this.branchContact}}">
+                                <i class="fas fa-phone"></i>
+                            </a>
+                            \{{/if}}
+                            <a class="col-light-blue pad-10" rel="noopener" target="_blank" href="\{{this.mapsUrl}}">
+                                <i class="fas fa-directions"></i>
+                            </a>
+                        </div>
+                    </li>
+                    \{{/each}}
+                </ul>
+                {{!-- </div> --}}
             </div>
         </section>
         \{{/if}}

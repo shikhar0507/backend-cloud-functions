@@ -8,33 +8,36 @@
 
 <body>
     <div class="container">
-        <section>
-            <a href="/" class="logo-main">
-                <img width="100" height="100" alt="" src="img/logo-main.jpg">
-            </a>
-            <div>
-                <p id="message" class="hidden animated fadeIn"></span>
-                    <form autocomplete="off">
-                        <h1>Login to Growthfile</h1>
-                        <fieldset id="phone-number-container" class="animated fadeIn mb-16">
-                            <input id="phone" type="tel" class="input-field" name="auth-phone-number">
-                        </fieldset>
+        <section class="bg-magenta"></section>
+        <section class="tac flexed flexed-jc-center">
+            <div class="bg-white pad raised">
+                <h1>Login to Growthfile</h1>
+                <a href="/" class="logo-main">
+                    <img width="100" height="100" alt="" src="img/logo-main.jpg">
+                </a>
+                <div>
+                    <p id="message" class="hidden animated fadeIn"></span>
+                        <form autocomplete="off">
+                            <fieldset id="phone-number-container" class="animated fadeIn mb-16">
+                                <input id="phone" type="tel" class="input-field" name="auth-phone-number">
+                            </fieldset>
 
-                        <fieldset id="name-email-container" class="hidden animated fadeIn">
-                            <label for="auth-name">Name</label>
-                            <input class="input-field" type="text" name="auth-name">
-                            <label for="auth-email">Email</label>
-                            <input class="input-field" type="email" name="auth-email">
-                        </fieldset>
+                            <fieldset id="name-email-container" class="hidden animated fadeIn">
+                                <label for="auth-name">Name</label>
+                                <input class="input-field" type="text" name="auth-name">
+                                <label for="auth-email">Email</label>
+                                <input class="input-field" type="email" name="auth-email">
+                            </fieldset>
 
-                        <fieldset id="otp-container" class="hidden animated fadeIn" id="otp-container">
-                            <label for="otp">Enter OTP here</label>
-                            <input type="text" class="input-field" name="otp">
-                        </fieldset>
-                        <div id="recaptcha-container"></div>
+                            <fieldset id="otp-container" class="hidden animated fadeIn" id="otp-container">
+                                <label for="otp">Enter OTP here</label>
+                                <input type="text" class="input-field" name="otp">
+                            </fieldset>
+                            <div id="recaptcha-container"></div>
 
-                        <a href="#" class="button" id="auth-flow-start">Submit</a>
-                    </form>
+                            <a href="#" class="button" id="auth-flow-start">Submit</a>
+                        </form>
+                </div>
             </div>
         </section>
     </div>

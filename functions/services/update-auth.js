@@ -96,9 +96,9 @@ const getUserFromAuth = (phoneNumber) => {
       return {
         uid: null,
         errorCode: error.code,
-      }
+      };
     });
-}
+};
 
 module.exports = (conn) => {
   if (conn.req.method !== 'POST') {
@@ -244,5 +244,5 @@ module.exports = (conn) => {
       }
 
       return handleError(conn, error);
-    })
+    });
 };

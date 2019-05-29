@@ -29,5 +29,7 @@ module.exports = {
   rules: {
     'no-console': 'off', // It's node. How else do you even print?
     semi: 'error',
+    'no-undef': 'error',
+    'no-use-before-define': 'error',
   },
 };
