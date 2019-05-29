@@ -24,11 +24,8 @@ function initMap(location) {
 }
 
 function handleProductClick(elem) {
-  console.log('elem:', elem);
-
   const detailsContainer = elem
     .querySelector('.product-details-container');
-
 
   /** Only shows the details when some detail is present */
   if (detailsContainer.querySelector('.product-details-container ul').childElementCount) {
@@ -189,7 +186,8 @@ function startEnquiryCreationFlow() {
 
           return;
         });
-    }).catch(function (error) {
+    })
+    .catch(function (error) {
       if (error === 'Please Enable Location') {
         const spinner = document.getElementById('enquiry-fetch-spinner');
         spinner.classList.add('hidden');

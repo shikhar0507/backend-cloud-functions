@@ -299,6 +299,16 @@ function checkDnt() {
   console.log({ dntEnabled });
 }
 
+function getPhoneNumber(id) {
+  let result = `+${window.countryCode}${document.getElementById(id).value}`;
+
+  if (result.startsWith(window.countryCode)) {
+    result = result.replace(window.countryCode, '');
+  }
+
+  return result;
+}
+
 
 window
   .addEventListener('load', function () {

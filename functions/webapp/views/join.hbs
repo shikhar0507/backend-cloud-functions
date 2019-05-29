@@ -64,7 +64,7 @@
         </section>
 
         <section class="join-section">
-            <form>
+            <form autocomplete="off">
                 <fieldset>
                     <h2 id="help-text" class="bold col-orange">Enter Your Office Name</h2>
                     <p class="flexed flexed-column animated fadeIn">
@@ -72,7 +72,7 @@
                             id="office-name" required>
                     </p>
                 </fieldset>
-                <fieldset id="form-2" class="hidden animated fadeIn">
+                <fieldset id="form-2" class="animated fadeIn">
                     <p class="flexed flexed-column animated fadeIn">
                         <input placeholder="Second Contact's Name" class="input-field" class="input-field"
                             name="second-contact-name" type="text" id="second-contact-name" required>
@@ -82,8 +82,8 @@
                             type="email" id="second-contact-email" required>
                     </p>
                     <p class="flexed flexed-column animated fadeIn mb-16">
-                        <input placeholder="Second Contact's Phone Number" class="input-field"
-                            name="second-contact-phone-number" type="tel" id="second-contact-phone-number" required>
+                        <input class="input-field" name="second-contact-phone-number" type="tel"
+                            id="second-contact-phone-number" required>
                     </p>
                     <p>
                         <a href="#" id="form-submit-button" class="button">

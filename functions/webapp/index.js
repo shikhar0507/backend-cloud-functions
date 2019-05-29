@@ -400,8 +400,6 @@ const fetchOfficeData = (locals, requester) => {
           const name = doc.get('attachment.Name.value');
           const imageUrl = `img/${name}-${office}.png`.replace(/\s+/g, '-');
 
-          console.log({ name, imageUrl });
-
           return {
             imageUrl,
             name,
@@ -453,6 +451,7 @@ const handleHomePage = (locals, requester) => {
     pageTitle: 'Growthfile Home',
     pageDescription: 'One app for employees of all offices',
     isLoggedIn: locals.isLoggedIn,
+    /** Person is Support or already an admin of an office */
     showPersistentBar: true,
     pageIndexable: true,
     phoneNumber: requester.phoneNumber,

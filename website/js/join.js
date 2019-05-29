@@ -1,10 +1,11 @@
 function validateForm() {
   const form = document.forms[0];
   const officeNameElement = form.elements.namedItem('office-name');
-  const secondContactElement = form.elements.namedItem('second-contact-phone-number');
   const secondContactDisplayNameElement = form.elements.namedItem('second-contact-name');
   const secondContactEmailElement = form.elements.namedItem('second-contact-email');
 
+  const secondContactElement = form.elements.namedItem('second-contact-phone-number');
+  const secondContactPhoneNumber = getPhoneNumber('second-contact-phone-number');
   let valid = true;
 
   if (!isNonEmptyString(officeNameElement.value)) {
@@ -21,8 +22,8 @@ function validateForm() {
     insertAfterNode(secondContactElement, element);
   }
 
-  if (secondContactElement.value
-    && !isValidPhoneNumber(secondContactElement.value)) {
+  if (secondContactPhoneNumber
+    && !isValidPhoneNumber(secondContactPhoneNumber)) {
     valid = false;
     const element = getWarningNode('Invalid phone number');
 
@@ -55,7 +56,7 @@ function validateForm() {
     valid,
     values: {
       officeName: officeNameElement.value,
-      secondContactPhoneNumber: secondContactElement.value,
+      secondContactPhoneNumber: secondContactPhoneNumber,
       secondContactDisplayName: secondContactDisplayNameElement.value,
       secondContactEmail: secondContactElement.value,
     },
@@ -98,7 +99,7 @@ function sendOfficeCreationRequest(values) {
       }
 
       const idToken = getParsedCookies().__session;
-      const requestUrl = 'https://api2.growthfile.com/api/admin/bulk?support=true';
+      const requestUrl = `${apiBaseUrl}/bulk`;
 
       return fetch(requestUrl, {
         mode: 'cors',
@@ -206,20 +207,38 @@ window.onload = function () {
   }
 }
 
-const officeInput = document.getElementById('office-name');
+// const officeInput = document.getElementById('office-name');
 
 // officeInput.
-officeInput.oninput = function (evt) {
-  const form2 = document.getElementById('form-2');
-  const inputValue = evt.target.value;
-  const helpText = document.getElementById('help-text');
+// officeInput.oninput = function (evt) {
+//   const form2 = document.getElementById('form-2');
+//   const inputValue = evt.target.value;
 
-  if (!inputValue) {
-    form2.classList.add('hidden');
-    // helpText.innerText = 'Enter Your Office Name';
+//   if (!inputValue) {
+//     form2.classList.add('hidden');
+//     // helpText.innerText = 'Enter Your Office Name';
 
-    return;
+//     return;
+//   }
+
+//   form2.classList.remove('hidden');
+// }
+
+// officeInput.onblur = function (evt) {
+//   console.log('Focus lost', evt.target.value);
+// }
+
+// second-contact-phone-number
+window.intlTelInput(document.querySelector('#second-contact-phone-number'), {
+  preferredCountries: ['IN'],
+  initialCountry: 'IN',
+  // nationalMode: false,
+  separateDialCode: true,
+  // formatOnDisplay: true,
+  autoHideDialCode: true,
+  customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
+    window.countryCode = selectedCountryData.dialCode;
+    console.log({ selectedCountryPlaceholder, selectedCountryData });
+    return "e.g. " + selectedCountryPlaceholder;
   }
-
-  form2.classList.remove('hidden');
-}
+});

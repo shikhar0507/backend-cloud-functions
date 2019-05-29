@@ -140,6 +140,7 @@ form p textarea {
 form p select {
     min-width: 100%;
     height: 35px;
+    font-family: inherit;
 }
 
 .enquiry-section {
@@ -208,6 +209,21 @@ product-box>* {
     /* background: white; */
 }
 
+.floating-enquiry {
+    font-size: 50px;
+    min-height: 60px;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    opacity: 1;
+    z-index: 999;
+}
+
+.floating-enquiry a {
+    display: block;
+    margin-top: -40px;
+
+}
 
 @media (min-width: 768px) and (max-width: 1024px) {
     .product-box {

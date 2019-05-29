@@ -94,13 +94,13 @@
                 <p>
                     {{!-- enquiry text --}}
                     <label for="enquiry-text">Your Enquiry</label>
-                    <textarea class="input-field" name="enquiry-text" id="enquiry-text" cols="30" rows="10"></textarea>
+                    <textarea class="input-field" name="enquiry-text" id="enquiry-text" cols="30" rows="5"></textarea>
                 </p>
                 \{{#if displayProducts}}
                 <p>
                     {{!-- product name --}}
                     <label for="product-select">Product Name</label>
-                    <select name="product-select" id="product-select">
+                    <select class="input-field" name="product-select" id="product-select">
                         <option value="">None</option>
                         \{{#each productObjectsArray}}
                         <option value="\{{this.name}}">\{{this.name}}</option>
@@ -123,7 +123,7 @@
 
             <div class="branches-box">
                 <div class="maps-container">
-                    <a id="load-map-button" href="#">
+                    <a class="hidden" id="load-map-button" href="#">
                         <img
                             src="https://maps.googleapis.com/maps/api/staticmap?center=New+Delhi&zoom=13&size=400x300&maptype=roadmap&key=\{{mapsApiKey}}">
                     </a>
@@ -167,7 +167,11 @@
         </section>
         \{{/if}}
     </div>
-
+    <div class="hidden floating-enquiry tac bg-magenta">
+        <a href="#" class="col-orange pad">
+            <i class="fas fa-plus"></i>
+        </a>
+    </div>
     \{{> footerPartial}}
     \{{> scriptsPartial}}
     <script defer src="https://maps.googleapis.com/maps/api/js?key=\{{mapsApiKey}}"></script>

@@ -10,10 +10,6 @@ function getOtp() {
   return document.getElementsByName('otp')[0].value;
 }
 
-function getPhoneNumber() {
-  return document.getElementsByName('auth-phone-number')[0].value;;
-}
-
 function showPhoneNumberInput() {
   document.getElementById('phone-number-container').classList.remove('hidden');
 }
@@ -127,7 +123,7 @@ function logInWithOtp(confirmationResult) {
 }
 
 function sendOtpToPhoneNumber() {
-  const phoneNumber = getPhoneNumber();
+  const phoneNumber = getPhoneNumber('phone');
   const appVerifier = window.recaptchaVerifier;
   return new Promise(function (resolve, reject) {
 
@@ -145,13 +141,9 @@ function sendOtpToPhoneNumber() {
 
 
 function fetchAuth() {
-  const phoneNumberInput = document.getElementsByName('auth-phone-number')[0];
+  const phoneNumber = getPhoneNumber('phone');
 
-  if (!phoneNumberInput.value.startsWith('+')) {
-    phoneNumberInput.value = `+${phoneNumberInput.value}`;
-  }
-
-  const phoneNumber = getPhoneNumber();
+  console.log({ phoneNumber });
 
   if (!isValidPhoneNumber(phoneNumber)) {
     setMessage('Invalid phone number');
@@ -160,7 +152,7 @@ function fetchAuth() {
   }
 
   document
-    .getElementsByName('auth-phone-number')[0]
+    .getElementById('phone')
     .setAttribute('disabled', true);
 
   let rejectionMessage = '';
@@ -248,3 +240,17 @@ function fetchAuth() {
 }
 
 submitButton.onclick = fetchAuth;
+
+window.intlTelInput(document.querySelector('#phone'), {
+  preferredCountries: ['IN'],
+  initialCountry: 'IN',
+  // nationalMode: false,
+  separateDialCode: true,
+  // formatOnDisplay: true,
+  autoHideDialCode: true,
+  customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
+    window.countryCode = selectedCountryData.dialCode;
+    console.log({ selectedCountryPlaceholder, selectedCountryData });
+    return "e.g. " + selectedCountryPlaceholder;
+  }
+});
