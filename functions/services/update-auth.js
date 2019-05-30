@@ -168,6 +168,7 @@ module.exports = (conn) => {
       if (authFetchResult.email !== conn.req.body.email) {
         sendEmail = true;
         authRecord.email = conn.req.body.email;
+        authRecord.emailVerified = false;
       }
 
       if (authFetchResult.displayName !== conn.req.body.displayName) {
