@@ -277,18 +277,28 @@ firebase
   });
 
 function setGlobals() {
-  console.log('fetching config');
+  const result = sessionStorage.getItem('__url_config');
+
+  if (result) {
+    const parsed = JSON.parse(result);
+
+    Object
+      .keys(parsed)
+      .forEach(function (key) { window[key] = parsed[key]; });
+
+    return;
+  }
 
   return fetch('/config')
     .then(function (response) { return response.json() })
     .then(function (result) {
+      sessionStorage.setItem('__url_config', JSON.stringify(result));
+
       Object
         .keys(result)
         .forEach(function (key) {
           window[key] = result[key];
         });
-
-      console.log('config set:', result);
     })
     .catch(console.error);
 }
@@ -313,7 +323,7 @@ function getPhoneNumber(id) {
 window
   .addEventListener('load', function () {
     setGlobals();
-    checkDnt();
+    // checkDnt();
 
     firebase
       .auth()

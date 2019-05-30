@@ -44,12 +44,11 @@ body {
 }
 
 body {
+    height: 100%;
     font-family: Karla, 'Open Sans', sans-serif;
-    /* color: #89273E; */
     color: #444;
     /* Golden Ratio */
     line-height: 1.61803398875em;
-    /* background-color: #f9f9f9; */
 }
 
 h1 {
@@ -89,9 +88,11 @@ aside {
     justify-content: space-between;
     max-height: 40px;
     padding: 10px 20px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-    border: 1px solid rgba(0, 0, 0, .09);
     line-height: 40px;
+    -webkit-box-shadow: 0 0 4px rgba(0, 0, 0, .14),
+        0 4px 8px rgba(0, 0, 0, .28);
+    box-shadow: 0 0 4px rgba(0, 0, 0, .14),
+        0 4px 8px rgba(0, 0, 0, .28);
 }
 
 .raised {

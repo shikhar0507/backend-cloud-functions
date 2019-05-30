@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="css/office.css">
 </head>
 
-<body data-slug="\{{officeName}}">
+<body data-slug="\{{officeName}}" data-videoId="\{{videoId}}">
     \{{> persistentBarPartial this}}
     \{{> headerPartial this}}
     <div class="container mt-16">
@@ -119,14 +119,13 @@
 
             <div class="branches-box">
                 <div class="tac">
-                    <a class="hidden" id="load-map-button" href="#">
-                        <img
-                            src="https://maps.googleapis.com/maps/api/staticmap?center=New+Delhi&zoom=13&size=400x300&maptype=roadmap&key=\{{mapsApiKey}}">
-                    </a>
+                    <div id="load-map-button" href="#">
+                        <img id="maps-placeholder" src="img/static-map.png">
+                        <a id="retry-location-button" class="button" href="#">Allow Location Access</a>
+                    </div>
                     <div id="map"></div>
                 </div>
 
-                {{!-- <div class="branch-list-container pad"> --}}
                 <ul class="branch-list-container pad">
                     \{{#each branchObjectsArray}}
                     <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}

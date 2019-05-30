@@ -1,5 +1,3 @@
-<script src="https://www.youtube.com/iframe_api"></script>
-<script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c9db267fe61c735"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"
     integrity="sha256-4iQZ6BVL4qNKlQ27TExEhBN1HFPvAvAMbFavKKosSWQ=" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.23/moment-timezone-with-data-2012-2022.min.js"
@@ -11,10 +9,11 @@
     integrity="sha256-T+Y14XDl77XMVighdspjCTjximR6wCcdNtkhO6vxsqc=" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/15.1.0/js/utils.js"
     integrity="sha256-R+rtQvcDuw8GujOnhdY7T8t+iOrEfMIXpw3Cx8zv6nI=" crossorigin="anonymous"></script>
-
 <script src="/__/firebase/6.0.2/firebase-app.js"></script>
 <script src="/__/firebase/6.0.2/firebase-auth.js"></script>
 <script src="/__/firebase/init.js"></script>
+
+\{{#if isProduction}}
 <!-- Global site tag (gtag.js) - Google Analytics -->
 <script src="https://www.googletagmanager.com/gtag/js?id=UA-139388420-2"></script>
 <script>
@@ -24,4 +23,7 @@
 
     gtag('config', 'UA-139388420-2');
 </script>
+<script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5c9db267fe61c735"></script>
+\{{/if}}
+<script src="https://www.youtube.com/iframe_api"></script>
 <script src="js/main.js"></script>

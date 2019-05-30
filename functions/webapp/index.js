@@ -231,6 +231,7 @@ const handleOfficePage = (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
+    isProduction: env.isProduction,
   });
 
   return Promise.resolve(html);
@@ -448,6 +449,7 @@ const handleJoinPage = (locals, requester) => {
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
+    isProduction: env.isProduction,
   });
 
   return html;
@@ -475,6 +477,7 @@ const handleHomePage = (locals, requester) => {
     adminOffices: requester.adminOffices,
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
+    isProduction: env.isProduction,
   });
 
   return html;
@@ -498,6 +501,7 @@ const handleAuthPage = (locals, requester) => {
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
+    isProduction: env.isProduction,
   });
 
   return html;
@@ -520,6 +524,7 @@ const handleDownloadPage = (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
+    isProduction: env.isProduction,
   });
 
   return html;
@@ -542,6 +547,7 @@ const handleContactPage = (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
+    isProduction: env.isProduction,
   });
 
   return html;
@@ -563,6 +569,7 @@ const handleTermsAndConditionsPage = (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
+    isProduction: env.isProduction,
   });
 
   return html;
@@ -588,6 +595,7 @@ const handlePrivacyPolicyPage = (locals, requester) => {
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
+    isProduction: env.isProduction,
   });
 
   return html;

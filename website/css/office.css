@@ -132,6 +132,24 @@ form p select {
     overflow-y: auto;
 }
 
+#load-map-button {
+    position: relative;
+    text-align: center;
+}
+
+#retry-location-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+}
+
+#maps-placeholder {
+    filter: blur(2px);
+    -webkit-filter: blur(2px);
+}
+
 #load-map-button img {
     max-width: 100%;
 }
