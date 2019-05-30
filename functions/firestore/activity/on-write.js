@@ -451,12 +451,13 @@ const handleRecipient = (locals) => {
 
   const batch = db.batch();
 
+  const isComment = locals.addendumDoc.get('action') === httpsActions.comment;
   const recipientsDocRef =
     rootCollections
       .recipients
       .doc(locals.change.after.id);
 
-  if (!locals.addendumDoc || locals.addendumDoc.get('action') === httpsActions.comment) {
+  if (locals.addendumDoc && isComment) {
     return Promise.resolve();
   }
 
@@ -1053,7 +1054,7 @@ const createDefaultSubscriptionsForEmployee = (locals, hasBeenCancelled) => {
       createAutoSubscription(locals, 'check-in', phoneNumber),
       createAutoSubscription(locals, 'leave', phoneNumber)
     ]);
-}
+};
 
 
 const handleEmployee = (locals) => {
@@ -1212,7 +1213,7 @@ const handleOffice = (locals) => {
     .then(() => createAutoSubscription(locals, 'subscription', secondContact))
     .then(() => createAdmin(locals, firstContact))
     .then(() => createAdmin(locals, secondContact));
-}
+};
 
 
 module.exports = (change, context) => {
