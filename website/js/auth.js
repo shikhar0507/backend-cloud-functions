@@ -242,7 +242,7 @@ function fetchAuth() {
 submitButton.onclick = fetchAuth;
 
 window.intlTelInput(document.querySelector('#phone'), {
-  preferredCountries: ['IN'],
+  preferredCountries: ['IN', 'NP'],
   initialCountry: 'IN',
   // nationalMode: false,
   separateDialCode: true,

@@ -4,8 +4,9 @@ form {
     justify-content: center;
 }
 
-strong {
-    font-weight: 600;
+footer {
+    position: absolute;
+    bottom: 0;
 }
 
 form p {
@@ -29,4 +30,26 @@ fieldset p {
 
 .submit-button-container {
     text-align: center;
+}
+
+.fill {
+    min-height: 150px;
+}
+
+.form-container {
+    justify-content: center;
+}
+
+header {
+    margin-bottom: 0 !important;
+}
+
+main {
+    margin-top: -70px;
+}
+
+@media (min-width: 768px) {
+    .fill {
+        min-height: 30vh;
+    }
 }

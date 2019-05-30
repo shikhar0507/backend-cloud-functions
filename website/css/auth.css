@@ -54,8 +54,6 @@ section:nth-of-type(2) {
 footer {
     position: absolute;
     bottom: 0;
-    left: 0;
-    right: 0;
 }
 
 @media(min-width: 768px) {

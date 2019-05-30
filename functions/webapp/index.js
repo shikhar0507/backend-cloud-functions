@@ -533,7 +533,7 @@ const handleContactPage = (locals, requester) => {
     pageTitle: 'Contact Us | Growthfile',
     pageDescription: 'Please fill the form to contact us',
     isLoggedIn: locals.isLoggedIn,
-    showPersistentBar: true,
+    showPersistentBar: false,
     phoneNumber: requester.phoneNumber,
     email: requester.email,
     emailVerified: requester.emailVerified,

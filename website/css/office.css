@@ -138,13 +138,13 @@ form p select {
 
 .product-box {
     cursor: pointer;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-    border: 1px solid rgba(0, 0, 0, .09);
-    margin-bottom: 16px;
-    display: flex;
-    flex-direction: column;
-    padding: 10px 20px;
-    background: #f9f9fa;
+    /* box-shadow: 0 1px 4px rgba(0, 0, 0, .04); */
+    /* border: 1px solid rgba(0, 0, 0, .09); */
+    /* margin-bottom: 16px; */
+    /* display: flex; */
+    /* flex-direction: column; */
+    /* padding: 10px 20px; */
+    /* background: #f9f9fa; */
 }
 
 product-box>* {
@@ -159,26 +159,27 @@ product-box>* {
 }
 
 .product-image-name-container {
-    display: flex;
+    /* display: flex; */
     /* color: white; */
-    flex-direction: row;
+    /* flex-direction: row; */
+    /* flex-direction: column; */
 }
 
-.product-box i,
-.product-box img {
-    height: 40px;
-    width: 40px;
-    font-size: 40px;
+.product-image-name-container img {
+    /* max-width: 100%; */
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
 }
 
 .product-details-container {
+    /* border: 1px solid rgba(0, 0, 0, .09); */
     /* display: block; */
     /* Visibele after click */
     /* display: none; */
-    margin-top: 16px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
-    border: 1px solid rgba(0, 0, 0, .09);
-    padding: 10px 5px;
+    /* margin-top: 16px; */
+    /* box-shadow: 0 1px 4px rgba(0, 0, 0, .04); */
+    /* padding: 10px 5px; */
     /* color: #89273E; */
     /* background: white; */
 }

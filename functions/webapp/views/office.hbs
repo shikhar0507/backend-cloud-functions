@@ -42,20 +42,16 @@
         \{{#if displayProducts}}
         <section class="product-section pad">
             <h2>Our Products</h2>
-            <div class="products-container">
+            <div class="products-container cards">
                 \{{#each productObjectsArray}}
-                <div class="product-box" onclick="handleProductClick(this)">
+                <div class="product-box card bg-gray" onclick="handleProductClick(this)">
                     <div class="product-image-name-container">
-                        \{{#if this.imageUrl}}
-                        <img onerror="this.onerror=null;this.src='img/office-placeholder.jpg'" src=\{{this.imageUrl}}
+                        <img onerror="this.onerror=null;this.src='img/product-placeholder.jpg'" src=\{{this.imageUrl}}
                             alt="product \{{this.name}}">
-                        \{{else}}
-                        <i class="far fa-image"></i>
-                        \{{/if}}
-                        <div class="product-name-container bold">\{{this.name}}</div>
+                        <div class="flexed product-name-container bold">\{{this.name}}</div>
                     </div>
 
-                    <div class="product-details-container hidden animated fadeIn">
+                    <div class="product-details-container hidden animated fadeIn tal border">
                         <ul>
                             \{{#if this.productType}}
                             <li>
@@ -148,7 +144,7 @@
                             <span class="branch-status col-orange">Closes at \{{this.closingTime}}</span>
                             \{{/if}}
                         </div>
-                        <div class="flexed flexed-row flexed-jc-center flexed-js-ai-center ft-size-20">
+                        <div class="flexed flexed-row flexed-jc-center flexed-ai-center ft-size-20">
                             \{{#if this.branchContact}}
                             <a class="col-light-blue pad-10" href="tel:\{{this.branchContact}}">
                                 <i class="fas fa-phone"></i>
@@ -165,13 +161,8 @@
             </div>
         </section>
         \{{/if}}
+        \{{> footerPartial}}
     </div>
-    <div class="hidden floating-enquiry tac bg-magenta">
-        <a href="#" class="col-orange pad">
-            <i class="fas fa-plus"></i>
-        </a>
-    </div>
-    \{{> footerPartial}}
     \{{> scriptsPartial}}
     <script defer src="https://maps.googleapis.com/maps/api/js?key=\{{mapsApiKey}}"></script>
     <script defer src="js/office.js"></script>

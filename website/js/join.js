@@ -230,7 +230,7 @@ window.onload = function () {
 
 // second-contact-phone-number
 window.intlTelInput(document.querySelector('#second-contact-phone-number'), {
-  preferredCountries: ['IN'],
+  preferredCountries: ['IN', 'NP'],
   initialCountry: 'IN',
   // nationalMode: false,
   separateDialCode: true,
