@@ -451,13 +451,13 @@ const handleRecipient = (locals) => {
 
   const batch = db.batch();
 
-  const isComment = locals.addendumDoc.get('action') === httpsActions.comment;
   const recipientsDocRef =
     rootCollections
       .recipients
       .doc(locals.change.after.id);
 
-  if (locals.addendumDoc && isComment) {
+  if (locals.addendumDoc
+    && locals.addendumDoc.get('action') === httpsActions.comment) {
     return Promise.resolve();
   }
 

@@ -152,7 +152,7 @@ module.exports = (change) => {
   include
     .forEach((phoneNumber) => {
       authFetch
-        .push(users.getUserByPhoneNumber(phoneNumber));
+        .push(users.getUserByPhoneNumber(phoneNumber.trim()));
     });
 
   const usersWithoutEmailOrVerifiedEmail = [];
