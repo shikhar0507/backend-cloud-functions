@@ -25,17 +25,19 @@
                         <img height="68" width="68" src=\{{logoURL}} alt="company logo"
                             onerror="this.onerror=null;this.src='img/office-placeholder.jpg'">
                     </span>
-                    <h1>\{{officeName}}</h1>
+                    <span class="flexed flexed-ai-center">
+                        <h1>\{{officeName}}</h1>
+                    </span>
                 </div>
-                <span class="flexed border bg-white pad mb-16">
+                <span class="flexed mb-16">
                     <span>Company Size:</span>
                     <span class="bold"> \{{officeEmployeeSize}}</span>
                 </span>
                 \{{#if shortDescription}}
-                <p class="short-description border pad bg-white">\{{shortDescription}}</p>
+                <p class="short-description">\{{shortDescription}}</p>
                 \{{/if}}
                 \{{#if aboutOffice}}
-                <p class="border pad bg-white">\{{aboutOffice}}</p>
+                <p class="">\{{aboutOffice}}</p>
                 \{{/if}}
             </div>
         </section>
@@ -86,38 +88,49 @@
 
         <section class="enquiry-section pad">
             <h2>Send Us An Enquiry</h2>
-            <form>
-                <p>
-                    {{!-- enquiry text --}}
-                    <textarea placeholder="Type here..." class="input-field" name="enquiry-text" id="enquiry-text"
-                        cols="30" rows="5"></textarea>
-                </p>
-                \{{#if displayProducts}}
-                <p>
-                    {{!-- product name --}}
-                    <label for="product-select">Product Name</label>
-                    <select class="input-field" name="product-select" id="product-select">
-                        <option value="">None</option>
-                        \{{#each productObjectsArray}}
-                        <option value="\{{this.name}}">\{{this.name}}</option>
-                        \{{/each}}
-                    </select>
-                </p>
-                \{{/if}}
-                <p class="m0-auto fit-content">
-                    <a class="button" id="enquiry-submit-button" href="#">
-                        Submit
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
-                </p>
+            <form autocomplete="off" aria-autocomplete="none">
+                <fieldset id="form-1">
+                    <p>
+                        {{!-- enquiry text --}}
+                        <textarea placeholder="Type here..." class="input-field" name="enquiry-text" id="enquiry-text"
+                            cols="30" rows="5"></textarea>
+                    </p>
+                    \{{#if displayProducts}}
+                    <p>
+                        {{!-- product name --}}
+                        <select class="input-field" name="product-select" id="product-select">
+                            <option value="">Select a Product</option>
+                            \{{#each productObjectsArray}}
+                            <option value="\{{this.name}}">\{{this.name}}</option>
+                            \{{/each}}
+                        </select>
+                    </p>
+                    \{{/if}}
+                </fieldset>
+
+                <fieldset>
+                    <p id="enquiry-submit-container" class="m0-auto fit-content">
+                        <button type="button" class="button flexed flexed-ai-center" id="enquiry-submit-button"
+                            href="#">
+                            <span class="mr-16">Submit</span>
+                            <span>
+                                \{{#if photoURL}}
+                                <img class="rounded" width="30" height="30" src=\{{photoURL}}
+                                    alt="header-profile-picture" alt="profile image">
+                                \{{else}}
+                                <img class="rounded" width="30" height="30" src="img/person.png" alt="photo url">
+                                \{{/if}}
+                            </span>
+                        </button>
+                    </p>
+                </fieldset>
             </form>
         </section>
 
         \{{#if displayBranch}}
         <section class="branch-section">
             <h2>Branch Offices</h2>
-
-            <div class="branches-box">
+            <div class="branches-box" id="init-map-trigger">
                 <div class="tac">
                     <div id="load-map-button" href="#">
                         <img id="maps-placeholder" src="img/static-map.png">
@@ -156,7 +169,6 @@
                     </li>
                     \{{/each}}
                 </ul>
-                {{!-- </div> --}}
             </div>
         </section>
         \{{/if}}

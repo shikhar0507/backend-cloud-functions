@@ -315,11 +315,6 @@ module.exports = (req, res) => {
     );
   }
 
-  if (routes(conn.req).func === '/parseMail'
-    && conn.req.query.token === env.sgMailParseToken) {
-    return require('../firestore/mail-parser')(conn);
-  }
-
   if (env.isProduction) {
     if (!conn.req.headers['x-cf-secret']
       || conn.req.headers['x-cf-secret'] !== env.cfSecret) {

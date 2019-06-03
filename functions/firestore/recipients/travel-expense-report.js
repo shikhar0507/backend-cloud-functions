@@ -61,9 +61,9 @@ module.exports = (locals) => {
   const employeesData = locals.officeDoc.get('employeesData');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const timestampFromTimer = locals.change.after.get('timestamp');
-  const tsStart = momentTz().tz(timezone).startOf('month');
+  const tsStart = momentTz(timestampFromTimer).tz(timezone).startOf('month');
   const tsEnd = momentTz(timestampFromTimer).tz(timezone).endOf('day');
-  const dateString = '';
+  const dateString = ``;
   const sheetRefsMap = new Map();
   const rowIndexMap = new Map();
   const prevDateStringMap = new Map();
@@ -306,7 +306,7 @@ module.exports = (locals) => {
 
       worksheet.deleteSheet('Sheet1');
 
-      return worksheet.outputAsync();
+      return worksheet.outputAsync('base64');
     })
     .then((content) => {
       if (!locals.sendMail) {
@@ -316,7 +316,7 @@ module.exports = (locals) => {
       locals
         .messageObject['dynamic_template_data'] = {
           office,
-          subject: `Footprints Report_${office}_${dateString}`,
+          subject: `Travel Expense Report_${office}_${dateString}`,
           date: dateString,
         };
 

@@ -104,7 +104,6 @@ tr:nth-child(even) {
     background-color: #dddddd;
 }
 
-
 @media only screen and (max-width: 800px) {
 
     /* Force table to not be like tables anymore */
@@ -279,5 +278,9 @@ section h1 {
     .features-section>div {
         max-width: 90%;
         min-width: 90%;
+    }
+
+    .cards i {
+        /* display: none; */
     }
 }

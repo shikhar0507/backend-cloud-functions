@@ -83,7 +83,6 @@ function logInWithOtp(confirmationResult) {
       return user.updateProfile({
         displayName: getName()
       })
-
     })
     .then(function () {
       const value = getQueryString('redirect_to');
@@ -91,6 +90,7 @@ function logInWithOtp(confirmationResult) {
         window.location.href = value;
         return;
       }
+
       const user = firebase.auth().currentUser;
 
       if (window.showFullLogin) {

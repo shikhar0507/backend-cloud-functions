@@ -10,10 +10,23 @@
     \{{> persistentBarPartial this}}
     \{{> headerPartial this}}
     <div class="container">
-        \{{#if isLoggedIn}}
+        \{{#if isAdmin}}
+        <form id='office-search-form' class="form-inline">
+            <span class="select-dropdown">
+                <select id='office-selector'>
+                    \{{#each adminOffices}}
+                    <option value="\{{this}}">\{{this}}</option>
+                    \{{/each}}
+                </select>
+            </span>
+            <a class="button" id='continue'
+                onclick="startAdmin(document.getElementById('office-selector').value)">Continue</a>
+        </form>
+        \{{/if}}
+
+        \{{#if isSupport}}
         <div class="office-selection">
-            \{{#if isSupport}}
-            <form id='office-search-form' class="form-inline">
+            <form autocomplete="off" id="office-search-form" class="form-inline">
                 <input type="text" placeholder="Search an office" class="input-field" id='office-search-field'
                     oninput="toggleSearchButton(this)">
 
@@ -25,520 +38,109 @@
                 <button type="button" class="button" id='create-office' onclick="addNew(true,false,'office')">Create
                     Office</button>
             </form>
-
-            \{{else}}
-            \{{#if isAdmin}}
-            <form id='office-search-form' class="form-inline">
-                <span class="select-dropdown">
-                    <select id='office-selector'>
-                        \{{#each adminOffices}}
-                        <option value="\{{this}}">\{{this}}</option>
-                        \{{/each}}
-                    </select>
-                </span>
-                <a class="button" id='continue'
-                    onclick="startAdmin(document.getElementById('office-selector').value)">Conitnue</a>
-            </form>
-            \{{else}}
-            {{!-- <p>Normal user</p> --}}
-            <section class="action-icons-container pad border">
-                <div class="cards">
-                    <div id="view-enquiries" onclick="viewEnquiries()">
-                        <i class="fas fa-question action-icon"></i>
-                        <p class="icon-text">View Enquiries</p>
-                    </div>
-                </div>
-            </section>
-            <section class="pad border">
-                <div class="cards">
-                    <div class="office border pad card">
-                        <a href="/gazraj-security">
-                            <img src="img/gazraj-security.jpg" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Gazraj Security</span>
-                            <span class="office-description-short col-light-blue">Manned Security Services</span>
-                            <span class="office-description-long">Growthfile is used by their supervisor to monitor
-                                and
-                                quality check of their guards across their customer locations</span>
-                        </div>
-                    </div>
-                    <div class="office border pad card">
-                        <a href="/mind-edutainment">
-                            <img src="img/mind-edutainment-pvt-ltd.jpg" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Mind Edutainment Pvt.
-                                Ltd.</span>
-                            <span class="office-description-short col-light-blue">High Order Thinking School
-                                Curriculum</span>
-                            <span class="office-description-long">Mind Edutainment is using Growthfile to administer
-                                the
-                                location of their facilitators for monthly payroll computation
-                                across multiple schools in India</span>
-                        </div>
-                    </div>
-                    <div class="office border pad card">
-                        <a href="/system3net">
-                            <img src="img/system3-net.jpg" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">System3.net</span>
-                            <span class="office-description-short col-light-blue">IT Service Provider</span>
-                            <span class="office-description-long">System3 is using Growthfile to manage field
-                                employees for
-                                customer visits and customer location duties</span>
-                        </div>
-                    </div>
-                    <div class="office border pad card">
-                        <a href="/weddingzin">
-                            <img src="img/video-coming-soon.gif" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Weddingz.in</span>
-                            <span class="office-description-short col-light-blue">One stop weddings marketplace</span>
-                        </div>
-                    </div>
-
-                    <div class="office border pad card">
-                        <a href="/mybox-technologies-pvt-ltd">
-                            <img src="img/video-coming-soon.gif" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Mybox Technologies Pvt.
-                                Ltd.</span>
-                            <span class="office-description-short col-light-blue">Digital Set-Top Box
-                                Manufacturer</span>
-                        </div>
-                    </div>
-                    <div class="office border pad card">
-                        <a href="/amptek-batteries">
-                            <img src="img/amptek-batteries.jpg" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Amptek Batteries</span>
-                            <span class="office-description-short col-light-blue"></span>
-                        </div>
-                    </div>
-                    <div class="office border pad card">
-                        <a href="/stellar-medical">
-                            <img src="img/video-coming-soon.gif" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Stellar Medical</span>
-                            <span class="office-description-short col-light-blue">Hi-Tech Medical Equipment
-                                Manufacturer</span>
-                        </div>
-                    </div>
-                    <div class="office border pad card">
-                        <a href="/mystique-audit-allied-services">
-                            <img src="img/video-coming-soon.gif" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Mystique Audit Allied
-                                Services</span>
-                            <span class="office-description-short col-light-blue">Warehousing, Audit, and Supply Chain
-                                Leaders</span>
-                        </div>
-                    </div>
-                    <div class="office border pad card">
-                        <a href="/realtime-taxsutra-services-pvt-ltd">
-                            <img src="img/video-coming-soon.gif" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Realtime Taxsutra Services Pvt
-                                Ltd</span>
-                            <span class="office-description-short col-light-blue">Warehousing, Audit, and Supply Chain
-                                Leaders</span>
-                        </div>
-                    </div>
-                    <div class="office border pad card">
-                        <a href="/realtime-taxsutra-services-pvt-ltd">
-                            <img src="img/video-coming-soon.gif" alt="">
-                        </a>
-                        <div class="office-text-container">
-                            <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Realtime Taxsutra Services Pvt
-                                Ltd</span>
-                            <span class="office-description-short col-light-blue">Warehousing, Audit, and Supply Chain
-                                Leaders</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            <section class="flexed flexed-jc-center features-section blue-gradient pad border">
-                <div>
-                    <div class="feature-header col-blue">
-                        <i class="fas fa-robot mb-16"></i>
-                        <h2 class="fw-400">Automation</h2>
-                    </div>
-                    <span>Increase your teams productivity by automating office activities</span>
-                    <div class="features">
-                        <div class="border pad bg-white mb-8">
-                            <i class="fas fa-chart-pie ft-size-20"></i>
-                            <span>Payroll</span>
-                        </div>
-                        <div class="border pad bg-white mb-8">
-                            <i class="fas fa-hand-pointer ft-size-20"></i>
-                            <span>Sales</span>
-                        </div>
-                        <div class="border pad bg-white mb-8">
-                            <i class="fas fa-wallet ft-size-20"></i>
-                            <span>Expense Claim</span>
-                        </div>
-                        <div class="border pad bg-white mb-8">
-                            <i class="fas fa-crosshairs ft-size-20"></i>
-                            <span>Duty Assignment and more...</span>
-                        </div>
-                    </div>
-                    <span>Reliable and verified data</span>
-                    <span>One app for all</span>
-                    <span>No training. Go live in 30 minutes</span>
-                </div>
-            </section>
-            <section class="features-section pad border">
-                <div class="feature-header col-blue mb-8">
-                    <i class="fas fa-plug mb-16"></i>
-                    <h2 class="fw-400">Plug & Play</h2>
-                </div>
-                <div class="features">
-                    <div class="border pad mb-8">
-                        <i class="fas fa-mobile ft-size-20"></i>
-                        <span>Use our mobile page builder tool</span>
-                    </div>
-                    <div class="border pad mb-8">
-                        <i class="far fa-lightbulb ft-size-20"></i>
-                        <span>Use our program's learning to keep the page always updated</span>
-                    </div>
-                    <div class="border pad mb-8">
-                        <i class="fas fa-share-alt ft-size-20"></i>
-                        <span>Plug and play across social media platforms</span>
-                    </div>
-                    <div class="border pad mb-8">
-                        <i class="fab fa-internet-explorer ft-size-20"></i>
-                        <span>Ensure consistent messaging of your company across the web</span>
-                    </div>
-                </div>
-            </section>
-            <section class="flexed flexed-jc-center features-section blue-gradient pad border">
-                <div>
-                    <div class="feature-header col-blue">
-                        <i class="fas fa-arrow-up mb-16"></i>
-                        <h2 class="fw-400">Unlimited Advantage</h2>
-                    </div>
-                    <div class="features">
-                        <div class="border pad bg-white mb-8">
-                            <i class="fas fa-rupee-sign ft-size-20"></i>
-                            <span>One time cost for a lifetime membership</span>
-                        </div>
-                        <div class="border pad bg-white mb-8">
-                            <i class="fas fa-user-friends ft-size-20"></i>
-                            <span>No per-office, per-employee costs</span>
-                        </div>
-                        <div class="border pad bg-white mb-8">
-                            <i class="fas fa-signal ft-size-20"></i>
-                            <span>Unlimited usage</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            \{{/if}}
-            \{{/if}}
         </div>
+        \{{/if}}
 
-        <section class="action-icons-container hidden pad border">
+        \{{#if isLoggedIn}}
+        <section class="hidden animated fadeIn action-icons-container pad border">
             <div class="cards">
-                \{{#if isSupport}}
-                <div id="update-auth" onclick="updateAuth()" class="card">
-                    <i class="fas fa-user-edit action-icon"></i>
-                    <p class="icon-text">Update Auth</p>
-                </div>
-                <div id="add-employees" onclick="addNew(true)" class="card">
-                    <i class="fas fa-user-plus action-icon"></i>
-                    <p class="icon-text">Create New</p>
-                </div>
-                <div id="trigger-reports" onclick="triggerReports(true)" class="card">
-                    <i class="far fa-file-excel action-icon"></i>
-                    <p class="icon-text">Trigger Reports</p>
-                </div>
-                <div id="change-phone-number" onclick="changePhoneNumber()" class="card">
-                    <i class="fas fa-phone-volume action-icon"></i>
-                    <p class="icon-text">Update Phone Number</p>
-                </div>
-                <div id="employee-resign" onclick="employeeExit()" class="card">
-                    <i class="fas fa-user-minus action-icon"></i>
-                    <p class="icon-text">Employee Exit</p>
-                </div>
-                <div id="update-recipient" onclick="updateEmailInReports()" class="card">
-                    <i class="fas fa-envelope-open-text action-icon"></i>
-                    <p class="icon-text">Update Report Mail Ids</p>
-                </div>
-                <div id="update-subscription" onclick="updateSubscription()" class="card">
-                    <i class="far fa-file-archive action-icon"></i>
-                    <p class="icon-text">Update Subscriptions</p>
-                </div>
-                <div id="update-activity" onclick="searchAndUpdate()" class="card">
-                    <i class="fas fa-font action-icon"></i>
-                    <p class="icon-text">Search & Update</p>
-                </div>
                 <div id="view-enquiries" onclick="viewEnquiries()" class="card">
                     <i class="fas fa-question action-icon"></i>
                     <p class="icon-text">View Enquiries</p>
                 </div>
-                <div id="manage-templates" class="card">
-                    <i class="fas fa-file-alt action-icon"></i>
-                    <p class="icon-text">Manage Templates</p>
+
+                {{!-- actions are shown for admin or support --}}
+                \{{#if showActions}}
+                <div id="update-auth" onclick="updateAuth()" class="card">
+                    <i class="fas fa-user-edit action-icon"></i>
+                    <p class="icon-text">Update Auth</p>
                 </div>
-                \{{else}}
-                \{{#if isAdmin}}
-                <div id="add-employees" onclick="addNew(false,true)">
+
+                <div id="add-employees" onclick="addNew(\{{isSupport}}, \{{isAdmin}})" class="card">
                     <i class="fas fa-user-plus action-icon"></i>
                     <p class="icon-text">Create New</p>
                 </div>
-                <div id="trigger-reports" onclick="triggerReports(false,true)">
+
+                <div id="trigger-reports" onclick="triggerReports()" class="card">
                     <i class="far fa-file-excel action-icon"></i>
                     <p class="icon-text">Trigger Reports</p>
                 </div>
-                <div id="change-phone-number" onclick="changePhoneNumber()">
-                    <i class="fas fa-phone-volume action-icon"></i>
-                    <p class="icon-text">Update Phone Number</p>
-                </div>
-                <div id="employee-resign" onclick="employeeExit()">
+
+                <div id="employee-resign" onclick="employeeExit()" class="card">
                     <i class="fas fa-user-minus action-icon"></i>
                     <p class="icon-text">Employee Exit</p>
                 </div>
-                <div id="update-recipient" onclick="updateEmailInReports()">
+
+                <div id="change-phone-number" onclick="changePhoneNumber()" class="card">
+                    <i class="fas fa-phone-volume action-icon"></i>
+                    <p class="icon-text">Update Phone Number</p>
+                </div>
+
+                <div id="update-recipient" onclick="updateEmailInReports()" class="card">
                     <i class="fas fa-envelope-open-text action-icon"></i>
                     <p class="icon-text">Update Report Mail Ids</p>
                 </div>
-                <div id="update-subscription" onclick="updateSubscription()">
+
+                <div id="update-subscription" onclick="updateSubscription()" class="card">
                     <i class="far fa-file-archive action-icon"></i>
                     <p class="icon-text">Update Subscriptions</p>
                 </div>
-                <div id="update-activity" onclick="searchAndUpdate()">
+
+                <div id="update-activity" onclick="searchAndUpdate()" class="card">
                     <i class="fas fa-font action-icon"></i>
                     <p class="icon-text">Search & Update</p>
                 </div>
-                <div id="view-enquiries" onclick="viewEnquiries()">
-                    <i class="fas fa-question action-icon"></i>
-                    <p class="icon-text">View Enquiries</p>
-                </div>
-                <div id="manage-templates">
+                \{{/if}}
+
+                \{{#if isTemplateManager}}
+                <div id="manage-templates" class="card" onclick="manageTemplates(this)">
                     <i class="fas fa-file-alt action-icon"></i>
                     <p class="icon-text">Manage Templates</p>
                 </div>
-                \{{else}}
-                <div id="view-enquiries" onclick="viewEnquiries()">
-                    <i class="fas fa-question action-icon"></i>
-                    <p class="icon-text">View Enquiries</p>
-                </div>
                 \{{/if}}
-                \{{/if}}
-        </section>
-        \{{else}}
-        \{{> asidePartial}}
-        <section class="features-section section-one pad border">
-            <h1 class="fw-400">A habit for highly effective businesses</h1>
-        </section>
-        <section class="pad border">
-            <div class="cards">
-                <div class="office border pad card">
-                    <a href="/gazraj-security">
-                        <img src="img/gazraj-security.jpg" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Gazraj Security</span>
-                        <span class="office-description-short col-light-blue">Manned Security Services</span>
-                        <span class="office-description-long">Growthfile is used by their supervisor to monitor
-                            and
-                            quality check of their guards across their customer locations</span>
-                    </div>
-                </div>
-                <div class="office border pad card">
-                    <a href="/mind-edutainment">
-                        <img src="img/mind-edutainment-pvt-ltd.jpg" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Mind Edutainment Pvt. Ltd.</span>
-                        <span class="office-description-short col-light-blue">High Order Thinking School
-                            Curriculum</span>
-                        <span class="office-description-long">Mind Edutainment is using Growthfile to administer
-                            the
-                            location of their facilitators for monthly payroll computation
-                            across multiple schools in India</span>
-                    </div>
-                </div>
-                <div class="office border pad card">
-                    <a href="/system3net">
-                        <img src="img/system3-net.jpg" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">System3.net</span>
-                        <span class="office-description-short col-light-blue">IT Service Provider</span>
-                        <span class="office-description-long">System3 is using Growthfile to manage field
-                            employees for
-                            customer visits and customer location duties</span>
-                    </div>
-                </div>
-                <div class="office border pad card">
-                    <a href="/weddingzin">
-                        <img src="img/video-coming-soon.gif" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Weddingz.in</span>
-                        <span class="office-description-short col-light-blue">One stop weddings marketplace</span>
-                    </div>
-                </div>
-
-                <div class="office border pad card">
-                    <a href="/mybox-technologies-pvt-ltd">
-                        <img src="img/video-coming-soon.gif" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Mybox Technologies Pvt.
-                            Ltd.</span>
-                        <span class="office-description-short col-light-blue">Digital Set-Top Box
-                            Manufacturer</span>
-                    </div>
-                </div>
-                <div class="office border pad card">
-                    <a href="/amptek-batteries">
-                        <img src="img/amptek-batteries.jpg" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Amptek Batteries</span>
-                        <span class="office-description-short col-light-blue"></span>
-                    </div>
-                </div>
-                <div class="office border pad card">
-                    <a href="/stellar-medical">
-                        <img src="img/video-coming-soon.gif" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Stellar Medical</span>
-                        <span class="office-description-short col-light-blue">Hi-Tech Medical Equipment
-                            Manufacturer</span>
-                    </div>
-                </div>
-                <div class="office border pad card">
-                    <a href="/mystique-audit-allied-services">
-                        <img src="img/video-coming-soon.gif" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Mystique Audit Allied
-                            Services</span>
-                        <span class="office-description-short col-light-blue">Warehousing, Audit, and Supply Chain
-                            Leaders</span>
-                    </div>
-                </div>
-                <div class="office border pad card">
-                    <a href="/realtime-taxsutra-services-pvt-ltd">
-                        <img src="img/video-coming-soon.gif" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Realtime Taxsutra Services Pvt
-                            Ltd</span>
-                        <span class="office-description-short col-light-blue">Warehousing, Audit, and Supply Chain
-                            Leaders</span>
-                    </div>
-                </div>
-                <div class="office border pad card">
-                    <a href="/realtime-taxsutra-services-pvt-ltd">
-                        <img src="img/video-coming-soon.gif" alt="">
-                    </a>
-                    <div class="office-text-container">
-                        <span class="office-name ttuc mb-8 mt-16 col-blue ft-size-20">Realtime Taxsutra Services Pvt
-                            Ltd</span>
-                        <span class="office-description-short col-light-blue">Warehousing, Audit, and Supply Chain
-                            Leaders</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-        <section class="flexed flexed-jc-center features-section blue-gradient pad border">
-            <div>
-                <div class="feature-header col-blue">
-                    <i class="fas fa-robot mb-16"></i>
-                    <h2 class="fw-400">Automation</h2>
-                </div>
-                <span>Increase your teams productivity by automating office activities</span>
-                <div class="features">
-                    <div class="border pad bg-white mb-8">
-                        <i class="fas fa-chart-pie ft-size-20"></i>
-                        <span>Payroll</span>
-                    </div>
-                    <div class="border pad bg-white mb-8">
-                        <i class="fas fa-hand-pointer ft-size-20"></i>
-                        <span>Sales</span>
-                    </div>
-                    <div class="border pad bg-white mb-8">
-                        <i class="fas fa-wallet ft-size-20"></i>
-                        <span>Expense Claim</span>
-                    </div>
-                    <div class="border pad bg-white mb-8">
-                        <i class="fas fa-crosshairs ft-size-20"></i>
-                        <span>Duty Assignment and more...</span>
-                    </div>
-                </div>
-                <span>Reliable and verified data</span>
-                <span>One app for all</span>
-                <span>No training. Go live in 30 minutes</span>
-            </div>
-        </section>
-        <section class="flexed flexed-jc-center features-section pad border">
-            <div>
-                <div class="feature-header col-blue mb-8">
-                    <i class="fas fa-plug mb-16"></i>
-                    <h2 class="fw-400">Plug & Play</h2>
-                </div>
-                <div class="features">
-                    <div class="border pad mb-8">
-                        <i class="fas fa-mobile ft-size-20"></i>
-                        <span>Use our mobile page builder tool</span>
-                    </div>
-                    <div class="border pad mb-8">
-                        <i class="far fa-lightbulb ft-size-20"></i>
-                        <span>Use our program's learning to keep the page always updated</span>
-                    </div>
-                    <div class="border pad mb-8">
-                        <i class="fas fa-share-alt ft-size-20"></i>
-                        <span>Plug and play across social media platforms</span>
-                    </div>
-                    <div class="border pad mb-8">
-                        <i class="fab fa-internet-explorer ft-size-20"></i>
-                        <span>Ensure consistent messaging of your company across the web</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-        <section class="flexed flexed-jc-center features-section blue-gradient pad border">
-            <div>
-                <div class="feature-header col-blue">
-                    <i class="fas fa-arrow-up mb-16"></i>
-                    <h2 class="fw-400">Unlimited Advantage</h2>
-                </div>
-                <div class="features">
-                    <div class="border pad bg-white mb-8">
-                        <i class="fas fa-rupee-sign ft-size-20"></i>
-                        <span>One time cost for a lifetime membership</span>
-                    </div>
-                    <div class="border pad bg-white mb-8">
-                        <i class="fas fa-user-friends ft-size-20"></i>
-                        <span>No per-office, per-employee costs</span>
-                    </div>
-                    <div class="border pad bg-white mb-8">
-                        <i class="fas fa-signal ft-size-20"></i>
-                        <span>Unlimited usage</span>
-                    </div>
-                </div>
             </div>
         </section>
         \{{/if}}
+
+        <section class="hidden pad border" id="manage-template-container">
+            <ul class="flexed-se mh-72 flexed-ai-center bg-magenta col-white ttuc raised">
+                <li>
+                    <a class="flexed-ai-center flexed-column" href="#">
+                        <i class="far fa-file-alt mb-8"></i>
+                        <span>Templates</span>
+                    </a>
+
+                </li>
+                <li>
+                    <a class="flexed-ai-center flexed-column" href="#">
+                        <i class="fas fa-plus mb-8"></i>
+                        <span>Create</span>
+                    </a>
+                </li>
+                <li>
+                    <a class="flexed-ai-center flexed-column" href="#">
+                        <i class="fas fa-pen mb-8"></i>
+                        <span>Update</span>
+                    </a>
+                </li>
+            </ul>
+            <div id="manage-templates-action" class="border template-action-result animated fadeIn">
+                {{!-- Stuff after selecting the template --}}
+            </div>
+        </section>
+
+        <section class="features-section section-one pad border">
+            <h1 class="fw-400">A habit for highly effective businesses</h1>
+        </section>
+
+        \{{> featuredPartial}}
+        \{{> appFeatures}}
+
+        <div id="modal-box"></div>
+        \{{> scriptsPartial}}
+        <script src="js/home.js"></script>
         \{{> footerPartial}}
     </div>
-    <div id="modal-box"></div>
-    \{{> scriptsPartial}}
-    <script src="js/home.js"></script>
-
 </body>
 
 </html>

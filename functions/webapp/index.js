@@ -32,6 +32,9 @@ const persistentBarPartial = require('./views/partials/persistent-bar.hbs')();
 const footerPartial = require('./views/partials/footer.hbs')();
 const scriptsPartial = require('./views/partials/scripts.hbs')();
 const asidePartial = require('./views/partials/aside.hbs')();
+const featuredPartial = require('./views/partials/featured.hbs')();
+const headerProfileIcon = require('./views/partials/header-profile-icon.hbs')();
+const appFeatures = require('./views/partials/app-features.hbs')();
 
 handlebars.registerPartial('scriptsPartial', scriptsPartial);
 handlebars.registerPartial('persistentBarPartial', persistentBarPartial);
@@ -39,6 +42,9 @@ handlebars.registerPartial('headPartial', headPartial);
 handlebars.registerPartial('headerPartial', headerPartial);
 handlebars.registerPartial('footerPartial', footerPartial);
 handlebars.registerPartial('asidePartial', asidePartial);
+handlebars.registerPartial('featuredPartial', featuredPartial);
+handlebars.registerPartial('headerProfileIcon', headerProfileIcon);
+handlebars.registerPartial('appFeatures', appFeatures);
 
 const getIdToken = (parsedCookies) => {
   if (!parsedCookies.__session) {
@@ -104,26 +110,30 @@ const getLoggedInStatus = (idToken) => {
       const customClaims = userRecord.customClaims || {};
 
       let adminOffices;
+
       const isAdmin = customClaims.admin
         && customClaims.admin.length > 0;
+
+      const isSupport = customClaims.support;
+      const isTemplateManager = customClaims.manageTemplates;
+
       if (isAdmin) {
         adminOffices = customClaims.admin;
       }
 
       return {
+        isAdmin,
+        isSupport,
         customClaims,
+        adminOffices,
+        isTemplateManager,
         uid: userRecord.uid,
-        isLoggedIn: true,
         email: userRecord.email,
         phoneNumber: userRecord.phoneNumber,
         photoURL: userRecord.photoURL,
         emailVerified: userRecord.emailVerified,
         displayName: userRecord.displayName,
         disabled: userRecord.disabled,
-        isSupport: customClaims.support,
-        isAdmin: isAdmin,
-        adminOffices: adminOffices,
-        isTemplateManager: customClaims.manageTemplates,
       };
     })
     .catch((error) => {
@@ -146,16 +156,6 @@ const getLoggedInStatus = (idToken) => {
       const result = {
         clearCookie,
         uid: null,
-        isLoggedIn: false,
-        phoneNumber: '',
-        photoURL: '',
-        emailVerified: false,
-        displayName: '',
-        email: '',
-        disabled: '',
-        isSupport: false,
-        isAdmin: false,
-        isTemplateManager: false,
       };
 
       return result;
@@ -232,6 +232,7 @@ const handleOfficePage = (locals, requester) => {
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
+    showActions: requester.isAdmin || requester.isSupport,
   });
 
   return Promise.resolve(html);
@@ -456,9 +457,10 @@ const handleJoinPage = (locals, requester) => {
 };
 
 const handleHomePage = (locals, requester) => {
-  console.log("request", requester);
   const source = require('./views/index.hbs')();
   const template = handlebars.compile(source, { strict: true });
+
+  console.log('requester:', locals.requester);
 
   const html = template({
     pageTitle: 'Growthfile Home',
@@ -618,15 +620,54 @@ const createJsonRecord = (doc) => {
   };
 };
 
+function getTemplatesListJSON(name) {
+  let baseQuery = rootCollections
+    .activityTemplates;
+
+  const query = (() => {
+    if (name) {
+      baseQuery = baseQuery
+        .where('name', '==', name)
+        .limit(1);
+    }
+
+    return baseQuery;
+  })();
+
+  return query
+    .get()
+    .then((docs) => {
+      const json = {};
+
+      docs.forEach((doc) => {
+        const data = doc.data();
+        delete data.timestamp;
+
+        json[doc.id] = data;
+      });
+
+      return json;
+    });
+}
+
 const handleJsonGetRequest = (conn, requester) => {
   const json = {};
   const allowedTemplates = new Set(['enquiry']);
+
+  if (!requester.uid) {
+    return Promise.resolve({});
+  }
+
+  if (conn.req.query.action === 'view-templates'
+    && requester.isTemplateManager) {
+    return getTemplatesListJSON(conn.req.query.name);
+  }
 
   if (conn.req.query.template
     && !conn.req.query.office
     && !conn.req.query.query) {
     if (!allowedTemplates.has(conn.req.query.template)) {
-      return Promise.resolve({});
+      return Promise.resolve(json);
     }
 
     return rootCollections
@@ -650,13 +691,13 @@ const handleJsonGetRequest = (conn, requester) => {
   }
 
   if (!isNonEmptyString(conn.req.query.office)) {
-    return Promise.resolve({});
+    return Promise.resolve(json);
   }
 
   /** Not allowed to read stuff unless the user is admin or support */
   if (!hasAdminClaims(requester.customClaims)
     && !hasSupportClaims(requester.customClaims)) {
-    return Promise.resolve({});
+    return Promise.resolve(json);
   }
 
   /**
@@ -666,7 +707,7 @@ const handleJsonGetRequest = (conn, requester) => {
   if (hasAdminClaims(requester.customClaims)
     && !requester.customClaims.admin.includes(conn.req.query.office)) {
 
-    return Promise.resolve({});
+    return Promise.resolve(json);
   }
 
   return rootCollections
@@ -688,8 +729,6 @@ const handleJsonGetRequest = (conn, requester) => {
         baseQuery = baseQuery
           .where('searchables', 'array-contains', conn.req.query.query);
       }
-
-      console.log('QUERY:', conn.req.query);
 
       return baseQuery
         .get();
@@ -713,21 +752,34 @@ const handleOfficeJoinRequest = () => {
   return Promise.resolve({});
 };
 
-const handleJsonPostRequest = (conn) => {
+const handleJsonPostRequest = (conn, requester) => {
   const json = {};
+
+  console.log('in json post');
 
   if (!conn.req.query.action) {
     return Promise.resolve({});
   }
 
-  if (conn.req.query.action === 'parse-mail') {
+  if (conn.req.query.action === 'update-template' && requester.isTemplateManager) {
     conn.requester = {
-      phoneNumber: '',
-      uid: '',
-      customClaims: '',
-      email: '',
-      displayName: '',
-      photoURL: '',
+      phoneNumber: requester.phoneNumber,
+      uid: requester.uid,
+      customClaims: requester.customClaims,
+    };
+
+    return require('../firestore/activity-templates/on-update')(conn);
+  }
+
+  if (conn.req.query.action === 'parse-mail'
+    && conn.req.query.token === env.sgMailParseToken) {
+    conn.requester = {
+      phoneNumber: requester.phoneNumber,
+      uid: requester.uid,
+      customClaims: requester.customClaims,
+      email: requester.email,
+      displayName: requester.displayName,
+      photoURL: requester.photoURL,
       isSupportRequest: conn.req.query.isSupport === 'true',
     };
 
@@ -735,21 +787,17 @@ const handleJsonPostRequest = (conn) => {
   }
 
   if (conn.req.query.action === 'track-mail') {
-    return require('../firestore/mail-tracker')(conn);
+    return require('../firestore/track-mail')(conn);
   }
 
   if (conn.req.query.action === 'create-office') {
     return handleOfficeJoinRequest(conn);
   }
 
-  return json;
+  return Promise.resolve(json);
 };
 
 const jsonApi = (conn, requester) => {
-  if (!requester.uid) {
-    return Promise.resolve({});
-  }
-
   if (conn.req.method === 'GET') {
     return handleJsonGetRequest(conn, requester);
   }
@@ -764,7 +812,10 @@ const jsonApi = (conn, requester) => {
 
 const handleEmailVerificationFlow = (conn) => {
   if (!isNonEmptyString(conn.req.query.uid)) {
-    return conn.res.status(code.temporaryRedirect).redirect('/');
+    return conn
+      .res
+      .status(code.temporaryRedirect)
+      .redirect('/');
   }
 
   return rootCollections
@@ -886,7 +937,6 @@ module.exports = (req, res) => {
         photoURL,
         disabled,
         isSupport,
-        isLoggedIn,
         phoneNumber,
         displayName,
         customClaims,
@@ -896,7 +946,7 @@ module.exports = (req, res) => {
 
       locals.isLoggedIn = uid !== null;
 
-      if (isLoggedIn) {
+      if (locals.isLoggedIn) {
         requester = {
           uid,
           email,

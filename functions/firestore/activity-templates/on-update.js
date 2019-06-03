@@ -32,8 +32,6 @@ const {
 } = require('../../admin/admin');
 const { code } = require('../../admin/responses');
 const {
-  handleError,
-  sendResponse,
   isNonEmptyString,
 } = require('../../admin/utils');
 const {
@@ -191,6 +189,7 @@ const updateTemplateDoc = (conn, templateDoc) => {
   const batch = db.batch();
   const subject = `Template Updated in the Growthfile DB`;
   const templateObject = templateDoc.data();
+
   templateObject.timestamp = Date.now();
 
   /**
@@ -202,8 +201,6 @@ const updateTemplateDoc = (conn, templateDoc) => {
   Object
     .keys(conn.req.body)
     .forEach((key) => templateObject[key] = conn.req.body[key]);
-
-  console.log('templateObject:', templateObject);
 
   const messageBody = `
   <p>
@@ -249,53 +246,70 @@ const updateTemplateDoc = (conn, templateDoc) => {
       },
     });
 
-  batch
+  return batch
     .commit()
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
+    .then(() => {
+      return {
+        success: true,
+        code: code.ok,
+        message: 'Template Updated successfully',
+      };
+    })
+    .catch((error) => {
+      console.error(error);
+
+      return {
+        code: code.internalServerError,
+        message: 'Something went wrong',
+        success: false,
+      };
+    });
 };
 
 
 module.exports = (conn) => {
   if (!conn.req.body.hasOwnProperty('name')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The field 'name' is missing from the request body.`
-    );
-
-    return;
+    return {
+      success: false,
+      message: `The field 'name' is missing from the request body.`,
+      code: code.badRequest,
+    };
   }
 
   const result = checkBody(conn.req.body);
 
   if (!result.isValid) {
-    sendResponse(conn, code.badRequest, result.message);
-
-    return;
+    return {
+      success: false,
+      code: code.badRequest,
+      message: result.message,
+    };
   }
 
-  rootCollections
+  return rootCollections
     .activityTemplates
     .where('name', '==', conn.req.body.name)
     .limit(1)
     .get()
     .then((docs) => {
       if (docs.empty) {
-        sendResponse(
-          conn,
-          code.conflict,
-          `No template found with the name: '${conn.req.body.name}'.`
-        );
-
-        return;
+        return {
+          code: code.conflict,
+          message: `No template found with the name: '${conn.req.body.name}'.`,
+        };
       }
 
       const templateDoc = docs.docs[0];
 
-      updateTemplateDoc(conn, templateDoc);
-
-      return;
+      return updateTemplateDoc(conn, templateDoc);
     })
-    .catch((error) => handleError(conn, error));
+    .catch((error) => {
+      console.error(error);
+
+      return {
+        code: code.internalServerError,
+        message: 'Something went wrong',
+        success: false,
+      };
+    });
 };

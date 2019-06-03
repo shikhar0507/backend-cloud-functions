@@ -141,15 +141,11 @@ module.exports = (conn) => {
 
   let sendEmail = false;
   const authRecord = {};
-  // const templateId = 'd-7645b372912a490eb2062cf5cc076041';
 
   return getUserFromAuth(conn.req.body.phoneNumber)
     .then((authFetchResult) => {
-      console.log('authFetchResult', authFetchResult);
-
       // User not found
       if (!authFetchResult.uid) {
-
         if (authFetchResult.errorCode === 'auth/user-not-found') {
           sendEmail = true;
           console.log('Creating user:', conn.req.body);

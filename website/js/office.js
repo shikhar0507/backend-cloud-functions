@@ -1,3 +1,5 @@
+'use strict';
+
 // needs to be global for gMaps to work. // See docs.
 let map;
 let player;
@@ -77,173 +79,9 @@ function updateMapPointer(event) {
   initMap({
     latitude: Number(event.target.dataset.latitude),
     longitude: Number(event.target.dataset.longitude)
-  })
+  });
 }
 
-function validateEnquiryForm() {
-  const enquiryText = document.getElementsByName('enquiry-text');
-  const productSelect = document.getElementsByName('product-select')[0];
-
-  let valid = true;
-
-  if (!isNonEmptyString(enquiryText[0].value)) {
-    valid = false;
-    const node = getWarningNode('The Enquiry Text is required');
-
-    insertAfterNode(enquiryText[0], node);
-  }
-
-  return {
-    valid,
-    values: {
-      enquiryText: enquiryText[0].value,
-      productName: productSelect ? productSelect.value : '',
-    },
-  }
-}
-
-function startEnquiryCreationFlow() {
-  const oldWarningLabels = document.querySelectorAll('p .warning-label');
-  Array
-    .from(oldWarningLabels)
-    .forEach(function (element) {
-      element.parentNode.removeChild(element);
-    });
-
-  const result = validateEnquiryForm();
-
-  if (!result.valid) return;
-
-  if (!firebase.auth().currentUser) {
-    const enquiryText = result.values.enquiryText;
-    const productName = result.values.productName;
-
-    console.log('form stored to localstorage');
-
-    if (enquiryText) {
-      localStorage.setItem('enquiryText', enquiryText);
-    }
-
-    if (productName) {
-      localStorage.setItem('productName', productName);
-    }
-
-    window.location.href = `/auth?redirect_to=${window.location.href}`;
-
-    return;
-  }
-
-  const spinner = getSpinnerElement('enquiry-fetch-spinner').default();
-  document.forms[0].innerText = '';
-  document.forms[0].style.display = 'flex';
-  document.forms[0].style.justifyContent = 'center';
-  document.forms[0].appendChild(spinner);
-
-  getLocation()
-    .then(function (location) {
-      const requestBody = {
-        office: document.body.dataset.slug,
-        timestamp: Date.now(),
-        template: 'enquiry',
-        geopoint: {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-          provider: 'HTML5',
-        },
-        share: [],
-        schedule: [],
-        venue: [],
-        attachment: {
-          'Company Name': {
-            type: 'string',
-            value: document.body.dataset.slug,
-          },
-          Product: {
-            value: result.values.productName,
-            type: 'product',
-          },
-          'Enquiry': {
-            value: result.values.enquiryText,
-            type: 'string',
-          }
-        }
-      }
-
-      sendApiRequest(
-        `${apiBaseUrl}/activities/create`,
-        requestBody,
-        'POST'
-      )
-        .then(function (result) {
-          return result.json();
-        })
-        .then(function (response) {
-          console.log('Response', response);
-
-          if (localStorage.getItem('enquiryText')) {
-            localStorage.removeItem('enquiryText');
-          }
-
-          if (localStorage.getItem('productName')) {
-            localStorage.removeItem('productName');
-          }
-
-          document
-            .getElementById('enquiry-fetch-spinner')
-            .style.display = 'none';
-
-          const span = document.createElement('span');
-          let spanText = 'Enquiry sent successfully';
-
-          if (!response.success) {
-            spanText = response.message;
-            span.classList.add('warning-label');
-          } else {
-            span.classList.add('success-label');
-          }
-
-          span.innerHTML = spanText;
-          document.forms[0].appendChild(span);
-
-          return;
-        });
-    })
-    .catch(function (error) {
-      if (error === 'Please Enable Location') {
-        const spinner = document.getElementById('enquiry-fetch-spinner');
-        spinner.classList.add('hidden');
-
-        const form = document.forms[0];
-        const warningP = document.createElement('p');
-        warningP.classList.add('warning-label');
-        warningP.innerText = 'Location access is required';
-        form.appendChild(warningP);
-
-        return;
-      }
-
-      console.error(error);
-    })
-};
-
-window.onload = function () {
-  if (localStorage.getItem('enquiryText')) {
-    console.log('setting enquiryText from localstorage');
-
-    document
-      .getElementById('enquiry-text')
-      .value = localStorage.getItem('enquiryText');
-  }
-
-  if (localStorage.getItem('productName')) {
-    console.log('setting productName from localstorage');
-
-    document
-      .getElementById('product-select')
-      .value = localStorage.getItem('productName');
-  }
-}
 
 function isElementVisible(el) {
   var rect = el.getBoundingClientRect(),
@@ -266,14 +104,13 @@ function isElementVisible(el) {
 }
 
 
-const branchSecton = document.querySelector('.branch-section');
+const initMapTrigger = document.querySelector('#init-map-trigger');
 
 function startMapsFlow() {
-
   /** Not all offices have branches */
-  if (!branchSecton
+  if (!initMapTrigger
     /** Only when branch section is in the viewport */
-    || !isElementVisible(branchSecton)
+    || !isElementVisible(initMapTrigger)
     /** No not bug the user for permission repetedly. */
     || window.askedForLocationAlready) {
     return;
@@ -295,7 +132,6 @@ function startMapsFlow() {
       return initMap(result, true);
     })
     .catch(function (error) {
-      // window.askedForLocationAlready = false;
       const placeholderDiv = document.getElementById('load-map-button');
       placeholderDiv.classList.remove('hidden');
       document.querySelector('#load-map-button').classList.remove('hidden');
@@ -357,7 +193,6 @@ function stopVideo() {
   player.stopVideo();
 }
 
-
 function onYouTubeIframeAPIReady() {
   console.log('onYouTubeIframeAPIReady');
 
@@ -368,4 +203,187 @@ function onYouTubeIframeAPIReady() {
       'onStateChange': onPlayerStateChange
     }
   });
+}
+
+function createEnquiryActivity() {
+  // enquiry textarea should be non-empty string
+  // product value can be empty
+  const getProductName = function () {
+    const productSelect = document.querySelector('#product-select');
+
+    if (productSelect) return productSelect.value;
+
+    return '';
+  }
+
+  const enquiryTextarea = document.querySelector('#enquiry-text');
+
+  if (!isNonEmptyString(enquiryTextarea.value)) {
+    const node = document.createElement('p');
+    node.innerText = 'Enquiry text cannot be empty';
+    node.classList.add('warning-label');
+
+    insertAfterNode(enquiryTextarea, node);
+
+    return;
+  }
+
+  const form = document.forms[0];
+  const spinnerId = 'form-spinner';
+  const spinner = getSpinnerElement(spinnerId).default();
+  const fieldsets = document.querySelectorAll('form > fieldset');
+
+  fieldsets
+    .forEach(function (item) {
+      item.classList.add('hidden');
+    });
+
+  form.classList.add('flexed', 'flexed-jc-center');
+  form.style.flexDirection = 'column';
+  form.style.alignItems = 'center';
+  const buttonContainer = document.createElement('p');
+  const viewEnquiriesButton = document.createElement('a');
+  viewEnquiriesButton.classList.add('button', 'tac');
+  viewEnquiriesButton.innerText = 'View Enquiries';
+  viewEnquiriesButton.setAttribute('href', '/#action=view-enquiries');
+
+  buttonContainer.appendChild(viewEnquiriesButton);
+
+  form.appendChild(spinner);
+  const responseParagraph = document.createElement('p');
+
+  return getLocation()
+    .then(function (location) {
+      const requestBody = {
+        timestamp: Date.now(),
+        template: 'enquiry',
+        geopoint: {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+          provider: 'HTML5',
+        },
+        office: document.body.dataset.slug,
+        share: [],
+        schedule: [],
+        venue: [],
+        attachment: {
+          'Company Name': {
+            type: 'string',
+            value: document.body.dataset.slug,
+          },
+          Product: {
+            value: getProductName(),
+            type: 'product',
+          },
+          'Enquiry': {
+            value: document.querySelector('#enquiry-text').value,
+            type: 'string',
+          }
+        }
+      }
+
+      console.log('Request Body:', requestBody);
+
+      console.log('API request sent.');
+      return sendApiRequest(`${apiBaseUrl}/activities/create`, requestBody, 'POST');
+    })
+    .then(function (response) {
+      console.log('Response received:', response);
+      if (response.ok) {
+        responseParagraph.classList.add('success-label');
+      }
+
+      return response.json();
+    })
+    .then(function (json) {
+      console.log('Response json:', json);
+
+      responseParagraph.innerText = json.message;
+
+      spinner.classList.add('hidden');
+
+      if (json.success) {
+        responseParagraph.innerText = `Enquiry created successfully`;
+
+        localStorage.removeItem('enquiryText');
+        localStorage.removeItem('productName');
+      }
+
+      form.appendChild(responseParagraph);
+      form.appendChild(buttonContainer);
+    })
+    .catch(function (error) {
+      spinner.classList.add('hidden');
+
+      if (error === 'Please Enable Location') {
+        responseParagraph.classList.add('warning-label');
+
+        responseParagraph.innerText = 'Location access is required to send an enquiry';
+
+        form.appendChild(responseParagraph);
+      }
+
+      console.error('Api Error', error);
+    });
+}
+
+// Actual stuff...
+
+function sendOtp() {
+  return firebase
+    .auth()
+    .signInWithPhoneNumber(phoneNumber, window.recaptchaVerifier)
+    .then(function (confirmationResult) {
+
+      window.confirmationResult = confirmationResult;
+
+      return confirmationResult;
+    })
+    .catch(function (error) {
+      return reject(error)
+    });
+}
+
+function newEnquiryFlow(event) {
+  event.preventDefault();
+  console.log('button clicked');
+
+  const oldWarningLabels = document.querySelectorAll('p .warning-label');
+
+  oldWarningLabels
+    .forEach(function (element) {
+      element.parentNode.removeChild(element);
+    });
+
+  if (!firebase.auth().currentUser) {
+    window.location.href = `/auth?redirect_to=${window.location.href}`;
+
+    return;
+  }
+
+  return createEnquiryActivity();
+}
+
+window.onload = function () {
+  if (localStorage.getItem('enquiryText')) {
+    document
+      .getElementById('enquiry-text')
+      .value = localStorage.getItem('enquiryText');
+  }
+
+  if (localStorage.getItem('productName')) {
+    console.log('setting productName from localstorage');
+
+    document
+      .getElementById('product-select')
+      .value = localStorage.getItem('productName');
+  }
+
+}
+
+const enquirySubmitButton = document.getElementById('enquiry-submit-button');
+
+if (enquirySubmitButton) {
+  enquirySubmitButton.onclick = newEnquiryFlow;
 }

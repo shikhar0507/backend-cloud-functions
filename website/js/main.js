@@ -1,8 +1,13 @@
 'use strict';
 
-function handleRecaptcha() {
+function handleRecaptcha(callbackFunction) {
   return new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-    'size': 'normal'
+    'size': 'normal',
+    callback: function (response) {
+      if (typeof callbackFunction === 'function') {
+        callbackFunction(response);
+      }
+    },
   });
 }
 
@@ -205,13 +210,14 @@ function getLocation() {
 }
 
 
-function sendApiRequest(apiUrl, requestBody, method) {
+function sendApiRequest(apiUrl, requestBody = null, method = 'GET') {
   const init = {
     method,
     mode: 'cors',
     cache: 'no-cache',
     headers: {
       'Content-Type': 'application/json',
+      // 'X-Temp-Uid': localStorage.getItem('__tempUid'),
     },
   };
 
@@ -228,9 +234,7 @@ function sendApiRequest(apiUrl, requestBody, method) {
 
       return fetch(apiUrl, init);
     })
-    .then(function (result) {
-      return result;
-    })
+    .then(function (result) { return result })
     .catch(console.error);
 }
 
@@ -248,10 +252,6 @@ document.addEventListener('click', (event) => {
     })
   }
 
-  if (event.target === document.getElementById('enquiry-submit-button')) {
-    return void startEnquiryCreationFlow(event);
-  }
-
   // TODO: Refactor this name. Not very unique and might cause conflicts.
   if (Array.from(document.querySelectorAll('.list-item')).includes(event.target)) {
     return void updateMapPointer(event);
@@ -260,7 +260,6 @@ document.addEventListener('click', (event) => {
   if (event.target === document.querySelector('#header-hamburger-icon')) {
     document.querySelector('aside').classList.toggle('hidden');
   }
-
 
   if (event.target === document.getElementById('menu-logout-link')) {
     return void logoutUser(event);
@@ -273,6 +272,7 @@ firebase
     if (user) return;
 
     document.cookie = `__session=`;
+
     console.log('no session cookie');
   });
 
@@ -319,11 +319,36 @@ function getPhoneNumber(id) {
   return result;
 }
 
+function setLocalStorage() {
+  // uid already set
+  if (localStorage.getItem('__tempUid')) {
+    return;
+  }
+
+  // is loggedin, so no need of custom uid
+  if (firebase.auth().currentUser) {
+    return;
+  }
+
+  const uid = Math
+    .random()
+    .toString(36)
+    .substring(2, 15)
+    + Math
+      .random()
+      .toString(36)
+      .substring(2, 15);
+
+  localStorage.setItem('__tempUid', uid);
+  console.log('__tempUid Set', uid);
+}
+
 
 window
   .addEventListener('load', function () {
     setGlobals();
     // checkDnt();
+    setLocalStorage();
 
     firebase
       .auth()

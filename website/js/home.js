@@ -788,3 +788,226 @@ function updateAuth() {
   const modal = createModal(actionContent);
   document.getElementById('modal-box').appendChild(modal)
 }
+
+function isValidJSON(json) {
+  try {
+    JSON.parse(json);
+
+    return true;
+  } catch (error) {
+    console.log('error', error);
+    return false;
+  }
+}
+
+function updateTemplate(event) {
+  event.preventDefault();
+
+  document.querySelectorAll('p>.warning-label').forEach(function (item) {
+    item.parentElement.removeChild(item);
+  });
+
+  const jsonTextarea = document.querySelector('#template-json');
+  const templateJSON = document.querySelector('#template-json');
+
+  const value = templateJSON.value;
+
+  if (value.trim() === '') {
+    const node = getWarningNode('Template cannot be empty');
+
+    insertAfterNode(templateJSON, node);
+
+    return;
+  }
+
+  if (!isValidJSON(value)) {
+    const node = getWarningNode(`Doesn't look like valid json`);
+
+    insertAfterNode(templateJSON, node);
+
+    return;
+  }
+
+  const spinner = getSpinnerElement('template-update-spinner').default();
+  const form = document.querySelector('#update-template-form');
+  form.classList.add('wrap-content');
+
+  console.log('Sending api request');
+
+  return sendApiRequest('/json?action=update-template', JSON.parse(value), 'POST')
+    .then(function (response) {
+      console.log('response', response);
+
+      return response.json();
+    })
+    .then(function (result) {
+      console.log('result', result);
+
+      spinner.classList.add('hidden');
+
+      const node = getWarningNode(result.message);
+
+      // green
+      if (result.code < 299) {
+        node.classList.add('success-label');
+      }
+
+      insertAfterNode(jsonTextarea, node);
+    })
+    .catch(function (error) {
+      console.error(error);
+    });
+}
+
+function handleTemplateEditClick(event) {
+  event.preventDefault();
+  console.log(event.target.dataset);
+  const templatesJSON = JSON.parse(sessionStorage.getItem('templatesJson'));
+
+  console.log(templatesJSON[event.target.dataset.templateId]);
+  const manageTemplatesAction = document.querySelector('#manage-templates-action');
+
+  const form = document.createElement('form');
+  form.id = 'update-template-form';
+  form.autocomplete = 'off';
+  form.classList.add('flexed-column', 'flexed-ai-center', 'pad');
+  const textareaContainer = document.createElement('p');
+  textareaContainer.classList.add('w-100');
+  const submitContainer = document.createElement('p');
+
+  const textarea = document.createElement('textarea');
+  textarea.rows = 20;
+  textarea.classList.add('input-field', 'w-100');
+  textarea.placeholder = 'Enter template JSON here...';
+  textarea.id = 'template-json';
+
+  const submitButton = document.createElement('a');
+  submitButton.href = '#';
+  submitButton.classList.add('button');
+  submitButton.innerText = 'Update';
+
+  submitButton.onclick = updateTemplate;
+
+  textarea.value = JSON.stringify(templatesJSON[event.target.dataset.templateId], ' ', 4);
+
+  textareaContainer.appendChild(textarea);
+  submitContainer.appendChild(submitButton);
+
+  form.appendChild(textareaContainer);
+  form.appendChild(submitContainer);
+
+  // clear the old elements in the container;
+  while (manageTemplatesAction.firstChild) {
+    manageTemplatesAction.removeChild(manageTemplatesAction.firstChild);
+  }
+
+  manageTemplatesAction.appendChild(form);
+}
+
+function populateTemplateList() {
+  const manageTemplatesAction = document.querySelector('#manage-templates-action');
+  console.log('request sent');
+
+  function getListItem(templateObject, id) {
+    const name = templateObject.name;
+    const description = templateObject.comment;
+
+    const li = document.createElement('li');
+    // <i class="fas fa-pen"></i>
+    const editIcon = document.createElement('i');
+    editIcon.classList.add('fas', 'fa-pen', 'ml-8', 'cur-ptr');
+    editIcon.dataset.templateId = id;
+    const jsonContainer = document.createElement('pre');
+    const descriptionSpan = document.createElement('span');
+    const nameSpan = document.createElement('span');
+
+    nameSpan.classList.add('bold', 'ttuc');
+    descriptionSpan.classList.add('col-gray', 'mb-8');
+    li.classList.add('flexed-column', 'border', 'pad', 'cur-ptr', 'mb-8');
+
+    nameSpan.innerText = name;
+
+    editIcon.onclick = handleTemplateEditClick;
+
+    nameSpan.appendChild(editIcon);
+    descriptionSpan.innerText = description;
+
+    jsonContainer.innerText = JSON.stringify(templateObject, ' ', 4);
+    li.dataset.id = id;
+
+    jsonContainer.classList.add('animated', 'fadeIn', 'border', 'pad');
+    jsonContainer.style.overflowY = 'auto';
+
+    li.appendChild(nameSpan);
+    li.appendChild(descriptionSpan);
+    li.appendChild(jsonContainer);
+
+    return li;
+  }
+
+  const ul = document.createElement('ul');
+
+  if (sessionStorage.getItem('templatesJson')) {
+    document.querySelector('#spinner-container').classList.add('hidden');
+
+    console.log('Skipped fetch');
+    const json = JSON.parse(sessionStorage.getItem('templatesJson'));
+
+    const items = Object.keys(json);
+
+    items.forEach(function (id) {
+      // console.log(id, json[id]);
+      const li = getListItem(json[id], id);
+
+      ul.appendChild(li);
+    });
+
+    manageTemplatesAction.appendChild(ul);
+
+    document.querySelector('#manage-templates').onclick = function () { };
+
+    return;
+  }
+
+  return sendApiRequest(`/json?action=view-templates`)
+    .then(function (response) {
+
+      return response.json();
+    })
+    .then(function (json) {
+      console.log('json', json);
+
+      sessionStorage.setItem('templatesJson', JSON.stringify(json));
+
+      const items = Object.keys(json);
+
+      items.forEach(function (id) {
+        const li = getListItem(json[id]);
+
+        ul.appendChild(li);
+      });
+
+      document.querySelector('#spinner-container').classList.add('hidden');
+
+      manageTemplatesAction.appendChild(ul);
+
+      document.querySelector('#manage-templates').onclick = function () { };
+    })
+    .catch(console.error);
+}
+
+function manageTemplates() {
+  const actionContainer = document.querySelector('#manage-template-container');
+
+  actionContainer.classList.remove('hidden');
+  const spinnerContainer = document.createElement('div');
+  spinnerContainer.id = 'spinner-container';
+  spinnerContainer.classList.add('flexed-jc-center', 'flexed-ai-center', 'pad');
+  const spinner = getSpinnerElement('template-container-spinner').default();
+  spinnerContainer.appendChild(spinner);
+
+  actionContainer.appendChild(spinnerContainer);
+
+  // async function
+  populateTemplateList();
+}

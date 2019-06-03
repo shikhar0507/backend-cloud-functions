@@ -52,11 +52,11 @@ body {
 }
 
 h1 {
-    font-size: 24px;
+    font-size: 32px;
 }
 
 h2 {
-    font-size: 28px;
+    font-size: 26px;
 }
 
 h1,
@@ -224,6 +224,10 @@ section {
     pointer-events: none;
 }
 
+.rounded {
+    border-radius: 50%;
+}
+
 /** Helpers **/
 .mt-30 {
     margin-top: 30px;
@@ -265,29 +269,51 @@ section {
     display: flex;
 }
 
+.flexed-se {
+    display: flex;
+    justify-content: space-evenly;
+}
+
 .flexed-column {
+    display: flex;
     flex-direction: column;
 }
 
 .flexed-row {
+    display: flex;
     flex-direction: row;
 }
 
 .flexed-jc-center {
+    display: flex;
     justify-content: center;
 }
 
 /* TODO: Remove this */
 .flexed-js-ai-center {
+    display: flex;
     align-items: center;
 }
 
 .flexed-ai-center {
+    display: flex;
     align-items: center;
 }
 
 .mr-16 {
     margin-right: 16px;
+}
+
+.ml-16 {
+    margin-left: 16px;
+}
+
+.ml-8 {
+    margin-left: 8px;
+}
+
+.mh-72 {
+    min-height: 72px;
 }
 
 .pad-10 {
@@ -357,12 +383,49 @@ section {
     text-transform: uppercase;
 }
 
+/* Ripple effect */
+.ripple {
+    background-position: center;
+    transition: background 0.8s;
+}
+
+.ripple:hover {
+    background: #89273E radial-gradient(circle, transparent 1%, #89273E 1%) center/15000%;
+}
+
+.ripple:active {
+    background-color: #89273E;
+    background-size: 100%;
+    transition: background 0s;
+}
+
+.cur-ptr {
+    cursor: pointer;
+}
+
 .warning-label {
     color: red;
 }
 
 .success-label {
     color: green;
+}
+
+.wrap-content {
+    white-space: -moz-pre-wrap !important;
+    /* Mozilla, since 1999 */
+    white-space: -pre-wrap;
+    /* Opera 4-6 */
+    white-space: -o-pre-wrap;
+    /* Opera 7 */
+    white-space: pre-wrap;
+    /* css-3 */
+    word-wrap: break-word;
+    /* Internet Explorer 5.5+ */
+    white-space: -webkit-pre-wrap;
+    /* Newer versions of Chrome/Safari*/
+    word-break: break-all;
+    white-space: normal;
 }
 
 footer {
@@ -599,6 +662,25 @@ input:disabled {
     color: #000;
     text-decoration: none;
     cursor: pointer;
+}
+
+.smooth-expand {
+    -webkit-transition: height .25s ease;
+    -moz-transition: height .25s ease;
+    transition: height .25s ease;
+}
+
+.mw-100 {
+    min-width: 100%;
+}
+
+.w-100 {
+    width: 100%;
+    width: -moz-available;
+    /* WebKit-based browsers will ignore this. */
+    width: -webkit-fill-available;
+    /* Mozilla-based browsers will ignore this. */
+    width: fill-available;
 }
 
 @media (max-width: 400px) {
