@@ -850,6 +850,9 @@ function updateTemplate(event) {
       // green
       if (result.code < 299) {
         node.classList.add('success-label');
+
+        // Template updated. Remove cached stuff.
+        sessionStorage.removeItem('templatesJson');
       }
 
       insertAfterNode(jsonTextarea, node);
@@ -902,6 +905,17 @@ function handleTemplateEditClick(event) {
   }
 
   manageTemplatesAction.appendChild(form);
+
+  // Scroll the editor in to view.
+  document
+    .querySelector('#manage-template-container ul')
+    .scrollIntoView({
+      behavior: 'smooth',
+    });
+}
+
+function showTemplateJSON(event) {
+  console.log(event.target);
 }
 
 function populateTemplateList() {
@@ -925,6 +939,8 @@ function populateTemplateList() {
     descriptionSpan.classList.add('col-gray', 'mb-8');
     li.classList.add('flexed-column', 'border', 'pad', 'cur-ptr', 'mb-8');
 
+    li.onclick = showTemplateJSON;
+
     nameSpan.innerText = name;
 
     editIcon.onclick = handleTemplateEditClick;
@@ -935,7 +951,7 @@ function populateTemplateList() {
     jsonContainer.innerText = JSON.stringify(templateObject, ' ', 4);
     li.dataset.id = id;
 
-    jsonContainer.classList.add('animated', 'fadeIn', 'border', 'pad');
+    jsonContainer.classList.add('animated', 'fadeIn', 'border', 'pad', 'hidden');
     jsonContainer.style.overflowY = 'auto';
 
     li.appendChild(nameSpan);
@@ -990,6 +1006,8 @@ function populateTemplateList() {
       document.querySelector('#spinner-container').classList.add('hidden');
 
       manageTemplatesAction.appendChild(ul);
+
+      // clear storage to remove old data
 
       document.querySelector('#manage-templates').onclick = function () { };
     })

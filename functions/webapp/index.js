@@ -108,8 +108,9 @@ const getLoggedInStatus = (idToken) => {
     .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
     .then((userRecord) => {
       const customClaims = userRecord.customClaims || {};
-
       let adminOffices;
+
+      console.log('customClaims', customClaims);
 
       const isAdmin = customClaims.admin
         && customClaims.admin.length > 0;
@@ -459,8 +460,6 @@ const handleJoinPage = (locals, requester) => {
 const handleHomePage = (locals, requester) => {
   const source = require('./views/index.hbs')();
   const template = handlebars.compile(source, { strict: true });
-
-  console.log('requester:', locals.requester);
 
   const html = template({
     pageTitle: 'Growthfile Home',

@@ -4,6 +4,10 @@
 let map;
 let player;
 
+function getPhoneNumberValue() {
+  return `+${window.countryCode}${document.querySelector('#phone').value}`;
+}
+
 function initMap(location, populateWithMarkers) {
   const curr = {
     lat: location.latitude,
@@ -205,7 +209,7 @@ function onYouTubeIframeAPIReady() {
   });
 }
 
-function createEnquiryActivity() {
+function sendEnquiryCreationRequest() {
   // enquiry textarea should be non-empty string
   // product value can be empty
   const getProductName = function () {
@@ -216,17 +220,21 @@ function createEnquiryActivity() {
     return '';
   }
 
+  const messageNode = document.querySelector('#form-message');
   const enquiryTextarea = document.querySelector('#enquiry-text');
 
-  if (!isNonEmptyString(enquiryTextarea.value)) {
-    const node = document.createElement('p');
-    node.innerText = 'Enquiry text cannot be empty';
-    node.classList.add('warning-label');
+  // reset
+  messageNode.textContent = '';
+  messageNode.classList.remove('hidden');
+  messageNode.classList.add('warning-label');
 
-    insertAfterNode(enquiryTextarea, node);
+  if (!isNonEmptyString(enquiryTextarea.value)) {
+    messageNode.textContent = 'Enquiry text cannot be empty';
 
     return;
   }
+
+  messageNode.classList.add('hidden');
 
   const form = document.forms[0];
   const spinnerId = 'form-spinner';
@@ -328,22 +336,200 @@ function createEnquiryActivity() {
     });
 }
 
-// Actual stuff...
+function createEnquiryActivity() {
+  const messageNode = document.querySelector('#form-message');
+  const enquiryTextarea = document.querySelector('#enquiry-text');
 
-function sendOtp() {
-  return firebase
+  // reset
+  messageNode.textContent = '';
+  messageNode.classList.remove('hidden');
+  messageNode.classList.add('warning-label');
+
+  if (!isNonEmptyString(enquiryTextarea.value)) {
+    messageNode.textContent = 'Enquiry text cannot be empty';
+
+    return;
+  }
+
+  if (firebase.auth().currentUser) {
+    return sendEnquiryCreationRequest();
+  }
+
+  const displayName = document.querySelector('#display-name');
+  const email = document.querySelector('#email');
+
+  if (window.fullLoginShown) {
+    if (!isNonEmptyString(displayName.value)) {
+      messageNode.textContent = 'Name cannot be empty';
+
+      return;
+    }
+
+    if (!isValidEmail(email.value)) {
+      messageNode.textContent = 'Invalid/missing email';
+
+      return;
+    }
+  }
+
+  const otp = document.querySelector('#otp');
+
+  if (!isNonEmptyString(otp.value)) {
+    messageNode.textContent = 'OTP is required';
+
+    return;
+  }
+
+  // signinwith otp and then call
+  // sendEnquiryCreationRequest();
+
+  return confirmationResult
+    .confirm(otp.value)
+    .then(function (result) {
+      console.log('Signed in successfully.', result);
+
+      const updates = {};
+      const user = firebase
+        .auth()
+        .currentUser;
+
+      // .update({ displayName, email })
+      // .catch(console.error);
+      if (displayName !== user.displayName) {
+        updates.displayName = displayName;
+      }
+
+      if (email.value !== user.email) {
+        updates.email = email.value;
+      }
+
+      // async
+      console.log('Auth will be updated', updates);
+      user.updateProfile(updates);
+
+      if (!user.emailVerified) {
+        console.log('Email will be sent');
+        // email verification sent
+        // async
+        user.sendEmailVerification();
+      }
+
+      return sendEnquiryCreationRequest();
+    })
+    .catch(console.error);
+}
+
+
+function sendOtpToPhoneNumber() {
+  const phoneNumber = getPhoneNumberValue();
+  const appVerifier = window.recaptchaVerifier;
+
+  firebase
     .auth()
-    .signInWithPhoneNumber(phoneNumber, window.recaptchaVerifier)
+    .signInWithPhoneNumber(phoneNumber, appVerifier)
     .then(function (confirmationResult) {
+      document.querySelector('#otp')
+        .classList
+        .remove('hidden');
 
-      window.confirmationResult = confirmationResult;
+      window.confirmationResult = confirmationResult
 
-      return confirmationResult;
+      document.querySelector('#form-message')
+        .classList.remove('hidden');
+      document.querySelector('#form-message').textContent = `OTP sent to: ${phoneNumber}`;
+
+      enquirySubmitButton.onclick = newEnquiryFlow;
+    })
+    .catch(console.error);
+}
+
+function validatePhoneInput() {
+  const phoneInput = document.querySelector('#phone');
+  const phoneNumber = getPhoneNumberValue();
+
+  // nothing entered so not sending a request
+  if (!phoneInput.value) return;
+
+  if (document.querySelector('#result-container')) {
+    document
+      .querySelector('#result-container')
+      .parentElement
+      .removeChild(document.querySelector('#result-container'));
+  }
+
+  // p tag containing this element
+  const resultContainer = document.createElement('div');
+  resultContainer.id = 'result-container';
+  resultContainer
+    .classList
+    .add('flexed-ai-center', 'flexed-jc-center', 'pad', 'animated', 'fadeIn');
+
+  const spinner = getSpinnerElement('phone-validator-spinner').default();
+  resultContainer.appendChild(spinner);
+
+  // const phoneContainer = document.querySelector('#phone').parentElement;
+  const form = document.querySelector('.enquiry-section form');
+
+  insertAfterNode(form, resultContainer);
+
+  console.log('validating', phoneNumber);
+
+  return fetch(`${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`)
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (result) {
+      console.log(result);
+      resultContainer.removeChild(spinner);
+
+      if (result.message) {
+        resultContainer.appendChild(getWarningNode(result.message));
+
+        document.querySelector('#enquiry-submit-container')
+          .classList
+          .add('hidden');
+      } else {
+        resultContainer.parentElement.removeChild(resultContainer);
+      }
+
+      if (result.success) {
+        window.recaptchaVerifier = handleRecaptcha();
+        if (result.showFullLogin) {
+          document.querySelector('#email').classList.remove('hidden');
+          document.querySelector('#display-name').classList.remove('hidden');
+          window.fullLoginShown = true;
+        }
+
+        window
+          .recaptchaVerifier
+          .verify()
+          .then(function (widgetId) {
+            window.recaptchaWidgetId = widgetId;
+            resultContainer.remove();
+
+            document.querySelector('#enquiry-submit-container')
+              .classList
+              .remove('hidden');
+
+            document.getElementById('recaptcha-container').classList.add('hidden');
+
+            // const appVerifier = window.recaptchaVerifier;
+
+            // send otp
+            // make otp field visible
+            // sendto
+
+            sendOtpToPhoneNumber();
+
+            // enquirySubmitButton.onclick = newEnquiryFlow;
+          });
+      }
+
     })
     .catch(function (error) {
-      return reject(error)
+      console.error('AuthRejection', error);
     });
-}
+};
 
 function newEnquiryFlow(event) {
   event.preventDefault();
@@ -355,12 +541,6 @@ function newEnquiryFlow(event) {
     .forEach(function (element) {
       element.parentNode.removeChild(element);
     });
-
-  if (!firebase.auth().currentUser) {
-    window.location.href = `/auth?redirect_to=${window.location.href}`;
-
-    return;
-  }
 
   return createEnquiryActivity();
 }
@@ -380,6 +560,32 @@ window.onload = function () {
       .value = localStorage.getItem('productName');
   }
 
+  const phoneInput = document.querySelector('#phone');
+
+  if (phoneInput) {
+    const intlTelInputOptions = {
+      preferredCountries: ['IN', 'NP'],
+      initialCountry: 'IN',
+      // nationalMode: false,
+      separateDialCode: true,
+      // formatOnDisplay: true,
+      autoHideDialCode: true,
+      customContainer: 'mw-100',
+      customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
+        window.countryCode = selectedCountryData.dialCode;
+        console.log({ selectedCountryPlaceholder, selectedCountryData });
+        return "e.g. " + selectedCountryPlaceholder;
+      }
+    };
+
+    window.intlTelInput(phoneInput, intlTelInputOptions);
+
+    phoneInput.onblur = function () {
+      // const phoneNumberValue = getPhoneNumberValue();
+
+      validatePhoneInput();
+    }
+  }
 }
 
 const enquirySubmitButton = document.getElementById('enquiry-submit-button');

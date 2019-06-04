@@ -24,7 +24,8 @@ module.exports = (conn) => {
   conn.req.body.forEach(eventContext => {
     count++;
 
-    const ref = rootCollections.emailEvents.doc();
+    const ref = rootCollections.mailEvents.doc();
+
     batch.set(ref, eventContext);
   });
 

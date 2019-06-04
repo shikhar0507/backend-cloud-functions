@@ -48,13 +48,13 @@ module.exports = (req, res) => {
   console.log('origin:', req.get('origin'));
 
   /** No OTP in non-production environment */
-  if (!env.isProduction) {
-    return sendJSON(res, code.ok, {
-      showFullLogin: false,
-      success: true,
-      message: ``,
-    });
-  }
+  // if (!env.isProduction) {
+  // return sendJSON(res, code.ok, {
+  //   showFullLogin: false,
+  //   success: true,
+  //   message: ``,
+  // });
+  // }
 
   return auth
     .getUserByPhoneNumber(req.query.phoneNumber)
