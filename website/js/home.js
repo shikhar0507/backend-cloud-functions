@@ -4,12 +4,12 @@ const section = document.getElementById('action-section');
 
 function searchOffice() {
   document.getElementById('continue').classList.add('invisible');
-  document.getElementById('create-office').classList.add('invisible')
-  const url = `${apiBaseUrl}/admin/search?support=true`
-  const input = document.getElementById('office-search-field')
-  const ul = document.querySelector('#office-search-form ul')
-  ul.innerHTML = ''
-  ul.appendChild(getSpinnerElement().center())
+  document.getElementById('create-office').classList.add('invisible');
+  const url = `${apiBaseUrl}/admin/search?support=true`;
+  const input = document.getElementById('office-search-field');
+  const ul = document.querySelector('#office-search-form ul');
+  ul.innerHTML = '';
+  ul.appendChild(getSpinnerElement().center());
 
   sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
     .then(function (response) {
@@ -558,7 +558,6 @@ function getPageHref() {
 }
 
 function viewEnquiries() {
-
   const table = document.createElement('table');
   table.id = 'enquiry-table'
   table.className = 'overflow-table'
@@ -573,20 +572,33 @@ function viewEnquiries() {
   head.appendChild(headTr);
   table.appendChild(head);
   const spinner = getSpinnerElement().center()
-  document.getElementById('modal-box').appendChild(createModal(spinner));
+  // document.getElementById('modal-box').appendChild(createModal(spinner));
   const label = new showLabel(document.getElementById('action-label'));
-  const templateName = 'enquiry'
+  const templateName = 'enquiry';
+
+  const enquiriesContainer = document.querySelector('#enquiries-container');
+  enquiriesContainer.scrollIntoView({
+    behavior: 'smooth',
+  });
+
+  const spinnerContainer = document.createElement('div');
+  spinnerContainer.appendChild(spinner);
+  spinnerContainer.classList.add('flexed-jc-center');
+
+  enquiriesContainer.appendChild(spinnerContainer);
+  enquiriesContainer.classList.remove('hidden');
+
   sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET')
     .then(function (response) {
       return response.json();
     })
     .then(function (response) {
-
       if (!Object.keys(response).length) {
         spinner.remove();
-        return label.warning('No enquiries found.');
 
+        return label.warning('No enquiries found.');
       }
+
       const body = document.createElement('tbody')
 
       response.enquiry.forEach(function (record, idx) {
@@ -600,12 +612,14 @@ function viewEnquiries() {
         const companyRow = document.createElement('td')
         companyRow.textContent = record.attachment['Company Name'].value || '-';
         const productRow = document.createElement('td');
+        productRow.textContent = '';
+
         if (record.attachment.Product) {
           productRow.textContent = record.attachment.Product.value || '-';
-        } else {
-          productRow.textContent = ''
         }
+
         const enquiryRow = document.createElement('td');
+
         enquiryRow.textContent = record.attachment.Enquiry.value || '-';
         tr.appendChild(indexCol);
         tr.appendChild(statusRow);
@@ -613,13 +627,13 @@ function viewEnquiries() {
         tr.appendChild(companyRow);
         tr.appendChild(productRow);
         tr.appendChild(enquiryRow);
+
         body.appendChild(tr)
       });
 
       table.appendChild(body);
-      spinner.remove();
-
-      createModal(table);
+      spinnerContainer.remove();
+      enquiriesContainer.appendChild(table);
     });
 }
 
@@ -982,6 +996,12 @@ function populateTemplateList() {
 
     document.querySelector('#manage-templates').onclick = function () { };
 
+    document
+      .querySelector('#manage-template-container ul')
+      .scrollIntoView({
+        behavior: 'smooth',
+      });
+
     return;
   }
 
@@ -1010,6 +1030,12 @@ function populateTemplateList() {
       // clear storage to remove old data
 
       document.querySelector('#manage-templates').onclick = function () { };
+
+      document
+        .querySelector('#manage-template-container ul')
+        .scrollIntoView({
+          behavior: 'smooth',
+        });
     })
     .catch(console.error);
 }

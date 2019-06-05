@@ -339,6 +339,7 @@ function sendEnquiryCreationRequest() {
 function createEnquiryActivity() {
   const messageNode = document.querySelector('#form-message');
   const enquiryTextarea = document.querySelector('#enquiry-text');
+  const tcCheckbox = document.querySelector('#tc-checkbox');
 
   // reset
   messageNode.textContent = '';
@@ -347,6 +348,12 @@ function createEnquiryActivity() {
 
   if (!isNonEmptyString(enquiryTextarea.value)) {
     messageNode.textContent = 'Enquiry text cannot be empty';
+
+    return;
+  }
+
+  if (!tcCheckbox.checked) {
+    messageNode.textContent = 'Please check the terms and services';
 
     return;
   }

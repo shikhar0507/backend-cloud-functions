@@ -13,7 +13,7 @@
         \{{#if isAdmin}}
         <form id='office-search-form' class="form-inline">
             <span class="select-dropdown">
-                <select id='office-selector'>
+                <select class="input-field" id='office-selector'>
                     \{{#each adminOffices}}
                     <option value="\{{this}}">\{{this}}</option>
                     \{{/each}}
@@ -42,65 +42,110 @@
         \{{/if}}
 
         \{{#if isLoggedIn}}
-        <section class="animated fadeIn action-icons-container pad border">
-            <div class="cards">
+        <section class="hidden animated fadeIn action-icons-container pad border">
+            {{!-- <div class="cards"> --}}
+            <h2 class="ttuc">Actions</h2>
+            <div class="grid-container-3">
                 <div id="view-enquiries" onclick="viewEnquiries()" class="card">
-                    <i class="fas fa-question action-icon"></i>
-                    <p class="icon-text">View Enquiries</p>
+                    <span class="flexed-jc-center mb-16">
+                        <i class="fas fa-question action-icon ft-size-20"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">View Enquiries</p>
+                    </span>
                 </div>
-
                 {{!-- actions are shown for admin or support --}}
                 \{{#if showActions}}
                 <div id="update-auth" onclick="updateAuth()" class="card">
-                    <i class="fas fa-user-edit action-icon"></i>
-                    <p class="icon-text">Update Auth</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="fas fa-user-edit action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Update Auth</p>
+                    </span>
                 </div>
 
                 <div id="add-employees" onclick="addNew(\{{isSupport}}, \{{isAdmin}})" class="card">
-                    <i class="fas fa-user-plus action-icon"></i>
-                    <p class="icon-text">Create New</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="fas fa-user-plus action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Create New</p>
+                    </span>
                 </div>
 
                 <div id="trigger-reports" onclick="triggerReports()" class="card">
-                    <i class="far fa-file-excel action-icon"></i>
-                    <p class="icon-text">Trigger Reports</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="far fa-file-excel action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Trigger Reports</p>
+                    </span>
                 </div>
 
                 <div id="employee-resign" onclick="employeeExit()" class="card">
-                    <i class="fas fa-user-minus action-icon"></i>
-                    <p class="icon-text">Employee Exit</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="fas fa-user-minus action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Employee Exit</p>
+                    </span>
                 </div>
 
                 <div id="change-phone-number" onclick="changePhoneNumber()" class="card">
-                    <i class="fas fa-phone-volume action-icon"></i>
-                    <p class="icon-text">Update Phone Number</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="fas fa-phone-volume action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Update Phone Number</p>
+                    </span>
                 </div>
 
                 <div id="update-recipient" onclick="updateEmailInReports()" class="card">
-                    <i class="fas fa-envelope-open-text action-icon"></i>
-                    <p class="icon-text">Update Report Mail Ids</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="fas fa-envelope-open-text action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Update Report Mail Ids</p>
+                    </span>
                 </div>
 
                 <div id="update-subscription" onclick="updateSubscription()" class="card">
-                    <i class="far fa-file-archive action-icon"></i>
-                    <p class="icon-text">Update Subscriptions</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="far fa-file-archive action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Update Subscriptions</p>
+                    </span>
                 </div>
 
                 <div id="update-activity" onclick="searchAndUpdate()" class="card">
-                    <i class="fas fa-font action-icon"></i>
-                    <p class="icon-text">Search & Update</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="fas fa-font action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Search & Update</p>
+                    </span>
                 </div>
                 \{{/if}}
 
                 \{{#if isTemplateManager}}
                 <div id="manage-templates" class="card" onclick="manageTemplates(this)">
-                    <i class="fas fa-file-alt action-icon"></i>
-                    <p class="icon-text">Manage Templates</p>
+                    <span class="flexed-jc-center mb-16 ft-size-20">
+                        <i class="fas fa-file-alt action-icon"></i>
+                    </span>
+                    <span class="tac ttuc">
+                        <p class="icon-text">Manage Templates</p>
+                    </span>
                 </div>
                 \{{/if}}
             </div>
         </section>
         \{{/if}}
+
+        <section class="pad border hidden animated fadeIn" id="enquiries-container">
+            <h2>Your Enquiries</h2>
+        </section>
 
         <section class="hidden pad border" id="manage-template-container">
             <ul class="flexed-se mh-72 flexed-ai-center bg-magenta col-white ttuc raised">
@@ -122,18 +167,20 @@
             </div>
         </section>
 
+        {{!-- hiding this stuff for support and template manager --}}
+        \{{#if showFeatured}}
         <section class="features-section section-one pad border">
             <h1 class="fw-400">A habit for highly effective businesses</h1>
         </section>
-
         \{{> featuredPartial}}
         \{{> appFeatures}}
+        \{{/if}}
 
         <div id="modal-box"></div>
-        \{{> scriptsPartial}}
-        <script src="js/home.js"></script>
-        \{{> footerPartial}}
     </div>
+    \{{> footerPartial}}
+    \{{> scriptsPartial}}
+    <script src="js/home.js"></script>
 </body>
 
 </html>

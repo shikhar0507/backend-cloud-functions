@@ -71,12 +71,7 @@ p {
 
 a {
     text-decoration: none;
-    /* color: #444; */
     color: inherit;
-}
-
-aside {
-    text-transform: uppercase;
 }
 
 .header {
@@ -255,6 +250,10 @@ section {
 
 .bold {
     font-weight: 600;
+}
+
+.italic {
+    font-style: italic;
 }
 
 .m0-auto {
@@ -446,6 +445,10 @@ footer {
 }
 
 .footer-links {
+    text-decoration: underline;
+}
+
+.underline {
     text-decoration: underline;
 }
 

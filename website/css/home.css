@@ -64,8 +64,12 @@ section h2 span {
 
 .icon-text {
     color: #949494;
-    margin-top: 10px;
-    margin-bottom: 0px
+    font-size: smaller;
+    white-space: no-wrap;
+    line-height: normal;
+    /* white-space: nowrap; */
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
 
 #action-section {
@@ -102,6 +106,13 @@ th {
 
 tr:nth-child(even) {
     background-color: #dddddd;
+}
+
+.grid-container-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    /* grid-template-rows: 1fr 1fr 1fr 1fr; */
+    /* grid-template-areas: ". . ."". . ."". . ."". . ."; */
 }
 
 @media only screen and (max-width: 800px) {
@@ -258,19 +269,23 @@ section h1 {
     flex-direction: column;
 }
 
-@media (max-width: 768px) {
-    .container {
-        /* color: green; */
+@media (min-width: 768px) {
+    .grid-container-3 {
+        grid-template-columns: 25% 25% 25% 25%;
     }
+}
+
+@media (min-width: 1024px) {
+    .grid-container-3 {
+        grid-template-columns: 20% 20% 20% 20% 20%;
+    }
+}
+
+@media (max-width: 768px) {
 
     .features-section>div {
         max-width: 70%;
         min-width: 70%;
-    }
-
-    .featured-offices {
-        /* display: flex; */
-        /* flex-direction: row; */
     }
 }
 
@@ -278,9 +293,5 @@ section h1 {
     .features-section>div {
         max-width: 90%;
         min-width: 90%;
-    }
-
-    .cards i {
-        /* display: none; */
     }
 }

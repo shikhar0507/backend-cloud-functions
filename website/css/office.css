@@ -152,13 +152,29 @@ form p select {
 
 .product-box {
     cursor: pointer;
-    /* box-shadow: 0 1px 4px rgba(0, 0, 0, .04); */
-    /* border: 1px solid rgba(0, 0, 0, .09); */
-    /* margin-bottom: 16px; */
-    /* display: flex; */
-    /* flex-direction: column; */
-    /* padding: 10px 20px; */
-    /* background: #f9f9fa; */
+}
+
+input[type="checkbox"] {
+    min-height: unset;
+}
+
+.avatar {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: #512DA8;
+    font-size: 35px;
+    color: #fff;
+    text-align: center;
+    line-height: 68px;
+    /* margin: 20px 0; */
+}
+
+.grid-33 {
+    display: grid;
+    grid-template-columns: 33% 33% 33%;
+    /* grid-template-rows: 1fr 1fr 1fr; */
+    /* grid-template-areas: ". . ."". . ."". . ."; */
 }
 
 product-box>* {
@@ -166,10 +182,12 @@ product-box>* {
 }
 
 .product-name-container {
-    display: flex;
-    align-items: center;
-    margin-left: 16px;
+    /* display: flex; */
+    /* align-items: center; */
+    /* margin-left: 16px; */
     /* color: white; */
+    font-size: small;
+    line-height: 13px;
 }
 
 .product-image-name-container {
@@ -180,22 +198,38 @@ product-box>* {
 }
 
 .product-image-name-container img {
-    /* max-width: 100%; */
     width: 80px;
     height: 80px;
-    border-radius: 50%;
 }
 
-.product-details-container {
-    /* border: 1px solid rgba(0, 0, 0, .09); */
-    /* display: block; */
-    /* Visibele after click */
-    /* display: none; */
-    /* margin-top: 16px; */
-    /* box-shadow: 0 1px 4px rgba(0, 0, 0, .04); */
-    /* padding: 10px 5px; */
-    /* color: #89273E; */
-    /* background: white; */
+.tooltip {
+    display: inline-block;
+    position: relative;
+    border-bottom: 1px dotted #666;
+    text-align: left;
+}
+
+.bottom {
+    min-width: 200px;
+    /*max-width:400px;*/
+    top: 40px;
+    left: 50%;
+    transform: translate(-50%, 0);
+    padding: 20px;
+    color: #666666;
+    background-color: #EEEEEE;
+    font-weight: normal;
+    font-size: 13px;
+    border-radius: 8px;
+    position: absolute;
+    z-index: 99999999;
+    box-sizing: border-box;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+    display: none;
+}
+
+.tooltip:hover .bottom {
+    display: block;
 }
 
 .floating-enquiry {

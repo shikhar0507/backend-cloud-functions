@@ -233,7 +233,7 @@ const handleOfficePage = (locals, requester) => {
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
-    showActions: requester.isAdmin || requester.isSupport,
+    officeFirstChar: locals.officeDoc.get('office').charAt(0),
   });
 
   return Promise.resolve(html);
@@ -417,6 +417,7 @@ const fetchOfficeData = (locals, requester) => {
           return {
             imageUrl,
             name,
+            nameFirstChar: name.charAt(0),
             productType: doc.get('attachment.Product Type.value'),
             brand: doc.get('attachment.Brand.value'),
             model: doc.get('attachment.Model.value'),
@@ -431,7 +432,6 @@ const fetchOfficeData = (locals, requester) => {
       return handleOfficePage(locals, requester);
     });
 };
-
 
 const handleJoinPage = (locals, requester) => {
   const source = require('./views/join.hbs')();
@@ -479,6 +479,8 @@ const handleHomePage = (locals, requester) => {
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
+    showFeatured: !requester.isSupport && !requester.isTemplateManager,
+    showActions: requester.isAdmin || requester.isSupport,
   });
 
   return html;

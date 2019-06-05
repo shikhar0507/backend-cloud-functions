@@ -21,20 +21,21 @@
             \{{/if}}
             <div class="border pad">
                 <div class="office-name-container">
+                    <div id="office-avatar" class="hidden avatar mr-16">\{{officeFirstChar}}</div>
                     <span>
                         <img height="68" width="68" src=\{{logoURL}} alt="company logo"
-                            onerror="this.onerror=null;this.src='img/office-placeholder.jpg'">
+                            onerror="this.onerror=null;this.classList.add('hidden'); document.querySelector('#office-avatar').classList.remove('hidden');">
                     </span>
                     <span class="flexed flexed-ai-center">
                         <h1>\{{officeName}}</h1>
                     </span>
                 </div>
-                <span class="flexed mb-16">
-                    <span>Company Size:</span>
-                    <span class="bold"> \{{officeEmployeeSize}}</span>
-                </span>
+                <p class="mt-16">
+                    <i class="fas fa-users"></i>
+                    \{{officeEmployeeSize}}
+                </p>
                 \{{#if shortDescription}}
-                <p class="short-description">\{{shortDescription}}</p>
+                <p class="short-description italic">\{{shortDescription}}</p>
                 \{{/if}}
                 \{{#if aboutOffice}}
                 <p class="">\{{aboutOffice}}</p>
@@ -44,17 +45,18 @@
         \{{#if displayProducts}}
         <section class="product-section pad">
             <h2>Our Products</h2>
-            <div class="products-container cards">
+            <div class="products-container grid-33">
                 \{{#each productObjectsArray}}
-                <div class="product-box card bg-gray" onclick="handleProductClick(this)">
+                <div class="product-box cur-ptr" onclick="handleProductClick(this)">
                     <div class="product-image-name-container">
-                        <img onerror="this.onerror=null;this.src='img/product-placeholder.jpg'" src=\{{this.imageUrl}}
-                            alt="product \{{this.name}}">
-                        <div class="flexed product-name-container bold">\{{this.name}}</div>
+                        <div data-\{{this.name}}="" class="hidden avatar">\{{this.nameFirstChar}}</div>
+                        <img class="rounded" onerror="this.onerror=null; this.src='img/office-placeholder.jpg'"
+                            src=\{{this.imageUrl}} alt="product \{{this.name}}">
+                        <div class="product-name-container">\{{this.name}}</div>
                     </div>
 
-                    <div class="product-details-container hidden animated fadeIn tal border">
-                        <ul>
+                    <div class="tooltip">
+                        <ul class="bottom">
                             \{{#if this.productType}}
                             <li>
                                 <span class="bold">TYPE:</span>
@@ -89,7 +91,7 @@
         <section class="enquiry-section pad">
             <h2>Send Us An Enquiry</h2>
             <form autocomplete="off" aria-autocomplete="none">
-                <div id="form-message" class="hidden flexed-jc-center flexed-ai-center"></div>
+                <div id="form-message" class="hidden flexed-jc-center flexed-ai-center animated"></div>
                 <fieldset id="form-1">
                     <p>
                         {{!-- enquiry text --}}
@@ -132,12 +134,16 @@
                         <input id="otp" placeholder="Enter OTP Here" type="text" class="input-field hidden">
                     </p>
                 </fieldset>
-                {{!--is logged in end --}}
+                {{!--is loggcoed in end --}}
                 \{{/if}}
 
                 <fieldset>
                     <div id="recaptcha-container" class="flexed-ai-center flexed-jc-center"></div>
-
+                    <p>
+                        <input id="tc-checkbox" type="checkbox">
+                        I accept the <a class="col-magenta underline" href="/terms-and-conditions">terms and
+                            services</a>
+                    </p>
                     \{{#if isLoggedIn}}
                     <p id="enquiry-submit-container" class="m0-auto fit-content">
                         <button type="submit" class="button flexed flexed-ai-center" id="enquiry-submit-button">
