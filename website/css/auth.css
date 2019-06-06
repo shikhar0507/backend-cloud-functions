@@ -56,6 +56,11 @@ footer {
     bottom: 0;
 }
 
+.height-fix-intl-phone {
+    height: 46px;
+    min-width: 100%;
+}
+
 @media(min-width: 768px) {
     section:first-child {
         min-height: 30vh;

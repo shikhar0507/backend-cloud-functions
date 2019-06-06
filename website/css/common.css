@@ -37,14 +37,13 @@
     border-radius: 6px;
 }
 
-html,
-body {
-    /* height: 100%; */
-    overflow-y: auto;
+html {
+    height: 100%;
 }
 
 body {
-    height: 100%;
+    overflow-y: auto;
+    min-height: 100%;
     font-family: Karla, 'Open Sans', sans-serif;
     color: #444;
     /* Golden Ratio */

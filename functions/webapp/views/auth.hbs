@@ -19,7 +19,8 @@
                     <p id="message" class="hidden animated fadeIn"></span>
                         <form autocomplete="off">
                             <fieldset id="phone-number-container" class="animated fadeIn mb-16">
-                                <input id="phone" type="tel" class="input-field" name="auth-phone-number">
+                                <input id="phone" type="tel" class="input-field height-fix-intl-phone"
+                                    name="auth-phone-number">
                             </fieldset>
 
                             <fieldset id="name-email-container" class="hidden animated fadeIn">
@@ -37,10 +38,10 @@
                 </div>
             </div>
         </section>
+        \{{> footerPartial}}
     </div>
     <div id='modal-box'></div>
 
-    \{{> footerPartial}}
     \{{> scriptsPartial}}
     <script src="js/auth.js"></script>
 </body>

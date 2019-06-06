@@ -248,6 +248,7 @@ window.intlTelInput(document.querySelector('#phone'), {
   separateDialCode: true,
   // formatOnDisplay: true,
   autoHideDialCode: true,
+  customContainer: 'height-fix-intl-phone',
   customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
     window.countryCode = selectedCountryData.dialCode;
     console.log({ selectedCountryPlaceholder, selectedCountryData });
