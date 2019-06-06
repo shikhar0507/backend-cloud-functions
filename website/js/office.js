@@ -56,11 +56,16 @@ function handleProductClick(elem) {
     .querySelector('.product-details-container');
 
   /** Only shows the details when some detail is present */
-  if (detailsContainer.querySelector('.product-details-container ul').childElementCount) {
-    detailsContainer
-      .classList
-      .toggle('hidden');
-  }
+  // if (detailsContainer.querySelector('.product-details-container ul').childElementCount) {
+  //   detailsContainer
+  //     .classList
+  //     .toggle('hidden');
+  // }
+
+  const actionContent = document.createElement('div');
+  actionContent.textContent = 'hello';
+
+  createModal(actionContent);
 };
 
 function handleBranchClick(latitude, longitude) {
@@ -88,6 +93,8 @@ function updateMapPointer(event) {
 
 
 function isElementVisible(el) {
+  if (!el) return false;
+
   var rect = el.getBoundingClientRect(),
     vWidth = window.innerWidth || doc.documentElement.clientWidth,
     vHeight = window.innerHeight || doc.documentElement.clientHeight,
@@ -107,10 +114,40 @@ function isElementVisible(el) {
   );
 }
 
+function initPhoneNumberLibrary() {
+  const phoneInput = document.querySelector('#phone');
+
+  if (phoneInput) {
+    const intlTelInputOptions = {
+      preferredCountries: ['IN', 'NP'],
+      initialCountry: 'IN',
+      // nationalMode: false,
+      separateDialCode: true,
+      // formatOnDisplay: true,
+      autoHideDialCode: true,
+      customContainer: 'height-fix-intl-phone',
+      customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
+        window.countryCode = selectedCountryData.dialCode;
+        console.log({ selectedCountryPlaceholder, selectedCountryData });
+        return "e.g. " + selectedCountryPlaceholder;
+      }
+    };
+
+    window.intlTelInput(phoneInput, intlTelInputOptions);
+
+    phoneInput.onblur = function () {
+      // const phoneNumberValue = getPhoneNumberValue();
+
+      validatePhoneInput();
+    }
+  }
+}
+
 
 const initMapTrigger = document.querySelector('#init-map-trigger');
+const enquirySection = document.querySelector('.enquiry-section');
 
-function startMapsFlow() {
+function handleScrollEvent() {
   /** Not all offices have branches */
   if (!initMapTrigger
     /** Only when branch section is in the viewport */
@@ -144,8 +181,6 @@ function startMapsFlow() {
     });
 }
 
-document.onscroll = startMapsFlow;
-
 const retryButton = document.getElementById('retry-location-button');
 
 if (retryButton) {
@@ -153,43 +188,48 @@ if (retryButton) {
     evt.preventDefault();
     console.log('Location Button clicked');
 
-    startMapsFlow();
+    handleScrollEvent();
   };
 }
 
 function onPlayerReady(event) {
   console.log('onPlayerReady', event);
+
+  // event.target.playVideo();
 }
 
 function onPlayerStateChange(event) {
-  const STATUS = event.data;
-  const ENDED = YT.PlayerState.ENDED;
-  const PAUSED = YT.PlayerState.PAUSED;
-  const PLAYING = YT.PlayerState.PLAYING;
-
-  console.log('onPlayerStateChange', STATUS);
-
   function handleVideoEnded() {
     document.querySelector('.enquiry-section').scrollIntoView({
       behavior: 'smooth',
     });
   }
 
-  function handleVideoPaused() { }
-  function handleVideoPlaying() { }
+  function handleVideoPaused() {
+    console.log('Video paused')
+  }
+  function handleVideoPlaying() {
+    console.log('Video started playing');
+  }
+  function handleVideoUnstarted() {
+    console.log('Video unstarted');
+  }
 
-  switch (STATUS) {
-    case ENDED:
+  switch (event.data) {
+    case YT.PlayerState.UNSTARTED:
+      handleVideoUnstarted();
+      break;
+    case YT.PlayerState.ENDED:
       handleVideoEnded();
       break;
-    case PAUSED:
+    case YT.PlayerState.PAUSED:
       handleVideoPaused();
       break;
-    case PLAYING:
+    case YT.PlayerState.PLAYING:
       handleVideoPlaying();
       break;
     default:
-      console.log('Whooooo');
+      console.log('Video ignoring:', event.data);
   };
 }
 
@@ -204,8 +244,8 @@ function onYouTubeIframeAPIReady() {
     videoId: document.body.dataset.videId,
     events: {
       'onReady': onPlayerReady,
-      'onStateChange': onPlayerStateChange
-    }
+      'onStateChange': onPlayerStateChange,
+    },
   });
 }
 
@@ -423,7 +463,15 @@ function createEnquiryActivity() {
 
       return sendEnquiryCreationRequest();
     })
-    .catch(console.error);
+    .catch(function (error) {
+      if (error.code === 'auth/invalid-verification-code') {
+        messageNode.textContent = 'Wrong code';
+
+        return;
+      }
+
+      console.error(error);
+    });
 }
 
 
@@ -567,32 +615,7 @@ window.onload = function () {
       .value = localStorage.getItem('productName');
   }
 
-  const phoneInput = document.querySelector('#phone');
-
-  if (phoneInput) {
-    const intlTelInputOptions = {
-      preferredCountries: ['IN', 'NP'],
-      initialCountry: 'IN',
-      // nationalMode: false,
-      separateDialCode: true,
-      // formatOnDisplay: true,
-      autoHideDialCode: true,
-      customContainer: 'mw-100',
-      customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
-        window.countryCode = selectedCountryData.dialCode;
-        console.log({ selectedCountryPlaceholder, selectedCountryData });
-        return "e.g. " + selectedCountryPlaceholder;
-      }
-    };
-
-    window.intlTelInput(phoneInput, intlTelInputOptions);
-
-    phoneInput.onblur = function () {
-      // const phoneNumberValue = getPhoneNumberValue();
-
-      validatePhoneInput();
-    }
-  }
+  initPhoneNumberLibrary();
 }
 
 const enquirySubmitButton = document.getElementById('enquiry-submit-button');
@@ -600,3 +623,5 @@ const enquirySubmitButton = document.getElementById('enquiry-submit-button');
 if (enquirySubmitButton) {
   enquirySubmitButton.onclick = newEnquiryFlow;
 }
+
+document.onscroll = handleScrollEvent;

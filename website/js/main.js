@@ -319,36 +319,19 @@ function getPhoneNumber(id) {
   return result;
 }
 
-function setLocalStorage() {
-  // uid already set
-  if (localStorage.getItem('__tempUid')) {
-    return;
-  }
-
-  // is loggedin, so no need of custom uid
-  if (firebase.auth().currentUser) {
-    return;
-  }
-
-  const uid = Math
-    .random()
-    .toString(36)
-    .substring(2, 15)
-    + Math
-      .random()
-      .toString(36)
-      .substring(2, 15);
-
-  localStorage.setItem('__tempUid', uid);
-  console.log('__tempUid Set', uid);
-}
-
 
 window
   .addEventListener('load', function () {
     setGlobals();
     // checkDnt();
-    setLocalStorage();
+
+    if (!firebase.auth().currentUser) {
+      // firebase
+      //   .auth()
+      //   .signInAnonymously()
+      //   .then(console.log)
+      //   .catch(console.error);
+    }
 
     firebase
       .auth()

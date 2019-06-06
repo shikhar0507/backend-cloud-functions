@@ -268,6 +268,11 @@ section {
     display: flex;
 }
 
+.flexed-sb {
+    display: flex;
+    justify-content: space-between;
+}
+
 .flexed-se {
     display: flex;
     justify-content: space-evenly;
@@ -299,6 +304,10 @@ section {
     align-items: center;
 }
 
+.mr-8 {
+    margin-right: 8px;
+}
+
 .mr-16 {
     margin-right: 16px;
 }
@@ -326,6 +335,11 @@ section {
 .ft-size-20 {
     font-size: 20px;
 }
+
+.ft-size-16 {
+    font-size: 16px;
+}
+
 
 .lh-20 {
     line-height: 20px;
@@ -382,21 +396,10 @@ section {
     text-transform: uppercase;
 }
 
-/* Ripple effect */
-.ripple {
-    background-position: center;
-    transition: background 0.8s;
+.button:hover {
+    transform: translateY(-1px);
 }
 
-.ripple:hover {
-    background: #89273E radial-gradient(circle, transparent 1%, #89273E 1%) center/15000%;
-}
-
-.ripple:active {
-    background-color: #89273E;
-    background-size: 100%;
-    transition: background 0s;
-}
 
 .cur-ptr {
     cursor: pointer;
@@ -553,26 +556,49 @@ input[readonly] {
     position: absolute;
     z-index: 1;
     background: white;
-    right: 0;
+    right: 16px;
     -webkit-box-shadow: 0 2px 10px rgba(0, 0, 0, .2);
     box-shadow: 0 2px 10px rgba(0, 0, 0, .2);
-    margin-right: 16px;
     border: 1px solid #ccc;
     border-color: rgba(0, 0, 0, .2);
     border-radius: 4px;
-    font-size: 13px;
-    /* color: #89273E; */
-    padding: 15px;
+    font-size: small;
+    width: 320px;
+    height: 170px;
 }
+
+.pad-0-20 {
+    padding: 0 20px;
+}
+
+.m-0-20 {
+    margin: 0 20px;
+}
+
+/* .header-button {
+    background: #f8f8f8;
+    border: 1px solid #c6c6c6;
+    padding: 0 12px;
+    outline: 0;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #666;
+    text-decoration: none;
+    background-color: white;
+} */
 
 .menu-user-details {
     display: flex;
-    min-width: 320px;
+    /* min-width: 320px; */
     line-height: normal;
+    margin: 10px;
+    border-bottom: 1px solid #949494;
+    padding-bottom: 4px;
 }
 
 .menu-details-item {
-    font-size: 18px;
+    /* 13px */
+    font-size: small;
 }
 
 .dropdown-content div img {

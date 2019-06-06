@@ -54,6 +54,20 @@ const getIdToken = (parsedCookies) => {
   return parsedCookies.__session;
 };
 
+const getStaticMapsUrl = (branchObjectsArray) => {
+  let url = `https://maps.googleapis.com/maps/api/staticmap?center=New+Delhi&zoom=13&maptype=roadmap`;
+
+  branchObjectsArray.forEach((branch) => {
+    const { gp } = branch;
+
+    if (!gp || !gp.latitude || !gp.longitude) return;
+
+    url += `&markers=color:blue%7C${gp.latitude},${gp.longitude}`;
+  });
+
+  return `${url}&size=854x480&key=${env.mapsApiKey}`;
+};
+
 /**
  * Creates a key-value pair using the cookie object
  * Not using Express, so have to resort to this trickery.
@@ -217,6 +231,7 @@ const handleOfficePage = (locals, requester) => {
     cannonicalUrl: `${env.mainDomain}/locals.slug`,
     mapsApiKey: env.mapsApiKey,
     branchObjectsArray: locals.branchObjectsArray,
+    staticMapsUrl: getStaticMapsUrl(locals.branchObjectsArray),
     productObjectsArray: locals.productObjectsArray,
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
@@ -400,6 +415,7 @@ const fetchOfficeData = (locals, requester) => {
             openingTime,
             closingTime,
             branchContact,
+            gp: { latitude, longitude },
             address: venue.address,
             name: doc.get('attachment.Name.value'),
             weeklyOff: doc.get('attachment.Weekly Off.value'),
@@ -479,7 +495,6 @@ const handleHomePage = (locals, requester) => {
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
-    showFeatured: !requester.isSupport && !requester.isTemplateManager,
     showActions: requester.isAdmin || requester.isSupport,
   });
 
@@ -762,11 +777,13 @@ const handleJsonPostRequest = (conn, requester) => {
     return Promise.resolve({});
   }
 
-  if (conn.req.query.action === 'update-template' && requester.isTemplateManager) {
+  if (conn.req.query.action === 'update-template'
+    && requester.isTemplateManager) {
     conn.requester = {
       phoneNumber: requester.phoneNumber,
       uid: requester.uid,
       customClaims: requester.customClaims,
+      displayName: requester.displayName,
     };
 
     return require('../firestore/activity-templates/on-update')(conn);

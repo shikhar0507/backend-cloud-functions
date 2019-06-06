@@ -15,7 +15,7 @@
             \{{#if videoId}}
             <div class="youtube">
                 <iframe fs="1" id="ytplayer" src="https://www.youtube.com/embed/\{{videoId}}?enablejsapi=1"
-                    allow="fullscreen" autoplay="1">
+                    allow="fullscreen">
                 </iframe>
             </div>
             \{{/if}}
@@ -30,7 +30,7 @@
                         <h1>\{{officeName}}</h1>
                     </span>
                 </div>
-                <p class="mt-16">
+                <p>
                     <i class="fas fa-users"></i>
                     \{{officeEmployeeSize}}
                 </p>
@@ -43,45 +43,43 @@
             </div>
         </section>
         \{{#if displayProducts}}
-        <section class="product-section pad">
-            <h2>Our Products</h2>
-            <div class="products-container grid-33">
+        <section class="product-section">
+            <h2 class="pad">Our Products</h2>
+            <div class="products-container grid-50">
                 \{{#each productObjectsArray}}
                 <div class="product-box cur-ptr" onclick="handleProductClick(this)">
                     <div class="product-image-name-container">
                         <div data-\{{this.name}}="" class="hidden avatar">\{{this.nameFirstChar}}</div>
-                        <img class="rounded" onerror="this.onerror=null; this.src='img/office-placeholder.jpg'"
+                        <img class="border" onerror="this.onerror=null; this.src='img/office-placeholder.jpg'"
                             src=\{{this.imageUrl}} alt="product \{{this.name}}">
                         <div class="product-name-container">\{{this.name}}</div>
                     </div>
 
-                    <div class="tooltip">
-                        <ul class="bottom">
-                            \{{#if this.productType}}
-                            <li>
-                                <span class="bold">TYPE:</span>
-                                \{{this.productType}}
-                            </li>
-                            \{{/if}}
-                            \{{#if this.brand}}
-                            <li>
-                                <span class="bold">BRAND:</span>
-                                \{{this.brand}}</li>
-                            \{{/if}}
-                            \{{#if this.model}}
-                            <li>
-                                <span class="bold">MODEL:</span>
-                                \{{this.model}}
-                            </li>
-                            \{{/if}}
-                            \{{#if this.size}}
-                            <li>
-                                <span class="bold">SIZE:</span>
-                                \{{this.size}}
-                            </li>
-                            \{{/if}}
-                        </ul>
-                    </div>
+                    <ul class="hidden">
+                        \{{#if this.productType}}
+                        <li>
+                            <span class="bold">TYPE:</span>
+                            \{{this.productType}}
+                        </li>
+                        \{{/if}}
+                        \{{#if this.brand}}
+                        <li>
+                            <span class="bold">BRAND:</span>
+                            \{{this.brand}}</li>
+                        \{{/if}}
+                        \{{#if this.model}}
+                        <li>
+                            <span class="bold">MODEL:</span>
+                            \{{this.model}}
+                        </li>
+                        \{{/if}}
+                        \{{#if this.size}}
+                        <li>
+                            <span class="bold">SIZE:</span>
+                            \{{this.size}}
+                        </li>
+                        \{{/if}}
+                    </ul>
                 </div>
                 \{{/each}}
             </div>
@@ -120,7 +118,7 @@
                 <fieldset>
                     <p>
                         {{!-- phoneNumber --}}
-                        <input id="phone" type="tel" class="input-field">
+                        <input id="phone" type="tel" class="input-field height-fix-intl-phone">
                     </p>
                     <p>
                         {{!-- displayName --}}
@@ -183,13 +181,13 @@
             <div class="branches-box" id="init-map-trigger">
                 <div class="tac">
                     <div id="load-map-button" href="#">
-                        <img id="maps-placeholder" src="img/static-map.png">
-                        <a id="retry-location-button" class="button" href="#">Allow Location Access</a>
+                        <img id="maps-placeholder" src="\{{staticMapsUrl}}">
+                        <a id="retry-location-button" class="button hidden" href="#">Allow Location Access</a>
                     </div>
                     <div id="map"></div>
                 </div>
 
-                <ul class="branch-list-container pad">
+                <ul class="branch-list-container pad border">
                     \{{#each branchObjectsArray}}
                     <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}
                         class="list-item flexed flexed-row">
@@ -222,11 +220,11 @@
             </div>
         </section>
         \{{/if}}
-        \{{> footerPartial}}
     </div>
     \{{> scriptsPartial}}
     <script defer src="https://maps.googleapis.com/maps/api/js?key=\{{mapsApiKey}}"></script>
     <script defer src="js/office.js"></script>
+    \{{> footerPartial}}
 </body>
 
 </html>

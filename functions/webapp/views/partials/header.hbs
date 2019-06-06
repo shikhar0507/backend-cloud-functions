@@ -10,14 +10,14 @@
                 \{{> headerProfileIcon}}
             </a>
             <div class="dropdown-content animated fadeIn">
-                <div class="menu-user-details">
+                <div class="menu-user-details mb-16">
                     \{{#if photoURL}}
                     <img width="96" height="96" src=\{{photoURL}} alt="header-profile-picture" alt="profile image">
                     \{{else}}
                     <img width="96" height="96" src="img/person.png" alt="image not available">
                     \{{/if}}
                     <ul>
-                        <li class="menu-details-item bold">
+                        <li class="ft-size-16 bold">
                             \{{#if displayName}}
                             \{{displayName}}
                             \{{/if}}
@@ -29,16 +29,21 @@
                             \{{#if email}}
                             \{{email}}
                             \{{/if}}
-                            \{{#if emaiVerified}}
-                            <i class="fas fa-check-circle col-green"></i>
-                            \{{else}}
-                            <i class="fas fa-times-circle col-red"></i>
-                            \{{/if}}
                         </li>
                     </ul>
                 </div>
-                <div class="text-align-right">
-                    <a class="button" href="#" id="menu-logout-link">Log Out</a>
+                <div class="flexed-sb m-0-20">
+                    <a href="#">
+                        \{{#if emaiVerified}}
+                        <i class="fas fa-check-circle col-green"></i>
+                        Verified
+                        \{{else}}
+                        <i class="fas fa-times-circle col-red"></i>
+                        Unverfied
+                        \{{/if}}
+                    </a>
+                    <a class="button pad-0-20" href="#" id="menu-logout-link">Log Out</a>
+
                 </div>
             </div>
             \{{else}}
