@@ -122,6 +122,7 @@ module.exports = (change) => {
     messageObject: {
       cc,
       to: [],
+      replyTo: env.mailReplyTo,
       attachments: [],
       templateId: getTemplateId(report),
       from: {
