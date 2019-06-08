@@ -1192,6 +1192,56 @@ const getSitemapXmlString = () => {
 };
 
 
+const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
+  const admin = require('firebase-admin');
+  const realtimeDb = admin.database();
+
+  return new Promise((resolve, reject) => {
+    const ref = realtimeDb
+      .ref(`${officeId}/employee/${phoneNumber}`)
+      .limitToFirst(1);
+
+    ref.on('value', (data) => resolve(data), (error) => reject(error));
+  });
+};
+
+const addEmployeeToRealtimeDb = (doc) => {
+  const admin = require('firebase-admin');
+  const realtimeDb = admin.database();
+
+  return new Promise((resolve, reject) => {
+    const phoneNumber = doc.get('attachment.Employee Contact.value');
+    const officeId = doc.get('officeId');
+
+    const getEmployeeDataObject = (activityObject) => {
+      const attachment = activityObject.attachment;
+      const result = {};
+
+      Object.keys(attachment)
+        .forEach((item) => {
+          const { value } = attachment[item];
+
+          result[item] = value;
+        });
+
+      return result;
+    };
+
+    const data = getEmployeeDataObject(doc.data());
+    const ref = realtimeDb
+      .ref(`${officeId}/employee/${phoneNumber}`);
+
+    ref.set(data, (error) => {
+      if (error) {
+        return reject(error);
+      }
+
+      return resolve();
+    });
+  });
+};
+
+
 module.exports = {
   slugify,
   sendSMS,
@@ -1231,5 +1281,7 @@ module.exports = {
   reportBackgroundError,
   handleDailyStatusReport,
   hasManageTemplateClaims,
+  addEmployeeToRealtimeDb,
+  getEmployeeFromRealtimeDb,
   getAdjustedGeopointsFromVenue,
 };

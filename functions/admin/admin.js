@@ -25,6 +25,7 @@
 'use strict';
 
 
+const env = require('./env');
 const admin = require('firebase-admin');
 const appInitOptions = (() => {
   const serviceAccountKeyPath = (() => {
@@ -49,7 +50,10 @@ const appInitOptions = (() => {
   const serviceAccountKey = require(serviceAccountKeyPath);
   const credential = admin.credential.cert(serviceAccountKey);
 
-  return { credential };
+  return {
+    credential,
+    databaseURL: env.databaseURL,
+  };
 })();
 
 admin.initializeApp(appInitOptions);
@@ -297,6 +301,7 @@ const rootCollections = {
   sitemaps: db.collection('Sitemaps'),
   pendingOffices: db.collection('Pending Offices'),
   mailEvents: db.collection('MailEvents'),
+  anonymous: db.collection('Anonymous'),
 };
 
 

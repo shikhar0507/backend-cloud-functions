@@ -319,27 +319,57 @@ function getPhoneNumber(id) {
   return result;
 }
 
-
 window
   .addEventListener('load', function () {
     setGlobals();
-    // checkDnt();
-
-    if (!firebase.auth().currentUser) {
-      // firebase
-      //   .auth()
-      //   .signInAnonymously()
-      //   .then(console.log)
-      //   .catch(console.error);
-    }
 
     firebase
       .auth()
       .addAuthTokenListener(function (idToken) {
-        if (!idToken) return;
+        if (!idToken) {
+
+          return;
+        }
 
         document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
 
         console.log('new cookie set', idToken);
       });
   });
+
+function storeEvent(event) {
+  // Data is not set
+  if (!window.__trackingData) {
+    throw new Error('__trackingData not set.');
+  }
+
+  return sendApiRequest('/json?action=track-view', requestBody, 'POST')
+    .then(function (result) { return result.json(); })
+    .then(function (result) {
+      console.log('track-view:', result);
+
+      // Delte this data
+      delete window.__trackingData;
+
+      return;
+    })
+    .catch(console.error);
+};
+
+function handleTrackView() {
+  if (!firebase.auth().currentUser) {
+    return firebase
+      .auth()
+      .signInAnonymously()
+      .then(function (user) {
+        console.log('Anonymous:', user);
+
+        return storeEvent(event);
+      })
+      .catch(console.error);
+  }
+
+  return storeEvent(event);
+};
+
+document.body.addEventListener('__trackView', handleTrackView);

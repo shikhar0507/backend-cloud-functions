@@ -228,6 +228,49 @@ const toMapsUrl = (geopoint) => {
   return `https://maps.google.com/?q=${latitude},${longitude}`;
 };
 
+const getEmployeeDetailsString = (employeesData, phoneNumber) => {
+  if (!employeesData[phoneNumber]) {
+    return `Not an active employee`;
+  }
+
+  const supervisorsString = (() => {
+    let result = [];
+    let firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
+    let secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
+
+    if (employeesData[firstSupervisor]) {
+      firstSupervisor = employeesData[firstSupervisor].Name;
+    }
+
+    if (employeesData[secondSupervisor]) {
+      secondSupervisor = employeesData[secondSupervisor].Name;
+    }
+
+    if (employeesData[firstSupervisor]) {
+      result.push(employeesData[firstSupervisor].Name);
+    } else {
+      result.push(firstSupervisor);
+    }
+
+    if (employeesData[secondSupervisor]) {
+      result.push(employeesData[secondSupervisor].Name);
+    } else {
+      result.push(secondSupervisor);
+    }
+
+    if (result.length === 0) {
+      return result;
+    }
+
+    return ` | Supervisors: ${result}`;
+  })();
+
+  return `Name: ${employeesData[phoneNumber].Name}`
+    + ` | Employee Code: ${employeesData[phoneNumber]['Employee Code']}`
+    + ` | Contact Number: ${employeesData[phoneNumber]['Employee Contact']}`
+    + `${supervisorsString}`;
+};
+
 
 module.exports = {
   toMapsUrl,
@@ -238,4 +281,5 @@ module.exports = {
   momentOffsetObject,
   dateStringWithOffset,
   timeStringWithOffset,
+  getEmployeeDetailsString,
 };

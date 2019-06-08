@@ -124,13 +124,8 @@ const getLoggedInStatus = (idToken) => {
       const customClaims = userRecord.customClaims || {};
       let adminOffices;
 
-      console.log('customClaims', customClaims);
-
       const isAdmin = customClaims.admin
         && customClaims.admin.length > 0;
-
-      const isSupport = customClaims.support;
-      const isTemplateManager = customClaims.manageTemplates;
 
       if (isAdmin) {
         adminOffices = customClaims.admin;
@@ -138,17 +133,18 @@ const getLoggedInStatus = (idToken) => {
 
       return {
         isAdmin,
-        isSupport,
         customClaims,
         adminOffices,
-        isTemplateManager,
         uid: userRecord.uid,
         email: userRecord.email,
-        phoneNumber: userRecord.phoneNumber,
         photoURL: userRecord.photoURL,
-        emailVerified: userRecord.emailVerified,
-        displayName: userRecord.displayName,
         disabled: userRecord.disabled,
+        isSupport: customClaims.support,
+        phoneNumber: userRecord.phoneNumber,
+        isAnonymous: userRecord.isAnonymous,
+        displayName: userRecord.displayName,
+        emailVerified: userRecord.emailVerified,
+        isTemplateManager: customClaims.manageTemplates,
       };
     })
     .catch((error) => {
@@ -764,8 +760,42 @@ const handleJsonGetRequest = (conn, requester) => {
     });
 };
 
-const handleOfficeJoinRequest = () => {
+const handleOfficeJoinRequest = (conn, requester) => {
+  conn.requester = {
+    uid: requester.uid,
+    phoneNumber: requester.phoneNumber,
+    displayName: conn.requester.displayName,
+    photoURL: conn.requester.photoURL,
+  };
+
   return Promise.resolve({});
+};
+
+const handleAnonymousView = (conn) => {
+  // put stuff in /Anonymous
+  // if pageview is for an office page --> create an addendum
+  return rootCollections
+    .anonymous
+    .doc()
+    .set({
+      uid: conn.requester.uid,
+      timestamp: Date.now(),
+    })
+    .then(() => ({ success: true, }));
+};
+
+const handleKnownUserView = () => {
+  // Put stuff in /Profiles/<phoneNumber>/Webapp/<autoid>
+  // if pageview is for an office page -> create an addendum
+  return { success: true };
+};
+
+const handleTrackViews = (conn) => {
+  if (conn.requester.isAnonymous) {
+    return handleAnonymousView();
+  }
+
+  return handleKnownUserView();
 };
 
 const handleJsonPostRequest = (conn, requester) => {
@@ -775,6 +805,10 @@ const handleJsonPostRequest = (conn, requester) => {
 
   if (!conn.req.query.action) {
     return Promise.resolve({});
+  }
+
+  if (conn.req.query.action === 'track-view') {
+    return handleTrackViews();
   }
 
   if (conn.req.query.action === 'update-template'

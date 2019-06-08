@@ -190,7 +190,6 @@ const getEmployeeDataObject = (activityObject, phoneNumber) => {
     'Third Supervisor': activityObject.attachment['Third Supervisor'].value,
     'Daily Start Time': activityObject.attachment['Daily Start Time'].value,
     'Daily End Time': activityObject.attachment['Daily End Time'].value,
-    'Weekly Off': activityObject.attachment['Weekly Off'].value,
   };
 };
 
@@ -1188,7 +1187,8 @@ const validateDataArray = (conn, locals) => {
           }
         }
 
-        if (type === 'number'
+        if (value
+          && type === 'number'
           && typeof value !== 'number') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;

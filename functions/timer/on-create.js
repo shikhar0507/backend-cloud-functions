@@ -74,11 +74,14 @@ const sendErrorReport = () => {
       }
 
       let messageBody = '';
+      let index = 0;
 
-      snapShot.docs.forEach((doc, index) => {
+      snapShot.docs.forEach((doc) => {
         if (doc.get('skipFromErrorReport')) return;
 
         messageBody += `${getHTMLString(doc, index)}\n\n`;
+
+        index++;
       });
 
       const subject = `${process.env.GCLOUD_PROJECT}`
@@ -88,12 +91,10 @@ const sendErrorReport = () => {
       const env = require('../admin/env');
       sgMail.setApiKey(env.sgMailApiKey);
 
-      console.log('sending mail');
-
       return sgMail.send({
         subject,
         to: env.instantEmailRecipientEmails,
-        from: { name: 'Growthile', email: 'gcloud@growthfile.com' },
+        from: { name: 'Growthile', email: env.systemEmail },
         html: messageBody,
       });
     })

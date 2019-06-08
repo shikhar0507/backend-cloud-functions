@@ -16,6 +16,7 @@ const {
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 
+
 const getDefaultStatusObject = () => {
   return {
     onLeave: false,
@@ -223,10 +224,6 @@ module.exports = (locals) => {
             .keys(statusObject)
             .forEach((date) => {
               const dateNumber = Number(date);
-              // `Note`: Return statement should be added after every `if` clause
-              // while adding something below every block.
-              // The arrangement is by order of priority
-
               /**
                * Not counting anything after the current date because
                * we are generating data only up to the date of yesterday.
@@ -242,6 +239,9 @@ module.exports = (locals) => {
                 statusObject[dateNumber] = {};
               }
 
+              // `Note`: Return statement should be added after every `if` clause
+              // while adding something below every block.
+              // The arrangement is by order of priority
               if (statusObject[dateNumber].onLeave) {
                 if (dateNumber === yesterdayDate) {
                   statusObject[yesterdayDate].blank = false;
