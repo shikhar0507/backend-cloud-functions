@@ -73,6 +73,19 @@ a {
     color: inherit;
 }
 
+header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 999;
+    right: 0;
+    background-color: white;
+}
+
+.pad-below-header {
+    height: 70px;
+}
+
 .header {
     display: -webkit-box;
     display: -moz-box;

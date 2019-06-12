@@ -28,7 +28,6 @@ const handlebars = require('handlebars');
 
 const headPartial = require('./views/partials/head.hbs')();
 const headerPartial = require('./views/partials/header.hbs')();
-const persistentBarPartial = require('./views/partials/persistent-bar.hbs')();
 const footerPartial = require('./views/partials/footer.hbs')();
 const scriptsPartial = require('./views/partials/scripts.hbs')();
 const asidePartial = require('./views/partials/aside.hbs')();
@@ -37,7 +36,6 @@ const headerProfileIcon = require('./views/partials/header-profile-icon.hbs')();
 const appFeatures = require('./views/partials/app-features.hbs')();
 
 handlebars.registerPartial('scriptsPartial', scriptsPartial);
-handlebars.registerPartial('persistentBarPartial', persistentBarPartial);
 handlebars.registerPartial('headPartial', headPartial);
 handlebars.registerPartial('headerPartial', headerPartial);
 handlebars.registerPartial('footerPartial', footerPartial);
