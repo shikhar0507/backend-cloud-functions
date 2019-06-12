@@ -1191,52 +1191,89 @@ const getSitemapXmlString = () => {
     .catch(console.error);
 };
 
-
 const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
   const admin = require('firebase-admin');
   const realtimeDb = admin.database();
 
-  return new Promise((resolve, reject) => {
-    const ref = realtimeDb
-      .ref(`${officeId}/employee/${phoneNumber}`)
-      .limitToFirst(1);
+  if (!isNonEmptyString(officeId)) {
+    throw new Error(`Invalid 'officeId'. Should be a non-emtpy string:`, officeId);
+  }
 
-    ref.on('value', (data) => resolve(data), (error) => reject(error));
+  return new Promise((resolve, reject) => {
+    const path = `${officeId}/employee/${phoneNumber}`;
+    const ref = realtimeDb
+      .ref(path);
+
+    ref.on('value', data => resolve(data), error => reject(error));
   });
 };
 
 const addEmployeeToRealtimeDb = (doc) => {
   const admin = require('firebase-admin');
   const realtimeDb = admin.database();
+  const phoneNumber = doc.get('attachment.Employee Contact.value');
+  const officeId = doc.get('officeId');
+  const ref = realtimeDb.ref(`${officeId}/employee/${phoneNumber}`);
+  const status = doc.get('status');
 
-  return new Promise((resolve, reject) => {
-    const phoneNumber = doc.get('attachment.Employee Contact.value');
-    const officeId = doc.get('officeId');
+  // Remove from the map
+  if (status === 'CANCELLED') {
+    return new Promise((resolve, reject) => {
+      ref.remove((error) => {
+        if (error) {
+          reject(error);
+        }
 
-    const getEmployeeDataObject = (activityObject) => {
-      const attachment = activityObject.attachment;
-      const result = {};
+        resolve();
+      });
+    });
+  }
 
-      Object.keys(attachment)
-        .forEach((item) => {
-          const { value } = attachment[item];
-
-          result[item] = value;
-        });
-
-      return result;
+  const getEmployeeDataObject = () => {
+    const attachment = doc.get('attachment');
+    const result = {
+      createTime: doc.createTime.toDate().getTime(),
+      updateTime: doc.updateTime.toDate().getTime(),
     };
 
-    const data = getEmployeeDataObject(doc.data());
-    const ref = realtimeDb
-      .ref(`${officeId}/employee/${phoneNumber}`);
+    Object
+      .keys(attachment)
+      .forEach(item => {
+        const { value } = attachment[item];
 
-    ref.set(data, (error) => {
+        result[item] = value;
+      });
+
+    return result;
+  };
+
+  return new Promise((resolve, reject) => {
+    ref.set(getEmployeeDataObject(), error => {
       if (error) {
         return reject(error);
       }
 
       return resolve();
+    });
+  });
+};
+
+const getEmployeesMapFromRealtimeDb = (officeId) => {
+  const admin = require('firebase-admin');
+  const realtimeDb = admin.database();
+
+  const path = `${officeId}/employee`;
+
+  const ref = realtimeDb.ref(path);
+  const employeesData = {};
+
+  return new Promise(resolve => {
+    ref.on('value', (snapShot) => {
+      snapShot.forEach((doc) => {
+        employeesData[doc.key] = doc.toJSON();
+      });
+
+      resolve(employeesData);
     });
   });
 };
@@ -1284,4 +1321,5 @@ module.exports = {
   addEmployeeToRealtimeDb,
   getEmployeeFromRealtimeDb,
   getAdjustedGeopointsFromVenue,
+  getEmployeesMapFromRealtimeDb,
 };

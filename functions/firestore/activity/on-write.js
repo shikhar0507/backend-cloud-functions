@@ -39,6 +39,7 @@ const {
 } = require('../../admin/constants');
 const {
   sendSMS,
+  addEmployeeToRealtimeDb,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
@@ -1114,6 +1115,7 @@ const handleEmployee = (locals) => {
 
   return batch
     .commit()
+    .then(() => addEmployeeToRealtimeDb(locals.change.after))
     .then(() => users.getUserByPhoneNumber(phoneNumber))
     .then((userRecords) => userRecords[phoneNumber])
     .then((userRecord) => {
