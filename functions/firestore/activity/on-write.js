@@ -1223,7 +1223,9 @@ const handleLocationsMap = (locals) => {
   const relevantTemplates = new Set(['branch', 'customer']);
 
   if (!relevantTemplates.has(template)
-    || venues.length === 0) {
+    || venues.length === 0
+    || (locals.addendumDoc
+      && locals.addendumDoc.get('action') === httpsActions.comment)) {
     return Promise.resolve();
   }
 
@@ -1567,7 +1569,7 @@ module.exports = (change, context) => {
     .then(() => handleEmployee(locals))
     .then(() => handleOffice(locals))
     .then(() => handleLocationsMap(locals))
-    .catch((error) => {
+    .catch(error => {
       console.error({
         error,
         context,
