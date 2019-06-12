@@ -1217,6 +1217,53 @@ const handleOffice = (locals) => {
     .then(() => createAdmin(locals, secondContact));
 };
 
+const handleLocationsMap = (locals) => {
+  const template = locals.change.after.get('template');
+  const venues = locals.change.after.get('venue');
+  const relevantTemplates = new Set(['branch', 'customer']);
+
+  if (!relevantTemplates.has(template)
+    || venues.length === 0) {
+    return Promise.resolve();
+  }
+
+  const result = [];
+  const batch = db.batch();
+
+  venues.forEach(venue => {
+    // Empty venue
+    if (!venue.address) return;
+
+    result.push({
+      template,
+      activityId: locals.change.after.id,
+      office: locals.change.after.get('office'),
+      officeId: locals.change.after.get('officeId'),
+      venueDescriptor: venue.venueDescriptor,
+      address: venue.address,
+      latitude: venue.geopoint._latitude,
+      longitude: venue.geopoint._longitude,
+    });
+  });
+
+  locals
+    .assigneesMap
+    .forEach(auth => {
+      const { uid } = auth;
+      console.log('Map set at', { uid });
+
+      batch.set(rootCollections.updates.doc(uid), {
+        venues: admin.firestore.FieldValue.arrayUnion(...result),
+      }, {
+          merge: true,
+        });
+    });
+
+  return batch
+    .commit()
+    .catch(console.error);
+};
+
 
 module.exports = (change, context) => {
   /** Activity was deleted. For debugging only. */
@@ -1519,6 +1566,7 @@ module.exports = (change, context) => {
     .then(() => handleAdmin(locals))
     .then(() => handleEmployee(locals))
     .then(() => handleOffice(locals))
+    .then(() => handleLocationsMap(locals))
     .catch((error) => {
       console.error({
         error,

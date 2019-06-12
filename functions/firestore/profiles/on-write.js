@@ -140,7 +140,7 @@ const handleSignUpAndInstall = (options) => {
 
   options
     .currentOfficesList
-    .forEach((office) => {
+    .forEach(office => {
       const promise = rootCollections
         .offices
         .where('office', '==', office)

@@ -41,7 +41,6 @@ const {
 
 const createDocs = (conn, activity) => {
   const batch = db.batch();
-
   const addendumDocRef = rootCollections
     .offices
     .doc(activity.get('officeId'))
@@ -86,29 +85,25 @@ const createDocs = (conn, activity) => {
 
 module.exports = (conn) => {
   if (conn.req.method !== 'POST') {
-    sendResponse(
+    return sendResponse(
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for '${conn.req.url}'`
       + ' endpoint. Use POST.'
     );
-
-    return;
   }
 
   const result = isValidRequestBody(conn.req.body, httpsActions.comment);
 
   if (!result.isValid) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.badRequest,
       result.message
     );
-
-    return;
   }
 
-  Promise
+  return Promise
     .all([
       rootCollections
         .activities
@@ -121,27 +116,26 @@ module.exports = (conn) => {
         .doc(conn.requester.phoneNumber)
         .get(),
     ])
-    .then((docs) => {
-      const [
-        activity,
-        assignee,
-      ] = docs;
+    .then(result => {
+      const [activity, assignee] = result;
 
       if (!activity.exists) {
-        sendResponse(conn, code.badRequest, `The activity does not exist`);
-
-        return;
+        return sendResponse(
+          conn,
+          code.badRequest,
+          `The activity does not exist`
+        );
       }
 
       if (!assignee.exists) {
-        sendResponse(conn, code.forbidden, `You cannot edit this activity.`);
-
-        return;
+        return sendResponse(
+          conn,
+          code.forbidden,
+          `You cannot edit this activity.`
+        );
       }
 
-      createDocs(conn, activity);
-
-      return;
+      return createDocs(conn, activity);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };

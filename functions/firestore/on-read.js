@@ -166,25 +166,24 @@ module.exports = (conn) => {
   const result = validateRequest(conn);
 
   if (!result.isValid) {
-    sendResponse(conn, code.badRequest, result.message);
-
-    return;
+    return sendResponse(conn, code.badRequest, result.message);
   }
 
   const from = parseInt(conn.req.query.from);
-
   const jsonObject = {
     from,
     upto: from,
     addendum: [],
     activities: [],
     templates: [],
+    locations: [],
   };
 
-  Promise
+  return Promise
     .all([
       rootCollections
-        .updates.doc(conn.requester.uid)
+        .updates
+        .doc(conn.requester.uid)
         .collection('Addendum')
         .where('timestamp', '>', from)
         .get(),
@@ -199,9 +198,13 @@ module.exports = (conn) => {
         .collection('Subscriptions')
         .where('timestamp', '>', from)
         .get(),
+      rootCollections
+        .updates
+        .doc(conn.requester.uid)
+        .get(),
     ])
-    .then((result) => {
-      const [addendum, activities, subscriptions] = result;
+    .then(result => {
+      const [addendum, activities, subscriptions, updatesDoc] = result;
 
       if (!addendum.empty) {
         jsonObject.upto = addendum
@@ -237,6 +240,10 @@ module.exports = (conn) => {
             .templates
             .push(getSubscriptionObject(doc));
         });
+
+      if (updatesDoc.get('venues')) {
+        jsonObject.venues = updatesDoc.get('venues');
+      }
 
       const batch = db.batch();
 

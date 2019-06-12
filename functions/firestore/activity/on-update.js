@@ -741,6 +741,6 @@ module.exports = (conn) => {
         .doc(conn.requester.phoneNumber)
         .get(),
     ])
-    .then((result) => handleResult(conn, result))
-    .catch((error) => handleError(conn, error));
+    .then(result => handleResult(conn, result))
+    .catch(error => handleError(conn, error));
 };

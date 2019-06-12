@@ -196,6 +196,14 @@ module.exports = (conn) => {
         updatesDocData.latestDeviceModel = conn.req.query.deviceModel;
       }
 
+      // Delete venues on acknowledgement
+      if (updatesDocData.venues
+        && conn.req.query.mapsSet === 'true') {
+        const admin = require('firebase-admin');
+
+        updatesDocData.venues = admin.firestore.FieldValue.delete();
+      }
+
       batch.set(updatesDoc.ref, updatesDocData, {
         merge: true,
       });
