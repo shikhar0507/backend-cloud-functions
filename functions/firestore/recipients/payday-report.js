@@ -11,13 +11,25 @@ const {
   weekdaysArray,
   alphabetsArray,
   dateStringWithOffset,
-  // getEmployeeDetailsString,
+  getEmployeeDetailsString,
 } = require('./report-utils');
 const {
   db,
 } = require('../../admin/admin');
 
+const msToTime = (duration) => {
+  if (!duration || isNaN(duration)) {
+    return `00:00`;
+  }
 
+  let minutes = Math.floor((duration / (1000 * 60)) % 60);
+  let hours = Math.floor((duration / (1000 * 60 * 60)) % 24);
+
+  hours = (hours < 10) ? '0' + hours : hours;
+  minutes = (minutes < 10) ? '0' + minutes : minutes;
+
+  return `${hours}:${minutes}`;
+};
 
 const getPayDaySheetTopRow = (momentYesterday) => {
   const topRowValues = [
@@ -33,7 +45,7 @@ const getPayDaySheetTopRow = (momentYesterday) => {
     topRowValues.push(`${monthName}-${dayNumber}`);
   }
 
-  topRowValues.push('Employee Details');
+  topRowValues.push('Total', 'Employee Details');
 
   return topRowValues;
 };
@@ -47,107 +59,84 @@ const getPayDayTimingsTopRow = (momentYesterday) => {
   }
 
   topRowValues.push(
-    'DAYS WITH DEDUCTIONS',
-    'TOTAL DEDUCTIONS'
+    'Days With Deductions',
+    'Total Deductions'
   );
 
   return topRowValues;
 };
 
-const getEmployeeData = (employeesData, phoneNumber) => {
-  if (!employeesData[phoneNumber]) return {};
-
-  return {
-    name: employeesData[phoneNumber].name,
-    employeeContact: phoneNumber,
-    employeeCode: employeesData[phoneNumber]['Employee Code'],
-    designation: employeesData[phoneNumber].Designation,
-    department: employeesData[phoneNumber].Department,
-    baseLocation: employeesData[phoneNumber]['Base Location'],
-    firstSupervisor: employeesData[phoneNumber]['First Supervisor'],
-    secondSupervisor: employeesData[phoneNumber]['Second Supervisor'],
-    thirdSupervisor: employeesData[phoneNumber]['Third Supervisor'],
-    dailyStartTime: employeesData[phoneNumber]['Daily Start Time'],
-    dailyEndTime: employeesData[phoneNumber]['Daily End Time'],
-    minimumWorkingHours: employeesData[phoneNumber]['Minimum Working Hours'],
-    minimumActivityCount: employeesData[phoneNumber]['Minimum Activity Count'],
-    monthlyOffDays: employeesData[phoneNumber]['Monthly Off Days'],
-    locationValidationCheck: employeesData[phoneNumber]['Location Validation Check'],
-  };
-};
 
 const getDefaultStatusObject = () => ({
   onLeave: false,
   onDuty: false,
   holiday: false,
   weeklyOff: false,
-  blank: true,
-  halfDay: false,
-  fullDay: false,
-  late: false,
   firstCheckIn: '',
   lastCheckIn: '',
   statusForDay: 0,
+  numberOfCheckIns: 0,
 });
 
-const executeSequentially = (batchFactories, firstBatch) => {
-  if (batchFactories.length === 0) {
-    return firstBatch.commit();
-  }
-
+const executeSequentially = (batchFactories) => {
   let result = Promise.resolve();
 
   batchFactories.forEach((factory, index) => {
     result = result
       .then(factory)
       .then(() => console.log('committed index', index))
-      .catch((error) => console.error('BatchError:', error));
+      .catch(error => console.error('BatchError:', error));
   });
 
   return result;
 };
 
-const getRef = (docRefsMap, phoneNumber) =>
-  docRefsMap.get(phoneNumber);
-
-
 const commitMultiBatch = (statusObjectsMap, docRefsMap, momentYesterday) => {
-  let batch = db.batch();
+  const batchesArray = [];
+  let batchDocsCount = 0;
+  let currentBatchIndex = 0;
   const batchFactories = [];
-  let currentDocsCount = 0;
+  const month = momentYesterday.month();
+  const year = momentYesterday.year();
 
   statusObjectsMap.forEach((statusObject, phoneNumber) => {
-    currentDocsCount++;
+    const ref = docRefsMap.get(phoneNumber);
+    const batch = (() => {
+      const batchPart = db.batch();
 
-    /** Max 500 docs allowed for a single batch */
-    if (currentDocsCount === 499) {
-      batchFactories.push(() => batch.commit());
+      if (batchesArray.length === 0) {
+        batchesArray.push(batchPart);
+      }
 
-      batch = db.batch();
-      /** Reset the counter for the next batch object */
-      currentDocsCount = 0;
-    }
+      if (batchDocsCount > 499) {
+        // reset count
+        batchDocsCount = 0;
+        batchesArray.push(batchPart);
 
-    const ref = getRef(docRefsMap, phoneNumber);
+        currentBatchIndex++;
+        batchFactories.push(() => batchPart.commit());
+      }
+
+      return batchesArray[currentBatchIndex];
+    })();
+
+    batchDocsCount++;
 
     batch.set(ref, {
       statusObject,
       phoneNumber,
-      month: momentYesterday.month(),
-      year: momentYesterday.year(),
+      month,
+      year,
     }, {
         merge: true,
       });
   });
 
-  return executeSequentially(batchFactories, batch);
-};
+  if (batchesArray.length === 1) {
+    return batchesArray[0].commit();
+  }
 
-// https://stackoverflow.com/questions/19700283/how-to-convert-time-milliseconds-to-hours-min-sec-format-in-javascript
-const msToTime = (duration) => {
-  const hours = Math.floor((duration / (1000 * 60 * 60)) % 24);
-
-  return (hours < 10) ? 0 + hours : hours;
+  return executeSequentially(batchFactories);
 };
 
 
@@ -157,12 +146,12 @@ module.exports = (locals) => {
   const timestampFromTimer = locals.change.after.get('timestamp');
   const momentToday = momentTz(timestampFromTimer).tz(timezone);
   // Don't modify the original momentToday object
-  const yesterday = momentToday.clone().subtract(1, 'day').startOf('day');
-  const employeesData = locals.officeDoc.get('employeesData');
+  const momentYesterday = momentToday.clone().subtract(1, 'day').startOf('day');
+  const employeesData = locals.employeesData;
   const employeePhoneNumbersList = Object.keys(employeesData);
-  const yesterdayDate = yesterday.date();
-  const yesterdayStartTimestamp = yesterday.startOf('day').valueOf();
-  const yesterdayEndTimestamp = yesterday.endOf('day').valueOf();
+  const yesterdayDate = momentYesterday.date();
+  const yesterdayStartTimestamp = momentYesterday.startOf('day').valueOf();
+  const yesterdayEndTimestamp = momentYesterday.endOf('day').valueOf();
   const docRefsMap = new Map();
   const checkinPromises = [];
   /** Stores the phone number at the index with checkIn query */
@@ -171,12 +160,17 @@ module.exports = (locals) => {
   const onDutySet = new Set();
   const branchesWithHoliday = new Set();
   const branchHolidaySet = new Set();
-  /** Docs which will be deleted */
-  locals.nonEmployeeMontlyDocsIdSet = new Set();
-  locals.branchesWithHoliday = new Set();
   const statusObjectsMap = new Map();
   const leavesSet = new Set();
   const weeklyOffSet = new Set();
+  const monthlyDocsToDelete = db.batch();
+
+  console.log({
+    momentToday: momentToday.format(dateFormats.DATE),
+    momentYesterday: momentYesterday.format(dateFormats.DATE),
+  });
+
+  const toDelete = [];
 
   let paydaySheet;
   let paydayTimingsSheet;
@@ -187,8 +181,8 @@ module.exports = (locals) => {
         .officeDoc
         .ref
         .collection('Monthly')
-        .where('month', '==', yesterday.month())
-        .where('year', '==', yesterday.year())
+        .where('month', '==', momentYesterday.month())
+        .where('year', '==', momentYesterday.year())
         .get(),
       locals
         .officeDoc
@@ -199,77 +193,41 @@ module.exports = (locals) => {
       xlsxPopulate
         .fromBlankAsync(),
     ])
-    .then((result) => {
+    .then(result => {
       const [
         monthlyDocsQuery,
         branchDocsQuery,
         worksheet,
       ] = result;
 
+      console.log('Docs read:', monthlyDocsQuery.size);
+
       monthlyDocsQuery.forEach(doc => {
         const { phoneNumber, statusObject } = doc.data();
 
         if (!employeesData[phoneNumber]) {
-          locals.nonEmployeeMontlyDocsIdSet.add(doc.id);
+          monthlyDocsToDelete.delete(doc.ref);
+          toDelete.push(phoneNumber);
 
           return;
         }
 
         docRefsMap.set(phoneNumber, doc.ref);
-
-        if (!statusObject[yesterdayDate]) {
-          statusObject[yesterdayDate] = getDefaultStatusObject();
-        }
-
-        Object.keys(statusObject).forEach((date) => {
-          const dateNumber = Number(date);
-
-          /** We are conserned only with the dates until yesterday of this month */
-          if (dateNumber > yesterdayDate) return;
-
-          if (!statusObject[dateNumber]) {
-            statusObject[dateNumber] = {};
-          }
-
-          /**
-           * `Note`: Return statement should be added after every `if` clause
-           * while adding something below every block.
-           * The arrangement is by order of priority.
-           */
-          if (statusObject[dateNumber].onLeave
-            && dateNumber === yesterdayDate) {
-            statusObject[yesterdayDate].blank = false;
-            leavesSet.add(phoneNumber);
-          }
-
-          if (statusObject[dateNumber].onDuty
-            && dateNumber === yesterdayDate) {
-            statusObject[yesterdayDate].blank = false;
-            onDutySet.add(phoneNumber);
-          }
-
-          if (dateNumber === yesterdayDate
-            && branchesWithHoliday.has(employeesData[phoneNumber]['Base Location'])) {
-            statusObject[yesterdayDate].holiday = true;
-            statusObject[yesterdayDate].blank = false;
-
-            branchHolidaySet.add(phoneNumber);
-          }
-        });
-
-        if (!statusObject[yesterdayDate]) {
-          statusObject[yesterdayDate] = getDefaultStatusObject();
-        }
-
+        statusObject[yesterdayDate] = statusObject[yesterdayDate] || getDefaultStatusObject();
         statusObjectsMap.set(phoneNumber, statusObject);
       });
 
+      console.log('toDelete', JSON.stringify(toDelete));
+
       branchDocsQuery.forEach(branchDoc => {
         branchDoc.get('schedule').forEach(schedule => {
-          if (schedule.startTime >= yesterdayStartTimestamp
-            && schedule.endTime < yesterdayEndTimestamp) {
-            locals.branchesWithHoliday.add(branchDoc.get('attachment.Name.value'));
+          // Yesterday's date doesn't belong to a branch holiday
+          if (schedule.startTime < yesterdayStartTimestamp
+            || schedule.endTime > yesterdayEndTimestamp) {
+            return;
           }
+
+          branchesWithHoliday.add(branchDoc.get('attachment.Name.value'));
         });
       });
 
@@ -277,20 +235,20 @@ module.exports = (locals) => {
         .worksheet = worksheet;
       paydaySheet = worksheet
         .addSheet(
-          `PayDay_${yesterday.format(dateFormats.MONTH_YEAR)}`
+          `PayDay_${momentYesterday.format(dateFormats.MONTH_YEAR)}`
         );
       paydayTimingsSheet = worksheet
         .addSheet(
-          `PayDay Timings_${yesterday.format(dateFormats.MONTH_YEAR)}`
+          `PayDay Timings_${momentYesterday.format(dateFormats.MONTH_YEAR)}`
         );
 
       paydaySheet.row(1).style('bold', true);
       paydayTimingsSheet.row(1).style('bold', true);
 
-      getPayDaySheetTopRow(yesterday).forEach((value, index) => {
+      getPayDaySheetTopRow(momentYesterday).forEach((value, index) => {
         paydaySheet.cell(`${alphabetsArray[index]}1`).value(value);
       });
-      getPayDayTimingsTopRow(yesterday).forEach((value, index) => {
+      getPayDayTimingsTopRow(momentYesterday).forEach((value, index) => {
         paydayTimingsSheet.cell(`${alphabetsArray[index]}1`).value(value);
       });
 
@@ -302,15 +260,21 @@ module.exports = (locals) => {
           docRefsMap.set(phoneNumber, locals.officeDoc.ref.collection('Monthly').doc());
         }
 
-        const statusObject = statusObjectsMap.get(phoneNumber) || getDefaultStatusObject();
-        const checkDistanceAccurate = employeesData[phoneNumber].locationValidationCheck;
+        const statusObject = statusObjectsMap.get(phoneNumber);
+        const checkDistanceAccurate = employeesData[phoneNumber]['Location Validation Check'];
 
         if (!statusObject[yesterdayDate]) {
           statusObject[yesterdayDate] = getDefaultStatusObject();
         }
 
+        /** Base Location is a branch */
+        if (branchesWithHoliday.has(employeesData[phoneNumber]['Base Location'])) {
+          statusObject[yesterdayDate].holiday = true;
+          branchHolidaySet.add(phoneNumber);
+        }
+
         const weeklyOffWeekdayName = employeesData[phoneNumber]['Weekly Off'];
-        const weekdayName = weekdaysArray[yesterday.day()];
+        const weekdayName = weekdaysArray[momentYesterday.day()];
 
         if (weeklyOffWeekdayName === weekdayName) {
           statusObject[yesterdayDate].weeklyOff = true;
@@ -343,8 +307,8 @@ module.exports = (locals) => {
           .collection('Addendum')
           .where('template', '==', 'check-in')
           .where('date', '==', yesterdayDate)
-          .where('month', '==', yesterday.month())
-          .where('year', '==', yesterday.year())
+          .where('month', '==', momentYesterday.month())
+          .where('year', '==', momentYesterday.year())
           .where('user', '==', phoneNumber);
 
         if (checkDistanceAccurate) {
@@ -354,29 +318,28 @@ module.exports = (locals) => {
 
         checkinPromises.push(
           baseQuery
-            .orderBy('timestamp')
+            // Ascending is required in order to get the first
+            // checkIn in the first position and the last checkIn
+            // in the last position of the query result.
+            .orderBy('timestamp', 'asc')
             .get()
         );
       });
 
       return Promise.all(checkinPromises);
     })
-    .then((snapShots) => {
+    .then(snapShots => {
       snapShots.forEach((snapShot, index) => {
         const phoneNumber = checkInQueryIndexex[index];
         const statusObject = statusObjectsMap.get(phoneNumber);
-
-        // reportValueYesterdayMap.set(phoneNumber, reportValue);
 
         statusObject[yesterdayDate].numberOfCheckIns = snapShot.size;
 
         /** Number of checkins is 0 */
         if (snapShot.empty) {
           statusObject[yesterdayDate].blank = true;
-
           // The person did nothing
-          statusObject.statusForDay = 0;
-
+          statusObject[yesterdayDate].statusForDay = 0;
           statusObjectsMap.set(phoneNumber, statusObject);
 
           return;
@@ -384,33 +347,30 @@ module.exports = (locals) => {
 
         const firstCheckInTimestamp = snapShot.docs[0].get('timestamp');
         const lastCheckInTimestamp = snapShot.docs[snapShot.size - 1].get('timestamp');
-        // const checkInDiff = Math.abs(lastCheckInTimestamp - firstCheckInTimestamp);
-        const firstCheckInTimestampFormatted = dateStringWithOffset({
+
+        if (!statusObject[yesterdayDate]) {
+          statusObject[yesterdayDate] = getDefaultStatusObject();
+          statusObjectsMap.set(phoneNumber, statusObject);
+        }
+
+        statusObject[yesterdayDate].firstCheckInTimestamp = firstCheckInTimestamp;
+        statusObject[yesterdayDate].lastCheckInTimestamp = lastCheckInTimestamp;
+
+        statusObject[yesterdayDate].firstCheckIn = dateStringWithOffset({
           timezone,
           timestampToConvert: firstCheckInTimestamp,
           format: dateFormats.TIME,
         });
-        const lastCheckInTimestampFormatted = dateStringWithOffset({
+        statusObject[yesterdayDate].lastCheckIn = dateStringWithOffset({
           timezone,
           timestampToConvert: lastCheckInTimestamp,
           format: dateFormats.TIME,
         });
 
-        if (!statusObject[yesterdayDate]) {
-          statusObject[yesterdayDate] = getDefaultStatusObject();
-
-          statusObjectsMap.set(phoneNumber, statusObject);
-        }
-
-        statusObject[yesterdayDate].blank = false;
-        statusObject[yesterdayDate].firstCheckIn = firstCheckInTimestampFormatted;
-        statusObject[yesterdayDate].lastCheckIn = lastCheckInTimestampFormatted;
-
-        const minimumActivityCount =
-          employeesData[phoneNumber].minimumActivityCount || 1;
+        const minimumDailyActivityCount = employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
 
         statusObject[yesterdayDate].statusForDay = (() => {
-          let result = snapShot.size / minimumActivityCount;
+          let result = snapShot.size / minimumDailyActivityCount;
 
           if (result > 1
             || onLeaveSet.has(phoneNumber)
@@ -423,15 +383,19 @@ module.exports = (locals) => {
           return result;
         })();
 
-
         /** Updating the map after updating the status object */
         statusObjectsMap.set(phoneNumber, statusObject);
       });
 
-      console.log(statusObjectsMap);
+      return commitMultiBatch(statusObjectsMap, docRefsMap, momentYesterday);
+    })
+    .then(() => {
+      if (yesterdayDate !== 5) {
+        return Promise.resolve();
+      }
 
-      // return commitMultiBatch(statusObjectsMap, docRefsMap, yesterday);
-      return;
+      // Clearing removed employees on 5th of the month
+      return monthlyDocsToDelete.commit();
     })
     .then(() => {
       if (locals.createOnlyData) {
@@ -451,40 +415,47 @@ module.exports = (locals) => {
           format: dateFormats.DATE,
         });
 
-        locals
-          .paydaySheet
+        paydaySheet
           .cell(`A${columnIndex}`)
-          .value(employeesData[phoneNumber].name);
-        locals
-          .paydaySheet
+          .value(employeesData[phoneNumber].Name);
+        paydaySheet
           .cell(`B${columnIndex}`)
           .value(employeesData[phoneNumber]['Employee Code']);
-        locals
-          .paydaySheet
+        paydaySheet
           .cell(`C${columnIndex}`)
-          .value(employeesData[phoneNumber].Gender);
-        locals
-          .paydaySheet
+          .value(employeesData[phoneNumber].Gender || '');
+        paydaySheet
           .cell(`D${columnIndex}`)
           .value(liveSince);
 
-        locals
-          .paydayTimingsSheet
+        paydayTimingsSheet
           .cell(`A${columnIndex}`)
-          .value(employeesData[phoneNumber].name);
+          .value(employeesData[phoneNumber].Name);
 
+        let totalCount = 0;
         let paydaySheetAlphabetIndex = 4;
         let paydayTimingsSheetIndex = 1;
-        let totalCount = 0;
         let daysWithDeductionsCount = 0;
-        let totalDeductions = 0;
 
         for (let date = yesterdayDate; date >= 1; date--) {
           const paydaySheetCell = `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
           const paydayTimingsSheetCell = `${alphabetsArray[paydayTimingsSheetIndex]}${columnIndex}`;
-          const paydaySheetValue = statusObject[date].statusForDay;
 
-          const paydayTimingsShetValue = (() => {
+          // Fallback for the case where an employee is added in the middle of the month
+          statusObject[date] = statusObject[date] || getDefaultStatusObject();
+
+          const paydaySheetValue = (() => {
+            if (statusObject[date].onLeave
+              || statusObject[date].onDuty
+              || statusObject[date].weeklyOff
+              || statusObject[date].holiday) {
+              return 1;
+            }
+
+            return statusObject[date].statusForDay || 0;
+          })();
+
+          const getPaydayTimingsSheetValue = () => {
             if (statusObject[date].onLeave) {
               return 'ON LEAVE';
             }
@@ -503,32 +474,38 @@ module.exports = (locals) => {
 
             const firstCheckInTimestamp = statusObject[date].firstCheckInTimestamp;
             const lastCheckInTimestamp = statusObject[date].lastCheckInTimestamp;
+            const minimumWorkingHours = employeesData[phoneNumber]['Minimum Working Hours'] || 0;
+            const minimumDailyActivityCount = employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
+            const adjustedFirstCheckIn = momentTz(firstCheckInTimestamp).tz(timezone);
+            const adjustedLastCheckIn = momentTz(lastCheckInTimestamp).tz(timezone);
+            const checkInDiffInHours = adjustedLastCheckIn.diff(adjustedFirstCheckIn, 'hours', true);
+            const hoursWorked = msToTime(lastCheckInTimestamp - firstCheckInTimestamp);
 
-            const checkInDiff = Math.abs(lastCheckInTimestamp - firstCheckInTimestamp);
-            const minimumWorkingHours = employeesData[phoneNumber].minimumWorkingHours;
-            const minimumActivityCount = employeesData[phoneNumber].minimumActivityCount;
+            // Checkins difference between the first and the last checkin is < than the
+            // expected hours
+            if (!statusObject[date].firstCheckIn
+              || (checkInDiffInHours < minimumWorkingHours)
+              || (statusObject[date].numberOfCheckIns < minimumDailyActivityCount)) {
+              daysWithDeductionsCount++;
 
-            // const numbero
-            if (checkInDiff < minimumWorkingHours) {
-              return `Total hours: ${msToTime(checkInDiff)} < Min hours: ${minimumWorkingHours}`;
+              return `Hours Worked:`
+                + ` ${hoursWorked}.`
+                + ` Number of Check-ins: ${statusObject[date].numberOfCheckIns || 0}`;
             }
 
-            if (statusObject[date].numberOfCheckIns < minimumActivityCount) {
-              return `Count: ${statusObject[date].numberOfCheckIns}. Min Count: ${minimumActivityCount}`;
-            }
+            return `Hours Worked:`
+              + ` ${hoursWorked}.`
+              + ` ${statusObject[`${date}`].firstCheckIn} | ${statusObject[date].lastCheckIn}`;
+          };
 
-            return `${statusObject[date].firstCheckIn | statusObject[date].lastCheckIn}`;
-          })();
+          totalCount += paydaySheetValue;
 
           paydaySheet
             .cell(paydaySheetCell)
             .value(paydaySheetValue);
-
-          totalCount += Number(paydaySheetValue);
-
           paydayTimingsSheet
             .cell(paydayTimingsSheetCell)
-            .value(paydayTimingsShetValue);
+            .value(getPaydayTimingsSheetValue());
 
           paydaySheetAlphabetIndex++;
           paydayTimingsSheetIndex++;
@@ -539,14 +516,15 @@ module.exports = (locals) => {
           .value(totalCount);
         paydaySheet
           .cell(`${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`)
-          .value(getEmployeeData(employeesData, phoneNumber));
+          .value(getEmployeeDetailsString(employeesData, phoneNumber));
 
         paydayTimingsSheet
-          .cell(`${alphabetsArray[paydayTimingsSheetIndex++]}`)
+          .cell(`${alphabetsArray[paydayTimingsSheetIndex++]}${columnIndex}`)
           .value(daysWithDeductionsCount);
         paydayTimingsSheet
-          .cell(`${alphabetsArray[paydayTimingsSheetIndex++]}`)
-          .value(totalDeductions);
+          .cell(`${alphabetsArray[paydayTimingsSheetIndex++]}${columnIndex}`)
+          // Total Deductions
+          .value(yesterdayDate - totalCount);
       });
 
       return locals.worksheet.outputAsync('base64');
@@ -565,11 +543,13 @@ module.exports = (locals) => {
           subject: `Payroll Report_${office}_${fullDateString}`,
         };
 
+      const fileName = `Payroll Report_${office}_${fullDateString}.xlsx`;
+
       locals
         .messageObject
         .attachments
         .push({
-          fileName: `Payroll Report_${office}_${fullDateString}.xlsx`,
+          fileName,
           content,
           type: 'text/csv',
           disposition: 'attachment',
@@ -581,8 +561,11 @@ module.exports = (locals) => {
         to: locals.messageObject.to,
       });
 
-      return locals.sgMail.sendMultiple(locals.messageObject);
+      // return locals.sgMail.sendMultiple(locals.messageObject);
+
+      return locals
+        .worksheet
+        .toFileAsync(`/tmp/${fileName}`);
     })
-    // .then(() => locals.worksheet.toFileAsync('/tmp/tmpFile.xlsx'))
     .catch(console.error);
 };
