@@ -35,10 +35,10 @@ const {
 } = require('../../admin/constants');
 const moment = require('moment');
 
-const purgeAddendum = (query, resolve, reject, count) =>
+const purgeDocs = (query, resolve, reject, count) =>
   query
     .get()
-    .then((docs) => {
+    .then(docs => {
       count++;
 
       // When there are no documents left, we are done
@@ -47,7 +47,7 @@ const purgeAddendum = (query, resolve, reject, count) =>
       // Delete documents in a batch
       const batch = db.batch();
 
-      docs.forEach((doc) => batch.delete(doc.ref));
+      docs.forEach(doc => batch.delete(doc.ref));
 
       /* eslint-disable */
       return batch
@@ -55,15 +55,48 @@ const purgeAddendum = (query, resolve, reject, count) =>
         .then(() => docs.size);
       /* eslint-enable */
     })
-    .then((deleteCount) => {
+    .then(deleteCount => {
       /** All docs deleted */
       if (deleteCount === 0) return resolve(count);
 
       // Recurse on the next process tick, to avoid exploding the stack.
       return process
-        .nextTick(() => purgeAddendum(query, resolve, reject, count));
+        .nextTick(() => purgeDocs(query, resolve, reject, count));
     })
     .catch(reject);
+
+
+const manageOldCheckins = (change) => {
+  const oldFromValue = change.before.get('lastQueryFrom');
+  const newFromValue = change.after.get('lastQueryFrom');
+
+  /**
+     * Both old and the new values should be available
+     * None should be 0.
+     * The newer value should be greater than the older
+     * value.
+     */
+  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
+    return Promise.resolve();
+  }
+
+  const query = change
+    .after
+    .ref
+    .collection('Activities')
+    .where('template', '==', 'check-in')
+    .where('timestamp', '<', oldFromValue)
+    .limit(500);
+
+  const count = 0;
+
+  return new
+    Promise(
+      (resolve, reject) => purgeDocs(query, resolve, reject, count)
+    )
+    .catch(console.error);
+};
+
 
 
 const manageAddendum = (change) => {
@@ -91,7 +124,7 @@ const manageAddendum = (change) => {
 
   return new
     Promise(
-      (resolve, reject) => purgeAddendum(query, resolve, reject, count)
+      (resolve, reject) => purgeDocs(query, resolve, reject, count)
     )
     .catch(console.error);
 };
@@ -117,16 +150,17 @@ const handleSignUpAndInstall = (options) => {
       promises.push(promise);
     });
 
-  const momentToday = moment();
+  const momentToday = moment().toObject();
 
   return rootCollections
     .inits
     .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-    .where('date', '==', momentToday.date())
-    .where('month', '==', momentToday.month())
-    .where('year', '==', momentToday.year())
+    .where('date', '==', momentToday.date)
+    .where('month', '==', momentToday.months)
+    .where('year', '==', momentToday.years)
+    .limit(1)
     .get()
-    .then((snapShot) => {
+    .then(snapShot => {
       const docRef = (() => {
         if (snapShot.empty) {
           return rootCollections.inits.doc();
@@ -150,9 +184,9 @@ const handleSignUpAndInstall = (options) => {
       options.batch.set(docRef, {
         installsToday,
         report: reportNames.DAILY_STATUS_REPORT,
-        date: moment().date(),
-        month: moment().month(),
-        year: moment().year(),
+        date: momentToday.date,
+        month: momentToday.months,
+        year: momentToday.years,
       }, {
           merge: true,
         });
@@ -160,38 +194,37 @@ const handleSignUpAndInstall = (options) => {
       return Promise
         .all(promises);
     })
-    .then((snapShots) => {
-      snapShots
-        .forEach((snapShot) => {
-          const doc = snapShot.docs[0];
-          const officeName = doc.get('office');
+    .then(snapShots => {
+      snapShots.forEach(snapShot => {
+        const doc = snapShot.docs[0];
+        const officeName = doc.get('office');
 
-          const data = {
-            timestamp: Date.now(),
-            activityData: {
-              officeId: options.change.after.get('employeeOf')[officeName],
-              office: officeName,
-            },
-            user: options.phoneNumber,
-          };
+        const data = {
+          timestamp: Date.now(),
+          activityData: {
+            officeId: options.change.after.get('employeeOf')[officeName],
+            office: officeName,
+          },
+          user: options.phoneNumber,
+        };
 
-          if (options.hasInstalled) {
-            data.action = httpsActions.install;
-          }
+        if (options.hasInstalled) {
+          data.action = httpsActions.install;
+        }
 
-          if (options.hasSignedUp) {
-            data.action = httpsActions.signup;
-          }
+        if (options.hasSignedUp) {
+          data.action = httpsActions.signup;
+        }
 
-          options
-            .batch
-            .set(doc
-              .ref
-              .collection('Addendum')
-              .doc(), data);
-        });
+        options
+          .batch
+          .set(doc
+            .ref
+            .collection('Addendum')
+            .doc(), data);
+      });
 
-      return Promise.resolve();
+      return options.batch.commit();
     })
     .catch(console.error);
 };
@@ -280,6 +313,6 @@ module.exports = (change) => {
     .resolve()
     .then(() => handleSignUpAndInstall(options))
     .then(() => manageAddendum(change))
-    .then(() => options.batch.commit())
+    .then(() => manageOldCheckins(change))
     .catch(console.error);
 };
