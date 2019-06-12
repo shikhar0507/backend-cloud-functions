@@ -31,16 +31,6 @@ section {
     margin-right: 4px;
 }
 
-.container section h1 {
-    /* font-weight: 600; */
-    /* line-height: 68px; */
-}
-
-.container section p {
-    /* font-size: 14px; */
-    /* line-height: 20px; */
-    margin-bottom: 16px;
-}
 
 .branch-status {
     max-width: fit-content;
