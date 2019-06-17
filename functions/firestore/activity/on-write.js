@@ -1220,7 +1220,7 @@ const handleOffice = (locals) => {
 const handleLocationsMap = (locals) => {
   const template = locals.change.after.get('template');
   const venues = locals.change.after.get('venue');
-  const relevantTemplates = new Set(['branch', 'customer']);
+  const relevantTemplates = new Set(['branch', 'customer', 'office']);
 
   if (!relevantTemplates.has(template)
     || venues.length === 0
@@ -1252,7 +1252,7 @@ const handleLocationsMap = (locals) => {
     .assigneesMap
     .forEach(auth => {
       const { uid } = auth;
-      console.log('Map set at', { uid });
+      console.log('Map set at', auth.uid);
 
       batch.set(rootCollections.updates.doc(uid), {
         venues: admin.firestore.FieldValue.arrayUnion(...result),
