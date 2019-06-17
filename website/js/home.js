@@ -1,15 +1,28 @@
-console.log('home loaded');
-let office;
-const section = document.getElementById('action-section');
+'use strict';
+
 
 function searchOffice() {
-  document.getElementById('continue').classList.add('invisible');
-  document.getElementById('create-office').classList.add('invisible');
-  const url = `${apiBaseUrl}/admin/search?support=true`;
   const input = document.getElementById('office-search-field');
-  const ul = document.querySelector('#office-search-form ul');
+  const ul = document.querySelector('#office-search-results-ul');
+  const ulContainer = document.querySelector('#office-search-results');
+  ulContainer.classList.remove('hidden');
+
+  const errorP = document.querySelector('#error');
+
+  if (!isNonEmptyString(input.value)) {
+    errorP.classList.remove('hidden');
+    errorP.textContent = 'Please enter a search term';
+
+    return;
+  }
+
   ul.innerHTML = '';
-  ul.appendChild(getSpinnerElement().center());
+
+  errorP.classList.add('hidden');
+  const spinner = getSpinnerElement().center();
+  ul.appendChild(spinner);
+
+  const url = `${apiBaseUrl}/admin/search?support=true`;
 
   sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
     .then(function (response) {
@@ -18,33 +31,61 @@ function searchOffice() {
     .then(function (response) {
 
       console.log('response', response);
-      ul.innerHTML = ''
-      if (!response.length) {
-        const li = document.createElement('li')
-        li.textContent = 'No Office Found';
-        ul.appendChild(li);
+
+      spinner.remove();
+
+      if (response.length === 0) {
+        errorP.textContent = 'No results found';
+        errorP.classList.remove('hidden');
+
         return;
       }
 
       response.forEach(function (name) {
         const li = document.createElement('li')
-        li.textContent = name;
-        li.onclick = function () {
+        const span = document.createElement('span');
+        span.classList.add('mdc-list-item__text');
+        span.textContent = name;
+        li.classList.add('mdc-list-item', 'raised');
+        li.tabIndex = '0';
+        li.appendChild(span);
+
+        li.onclick = function (event) {
           input.value = name;
-          document.querySelector('.button-search').classList.add('invisible');
+          // document.querySelector('.button-search').classList.add('invisible');
 
-          document.getElementById('continue').classList.remove('invisible');
+          // document.getElementById('continue').classList.remove('invisible');
 
-          [...ul.querySelectorAll('li')].forEach(function (el) {
+          document.body.dataset.office = input.value;
+
+          // Remove the div containing the 'Search an office' text
+          document.querySelector('#office-search-title').remove();
+
+          // Removes the section containing this form
+          document
+            .querySelector('#office-form')
+            .parentElement
+            .remove();
+
+          ul.querySelectorAll('li').forEach(function (el) {
             el.remove();
           });
+
+          // [...ul.querySelectorAll('li')].forEach(function (el) {
+          //   el.remove();
+          // });
+
+          document
+            .querySelector('#actions-section')
+            .classList
+            .remove('hidden');
+
+          document.querySelector('#support-office-search').remove();
         }
+
         ul.appendChild(li)
       });
-
-
-    })
-  console.log('clicked')
+    });
 }
 
 
@@ -61,9 +102,15 @@ function toggleSearchButton(e) {
   document.getElementById("continue").classList.add('invisible');
 }
 
-function startAdmin(officeName) {
-  office = officeName;
-  document.getElementById('office-search-form').classList.add('hidden');
+function startAdmin() {
+  document.body.dataset.office = document.getElementById('office-selector').value;
+
+  // Hide the section containing the office select
+  document
+    .getElementById('office-form')
+    .parentElement
+    .classList
+    .add('hidden');
   document.querySelector('.action-icons-container').classList.remove('hidden');
 }
 
@@ -155,73 +202,6 @@ function customSelect(text) {
   return span;
 }
 
-function createTriggerReportContainer() {
-
-  const container = document.createElement('form')
-  container.className = 'form-inline';
-  container.style.textAlign = 'center';
-
-  const reportSelection = document.createElement('div')
-  reportSelection.id = 'select-report-container'
-
-
-  const startDateLabel = document.createElement('label')
-  startDateLabel.textContent = 'From'
-  const startDateInput = document.createElement('input');
-  startDateInput.type = 'date';
-  startDateInput.value = moment().format('DD/MM/YYYY');
-  startDateInput.id = 'start-time'
-  startDateInput.style.width = '100%'
-  startDateInput.className = 'input-field'
-  const endDateLabel = document.createElement('label')
-  endDateLabel.textContent = 'To';
-  const endDateInput = document.createElement('input')
-  endDateInput.type = 'date'
-  endDateInput.value = moment().format('DD/MM/YYYY');
-  endDateInput.id = 'end-time'
-  endDateInput.style.width = '100%'
-  endDateInput.className = 'input-field'
-
-  const triggerButton = document.createElement('a')
-  triggerButton.className = 'button mt-10 hidden'
-  triggerButton.textContent = 'Trigger'
-  triggerButton.id = 'trigger-report'
-  let reportSelected;
-  const selectBox = customSelect('Select Report')
-  const templateName = 'recipient'
-  sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET').then(function (response) {
-    return response.json();
-  })
-    .then(function (response) {
-
-      if (!Object.keys(response).length) return container.textContent = 'No Reports Found';
-
-
-      response.recipient.forEach(function (data) {
-
-        const option = document.createElement('option')
-        option.value = data.attachment.Name.value;
-        option.textContent = data.attachment.Name.value;
-        selectBox.querySelector('select').appendChild(option)
-      })
-
-    })
-  reportSelection.appendChild(selectBox)
-  container.appendChild(reportSelection)
-  container.appendChild(startDateLabel)
-  container.appendChild(startDateInput)
-  container.appendChild(endDateLabel)
-  container.appendChild(endDateInput)
-
-  container.appendChild(triggerButton)
-  const recap = document.createElement('div');
-  recap.id = 'recaptcha-container';
-  recap.className = 'mt-10'
-  container.appendChild(recap)
-  return container;
-}
-
-
 function fileToJson(template, claim, data, modal) {
   const notificationLabel = new showLabel(modal.querySelector('#action-label'));
   let url = apiBaseUrl + '/admin/bulk';
@@ -238,7 +218,9 @@ function fileToJson(template, claim, data, modal) {
     defval: '',
     raw: false
   });
+
   if (!jsonData.length) return notificationLabel.warning('File is Empty');
+
   console.log(jsonData);
 
   jsonData.forEach(function (val) {
@@ -251,7 +233,7 @@ function fileToJson(template, claim, data, modal) {
   getLocation().then(function (location) {
 
     const body = {
-      office: office || '',
+      office: document.body.dataset.office || '',
       template: template,
       data: jsonData,
       timestamp: Date.now(),
@@ -275,7 +257,8 @@ function fileToJson(template, claim, data, modal) {
 
 
 
-function addNew(isSupport, isAdmin, template) {
+function createNew(isSupport, isAdmin, template) {
+  console.log({ isSupport, isAdmin, template });
   let templateSelected;
   const modal = createModal(excelUploadContainer(template))
 
@@ -288,6 +271,7 @@ function addNew(isSupport, isAdmin, template) {
       modal.querySelector("#action-label").classList.add('warning-label');
       return;
     }
+
     modal.querySelector("#action-label").textContent = ''
     inputEvt.stopPropagation();
     inputEvt.preventDefault();
@@ -325,60 +309,82 @@ showLabel.prototype.warning = function (text) {
 
 
 function triggerReports() {
+  let startTime = Date.now();
+  const dateInput = document.querySelector('#report-trigger-date');
 
-  const modal = createModal(createTriggerReportContainer())
-  const label = new showLabel(modal.querySelector('#action-label'))
+  document
+    .querySelector('#trigger-reports-section')
+    .classList
+    .remove('hidden');
+  dateInput.valueAsDate = new Date();
 
-  let selectedReport;
-  modal.querySelector('select').addEventListener('change', function (evt) {
-    selectedReport = evt.target.value
-  });
-  document.getElementById('modal-box').appendChild(modal);
+  dateInput.onchange = function (evt) {
+    startTime = evt.target.value;
+  }
 
-  window.recaptchaVerifier = handleRecaptcha();
-  recaptchaVerifier.render();
-  recaptchaVerifier.verify().then(function (token) {
-    console.log(token)
-    modal.querySelector('#trigger-report').classList.remove('hidden');
-    document.getElementById('recaptcha-container').classList.add('hidden');
-    modal.querySelector('#trigger-report').onclick = function () {
-      if (!selectedReport) {
-        label.warning('Select A report')
-        return;
-      }
-      const startTime = moment(modal.querySelector('#start-time').value).valueOf()
-      const endTime = moment(modal.querySelector('#end-time').value).valueOf()
-      if (!startTime) {
-        label.warning('Select A Start Time')
-        return;
-      }
-      if (!endTime) {
-        label.warning('Select An End Time')
-        return;
-      }
+  const triggerResult = document.querySelector('#trigger-report-result');
 
-      label.success('')
-      sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
-        office: office,
-        report: selectedReport,
-        startTime: startTime,
-        endTime: endTime
-      }, 'POST').then(function (response) {
-        return response.json();
+  function submitOnClick() {
+    startTime = new Date(startTime).getTime();
+
+    console.log({ startTime });
+
+    sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
+      startTime,
+      office: document.body.dataset.office,
+      report: document.querySelector('#report-trigger-select').value,
+      endTime: startTime,
+    }, 'POST')
+      .then(function (response) { return response.json(); })
+      .then(function (response) {
+        if (!response.success) {
+          triggerResult.classList.add('warning-label');
+        }
+
+        triggerResult.classList.remove('hidden');
+        triggerResult.textContent = response.message
+          || 'Report triggered successfully';
+
+        console.log('Response', response);
       })
-        .then(function (response) {
-          if (response.success) {
-            label.success(`${selectedReport} successfully triggered`)
-          } else {
-            label.warning('Please Try Again Later');
-          }
-        }).catch(function (error) {
-          label.warning('Please Try again Later')
-        })
-    }
-  }).catch(function (error) {
-    label.warning(error.message)
-  })
+      .catch(console.error);
+  }
+
+  sendApiRequest(`/json?template=recipient&office=${document.body.dataset.office}`, null, 'GET')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      if (!Object.keys(response).length) {
+        // return container.textContent = 'No Reports Found';
+
+        throw new Error('recipients/no-reports-subscribed');
+      }
+
+      const selectBox = document.querySelector('#report-trigger-select');
+
+      response.recipient.forEach(function (data) {
+        const option = document.createElement('option')
+        option.value = data.attachment.Name.value;
+        option.textContent = data.attachment.Name.value;
+        selectBox.appendChild(option);
+      })
+
+      window.recaptchaVerifier = handleRecaptcha();
+      recaptchaVerifier.render();
+
+      return recaptchaVerifier.verify();
+    })
+    .then(function (token) {
+      console.log(token);
+
+
+      const submitButton = document.querySelector('#trigger-report-button');
+      submitButton.onclick = submitOnClick;
+      submitButton.removeAttribute('disabled');
+
+    })
+    .catch(console.error);
 }
 
 function searchAndUpdate() {
@@ -412,7 +418,7 @@ function searchAndUpdate() {
       value = value.replace('+', '%2B')
     }
 
-    sendApiRequest(`${getPageHref()}json?office=${office}&query=${value}`, null, 'GET').then(function (res) {
+    sendApiRequest(`${getPageHref()}json?office=${document.body.dataset.office}&query=${value}`, null, 'GET').then(function (res) {
       return res.json()
     }).then(function (response) {
       console.log(response)
@@ -554,8 +560,41 @@ function createActivityList(data) {
 
 function getPageHref() {
   return location.protocol + '//' + location.host + location.pathname + (location.search ? location.search : "")
-
 }
+
+function getEnquiryLi(record, index) {
+  const li = document.createElement('li');
+  const spanContainer = document.createElement('span');
+  const primaryText = document.createElement('span');
+  const secondaryText = document.createElement('span');
+
+  li.classList.add('mdc-list-item');
+
+  if (index === 0) {
+    li.setAttribute('tabindex', 0);
+  }
+
+  spanContainer.classList.add('mdc-list-item__text');
+  spanContainer.style.pointerEvents = 'none';
+  primaryText.classList.add('mdc-list-item__primary-text');
+  secondaryText.classList.add('mdc-list-item__secondary-text');
+
+  primaryText.textContent = record.attachment.Enquiry.value;
+  secondaryText.textContent = (function () {
+    if (firebase.auth().currentUser === record.creator.phoneNumber) {
+      return 'You';
+    }
+
+    return `${record.creator.displayName} (${record.creator.phoneNumber})`;
+  })();
+
+  spanContainer.appendChild(primaryText);
+  spanContainer.appendChild(secondaryText);
+
+  li.appendChild(spanContainer);
+
+  return li;
+};
 
 function viewEnquiries() {
   const table = document.createElement('table');
@@ -568,11 +607,11 @@ function viewEnquiries() {
     const th = document.createElement('th');
     th.textContent = name
     headTr.appendChild(th);
-  })
+  });
+
   head.appendChild(headTr);
   table.appendChild(head);
   const spinner = getSpinnerElement().center()
-  // document.getElementById('modal-box').appendChild(createModal(spinner));
   const label = new showLabel(document.getElementById('action-label'));
   const templateName = 'enquiry';
 
@@ -581,6 +620,10 @@ function viewEnquiries() {
     behavior: 'smooth',
   });
 
+  if (window.enquiriesShownAlready) {
+    return;
+  }
+
   const spinnerContainer = document.createElement('div');
   spinnerContainer.appendChild(spinner);
   spinnerContainer.classList.add('flexed-jc-center');
@@ -588,54 +631,93 @@ function viewEnquiries() {
   enquiriesContainer.appendChild(spinnerContainer);
   enquiriesContainer.classList.remove('hidden');
 
-  sendApiRequest(`${getPageHref()}json?template=${templateName}&office=${office}`, null, 'GET')
+  sendApiRequest(
+    `/json?template=${templateName}&office=${document.body.dataset.office}`,
+    null,
+    'GET'
+  )
     .then(function (response) {
+
+      if (response.ok) {
+        window.enquiriesShownAlready = true;
+      }
+
       return response.json();
     })
     .then(function (response) {
-      if (!Object.keys(response).length) {
+      console.log('response', response);
+      if (Object.keys(response).length === 0) {
         spinner.remove();
 
-        return label.warning('No enquiries found.');
+        document
+          .querySelector('#no-enquiry-box')
+          .classList
+          .remove('hidden');
+
+        return;
       }
 
       const body = document.createElement('tbody')
 
-      response.enquiry.forEach(function (record, idx) {
-        const tr = document.createElement('tr');
-        const indexCol = document.createElement('td');
-        indexCol.textContent = idx + 1;
-        const statusRow = document.createElement('td');
-        statusRow.textContent = record.status;
-        const creatorRow = document.createElement('td');
-        creatorRow.textContent = record.creator.displayName || response[i].creator.phoneNumber
-        const companyRow = document.createElement('td')
-        companyRow.textContent = record.attachment['Company Name'].value || '-';
-        const productRow = document.createElement('td');
-        productRow.textContent = '';
+      const ulContainer = document.createElement('ul');
+      ulContainer.classList.add('mdc-list', 'mdc-list--two-line');
 
-        if (record.attachment.Product) {
-          productRow.textContent = record.attachment.Product.value || '-';
-        }
+      function showEnquiryDetails(elem, record) {
+        console.log('Enquiry', elem, record);
+      }
 
-        const enquiryRow = document.createElement('td');
+      response.enquiry.forEach(function (record, index) {
+        const li = getEnquiryLi(record, index);
 
-        enquiryRow.textContent = record.attachment.Enquiry.value || '-';
-        tr.appendChild(indexCol);
-        tr.appendChild(statusRow);
-        tr.appendChild(creatorRow);
-        tr.appendChild(companyRow);
-        tr.appendChild(productRow);
-        tr.appendChild(enquiryRow);
+        li.onclick = function (evt) {
+          showEnquiryDetails(evt.target, record);
+        };
 
-        body.appendChild(tr)
+        ulContainer.appendChild(li);
       });
 
-      table.appendChild(body);
+      ulContainer.style.maxHeight = '400px';
+      ulContainer.style.overflowX = 'auto';
+
       spinnerContainer.remove();
-      enquiriesContainer.appendChild(table);
+      enquiriesContainer.appendChild(ulContainer);
+
+      // response.enquiry.forEach(function (record, index) {
+      //   const tr = document.createElement('tr');
+      //   const indexCol = document.createElement('td');
+      //   indexCol.textContent = index + 1;
+      //   const statusRow = document.createElement('td');
+      //   statusRow.textContent = record.status;
+      //   const creatorRow = document.createElement('td');
+      // creatorRow.textContent = record.creator.displayName || response[i].creator.phoneNumber
+      //   const companyRow = document.createElement('td')
+      //   companyRow.textContent = record.attachment['Company Name'].value || '-';
+      //   const productRow = document.createElement('td');
+      //   productRow.textContent = '';
+
+      //   if (record.attachment.Product) {
+      //     productRow.textContent = record.attachment.Product.value || '-';
+      //   }
+
+      //   const enquiryRow = document.createElement('td');
+
+      //   enquiryRow.textContent = record.attachment.Enquiry.value || '-';
+      //   tr.appendChild(indexCol);
+      //   tr.appendChild(statusRow);
+      //   tr.appendChild(creatorRow);
+      //   tr.appendChild(companyRow);
+      //   tr.appendChild(productRow);
+      //   tr.appendChild(enquiryRow);
+
+      //   body.appendChild(tr)
+      // });
+
+      // table.appendChild(body);
+      // spinnerContainer.remove();
+      // enquiriesContainer.appendChild(table);
     });
 }
+
 
 function searchBar(id) {
   const conatiner = document.createElement('div')
@@ -1029,7 +1111,9 @@ function populateTemplateList() {
 
       // clear storage to remove old data
 
-      document.querySelector('#manage-templates').onclick = function () { };
+      document
+        .querySelector('#manage-templates')
+        .onclick = function () { };
 
       document
         .querySelector('#manage-template-container ul')
@@ -1054,4 +1138,123 @@ function manageTemplates() {
 
   // async function
   populateTemplateList();
+}
+
+function handleTemplateCreate(elem) {
+  elem.preventDefault();
+}
+
+function submitNewTemplate() {
+  console.log('New Template submit clicked');
+
+  const textArea = document.querySelector('#template-content');
+  const isValid = isValidJSON(textArea.value);
+  const resultNode = document.querySelector('#result');
+  resultNode.classList.remove('hidden');
+
+  console.log('textarea.value', textArea.value, isValid);
+
+  if (!isNonEmptyString(textArea.value)) {
+    resultNode.textContent = 'Please enter something';
+
+    return;
+  }
+
+  if (!isValid) {
+    resultNode.textContent = 'Invalid JSON';
+
+    return;
+  }
+
+  resultNode.classList.add('success-label');
+  resultNode.textContent = 'Sending request';
+
+  sendApiRequest(`/json?action=create-template`, JSON.parse(textArea.value), 'POST')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (result) {
+      resultNode.textContent = result.message;
+
+      if (!result.success) {
+        resultNode.classList.remove('success-label');
+      }
+    })
+    .catch(console.error);
+}
+
+function createNewTemplate() {
+  const oldList = document.querySelector('#manage-templates-action ul');
+
+  if (oldList) oldList.remove();
+
+  const oldForm = document.querySelector('#manage-templates-action form');
+
+  if (oldForm) oldForm.remove();
+
+  const textarea = document.createElement('textarea');
+  textarea.id = 'template-content';
+  textarea.classList.add('input-field', 'mb-16');
+  textarea.style.minWidth = '90%';
+  textarea.rows = '20';
+
+  const button = document.createElement('button');
+  button.classList.add('mdc-button');
+  const buttonContent = document.createElement('span');
+  buttonContent.classList.add('mdc-button__label');
+  buttonContent.textContent = 'Submit';
+  button.appendChild(buttonContent);
+  button.onclick = submitNewTemplate;
+
+  const messageNode = getWarningNode();
+
+  messageNode.id = 'result';
+  messageNode.classList.add('hidden');
+
+  const form = document.createElement('form');
+  form.appendChild(textarea);
+  form.appendChild(messageNode)
+  form.appendChild(button);
+
+  form.onsubmit = handleTemplateCreate;
+
+  form.classList.add('pad', 'flexed-column', 'flexed-jc-center', 'flexed-ai-center');
+
+  document.querySelector('#manage-templates-action').appendChild(form);
+}
+
+window.onload = function () {
+  if (document.body.dataset.isadmin
+    && sessionStorage.getItem('office')
+    && firebase.auth().currentUser) {
+    document.body.dataset.office = sessionStorage.getItem('office');
+
+    // remove the office search section
+    document
+      .querySelector('#office-search-form')
+      .parentElement
+      .remove();
+
+    document
+      .querySelector('#actions-section')
+      .classList
+      .remove('hidden');
+  }
+
+  if (document.body.dataset.istemplatemanager) {
+    document
+      .querySelector('#actions-section')
+      .classList
+      .remove('hidden');
+  }
+
+  if (!firebase.auth().currentUser) {
+    document.querySelector('.container').style.marginTop = 'auto';
+  }
+};
+
+window.onbeforeunload = function () {
+  if (document.body.dataset.office) {
+    sessionStorage.setItem('office', document.body.dataset.office);
+  }
 }

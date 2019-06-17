@@ -20,6 +20,13 @@ section {
     display: flex;
 }
 
+#office-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0px;
+}
+
 .youtube-section {
     border: 0;
     padding: 0;
@@ -51,6 +58,10 @@ section {
 }
 
 .branch-section h2 {
+    /* text-align: center; */
+}
+
+h2 {
     text-align: center;
 }
 
@@ -117,6 +128,10 @@ form p select {
     max-height: 360px;
     overflow-y: auto;
     overflow-x: hidden;
+    display: flex;
+    flex-wrap: wrap;
+    display: flex;
+    justify-content: center;
 }
 
 #load-map-button {
@@ -148,6 +163,7 @@ form p select {
 
 .product-box {
     cursor: pointer;
+    margin: 10px;
 }
 
 input[type="checkbox"] {
@@ -178,11 +194,11 @@ product-box>* {
 }
 
 .product-name-container {
-    font-size: 14px;
-    /* text-transform: uppercase; */
+    font-size: 20px;
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
+    /* width: 100%; */
 }
 
 .product-image-name-container {
@@ -197,6 +213,7 @@ product-box>* {
     height: 190px;
 }
 
+/* TODO: remove this */
 aside {
     display: none;
     max-height: 722px;
@@ -215,33 +232,31 @@ aside {
     transform: translateY(-50%);
 }
 
-.floating-enquiry {
-    font-size: 50px;
-    min-height: 60px;
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    opacity: 1;
-    z-index: 999;
+.mid-90 {
+    margin: 0 auto;
+    max-width: 90%;
 }
 
-.floating-enquiry a {
-    display: block;
-    margin-top: -40px;
+.container {
+    margin-top: -70px;
 }
 
 @media (min-width: 768px) {
+    .container {
+        margin-top: -200px;
+    }
 
-    .youtube-section,
-    .product-section,
-    .enquiry-section,
-    .branch-section {
-        margin: 0 auto;
-        max-width: 80%;
+    .pad-below-header {
+        height: 40vh;
     }
 
     .product-section h2 {
         padding-left: 0;
+    }
+
+    .enquiry-section form {
+        margin: auto;
+        max-width: 80%;
     }
 
     .product-image-name-container img {
@@ -253,9 +268,15 @@ aside {
         grid-template-columns: 33% 33% 33%;
     }
 
-    aside {
-        /* display: block; */
-        /* top: 256px; */
+    #map {
+        /* Maps api sets height to 400px but that is a little short than what I want */
+        height: 100% !important;
+        width: 400px;
+    }
+
+    .branches-box {
+        display: flex;
+        flex-direction: row-reverse;
     }
 }
 
@@ -267,15 +288,12 @@ aside {
 
     .youtube-section,
     .product-section,
-    .enquiry-section,
-    .branch-section {
+    .enquiry-section {
         margin: 0 auto;
         max-width: 70%;
     }
 
     .product-image-name-container img {
-        /* width: 220px; */
-        /* height: 220px; */
         width: 150px;
         height: 150px;
     }

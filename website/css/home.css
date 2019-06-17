@@ -30,17 +30,39 @@
 }
 
 .form-inline ul li {
-    border: 1px solid #ddd;
-    margin-top: -1px;
-    background-color: #f6f6f6;
-    padding: 12px;
-    text-decoration: none;
-    font-size: 18px;
-    color: black;
-    display: block
+    /* border: 1px solid #ddd; */
+    /* margin-top: -1px; */
+    /* background-color: #f6f6f6; */
+    /* padding: 12px; */
+    /* text-decoration: none; */
+    /* font-size: 18px; */
+    /* color: black; */
+    /* display: block */
 }
 
+.container {
+    margin-top: -150px;
+}
 
+#support-office-search {
+    /* margin-top: -100px; */
+}
+
+#actions-section {
+    /* margin-top: -140px; */
+}
+
+#office-search-form {
+    min-width: 400px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#office-search-form input,
+#office-search-form button,
+#office-search-form div {
+    margin-bottom: 16px;
+}
 
 section {
     min-height: unset;
@@ -48,10 +70,6 @@ section {
 
 #default-text {
     color: #949494;
-}
-
-.container {
-    margin-top: 16px;
 }
 
 section h3 {
@@ -111,8 +129,6 @@ tr:nth-child(even) {
 .grid-container-3 {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    /* grid-template-rows: 1fr 1fr 1fr 1fr; */
-    /* grid-template-areas: ". . ."". . ."". . ."". . ."; */
 }
 
 @media only screen and (max-width: 800px) {
@@ -245,6 +261,7 @@ section h1 {
     display: flex;
     flex-direction: column;
     text-align: left;
+    padding: 10px;
 }
 
 .office-description-short {
@@ -269,15 +286,50 @@ section h1 {
     flex-direction: column;
 }
 
+aside {
+    display: none;
+    overflow-y: auto;
+    /* padding-top: 20px; */
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.pad-below-header {
+    height: 30vh;
+}
+
+aside ul {
+    min-height: 40px;
+    /* padding: 0 10px 0 10px; */
+}
+
 @media (min-width: 768px) {
     .grid-container-3 {
         grid-template-columns: 25% 25% 25% 25%;
+    }
+
+    #office-search-form {
+        width: 415px;
+    }
+
+    #office-form {}
+
+    .container {
+        /* margin-left: 180px; */
+    }
+
+    aside {
+        display: block;
+        width: 180px;
     }
 }
 
 @media (min-width: 1024px) {
     .grid-container-3 {
         grid-template-columns: 20% 20% 20% 20% 20%;
+    }
+
+    aside {
+        width: 240px;
     }
 }
 

@@ -10,8 +10,7 @@
     \{{> headerPartial this}}
     <div class="pad-below-header"></div>
     <div class="container mt-16">
-        \{{> asidePartial}}
-        <section class="youtube-section">
+        <section class="youtube-section mid-90">
             \{{#if videoId}}
             <div class="youtube">
                 <iframe fs="1" id="ytplayer" src="https://www.youtube.com/embed/\{{videoId}}?enablejsapi=1"
@@ -19,7 +18,7 @@
                 </iframe>
             </div>
             \{{/if}}
-            <div class="border pad">
+            <div class="">
                 <div class="office-name-container">
                     <div id="office-avatar" class="hidden avatar mr-16">\{{officeFirstChar}}</div>
                     <span>
@@ -44,51 +43,54 @@
         </section>
         \{{#if displayProducts}}
         <section class="product-section">
-            <h2 class="pad">Our Products</h2>
-            <div class="products-container grid-50">
+            <h2 class="mt-16">Our Products</h2>
+            {{!-- <div class="products-container grid-50"> --}}
+            <div class="products-container">
                 \{{#each productObjectsArray}}
                 <div class="product-box cur-ptr" onclick="handleProductClick(this)">
                     <div class="product-image-name-container">
                         <div data-\{{this.name}}="" class="hidden avatar">\{{this.nameFirstChar}}</div>
                         <img class="border" onerror="this.onerror=null; this.src='img/office-placeholder.jpg'"
                             src=\{{this.imageUrl}} alt="product \{{this.name}}">
-                        <div class="product-name-container">\{{this.name}}</div>
+                        <div class="product-name-container">
+                            <p>\{{this.name}}</p>
+                        </div>
+                        <div class="hidden">
+                            \{{#if this.productType}}
+                            <div>
+                                <span class="bold">TYPE:</span>
+                                \{{this.productType}}
+                            </div>
+                            \{{/if}}
+                            \{{#if this.brand}}
+                            <div>
+                                <span class="bold">BRAND:</span>
+                                \{{this.brand}}
+                            </div>
+                            \{{/if}}
+                            \{{#if this.model}}
+                            <div>
+                                <span class="bold">MODEL:</span>
+                                \{{this.model}}
+                            </div>
+                            \{{/if}}
+                            \{{#if this.size}}
+                            <div>
+                                <span class="bold">SIZE:</span>
+                                \{{this.size}}
+                            </div>
+                            \{{/if}}
+                        </div>
                     </div>
-
-                    <ul class="hidden">
-                        \{{#if this.productType}}
-                        <li>
-                            <span class="bold">TYPE:</span>
-                            \{{this.productType}}
-                        </li>
-                        \{{/if}}
-                        \{{#if this.brand}}
-                        <li>
-                            <span class="bold">BRAND:</span>
-                            \{{this.brand}}</li>
-                        \{{/if}}
-                        \{{#if this.model}}
-                        <li>
-                            <span class="bold">MODEL:</span>
-                            \{{this.model}}
-                        </li>
-                        \{{/if}}
-                        \{{#if this.size}}
-                        <li>
-                            <span class="bold">SIZE:</span>
-                            \{{this.size}}
-                        </li>
-                        \{{/if}}
-                    </ul>
                 </div>
                 \{{/each}}
             </div>
         </section>
         \{{/if}}
 
-        <section class="enquiry-section pad">
+        <section class="enquiry-section pad mid-90">
             <h2>Send Us An Enquiry</h2>
-            <form autocomplete="off" aria-autocomplete="none">
+            <form class="pad border" autocomplete="off" aria-autocomplete="none">
                 <div id="form-message" class="hidden flexed-jc-center flexed-ai-center animated"></div>
                 <fieldset id="form-1">
                     <p>

@@ -82,7 +82,7 @@ function getQueryString(field, url) {
 }
 
 function getMobileOperatingSystem() {
-  var userAgent = navigator.userAgent || navigator.vendor || window.opera;
+  const userAgent = navigator.userAgent || navigator.vendor || window.opera;
 
   // Windows Phone must come first because its UA also contains "Android"
   if (/windows phone/i.test(userAgent)) {
@@ -373,3 +373,84 @@ function handleTrackView() {
 };
 
 document.body.addEventListener('__trackView', handleTrackView);
+
+const loginButton = document.getElementById('login-button');
+
+if (loginButton) {
+  loginButton.onclick = function () {
+    window.location.href = '/auth';
+  }
+}
+
+function getModal(options) {
+  const title = options.title;
+  const description = options.description;
+
+  const modalContainer = document.createElement('div');
+  modalContainer.style.zIndex = '999';
+  const modalDialog = document.createElement('div');
+  modalDialog.classList.add('modal-dialog');
+  modalDialog.classList.add('flexed-column', 'flexed-ai-center');
+  const modalContent = document.createElement('div');
+  modalContent.classList.add('modal-content');
+
+  const modalHeader = document.createElement('div');
+  modalHeader.style.padding = '24px 24px 0';
+  modalHeader.classList.add('modal-header');
+  modalHeader.classList.add('flexed-row');
+  modalHeader.style.flexDirection = 'row';
+  modalHeader.style.justifyContent = 'space-between';
+
+  const modalTitle = document.createElement('h3');
+  modalTitle.style.fontSize = '30px;';
+  modalTitle.textContent = title;
+  modalTitle.style.fontWeight = '800';
+  const crossIcon = document.createElement('i');
+
+  crossIcon.textContent = 'X';
+  crossIcon.classList.add('close');
+
+  modalHeader.appendChild(modalTitle);
+  modalHeader.appendChild(crossIcon);
+
+  const modalBody = document.createElement('div');
+  modalBody.style.padding = '24px 24px 0';
+  modalBody.style.maxHeight = '400px';
+  modalBody.style.overflowY = 'auto';
+
+  const p = document.createElement('p');
+  p.textContent = description;
+
+  modalBody.appendChild(p);
+
+  const modalFooter = document.createElement('div');
+  modalFooter.style.padding = '24px 24px 0';
+  const closeButton = document.createElement('button');
+  closeButton.textContent = 'CLOSE';
+  closeButton.classList.add('mdc-button');
+
+  function deleteModal() {
+    document.body.style.overflowY = 'auto';
+    modalContainer.remove();
+  }
+
+  closeButton.onclick = deleteModal;
+  crossIcon.onclick = deleteModal;
+
+  modalFooter.style.textAlign = 'right';
+  modalFooter.appendChild(closeButton);
+
+  const img = document.createElement('img');
+  img.style.width = '100%';
+  img.src = 'img/modal-hero.jpg';
+  img.style.webkitFilter = 'grayscale(100%)';
+  img.style.filter = 'grayscale(100%)';
+  modalContent.appendChild(modalHeader);
+  modalContent.appendChild(modalBody);
+  modalContent.appendChild(modalFooter);
+  modalDialog.appendChild(modalContent);
+  modalContainer.appendChild(modalDialog);
+  document.body.style.overflowY = 'hidden';
+
+  return modalContainer;
+}

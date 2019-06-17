@@ -6,46 +6,67 @@
     <link rel="stylesheet" href="css/home.css">
 </head>
 
-<body>
+<body data-istemplatemanager="\{{isTemplateManager}}" data-isSupport="\{{isSupport}}" data-isAdmin="\{{isAdmin}}"
+    data-offices="\{{adminOffices}}">
     \{{> headerPartial this}}
-    <div class="pad-below-header"></div>
+    <div class="pad-below-header bg-magenta"></div>
+    \{{> actionsAside this}}
     <div class="container">
         \{{#if isAdmin}}
-        <form id='office-search-form' class="form-inline">
-            <span class="select-dropdown">
-                <select class="input-field" id='office-selector'>
-                    \{{#each adminOffices}}
-                    <option value="\{{this}}">\{{this}}</option>
-                    \{{/each}}
-                </select>
-            </span>
-            <a class="button" id='continue'
-                onclick="startAdmin(document.getElementById('office-selector').value)">Continue</a>
-        </form>
+        <section class="pad flexed flexed-jc-center flexed-column flexed-ai-center">
+            <div class="col-white mw-100">
+                <h2>Select Your office</h2>
+            </div>
+            <form id="office-form" class="border bg-white flexed-column flexed-ai-center flexed-jc-center mw-100">
+                <p class="mt-16">
+                    <select class="input-field f1" id="office-selector">
+                        \{{#each adminOffices}}
+                        <option value="\{{this}}">\{{this}}</option>
+                        \{{/each}}
+                    </select>
+                </p>
+                <p>
+                    <button onclick="startAdmin()" type="button" class="button">
+                        Continue
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </p>
+            </form>
+        </section>
         \{{/if}}
 
         \{{#if isSupport}}
-        <div class="office-selection">
-            <form autocomplete="off" id="office-search-form" class="form-inline">
-                <input type="text" placeholder="Search an office" class="input-field" id='office-search-field'
-                    oninput="toggleSearchButton(this)">
+        <section id="support-office-search" class="pad">
+            <div id="office-search-title" class="tal mw-100">
+                <h2 class="col-white">Search an office</h2>
+            </div>
+            <div>
+                <form autocomplete="off" id="office-form" class="raised bg-white flexed-ai-center flexed-column">
+                    <p class="pt-16">
+                        <input placeholder="Type here..." class="input-field f1" id="office-search-field" type="text">
+                    </p>
+                    <p>
+                        <button type="button" class="button" onclick="searchOffice()">
+                            <i class="fas fa-search"></i>
+                            Search
+                        </button>
+                    </p>
 
-                <ul></ul>
-
-                <button type="button" class="button button-search invisible" onclick="searchOffice()">search</button>
-                <button type="button" class="invisible button" id='continue'
-                    onclick="startAdmin(document.getElementById('office-search-field').value)">Contunue</button>
-                <button type="button" class="button" id='create-office' onclick="addNew(true,false,'office')">Create
-                    Office</button>
-            </form>
-        </div>
+                    <div id="office-search-results" class="hidden animated fadeIn">
+                        <div class="pad">
+                            <p id="error" class="hidden bold col-red"></p>
+                            <ul id="office-search-results-ul" class="mdc-list"></ul>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </section>
         \{{/if}}
 
         \{{#if isLoggedIn}}
-        <section class="hidden animated fadeIn action-icons-container pad border">
-            {{!-- <div class="cards"> --}}
-            <h2 class="ttuc">Actions</h2>
-            <div class="grid-container-3">
+        <section id="actions-section" class="hidden animated fadeIn action-icons-container pad">
+            <h2 class="ttuc col-white">My Growthfile</h2>
+            <div class="bg-white br-8 pad border grid-container-3">
                 <div id="view-enquiries" onclick="viewEnquiries()" class="card">
                     <span class="flexed-jc-center mb-16">
                         <i class="fas fa-question action-icon ft-size-20"></i>
@@ -65,7 +86,7 @@
                     </span>
                 </div>
 
-                <div id="add-employees" onclick="addNew(\{{isSupport}}, \{{isAdmin}})" class="card">
+                <div id="add-employees" onclick="createNew(\{{isSupport}}, \{{isAdmin}})" class="card">
                     <span class="flexed-jc-center mb-16 ft-size-20">
                         <i class="fas fa-user-plus action-icon"></i>
                     </span>
@@ -143,8 +164,41 @@
         </section>
         \{{/if}}
 
+        <section class="pad border hidden animated fadeIn" id="trigger-reports-section">
+            <h2>Trigger a Report</h2>
+            <p>
+                Select a time and report to get the report on your email <span class="bold">\{{email}}</span>
+            </p>
+
+            <form>
+                <div class="flexed mb-16">
+                    <select id="report-trigger-select" class="f1 mr-8" class="input-field">
+                    </select>
+                    <input class="input-field" type="date" id="report-trigger-date">
+                </div>
+                <div class="flexed-jc-center mb-16" id="recaptcha-container"></div>
+                <div class="flexed-jc-center">
+                    <button id="trigger-report-button" disabled class="button" type="button">
+                        Submit
+                        <i class="fas fa-arrow-circle-right"></i>
+                    </button>
+                </div>
+            </form>
+            <div class="tac mt-16">
+                <p id="trigger-report-result" class="success-label hidden"></p>
+            </div>
+
+        </section>
+
         <section class="pad border hidden animated fadeIn" id="enquiries-container">
-            <h2>Your Enquiries</h2>
+            <h2>YOUR ENQUIRIES</h2>
+            <ul class="mdc-list mdc-list--two-line"></ul>
+            <div id="no-enquiry-box" class="hidden flexed-column flexed-ai-center flexed-jc-center">
+                <i class="fas fa-times-circle ft-60 transparent"></i>
+                <p class="pt-16 italic">
+                    No enquiries found for you.
+                </p>
+            </div>
         </section>
 
         <section class="hidden pad border" id="manage-template-container">
@@ -155,7 +209,7 @@
                         <span>Templates</span>
                     </a>
                 </li>
-                <li>
+                <li class="" onclick="createNewTemplate(this)">
                     <a class="flexed-ai-center flexed-column" href="#">
                         <i class="fas fa-plus mb-8"></i>
                         <span>Create</span>
@@ -171,8 +225,8 @@
         </section>
         \{{> featuredPartial}}
         \{{> appFeatures}}
-        <div id="modal-box"></div>
         \{{> footerPartial}}
+        <div id="modal-box"></div>
     </div>
     \{{> scriptsPartial}}
     <script src="js/home.js"></script>

@@ -616,6 +616,16 @@ window.onload = function () {
   }
 
   initPhoneNumberLibrary();
+
+  const youtube = document.querySelector('.youtube');
+  console.log({ youtube });
+
+  if (!youtube) {
+    console.log('setting ');
+    const container = document.querySelector('.container');
+    container.style.marginTop = 'auto';
+    document.querySelector('.pad-below-header').style.height = '20vh';
+  }
 }
 
 const enquirySubmitButton = document.getElementById('enquiry-submit-button');

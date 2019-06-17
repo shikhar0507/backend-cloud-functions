@@ -1,15 +1,18 @@
 <header class="mb-16">
     <div class="header">
-        <a href="/" class="logo-container">
+        <a href="/" class="flexed">
             <img src="/img/logo-main.jpg" alt="Growthfile Logo" height="40" width="40">
-            <p class="logo-text"><span>Growth</span>file</p>
+            <p class="logo-text"><span class="bold">Growth</span>file</p>
         </a>
         <div class="header-links-container">
             \{{#if isLoggedIn}}
             <a id="header-profile-icon" href="#">
                 \{{> headerProfileIcon}}
+                \{{#unless emailVerified}}
+                <span class="exclamation col-red"></span>
+                \{{/unless}}
             </a>
-            <div class="dropdown-content animated fadeIn">
+            <div class="dropdown-content">
                 <div class="menu-user-details mb-16">
                     \{{#if photoURL}}
                     <img width="96" height="96" src=\{{photoURL}} alt="header-profile-picture" alt="profile image">
@@ -17,40 +20,44 @@
                     <img width="96" height="96" src="img/person.png" alt="image not available">
                     \{{/if}}
                     <ul>
-                        <li class="ft-size-16 bold">
+                        <li class="ft-size-20 mb-8 bold">
                             \{{#if displayName}}
+                            <i class="fas fa-user-circle mr-8"></i>
                             \{{displayName}}
                             \{{/if}}
                         </li>
-                        <li class="menu-details-item">
+                        <li class="menu-details-item mb-8">
+                            <i class="fas fa-phone mr-8"></i>
                             \{{phoneNumber}}
                         </li>
-                        <li class="menu-details-item">
+                        <li class="menu-details-item mb-8">
                             \{{#if email}}
+                            <i class="fas fa-envelope-open-text mr-8"></i>
                             \{{email}}
                             \{{/if}}
                         </li>
                     </ul>
                 </div>
-                <div class="flexed-sb m-0-20">
-                    <a href="#">
-                        \{{#if emaiVerified}}
-                        <i class="fas fa-check-circle col-green"></i>
-                        Verified
-                        \{{else}}
-                        <i class="fas fa-times-circle col-red"></i>
-                        Unverfied
-                        \{{/if}}
+                <div class="flexed-sb m-0-20 ttuc">
+                    \{{#unless emaiVerified}}
+                    <a href="#" class="warning-label">
+                        <i class="fas fa-envelope-open-text"></i>
+                        Verify Email
                     </a>
-                    <a class="button pad-0-20" href="#" id="menu-logout-link">Log Out</a>
-
+                    \{{/unless}}
+                    <a href="#" id="menu-logout-link">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Log Out
+                    </a>
                 </div>
             </div>
             \{{else}}
             <a class="hidden" id="header-hamburger-icon" href="#">
                 <i class="fas fa-bars"></i>
             </a>
-            <a href="/auth" class="button">Login</a>
+            <button id="login-button" href="/auth" class="mdc-button mdc-button--outlined">
+                <span class="mdc-button__label">Login</span>
+            </button>
         </div>
         \{{/if}}
     </div>

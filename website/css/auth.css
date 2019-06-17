@@ -61,6 +61,10 @@ footer {
     min-width: 100%;
 }
 
+#box {
+    width: 400px;
+}
+
 @media(min-width: 768px) {
     section:first-child {
         min-height: 30vh;

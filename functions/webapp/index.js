@@ -30,7 +30,7 @@ const headPartial = require('./views/partials/head.hbs')();
 const headerPartial = require('./views/partials/header.hbs')();
 const footerPartial = require('./views/partials/footer.hbs')();
 const scriptsPartial = require('./views/partials/scripts.hbs')();
-const asidePartial = require('./views/partials/aside.hbs')();
+const actionsAside = require('./views/partials/actions-aside.hbs')();
 const featuredPartial = require('./views/partials/featured.hbs')();
 const headerProfileIcon = require('./views/partials/header-profile-icon.hbs')();
 const appFeatures = require('./views/partials/app-features.hbs')();
@@ -39,7 +39,7 @@ handlebars.registerPartial('scriptsPartial', scriptsPartial);
 handlebars.registerPartial('headPartial', headPartial);
 handlebars.registerPartial('headerPartial', headerPartial);
 handlebars.registerPartial('footerPartial', footerPartial);
-handlebars.registerPartial('asidePartial', asidePartial);
+handlebars.registerPartial('actionsAside', actionsAside);
 handlebars.registerPartial('featuredPartial', featuredPartial);
 handlebars.registerPartial('headerProfileIcon', headerProfileIcon);
 handlebars.registerPartial('appFeatures', appFeatures);
@@ -809,6 +809,18 @@ const handleJsonPostRequest = (conn, requester) => {
     return handleTrackViews();
   }
 
+  if (conn.req.query.action === 'create-template'
+    && requester.isTemplateManager) {
+    conn.requester = {
+      phoneNumber: requester.phoneNumber,
+      uid: requester.uid,
+      customClaims: requester.customClaims,
+      displayName: requester.displayName,
+    };
+
+    return require('../firestore/activity-templates/on-create')(conn);
+  }
+
   if (conn.req.query.action === 'update-template'
     && requester.isTemplateManager) {
     conn.requester = {
@@ -955,7 +967,7 @@ module.exports = (req, res) => {
 
         return conn.res.send(doc.get('sitemap'));
       })
-      .catch((error) => {
+      .catch(error => {
         console.error(error);
         const html = handleServerError();
 
