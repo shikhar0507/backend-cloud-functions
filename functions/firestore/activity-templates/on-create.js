@@ -36,8 +36,6 @@ const {
   reportingActions,
 } = require('../../admin/constants');
 const {
-  handleError,
-  sendResponse,
   isNonEmptyString,
 } = require('../../admin/utils');
 
@@ -211,7 +209,7 @@ const createDocs = (conn, locals) => {
   templateBody.timestamp = Date.now();
   const { messageBody, subject, action } = locals;
 
-  Promise
+  return Promise
     .all([
       locals
         .templateDocRef
@@ -221,12 +219,11 @@ const createDocs = (conn, locals) => {
         .doc()
         .set({ messageBody, subject, action }),
     ])
-    .then(() => sendResponse(
-      conn,
-      code.created,
-      `Template: ${conn.req.body.name} has been created successfully.`
-    ))
-    .catch((error) => handleError(conn, error));
+    .then(() => ({
+      success: true,
+      code: code.ok,
+      message: `Template: '${conn.req.body.name}' created successfully`,
+    }));
 };
 
 
@@ -241,32 +238,30 @@ module.exports = (conn) => {
   const result = validateTemplate(conn.req.body);
 
   if (!result.isValid) {
-    sendResponse(conn, code.badRequest, result.message);
-
-    return;
+    return {
+      success: false,
+      code: code.badRequest,
+      message: result.message,
+    };
   }
 
   if (!conn.req.body.hasOwnProperty('attachment')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The 'attachment' field is missing from the request body.`
-    );
-
-    return;
+    return {
+      message: `The 'attachment' field is missing from the request body.`,
+      success: false,
+      code: code.badRequest,
+    };
   }
 
   const attachment = conn.req.body.attachment;
 
   if (Object.prototype.toString.call(attachment) !== '[object Object]') {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `Expected the value of the 'attachment' field to`
-      + ` be of type Object. Found: '${typeof attachment}'.`
-    );
-
-    return;
+    return {
+      code: code.badRequest,
+      message: `Expected the value of the 'attachment' field to`
+        + ` be of type Object. Found: '${typeof attachment}'.`,
+      success: false,
+    };
   }
 
   const messageObject = {
@@ -276,14 +271,12 @@ module.exports = (conn) => {
 
   if (attachment.hasOwnProperty('Name')
     && attachment.hasOwnProperty('Number')) {
-    sendResponse(
-      conn,
-      code.badRequest,
-      `The fields 'Name' and 'Number cannot exist`
-      + ` simultaneously in attachment object.'`
-    );
-
-    return;
+    return {
+      success: false,
+      code: code.badRequest,
+      message: `The fields 'Name' and 'Number cannot exist`
+        + ` simultaneously in attachment object.'`
+    };
   }
 
   const attachmentFields = Object.keys(attachment);
@@ -316,29 +309,28 @@ module.exports = (conn) => {
   }
 
   if (!messageObject.isValid) {
-    sendResponse(conn, code.badRequest, messageObject.message);
-
-    return;
+    return {
+      success: false,
+      message: messageObject.message,
+      code: code.badRequest,
+    };
   }
 
-  rootCollections
+  return rootCollections
     .activityTemplates
     .where('name', '==', conn.req.body.name)
     .limit(1)
     .get()
     .then((snapShot) => {
       if (!snapShot.empty) {
-        sendResponse(
-          conn,
-          code.conflict,
-          `A template with the name: '${conn.req.body.name}' already exists.`
-        );
-
-        return;
+        return {
+          success: false,
+          message: `A template with the name: '${conn.req.body.name}' already exists.`,
+          code: code.conflict,
+        };
       }
 
       const templateDocRef = rootCollections.activityTemplates.doc();
-
       const subject = `A new template has been created`
         + ` (${process.env.GCLOUD_PROJECT})`;
       const messageBody = `
@@ -367,13 +359,6 @@ module.exports = (conn) => {
         action: reportingActions.usedCustomClaims,
       };
 
-      console.log({ messageBody });
-
-      createDocs(conn, locals);
-
-      // sendResponse(conn, code.ok, 'testing templates');
-
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+      return createDocs(conn, locals);
+    });
 };
