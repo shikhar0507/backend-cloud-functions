@@ -37,6 +37,7 @@ const {
   reportNames,
 } = require('../admin/constants');
 const moment = require('moment');
+const env = require('../admin/env');
 
 
 /**
@@ -59,6 +60,13 @@ module.exports = (userRecord) => {
   const momentToday = moment()
     .utc()
     .toObject();
+
+  if (!env.isProduction) {
+    return auth
+      .updateUser(userRecord.uid, {
+        disabled: true,
+      });
+  }
 
   return Promise
     .all([
