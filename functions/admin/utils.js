@@ -366,7 +366,9 @@ const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const isE164PhoneNumber = (phoneNumber) => {
-  if (typeof phoneNumber !== 'string' || phoneNumber.trim() !== phoneNumber) {
+  if (typeof phoneNumber !== 'string'
+    || phoneNumber.trim() !== phoneNumber
+    || phoneNumber.replace(/ +/g, '') !== phoneNumber) {
     return false;
   }
 
