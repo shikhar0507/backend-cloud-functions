@@ -35,7 +35,6 @@ const getPayDaySheetTopRow = (momentYesterday) => {
   const topRowValues = [
     'Employee Name',
     'Employee Code',
-    'Gender',
     'Live Since',
   ];
 
@@ -45,7 +44,7 @@ const getPayDaySheetTopRow = (momentYesterday) => {
     topRowValues.push(`${monthName}-${dayNumber}`);
   }
 
-  topRowValues.push('Total', 'Employee Details');
+  topRowValues.push('Total Payable Days', 'Employee Details');
 
   return topRowValues;
 };
@@ -310,6 +309,8 @@ module.exports = (locals) => {
           .where('month', '==', momentYesterday.month())
           .where('year', '==', momentYesterday.year())
           .where('user', '==', phoneNumber);
+        // .where('timestamp', '>=', momentYesterday.clone().tz(timezone).hours(5).minutes(30).valueOf())
+        // .where('timestamp', '<=', momentToday.clone().tz(timezone).hours(5).minutes(30).valueOf());
 
         if (checkDistanceAccurate) {
           baseQuery = baseQuery
@@ -406,6 +407,8 @@ module.exports = (locals) => {
         return Promise.resolve({});
       }
 
+      const monthlyOffDaysCountMap = new Map();
+
       employeePhoneNumbersList.forEach((phoneNumber, index) => {
         const statusObject = statusObjectsMap.get(phoneNumber);
         const columnIndex = index + 2;
@@ -415,6 +418,8 @@ module.exports = (locals) => {
           format: dateFormats.DATE,
         });
 
+        monthlyOffDaysCountMap.set(phoneNumber, 0);
+
         paydaySheet
           .cell(`A${columnIndex}`)
           .value(employeesData[phoneNumber].Name);
@@ -423,9 +428,6 @@ module.exports = (locals) => {
           .value(employeesData[phoneNumber]['Employee Code']);
         paydaySheet
           .cell(`C${columnIndex}`)
-          .value(employeesData[phoneNumber].Gender || '');
-        paydaySheet
-          .cell(`D${columnIndex}`)
           .value(liveSince);
 
         paydayTimingsSheet
@@ -433,11 +435,12 @@ module.exports = (locals) => {
           .value(employeesData[phoneNumber].Name);
 
         let totalCount = 0;
-        let paydaySheetAlphabetIndex = 4;
+        let paydaySheetAlphabetIndex = 3;
         let paydayTimingsSheetIndex = 1;
         let daysWithDeductionsCount = 0;
 
         for (let date = yesterdayDate; date >= 1; date--) {
+          const monthlyOffDays = employeesData[phoneNumber]['Monthly Off Days'] || 0;
           const paydaySheetCell = `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
           const paydayTimingsSheetCell = `${alphabetsArray[paydayTimingsSheetIndex]}${columnIndex}`;
 
@@ -454,6 +457,13 @@ module.exports = (locals) => {
 
             return statusObject[date].statusForDay || 0;
           })();
+
+          if (paydaySheetValue === 0) {
+            monthlyOffDaysCountMap.set(phoneNumber, 1);
+            let count = monthlyOffDaysCountMap.get(phoneNumber) || 0;
+
+            monthlyOffDaysCountMap.set(phoneNumber, count++);
+          }
 
           const getPaydayTimingsSheetValue = () => {
             if (statusObject[date].onLeave) {
@@ -476,10 +486,10 @@ module.exports = (locals) => {
             const lastCheckInTimestamp = statusObject[date].lastCheckInTimestamp;
             const minimumWorkingHours = employeesData[phoneNumber]['Minimum Working Hours'] || 0;
             const minimumDailyActivityCount = employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
-            const adjustedFirstCheckIn = momentTz(firstCheckInTimestamp).tz(timezone);
-            const adjustedLastCheckIn = momentTz(lastCheckInTimestamp).tz(timezone);
+            const adjustedFirstCheckIn = momentTz(firstCheckInTimestamp);
+            const adjustedLastCheckIn = momentTz(lastCheckInTimestamp);
             const checkInDiffInHours = adjustedLastCheckIn.diff(adjustedFirstCheckIn, 'hours', true);
-            const hoursWorked = msToTime(lastCheckInTimestamp - firstCheckInTimestamp);
+            // const hoursWorked = msToTime(lastCheckInTimestamp - firstCheckInTimestamp);
 
             // Checkins difference between the first and the last checkin is < than the
             // expected hours
@@ -487,15 +497,16 @@ module.exports = (locals) => {
               || (checkInDiffInHours < minimumWorkingHours)
               || (statusObject[date].numberOfCheckIns < minimumDailyActivityCount)) {
               daysWithDeductionsCount++;
-
-              return `Hours Worked:`
-                + ` ${hoursWorked}.`
-                + ` Number of Check-ins: ${statusObject[date].numberOfCheckIns || 0}`;
             }
 
-            return `Hours Worked:`
-              + ` ${hoursWorked}.`
-              + ` ${statusObject[`${date}`].firstCheckIn} | ${statusObject[date].lastCheckIn}`;
+            if (!statusObject[date].firstCheckIn) {
+              return `-- to --, ${statusObject[date].numberOfCheckIns || 0}`
+            }
+
+            return `${statusObject[date].firstCheckIn}`
+              + ` to`
+              + ` ${statusObject[date].lastCheckIn},`
+              + ` ${statusObject[date].numberOfCheckIns || 0}`;
           };
 
           totalCount += paydaySheetValue;
