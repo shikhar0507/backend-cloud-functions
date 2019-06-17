@@ -302,7 +302,7 @@ module.exports = (req, res) => {
   };
 
   /** For handling CORS */
-  if (req.metho === 'HEAD' || req.method === 'OPTIONS') {
+  if (req.method === 'HEAD' || req.method === 'OPTIONS') {
     return sendResponse(conn, code.noContent);
   }
 
