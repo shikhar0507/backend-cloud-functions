@@ -176,7 +176,7 @@ module.exports = (conn) => {
     addendum: [],
     activities: [],
     templates: [],
-    locations: [],
+    venue: [],
   };
 
   return Promise
@@ -201,7 +201,7 @@ module.exports = (conn) => {
       rootCollections
         .updates
         .doc(conn.requester.uid)
-        .get(),
+        .get()
     ])
     .then(result => {
       const [addendum, activities, subscriptions, updatesDoc] = result;
@@ -241,9 +241,9 @@ module.exports = (conn) => {
             .push(getSubscriptionObject(doc));
         });
 
-      if (updatesDoc.get('venues')) {
-        jsonObject.venues = updatesDoc.get('venues');
-      }
+      // If this field is undefined, sendJSON will automatically
+      // remove this from the final response object
+      jsonObject.venue = updatesDoc.get('venue');
 
       const batch = db.batch();
 

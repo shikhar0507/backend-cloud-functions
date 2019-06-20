@@ -41,7 +41,7 @@
 }
 
 .container {
-    margin-top: -150px;
+    /* margin-top: -150px; */
 }
 
 #support-office-search {
@@ -50,6 +50,10 @@
 
 #actions-section {
     /* margin-top: -140px; */
+}
+
+#office-search-field {
+    height: unset;
 }
 
 #office-search-form {
@@ -215,7 +219,8 @@ tr:nth-child(even) {
 
 section h1 {
     font-weight: 800;
-    font-size: 44px;
+    /* font-size: 44px; */
+    font-size: calc(33.75px + 11.25 * ((100vw - 480px) / 800));
     margin-bottom: 16px;
     line-height: 44px;
     text-transform: capitalize;
@@ -252,11 +257,6 @@ section h1 {
     text-align: center;
 }
 
-.office {
-    margin-bottom: 16px;
-    cursor: pointer;
-}
-
 .office-text-container {
     display: flex;
     flex-direction: column;
@@ -279,13 +279,6 @@ section h1 {
     max-width: 100%;
 }
 
-.section-one {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-}
-
 aside {
     display: none;
     overflow-y: auto;
@@ -294,12 +287,49 @@ aside {
 }
 
 .pad-below-header {
-    height: 30vh;
+    height: 60px;
 }
 
 aside ul {
     min-height: 40px;
     /* padding: 0 10px 0 10px; */
+}
+
+#unversal-search-results {
+    max-height: 100%;
+    overflow-y: auto;
+}
+
+.search-results-container {
+    position: absolute;
+    z-index: 99;
+    max-height: 80%;
+}
+
+.join-container {
+    background: #6a3093;
+    background: -webkit-linear-gradient(to right, #a044ff, #6a3093);
+    background: linear-gradient(to right, #a044ff, #6a3093);
+}
+
+.join-form {
+    margin-bottom: 8px;
+    max-width: 90%;
+    border-radius: 4px;
+}
+
+.card img {
+    max-width: 100%;
+}
+
+.featured-cards {
+    display: grid;
+    grid-gap: 5px;
+    grid-template-columns: 50% 50%;
+}
+
+.banner {
+    background: url(../img/banner.jpg) no-repeat;
 }
 
 @media (min-width: 768px) {
@@ -317,9 +347,23 @@ aside ul {
         /* margin-left: 180px; */
     }
 
-    aside {
-        display: block;
-        width: 180px;
+    .join-container {
+        display: flex;
+        min-height: 50vh;
+    }
+
+    .join-container>div {
+        margin-top: auto;
+        margin-bottom: auto;
+    }
+
+    .join-container form {
+        margin-top: 8px;
+        margin-right: 8px;
+    }
+
+    .featured-cards {
+        grid-template-columns: 33% 33% 33%;
     }
 }
 
@@ -330,6 +374,14 @@ aside ul {
 
     aside {
         width: 240px;
+    }
+
+    .join-container {
+        min-height: 70vh;
+    }
+
+    .featured-cards {
+        grid-template-columns: 25% 25% 25% 25%;
     }
 }
 

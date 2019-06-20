@@ -198,7 +198,7 @@ module.exports = (conn) => {
 
       // Delete venues on acknowledgement
       if (updatesDocData.venues
-        && conn.req.query.mapsSet === 'true') {
+        && conn.req.query.venues === 'true') {
         const admin = require('firebase-admin');
 
         updatesDocData.venues = admin.firestore.FieldValue.delete();
@@ -211,9 +211,10 @@ module.exports = (conn) => {
       return Promise
         .all([
           Promise
-            .resolve(revokeSession),
-          Promise
-            .resolve(updateClient),
+            .all([
+              revokeSession,
+              updateClient,
+            ]),
           batch
             .commit(),
         ]);
@@ -226,7 +227,7 @@ module.exports = (conn) => {
       const [
         revokeSession,
         updateClient,
-      ] = result;
+      ] = result[0];
 
       const responseObject = {
         revokeSession,

@@ -543,7 +543,9 @@ const getSearchables = (string) => {
   const nameCharactersArray = string.split('');
   const valuesSet = new Set();
   const charsToIgnoreSet = new Set(['.', ',', '(', ')', '/', '~', '', '[', ']']);
-  const getTrimmedString = (stringValue) => stringValue.toLowerCase().trim();
+
+  const getTrimmedString = stringValue => stringValue.toLowerCase().trim();
+
   const getValues = (string, index) => {
     const part = string.substr(0, index);
 
@@ -562,7 +564,7 @@ const getSearchables = (string) => {
     valuesSet.add(char);
   }
 
-  valuesSet.add(string.toLowerCase().trim());
+  valuesSet.add(getTrimmedString(string));
 
   return [...valuesSet];
 };

@@ -46,7 +46,7 @@ function searchOffice() {
         const span = document.createElement('span');
         span.classList.add('mdc-list-item__text');
         span.textContent = name;
-        li.classList.add('mdc-list-item', 'raised');
+        li.classList.add('mdc-list-item', 'cur-ptr');
         li.tabIndex = '0';
         li.appendChild(span);
 
@@ -79,6 +79,11 @@ function searchOffice() {
             .querySelector('#actions-section')
             .classList
             .remove('hidden');
+
+          // Search bar
+          document
+            .querySelector('#search-box')
+            .classList.remove('hidden');
 
           document.querySelector('#support-office-search').remove();
         }
@@ -257,8 +262,7 @@ function fileToJson(template, claim, data, modal) {
 
 
 
-function createNew(isSupport, isAdmin, template) {
-  console.log({ isSupport, isAdmin, template });
+function createNew() {
   let templateSelected;
   const modal = createModal(excelUploadContainer(template))
 
@@ -370,19 +374,8 @@ function triggerReports() {
         selectBox.appendChild(option);
       })
 
-      window.recaptchaVerifier = handleRecaptcha();
-      recaptchaVerifier.render();
-
-      return recaptchaVerifier.verify();
-    })
-    .then(function (token) {
-      console.log(token);
-
-
       const submitButton = document.querySelector('#trigger-report-button');
       submitButton.onclick = submitOnClick;
-      submitButton.removeAttribute('disabled');
-
     })
     .catch(console.error);
 }
@@ -391,7 +384,7 @@ function searchAndUpdate() {
   const container = document.createElement('div');
   const ul = document.createElement('ul')
   const search = searchBar('Search', 'search-all');
-  let label;
+  // let label;
 
   let chooseType;
   let chooseValue;
@@ -418,7 +411,7 @@ function searchAndUpdate() {
       value = value.replace('+', '%2B')
     }
 
-    sendApiRequest(`${getPageHref()}json?office=${document.body.dataset.office}&query=${value}`, null, 'GET').then(function (res) {
+    sendApiRequest(`/json?office=${document.body.dataset.office}&query=${value}`, null, 'GET').then(function (res) {
       return res.json()
     }).then(function (response) {
       console.log(response)
@@ -428,11 +421,12 @@ function searchAndUpdate() {
 
       console.log(response)
       const types = Object.keys(response);
+
       if (!types.length) {
-        label.warning('No results Found');
-        return
+        // label.warning('No results Found');
+        return;
       }
-      label.warning('');
+      // label.warning('');
       chooseType = customSelect('Choose Type')
       types.forEach(function (name) {
         const option = document.createElement('option');
@@ -517,15 +511,15 @@ function searchAndUpdate() {
                     return res.json()
                   }).then(function (response) {
                     if (!response.success) {
-                      label.warning(response.message)
+                      // label.warning(response.message)
                       return;
                     }
-                    label.success('success');
+                    // label.success('success');
 
                     console.log(response)
                   }).catch(console.log)
                 }).catch(function (errorMessage) {
-                  label.warning(errorMessage);
+                  // label.warning(errorMessage);
                 })
 
               }
@@ -540,7 +534,8 @@ function searchAndUpdate() {
       form.appendChild(chooseType);
 
     }).catch(function (error) {
-      label.warning(error.message)
+      // label.warning(error.message)
+      console.error(error);
     })
   }
   const form = document.createElement('div')
@@ -549,9 +544,15 @@ function searchAndUpdate() {
 
   container.appendChild(form);
   container.appendChild(ul);
-  const modal = createModal(container);
-  document.getElementById('modal-box').appendChild(modal);
-  label = new showLabel(document.getElementById('action-label'))
+  // const modal = createModal(container);
+  const section = document.querySelector('#search-and-update-section');
+  section.classList.remove('hidden');
+
+  section.appendChild(container);
+
+  // document.getElementById('modal-box').appendChild(section);
+
+  // label = new showLabel(document.getElementById('action-label'))
 }
 
 function createActivityList(data) {
@@ -973,7 +974,6 @@ function handleTemplateEditClick(event) {
   const textareaContainer = document.createElement('p');
   textareaContainer.classList.add('w-100');
   const submitContainer = document.createElement('p');
-
   const textarea = document.createElement('textarea');
   textarea.rows = 20;
   textarea.classList.add('input-field', 'w-100');
@@ -984,7 +984,6 @@ function handleTemplateEditClick(event) {
   submitButton.href = '#';
   submitButton.classList.add('button');
   submitButton.innerText = 'Update';
-
   submitButton.onclick = updateTemplate;
 
   textarea.value = JSON.stringify(templatesJSON[event.target.dataset.templateId], ' ', 4);
@@ -1224,17 +1223,21 @@ function createNewTemplate() {
 }
 
 window.onload = function () {
+  const joinContainer = document.querySelector('.join-container');
+
+  if (document.body.dataset.isadmin || document.body.dataset.issupport) {
+    if (joinContainer) {
+      joinContainer.classList.add('hidden');
+    }
+  }
+
   if (document.body.dataset.isadmin
     && sessionStorage.getItem('office')
     && firebase.auth().currentUser) {
     document.body.dataset.office = sessionStorage.getItem('office');
 
-    // remove the office search section
-    document
-      .querySelector('#office-search-form')
-      .parentElement
-      .remove();
 
+    // remove the office search section
     document
       .querySelector('#actions-section')
       .classList
@@ -1248,8 +1251,36 @@ window.onload = function () {
       .remove('hidden');
   }
 
-  if (!firebase.auth().currentUser) {
-    document.querySelector('.container').style.marginTop = 'auto';
+  const phoneField = document.querySelector('#phone');
+
+  if (phoneField) {
+    phoneField.onfocus = function () {
+      const intlTelInputOptions = {
+        preferredCountries: ['IN', 'NP'],
+        initialCountry: 'IN',
+        nationalMode: false,
+        formatOnDisplay: true,
+        customContainer: 'mb-16',
+        customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
+          window.countryCode = selectedCountryData.dialCode;
+          console.log({ selectedCountryPlaceholder, selectedCountryData });
+          return "e.g. " + selectedCountryPlaceholder;
+        }
+      };
+
+      const altContact = document.querySelector('#alt-contact');
+      phoneField.style.height = '58px';
+      phoneField.classList.add('mw-100');
+      altContact.style.height = '58px';
+      altContact.classList.add('mw-100');
+
+      window.intlTelInput(phoneField, intlTelInputOptions);
+      // window.intlTelInput(altContact, intlTelInputOptions);
+
+      // Required, otherwise this initialization will try to run everytime
+      // the user tries to type something in the field
+      phoneField.onfocus = null;
+    }
   }
 };
 
