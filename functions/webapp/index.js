@@ -926,6 +926,8 @@ module.exports = (req, res) => {
     isLoggedIn: false,
   };
 
+  console.log('COOKIE', req.cookies);
+
   // Only GET and POST are allowed
   if (!new Set(['GET', 'POST'])
     .has(req.method)) {

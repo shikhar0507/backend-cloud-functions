@@ -9,28 +9,31 @@
 <body data-istemplatemanager="\{{isTemplateManager}}" data-isSupport="\{{isSupport}}" data-isAdmin="\{{isAdmin}}"
     data-offices="\{{adminOffices}}">
     \{{> headerPartial this}}
-    <div class="pad-below-header bg-magenta"></div>
+    <div class="pad-below-header"></div>
     \{{> actionsAside this}}
     <div class="container">
+        <div id="search-box" class="pad-10 hidden">
+            <form class="flexed">
+                <input id="universal-search" type="text" class="input-field f1" placeholder="Search Growthfile">
+            </form>
+            <div class="flexed bg-white search-results-container">
+
+                <ul id="unversal-search-results" class="raised">
+                </ul>
+            </div>
+        </div>
         \{{#if isAdmin}}
         <section class="pad flexed flexed-jc-center flexed-column flexed-ai-center">
-            <div class="col-white mw-100">
+            <div class="mw-100">
                 <h2>Select Your office</h2>
             </div>
-            <form id="office-form" class="border bg-white flexed-column flexed-ai-center flexed-jc-center mw-100">
-                <p class="mt-16">
-                    <select class="input-field f1" id="office-selector">
-                        \{{#each adminOffices}}
-                        <option value="\{{this}}">\{{this}}</option>
-                        \{{/each}}
-                    </select>
-                </p>
-                <p>
-                    <button onclick="startAdmin()" type="button" class="button">
-                        Continue
-                        <i class="fas fa-arrow-right"></i>
-                    </button>
-                </p>
+            <form id="office-form" class="flexed-row mw-100">
+                <select class="input-field mr-8 f1" id="office-selector">
+                    \{{#each adminOffices}}
+                    <option value="\{{this}}">\{{this}}</option>
+                    \{{/each}}
+                </select>
+                <input type="button" value="Continue" onclick="startAdmin()">
             </form>
         </section>
         \{{/if}}
@@ -38,34 +41,24 @@
         \{{#if isSupport}}
         <section id="support-office-search" class="pad">
             <div id="office-search-title" class="tal mw-100">
-                <h2 class="col-white">Search an office</h2>
+                <h2>Search an office</h2>
             </div>
             <div>
-                <form autocomplete="off" id="office-form" class="raised bg-white flexed-ai-center flexed-column">
-                    <p class="pt-16">
-                        <input placeholder="Type here..." class="input-field f1" id="office-search-field" type="text">
-                    </p>
-                    <p>
-                        <button type="button" class="button" onclick="searchOffice()">
-                            <i class="fas fa-search"></i>
-                            Search
-                        </button>
-                    </p>
-
-                    <div id="office-search-results" class="hidden animated fadeIn">
-                        <div class="pad">
-                            <p id="error" class="hidden bold col-red"></p>
-                            <ul id="office-search-results-ul" class="mdc-list"></ul>
-                        </div>
-                    </div>
+                <form autocomplete="off" id="office-form" class="flexed">
+                    <input placeholder="Type here..." class="input-field f1 mr-8" id="office-search-field" type="text">
+                    <input type="button" value="Search" class="button" onclick="searchOffice()">
                 </form>
+                <div id="office-search-results" class="hidden border animated fadeIn mt-16">
+                    <p id="error" class="hidden bold col-red"></p>
+                    <ul id="office-search-results-ul" class="mdc-list"></ul>
+                </div>
             </div>
         </section>
         \{{/if}}
 
         \{{#if isLoggedIn}}
         <section id="actions-section" class="hidden animated fadeIn action-icons-container pad">
-            <h2 class="ttuc col-white">My Growthfile</h2>
+            <h2 class="ttuc">My Growthfile</h2>
             <div class="bg-white br-8 pad border grid-container-3">
                 <div id="view-enquiries" onclick="viewEnquiries()" class="card">
                     <span class="flexed-jc-center mb-16">
@@ -86,7 +79,7 @@
                     </span>
                 </div>
 
-                <div id="add-employees" onclick="createNew(\{{isSupport}}, \{{isAdmin}})" class="card">
+                <div id="add-employees" onclick="createNew()" class="card">
                     <span class="flexed-jc-center mb-16 ft-size-20">
                         <i class="fas fa-user-plus action-icon"></i>
                     </span>
@@ -176,12 +169,8 @@
                     </select>
                     <input class="input-field" type="date" id="report-trigger-date">
                 </div>
-                <div class="flexed-jc-center mb-16" id="recaptcha-container"></div>
                 <div class="flexed-jc-center">
-                    <button id="trigger-report-button" disabled class="button" type="button">
-                        Submit
-                        <i class="fas fa-arrow-circle-right"></i>
-                    </button>
+                    <input id="trigger-report-button" class="button" type="button" value="Submit">
                 </div>
             </form>
             <div class="tac mt-16">
@@ -199,6 +188,9 @@
                     No enquiries found for you.
                 </p>
             </div>
+        </section>
+
+        <section class="pad border hidden animated fadeIn" id="search-and-update-section">
         </section>
 
         <section class="hidden pad border" id="manage-template-container">
@@ -220,8 +212,46 @@
                 {{!-- Stuff after selecting the template --}}
             </div>
         </section>
-        <section class="features-section section-one pad border">
-            <h1 class="fw-400">A habit for highly effective businesses</h1>
+        <section class="join-container">
+            <div class="banner"></div>
+            <div class="mb-16 pad">
+                <h1 class="fw-400 col-white">
+                    7 automations for highly effective businesses
+                </h1>
+
+                <span class="col-white">
+                    Get more done, everyday!
+                </span>
+            </div>
+            <div class="flexed-jc-center">
+                <form class="join-form border flexed-column blue-gradient pad-10">
+                    <label class="bold ttuc mb-8" for="phone">Phone Number</label>
+                    <input tabindex="0" placeholder="e.g. +91876543210" id="phone" type="tel" class="input-field mb-16">
+
+                    <label class="hidden bold ttuc mb-8" for="">Office</label>
+                    <input placeholder="e.g, Acme Corp..." type="text" class=" hidden input-field mb-16">
+
+                    <label class="hidden ttuc bold mb-8" for="email">Your Email</label>
+                    <input type="email" placeholder="me@growthfile.com" class="hidden input-field mb-16">
+
+                    <label class="hidden bold ttuc mb-8" for="alt-contact">Alternate Contact</label>
+                    <input id="alt-contact" type="tel" class="hidden input-field mb-16" placeholder="e.g. 9186543210">
+
+                    <input class="button mb-16" type="button" value="Start For Free">
+                    {{!-- phone number, office name, alternate phone number, alternate email --}}
+                    <p class="ft-12">
+                        By signing up, you agree to Growthfile's
+                        <a class="underline col-gray" href="/terms-and-conditions">Terms & Conditions</a>.
+                    </p>
+                    <p class="ft-12">
+                        This site is protected by reCAPTCHA and the Google
+                        <a class="underline col-gray" href="https://policies.google.com/privacy">Privacy Policy</a>
+                        and
+                        <a class="underline col-gray" href="https://policies.google.com/terms">Terms of Service</a>
+                        apply.
+                    </p>
+                </form>
+            </div>
         </section>
         \{{> featuredPartial}}
         \{{> appFeatures}}
