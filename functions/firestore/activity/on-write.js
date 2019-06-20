@@ -1245,6 +1245,8 @@ const handleLocationsMap = (locals) => {
       address: venue.address,
       latitude: venue.geopoint._latitude,
       longitude: venue.geopoint._longitude,
+      location: venue.location,
+      status: locals.change.after.get('status'),
     });
   });
 
