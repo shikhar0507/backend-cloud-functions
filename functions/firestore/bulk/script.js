@@ -1159,7 +1159,7 @@ const validateDataArray = (conn, locals) => {
           && locals.officeDoc.get('employeesData').hasOwnProperty(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Phone number: ${value}`
-            + ` already in use by ${locals.officeDoc.get('employeesData')[value].Name}`;
+            + ` is already in use by ${locals.officeDoc.get('employeesData')[value].Name}`;
 
           return;
         }
