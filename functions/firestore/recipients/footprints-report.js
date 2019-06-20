@@ -76,6 +76,23 @@ const getComment = (doc) => {
     return `Phone number(s) ${doc.get('share')} ${adjective} added`;
   }
 
+  if (action === httpsActions.branchView) {
+    return '';
+  }
+
+  if (action === httpsActions.productView) {
+    return '';
+  }
+
+  if (action === httpsActions.videoPlay) {
+    return '';
+  }
+
+  if (doc.get('template') === 'enquiry') {
+    return `${doc.get('user')} submitted an enquiry for the product:`
+      + ` ${doc.get('activityData.attachment.Product.value')}`;
+  }
+
   // action is 'comment'
   return doc.get('comment');
 };

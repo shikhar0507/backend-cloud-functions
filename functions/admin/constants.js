@@ -136,6 +136,9 @@ const httpsActions = {
   signup: 'signup',
   changeStatus: 'change-status',
   updatePhoneNumber: 'update-phone-number',
+  videoPlay: 'video-play',
+  productView: 'product-view',
+  branchView: 'branch-view',
 };
 
 const reportingActions = {

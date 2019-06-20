@@ -17,20 +17,6 @@ const {
   db,
 } = require('../../admin/admin');
 
-const msToTime = (duration) => {
-  if (!duration || isNaN(duration)) {
-    return `00:00`;
-  }
-
-  let minutes = Math.floor((duration / (1000 * 60)) % 60);
-  let hours = Math.floor((duration / (1000 * 60 * 60)) % 24);
-
-  hours = (hours < 10) ? '0' + hours : hours;
-  minutes = (minutes < 10) ? '0' + minutes : minutes;
-
-  return `${hours}:${minutes}`;
-};
-
 const getPayDaySheetTopRow = (momentYesterday) => {
   const topRowValues = [
     'Employee Name',
@@ -57,10 +43,10 @@ const getPayDayTimingsTopRow = (momentYesterday) => {
     topRowValues.push(`${monthName}-${dayNumber}`);
   }
 
-  topRowValues.push(
-    'Days With Deductions',
-    'Total Deductions'
-  );
+  // topRowValues.push(
+  //   'Days With Deductions',
+  //   'Total Deductions'
+  // );
 
   return topRowValues;
 };
@@ -173,31 +159,53 @@ module.exports = (locals) => {
 
   let paydaySheet;
   let paydayTimingsSheet;
+  let optionalMonthyMinus1Docs;
+
+  const promises = [
+    xlsxPopulate
+      .fromBlankAsync(),
+    locals
+      .officeDoc
+      .ref
+      .collection('Activities')
+      .where('template', '==', 'branch')
+      .get(),
+    locals
+      .officeDoc
+      .ref
+      .collection('Monthly')
+      .where('month', '==', momentYesterday.month())
+      .where('year', '==', momentYesterday.year())
+      .limit(1)
+      .get(),
+  ];
+
+  const firstDayOfMonthlyCycle = locals.officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
+
+  if (yesterdayDate < firstDayOfMonthlyCycle) {
+    promises.push(locals
+      .officeDoc
+      .ref
+      .collection('Monthly')
+      // Never forget to clone the object
+      .where('month', '==', momentYesterday.clone().subtract(1, 'month').month())
+      .where('year', '==', momentYesterday.year())
+      .limit(1)
+      .get()
+    );
+  }
 
   return Promise
-    .all([
-      locals
-        .officeDoc
-        .ref
-        .collection('Monthly')
-        .where('month', '==', momentYesterday.month())
-        .where('year', '==', momentYesterday.year())
-        .get(),
-      locals
-        .officeDoc
-        .ref
-        .collection('Activities')
-        .where('template', '==', 'branch')
-        .get(),
-      xlsxPopulate
-        .fromBlankAsync(),
-    ])
+    .all(promises)
     .then(result => {
       const [
-        monthlyDocsQuery,
-        branchDocsQuery,
         worksheet,
+        branchDocsQuery,
+        monthlyDocsQuery,
+        optionalMonthyMinus1Query, // This count be undefined
       ] = result;
+
+      optionalMonthyMinus1Docs = optionalMonthyMinus1Query ? optionalMonthyMinus1Query.docs : null;
 
       console.log('Docs read:', monthlyDocsQuery.size);
 
@@ -216,7 +224,7 @@ module.exports = (locals) => {
         statusObjectsMap.set(phoneNumber, statusObject);
       });
 
-      console.log('toDelete', JSON.stringify(toDelete));
+      // console.log('toDelete', JSON.stringify(toDelete));
 
       branchDocsQuery.forEach(branchDoc => {
         branchDoc.get('schedule').forEach(schedule => {
@@ -259,7 +267,7 @@ module.exports = (locals) => {
           docRefsMap.set(phoneNumber, locals.officeDoc.ref.collection('Monthly').doc());
         }
 
-        const statusObject = statusObjectsMap.get(phoneNumber);
+        const statusObject = statusObjectsMap.get(phoneNumber) || {};
         const checkDistanceAccurate = employeesData[phoneNumber]['Location Validation Check'];
 
         if (!statusObject[yesterdayDate]) {
@@ -309,8 +317,6 @@ module.exports = (locals) => {
           .where('month', '==', momentYesterday.month())
           .where('year', '==', momentYesterday.year())
           .where('user', '==', phoneNumber);
-        // .where('timestamp', '>=', momentYesterday.clone().tz(timezone).hours(5).minutes(30).valueOf())
-        // .where('timestamp', '<=', momentToday.clone().tz(timezone).hours(5).minutes(30).valueOf());
 
         if (checkDistanceAccurate) {
           baseQuery = baseQuery
@@ -371,6 +377,7 @@ module.exports = (locals) => {
         const minimumDailyActivityCount = employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
 
         statusObject[yesterdayDate].statusForDay = (() => {
+          /** snapShot.size =  number of check-ins */
           let result = snapShot.size / minimumDailyActivityCount;
 
           if (result > 1
@@ -388,7 +395,8 @@ module.exports = (locals) => {
         statusObjectsMap.set(phoneNumber, statusObject);
       });
 
-      return commitMultiBatch(statusObjectsMap, docRefsMap, momentYesterday);
+      // return commitMultiBatch(statusObjectsMap, docRefsMap, momentYesterday);
+      return;
     })
     .then(() => {
       if (yesterdayDate !== 5) {
@@ -396,7 +404,8 @@ module.exports = (locals) => {
       }
 
       // Clearing removed employees on 5th of the month
-      return monthlyDocsToDelete.commit();
+      // return monthlyDocsToDelete.commit();
+      return;
     })
     .then(() => {
       if (locals.createOnlyData) {
@@ -418,8 +427,6 @@ module.exports = (locals) => {
           format: dateFormats.DATE,
         });
 
-        monthlyOffDaysCountMap.set(phoneNumber, 0);
-
         paydaySheet
           .cell(`A${columnIndex}`)
           .value(employeesData[phoneNumber].Name);
@@ -437,7 +444,6 @@ module.exports = (locals) => {
         let totalCount = 0;
         let paydaySheetAlphabetIndex = 3;
         let paydayTimingsSheetIndex = 1;
-        let daysWithDeductionsCount = 0;
 
         for (let date = yesterdayDate; date >= 1; date--) {
           const monthlyOffDays = employeesData[phoneNumber]['Monthly Off Days'] || 0;
@@ -455,15 +461,20 @@ module.exports = (locals) => {
               return 1;
             }
 
+            if (statusObject[date].numberOfCheckIns === 0) {
+              const count = monthlyOffDaysCountMap.get(phoneNumber);
+
+              monthlyOffDaysCountMap.set(phoneNumber, (count || 0) + 1);
+
+              // First n (monthlyOffDays) where the user has created 0 checkins,
+              // their status will be 1.
+              if (count <= monthlyOffDays) {
+                return 1;
+              }
+            }
+
             return statusObject[date].statusForDay || 0;
           })();
-
-          if (paydaySheetValue === 0) {
-            monthlyOffDaysCountMap.set(phoneNumber, 1);
-            let count = monthlyOffDaysCountMap.get(phoneNumber) || 0;
-
-            monthlyOffDaysCountMap.set(phoneNumber, count++);
-          }
 
           const getPaydayTimingsSheetValue = () => {
             if (statusObject[date].onLeave) {
@@ -482,25 +493,8 @@ module.exports = (locals) => {
               return 'HOLIDAY';
             }
 
-            const firstCheckInTimestamp = statusObject[date].firstCheckInTimestamp;
-            const lastCheckInTimestamp = statusObject[date].lastCheckInTimestamp;
-            const minimumWorkingHours = employeesData[phoneNumber]['Minimum Working Hours'] || 0;
-            const minimumDailyActivityCount = employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
-            const adjustedFirstCheckIn = momentTz(firstCheckInTimestamp);
-            const adjustedLastCheckIn = momentTz(lastCheckInTimestamp);
-            const checkInDiffInHours = adjustedLastCheckIn.diff(adjustedFirstCheckIn, 'hours', true);
-            // const hoursWorked = msToTime(lastCheckInTimestamp - firstCheckInTimestamp);
-
-            // Checkins difference between the first and the last checkin is < than the
-            // expected hours
-            if (!statusObject[date].firstCheckIn
-              || (checkInDiffInHours < minimumWorkingHours)
-              || (statusObject[date].numberOfCheckIns < minimumDailyActivityCount)) {
-              daysWithDeductionsCount++;
-            }
-
             if (!statusObject[date].firstCheckIn) {
-              return `-- to --, ${statusObject[date].numberOfCheckIns || 0}`
+              return `-- to --, ${statusObject[date].numberOfCheckIns || 0}`;
             }
 
             return `${statusObject[date].firstCheckIn}`
@@ -528,14 +522,6 @@ module.exports = (locals) => {
         paydaySheet
           .cell(`${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`)
           .value(getEmployeeDetailsString(employeesData, phoneNumber));
-
-        paydayTimingsSheet
-          .cell(`${alphabetsArray[paydayTimingsSheetIndex++]}${columnIndex}`)
-          .value(daysWithDeductionsCount);
-        paydayTimingsSheet
-          .cell(`${alphabetsArray[paydayTimingsSheetIndex++]}${columnIndex}`)
-          // Total Deductions
-          .value(yesterdayDate - totalCount);
       });
 
       return locals.worksheet.outputAsync('base64');

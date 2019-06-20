@@ -124,6 +124,9 @@ module.exports = (change) => {
       to: [],
       replyTo: env.mailReplyTo,
       attachments: [],
+      customArgs: {
+        recipientId: change.after.id,
+      },
       templateId: getTemplateId(report),
       from: {
         name: 'Growthfile',
