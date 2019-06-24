@@ -118,7 +118,9 @@ module.exports = (conn) => {
       }
 
       const updatesDocData = updatesDoc.data();
+
       updatesDocData.lastNowRequestTimestamp = Date.now();
+
       const oldDeviceIdsArray = updatesDoc.get('deviceIdsArray') || [];
 
       if (conn.req.query.deviceId) {
@@ -211,23 +213,19 @@ module.exports = (conn) => {
       return Promise
         .all([
           Promise
-            .all([
-              revokeSession,
-              updateClient,
-            ]),
+            .resolve(revokeSession),
+          Promise
+            .resolve(updateClient),
           batch
             .commit(),
         ]);
     })
-    .then((result) => {
+    .then(result => {
       if (!result) {
         return Promise.resolve();
       }
 
-      const [
-        revokeSession,
-        updateClient,
-      ] = result[0];
+      const [revokeSession, updateClient] = result;
 
       const responseObject = {
         revokeSession,
