@@ -237,19 +237,13 @@ aside {
     max-width: 90%;
 }
 
-.container {
-    margin-top: -70px;
+.container {}
+
+.pad-below-header {
+    height: 70px;
 }
 
 @media (min-width: 768px) {
-    .container {
-        margin-top: -200px;
-    }
-
-    .pad-below-header {
-        height: 40vh;
-    }
-
     .product-section h2 {
         padding-left: 0;
     }

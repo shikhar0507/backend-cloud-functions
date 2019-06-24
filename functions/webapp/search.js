@@ -4,13 +4,14 @@ const {
   rootCollections,
 } = require('../admin/admin');
 
-module.exports = (conn) => {
+module.exports = (office, query) => {
   // Query param 'query', 'office'
   const result = {};
+  const assigneeFetchPromises = [];
 
   return rootCollections
     .offices
-    .where('office', '==', conn.req.query.office)
+    .where('office', '==', office)
     .limit(1)
     .get()
     .then(docs => {
@@ -22,7 +23,7 @@ module.exports = (conn) => {
         .docs[0]
         .ref
         .collection('Activities')
-        .where('searchables', 'array-contains', conn.req.query.query)
+        .where('searchables', 'array-contains', query)
         .get();
     })
     .then(docs => {
@@ -33,9 +34,29 @@ module.exports = (conn) => {
         // This field might contain sensitive server keys
         delete data.addendumDocRef;
 
+        const promise = rootCollections
+          .activities
+          .doc(doc.id)
+          .collection('Assignees')
+          .get();
+
+        assigneeFetchPromises.push(promise);
+
         data.activityId = doc.id;
 
-        result.push(data);
+        result[doc.id] = Object.assign({}, data);
+      });
+
+      return Promise.all(assigneeFetchPromises);
+    })
+    .then(snapShots => {
+      snapShots.forEach(snapShot => {
+        if (snapShot.empty) return;
+
+        const firstDoc = snapShot.docs[0];
+        const activityId = firstDoc.ref.path.split('/')[1];
+
+        result[activityId].assignees = snapShot.docs.map(doc => doc.id);
       });
 
       return result;

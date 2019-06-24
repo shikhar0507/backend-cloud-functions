@@ -279,20 +279,8 @@ section h1 {
     max-width: 100%;
 }
 
-aside {
-    display: none;
-    overflow-y: auto;
-    /* padding-top: 20px; */
-    background: rgba(0, 0, 0, 0.03);
-}
-
 .pad-below-header {
     height: 60px;
-}
-
-aside ul {
-    min-height: 40px;
-    /* padding: 0 10px 0 10px; */
 }
 
 #unversal-search-results {
@@ -316,6 +304,8 @@ aside ul {
     margin-bottom: 8px;
     max-width: 90%;
     border-radius: 4px;
+    background: white;
+    z-index: 99;
 }
 
 .card img {
@@ -349,7 +339,9 @@ aside ul {
 
     .join-container {
         display: flex;
-        min-height: 50vh;
+        height: 50vh;
+        padding-left: 50px;
+        padding-right: 50px;
     }
 
     .join-container>div {
@@ -372,12 +364,35 @@ aside ul {
         grid-template-columns: 20% 20% 20% 20% 20%;
     }
 
-    aside {
-        width: 240px;
+    .join-container {
+        /* min-height: 70vh; */
+        padding-left: 100px;
+        padding-right: 100px;
+        height: 90vh;
     }
 
-    .join-container {
-        min-height: 70vh;
+    .join-container::after {
+        /* content: '';
+        background-color: red;
+        height: 100px;
+        width: 100%;
+        position: absolute;
+        right: 0;
+        left: 0;
+        bottom: 0;
+        transform: rotate(4deg);
+        transform-origin: 0% 0%;
+        z-index: 99; */
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 0;
+        height: 0;
+        width: 0;
+        border-right: 100vw solid #a044ff;
+        border-bottom: 10vw solid transparent;
+        border-top: 0px solid transparent;
+        overflow: hidden;
     }
 
     .featured-cards {

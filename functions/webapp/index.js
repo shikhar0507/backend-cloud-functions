@@ -720,42 +720,46 @@ const handleJsonGetRequest = (conn, requester) => {
     return Promise.resolve(json);
   }
 
-  return rootCollections
-    .offices
-    .where('office', '==', conn.req.query.office)
-    .limit(1)
-    .get()
-    .then((docs) => {
-      let baseQuery = docs
-        .docs[0]
-        .ref
-        .collection('Activities');
+  const webappSearch = require('./search');
 
-      if (conn.req.query.template) {
-        baseQuery = baseQuery.where('template', '==', conn.req.query.template);
-      }
+  return webappSearch(conn.req.query.office, conn.req.query.query);
 
-      if (conn.req.query.query) {
-        baseQuery = baseQuery
-          .where('searchables', 'array-contains', conn.req.query.query);
-      }
+  // return rootCollections
+  //   .offices
+  //   .where('office', '==', conn.req.query.office)
+  //   .limit(1)
+  //   .get()
+  //   .then((docs) => {
+  //     let baseQuery = docs
+  //       .docs[0]
+  //       .ref
+  //       .collection('Activities');
 
-      return baseQuery
-        .get();
-    })
-    .then((docs) => {
-      docs.forEach((doc) => {
-        if (!json[doc.get('template')]) {
-          json[doc.get('template')] = [createJsonRecord(doc)];
-        }
-        else {
-          json[doc.get('template')].push(createJsonRecord(doc));
-        }
-      });
-      console.log(json);
+  //     if (conn.req.query.template) {
+  //       baseQuery = baseQuery.where('template', '==', conn.req.query.template);
+  //     }
 
-      return Promise.resolve(json);
-    });
+  //     if (conn.req.query.query) {
+  //       baseQuery = baseQuery
+  //         .where('searchables', 'array-contains', conn.req.query.query);
+  //     }
+
+  //     return baseQuery
+  //       .get();
+  //   })
+  //   .then((docs) => {
+  //     docs.forEach((doc) => {
+  //       if (!json[doc.get('template')]) {
+  //         json[doc.get('template')] = [createJsonRecord(doc)];
+  //       }
+  //       else {
+  //         json[doc.get('template')].push(createJsonRecord(doc));
+  //       }
+  //     });
+  //     console.log(json);
+
+  //     return Promise.resolve(json);
+  //   });
 };
 
 const handleOfficeJoinRequest = (conn, requester) => {

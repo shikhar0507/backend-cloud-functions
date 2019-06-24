@@ -1275,7 +1275,7 @@ window.onload = function () {
       altContact.classList.add('mw-100');
 
       window.intlTelInput(phoneField, intlTelInputOptions);
-      // window.intlTelInput(altContact, intlTelInputOptions);
+      window.intlTelInput(altContact, intlTelInputOptions);
 
       // Required, otherwise this initialization will try to run everytime
       // the user tries to type something in the field
