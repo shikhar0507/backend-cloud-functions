@@ -959,14 +959,16 @@ const isValidRequestBody = (body, endpoint) => {
   /** With the exception of `/ create` endpoint, ALL other endpoints
    * require the `activityId` in the request body.
    */
-  if (!body.hasOwnProperty('activityId')) {
+  if (endpoint !== 'comment'
+    && !body.hasOwnProperty('activityId')) {
     return {
       message: `The 'activityId' field is missing from the request body.`,
       isValid: false,
     };
   }
 
-  if (!isNonEmptyString(body.activityId)) {
+  if (endpoint !== 'comment'
+    && !isNonEmptyString(body.activityId)) {
     return {
       message: `The 'activityId' field should be a non-empty string.`,
       isValid: false,
