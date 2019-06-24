@@ -18,6 +18,9 @@ module.exports = (req) => {
     case 'now':
       func = require('../firestore/now');
       break;
+    case 'dm':
+      func = require('../firestore/dm');
+      break;
     case 'activities/create':
       func = require('../firestore/activity/on-create');
       break;
