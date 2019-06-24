@@ -1256,6 +1256,8 @@ const handleLocationsMap = (locals) => {
       const { uid } = auth;
       console.log('Map set at', auth.uid);
 
+      if (!uid) return;
+
       batch.set(rootCollections.updates.doc(uid), {
         venues: admin.firestore.FieldValue.arrayUnion(...result),
       }, {
