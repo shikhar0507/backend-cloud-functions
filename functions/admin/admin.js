@@ -27,34 +27,18 @@
 
 const env = require('./env');
 const admin = require('firebase-admin');
-const appInitOptions = (() => {
-  const serviceAccountKeyPath = (() => {
-    const path = require('path');
-    const env = require('./env');
+const cert = (() => {
+  if (env.isProduction) {
+    return require('./cert.json');
+  }
 
-    /**
-     * Service account key is available in Cloud Functions environment,
-     *  but not while running the cloud functions locally.
-     */
-    if (process.env.NODE_ENV && process.env.NODE_ENV.PRODUCTION) {
-      return {};
-    }
-
-    if (env.isProduction) {
-      return path.join(__dirname, '../', 'prod.json');
-    }
-
-    return path.join(__dirname, '../', 'dev.json');
-  })();
-
-  const serviceAccountKey = require(serviceAccountKeyPath);
-  const credential = admin.credential.cert(serviceAccountKey);
-
-  return {
-    credential,
-    databaseURL: env.databaseURL,
-  };
+  return require('../dev.json');
 })();
+
+const appInitOptions = {
+  databaseURL: env.databaseURL,
+  credential: admin.credential.cert(cert),
+};
 
 admin.initializeApp(appInitOptions);
 
@@ -95,8 +79,9 @@ const setCustomUserClaims = (uid, claims) =>
  * @returns {Object} A `sentinel` which *maps* to a `geopoint` object
  * on writing to the Firestore.
  */
-const getGeopointObject = (geopoint) => {
-  if (geopoint.latitude === '' && geopoint.longitude === '') {
+const getGeopointObject = geopoint => {
+  if (geopoint.latitude === ''
+    && geopoint.longitude === '') {
     return geopoint;
   }
 
