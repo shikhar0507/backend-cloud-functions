@@ -5,6 +5,7 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const env = require('../../admin/env');
+const momentTz = require('moment-timezone');
 
 
 module.exports = (conn) => {
@@ -19,24 +20,66 @@ module.exports = (conn) => {
   }
 
   const batch = db.batch();
-  let count = 0;
+  const promises = [];
+  const recipientIdArray = [];
+  const contextArray = [];
+  const firstItem = conn.req.body[0];
+  const unix = firstItem.timestamp * 1000;
+  const momentToday = momentTz(unix);
+  const dayStart = momentToday.startOf('day');
+  const dayEnd = momentToday.endOf('day');
 
   conn.req.body.forEach(eventContext => {
-    count++;
+    if (!eventContext.recipientId) return;
 
-    const ref = rootCollections.mailEvents.doc();
+    recipientIdArray.push(eventContext.recipientId);
+    contextArray.push(eventContext);
 
-    batch.set(ref, eventContext);
+    const promise = rootCollections
+      .recipients
+      .doc(eventContext.recipientId)
+      .collection('MailEvents')
+      .where('timestamp', '>=', dayStart.valueOf())
+      .where('timestamp', '<=', dayEnd.valueOf())
+      .limit(1)
+      .get();
+
+    promises.push(promise);
   });
 
-  console.log('Docs', count);
+  console.log('promises', promises.length);
 
-  return batch
-    .commit()
-    .then(() => Promise.resolve({}))
-    .catch(error => {
-      console.log('TrackMailError:', error, conn.req.body);
+  return Promise
+    .all(promises)
+    .then(snapShots => {
+      snapShots.forEach((snapShot, index) => {
+        const recipientId = recipientIdArray[index];
 
-      return Promise.resolve({});
-    });
+        const ref = (() => {
+          if (snapShot.empty) {
+            return rootCollections
+              .recipients
+              .doc(recipientId)
+              .collection('MailEvents')
+              .doc();
+          }
+
+          return snapShot.docs[0].ref;
+        })();
+
+        const eventContext = contextArray[index];
+
+        batch.set(ref, {
+          timestamp: momentToday.valueOf(),
+          [eventContext.email]: {
+            [eventContext.event]: eventContext,
+          },
+        }, {
+            merge: true,
+          });
+      });
+
+      return batch.commit();
+    })
+    .then(() => ({ success: true }));
 };
