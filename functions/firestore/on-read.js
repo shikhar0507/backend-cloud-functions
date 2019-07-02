@@ -39,6 +39,7 @@ const {
   isValidDate,
   isNonEmptyString,
 } = require('../admin/utils');
+const admin = require('firebase-admin');
 
 
 const validateRequest = (conn) => {
@@ -87,6 +88,10 @@ const getAddendumObject = (doc) => {
     isComment: doc.get('isComment'),
   };
 
+  if (doc.get('assignee')) {
+    singleDoc.assignee = doc.get('assignee');
+  }
+
   return singleDoc;
 };
 
@@ -116,7 +121,7 @@ const getAssigneesArray = (arrayOfPhoneNumbers) => {
   return result;
 };
 
-const getCreator = (phoneNumberOrObject) => {
+const getCreator = phoneNumberOrObject => {
   if (typeof phoneNumberOrObject === 'string') {
     return {
       phoneNumber: phoneNumberOrObject,
@@ -128,7 +133,7 @@ const getCreator = (phoneNumberOrObject) => {
   return phoneNumberOrObject;
 };
 
-const getActivityObject = (doc) => {
+const getActivityObject = doc => {
   const singleDoc = {
     activityId: doc.id,
     status: doc.get('status'),
@@ -148,7 +153,7 @@ const getActivityObject = (doc) => {
   return singleDoc;
 };
 
-const getSubscriptionObject = (doc) => {
+const getSubscriptionObject = doc => {
   const singleDoc = {
     template: doc.get('template'),
     schedule: doc.get('schedule'),
@@ -161,8 +166,10 @@ const getSubscriptionObject = (doc) => {
   return singleDoc;
 };
 
+const getLocations = ref => new Promise(resolve => ref.on('value', resolve));
 
-module.exports = (conn) => {
+
+module.exports = conn => {
   const result = validateRequest(conn);
 
   if (!result.isValid) {
@@ -176,35 +183,63 @@ module.exports = (conn) => {
     addendum: [],
     activities: [],
     templates: [],
-    venue: [],
+    locations: [],
   };
 
+  const promises = [
+    rootCollections
+      .updates
+      .doc(conn.requester.uid)
+      .collection('Addendum')
+      .where('timestamp', '>', from)
+      .get(),
+    rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Activities')
+      .where('timestamp', '>', from)
+      .get(),
+    rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .collection('Subscriptions')
+      .where('timestamp', '>', from)
+      .get(),
+  ];
+
+  const sendLocations = conn
+    .requester
+    .profileDoc
+    .get('lastLocationMapUpdateTimestamp') > from;
+
+  if (sendLocations) {
+    const locationPromises = [];
+    const employeeOf = conn.requester.employeeOf;
+    const officeList = Object.keys(conn.requester.employeeOf);
+
+    officeList.forEach(name => {
+      const officeId = employeeOf[name];
+      const path = `${officeId}/locations`;
+
+      const ref = admin
+        .database()
+        .ref(path);
+
+      locationPromises.push(getLocations(ref));
+    });
+
+    promises.push(Promise.all(locationPromises));
+  }
+
   return Promise
-    .all([
-      rootCollections
-        .updates
-        .doc(conn.requester.uid)
-        .collection('Addendum')
-        .where('timestamp', '>', from)
-        .get(),
-      rootCollections
-        .profiles.doc(conn.requester.phoneNumber)
-        .collection('Activities')
-        .where('timestamp', '>', from)
-        .get(),
-      rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .collection('Subscriptions')
-        .where('timestamp', '>', from)
-        .get(),
-      rootCollections
-        .updates
-        .doc(conn.requester.uid)
-        .get()
-    ])
+    .all(promises)
     .then(result => {
-      const [addendum, activities, subscriptions, updatesDoc] = result;
+      const [
+        addendum,
+        activities,
+        subscriptions,
+        locationResults,
+      ] = result;
 
       if (!addendum.empty) {
         jsonObject.upto = addendum
@@ -219,20 +254,30 @@ module.exports = (conn) => {
         from: conn.req.query.from,
       });
 
+      if (locationResults) {
+        locationResults.forEach(snapShot => {
+          if (!snapShot) return;
+
+          snapShot.forEach(item => {
+            jsonObject.locations.push(item.val());
+          });
+        });
+      }
+
       addendum
-        .forEach((doc) =>
+        .forEach(doc =>
           jsonObject
             .addendum
             .push(getAddendumObject(doc)));
 
       activities
-        .forEach((doc) =>
+        .forEach(doc =>
           jsonObject
             .activities
             .push(getActivityObject(doc)));
 
       subscriptions
-        .forEach((doc) => {
+        .forEach(doc => {
           /** Client side APIs don't allow admin templates. */
           if (doc.get('canEditRule') === 'ADMIN') return;
 
@@ -240,10 +285,6 @@ module.exports = (conn) => {
             .templates
             .push(getSubscriptionObject(doc));
         });
-
-      // If this field is undefined, sendJSON will automatically
-      // remove this from the final response object
-      jsonObject.venue = updatesDoc.get('venue');
 
       const batch = db.batch();
 

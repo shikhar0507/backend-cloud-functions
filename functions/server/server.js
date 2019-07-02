@@ -70,6 +70,9 @@ const handleResource = (conn) => {
     .checkManageTemplates
     && !hasManageTemplateClaims(conn.requester.customClaims);
 
+  console.log(conn.requester.profileDoc.data());
+  console.log({ rejectAdminRequest, rejectSupportRequest, rejectManageTemplatesRequest });
+
   if (rejectAdminRequest
     || rejectSupportRequest
     || rejectManageTemplatesRequest) {
@@ -125,26 +128,29 @@ const getProfile = (conn) => {
     .profiles
     .doc(conn.requester.phoneNumber)
     .get()
-    .then((doc) => {
+    .then(profileDoc => {
       conn
         .requester
-        .lastQueryFrom = doc.get('lastQueryFrom');
+        .profileDoc = profileDoc;
       conn
         .requester
-        .employeeOf = doc.get('employeeOf') || {};
+        .lastQueryFrom = profileDoc.get('lastQueryFrom');
+      conn
+        .requester
+        .employeeOf = profileDoc.get('employeeOf') || {};
 
       /**
        * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
        *   run `authOnCreate` logic again.
        */
-      if (doc.get('uid')
-        && doc.get('uid') !== conn.requester.uid) {
+      if (profileDoc.get('uid')
+        && profileDoc.get('uid') !== conn.requester.uid) {
         console.log({
           authCreationTime: AUTH_CREATION_TIMESTAMP,
           now: Date.now(),
           msg: `The uid and phone number of the requester does not match.`,
-          phoneNumber: doc.id,
-          profileUid: doc.get('uid'),
+          phoneNumber: profileDoc.id,
+          profileUid: profileDoc.get('uid'),
           authUid: conn.requester.uid,
           gracePeriodInSeconds: NUM_MILLI_SECS_IN_MINUTE,
           diff: Date.now() - AUTH_CREATION_TIMESTAMP,
@@ -162,9 +168,9 @@ const getProfile = (conn) => {
       }
 
       /** AuthOnCreate probably failed. This is the fallback */
-      if (!doc.get('uid')) {
+      if (!profileDoc.get('uid')) {
         batch
-          .set(doc.ref, {
+          .set(profileDoc.ref, {
             uid: conn.requester.uid,
           }, {
               merge: true,

@@ -22,7 +22,8 @@ const roundToNearestQuarter = number => Math.floor(number / 0.25) * 0.25;
 
 const getDefaultStatusObject = () => ({
   onLeave: false,
-  onDuty: false,
+  // onDuty: false,
+  onAr: false,
   holiday: false,
   weeklyOff: false,
   firstCheckIn: '',
@@ -30,21 +31,6 @@ const getDefaultStatusObject = () => ({
   statusForDay: 0,
   numberOfCheckIns: 0,
 });
-
-// const executeSequentially = batchFactories => {
-//   let result = Promise.resolve();
-
-//   const executor = (factory, index) => {
-//     result = result
-//       .then(factory)
-//       .then(() => console.log('committed index', index))
-//       .catch(error => console.error('BatchError:', error));
-//   };
-
-//   batchFactories.forEach(executor);
-
-//   return result;
-// };
 
 const commitMultiBatch = (statusObjectsMap, docRefsMap, momentYesterday) => {
   const month = momentYesterday.month();
@@ -159,7 +145,11 @@ const getPaydayTimingsSheetValue = (statusObject, date, isMonthlyOffDay) => {
     return 'ON LEAVE';
   }
 
-  if (statusObject[date].onDuty) {
+  // if (statusObject[date].onDuty) {
+  //   return 'ON DUTY';
+  // }
+
+  if (statusObject[date].onAr) {
     return 'ON DUTY';
   }
 
@@ -199,7 +189,7 @@ module.exports = locals => {
   /** Stores the phone number at the index with checkIn query */
   const checkInQueryIndexex = [];
   const onLeaveSet = new Set();
-  const onDutySet = new Set();
+  const onArSet = new Set();
   const branchesWithHoliday = new Set();
   const branchHolidaySet = new Set();
   const statusObjectsMapForCurrentMonth = new Map();
@@ -398,7 +388,7 @@ module.exports = locals => {
         if (leavesSet.has(phoneNumber)
           || branchHolidaySet.has(phoneNumber)
           || weeklyOffSet.has(phoneNumber)
-          || onDutySet.has(phoneNumber)) {
+          || onArSet.has(phoneNumber)) {
 
           return;
         }
@@ -476,7 +466,7 @@ module.exports = locals => {
 
         statusObject[yesterdayDate].statusForDay = (() => {
           if (onLeaveSet.has(phoneNumber)
-            || onDutySet.has(phoneNumber)
+            || onArSet.has(phoneNumber)
             || weeklyOffSet.has(phoneNumber)
             || branchHolidaySet.has(phoneNumber)) {
             return 1;
@@ -501,12 +491,11 @@ module.exports = locals => {
         statusObjectsMapForCurrentMonth.set(phoneNumber, statusObject);
       });
 
-      // return commitMultiBatch(
-      //   statusObjectsMapForCurrentMonth,
-      //   docRefsMap,
-      //   momentYesterday
-      // );
-      return;
+      return commitMultiBatch(
+        statusObjectsMapForCurrentMonth,
+        docRefsMap,
+        momentYesterday
+      );
     })
     .then(() => {
       /**
@@ -530,8 +519,10 @@ module.exports = locals => {
         return Promise.resolve();
       }
 
-      const monthlyOffDaysCountMap = new Map();
+      // const monthlyOffDaysCountMap = new Map();
       const prevMonth = cycleStartMoment.month();
+
+      console.log({ allDates });
 
       employeePhoneNumbersList.forEach((phoneNumber, index) => {
         const columnIndex = index + 2;
@@ -570,9 +561,9 @@ module.exports = locals => {
             return statusObjectsMapForCurrentMonth.get(phoneNumber) || {};
           })();
 
-          const monthlyOffDays = Number(
-            employeesData[phoneNumber]['Monthly Off Days'] || 0
-          );
+          // const monthlyOffDays = Number(
+          //   employeesData[phoneNumber]['Monthly Off Days'] || 0
+          // );
           const paydaySheetCell =
             `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
           const paydayTimingsSheetCell =
@@ -583,25 +574,26 @@ module.exports = locals => {
 
           const paydaySheetValue = (() => {
             if (statusObject[date].onLeave
-              || statusObject[date].onDuty
+              // || statusObject[date].onDuty
+              || statusObject[date].onAr
               || statusObject[date].weeklyOff
               || statusObject[date].holiday) {
               return 1;
             }
 
-            const count = monthlyOffDaysCountMap.get(phoneNumber);
+            // const count = monthlyOffDaysCountMap.get(phoneNumber);
 
-            if (statusObject[date].statusForDay === 0) {
-              monthlyOffDaysCountMap.set(phoneNumber, (count || 0) + 1);
+            // if (statusObject[date].statusForDay === 0) {
+            //   monthlyOffDaysCountMap.set(phoneNumber, (count || 0) + 1);
 
-              // First n (monthlyOffDays) where the user has created 0 checkins,
-              // their status will be 1.
-              if (count < monthlyOffDays) {
-                isMonthlyOffDay = true;
+            //   // First n (monthlyOffDays) where the user has created 0 checkins,
+            //   // their status will be 1.
+            //   if (count < monthlyOffDays) {
+            //     isMonthlyOffDay = true;
 
-                return 1;
-              }
-            }
+            //     return 1;
+            //   }
+            // }
 
             return statusObject[date].statusForDay || 0;
           })();
@@ -664,11 +656,7 @@ module.exports = locals => {
         to: locals.messageObject.to,
       });
 
-      // return locals.sgMail.sendMultiple(locals.messageObject);
-
-      return locals
-        .worksheet
-        .toFileAsync(`/tmp/${fileName}`);
+      return locals.sgMail.sendMultiple(locals.messageObject);
     })
     .catch(console.error);
 };

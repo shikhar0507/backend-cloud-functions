@@ -186,7 +186,10 @@ function setMessage(message) {
 
 function getLocation() {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject('Geolocation is Not Supported')
+    if (!navigator.geolocation) {
+      return reject('Geolocation is Not Supported')
+    }
+
     navigator
       .geolocation
       .getCurrentPosition(function (position) {
@@ -195,18 +198,20 @@ function getLocation() {
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy
         })
-      }, function (error) {
-        let message;
-        switch (error.code) {
-          case 1:
-            message = 'Please Enable Location';
-            break;
-          default:
-            message = error.message;
-        }
-        return reject(message)
       });
   })
+    .catch(function (error) {
+      let message;
+      switch (error.code) {
+        case 1:
+          message = 'Please Enable Location';
+          break;
+        default:
+          message = error.message;
+      }
+
+      return reject(message);
+    });
 }
 
 
@@ -217,7 +222,6 @@ function sendApiRequest(apiUrl, requestBody = null, method = 'GET') {
     cache: 'no-cache',
     headers: {
       'Content-Type': 'application/json',
-      // 'X-Temp-Uid': localStorage.getItem('__tempUid'),
     },
   };
 
@@ -225,16 +229,22 @@ function sendApiRequest(apiUrl, requestBody = null, method = 'GET') {
     init.body = JSON.stringify(requestBody);
   }
 
+  showProgressBar();
+
   return firebase
     .auth()
     .currentUser
     .getIdToken(false)
     .then(function (idToken) {
-      init.headers['Authorization'] = `Bearer ${idToken}`;
+      init.headers.Authorization = `Bearer ${idToken}`;
 
       return fetch(apiUrl, init);
     })
-    .then(function (result) { return result })
+    .then(function (result) {
+      hideProgressBar();
+
+      return result;
+    })
     .catch(console.error);
 }
 
@@ -245,11 +255,13 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target === document.getElementById('load-map-button')) {
-    return getLocation().then(initMap).catch(function (message) {
-      if (document.getElementById('map')) {
-        document.getElementById('map').innerHTML = `<p style='text-align:center;margin-top:20px;' class='warning-label'>${message}</p>`
-      }
-    })
+    return getLocation()
+      .then(initMap)
+      .catch(function (message) {
+        if (document.getElementById('map')) {
+          document.getElementById('map').innerHTML = `<p style='text-align:center;margin-top:20px;' class='warning-label'>${message}</p>`
+        }
+      });
   }
 
   // TODO: Refactor this name. Not very unique and might cause conflicts.
@@ -279,14 +291,16 @@ firebase
 function setGlobals() {
   const result = sessionStorage.getItem('__url_config');
 
+  function attachKeysToWindow(result) {
+    Object
+      .keys(result)
+      .forEach(function (key) { window[key] = result[key]; });
+  }
+
   if (result) {
     const parsed = JSON.parse(result);
 
-    Object
-      .keys(parsed)
-      .forEach(function (key) { window[key] = parsed[key]; });
-
-    return;
+    return attachKeysToWindow(parsed);
   }
 
   return fetch('/config')
@@ -294,11 +308,7 @@ function setGlobals() {
     .then(function (result) {
       sessionStorage.setItem('__url_config', JSON.stringify(result));
 
-      Object
-        .keys(result)
-        .forEach(function (key) {
-          window[key] = result[key];
-        });
+      attachKeysToWindow(result);
     })
     .catch(console.error);
 }
@@ -307,6 +317,17 @@ function checkDnt() {
   const dntEnabled = navigator.doNotTrack === 1;
 
   console.log({ dntEnabled });
+}
+
+function addUnderlineToElement(elem) {
+  elem.style.backgroundImage = 'linear-gradient(transparent, transparent 5px, #c9cacc 5px, #c9cacc)';
+  elem.style.backgroundPosition = 'bottom';
+  elem.style.backgroundSize = '100% 10px';
+  elem.style.backgroundRepeat = 'repat-x';
+}
+
+function removeUnderlineFromElement(elem) {
+  elem.style.background = 'unset';
 }
 
 function getPhoneNumber(id) {
@@ -319,23 +340,20 @@ function getPhoneNumber(id) {
   return result;
 }
 
-window
-  .addEventListener('load', function () {
-    setGlobals();
+window.addEventListener('DOMContentLoaded', function () {
+  firebase
+    .auth()
+    .addAuthTokenListener(function (idToken) {
+      if (!idToken) {
 
-    firebase
-      .auth()
-      .addAuthTokenListener(function (idToken) {
-        if (!idToken) {
+        return;
+      }
 
-          return;
-        }
+      document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
 
-        document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
-
-        console.log('new cookie set', idToken);
-      });
-  });
+      console.log('new cookie set', idToken);
+    });
+})
 
 function storeEvent(event) {
   // Data is not set
@@ -382,9 +400,20 @@ if (loginButton) {
   }
 }
 
+function showProgressBar() {
+  const bar = document.getElementById('progressBar');
+
+  bar.classList.add('visible');
+}
+
+function hideProgressBar() {
+  const bar = document.getElementById('progressBar');
+
+  bar.classList.remove('visible');
+}
+
 function getModal(options) {
   const title = options.title;
-  const description = options.description;
 
   const modalContainer = document.createElement('div');
   modalContainer.style.zIndex = '999';
@@ -408,23 +437,20 @@ function getModal(options) {
   const crossIcon = document.createElement('i');
 
   crossIcon.textContent = 'X';
-  crossIcon.classList.add('close');
+  crossIcon.classList.add('close', 'cur-ptr');
 
   modalHeader.appendChild(modalTitle);
   modalHeader.appendChild(crossIcon);
 
   const modalBody = document.createElement('div');
-  modalBody.style.padding = '24px 24px 0';
+  // modalBody.style.padding = '24px 24px 0';
   modalBody.style.maxHeight = '400px';
   modalBody.style.overflowY = 'auto';
 
-  const p = document.createElement('p');
-  p.textContent = description;
-
-  modalBody.appendChild(p);
+  modalBody.appendChild(options.modalBodyElement);
 
   const modalFooter = document.createElement('div');
-  modalFooter.style.padding = '24px 24px 0';
+  modalFooter.style.padding = '10px';
   const closeButton = document.createElement('button');
   closeButton.textContent = 'CLOSE';
   closeButton.classList.add('mdc-button');
@@ -454,3 +480,5 @@ function getModal(options) {
 
   return modalContainer;
 }
+
+setGlobals();

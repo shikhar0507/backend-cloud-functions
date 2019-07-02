@@ -985,22 +985,85 @@ const handleEnquiry = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
+const getAccuracyTolerance = (accuracy) => {
+  if (accuracy && accuracy < 350) {
+    return 500;
+  }
 
-module.exports = (addendumDoc) => {
+  return 1000;
+};
+
+const checkDistanceAccurate = (addendumDoc, activityDoc) => {
+  const template = addendumDoc.get('activityData.template');
+  const geopointOne = {
+    _latitude: addendumDoc.get('location')._latitude,
+    _longitude: addendumDoc.get('location')._longitude,
+    accuracy: addendumDoc.get('geopointAccuracy'),
+  };
+  const venue = addendumDoc.get('activityData.venue')[0];
+  const distanceTolerance = getAccuracyTolerance(geopointOne.accuracy);
+
+  // User didn't input the location
+  if (template === 'check-in' && !venue.location) {
+    return false;
+  }
+
+  if (template === 'check-in' && venue.location) {
+    const geopointTwo = {
+      _latitude: venue.geopoint._latitude,
+      _longitude: venue.geopoint._longitude,
+    };
+
+    const distanceBetween = haversineDistance(geopointOne, geopointTwo);
+
+    return distanceBetween < distanceTolerance;
+  }
+
+  // Activity created from an unknown location
+  if (!activityDoc) {
+    return false;
+  }
+
+  const venueFromActivity = activityDoc.get('venue')[0];
+  const geopointTwo = {
+    _latitude: venueFromActivity.geopoint._latitude,
+    _longitude: venueFromActivity.geopoint._longitude,
+  };
+
+  const distanceBetween = haversineDistance(geopointOne, geopointTwo);
+
+  console.log({
+    distanceBetween,
+    distanceTolerance,
+    geopointOne,
+    geopointTwo
+  });
+
+  return distanceBetween < distanceTolerance;
+};
+
+
+module.exports = addendumDoc => {
   const action = addendumDoc.get('action');
   const phoneNumber = addendumDoc.get('user');
-  const isInstallOrSignUpEvent = action === httpsActions.install
-    || action === httpsActions.signup;
   const officeId = addendumDoc.get('activityData.officeId');
   const timezone = addendumDoc.get('activityData.timezone') || 'Asia/Kolkata';
   const locals = {
     dateObject: new Date(),
     momentWithOffset: momentTz().tz(timezone),
   };
+
   let previousGeopoint;
   let currentGeopoint;
+  let activityDoc;
 
-  if (isInstallOrSignUpEvent) {
+  const isSkippableEvent = action === httpsActions.install
+    || action === httpsActions.signup
+    || action === httpsActions.branchView
+    || action === httpsActions.productView
+    || action === httpsActions.videoPlay;
+
+  if (isSkippableEvent) {
     return addendumDoc
       .ref
       .set({
@@ -1012,22 +1075,43 @@ module.exports = (addendumDoc) => {
         });
   }
 
-  return rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Addendum')
-    .where('user', '==', phoneNumber)
-    .orderBy('timestamp', 'desc')
-    .limit(2)
-    .get()
-    .then((docs) => {
+  const geopoint = addendumDoc.get('location');
+  const gp = adjustedGeopoint(geopoint);
+
+  return Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Addendum')
+        .where('user', '==', phoneNumber)
+        .orderBy('timestamp', 'desc')
+        .limit(2)
+        .get(),
+      rootCollections
+        .activities
+        // Branch, customer, and office
+        .where('office', '==', addendumDoc.get('activityData.office'))
+        .where('adjustedGeopoints', '==', `${gp.latitude},${gp.longitude}`)
+        .limit(1)
+        .get()
+    ])
+    .then(result => {
+      const [
+        addendumQuery,
+        activityQuery,
+      ] = result;
+
+      activityDoc = activityQuery.docs[0];
+
       locals
         .previousAddendumDoc = (() => {
-          if (docs.docs[0] && docs.docs[0].id !== addendumDoc.id) {
-            return docs.docs[0];
+          if (addendumQuery.docs[0]
+            && addendumQuery.docs[0].id !== addendumDoc.id) {
+            return addendumQuery.docs[0];
           }
 
-          return docs.docs[1];
+          return addendumQuery.docs[1];
         })();
 
       currentGeopoint = addendumDoc.get('location');
@@ -1065,7 +1149,7 @@ module.exports = (addendumDoc) => {
 
       return Promise.all(promises);
     })
-    .then((result) => {
+    .then(result => {
       const [
         mapsApiResult,
         distanceMatrixApiResult,
@@ -1085,8 +1169,6 @@ module.exports = (addendumDoc) => {
         locals.city = city;
         locals.state = state;
         locals.locality = locality;
-
-        console.log({ city, state, locality });
       }
 
       const distanceData = (() => {
@@ -1138,7 +1220,17 @@ module.exports = (addendumDoc) => {
         month: locals.momentWithOffset.month(),
         year: locals.momentWithOffset.year(),
         adjustedGeopoint: adjustedGeopoint(addendumDoc.get('location')),
+        distanceAccurate: checkDistanceAccurate(
+          addendumDoc,
+          activityDoc
+        ),
       };
+
+      if (activityDoc
+        && activityDoc.get('venue')[0]
+        && activityDoc.get('venue')[0].location) {
+        updateObject.venueQuery = activityDoc.get('venue')[0];
+      }
 
       console.log(JSON.stringify({
         phoneNumber,
@@ -1177,7 +1269,7 @@ module.exports = (addendumDoc) => {
     .then(() => handleDsr(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))
     .then(() => logLocations(addendumDoc, locals))
-    .catch((error) => {
+    .catch(error => {
       const context = {
         error,
         docPath: addendumDoc.ref.path,

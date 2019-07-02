@@ -44,10 +44,10 @@ const {
   getCanEditValue,
   filterAttachment,
   toCustomerObject,
-  haversineDistance,
   validateSchedules,
   isValidRequestBody,
-  setOnLeaveAndOnDuty,
+  // setOnLeaveAndOnDuty,
+  setOnLeaveOrAr,
 } = require('./helper');
 const {
   handleError,
@@ -65,9 +65,18 @@ const url = require('url');
 const mozjpeg = require('mozjpeg');
 
 
+// const getAccuracyTolerance = (accuracy) => {
+//   if (accuracy && accuracy < 350) {
+//     return 500;
+//   }
+
+//   return 1000;
+// };
+
+
 const createDocsWithBatch = (conn, locals) => {
   locals.objects.allPhoneNumbers
-    .forEach((phoneNumber) => {
+    .forEach(phoneNumber => {
       let addToInclude = true;
 
       const isRequester = phoneNumber === conn.requester.phoneNumber;
@@ -123,10 +132,11 @@ const createDocsWithBatch = (conn, locals) => {
     locals.objects.venueArray
   );
 
-  if (!new Set(['check-in', 'on duty', 'leave'])
-    .has(conn.req.body.template)
-    && adjustedGeopoints) {
-    activityData.adjustedGeopoints = adjustedGeopoints;
+  const templatesToSkip = new Set(['check-in', 'attendance regularization', 'leave']);
+
+  if (!templatesToSkip.has(conn.req.body.template)
+    && adjustedGeopoints.length > 0) {
+    activityData.adjustedGeopoints = adjustedGeopoints[0];
   }
 
   const date = momentTz().tz(timezone).date();
@@ -160,37 +170,30 @@ const createDocsWithBatch = (conn, locals) => {
     provider: conn.req.body.geopoint.provider || null,
   };
 
-  if (conn.req.body.template === 'check-in'
-    && conn.req.body.venue[0].geopoint.latitude
-    && conn.req.body.venue[0].geopoint.longitude) {
-    const geopointOne = {
-      _latitude: conn.req.body.geopoint.latitude,
-      _longitude: conn.req.body.geopoint.longitude,
-      accuracy: conn.req.body.geopoint.accuracy,
-    };
+  // if (conn.req.body.template === 'check-in'
+  //   && conn.req.body.venue[0].geopoint.latitude
+  //   && conn.req.body.venue[0].geopoint.longitude) {
+  //   const geopointOne = {
+  //     _latitude: conn.req.body.geopoint.latitude,
+  //     _longitude: conn.req.body.geopoint.longitude,
+  //     accuracy: conn.req.body.geopoint.accuracy,
+  //   };
 
-    const geopointTwo = {
-      _latitude: conn.req.body.venue[0].geopoint.latitude,
-      _longitude: conn.req.body.venue[0].geopoint.longitude,
-    };
+  //   const geopointTwo = {
+  //     _latitude: conn.req.body.venue[0].geopoint.latitude,
+  //     _longitude: conn.req.body.venue[0].geopoint.longitude,
+  //   };
 
-    const maxAllowedDistance = (() => {
-      if (geopointOne.accuracy && geopointOne.accuracy < 350) {
-        return 500;
-      }
+  //   const distanceBetweenLocations = haversineDistance(
+  //     geopointOne,
+  //     geopointTwo
+  //   );
 
-      return 1000;
-    })();
-
-    const distanceBetweenLocations = haversineDistance(
-      geopointOne,
-      geopointTwo
-    );
-
-    const distanceAccurate = distanceBetweenLocations < maxAllowedDistance;
-
-    addendumDocObject.distanceAccurate = distanceAccurate;
-  }
+  //   addendumDocObject
+  //     .distanceAccurate = distanceBetweenLocations < getAccuracyTolerance(
+  //       geopointOne.accuracy
+  //     );
+  // }
 
   if (locals.cancellationMessage) {
     addendumDocObject.cancellationMessage = locals.cancellationMessage;
@@ -223,7 +226,7 @@ const createDocsWithBatch = (conn, locals) => {
     .batch
     .commit()
     .then(() => sendResponse(conn, code.created))
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const handleLeaveOrOnDuty = (conn, locals) => {
@@ -233,15 +236,6 @@ const handleLeaveOrOnDuty = (conn, locals) => {
   const endTimeMoment = momentTz(endTime);
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
 
-  console.log({
-    leavesTakenThisTime,
-    leavesTakenThisTimeType: typeof leavesTakenThisTime,
-    leavesTakenThisYear: locals.leavesTakenThisYear,
-    leavesTakenThisYearType: typeof locals.leavesTakenThisYear,
-    maxLeavesAllowed: locals.maxLeavesAllowed,
-    maxLeavesAllowedType: typeof locals.maxLeavesAllowed,
-  });
-
   if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
     locals.static.statusOnCreate = 'CANCELLED';
     locals.cancellationMessage = `LEAVE CANCELLED: Leave limit exceeded by`
@@ -250,17 +244,15 @@ const handleLeaveOrOnDuty = (conn, locals) => {
     return createDocsWithBatch(conn, locals);
   }
 
-  return setOnLeaveAndOnDuty(
+  return setOnLeaveOrAr(
     conn.requester.phoneNumber,
     locals.officeDoc.id,
     startTime,
     endTime,
     conn.req.body.template
   )
-    .then((result) => {
+    .then(result => {
       const { success, message } = result;
-
-      console.log('setOnLeaveAndOnDuty', result);
 
       if (!success) {
         locals.static.statusOnCreate = 'CANCELLED';
@@ -269,7 +261,7 @@ const handleLeaveOrOnDuty = (conn, locals) => {
 
       return createDocsWithBatch(conn, locals);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 
@@ -325,7 +317,7 @@ const handlePayroll = (conn, locals) => {
         .where('isCancelled', '==', false)
         .get(),
     ])
-    .then((result) => {
+    .then(result => {
       const [
         leaveTypeQuery,
         leaveActivityQuery,
@@ -368,7 +360,7 @@ const handlePayroll = (conn, locals) => {
 
       return handleLeaveOrOnDuty(conn, locals);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 
@@ -410,7 +402,7 @@ const handleAssignees = (conn, locals) => {
 
   return Promise
     .all(promises)
-    .then((snapShots) => {
+    .then(snapShots => {
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;
 
@@ -427,7 +419,7 @@ const handleAssignees = (conn, locals) => {
 
       return handlePayroll(conn, locals);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 
@@ -440,7 +432,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
   return Promise
     .all(promises)
-    .then((snapShots) => {
+    .then(snapShots => {
       let successful = true;
       let message = null;
 
@@ -462,7 +454,7 @@ const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
 
       return handleAssignees(conn, locals);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 
@@ -473,7 +465,7 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
 
   return Promise
     .all(result.querySnapshotShouldExist)
-    .then((snapShots) => {
+    .then(snapShots => {
       let successful = true;
       let message;
 
@@ -498,7 +490,7 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
 
       return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 
@@ -509,11 +501,11 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
 
   return Promise
     .all(result.profileDocShouldExist)
-    .then((docs) => {
+    .then(snapShots => {
       let successful = true;
       let message = null;
 
-      for (const doc of docs) {
+      for (const doc of snapShots) {
         message = `The user ${doc.id} has not signed up on Growthfile.`;
 
         if (!doc.exists) {
@@ -533,7 +525,7 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
 
       return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const handleBase64 = (conn, locals, result) => {
@@ -580,7 +572,7 @@ const handleBase64 = (conn, locals, result) => {
         Authorization: authorization,
       },
     }))
-    .then((response) => {
+    .then(response => {
       authorizationToken = response.authorizationToken;
       const newHostName = response.apiUrl.split('https://')[1];
       console.log({ newHostName });
@@ -595,7 +587,7 @@ const handleBase64 = (conn, locals, result) => {
         },
       });
     })
-    .then((response) => {
+    .then(response => {
       authorizationToken = response.authorizationToken;
       const fileBuffer = fs.readFileSync(compressedFilePath);
       const uploadUrl = response.uploadUrl;
@@ -617,7 +609,7 @@ const handleBase64 = (conn, locals, result) => {
 
       return promisifiedRequest(options);
     })
-    .then((response) => {
+    .then(response => {
       const url =
         cloudflareCdnUrl(
           mainDownloadUrlStart,
@@ -641,7 +633,7 @@ const handleBase64 = (conn, locals, result) => {
         return resolveProfileCheckPromises(conn, locals, result);
       }
     })
-    .catch((error) => handleError(conn, error, 'Please try again...'));
+    .catch(error => handleError(conn, error, 'Please try again...'));
 };
 
 
@@ -666,7 +658,9 @@ const handleAttachment = (conn, locals) => {
    */
   result
     .phoneNumbers
-    .forEach((phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber));
+    .forEach(phoneNumber => {
+      locals.objects.allPhoneNumbers.add(phoneNumber);
+    });
 
   return handleBase64(conn, locals, result);
 };
@@ -698,7 +692,6 @@ const handleScheduleAndVenue = (conn, locals) => {
 
   return handleAttachment(conn, locals);
 };
-
 
 const createLocals = (conn, result) => {
   const activityRef = rootCollections.activities.doc();
@@ -805,9 +798,9 @@ const createLocals = (conn, result) => {
     subscriptionQueryResult
       .docs[0]
       .get('include')
-      .forEach(
-        (phoneNumber) => locals.objects.allPhoneNumbers.add(phoneNumber)
-      );
+      .forEach(phoneNumber => {
+        locals.objects.allPhoneNumbers.add(phoneNumber);
+      });
   }
 
   if (!officeQueryResult.empty) {
@@ -877,7 +870,22 @@ const createLocals = (conn, result) => {
 };
 
 
-const fetchDocs = (conn) => {
+module.exports = conn => {
+  if (conn.req.method !== 'POST') {
+    return sendResponse(
+      conn,
+      code.methodNotAllowed,
+      `${conn.req.method} is not allowed for the /create`
+      + ' endpoint. Use POST'
+    );
+  }
+
+  const bodyResult = isValidRequestBody(conn.req.body, httpsActions.create);
+
+  if (!bodyResult.isValid) {
+    return sendResponse(conn, code.badRequest, bodyResult.message);
+  }
+
   const promises = [
     rootCollections
       .profiles
@@ -899,7 +907,8 @@ const fetchDocs = (conn) => {
    * support since the requester may or may not have the subscription
    * to the template they want to use.
    */
-  if (conn.requester.isSupportRequest || conn.req.body.template === 'enquiry') {
+  if (conn.requester.isSupportRequest
+    || conn.req.body.template === 'enquiry') {
     promises
       .push(rootCollections
         .activityTemplates
@@ -911,26 +920,6 @@ const fetchDocs = (conn) => {
 
   return Promise
     .all(promises)
-    .then((result) => createLocals(conn, result))
-    .catch((error) => handleError(conn, error));
-};
-
-
-module.exports = (conn) => {
-  if (conn.req.method !== 'POST') {
-    return sendResponse(
-      conn,
-      code.methodNotAllowed,
-      `${conn.req.method} is not allowed for the / create`
-      + ' endpoint. Use POST'
-    );
-  }
-
-  const bodyResult = isValidRequestBody(conn.req.body, httpsActions.create);
-
-  if (!bodyResult.isValid) {
-    return sendResponse(conn, code.badRequest, bodyResult.message);
-  }
-
-  return fetchDocs(conn);
+    .then(result => createLocals(conn, result))
+    .catch(error => handleError(conn, error));
 };

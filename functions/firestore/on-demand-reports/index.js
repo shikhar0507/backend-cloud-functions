@@ -13,6 +13,7 @@ const {
 const {
   code,
 } = require('../../admin/responses');
+const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 
 const validateRequestBody = (requestBody) => {
@@ -28,7 +29,7 @@ const validateRequestBody = (requestBody) => {
     result.message = `Field: 'office' should be a non-empty string`;
   }
 
-  const names = new Set(['footprints', 'payroll', 'expense claim',])
+  const names = new Set(['footprints', 'payroll', 'expense claim']);
 
   if (!names.has(requestBody.report)) {
     result.isValid = false;
@@ -44,7 +45,7 @@ const validateRequestBody = (requestBody) => {
 };
 
 
-module.exports = (conn) => {
+module.exports = conn => {
   /**
    * If is admin, the user can only trigger reports for the offices for which
    * they are an admin of.
@@ -54,7 +55,8 @@ module.exports = (conn) => {
     return sendResponse(conn, code.forbidden, 'Operation not allowed');
   }
 
-  if (conn.req.body.startTime && !conn.req.body.endTime) {
+  if (conn.req.body.startTime
+    && !conn.req.body.endTime) {
     conn.req.body.endTime = conn.req.body.startTime;
   }
 
@@ -64,15 +66,14 @@ module.exports = (conn) => {
     return sendResponse(conn, code.badRequest, result.message);
   }
 
+  if (!env.isProduction) {
+    return sendResponse(conn, code.ok);
+  }
+
   const batch = db.batch();
 
   return Promise
     .all([
-      // rootCollections
-      //   .updates
-      //   .where('phoneNumber', '==', conn.requester.phoneNumber)
-      //   .limit(1)
-      //   .get(),
       rootCollections
         .offices
         .where('attachment.Name.value', '==', conn.req.body.office)
@@ -83,11 +84,10 @@ module.exports = (conn) => {
         .where('report', '==', conn.req.body.report)
         .where('office', '==', conn.req.body.office)
         .limit(1)
-        .get(),
+        .get()
     ])
-    .then((result) => {
+    .then(result => {
       const [
-        // updatesDocQuery,
         officeDocQuery,
         recipientDocsQuery,
       ] = result;
@@ -138,5 +138,5 @@ module.exports = (conn) => {
           sendResponse(conn, code.ok),
         ]);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };

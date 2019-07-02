@@ -959,16 +959,14 @@ const isValidRequestBody = (body, endpoint) => {
   /** With the exception of `/ create` endpoint, ALL other endpoints
    * require the `activityId` in the request body.
    */
-  if (endpoint !== 'comment'
-    && !body.hasOwnProperty('activityId')) {
+  if (!body.hasOwnProperty('activityId')) {
     return {
       message: `The 'activityId' field is missing from the request body.`,
       isValid: false,
     };
   }
 
-  if (endpoint !== 'comment'
-    && !isNonEmptyString(body.activityId)) {
+  if (!isNonEmptyString(body.activityId)) {
     return {
       message: `The 'activityId' field should be a non-empty string.`,
       isValid: false,
@@ -1070,9 +1068,9 @@ const checkActivityAndAssignee = (docs, isSupportRequest) => {
 };
 
 const haversineDistance = (geopointOne, geopointTwo) => {
-  const toRad = (value) => value * Math.PI / 180;
-
+  const toRad = value => value * Math.PI / 180;
   const RADIUS_OF_EARTH = 6371;
+
   const distanceBetweenLatitudes =
     toRad(
       geopointOne._latitude - geopointTwo._latitude
@@ -1297,16 +1295,16 @@ const getAllDatesSet = (startTime, endTime, timezone) => {
   return datesSet;
 };
 
-const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusToSet) => {
+const setOnLeaveOrAr = (phoneNumber, officeId, startTime, endTime, statusToSet) => {
   const response = {
     success: true,
     message: null,
   };
 
-  if (!['leave', 'on duty'].includes(statusToSet)) {
+  if (!['leave', 'attendance regularization'].includes(statusToSet)) {
     throw new Error(
       `The field 'statusToSet' should be a non-empty string`
-      + ` with one of the the values: ${['leave', 'on duty']}`
+      + ` with one of the the values: ${['leave', 'attendance regularization']}`
     );
   }
 
@@ -1320,7 +1318,7 @@ const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusTo
   const monthYearIndexes = [];
   const conflictingDates = [];
   const ON_LEAVE_CONFLICT_MESSAGE = 'Leave already applied for the following date(s)';
-  const ON_DUTY_CONFLICT_MESSAGE = 'Duty already applied for the following date(s)';
+  const ON_AR_CONFLICT_MESSAGE = 'Attendance already regularized for the following date(s)';
 
   return rootCollections
     .offices
@@ -1364,7 +1362,7 @@ const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusTo
         const monthlyDocRef = getMonthlyDocRef(snapShot, officeDoc);
         const statusObject = getStatusObject(snapShot);
 
-        allDateStringsSet.forEach((dateString) => {
+        allDateStringsSet.forEach(dateString => {
           const dateObject = moment(dateString).tz(timezone);
           const readableDate = dateObject.clone().format(dateFormats.DATE);
 
@@ -1376,7 +1374,7 @@ const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusTo
             statusObject[dateObject.date()] = {};
           }
 
-          const { onLeave, onDuty } = statusObject[dateObject.date()];
+          const { onLeave, onAr } = statusObject[dateObject.date()];
 
           if (onLeave && statusToSet === 'leave') {
             conflictingDates.push(readableDate);
@@ -1385,33 +1383,35 @@ const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusTo
             return;
           }
 
-          if (onLeave && statusToSet === 'on duty') {
+          if (onLeave && statusToSet === 'attendance regularization') {
             conflictingDates.push(readableDate);
             response.message = ON_LEAVE_CONFLICT_MESSAGE;
 
             return;
           }
 
-          if (onDuty && statusToSet === 'on duty') {
+          if (onAr && statusToSet === 'attendance regularization') {
             conflictingDates.push(readableDate);
-            response.message = ON_DUTY_CONFLICT_MESSAGE;
+            response.message = ON_AR_CONFLICT_MESSAGE;
 
             return;
           }
 
-          if (onDuty && statusToSet === 'leave') {
+          if (onAr && statusToSet === 'leave') {
             conflictingDates.push(readableDate);
-            response.message = ON_DUTY_CONFLICT_MESSAGE;
+            response.message = ON_AR_CONFLICT_MESSAGE;
 
             return;
           }
 
           if (statusToSet === 'leave') {
             statusObject[dateObject.date()].onLeave = true;
+            statusObject[dateObject.date()].statusForDay = 1;
           }
 
-          if (statusToSet === 'on duty') {
-            statusObject[dateObject.date()].onDuty = true;
+          if (statusToSet === 'attendance regularization') {
+            statusObject[dateObject.date()].onAr = true;
+            statusObject[dateObject.date()].statusForDay = 1;
           }
         });
 
@@ -1462,7 +1462,7 @@ const setOnLeaveAndOnDuty = (phoneNumber, officeId, startTime, endTime, statusTo
     .catch(console.error);
 };
 
-const cancelLeaveOrDuty = (phoneNumber, officeId, startTime, endTime, template) => {
+const cancelLeaveOrAr = (phoneNumber, officeId, startTime, endTime, template) => {
   const response = {
     success: true,
     message: '',
@@ -1473,10 +1473,10 @@ const cancelLeaveOrDuty = (phoneNumber, officeId, startTime, endTime, template) 
   const batch = db.batch();
   const monthYearIndexes = [];
 
-  if (!['leave', 'on duty'].includes(template)) {
+  if (!['leave', 'attendance regularization'].includes(template)) {
     throw new Error(
       `The field 'template' should be a non-empty string`
-      + ` with one of the the values: ${['leave', 'on duty']}`
+      + ` with one of the the values: ${['leave', 'attendance regularization']}`
     );
   }
 
@@ -1484,7 +1484,7 @@ const cancelLeaveOrDuty = (phoneNumber, officeId, startTime, endTime, template) 
     .offices
     .doc(officeId)
     .get()
-    .then((doc) => {
+    .then(doc => {
       officeDoc = doc;
       timezone = officeDoc.get('attachment.Timezone.value');
 
@@ -1526,12 +1526,14 @@ const cancelLeaveOrDuty = (phoneNumber, officeId, startTime, endTime, template) 
             return;
           }
 
-          if (template === 'leave' && statusObject[dateObject.date()].onLeave) {
+          if (template === 'leave'
+            && statusObject[dateObject.date()].onLeave) {
             statusObject[dateObject.date()].onLeave = false;
           }
 
-          if (template === 'on duty' && statusObject[dateObject.date()].onDuty) {
-            statusObject[dateObject.date()].onDuty = false;
+          if (template === 'attendance regularization'
+            && statusObject[dateObject.date()].onAr) {
+            statusObject[dateObject.date()].onAr = false;
           }
         });
 
@@ -1714,12 +1716,12 @@ module.exports = {
   toCustomerObject,
   toEmployeesData,
   validateSchedules,
-  cancelLeaveOrDuty,
+  cancelLeaveOrDuty: cancelLeaveOrAr,
   filterAttachment,
   haversineDistance,
   isValidRequestBody,
   toAttachmentValues,
-  setOnLeaveAndOnDuty,
+  setOnLeaveOrAr,
   checkActivityAndAssignee,
   createSubscriptionActivity,
   getPhoneNumbersFromAttachment,

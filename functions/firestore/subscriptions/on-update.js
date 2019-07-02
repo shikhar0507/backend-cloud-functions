@@ -32,7 +32,7 @@ const {
 
 let count = 0;
 
-const updateSubscriptions = (query, resolve, reject) =>
+const updateMultiple = (query, resolve, reject, change) =>
   query
     .get()
     .then((docs) => {
@@ -42,16 +42,18 @@ const updateSubscriptions = (query, resolve, reject) =>
 
       const batch = db.batch();
 
-      docs.forEach((doc) => {
-        batch.set(doc.ref, {
+      docs.forEach(doc => {
+        const template = doc.get('template');
+        const data = {
           timestamp: Date.now(),
-          /** Not setting this to null will copy the last action (update)
-           *  to all the assignees.
-           */
           addendumDocRef: null,
-        }, {
-            merge: true,
-          });
+        };
+
+        if (template !== 'subscription') {
+          data.attachment = Object.assign(doc.get('attachment'), change.after.get('attachment'));
+        }
+
+        batch.set(doc.ref, data, { merge: true });
       });
 
       /* eslint-disable */
@@ -60,18 +62,44 @@ const updateSubscriptions = (query, resolve, reject) =>
         .then(() => docs.docs[docs.size - 1]);
       /* eslint-enable */
     })
-    .then((lastDoc) => {
+    .then(lastDoc => {
       if (!lastDoc) return resolve();
 
       count++;
 
-      const startAfter = lastDoc.get('attachment.Subscriber.value');
+      const template = lastDoc.get('template');
+
+      const startAfter = (() => {
+        if (template == 'subscription') {
+          return lastDoc.get('attachment.Subscriber.value');
+        }
+
+        return require('firebase-admin').firestore.FieldPath.documentId();
+      })();
+
       const newQuery = query.startAfter(startAfter);
 
       return process
-        .nextTick(() => updateSubscriptions(newQuery, resolve, reject));
+        .nextTick(() => updateMultiple(newQuery, resolve, reject, change));
     })
     .catch(reject);
+
+
+const updateActivities = change => {
+  const templateName = change.after.get('name');
+
+  if (templateName === 'check-in') return Promise.resolve();
+
+  const query = rootCollections
+    .activities
+    .where('template', '==', change.after.get('name'))
+    .limit(500);
+
+  return new Promise((resolve, reject) => {
+    return updateMultiple(query, resolve, reject, change);
+  });
+};
+
 
 /**
  * Whenever a `Template Manager` updates a document in ActivityTemplates
@@ -87,7 +115,7 @@ const updateSubscriptions = (query, resolve, reject) =>
  * @param {Object} change Object containing doc snapShots (old and new).
  * @returns {Object<Batch>} Firebase Batch object.
  */
-module.exports = (change) => {
+module.exports = change => {
   /** The template name never changes. */
   const templateName = change.after.get('name');
   const query =
@@ -101,7 +129,8 @@ module.exports = (change) => {
   console.log({ templateName });
 
   return new
-    Promise((resolve, reject) => updateSubscriptions(query, resolve, reject))
+    Promise((resolve, reject) => updateMultiple(query, resolve, reject))
     .then(() => console.log(`Iterations: ${count}`))
+    // .then(() => updateActivities(change))
     .catch(console.error);
 };

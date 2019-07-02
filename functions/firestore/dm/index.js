@@ -3,6 +3,7 @@
 
 const {
   rootCollections,
+  db,
 } = require('../../admin/admin');
 const {
   handleError,
@@ -58,13 +59,17 @@ module.exports = (conn) => {
     );
   }
 
+  let failed = false;
+
   return rootCollections
     .updates
     .where('phoneNumber', '==', conn.req.body.assignee)
     .limit(1)
     .get()
     .then(snapShot => {
-      if (snapShot.empty) {
+      failed = snapShot.empty;
+
+      if (failed) {
         return sendResponse(
           conn,
           code.conflict,
@@ -72,26 +77,46 @@ module.exports = (conn) => {
         );
       }
 
-      console.log('geopoint', conn.req.body.geopoint);
+      const batch = db.batch();
 
-      return Promise
-        .all([
-          snapShot
-            .docs[0]
-            .ref
-            .collection('Addendum')
-            .doc()
-            .set({
-              timestamp: conn.req.body.timestamp,
-              user: conn.requester.phoneNumber,
-              comment: conn.req.body.comment,
-              geopoint: new admin.firestore.GeoPoint(
-                conn.req.body.geopoint.latitude,
-                conn.req.body.geopoint.longitude
-              ),
-            }),
-          sendResponse(conn, code.noContent),
-        ]);
+      const doc = {
+        timestamp: conn.req.body.timestamp,
+        user: conn.requester.phoneNumber,
+        isComment: 1,
+        assignee: conn.req.body.assignee,
+        comment: conn.req.body.comment,
+        geopoint: new admin.firestore.GeoPoint(
+          conn.req.body.geopoint.latitude,
+          conn.req.body.geopoint.longitude
+        ),
+      };
+
+      batch
+        .set(snapShot
+          .docs[0]
+          .ref
+          .collection('Addendum')
+          .doc(),
+          doc
+        );
+
+      batch
+        .set(rootCollections
+          .updates
+          .doc(conn.requester.uid)
+          .collection('Addendum')
+          .doc(),
+          doc
+        );
+
+      return batch.commit();
+    })
+    .then(() => {
+      if (failed) {
+        return Promise.resolve();
+      }
+
+      return sendResponse(conn, code.created);
     })
     .catch(error => handleError(conn, error));
 };

@@ -82,53 +82,6 @@ const createDocs = (conn, activity) => {
     .catch((error) => handleError(conn, error));
 };
 
-const handleNewCommentFlow = (conn) => {
-  const {
-    isE164PhoneNumber,
-  } = require('../../admin/utils');
-
-  if (!isE164PhoneNumber(conn.req.body.assignee)) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      `Invalid/Missing 'assignee' phone number`
-    );
-  }
-
-  return rootCollections
-    .updates
-    .where('phoneNumber', '==', conn.req.body.assignee)
-    .limit(1)
-    .get()
-    .then(docs => {
-      if (docs.empty) {
-        return sendResponse(
-          conn,
-          code.badRequest,
-          `${conn.req.body.assignee}`
-        );
-      }
-
-      return Promise
-        .all([
-          docs
-            .docs[0]
-            .ref
-            .collection('Addendum')
-            .doc()
-            .set({
-              user: conn.requester.phoneNumber,
-              timestamp: conn.req.body.timestamp,
-              comment: conn.req.body.comment,
-              geopoint: conn.req.body.geopoint,
-            }),
-          sendResponse(conn, code.created)
-        ]);
-    })
-    .catch(error => handleError(conn, error));
-};
-
-
 module.exports = (conn) => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
@@ -147,10 +100,6 @@ module.exports = (conn) => {
       code.badRequest,
       result.message
     );
-  }
-
-  if (!conn.req.body.activityId) {
-    return handleNewCommentFlow(conn);
   }
 
   return Promise

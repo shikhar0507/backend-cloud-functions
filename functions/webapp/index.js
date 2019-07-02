@@ -4,6 +4,7 @@
 
 const {
   auth,
+  db,
   rootCollections,
 } = require('../admin/admin');
 const {
@@ -16,6 +17,7 @@ const {
 } = require('../admin/utils');
 const {
   dateFormats,
+  httpsActions,
 } = require('../admin/constants');
 const {
   toMapsUrl,
@@ -646,10 +648,10 @@ function getTemplatesListJSON(name) {
 
   return query
     .get()
-    .then((docs) => {
+    .then(docs => {
       const json = {};
 
-      docs.forEach((doc) => {
+      docs.forEach(doc => {
         const data = doc.data();
         delete data.timestamp;
 
@@ -668,9 +670,37 @@ const handleJsonGetRequest = (conn, requester) => {
     return Promise.resolve({});
   }
 
+  if (conn.req.query.action === 'office-list'
+    && requester.isSupport) {
+    return rootCollections
+      .offices
+      .get()
+      .then(docs => {
+        return json
+          .names = docs
+            .docs
+            .map(doc => {
+              return doc.get('attachment.Name.value');
+            });
+      });
+  }
+
   if (conn.req.query.action === 'view-templates'
     && requester.isTemplateManager) {
     return getTemplatesListJSON(conn.req.query.name);
+  }
+
+  if (conn.req.query.action === 'get-template-names') {
+    return rootCollections
+      .activityTemplates
+      .get()
+      .then(docs => {
+        return docs.docs.map(doc => {
+          const name = doc.get('name');
+
+          if (name !== 'check-in') return name;
+        });
+      });
   }
 
   if (conn.req.query.template
@@ -722,44 +752,7 @@ const handleJsonGetRequest = (conn, requester) => {
 
   const webappSearch = require('./search');
 
-  return webappSearch(conn.req.query.office, conn.req.query.query);
-
-  // return rootCollections
-  //   .offices
-  //   .where('office', '==', conn.req.query.office)
-  //   .limit(1)
-  //   .get()
-  //   .then((docs) => {
-  //     let baseQuery = docs
-  //       .docs[0]
-  //       .ref
-  //       .collection('Activities');
-
-  //     if (conn.req.query.template) {
-  //       baseQuery = baseQuery.where('template', '==', conn.req.query.template);
-  //     }
-
-  //     if (conn.req.query.query) {
-  //       baseQuery = baseQuery
-  //         .where('searchables', 'array-contains', conn.req.query.query);
-  //     }
-
-  //     return baseQuery
-  //       .get();
-  //   })
-  //   .then((docs) => {
-  //     docs.forEach((doc) => {
-  //       if (!json[doc.get('template')]) {
-  //         json[doc.get('template')] = [createJsonRecord(doc)];
-  //       }
-  //       else {
-  //         json[doc.get('template')].push(createJsonRecord(doc));
-  //       }
-  //     });
-  //     console.log(json);
-
-  //     return Promise.resolve(json);
-  //   });
+  return webappSearch(conn.req, requester);
 };
 
 const handleOfficeJoinRequest = (conn, requester) => {
@@ -770,10 +763,10 @@ const handleOfficeJoinRequest = (conn, requester) => {
     photoURL: conn.requester.photoURL,
   };
 
-  return Promise.resolve({});
+  return ({});
 };
 
-const handleAnonymousView = (conn) => {
+const handleAnonymousView = conn => {
   // put stuff in /Anonymous
   // if pageview is for an office page --> create an addendum
   return rootCollections
@@ -782,17 +775,60 @@ const handleAnonymousView = (conn) => {
     .set({
       uid: conn.requester.uid,
       timestamp: Date.now(),
+      context: conn.req.body,
+      action: httpsActions.webapp,
     })
     .then(() => ({ success: true, }));
 };
 
-const handleKnownUserView = () => {
+const handleKnownUserView = (conn, requester) => {
   // Put stuff in /Profiles/<phoneNumber>/Webapp/<autoid>
   // if pageview is for an office page -> create an addendum
-  return { success: true };
+  const batch = db.batch();
+  // const phoneNumber = conn.req.body.phoneNumber;
+  const ref = rootCollections.profiles.doc(requester.phoneNumber).collection('Webapp').doc();
+
+  batch
+    .set(ref, {
+      uid: requester.uid,
+      phoneNumber: requester.phoneNumber,
+      context: conn.req.body,
+      action: httpsActions.webapp,
+    });
+
+  if (!conn.req.body.office) {
+    return batch
+      .commit()
+      .then(() => ({ success: true }));
+  }
+
+  return rootCollections
+    .offices
+    .where('office', '==', conn.req.body.office)
+    .limit(1)
+    .get()
+    .then(docs => {
+      if (docs.empty) {
+        return Promise.resolve();
+      }
+
+      const doc = docs.docs[0].ref.collection('Webapp').doc();
+
+      batch.set(doc, {
+        timestamp: Date.now(),
+        user: requester.phoneNumber,
+        uid: requester.uid,
+        context: conn.req.body,
+        action: httpsActions.webapp,
+      });
+
+      return batch
+        .commit()
+        .then(() => ({ success: true }));
+    });
 };
 
-const handleTrackViews = (conn) => {
+const handleTrackViews = conn => {
   if (conn.requester.isAnonymous) {
     return handleAnonymousView();
   }
@@ -803,14 +839,12 @@ const handleTrackViews = (conn) => {
 const handleJsonPostRequest = (conn, requester) => {
   const json = {};
 
-  console.log('in json post');
-
   if (!conn.req.query.action) {
     return Promise.resolve({});
   }
 
   if (conn.req.query.action === 'track-view') {
-    return handleTrackViews();
+    return handleTrackViews(conn);
   }
 
   if (conn.req.query.action === 'create-template'
@@ -864,15 +898,11 @@ const handleJsonPostRequest = (conn, requester) => {
 };
 
 const jsonApi = (conn, requester) => {
-  if (conn.req.method === 'GET') {
-    return handleJsonGetRequest(conn, requester);
-  }
-
   if (conn.req.method === 'POST') {
     return handleJsonPostRequest(conn, requester);
   }
 
-  return Promise.resolve({});
+  return handleJsonGetRequest(conn, requester);
 };
 
 
@@ -888,7 +918,7 @@ const handleEmailVerificationFlow = (conn) => {
     .updates
     .doc(conn.req.query.uid)
     .get()
-    .then((doc) => {
+    .then(doc => {
       if (!doc.exists
         || !doc.get('emailVerificationRequestPending')) {
         return conn.res.status(code.temporaryRedirect).redirect('/');
@@ -913,8 +943,9 @@ const handleEmailVerificationFlow = (conn) => {
       // TODO: Also set __session cookie in order to login the user.
       return conn.res.status(code.temporaryRedirect).redirect('/');
     })
-    .catch((error) => {
+    .catch(error => {
       console.error(error);
+
       const html = handleServerError();
 
       return conn.res.status(code.internalServerError).send(html);
@@ -1083,7 +1114,7 @@ module.exports = (req, res) => {
         .limit(1)
         .get();
     })
-    .then((result) => {
+    .then(result => {
       if (!result || html) {
         return Promise.resolve();
       }
@@ -1104,7 +1135,7 @@ module.exports = (req, res) => {
 
       return fetchOfficeData(locals, requester);
     })
-    .then((officeHtml) => {
+    .then(officeHtml => {
       if (html) {
         return Promise.resolve();
       }
@@ -1113,7 +1144,7 @@ module.exports = (req, res) => {
 
       return conn.res.send(html);
     })
-    .catch((error) => {
+    .catch(error => {
       console.error('Error', error);
       const html = handleServerError();
 

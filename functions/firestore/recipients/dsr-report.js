@@ -478,7 +478,6 @@ module.exports = (locals) => {
       return handleSheetOne(params);
     })
     .then(handleSheetTwo)
-    // .then(handleCustomerReport)
     .then((params) => {
       if (!params.sheetOneAdded
         && !params.sheetTwoAdded) {

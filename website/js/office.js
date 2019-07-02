@@ -14,8 +14,10 @@ function initMap(location, populateWithMarkers) {
     lng: location.longitude
   };
 
-  document.getElementById('map').style.height = '400px';
-  document.getElementById('load-map-button').style.display = 'none';
+  document.getElementById('map').style.height = '540px';
+  // calc(100vh - 198px);
+  // document.getElementById('map').style.height = 'calc(100vh - 198px)';
+  // document.getElementById('load-map-button').style.display = 'none';
 
   map = new google.maps.Map(
     document.getElementById('map'), {

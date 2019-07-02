@@ -1,111 +1,175 @@
 'use strict';
 
+function showActions() {
+  document
+    .querySelector('#actions-section')
+    .classList
+    .remove('hidden');
+}
 
-function searchOffice() {
-  const input = document.getElementById('office-search-field');
-  const ul = document.querySelector('#office-search-results-ul');
-  const ulContainer = document.querySelector('#office-search-results');
-  ulContainer.classList.remove('hidden');
+function hideActions() {
+  document
+    .querySelector('#actions-section')
+    .classList
+    .add('hidden');
+}
 
-  const errorP = document.querySelector('#error');
+function setBreadcrumb(action) {
+  const ul = document.querySelector('.breadcrumbs ul');
 
-  if (!isNonEmptyString(input.value)) {
-    errorP.classList.remove('hidden');
-    errorP.textContent = 'Please enter a search term';
+  while (ul.firstChild) {
+    ul.firstChild.remove();
+  }
+
+  const home = document.createElement('li');
+  const homeA = document.createElement('a');
+
+  homeA.textContent = document.body.dataset.office || 'Home';
+  homeA.href = '#';
+  homeA.onclick = function (evt) {
+    evt.preventDefault();
+
+    showActions();
+
+    document
+      .querySelector('.hero-actions')
+      .classList.add('hidden');
+
+    setBreadcrumb(null);
+  }
+
+  home.appendChild(homeA);
+  const li = document.createElement('li');
+  const a = document.createElement('a');
+  a.textContent = action;
+  a.href = '#';
+
+  /** Do nothing since this path is open already for the user */
+  a.onclick = function (evt) { evt.preventDefault() };
+
+  li.appendChild(a);
+  ul.append(home);
+
+  if (action) {
+    ul.appendChild(li);
+  }
+}
+
+
+function setActionTitle(text) {
+  document.querySelector('.action-title')
+    .textContent = text || 'My Growthfile';
+
+  if (text) setBreadcrumb(text);
+}
+
+const intlTelInputOptions = {
+  preferredCountries: ['IN', 'NP'],
+  initialCountry: 'IN',
+  nationalMode: false,
+  formatOnDisplay: true,
+  customContainer: 'mb-16',
+  separateDialCode: true,
+  customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
+    window.countryCode = selectedCountryData.dialCode;
+    console.log({ selectedCountryPlaceholder, selectedCountryData });
+    return "e.g. " + selectedCountryPlaceholder;
+  }
+};
+
+Object.freeze(intlTelInputOptions);
+
+function handleTopSelectTemplateClick(evt) {
+  console.log('handleTopSelectTemplateClick', evt);
+}
+
+function allOfficeSelectOnChange() {
+  const officeSelect = document.querySelector('#all-office-form select');
+  const office = officeSelect.options[officeSelect.selectedIndex].value;
+  document.body.dataset.office = office;
+
+  const supportSearch = document.querySelector('#support-office-search');
+
+  supportSearch.remove();
+
+  // document
+  //   .querySelector('#actions-section')
+  //   .classList
+  //   .remove('hidden');
+  showActions();
+  setBreadcrumb(null);
+}
+
+function fetchOfficeList() {
+  const officeSelect = document.querySelector('#all-office-form select');
+  // This element has value => 'Loading...'
+  officeSelect.firstElementChild.remove();
+
+  const placeholder = document.createElement('option');
+  placeholder.textContent = 'Select an office';
+  officeSelect.appendChild(placeholder);
+
+  function populateOfficeInSelect(names) {
+    names.forEach(function (name) {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+
+      officeSelect.appendChild(option);
+    });
+  }
+
+  officeSelect.onchange = allOfficeSelectOnChange;
+
+  const cachedList = sessionStorage.getItem('officeNamesList');
+  if (cachedList) {
+    console.log('office list from cached');
+
+    populateOfficeInSelect(cachedList.split(','));
 
     return;
   }
 
-  ul.innerHTML = '';
+  console.log('Request sent action=office-list');
 
-  errorP.classList.add('hidden');
-  const spinner = getSpinnerElement().center();
-  ul.appendChild(spinner);
-
-  const url = `${apiBaseUrl}/admin/search?support=true`;
-
-  sendApiRequest(`${url}&office=${input.value}`, null, 'GET')
+  sendApiRequest('/json?action=office-list')
     .then(function (response) {
       return response.json();
     })
     .then(function (response) {
-
       console.log('response', response);
+      sessionStorage.setItem('officeNamesList', response);
 
-      spinner.remove();
+      populateOfficeInSelect(response);
+    })
+    .catch(console.error);
+}
 
-      if (response.length === 0) {
-        errorP.textContent = 'No results found';
-        errorP.classList.remove('hidden');
 
-        return;
-      }
+function setTemplatesInTopSelect() {
+  const selectElement = document.querySelector('.top-templates-select');
+
+  sendApiRequest('/json?action=get-template-names')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      console.log('Response', response);
+
+      selectElement.querySelector('optgroup').remove();
 
       response.forEach(function (name) {
-        const li = document.createElement('li')
-        const span = document.createElement('span');
-        span.classList.add('mdc-list-item__text');
-        span.textContent = name;
-        li.classList.add('mdc-list-item', 'cur-ptr');
-        li.tabIndex = '0';
-        li.appendChild(span);
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
 
-        li.onclick = function (event) {
-          input.value = name;
-          // document.querySelector('.button-search').classList.add('invisible');
-
-          // document.getElementById('continue').classList.remove('invisible');
-
-          document.body.dataset.office = input.value;
-
-          // Remove the div containing the 'Search an office' text
-          document.querySelector('#office-search-title').remove();
-
-          // Removes the section containing this form
-          document
-            .querySelector('#office-form')
-            .parentElement
-            .remove();
-
-          ul.querySelectorAll('li').forEach(function (el) {
-            el.remove();
-          });
-
-          // [...ul.querySelectorAll('li')].forEach(function (el) {
-          //   el.remove();
-          // });
-
-          document
-            .querySelector('#actions-section')
-            .classList
-            .remove('hidden');
-
-          // Search bar
-          document
-            .querySelector('#search-box')
-            .classList.remove('hidden');
-
-          document.querySelector('#support-office-search').remove();
-        }
-
-        ul.appendChild(li)
+        selectElement.appendChild(option);
       });
-    });
-}
 
-
-function toggleSearchButton(e) {
-  console.log(e);
-  if (!e.value) {
-    document.querySelector('.button-search').classList.add('invisible');
-    document.getElementById('create-office').classList.remove('invisible')
-
-  } else {
-    document.querySelector('.button-search').classList.remove('invisible');
-    document.getElementById('create-office').classList.add('invisible')
-  }
-  document.getElementById("continue").classList.add('invisible');
-}
+      selectElement.onchange = handleTopSelectTemplateClick;
+    })
+    .catch(console.error);
+};
 
 function startAdmin() {
   document.body.dataset.office = document.getElementById('office-selector').value;
@@ -116,203 +180,14 @@ function startAdmin() {
     .parentElement
     .classList
     .add('hidden');
-  document.querySelector('.action-icons-container').classList.remove('hidden');
-}
 
-
-
-function excelUploadContainer(template) {
-  const container = document.createElement('div')
-  let templateNames;
-
-  if (template) {
-    templateNames = [template]
-  } else {
-    templateNames = ["bill", "invoice", "material", "supplier-type", "recipient", "branch", "department", "leave-type", "subscription", "admin", "customer-type", "expense-type", "product", "employee"]
-  }
-  const fileContainer = document.createElement('div')
-  fileContainer.id = 'file-container'
-  const selectBox = customSelect('Choose Type');
-
-  templateNames.forEach(function (name) {
-    const option = document.createElement('option');
-    option.value = name;
-    option.textContent = name;
-    selectBox.querySelector('select').appendChild(option)
-  })
-  container.appendChild(selectBox);
-
-  const uploadContainer = document.createElement('div')
-  uploadContainer.className = 'upload-container'
-  const input = document.createElement('input')
-  input.type = 'file';
-
-  input.accept = '.xlsx, .xls , .csv'
-
-  const label = document.createElement('label')
-  label.textContent = 'Upload File';
-  uploadContainer.appendChild(label);
-  uploadContainer.appendChild(input);
-
-  const result = document.createElement('div')
-  result.id = 'upload-result-error';
-  uploadContainer.appendChild(result)
-
-  const downloadContainer = document.createElement('div');
-  downloadContainer.className = 'download-container mt-20';
-  const button = document.createElement('button')
-  button.className = 'button'
-  button.textContent = 'Download Sample';
-  downloadContainer.appendChild(button)
-  fileContainer.appendChild(uploadContainer);
-  fileContainer.appendChild(downloadContainer);
-  container.appendChild(fileContainer)
-
-
-  return container;
-
-}
-
-
-function BulkCreateErrorContainer(originalData, rejectedOnes) {
-  const cont = document.getElementById('upload-result-error')
-  cont.innerHTML = '';
-  const frag = document.createDocumentFragment();
-  if (rejectedOnes.length >= 2) {
-    cont.style.height = '150px';
-  }
-  rejectedOnes.forEach(function (value, idx) {
-    const span = document.createElement('span')
-    span.textContent = 'Error at row number : ' + originalData[idx].__rowNum__
-    const p = document.createElement('p')
-    p.textContent = value.reason
-    p.className = 'warning-label'
-    frag.appendChild(span)
-    frag.appendChild(p)
-  })
-  cont.appendChild(frag);
-}
-
-function customSelect(text) {
-  const span = document.createElement('span')
-  span.className = 'select-dropdown'
-  const select = document.createElement('select')
-  const defaultOption = document.createElement('option')
-  defaultOption.selected = "true"
-  defaultOption.disabled = "disabled"
-  defaultOption.textContent = text
-  select.appendChild(defaultOption)
-  span.appendChild(select);
-
-  return span;
-}
-
-function fileToJson(template, claim, data, modal) {
-  const notificationLabel = new showLabel(modal.querySelector('#action-label'));
-  let url = apiBaseUrl + '/admin/bulk';
-  claim.isSupport ? url = url + '?support=true' : '';
-
-  const wb = XLSX.read(data, {
-    type: 'binary'
-  });
-
-  const ws = wb.Sheets[wb.SheetNames[0]];
-
-  const jsonData = XLSX.utils.sheet_to_json(ws, {
-    blankRows: false,
-    defval: '',
-    raw: false
-  });
-
-  if (!jsonData.length) return notificationLabel.warning('File is Empty');
-
-  console.log(jsonData);
-
-  jsonData.forEach(function (val) {
-    if (val['Date Of Establishment']) {
-      val['Date Of Establishment'] = moment(val['Date of Establishment']).valueOf();
-    };
-    val.share = [];
-  })
-
-  getLocation().then(function (location) {
-
-    const body = {
-      office: document.body.dataset.office || '',
-      template: template,
-      data: jsonData,
-      timestamp: Date.now(),
-      geopoint: location
-    }
-
-    return sendApiRequest(`${url}`, body, 'POST')
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (response) {
-        const rejectedOnes = response.data.filter((val) => val.rejected);
-        if (!rejectedOnes.length) return notificationLabel.success('Success')
-        notificationLabel.success('')
-        BulkCreateErrorContainer(jsonData, rejectedOnes)
-      }).catch(console.error);
-  }).catch(function (message) {
-    notificationLabel.warning(message)
-  });
-}
-
-
-
-function createNew() {
-  let templateSelected;
-  const modal = createModal(excelUploadContainer(template))
-
-  modal.querySelector('select').addEventListener('change', function (evt) {
-    templateSelected = evt.target.value
-  })
-  modal.querySelector('input').onchange = function (inputEvt) {
-    if (!templateSelected) {
-      modal.querySelector("#action-label").textContent = 'Please Select A Type'
-      modal.querySelector("#action-label").classList.add('warning-label');
-      return;
-    }
-
-    modal.querySelector("#action-label").textContent = ''
-    inputEvt.stopPropagation();
-    inputEvt.preventDefault();
-    const files = inputEvt.target.files;
-    const file = files[0];
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      const data = e.target.result;
-
-      fileToJson(templateSelected, {
-        isSupport: isSupport,
-        isAdmin: isAdmin
-      }, data, modal)
-    }
-    reader.readAsBinaryString(file);
-
-  }
-
-  document.getElementById('modal-box').appendChild(modal);
-}
-
-function showLabel(el) {
-  this.el = el;
-}
-showLabel.prototype.success = function (text) {
-  if (!this.el) return;
-  this.el.textContent = text
-  this.el.className = 'success-label'
-}
-showLabel.prototype.warning = function (text) {
-  if (!this.el) return;
-  this.el.textContent = text
-  this.el.className = 'warning-label'
+  showActions();
 }
 
 
 function triggerReports() {
+  setActionTitle('Trigger Reports');
+
   let startTime = Date.now();
   const dateInput = document.querySelector('#report-trigger-date');
 
@@ -328,7 +203,7 @@ function triggerReports() {
 
   const triggerResult = document.querySelector('#trigger-report-result');
 
-  function submitOnClick() {
+  function recipientSubmitOnClick() {
     startTime = new Date(startTime).getTime();
 
     console.log({ startTime });
@@ -359,208 +234,25 @@ function triggerReports() {
       return response.json();
     })
     .then(function (response) {
-      if (!Object.keys(response).length) {
-        // return container.textContent = 'No Reports Found';
-
-        throw new Error('recipients/no-reports-subscribed');
-      }
-
       const selectBox = document.querySelector('#report-trigger-select');
 
-      response.recipient.forEach(function (data) {
-        const option = document.createElement('option')
-        option.value = data.attachment.Name.value;
-        option.textContent = data.attachment.Name.value;
-        selectBox.appendChild(option);
-      })
+      console.log('response', response);
+
+      Object
+        .keys(response)
+        .forEach(function (activityId) {
+          const item = response[activityId];
+          const option = document.createElement('option')
+          option.value = item.attachment.Name.value;
+          option.textContent = item.attachment.Name.value;
+          selectBox.appendChild(option);
+        });
 
       const submitButton = document.querySelector('#trigger-report-button');
-      submitButton.onclick = submitOnClick;
+
+      submitButton.onclick = recipientSubmitOnClick;
     })
     .catch(console.error);
-}
-
-function searchAndUpdate() {
-  const container = document.createElement('div');
-  const ul = document.createElement('ul')
-  const search = searchBar('Search', 'search-all');
-  // let label;
-
-  let chooseType;
-  let chooseValue;
-  let editValue;
-  let activtyChoosen;
-  search.querySelector('button').onclick = function () {
-    activtyChoosen = ''
-    if (chooseType) {
-      chooseType.remove();
-    }
-    if (chooseValue) {
-      chooseValue.remove();
-    }
-    if (editValue) {
-      editValue.remove()
-    }
-    if (document.getElementById('edit-values')) {
-      document.getElementById('edit-values').remove();
-    }
-    console.log(search)
-    const input = search.querySelector('input')
-    let value = input.value
-    if (isValidPhoneNumber(value)) {
-      value = value.replace('+', '%2B')
-    }
-
-    sendApiRequest(`/json?office=${document.body.dataset.office}&query=${value}`, null, 'GET').then(function (res) {
-      return res.json()
-    }).then(function (response) {
-      console.log(response)
-
-      // if (response.status !== 'ok') return label.warning('Please Try Again Later')
-      ul.innerHTML = '';
-
-      console.log(response)
-      const types = Object.keys(response);
-
-      if (!types.length) {
-        // label.warning('No results Found');
-        return;
-      }
-      // label.warning('');
-      chooseType = customSelect('Choose Type')
-      types.forEach(function (name) {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        chooseType.querySelector('select').appendChild(option)
-      })
-      chooseType.addEventListener('change', function (evt) {
-        if (chooseValue) {
-          chooseValue.remove();
-        }
-        if (editValue) {
-          editValue.remove()
-        }
-        if (document.getElementById('edit-values')) {
-          document.getElementById('edit-values').remove();
-        }
-        chooseValue = customSelect('Choose ' + evt.target.value);
-
-        response[evt.target.value].forEach(function (value) {
-          const option = document.createElement('option');
-          option.value = JSON.stringify(value);
-          option.textContent = value.activityName;
-          chooseValue.querySelector('select').appendChild(option)
-        })
-        form.appendChild(chooseValue);
-        chooseValue.addEventListener('change', function (evt) {
-          if (editValue) {
-            editValue.remove()
-          }
-          if (document.getElementById('edit-values')) {
-            document.getElementById('edit-values').remove();
-          }
-          const value = JSON.parse(evt.target.value);
-          activtyChoosen = value;
-          editValue = customSelect('Edit  ' + value.activityName);
-
-          Object.keys(value.attachment).forEach(function (attachmentName) {
-            let option = document.createElement('option');
-
-            option.value = attachmentName
-            option.textContent = attachmentName
-            editValue.querySelector('select').appendChild(option)
-          })
-
-          editValue.addEventListener('change', function (evt) {
-            const editCont = document.createElement('div')
-            editCont.id = 'edit-values'
-            const attachmentName = evt.target.value;
-            console.log(attachmentName)
-            if (activtyChoosen.attachment[attachmentName].type === 'string') {
-              const oldlabel = document.createElement('label')
-              oldlabel.textContent = 'Current ' + attachmentName
-
-              const input = document.createElement('input');
-              input.value = activtyChoosen.attachment[attachmentName].value;
-              input.style.width = '100%'
-              input.disabled = 'true'
-              editCont.appendChild(oldlabel);
-              editCont.appendChild(input);
-
-              const newlabel = document.createElement('label')
-              newlabel.textContent = 'New ' + attachmentName
-
-              const changeInput = document.createElement('input')
-              changeInput.style.width = '100%'
-              editCont.appendChild(newlabel);
-              editCont.appendChild(changeInput);
-              const submit = document.createElement('button')
-              submit.className = 'button mt-10'
-              submit.textContent = 'Submit'
-
-              submit.onclick = function () {
-                activtyChoosen.attachment[attachmentName].value = changeInput.value;
-
-                getLocation().then(function (location) {
-                  activtyChoosen.geopoint = location
-                  activtyChoosen.timestamp = Date.now()
-
-                  sendApiRequest(`${apiBaseUrl}/activities/update?support=true`, activtyChoosen, 'PATCH').then(function (res) {
-                    console.log(res)
-                    return res.json()
-                  }).then(function (response) {
-                    if (!response.success) {
-                      // label.warning(response.message)
-                      return;
-                    }
-                    // label.success('success');
-
-                    console.log(response)
-                  }).catch(console.log)
-                }).catch(function (errorMessage) {
-                  // label.warning(errorMessage);
-                })
-
-              }
-              editCont.appendChild(submit)
-              form.appendChild(editCont)
-            }
-            console.log(evt.target.value)
-          });
-          form.appendChild(editValue)
-        });
-      })
-      form.appendChild(chooseType);
-
-    }).catch(function (error) {
-      // label.warning(error.message)
-      console.error(error);
-    })
-  }
-  const form = document.createElement('div')
-  form.className = 'form-inline'
-  form.appendChild(search);
-
-  container.appendChild(form);
-  container.appendChild(ul);
-  // const modal = createModal(container);
-  const section = document.querySelector('#search-and-update-section');
-  section.classList.remove('hidden');
-
-  section.appendChild(container);
-
-  // document.getElementById('modal-box').appendChild(section);
-
-  // label = new showLabel(document.getElementById('action-label'))
-}
-
-function createActivityList(data) {
-
-}
-
-function getPageHref() {
-  return location.protocol + '//' + location.host + location.pathname + (location.search ? location.search : "")
 }
 
 function getEnquiryLi(record, index) {
@@ -597,127 +289,72 @@ function getEnquiryLi(record, index) {
   return li;
 };
 
-function viewEnquiries() {
-  const table = document.createElement('table');
-  table.id = 'enquiry-table'
-  table.className = 'overflow-table'
-  const head = document.createElement('thead');
-  const headTr = document.createElement('tr');
-  const headerNames = ['S.No', 'Status', 'Creator', 'Company', 'Product', 'Enquiry'];
-  headerNames.forEach(function (name) {
-    const th = document.createElement('th');
-    th.textContent = name
-    headTr.appendChild(th);
-  });
+function handlePhoneNumberChange(options) {
+  const container = options.container;
 
-  head.appendChild(headTr);
-  table.appendChild(head);
-  const spinner = getSpinnerElement().center()
-  const label = new showLabel(document.getElementById('action-label'));
-  const templateName = 'enquiry';
+  const requestBody = {
+    oldPhoneNumber: options.oldInput.value,
+    newPhoneNumber: options.newInput.value,
+    office: document.body.dataset.office,
+  };
 
-  const enquiriesContainer = document.querySelector('#enquiries-container');
-  enquiriesContainer.scrollIntoView({
-    behavior: 'smooth',
-  });
+  let requestUrl = `${apiBaseUrl}/admin/change-phone-number`;
 
-  if (window.enquiriesShownAlready) {
-    return;
+  if (document.body.dataset.issupport) {
+    requestUrl += '?support=true';
   }
 
-  const spinnerContainer = document.createElement('div');
-  spinnerContainer.appendChild(spinner);
-  spinnerContainer.classList.add('flexed-jc-center');
+  const sucessLabel = container.querySelector('.success-label');
+  const errorLabel = container.querySelector('.warning-label');
 
-  enquiriesContainer.appendChild(spinnerContainer);
-  enquiriesContainer.classList.remove('hidden');
+  errorLabel.textContent = '';
 
-  sendApiRequest(
-    `/json?template=${templateName}&office=${document.body.dataset.office}`,
-    null,
-    'GET'
-  )
+  sendApiRequest(requestUrl, requestBody, 'POST')
     .then(function (response) {
-
-      if (response.ok) {
-        window.enquiriesShownAlready = true;
-      }
-
       return response.json();
     })
     .then(function (response) {
-      console.log('response', response);
-      if (Object.keys(response).length === 0) {
-        spinner.remove();
-
-        document
-          .querySelector('#no-enquiry-box')
-          .classList
-          .remove('hidden');
+      if (!response.success) {
+        errorLabel.classList.remove('hidden');
+        errorLabel.textContent = response.message;
 
         return;
       }
 
-      const body = document.createElement('tbody')
-
-      const ulContainer = document.createElement('ul');
-      ulContainer.classList.add('mdc-list', 'mdc-list--two-line');
-
-      function showEnquiryDetails(elem, record) {
-        console.log('Enquiry', elem, record);
-      }
-
-      response.enquiry.forEach(function (record, index) {
-        const li = getEnquiryLi(record, index);
-
-        li.onclick = function (evt) {
-          showEnquiryDetails(evt.target, record);
-        };
-
-        ulContainer.appendChild(li);
-      });
-
-      ulContainer.style.maxHeight = '400px';
-      ulContainer.style.overflowX = 'auto';
-
-      spinnerContainer.remove();
-      enquiriesContainer.appendChild(ulContainer);
-
-      // response.enquiry.forEach(function (record, index) {
-      //   const tr = document.createElement('tr');
-      //   const indexCol = document.createElement('td');
-      //   indexCol.textContent = index + 1;
-      //   const statusRow = document.createElement('td');
-      //   statusRow.textContent = record.status;
-      //   const creatorRow = document.createElement('td');
-      // creatorRow.textContent = record.creator.displayName || response[i].creator.phoneNumber
-      //   const companyRow = document.createElement('td')
-      //   companyRow.textContent = record.attachment['Company Name'].value || '-';
-      //   const productRow = document.createElement('td');
-      //   productRow.textContent = '';
-
-      //   if (record.attachment.Product) {
-      //     productRow.textContent = record.attachment.Product.value || '-';
-      //   }
-
-      //   const enquiryRow = document.createElement('td');
-
-      //   enquiryRow.textContent = record.attachment.Enquiry.value || '-';
-      //   tr.appendChild(indexCol);
-      //   tr.appendChild(statusRow);
-      //   tr.appendChild(creatorRow);
-      //   tr.appendChild(companyRow);
-      //   tr.appendChild(productRow);
-      //   tr.appendChild(enquiryRow);
-
-      //   body.appendChild(tr)
-      // });
-
-      // table.appendChild(body);
-      // spinnerContainer.remove();
-      // enquiriesContainer.appendChild(table);
-    });
+      sucessLabel.classList.remove('hidden');
+    })
+    .catch(console.error);
 }
+
+function changePhoneNumber() {
+  setActionTitle('Change Phone Number');
+
+  const container = document.querySelector('.pnc-container');
+  const oldInput = container.querySelector('input[data-old="true"]');
+  const newInput = container.querySelector('input[data-new="true"]');
+
+  oldInput.style.width = '100%';
+  oldInput.style.height = '52px';
+
+  window.intlTelInput(oldInput, intlTelInputOptions);
+
+  newInput.style.width = '100%';
+  newInput.style.height = '52px';
+
+  window.intlTelInput(newInput, intlTelInputOptions);
+
+  container.classList.remove('hidden');
+
+  const submitButton = container.querySelector('input[type="button"]')
+
+  submitButton.onclick = function () {
+    handlePhoneNumberChange({
+      container,
+      oldInput,
+      newInput
+    });
+  };
+};
 
 
 function searchBar(id) {
@@ -748,27 +385,11 @@ function searchBarWithList(labelText, id) {
 
 }
 
-function employeeExit() {
-  // const search = searchBar('Search Employee','employee-search');
-  // const input = search.querySelector('input');
-  // const submit = search.querySelector('button');
-  // submit.onclick = function(){
-
-  //   sendApiRequest(`${getPageHref()}json?template=employee&office=${office}&query=${input.value}`,null,'GET').then(function(res){
-  //     return res.json()
-  //   }).then(function(response){
-  //       console.log(response);
-
-  //   }).catch(console.error)
-  // }
-  // document.getElementById('modal-box').appendChild(createModal(search))
-}
-
-function handleUpdateAuthRequest(phoneNumber, displayName, email) {
-  console.log('Sending fetch request');
-  const messageNode = document.getElementById('message');
-
-  console.log('request', { phoneNumber, displayName, email });
+function handleUpdateAuthRequest() {
+  const form = document.querySelector('.update-auth-form');
+  const phoneNumber = form.querySelector('input[type="tel"]').value;
+  const displayName = form.querySelector('input[data-displayName=true]').value;
+  const email = form.querySelector('input[type="email"]').value;
 
   return sendApiRequest(
     `${apiBaseUrl}/update-auth`,
@@ -777,113 +398,37 @@ function handleUpdateAuthRequest(phoneNumber, displayName, email) {
       displayName,
       email,
     },
-    'POST')
+    'POST'
+  )
     .then(function (response) {
-      if (!response.ok) {
-        return Promise.resolve();
-      }
-
       return response.json();
     })
-    .then(function (json) {
-      console.log('result', json);
-
-      if (!json.success) {
-        messageNode.innerText = json.message;
-
-        return;
-      }
-
-      messageNode.classList.remove('warning-label');
-      messageNode.classList.add('success-label');
-      messageNode.innerText = json.message
-        || 'Auth updated successfully...';
-      messageNode.classList.remove('hidden');
-
-      return;
+    .then(function (response) {
+      console.log('result', response);
+      // api-result
+      const p = form.querySelector('.api-result');
+      p.parentElement.classList.remove('hidden');
+      p.textContent = response.message;
     })
-    .catch(function (error) {
-      console.error(error);
-    });
+    .catch(console.error);
 }
 
 function updateAuth() {
+  setActionTitle('Update Auth');
+
   console.log('Update auth called');
-  const message = document.createElement('p');
-  message.classList.add('warning-label', 'mb-8', 'hidden');
-  message.id = 'message';
-  const actionContent = document.createElement('form');
-  actionContent.id = 'update-auth-form';
-  actionContent.classList.add('flexed', 'pad');
-  actionContent.style.flexDirection = 'column';
+  const updateAuthContainer = document.querySelector('.update-auth');
+  updateAuthContainer.classList.remove('hidden');
+  const phoneInput = updateAuthContainer.querySelector('input[type="tel"]');
 
-  const modalTitle = document.createElement('h2');
-  const phoneNumberInput = document.createElement('input');
-  phoneNumberInput.id = 'phoneNumberInput';
-  const displayNameInput = document.createElement('input');
-  displayNameInput.id = 'displayNameInput';
-  const emailInput = document.createElement('input');
-  emailInput.id = 'emailInput';
-  displayNameInput.classList.add('input-field', 'mb-8');
-  displayNameInput.placeholder = 'Person Name';
-  modalTitle.innerText = 'Update Auth';
-  phoneNumberInput.classList.add('input-field', 'mb-8');
-  phoneNumberInput.placeholder = '(+91) phone number';
-  emailInput.placeholder = 'Email';
+  phoneInput.style.width = '100%';
+  phoneInput.style.height = '52px';
 
-  emailInput.classList.add('input-field', 'mb-8');
+  window.intlTelInput(phoneInput, intlTelInputOptions);
 
-  const a = document.createElement('a');
-  a.classList.add('button');
-  a.innerText = 'Update Email';
+  const submitButton = updateAuthContainer.querySelector('input[type="button"]');
 
-  a.onclick = function () {
-    console.log('on click called');
-    const phoneNumber = document.getElementById('phoneNumberInput').value;
-
-    if (!isValidPhoneNumber(phoneNumber)) {
-      message.innerText = 'Invalid Phone Number';
-      message.classList.remove('hidden');
-
-      return;
-    }
-
-    const displayName = document.getElementById('displayNameInput').value;
-
-    if (!isNonEmptyString(displayName)) {
-      message.innerText = 'Invalid display name';
-
-      message.classList.remove('hidden');
-
-      return;
-    }
-
-    const email = document.getElementById('emailInput').value;
-
-    if (!isValidEmail(email)) {
-      message.innerText = 'Invalid email';
-
-      message.classList.remove('hidden');
-
-      return;
-    }
-
-    return handleUpdateAuthRequest(
-      phoneNumber,
-      displayName,
-      email
-    );
-  };
-
-  actionContent.appendChild(modalTitle);
-  actionContent.appendChild(message);
-  actionContent.appendChild(phoneNumberInput);
-  actionContent.appendChild(displayNameInput);
-  actionContent.appendChild(emailInput);
-  actionContent.appendChild(a);
-
-  const modal = createModal(actionContent);
-  document.getElementById('modal-box').appendChild(modal)
+  submitButton.onclick = handleUpdateAuthRequest;
 }
 
 function isValidJSON(json) {
@@ -1222,52 +767,562 @@ function createNewTemplate() {
   document.querySelector('#manage-templates-action').appendChild(form);
 }
 
-window.onload = function () {
-  const joinContainer = document.querySelector('.join-container');
+function handleActivityEditOnClick(doc) {
+  const form = document.querySelector(`.activity-form`);
+  const requestBody = Object.assign(doc, {
+    timestamp: Date.now(),
+    attachment: {},
+    // TODO: Handle venue ui and update
+    venue: doc.venue,
+    schedule: [],
+  });
 
-  if (document.body.dataset.isadmin || document.body.dataset.issupport) {
-    if (joinContainer) {
-      joinContainer.classList.add('hidden');
+  // activity-container
+  const activityContainer = document.querySelector('activity-container');
+  const label = activityContainer.querySelector('.warning-label');
+
+  if (label) {
+    label.remove();
+  }
+
+  const attachmentFields = document.querySelectorAll('[data-attachment]');
+  const scheduleFields = document.querySelectorAll('[data-schedule]');
+  const venueFields = document.querySelectorAll('[data-venue]');
+
+  console.log({ attachmentFields, scheduleFields, venueFields });
+
+  attachmentFields.forEach(function (element) {
+    const field = element.dataset.field;
+    const type = element.dataset.type;
+    let value = element.value;
+
+    // Remove spaces between characters that some people use
+    // while writing phone numbers
+    if (type === 'phoneNumber') {
+      value = value.replace(/\s+/g, '');
     }
+
+    if (type === 'number') {
+      value = Number(value);
+    }
+
+    requestBody.attachment[field] = {
+      type,
+      value,
+    };
+  });
+
+  scheduleFields.forEach(function (element) {
+    requestBody.schedule.push({
+      startTime: '',
+      endTime: '',
+      name: element.dataset.name,
+    });
+  });
+
+  venueFields.forEach(function (element) {
+    requestBody.venue.push({
+      venueDescriptor: element.dataset.venueDescriptor,
+      geopoint: {
+        latitude: element.dataset.latitude,
+        longitude: element.dataset.longitude,
+      },
+      location: element.dataset.location,
+      address: element.dataset.address,
+    });
+  });
+
+  console.log('requestBody', requestBody);
+
+  getLocation()
+    .then(function (location) {
+      requestBody.geopoint = location;
+      let url = `${apiBaseUrl}/activities/update`;
+
+      if (document.body.dataset.issupport) {
+        url += '?support=true';
+      }
+
+      return sendApiRequest(
+        url,
+        requestBody,
+        'PATCH'
+      );
+    })
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      console.log('response', response);
+
+      let node = getWarningNode('Update successful');
+
+      if (!response.success) {
+        node = getWarningNode(response.message);
+      }
+
+      insertAfterNode(form, node);
+    })
+    .catch(function (error) {
+      console.error(error);
+
+      if (error === 'Please Enable Location') {
+        const node = getWarningNode('Location access is required');
+
+        insertAfterNode(form, node);
+
+        return;
+      }
+    });
+}
+
+function getActivityEditObject(doc) {
+  const container = document.createElement('div');
+  container.classList.add('pad-10', 'border');
+
+  const form = document.createElement('form');
+  form.classList.add('pad-10', 'activity-form');
+  form.id = doc.activityId;
+
+  const attachmentContainer = document.createElement('div');
+  attachmentContainer.classList.add('pad-10');
+  attachmentContainer.style.display = 'flex';
+  attachmentContainer.style.flexDirection = 'column';
+  const telInputs = [];
+
+  Object
+    .keys(doc.attachment)
+    .forEach(function (field) {
+      const { type, value } = doc.attachment[field];
+
+      const label = document.createElement('label');
+      label.textContent = field;
+      let input = document.createElement('input');
+      input.value = value;
+
+      // Skip this field since this is just an image
+      if (type === 'base64') return;
+
+      if (type === 'boolean') {
+        input = document.createElement('select');
+        const yes = document.createElement('option');
+        const no = document.createElement('option');
+        yes.textContent = 'Yes';
+        no.textContent = 'No';
+        yes.value = true;
+        no.value = false;
+
+        input.append(yes, no);
+      }
+
+      if (type === 'weekday') {
+        input = document.createElement('select');
+        moment
+          .weekdays()
+          .forEach(function (day) {
+            const option = document.createElement('option');
+
+            option.value = day.toLowerCase();
+            option.textContent = day;
+
+            input.appendChild(option);
+          });
+      }
+
+      if (type === 'string') {
+        input.type = 'text';
+      }
+
+      if (type === 'number') {
+        input.type = 'number';
+      }
+
+      if (type === 'phoneNumber') {
+        input.type = 'tel';
+
+        telInputs.push({
+          element: input,
+          value,
+        });
+
+        input.value = '';
+      }
+
+      if (type === 'email') {
+        input.type = 'email';
+      }
+
+      if (type === 'HH:MM') {
+        input.type = 'time';
+      }
+
+      input.classList.add('input-field');
+
+      if (field === 'Name' || field === 'Number') {
+        input.required = true;
+      }
+
+      input.dataset.attachment = true;
+      input.dataset.type = type;
+      input.dataset.field = field;
+
+      attachmentContainer.append(label, input);
+    });
+
+  // telInputs.forEach(function (item) {
+  //   const inputElement = item.element;
+  //   const value = item.value;
+
+  //   inputElement.style.width = '100%';
+  //   inputElement.style.height = '52px';
+
+  //   window
+  //     .intlTelInput(inputElement, intlTelInputOptions)
+  //     .setNumber(value);
+  // });
+
+  form.appendChild(attachmentContainer);
+
+  const scheduleContainer = document.createElement('div');
+  scheduleContainer.classList.add('flexed-column', 'pad-10');
+  const scheduleHeaderContainer = document.createElement('div');
+  const scheduleHeader = document.createElement('h5');
+  scheduleHeader.textContent = 'Schedule';
+  scheduleHeader.classList.add('mb-16', 'ttuc', 'tac', 'bold', 'ft-size-20', 'bb');
+
+  scheduleHeaderContainer.appendChild(scheduleHeader);
+  scheduleContainer.appendChild(scheduleHeaderContainer);
+
+  doc
+    .schedule
+    .forEach(function (item) {
+      const { name, startTime, endTime } = item;
+
+      const label = document.createElement('label');
+      label.textContent = name;
+
+      const startTimeInput = document.createElement('input');
+      startTimeInput.type = 'date';
+      startTimeInput.classList.add('input-field');
+
+      if (startTime) {
+        startTimeInput.valueAsDate = new Date(startTime);
+      }
+
+      const endtimeInput = document.createElement('input');
+      endtimeInput.type = 'date';
+      endtimeInput.classList.add('input-field');
+
+      if (endTime) {
+        endtimeInput.valueAsDate = new Date(endTime);
+      }
+
+      startTimeInput.dataset.schedule = true;
+      startTimeInput.dataset.name = name;
+
+      scheduleContainer.append(label, startTimeInput)
+    });
+
+  if (doc.schedule.length) {
+    form.appendChild(scheduleContainer);
   }
 
-  if (document.body.dataset.isadmin
-    && sessionStorage.getItem('office')
-    && firebase.auth().currentUser) {
-    document.body.dataset.office = sessionStorage.getItem('office');
+  const venueContainer = document.createElement('div');
+  venueContainer.classList.add('pad-10');
 
+  const venueHeaderContainer = document.createElement('div');
+  const venueHeading = document.createElement('h5');
+  venueHeading.textContent = 'Locations';
 
-    // remove the office search section
-    document
-      .querySelector('#actions-section')
-      .classList
-      .remove('hidden');
+  venueHeaderContainer.appendChild(venueHeading);
+  venueHeaderContainer.classList.add('ttuc', 'tac', 'bb', 'ft-size-20', 'bold');
+
+  venueContainer.appendChild(venueHeaderContainer);
+
+  doc.venue.forEach(function (venue, index) {
+    const venueDescriptor = venue.venueDescriptor;
+    const address = venue.address;
+    const location = venue.location;
+    const geopoint = venue.geopoint;
+
+    const singleVenue = document.createElement('div');
+    singleVenue.dataset.venueDescriptor = venueDescriptor;
+    singleVenue.dataset.address = address;
+    singleVenue.dataset.location = location;
+    singleVenue.dataset.latitude = geopoint.latitude || geopoint._latitude;
+    singleVenue.dataset.longitude = geopoint.longitude || geopoint._longitude;
+
+    const map = document.createElement('div');
+    map.textContent = `map ${index}`;
+    map.id = `map${index}`;
+    map.style.width = '400px';
+    map.style.height = '200px';
+
+    venueContainer.appendChild(singleVenue);
+  });
+
+  if (doc.venue.length) {
+    form.appendChild(venueContainer);
   }
 
-  if (document.body.dataset.istemplatemanager) {
-    document
-      .querySelector('#actions-section')
-      .classList
-      .remove('hidden');
+  const assigneeHeadContainer = document.createElement('div');
+  assigneeHeadContainer.classList.add('ttuc', 'bold');
+  const assigneeHead = document.createElement('h5');
+  assigneeHead.textContent = 'Assignees';
+  assigneeHeadContainer.appendChild(assigneeHead);
+  assigneeHeadContainer.classList.add('bb', 'tac', 'ft-size-20');
+  const assigneeContainer = document.createElement('div');
+  assigneeContainer.appendChild(assigneeHeadContainer);
+  const assigneeUl = document.createElement('ul');
+
+  doc
+    .assignees
+    .forEach(function (phoneNumber) {
+      const li = document.createElement('li');
+      const phoneSpan = document.createElement('span');
+      phoneSpan.textContent = phoneNumber;
+      phoneSpan.style.pointerEvents = 'none';
+      phoneSpan.classList.add('mr-8');
+      const tick = document.createElement('span');
+      tick.innerHTML = '&#10005;';
+      tick.style.pointerEvents = 'none';
+
+      li.classList.add('cur-ptr');
+
+      li.appendChild(phoneSpan);
+      li.appendChild(tick);
+
+      assigneeUl.appendChild(li);
+    });
+
+  const ulContainer = document.createElement('div');
+
+  ulContainer.appendChild(assigneeUl);
+  assigneeContainer.appendChild(ulContainer);
+
+  if (doc.assignees.length) {
+    form.appendChild(assigneeContainer);
   }
 
+  const statusSelectionContainer = document.createElement('div');
+  const statusSelectHeadContainer = document.createElement('div');
+  const statusHeader = document.createElement('h5');
+  statusHeader.classList.add('tac', 'ttuc', 'bold', 'ft-size-20', 'bb');
+  statusHeader.textContent = `Status (${doc.status})`;
+  statusSelectHeadContainer.append(statusHeader);
+
+  statusSelectionContainer.appendChild(statusSelectHeadContainer);
+
+  const statusSelect = document.createElement('select');
+  statusSelect.dataset.status = true;
+
+  statusSelect.classList.add('input-field');
+
+  ['CANCELLED', 'CONFIRMED', 'PENDING']
+    .forEach(function (status) {
+      const option = document.createElement('option');
+      option.value = status;
+      option.textContent = status;
+
+      // Not putting the value which is already set in the list
+      if (status === doc.status) return;
+
+      statusSelect.appendChild(option);
+    });
+
+  statusSelect.style.marginTop = '8px';
+
+  statusSelectionContainer.appendChild(statusSelect);
+
+  form.appendChild(statusSelectionContainer);
+
+  const buttonContainer = document.createElement('div');
+  buttonContainer.classList.add('flexed', 'mt-16');
+  const button = document.createElement('input');
+  button.type = 'button';
+  button.value = 'Update';
+  button.classList.add('button', 'f1');
+
+  button.onclick = function () {
+    handleActivityEditOnClick(doc);
+  };
+
+  buttonContainer.appendChild(button);
+
+  form.appendChild(buttonContainer);
+
+  container.appendChild(form);
+
+  return container;
+};
+
+function activityEditOnClick(doc) {
+  const container = document.querySelector('.activity-container');
+
+  while (container.firstChild) {
+    container.firstChild.remove();
+  }
+
+  const dataContainer = getActivityEditObject(doc);
+  dataContainer.style.borderWidth = '5px';
+  dataContainer.style.borderStyle = 'solid';
+  dataContainer.style.borderColor = '#7fdbff';
+  // dataContainer.classList.add('single-activity');
+
+  if (doc.status === 'CANCELLED') {
+    dataContainer.style.borderColor = '#ff4136';
+    // dataContainer.classList.add('cancelled');
+  }
+
+  container.appendChild(dataContainer);
+}
+
+
+// TODO: This perhaps should be made a little better
+function getActivityName(doc) {
+  return doc.activityName;
+}
+
+function getSearchActivityListItem(doc) {
+  const li = document.createElement('li');
+  // li.style.padding = '10px';
+  // li.style.borderLeftColor = '#0074D9';
+  // li.style.borderLeftWidth = '5px';
+  // li.style.borderLeftStyle = 'solid';
+  // li.style.backgroundColor = '#7FDBFF';
+  // li.style.color = 'white';
+
+  li.className += 'mb-8 cur-ptr flexed single-activity border';
+
+  // li.classList.add('bb', 'mb-8', 'cur-ptr', 'flexed');
+  const iconContainer = document.createElement('div');
+  iconContainer.classList.add('mr-8', 'flexed-ai-center');
+  const i = document.createElement('i');
+  i.classList.add('far', 'fa-check-circle');
+
+  if (doc.status === 'CANCELLED') {
+    // li.style.color = 'unset';
+    // li.classList.add('raised');
+    // li.style.backgroundColor = 'unset';
+    // li.style.borderLeftColor = '#FF4136';
+    li.className += ' cancelled';
+    i.classList.remove('fa-check-circle');
+    // <i class="far fa-times-circle"></i>
+    i.classList.add('fa-times-circle');
+  }
+
+  iconContainer.appendChild(i);
+
+  const bodyContainer = document.createElement('div');
+  bodyContainer.classList.add('flexed-column');
+  const activityName = document.createElement('span');
+  activityName.textContent = getActivityName(doc);
+  const status = document.createElement('span');
+  status.textContent = doc.status;
+  status.style.color = '#0074D9';
+  status.style.fontWeight = 'bold';
+
+  bodyContainer.appendChild(activityName);
+  bodyContainer.appendChild(status);
+  iconContainer.style.pointerEvents = 'none';
+  bodyContainer.style.pointerEvents = 'none';
+
+  li.appendChild(iconContainer);
+  li.appendChild(bodyContainer);
+
+  li.onclick = function () {
+    activityEditOnClick(doc);
+  };
+
+  return li;
+};
+
+function searchUpdateTemplateSelectOnChange() {
+  const container = document.querySelector('.search-update');
+  const templateSelect = container.querySelector('.templates-list');
+  const selectedTemplate = templateSelect.value;
+  const ul = document.querySelector('.activity-ul');
+
+  while (ul.firstChild) {
+    ul.firstChild.remove();
+  }
+
+  console.log('Selected', selectedTemplate);
+
+  // activity-container
+  const activityContainer = document.querySelector('.activity-container div');
+
+  if (activityContainer) {
+    activityContainer.remove();
+  }
+
+  const url = `/json?office=${document.body.dataset.office}`
+    + `&template=${selectedTemplate}`;
+
+  sendApiRequest(url)
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      console.log('response', response);
+
+      Object
+        .keys(response)
+        .forEach(function (key) {
+          const doc = response[key];
+          const li = getSearchActivityListItem(doc);
+
+          ul.appendChild(li);
+        });
+    })
+    .catch(console.error);
+}
+
+function searchAndUpdate() {
+  setActionTitle('Search & Update');
+
+  const container = document.querySelector('.search-update');
+  container.classList.remove('hidden');
+  const templateSelect = container.querySelector('.templates-list');
+
+  sendApiRequest('/json?action=get-template-names')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      response.forEach(function (name) {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+
+        templateSelect.appendChild(option);
+      });
+
+      templateSelect.onchange = searchUpdateTemplateSelectOnChange;
+    })
+    .catch(console.error);
+}
+
+function startOfficeJoinFlow() {
+  console.log('fetching stuff... for office');
+}
+
+function joinFormSelfPhoneOnInput(evt) {
+  console.log('Typed', evt.target.value);
+  // const form = document.querySelector('.join-form');
+
+  if (!isValidPhoneNumber(evt.target.value)) {
+    return;
+  }
+
+  startOfficeJoinFlow();
+}
+
+window.onload = function () {
   const phoneField = document.querySelector('#phone');
 
   if (phoneField) {
     phoneField.onfocus = function () {
-      const intlTelInputOptions = {
-        preferredCountries: ['IN', 'NP'],
-        initialCountry: 'IN',
-        nationalMode: false,
-        formatOnDisplay: true,
-        customContainer: 'mb-16',
-        customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
-          window.countryCode = selectedCountryData.dialCode;
-          console.log({ selectedCountryPlaceholder, selectedCountryData });
-          return "e.g. " + selectedCountryPlaceholder;
-        }
-      };
-
       const altContact = document.querySelector('#alt-contact');
       phoneField.style.height = '58px';
       phoneField.classList.add('mw-100');
@@ -1275,14 +1330,179 @@ window.onload = function () {
       altContact.classList.add('mw-100');
 
       window.intlTelInput(phoneField, intlTelInputOptions);
-      window.intlTelInput(altContact, intlTelInputOptions);
+      // window.intlTelInput(altContact, intlTelInputOptions);
 
       // Required, otherwise this initialization will try to run everytime
       // the user tries to type something in the field
       phoneField.onfocus = null;
+      phoneField.oninput = joinFormSelfPhoneOnInput;
     }
   }
 };
+
+function populateTemplateSelect(selectElement) {
+  return sendApiRequest(`/json?action=get-template-names`)
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      response.forEach(function (name) {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+
+        selectElement.appendChild(option);
+      });
+
+      selectElement.onchange = function () {
+        document
+          .querySelector('.bc-file-drag')
+          .classList
+          .remove('hidden');
+
+        document.querySelector('.bc-container').style.minHeight = '200px';
+      }
+    })
+    .catch(console.error);
+}
+
+function populateBulkCreationResult(response) {
+  document
+    .querySelector('.bc-results')
+    .classList
+    .remove('hidden');
+
+  console.log('response', response);
+
+  const ul = document.querySelector('.bc-results-list');
+
+  function getLi(item) {
+    const container = document.createElement('li');
+    container.classList.add('success', 'flexed-column');
+    const firstRow = document.createElement('span');
+    const secondRow = document.createElement('span');
+    firstRow.textContent = item.Name || item.Admin || item.Subscriber;
+    secondRow.textContent = item.reason || '';
+
+    container.append(firstRow, secondRow);
+
+    if (item.rejected) {
+      container.classList.remove('success');
+      container.classList.add('failure', 'raised');
+    }
+
+    return container;
+  }
+
+  response.data.forEach(function (item) {
+    const li = getLi(item);
+
+    ul.appendChild(li);
+  });
+};
+
+function sendBulkCreateJson(jsonData) {
+  console.log('jsonData:', jsonData);
+
+  let requestUrl = `${apiBaseUrl}/admin/bulk`;
+
+  if (document.body.dataset.issupport) {
+    requestUrl += `?support=true`;
+  }
+
+  const requestBody = {
+    timestamp: Date.now(),
+    office: document.body.dataset.office,
+    data: jsonData,
+    template: document.querySelector('.bc-container select').value,
+  };
+
+  getLocation()
+    .then(function (location) {
+      requestBody.geopoint = location;
+
+      return sendApiRequest(requestUrl, requestBody, 'POST');
+    })
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      populateBulkCreationResult(response);
+    })
+    .catch(console.error);
+};
+
+function handleXlSXFile(element) {
+  console.log('El', element);
+
+  const file = element.target.files[0];
+  const fReader = new FileReader();
+
+  fReader.readAsBinaryString(file);
+
+  fReader.onloadend = function (event) {
+    const wb = XLSX.read(event.target.result, {
+      type: 'binary'
+    });
+
+    const ws = wb.Sheets[wb.SheetNames[0]];
+
+    const jsonData = XLSX.utils.sheet_to_json(ws, {
+      blankRows: true,
+      defval: '',
+      raw: false
+    });
+
+    sendBulkCreateJson(jsonData);
+  }
+}
+
+function bulkCreate() {
+  setActionTitle('Create New');
+
+  const bcContainer = document.querySelector('.bc-container');
+  const selectElement = bcContainer.querySelector('select');
+  bcContainer.classList.remove('hidden');
+
+  populateTemplateSelect(selectElement)
+    .then(function () {
+
+      const fileDragInput = bcContainer.querySelector('input[type="file"]');
+
+      fileDragInput.onchange = handleXlSXFile;
+    });
+}
+
+function updateEmailInReports() {
+  console.log('Update Email in reports clicked');
+  setActionTitle('Update Report Emails');
+}
+
+window.addEventListener('DOMContentLoaded', function () {
+  if (sessionStorage.getItem('office')) {
+    document.body.dataset.office = sessionStorage.getItem('office');
+  }
+
+  const cachedList = sessionStorage.getItem('officeNamesList');
+  const officeSelect = document.querySelector('#all-office-form');
+  /**
+   * Since the list is cached for this session, no need to fetch
+   * the office list
+   */
+  if (cachedList && officeSelect) {
+    fetchOfficeList();
+  }
+});
+
+window.onload = function () {
+  const officeSelect = document.querySelector('#all-office-form');
+  const cachedList = sessionStorage.getItem('officeNamesList');
+
+  /** If the list has been cached during this session, ignore */
+  if (officeSelect && !cachedList) {
+    fetchOfficeList();
+  }
+}
 
 window.onbeforeunload = function () {
   if (document.body.dataset.office) {

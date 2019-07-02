@@ -821,10 +821,10 @@ const isEmptyObject = (object) =>
     });
 
 
-const getAdjustedGeopointsFromVenue = (venue) => {
+const getAdjustedGeopointsFromVenue = venue => {
   const result = [];
 
-  venue.forEach((item) => {
+  venue.forEach(item => {
     const lat = item.geopoint.latitude || item.geopoint._latitude;
     const lng = item.geopoint.longitude || item.geopoint._longitude;
 
@@ -836,10 +836,6 @@ const getAdjustedGeopointsFromVenue = (venue) => {
 
     result.push(`${adj.latitude},${adj.longitude}`);
   });
-
-  if (result.length === 0) {
-    return null;
-  }
 
   return result;
 };
@@ -1212,7 +1208,7 @@ const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
   });
 };
 
-const addEmployeeToRealtimeDb = (doc) => {
+const addEmployeeToRealtimeDb = doc => {
   const admin = require('firebase-admin');
   const realtimeDb = admin.database();
   const phoneNumber = doc.get('attachment.Employee Contact.value');
@@ -1262,7 +1258,7 @@ const addEmployeeToRealtimeDb = (doc) => {
   });
 };
 
-const getEmployeesMapFromRealtimeDb = (officeId) => {
+const getEmployeesMapFromRealtimeDb = officeId => {
   const admin = require('firebase-admin');
   const realtimeDb = admin.database();
 

@@ -38,6 +38,7 @@ const {
 const {
   isValidDate,
   handleDailyStatusReport,
+  getEmployeesMapFromRealtimeDb,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
 const sgMail = require('@sendgrid/mail');
@@ -78,7 +79,7 @@ const getTemplateId = (report) => {
 };
 
 
-module.exports = (change) => {
+module.exports = change => {
   const {
     report,
     include,
@@ -168,9 +169,16 @@ module.exports = (change) => {
   const batch = db.batch();
 
   return Promise
-    .all(authFetch)
-    .then((userRecords) => {
-      userRecords.forEach((userRecord) => {
+    .all([
+      Promise
+        .all(authFetch),
+      getEmployeesMapFromRealtimeDb(officeId),
+    ])
+    .then(result => {
+      const [userRecords, employeesData] = result;
+      locals.employeesData = employeesData;
+
+      userRecords.forEach(userRecord => {
         const phoneNumber = Object.keys(userRecord)[0];
         const record = userRecord[`${phoneNumber}`];
 
@@ -211,7 +219,7 @@ module.exports = (change) => {
         .doc(officeId)
         .get();
     })
-    .then((officeDoc) => {
+    .then(officeDoc => {
       if (!locals.sendMail) {
         return Promise.resolve(null);
       }
@@ -237,10 +245,9 @@ module.exports = (change) => {
         locals.createOnlyData = true;
       }
 
-      // Regardless of recipients status, data is
-      // created. Emails, though are not sent.
       if (report === reportNames.PAYROLL) {
-        return require('./payroll-report')(locals);
+        // return require('./payroll-report')(locals);
+        return require('./payday-report')(locals);
       }
 
       if (report === reportNames.FOOTPRINTS) {
@@ -276,14 +283,14 @@ module.exports = (change) => {
       return Promise.resolve(null);
     })
     .then(() => Promise.all(usersWithoutEmailOrVerifiedEmail))
-    .then((snapShot) => {
+    .then(snapShot => {
       if (!locals.sendMail) {
         return Promise.resolve(null);
       }
 
       const notifications = [];
 
-      snapShot.forEach((doc) => {
+      snapShot.forEach(doc => {
         if (!doc.exists) return;
 
         const { registrationToken } = doc.data();
@@ -338,7 +345,7 @@ module.exports = (change) => {
         .limit(1)
         .get();
     })
-    .then((snapShot) => {
+    .then(snapShot => {
       if (!locals.sendMail) {
         return Promise.resolve(null);
       }
@@ -375,7 +382,7 @@ module.exports = (change) => {
 
       return Promise.all(promises);
     })
-    .catch((error) => {
+    .catch(error => {
       const errorObject = {
         error,
         contextData: {

@@ -14,14 +14,15 @@ const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 
 
-module.exports = (locals) => {
+module.exports = locals => {
   const office = locals.officeDoc.get('office');
   const employeesData = locals.officeDoc.get('employeesData');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const timestampFromTimer = locals.change.after.get('timestamp');
   const tsStart = momentTz(timestampFromTimer).tz(timezone).startOf('month');
   const tsEnd = momentTz(timestampFromTimer).tz(timezone).endOf('day');
-  const dateString = ``;
+
+  const dateString = `1 July 2019`;
   const sheetRefsMap = new Map();
   const rowIndexMap = new Map();
   const prevDateStringMap = new Map();

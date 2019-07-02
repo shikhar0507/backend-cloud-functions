@@ -101,16 +101,10 @@ const handleValidation = (body) => {
 
   for (let iter = 0; iter < body.data.length; iter++) {
     const item = body.data[iter];
+    const shareArray = item.share || [];
 
-    if (!Array.isArray(item.share)) {
-      return {
-        success: false,
-        message: `Invalid/missing field 'share' in data object at index: ${iter}`,
-      };
-    }
-
-    for (let index = 0; index < item.share.length; index++) {
-      const phoneNumber = item.share[index];
+    for (let index = 0; index < shareArray.length; index++) {
+      const phoneNumber = shareArray[index];
 
       if (isE164PhoneNumber(phoneNumber)) continue;
 
@@ -285,11 +279,11 @@ const commitData = (conn, batchesArray, batchFactories) => {
   if (batchesArray.length === 1) {
     return batchesArray[0]
       .commit()
-      .catch((error) => handleError(conn, error));
+      .catch(error => handleError(conn, error));
   }
 
   return executeSequentially(batchFactories)
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const createObjects = (conn, locals, trialRun) => {
@@ -398,7 +392,7 @@ const createObjects = (conn, locals, trialRun) => {
     const objectFields = Object.keys(item);
     let scheduleCount = 0;
 
-    objectFields.forEach((field) => {
+    objectFields.forEach(field => {
       const value = item[field];
       const isFromAttachment = attachmentFieldsSet.has(field);
       const isFromSchedule = scheduleFieldsSet.has(field);
@@ -437,7 +431,7 @@ const createObjects = (conn, locals, trialRun) => {
           },
         });
 
-        activityObject.adjustedGeopoints = [];
+        activityObject.adjustedGeopoints = '';
       }
     });
 
@@ -481,7 +475,7 @@ const createObjects = (conn, locals, trialRun) => {
       locals
         .assigneesFromAttachment
         .get(index)
-        .forEach((phoneNumber) => {
+        .forEach(phoneNumber => {
           conn.req.body.data[index].share.push(phoneNumber);
         });
     }
@@ -491,7 +485,7 @@ const createObjects = (conn, locals, trialRun) => {
       .body
       .data[index]
       .share
-      .forEach((phoneNumber) => {
+      .forEach(phoneNumber => {
         const ref = activityRef.collection('Assignees').doc(phoneNumber.trim());
         const addToInclude = conn.req.body.template === templateNamesObject.SUBSCRIPTION
           && phoneNumber !== activityObject.attachment.Subscriber.value;
@@ -520,11 +514,6 @@ const createObjects = (conn, locals, trialRun) => {
     totalDocsCreated += conn.req.body.data[index].share.length;
   });
 
-  console.log({
-    totalDocsCreated,
-    numberOfBatches: batchFactories.length,
-  });
-
   const responseObject = {
     totalDocsCreated,
     numberOfBatches: batchFactories.length,
@@ -539,7 +528,7 @@ const createObjects = (conn, locals, trialRun) => {
   return commitData(conn, batchesArray, batchFactories)
     .then(() => childActivitiesBatch.commit())
     .then(() => responseObject)
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const fetchDataForCanEditRule = (conn, locals) => {
@@ -555,7 +544,7 @@ const fetchDataForCanEditRule = (conn, locals) => {
     .where('template', '==', rule.toLowerCase())
     .where('status', '==', 'CONFIRMED')
     .get()
-    .then((docs) => {
+    .then(docs => {
       const set = new Set();
 
       docs.forEach((doc) => {
@@ -568,7 +557,7 @@ const fetchDataForCanEditRule = (conn, locals) => {
 
       return Promise.resolve();
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const handleEmployees = (conn, locals) => {
@@ -580,7 +569,7 @@ const handleEmployees = (conn, locals) => {
 
   locals
     .employeesToCheck
-    .forEach((item) => {
+    .forEach(item => {
       const promise = rootCollections
         .activities
         .where('template', '==', templateNamesObject.EMPLOYEE)
@@ -598,8 +587,8 @@ const handleEmployees = (conn, locals) => {
 
   return Promise
     .all(promises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
+    .then(snapShots => {
+      snapShots.forEach(snapShot => {
         if (snapShot.empty) return;
 
         const doc = snapShot.docs[0];
@@ -619,7 +608,7 @@ const handleEmployees = (conn, locals) => {
 
       return Promise.resolve();
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const handleUniqueness = (conn, locals) => {
@@ -700,7 +689,7 @@ const handleUniqueness = (conn, locals) => {
 
       return Promise.resolve();
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const handleSubscriptions = (conn, locals) => {
@@ -870,7 +859,7 @@ const fetchValidTypes = (conn, locals) => {
 
       return Promise.resolve();
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const fetchTemplates = (conn, locals) => {
@@ -891,7 +880,7 @@ const fetchTemplates = (conn, locals) => {
         .limit(1)
         .get(),
     ])
-    .then((result) => {
+    .then(result => {
       const [
         adminTemplateQuery,
         subscriptionTemplateQuery,
@@ -902,7 +891,7 @@ const fetchTemplates = (conn, locals) => {
 
       return Promise.resolve();
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const validateDataArray = (conn, locals) => {
@@ -948,7 +937,17 @@ const validateDataArray = (conn, locals) => {
      * much time to fully optimize this properly.
      * Will do it later...
      */
-    allFieldsArray.forEach((field) => {
+    allFieldsArray.forEach(field => {
+      /**
+       * Convert fields with type 'number' to an actual number
+       * if value has been provided
+       */
+      if (attachmentFieldsSet.has(field)
+        && locals.templateDoc.get('attachment')[field].type === 'number'
+        && conn.req.body.data[index][field]) {
+        conn.req.body.data[index][field] = Number(conn.req.body.data[index][field]);
+      }
+
       if (objectProperties.includes(field)) {
         return;
       }
@@ -1189,7 +1188,8 @@ const validateDataArray = (conn, locals) => {
 
         if (value
           && type === 'number'
-          && typeof value !== 'number') {
+          /** Handled stringified numbers */
+          && typeof Number(value) !== 'number') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
@@ -1335,7 +1335,7 @@ const validateDataArray = (conn, locals) => {
     .then((responseObject) => sendJSON(conn, responseObject));
 };
 
-module.exports = (conn) => {
+module.exports = conn => {
   /**
    * Request body
    * office: string
@@ -1385,7 +1385,7 @@ module.exports = (conn) => {
 
   return Promise
     .all(promises)
-    .then((result) => {
+    .then(result => {
       const [
         officeDocsQuery,
         templateDocsQuery,
@@ -1420,7 +1420,7 @@ module.exports = (conn) => {
         const templateNamesSet = new Set();
 
         templatesCollectionQuery
-          .forEach((doc) => templateNamesSet.add(doc.get('name')));
+          .forEach(doc => templateNamesSet.add(doc.get('name')));
 
         locals.templateNamesSet = templateNamesSet;
       }
@@ -1430,6 +1430,10 @@ module.exports = (conn) => {
        * strings as the value.
        */
       conn.req.body.data.forEach((object, index) => {
+        if (!Array.isArray(object.share)) {
+          conn.req.body.data[index].share = [];
+        }
+
         if (!isEmptyObject(object)) {
           return;
         }
@@ -1447,5 +1451,5 @@ module.exports = (conn) => {
 
       return validateDataArray(conn, locals);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };

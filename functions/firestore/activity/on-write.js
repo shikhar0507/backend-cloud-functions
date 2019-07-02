@@ -35,18 +35,21 @@ const {
 const {
   httpsActions,
   vowels,
-  validTypes,
 } = require('../../admin/constants');
 const {
   sendSMS,
+  slugify,
   addEmployeeToRealtimeDb,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
+const {
+  getEmployeesMapFromRealtimeDb,
+} = require('../../admin/utils');
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 
 
-const sendEmployeeCreationSms = (locals) => {
+const sendEmployeeCreationSms = locals => {
   const template = locals.change.after.get('template');
 
   if (template !== 'employee'
@@ -583,136 +586,148 @@ const createAutoSubscription = (locals, templateName, subscriber) => {
     });
 };
 
+const handleXTypeTemplates = locals => {
+  const template = locals.change.after.get('template');
+  const hasBeenCreated = !locals.change.before.data() && locals.change.after.data();
 
-const handleAutoAssign = (locals) => {
+  if (!hasBeenCreated) return Promise.resolve();
+
+  const templateNameParts = template.split('-');
+  const lastPart = templateNameParts[templateNameParts.length - 1];
+
+  if (lastPart !== 'type') {
+    return Promise.resolve();
+  }
+
+  const assigneeFetchPromises = [];
+  const officeId = locals.change.after.get('officeId');
+  const assigneeSet = new Set();
+  const adminsSet = new Set();
+
+  return Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Activities')
+        .where('template', '==', 'subscription')
+        .where('attachment.Template.value', '==', template[0])
+        .get(),
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Activities')
+        .where('template', '==', 'admin')
+        .where('status', '==', 'CONFIRMED')
+        .get()
+    ])
+    .then(result => {
+      const [
+        subscriptionActivities,
+        adminActivities,
+      ] = result;
+
+      adminActivities.forEach(doc => {
+        const admin = doc.get('attachment.Admin.value');
+
+        adminsSet.add(admin);
+      });
+
+      subscriptionActivities.forEach(doc => {
+        const promise = doc.ref.collection('Assignees').get();
+        assigneeFetchPromises.push(promise);
+      });
+
+      return Promise.all(assigneeFetchPromises);
+    })
+    .then(snapShots => {
+      snapShots.forEach(snapShot => {
+        snapShot.forEach(doc => {
+          const phoneNumber = doc.id;
+
+          assigneeSet.add(phoneNumber);
+        });
+      });
+
+      const batch = db.batch();
+
+      assigneeSet.forEach(phoneNumber => {
+        const ref = locals.change.after.ref.collection('Assignees').doc(phoneNumber);
+
+        batch.set(ref, {
+          canEdit: adminsSet.has(phoneNumber),
+          addToInclude: false,
+        });
+      });
+
+      return batch.commit();
+    });
+};
+
+const autoAssignFlow = locals => {
   const template = locals.change.after.get('template');
   const status = locals.change.after.get('status');
 
-  if (template !== 'subscription' || status === 'CANCELLED') {
+  if (template !== 'subscription'
+    || status === 'CANCELLED') {
     return Promise.resolve();
   }
 
   /**
-   * Flow:
-   * Iterate over attachment fields
-   * Extract the type and value field combinations
-   * Fetch activities with those and make the
-   * subscriber as an assignee of those activities
+   * Subscriber will become an assignee of all the activities
+   * where template = '${attachment.Template.value-type}'
+   * where office = subscription activity office
+   *
+   * e.g, subscription of template customer
+   * fetch all template = customer-type activities
+   * and status = confirmed
+   * make the subscriber of this template as an assignee
+   * of the fetched activities
    */
-  const subscriptionTemplate = locals
-    .change
-    .after
-    .get('attachment.Template.value');
-  const phoneNumber = locals
-    .change
-    .after
-    .get('attachment.Subscriber.value');
+
+  const batch = db.batch();
+  const officeId = locals.change.after.get('officeId');
+  const subscribedTemplate = locals.change.after.get('attachment.Template.value');
+  const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
+
+  const isAdmin = phoneNumber => {
+    return locals.adminsCanEdit.includes(phoneNumber);
+  };
+
   /**
-   * Two batches in order to update activities only after all assignees
-   * have been created in the /Activities/{id}/Assignees collectino
+   * Adds the subscriber to template-type activities so that
+   * they can get the option of selecting the type while creating
+   * a template activity.
    */
-  const activityBatch = db.batch();
-  const assigneeBatch = db.batch();
-  let isAdmin = false;
-  let isEmployee = false;
-  const activityFetchPromises = [];
-
   return rootCollections
-    .activityTemplates
-    .where('name', '==', subscriptionTemplate)
-    .limit(1)
+    .offices
+    .doc(officeId)
+    .collection('Activities')
+    .where('template', '==', `${subscribedTemplate}-type`)
+    .where('status', '==', 'CONFIRMED')
     .get()
-    .then((docs) => {
-      const doc = docs.docs[0];
-      const attachment = doc.get('attachment');
-      const fields = Object.keys(attachment);
+    .then(snapShot => {
+      snapShot.forEach(doc => {
+        const activityId = doc.id;
+        const activityRef = rootCollections.activities.doc(activityId);
 
-      fields.forEach((field) => {
-        const { value, type } = attachment[field];
+        batch.set(activityRef, {
+          timestamp: Date.now(),
+          addendumDocRef: null,
+        }, {
+            merge: true,
+          });
 
-        console.log('templates', type, value, field);
-
-        if (validTypes.has(type) || value === '') {
-          return;
-        }
-
-        const promise = rootCollections
-          .activities
-          .where('template', '==', type)
-          .where(`attachment.Name.value`, '==', value)
-          .where('status', '==', 'CONFIRMED')
-          .limit(1)
-          .get();
-
-        activityFetchPromises.push(promise);
+        batch.set(activityRef.collection('Assignees').doc(subscriberPhoneNumber), {
+          canEdit: isAdmin(subscriberPhoneNumber),
+          addToInclude: false,
+        }, {
+            merge: true,
+          });
       });
 
-      return Promise
-        .all([
-          rootCollections
-            .activities
-            .where('attachment.Admin.value', '==', phoneNumber)
-            .where('status', '==', 'CONFIRMED')
-            .limit(1)
-            .get(),
-          rootCollections
-            .activities
-            .where('attachment.Employee Contact.value', '==', phoneNumber)
-            .where('status', '==', 'CONFIRMED')
-            .limit(1)
-            .get(),
-        ]);
-    })
-    .then((result) => {
-      const [adminQuery, employeeQuery] = result;
-
-      isAdmin = !adminQuery.empty;
-      isEmployee = !employeeQuery.empty;
-
-      return Promise.all(activityFetchPromises);
-    })
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) {
-          /** This case should never occurr */
-          return;
-        }
-
-        const doc = snapShot.docs[0];
-        const canEditRule = doc.get('canEditRule');
-        const canEdit = (() => {
-          if (canEditRule === 'ADMIN') return isAdmin;
-          if (canEditRule === 'EMPLOYEE') return isEmployee;
-          if (canEditRule === 'NONE') return false;
-          if (canEditRule === 'ALL') return true;
-
-          return false;
-        })();
-
-        activityBatch
-          .set(doc.ref, {
-            timestamp: Date.now(),
-            addendumDocRef: null,
-          }, {
-              merge: true,
-            });
-
-        assigneeBatch
-          .set(doc
-            .ref
-            .collection('Assignees')
-            .doc(phoneNumber), {
-              canEdit,
-              addToInclude: false,
-            }, {
-              merge: true,
-            });
-      });
-
-      return assigneeBatch.commit();
-    })
-    .then(() => activityBatch.commit())
-    .catch(console.error);
+      return batch.commit();
+    });
 };
 
 const handleCanEditRule = (locals, templateDoc) => {
@@ -829,7 +844,8 @@ const handleSubscription = (locals) => {
 
       return Promise
         .all([
-          handleAutoAssign(locals),
+          // handleAutoAssign(locals),
+          autoAssignFlow(locals),
           handleCanEditRule(locals, templateDoc)
         ]);
     })
@@ -1086,13 +1102,15 @@ const handleEmployee = (locals) => {
     [office]: officeId,
   };
 
+  const hasBeenCreated = locals.addendumDoc
+    && locals.addendumDoc.get('action') === httpsActions.create;
   const batch = db.batch();
 
   // Change of status from `CONFIRMED` to `CANCELLED`
   if (hasBeenCancelled) {
     employeeOf[office] = deleteField();
 
-    // Remove from employeesData map.
+    // Remove from `employeesData` map.
     batch
       .set(rootCollections
         .offices
@@ -1105,20 +1123,27 @@ const handleEmployee = (locals) => {
         });
   }
 
-  batch.set(rootCollections
-    .profiles
-    .doc(phoneNumber), {
-      employeeOf,
-    }, {
-      merge: true,
-    });
+  const profileData = {
+    employeeOf,
+  };
+
+  if (hasBeenCreated) {
+    profileData.lastLocationMapUpdateTimestamp = Date.now();
+  }
+
+  batch
+    .set(rootCollections
+      .profiles
+      .doc(phoneNumber), profileData, {
+        merge: true,
+      });
 
   return batch
     .commit()
     .then(() => addEmployeeToRealtimeDb(locals.change.after))
     .then(() => users.getUserByPhoneNumber(phoneNumber))
-    .then((userRecords) => userRecords[phoneNumber])
-    .then((userRecord) => {
+    .then(userRecords => userRecords[phoneNumber])
+    .then(userRecord => {
       if (!userRecord.uid || !hasBeenCancelled) {
         return Promise.resolve();
       }
@@ -1201,7 +1226,8 @@ const createFootprintsRecipient = (locals) => {
 
 const handleOffice = (locals) => {
   const template = locals.change.after.get('template');
-  const hasBeenCreated = locals.addendumDoc && locals.addendumDoc.get('action') === httpsActions.create;
+  const hasBeenCreated = locals.addendumDoc
+    && locals.addendumDoc.get('action') === httpsActions.create;
 
   if (template !== 'office' || !hasBeenCreated) {
     return Promise.resolve();
@@ -1217,57 +1243,134 @@ const handleOffice = (locals) => {
     .then(() => createAdmin(locals, secondContact));
 };
 
-const handleLocationsMap = (locals) => {
-  const template = locals.change.after.get('template');
-  const venues = locals.change.after.get('venue');
-  const relevantTemplates = new Set(['branch', 'customer', 'office']);
+const setLocationsReadEvent = locals => {
+  const officeId = locals.change.after.get('officeId');
+  const timestamp = Date.now();
 
-  if (!relevantTemplates.has(template)
-    || venues.length === 0
-    || (locals.addendumDoc
-      && locals.addendumDoc.get('action') === httpsActions.comment)) {
+  if (locals.change.after.get('status') === 'CANCELLED') {
     return Promise.resolve();
   }
 
-  const result = [];
-  const batch = db.batch();
+  const commitBatch = batch => {
+    return process
+      .nextTick(() => {
+        return batch.commit();
+      });
+  };
 
-  venues.forEach(venue => {
-    // Empty venue
-    if (!venue.address) return;
+  const resolveSequentially = batchArray => {
+    return batchArray
+      .reduce((accumulatorPromise, currentBatch) => {
+        return accumulatorPromise
+          .then(() => {
+            console.log('Commiting', currentBatch._ops.length);
 
-    result.push({
-      template,
-      activityId: locals.change.after.id,
-      office: locals.change.after.get('office'),
-      officeId: locals.change.after.get('officeId'),
-      venueDescriptor: venue.venueDescriptor,
-      address: venue.address,
-      latitude: venue.geopoint._latitude,
-      longitude: venue.geopoint._longitude,
-      location: venue.location,
-      status: locals.change.after.get('status'),
+            return commitBatch(currentBatch);
+          });
+      }, Promise.resolve());
+  };
+
+  return getEmployeesMapFromRealtimeDb(officeId)
+    .then(employeesMap => {
+      const phoneNumbersArray = Object.keys(employeesMap);
+      let docsCounter = 0;
+      let numberOfDocs = phoneNumbersArray.length;
+      const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
+      const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
+      let batchIndex = 0;
+
+      phoneNumbersArray.forEach(phoneNumber => {
+        docsCounter++;
+
+        if (docsCounter > 499) {
+          console.log('reset batch...');
+          docsCounter = 0;
+          batchIndex++;
+        }
+
+        batchArray[batchIndex].set(rootCollections
+          .profiles
+          .doc(phoneNumber), {
+            lastLocationMapUpdateTimestamp: timestamp,
+          }, {
+            merge: true,
+          });
+      });
+
+      return resolveSequentially(batchArray);
     });
-  });
+};
 
-  locals
-    .assigneesMap
-    .forEach(auth => {
-      const { uid } = auth;
-      console.log('Map set at', auth.uid);
+const handleLocations = locals => {
+  const template = locals.change.after.get('template');
+  const templatesSet = new Set(['branch', 'customer', 'office']);
 
-      if (!uid) return;
+  if (!templatesSet.has(template)) {
+    return Promise.resolve();
+  }
 
-      batch.set(rootCollections.updates.doc(uid), {
-        venues: admin.firestore.FieldValue.arrayUnion(...result),
-      }, {
-          merge: true,
-        });
+  const setData = (ref, data) => {
+    return new Promise(resolve => ref.set(data, resolve));
+  };
+
+  const removeData = ref => {
+    return new Promise((resolve, reject) => {
+      ref.remove(error => {
+        if (error) {
+          reject(error);
+        }
+
+        resolve();
+      });
     });
+  };
 
-  return batch
-    .commit()
-    .catch(console.error);
+  const realtimeDb = require('firebase-admin').database();
+  const officeId = locals.change.after.get('officeId');
+  const path = `${officeId}/locations/${locals.change.after.id}`;
+  const ref = realtimeDb.ref(path);
+
+  console.log('PATH:', path);
+
+  if (locals.change.after.get('status') === 'CANCELLED') {
+    return removeData(ref);
+  }
+
+  const venue = locals.change.after.get('venue');
+
+  if (!venue) return;
+  if (!venue[0]) return;
+  if (!venue[0].location) return;
+
+  const oldVenue = locals.change.before.get('venue') || [];
+  const newVenue = locals.change.after.get('venue');
+
+  const updateVenueDescriptors = getUpdatedVenueDescriptors(oldVenue, newVenue);
+
+  console.log({ updateVenueDescriptors });
+
+  if (!updateVenueDescriptors.length) {
+    return Promise.resolve();
+  }
+
+  const data = {
+    officeId,
+    timestamp: Date.now(),
+    office: locals.change.after.get('office'),
+    latitude: venue[0].geopoint.latitude,
+    longitude: venue[0].geopoint.longitude,
+    venueDescriptor: venue[0].venueDescriptor,
+    location: venue[0].location,
+    address: venue[0].address,
+    template: locals.change.after.get('template'),
+    status: locals.change.after.get('status'),
+  };
+
+  return Promise
+    .all([
+      setData(ref, data),
+      setLocationsReadEvent(locals)
+    ]);
 };
 
 
@@ -1557,8 +1660,16 @@ module.exports = (change, context) => {
           /** Office doc doesn't need the `adminsCanEdit` field */
           delete activityData.adminsCanEdit;
 
+          const name = activityData.attachment.Name.value;
+
+          activityData.slug = slugify(name);
+
           return officeRef;
         }
+
+        const office = activityData.office;
+
+        activityData.slug = slugify(office);
 
         return officeRef.collection('Activities').doc(change.after.id);
       })();
@@ -1572,7 +1683,8 @@ module.exports = (change, context) => {
     .then(() => handleAdmin(locals))
     .then(() => handleEmployee(locals))
     .then(() => handleOffice(locals))
-    .then(() => handleLocationsMap(locals))
+    .then(() => handleLocations(locals))
+    .then(() => handleXTypeTemplates(locals))
     .catch(error => {
       console.error({
         error,

@@ -139,6 +139,7 @@ const httpsActions = {
   videoPlay: 'video-play',
   productView: 'product-view',
   branchView: 'branch-view',
+  webapp: 'webapp',
 };
 
 const reportingActions = {

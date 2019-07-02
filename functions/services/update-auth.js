@@ -100,7 +100,7 @@ const getUserFromAuth = (phoneNumber) => {
     });
 };
 
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
       conn,
@@ -143,7 +143,7 @@ module.exports = (conn) => {
   const authRecord = {};
 
   return getUserFromAuth(conn.req.body.phoneNumber)
-    .then((authFetchResult) => {
+    .then(authFetchResult => {
       // User not found
       if (!authFetchResult.uid) {
         if (authFetchResult.errorCode === 'auth/user-not-found') {
@@ -175,7 +175,7 @@ module.exports = (conn) => {
 
       return auth.updateUser(authFetchResult.uid, authRecord);
     })
-    .then((userRecord) => {
+    .then(userRecord => {
       if (!sendEmail) {
         return Promise.resolve();
       }
@@ -184,7 +184,7 @@ module.exports = (conn) => {
 
       const promises = [];
 
-      if (sendEmail) {
+      if (sendEmail && env.isProduction) {
         promises
           .push(sgMail
             .send({
@@ -229,11 +229,11 @@ module.exports = (conn) => {
         'User successfully created/updated.'
       );
     })
-    .catch((error) => {
+    .catch(error => {
       if (error.code === 'auth/email-already-exists') {
         return auth
           .getUserByEmail(conn.req.body.email)
-          .then((userRecord) => sendResponse(
+          .then(userRecord => sendResponse(
             conn,
             code.conflict,
             `'${conn.req.body.email}' is already in use by '${userRecord.phoneNumber}'`

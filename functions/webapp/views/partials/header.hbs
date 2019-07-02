@@ -1,23 +1,20 @@
-<header class="mb-16">
-    <div class="header">
+<header>
+    <div class="header-mobile">
         <a href="/" class="flexed">
-            <img src="/img/logo-main.jpg" alt="Growthfile Logo" height="40" width="40">
+            <img src="/img/logo-main.jpg" alt="Growthfile Logo" height="40" width="40" />
             <p class="logo-text"><span class="bold">Growth</span>file</p>
         </a>
         <div class="header-links-container">
             \{{#if isLoggedIn}}
-            <a id="header-profile-icon" href="#">
+            <div id="header-profile-icon" href="#">
                 \{{> headerProfileIcon}}
-                \{{#unless emailVerified}}
-                <span class="exclamation col-red"></span>
-                \{{/unless}}
-            </a>
+            </div>
             <div class="dropdown-content">
                 <div class="menu-user-details mb-16">
                     \{{#if photoURL}}
-                    <img width="96" height="96" src=\{{photoURL}} alt="header-profile-picture" alt="profile image">
+                    <img width="96" height="96" src=\{{photoURL}} alt="header-profile-picture" alt="profile image" />
                     \{{else}}
-                    <img width="96" height="96" src="img/person.png" alt="person image">
+                    <img width="96" height="96" src="img/person.png" alt="person image" />
                     \{{/if}}
                     <ul>
                         <li class="ft-size-20 mb-8 bold">
@@ -39,12 +36,6 @@
                     </ul>
                 </div>
                 <div class="flexed-sb m-0-20 ttuc">
-                    \{{#unless emaiVerified}}
-                    <a href="#" class="warning-label">
-                        <i class="fas fa-envelope-open-text"></i>
-                        Verify Email
-                    </a>
-                    \{{/unless}}
                     <a href="#" id="menu-logout-link">
                         <i class="fas fa-sign-out-alt"></i>
                         Log Out
@@ -60,5 +51,6 @@
             </button>
         </div>
         \{{/if}}
+        <div id="progressBar" class="progress-bar--container"></div>
     </div>
 </header>

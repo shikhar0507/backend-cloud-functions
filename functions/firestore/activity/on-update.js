@@ -28,7 +28,6 @@
 const { code } = require('../../admin/responses');
 const {
   httpsActions,
-  reportNames,
 } = require('../../admin/constants');
 const {
   rootCollections,
@@ -179,123 +178,6 @@ const updateDocsWithBatch = (conn, locals) => {
       return locals.batch.commit();
     })
     .then(() => sendResponse(conn, code.ok, 'Success'))
-    .catch((error) => handleError(conn, error));
-};
-
-const getDisplayText = (conn, locals) => {
-  let displayText = '';
-
-  if (locals.docs.activity.get('template') === reportNames.LEAVE) {
-    displayText = (() => {
-      const leaveType =
-        conn.req.body.attachment['Leave Type'].value;
-
-      if (!leaveType) return `LEAVE`;
-
-      return `LEAVE - ${leaveType}`;
-    })();
-  }
-
-  if (locals.docs.activity.get('template') === reportNames.TOUR_PLAN) {
-    displayText = 'ON DUTY';
-  }
-
-  return displayText;
-};
-
-
-const handleLeave = (conn, locals) => {
-  if (locals.docs.activity.get('template') !== 'leave') {
-    return updateDocsWithBatch(conn, locals);
-  }
-
-  const newScheduleObject = conn.req.body.schedule[0];
-
-  if (!newScheduleObject.startTime || newScheduleObject.endTime) {
-    return updateDocsWithBatch(conn, locals);
-  }
-
-  const startTimeNew = conn.req.body.schedule[0].startTime;
-  const endTimeNew = conn.req.body.schedule[0].endTime;
-  const startTimeOld = locals.docs.activity.get('schedule')[0].startTime;
-  const endTimeOld = locals.docs.activity.get('schedule')[0].endTime;
-
-  if (!startTimeNew || !endTimeNew) {
-    return updateDocsWithBatch(conn, locals);
-  }
-
-  // Adding `+1` to include the start day of the leave
-  const leavesTakenOld =
-    Math.ceil(Math.abs((endTimeNew - startTimeNew) / 86400000)) + 1;
-  const leavesTakenNew =
-    Math.ceil(Math.abs(endTimeNew - startTimeNew) / 86400000) + 1;
-
-  if (leavesTakenOld === leavesTakenNew) {
-    locals.annaualLeavesEntitled = '';
-    locals.leavesRemaining = leavesTakenOld;
-    locals.totalLeavesTaken = '';
-
-    return updateDocsWithBatch(conn, locals);
-  }
-
-  const leaveType = conn.req.body.attachment['Leave Type'].value;
-  const officeId = locals.docs.activity.get('officeId');
-
-  return Promise
-    .all([
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Activities')
-        .where('template', '==', 'leave-type')
-        .where('attachment.Name.value', '==', leaveType)
-        .limit(1)
-        .get(),
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Addendum')
-        .where('template', '==', 'leave')
-        .where('activityData.attachment.Leave Type.value', '==', leaveType)
-        .where('user', '==', conn.requester.phoneNumber)
-        .where('year', '==', new Date().getFullYear())
-        .orderBy('timestamp', 'desc')
-        .limit(1)
-        .get(),
-    ])
-    .then((result) => {
-      // Not checking for the doc.exists, or result[0].empty because
-      // leave-type's existance is certain when creating a leave;
-      const annualLimit = result[0]
-        .docs[0]
-        .get('attachment.Annual Limit.value');
-
-      locals
-        .leavesBalance = (() => {
-          if (result[1].empty) return annualLimit;
-
-          return result[1].docs[0].get('leavesBalance') - leavesTakenOld;
-        })();
-
-      if (locals.leavesBalance < 0) {
-        locals.static.statusOnCreate = 'CANCELLED';
-      }
-
-      locals
-        .annaualLeavesEntitled =
-        result[0]
-          .docs[0]
-          .get('attachment.Annual Limit.value');
-      locals
-        .leavesRemaining =
-        result[1]
-          .docs[0]
-          .get('totalLeavesRemaining') - Math.round(leavesTakenOld - leavesTakenNew);
-
-      locals.totalLeavesTaken = 0;
-
-      return updateDocsWithBatch(conn, locals);
-    })
     .catch((error) => handleError(conn, error));
 };
 

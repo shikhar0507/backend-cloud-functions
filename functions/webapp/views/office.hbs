@@ -181,14 +181,16 @@
         <section class="branch-section">
             <h2>Branch Offices</h2>
             <div class="branches-box" id="init-map-trigger">
-                <div class="tac">
+                {{!-- TODO: Remove all css related to this --}}
+                <div class="tac hidden">
                     <div id="load-map-button" href="#">
                         <img id="maps-placeholder" src="\{{staticMapsUrl}}">
                         <a id="retry-location-button" class="button hidden" href="#">Allow Location Access</a>
                     </div>
-                    <div id="map"></div>
+                    <div id="map__temp"></div>
                 </div>
 
+                <div id="map"></div>
                 <ul class="branch-list-container pad border">
                     \{{#each branchObjectsArray}}
                     <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}

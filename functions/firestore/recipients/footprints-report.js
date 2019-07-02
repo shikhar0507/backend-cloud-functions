@@ -109,7 +109,7 @@ const handleNotifications = (locals) => {
     + ` Please mark On Duty or a Leave`;
   const startTime = momentTz().startOf('day').valueOf();
   const officeName = locals.officeDoc.get('office');
-  const employeesData = locals.officeDoc.get('employeesData');
+  const employeesData = locals.employeesData;
   const payrollObject = {
     data: [{
       office: officeName,
@@ -143,7 +143,8 @@ const handleNotifications = (locals) => {
     .forEach((token, phoneNumber) => {
       const statusObject = locals.statusObjectMap.get(phoneNumber);
 
-      if (statusObject[yesterdaysDate].onDuty
+      // if (statusObject[yesterdaysDate].onDuty
+      if (statusObject[yesterdaysDate].onAr
         || statusObject[yesterdaysDate].onLeave
         || statusObject[yesterdaysDate].holiday
         || statusObject[yesterdaysDate].weeklyOff
@@ -210,7 +211,7 @@ const handleSms = (locals) => {
 
   const promises = [];
   const yesterdaysDate = locals.momentYesterday.date();
-  const employeesData = locals.officeDoc.get('employeesData');
+  const employeesData = locals.employeesData;
 
   locals
     .notInstalledSet
@@ -264,7 +265,7 @@ const getMonthlyDocRef = (phoneNumber, monthlyDocRef) =>
 const getStatusObject = (statusObjectMap, phoneNumber) =>
   statusObjectMap.get(phoneNumber) || {};
 
-const commitMultipleBatches = (batchesArray) => {
+const commitMultipleBatches = batchesArray => {
   let result = Promise.resolve();
 
   batchesArray.forEach((batch, index) => {
@@ -277,10 +278,11 @@ const commitMultipleBatches = (batchesArray) => {
   return result;
 };
 
-const handleSheetTwo = (locals) => {
-  const mtdShet = locals.worksheet.addSheet('Footprints MTD');
-  mtdShet.row(0).style('bold', true);
-  const employeesData = locals.officeDoc.get('employeesData');
+const handleSheetTwo = locals => {
+  const mtdSheet = locals.worksheet.addSheet('Footprints MTD');
+  mtdSheet.row(0).style('bold', true);
+
+  const employeesData = locals.employeesData;
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const firstActionPromises = [];
   const lastActionPromises = [];
@@ -295,12 +297,12 @@ const handleSheetTwo = (locals) => {
   batchesArray.push(db.batch());
 
   topValues.forEach((value, index) => {
-    mtdShet.cell(`${alphabetsArray[index]}1`).value(value);
+    mtdSheet.cell(`${alphabetsArray[index]}1`).value(value);
   });
 
   locals
     .employeePhoneNumbersArray
-    .forEach((phoneNumber) => {
+    .forEach(phoneNumber => {
       const baseQuery = locals
         .officeDoc
         .ref
@@ -335,7 +337,7 @@ const handleSheetTwo = (locals) => {
 
   return Promise
     .all(firstActionPromises)
-    .then((snapShots) => {
+    .then(snapShots => {
       let batch = batchesArray[currentBatchIndex];
 
       snapShots.forEach((snapShot, index) => {
@@ -346,7 +348,7 @@ const handleSheetTwo = (locals) => {
 
           batchesArray.push(db.batch());
 
-          /** Batch resetted */
+          /** Batch reset to a new instance */
           numberOfDocsInCurrentBatch = 0;
 
           batch = batchesArray[currentBatchIndex];
@@ -407,7 +409,7 @@ const handleSheetTwo = (locals) => {
 
       return Promise.all(lastActionPromises);
     })
-    .then((snapShots) => {
+    .then(snapShots => {
       numberOfDocsInCurrentBatch = 0;
       currentBatchIndex++;
       batchesArray.push(db.batch());
@@ -482,6 +484,8 @@ const handleSheetTwo = (locals) => {
       });
 
       return commitMultipleBatches(batchesArray);
+      // return Promise
+      //   .all(batchesArray.map(batch => batch.commit()));
     })
     .then(() => {
       locals
@@ -496,19 +500,19 @@ const handleSheetTwo = (locals) => {
             timestampToConvert: employeesData[phoneNumber].createTime,
           });
 
-          mtdShet
+          mtdSheet
             .cell(`A${columnIndex}`)
             .value(employeeObject.name);
-          mtdShet
+          mtdSheet
             .cell(`B${columnIndex}`)
             .value(phoneNumber);
-          mtdShet
+          mtdSheet
             .cell(`C${columnIndex}`)
             .value(employeeObject.department);
-          mtdShet
+          mtdSheet
             .cell(`D${columnIndex}`)
             .value(employeeObject.baseLocation);
-          mtdShet
+          mtdSheet
             .cell(`E${columnIndex}`)
             .value(liveSince);
 
@@ -532,7 +536,7 @@ const handleSheetTwo = (locals) => {
                   return 'LEAVE';
                 }
 
-                if (locals.onDutySet.has(phoneNumber)) {
+                if (locals.onArSet.has(phoneNumber)) {
                   return 'ON DUTY';
                 }
 
@@ -563,7 +567,7 @@ const handleSheetTwo = (locals) => {
                 return 'LEAVE';
               }
 
-              if (statusObject[date].onDuty) {
+              if (statusObject[date].onAr) {
                 return 'ON DUTY';
               }
 
@@ -588,7 +592,7 @@ const handleSheetTwo = (locals) => {
 
             const alphabet = alphabetsArray[ALPHABET_INDEX_START];
             const cell = `${alphabet}${columnIndex}`;
-            mtdShet.cell(cell).value(statusValueOnDate);
+            mtdSheet.cell(cell).value(statusValueOnDate);
 
             ALPHABET_INDEX_START++;
           }
@@ -622,14 +626,17 @@ module.exports = (locals) => {
   /** Date shown in the first column (minus 1 day) */
   const dated = momentYesterday.format(dateFormats.DATE);
   const yesterdaysDate = momentYesterday.date();
+  /**
+   * Date from the timestamp which was written to the recipient
+   * document for triggering the report.
+   */
   const isDateToday = momentToday
     .startOf('day')
-    .valueOf()
-    === momentFromTimer
+    .valueOf() === momentFromTimer
       .startOf('day')
       .valueOf();
   const office = locals.officeDoc.get('office');
-  const employeesData = locals.officeDoc.get('employeesData');
+  const employeesData = locals.employeesData;
   const employeePhoneNumbersArray = Object.keys(employeesData);
   const activeUsersSet = new Set();
   const regTokenFetchPromises = [];
@@ -637,7 +644,7 @@ module.exports = (locals) => {
   const installedSet = new Set();
   const signedUpSet = new Set();
   const onLeaveSet = new Set();
-  const onDutySet = new Set();
+  const onArSet = new Set();
   const holidaySet = new Set();
   const weeklyOffSet = new Set();
   /** People who haven't installed the app */
@@ -691,7 +698,7 @@ module.exports = (locals) => {
       xlsxPopulate
         .fromBlankAsync(),
     ])
-    .then((result) => {
+    .then(result => {
       const [
         addendumDocsQuery,
         monthlyDocsQuery,
@@ -708,7 +715,7 @@ module.exports = (locals) => {
       const yesterdayStartTimestamp = momentYesterday.startOf('day').valueOf();
       const yesterdayEndTimestamp = momentYesterday.endOf('day').valueOf();
 
-      branchDocsQuery.forEach((branchDoc) => {
+      branchDocsQuery.forEach(branchDoc => {
         branchDoc.get('schedule').forEach((schedule) => {
           if (schedule.startTime >= yesterdayStartTimestamp
             && schedule.endTime < yesterdayEndTimestamp) {
@@ -755,8 +762,8 @@ module.exports = (locals) => {
           onLeaveSet.add(phoneNumber);
         }
 
-        if (statusObject[yesterdaysDate].onDuty) {
-          onDutySet.add(phoneNumber);
+        if (statusObject[yesterdaysDate].onAr) {
+          onArSet.add(phoneNumber);
         }
 
         if (statusObject[yesterdaysDate].holiday) {
@@ -811,7 +818,7 @@ module.exports = (locals) => {
       let count = 0;
       const distanceMap = new Map();
 
-      addendumDocs.forEach((doc) => {
+      addendumDocs.forEach(doc => {
         const template = doc.get('activityData.template');
         const action = doc.get('action');
         const isSupportRequest = doc.get('isSupportRequest');
@@ -960,7 +967,7 @@ module.exports = (locals) => {
             return 'LEAVE';
           }
 
-          if (onDutySet.has(phoneNumber)) {
+          if (onArSet.has(phoneNumber)) {
             return 'ON DUTY';
           }
 
@@ -995,7 +1002,7 @@ module.exports = (locals) => {
 
         if (comment === 'ON DUTY') {
           counterObject.onLeaveWeeklyOffHoliday++;
-          onDutySet.add(phoneNumber);
+          onArSet.add(phoneNumber);
         }
 
         if (comment === 'HOLIDAY') {
@@ -1059,7 +1066,7 @@ module.exports = (locals) => {
           .value(baseLocation);
       });
 
-      locals.onDutySet = onDutySet;
+      locals.onArSet = onArSet;
       locals.worksheet = worksheet;
       locals.onLeaveSet = onLeaveSet;
       locals.holidaySet = holidaySet;
@@ -1076,7 +1083,7 @@ module.exports = (locals) => {
 
       return handleSheetTwo(locals);
     })
-    .then((content) => {
+    .then(content => {
       if (locals.createOnlyData) {
         locals.sendMail = false;
       }
