@@ -88,95 +88,6 @@
         </section>
         \{{/if}}
 
-        <section class="enquiry-section pad mid-90">
-            <h2>Send Us An Enquiry</h2>
-            <form class="pad border" autocomplete="off" aria-autocomplete="none">
-                <div id="form-message" class="hidden flexed-jc-center flexed-ai-center animated"></div>
-                <fieldset id="form-1">
-                    <p>
-                        {{!-- enquiry text --}}
-                        <textarea placeholder="Type here..." class="input-field" name="enquiry-text" id="enquiry-text"
-                            cols="30" rows="5"></textarea>
-                    </p>
-                    \{{#if displayProducts}}
-                    <p>
-                        {{!-- product name --}}
-                        <select class="input-field" name="product-select" id="product-select">
-                            <option value="">Select a Product</option>
-                            \{{#each productObjectsArray}}
-                            <option value="\{{this.name}}">\{{this.name}}</option>
-                            \{{/each}}
-                        </select>
-                    </p>
-                    \{{/if}}
-                </fieldset>
-
-                {{!-- TODO: Refactor this. This case will never arise since if the user is logged in,
-                    their display name, email will be empty --}}
-                \{{#if isLoggedIn}}
-                {{!--empty --}}
-                <fieldset></fieldset>
-                \{{else}}
-                <fieldset>
-                    <p>
-                        {{!-- phoneNumber --}}
-                        <input id="phone" type="tel" class="input-field height-fix-intl-phone">
-                    </p>
-                    <p>
-                        {{!-- displayName --}}
-                        <input id="display-name" placeholder="Your Name" type="text" class="input-field hidden">
-                    </p>
-                    <p>
-                        {{!-- email --}}
-                        <input id="email" placeholder="Your Email" type="email" class="input-field hidden">
-                    </p>
-                    <p>
-                        <input id="otp" placeholder="Enter OTP Here" type="text" class="input-field hidden">
-                    </p>
-                </fieldset>
-                {{!--is loggcoed in end --}}
-                \{{/if}}
-
-                <fieldset>
-                    <div id="recaptcha-container" class="flexed-ai-center flexed-jc-center"></div>
-                    <p>
-                        <input id="tc-checkbox" type="checkbox">
-                        I accept the <a class="col-magenta underline" href="/terms-and-conditions">terms and
-                            services</a>
-                    </p>
-                    \{{#if isLoggedIn}}
-                    <p id="enquiry-submit-container" class="m0-auto fit-content">
-                        <button type="submit" class="button flexed flexed-ai-center" id="enquiry-submit-button">
-                            <span>
-                                \{{#if photoURL}}
-                                <img class="rounded" width="30" height="30" src=\{{photoURL}}
-                                    alt="header-profile-picture" alt="profile image">
-                                \{{else}}
-                                <img class="rounded" width="30" height="30" src="img/person.png" alt="photo url">
-                                \{{/if}}
-                            </span>
-                            <span class="ml-16">Submit</span>
-                        </button>
-                    </p>
-                    \{{else}}
-                    <p id="enquiry-submit-container" class="m0-auto fit-content hidden">
-                        <button type="submit" class="button flexed flexed-ai-center" id="enquiry-submit-button">
-                            <span>
-                                \{{#if photoURL}}
-                                <img class="rounded" width="30" height="30" src=\{{photoURL}}
-                                    alt="header-profile-picture" alt="profile image">
-                                \{{else}}
-                                <img class="rounded" width="30" height="30" src="img/person.png" alt="photo url">
-                                \{{/if}}
-                            </span>
-                            <span class="ml-16">Submit</span>
-                        </button>
-                    </p>
-                    \{{/if}}
-                </fieldset>
-            </form>
-        </section>
-
         \{{#if displayBranch}}
         <section class="branch-section">
             <h2>Branch Offices</h2>
@@ -229,6 +140,7 @@
     <script defer src="https://maps.googleapis.com/maps/api/js?key=\{{mapsApiKey}}"></script>
     <script defer src="js/office.js"></script>
     \{{> footerPartial}}
+    <div></div>
 </body>
 
 </html>

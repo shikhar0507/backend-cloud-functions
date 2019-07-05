@@ -48,6 +48,26 @@ const sgMail = require('@sendgrid/mail');
 
 sgMail.setApiKey(env.sgMailApiKey);
 
+const sendVerificationEmail = (userRecord, body) => {
+  return sgMail
+    .send({
+      templateId: sendGridTemplateIds.verificationEmail,
+      to: {
+        name: userRecord.displayName || body.displayName || '',
+        email: userRecord.email || body.email,
+      },
+      from: {
+        name: 'Growthfile Help',
+        email: env.systemEmail,
+      },
+      dynamicTemplateData: {
+        phoneNumber: body.phoneNumber,
+        verificationUrl: `${env.mainDomain}/verify-email?uid=${userRecord.uid}`,
+      },
+      subject: 'Verify your email on Growthfile',
+    });
+};
+
 
 const getUserFromAuth = (phoneNumber) => {
   const result = {
@@ -139,6 +159,14 @@ module.exports = conn => {
     );
   }
 
+  if (!env.isProduction) {
+    return sendResponse(
+      conn,
+      code.ok,
+      'User successfully created/updated.'
+    );
+  }
+
   let sendEmail = false;
   const authRecord = {};
 
@@ -184,34 +212,21 @@ module.exports = conn => {
 
       const promises = [];
 
-      if (sendEmail && env.isProduction) {
+      if (sendEmail
+        && env.isProduction) {
         promises
-          .push(sgMail
-            .send({
-              templateId: sendGridTemplateIds.verificationEmail,
-              to: {
-                name: userRecord.displayName || conn.req.body.displayName || '',
-                email: userRecord.email || conn.req.body.email,
-              },
-              from: {
-                name: 'Growthfile Help',
-                email: env.systemEmail,
-              },
-              dynamicTemplateData: {
-                phoneNumber: conn.req.body.phoneNumber,
-                verificationUrl: `${env.mainDomain}/verify-email?uid=${userRecord.uid}`,
-              },
-              subject: 'Verify your email on Growthfile',
-            }));
+          .push(sendVerificationEmail(userRecord, conn.req.body));
       }
 
       if (userRecord.uid) {
-        console.log('Setting emailVerificationRequestPending');
-
         const promise = rootCollections
           .updates
           .doc(userRecord.uid)
           .set({
+            // When the user visits the verification link sent
+            // to them in the email, this link will allow
+            // the backend to verify if their email verification
+            // was initiated
             emailVerificationRequestPending: true,
           }, {
               merge: true,

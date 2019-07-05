@@ -47,8 +47,7 @@ section {
 }
 
 .branch-section h2,
-.product-section h2,
-.enquiry-section h2 {
+.product-section h2 {
     color: #89273E;
     margin-bottom: 30px;
 }
@@ -109,16 +108,6 @@ form p select {
     min-width: 100%;
     height: 46px;
     font-family: inherit;
-}
-
-.enquiry-section {
-    /* text-align: center; */
-}
-
-#enquiry-submit-button {
-    text-align: center;
-    /* display: block; */
-    /* margin-top: 25px; */
 }
 
 .products-container {
@@ -249,16 +238,6 @@ aside {
         flex-direction: column;
     }
 
-    .enquiry-section form {
-        margin: auto;
-        max-width: 80%;
-    }
-
-    .product-image-name-container img {
-        /* width: 220px; */
-        /* height: 220px; */
-    }
-
     .grid-50 {
         grid-template-columns: 33% 33% 33%;
     }
@@ -273,15 +252,10 @@ aside {
     }
 }
 
-.grid-2-2 {
-    /* do nothing */
-}
-
 @media (min-width: 1024px) {
 
     .youtube-section,
-    .product-section,
-    .enquiry-section {
+    .product-section {
         margin: 0 auto;
         max-width: 70%;
     }

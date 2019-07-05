@@ -6,13 +6,13 @@
     <link rel="stylesheet" href="css/home.css">
 </head>
 
-<body data-istemplatemanager="\{{isTemplateManager}}" data-isSupport="\{{isSupport}}" data-isAdmin="\{{isAdmin}}"
-    data-offices="\{{adminOffices}}">
+<body data-user="\{{user}}" data-offices="\{{adminOffices}}">
     \{{> headerPartial this}}
     \{{#if isLoggedIn}}
     <div class="pad-below-header">
         <div class="action-title pad ttuc">My Growthfile</div>
     </div>
+    <div id="progressBar" class="progress-bar--container"></div>
     \{{else}}
     <div class="pad-below-header no-login"></div>
     \{{/if}}
@@ -25,16 +25,6 @@
                     <li><a href="#">Home</a></li>
                 </ul>
             </div>
-            \{{/if}}
-            \{{#if isTemplateManager}}
-            <section id="manage-templates" class="card" onclick="manageTemplates(this)">
-                <span class="flexed-jc-center mb-16">
-                    <i class="fas fa-file-alt col-black"></i>
-                </span>
-                <span class="tac ttuc">
-                    <p class="icon-text">Manage Templates</p>
-                </span>
-            </section>
             \{{/if}}
             \{{#if isAdmin}}
             <section class="pad flexed-jc-center flexed-column flexed-ai-center">
@@ -67,83 +57,12 @@
                 </div>
             </section>
             \{{/if}}
+            {{!-- This div stores the dynamically generated html --}}
+            <div class="forms-parent">
+
+            </div>
 
             <div class="hero-actions">
-                <div class="hidden pad pnc-container">
-                    <div>
-                        <form class="flexed-column">
-                            <p class="hidden success-label ttuc">Update Successful</p>
-                            <p class="hidden warning-label"></p>
-                            <label>Old Phone Number</label>
-                            <input data-old="true" class="input-field" type="tel">
-                            <label>New Phone Number</label>
-                            <input data-new="true" class="input-field" type="tel">
-                            <input class="button" type="button" value="Submit">
-                        </form>
-                    </div>
-                </div>
-
-                <div class="pad hidden update-auth">
-                    <div class="update-auth-form">
-                        <form autocapitalize="off" class="flexed-column">
-                            <label>Phone Number</label>
-                            <input class="input-field" type="tel">
-
-                            <label>Name</label>
-                            <input data-displayName="true" class="input-field" type="text" placeholder="John Doe">
-
-                            <label>Email</label>
-                            <input class="input-field" type="email" placeholder="you@growthfile.com">
-
-                            <input class="input-field mt-16" type="button" value="Submit">
-                        </form>
-                    </div>
-                    <div class="hidden">
-                        <p class="api-result"></p>
-                    </div>
-                </div>
-
-                {{!-- hidden --}}
-                <div class="hidden pad bc-container">
-                    <select class="input-field mb-16" id="create-new-template-select">
-                        <option value="">Loading...</option>
-                    </select>
-                    <form>
-                        <div class="bc-file-drag hidden raised pad-10 tac">
-                            <i class="fas fa-cloud-upload-alt ft-60 col-black"></i>
-                            <p>Drag a file here to upload</p>
-                            <input type="file" accept=".csv,.xlsx,.xls" data-maxsize="2M">
-                        </div>
-                    </form>
-                    <div class="bc-results hidden mt-16">
-                        <h5 class="bold ttuc">Bulk Creation Results:</h5>
-                        <div>
-                            <ul class="bc-results-list"> </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="pad hidden" id="trigger-reports-section">
-                    <div>
-                        <h2>Trigger a Report</h2>
-                        <p>
-                            Select a time and report to get the report on your email
-                            <span class="bold">\{{email}}</span>
-                        </p>
-                    </div>
-                    <form class="border pad-10">
-                        <div class="flexed-column mb-16">
-                            <select id="report-trigger-select" class="input-field mb-8">
-                                <option value="">Select the report</option>
-                            </select>
-                            <input class="input-field hi" type="date" id="report-trigger-date">
-                        </div>
-                        <div class="flexed-jc-center">
-                            <input id="trigger-report-button" class="button f1" type="button" value="Submit">
-                        </div>
-                    </form>
-                </div>
-
                 <div class="pad search-update hidden">
                     {{!-- search and update --}}
                     <div>
@@ -164,39 +83,30 @@
                         <div class="activity-container mt-16"></div>
                     </div>
                 </div>
-
-                <div class="pad border hidden">
-                    {{!-- Update auth --}}
-                    <div>
-                        <p class="col-gray">Create/Update user</p>
-                    </div>
-                    <form class="mb-8 flexed-column border pad-10">
-                        <label>Phone Number</label>
-                        <input class="input-field mb-8" type="tel" placeholder="e.g. +919876543210">
-                        <label>New Phone Number</label>
-                        <input class="input-field mb-8" type="text" placeholder="e.g. +919876543210">
-                        <label>Email</label>
-                        <input class="input-field mb-8" type="email" placeholder="new@growthfile.com">
-                        <input class="button mb-8" type="button" value="Submit">
-                    </form>
-                    <div class="message col-green">
-                        <p>Auth updated successfully</p>
-                    </div>
-                </div>
             </div>
 
-            \{{#if isLoggedIn}}
+
             <section id="actions-section" class="hidden animated fadeIn action-icons-container pad">
                 <div class="border">
-                    {{!-- actions are shown for admin or support --}}
                     \{{#if showActions}}
-                    <div class="bg-white br-8 grid-container-3">
+                    <div class="bg-white br-8 raised grid-container-3">
+                        \{{#if isTemplateManager}}
+                        <div id="manage-templates" class="card" onclick="manageTemplates()">
+                            <span class="flexed-jc-center mb-16">
+                                <i class="fas fa-file-alt col-black"></i>
+                            </span>
+                            <span class="tac ttuc">
+                                <p class="icon-text">Manage Templates</p>
+                            </span>
+                        </div>
+                        {{!-- manage templates end --}}
+                        \{{/if}}
                         <div id="update-auth" onclick="updateAuth()" class="card">
                             <span class="flexed-jc-center mb-16">
                                 <i class="fas fa-user-edit col-black"></i>
                             </span>
                             <span class="tac ttuc">
-                                <p class="icon-text">Update Auth</p>
+                                <p class="icon-text">Verify Email Addresses</p>
                             </span>
                         </div>
 
@@ -214,7 +124,7 @@
                                 <i class="fas fa-file-excel col-black"></i>
                             </span>
                             <span class="tac ttuc">
-                                <p class="icon-text">Trigger Reports</p>
+                                <p class="icon-text">Generate Reports</p>
                             </span>
                         </div>
 
@@ -232,7 +142,7 @@
                                 <i class="fas fa-envelope-open-text col-black"></i>
                             </span>
                             <span class="tac ttuc">
-                                <p class="icon-text">Update Report Mail Ids</p>
+                                <p class="icon-text">Update Email Recipient List</p>
                             </span>
                         </div>
 
@@ -244,107 +154,24 @@
                                 <p class="icon-text">Search & Update</p>
                             </span>
                         </div>
+
+                        {{!-- show actions end --}}
                         \{{/if}}
                     </div>
                 </div>
             </section>
-            \{{/if}}
 
-            <section class="pad border hidden animated fadeIn" id="enquiries-container">
-                <h2>YOUR ENQUIRIES</h2>
-                <ul class="mdc-list mdc-list--two-line"></ul>
-                <div id="no-enquiry-box" class="hidden flexed-column flexed-ai-center flexed-jc-center">
-                    <i class="fas fa-times-circle ft-60 transparent"></i>
-                    <p class="pt-16 italic">
-                        No enquiries found for you.
-                    </p>
-                </div>
-            </section>
 
-            <section class="pad border hidden animated fadeIn" id="search-and-update-section">
-            </section>
-
-            <section class="hidden pad border" id="manage-template-container">
-                <ul class="flexed-se mh-72 flexed-ai-center bg-magenta col-white ttuc raised">
-                    <li>
-                        <a class="flexed-ai-center flexed-column" href="#">
-                            <i class="far fa-file-alt mb-8"></i>
-                            <span>Templates</span>
-                        </a>
-                    </li>
-                    <li onclick="createNewTemplate(this)">
-                        <a class="flexed-ai-center flexed-column" href="#">
-                            <i class="fas fa-plus mb-8"></i>
-                            <span>Create</span>
-                        </a>
-                    </li>
-                </ul>
-                <div id="manage-templates-action" class="border template-action-result animated fadeIn">
-                    {{!-- Stuff after selecting the template --}}
-                </div>
-            </section>
-            \{{#unless showActions}}
-            {{!-- Not shown to admin or support --}}
-            <section class="join-container">
-                <div class="mb-16 pad">
-                    <h1 class="fw-400 col-white">
-                        7 automations for highly effective businesses
-                    </h1>
-
-                    <span class="col-white">
-                        Get more done, everyday!
-                    </span>
-                </div>
-                <div class="flexed-jc-center">
-                    <form class="join-form border flexed-column pad-10">
-                        <label class="bold ttuc mb-8" for="phone">Phone Number</label>
-                        <input tabindex="0" placeholder="e.g. +91876543210" id="phone" type="tel"
-                            class="input-field mb-16">
-
-                        <label class="hidden ttuc bold mb-8" for="email">Your Email</label>
-                        <input type="email" placeholder="yourname@growthfile.com" class="input-field mb-16 hidden">
-
-                        <label class="hidden bold ttuc mb-8" for="">Office</label>
-                        <input placeholder="e.g, Acme Corp..." type="text" class=" input-field mb-16 hidden ">
-
-                        <label class="hidden bold ttuc mb-8" for="alt-contact">Alternate Contact</label>
-                        <input id="alt-contact" type="tel" class="hidden input-field mb-16"
-                            placeholder="e.g. 9186543210">
-
-                        <label class="hidden bold ttuc mb-8" for="alt-contact">Alternate Contact's Email</label>
-                        <input id="alt-email" type="email" class="hidden input-field mb-16"
-                            placeholder="alternate.email@gmail.com">
-
-                        <input class="button mb-16" type="button" value="Start For Free">
-                        {{!-- phone number, office name, alternate phone number, alternate email --}}
-                        <p class="ft-12 hidden">
-                            By signing up, you agree to Growthfile's
-                            <a class="underline col-gray" href="/terms-and-conditions">Terms & Conditions</a>.
-                        </p>
-                        <p class="hidden ft-12">
-                            This site is protected by reCAPTCHA and the Google
-                            <a class="underline col-gray" target="_blank"
-                                href="https://policies.google.com/privacy">Privacy
-                                Policy</a>
-                            and
-                            <a class="underline col-gray" target="_blank" href="https://policies.google.com/terms">Terms
-                                of
-                                Service</a>
-                            apply.
-                        </p>
-                    </form>
-                </div>
-            </section>
-            \{{/unless}}
+            \{{> heroPartial}}
             <div class="">
                 \{{> featuredPartial}}
-                \{{> appFeatures}}
+                \{{> appFeaturesPartial}}
             </div>
             <div id="modal-box"></div>
         </div>
     </main>
-    \{{> footerPartial}}
     \{{> scriptsPartial}}
+    \{{> footerPartial}}
     <script src="js/home.js"></script>
 </body>
 

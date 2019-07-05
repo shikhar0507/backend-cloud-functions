@@ -65,6 +65,7 @@ const handleResult = (conn, docs) => {
 
   let allAreNew = true;
   let phoneNumber;
+  const [activity] = docs;
 
   docs.forEach((doc, index) => {
     /**
@@ -93,8 +94,6 @@ const handleResult = (conn, docs) => {
     return;
   }
 
-  const [activity] = docs;
-
   const locals = {
     objects: {
       permissions: {},
@@ -112,7 +111,7 @@ const handleResult = (conn, docs) => {
    * The `share` array from the request body may not
    * have all valid phone numbers.
    */
-  conn.req.body.share.forEach((phoneNumber) => {
+  conn.req.body.share.forEach(phoneNumber => {
     const isRequester = phoneNumber === conn.requester.phoneNumber;
 
     locals.objects.permissions[phoneNumber] = {
@@ -256,8 +255,11 @@ module.exports = (conn) => {
     return;
   }
 
-  const activityRef = rootCollections.activities.doc(conn.req.body.activityId);
-  const assigneesCollectionRef = activityRef.collection('Assignees');
+  const activityRef = rootCollections
+    .activities
+    .doc(conn.req.body.activityId);
+  const assigneesCollectionRef = activityRef
+    .collection('Assignees');
 
   const promises = [
     activityRef

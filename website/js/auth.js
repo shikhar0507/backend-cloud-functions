@@ -22,6 +22,16 @@ function showNameEmailContainer() {
   document.getElementById('name-email-container').classList.remove('hidden');
 }
 
+function getPhoneNumber(id) {
+  let result = `+${window.countryCode}${document.getElementById(id).value}`;
+
+  if (result.startsWith(window.countryCode)) {
+    result = result.replace(window.countryCode, '');
+  }
+
+  return result;
+}
+
 const submitButton = document.getElementById('auth-flow-start');
 
 function hideMessage() {
@@ -171,13 +181,6 @@ function fetchAuth() {
   )
     .then(function (response) {
       console.log('URL:', `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`);
-      // if (!response.ok) {
-      //   setMessage('Something went wrong');
-
-      //   console.log('Rejected:', response);
-
-      //   return Promise.resolve();
-      // }
 
       return response.json();
     })
@@ -239,19 +242,7 @@ function fetchAuth() {
     });
 }
 
-submitButton.onclick = fetchAuth;
+initializeTelInput(document.querySelector('#phone'));
 
-window.intlTelInput(document.querySelector('#phone'), {
-  preferredCountries: ['IN', 'NP'],
-  initialCountry: 'IN',
-  // nationalMode: false,
-  separateDialCode: true,
-  // formatOnDisplay: true,
-  autoHideDialCode: true,
-  customContainer: 'height-fix-intl-phone',
-  customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
-    window.countryCode = selectedCountryData.dialCode;
-    console.log({ selectedCountryPlaceholder, selectedCountryData });
-    return "e.g. " + selectedCountryPlaceholder;
-  }
-});
+submitButton
+  .onclick = fetchAuth;

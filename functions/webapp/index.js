@@ -35,7 +35,9 @@ const scriptsPartial = require('./views/partials/scripts.hbs')();
 const actionsAside = require('./views/partials/actions-aside.hbs')();
 const featuredPartial = require('./views/partials/featured.hbs')();
 const headerProfileIcon = require('./views/partials/header-profile-icon.hbs')();
-const appFeatures = require('./views/partials/app-features.hbs')();
+const appFeaturesPartial = require('./views/partials/app-features.hbs')();
+const heroPartial = require('./views/partials/hero.hbs')();
+const enquiryPartial = require('./views/partials/enquiry.hbs')();
 
 handlebars.registerPartial('scriptsPartial', scriptsPartial);
 handlebars.registerPartial('headPartial', headPartial);
@@ -44,7 +46,9 @@ handlebars.registerPartial('footerPartial', footerPartial);
 handlebars.registerPartial('actionsAside', actionsAside);
 handlebars.registerPartial('featuredPartial', featuredPartial);
 handlebars.registerPartial('headerProfileIcon', headerProfileIcon);
-handlebars.registerPartial('appFeatures', appFeatures);
+handlebars.registerPartial('appFeaturesPartial', appFeaturesPartial);
+handlebars.registerPartial('heroPartial', heroPartial);
+handlebars.registerPartial('enquiryPartial', enquiryPartial);
 
 const getIdToken = (parsedCookies) => {
   if (!parsedCookies.__session) {
@@ -119,8 +123,8 @@ const getSlugFromUrl = (requestUrl) => {
 const getLoggedInStatus = (idToken) => {
   return auth
     .verifyIdToken(idToken, true)
-    .then((decodedIdToken) => auth.getUser(decodedIdToken.uid))
-    .then((userRecord) => {
+    .then(decodedIdToken => auth.getUser(decodedIdToken.uid))
+    .then(userRecord => {
       const customClaims = userRecord.customClaims || {};
       let adminOffices;
 
@@ -474,11 +478,15 @@ const handleHomePage = (locals, requester) => {
   const template = handlebars.compile(source, { strict: true });
 
   const html = template({
+    user: JSON.stringify({
+      isSupport: requester.isSupport,
+      admin: requester.isAdmin,
+      isTemplateManager: requester.isTemplateManager,
+    }),
     pageTitle: 'Growthfile Home',
     pageDescription: 'One app for employees of all offices',
     isLoggedIn: locals.isLoggedIn,
     /** Person is Support or already an admin of an office */
-    showPersistentBar: true,
     pageIndexable: true,
     phoneNumber: requester.phoneNumber,
     email: requester.email,
@@ -491,8 +499,14 @@ const handleHomePage = (locals, requester) => {
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
-    showActions: requester.isAdmin || requester.isSupport,
+    showActions: requester.isAdmin
+      || requester.isSupport
+      || requester.isTemplateManager,
   });
+
+  console.log('requester', requester.isAdmin
+    || requester.isSupport
+    || requester.isTemplateManager);
 
   return html;
 };
@@ -693,6 +707,7 @@ const handleJsonGetRequest = (conn, requester) => {
   if (conn.req.query.action === 'get-template-names') {
     return rootCollections
       .activityTemplates
+      .where('canEditRule', '==', 'ADMIN')
       .get()
       .then(docs => {
         return docs.docs.map(doc => {
@@ -906,7 +921,7 @@ const jsonApi = (conn, requester) => {
 };
 
 
-const handleEmailVerificationFlow = (conn) => {
+const handleEmailVerificationFlow = conn => {
   if (!isNonEmptyString(conn.req.query.uid)) {
     return conn
       .res
@@ -918,9 +933,9 @@ const handleEmailVerificationFlow = (conn) => {
     .updates
     .doc(conn.req.query.uid)
     .get()
-    .then(doc => {
-      if (!doc.exists
-        || !doc.get('emailVerificationRequestPending')) {
+    .then(profileDoc => {
+      if (!profileDoc.exists
+        || !profileDoc.get('emailVerificationRequestPending')) {
         return conn.res.status(code.temporaryRedirect).redirect('/');
       }
 
@@ -930,10 +945,11 @@ const handleEmailVerificationFlow = (conn) => {
             .updateUser(conn.req.query.uid, {
               emailVerified: true,
             }),
-          doc
+          profileDoc
             .ref
             .set({
               emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
+              verificationRequestsCount: (profileDoc.get('verificationRequestsCount') || 0) + 1,
             }, {
                 merge: true,
               })

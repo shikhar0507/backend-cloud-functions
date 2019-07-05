@@ -70,9 +70,6 @@ const handleResource = (conn) => {
     .checkManageTemplates
     && !hasManageTemplateClaims(conn.requester.customClaims);
 
-  console.log(conn.requester.profileDoc.data());
-  console.log({ rejectAdminRequest, rejectSupportRequest, rejectManageTemplatesRequest });
-
   if (rejectAdminRequest
     || rejectSupportRequest
     || rejectManageTemplatesRequest) {
@@ -245,7 +242,7 @@ const handleRejections = (conn, errorObject) => {
     origin: conn.req.get('origin'),
   };
 
-  console.log({ context });
+  console.error({ context });
 
   if (!errorObject.code.startsWith('auth/')) {
     console.error(errorObject);
@@ -278,81 +275,6 @@ const checkAuthorizationToken = (conn) => {
     .verifyIdToken(result.authToken, checkRevoked)
     .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
     .catch((error) => handleRejections(conn, error));
-};
-
-const doStuff = conn => {
-  const {
-    dateFormats,
-  } = require('../admin/constants');
-  const momentTz = require('moment-timezone');
-  const batch = db.batch();
-  const promises = [];
-  const recipientIdArray = [];
-  const contextArray = [];
-  const firstItem = conn.req.body[0];
-  const unix = firstItem.timestamp * 1000;
-  const momentToday = momentTz(unix);
-  const dayStart = momentToday.startOf('day');
-  const dayEnd = momentToday.endOf('day');
-
-  console.log({
-    dayStart: dayStart.format(dateFormats.DATE_TIME),
-    dayEnd: dayEnd.format(dateFormats.DATE_TIME),
-  });
-
-  conn.req.body.forEach(eventContext => {
-    if (!eventContext.recipientId) return;
-
-    recipientIdArray.push(eventContext.recipientId);
-    contextArray.push(eventContext);
-
-    const promise = rootCollections
-      .recipients
-      .doc(eventContext.recipientId)
-      .collection('MailEvents')
-      .where('timestamp', '>=', dayStart.valueOf())
-      .where('timestamp', '<=', dayEnd.valueOf())
-      .limit(1)
-      .get();
-
-    promises.push(promise);
-  });
-
-  console.log('promises', promises.length);
-
-  return Promise
-    .all(promises)
-    .then(snapShots => {
-      snapShots.forEach((snapShot, index) => {
-        const recipientId = recipientIdArray[index];
-
-        const ref = (() => {
-          if (snapShot.empty) {
-            return rootCollections
-              .recipients
-              .doc(recipientId)
-              .collection('MailEvents')
-              .doc();
-          }
-
-          return snapShot.docs[0].ref;
-        })();
-
-        const eventContext = contextArray[index];
-
-        batch.set(ref, {
-          timestamp: momentToday.valueOf(),
-          [eventContext.email]: {
-            [eventContext.event]: eventContext,
-          },
-        }, {
-            merge: true,
-          });
-      });
-
-      return batch.commit();
-    })
-    .then(() => ({ success: true }));
 };
 
 

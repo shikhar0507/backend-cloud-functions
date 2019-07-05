@@ -222,6 +222,7 @@ function sendApiRequest(apiUrl, requestBody = null, method = 'GET') {
     cache: 'no-cache',
     headers: {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${getParsedCookies().__session}`
     },
   };
 
@@ -231,15 +232,7 @@ function sendApiRequest(apiUrl, requestBody = null, method = 'GET') {
 
   showProgressBar();
 
-  return firebase
-    .auth()
-    .currentUser
-    .getIdToken(false)
-    .then(function (idToken) {
-      init.headers.Authorization = `Bearer ${idToken}`;
-
-      return fetch(apiUrl, init);
-    })
+  return fetch(apiUrl, init)
     .then(function (result) {
       hideProgressBar();
 
@@ -330,35 +323,17 @@ function removeUnderlineFromElement(elem) {
   elem.style.background = 'unset';
 }
 
-function getPhoneNumber(id) {
-  let result = `+${window.countryCode}${document.getElementById(id).value}`;
-
-  if (result.startsWith(window.countryCode)) {
-    result = result.replace(window.countryCode, '');
-  }
-
-  return result;
-}
-
-window.addEventListener('DOMContentLoaded', function () {
-  firebase
-    .auth()
-    .addAuthTokenListener(function (idToken) {
-      if (!idToken) {
-
-        return;
-      }
-
-      document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
-
-      console.log('new cookie set', idToken);
-    });
-})
-
-function storeEvent(event) {
+function storeEvent() {
   // Data is not set
   if (!window.__trackingData) {
     throw new Error('__trackingData not set.');
+  }
+
+  const requestBody = {
+    timestamp: Date.now(),
+    cookies: document.cookie,
+    url: location.href,
+    officePage: document.body.dataset.slug || null,
   }
 
   return sendApiRequest('/json?action=track-view', requestBody, 'POST')
@@ -390,8 +365,6 @@ function handleTrackView() {
   return storeEvent(event);
 };
 
-document.body.addEventListener('__trackView', handleTrackView);
-
 const loginButton = document.getElementById('login-button');
 
 if (loginButton) {
@@ -412,10 +385,19 @@ function hideProgressBar() {
   bar.classList.remove('visible');
 }
 
-function getModal(options) {
-  const title = options.title;
+function closeModal() {
+  const modalContainer = document.querySelector('#modal-container');
 
+  if (modalContainer) modalContainer.remove();
+}
+
+function getModal(options) {
+  /** Close existing modal */
+  closeModal();
+
+  const title = options.title;
   const modalContainer = document.createElement('div');
+  modalContainer.id = 'modal-container';
   modalContainer.style.zIndex = '999';
   const modalDialog = document.createElement('div');
   modalDialog.classList.add('modal-dialog');
@@ -424,8 +406,8 @@ function getModal(options) {
   modalContent.classList.add('modal-content');
 
   const modalHeader = document.createElement('div');
-  modalHeader.style.padding = '24px 24px 0';
-  modalHeader.classList.add('modal-header');
+  // modalHeader.style.padding = '24px 24px 0';
+  modalHeader.classList.add('modal-header', 'bg-magenta');
   modalHeader.classList.add('flexed-row');
   modalHeader.style.flexDirection = 'row';
   modalHeader.style.justifyContent = 'space-between';
@@ -443,42 +425,148 @@ function getModal(options) {
   modalHeader.appendChild(crossIcon);
 
   const modalBody = document.createElement('div');
-  // modalBody.style.padding = '24px 24px 0';
-  modalBody.style.maxHeight = '400px';
+  modalBody.style.maxHeight = '50vh';
   modalBody.style.overflowY = 'auto';
 
   modalBody.appendChild(options.modalBodyElement);
-
-  const modalFooter = document.createElement('div');
-  modalFooter.style.padding = '10px';
-  const closeButton = document.createElement('button');
-  closeButton.textContent = 'CLOSE';
-  closeButton.classList.add('mdc-button');
 
   function deleteModal() {
     document.body.style.overflowY = 'auto';
     modalContainer.remove();
   }
 
-  closeButton.onclick = deleteModal;
   crossIcon.onclick = deleteModal;
-
-  modalFooter.style.textAlign = 'right';
-  modalFooter.appendChild(closeButton);
 
   const img = document.createElement('img');
   img.style.width = '100%';
   img.src = 'img/modal-hero.jpg';
   img.style.webkitFilter = 'grayscale(100%)';
   img.style.filter = 'grayscale(100%)';
-  modalContent.appendChild(modalHeader);
-  modalContent.appendChild(modalBody);
-  modalContent.appendChild(modalFooter);
+  modalContent.append(modalHeader, modalBody);
+  // modalContent.appendChild(modalBody);
   modalDialog.appendChild(modalContent);
   modalContainer.appendChild(modalDialog);
   document.body.style.overflowY = 'hidden';
 
+  function onEscPress(event) {
+    if (event.keyCode === 27) {
+      document.body.removeEventListener('keydown', onEscPress);
+
+      deleteModal();
+    }
+  }
+
+  document.body.addEventListener('keydown', onEscPress);
+
   return modalContainer;
 }
 
+function initializeTelInput(inputElement) {
+  /** Is already initialized. */
+  if (inputElement.dataset.intlInitialized) {
+    return;
+  }
+
+  inputElement.style.width = '100%';
+  inputElement.style.height = '52px';
+
+  /** Avoids multiple initializations of the same input field */
+  inputElement.dataset.intlInitialized = true;
+  inputElement.type = 'tel';
+
+  intlTelInput(inputElement, {
+    preferredCountries: ['IN', 'NP'],
+    initialCountry: 'IN',
+    nationalMode: false,
+    formatOnDisplay: true,
+    customContainer: 'mb-16',
+    separateDialCode: true,
+    customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
+      window.countryCode = selectedCountryData.dialCode;
+
+      console.log({
+        selectedCountryPlaceholder,
+        selectedCountryData,
+      });
+
+      return "e.g. " + selectedCountryPlaceholder;
+    }
+  });
+}
+
+
 setGlobals();
+
+firebase
+  .auth()
+  .addAuthTokenListener(function (idToken) {
+    if (!idToken) {
+
+      return;
+    }
+
+    document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
+
+    console.log('new cookie set', idToken);
+  });
+
+window
+  .addEventListener('__trackView', handleTrackView);
+// window
+//   .addEventListener('DOMContentLoaded', onDomContentLoaded);
+
+
+/* This is a prototype */
+const createSnackbar = (function () {
+  // Any snackbar that is already shown
+  let previous = null;
+
+  return function (message, actionText, action) {
+    if (previous) {
+      previous.dismiss();
+    }
+    let snackbar = document.createElement('div');
+    snackbar.className = 'paper-snackbar';
+    snackbar.dismiss = function () {
+      this.style.opacity = 0;
+    };
+    let text = document.createTextNode(message);
+
+    snackbar.appendChild(text);
+    if (actionText) {
+      if (!action) {
+        action = snackbar.dismiss.bind(snackbar);
+      }
+
+      let actionButton = document.createElement('button');
+      actionButton.className = 'action';
+      actionButton.innerHTML = actionText;
+      actionButton.addEventListener('click', action);
+      snackbar.appendChild(actionButton);
+    }
+
+    setTimeout(function () {
+      if (previous === this) {
+        previous.dismiss();
+      }
+    }.bind(snackbar), 5000);
+
+    snackbar
+      .addEventListener('transitionend', function (event, elapsed) {
+        if (event.propertyName === 'opacity' && this.style.opacity == 0) {
+          this.parentElement.removeChild(this);
+          if (previous === this) {
+            previous = null;
+          }
+        }
+      }
+        .bind(snackbar));
+
+    previous = snackbar;
+    document.body.appendChild(snackbar);
+    // In order for the animations to trigger, I have to force the original style to be computed, and then change it.
+    getComputedStyle(snackbar).bottom;
+    snackbar.style.bottom = '0px';
+    snackbar.style.opacity = 1;
+  };
+})();

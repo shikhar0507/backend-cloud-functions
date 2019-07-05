@@ -1,13 +1,57 @@
 'use strict';
 
-function showActions() {
+function isValidJSON(json) {
+  try {
+    JSON.parse(json);
+
+    return true;
+  } catch (error) {
+    console.log('error', error);
+    return false;
+  }
+}
+
+function isSupport() {
+  return JSON.parse(document.body.dataset.user || {}).isSupport;
+}
+
+function getAdminOffices() {
+  return JSON.parse(document.body.dataset.user || {}).admin;
+}
+
+function isAdmin() {
+  const adminOffices = getAdminOffices();
+
+  return adminOffices && adminOffices.length;
+}
+
+function isTemplateManager() {
+  return JSON.parse(document.body.dataset.user || {}).isTemplateManager;
+}
+
+function removeAllChildren(element) {
+  if (!element || !element.firstChild) return;
+
+  while (element.firstChild) {
+    element.firstChild.remove();
+  }
+}
+
+function showActionsSection() {
   document
     .querySelector('#actions-section')
     .classList
     .remove('hidden');
 }
 
-function hideActions() {
+function toggleActionsSection() {
+  document
+    .querySelector('#actions-section')
+    .classList
+    .toggle('hidden');
+}
+
+function hideActionsSection() {
   document
     .querySelector('#actions-section')
     .classList
@@ -17,28 +61,29 @@ function hideActions() {
 function setBreadcrumb(action) {
   const ul = document.querySelector('.breadcrumbs ul');
 
-  while (ul.firstChild) {
-    ul.firstChild.remove();
-  }
+  removeAllChildren(ul);
 
   const home = document.createElement('li');
   const homeA = document.createElement('a');
 
   homeA.textContent = document.body.dataset.office || 'Home';
   homeA.href = '#';
+
   homeA.onclick = function (evt) {
     evt.preventDefault();
 
-    showActions();
+    showActionsSection();
+    setBreadcrumb();
+    removeAllChildren(document.querySelector('.forms-parent'));
 
     document
       .querySelector('.hero-actions')
-      .classList.add('hidden');
-
-    setBreadcrumb(null);
+      .classList
+      .toggle('hidden');
   }
 
   home.appendChild(homeA);
+
   const li = document.createElement('li');
   const a = document.createElement('a');
   a.textContent = action;
@@ -46,7 +91,7 @@ function setBreadcrumb(action) {
 
   /** Do nothing since this path is open already for the user */
   a.onclick = function (evt) { evt.preventDefault() };
-
+  a.classList.add('bold');
   li.appendChild(a);
   ul.append(home);
 
@@ -55,29 +100,18 @@ function setBreadcrumb(action) {
   }
 }
 
+function getUpdateAuthFormContainer() {
+  const container = document.createElement('div');
+  container.id = ''
+}
 
 function setActionTitle(text) {
-  document.querySelector('.action-title')
-    .textContent = text || 'My Growthfile';
+  document
+    .querySelector('.action-title')
+    .textContent = text;
 
   if (text) setBreadcrumb(text);
 }
-
-const intlTelInputOptions = {
-  preferredCountries: ['IN', 'NP'],
-  initialCountry: 'IN',
-  nationalMode: false,
-  formatOnDisplay: true,
-  customContainer: 'mb-16',
-  separateDialCode: true,
-  customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
-    window.countryCode = selectedCountryData.dialCode;
-    console.log({ selectedCountryPlaceholder, selectedCountryData });
-    return "e.g. " + selectedCountryPlaceholder;
-  }
-};
-
-Object.freeze(intlTelInputOptions);
 
 function handleTopSelectTemplateClick(evt) {
   console.log('handleTopSelectTemplateClick', evt);
@@ -92,11 +126,8 @@ function allOfficeSelectOnChange() {
 
   supportSearch.remove();
 
-  // document
-  //   .querySelector('#actions-section')
-  //   .classList
-  //   .remove('hidden');
-  showActions();
+  // showActionsSection();
+  toggleActionsSection();
   setBreadcrumb(null);
 }
 
@@ -130,14 +161,13 @@ function fetchOfficeList() {
     return;
   }
 
-  console.log('Request sent action=office-list');
-
   sendApiRequest('/json?action=office-list')
     .then(function (response) {
       return response.json();
     })
     .then(function (response) {
       console.log('response', response);
+      /** Caching the values for the current session */
       sessionStorage.setItem('officeNamesList', response);
 
       populateOfficeInSelect(response);
@@ -181,217 +211,77 @@ function startAdmin() {
     .classList
     .add('hidden');
 
-  showActions();
+  showActionsSection();
 }
 
-
-function triggerReports() {
-  setActionTitle('Trigger Reports');
-
-  let startTime = Date.now();
-  const dateInput = document.querySelector('#report-trigger-date');
-
-  document
-    .querySelector('#trigger-reports-section')
-    .classList
-    .remove('hidden');
-  dateInput.valueAsDate = new Date();
-
-  dateInput.onchange = function (evt) {
-    startTime = evt.target.value;
-  }
-
-  const triggerResult = document.querySelector('#trigger-report-result');
-
-  function recipientSubmitOnClick() {
-    startTime = new Date(startTime).getTime();
-
-    console.log({ startTime });
-
-    sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, {
-      startTime,
-      office: document.body.dataset.office,
-      report: document.querySelector('#report-trigger-select').value,
-      endTime: startTime,
-    }, 'POST')
-      .then(function (response) { return response.json(); })
-      .then(function (response) {
-        if (!response.success) {
-          triggerResult.classList.add('warning-label');
-        }
-
-        triggerResult.classList.remove('hidden');
-        triggerResult.textContent = response.message
-          || 'Report triggered successfully';
-
-        console.log('Response', response);
-      })
-      .catch(console.error);
-  }
-
-  sendApiRequest(`/json?template=recipient&office=${document.body.dataset.office}`, null, 'GET')
-    .then(function (response) {
-      return response.json();
-    })
-    .then(function (response) {
-      const selectBox = document.querySelector('#report-trigger-select');
-
-      console.log('response', response);
-
-      Object
-        .keys(response)
-        .forEach(function (activityId) {
-          const item = response[activityId];
-          const option = document.createElement('option')
-          option.value = item.attachment.Name.value;
-          option.textContent = item.attachment.Name.value;
-          selectBox.appendChild(option);
-        });
-
-      const submitButton = document.querySelector('#trigger-report-button');
-
-      submitButton.onclick = recipientSubmitOnClick;
-    })
-    .catch(console.error);
-}
-
-function getEnquiryLi(record, index) {
-  const li = document.createElement('li');
-  const spanContainer = document.createElement('span');
-  const primaryText = document.createElement('span');
-  const secondaryText = document.createElement('span');
-
-  li.classList.add('mdc-list-item');
-
-  if (index === 0) {
-    li.setAttribute('tabindex', 0);
-  }
-
-  spanContainer.classList.add('mdc-list-item__text');
-  spanContainer.style.pointerEvents = 'none';
-  primaryText.classList.add('mdc-list-item__primary-text');
-  secondaryText.classList.add('mdc-list-item__secondary-text');
-
-  primaryText.textContent = record.attachment.Enquiry.value;
-  secondaryText.textContent = (function () {
-    if (firebase.auth().currentUser === record.creator.phoneNumber) {
-      return 'You';
-    }
-
-    return `${record.creator.displayName} (${record.creator.phoneNumber})`;
-  })();
-
-  spanContainer.appendChild(primaryText);
-  spanContainer.appendChild(secondaryText);
-
-  li.appendChild(spanContainer);
-
-  return li;
-};
-
-function handlePhoneNumberChange(options) {
-  const container = options.container;
-
+function handlePhoneNumberChange() {
+  const form = document.querySelector('.pnc-form');
   const requestBody = {
-    oldPhoneNumber: options.oldInput.value,
-    newPhoneNumber: options.newInput.value,
+    oldPhoneNumber: form.querySelector('input[data-old-phone-number="true"]').value,
+    newPhoneNumber: form.querySelector('input[data-new-phone-number="true"]').value,
     office: document.body.dataset.office,
   };
 
   let requestUrl = `${apiBaseUrl}/admin/change-phone-number`;
 
-  if (document.body.dataset.issupport) {
+  if (isSupport()) {
     requestUrl += '?support=true';
   }
 
-  const sucessLabel = container.querySelector('.success-label');
-  const errorLabel = container.querySelector('.warning-label');
+  const p = form.querySelector('p');
 
-  errorLabel.textContent = '';
+  console.log('requestBody', requestBody);
 
   sendApiRequest(requestUrl, requestBody, 'POST')
-    .then(function (response) {
-      return response.json();
-    })
+    .then(function (response) { return response.json(); })
     .then(function (response) {
       if (!response.success) {
-        errorLabel.classList.remove('hidden');
-        errorLabel.textContent = response.message;
+        p.classList.add('col-red');
+        p.textContent = response.message;
 
         return;
       }
 
-      sucessLabel.classList.remove('hidden');
+      p.textContent = 'Phone Number updated successfully';
+
+      console.log('Response', response);
     })
     .catch(console.error);
 }
 
-function changePhoneNumber() {
-  setActionTitle('Change Phone Number');
-
-  const container = document.querySelector('.pnc-container');
-  const oldInput = container.querySelector('input[data-old="true"]');
-  const newInput = container.querySelector('input[data-new="true"]');
-
-  oldInput.style.width = '100%';
-  oldInput.style.height = '52px';
-
-  window.intlTelInput(oldInput, intlTelInputOptions);
-
-  newInput.style.width = '100%';
-  newInput.style.height = '52px';
-
-  window.intlTelInput(newInput, intlTelInputOptions);
-
-  container.classList.remove('hidden');
-
-  const submitButton = container.querySelector('input[type="button"]')
-
-  submitButton.onclick = function () {
-    handlePhoneNumberChange({
-      container,
-      oldInput,
-      newInput
-    });
-  };
-};
-
-
-function searchBar(id) {
-  const conatiner = document.createElement('div')
-  const input = document.createElement('input')
-  input.type = 'text';
-  input.className = 'input-field';
-  input.id = id;
-
-  const button = document.createElement('button');
-  button.className = 'button';
-  button.textContent = 'Search'
-  button.id = 'search'
-  conatiner.appendChild(input)
-  conatiner.appendChild(button)
-  return conatiner;
-}
-
-function searchBarWithList(labelText, id) {
-  const label = document.createElement('label')
-  label.textContent = labelText;
-  const ul = document.createElement("ul");
-  ul.id = 'search-results'
-  const baseSearchBar = searchBar(id);
-  baseSearchBar.appendChild(label);
-  baseSearchBar.appendChild(ul)
-  return baseSearchBar
-
-}
-
 function handleUpdateAuthRequest() {
-  const form = document.querySelector('.update-auth-form');
+  const form = document.querySelector('.forms-parent');
   const phoneNumber = form.querySelector('input[type="tel"]').value;
-  const displayName = form.querySelector('input[data-displayName=true]').value;
+  const displayName = form.querySelector('input[data-display-name=true]').value;
   const email = form.querySelector('input[type="email"]').value;
+  const p = form.querySelector('p');
+  p.textContent = '';
+  p.classList.add('col-red');
 
-  return sendApiRequest(
+  console.log('phoneNumber', phoneNumber);
+  if (!isValidPhoneNumber(phoneNumber)) {
+    p.textContent = 'Invalid phone number';
+
+    p.classList.remove('hidden');
+
+    return;
+  }
+
+  if (!isValidEmail(email)) {
+    p.textContent = 'Invalid email';
+
+    p.classList.remove('hidden');
+
+    return;
+  }
+
+  if (!isNonEmptyString(displayName)) {
+    p.textContent = 'Invalid Name';
+
+    return;
+  }
+
+  sendApiRequest(
     `${apiBaseUrl}/update-auth`,
     {
       phoneNumber,
@@ -400,288 +290,26 @@ function handleUpdateAuthRequest() {
     },
     'POST'
   )
-    .then(function (response) {
-      return response.json();
-    })
+    .then(function (response) { return response.json(); })
     .then(function (response) {
       console.log('result', response);
-      // api-result
-      const p = form.querySelector('.api-result');
-      p.parentElement.classList.remove('hidden');
-      p.textContent = response.message;
-    })
-    .catch(console.error);
-}
 
-function updateAuth() {
-  setActionTitle('Update Auth');
+      const p = form.querySelector('p');
+      p.classList.remove('hidden');
 
-  console.log('Update auth called');
-  const updateAuthContainer = document.querySelector('.update-auth');
-  updateAuthContainer.classList.remove('hidden');
-  const phoneInput = updateAuthContainer.querySelector('input[type="tel"]');
+      p.classList.add('col-green');
 
-  phoneInput.style.width = '100%';
-  phoneInput.style.height = '52px';
-
-  window.intlTelInput(phoneInput, intlTelInputOptions);
-
-  const submitButton = updateAuthContainer.querySelector('input[type="button"]');
-
-  submitButton.onclick = handleUpdateAuthRequest;
-}
-
-function isValidJSON(json) {
-  try {
-    JSON.parse(json);
-
-    return true;
-  } catch (error) {
-    console.log('error', error);
-    return false;
-  }
-}
-
-function updateTemplate(event) {
-  event.preventDefault();
-
-  document.querySelectorAll('p>.warning-label').forEach(function (item) {
-    item.parentElement.removeChild(item);
-  });
-
-  const jsonTextarea = document.querySelector('#template-json');
-  const templateJSON = document.querySelector('#template-json');
-
-  const value = templateJSON.value;
-
-  if (value.trim() === '') {
-    const node = getWarningNode('Template cannot be empty');
-
-    insertAfterNode(templateJSON, node);
-
-    return;
-  }
-
-  if (!isValidJSON(value)) {
-    const node = getWarningNode(`Doesn't look like valid json`);
-
-    insertAfterNode(templateJSON, node);
-
-    return;
-  }
-
-  const spinner = getSpinnerElement('template-update-spinner').default();
-  const form = document.querySelector('#update-template-form');
-  form.classList.add('wrap-content');
-
-  console.log('Sending api request');
-
-  return sendApiRequest('/json?action=update-template', JSON.parse(value), 'POST')
-    .then(function (response) {
-      console.log('response', response);
-
-      return response.json();
-    })
-    .then(function (result) {
-      console.log('result', result);
-
-      spinner.classList.add('hidden');
-
-      const node = getWarningNode(result.message);
-
-      // green
-      if (result.code < 299) {
-        node.classList.add('success-label');
-
-        // Template updated. Remove cached stuff.
-        sessionStorage.removeItem('templatesJson');
+      if (!response.success) {
+        p.classList.add('col-red');
       }
 
-      insertAfterNode(jsonTextarea, node);
+      p.textContent = response.message || 'Success';
     })
-    .catch(function (error) {
-      console.error(error);
-    });
-}
-
-function handleTemplateEditClick(event) {
-  event.preventDefault();
-  console.log(event.target.dataset);
-  const templatesJSON = JSON.parse(sessionStorage.getItem('templatesJson'));
-
-  console.log(templatesJSON[event.target.dataset.templateId]);
-  const manageTemplatesAction = document.querySelector('#manage-templates-action');
-
-  const form = document.createElement('form');
-  form.id = 'update-template-form';
-  form.autocomplete = 'off';
-  form.classList.add('flexed-column', 'flexed-ai-center', 'pad');
-  const textareaContainer = document.createElement('p');
-  textareaContainer.classList.add('w-100');
-  const submitContainer = document.createElement('p');
-  const textarea = document.createElement('textarea');
-  textarea.rows = 20;
-  textarea.classList.add('input-field', 'w-100');
-  textarea.placeholder = 'Enter template JSON here...';
-  textarea.id = 'template-json';
-
-  const submitButton = document.createElement('a');
-  submitButton.href = '#';
-  submitButton.classList.add('button');
-  submitButton.innerText = 'Update';
-  submitButton.onclick = updateTemplate;
-
-  textarea.value = JSON.stringify(templatesJSON[event.target.dataset.templateId], ' ', 4);
-
-  textareaContainer.appendChild(textarea);
-  submitContainer.appendChild(submitButton);
-
-  form.appendChild(textareaContainer);
-  form.appendChild(submitContainer);
-
-  // clear the old elements in the container;
-  while (manageTemplatesAction.firstChild) {
-    manageTemplatesAction.removeChild(manageTemplatesAction.firstChild);
-  }
-
-  manageTemplatesAction.appendChild(form);
-
-  // Scroll the editor in to view.
-  document
-    .querySelector('#manage-template-container ul')
-    .scrollIntoView({
-      behavior: 'smooth',
-    });
+    .catch(console.error);
 }
 
 function showTemplateJSON(event) {
   console.log(event.target);
-}
-
-function populateTemplateList() {
-  const manageTemplatesAction = document.querySelector('#manage-templates-action');
-  console.log('request sent');
-
-  function getListItem(templateObject, id) {
-    const name = templateObject.name;
-    const description = templateObject.comment;
-
-    const li = document.createElement('li');
-    // <i class="fas fa-pen"></i>
-    const editIcon = document.createElement('i');
-    editIcon.classList.add('fas', 'fa-pen', 'ml-8', 'cur-ptr');
-    editIcon.dataset.templateId = id;
-    const jsonContainer = document.createElement('pre');
-    const descriptionSpan = document.createElement('span');
-    const nameSpan = document.createElement('span');
-
-    nameSpan.classList.add('bold', 'ttuc');
-    descriptionSpan.classList.add('col-gray', 'mb-8');
-    li.classList.add('flexed-column', 'border', 'pad', 'cur-ptr', 'mb-8');
-
-    li.onclick = showTemplateJSON;
-
-    nameSpan.innerText = name;
-
-    editIcon.onclick = handleTemplateEditClick;
-
-    nameSpan.appendChild(editIcon);
-    descriptionSpan.innerText = description;
-
-    jsonContainer.innerText = JSON.stringify(templateObject, ' ', 4);
-    li.dataset.id = id;
-
-    jsonContainer.classList.add('animated', 'fadeIn', 'border', 'pad', 'hidden');
-    jsonContainer.style.overflowY = 'auto';
-
-    li.appendChild(nameSpan);
-    li.appendChild(descriptionSpan);
-    li.appendChild(jsonContainer);
-
-    return li;
-  }
-
-  const ul = document.createElement('ul');
-
-  if (sessionStorage.getItem('templatesJson')) {
-    document.querySelector('#spinner-container').classList.add('hidden');
-
-    console.log('Skipped fetch');
-    const json = JSON.parse(sessionStorage.getItem('templatesJson'));
-
-    const items = Object.keys(json);
-
-    items.forEach(function (id) {
-      // console.log(id, json[id]);
-      const li = getListItem(json[id], id);
-
-      ul.appendChild(li);
-    });
-
-    manageTemplatesAction.appendChild(ul);
-
-    document.querySelector('#manage-templates').onclick = function () { };
-
-    document
-      .querySelector('#manage-template-container ul')
-      .scrollIntoView({
-        behavior: 'smooth',
-      });
-
-    return;
-  }
-
-  return sendApiRequest(`/json?action=view-templates`)
-    .then(function (response) {
-
-      return response.json();
-    })
-    .then(function (json) {
-      console.log('json', json);
-
-      sessionStorage.setItem('templatesJson', JSON.stringify(json));
-
-      const items = Object.keys(json);
-
-      items.forEach(function (id) {
-        const li = getListItem(json[id]);
-
-        ul.appendChild(li);
-      });
-
-      document.querySelector('#spinner-container').classList.add('hidden');
-
-      manageTemplatesAction.appendChild(ul);
-
-      // clear storage to remove old data
-
-      document
-        .querySelector('#manage-templates')
-        .onclick = function () { };
-
-      document
-        .querySelector('#manage-template-container ul')
-        .scrollIntoView({
-          behavior: 'smooth',
-        });
-    })
-    .catch(console.error);
-}
-
-function manageTemplates() {
-  const actionContainer = document.querySelector('#manage-template-container');
-
-  actionContainer.classList.remove('hidden');
-  const spinnerContainer = document.createElement('div');
-  spinnerContainer.id = 'spinner-container';
-  spinnerContainer.classList.add('flexed-jc-center', 'flexed-ai-center', 'pad');
-  const spinner = getSpinnerElement('template-container-spinner').default();
-  spinnerContainer.appendChild(spinner);
-
-  actionContainer.appendChild(spinnerContainer);
-
-  // async function
-  populateTemplateList();
 }
 
 function handleTemplateCreate(elem) {
@@ -769,6 +397,7 @@ function createNewTemplate() {
 
 function handleActivityEditOnClick(doc) {
   const form = document.querySelector(`.activity-form`);
+
   const requestBody = Object.assign(doc, {
     timestamp: Date.now(),
     attachment: {},
@@ -777,19 +406,9 @@ function handleActivityEditOnClick(doc) {
     schedule: [],
   });
 
-  // activity-container
-  const activityContainer = document.querySelector('activity-container');
-  const label = activityContainer.querySelector('.warning-label');
-
-  if (label) {
-    label.remove();
-  }
-
   const attachmentFields = document.querySelectorAll('[data-attachment]');
   const scheduleFields = document.querySelectorAll('[data-schedule]');
   const venueFields = document.querySelectorAll('[data-venue]');
-
-  console.log({ attachmentFields, scheduleFields, venueFields });
 
   attachmentFields.forEach(function (element) {
     const field = element.dataset.field;
@@ -839,7 +458,7 @@ function handleActivityEditOnClick(doc) {
       requestBody.geopoint = location;
       let url = `${apiBaseUrl}/activities/update`;
 
-      if (document.body.dataset.issupport) {
+      if (isSupport()) {
         url += '?support=true';
       }
 
@@ -878,17 +497,15 @@ function handleActivityEditOnClick(doc) {
 
 function getActivityEditObject(doc) {
   const container = document.createElement('div');
-  container.classList.add('pad-10', 'border');
-
   const form = document.createElement('form');
-  form.classList.add('pad-10', 'activity-form');
+
+  form.classList.add('activity-form');
   form.id = doc.activityId;
 
   const attachmentContainer = document.createElement('div');
   attachmentContainer.classList.add('pad-10');
   attachmentContainer.style.display = 'flex';
   attachmentContainer.style.flexDirection = 'column';
-  const telInputs = [];
 
   Object
     .keys(doc.attachment)
@@ -940,12 +557,7 @@ function getActivityEditObject(doc) {
       if (type === 'phoneNumber') {
         input.type = 'tel';
 
-        telInputs.push({
-          element: input,
-          value,
-        });
-
-        input.value = '';
+        input.value = value;
       }
 
       if (type === 'email') {
@@ -958,7 +570,8 @@ function getActivityEditObject(doc) {
 
       input.classList.add('input-field');
 
-      if (field === 'Name' || field === 'Number') {
+      if (field === 'Name'
+        || field === 'Number') {
         input.required = true;
       }
 
@@ -968,18 +581,6 @@ function getActivityEditObject(doc) {
 
       attachmentContainer.append(label, input);
     });
-
-  // telInputs.forEach(function (item) {
-  //   const inputElement = item.element;
-  //   const value = item.value;
-
-  //   inputElement.style.width = '100%';
-  //   inputElement.style.height = '52px';
-
-  //   window
-  //     .intlTelInput(inputElement, intlTelInputOptions)
-  //     .setNumber(value);
-  // });
 
   form.appendChild(attachmentContainer);
 
@@ -1104,51 +705,28 @@ function getActivityEditObject(doc) {
     form.appendChild(assigneeContainer);
   }
 
-  const statusSelectionContainer = document.createElement('div');
-  const statusSelectHeadContainer = document.createElement('div');
-  const statusHeader = document.createElement('h5');
-  statusHeader.classList.add('tac', 'ttuc', 'bold', 'ft-size-20', 'bb');
-  statusHeader.textContent = `Status (${doc.status})`;
-  statusSelectHeadContainer.append(statusHeader);
+  function getButton(value, secondary) {
+    const button = document.createElement('input');
+    button.type = 'button';
+    button.value = value;
+    button.classList.add('button');
 
-  statusSelectionContainer.appendChild(statusSelectHeadContainer);
+    if (secondary) {
+      button.classList.add('secondary')
+    }
 
-  const statusSelect = document.createElement('select');
-  statusSelect.dataset.status = true;
-
-  statusSelect.classList.add('input-field');
-
-  ['CANCELLED', 'CONFIRMED', 'PENDING']
-    .forEach(function (status) {
-      const option = document.createElement('option');
-      option.value = status;
-      option.textContent = status;
-
-      // Not putting the value which is already set in the list
-      if (status === doc.status) return;
-
-      statusSelect.appendChild(option);
-    });
-
-  statusSelect.style.marginTop = '8px';
-
-  statusSelectionContainer.appendChild(statusSelect);
-
-  form.appendChild(statusSelectionContainer);
+    return button;
+  }
 
   const buttonContainer = document.createElement('div');
   buttonContainer.classList.add('flexed', 'mt-16');
-  const button = document.createElement('input');
-  button.type = 'button';
-  button.value = 'Update';
-  button.classList.add('button', 'f1');
+  const updateButton = getButton('Update');
 
-  button.onclick = function () {
+  updateButton.onclick = function () {
     handleActivityEditOnClick(doc);
   };
 
-  buttonContainer.appendChild(button);
-
+  buttonContainer.appendChild(updateButton);
   form.appendChild(buttonContainer);
 
   container.appendChild(form);
@@ -1157,25 +735,19 @@ function getActivityEditObject(doc) {
 };
 
 function activityEditOnClick(doc) {
-  const container = document.querySelector('.activity-container');
+  const container = document.querySelector('.single-activity');
 
-  while (container.firstChild) {
-    container.firstChild.remove();
-  }
+  removeAllChildren(container);
 
   const dataContainer = getActivityEditObject(doc);
-  dataContainer.style.borderWidth = '5px';
-  dataContainer.style.borderStyle = 'solid';
-  dataContainer.style.borderColor = '#7fdbff';
-  // dataContainer.classList.add('single-activity');
-
-  if (doc.status === 'CANCELLED') {
-    dataContainer.style.borderColor = '#ff4136';
-    // dataContainer.classList.add('cancelled');
-  }
+  container.className += ` raised`;
 
   container.appendChild(dataContainer);
-}
+
+  dataContainer.querySelectorAll('input[type="tel"]').forEach(el => {
+    initializeTelInput(el);
+  });
+};
 
 
 // TODO: This perhaps should be made a little better
@@ -1183,33 +755,14 @@ function getActivityName(doc) {
   return doc.activityName;
 }
 
-function getSearchActivityListItem(doc) {
+function getActivityListItem(doc) {
   const li = document.createElement('li');
-  // li.style.padding = '10px';
-  // li.style.borderLeftColor = '#0074D9';
-  // li.style.borderLeftWidth = '5px';
-  // li.style.borderLeftStyle = 'solid';
-  // li.style.backgroundColor = '#7FDBFF';
-  // li.style.color = 'white';
+  li.className += 'mb-8 cur-ptr flexed single-activity-item border';
 
-  li.className += 'mb-8 cur-ptr flexed single-activity border';
-
-  // li.classList.add('bb', 'mb-8', 'cur-ptr', 'flexed');
   const iconContainer = document.createElement('div');
   iconContainer.classList.add('mr-8', 'flexed-ai-center');
   const i = document.createElement('i');
   i.classList.add('far', 'fa-check-circle');
-
-  if (doc.status === 'CANCELLED') {
-    // li.style.color = 'unset';
-    // li.classList.add('raised');
-    // li.style.backgroundColor = 'unset';
-    // li.style.borderLeftColor = '#FF4136';
-    li.className += ' cancelled';
-    i.classList.remove('fa-check-circle');
-    // <i class="far fa-times-circle"></i>
-    i.classList.add('fa-times-circle');
-  }
 
   iconContainer.appendChild(i);
 
@@ -1227,6 +780,14 @@ function getSearchActivityListItem(doc) {
   iconContainer.style.pointerEvents = 'none';
   bodyContainer.style.pointerEvents = 'none';
 
+  if (doc.status === 'CANCELLED') {
+    li.className += ' cancelled';
+    i.classList.remove('fa-check-circle');
+    i.classList.add('fa-times-circle');
+
+    status.style.color = 'rgb(255, 65, 54)';
+  }
+
   li.appendChild(iconContainer);
   li.appendChild(bodyContainer);
 
@@ -1238,23 +799,14 @@ function getSearchActivityListItem(doc) {
 };
 
 function searchUpdateTemplateSelectOnChange() {
-  const container = document.querySelector('.search-update');
-  const templateSelect = container.querySelector('.templates-list');
+  const templateSelect = document.querySelector('.forms-parent select');
   const selectedTemplate = templateSelect.value;
-  const ul = document.querySelector('.activity-ul');
+  const ul = document.querySelector('.activity-list');
 
-  while (ul.firstChild) {
-    ul.firstChild.remove();
-  }
+  removeAllChildren(ul);
 
-  console.log('Selected', selectedTemplate);
-
-  // activity-container
-  const activityContainer = document.querySelector('.activity-container div');
-
-  if (activityContainer) {
-    activityContainer.remove();
-  }
+  // activity-form
+  removeAllChildren(document.querySelector('.activity-form'));
 
   const url = `/json?office=${document.body.dataset.office}`
     + `&template=${selectedTemplate}`;
@@ -1270,7 +822,7 @@ function searchUpdateTemplateSelectOnChange() {
         .keys(response)
         .forEach(function (key) {
           const doc = response[key];
-          const li = getSearchActivityListItem(doc);
+          const li = getActivityListItem(doc);
 
           ul.appendChild(li);
         });
@@ -1280,10 +832,25 @@ function searchUpdateTemplateSelectOnChange() {
 
 function searchAndUpdate() {
   setActionTitle('Search & Update');
+  hideActionsSection();
+  const container = document.querySelector('.forms-parent');
 
-  const container = document.querySelector('.search-update');
-  container.classList.remove('hidden');
-  const templateSelect = container.querySelector('.templates-list');
+  container.classList += ' pad';
+
+  const listOfTemplates = document.createElement('select');
+  const activityDiv = document.createElement('div');
+
+  activityDiv.className += ' activity-parent';
+
+  const listOfActivities = document.createElement('ul');
+  const singleActivity = document.createElement('div');
+
+  listOfActivities.classList += ' activity-list';
+  singleActivity.classList.add('single-activity');
+  listOfTemplates.className += ' input-field w-100';
+
+  activityDiv.append(listOfActivities, singleActivity);
+  container.append(listOfTemplates, activityDiv);
 
   sendApiRequest('/json?action=get-template-names')
     .then(function (response) {
@@ -1295,10 +862,10 @@ function searchAndUpdate() {
         option.value = name;
         option.textContent = name;
 
-        templateSelect.appendChild(option);
+        listOfTemplates.appendChild(option);
       });
 
-      templateSelect.onchange = searchUpdateTemplateSelectOnChange;
+      listOfTemplates.onchange = searchUpdateTemplateSelectOnChange;
     })
     .catch(console.error);
 }
@@ -1318,34 +885,14 @@ function joinFormSelfPhoneOnInput(evt) {
   startOfficeJoinFlow();
 }
 
-window.onload = function () {
-  const phoneField = document.querySelector('#phone');
-
-  if (phoneField) {
-    phoneField.onfocus = function () {
-      const altContact = document.querySelector('#alt-contact');
-      phoneField.style.height = '58px';
-      phoneField.classList.add('mw-100');
-      altContact.style.height = '58px';
-      altContact.classList.add('mw-100');
-
-      window.intlTelInput(phoneField, intlTelInputOptions);
-      // window.intlTelInput(altContact, intlTelInputOptions);
-
-      // Required, otherwise this initialization will try to run everytime
-      // the user tries to type something in the field
-      phoneField.onfocus = null;
-      phoneField.oninput = joinFormSelfPhoneOnInput;
-    }
-  }
-};
-
 function populateTemplateSelect(selectElement) {
   return sendApiRequest(`/json?action=get-template-names`)
     .then(function (response) {
       return response.json();
     })
     .then(function (response) {
+      selectElement.firstElementChild.remove();
+
       response.forEach(function (name) {
         const option = document.createElement('option');
         option.value = name;
@@ -1355,6 +902,8 @@ function populateTemplateSelect(selectElement) {
       });
 
       selectElement.onchange = function () {
+        removeAllChildren(document.querySelector('.bc-results-list'));
+
         document
           .querySelector('.bc-file-drag')
           .classList
@@ -1364,6 +913,24 @@ function populateTemplateSelect(selectElement) {
       }
     })
     .catch(console.error);
+}
+
+function getBulkCreateResultLi(item) {
+  const container = document.createElement('li');
+  container.classList.add('success', 'flexed-column');
+  const firstRow = document.createElement('span');
+  const secondRow = document.createElement('span');
+  firstRow.textContent = item.Name || item.Admin || item.Subscriber;
+  secondRow.textContent = item.reason || '';
+
+  container.append(firstRow, secondRow);
+
+  if (item.rejected) {
+    container.classList.remove('success');
+    container.classList.add('failure', 'raised');
+  }
+
+  return container;
 }
 
 function populateBulkCreationResult(response) {
@@ -1376,37 +943,20 @@ function populateBulkCreationResult(response) {
 
   const ul = document.querySelector('.bc-results-list');
 
-  function getLi(item) {
-    const container = document.createElement('li');
-    container.classList.add('success', 'flexed-column');
-    const firstRow = document.createElement('span');
-    const secondRow = document.createElement('span');
-    firstRow.textContent = item.Name || item.Admin || item.Subscriber;
-    secondRow.textContent = item.reason || '';
-
-    container.append(firstRow, secondRow);
-
-    if (item.rejected) {
-      container.classList.remove('success');
-      container.classList.add('failure', 'raised');
-    }
-
-    return container;
-  }
-
   response.data.forEach(function (item) {
-    const li = getLi(item);
+    const li = getBulkCreateResultLi(item);
 
     ul.appendChild(li);
   });
 };
+
 
 function sendBulkCreateJson(jsonData) {
   console.log('jsonData:', jsonData);
 
   let requestUrl = `${apiBaseUrl}/admin/bulk`;
 
-  if (document.body.dataset.issupport) {
+  if (isSupport()) {
     requestUrl += `?support=true`;
   }
 
@@ -1432,9 +982,7 @@ function sendBulkCreateJson(jsonData) {
     .catch(console.error);
 };
 
-function handleXlSXFile(element) {
-  console.log('El', element);
-
+function handleExcelOrCsvFile(element) {
   const file = element.target.files[0];
   const fReader = new FileReader();
 
@@ -1469,18 +1017,185 @@ function bulkCreate() {
 
       const fileDragInput = bcContainer.querySelector('input[type="file"]');
 
-      fileDragInput.onchange = handleXlSXFile;
+      fileDragInput.onchange = handleExcelOrCsvFile;
     });
+}
+
+function recipientAssigneeUpdateOnClick(evt) {
+  const parent = evt.target.parentElement.parentElement;
+
+  const allPhoneNumberElements = parent
+    .querySelectorAll('p[data-phone-number="true"]');
+
+  const toRemove = [];
+  const allPhoneNumbers = new Set();
+
+  allPhoneNumberElements.forEach(function (element) {
+    if (element.classList.contains('striked')) {
+      toRemove.push(element.textContent);
+    }
+
+    allPhoneNumbers.add(element)
+  });
+
+  const telInputs = parent.querySelectorAll('input[type="tel"]');
+
+  const toAdd = [];
+  telInputs.forEach(function (elem) {
+    if (!isValidPhoneNumber(elem.value)) return;
+
+    toAdd.push(elem.value);
+  });
+
+  console.log('toAdd', toAdd);
+  console.log('toRemove', toRemove);
+}
+
+function addNewAssignee(evt) {
+  const parent = evt.target.parentElement;
+  const ul = parent.querySelector('ul');
+  const input = document.createElement('input');
+  input.classList.add('input-field', 'w-100');
+
+  insertAfterNode(ul, input);
+
+  initializeTelInput(input);
+
+  const buttonContainer = parent
+    .querySelector('input[type="button"]')
+    .parentElement;
+
+  console.log('parent', parent);
+
+  buttonContainer.classList.remove('hidden');
+}
+
+function getRecipientActivityContainer(doc) {
+  const container = document.createElement('div');
+  const heading = document.createElement('h5');
+  heading.className = 'ttuc bold mb-16 bb';
+  heading.textContent = doc.attachment.Name.value;
+  const list = document.createElement('ul');
+
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'tac';
+  const button = document.createElement('input');
+  button.type = 'button';
+  button.classList.add('button', 'mt-16');
+  button.value = 'Submit';
+
+  button.onclick = recipientAssigneeUpdateOnClick;
+  buttonContainer.classList.add('hidden');
+
+  buttonContainer.appendChild(button);
+
+  doc.assignees.forEach(function (phoneNumber) {
+    const li = document.createElement('li');
+    li.className = 'flexed';
+    const p = document.createElement('p');
+    p.classList.add('cur-ptr');
+    p.textContent = phoneNumber;
+    p.dataset.phoneNumber = true;
+    const icon = document.createElement('i');
+    icon.className = 'far fa-times-circle col-gray';
+    icon.style.lineHeight = 'inherit';
+    icon.style.marginLeft = '8px';
+
+    li.append(p, icon);
+
+    li.onclick = function () {
+      p.classList.toggle('striked');
+
+      if (buttonContainer.classList.contains('hidden')) {
+        buttonContainer.classList.remove('hidden');
+      }
+    }
+
+    list.appendChild(li);
+  });
+
+  const addPhoneNumberIcon = document.createElement('i');
+  addPhoneNumberIcon.className = 'fas fa-plus ft-size-20';
+
+  const addMore = document.createElement('div');
+  addMore.classList.add('pad', 'tac', 'border', 'cur-ptr');
+  addMore.append(addPhoneNumberIcon);
+
+  addMore.onclick = addNewAssignee;
+
+  const p = document.createElement('p');
+  p.classList.add('col-green', 'ttuc', 'tac');
+
+  container.append(p, heading, list, addMore, buttonContainer);
+
+  container.className += ' raised pad mb-16';
+
+  return container;
+};
+
+function handleRecipientSelectOnChange(evt) {
+  const requestUrl = `/json?`
+    + `action=${document.body.dataset.office}`
+    + `&template=${evt.target.value}`;
+
+  sendApiRequest(requestUrl)
+    .then(function (response) { return response.json() })
+    .then(function (response) {
+      console.log('Response', response);
+    })
+    .catch(console.error);
 }
 
 function updateEmailInReports() {
   console.log('Update Email in reports clicked');
   setActionTitle('Update Report Emails');
+  hideActionsSection();
+
+  const container = document.createElement('div');
+  container.className = 'pad';
+  const heading = document.createElement('h5');
+  heading.className = 'ft-size-20 ttuc tac bold mb-16';
+  heading.textContent = 'Update Report Recipients';
+  const div = document.createElement('div');
+
+  div.classList.add('grid-container-1', 'gg-5');
+
+  // div.
+
+  container.append(heading, div);
+
+  document
+    .querySelector('.forms-parent')
+    .appendChild(container);
+
+  const requestUrl = `/json?template=recipient`
+    + `&office=${document.body.dataset.office}`;
+
+  console.log('RequestSent', requestUrl);
+
+  sendApiRequest(requestUrl)
+    .then(function (response) { return response.json() })
+    .then(function (response) {
+      console.log('Response', response);
+
+      Object
+        .keys(response)
+        .forEach(function (activityId) {
+          const doc = response[activityId];
+
+          div.appendChild(getRecipientActivityContainer(doc));
+        });
+    })
+    .catch(console.error);
 }
 
-window.addEventListener('DOMContentLoaded', function () {
+function onDomContentLoaded() {
   if (sessionStorage.getItem('office')) {
     document.body.dataset.office = sessionStorage.getItem('office');
+  }
+
+  if (isTemplateManager()) {
+    document.querySelector('#actions-section').classList.remove('hidden');
   }
 
   const cachedList = sessionStorage.getItem('officeNamesList');
@@ -1492,9 +1207,386 @@ window.addEventListener('DOMContentLoaded', function () {
   if (cachedList && officeSelect) {
     fetchOfficeList();
   }
-});
+}
 
-window.onload = function () {
+function updateAuth() {
+  setActionTitle('Verify Email Addresses');
+  hideActionsSection();
+
+  const container = document.querySelector('.forms-parent');
+  const form = document.createElement('form');
+  form.autocomplete = 'off';
+
+  form.classList.add('pad', 'flexed-column', 'update-auth-form', 'raised', 'mt-16');
+
+  const phoneNumberLabel = document.createElement('label');
+  phoneNumberLabel.textContent = 'Phone Number';
+
+  const phoneInput = document.createElement('input');
+  phoneInput.classList.add('input-field');
+  phoneInput.type = 'tel';
+
+  const nameLabel = document.createElement('label');
+  nameLabel.textContent = 'Name';
+
+  const nameInput = document.createElement('input');
+  nameInput.classList.add('input-field');
+  nameInput.placeholder = 'John Doe';
+  nameInput.dataset.displayName = true;
+
+  const emailLabel = document.createElement('label');
+  emailLabel.textContent = 'Email';
+
+  const emailInput = document.createElement('input');
+  emailInput.type = 'email';
+  emailInput.placeholder = 'you@growthfile.com';
+  emailInput.classList.add('input-field');
+
+  const submitInput = document.createElement('input');
+  submitInput.type = 'button';
+  submitInput.value = 'Submit';
+  submitInput.classList.add('button');
+  submitInput.classList.add('mt-16');
+
+  submitInput.onclick = handleUpdateAuthRequest;
+
+  const messageP = document.createElement('p');
+  messageP.classList.add('bold', 'ttuc', 'hidden', 'tac');
+
+  form.append(
+    messageP,
+    phoneNumberLabel,
+    phoneInput,
+    nameLabel,
+    nameInput,
+    emailLabel,
+    emailInput,
+    submitInput
+  );
+
+  container.appendChild(form);
+
+  initializeTelInput(phoneInput);
+}
+
+function recipientSubmitOnClick() {
+  const form = document.querySelector('.forms-parent');
+  const startTime = new Date(
+    form.querySelector('input[type="date"]').value
+  )
+    .getTime();
+  const triggerResult = form.querySelector('p');
+
+  triggerResult.textContent = '';
+
+  const requestBody = {
+    startTime,
+    office: document.body.dataset.office,
+    report: form.querySelector('select').value,
+    endTime: startTime,
+  };
+
+  console.log('Request sent', requestBody);
+
+  sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, requestBody,
+    'POST'
+  )
+    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      console.log('Response', response);
+
+      if (!response.success) {
+        triggerResult.classList.add('warning-label');
+      }
+
+      triggerResult.textContent = response.message
+        || 'Report triggered successfully';
+
+    })
+    .catch(console.error);
+}
+
+function triggerReports() {
+  setActionTitle('Trigger Reports');
+  hideActionsSection();
+
+  const container = document.createElement('div');
+  container.className += ' trigger-reports pad';
+  const select = document.createElement('select');
+  select.className += ' input-field';
+
+  const p = document.createElement('p');
+  p.className += ' hidden col-green';
+  const dateInput = document.createElement('input');
+  dateInput.type = 'date';
+  dateInput.valueAsDate = new Date();
+  dateInput.className += ' input-field';
+
+  const submit = document.querySelector('input');
+  submit.type = 'button';
+  submit.value = 'Submit';
+  // submit.classList.add('button');
+  submit.className += ' button mt-16';
+  submit.style.marginLeft = 'auto';
+  submit.style.marginRight = 'auto';
+
+  const form = document.createElement('form');
+
+  form.className += 'pad raised flexed-column';
+
+  const head = document.createElement('div');
+  const h5 = document.createElement('h5');
+  h5.classList += ' ttuc bold';
+  h5.textContent = 'Trigger Reports';
+  const description = document.createElement('p');
+  description.textContent = 'Select a date to get reports to your email';
+  description.className += ` col-gray`;
+
+  head.append(h5, description);
+
+  head.classList.add('tac');
+  form.append(select, dateInput, submit);
+  container.append(head, form);
+  document
+    .querySelector('.forms-parent')
+    .append(container);
+
+  const requestUrl = `/json?template=recipient`
+    + `&office=${document.body.dataset.office}`;
+
+  sendApiRequest(requestUrl, null, 'GET')
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      console.log('response', response);
+
+      Object
+        .keys(response)
+        .forEach(function (activityId) {
+          const item = response[activityId];
+          const option = document.createElement('option')
+          option.value = item.attachment.Name.value;
+          option.textContent = item.attachment.Name.value;
+          select.appendChild(option);
+        });
+
+      submit.onclick = recipientSubmitOnClick;
+    })
+    .catch(console.error);
+}
+
+function changePhoneNumber() {
+  setActionTitle('Change Phone Number');
+  hideActionsSection();
+
+  const container = document.createElement('div');
+  container.className += ' pad';
+  const headingContainer = document.createElement('div');
+  const h5 = document.createElement('h5');
+
+  h5.textContent = `Update an employee's phone number`;
+  h5.className += ' tac bold ttuc ft-size-20 mb-16';
+
+  headingContainer.append(h5);
+
+  const form = document.createElement('form');
+
+  form.className = 'raised pad flexed-column pnc-form';
+
+  const p = document.createElement('p');
+  const oldLabel = document.createElement('label');
+  oldLabel.textContent = 'Old Phone Number';
+  const newLabel = document.createElement('label');
+  newLabel.textContent = 'New Phone Number';
+  const oldInput = document.createElement('input');
+  oldInput.type = 'tel';
+  oldInput.dataset.oldPhoneNumber = true;
+  oldInput.className += ' input-field';
+
+  const newInput = document.createElement('input');
+  newInput.type = 'tel';
+  newInput.dataset.newPhoneNumber = true;
+  newInput.className += ' input-field';
+
+  const submit = document.createElement('input');
+  submit.type = 'button';
+  submit.value = 'Submit';
+  submit.className += 'button';
+  submit.style.marginLeft = 'auto';
+  submit.style.marginRight = 'auto';
+
+  submit.onclick = handlePhoneNumberChange;
+
+  form.append(
+    p,
+    oldLabel,
+    oldInput,
+    newLabel,
+    newInput,
+    submit
+  );
+
+  container.append(headingContainer, form);
+
+  document
+    .querySelector('.forms-parent')
+    .append(container);
+
+  initializeTelInput(oldInput);
+  initializeTelInput(newInput);
+};
+
+
+function sendUpdateTemplateRequest(newText) {
+  sendApiRequest('/json?action=update-template', JSON.parse(newText), 'POST')
+    .then(function (response) { return response.json() })
+    .then(function (response) {
+      console.log('Response', response);
+      response.success = true;
+      if (response.success) {
+        const button = document.querySelector('#template-update-button');
+        button.value = 'Close';
+
+        button.onclick = function () {
+          closeModal();
+        }
+      }
+
+      createSnackbar(response.message || 'Update Successful', 'Dismiss');
+    })
+    .catch(console.error);
+};
+
+function viewTemplateButtonOnClick(evt) {
+  const button = evt.target;
+  const li = evt.target.parentElement.parentElement;
+  console.log('View:', li);
+
+  const viewTemplateContainer = document.createElement('div');
+  viewTemplateContainer.className += ' pad';
+
+  const template = JSON.parse(sessionStorage.getItem('cachedTemplates'))[button.dataset.templateId];
+  const templateText = JSON.stringify(template, ' ', 4);
+
+  const editorDiv = document.createElement('div');
+  const pre = document.createElement('pre');
+  pre.textContent = templateText;
+  editorDiv.className += ' pad';
+  editorDiv.append(pre);
+
+  editorDiv.onclick = function () {
+    editorDiv.setAttribute('contenteditable', true);
+    editorDiv.style.backgroundColor = '#f7f7f7';
+
+    const modalContent = document.querySelector('.modal-content');
+
+    if (modalContent.dataset.edited) {
+      return;
+    }
+
+    const buttonContainer = document.createElement('div');
+    const button = document.createElement('input');
+    button.id = 'template-update-button';
+
+    button.type = 'button';
+    button.value = 'Update';
+    button.className += ' button secondary';
+    buttonContainer.append(button);
+    buttonContainer.className += ' bt tar pad-10';
+    modalContent.dataset.edited = true;
+    modalContent.append(buttonContainer);
+
+    button.onclick = function () {
+      const newText = pre.textContent.trim();
+
+      if (!isValidJSON(newText)) {
+        console.log('INVALID JSON');
+
+        return;
+      }
+
+      const oldText = templateText.trim();
+      const isEdited = newText !== oldText;
+
+      if (!isEdited) {
+        createSnackbar('Nothing to update.', 'OK');
+
+        return;
+      }
+
+      sendUpdateTemplateRequest(newText);
+    };
+  }
+
+  const modal = getModal({
+    title: `View ${template.name}`,
+    modalBodyElement: editorDiv,
+  });
+
+  document.body.appendChild(modal);
+};
+
+function manageTemplates() {
+  setActionTitle('Manage Templates');
+  hideActionsSection();
+
+  const container = document.createElement('div');
+  container.classList.add('pad');
+  const headingContainer = document.createElement('div');
+  headingContainer.className += ' tac';
+  const h5 = document.createElement('h5');
+  h5.className += ' ttuc bold ft-size-20';
+  h5.textContent = 'Templates';
+  headingContainer.append(h5);
+  const ul = document.createElement('ul');
+  ul.className += ' template-list';
+
+  sendApiRequest('/json?action=view-templates')
+    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      console.log('View Templates', response);
+
+      sessionStorage.setItem('cachedTemplates', JSON.stringify(response));
+
+      Object
+        .keys(response)
+        .forEach(function (templateId) {
+          const templateDoc = response[templateId];
+          const li = document.createElement('li');
+          li.className += ' raised flexed-column';
+          const name = document.createElement('span');
+          name.textContent = templateDoc.name;
+          name.className += 'col-white bg-magenta bold';
+          const description = document.createElement('span');
+          description.textContent = templateDoc.comment;
+          description.className += ' pad-10';
+          const buttonsContainer = document.createElement('div');
+          buttonsContainer.className += ' ml-16';
+
+          const viewButton = document.createElement('input');
+          viewButton.className += ' button';
+          viewButton.type = 'button';
+          viewButton.value = 'View';
+          viewButton.dataset.templateId = templateId;
+          viewButton.onclick = viewTemplateButtonOnClick;
+          buttonsContainer.append(viewButton);
+
+          li.append(name, description, buttonsContainer);
+          ul.append(li);
+        });
+
+      container
+        .append(headingContainer, ul);
+
+      document
+        .querySelector('.forms-parent')
+        .append(container);
+    })
+    .catch(console.error);
+}
+
+function windowOnLoad() {
   const officeSelect = document.querySelector('#all-office-form');
   const cachedList = sessionStorage.getItem('officeNamesList');
 
@@ -1502,10 +1594,31 @@ window.onload = function () {
   if (officeSelect && !cachedList) {
     fetchOfficeList();
   }
+
+  const phoneField = document.querySelector('#phone');
+
+  if (phoneField) {
+    phoneField.onfocus = function () {
+      initializeTelInput(phoneField);
+
+      // Required, otherwise this initialization will try to run everytime
+      // the user tries to type something in the field
+      phoneField.onfocus = null;
+      phoneField.oninput = joinFormSelfPhoneOnInput;
+    }
+  }
 }
 
-window.onbeforeunload = function () {
+function windowOnBeforeUnload() {
   if (document.body.dataset.office) {
     sessionStorage.setItem('office', document.body.dataset.office);
   }
 }
+
+// window.onload = windowOnLoad;
+window
+  .onbeforeunload = windowOnBeforeUnload;
+window
+  .addEventListener('load', windowOnLoad);
+window
+  .addEventListener('DOMContentLoaded', onDomContentLoaded);
