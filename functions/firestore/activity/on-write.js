@@ -202,9 +202,14 @@ const getPronoun = (locals, recipient) => {
   return pronoun;
 };
 
-const getCreateActionComment = (template, pronoun) => {
+const getCreateActionComment = (template, pronoun, locationFromVenue) => {
   const templateNameFirstCharacter = template[0];
   const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
+
+  if (template === 'check-in'
+    && locationFromVenue) {
+    return `${pronoun} checked in from ${locationFromVenue}`;
+  }
 
   return `${pronoun} created ${article} ${template}`;
 };
@@ -241,7 +246,17 @@ const getCommentString = (locals, recipient) => {
       return `${creatorName} assigned you a duty "${activityName}"`;
     }
 
-    return getCreateActionComment(template, pronoun);
+    const locationFromVenue = (() => {
+      if (template !== 'check-in') return null;
+
+      if (locals.addendumDoc.get('venueQuery')) {
+        return locals.addendumDoc.get('venueQuery').location;
+      }
+
+      return locals.addendumDoc.get('activityData.venue')[0].location;
+    })();
+
+    return getCreateActionComment(template, pronoun, locationFromVenue);
   }
 
   if (action === httpsActions.changeStatus) {
@@ -1303,7 +1318,7 @@ const setLocationsReadEvent = locals => {
 
 const handleLocations = locals => {
   const template = locals.change.after.get('template');
-  const templatesSet = new Set(['branch', 'customer', 'office']);
+  const templatesSet = new Set(['branch', 'customer']);
 
   if (!templatesSet.has(template)) {
     return Promise.resolve();
@@ -1342,19 +1357,20 @@ const handleLocations = locals => {
   if (!venue[0]) return;
   if (!venue[0].location) return;
 
-  const oldVenue = locals.change.before.get('venue') || [];
+  const oldVenue = locals.change.before.get('venue');
   const newVenue = locals.change.after.get('venue');
 
-  const updateVenueDescriptors = getUpdatedVenueDescriptors(oldVenue, newVenue);
+  if (oldVenue && newVenue) {
+    const updateVenueDescriptors = getUpdatedVenueDescriptors(newVenue, oldVenue);
 
-  console.log({ updateVenueDescriptors });
-
-  if (!updateVenueDescriptors.length) {
-    return Promise.resolve();
+    if (!updateVenueDescriptors.length) {
+      return Promise.resolve();
+    }
   }
 
   const data = {
     officeId,
+    activityId: locals.change.after.id,
     timestamp: Date.now(),
     office: locals.change.after.get('office'),
     latitude: venue[0].geopoint.latitude,
