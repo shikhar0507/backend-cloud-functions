@@ -72,7 +72,9 @@ module.exports = (conn) => {
         batch.set(ref, {
           timestamp: momentToday.valueOf(),
           [eventContext.email]: {
-            [eventContext.event]: eventContext,
+            [eventContext.event]: {
+              [eventContext.reportName]: eventContext,
+            }
           },
         }, {
             merge: true,
