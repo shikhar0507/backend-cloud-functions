@@ -43,10 +43,8 @@ const {
   forSalesReport,
   getCanEditValue,
   filterAttachment,
-  toCustomerObject,
   validateSchedules,
   isValidRequestBody,
-  // setOnLeaveAndOnDuty,
   setOnLeaveOrAr,
 } = require('./helper');
 const {
@@ -63,16 +61,6 @@ const momentTz = require('moment-timezone');
 const fs = require('fs');
 const url = require('url');
 const mozjpeg = require('mozjpeg');
-
-
-// const getAccuracyTolerance = (accuracy) => {
-//   if (accuracy && accuracy < 350) {
-//     return 500;
-//   }
-
-//   return 1000;
-// };
-
 
 const createDocsWithBatch = (conn, locals) => {
   locals.objects.allPhoneNumbers
@@ -170,56 +158,12 @@ const createDocsWithBatch = (conn, locals) => {
     provider: conn.req.body.geopoint.provider || null,
   };
 
-  // if (conn.req.body.template === 'check-in'
-  //   && conn.req.body.venue[0].geopoint.latitude
-  //   && conn.req.body.venue[0].geopoint.longitude) {
-  //   const geopointOne = {
-  //     _latitude: conn.req.body.geopoint.latitude,
-  //     _longitude: conn.req.body.geopoint.longitude,
-  //     accuracy: conn.req.body.geopoint.accuracy,
-  //   };
-
-  //   const geopointTwo = {
-  //     _latitude: conn.req.body.venue[0].geopoint.latitude,
-  //     _longitude: conn.req.body.venue[0].geopoint.longitude,
-  //   };
-
-  //   const distanceBetweenLocations = haversineDistance(
-  //     geopointOne,
-  //     geopointTwo
-  //   );
-
-  //   addendumDocObject
-  //     .distanceAccurate = distanceBetweenLocations < getAccuracyTolerance(
-  //       geopointOne.accuracy
-  //     );
-  // }
-
   if (locals.cancellationMessage) {
     addendumDocObject.cancellationMessage = locals.cancellationMessage;
   }
 
   locals.batch.set(addendumDocRef, addendumDocObject);
   locals.batch.set(locals.docs.activityRef, activityData);
-
-  if (conn.req.body.template === 'customer') {
-    const customersData = locals.officeDoc.get('customersData') || {};
-
-    customersData[conn.req.body.attachment.Name.value] = toCustomerObject(
-      conn.req.body,
-      Date.now()
-    );
-
-    locals
-      .batch
-      .set(rootCollections
-        .offices
-        .doc(locals.static.officeId), {
-          customersData,
-        }, {
-          merge: true,
-        });
-  }
 
   /** ENDS the response. */
   return locals

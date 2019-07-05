@@ -1190,6 +1190,8 @@ const toCustomerObject = (docData, createTime) => {
     customerOffice.identifier = venue.address;
   }
 
+
+
   const customerObject = {
     customerOffice,
     createTime,
@@ -1197,7 +1199,6 @@ const toCustomerObject = (docData, createTime) => {
     firstContact: attachment['First Contact'].value,
     secondContact: attachment['Second Contact'].value,
     customerType: attachment['Customer Type'].value,
-    customerEmailId: attachment['Customer E-mail Id'].value,
     customerCode: attachment['Customer Code'].value,
     dailyStartTime: attachment['Daily Start Time'].value,
     dailyEndTime: attachment['Daily End Time'].value,
