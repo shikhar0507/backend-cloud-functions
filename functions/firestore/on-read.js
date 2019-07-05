@@ -176,6 +176,8 @@ module.exports = conn => {
     return sendResponse(conn, code.badRequest, result.message);
   }
 
+  const employeeOf = conn.requester.employeeOf || {};
+  const officeList = Object.keys(conn.requester.employeeOf);
   const from = parseInt(conn.req.query.from);
   const jsonObject = {
     from,
@@ -184,6 +186,10 @@ module.exports = conn => {
     activities: [],
     templates: [],
     locations: [],
+    statusObject: conn
+      .requester
+      .profileDoc
+      .get('statusObject') || {},
   };
 
   const promises = [
@@ -214,8 +220,6 @@ module.exports = conn => {
 
   if (sendLocations) {
     const locationPromises = [];
-    const employeeOf = conn.requester.employeeOf;
-    const officeList = Object.keys(conn.requester.employeeOf);
 
     officeList.forEach(name => {
       const officeId = employeeOf[name];
@@ -296,6 +300,14 @@ module.exports = conn => {
           /** Profile has other stuff too. */
           merge: true,
         });
+
+      if (conn.requester.profileDoc.get('statusObject')) {
+        batch.set(conn.requester.profileDoc.ref, {
+          statusObject: require('firebase-admin').firestore.FieldValue.delete(),
+        }, {
+            merge: true,
+          });
+      }
 
       return batch.commit();
     })
