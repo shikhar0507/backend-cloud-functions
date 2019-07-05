@@ -95,12 +95,18 @@ const getUser = functions
   .https
   .onRequest(require('./get-user'));
 
+const monthlyOnWrite = functions
+  .firestore
+  .document('Offices/{officeId}/Monthly/{docId}')
+  .onWrite(require('./firestore/monthly'));
+
 module.exports = {
   api,
   timer,
   webapp,
   getUser,
   authOnCreate,
+  monthlyOnWrite,
   profileOnWrite,
   instantOnCreate,
   activityOnWrite,
