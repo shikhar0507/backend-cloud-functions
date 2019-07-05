@@ -17,11 +17,9 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
-  sendSMS,
   getRegistrationToken,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
-const admin = require('firebase-admin');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 
@@ -97,141 +95,6 @@ const getComment = (doc) => {
   return doc.get('comment');
 };
 
-const handleNotifications = (locals) => {
-  if (!locals.sendNotifications) {
-    return Promise.resolve();
-  }
-
-  const yesterdaysDate = locals.momentYesterday.date();
-  const promises = [];
-  const body = `You were inactive on`
-    + ` ${locals.momentYesterday.format(dateFormats.DATE)}`
-    + ` Please mark On Duty or a Leave`;
-  const startTime = momentTz().startOf('day').valueOf();
-  const officeName = locals.officeDoc.get('office');
-  const employeesData = locals.employeesData;
-  const payrollObject = {
-    data: [{
-      office: officeName,
-      template: 'leave',
-      schedule: [{
-        name: 'Leave Dates',
-        startTime,
-        endTime: startTime,
-      }],
-      attachment: {
-        'Number Of Days': {
-          value: 1,
-          type: 'number',
-        },
-      },
-    }, {
-      office: officeName,
-      template: 'on duty',
-      schedule: [{
-        name: 'Duty Date',
-        startTime,
-        endTime: startTime,
-      }],
-    }],
-    title: 'Alert',
-    body,
-  };
-
-  locals
-    .regTokenMap
-    .forEach((token, phoneNumber) => {
-      const statusObject = locals.statusObjectMap.get(phoneNumber);
-
-      // if (statusObject[yesterdaysDate].onDuty
-      if (statusObject[yesterdaysDate].onAr
-        || statusObject[yesterdaysDate].onLeave
-        || statusObject[yesterdaysDate].holiday
-        || statusObject[yesterdaysDate].weeklyOff
-        || statusObject[yesterdaysDate].firstAction
-        || statusObject[yesterdaysDate].lastAction
-        /** Should be an employee. Non-employees should not get notifications */
-        || !employeesData[phoneNumber]
-        /**
-         * Tokens are not set for people who have done something during the day
-         * OR they have not installed the app
-         * OR they have not used the app for quite a while (i.e., they last used the app
-         * before we implemented notifications)
-         */
-        || !token) {
-        return;
-      }
-
-      const promise = admin
-        .messaging()
-        .sendToDevice(token, {
-          data: {
-            payroll: JSON.stringify(payrollObject),
-          },
-          notification: {
-            body,
-            title: 'Growthfile',
-          },
-        });
-
-      promises.push(promise);
-    });
-
-  return Promise.all(promises);
-};
-
-const getSMSText = (numberOfDays = 1) => {
-  if (numberOfDays === 1) {
-    return `You did not mark your attendance yesterday. Join now`
-      + ` to avoid loss of pay ${env.downloadUrl}`;
-  }
-
-  return `You have not marked your attendance for ${numberOfDays}`
-    + ` days. Join now to avoid loss of pay ${env.downloadUrl}`;
-};
-
-const getNumberOfDays = (statusObject, yesterdaysDate) => {
-  let result = 0;
-
-  for (let date = 1; date <= yesterdaysDate; date++) {
-    if (!statusObject[date] || !statusObject[date].notInstalled) {
-      continue;
-    }
-
-    result++;
-  }
-
-  return result;
-};
-
-const handleSms = (locals) => {
-  if (!locals.sendSMS) {
-    return Promise.resolve();
-  }
-
-  const promises = [];
-  const yesterdaysDate = locals.momentYesterday.date();
-  const employeesData = locals.employeesData;
-
-  locals
-    .notInstalledSet
-    .forEach((phoneNumber) => {
-      /** Only employees receive sms */
-      if (!employeesData[phoneNumber]) {
-        return;
-      }
-
-      const statusObject = locals.statusObjectMap.get(phoneNumber);
-      const numberOfDays = getNumberOfDays(statusObject, yesterdaysDate);
-      const smsText = getSMSText(numberOfDays);
-      const promise = sendSMS(phoneNumber, smsText);
-
-      promises.push(promise);
-    });
-
-  return Promise.all(promises);
-};
-
 const getTopHeaders = (momentYesterday) => {
   const result = [
     'Employee Name',
@@ -264,19 +127,6 @@ const getMonthlyDocRef = (phoneNumber, monthlyDocRef) =>
 
 const getStatusObject = (statusObjectMap, phoneNumber) =>
   statusObjectMap.get(phoneNumber) || {};
-
-const commitMultipleBatches = batchesArray => {
-  let result = Promise.resolve();
-
-  batchesArray.forEach((batch, index) => {
-    result = batch
-      .commit()
-      .then(() => console.log(`Commited: ${index}`))
-      .catch((error) => console.error('BatchError:', error));
-  });
-
-  return result;
-};
 
 const handleSheetTwo = locals => {
   const mtdSheet = locals.worksheet.addSheet('Footprints MTD');
@@ -483,16 +333,15 @@ const handleSheetTwo = locals => {
           });
       });
 
-      return commitMultipleBatches(batchesArray);
-      // return Promise
-      //   .all(batchesArray.map(batch => batch.commit()));
+      return Promise
+        .all(batchesArray.map(batch => batch.commit()));
     })
     .then(() => {
       locals
         .employeePhoneNumbersArray
         .forEach((phoneNumber, outerIndex) => {
-          const columnIndex = outerIndex + 2;
           let ALPHABET_INDEX_START = 5;
+          const columnIndex = outerIndex + 2;
           const employeeObject = employeeInfo(employeesData, phoneNumber);
           const liveSince = timeStringWithOffset({
             timezone,
@@ -537,7 +386,7 @@ const handleSheetTwo = locals => {
                 }
 
                 if (locals.onArSet.has(phoneNumber)) {
-                  return 'ON DUTY';
+                  return 'ON AR';
                 }
 
                 if (locals.holidaySet.has(phoneNumber)) {
@@ -568,7 +417,7 @@ const handleSheetTwo = locals => {
               }
 
               if (statusObject[date].onAr) {
-                return 'ON DUTY';
+                return 'ON AR';
               }
 
               if (statusObject[date].holiday) {
@@ -604,7 +453,7 @@ const handleSheetTwo = locals => {
 };
 
 
-module.exports = (locals) => {
+module.exports = locals => {
   let lastIndex = 1;
   let worksheet;
   let footprintsSheet;
@@ -715,16 +564,19 @@ module.exports = (locals) => {
       const yesterdayStartTimestamp = momentYesterday.startOf('day').valueOf();
       const yesterdayEndTimestamp = momentYesterday.endOf('day').valueOf();
 
-      branchDocsQuery.forEach(branchDoc => {
-        branchDoc.get('schedule').forEach((schedule) => {
-          if (schedule.startTime >= yesterdayStartTimestamp
-            && schedule.endTime < yesterdayEndTimestamp) {
-            branchesWithHoliday.add(branchDoc.get('attachment.Name.value'));
-          }
+      branchDocsQuery
+        .forEach(branchDoc => {
+          branchDoc
+            .get('schedule')
+            .forEach((schedule) => {
+              if (schedule.startTime >= yesterdayStartTimestamp
+                && schedule.endTime < yesterdayEndTimestamp) {
+                branchesWithHoliday.add(branchDoc.get('attachment.Name.value'));
+              }
+            });
         });
-      });
 
-      employeePhoneNumbersArray.forEach((phoneNumber) => {
+      employeePhoneNumbersArray.forEach(phoneNumber => {
         regTokenFetchPromises.push(
           getRegistrationToken(phoneNumber)
         );
@@ -748,13 +600,14 @@ module.exports = (locals) => {
         }
       });
 
-      monthlyDocs.forEach((doc) => {
+      monthlyDocs.forEach(doc => {
         const { phoneNumber, statusObject } = doc.data();
 
         if (!statusObject[yesterdaysDate]) {
           statusObject[yesterdaysDate] = {
             firstAction: '',
             lastAction: '',
+            distanceTravelled: 0,
           };
         }
 
@@ -823,6 +676,7 @@ module.exports = (locals) => {
         const action = doc.get('action');
         const isSupportRequest = doc.get('isSupportRequest');
         const columnIndex = count + 2;
+        const phoneNumber = doc.get('user');
 
         /** Activities created by the app */
         if (isSupportRequest) {
@@ -834,8 +688,6 @@ module.exports = (locals) => {
         }
 
         count++;
-
-        const phoneNumber = doc.get('user');
 
         activeUsersSet.add(phoneNumber);
 
@@ -862,6 +714,11 @@ module.exports = (locals) => {
             return doc.get('url');
           }
 
+          if (doc.get('venueQuery')
+            && doc.get('venueQuery').geopoint) {
+            return toMapsUrl(doc.get('venueQuery').geopoint);
+          }
+
           return toMapsUrl(venue.geopoint);
         })();
         const identifier = (() => {
@@ -873,6 +730,11 @@ module.exports = (locals) => {
 
           if (!venue.location) {
             return doc.get('identifier');
+          }
+
+          if (doc.get('venueQuery')
+            && doc.get('venueQuery').location) {
+            return doc.get('venueQuery').location;
           }
 
           return venue.location;
@@ -943,7 +805,17 @@ module.exports = (locals) => {
         lastIndex = columnIndex;
       });
 
-      employeePhoneNumbersArray.forEach((phoneNumber) => {
+      employeePhoneNumbersArray.forEach(phoneNumber => {
+        const statusObject = getStatusObject(statusObjectMap, phoneNumber);
+
+        if (!statusObject[yesterdaysDate]) {
+          statusObject[yesterdaysDate] = {
+            firstAction: '',
+            lastAction: '',
+            distanceTravelled: distanceMap.get(phoneNumber) || 0,
+          };
+        }
+
         if (!monthlyDocRefsMap.has(phoneNumber)) {
           monthlyDocRefsMap
             .set(
@@ -968,7 +840,7 @@ module.exports = (locals) => {
           }
 
           if (onArSet.has(phoneNumber)) {
-            return 'ON DUTY';
+            return 'ON AR';
           }
 
           if (holidaySet.has(phoneNumber)) {
@@ -986,21 +858,12 @@ module.exports = (locals) => {
           return 'NOT ACTIVE';
         })();
 
-        const statusObject = getStatusObject(statusObjectMap, phoneNumber);
-
-        if (!statusObject[yesterdaysDate]) {
-          statusObject[yesterdaysDate] = {
-            firstAction: '',
-            lastAction: '',
-          };
-        }
-
         if (comment === 'LEAVE') {
           counterObject.onLeaveWeeklyOffHoliday++;
           onLeaveSet.add(phoneNumber);
         }
 
-        if (comment === 'ON DUTY') {
+        if (comment === 'ON AR') {
           counterObject.onLeaveWeeklyOffHoliday++;
           onArSet.add(phoneNumber);
         }
@@ -1136,22 +999,6 @@ module.exports = (locals) => {
         }, {
             merge: true,
           });
-    })
-    .then(() => {
-      if (!locals.sendMail) {
-        return Promise.resolve();
-      }
-
-      /** SMS and Notifications shouldn't be sent from non-production. */
-      if (!isDateToday || !env.isProduction) {
-        return Promise.resolve();
-      }
-
-      return Promise
-        .all([
-          handleNotifications(locals),
-          handleSms(locals),
-        ]);
     })
     .catch(console.error);
 };
