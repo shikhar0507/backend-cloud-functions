@@ -431,7 +431,8 @@ const filterAttachment = (options) => {
     }
 
     if (typeof value !== 'number'
-      && typeof value !== 'string') {
+      && typeof value !== 'string'
+      && typeof value !== 'boolean') {
       messageObject.isValid = false;
       messageObject.message = `${field} can only be a number or a string`;
       break;
@@ -462,7 +463,8 @@ const filterAttachment = (options) => {
       }
     }
 
-    if (field === 'Timezone' && !timezonesSet.has(value)) {
+    if (field === 'Timezone'
+      && !timezonesSet.has(value)) {
       messageObject.isValid = false;
       messageObject.message = `${value} is not a valid ${field}`;
       break;
@@ -490,7 +492,8 @@ const filterAttachment = (options) => {
         break;
       }
 
-      if (field === 'Subscriber' && !isE164PhoneNumber(value)) {
+      if (field === 'Subscriber'
+        && !isE164PhoneNumber(value)) {
         messageObject.isValid = false;
         messageObject.message = `${field} should be a valid phone number`;
         break;

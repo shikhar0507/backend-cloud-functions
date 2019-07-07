@@ -434,12 +434,13 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
 
   Promise
     .all(promises)
-    .then((snapShots) => {
+    .then(snapShots => {
       let successful = true;
       let message;
 
       for (const snapShot of snapShots) {
         const filters = snapShot.query._queryOptions.fieldFilters;
+        console.log('filters', filters);
         const argOne = filters[0].value;
         let argTwo;
 
@@ -447,7 +448,7 @@ const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
           + ` the attachment.`;
 
         if (locals.static.template !== 'subscription') {
-          argTwo = filters[1]._value;
+          argTwo = filters[1].value;
           message = `The ${argOne} ${argTwo} does not exist in`
             + ` the office: ${locals.static.office}.`;
         }
