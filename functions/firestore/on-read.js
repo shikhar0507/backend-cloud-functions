@@ -177,7 +177,7 @@ module.exports = conn => {
   }
 
   const employeeOf = conn.requester.employeeOf || {};
-  const officeList = Object.keys(conn.requester.employeeOf);
+  const officeList = Object.keys(employeeOf);
   const from = parseInt(conn.req.query.from);
   const jsonObject = {
     from,
@@ -186,11 +186,19 @@ module.exports = conn => {
     activities: [],
     templates: [],
     locations: [],
-    statusObject: conn
-      .requester
-      .profileDoc
-      .get('statusObject') || {},
+    statusObject: {},
   };
+
+  if (conn
+    .requester
+    .profileDoc
+    .get('statusObject')) {
+    jsonObject
+      .statusObject = conn
+        .requester
+        .profileDoc
+        .get('statusObject') || {};
+  }
 
   const promises = [
     rootCollections
@@ -216,7 +224,10 @@ module.exports = conn => {
   const sendLocations = conn
     .requester
     .profileDoc
-    .get('lastLocationMapUpdateTimestamp') > from;
+    && conn
+      .requester
+      .profileDoc
+      .get('lastLocationMapUpdateTimestamp') > from;
 
   if (sendLocations) {
     const locationPromises = [];
