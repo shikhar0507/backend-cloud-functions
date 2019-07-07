@@ -115,7 +115,6 @@ module.exports = change => {
   const locals = {
     change,
     sgMail,
-    // Used for exiting early in .then() clauses if init docs query is empty.
     sendMail: true,
     sendNotifications: true,
     sendSMS: true,
@@ -127,6 +126,7 @@ module.exports = change => {
       attachments: [],
       customArgs: {
         recipientId: change.after.id,
+        reportName: change.after.get('report'),
       },
       templateId: getTemplateId(report),
       from: {
