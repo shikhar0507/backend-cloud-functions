@@ -61,11 +61,30 @@ module.exports = (userRecord) => {
     .utc()
     .toObject();
 
+  // Remove this while running a seperate project
+  // or set the appropriate project env
+  // using `process.env.GCLOUD_PROJECT` in the env.js file.
   if (!env.isProduction) {
     return auth
       .updateUser(userRecord.uid, {
         disabled: true,
       });
+  }
+
+  /**
+   * Users with anonymous don't get a doc in Profiles/<phoneNumber>
+   * and Updates/<uid>
+   */
+  if (userRecord.isAnonymous) {
+    return rootCollections
+      .anonymous
+      .doc(userRecord.uid)
+      .set({
+        timestamp: Date.now(),
+      }, {
+          /** Probably isn't required. Not sure why I'm doing this */
+          merge: true,
+        });
   }
 
   return Promise
