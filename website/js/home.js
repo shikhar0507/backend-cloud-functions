@@ -11,6 +11,14 @@ function isValidJSON(json) {
   }
 }
 
+function getButtonElement(value, classes) {
+  const button = document.createElement('input');
+  button.type = 'button';
+  button.classList += ` ${classes}`;
+
+  return button;
+}
+
 function isSupport() {
   return JSON.parse(document.body.dataset.user || {}).isSupport;
 }
@@ -80,7 +88,7 @@ function setBreadcrumb(action) {
       .querySelector('.hero-actions')
       .classList
       .toggle('hidden');
-  }
+  };
 
   home.appendChild(homeA);
 
@@ -90,7 +98,7 @@ function setBreadcrumb(action) {
   a.href = '#';
 
   /** Do nothing since this path is open already for the user */
-  a.onclick = function (evt) { evt.preventDefault() };
+  a.onclick = function (evt) { evt.preventDefault(); };
   a.classList.add('bold');
   li.appendChild(a);
   ul.append(home);
@@ -98,11 +106,6 @@ function setBreadcrumb(action) {
   if (action) {
     ul.appendChild(li);
   }
-}
-
-function getUpdateAuthFormContainer() {
-  const container = document.createElement('div');
-  container.id = ''
 }
 
 function setActionTitle(text) {
@@ -199,7 +202,7 @@ function setTemplatesInTopSelect() {
       selectElement.onchange = handleTopSelectTemplateClick;
     })
     .catch(console.error);
-};
+}
 
 function startAdmin() {
   document.body.dataset.office = document.getElementById('office-selector').value;
@@ -308,10 +311,6 @@ function handleUpdateAuthRequest() {
     .catch(console.error);
 }
 
-function showTemplateJSON(event) {
-  console.log(event.target);
-}
-
 function handleTemplateCreate(elem) {
   elem.preventDefault();
 }
@@ -355,53 +354,10 @@ function submitNewTemplate() {
     .catch(console.error);
 }
 
-function createNewTemplate() {
-  const oldList = document.querySelector('#manage-templates-action ul');
-
-  if (oldList) oldList.remove();
-
-  const oldForm = document.querySelector('#manage-templates-action form');
-
-  if (oldForm) oldForm.remove();
-
-  const textarea = document.createElement('textarea');
-  textarea.id = 'template-content';
-  textarea.classList.add('input-field', 'mb-16');
-  textarea.style.minWidth = '90%';
-  textarea.rows = '20';
-
-  const button = document.createElement('button');
-  button.classList.add('mdc-button');
-  const buttonContent = document.createElement('span');
-  buttonContent.classList.add('mdc-button__label');
-  buttonContent.textContent = 'Submit';
-  button.appendChild(buttonContent);
-  button.onclick = submitNewTemplate;
-
-  const messageNode = getWarningNode();
-
-  messageNode.id = 'result';
-  messageNode.classList.add('hidden');
-
-  const form = document.createElement('form');
-  form.appendChild(textarea);
-  form.appendChild(messageNode)
-  form.appendChild(button);
-
-  form.onsubmit = handleTemplateCreate;
-
-  form.classList.add('pad', 'flexed-column', 'flexed-jc-center', 'flexed-ai-center');
-
-  document.querySelector('#manage-templates-action').appendChild(form);
-}
-
 function handleActivityEditOnClick(doc) {
-  const form = document.querySelector(`.activity-form`);
-
   const requestBody = Object.assign(doc, {
     timestamp: Date.now(),
     attachment: {},
-    // TODO: Handle venue ui and update
     venue: doc.venue,
     schedule: [],
   });
@@ -415,14 +371,22 @@ function handleActivityEditOnClick(doc) {
     const type = element.dataset.type;
     let value = element.value;
 
-    // Remove spaces between characters that some people use
-    // while writing phone numbers
-    if (type === 'phoneNumber') {
+    if (type === 'phoneNumber' && value) {
+      // Remove spaces between characters that some people use
+      // while writing phone numbers
       value = value.replace(/\s+/g, '');
+
+      if (!value.startsWith(window.countryCode)) {
+        value = `+${window.countryCode}${value}`;
+      }
     }
 
     if (type === 'number') {
       value = Number(value);
+    }
+
+    if (type === 'boolean') {
+      value = value === 'true' ? true : false;
     }
 
     requestBody.attachment[field] = {
@@ -431,10 +395,18 @@ function handleActivityEditOnClick(doc) {
     };
   });
 
+  console.log('scheduleFields', scheduleFields);
+
   scheduleFields.forEach(function (element) {
+    let timestamp = '';
+
+    if (element.value) {
+      timestamp = new Date().getTime();
+    }
+
     requestBody.schedule.push({
-      startTime: '',
-      endTime: '',
+      startTime: timestamp,
+      endTime: timestamp,
       name: element.dataset.name,
     });
   });
@@ -472,27 +444,99 @@ function handleActivityEditOnClick(doc) {
       return response.json();
     })
     .then(function (response) {
-      console.log('response', response);
-
-      let node = getWarningNode('Update successful');
-
-      if (!response.success) {
-        node = getWarningNode(response.message);
-      }
-
-      insertAfterNode(form, node);
+      createSnackbar(response.message || 'Update Successful', 'Dismiss');
     })
     .catch(function (error) {
       console.error(error);
 
       if (error === 'Please Enable Location') {
-        const node = getWarningNode('Location access is required');
-
-        insertAfterNode(form, node);
-
-        return;
+        createSnackbar('Location access is required', 'Dismiss');
       }
+
+      createSnackbar('Something went wrong', 'Dismiss');
     });
+}
+
+function showActivityCancellationWarning(doc) {
+  const modalBodyElement = document.createElement('div');
+  modalBodyElement.className += 'pad';
+
+  const p = document.createElement('p');
+  p.textContent = `You are about to cancel`
+    + ` ${doc.activityName}`;
+
+  modalBodyElement.append(p);
+
+  const buttonContainer = document.createElement('div');
+  const okButton = getButton('OK');
+  buttonContainer.className += ' bt';
+  okButton.className += ' mt-16';
+  buttonContainer.append(okButton);
+  modalBodyElement.appendChild(buttonContainer);
+
+  const modal = getModal({
+    title: `Cancel ${doc.template} ${doc.activityName}?`,
+    modalBodyElement,
+  });
+
+  okButton.onclick = function () {
+    window.warningShownAlready = true;
+
+    closeModal();
+  }
+
+
+  document.body.appendChild(modal);
+}
+
+function sendActivityStatusChangeRequest(doc, newStatus) {
+  const requestBody = {
+    activityId: doc.activityId,
+    status: newStatus,
+    timestamp: Date.now(),
+    geopoint: {},
+  }
+
+  if (newStatus === 'CANCELLED' && !window.warningShownAlready) {
+    showActivityCancellationWarning(doc);
+
+    return;
+  }
+
+  let requestUrl = `${apiBaseUrl}/activities/change-status`;
+
+  if (isSupport()) {
+    requestUrl += '?support=true';
+  }
+
+  getLocation()
+    .then(function (geopoint) {
+      requestBody.geopoint = geopoint;
+
+      console.log('requestBody', requestBody);
+
+      return sendApiRequest(`${requestUrl}`, requestBody, 'PATCH')
+    })
+    .then(function (response) { return response.json() })
+    .then(function (response) {
+      createSnackbar(response.message || 'Update Successful');
+    })
+    .catch(function (error) {
+      createSnackbar(error);
+    });
+}
+
+function getButton(value, secondary) {
+  const button = document.createElement('input');
+  button.type = 'button';
+  button.value = value;
+  button.classList.add('button');
+
+  if (secondary) {
+    button.classList.add('secondary');
+  }
+
+  return button;
 }
 
 function getActivityEditObject(doc) {
@@ -608,6 +652,7 @@ function getActivityEditObject(doc) {
 
       if (startTime) {
         startTimeInput.valueAsDate = new Date(startTime);
+        startTimeInput.dataset.schedule = true;
       }
 
       const endtimeInput = document.createElement('input');
@@ -621,10 +666,10 @@ function getActivityEditObject(doc) {
       startTimeInput.dataset.schedule = true;
       startTimeInput.dataset.name = name;
 
-      scheduleContainer.append(label, startTimeInput)
+      scheduleContainer.append(label, startTimeInput);
     });
 
-  if (doc.schedule.length) {
+  if (doc.schedule.length > 0) {
     form.appendChild(scheduleContainer);
   }
 
@@ -645,7 +690,6 @@ function getActivityEditObject(doc) {
     const address = venue.address;
     const location = venue.location;
     const geopoint = venue.geopoint;
-
     const singleVenue = document.createElement('div');
     singleVenue.dataset.venueDescriptor = venueDescriptor;
     singleVenue.dataset.address = address;
@@ -656,13 +700,24 @@ function getActivityEditObject(doc) {
     const map = document.createElement('div');
     map.textContent = `map ${index}`;
     map.id = `map${index}`;
-    map.style.width = '400px';
-    map.style.height = '200px';
+    map.style.minWidth = '300px';
+    map.style.minHeight = '400px';
 
+    window[`map_${index}`] = new google
+      .maps
+      .Map(map, {
+        zoom: 16,
+        center: {
+          lat: Number(geopoint.latitude || geopoint._latitude),
+          lng: Number(geopoint.longitude || geopoint._longitude),
+        },
+      });
+
+    singleVenue.appendChild(map);
     venueContainer.appendChild(singleVenue);
   });
 
-  if (doc.venue.length) {
+  if (doc.venue.length > 0) {
     form.appendChild(venueContainer);
   }
 
@@ -678,20 +733,20 @@ function getActivityEditObject(doc) {
 
   doc
     .assignees
-    .forEach(function (phoneNumber) {
+    .forEach(function (phoneNumber, index) {
       const li = document.createElement('li');
       const phoneSpan = document.createElement('span');
       phoneSpan.textContent = phoneNumber;
       phoneSpan.style.pointerEvents = 'none';
       phoneSpan.classList.add('mr-8');
-      const tick = document.createElement('span');
-      tick.innerHTML = '&#10005;';
-      tick.style.pointerEvents = 'none';
 
-      li.classList.add('cur-ptr');
+      li.classList.add('cur-ptr', 'mb-8');
+
+      if (index === 0) {
+        li.className += ' mt-8';
+      }
 
       li.appendChild(phoneSpan);
-      li.appendChild(tick);
 
       assigneeUl.appendChild(li);
     });
@@ -705,34 +760,51 @@ function getActivityEditObject(doc) {
     form.appendChild(assigneeContainer);
   }
 
-  function getButton(value, secondary) {
-    const button = document.createElement('input');
-    button.type = 'button';
-    button.value = value;
-    button.classList.add('button');
+  const buttonContainer = document.createElement('div');
+  buttonContainer.classList.add('flexed', 'mt-16', 'activity-buttons');
+  const updateButton = getButton('Update');
+  const confirmButton = getButton('Confirm', true);
+  const cancelButton = getButton('Cancel', true);
+  const pendingButton = getButton('Pending', true);
 
-    if (secondary) {
-      button.classList.add('secondary')
+  confirmButton
+    .onclick = function () {
+      sendActivityStatusChangeRequest(doc, 'CONFIRMED');
+    }
+  cancelButton
+    .onclick = function () {
+      sendActivityStatusChangeRequest(doc, 'CANCELLED');
+    }
+  pendingButton
+    .onclick = function () {
+      sendActivityStatusChangeRequest(doc, 'PENDING');
     }
 
-    return button;
+  updateButton
+    .onclick = function () {
+      handleActivityEditOnClick(doc);
+    };
+
+  buttonContainer.append(updateButton);
+
+  if (doc.status === 'CONFIRMED') {
+    buttonContainer.append(pendingButton, cancelButton);
   }
 
-  const buttonContainer = document.createElement('div');
-  buttonContainer.classList.add('flexed', 'mt-16');
-  const updateButton = getButton('Update');
+  if (doc.status === 'PENDING') {
+    buttonContainer.append(confirmButton, cancelButton);
+  }
 
-  updateButton.onclick = function () {
-    handleActivityEditOnClick(doc);
-  };
+  if (doc.status === 'CANCELLED') {
+    buttonContainer.append(confirmButton, pendingButton);
+  }
 
-  buttonContainer.appendChild(updateButton);
   form.appendChild(buttonContainer);
 
   container.appendChild(form);
 
   return container;
-};
+}
 
 function activityEditOnClick(doc) {
   const container = document.querySelector('.single-activity');
@@ -747,7 +819,7 @@ function activityEditOnClick(doc) {
   dataContainer.querySelectorAll('input[type="tel"]').forEach(el => {
     initializeTelInput(el);
   });
-};
+}
 
 
 // TODO: This perhaps should be made a little better
@@ -796,7 +868,7 @@ function getActivityListItem(doc) {
   };
 
   return li;
-};
+}
 
 function searchUpdateTemplateSelectOnChange() {
   const templateSelect = document.querySelector('.forms-parent select');
@@ -910,7 +982,7 @@ function populateTemplateSelect(selectElement) {
           .remove('hidden');
 
         document.querySelector('.bc-container').style.minHeight = '200px';
-      }
+      };
     })
     .catch(console.error);
 }
@@ -948,7 +1020,7 @@ function populateBulkCreationResult(response) {
 
     ul.appendChild(li);
   });
-};
+}
 
 
 function sendBulkCreateJson(jsonData) {
@@ -980,7 +1052,7 @@ function sendBulkCreateJson(jsonData) {
       populateBulkCreationResult(response);
     })
     .catch(console.error);
-};
+}
 
 function handleExcelOrCsvFile(element) {
   const file = element.target.files[0];
@@ -1002,7 +1074,7 @@ function handleExcelOrCsvFile(element) {
     });
 
     sendBulkCreateJson(jsonData);
-  }
+  };
 }
 
 function bulkCreate() {
@@ -1022,33 +1094,78 @@ function bulkCreate() {
 }
 
 function recipientAssigneeUpdateOnClick(evt) {
-  const parent = evt.target.parentElement.parentElement;
+  const container = document
+    .querySelector(`div[data-name="${evt.target.dataset.name}"]`);
 
-  const allPhoneNumberElements = parent
-    .querySelectorAll('p[data-phone-number="true"]');
+  console.log('target', container);
 
-  const toRemove = [];
+  const allPhoneNumberElements = container
+    .querySelectorAll('span[data-phone-number="true"]');
+
+  const toRemove = new Set();
   const allPhoneNumbers = new Set();
 
   allPhoneNumberElements.forEach(function (element) {
     if (element.classList.contains('striked')) {
-      toRemove.push(element.textContent);
+      toRemove.add(element.textContent);
     }
 
-    allPhoneNumbers.add(element)
+    allPhoneNumbers.add(element.textContent);
   });
 
-  const telInputs = parent.querySelectorAll('input[type="tel"]');
+  const telInputs = container.querySelectorAll('input[type="tel"]');
+  const toAdd = new Set();
 
-  const toAdd = [];
   telInputs.forEach(function (elem) {
-    if (!isValidPhoneNumber(elem.value)) return;
+    if (!isValidPhoneNumber(elem.value)) {
+      return;
+    }
 
-    toAdd.push(elem.value);
+    toAdd.add(elem.value);
+    allPhoneNumbers.add(elem.value);
   });
 
   console.log('toAdd', toAdd);
   console.log('toRemove', toRemove);
+  console.log('allPhoneNumbers', [...allPhoneNumbers.values()]);
+
+  const final = new Set();
+
+  allPhoneNumbers.forEach(function (phoneNumber) {
+    if (toRemove.has(phoneNumber)) {
+      return;
+    }
+
+    final.add(phoneNumber);
+  });
+
+  const finalAssignees = Array.from(final);
+
+  console.log({ finalAssignees });
+
+  const requestBody = {
+    timestamp: Date.now(),
+    activityId: container.dataset.activityId,
+    share: finalAssignees,
+  };
+
+  getLocation()
+    .then(function (location) {
+      requestBody.geopoint = location;
+
+      let requestUrl = `${apiBaseUrl}/activities/share`;
+
+      if (isSupport()) {
+        requestUrl += '?support=true';
+      }
+
+      return sendApiRequest(requestUrl, requestBody, 'PATCH');
+    })
+    .then(function (response) { return response.json() })
+    .then(function (response) {
+      console.log(response);
+    })
+    .catch(console.error);
 }
 
 function addNewAssignee(evt) {
@@ -1058,20 +1175,19 @@ function addNewAssignee(evt) {
   input.classList.add('input-field', 'w-100');
 
   insertAfterNode(ul, input);
-
   initializeTelInput(input);
 
   const buttonContainer = parent
     .querySelector('input[type="button"]')
     .parentElement;
 
-  console.log('parent', parent);
-
   buttonContainer.classList.remove('hidden');
 }
 
 function getRecipientActivityContainer(doc) {
   const container = document.createElement('div');
+  container.dataset.activityId = doc.activityId;
+  container.dataset.name = doc.attachment.Name.value;
   const heading = document.createElement('h5');
   heading.className = 'ttuc bold mb-16 bb';
   heading.textContent = doc.attachment.Name.value;
@@ -1083,33 +1199,32 @@ function getRecipientActivityContainer(doc) {
   button.type = 'button';
   button.classList.add('button', 'mt-16');
   button.value = 'Submit';
-
+  /** Used for querying the parent of this button on click */
+  button.dataset.name = doc.attachment.Name.value;
   button.onclick = recipientAssigneeUpdateOnClick;
   buttonContainer.classList.add('hidden');
-
   buttonContainer.appendChild(button);
 
   doc.assignees.forEach(function (phoneNumber) {
     const li = document.createElement('li');
     li.className = 'flexed';
-    const p = document.createElement('p');
-    p.classList.add('cur-ptr');
-    p.textContent = phoneNumber;
-    p.dataset.phoneNumber = true;
+    const span = document.createElement('span');
+    span.classList.add('cur-ptr');
+    span.textContent = phoneNumber;
+    span.dataset.phoneNumber = true;
     const icon = document.createElement('i');
-    icon.className = 'far fa-times-circle col-gray';
+    icon.className = 'far fa-times-circle col-gray ml-8';
     icon.style.lineHeight = 'inherit';
-    icon.style.marginLeft = '8px';
 
-    li.append(p, icon);
+    li.append(span, icon);
 
     li.onclick = function () {
-      p.classList.toggle('striked');
+      span.classList.toggle('striked');
 
       if (buttonContainer.classList.contains('hidden')) {
         buttonContainer.classList.remove('hidden');
       }
-    }
+    };
 
     list.appendChild(li);
   });
@@ -1118,20 +1233,15 @@ function getRecipientActivityContainer(doc) {
   addPhoneNumberIcon.className = 'fas fa-plus ft-size-20';
 
   const addMore = document.createElement('div');
-  addMore.classList.add('pad', 'tac', 'border', 'cur-ptr');
+
+  addMore.classList.add('pad-10', 'tac', 'border', 'cur-ptr');
   addMore.append(addPhoneNumberIcon);
-
   addMore.onclick = addNewAssignee;
-
-  const p = document.createElement('p');
-  p.classList.add('col-green', 'ttuc', 'tac');
-
-  container.append(p, heading, list, addMore, buttonContainer);
-
+  container.append(heading, list, addMore, buttonContainer);
   container.className += ' raised pad mb-16';
 
   return container;
-};
+}
 
 function handleRecipientSelectOnChange(evt) {
   const requestUrl = `/json?`
@@ -1139,7 +1249,7 @@ function handleRecipientSelectOnChange(evt) {
     + `&template=${evt.target.value}`;
 
   sendApiRequest(requestUrl)
-    .then(function (response) { return response.json() })
+    .then(function (response) { return response.json(); })
     .then(function (response) {
       console.log('Response', response);
     })
@@ -1160,8 +1270,6 @@ function updateEmailInReports() {
 
   div.classList.add('grid-container-1', 'gg-5');
 
-  // div.
-
   container.append(heading, div);
 
   document
@@ -1174,7 +1282,7 @@ function updateEmailInReports() {
   console.log('RequestSent', requestUrl);
 
   sendApiRequest(requestUrl)
-    .then(function (response) { return response.json() })
+    .then(function (response) { return response.json(); })
     .then(function (response) {
       console.log('Response', response);
 
@@ -1365,7 +1473,7 @@ function triggerReports() {
         .keys(response)
         .forEach(function (activityId) {
           const item = response[activityId];
-          const option = document.createElement('option')
+          const option = document.createElement('option');
           option.value = item.attachment.Name.value;
           option.textContent = item.attachment.Name.value;
           select.appendChild(option);
@@ -1435,28 +1543,28 @@ function changePhoneNumber() {
 
   initializeTelInput(oldInput);
   initializeTelInput(newInput);
-};
+}
 
 
 function sendUpdateTemplateRequest(newText) {
   sendApiRequest('/json?action=update-template', JSON.parse(newText), 'POST')
-    .then(function (response) { return response.json() })
+    .then(function (response) { return response.json(); })
     .then(function (response) {
       console.log('Response', response);
-      response.success = true;
+
       if (response.success) {
         const button = document.querySelector('#template-update-button');
         button.value = 'Close';
 
         button.onclick = function () {
           closeModal();
-        }
+        };
       }
 
       createSnackbar(response.message || 'Update Successful', 'Dismiss');
     })
     .catch(console.error);
-};
+}
 
 function viewTemplateButtonOnClick(evt) {
   const button = evt.target;
@@ -1501,7 +1609,7 @@ function viewTemplateButtonOnClick(evt) {
       const newText = pre.textContent.trim();
 
       if (!isValidJSON(newText)) {
-        console.log('INVALID JSON');
+        createSnackbar('Invalid JSON', 'Dismiss');
 
         return;
       }
@@ -1510,14 +1618,14 @@ function viewTemplateButtonOnClick(evt) {
       const isEdited = newText !== oldText;
 
       if (!isEdited) {
-        createSnackbar('Nothing to update.', 'OK');
+        createSnackbar('Nothing to update.', 'Dismiss');
 
         return;
       }
 
       sendUpdateTemplateRequest(newText);
     };
-  }
+  };
 
   const modal = getModal({
     title: `View ${template.name}`,
@@ -1525,7 +1633,7 @@ function viewTemplateButtonOnClick(evt) {
   });
 
   document.body.appendChild(modal);
-};
+}
 
 function manageTemplates() {
   setActionTitle('Manage Templates');
@@ -1605,7 +1713,7 @@ function windowOnLoad() {
       // the user tries to type something in the field
       phoneField.onfocus = null;
       phoneField.oninput = joinFormSelfPhoneOnInput;
-    }
+    };
   }
 }
 

@@ -769,10 +769,7 @@ input:disabled {
     transition: height .25s ease;
 }
 
-.mw-100 {
-    min-width: 100%;
-}
-
+.mw-100,
 .w-100 {
     width: 100%;
     width: -moz-available;

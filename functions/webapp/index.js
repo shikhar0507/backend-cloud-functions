@@ -483,6 +483,7 @@ const handleHomePage = (locals, requester) => {
       admin: requester.isAdmin,
       isTemplateManager: requester.isTemplateManager,
     }),
+    mapsApiKey: env.mapsApiKey,
     pageTitle: 'Growthfile Home',
     pageDescription: 'One app for employees of all offices',
     isLoggedIn: locals.isLoggedIn,
@@ -499,14 +500,11 @@ const handleHomePage = (locals, requester) => {
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
+    isAdminOrSupport: requester.isAdmin || requester.isSupport,
     showActions: requester.isAdmin
       || requester.isSupport
       || requester.isTemplateManager,
   });
-
-  console.log('requester', requester.isAdmin
-    || requester.isSupport
-    || requester.isTemplateManager);
 
   return html;
 };
@@ -690,12 +688,7 @@ const handleJsonGetRequest = (conn, requester) => {
       .offices
       .get()
       .then(docs => {
-        return json
-          .names = docs
-            .docs
-            .map(doc => {
-              return doc.get('attachment.Name.value');
-            });
+        return json.names = docs.docs.map(doc => doc.get('office'));
       });
   }
 

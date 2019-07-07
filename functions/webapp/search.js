@@ -12,6 +12,7 @@ module.exports = (req, requester) => {
   }
 
   // TODO: Handle normal users who are not admins
+  // For viewing their own activities like enquiries etc
   if (!requester.isAdmin
     && !requester.isSupport) {
     return ({});

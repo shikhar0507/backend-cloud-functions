@@ -18,7 +18,7 @@
     \{{/if}}
     <main>
         \{{> actionsAside this}}
-        <div class="container f1">
+        <div class="container">
             \{{#if isLoggedIn}}
             <div class="breadcrumbs">
                 <ul>
@@ -59,10 +59,27 @@
             \{{/if}}
             {{!-- This div stores the dynamically generated html --}}
             <div class="forms-parent">
-
             </div>
 
             <div class="hero-actions">
+                <div class="hidden pad bc-container">
+                    <select class="input-field mb-16 mw-100" id="create-new-template-select">
+                        <option value="">Loading...</option>
+                    </select>
+                    <form>
+                        <div class="bc-file-drag hidden raised pad-10 tac">
+                            <i class="fas fa-cloud-upload-alt ft-60 col-black"></i>
+                            <p>Drag a file here to upload</p>
+                            <input type="file" accept=".csv,.xlsx,.xls" data-maxsize="2M">
+                        </div>
+                    </form>
+                    <div class="bc-results hidden mt-16">
+                        <h5 class="bold ttuc">Bulk Creation Results:</h5>
+                        <div>
+                            <ul class="bc-results-list"> </ul>
+                        </div>
+                    </div>
+                </div>
                 <div class="pad search-update hidden">
                     {{!-- search and update --}}
                     <div>
@@ -85,7 +102,6 @@
                 </div>
             </div>
 
-
             <section id="actions-section" class="hidden animated fadeIn action-icons-container pad">
                 <div class="border">
                     \{{#if showActions}}
@@ -101,6 +117,8 @@
                         </div>
                         {{!-- manage templates end --}}
                         \{{/if}}
+
+                        \{{#if isAdminOrSupport}}
                         <div id="update-auth" onclick="updateAuth()" class="card">
                             <span class="flexed-jc-center mb-16">
                                 <i class="fas fa-user-edit col-black"></i>
@@ -154,9 +172,10 @@
                                 <p class="icon-text">Search & Update</p>
                             </span>
                         </div>
-
-                        {{!-- show actions end --}}
                         \{{/if}}
+                        {{!-- isAdminOrSupport end --}}
+                        \{{/if}}
+                        {{!-- show actions end --}}
                     </div>
                 </div>
             </section>
@@ -172,6 +191,7 @@
     </main>
     \{{> scriptsPartial}}
     \{{> footerPartial}}
+    <script defer src="https://maps.googleapis.com/maps/api/js?key=\{{mapsApiKey}}"></script>
     <script src="js/home.js"></script>
 </body>
 
