@@ -26,6 +26,7 @@ module.exports = (req, requester) => {
     .activities
     .where('office', '==', req.query.office)
     .where('template', '==', req.query.template)
+    .limit(500)
     .get()
     .then(docs => {
       failed = docs.empty;

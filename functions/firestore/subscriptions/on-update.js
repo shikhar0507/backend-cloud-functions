@@ -29,31 +29,168 @@ const {
   rootCollections,
   db,
 } = require('../../admin/admin');
+const admin = require('firebase-admin');
 
-let count = 0;
+const getActivityNew = (activityOld, templateDoc) => {
+  activityOld.hidden = templateDoc.hidden;
+  activityOld.statusOnCreate = templateDoc.statusOnCreate;
 
-const updateMultiple = (query, resolve, reject, change) =>
+  activityOld.venue.forEach((venueObject, index) => {
+    if (templateDoc.venue[index] === venueObject.venueDescriptor) return;
+
+    // Venue has been removed from the template
+    activityOld.venue[index] = admin.firestore.FieldValue.delete();
+  });
+
+  templateDoc.venue.forEach((venueDescriptor, index) => {
+    const activityOldVenueDescriptors = activityOld
+      .venue
+      .map(venue => venue.venueDescriptor);
+
+    // if (activityOldVenueDescriptors.includes(venueDescriptor)) return;
+    if (activityOldVenueDescriptors[index] === venueDescriptor) return;
+
+    activityOld.venue[index] = {
+      venueDescriptor,
+      geopoint: {
+        latitude: '',
+        longitude: '',
+      },
+      address: '',
+      location: '',
+    };
+  });
+
+  activityOld.schedule.forEach((scheduleObject, index) => {
+    // if (templateDoc.schedule.includes(scheduleObject.name)) return;
+    if (templateDoc.schedule[index] === scheduleObject.name) return;
+
+    // Schedule has been removed from the template
+    activityOld.schedule[index] = admin.firestore.FieldValue.delete();
+  });
+
+  templateDoc.schedule.forEach((scheduleName, index) => {
+    const activityOldScheduleNames = activityOld
+      .schedule
+      .map(schedule => schedule.name);
+
+    // if (activityOldScheduleNames.includes(scheduleName)) return;
+    if (activityOldScheduleNames[index] === scheduleName) return;
+
+    activityOld.schedule[index] = {
+      name: scheduleName,
+      startTime: '',
+      endTime: '',
+    };
+  });
+
+  Object
+    .keys(activityOld.attachment)
+    .forEach(field => {
+      // Field also exists in attachment.
+      // allow it
+      if (templateDoc.attachment[field]) return;
+
+      // Use firestore admin sdk delete operation
+      activityOld.attachment[field] = admin.firestore.FieldValue.delete();
+    });
+
+  Object
+    .keys(templateDoc.attachment)
+    .forEach(field => {
+      // Field doesn't even exist
+      if (!activityOld.attachment[field]) {
+        activityOld.attachment[field] = templateDoc.attachment[field];
+      }
+
+      // Type changed
+      if (activityOld.attachment[field]
+        && !activityOld.attachment[field].type
+        !== templateDoc.attachment[field].type) {
+        activityOld
+          .attachment[field]
+          .type = templateDoc.attachment[field].type;
+      }
+    });
+
+  return activityOld;
+};
+
+
+const updateActivities = change => {
+  const templateName = change.after.get('name');
+
+  /** Updating subscriptions for check-in, but not the activities */
+  if (templateName === 'check-in') {
+    return Promise.resolve();
+  }
+
+  const updateActivitiesByStep = (query, resolve, reject, change) => {
+    return query
+      .get()
+      .then(docs => {
+        if (docs.size === 0) return 0;
+
+        const batch = db.batch();
+
+        docs.forEach(doc => {
+          const data = Object.assign({}, getActivityNew(
+            doc.data(),
+            change.after.data()
+          ));
+          batch.set(doc.ref, data, { merge: true });
+        });
+
+        /* eslint-disable */
+        return batch
+          .commit()
+          .then(() => docs.docs[docs.size - 1]);
+        /* eslint-enable */
+      })
+      .then(lastDoc => {
+        if (!lastDoc) return resolve();
+
+        const newQuery = query.startAfter(lastDoc);
+
+        return process
+          .nextTick(() => {
+            return updateActivitiesByStep(newQuery, resolve, reject, change);
+          });
+      })
+      .catch(reject);
+  };
+
+  const query = rootCollections
+    .activities
+    .where('template', '==', change.after.get('name'))
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(500);
+
+  return new Promise((resolve, reject) => {
+    return updateActivitiesByStep(
+      query,
+      resolve,
+      reject,
+      change
+    );
+  });
+};
+
+const updateSubscriptions = (query, resolve, reject) =>
   query
     .get()
-    .then((docs) => {
-      console.log('Docs found:', docs.size, 'Iteration:', count);
-
+    .then(docs => {
       if (docs.size === 0) return 0;
 
       const batch = db.batch();
 
       docs.forEach(doc => {
-        const template = doc.get('template');
-        const data = {
+        batch.set(doc.ref, {
           timestamp: Date.now(),
           addendumDocRef: null,
-        };
-
-        if (template !== 'subscription') {
-          data.attachment = Object.assign(doc.get('attachment'), change.after.get('attachment'));
-        }
-
-        batch.set(doc.ref, data, { merge: true });
+        }, {
+            merge: true,
+          });
       });
 
       /* eslint-disable */
@@ -65,40 +202,15 @@ const updateMultiple = (query, resolve, reject, change) =>
     .then(lastDoc => {
       if (!lastDoc) return resolve();
 
-      count++;
-
-      const template = lastDoc.get('template');
-
-      const startAfter = (() => {
-        if (template == 'subscription') {
-          return lastDoc.get('attachment.Subscriber.value');
-        }
-
-        return require('firebase-admin').firestore.FieldPath.documentId();
-      })();
-
+      const startAfter = lastDoc.get('attachment.Subscriber.value');
       const newQuery = query.startAfter(startAfter);
 
       return process
-        .nextTick(() => updateMultiple(newQuery, resolve, reject, change));
+        .nextTick(() => {
+          return updateSubscriptions(newQuery, resolve, reject);
+        });
     })
     .catch(reject);
-
-
-const updateActivities = change => {
-  const templateName = change.after.get('name');
-
-  if (templateName === 'check-in') return Promise.resolve();
-
-  const query = rootCollections
-    .activities
-    .where('template', '==', change.after.get('name'))
-    .limit(500);
-
-  return new Promise((resolve, reject) => {
-    return updateMultiple(query, resolve, reject, change);
-  });
-};
 
 
 /**
@@ -128,9 +240,12 @@ module.exports = change => {
 
   console.log({ templateName });
 
-  return new
-    Promise((resolve, reject) => updateMultiple(query, resolve, reject))
-    .then(() => console.log(`Iterations: ${count}`))
-    // .then(() => updateActivities(change))
+  return new Promise((resolve, reject) => {
+    return Promise
+      .all([
+        updateSubscriptions(query, resolve, reject),
+        updateActivities(change)
+      ]);
+  })
     .catch(console.error);
 };

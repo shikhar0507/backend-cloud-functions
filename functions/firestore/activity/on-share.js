@@ -66,14 +66,23 @@ const handleResult = (conn, docs) => {
   let allAreNew = true;
   let phoneNumber;
   const [activity] = docs;
+  const batch = db.batch();
+  const template = activity.get('template');
+  const isSpecialTemplate = template === 'recipient' || template === 'subscription';
 
   docs.forEach((doc, index) => {
     /**
      * The first two docs are activity doc and the
      * requester's doc. They have already been validated above.
      */
-    if (index === 0) return;
-    if (index === 1) return;
+    const isActivityDoc = index === 0;
+    const isRequesterAssigneeDoc = index === 1;
+
+    if (isActivityDoc) return;
+
+    if (isRequesterAssigneeDoc) {
+      return;
+    }
 
     /**
      * If an `assignee` already exists in the Activity assignee list.
@@ -84,7 +93,7 @@ const handleResult = (conn, docs) => {
     }
   });
 
-  if (!allAreNew) {
+  if (!allAreNew && !isSpecialTemplate) {
     sendResponse(
       conn,
       code.badRequest,
@@ -147,7 +156,7 @@ const handleResult = (conn, docs) => {
 
   Promise
     .all(promises)
-    .then((snapShots) => {
+    .then(snapShots => {
       snapShots.forEach((snapShot) => {
         if (snapShot.empty) return;
 
@@ -168,10 +177,9 @@ const handleResult = (conn, docs) => {
         }
       });
 
-      const batch = db.batch();
       let addToInclude = true;
 
-      conn.req.body.share.forEach((phoneNumber) => {
+      conn.req.body.share.forEach(phoneNumber => {
         const isRequester = conn.requester.phoneNumber === phoneNumber;
 
         if (locals.static.template === 'subscription' && isRequester) {
@@ -226,12 +234,12 @@ const handleResult = (conn, docs) => {
 
       return batch.commit();
     })
-    .then(() => sendResponse(conn, code.noContent))
+    .then(() => sendResponse(conn, code.ok, ''))
     .catch((error) => handleError(conn, error));
 };
 
 
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.method !== 'PATCH') {
     sendResponse(
       conn,
@@ -241,7 +249,6 @@ module.exports = (conn) => {
 
     return;
   }
-
 
   const result = isValidRequestBody(conn.req.body, httpsActions.share);
 
@@ -269,13 +276,15 @@ module.exports = (conn) => {
       .get(),
   ];
 
-  conn.req.body.share.forEach(
-    (phoneNumber) =>
+  conn
+    .req
+    .body
+    .share.forEach(phoneNumber =>
       promises.push(assigneesCollectionRef.doc(phoneNumber).get())
-  );
+    );
 
   Promise
     .all(promises)
-    .then((docs) => handleResult(conn, docs))
-    .catch((error) => handleError(conn, error));
+    .then(docs => handleResult(conn, docs))
+    .catch(error => handleError(conn, error));
 };

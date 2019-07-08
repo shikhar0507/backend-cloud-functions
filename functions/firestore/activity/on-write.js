@@ -253,7 +253,11 @@ const getCommentString = (locals, recipient) => {
         return locals.addendumDoc.get('venueQuery').location;
       }
 
-      return locals.addendumDoc.get('activityData.venue')[0].location;
+      if (locals.addendumDoc.get('activityData.venue')[0].location) {
+        return locals.addendumDoc.get('activityData.venue')[0].location;
+      }
+
+      return locals.addendumDoc.get('identifier');
     })();
 
     return getCreateActionComment(template, pronoun, locationFromVenue);
@@ -270,15 +274,22 @@ const getCommentString = (locals, recipient) => {
     let str = `${pronoun} added`;
 
     if (share.length === 1) {
-      const name = locals.assigneesMap.get(share[0]).displayName || share[0];
+      let name = locals.assigneesMap.get(share[0]).displayName || share[0];
+
+      if (share[0] === recipient) {
+        name = 'you';
+      }
 
       return str += ` ${name}`;
     }
 
     /** The `share` array will never have the `user` themselves */
     share.forEach((phoneNumber, index) => {
-      const name = locals
+      let name = locals
         .assigneesMap.get(phoneNumber).displayName || phoneNumber;
+      if (phoneNumber === recipient) {
+        name = 'you';
+      }
 
       if (share.length - 1 === index) {
         str += ` & ${name}`;

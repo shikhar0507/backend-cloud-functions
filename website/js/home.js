@@ -231,23 +231,12 @@ function handlePhoneNumberChange() {
     requestUrl += '?support=true';
   }
 
-  const p = form.querySelector('p');
-
   console.log('requestBody', requestBody);
 
   sendApiRequest(requestUrl, requestBody, 'POST')
     .then(function (response) { return response.json(); })
     .then(function (response) {
-      if (!response.success) {
-        p.classList.add('col-red');
-        p.textContent = response.message;
-
-        return;
-      }
-
-      p.textContent = 'Phone Number updated successfully';
-
-      console.log('Response', response);
+      createSnackbar(response.message || 'Phone Number updated successfully');
     })
     .catch(console.error);
 }
@@ -296,17 +285,7 @@ function handleUpdateAuthRequest() {
     .then(function (response) { return response.json(); })
     .then(function (response) {
       console.log('result', response);
-
-      const p = form.querySelector('p');
-      p.classList.remove('hidden');
-
-      p.classList.add('col-green');
-
-      if (!response.success) {
-        p.classList.add('col-red');
-      }
-
-      p.textContent = response.message || 'Success';
+      createSnackbar(response.message || 'Success');
     })
     .catch(console.error);
 }
@@ -401,7 +380,7 @@ function handleActivityEditOnClick(doc) {
     let timestamp = '';
 
     if (element.value) {
-      timestamp = new Date().getTime();
+      timestamp = new Date(element.value).getTime();
     }
 
     requestBody.schedule.push({
@@ -490,20 +469,36 @@ function showActivityCancellationWarning(doc) {
 }
 
 function sendActivityStatusChangeRequest(doc, newStatus) {
-  const requestBody = {
-    activityId: doc.activityId,
-    status: newStatus,
-    timestamp: Date.now(),
-    geopoint: {},
-  }
+  const requestBody = (function () {
+    if (doc.template === 'employee') {
+      return {
+        office: document.body.dataset.office,
+        phoneNumber: doc.attachment['Employee Contact'].value,
+      };
+    }
 
-  if (newStatus === 'CANCELLED' && !window.warningShownAlready) {
+    return {
+      activityId: doc.activityId,
+      status: newStatus,
+      timestamp: Date.now(),
+      geopoint: {},
+    }
+  })();
+
+  if (newStatus === 'CANCELLED'
+    && !window.warningShownAlready) {
     showActivityCancellationWarning(doc);
 
     return;
   }
 
-  let requestUrl = `${apiBaseUrl}/activities/change-status`;
+  const requestUrl = (function () {
+    if (doc.template === 'employee') {
+      return `${apiBaseUrl}/remove-employee`;
+    }
+
+    return `${apiBaseUrl}/activities/change-status`;
+  })();
 
   if (isSupport()) {
     requestUrl += '?support=true';
@@ -522,7 +517,7 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
       createSnackbar(response.message || 'Update Successful');
     })
     .catch(function (error) {
-      createSnackbar(error);
+      createSnackbar(error, 'OK');
     });
 }
 

@@ -468,7 +468,6 @@ function initializeTelInput(inputElement) {
   }
 
   inputElement.style.width = '100%';
-  inputElement.style.height = '52px';
 
   /** Avoids multiple initializations of the same input field */
   inputElement.dataset.intlInitialized = true;

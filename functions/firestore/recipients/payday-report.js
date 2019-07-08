@@ -72,16 +72,7 @@ const commitMultiBatch = (statusObjectsMap, docRefsMap, momentYesterday) => {
   console.log('statusObjectsMap Size:', statusObjectsMap.size);
   console.log('Number of batches:', batchArray.length);
 
-  console.log('data', data);
-
-  return batchArray.reduce((accumulatorPromise, currentBatch) => {
-    return accumulatorPromise
-      .then(() => {
-        console.log('Commiting', currentBatch._ops.length);
-
-        return currentBatch.commit();
-      });
-  }, Promise.resolve());
+  return Promise.all(batchArray.map(batch => batch.commit()));
 };
 
 const getDatesBetween = (startMoment, endMoment) => {
@@ -222,6 +213,8 @@ module.exports = locals => {
 
   /** Just for better readability. */
   const cycleEndMoment = momentYesterday;
+  const lastDayOfMonthlyCycle = cycleEndMoment.date();
+  const putMonthlyOffDays = yesterdayDate === lastDayOfMonthlyCycle;
   const addendumQueryStart = momentYesterday.clone().hours(5).minutes(30).valueOf();
   const addendumQueryEnd = momentToday.clone().hours(5).minutes(30).valueOf();
   const allDates = getDatesBetween(cycleStartMoment, cycleEndMoment);
@@ -270,13 +263,6 @@ module.exports = locals => {
       ] = result;
 
       prevMonthDocs = optionalMonthyMinus1Query ? optionalMonthyMinus1Query.docs : null;
-
-      console.log('allDates', `${allDates[0].formattedDate} to ${allDates[allDates.length - 1].formattedDate}`);
-      console.log('momentYesterday:', momentYesterday.format(dateFormats.DATE_TIME));
-      console.log('momentToday', momentToday.format(dateFormats.DATE_TIME));
-      console.log('fetchPreviousMonthDocs', fetchPreviousMonthDocs);
-      console.log('Curr Docs read:', monthlyDocsQuery.size);
-      console.log('Prev Docs read:', prevMonthDocs ? prevMonthDocs.length : prevMonthDocs);
 
       if (prevMonthDocs) {
         prevMonthDocs.forEach(doc => {
@@ -460,7 +446,8 @@ module.exports = locals => {
           format: dateFormats.TIME,
         });
 
-        const hoursWorked = momentTz(lastCheckInTimestamp).diff(firstCheckInTimestamp, 'hours');
+        const hoursWorked = momentTz(lastCheckInTimestamp)
+          .diff(firstCheckInTimestamp, 'hours');
         const minimumWorkingHours = employeesData[phoneNumber]['Minimum Working Hours'];
         const minimumDailyActivityCount = employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
 
@@ -472,7 +459,9 @@ module.exports = locals => {
             return 1;
           }
 
-          let activityRatio = roundToNearestQuarter(numberOfActionsInTheDay / minimumDailyActivityCount);
+          let activityRatio = roundToNearestQuarter(
+            numberOfActionsInTheDay / minimumDailyActivityCount
+          );
           if (activityRatio > 1) activityRatio = 1;
 
           /** Could be `undefined`, so ignoring further actions related it it */
@@ -507,8 +496,7 @@ module.exports = locals => {
       }
 
       // Clearing removed employees on 5th of the month
-      // return monthlyDocsToDelete.commit();
-      return;
+      return monthlyDocsToDelete.commit();
     })
     .then(() => {
       if (locals.createOnlyData) {
@@ -519,10 +507,8 @@ module.exports = locals => {
         return Promise.resolve();
       }
 
-      // const monthlyOffDaysCountMap = new Map();
+      const monthlyOffDaysCountMap = new Map();
       const prevMonth = cycleStartMoment.month();
-
-      console.log({ allDates });
 
       employeePhoneNumbersList.forEach((phoneNumber, index) => {
         const columnIndex = index + 2;
@@ -561,9 +547,9 @@ module.exports = locals => {
             return statusObjectsMapForCurrentMonth.get(phoneNumber) || {};
           })();
 
-          // const monthlyOffDays = Number(
-          //   employeesData[phoneNumber]['Monthly Off Days'] || 0
-          // );
+          const monthlyOffDays = Number(
+            employeesData[phoneNumber]['Monthly Off Days'] || 0
+          );
           const paydaySheetCell =
             `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
           const paydayTimingsSheetCell =
@@ -574,26 +560,25 @@ module.exports = locals => {
 
           const paydaySheetValue = (() => {
             if (statusObject[date].onLeave
-              // || statusObject[date].onDuty
               || statusObject[date].onAr
               || statusObject[date].weeklyOff
               || statusObject[date].holiday) {
               return 1;
             }
 
-            // const count = monthlyOffDaysCountMap.get(phoneNumber);
+            const count = monthlyOffDaysCountMap.get(phoneNumber);
 
-            // if (statusObject[date].statusForDay === 0) {
-            //   monthlyOffDaysCountMap.set(phoneNumber, (count || 0) + 1);
+            if (statusObject[date].statusForDay === 0 && putMonthlyOffDays) {
+              monthlyOffDaysCountMap.set(phoneNumber, (count || 0) + 1);
 
-            //   // First n (monthlyOffDays) where the user has created 0 checkins,
-            //   // their status will be 1.
-            //   if (count < monthlyOffDays) {
-            //     isMonthlyOffDay = true;
+              // First n (monthlyOffDays) where the user has created 0 checkins,
+              // their status will be 1.
+              if (count < monthlyOffDays) {
+                isMonthlyOffDay = true;
 
-            //     return 1;
-            //   }
-            // }
+                return 1;
+              }
+            }
 
             return statusObject[date].statusForDay || 0;
           })();
