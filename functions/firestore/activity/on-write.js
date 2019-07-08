@@ -40,13 +40,24 @@ const {
   sendSMS,
   slugify,
   addEmployeeToRealtimeDb,
+  adjustedGeopoint,
 } = require('../../admin/utils');
+const {
+  activityName,
+  forSalesReport,
+} = require('../activity/helper');
 const env = require('../../admin/env');
 const {
   getEmployeesMapFromRealtimeDb,
 } = require('../../admin/utils');
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
+const googleMapsClient =
+  require('@google/maps')
+    .createClient({
+      key: env.mapsApiKey,
+      Promise: Promise,
+    });
 
 
 const sendEmployeeCreationSms = locals => {
@@ -401,7 +412,7 @@ const createAdmin = (locals, adminContact) => {
       const adminTemplateDoc = adminTemplateQuery.docs[0];
       const activityData = {
         office: locals.change.after.get('office'),
-        timezone: locals.change.after.get('office'),
+        timezone: locals.change.after.get('timezone'),
         officeId: locals.change.after.get('officeId'),
         timestamp: Date.now(),
         addendumDocRef,
@@ -1249,6 +1260,423 @@ const createFootprintsRecipient = (locals) => {
     });
 };
 
+const replaceInvalidCharsInOfficeName = office => {
+  let result = office.toLowerCase();
+  const mostCommonTlds = new Set([
+    'com',
+    'in',
+    'co.in',
+    'net',
+    'org',
+    'gov',
+    'uk',
+  ]);
+
+  mostCommonTlds.forEach(tld => {
+    if (!result.endsWith(`.${tld}`)) return;
+
+    result = result
+      .replace(`.${tld}`, '');
+  });
+
+  return result
+    .replace('.', '')
+    .replace(',', '')
+    .replace('(', '')
+    .replace(')', '')
+    .replace('ltd', '')
+    .replace('limited', '')
+    .replace('pvt', '')
+    .replace('private', '')
+    .trim();
+};
+
+const millitaryToHourMinutes = (fourDigitTime) => {
+  if (!fourDigitTime) return '';
+
+  let hours = Number(fourDigitTime.substring(0, 2));
+  let minutes = Number(fourDigitTime.substring(2));
+
+  if (hours < 10) hours = `0${hours}`;
+  if (minutes < 10) minutes = `0${minutes}`;
+
+  return `${hours}:${minutes}`;
+};
+
+const getBranchName = (addressComponents) => {
+  // (sublocaliy1 + sublocality2 + locality) OR "20chars of address + 'BRANCH'"
+  let locationName = '';
+
+  addressComponents.forEach(component => {
+    const { types, short_name } = component;
+
+    if (types.includes('sublocality_level_1')) {
+      locationName += ` ${short_name}`;
+    }
+
+    if (types.includes('sublocality_level_2')) {
+      locationName += ` ${short_name}`;
+    }
+
+    if (types.includes('locality')) {
+      locationName += ` ${short_name}`;
+    }
+  });
+
+  return `${locationName}`.trim();
+};
+
+/** Uses autocomplete api for predictions */
+const getPlaceIds = office => {
+  return googleMapsClient
+    .placesAutoComplete({
+      input: office,
+      sessiontoken: `${Math.random() * 10}`,
+      components: { country: 'in' },
+    })
+    .asPromise()
+    .then(result => {
+      const Ids = [];
+
+      result.json.predictions.forEach(prediction => {
+        const { place_id: placeid } = prediction;
+
+        Ids.push(placeid);
+      });
+
+      return Ids;
+    })
+    .catch(console.error);
+};
+
+const getPlaceName = (placeid) => {
+  return googleMapsClient
+    .place({
+      placeid,
+      fields: [
+        "address_component",
+        "adr_address",
+        "formatted_address",
+        "geometry",
+        "name",
+        "permanently_closed",
+        "place_id",
+        "type",
+        "vicinity",
+        "international_phone_number",
+        "opening_hours",
+        "website"
+      ]
+    })
+    .asPromise()
+    .then(result => {
+      const {
+        address_components: addressComponents
+      } = result.json.result;
+
+      const branchName = getBranchName(addressComponents);
+      const branchOffice = {
+        placeId: result.json.result['place_id'],
+        venueDescriptor: 'Branch Office',
+        address: result.json.result['formatted_address'],
+        location: branchName,
+        geopoint: new admin.firestore.GeoPoint(
+          result.json.result.geometry.location.lat,
+          result.json.result.geometry.location.lng
+        ),
+      };
+
+      const firstContact = (() => {
+        const internationalPhoneNumber = result
+          .json
+          .result['international_phone_number'];
+
+        if (!internationalPhoneNumber) return '';
+
+        /** If the phoneNumber has spaces in between characters */
+        return internationalPhoneNumber
+          .split(' ')
+          .join('');
+      })();
+
+      const weekdayStartTime = (() => {
+        const openingHours = result.json.result['opening_hours'];
+
+        if (!openingHours) return '';
+
+        const periods = openingHours.periods;
+
+        const relevantObject = periods.filter(item => {
+          return item.close && item.close.day === 1;
+        });
+
+        if (!relevantObject[0]) return '';
+
+        return relevantObject[0].open.time;
+      })();
+
+      const weekdayEndTime = (() => {
+        const openingHours = result.json.result['opening_hours'];
+
+        if (!openingHours) return '';
+
+        const periods = openingHours.periods;
+
+        const relevantObject = periods.filter(item => {
+          return item.close && item.close.day === 1;
+        });
+
+        if (!relevantObject[0]) return '';
+
+        return relevantObject[0].close.time;
+      })();
+
+      const saturdayStartTime = (() => {
+        const openingHours = result.json.result['opening_hours'];
+
+        if (!openingHours) return '';
+
+        const periods = openingHours.periods;
+
+        const relevantObject = periods.filter(item => {
+          return item.open && item.open.day === 6;
+        });
+
+        if (!relevantObject[0]) return '';
+
+        return relevantObject[0].open.time;
+      })();
+
+      const saturdayEndTime = (() => {
+        const openingHours = result.json.result['opening_hours'];
+
+        if (!openingHours) return '';
+
+        const periods = openingHours.periods;
+
+        const relevantObject = periods.filter(item => {
+          return item.open && item.open.day === 6;
+        });
+
+        if (!relevantObject[0]) return '';
+
+        return relevantObject[0].close.time;
+      })();
+
+      const weeklyOff = (() => {
+        const openingHours = result.json.result['opening_hours'];
+
+        if (!openingHours) return '';
+
+        const weekdayText = openingHours['weekday_text'];
+
+        if (!weekdayText) return '';
+
+        const closedWeekday = weekdayText
+          // ['Sunday: Closed']
+          .filter(str => str.includes('Closed'))[0];
+
+        if (!closedWeekday) return '';
+
+        const parts = closedWeekday.split(':');
+
+        if (!parts[0]) return '';
+
+        // ['Sunday' 'Closed']
+        return parts[0].toLowerCase();
+      })();
+
+      const schedulesArray = Array.from(Array(15)).map((_, index) => {
+        return {
+          name: `Holiday ${index + 1}`,
+          startTime: '',
+          endTime: '',
+        };
+      });
+
+      const activityObject = {
+        // All assignees from office creation instance
+        venue: [branchOffice],
+        schedule: schedulesArray,
+        attachment: {
+          'Name': {
+            value: branchName,
+            type: 'string',
+          },
+          'First Contact': {
+            value: firstContact,
+            type: 'phoneNumber',
+          },
+          'Second Contact': {
+            value: '',
+            type: 'phoneNumber',
+          },
+          'Branch Code': {
+            value: '',
+            type: 'string',
+          },
+          'Weekday Start Time': {
+            value: millitaryToHourMinutes(weekdayStartTime),
+            type: 'HH:MM',
+          },
+          'Weekday End Time': {
+            value: millitaryToHourMinutes(weekdayEndTime),
+            type: 'HH:MM',
+          },
+          'Saturday Start Time': {
+            value: millitaryToHourMinutes(saturdayStartTime),
+            type: 'HH:MM',
+          },
+          'Saturday End Time': {
+            value: millitaryToHourMinutes(saturdayEndTime),
+            type: 'HH:MM',
+          },
+          'Weekly Off': {
+            value: weeklyOff,
+            type: 'weekday',
+          },
+        },
+      };
+
+      return activityObject;
+    })
+    .catch(console.error);
+};
+
+const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
+  const batch = db.batch();
+  const activityRef = rootCollections
+    .activities
+    .doc();
+  const officeId = locals.change.after.id;
+  const addendumDocRef = rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Addendum')
+    .doc();
+  const activityData = {
+    officeId,
+    addendumDocRef,
+    template: 'branch',
+    status: branchTemplateDoc.get('statusOnCreate'),
+    hidden: branchTemplateDoc.get('hidden'),
+    createTimestamp: Date.now(),
+    forSalesReport: forSalesReport('branch'),
+    schedule: branchData.schedule,
+    venue: branchData.venue,
+    attachment: branchData.attachment,
+    canEditRule: branchTemplateDoc.get('canEditRule'),
+    timezone: locals.change.after.get('attachment.Timezone.value'),
+    timestamp: Date.now(),
+    office: locals.change.after.get('office'),
+    activityName: activityName({
+      attachmentObject: branchData.attachment,
+      templateName: 'branch',
+      requester: locals.change.after.get('creator'),
+    }),
+    adjustedGeopoints: adjustedGeopoint(branchData.venue[0].geopoint),
+  };
+
+  const addendumDocData = {
+    activityData,
+    timezone: locals.change.after.get('attachment.Timezone.value'),
+    user: locals.change.after.get('creator.phoneNumber'),
+    userDisplayName: locals.change.after.get('creator.displayName'),
+    action: httpsActions.create,
+    template: activityData.template,
+    userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+    activityId: activityRef.id,
+    activityName: activityData.activityName,
+    isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+    geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
+    provider: locals.addendumDoc.get('provider'),
+    location: locals.addendumDoc.get('location'),
+  };
+
+  locals.assigneePhoneNumbersArray.forEach(phoneNumber => {
+    batch.set(activityRef.collection('Assignees').doc(phoneNumber), {
+      canEdit: true,
+      addToInclude: false,
+    });
+  });
+
+  batch.set(activityRef, activityData);
+  batch.set(addendumDocRef, addendumDocData);
+
+  return batch.commit();
+};
+
+const createBranches = (locals) => {
+  const template = locals.change.after.get('template');
+  const hasBeenCreated = locals.addendumDoc
+    && locals.addendumDoc.get('action') === httpsActions.create;
+
+  if (template !== 'office' || !hasBeenCreated) {
+    return Promise.resolve();
+  }
+
+  let failureCount = 0;
+
+  const getBranchBodies = (office) => {
+    return getPlaceIds(office)
+      .then(ids => {
+        console.log(failureCount, ids);
+        const promises = [];
+
+        if (ids.length === 0) {
+          failureCount++;
+
+          if (failureCount > 1) {
+            // Has failed once with the actual office name
+            // and 2nd time even by replacing invalid chars
+            // Give up.
+            console.log('Resolving early...');
+
+            return Promise.all(promises);
+          }
+
+          const filteredOfficeName = replaceInvalidCharsInOfficeName(office);
+          console.log(`Called ${failureCount} times`, filteredOfficeName);
+
+          return getBranchBodies(filteredOfficeName);
+        }
+
+        console.log('Called...');
+
+        ids.forEach(id => {
+          promises.push(getPlaceName(id));
+        });
+
+        return Promise.all(promises);
+      })
+      .catch(console.error);
+  };
+
+  const office = locals.change.after.get('office');
+
+  return Promise
+    .all([
+      getBranchBodies(office),
+      rootCollections
+        .activityTemplates
+        .where('name', '==', 'branch')
+        .limit(1)
+        .get()
+    ])
+    .then(result => {
+      const [branches, templateQuery] = result;
+      const templateDoc = templateQuery.docs[0];
+      const promises = [];
+
+      branches.forEach(branch => {
+        promises.push(createAutoBranch(branch, locals, templateDoc));
+      });
+
+      return Promise.all(promises);
+    })
+    .catch(console.error);
+};
+
 
 const handleOffice = (locals) => {
   const template = locals.change.after.get('template');
@@ -1266,7 +1694,8 @@ const handleOffice = (locals) => {
     .then(() => createAutoSubscription(locals, 'subscription', firstContact))
     .then(() => createAutoSubscription(locals, 'subscription', secondContact))
     .then(() => createAdmin(locals, firstContact))
-    .then(() => createAdmin(locals, secondContact));
+    .then(() => createAdmin(locals, secondContact))
+    .then(() => createBranches(locals));
 };
 
 const setLocationsReadEvent = locals => {
