@@ -851,6 +851,10 @@ const handleJsonPostRequest = (conn, requester) => {
     return Promise.resolve({});
   }
 
+  if (conn.req.query.action === 'update-auth') {
+    return require('./update-auth')(conn, requester);
+  }
+
   if (conn.req.query.action === 'track-view') {
     return handleTrackViews(conn);
   }
@@ -926,9 +930,9 @@ const handleEmailVerificationFlow = conn => {
     .updates
     .doc(conn.req.query.uid)
     .get()
-    .then(profileDoc => {
-      if (!profileDoc.exists
-        || !profileDoc.get('emailVerificationRequestPending')) {
+    .then(updatesDoc => {
+      if (!updatesDoc.exists
+        || !updatesDoc.get('emailVerificationRequestPending')) {
         return conn.res.status(code.temporaryRedirect).redirect('/');
       }
 
@@ -938,11 +942,11 @@ const handleEmailVerificationFlow = conn => {
             .updateUser(conn.req.query.uid, {
               emailVerified: true,
             }),
-          profileDoc
+          updatesDoc
             .ref
             .set({
               emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
-              verificationRequestsCount: (profileDoc.get('verificationRequestsCount') || 0) + 1,
+              verificationRequestsCount: (updatesDoc.get('verificationRequestsCount') || 0) + 1,
             }, {
                 merge: true,
               })
@@ -964,16 +968,34 @@ const handleEmailVerificationFlow = conn => {
 module.exports = (req, res) => {
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
   const slug = getSlugFromUrl(req.url);
-  const conn = { req, res };
+  const conn = {
+    req,
+    res,
+    headers: {
+      /** The pre-flight headers */
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': `GET,POST,OPTIONS,HEAD`,
+      'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
+        'Content-Type, Accept',
+      'Access-Control-Max-Age': 86400,
+      'Content-Type': 'application/json',
+      'Content-Language': 'en-US',
+      'Cache-Control': 'no-cache',
+    },
+  };
   const locals = {
     slug,
     isLoggedIn: false,
   };
 
-  console.log('COOKIE', req.cookies);
+  // For CORS
+  // if (conn.req.method === 'OPTIONS'
+  //   || conn.req.method === 'HEAD') {
+  //   return conn.res.send({ success: true });
+  // }
 
   // Only GET and POST are allowed
-  if (!new Set(['GET', 'POST'])
+  if (!new Set(['GET', 'POST', 'HEAD', 'OPTIONS'])
     .has(req.method)) {
     return res
       .status(code.methodNotAllowed)
@@ -1130,8 +1152,10 @@ module.exports = (req, res) => {
 
       if (slug === 'json') {
         html = result;
+        conn.res.status(result.status || code.ok).set(conn.headers);
 
         return conn.res.json(html);
+
       }
 
       if (result.empty) {
