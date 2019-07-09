@@ -32,14 +32,17 @@ const {
 const admin = require('firebase-admin');
 
 const getActivityNew = (activityOld, templateDoc) => {
+  activityOld.addendumDocRef = null;
   activityOld.hidden = templateDoc.hidden;
   activityOld.statusOnCreate = templateDoc.statusOnCreate;
 
   activityOld.venue.forEach((venueObject, index) => {
-    if (templateDoc.venue[index] === venueObject.venueDescriptor) return;
+    if (templateDoc.venue[index] === venueObject.venueDescriptor) {
+      return;
+    }
 
     // Venue has been removed from the template
-    activityOld.venue[index] = admin.firestore.FieldValue.delete();
+    activityOld.venue.splice(index, 1);
   });
 
   templateDoc.venue.forEach((venueDescriptor, index) => {
@@ -47,11 +50,13 @@ const getActivityNew = (activityOld, templateDoc) => {
       .venue
       .map(venue => venue.venueDescriptor);
 
-    // if (activityOldVenueDescriptors.includes(venueDescriptor)) return;
-    if (activityOldVenueDescriptors[index] === venueDescriptor) return;
+    if (activityOldVenueDescriptors[index] === venueDescriptor) {
+      return;
+    }
 
     activityOld.venue[index] = {
       venueDescriptor,
+      placeId: '',
       geopoint: {
         latitude: '',
         longitude: '',
@@ -62,11 +67,12 @@ const getActivityNew = (activityOld, templateDoc) => {
   });
 
   activityOld.schedule.forEach((scheduleObject, index) => {
-    // if (templateDoc.schedule.includes(scheduleObject.name)) return;
-    if (templateDoc.schedule[index] === scheduleObject.name) return;
+    if (templateDoc.schedule[index] === scheduleObject.name) {
+      return;
+    }
 
     // Schedule has been removed from the template
-    activityOld.schedule[index] = admin.firestore.FieldValue.delete();
+    activityOld.schedule.splice(index, 1);
   });
 
   templateDoc.schedule.forEach((scheduleName, index) => {
@@ -74,8 +80,9 @@ const getActivityNew = (activityOld, templateDoc) => {
       .schedule
       .map(schedule => schedule.name);
 
-    // if (activityOldScheduleNames.includes(scheduleName)) return;
-    if (activityOldScheduleNames[index] === scheduleName) return;
+    if (activityOldScheduleNames[index] === scheduleName) {
+      return;
+    }
 
     activityOld.schedule[index] = {
       name: scheduleName,
@@ -89,9 +96,10 @@ const getActivityNew = (activityOld, templateDoc) => {
     .forEach(field => {
       // Field also exists in attachment.
       // allow it
-      if (templateDoc.attachment[field]) return;
+      if (templateDoc.attachment[field]) {
+        return;
+      }
 
-      // Use firestore admin sdk delete operation
       activityOld.attachment[field] = admin.firestore.FieldValue.delete();
     });
 
@@ -125,26 +133,30 @@ const updateActivities = change => {
     return Promise.resolve();
   }
 
-  const updateActivitiesByStep = (query, resolve, reject, change) => {
+  const updateActivities = (query, resolve, reject, change) => {
     return query
       .get()
-      .then(docs => {
-        if (docs.size === 0) return 0;
+      .then(snapShot => {
+
+        console.log('size', snapShot.size);
+
+        if (snapShot.size === 0) return 0;
 
         const batch = db.batch();
 
-        docs.forEach(doc => {
+        snapShot.forEach(doc => {
           const data = Object.assign({}, getActivityNew(
             doc.data(),
             change.after.data()
           ));
+
           batch.set(doc.ref, data, { merge: true });
         });
 
         /* eslint-disable */
         return batch
           .commit()
-          .then(() => docs.docs[docs.size - 1]);
+          .then(() => snapShot.docs[snapShot.size - 1]);
         /* eslint-enable */
       })
       .then(lastDoc => {
@@ -154,7 +166,7 @@ const updateActivities = change => {
 
         return process
           .nextTick(() => {
-            return updateActivitiesByStep(newQuery, resolve, reject, change);
+            return updateActivities(newQuery, resolve, reject, change);
           });
       })
       .catch(reject);
@@ -167,7 +179,7 @@ const updateActivities = change => {
     .limit(500);
 
   return new Promise((resolve, reject) => {
-    return updateActivitiesByStep(
+    return updateActivities(
       query,
       resolve,
       reject,
@@ -179,12 +191,12 @@ const updateActivities = change => {
 const updateSubscriptions = (query, resolve, reject) =>
   query
     .get()
-    .then(docs => {
-      if (docs.size === 0) return 0;
+    .then(snapshot => {
+      if (snapshot.size === 0) return 0;
 
       const batch = db.batch();
 
-      docs.forEach(doc => {
+      snapshot.forEach(doc => {
         batch.set(doc.ref, {
           timestamp: Date.now(),
           addendumDocRef: null,
@@ -196,7 +208,7 @@ const updateSubscriptions = (query, resolve, reject) =>
       /* eslint-disable */
       return batch
         .commit()
-        .then(() => docs.docs[docs.size - 1]);
+        .then(() => snapshot.docs[snapshot.size - 1]);
       /* eslint-enable */
     })
     .then(lastDoc => {
@@ -246,6 +258,5 @@ module.exports = change => {
         updateSubscriptions(query, resolve, reject),
         updateActivities(change)
       ]);
-  })
-    .catch(console.error);
+  });
 };
