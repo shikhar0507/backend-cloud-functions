@@ -52,6 +52,7 @@ const {
 } = require('../../admin/utils');
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 const googleMapsClient =
   require('@google/maps')
     .createClient({
@@ -1304,7 +1305,8 @@ const millitaryToHourMinutes = (fourDigitTime) => {
 };
 
 const getBranchName = (addressComponents) => {
-  // (sublocaliy1 + sublocality2 + locality) OR "20chars of address + 'BRANCH'"
+  // (sublocaliy1 + sublocality2 + locality)
+  // OR "20chars of address + 'BRANCH'"
   let locationName = '';
 
   addressComponents.forEach(component => {
@@ -1323,7 +1325,7 @@ const getBranchName = (addressComponents) => {
     }
   });
 
-  return `${locationName}`.trim();
+  return `${locationName} BRANCH`.trim();
 };
 
 /** Uses autocomplete api for predictions */
@@ -1331,7 +1333,7 @@ const getPlaceIds = office => {
   return googleMapsClient
     .placesAutoComplete({
       input: office,
-      sessiontoken: `${Math.random() * 10}`,
+      sessiontoken: crypto.randomBytes(64).toString('hex'),
       components: { country: 'in' },
     })
     .asPromise()
