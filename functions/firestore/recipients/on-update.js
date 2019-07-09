@@ -125,6 +125,7 @@ module.exports = change => {
       replyTo: env.mailReplyTo,
       attachments: [],
       customArgs: {
+        office: change.after.get('office'),
         recipientId: change.after.id,
         reportName: change.after.get('report'),
       },
@@ -164,7 +165,6 @@ module.exports = change => {
   const withNoEmail = new Set();
   const withUnverifiedEmail = new Set();
   const unverifiedOrEmailNotSetPhoneNumbers = [];
-  const verificationBugCustomClaimPromises = [];
   const uidMap = new Map();
   const batch = db.batch();
 
@@ -246,7 +246,6 @@ module.exports = change => {
       }
 
       if (report === reportNames.PAYROLL) {
-        // return require('./payroll-report')(locals);
         return require('./payday-report')(locals);
       }
 
@@ -330,10 +329,6 @@ module.exports = change => {
       return Promise.all(notifications);
     })
     .then(() => {
-      if (!locals.sendMail) {
-        return Promise.resolve(null);
-      }
-
       const momentYesterday = momentTz().subtract(1, 'day');
 
       return rootCollections
@@ -346,10 +341,6 @@ module.exports = change => {
         .get();
     })
     .then(snapShot => {
-      if (!locals.sendMail) {
-        return Promise.resolve(null);
-      }
-
       const dailyStatusDoc = snapShot.docs[0];
       const data = dailyStatusDoc.data();
       const office = locals.officeDoc.get('office');
@@ -367,9 +358,7 @@ module.exports = change => {
       });
 
       const promises = [
-        verificationBugCustomClaimPromises,
-        batch
-          .commit(),
+        batch.commit(),
       ];
 
       /**

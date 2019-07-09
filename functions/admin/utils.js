@@ -871,8 +871,7 @@ const getRegistrationToken = (phoneNumber) => {
 
 const handleUserStatusReport = (worksheet, counterDoc, yesterdayInitDoc, activeYesterday) => {
   const userStatusSheet = worksheet.addSheet('User Status');
-  userStatusSheet.row(0).style('bold', true);
-
+  userStatusSheet.row(1).style('bold', true);
   userStatusSheet.cell('A1').value('Total Auth');
   userStatusSheet.cell('B1').value('New Auth');
   userStatusSheet.cell('C1').value('Active Yesterday');
@@ -886,12 +885,11 @@ const handleUserStatusReport = (worksheet, counterDoc, yesterdayInitDoc, activeY
   userStatusSheet.cell('D2').value(yesterdayInitDoc.get('installsToday'));
 };
 
-const handleOfficeActivityReport = (worksheet, yesterdayInitDoc) => {
+const handleOfficeActivityReport = (worksheet, yesterdayInitDoc, emailStatusMap) => {
   let activeYesterday = 0;
-
   const officeActivitySheet = worksheet.addSheet('Office Activity Report');
-  officeActivitySheet.row(0).style('bold', true);
 
+  officeActivitySheet.row(1).style('bold', true);
   officeActivitySheet.cell('A1').value('');
   officeActivitySheet.cell('B1').value('Total Users');
   officeActivitySheet.cell('C1').value('Users Active Yesterday');
@@ -900,6 +898,7 @@ const handleOfficeActivityReport = (worksheet, yesterdayInitDoc) => {
   officeActivitySheet.cell('F1').value('Pending Signups');
   officeActivitySheet.cell('G1').value('Activities Created Yesterday');
   officeActivitySheet.cell('H1').value('Unverified Recipients');
+  officeActivitySheet.cell('I1').value('Email Status');
 
   const countsObject = yesterdayInitDoc.get('countsObject');
   const createCountByOffice = yesterdayInitDoc.get('createCountByOffice');
@@ -915,6 +914,8 @@ const handleOfficeActivityReport = (worksheet, yesterdayInitDoc) => {
         active,
         notActive,
       } = countsObject[office];
+
+      const mailObject = emailStatusMap[office];
 
       const createCount = createCountByOffice[office];
       const arrayOfUnverifiedRecipients = unverifiedRecipients[office];
@@ -932,6 +933,9 @@ const handleOfficeActivityReport = (worksheet, yesterdayInitDoc) => {
       officeActivitySheet
         .cell(`H${rowIndex}`)
         .value(`${arrayOfUnverifiedRecipients || []}`);
+      officeActivitySheet
+        .cell(`I${rowIndex}`)
+        .value(JSON.stringify(mailObject));
     });
 
   return activeYesterday;
@@ -940,7 +944,7 @@ const handleOfficeActivityReport = (worksheet, yesterdayInitDoc) => {
 
 const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => {
   const activityStatusSheet = worksheet.addSheet('Activity Status Report');
-  activityStatusSheet.row(0).style('bold', true);
+  activityStatusSheet.row(1).style('bold', true);
 
   activityStatusSheet.cell('A1').value('Templates');
   activityStatusSheet.cell('B1').value('Total');
@@ -1055,10 +1059,84 @@ const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => 
   });
 };
 
-const handleDailyStatusReport = (toEmail) => {
-  const date = moment().subtract(1, 'day').format(dateFormats.DATE);
+const getEmailStatusMap = () => {
+  const recipientPromises = [];
+
+  const moment = require('moment');
+  const dayStartUnix = moment().startOf('day');
+  const dayEndUnix = dayStartUnix.clone().endOf('day');
+  const map = new Map();
+  const officeNameIndex = [];
+
+  return rootCollections
+    .recipients
+    .get()
+    .then(docs => {
+      docs.forEach(doc => {
+        const promise = doc
+          .ref
+          .collection('MailEvents')
+          .where('timestamp', '>=', dayStartUnix.valueOf())
+          .where('timestamp', '<=', dayEndUnix.valueOf())
+          .limit(1)
+          .get();
+
+        officeNameIndex.push(doc.get('office'));
+
+        recipientPromises.push(promise);
+      });
+
+      return Promise.all(recipientPromises);
+    })
+    .then(snapShots => {
+      snapShots.forEach((snapShot, index) => {
+        const officeName = officeNameIndex[index];
+
+        if (snapShot.empty) return;
+
+        const doc = snapShot.docs[0];
+        const emailObject = doc.data();
+
+        Object
+          .keys(emailObject)
+          .forEach(email => {
+            if (email === 'timestamp') return;
+
+            const sgItem = emailObject[email];
+            const openedFootprints = sgItem.open && sgItem.open.footprints;
+            const deliveredFootprints = sgItem.delivered && sgItem.delivered.footprints;
+            const openedPayroll = sgItem.open && sgItem.open.payroll;
+            const deliveredPayroll = sgItem.delivered && sgItem.delivered.payroll;
+            const status = map.get(officeName) || {};
+
+            status[email] = status[email] || {};
+            status[email].footprints = status[email].footprints || {};
+            status[email].payroll = status[email].payroll || {};
+            status[email].footprints.opened = Boolean(openedFootprints);
+            status[email].footprints.delivered = Boolean(deliveredFootprints);
+            status[email].payroll.opened = Boolean(openedPayroll);
+            status[email].payroll.delivered = Boolean(deliveredPayroll);
+
+            map.set(officeName, status);
+          });
+      });
+
+      const mapToObj = map => {
+        const obj = {};
+
+        map.forEach((v, k) => obj[k] = v);
+
+        return obj;
+      };
+
+      return mapToObj(map);
+    });
+};
+
+const handleDailyStatusReport = toEmail => {
+  const momentYesterday = moment().subtract(1, 'day');
+  const date = momentYesterday.format(dateFormats.DATE);
   const fileName = `Daily Status Report ${date}.xlsx`;
-  const yesterday = moment().subtract(1, 'day');
   const messageObject = {
     from: {
       name: 'Growthfile',
@@ -1088,25 +1166,29 @@ const handleDailyStatusReport = (toEmail) => {
       rootCollections
         .inits
         .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-        .where('date', '==', yesterday.date())
-        .where('month', '==', yesterday.month())
-        .where('year', '==', yesterday.year())
+        .where('date', '==', momentYesterday.date())
+        .where('month', '==', momentYesterday.month())
+        .where('year', '==', momentYesterday.year())
         .limit(1)
         .get(),
+      getEmailStatusMap()
     ])
-    .then((result) => {
+    .then(result => {
       const [
         workbook,
         counterInitQuery,
         yesterdayInitQuery,
+        emailStatusMap,
       ] = result;
 
       worksheet = workbook;
       counterDoc = counterInitQuery.docs[0];
       yesterdayInitDoc = yesterdayInitQuery.docs[0];
+
       const activeYesterday = handleOfficeActivityReport(
         worksheet,
-        yesterdayInitDoc
+        yesterdayInitDoc,
+        emailStatusMap,
       );
       handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
       handleUserStatusReport(
@@ -1120,7 +1202,7 @@ const handleDailyStatusReport = (toEmail) => {
 
       return worksheet.outputAsync('base64');
     })
-    .then((content) => {
+    .then(content => {
       messageObject.to = toEmail || env.dailyStatusReportRecipients;
       messageObject
         .attachments

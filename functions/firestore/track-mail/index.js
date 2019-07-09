@@ -8,11 +8,7 @@ const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 
 
-module.exports = (conn) => {
-  console.log('TRACKING MAILS...');
-  console.log('Body', conn.req.body);
-  console.log('Headers', conn.req.headers);
-
+module.exports = conn => {
   if (conn.req.query.token !== env.sgMailParseToken) {
     console.log('TrackMailError:', conn.req.query, conn.req.body);
 
@@ -46,8 +42,6 @@ module.exports = (conn) => {
 
     promises.push(promise);
   });
-
-  console.log('promises', promises.length);
 
   return Promise
     .all(promises)
