@@ -30,13 +30,18 @@ const {
   rootCollections,
 } = require('../admin/admin');
 const {
+  getRelevantTime,
+  promisifiedRequest,
+} = require('../admin/utils');
+const {
   reportNames,
 } = require('../admin/constants');
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
-
+const admin = require('firebase-admin');
+const momentTz = require('moment-timezone');
 
 
 const sendErrorReport = () => {
@@ -101,74 +106,105 @@ const sendErrorReport = () => {
     .catch(console.error);
 };
 
-// const runQuery = (query, resolve, reject) => {
-//   return query
-//     .get()
-//     .then((docs) => {
-//       if (docs.empty) {
-//         return 0;
-//       }
+const runQuery = (query, resolve, reject) => {
+  return query
+    .get()
+    .then((docs) => {
+      if (docs.empty) {
+        return 0;
+      }
 
-//       const batch = db.batch();
+      const batch = db.batch();
 
-//       docs.forEach((doc) => {
-//         const scheduleArray = doc.get('schedule');
+      docs.forEach((doc) => {
+        const scheduleArray = doc.get('schedule');
 
-//         batch.set(doc.ref, {
-//           addendumDocRef: null,
-//           relevantTime: getRelevantTime(scheduleArray),
-//         }, {
-//             merge: true,
-//           });
-//       });
+        batch.set(doc.ref, {
+          addendumDocRef: null,
+          relevantTime: getRelevantTime(scheduleArray),
+        }, {
+            merge: true,
+          });
+      });
 
-//       /* eslint-disable */
-//       return batch
-//         .commit()
-//         .then(() => docs.docs[docs.size - 1]);
-//       /* eslint-enable */
-//     })
-//     .then((lastDoc) => {
-//       if (!lastDoc) return resolve();
+      /* eslint-disable */
+      return batch
+        .commit()
+        .then(() => docs.docs[docs.size - 1]);
+      /* eslint-enable */
+    })
+    .then(lastDoc => {
+      if (!lastDoc) return resolve();
 
-//       return process
-//         .nextTick(() => {
-//           const newQuery = query
-//             // Using greater than sign because we need
-//             // to start after the last activity which was
-//             // processed by this code otherwise some activities
-//             // might be updated more than once.
-//             .where(fieldPath, '>', lastDoc.id);
+      return process
+        .nextTick(() => {
+          const newQuery = query
+            // Using greater than sign because we need
+            // to start after the last activity which was
+            // processed by this code otherwise some activities
+            // might be updated more than once.
+            .where(admin.firestore.FieldPath.documentId(), '>', lastDoc.id);
 
-//           return runQuery(newQuery, resolve, reject);
-//         });
-//     })
-//     .catch(reject);
-// };
+          return runQuery(newQuery, resolve, reject);
+        });
+    })
+    .catch(reject);
+};
 
-// const handleRelevantTime = () => {
-//   const start = momentTz()
-//     .subtract('1', 'day')
-//     .startOf('day')
-//     .valueOf();
-//   const end = momentTz()
-//     .subtract('1', 'day')
-//     .endOf('day')
-//     .valueOf();
+const handleRelevantTime = () => {
+  const start = momentTz()
+    .subtract('1', 'day')
+    .startOf('day')
+    .valueOf();
+  const end = momentTz()
+    .subtract('1', 'day')
+    .endOf('day')
+    .valueOf();
 
-//   const query = rootCollections
-//     .activities
-//     .where('relevantTime', '>=', start)
-//     .where('relevantTime', '<=', end)
-//     .orderBy(fieldPath)
-//     .limit(250);
+  const query = rootCollections
+    .activities
+    .where('relevantTime', '>=', start)
+    .where('relevantTime', '<=', end)
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(250);
 
-//   return new Promise((resolve, reject) => {
-//     return runQuery(query, resolve, reject);
-//   });
-// };
+  return new Promise((resolve, reject) => {
+    return runQuery(query, resolve, reject);
+  });
+};
 
-module.exports = (timerDoc) => {
+const setBackblazeIdToken = timerDoc => {
+  const getKeyId = (applicationKey, keyId) => {
+    return `${keyId}:${applicationKey}`;
+  };
+
+  const applicationKey = env.backblaze.apiKey;
+  const keyId = env.backblaze.keyId;
+  const keyWithPrefix = getKeyId(applicationKey, keyId);
+  const authorization =
+    `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
+
+  return promisifiedRequest({
+    hostname: `api.backblazeb2.com`,
+    path: `/b2api/v2/b2_authorize_account`,
+    headers: {
+      Authorization: authorization,
+    },
+  })
+    .then(response => {
+      return timerDoc
+        .ref
+        .set({
+          apiUrl: response.apiUrl,
+          backblazeAuthorizationToken: response.authorizationToken,
+        }, {
+            merge: true,
+          });
+    })
+    .catch(console.error);
+};
+
+module.exports = timerDoc => {
   if (timerDoc.get('sent')) {
     // Helps to check if email is sent already.
     // Cloud functions sometimes trigger multiple times
@@ -188,9 +224,11 @@ module.exports = (timerDoc) => {
 
       env
         .instantEmailRecipientEmails
-        .forEach((email) => {
-          const html = `<p>Date (DD-MM-YYYY): ${timerDoc.id}</p>
-<p>Timestamp: ${new Date(timerDoc.get('timestamp')).toJSON()}</p>`;
+        .forEach(email => {
+          const html = `<p>Date (DD-MM-YYYY): `
+            + `${timerDoc.id}</p>
+            <p>Timestamp:`
+            + ` ${new Date(timerDoc.get('timestamp')).toJSON()}</p>`;
 
           messages.push({
             html,
@@ -204,9 +242,13 @@ module.exports = (timerDoc) => {
           });
         });
 
-      return sgMail.sendMultiple(messages);
+      return Promise
+        .all([
+          sgMail.sendMultiple(messages),
+          sendErrorReport(),
+          setBackblazeIdToken(timerDoc)
+        ]);
     })
-    .then(() => sendErrorReport())
     .then(() => {
       const momentYesterday = moment()
         .subtract(1, 'day')
@@ -227,7 +269,7 @@ module.exports = (timerDoc) => {
             .get(),
         ]);
     })
-    .then((result) => {
+    .then(result => {
       const [
         recipientsQuery,
         counterDocsQuery,
@@ -236,12 +278,9 @@ module.exports = (timerDoc) => {
       const batch = db.batch();
 
       recipientsQuery
-        .forEach((doc) => {
-          batch.set(doc.ref, {
-            timestamp: Date.now(),
-          }, {
-              merge: true,
-            });
+        .forEach(doc => {
+          batch
+            .set(doc.ref, { timestamp: Date.now() }, { merge: true });
         });
 
       batch.set(counterDocsQuery.docs[0].ref, {

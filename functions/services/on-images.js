@@ -10,6 +10,9 @@ const {
   promisifiedExecFile,
 } = require('../admin/utils');
 const {
+  rootCollections,
+} = require('../admin/admin');
+const {
   auth,
 } = require('../admin/admin');
 const { code } = require('../admin/responses');
@@ -55,7 +58,7 @@ module.exports = (conn) => {
         photoURL: conn.req.body.imageBase64,
       })
       .then(() => sendResponse(conn, code.noContent))
-      .catch((error) => handleError(conn, error));
+      .catch(error => handleError(conn, error));
 
     return;
   }
@@ -64,12 +67,6 @@ module.exports = (conn) => {
   let authorizationToken = '';
   let mainDownloadUrlStart = '';
   const bucketId = env.backblaze.buckets.images;
-  const applicationKey = env.backblaze.apiKey;
-  const keyId = env.backblaze.keyId;
-  const getKeyId = (applicationKey) => `${keyId}:${applicationKey}`;
-  const keyWithPrefix = getKeyId(applicationKey);
-  const authorization =
-    `Basic ${Buffer.from(keyWithPrefix).toString('base64')}`;
   const originalFileName = `${conn.requester.uid}-original.jpg`;
   const originalFilePath = `/tmp/${originalFileName}`;
   const compressedFilePath = `/tmp/${conn.requester.uid}.jpg`;
@@ -80,17 +77,17 @@ module.exports = (conn) => {
   });
 
   promisifiedExecFile(mozjpeg, ['-outfile', compressedFilePath, originalFilePath])
-    .then(() => promisifiedRequest({
-      hostname: `api.backblazeb2.com`,
-      path: `/b2api/v2/b2_authorize_account`,
-      headers: {
-        Authorization: authorization,
-      },
-    }))
-    .then((response) => {
-      authorizationToken = response.authorizationToken;
-      const newHostName = response.apiUrl.split('https://')[1];
-      console.log({ newHostName });
+    .then(() => {
+      return rootCollections
+        .timers
+        .orderBy('timestamp', 'desc')
+        .limit(1)
+        .get();
+    })
+    .then(timerDocQuery => {
+      const timerDoc = timerDocQuery.docs[0];
+      authorizationToken = timerDoc.get('backblazeAuthorizationToken');
+      const newHostName = timerDoc.get('apiUrl').split('https://')[1];
       mainDownloadUrlStart = newHostName;
 
       return promisifiedRequest({
@@ -102,7 +99,7 @@ module.exports = (conn) => {
         },
       });
     })
-    .then((response) => {
+    .then(response => {
       authorizationToken = response.authorizationToken;
       const fileBuffer = fs.readFileSync(compressedFilePath);
       const uploadUrl = response.uploadUrl;
@@ -124,7 +121,7 @@ module.exports = (conn) => {
 
       return promisifiedRequest(options);
     })
-    .then((response) => {
+    .then(response => {
       const photoURL =
         cloudflareCdnUrl(
           mainDownloadUrlStart,
@@ -151,6 +148,6 @@ module.exports = (conn) => {
           .updateUser(conn.requester.uid, { photoURL });
       }
     })
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error, 'Image upload unavailable at the moment...'));
+    .then(() => sendResponse(conn, code.ok))
+    .catch(error => handleError(conn, error, 'Image upload unavailable at the moment...'));
 };

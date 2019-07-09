@@ -26,6 +26,7 @@
 
 
 const functions = require('firebase-functions');
+const env = require('./admin/env');
 
 const authOnCreate = functions
   .auth
@@ -100,6 +101,13 @@ const monthlyOnWrite = functions
   .document('Offices/{officeId}/Monthly/{docId}')
   .onWrite(require('./firestore/monthly'));
 
+const temporaryImageHandler = functions
+  .storage
+  .bucket(env.tempBucketName)
+  .object()
+  .onFinalize(require('./temporary-image-handler.js'));
+
+
 module.exports = {
   api,
   timer,
@@ -114,6 +122,7 @@ module.exports = {
   addendumOnCreate,
   recipientsOnUpdate,
   sendPushNotification,
+  temporaryImageHandler,
   activityTemplatesOnUpdate,
   generateOfficeNamePermutations,
 };

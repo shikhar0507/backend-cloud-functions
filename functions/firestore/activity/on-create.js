@@ -49,20 +49,16 @@ const {
 } = require('./helper');
 const {
   handleError,
-  getFileHash,
   sendResponse,
-  promisifiedRequest,
-  promisifiedExecFile,
-  cloudflareCdnUrl,
   getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 const fs = require('fs');
-const url = require('url');
-const mozjpeg = require('mozjpeg');
+
 
 const createDocsWithBatch = (conn, locals) => {
+  const canEditMap = {};
   locals.objects.allPhoneNumbers
     .forEach(phoneNumber => {
       let addToInclude = true;
@@ -73,11 +69,15 @@ const createDocsWithBatch = (conn, locals) => {
         addToInclude = false;
       }
 
+      const canEdit = getCanEditValue(locals, phoneNumber);
+
+      canEditMap[phoneNumber] = canEdit;
+
       locals.batch.set(locals.docs.activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
           addToInclude,
-          canEdit: getCanEditValue(locals, phoneNumber),
+          canEdit,
         });
     });
 
@@ -162,8 +162,44 @@ const createDocsWithBatch = (conn, locals) => {
     addendumDocObject.cancellationMessage = locals.cancellationMessage;
   }
 
-  locals.batch.set(addendumDocRef, addendumDocObject);
-  locals.batch.set(locals.docs.activityRef, activityData);
+  locals
+    .batch
+    .set(addendumDocRef, addendumDocObject);
+  locals
+    .batch
+    .set(locals.docs.activityRef, activityData);
+
+  /** For base64 images, upload the json file to bucket */
+  if (conn.isBase64 && conn.base64Field) {
+    delete activityData.addendumDocRef;
+    delete addendumDocObject.activityData.addendumDocRef;
+
+    const json = {
+      canEditMap,
+      activityData,
+      addendumDocObject,
+      activityId: locals.docs.activityRef.id,
+      addendumId: addendumDocRef.id,
+      base64Field: conn.base64Field,
+      requestersPhoneNumber: conn.requester.phoneNumber,
+    };
+
+    const storage = require('firebase-admin').storage();
+    const bucketName = env.tempBucketName;
+    const bucket = storage.bucket(bucketName);
+    const activityId = locals.docs.activityRef.id;
+    const fileName = `${activityId}.json`;
+    const filePath = `/tmp/${fileName}`;
+
+    fs.writeFileSync(filePath, JSON.stringify(json));
+
+    console.log('Uploading to file');
+
+    return bucket
+      .upload(filePath)
+      .then(() => sendResponse(conn, code.created))
+      .catch(error => handleError(conn, error));
+  }
 
   /** ENDS the response. */
   return locals
@@ -472,114 +508,6 @@ const resolveProfileCheckPromises = (conn, locals, result) => {
     .catch(error => handleError(conn, error));
 };
 
-const handleBase64 = (conn, locals, result) => {
-  const {
-    isBase64,
-    base64Field,
-  } = result;
-
-  /**
-   * if value is base64 -> backblaze
-   * if value is empty string return;
-   * if value is url return;
-   */
-  if (!isBase64) {
-    return resolveProfileCheckPromises(conn, locals, result);
-  }
-
-  const getKeyId = (applicationKey, keyId) => `${keyId}:${applicationKey}`;
-
-  let authorizationToken = '';
-  let mainDownloadUrlStart = '';
-  const base64ImageString = result.base64Value.split('base64,').pop();
-  const activityId = locals.docs.activityRef.id;
-  const bucketId = env.backblaze.buckets.images;
-  const applicationKey = env.backblaze.apiKey;
-  const keyId = env.backblaze.keyId;
-  const keyWithPrefix = getKeyId(applicationKey, keyId);
-  const authorization =
-    `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
-  const originalFileName = `${activityId}-original.jpg`;
-  const originalFilePath = `/tmp/${originalFileName}`;
-  const compressedFilePath = `/tmp/${activityId}.jpg`;
-  const fileName = `${activityId}.jpg`;
-
-  fs.writeFileSync(originalFilePath, base64ImageString, {
-    encoding: 'base64',
-  });
-
-  return promisifiedExecFile(mozjpeg, ['-outfile', compressedFilePath, originalFilePath])
-    .then(() => promisifiedRequest({
-      hostname: `api.backblazeb2.com`,
-      path: `/b2api/v2/b2_authorize_account`,
-      headers: {
-        Authorization: authorization,
-      },
-    }))
-    .then(response => {
-      authorizationToken = response.authorizationToken;
-      const newHostName = response.apiUrl.split('https://')[1];
-      console.log({ newHostName });
-      mainDownloadUrlStart = newHostName;
-
-      return promisifiedRequest({
-        hostname: newHostName,
-        path: `/b2api/v2/b2_get_upload_url?bucketId=${bucketId}`,
-        method: 'GET',
-        headers: {
-          'Authorization': authorizationToken,
-        },
-      });
-    })
-    .then(response => {
-      authorizationToken = response.authorizationToken;
-      const fileBuffer = fs.readFileSync(compressedFilePath);
-      const uploadUrl = response.uploadUrl;
-      const parsed = url.parse(uploadUrl);
-      const options = {
-        hostname: parsed.hostname,
-        path: parsed.path,
-        method: 'POST',
-        postData: fileBuffer,
-        headers: {
-          'Authorization': authorizationToken,
-          'X-Bz-File-Name': encodeURI(fileName),
-          'Content-Type': 'b2/x-auto',
-          'Content-Length': Buffer.byteLength(fileBuffer),
-          'X-Bz-Content-Sha1': getFileHash(fileBuffer),
-          'X-Bz-Info-Author': conn.requester.phoneNumber,
-        },
-      };
-
-      return promisifiedRequest(options);
-    })
-    .then(response => {
-      const url =
-        cloudflareCdnUrl(
-          mainDownloadUrlStart,
-          response.fileId,
-          fileName
-        );
-
-      conn.req.body.attachment[base64Field].value = url;
-
-      try {
-        if (fs.existsSync(originalFilePath)) {
-          fs.unlinkSync(originalFilePath);
-        }
-
-        if (fs.existsSync(compressedFilePath)) {
-          fs.unlinkSync(compressedFilePath);
-        }
-
-        return resolveProfileCheckPromises(conn, locals, result);
-      } catch (error) {
-        return resolveProfileCheckPromises(conn, locals, result);
-      }
-    })
-    .catch(error => handleError(conn, error, 'Please try again...'));
-};
-
 
 const handleAttachment = (conn, locals) => {
   const options = {
@@ -606,7 +534,15 @@ const handleAttachment = (conn, locals) => {
       locals.objects.allPhoneNumbers.add(phoneNumber);
     });
 
-  return handleBase64(conn, locals, result);
+  const {
+    isBase64,
+    base64Field,
+  } = result;
+
+  conn.isBase64 = isBase64;
+  conn.base64Field = base64Field;
+
+  return resolveProfileCheckPromises(conn, locals, result);
 };
 
 
