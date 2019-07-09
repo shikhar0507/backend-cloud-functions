@@ -53,6 +53,7 @@ const {
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const realtimeDb = require('firebase-admin').database();
 const googleMapsClient =
   require('@google/maps')
     .createClient({
@@ -1191,6 +1192,28 @@ const handleEmployee = (locals) => {
     .then(() => sendEmployeeCreationSms(locals))
     .then(() => handleMonthlyDocs(locals, hasBeenCancelled))
     .then(() => createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled))
+    .then(() => {
+      // Manages cancelled employees
+      if (!hasBeenCancelled) {
+        return Promise.resolve();
+      }
+
+      const ref = realtimeDb.ref(`${officeId}/${template}-cancelled/${phoneNumber}`);
+
+      return new Promise((resolve, reject) => {
+        const data = locals.change.after.data();
+
+        delete data.addendumDocRef;
+        data.createTime = locals.change.after.createTime.toDate().getTime();
+        data.updateTime = locals.change.after.updateTime.toDate().getTime();
+
+        ref.set(data, error => {
+          if (error) reject(error);
+
+          resolve();
+        });
+      });
+    })
     .catch(console.error);
 };
 
