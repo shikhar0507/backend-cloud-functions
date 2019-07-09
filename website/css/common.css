@@ -951,3 +951,9 @@ input:disabled {
     min-width: -moz-min-content;
     min-width: min-content;
 }
+
+@media (min-width: 768px) {
+    .modal-content {
+        width: 50%;
+    }
+}

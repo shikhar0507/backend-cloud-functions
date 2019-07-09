@@ -175,7 +175,9 @@ function fetchOfficeList() {
 
       populateOfficeInSelect(response);
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 
@@ -201,7 +203,9 @@ function setTemplatesInTopSelect() {
 
       selectElement.onchange = handleTopSelectTemplateClick;
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function startAdmin() {
@@ -238,7 +242,9 @@ function handlePhoneNumberChange() {
     .then(function (response) {
       createSnackbar(response.message || 'Phone Number updated successfully');
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function handleUpdateAuthRequest() {
@@ -287,7 +293,9 @@ function handleUpdateAuthRequest() {
       console.log('result', response);
       createSnackbar(response.message || 'Success');
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function handleTemplateCreate(elem) {
@@ -330,7 +338,9 @@ function submitNewTemplate() {
         resultNode.classList.remove('success-label');
       }
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function handleActivityEditOnClick(doc) {
@@ -426,13 +436,7 @@ function handleActivityEditOnClick(doc) {
       createSnackbar(response.message || 'Update Successful', 'Dismiss');
     })
     .catch(function (error) {
-      console.error(error);
-
-      if (error === 'Please Enable Location') {
-        createSnackbar('Location access is required', 'Dismiss');
-      }
-
-      createSnackbar('Something went wrong', 'Dismiss');
+      createSnackbar(error);
     });
 }
 
@@ -492,8 +496,8 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
     return;
   }
 
-  const requestUrl = (function () {
-    if (doc.template === 'employee') {
+  let requestUrl = (function () {
+    if (doc.template === 'employee' && newStatus === 'CANCELLED') {
       return `${apiBaseUrl}/remove-employee`;
     }
 
@@ -534,7 +538,7 @@ function getButton(value, secondary) {
   return button;
 }
 
-function getActivityEditObject(doc) {
+function getActivityEditForm(doc) {
   const container = document.createElement('div');
   const form = document.createElement('form');
 
@@ -756,7 +760,7 @@ function getActivityEditObject(doc) {
   }
 
   const buttonContainer = document.createElement('div');
-  buttonContainer.classList.add('flexed', 'mt-16', 'activity-buttons');
+  buttonContainer.classList.add('flexed', 'ml-16', 'pad-10', 'activity-buttons', 'flexed-center');
   const updateButton = getButton('Update');
   const confirmButton = getButton('Confirm', true);
   const cancelButton = getButton('Cancel', true);
@@ -794,11 +798,15 @@ function getActivityEditObject(doc) {
     buttonContainer.append(confirmButton, pendingButton);
   }
 
-  form.appendChild(buttonContainer);
+  // form.appendChild(buttonContainer);
 
-  container.appendChild(form);
+  // container.append(form, buttonContainer);
 
-  return container;
+  // return container;
+  return {
+    form,
+    buttonContainer
+  };
 }
 
 function activityEditOnClick(doc) {
@@ -806,14 +814,17 @@ function activityEditOnClick(doc) {
 
   removeAllChildren(container);
 
-  const dataContainer = getActivityEditObject(doc);
+  const elements = getActivityEditForm(doc);
   container.className += ` raised`;
 
-  container.appendChild(dataContainer);
+  // container.appendChild(dataContainer);
+  container.append(elements.form, elements.buttonContainer);
 
-  dataContainer.querySelectorAll('input[type="tel"]').forEach(el => {
-    initializeTelInput(el);
-  });
+  elements
+    .form
+    .querySelectorAll('input[type="tel"]').forEach(el => {
+      initializeTelInput(el);
+    });
 }
 
 
@@ -865,30 +876,125 @@ function getActivityListItem(doc) {
   return li;
 }
 
-function searchUpdateTemplateSelectOnChange() {
+function filterResultsForSearchAndUpdate() {
+  const modalBodyElement = document.createElement('div');
+  modalBodyElement.classList.add('pad-10');
+
+  const fieldsContainer = document.createElement('div');
+  const fieldSelect = document.createElement('select');
+
+  window
+    .searchTemplateAttachmentFields
+    .forEach(function (fieldItem) {
+      const option = document.createElement('option');
+
+      option.textContent = fieldItem.field;
+
+      fieldSelect.append(option);
+    });
+
+  fieldSelect.className += ' input-field mb-16 mw-100';
+
+  const input = document.createElement('input');
+  input.classList.add('input-field', 'mw-100', 'mb-16');
+  input.placeholder = 'Type here...';
+
+  fieldsContainer.append(fieldSelect, input);
+
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.textAlign = 'right';
+  const button = getButton('Submit');
+
+  button.onclick = function () {
+    console.log('init search');
+    if (!input.value) {
+      return createSnackbar('Invalid input');
+    }
+
+    closeModal();
+
+    const template = document.querySelector('.forms-parent select').value;
+
+    let requestUrl = `/json?office=${encodeURI(document.body.dataset.office)}`
+      + `&attachmentField=${encodeURI(fieldSelect.value)}`
+      + `&query=${encodeURI(input.value)}`
+      + `&template=${encodeURI(template)}`;
+
+    if (isSupport()) {
+      requestUrl += '&support=true';
+    }
+
+    console.log(requestUrl);
+
+    sendApiRequest(requestUrl)
+      .then(function (response) { return response.json(); })
+      .then(function (response) {
+
+        /** Calling this function to repopulate the activity list */
+        searchUpdateTemplateSelectOnChange(requestUrl);
+
+        console.log('Response', response);
+      })
+      .catch(function (error) {
+        return createSnackbar(error || 'Something went wrong');
+      });
+  }
+
+  buttonContainer.append(button);
+
+  modalBodyElement.append(fieldsContainer, buttonContainer);
+
+  const modal = getModal({
+    title: 'Filter activities',
+    modalBodyElement,
+  });
+
+  document.body.appendChild(modal);
+}
+
+function searchUpdateTemplateSelectOnChange(url) {
   const templateSelect = document.querySelector('.forms-parent select');
   const selectedTemplate = templateSelect.value;
+
+  if (!selectedTemplate) return;
+
+  document.querySelector('.activity-filter').classList.remove('hidden');
+
   const ul = document.querySelector('.activity-list');
 
   removeAllChildren(ul);
 
-  // activity-form
-  removeAllChildren(document.querySelector('.activity-form'));
+  // single-activity
+  removeAllChildren(document.querySelector('.single-activity'));
 
-  const url = `/json?office=${document.body.dataset.office}`
-    + `&template=${selectedTemplate}`;
+  // activity-form
+  // removeAllChildren(document.querySelector('.activity-form'));
 
   sendApiRequest(url)
-    .then(function (response) {
-      return response.json();
-    })
+    .then(function (response) { return response.json(); })
     .then(function (response) {
       console.log('response', response);
 
       Object
         .keys(response)
-        .forEach(function (key) {
+        .forEach(function (key, index) {
+
           const doc = response[key];
+
+          /** For generating the dynamic select list in modal. */
+          if (index === 0) {
+            window
+              .searchTemplateAttachmentFields = Object
+                .keys(doc.attachment)
+                .map(function (field) {
+                  return ({
+                    field,
+                    value: doc.attachment[field].value,
+                    type: doc.attachment[field].type,
+                  });
+                });
+          }
+
           const li = getActivityListItem(doc);
 
           ul.appendChild(li);
@@ -900,11 +1006,16 @@ function searchUpdateTemplateSelectOnChange() {
 function searchAndUpdate() {
   setActionTitle('Search & Update');
   hideActionsSection();
+
   const container = document.querySelector('.forms-parent');
 
   container.classList += ' pad';
 
   const listOfTemplates = document.createElement('select');
+  const loadingOption = document.createElement('option');
+  loadingOption.textContent = 'Loading...';
+  listOfTemplates.append(loadingOption);
+
   const activityDiv = document.createElement('div');
 
   activityDiv.className += ' activity-parent';
@@ -916,7 +1027,21 @@ function searchAndUpdate() {
   singleActivity.classList.add('single-activity');
   listOfTemplates.className += ' input-field w-100';
 
-  activityDiv.append(listOfActivities, singleActivity);
+  const filterDiv = document.createElement('div');
+  const searchIcon = document.createElement('i');
+  searchIcon.textContent = 'search';
+  searchIcon.classList.add('material-icons');
+
+  filterDiv.append(searchIcon);
+  filterDiv.classList.add('cur-ptr');
+  filterDiv.classList += ' activity-filter hidden';
+  filterDiv.onclick = filterResultsForSearchAndUpdate;
+
+  const listContainer = document.createElement('div');
+  listContainer.className += ' activity-list-container';
+  listContainer.append(filterDiv, listOfActivities);
+
+  activityDiv.append(listContainer, singleActivity);
   container.append(listOfTemplates, activityDiv);
 
   sendApiRequest('/json?action=get-template-names')
@@ -924,6 +1049,16 @@ function searchAndUpdate() {
       return response.json();
     })
     .then(function (response) {
+      console.log('Response', response);
+
+      listOfTemplates.firstElementChild.remove();
+      const defaultOption = document.createElement('option');
+
+      defaultOption.textContent = 'Select a template';
+      defaultOption.value = '';
+
+      listOfTemplates.append(defaultOption);
+
       response.forEach(function (name) {
         const option = document.createElement('option');
         option.value = name;
@@ -932,7 +1067,15 @@ function searchAndUpdate() {
         listOfTemplates.appendChild(option);
       });
 
-      listOfTemplates.onchange = searchUpdateTemplateSelectOnChange;
+      // filterDiv.classList.remove('hidden');
+
+      listOfTemplates.onchange = function () {
+        const templateSelect = document.querySelector('.forms-parent select');
+        const url = `/json?office=${document.body.dataset.office}`
+          + `&template=${templateSelect.value}`;
+
+        searchUpdateTemplateSelectOnChange(url);
+      };
     })
     .catch(console.error);
 }
@@ -954,9 +1097,7 @@ function joinFormSelfPhoneOnInput(evt) {
 
 function populateTemplateSelect(selectElement) {
   return sendApiRequest(`/json?action=get-template-names`)
-    .then(function (response) {
-      return response.json();
-    })
+    .then(function (response) { return response.json(); })
     .then(function (response) {
       selectElement.firstElementChild.remove();
 
@@ -1122,7 +1263,7 @@ function recipientAssigneeUpdateOnClick(evt) {
 
   console.log('toAdd', toAdd);
   console.log('toRemove', toRemove);
-  console.log('allPhoneNumbers', [...allPhoneNumbers.values()]);
+  console.log('allPhoneNumbers', Array.from(allPhoneNumbers.values()));
 
   const final = new Set();
 
@@ -1158,9 +1299,11 @@ function recipientAssigneeUpdateOnClick(evt) {
     })
     .then(function (response) { return response.json() })
     .then(function (response) {
-      console.log(response);
+      createSnackbar(response.message || 'Update Successful');
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function addNewAssignee(evt) {
@@ -1248,7 +1391,9 @@ function handleRecipientSelectOnChange(evt) {
     .then(function (response) {
       console.log('Response', response);
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function updateEmailInReports() {
@@ -1289,7 +1434,9 @@ function updateEmailInReports() {
           div.appendChild(getRecipientActivityContainer(doc));
         });
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function onDomContentLoaded() {
@@ -1406,7 +1553,9 @@ function recipientSubmitOnClick() {
         || 'Report triggered successfully';
 
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function triggerReports() {
@@ -1476,7 +1625,9 @@ function triggerReports() {
 
       submit.onclick = recipientSubmitOnClick;
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function changePhoneNumber() {
@@ -1558,7 +1709,9 @@ function sendUpdateTemplateRequest(newText) {
 
       createSnackbar(response.message || 'Update Successful', 'Dismiss');
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function viewTemplateButtonOnClick(evt) {
@@ -1686,7 +1839,9 @@ function manageTemplates() {
         .querySelector('.forms-parent')
         .append(container);
     })
-    .catch(console.error);
+    .catch(function (error) {
+      createSnackbar(error);
+    });
 }
 
 function windowOnLoad() {

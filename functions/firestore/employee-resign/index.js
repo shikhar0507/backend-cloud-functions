@@ -118,13 +118,13 @@ const cancelEmployee = (conn, officeDoc) => {
 
       return batch.commit();
     })
-    .then(() => sendResponse(conn, code.noContent))
+    .then(() => sendResponse(conn, code.ok, `${conn.req.body.phoneNumber} has been CANCELLED`))
     .catch((error) => handleError(conn, error));
 };
 
 
 module.exports = (conn) => {
-  if (conn.req.method !== 'POST') {
+  if (conn.req.method !== 'PATCH') {
     return sendResponse(
       conn,
       code.methodNotAllowed,

@@ -277,24 +277,37 @@ section h1 {
 
 .activity-form {
     padding: 20px;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.activity-filter {
+    /* margin-top: 16px; */
+    padding: 10px;
+    background: #f5f5f5;
+    text-align: right;
+}
+
+.activity-list-container {
+    margin-top: 8px;
 }
 
 .activity-list {
-    margin-top: 16px;
-    /* max-height: 50vh; */
-    overflow-y: auto;
+    /* margin-top: 16px; */
     overflow-x: hidden;
+    max-height: 50vh;
 }
 
+.activity-buttons {}
+
+/* Space between CONFIRM, CANCEL and PENDING button */
 .activity-buttons input {
     margin-right: 8px;
 }
 
 .single-activity {
     margin-top: 16px;
-    height: auto;
-    overflow-y: auto;
-    /* max-height: 50vh; */
+    /* overflow-y: auto; */
 }
 
 .single-activity-item {
@@ -362,7 +375,7 @@ aside {
 .activity-parent {
     display: flex;
     flex-direction: column;
-    max-height: 70vh;
+    /* max-height: 70vh; */
 }
 
 .gg-5 {
@@ -436,16 +449,24 @@ aside {
         margin-right: auto;
     }
 
+    .activity-list-container {
+        margin-right: 16px;
+        /* margin-top: unset; */
+    }
+
     .activity-parent {
         margin-top: 16px;
+        /* margin-right: 16px; */
         display: flex;
         flex-direction: row;
     }
 
-    .activity-list {
+    .activity-filter {
+        /* margin-right: 16px; */
         margin-top: unset;
-        margin-right: 16px;
     }
+
+    .activity-list {}
 
     #support-office-search>div {
         margin: auto;
