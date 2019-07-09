@@ -22,11 +22,29 @@ module.exports = (req, requester) => {
   const json = {};
   let failed = false;
 
-  return rootCollections
+  console.log('query', req.query);
+
+  let query = rootCollections
     .activities
-    .where('office', '==', req.query.office)
-    .where('template', '==', req.query.template)
-    .limit(500)
+    .where('office', '==', req.query.office);
+
+  if (req.query.query) {
+    query = query
+      .where(`attachment.${req.query.attachmentField}.value`, '==', req.query.query);
+  }
+
+  if (req.query.template) {
+    query = query
+      .where('template', '==', req.query.template);
+  }
+
+  if (!req.query.query
+    && !req.query.template) {
+    return ({});
+  }
+
+  return query
+    .limit(200)
     .get()
     .then(docs => {
       failed = docs.empty;
