@@ -189,10 +189,8 @@ module.exports = conn => {
     statusObject: {},
   };
 
-  if (conn
-    .requester
-    .profileDoc
-    .get('statusObject')) {
+  if (conn.requester.profileDoc
+    && conn.requester.profileDoc.get('statusObject')) {
     jsonObject
       .statusObject = conn
         .requester
