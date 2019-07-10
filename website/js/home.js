@@ -538,8 +538,68 @@ function getButton(value, secondary) {
   return button;
 }
 
+function addAssigneeToActivity(doc) {
+  const modalBodyElement = document.createElement('div');
+  const button = getButton('Submit');
+  const form = document.createElement('form');
+  form.classList.add('pad', 'flexed-column', 'pad');
+  const phoneInput = document.createElement('input');
+  phoneInput.type = 'tel';
+  phoneInput.classList.add('input-field', 'mw-100');
+
+  form.append(phoneInput, button);
+
+  modalBodyElement.append(form);
+
+  const modal = getModal({
+    title: `Add new phone number to ${doc.activityName}`,
+    modalBodyElement,
+  });
+
+  document.body.append(modal);
+
+  initializeTelInput(phoneInput);
+
+  button.onclick = function () {
+    if (!isValidPhoneNumber(phoneInput.value)) {
+      return createSnackbar('Invalid phone number');
+    }
+
+    let requestUrl = `${apiBaseUrl}/activities/share`;
+
+    if (isSupport()) {
+      requestUrl += '?support=true';
+    }
+
+    const requestBody = {
+      activityId: doc.activityId,
+      timestamp: Date.now(),
+      share: [phoneInput.value],
+    };
+
+    getLocation()
+      .then(function (geopoint) {
+        requestBody.geopoint = geopoint;
+
+        return sendApiRequest(requestUrl, requestBody, 'PATCH')
+      })
+      .then(function (response) { return response.json() })
+      .then(function (response) {
+        console.log('Response', response);
+
+        createSnackbar(response.message || 'New phone number added');
+
+        if (response.success) {
+          closeModal();
+        }
+      })
+      .catch(function (error) {
+        createSnackbar(error || 'Something went wrong');
+      });
+  };
+}
+
 function getActivityEditForm(doc) {
-  const container = document.createElement('div');
   const form = document.createElement('form');
 
   form.classList.add('activity-form');
@@ -765,6 +825,7 @@ function getActivityEditForm(doc) {
   const confirmButton = getButton('Confirm', true);
   const cancelButton = getButton('Cancel', true);
   const pendingButton = getButton('Pending', true);
+  const addNewAssigneeButton = getButton('Add New', true);
 
   confirmButton
     .onclick = function () {
@@ -798,11 +859,12 @@ function getActivityEditForm(doc) {
     buttonContainer.append(confirmButton, pendingButton);
   }
 
-  // form.appendChild(buttonContainer);
+  addNewAssigneeButton.onclick = function () {
+    addAssigneeToActivity(doc);
+  }
 
-  // container.append(form, buttonContainer);
+  buttonContainer.append(addNewAssigneeButton);
 
-  // return container;
   return {
     form,
     buttonContainer
@@ -915,10 +977,10 @@ function filterResultsForSearchAndUpdate() {
 
     const template = document.querySelector('.forms-parent select').value;
 
-    let requestUrl = `/json?office=${encodeURI(document.body.dataset.office)}`
-      + `&attachmentField=${encodeURI(fieldSelect.value)}`
-      + `&query=${encodeURI(input.value)}`
-      + `&template=${encodeURI(template)}`;
+    let requestUrl = `/json?office=${encodeURIComponent(document.body.dataset.office)}`
+      + `&attachmentField=${fieldSelect.value}`
+      + `&query=${encodeURIComponent(input.value)}`
+      + `&template=${template}`;
 
     if (isSupport()) {
       requestUrl += '&support=true';
@@ -1306,7 +1368,7 @@ function recipientAssigneeUpdateOnClick(evt) {
     });
 }
 
-function addNewAssignee(evt) {
+function recipientActivityAddMoreOnClick(evt) {
   const parent = evt.target.parentElement;
   const ul = parent.querySelector('ul');
   const input = document.createElement('input');
@@ -1330,7 +1392,6 @@ function getRecipientActivityContainer(doc) {
   heading.className = 'ttuc bold mb-16 bb';
   heading.textContent = doc.attachment.Name.value;
   const list = document.createElement('ul');
-
   const buttonContainer = document.createElement('div');
   buttonContainer.className = 'tac';
   const button = document.createElement('input');
@@ -1374,7 +1435,7 @@ function getRecipientActivityContainer(doc) {
 
   addMore.classList.add('pad-10', 'tac', 'border', 'cur-ptr');
   addMore.append(addPhoneNumberIcon);
-  addMore.onclick = addNewAssignee;
+  addMore.onclick = recipientActivityAddMoreOnClick;
   container.append(heading, list, addMore, buttonContainer);
   container.className += ' raised pad mb-16';
 
