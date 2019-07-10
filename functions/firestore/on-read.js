@@ -310,9 +310,10 @@ module.exports = conn => {
           merge: true,
         });
 
-      if (conn.requester.profileDoc.get('statusObject')) {
+      if (conn.requester.profileDoc
+        && conn.requester.profileDoc.get('statusObject')) {
         batch.set(conn.requester.profileDoc.ref, {
-          statusObject: require('firebase-admin').firestore.FieldValue.delete(),
+          statusObject: admin.firestore.FieldValue.delete(),
         }, {
             merge: true,
           });
