@@ -1188,7 +1188,7 @@ const handleDailyStatusReport = toEmail => {
       const activeYesterday = handleOfficeActivityReport(
         worksheet,
         yesterdayInitDoc,
-        emailStatusMap,
+        emailStatusMap
       );
       handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
       handleUserStatusReport(
