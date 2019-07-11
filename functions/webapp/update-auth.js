@@ -5,6 +5,7 @@ const {
   isValidEmail,
   hasAdminClaims,
   hasSupportClaims,
+  isNonEmptyString,
 } = require('../admin/utils');
 const {
   code,
@@ -46,10 +47,26 @@ const validateRequestBody = requestBody => {
   // If isSupport or admin -> office is required
   // if user has no custom claims, only allow update for self.
   // if phone number is missing, put phone number === requester's phone number
+  const emailPresent = isNonEmptyString(requestBody.email);
+
+  if (emailPresent && !isValidEmail(requestBody.email)) {
+    result.message = `Invalid value in the field: 'email'`;
+    result.success = false;
+  }
+
+  if (!isE164PhoneNumber(requestBody.phoneNumber)) {
+    result.message = `Invalid value in the field: 'phoneNumber'`;
+    result.success = false;
+  }
+
+  if (requestBody.displayName
+    && !isNonEmptyString(requestBody.displayName)) {
+    result.message = `Invald value in the field: 'displayName'`;
+    result.success = false;
+  }
 
   return result;
 };
-
 
 
 const sendCustomVerificationEmail = options => {
@@ -242,8 +259,6 @@ module.exports = (conn, requester) => {
     .body
     .phoneNumber === requester.phoneNumber;
 
-  console.log({ isSelfUpdateRequest });
-
   if (!hasAdminClaims(requester.customClaims)
     && !hasSupportClaims(requester.customClaims)
     // Only support and admin can send requests for modifying
@@ -284,8 +299,6 @@ module.exports = (conn, requester) => {
       phoneNumber: conn.req.body.phoneNumber || requester.phoneNumber,
     };
 
-    console.log('isPrivilidgedUser || isSelfUpdateRequest');
-
     return createVerificationFlow(options);
   }
 
@@ -299,8 +312,6 @@ module.exports = (conn, requester) => {
           displayName: conn.req.body.displayName || userRecord.email,
           phoneNumber: conn.req.body.phoneNumber,
         };
-
-        console.log('requester.isSupport');
 
         return createVerificationFlow(options);
       });

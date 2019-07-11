@@ -35,6 +35,7 @@ const getActivityNew = (activityOld, templateDoc) => {
   activityOld.addendumDocRef = null;
   activityOld.hidden = templateDoc.hidden;
   activityOld.statusOnCreate = templateDoc.statusOnCreate;
+  activityOld.canEditRule = templateDoc.canEditRule;
 
   activityOld.venue.forEach((venueObject, index) => {
     if (templateDoc.venue[index] === venueObject.venueDescriptor) {
@@ -258,5 +259,6 @@ module.exports = change => {
         updateSubscriptions(query, resolve, reject),
         updateActivities(change)
       ]);
-  });
+  })
+    .catch(console.error);
 };

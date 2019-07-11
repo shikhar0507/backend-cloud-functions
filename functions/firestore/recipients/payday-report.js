@@ -19,7 +19,6 @@ const {
 
 const roundToNearestQuarter = number => Math.floor(number / 0.25) * 0.25;
 
-
 const getDefaultStatusObject = () => ({
   onLeave: false,
   // onDuty: false,
@@ -135,10 +134,6 @@ const getPaydayTimingsSheetValue = (statusObject, date, isMonthlyOffDay) => {
   if (statusObject[date].onLeave) {
     return 'ON LEAVE';
   }
-
-  // if (statusObject[date].onDuty) {
-  //   return 'ON DUTY';
-  // }
 
   if (statusObject[date].onAr) {
     return 'ON DUTY';

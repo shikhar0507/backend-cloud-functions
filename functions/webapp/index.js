@@ -700,7 +700,6 @@ const handleJsonGetRequest = (conn, requester) => {
   if (conn.req.query.action === 'get-template-names') {
     return rootCollections
       .activityTemplates
-      .where('canEditRule', '==', 'ADMIN')
       .get()
       .then(docs => {
         return docs.docs.map(doc => {
@@ -989,10 +988,10 @@ module.exports = (req, res) => {
   };
 
   // For CORS
-  // if (conn.req.method === 'OPTIONS'
-  //   || conn.req.method === 'HEAD') {
-  //   return conn.res.send({ success: true });
-  // }
+  if (conn.req.method === 'OPTIONS'
+    || conn.req.method === 'HEAD') {
+    return conn.res.send({ success: true });
+  }
 
   // Only GET and POST are allowed
   if (!new Set(['GET', 'POST', 'HEAD', 'OPTIONS'])

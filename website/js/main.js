@@ -125,7 +125,6 @@ function getSpinnerElement(id) {
       return elem;
     }
   }
-
 }
 
 /** Create Modal box */

@@ -994,7 +994,7 @@ const getAccuracyTolerance = (accuracy) => {
 };
 
 const checkDistanceAccurate = (addendumDoc, activityDoc) => {
-  const template = addendumDoc.get('activityData.template');
+  /** User's current location */
   const geopointOne = {
     _latitude: addendumDoc.get('location')._latitude,
     _longitude: addendumDoc.get('location')._longitude,
@@ -1003,12 +1003,8 @@ const checkDistanceAccurate = (addendumDoc, activityDoc) => {
   const venue = addendumDoc.get('activityData.venue')[0];
   const distanceTolerance = getAccuracyTolerance(geopointOne.accuracy);
 
-  // User didn't input the location
-  if (template === 'check-in' && !venue.location) {
-    return false;
-  }
-
-  if (template === 'check-in' && venue.location) {
+  if (venue.location) {
+    /** Location that the user selected */
     const geopointTwo = {
       _latitude: venue.geopoint._latitude,
       _longitude: venue.geopoint._longitude,
@@ -1031,13 +1027,6 @@ const checkDistanceAccurate = (addendumDoc, activityDoc) => {
   };
 
   const distanceBetween = haversineDistance(geopointOne, geopointTwo);
-
-  console.log({
-    distanceBetween,
-    distanceTolerance,
-    geopointOne,
-    geopointTwo
-  });
 
   return distanceBetween < distanceTolerance;
 };
@@ -1138,7 +1127,7 @@ module.exports = addendumDoc => {
               /**
                * Ordering is important here. The `legal` distance
                * between A to B might not be the same as the legal
-               * distance between B to A.
+               * distance between B to A. So, do not mix the ordering.
                */
               origins: getLatLngString(previousGeopoint),
               destinations: getLatLngString(currentGeopoint),

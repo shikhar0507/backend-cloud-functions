@@ -173,6 +173,13 @@ module.exports = object => {
       return batch.commit();
     })
     /** Delete the file since the activity creation is complete */
-    .then(() => bucket.file(filePath).delete())
+    .then(() => {
+      if (!env.isProduction) {
+        return Promise.resolve();
+      }
+
+      // Not deleting json files in test project
+      return bucket.file(filePath).delete();
+    })
     .catch(console.error);
 };

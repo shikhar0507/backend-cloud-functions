@@ -316,15 +316,17 @@ const headerValid = (headers) => {
  * `lat` and `lng` values.
  *
  * @param {Object} geopoint Contains `lat` and `lng` values.
+ * @param {boolean} canBeEmpty Whether to allow geopoints with latitude and longitude as empty strings
  * @returns {boolean} If the input `latitude` & `longitude` pair is valid.
  */
-const isValidGeopoint = (geopoint) => {
+const isValidGeopoint = (geopoint, canBeEmpty = true) => {
   if (!geopoint) return false;
   if (!geopoint.hasOwnProperty('latitude')) return false;
   if (!geopoint.hasOwnProperty('longitude')) return false;
 
   if (geopoint.latitude === ''
-    && geopoint.longitude === '') return true;
+    && geopoint.longitude === ''
+    && canBeEmpty) return true;
 
   if (typeof geopoint.latitude !== 'number') return false;
   if (typeof geopoint.longitude !== 'number') return false;

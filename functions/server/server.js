@@ -47,7 +47,7 @@ const env = require('../admin/env');
 const routes = require('../routes');
 
 
-const handleResource = (conn) => {
+const handleResource = conn => {
   const resource = routes(conn.req);
 
   /** 404 */
@@ -84,7 +84,7 @@ const handleResource = (conn) => {
 };
 
 
-const getProfile = (conn) => {
+const getProfile = conn => {
   const batch = db.batch();
   /**
     * When a user signs up for the first time, the `authOnCreate`
@@ -187,10 +187,10 @@ const getProfile = (conn) => {
         .all([
           batch
             .commit(),
-          handleResource(conn),
+          handleResource(conn)
         ]);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const getUserAuthFromIdToken = (conn, decodedIdToken) => {
@@ -230,7 +230,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) => {
 
       return getProfile(conn);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 
@@ -244,15 +244,14 @@ const handleRejections = (conn, errorObject) => {
 
   console.error({ context });
 
-  if (!errorObject.code.startsWith('auth/')) {
+  if (errorObject.code && !errorObject.code.startsWith('auth/')) {
     console.error(errorObject);
 
     return sendResponse(conn, code.internalServerError, 'Something went wrong');
   }
 
   return reportBackgroundError(errorObject, context, 'AUTH_REJECTION')
-    .then(() => sendResponse(conn, code.unauthorized, 'Unauthorized'))
-    .catch((error) => handleError(conn, error));
+    .then(() => sendResponse(conn, code.unauthorized, 'Unauthorized'));
 };
 
 /**
@@ -273,8 +272,8 @@ const checkAuthorizationToken = (conn) => {
 
   return auth
     .verifyIdToken(result.authToken, checkRevoked)
-    .then((decodedIdToken) => getUserAuthFromIdToken(conn, decodedIdToken))
-    .catch((error) => handleRejections(conn, error));
+    .then(decodedIdToken => getUserAuthFromIdToken(conn, decodedIdToken))
+    .catch(error => handleRejections(conn, error));
 };
 
 
@@ -287,7 +286,6 @@ const checkAuthorizationToken = (conn) => {
  */
 module.exports = (req, res) => {
   const allowedMethods = ['OPTIONS', 'HEAD', 'POST', 'GET', 'PATCH', 'PUT'];
-
   const conn = {
     req,
     res,
@@ -315,7 +313,7 @@ module.exports = (req, res) => {
       conn,
       code.notImplemented,
       `${req.method} is not supported for any request.`
-      + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to make your requests'
+      + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to amake your requests'
     );
   }
 

@@ -321,17 +321,43 @@ section h1 {
 }
 
 .bc-container form {
-    position: absolute;
+    /* position: absolute; */
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+}
+
+.bc-file-drag {
+    height: 100px;
+    width: 100px;
+    border-radius: 100px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 4px solid #FFFFFF;
+    overflow: hidden;
+    background-image: linear-gradient(to bottom, #89273E 50%, #FFFFFF 50%);
+    background-size: 100% 200%;
+    transition: all 1s;
+    color: #FFFFFF;
+    font-size: 100px;
+}
+
+.bc-file-drag:hover {
+    background-position: 0 -100%;
+    color: #018786;
 }
 
 .bc-container input[type="file"] {
+    height: 200px;
+    width: 200px;
     position: absolute;
     top: 0;
     left: 0;
     opacity: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
+    cursor: pointer;
 }
 
 .bc-results-list {

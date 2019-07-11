@@ -790,16 +790,16 @@ function getActivityEditForm(doc) {
   assigneeContainer.appendChild(assigneeHeadContainer);
   const assigneeUl = document.createElement('ul');
 
+  assigneeUl.classList.add('mdc-chip-set');
+
   doc
     .assignees
     .forEach(function (phoneNumber, index) {
       const li = document.createElement('li');
       const phoneSpan = document.createElement('span');
       phoneSpan.textContent = phoneNumber;
-      phoneSpan.style.pointerEvents = 'none';
-      phoneSpan.classList.add('mr-8');
-
-      li.classList.add('cur-ptr', 'mb-8');
+      phoneSpan.classList.add('mdc-chip__text');
+      li.classList.add('mdc-chip');
 
       if (index === 0) {
         li.className += ' mt-8';
@@ -855,7 +855,10 @@ function getActivityEditForm(doc) {
     buttonContainer.append(confirmButton, cancelButton);
   }
 
-  if (doc.status === 'CANCELLED') {
+  // cannot change status for employee and subscription activities
+  if (doc.status === 'CANCELLED'
+    && doc.template !== 'employee'
+    && doc.template !== 'subscription') {
     buttonContainer.append(confirmButton, pendingButton);
   }
 
@@ -1059,6 +1062,10 @@ function searchUpdateTemplateSelectOnChange(url) {
 
           const li = getActivityListItem(doc);
 
+          if (index === 0) {
+            li.tabIndex = 0;
+          }
+
           ul.appendChild(li);
         });
     })
@@ -1128,8 +1135,6 @@ function searchAndUpdate() {
 
         listOfTemplates.appendChild(option);
       });
-
-      // filterDiv.classList.remove('hidden');
 
       listOfTemplates.onchange = function () {
         const templateSelect = document.querySelector('.forms-parent select');
@@ -1213,8 +1218,12 @@ function populateBulkCreationResult(response) {
 
   const ul = document.querySelector('.bc-results-list');
 
-  response.data.forEach(function (item) {
+  response.data.forEach(function (item, index) {
     const li = getBulkCreateResultLi(item);
+
+    if (index === 0) {
+      li.tabIndex = 0;
+    }
 
     ul.appendChild(li);
   });
@@ -1406,16 +1415,14 @@ function getRecipientActivityContainer(doc) {
 
   doc.assignees.forEach(function (phoneNumber) {
     const li = document.createElement('li');
-    li.className = 'flexed';
+    li.classList.add('mdc-chip');
     const span = document.createElement('span');
-    span.classList.add('cur-ptr');
+    span.classList.add('mdc-chip__text');
     span.textContent = phoneNumber;
     span.dataset.phoneNumber = true;
     const icon = document.createElement('i');
-    icon.className = 'far fa-times-circle col-gray ml-8';
-    icon.style.lineHeight = 'inherit';
-
-    li.append(span, icon);
+    icon.classList.add('far', 'fa-times-circle', 'mdc-chip__icon', 'mdc-chip__icon--leading');
+    li.append(icon, span);
 
     li.onclick = function () {
       span.classList.toggle('striked');
@@ -1427,6 +1434,8 @@ function getRecipientActivityContainer(doc) {
 
     list.appendChild(li);
   });
+
+  list.classList.add('mdc-chip-set');
 
   const addPhoneNumberIcon = document.createElement('i');
   addPhoneNumberIcon.className = 'fas fa-plus ft-size-20';

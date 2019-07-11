@@ -15,8 +15,10 @@ const {
   isValidEmail,
   isEmptyObject,
   isValidGeopoint,
+  adjustedGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
+  getEmployeesMapFromRealtimeDb,
 } = require('../../admin/utils');
 const {
   code,
@@ -32,11 +34,26 @@ const {
 } = require('../../admin/constants');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
+const admin = require('firebase-admin');
 // const xlsxPopulate = require('xlsx-populate');
 // const {
 //   alphabetsArray,
 // } = require('../../firestore/recipients/report-utils');
 
+
+const getVenueFieldsSet = templateDoc => {
+  if (!templateDoc.get('venue').length > 0) {
+    return new Set();
+  }
+
+  return new Set()
+    .add('venueDescriptor')
+    .add('placeId')
+    .add('location')
+    .add('address')
+    .add('latitude')
+    .add('longitude');
+};
 
 const templateNamesObject = {
   ADMIN: 'admin',
@@ -76,7 +93,7 @@ const handleValidation = (body) => {
     };
   }
 
-  if (!isValidGeopoint(body.geopoint)
+  if (!isValidGeopoint(body.geopoint, false)
     || !body.hasOwnProperty('geopoint')) {
     return {
       success: false,
@@ -171,21 +188,6 @@ const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
   return true;
 };
 
-const getEmployeeDataObject = (activityObject, phoneNumber) => {
-  return {
-    Name: activityObject.attachment.Name.value,
-    Designation: activityObject.attachment.Designation.value,
-    Department: activityObject.attachment.Department.value,
-    'Employee Contact': phoneNumber,
-    'Employee Code': activityObject.attachment['Employee Code'].value,
-    'Base Location': activityObject.attachment['Base Location'].value,
-    'First Supervisor': activityObject.attachment['First Supervisor'].value,
-    'Second Supervisor': activityObject.attachment['Second Supervisor'].value,
-    'Third Supervisor': activityObject.attachment['Third Supervisor'].value,
-    'Daily Start Time': activityObject.attachment['Daily Start Time'].value,
-    'Daily End Time': activityObject.attachment['Daily End Time'].value,
-  };
-};
 
 // const sendXLSXToCreaator = (conn, locals, responseObject) => {
 //   const fileName = `${conn.req.body.template}--${conn.req.body.office}.xlsx`;
@@ -277,29 +279,24 @@ const executeSequentially = (batchFactories) => {
 const commitData = (conn, batchesArray, batchFactories) => {
   // For a single batch, no need to create batch factories
   if (batchesArray.length === 1) {
-    return batchesArray[0]
-      .commit()
-      .catch(error => handleError(conn, error));
+    return batchesArray[0].commit();
   }
 
-  return executeSequentially(batchFactories)
-    .catch(error => handleError(conn, error));
+  return executeSequentially(batchFactories);
 };
 
 const createObjects = (conn, locals, trialRun) => {
   let totalDocsCreated = 0;
   let currentBatchIndex = 0;
   let batchDocsCount = 0;
-  const employeesData = {};
   const batchFactories = [];
   const batchesArray = [];
   const timestamp = Date.now();
   const childActivitiesBatch = db.batch();
-  const isEmployeeTemplate = conn.req.body.template === templateNamesObject.EMPLOYEE;
   const isOfficeTemplate = conn.req.body.template === templateNamesObject.OFFICE;
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(locals.templateDoc.get('schedule'));
-  const venueFieldsSet = new Set(locals.templateDoc.get('venue'));
+  const venueFieldsSet = getVenueFieldsSet(locals.templateDoc);
 
   conn.req.body.data.forEach((item, index) => {
     if (item.rejected) {
@@ -419,38 +416,44 @@ const createObjects = (conn, locals, trialRun) => {
         return;
       }
 
-      // TODO: Find how to handle schedule?
       if (isFromVenue) {
-        activityObject.venue.push({
-          venueDescriptor: field,
-          location: '',
-          address: '',
-          geopoint: {
-            latitude: '',
-            longitude: '',
-          },
-        });
+        activityObject.venue[0] = activityObject.venue[0] || {
+          venueDescriptor: locals.templateDoc.get('venue')[0],
+          geopoint: {},
+        };
 
-        activityObject.adjustedGeopoints = '';
+        if (field === 'placeId') {
+          activityObject.venue[0].placeId = value;
+        }
+
+        if (field === 'location') {
+          activityObject.venue[0].location = value;
+        }
+
+        if (field === 'latitude') {
+          activityObject.venue[0].geopoint.latitude = value;
+        }
+
+        if (field === 'longitude') {
+          activityObject.venue[0].geopoint.longitude = value;
+        }
+
+        if (field === 'address') {
+          activityObject.venue[0].address = value;
+        }
       }
     });
 
-    if (isEmployeeTemplate) {
-      const phoneNumber = activityObject.attachment['Employee Contact'].value;
-
-      employeesData[phoneNumber] = getEmployeeDataObject(
-        activityObject,
-        phoneNumber
+    if (activityObject.venue[0]
+      && activityObject.venue[0].geopoint.latitude
+      && activityObject.venue[0].geopoint.longitude) {
+      activityObject.venue[0].geopoint = new admin.firestore.GeoPoint(
+        activityObject.venue[0].geopoint.latitude,
+        activityObject.venue[0].geopoint.longitude
       );
 
-      batchDocsCount++;
-      totalDocsCreated++;
-
-      batch.set(locals.officeDoc.ref, {
-        employeesData,
-      }, {
-          merge: true,
-        });
+      activityObject
+        .adjustedGeopoints = adjustedGeopoint(activityObject.venue[0].geopoint);
     }
 
     const addendumObject = {
@@ -527,8 +530,7 @@ const createObjects = (conn, locals, trialRun) => {
 
   return commitData(conn, batchesArray, batchFactories)
     .then(() => childActivitiesBatch.commit())
-    .then(() => responseObject)
-    .catch(error => handleError(conn, error));
+    .then(() => responseObject);
 };
 
 const fetchDataForCanEditRule = (conn, locals) => {
@@ -556,8 +558,7 @@ const fetchDataForCanEditRule = (conn, locals) => {
       });
 
       return Promise.resolve();
-    })
-    .catch(error => handleError(conn, error));
+    });
 };
 
 const handleEmployees = (conn, locals) => {
@@ -586,11 +587,18 @@ const handleEmployees = (conn, locals) => {
   const phoneNumbersToRejectSet = new Set();
 
   return Promise
-    .all(promises)
-    .then(snapShots => {
+    .all([
+      getEmployeesMapFromRealtimeDb(locals.officeDoc.id),
+      Promise
+        .all(promises)
+    ])
+    .then(result => {
+      const [employeesData, snapShots] = result;
+
       snapShots.forEach(snapShot => {
         if (snapShot.empty) return;
 
+        /** Doc exists, employee already exists */
         const doc = snapShot.docs[0];
         const phoneNumber = doc.get('attachment.Name.value');
 
@@ -602,13 +610,20 @@ const handleEmployees = (conn, locals) => {
 
         if (phoneNumbersToRejectSet.has(phoneNumber)) {
           conn.req.body[index].rejected = true;
-          conn.req.body[index].reason = `Phone number already in use`;
+          conn.req.body[index].reason = `Phone number ${phoneNumber} is already an employee`;
+
+          return;
+        }
+
+        if (employeesData[phoneNumber]) {
+          conn.req.body[index].rejected = true;
+          conn.req.body[index].reason = `Phone number: ${phoneNumber} is already`
+            + ` in use by ${employeesData[phoneNumber].Name}`;
         }
       });
 
       return Promise.resolve();
-    })
-    .catch(error => handleError(conn, error));
+    });
 };
 
 const handleUniqueness = (conn, locals) => {
@@ -688,8 +703,7 @@ const handleUniqueness = (conn, locals) => {
       });
 
       return Promise.resolve();
-    })
-    .catch(error => handleError(conn, error));
+    });
 };
 
 const handleSubscriptions = (conn, locals) => {
@@ -730,12 +744,11 @@ const handleSubscriptions = (conn, locals) => {
 
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
-          `${phoneNumber} already has '${template}'`;
+          `${phoneNumber} already has subscription of '${template}'`;
       });
 
       return Promise.resolve();
-    })
-    .catch((error) => handleError(conn, error));
+    });
 };
 
 const handleAdmins = (conn, locals) => {
@@ -790,8 +803,7 @@ const handleAdmins = (conn, locals) => {
       });
 
       return Promise.resolve();
-    })
-    .catch((error) => handleError(conn, error));
+    });
 };
 
 const fetchValidTypes = (conn, locals) => {
@@ -858,8 +870,7 @@ const fetchValidTypes = (conn, locals) => {
         });
 
       return Promise.resolve();
-    })
-    .catch(error => handleError(conn, error));
+    });
 };
 
 const fetchTemplates = (conn, locals) => {
@@ -890,13 +901,13 @@ const fetchTemplates = (conn, locals) => {
       locals.adminTemplateDoc = adminTemplateQuery.docs[0];
 
       return Promise.resolve();
-    })
-    .catch(error => handleError(conn, error));
+    });
 };
+
 
 const validateDataArray = (conn, locals) => {
   const scheduleFields = locals.templateDoc.get('schedule');
-  const venueFields = locals.templateDoc.get('venue');
+  const venueFields = getVenueFieldsSet(locals.templateDoc);
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(scheduleFields);
   const allFieldsArray = [
@@ -1033,18 +1044,6 @@ const validateDataArray = (conn, locals) => {
       officeContacts.set(index, contacts);
     }
 
-    if (conn.req.body.template === templateNamesObject.EMPLOYEE
-      && locals.officeDoc.get('employeesData')) {
-      const phoneNumber = conn.req.body.data['Employee Contact'];
-      const alreadyExists = locals.officeDoc.get('employeesData').hasOwnProperty(phoneNumber);
-
-      if (alreadyExists) {
-        conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason =
-          `${phoneNumber} is already an employee`;
-      }
-    }
-
     if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
       const phoneNumber = conn.req.body.data[index].Subscriber;
       const template = conn.req.body.data[index].Template;
@@ -1149,18 +1148,6 @@ const validateDataArray = (conn, locals) => {
           // Used for querying activities which should exist on the
           // basis of name
           verifyValidTypes.set(index, { value, type, field: property });
-        }
-
-        if (conn.req.body.template === templateNamesObject.EMPLOYEE
-          && property === 'Employee Contact'
-          && locals.officeDoc.get('employeesData')
-          /** Employee already exists */
-          && locals.officeDoc.get('employeesData').hasOwnProperty(value)) {
-          conn.req.body.data[index].rejected = true;
-          conn.req.body.data[index].reason = `Phone number: ${value}`
-            + ` is already in use by ${locals.officeDoc.get('employeesData')[value].Name}`;
-
-          return;
         }
 
         if (conn.req.body.template === templateNamesObject.EMPLOYEE
@@ -1296,7 +1283,9 @@ const validateDataArray = (conn, locals) => {
        * even if the rejection was because of some other issue in
        * the object.
        */
-      && !conn.req.body.data[index].rejected) {
+      && !conn.req.body.data[index].rejected
+      && conn.req.body.template !== 'customer'
+      && conn.req.body.template !== 'branch') {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `No assignees found`;
     }
@@ -1332,7 +1321,7 @@ const validateDataArray = (conn, locals) => {
     .then(() => handleEmployees(conn, locals))
     .then(() => createObjects(conn, locals, trialRun))
     // .then((responseObject) => sendExcelFromResponse(conn, locals, responseObject))
-    .then((responseObject) => sendJSON(conn, responseObject));
+    .then(responseObject => sendJSON(conn, responseObject));
 };
 
 module.exports = conn => {
