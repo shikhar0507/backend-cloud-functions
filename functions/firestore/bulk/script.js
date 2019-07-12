@@ -48,7 +48,7 @@ const getVenueFieldsSet = templateDoc => {
 
   return new Set()
     .add('venueDescriptor')
-    .add('placeId')
+    // .add('placeId')
     .add('location')
     .add('address')
     .add('latitude')
@@ -123,11 +123,14 @@ const handleValidation = (body) => {
     for (let index = 0; index < shareArray.length; index++) {
       const phoneNumber = shareArray[index];
 
-      if (isE164PhoneNumber(phoneNumber)) continue;
+      if (isE164PhoneNumber(phoneNumber)) {
+        return;
+      }
 
       return {
         success: false,
-        message: `Invalid phoneNumber '${phoneNumber}' in data object at index: ${iter}`,
+        message: `Invalid phoneNumber '${phoneNumber}'`
+          + ` in data object at index: ${iter}`,
       };
     }
 
@@ -296,7 +299,8 @@ const createObjects = (conn, locals, trialRun) => {
   const isOfficeTemplate = conn.req.body.template === templateNamesObject.OFFICE;
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(locals.templateDoc.get('schedule'));
-  const venueFieldsSet = getVenueFieldsSet(locals.templateDoc);
+  const venueFieldsSet = getVenueFieldsSet(locals.templateDoc)
+    .add('placeId');
 
   conn.req.body.data.forEach((item, index) => {
     if (item.rejected) {
@@ -455,6 +459,8 @@ const createObjects = (conn, locals, trialRun) => {
       activityObject
         .adjustedGeopoints = adjustedGeopoint(activityObject.venue[0].geopoint);
     }
+
+    console.log('activityObject', activityObject);
 
     const addendumObject = {
       timestamp,
@@ -928,7 +934,6 @@ const validateDataArray = (conn, locals) => {
   const employeesToCheck = [];
   const checkName = locals.templateDoc.get('attachment').hasOwnProperty('Name');
   const checkNumber = locals.templateDoc.get('attachment').hasOwnProperty('Number');
-  const missingFieldsMap = new Map();
   const adminsSet = new Set();
   const adminToCheck = [];
   const verifyValidTypes = new Map();
@@ -940,8 +945,6 @@ const validateDataArray = (conn, locals) => {
   locals.successObjects = [];
 
   conn.req.body.data.forEach((dataObject, index) => {
-    let fieldsMissingInCurrentObject = false;
-
     const objectProperties = Object.keys(dataObject);
     /**
      * TODO: This is O(n * m * q) loop most probably. Don't have
@@ -959,21 +962,34 @@ const validateDataArray = (conn, locals) => {
         conn.req.body.data[index][field] = Number(conn.req.body.data[index][field]);
       }
 
-      if (objectProperties.includes(field)) {
+      if (!objectProperties.includes(field)) {
+        conn.req.body.data[index][field] = '';
+
         return;
       }
 
-      if (missingFieldsMap.has(index)) {
-        const fieldsSet = missingFieldsMap.get(index);
-
-        fieldsSet.add(field);
-
-        missingFieldsMap.set(index, fieldsSet);
-      } else {
-        missingFieldsMap.set(index, new Set().add(field));
+      if (locals.templateDoc.get('venue').length > 0
+        && isValidGeopoint({
+          latitude: conn.req.body.data[index].latitude,
+          longitude: conn.req.body.data[index].longitude,
+        }, false)) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Missing/Invalid fields ''`;
       }
 
-      fieldsMissingInCurrentObject = true;
+      if (checkName
+        && !conn.req.body.data[index].rejected
+        && !isNonEmptyString(conn.req.body.data[index].Name)) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Missing the field 'Name'`;
+      }
+
+      if (checkNumber
+        && !conn.req.body.data[index].rejected
+        && typeof conn.req.body.data[index].Number !== 'number') {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Missing the field 'Number'`;
+      }
     });
 
     if (conn.req.body.template !== templateNamesObject.OFFICE) {
@@ -987,17 +1003,6 @@ const validateDataArray = (conn, locals) => {
       if (secondContact) {
         conn.req.body.data[index].share.push(secondContact);
       }
-    }
-
-    if (fieldsMissingInCurrentObject) {
-      conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason =
-        `Missing fields: ${[...missingFieldsMap.get(index)]}`;
-
-      /** Setting false for next iteration. */
-      fieldsMissingInCurrentObject = false;
-
-      return;
     }
 
     if (checkName || checkNumber) {
@@ -1411,7 +1416,8 @@ module.exports = conn => {
         templatesCollectionQuery
           .forEach(doc => templateNamesSet.add(doc.get('name')));
 
-        locals.templateNamesSet = templateNamesSet;
+        locals
+          .templateNamesSet = templateNamesSet;
       }
 
       /**
@@ -1419,15 +1425,22 @@ module.exports = conn => {
        * strings as the value.
        */
       conn.req.body.data.forEach((object, index) => {
+        if (isEmptyObject(object)) {
+          delete conn.req.body.data[index];
+
+          return;
+        }
+
         if (!Array.isArray(object.share)) {
           conn.req.body.data[index].share = [];
         }
 
-        if (!isEmptyObject(object)) {
-          return;
-        }
+        const venueDescriptor = locals.templateDoc.get('venue')[0];
 
-        delete conn.req.body.data[index];
+        if (venueDescriptor
+          && conn.req.body.data[index].venueDescriptor !== venueDescriptor) {
+          conn.req.body.data[index].venueDescriptor = venueDescriptor;
+        }
       });
 
       const isSupportRequest = conn.requester.isSupportRequest;
