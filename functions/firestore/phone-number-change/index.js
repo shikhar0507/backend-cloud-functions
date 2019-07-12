@@ -14,6 +14,7 @@ const {
   isNonEmptyString,
   hasAdminClaims,
   isE164PhoneNumber,
+  addEmployeeToRealtimeDb,
 } = require('../../admin/utils');
 const {
   code,
@@ -46,7 +47,7 @@ const numberInAttachment = (phoneNumber, attachmentObject) => {
 };
 
 
-const validateRequest = (body) => {
+const validateRequest = body => {
   const messageObject = {
     isValid: true,
     message: null,
@@ -107,7 +108,7 @@ const commitBatch = (conn, batch) =>
   batch
     .commit()
     .then(() => sendResponse(conn, code.ok, 'Phone Number updated successfully.'))
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 
 const deleteAuth = (oldPhoneNumber) =>
   users
@@ -120,7 +121,6 @@ const deleteAuth = (oldPhoneNumber) =>
 
       return auth.deleteUser(userRecord.uid);
     });
-
 
 const deleteAddendum = (conn, locals) => {
   const promises = [];
@@ -153,7 +153,7 @@ const deleteAddendum = (conn, locals) => {
       return null;
     })
     .then(() => commitBatch(conn, locals.batch))
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 const handleMonthlyDocs = (conn, locals) => {
@@ -232,14 +232,14 @@ const updateActivities = (conn, locals) => {
   const runQuery = (query, resolve, reject) => {
     return query
       .get()
-      .then((docs) => {
+      .then(docs => {
         if (docs.empty) {
           return [0];
         }
 
         const batch = db.batch();
 
-        docs.forEach((doc) => {
+        docs.forEach(doc => {
           const activityId = doc.id;
           const rootActivityRef = rootCollections.activities.doc(activityId);
           const template = doc.get('template');
@@ -268,9 +268,8 @@ const updateActivities = (conn, locals) => {
           if (phoneNumberInAttachment.found) {
             const { fieldName } = phoneNumberInAttachment;
 
-            attachmentObject[
-              fieldName
-            ].value = conn.req.body.newPhoneNumber;
+            attachmentObject[fieldName]
+              .value = conn.req.body.newPhoneNumber;
           }
 
           const addToInclude = template !== 'subscription';
@@ -341,7 +340,7 @@ const updateActivities = (conn, locals) => {
               .commit(),
           ]);
       })
-      .then((result) => {
+      .then(result => {
         iterations++;
 
         const [lastDoc] = result;
@@ -349,8 +348,6 @@ const updateActivities = (conn, locals) => {
         if (!lastDoc) {
           return resolve();
         }
-
-        console.log({ lastDocId: lastDoc.id });
 
         return process
           .nextTick(() => {
@@ -391,7 +388,7 @@ const updateActivities = (conn, locals) => {
 
       return handleMonthlyDocs(conn, locals);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
 
@@ -404,13 +401,13 @@ const checkForAdmin = (conn, locals) =>
     .where('attachment.Admin.value', '==', conn.req.body.newPhoneNumber)
     .limit(1)
     .get()
-    .then((docs) => {
+    .then(docs => {
       // Not empty means the person is an admin
       locals.newPhoneNumberIsAdmin = !docs.empty;
 
       return updateActivities(conn, locals);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 
 
 const checkForEmployee = (conn, locals) => {
@@ -450,7 +447,7 @@ const checkForEmployee = (conn, locals) => {
         .collection('Subscriptions')
         .get(),
     ])
-    .then((result) => {
+    .then(result => {
       const [
         oldPhoneNumberQuery,
         newPhoneNumberQuery,
@@ -512,32 +509,9 @@ const checkForEmployee = (conn, locals) => {
         }
       }
 
-      const officeDocData = locals.officeDoc.data();
-      const employeesData = locals.officeDoc.get('employeesData') || {};
-
-      // This check is most probably reduntant
-      if (employeesData[conn.req.body.oldPhoneNumber]) {
-        const newDataObject = employeesData[conn.req.body.oldPhoneNumber];
-
-        employeesData[
-          conn.req.body.newPhoneNumber
-        ] = newDataObject;
-
-        if (newDataObject['Employee Contact']
-          && newDataObject['Employee Contact'] === conn.req.body.oldPhoneNumber) {
-          newDataObject['Employee Contact'] = conn.req.body.newPhoneNumber;
-        }
-
-        delete employeesData[conn.req.body.oldPhoneNumber];
-      }
-
-      officeDocData.employeesData = employeesData;
-
-      locals.batch.set(locals.officeDoc.ref, officeDocData);
-
       locals.newPhoneNumberSubscriptionsSet = new Set();
 
-      newPhoneNumberSubscriptionsQuery.forEach((doc) => {
+      newPhoneNumberSubscriptionsQuery.forEach(doc => {
         const template = doc.get('attachment.Template.value');
 
         locals.newPhoneNumberSubscriptionsSet.add(template);
