@@ -985,7 +985,7 @@ const handleEnquiry = (addendumDoc, locals) => {
     .catch(console.error);
 };
 
-const getAccuracyTolerance = (accuracy) => {
+const getAccuracyTolerance = accuracy => {
   if (accuracy && accuracy < 350) {
     return 500;
   }
@@ -1003,7 +1003,7 @@ const checkDistanceAccurate = (addendumDoc, activityDoc) => {
   const venue = addendumDoc.get('activityData.venue')[0];
   const distanceTolerance = getAccuracyTolerance(geopointOne.accuracy);
 
-  if (venue.location) {
+  if (venue && venue.location) {
     /** Location that the user selected */
     const geopointTwo = {
       _latitude: venue.geopoint._latitude,
