@@ -333,8 +333,9 @@ const handleSheetTwo = locals => {
           });
       });
 
-      return Promise
-        .all(batchesArray.map(batch => batch.commit()));
+      // return Promise
+      //   .all(batchesArray.map(batch => batch.commit()));
+      return;
     })
     .then(() => {
       locals
@@ -704,25 +705,32 @@ module.exports = locals => {
         const department = employeeObject.department;
         const baseLocation = employeeObject.baseLocation;
         const url = (() => {
-          if (template !== 'check-in' || action !== httpsActions.create) {
-            return doc.get('url');
-          }
-
-          const venue = doc.get('activityData.venue')[0];
-
-          if (!venue.location) {
-            return doc.get('url');
-          }
-
           if (doc.get('venueQuery')
             && doc.get('venueQuery').geopoint) {
             return toMapsUrl(doc.get('venueQuery').geopoint);
           }
 
+          if (template !== 'check-in' || action !== httpsActions.create) {
+            return doc.get('url');
+          }
+
+          const venue = doc.get('activityData.venue')[0];
+
+          if (!venue.location) {
+            return doc.get('url');
+          }
+
+
           return toMapsUrl(venue.geopoint);
         })();
         const identifier = (() => {
-          if (template !== 'check-in' || action !== httpsActions.create) {
+          if (doc.get('venueQuery')
+            && doc.get('venueQuery').location) {
+            return doc.get('venueQuery').location;
+          }
+
+          if (template !== 'check-in'
+            || action !== httpsActions.create) {
             return doc.get('identifier');
           }
 
@@ -730,11 +738,6 @@ module.exports = locals => {
 
           if (!venue.location) {
             return doc.get('identifier');
-          }
-
-          if (doc.get('venueQuery')
-            && doc.get('venueQuery').location) {
-            return doc.get('venueQuery').location;
           }
 
           return venue.location;
