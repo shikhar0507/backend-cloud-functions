@@ -1810,8 +1810,6 @@ const handleLocations = locals => {
   const path = `${officeId}/locations/${locals.change.after.id}`;
   const ref = realtimeDb.ref(path);
 
-  console.log('PATH:', path);
-
   if (locals.change.after.get('status') === 'CANCELLED') {
     return removeData(ref);
   }

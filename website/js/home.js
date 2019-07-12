@@ -1184,7 +1184,10 @@ function populateTemplateSelect(selectElement) {
           .classList
           .remove('hidden');
 
-        document.querySelector('.bc-container').style.minHeight = '200px';
+        document
+          .querySelector('.bc-container')
+          .style
+          .minHeight = '200px';
       };
     })
     .catch(console.error);
