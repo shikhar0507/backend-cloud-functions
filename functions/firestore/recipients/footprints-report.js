@@ -23,7 +23,7 @@ const env = require('../../admin/env');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 
-const getComment = (doc) => {
+const getComment = doc => {
   if (doc.get('activityData.attachment.Comment.value')) {
     return doc.get('activityData.attachment.Comment.value');
   }
@@ -95,7 +95,7 @@ const getComment = (doc) => {
   return doc.get('comment');
 };
 
-const getTopHeaders = (momentYesterday) => {
+const getTopHeaders = momentYesterday => {
   const result = [
     'Employee Name',
     'Employee Contact',
@@ -123,22 +123,36 @@ const getTopHeaders = (momentYesterday) => {
 };
 
 const getMonthlyDocRef = (phoneNumber, monthlyDocRef) =>
-  monthlyDocRef.get(phoneNumber);
+  monthlyDocRef
+    .get(phoneNumber);
 
 const getStatusObject = (statusObjectMap, phoneNumber) =>
-  statusObjectMap.get(phoneNumber) || {};
+  statusObjectMap
+    .get(phoneNumber) || {};
 
 const handleSheetTwo = locals => {
-  const mtdSheet = locals.worksheet.addSheet('Footprints MTD');
-  mtdSheet.row(0).style('bold', true);
+  const mtdSheet = locals
+    .worksheet
+    .addSheet('Footprints MTD');
+  mtdSheet
+    .row(0)
+    .style('bold', true);
 
   const employeesData = locals.employeesData;
-  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const timezone = locals
+    .officeDoc
+    .get('attachment.Timezone.value');
   const firstActionPromises = [];
   const lastActionPromises = [];
-  const yesterdaysDate = locals.momentYesterday.date();
-  const month = locals.momentYesterday.month();
-  const year = locals.momentYesterday.year();
+  const yesterdaysDate = locals
+    .momentYesterday
+    .date();
+  const month = locals
+    .momentYesterday
+    .month();
+  const year = locals
+    .momentYesterday
+    .year();
   const phoneNumbersByQueryIndex = [];
   const topValues = getTopHeaders(locals.momentYesterday);
   const batchesArray = [];
@@ -146,9 +160,10 @@ const handleSheetTwo = locals => {
   let numberOfDocsInCurrentBatch = 0;
   batchesArray.push(db.batch());
 
-  topValues.forEach((value, index) => {
-    mtdSheet.cell(`${alphabetsArray[index]}1`).value(value);
-  });
+  topValues
+    .forEach((value, index) => {
+      mtdSheet.cell(`${alphabetsArray[index]}1`).value(value);
+    });
 
   locals
     .employeePhoneNumbersArray
@@ -179,10 +194,15 @@ const handleSheetTwo = locals => {
         statusObject[yesterdaysDate].holiday = true;
       }
 
-      locals.statusObjectMap.set(phoneNumber, statusObject);
-      firstActionPromises.push(firstActionPromise);
-      lastActionPromises.push(lastActionPromise);
-      phoneNumbersByQueryIndex.push(phoneNumber);
+      locals
+        .statusObjectMap
+        .set(phoneNumber, statusObject);
+      firstActionPromises
+        .push(firstActionPromise);
+      lastActionPromises
+        .push(lastActionPromise);
+      phoneNumbersByQueryIndex
+        .push(phoneNumber);
     });
 
   return Promise
@@ -190,74 +210,87 @@ const handleSheetTwo = locals => {
     .then(snapShots => {
       let batch = batchesArray[currentBatchIndex];
 
-      snapShots.forEach((snapShot, index) => {
-        numberOfDocsInCurrentBatch++;
+      snapShots
+        .forEach((snapShot, index) => {
+          numberOfDocsInCurrentBatch++;
 
-        if (numberOfDocsInCurrentBatch === 499) {
-          currentBatchIndex++;
+          if (numberOfDocsInCurrentBatch === 499) {
+            currentBatchIndex++;
 
-          batchesArray.push(db.batch());
+            batchesArray
+              .push(db.batch());
 
-          /** Batch reset to a new instance */
-          numberOfDocsInCurrentBatch = 0;
+            /** Batch reset to a new instance */
+            numberOfDocsInCurrentBatch = 0;
 
-          batch = batchesArray[currentBatchIndex];
-        }
+            batch = batchesArray[currentBatchIndex];
+          }
 
-        const phoneNumber = phoneNumbersByQueryIndex[index];
-        const statusObject = getStatusObject(
-          locals.statusObjectMap,
-          phoneNumber
-        );
-        const monthlyDocRef = getMonthlyDocRef(
-          phoneNumber,
-          locals.monthlyDocRefsMap
-        );
-
-        if (!statusObject[yesterdaysDate]) {
-          statusObject[yesterdaysDate] = {
-            firstAction: '',
-            lastAction: '',
-          };
-        }
-
-        if (snapShot.empty) {
-          locals.statusObjectMap.set(phoneNumber, statusObject);
-
-          batch.set(monthlyDocRef, {
-            statusObject,
+          const phoneNumber = phoneNumbersByQueryIndex[index];
+          const statusObject = getStatusObject(
+            locals.statusObjectMap,
+            phoneNumber
+          );
+          const monthlyDocRef = getMonthlyDocRef(
             phoneNumber,
-            month,
-            year,
-          }, {
-              merge: true,
-            });
+            locals.monthlyDocRefsMap
+          );
 
-          return;
-        }
+          if (!statusObject[yesterdaysDate]) {
+            statusObject[yesterdaysDate] = {
+              firstAction: '',
+              lastAction: '',
+            };
+          }
 
-        const doc = snapShot.docs[0];
-        const timestamp = doc.get('timestamp');
-        const firstAction = timeStringWithOffset({
-          timezone,
-          timestampToConvert: timestamp,
-          format: dateFormats.TIME,
+          if (snapShot.empty) {
+            locals
+              .statusObjectMap
+              .set(phoneNumber, statusObject);
+
+            batch.set(monthlyDocRef, {
+              statusObject,
+              phoneNumber,
+              month,
+              year,
+            }, {
+                merge: true,
+              });
+
+            return;
+          }
+
+          const doc = snapShot
+            .docs[0];
+          const timestamp = doc
+            .get('timestamp');
+          const firstAction = timeStringWithOffset({
+            timezone,
+            timestampToConvert: timestamp,
+            format: dateFormats.TIME,
+          });
+
+          statusObject[
+            yesterdaysDate
+          ]
+            .firstAction = firstAction;
+          locals
+            .statusObjectMap
+            .set(phoneNumber, statusObject);
+
+          batch
+            .set(monthlyDocRef, {
+              statusObject,
+              phoneNumber,
+              month,
+              year,
+            }, {
+                merge: true,
+              });
         });
 
-        statusObject[yesterdaysDate].firstAction = firstAction;
-        locals.statusObjectMap.set(phoneNumber, statusObject);
-
-        batch.set(monthlyDocRef, {
-          statusObject,
-          phoneNumber,
-          month,
-          year,
-        }, {
-            merge: true,
-          });
-      });
-
-      return Promise.all(lastActionPromises);
+      return Promise
+        .all(lastActionPromises);
     })
     .then(snapShots => {
       numberOfDocsInCurrentBatch = 0;
@@ -266,76 +299,88 @@ const handleSheetTwo = locals => {
 
       let batch = batchesArray[currentBatchIndex];
 
-      snapShots.forEach((snapShot, index) => {
-        numberOfDocsInCurrentBatch++;
+      snapShots
+        .forEach((snapShot, index) => {
+          numberOfDocsInCurrentBatch++;
 
-        if (numberOfDocsInCurrentBatch === 499) {
-          currentBatchIndex++;
+          if (numberOfDocsInCurrentBatch === 499) {
+            currentBatchIndex++;
 
-          batchesArray.push(db.batch());
+            batchesArray
+              .push(db.batch());
 
-          /** Batch resetted */
-          numberOfDocsInCurrentBatch = 0;
+            /** Batch resetted */
+            numberOfDocsInCurrentBatch = 0;
 
-          batch = batchesArray[currentBatchIndex];
-        }
+            batch = batchesArray[currentBatchIndex];
+          }
 
-        const phoneNumber = phoneNumbersByQueryIndex[index];
-        const statusObject = getStatusObject(
-          locals.statusObjectMap,
-          phoneNumber
-        );
-        const monthlyDocRef = getMonthlyDocRef(
-          phoneNumber,
-          locals.monthlyDocRefsMap
-        );
-
-        if (!statusObject[yesterdaysDate]) {
-          statusObject[yesterdaysDate] = {
-            firstAction: '',
-            lastAction: '',
-          };
-        }
-
-        if (snapShot.empty) {
-          locals.statusObjectMap.set(phoneNumber, statusObject);
-
-          batch.set(monthlyDocRef, {
-            statusObject,
+          const phoneNumber = phoneNumbersByQueryIndex[index];
+          const statusObject = getStatusObject(
+            locals.statusObjectMap,
+            phoneNumber
+          );
+          const monthlyDocRef = getMonthlyDocRef(
             phoneNumber,
-            month,
-            year,
-          }, {
-              merge: true,
-            });
+            locals.monthlyDocRefsMap
+          );
 
-          return;
-        }
+          if (!statusObject[yesterdaysDate]) {
+            statusObject[yesterdaysDate] = {
+              firstAction: '',
+              lastAction: '',
+            };
+          }
 
-        const doc = snapShot.docs[0];
-        const timestamp = doc.get('timestamp');
-        const lastAction = timeStringWithOffset({
-          timezone,
-          timestampToConvert: timestamp,
-          format: dateFormats.TIME,
+          if (snapShot.empty) {
+            locals
+              .statusObjectMap
+              .set(phoneNumber, statusObject);
+
+            batch
+              .set(monthlyDocRef, {
+                statusObject,
+                phoneNumber,
+                month,
+                year,
+              }, {
+                  merge: true,
+                });
+
+            return;
+          }
+
+          const doc = snapShot
+            .docs[0];
+          const timestamp = doc
+            .get('timestamp');
+          const lastAction = timeStringWithOffset({
+            timezone,
+            timestampToConvert: timestamp,
+            format: dateFormats.TIME,
+          });
+
+          statusObject[
+            yesterdaysDate
+          ]
+            .lastAction = lastAction;
+          locals
+            .statusObjectMap
+            .set(phoneNumber, statusObject);
+
+          batch
+            .set(monthlyDocRef, {
+              statusObject,
+              phoneNumber,
+              month,
+              year,
+            }, {
+                merge: true,
+              });
         });
 
-        statusObject[yesterdaysDate].lastAction = lastAction;
-        locals.statusObjectMap.set(phoneNumber, statusObject);
-
-        batch.set(monthlyDocRef, {
-          statusObject,
-          phoneNumber,
-          month,
-          year,
-        }, {
-            merge: true,
-          });
-      });
-
-      // return Promise
-      //   .all(batchesArray.map(batch => batch.commit()));
-      return;
+      return Promise
+        .all(batchesArray.map(batch => batch.commit()));
     })
     .then(() => {
       locals
@@ -442,13 +487,17 @@ const handleSheetTwo = locals => {
 
             const alphabet = alphabetsArray[ALPHABET_INDEX_START];
             const cell = `${alphabet}${columnIndex}`;
-            mtdSheet.cell(cell).value(statusValueOnDate);
+            mtdSheet
+              .cell(cell)
+              .value(statusValueOnDate);
 
             ALPHABET_INDEX_START++;
           }
         });
 
-      return locals.worksheet.outputAsync('base64');
+      return locals
+        .worksheet
+        .outputAsync('base64');
     })
     .catch(console.error);
 };
@@ -461,9 +510,15 @@ module.exports = locals => {
   let dailyStatusDoc;
   let addendumDocs;
   let monthlyDocs;
-  const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const todayFromTimer = locals.change.after.get('timestamp');
-  const momentToday = momentTz().tz(timezone);
+  const timezone = locals
+    .officeDoc
+    .get('attachment.Timezone.value');
+  const todayFromTimer = locals
+    .change
+    .after
+    .get('timestamp');
+  const momentToday = momentTz()
+    .tz(timezone);
   const momentFromTimer = momentTz(todayFromTimer)
     .tz(timezone)
     .startOf('day');
@@ -472,10 +527,13 @@ module.exports = locals => {
     .subtract(1, 'day')
     .startOf('day');
   /** Today's date */
-  const dateString = momentFromTimer.format(dateFormats.DATE);
+  const dateString = momentFromTimer
+    .format(dateFormats.DATE);
   /** Date shown in the first column (minus 1 day) */
-  const dated = momentYesterday.format(dateFormats.DATE);
-  const yesterdaysDate = momentYesterday.date();
+  const dated = momentYesterday
+    .format(dateFormats.DATE);
+  const yesterdaysDate = momentYesterday
+    .date();
   /**
    * Date from the timestamp which was written to the recipient
    * document for triggering the report.
@@ -485,9 +543,12 @@ module.exports = locals => {
     .valueOf() === momentFromTimer
       .startOf('day')
       .valueOf();
-  const office = locals.officeDoc.get('office');
+  const office = locals
+    .officeDoc
+    .get('office');
   const employeesData = locals.employeesData;
-  const employeePhoneNumbersArray = Object.keys(employeesData);
+  const employeePhoneNumbersArray = Object
+    .keys(employeesData);
   const activeUsersSet = new Set();
   const regTokenFetchPromises = [];
   const regTokenMap = new Map();
@@ -562,8 +623,12 @@ module.exports = locals => {
       monthlyDocs = monthlyDocsQuery;
       dailyStatusDoc = dailyStatusDocsQuery;
 
-      const yesterdayStartTimestamp = momentYesterday.startOf('day').valueOf();
-      const yesterdayEndTimestamp = momentYesterday.endOf('day').valueOf();
+      const yesterdayStartTimestamp = momentYesterday
+        .startOf('day')
+        .valueOf();
+      const yesterdayEndTimestamp = momentYesterday
+        .endOf('day')
+        .valueOf();
 
       branchDocsQuery
         .forEach(branchDoc => {
@@ -572,97 +637,141 @@ module.exports = locals => {
             .forEach((schedule) => {
               if (schedule.startTime >= yesterdayStartTimestamp
                 && schedule.endTime < yesterdayEndTimestamp) {
-                branchesWithHoliday.add(branchDoc.get('attachment.Name.value'));
+                branchesWithHoliday
+                  .add(branchDoc.get('attachment.Name.value'));
               }
             });
         });
 
-      employeePhoneNumbersArray.forEach(phoneNumber => {
-        regTokenFetchPromises.push(
-          getRegistrationToken(phoneNumber)
-        );
-      });
+      employeePhoneNumbersArray
+        .forEach(phoneNumber => {
+          regTokenFetchPromises
+            .push(
+              getRegistrationToken(phoneNumber)
+            );
+        });
 
-      return Promise.all(regTokenFetchPromises);
+      return Promise
+        .all(regTokenFetchPromises);
     })
     .then((tokensSnapShot) => {
       if (!locals.sendMail) {
-        return Promise.resolve();
+        return Promise
+          .resolve();
       }
 
-      tokensSnapShot.forEach((item) => {
-        const { phoneNumber, registrationToken, updatesDocExists } = item;
+      tokensSnapShot
+        .forEach((item) => {
+          const { phoneNumber, registrationToken, updatesDocExists } = item;
 
-        regTokenMap.set(phoneNumber, registrationToken);
+          regTokenMap
+            .set(phoneNumber, registrationToken);
 
-        /** For checking if auth exists */
-        if (!updatesDocExists) {
-          notInstalledSet.add(phoneNumber);
-        }
-      });
+          /** For checking if auth exists */
+          if (!updatesDocExists) {
+            notInstalledSet
+              .add(phoneNumber);
+          }
+        });
 
-      monthlyDocs.forEach(doc => {
-        const { phoneNumber, statusObject } = doc.data();
+      monthlyDocs
+        .forEach(doc => {
+          const { phoneNumber, statusObject } = doc.data();
 
-        if (!statusObject[yesterdaysDate]) {
-          statusObject[yesterdaysDate] = {
-            firstAction: '',
-            lastAction: '',
-            distanceTravelled: 0,
-          };
-        }
+          if (!statusObject[yesterdaysDate]) {
+            statusObject[yesterdaysDate] = {
+              firstAction: '',
+              lastAction: '',
+              distanceTravelled: 0,
+            };
+          }
 
-        if (statusObject[yesterdaysDate].onLeave) {
-          onLeaveSet.add(phoneNumber);
-        }
+          if (statusObject[yesterdaysDate].onLeave) {
+            onLeaveSet
+              .add(phoneNumber);
+          }
 
-        if (statusObject[yesterdaysDate].onAr) {
-          onArSet.add(phoneNumber);
-        }
+          if (statusObject[yesterdaysDate].onAr) {
+            onArSet
+              .add(phoneNumber);
+          }
 
-        if (statusObject[yesterdaysDate].holiday) {
-          holidaySet.add(phoneNumber);
-        }
+          if (statusObject[yesterdaysDate].holiday) {
+            holidaySet
+              .add(phoneNumber);
+          }
 
-        if (statusObject[yesterdaysDate].weeklyOff) {
-          weeklyOffSet.add(phoneNumber);
-        }
+          if (statusObject[yesterdaysDate].weeklyOff) {
+            weeklyOffSet
+              .add(phoneNumber);
+          }
 
-        const yesterdaysDayName = weekdaysArray[momentYesterday.day()];
+          const yesterdaysDayName = weekdaysArray[momentYesterday.day()];
 
-        /**
-         * employeesData[phoneNumber]: This check is required because the monthly
-         * doc might exist for someone who is not a employee.
-         */
-        if (employeesData[phoneNumber]
-          && employeesData[phoneNumber]['Weekly Off'] === yesterdaysDayName) {
-          statusObject[yesterdaysDate].weeklyOff = true;
-          weeklyOffSet.add(phoneNumber);
-        }
+          /**
+           * employeesData[phoneNumber]: This check is required because the monthly
+           * doc might exist for someone who is not a employee.
+           */
+          if (employeesData[phoneNumber]
+            && employeesData[phoneNumber]['Weekly Off'] === yesterdaysDayName) {
+            statusObject[
+              yesterdaysDate
+            ]
+              .weeklyOff = true;
+            weeklyOffSet
+              .add(phoneNumber);
+          }
 
-        monthlyDocRefsMap.set(phoneNumber, doc.ref);
-        statusObjectMap.set(phoneNumber, statusObject);
-      });
+          monthlyDocRefsMap
+            .set(phoneNumber, doc.ref);
+          statusObjectMap
+            .set(phoneNumber, statusObject);
+        });
 
       if (addendumDocs.empty) {
-        locals.sendMail = false;
+        locals
+          .sendMail = false;
       }
 
-      footprintsSheet = worksheet.addSheet('Footprints');
+      footprintsSheet = worksheet
+        .addSheet('Footprints');
       /** Default sheet */
-      worksheet.deleteSheet('Sheet1');
+      worksheet
+        .deleteSheet('Sheet1');
 
-      footprintsSheet.row(1).style('bold', true);
-      footprintsSheet.cell(`A1`).value('Dated');
-      footprintsSheet.cell('B1').value('Employee Name');
-      footprintsSheet.cell('C1').value('Employee Contact');
-      footprintsSheet.cell('D1').value('Employee Code');
-      footprintsSheet.cell('E1').value('Time');
-      footprintsSheet.cell('F1').value('Distance Travelled');
-      footprintsSheet.cell('G1').value('Address');
-      footprintsSheet.cell('H1').value('Comment');
-      footprintsSheet.cell('I1').value('Department');
-      footprintsSheet.cell('J1').value('Base Location');
+      footprintsSheet
+        .row(1)
+        .style('bold', true);
+      footprintsSheet
+        .cell(`A1`)
+        .value('Dated');
+      footprintsSheet
+        .cell('B1')
+        .value('Employee Name');
+      footprintsSheet
+        .cell('C1')
+        .value('Employee Contact');
+      footprintsSheet
+        .cell('D1')
+        .value('Employee Code');
+      footprintsSheet
+        .cell('E1')
+        .value('Time');
+      footprintsSheet
+        .cell('F1')
+        .value('Distance Travelled');
+      footprintsSheet
+        .cell('G1')
+        .value('Address');
+      footprintsSheet
+        .cell('H1')
+        .value('Comment');
+      footprintsSheet
+        .cell('I1')
+        .value('Department');
+      footprintsSheet
+        .cell('J1')
+        .value('Base Location');
 
       /**
        * Not using count param from the `callback` function because
@@ -672,290 +781,326 @@ module.exports = locals => {
       let count = 0;
       const distanceMap = new Map();
 
-      addendumDocs.forEach(doc => {
-        const template = doc.get('activityData.template');
-        const action = doc.get('action');
-        const isSupportRequest = doc.get('isSupportRequest');
-        const columnIndex = count + 2;
-        const phoneNumber = doc.get('user');
+      addendumDocs
+        .forEach(doc => {
+          const action = doc.get('action');
+          const isSupportRequest = doc.get('isSupportRequest');
+          const columnIndex = count + 2;
+          const phoneNumber = doc.get('user');
 
-        /** Activities created by the app */
-        if (isSupportRequest) {
-          return;
-        }
-
-        if (action === httpsActions.create) {
-          counterObject.activitiesCreated++;
-        }
-
-        count++;
-
-        activeUsersSet.add(phoneNumber);
-
-        if (action === httpsActions.install) {
-          installedSet.add(phoneNumber);
-        }
-
-        if (action === httpsActions.signup) {
-          signedUpSet.add(phoneNumber);
-        }
-
-        const employeeObject = employeeInfo(employeesData, phoneNumber);
-        const name = employeeObject.name;
-        const department = employeeObject.department;
-        const baseLocation = employeeObject.baseLocation;
-        const url = (() => {
-          if (doc.get('venueQuery')
-            && doc.get('venueQuery').geopoint) {
-            return toMapsUrl(doc.get('venueQuery').geopoint);
+          /** Activities created by the app */
+          if (isSupportRequest) {
+            return;
           }
 
-          if (template !== 'check-in' || action !== httpsActions.create) {
-            return doc.get('url');
+          if (action === httpsActions.create) {
+            counterObject.activitiesCreated++;
           }
 
-          const venue = doc.get('activityData.venue')[0];
+          count++;
 
-          if (!venue.location) {
-            return doc.get('url');
+          activeUsersSet
+            .add(phoneNumber);
+
+          if (action === httpsActions.install) {
+            installedSet
+              .add(phoneNumber);
           }
 
-
-          return toMapsUrl(venue.geopoint);
-        })();
-        const identifier = (() => {
-          if (doc.get('venueQuery')
-            && doc.get('venueQuery').location) {
-            return doc.get('venueQuery').location;
+          if (action === httpsActions.signup) {
+            signedUpSet
+              .add(phoneNumber);
           }
 
-          if (template !== 'check-in'
-            || action !== httpsActions.create) {
-            return doc.get('identifier');
-          }
+          const employeeObject = employeeInfo(employeesData, phoneNumber);
+          const name = employeeObject.name;
+          const department = employeeObject.department;
+          const baseLocation = employeeObject.baseLocation;
+          const url = (() => {
+            if (doc.get('venueQuery')
+              && doc.get('venueQuery').location) {
+              return toMapsUrl(doc.get('venueQuery').geopoint);
+            }
 
-          const venue = doc.get('activityData.venue')[0];
+            const venue = doc
+              .get('activityData.venue');
 
-          if (!venue.location) {
-            return doc.get('identifier');
-          }
+            if (!venue || !venue[0] || !venue[0].location) {
+              return doc
+                .get('url');
+            }
 
-          return venue.location;
-        })();
-        const time = timeStringWithOffset({
-          timezone,
-          timestampToConvert: doc.get('timestamp'),
-        });
-        const employeeCode = employeeObject.employeeCode;
-        const distanceTravelled = (() => {
-          let value = Number(doc.get('distanceTravelled') || 0);
+            return toMapsUrl(venue[0].geopoint);
+          })();
+          const identifier = (() => {
+            if (doc.get('venueQuery')
+              && doc.get('venueQuery').location) {
+              return doc
+                .get('venueQuery')
+                .location;
+            }
 
-          if (distanceMap.has(phoneNumber)) {
-            value += distanceMap.get(phoneNumber);
+            const venue = doc
+              .get('activityData.venue');
+
+            if (!venue || !venue[0] || !venue[0].location) {
+              return doc
+                .get('identifier');
+            }
+
+            return venue[0]
+              .location;
+          })();
+          const time = timeStringWithOffset({
+            timezone,
+            timestampToConvert: doc.get('timestamp'),
+          });
+          const employeeCode = employeeObject.employeeCode;
+          const distanceTravelled = (() => {
+            let value = Number(doc.get('distanceTravelled') || 0);
+
+            if (distanceMap.has(phoneNumber)) {
+              value += distanceMap.get(phoneNumber);
+            } else {
+              // Distance starts with 0 for every person each day
+              value = 0;
+            }
+
+            // Value in the map also needs to be updated otherwise
+            // it will always add only the last updated value on each iteration.
+            distanceMap
+              .set(phoneNumber, value);
+
+            return value
+              .toFixed(2);
+          })();
+
+          footprintsSheet
+            .cell(`A${columnIndex}`)
+            .value(dated);
+          footprintsSheet
+            .cell(`B${columnIndex}`)
+            .value(name);
+          footprintsSheet
+            .cell(`C${columnIndex}`)
+            .value(phoneNumber);
+          footprintsSheet
+            .cell(`D${columnIndex}`)
+            .value(employeeCode);
+          footprintsSheet
+            .cell(`E${columnIndex}`)
+            .value(time);
+          footprintsSheet
+            .cell(`F${columnIndex}`)
+            .value(distanceTravelled);
+
+          if (identifier && url) {
+            footprintsSheet
+              .cell(`G${columnIndex}`)
+              .value(identifier)
+              .style({ fontColor: '0563C1', underline: true })
+              .hyperlink(url);
           } else {
-            // Distance starts with 0 for every person each day
-            value = 0;
+            footprintsSheet
+              .cell(`G${columnIndex}`)
+              .value('');
           }
 
-          // Value in the map also needs to be updated otherwise
-          // it will always add only the last updated value on each iteration.
-          distanceMap.set(phoneNumber, value);
-
-          return value.toFixed(2);
-        })();
-
-        footprintsSheet
-          .cell(`A${columnIndex}`)
-          .value(dated);
-        footprintsSheet
-          .cell(`B${columnIndex}`)
-          .value(name);
-        footprintsSheet
-          .cell(`C${columnIndex}`)
-          .value(phoneNumber);
-        footprintsSheet
-          .cell(`D${columnIndex}`)
-          .value(employeeCode);
-        footprintsSheet
-          .cell(`E${columnIndex}`)
-          .value(time);
-        footprintsSheet
-          .cell(`F${columnIndex}`)
-          .value(distanceTravelled);
-
-        if (identifier && url) {
           footprintsSheet
-            .cell(`G${columnIndex}`)
-            .value(identifier)
-            .style({ fontColor: '0563C1', underline: true })
-            .hyperlink(url);
-        } else {
+            .cell(`H${columnIndex}`)
+            .value(getComment(doc));
           footprintsSheet
-            .cell(`G${columnIndex}`)
+            .cell(`I${columnIndex}`)
+            .value(department);
+          footprintsSheet
+            .cell(`J${columnIndex}`)
+            .value(baseLocation);
+
+          lastIndex = columnIndex;
+        });
+
+      employeePhoneNumbersArray
+        .forEach(phoneNumber => {
+          const statusObject = getStatusObject(statusObjectMap, phoneNumber);
+
+          if (!statusObject[yesterdaysDate]) {
+            statusObject[yesterdaysDate] = {
+              firstAction: '',
+              lastAction: '',
+              distanceTravelled: distanceMap.get(phoneNumber) || 0,
+            };
+          }
+
+          if (!monthlyDocRefsMap.has(phoneNumber)) {
+            monthlyDocRefsMap
+              .set(
+                phoneNumber,
+                locals
+                  .officeDoc
+                  .ref
+                  .collection('Monthly')
+                  .doc()
+              );
+          }
+
+          if (activeUsersSet.has(phoneNumber)) {
+            return;
+          }
+
+          /**
+           * Increment before adding more data is required. Not doing that will
+           * overwrite the last entry of the sheet that was added in the loop above.
+           */
+          lastIndex++;
+
+          const comment = (() => {
+            if (onLeaveSet.has(phoneNumber)) {
+              return 'LEAVE';
+            }
+
+            if (onArSet.has(phoneNumber)) {
+              return 'ON AR';
+            }
+
+            if (holidaySet.has(phoneNumber)) {
+              return 'HOLIDAY';
+            }
+
+            if (weeklyOffSet.has(phoneNumber)) {
+              return 'WEEKLY OFF';
+            }
+
+            if (notInstalledSet.has(phoneNumber)) {
+              return 'NOT INSTALLED';
+            }
+
+            return 'NOT ACTIVE';
+          })();
+
+          if (comment === 'LEAVE') {
+            counterObject
+              .onLeaveWeeklyOffHoliday++;
+            onLeaveSet.add(phoneNumber);
+          }
+
+          if (comment === 'ON AR') {
+            counterObject
+              .onLeaveWeeklyOffHoliday++;
+            onArSet.add(phoneNumber);
+          }
+
+          if (comment === 'HOLIDAY') {
+            counterObject
+              .onLeaveWeeklyOffHoliday++;
+            holidaySet.add(phoneNumber);
+          }
+
+          if (comment === 'WEEKLY OFF') {
+            counterObject
+              .onLeaveWeeklyOffHoliday++;
+            weeklyOffSet.add(phoneNumber);
+          }
+
+          if (comment === 'NOT INSTALLED') {
+            statusObject[
+              yesterdaysDate
+            ]
+              .notInstalled = true;
+            notInstalledSet
+              .add(phoneNumber);
+          }
+
+          if (comment === 'NOT ACTIVE') {
+            counterObject
+              .notActive++;
+            statusObject[
+              yesterdaysDate
+            ]
+              .notActive = true;
+          }
+
+          statusObjectMap
+            .set(phoneNumber, statusObject);
+
+          const {
+            name,
+            employeeCode,
+            department,
+            baseLocation,
+          } = employeeInfo(employeesData, phoneNumber);
+
+          footprintsSheet
+            .cell(`A${lastIndex}`)
+            .value(dated);
+          footprintsSheet
+            .cell(`B${lastIndex}`)
+            .value(name);
+          footprintsSheet
+            .cell(`C${lastIndex}`)
+            .value(phoneNumber);
+          footprintsSheet
+            .cell(`D${lastIndex}`)
+            .value(employeeCode);
+          footprintsSheet
+            .cell(`E${lastIndex}`)
             .value('');
-        }
+          footprintsSheet
+            .cell(`F${lastIndex}`)
+            .value('');
+          footprintsSheet
+            .cell(`G${lastIndex}`)
+            .value('');
+          footprintsSheet
+            .cell(`H${lastIndex}`)
+            .value(comment);
+          footprintsSheet
+            .cell(`I${lastIndex}`)
+            .value(department);
+          footprintsSheet
+            .cell(`J${lastIndex}`)
+            .value(baseLocation);
+        });
 
-        footprintsSheet
-          .cell(`H${columnIndex}`)
-          .value(getComment(doc));
-        footprintsSheet
-          .cell(`I${columnIndex}`)
-          .value(department);
-        footprintsSheet
-          .cell(`J${columnIndex}`)
-          .value(baseLocation);
-
-        lastIndex = columnIndex;
-      });
-
-      employeePhoneNumbersArray.forEach(phoneNumber => {
-        const statusObject = getStatusObject(statusObjectMap, phoneNumber);
-
-        if (!statusObject[yesterdaysDate]) {
-          statusObject[yesterdaysDate] = {
-            firstAction: '',
-            lastAction: '',
-            distanceTravelled: distanceMap.get(phoneNumber) || 0,
-          };
-        }
-
-        if (!monthlyDocRefsMap.has(phoneNumber)) {
-          monthlyDocRefsMap
-            .set(
-              phoneNumber,
-              locals.officeDoc.ref.collection('Monthly').doc()
-            );
-        }
-
-        if (activeUsersSet.has(phoneNumber)) {
-          return;
-        }
-
-        /**
-         * Increment before adding more data is required. Not doing that will
-         * overwrite the last entry of the sheet that was added in the loop above.
-         */
-        lastIndex++;
-
-        const comment = (() => {
-          if (onLeaveSet.has(phoneNumber)) {
-            return 'LEAVE';
-          }
-
-          if (onArSet.has(phoneNumber)) {
-            return 'ON AR';
-          }
-
-          if (holidaySet.has(phoneNumber)) {
-            return 'HOLIDAY';
-          }
-
-          if (weeklyOffSet.has(phoneNumber)) {
-            return 'WEEKLY OFF';
-          }
-
-          if (notInstalledSet.has(phoneNumber)) {
-            return 'NOT INSTALLED';
-          }
-
-          return 'NOT ACTIVE';
-        })();
-
-        if (comment === 'LEAVE') {
-          counterObject.onLeaveWeeklyOffHoliday++;
-          onLeaveSet.add(phoneNumber);
-        }
-
-        if (comment === 'ON AR') {
-          counterObject.onLeaveWeeklyOffHoliday++;
-          onArSet.add(phoneNumber);
-        }
-
-        if (comment === 'HOLIDAY') {
-          counterObject.onLeaveWeeklyOffHoliday++;
-          holidaySet.add(phoneNumber);
-        }
-
-        if (comment === 'WEEKLY OFF') {
-          counterObject.onLeaveWeeklyOffHoliday++;
-          weeklyOffSet.add(phoneNumber);
-        }
-
-        if (comment === 'NOT INSTALLED') {
-          statusObject[yesterdaysDate].notInstalled = true;
-          notInstalledSet.add(phoneNumber);
-        }
-
-        if (comment === 'NOT ACTIVE') {
-          counterObject.notActive++;
-          statusObject[yesterdaysDate].notActive = true;
-        }
-
-        statusObjectMap.set(phoneNumber, statusObject);
-
-        const {
-          name,
-          employeeCode,
-          department,
-          baseLocation,
-        } = employeeInfo(employeesData, phoneNumber);
-
-        footprintsSheet
-          .cell(`A${lastIndex}`)
-          .value(dated);
-        footprintsSheet
-          .cell(`B${lastIndex}`)
-          .value(name);
-        footprintsSheet
-          .cell(`C${lastIndex}`)
-          .value(phoneNumber);
-        footprintsSheet
-          .cell(`D${lastIndex}`)
-          .value(employeeCode);
-        footprintsSheet
-          .cell(`E${lastIndex}`)
-          .value('');
-        footprintsSheet
-          .cell(`F${lastIndex}`)
-          .value('');
-        footprintsSheet
-          .cell(`G${lastIndex}`)
-          .value('');
-        footprintsSheet
-          .cell(`H${lastIndex}`)
-          .value(comment);
-        footprintsSheet
-          .cell(`I${lastIndex}`)
-          .value(department);
-        footprintsSheet
-          .cell(`J${lastIndex}`)
-          .value(baseLocation);
-      });
-
-      locals.onArSet = onArSet;
-      locals.worksheet = worksheet;
-      locals.onLeaveSet = onLeaveSet;
-      locals.holidaySet = holidaySet;
-      locals.weeklyOffSet = weeklyOffSet;
-      locals.momentYesterday = momentYesterday;
-      locals.statusObjectMap = statusObjectMap;
-      locals.notInstalledSet = notInstalledSet;
-      locals.monthlyDocRefsMap = monthlyDocRefsMap;
-      locals.employeePhoneNumbersArray = employeePhoneNumbersArray;
-      locals.branchesWithHoliday = branchesWithHoliday;
-      locals.regTokenMap = regTokenMap;
-      counterObject.active = activeUsersSet.size;
-      counterObject.notInstalled = notInstalledSet.size;
+      locals
+        .onArSet = onArSet;
+      locals
+        .worksheet = worksheet;
+      locals
+        .onLeaveSet = onLeaveSet;
+      locals
+        .holidaySet = holidaySet;
+      locals
+        .weeklyOffSet = weeklyOffSet;
+      locals
+        .momentYesterday = momentYesterday;
+      locals
+        .statusObjectMap = statusObjectMap;
+      locals
+        .notInstalledSet = notInstalledSet;
+      locals
+        .monthlyDocRefsMap = monthlyDocRefsMap;
+      locals
+        .employeePhoneNumbersArray = employeePhoneNumbersArray;
+      locals
+        .branchesWithHoliday = branchesWithHoliday;
+      locals
+        .regTokenMap = regTokenMap;
+      counterObject
+        .active = activeUsersSet.size;
+      counterObject
+        .notInstalled = notInstalledSet.size;
 
       return handleSheetTwo(locals);
     })
     .then(content => {
       if (locals.createOnlyData) {
-        locals.sendMail = false;
+        locals
+          .sendMail = false;
       }
 
       if (!locals.sendMail) {
-        return Promise.resolve();
+        return Promise
+          .resolve();
       }
 
       locals
@@ -988,11 +1133,14 @@ module.exports = locals => {
     .then(() => {
       /** Counter docs doesn't exist in non-production project */
       if (!isDateToday || !env.isProduction) {
-        return Promise.resolve();
+        return Promise
+          .resolve();
       }
 
-      const doc = dailyStatusDoc.docs[0];
-      const oldCountsObject = doc.get('countsObject') || {};
+      const doc = dailyStatusDoc
+        .docs[0];
+      const oldCountsObject = doc
+        .get('countsObject') || {};
       oldCountsObject[office] = counterObject;
 
       return doc
