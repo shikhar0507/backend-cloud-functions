@@ -189,8 +189,8 @@ const updateActivities = change => {
   });
 };
 
-const updateSubscriptions = (query, resolve, reject) =>
-  query
+const updateSubscriptions = (query, resolve, reject) => {
+  return query
     .get()
     .then(snapshot => {
       if (snapshot.size === 0) return 0;
@@ -224,6 +224,7 @@ const updateSubscriptions = (query, resolve, reject) =>
         });
     })
     .catch(reject);
+};
 
 
 /**
@@ -254,11 +255,8 @@ module.exports = change => {
   console.log({ templateName });
 
   return new Promise((resolve, reject) => {
-    return Promise
-      .all([
-        updateSubscriptions(query, resolve, reject),
-        updateActivities(change)
-      ]);
+    return updateSubscriptions(query, resolve, reject);
   })
+    .then(() => updateActivities(change))
     .catch(console.error);
 };
