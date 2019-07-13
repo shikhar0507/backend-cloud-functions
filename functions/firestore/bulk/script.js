@@ -118,13 +118,22 @@ const handleValidation = (body) => {
 
   for (let iter = 0; iter < body.data.length; iter++) {
     const item = body.data[iter];
+
+    if (!item) {
+      return {
+        success: false,
+        message: `Expected an array of objects in the field 'data'`,
+      };
+    }
+
     const shareArray = item.share || [];
 
     for (let index = 0; index < shareArray.length; index++) {
       const phoneNumber = shareArray[index];
 
       if (isE164PhoneNumber(phoneNumber)) {
-        return;
+        // return;
+        continue;
       }
 
       return {
@@ -969,12 +978,15 @@ const validateDataArray = (conn, locals) => {
       }
 
       if (locals.templateDoc.get('venue').length > 0
-        && isValidGeopoint({
+        && conn.req.body.data[index].latitude
+        && conn.req.body.data[index].longitude
+        && !isValidGeopoint({
           latitude: conn.req.body.data[index].latitude,
           longitude: conn.req.body.data[index].longitude,
         }, false)) {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Missing/Invalid fields ''`;
+        conn.req.body.data[index].reason = `Either fill all location fields`
+          + ` (address, location latitude, longitude, and placeId) or none`;
       }
 
       if (checkName
@@ -1129,12 +1141,12 @@ const validateDataArray = (conn, locals) => {
         toRejectAll = true;
       }
 
-      if (!allFieldsSet.has(property)) {
-        conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Invalid property: '${property}'`;
+      // if (!allFieldsSet.has(property)) {
+      //   conn.req.body.data[index].rejected = true;
+      //   conn.req.body.data[index].reason = `Invalid property: '${property}'`;
 
-        return;
-      }
+      //   return;
+      // }
 
       if (value
         && scheduleFieldsSet.has(property)
