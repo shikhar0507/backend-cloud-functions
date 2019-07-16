@@ -55,26 +55,6 @@ const getTemplateId = (report) => {
     return sendGridTemplateIds.payroll;
   }
 
-  if (report === reportNames.DSR) {
-    return sendGridTemplateIds.dsr;
-  }
-
-  if (report === reportNames.DUTY_ROSTER) {
-    return sendGridTemplateIds.dutyRoster;
-  }
-
-  if (report === reportNames.EXPENSE_CLAIM) {
-    return sendGridTemplateIds.expenseClaim;
-  }
-
-  if (report === reportNames.LEAVE) {
-    return sendGridTemplateIds.leave;
-  }
-
-  if (report === reportNames.ENQUIRY) {
-    return sendGridTemplateIds.enquiry;
-  }
-
   return null;
 };
 
@@ -259,26 +239,6 @@ module.exports = change => {
         return Promise.resolve();
       }
 
-      if (report === reportNames.DSR) {
-        return require('./dsr-report')(locals);
-      }
-
-      if (report === reportNames.DUTY_ROSTER) {
-        return require('./duty-roster-report')(locals);
-      }
-
-      if (report === reportNames.EXPENSE_CLAIM) {
-        return require('./expense-claim-report')(locals);
-      }
-
-      if (report === reportNames.LEAVE) {
-        return require('./leave-report')(locals);
-      }
-
-      if (report === reportNames.ENQUIRY) {
-        return require('./enquiry-report')(locals);
-      }
-
       return Promise.resolve(null);
     })
     .then(() => Promise.all(usersWithoutEmailOrVerifiedEmail))
@@ -344,8 +304,10 @@ module.exports = change => {
       const dailyStatusDoc = snapShot.docs[0];
       const data = dailyStatusDoc.data();
       const office = locals.officeDoc.get('office');
-      const expectedRecipientTriggersCount = dailyStatusDoc.get('expectedRecipientTriggersCount');
-      const recipientsTriggeredToday = dailyStatusDoc.get('recipientsTriggeredToday');
+      const expectedRecipientTriggersCount = dailyStatusDoc
+        .get('expectedRecipientTriggersCount');
+      const recipientsTriggeredToday = dailyStatusDoc
+        .get('recipientsTriggeredToday');
 
       data
         .unverifiedRecipients = {

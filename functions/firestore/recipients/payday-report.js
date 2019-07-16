@@ -75,12 +75,6 @@ const commitMultiBatch = (statusObjectsMap, docRefsMap, momentYesterday) => {
         });
     });
 
-  console.log(data);
-  console.log(statusObjectsMap);
-
-  console.log('statusObjectsMap Size:', statusObjectsMap.size);
-  console.log('Number of batches:', batchArray.length);
-
   return Promise
     .all(batchArray.map(batch => batch.commit()));
 };
@@ -102,12 +96,13 @@ const getDatesBetween = (startMoment, endMoment) => {
   for (let start = numberOfDays; start > 0; start--) {
     const interm = cycleEnd.subtract(1, 'day');
 
-    result.push({
-      date: interm.date(),
-      month: interm.month(),
-      year: interm.year(),
-      formattedDate: interm.format('D[-]MMM'),
-    });
+    result
+      .push({
+        date: interm.date(),
+        month: interm.month(),
+        year: interm.year(),
+        formattedDate: interm.format('D[-]MMM'),
+      });
   }
 
   return result;
@@ -122,7 +117,10 @@ const getPayDaySheetTopRow = allDates => {
 
   // Dates for curr and prev months
   allDates
-    .forEach(dateItem => topRowValues.push(dateItem.formattedDate));
+    .forEach(dateItem => {
+      topRowValues
+        .push(dateItem.formattedDate);
+    });
 
   topRowValues
     .push(
@@ -137,7 +135,10 @@ const getPayDayTimingsTopRow = allDates => {
   const topRowValues = ['Employee Name'];
 
   allDates
-    .forEach(dateItem => topRowValues.push(dateItem.formattedDate));
+    .forEach(dateItem => {
+      topRowValues
+        .push(dateItem.formattedDate);
+    });
 
   return topRowValues;
 };
@@ -211,8 +212,6 @@ module.exports = locals => {
   const statusObjectsMapForPreviousMonth = new Map();
   const leavesSet = new Set();
   const weeklyOffSet = new Set();
-  /** People not in the employees map but have docs in the Monthly docs */
-  const monthlyDocsToDelete = db.batch();
   const firstDayOfMonthlyCycle = locals
     .officeDoc
     .get('attachment.First Day Of Monthly Cycle.value') || 1;
@@ -252,7 +251,6 @@ module.exports = locals => {
   const allDates = getDatesBetween(cycleStartMoment, cycleEndMoment);
   let paydaySheet;
   let paydayTimingsSheet;
-  const toDelete = [];
   let prevMonthDocs;
 
   const promises = [
@@ -300,7 +298,10 @@ module.exports = locals => {
       if (prevMonthDocs) {
         prevMonthDocs
           .forEach(doc => {
-            const { statusObject, phoneNumber } = doc.data();
+            const {
+              statusObject,
+              phoneNumber,
+            } = doc.data();
 
             statusObjectsMapForPreviousMonth
               .set(
@@ -348,26 +349,30 @@ module.exports = locals => {
 
       monthlyDocsQuery
         .forEach(doc => {
-          const { phoneNumber, statusObject } = doc.data();
+          const {
+            phoneNumber,
+            statusObject,
+          } = doc.data();
 
           if (!employeesData[phoneNumber]) {
-            monthlyDocsToDelete
-              .delete(doc.ref);
-            toDelete
-              .push(phoneNumber);
-
             return;
           }
 
           docRefsMap
-            .set(phoneNumber, doc.ref);
+            .set(
+              phoneNumber,
+              doc.ref
+            );
 
           statusObject[
             yesterdayDate
           ] = statusObject[yesterdayDate] || getDefaultStatusObject();
 
           statusObjectsMapForCurrentMonth
-            .set(phoneNumber, statusObject);
+            .set(
+              phoneNumber,
+              statusObject
+            );
         });
 
       branchDocsQuery
@@ -382,8 +387,11 @@ module.exports = locals => {
                 return;
               }
 
+              const branchName = branchDoc
+                .get('attachment.Name.value');
+
               branchesWithHoliday
-                .add(branchDoc.get('attachment.Name.value'));
+                .add(branchName);
             });
         });
 
@@ -392,7 +400,11 @@ module.exports = locals => {
           if (!docRefsMap.has(phoneNumber)) {
             docRefsMap.set(
               phoneNumber,
-              locals.officeDoc.ref.collection('Monthly').doc()
+              locals
+                .officeDoc
+                .ref
+                .collection('Monthly')
+                .doc()
             );
           }
 
@@ -411,12 +423,11 @@ module.exports = locals => {
           if (branchesWithHoliday.has(employeeBaseLocation)) {
             statusObject[
               yesterdayDate
-            ]
-              .holiday = true;
+            ].holiday = true;
+
             statusObject[
               yesterdayDate
-            ]
-              .statusForDay = 1;
+            ].statusForDay = 1;
 
             branchHolidaySet
               .add(phoneNumber);
@@ -427,15 +438,23 @@ module.exports = locals => {
           const weekdayName = weekdaysArray[momentYesterday.day()];
 
           if (weeklyOffWeekdayName === weekdayName) {
-            statusObject[yesterdayDate].weeklyOff = true;
-            statusObject[yesterdayDate].statusForDay = 1;
+            statusObject[
+              yesterdayDate
+            ].weeklyOff = true;
+
+            statusObject[
+              yesterdayDate
+            ].statusForDay = 1;
 
             weeklyOffSet
               .add(phoneNumber);
           }
 
           statusObjectsMapForCurrentMonth
-            .set(phoneNumber, statusObject);
+            .set(
+              phoneNumber,
+              statusObject
+            );
 
           /**
            * People with status set to `leave`, `branch holiday`,
@@ -491,15 +510,23 @@ module.exports = locals => {
 
           statusObject[
             yesterdayDate
-          ]
-            .numberOfCheckIns = numberOfActionsInTheDay;
+          ].numberOfCheckIns = numberOfActionsInTheDay;
 
           /** Number of checkins is 0 */
           if (numberOfActionsInTheDay === 0) {
-            statusObject[yesterdayDate].blank = true;
+            statusObject[
+              yesterdayDate
+            ].blank = true;
             // The person did nothing
-            statusObject[yesterdayDate].statusForDay = 0;
-            statusObjectsMapForCurrentMonth.set(phoneNumber, statusObject);
+            statusObject[
+              yesterdayDate
+            ].statusForDay = 0;
+
+            statusObjectsMapForCurrentMonth
+              .set(
+                phoneNumber,
+                statusObject
+              );
 
             return;
           }
@@ -520,32 +547,31 @@ module.exports = locals => {
             ] || getDefaultStatusObject();
 
           statusObjectsMapForCurrentMonth
-            .set(phoneNumber, statusObject);
+            .set(
+              phoneNumber,
+              statusObject
+            );
 
           statusObject[
             yesterdayDate
-          ]
-            .firstCheckInTimestamp = firstCheckInTimestamp;
+          ].firstCheckInTimestamp = firstCheckInTimestamp;
           statusObject[
             yesterdayDate
-          ]
-            .lastCheckInTimestamp = lastCheckInTimestamp;
+          ].lastCheckInTimestamp = lastCheckInTimestamp;
           statusObject[
             yesterdayDate
-          ]
-            .firstCheckIn = dateStringWithOffset({
-              timezone,
-              timestampToConvert: firstCheckInTimestamp,
-              format: dateFormats.TIME,
-            });
+          ].firstCheckIn = dateStringWithOffset({
+            timezone,
+            timestampToConvert: firstCheckInTimestamp,
+            format: dateFormats.TIME,
+          });
           statusObject[
             yesterdayDate
-          ]
-            .lastCheckIn = dateStringWithOffset({
-              timezone,
-              timestampToConvert: lastCheckInTimestamp,
-              format: dateFormats.TIME,
-            });
+          ].lastCheckIn = dateStringWithOffset({
+            timezone,
+            timestampToConvert: lastCheckInTimestamp,
+            format: dateFormats.TIME,
+          });
 
           const hoursWorked =
             momentTz(lastCheckInTimestamp)
@@ -553,51 +579,70 @@ module.exports = locals => {
           const minimumWorkingHours =
             employeesData[phoneNumber]['Minimum Working Hours'];
           const minimumDailyActivityCount =
+            /**
+             * Division by undefined (= NaN) might result in unexpected
+             * values in the final excel sheet
+             */
             employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
-
-          statusObject[yesterdayDate]
-            .statusForDay = (() => {
-              if (onLeaveSet.has(phoneNumber)
-                || onArSet.has(phoneNumber)
-                || weeklyOffSet.has(phoneNumber)
-                || branchHolidaySet.has(phoneNumber)) {
-                return 1;
-              }
-
-              // if (numberOfActionsInTheDay === 1) {
-
-              // }
-
-              let activityRatio = numberOfActionsInTheDay / minimumDailyActivityCount;
-
-              if (activityRatio > 1) {
-                activityRatio = 1;
-              }
-
-              /** Could be `undefined`, so ignoring further actions related it it */
-              if (!minimumWorkingHours) {
-                return activityRatio;
-              }
-
-              let workHoursRatio = hoursWorked / minimumWorkingHours;
-
-              if (workHoursRatio > 1) {
-                workHoursRatio = 1;
-              }
-
-              return activityRatio > workHoursRatio ? workHoursRatio : activityRatio;
-            })();
 
           statusObject[
             yesterdayDate
-          ]
-            .statusForDay = roundToNearestQuarter(
-              statusObject[yesterdayDate].statusForDay
-            );
+          ].statusForDay = (() => {
+            if (onLeaveSet.has(phoneNumber)
+              || onArSet.has(phoneNumber)
+              || weeklyOffSet.has(phoneNumber)
+              || branchHolidaySet.has(phoneNumber)) {
+              return 1;
+            }
+
+            let activityRatio = numberOfActionsInTheDay / minimumDailyActivityCount;
+
+            if (activityRatio > 1) {
+              activityRatio = 1;
+            }
+
+            /** Could be `undefined`, so ignoring further actions related it it */
+            if (!minimumWorkingHours) {
+              return activityRatio;
+            }
+
+            let workHoursRatio = hoursWorked / minimumWorkingHours;
+
+            if (workHoursRatio > 1) {
+              workHoursRatio = 1;
+            }
+
+            return activityRatio > workHoursRatio ? workHoursRatio : activityRatio;
+          })();
+
+          statusObject[
+            yesterdayDate
+          ].statusForDay = roundToNearestQuarter(
+            statusObject[yesterdayDate].statusForDay
+          );
+
+          if (statusObject[yesterdayDate].statusForDay > 1) {
+            statusObject[
+              yesterdayDate
+            ].statusForDay = 1;
+          }
+
+          // if (numberOfActionsInTheDay === 1
+          //   && minimumWorkingHours === 1) {
+          //   const maxForTheEmployee = minimumDailyActivityCount;
+
+          //   statusObject[
+          //     yesterdayDate
+          //   ].statusForDay = Math
+          //     .max(statusObject[yesterdayDate].statusForDay, maxForTheEmployee);
+          // }
 
           /** Updating the map after updating the status object */
           statusObjectsMapForCurrentMonth
-            .set(phoneNumber, statusObject);
+            .set(
+              phoneNumber,
+              statusObject
+            );
         });
 
       return commitMultiBatch(
@@ -605,20 +650,6 @@ module.exports = locals => {
         docRefsMap,
         momentYesterday
       );
-    })
-    .then(() => {
-      /**
-       * Allowing an offset of +5 days before deleting the data otherwise
-       * the employee might miss their pay.
-       */
-      if (yesterdayDate !== firstDayOfMonthlyCycle + 5) {
-        return Promise
-          .resolve();
-      }
-
-      // Clearing removed employees on 5th of the month
-      return monthlyDocsToDelete
-        .commit();
     })
     .then(() => {
       if (locals.createOnlyData) {
@@ -665,7 +696,8 @@ module.exports = locals => {
               const { month, date } = item;
 
               const statusObject = (() => {
-                if (fetchPreviousMonthDocs && month === prevMonth) {
+                if (fetchPreviousMonthDocs
+                  && month === prevMonth) {
                   return statusObjectsMapForPreviousMonth
                     .get(phoneNumber) || {};
                 }
