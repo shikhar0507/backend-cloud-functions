@@ -624,15 +624,15 @@ const handleEmployees = (conn, locals) => {
         const phoneNumber = item['Employee Contact'];
 
         if (phoneNumbersToRejectSet.has(phoneNumber)) {
-          conn.req.body[index].rejected = true;
-          conn.req.body[index].reason = `Phone number ${phoneNumber} is already an employee`;
+          conn.req.body.data[index].rejected = true;
+          conn.req.body.data[index].reason = `Phone number ${phoneNumber} is already an employee`;
 
           return;
         }
 
         if (employeesData[phoneNumber]) {
-          conn.req.body[index].rejected = true;
-          conn.req.body[index].reason = `Phone number: ${phoneNumber} is already`
+          conn.req.body.data[index].rejected = true;
+          conn.req.body.data[index].reason = `Phone number: ${phoneNumber} is already`
             + ` in use by ${employeesData[phoneNumber].Name}`;
         }
       });
@@ -730,7 +730,7 @@ const handleSubscriptions = (conn, locals) => {
 
   locals
     .subscriptionsToCheck
-    .forEach((item) => {
+    .forEach(item => {
       const {
         phoneNumber,
         template,
@@ -930,7 +930,6 @@ const validateDataArray = (conn, locals) => {
     ...scheduleFields,
     ...venueFields,
   ];
-  const allFieldsSet = new Set(allFieldsArray).add('share');
   let toRejectAll = false;
   let duplicateRowIndex = 0;
   /**
