@@ -3,10 +3,7 @@
 const {
   rootCollections,
   db,
-  deleteField,
-  fieldPath,
   auth,
-  users,
 } = require('../../admin/admin');
 const {
   sendResponse,
@@ -14,38 +11,28 @@ const {
   isNonEmptyString,
   hasAdminClaims,
   isE164PhoneNumber,
-  addEmployeeToRealtimeDb,
 } = require('../../admin/utils');
 const {
   code,
 } = require('../../admin/responses');
-const momentTz = require('moment-timezone');
+const admin = require('firebase-admin');
 
 
-const numberInAttachment = (phoneNumber, attachmentObject) => {
-  const itemsArray = Object.keys(attachmentObject);
-  let found = false;
-  let fieldName;
+const getAuth = phoneNumber => {
+  return auth
+    .getUserByPhoneNumber(phoneNumber)
+    .catch(error => {
+      if (error.code === 'auth/user-not-found') {
+        return {
+          phoneNumber,
+          displayName: '',
+          photoURL: '',
+        };
+      }
 
-  for (let i = 0; i < itemsArray.length; i++) {
-    const intermediateFieldName = itemsArray[i];
-    const { value, type } = attachmentObject[intermediateFieldName];
-
-    if (type !== 'phoneNumber') continue;
-    if (value !== phoneNumber) continue;
-
-    fieldName = intermediateFieldName;
-    found = true;
-
-    break;
-  }
-
-  return {
-    found,
-    fieldName,
-  };
+      console.error(error);
+    });
 };
-
 
 const validateRequest = body => {
   const messageObject = {
@@ -103,198 +90,130 @@ const validateRequest = body => {
   return messageObject;
 };
 
+const updatePhoneNumberFields = (doc, oldPhoneNumber, newPhoneNumber, newPhoneNumberAuth) => {
+  const result = doc.data();
+  const attachment = doc.get('attachment');
+  const creator = doc.get('creator');
+  result.timestamp = Date.now();
+  result.addendumDocRef = null;
+  delete result.assignees;
 
-const commitBatch = (conn, batch) =>
-  batch
-    .commit()
-    .then(() => sendResponse(conn, code.ok, 'Phone Number updated successfully.'))
-    .catch(error => handleError(conn, error));
+  if (creator === oldPhoneNumber
+    || creator.phoneNumber === oldPhoneNumber) {
+    result.creator = {
+      phoneNumber: newPhoneNumber,
+      photoURL: newPhoneNumberAuth.photoURL || '',
+      displayName: newPhoneNumberAuth.displayName || '',
+    };
+  }
 
-const deleteAuth = (oldPhoneNumber) =>
-  users
-    .getUserByPhoneNumber(oldPhoneNumber)
-    .then((result) => result[oldPhoneNumber])
-    .then((userRecord) => {
-      if (!userRecord || !userRecord.uid) {
-        return Promise.resolve();
+  Object
+    .keys(attachment)
+    .forEach(field => {
+      const item = attachment[field];
+
+      if (item.value === oldPhoneNumber) {
+        result
+          .attachment[field]
+          .value = newPhoneNumber;
       }
-
-      return auth.deleteUser(userRecord.uid);
     });
 
-const deleteAddendum = (conn, locals) => {
-  const promises = [];
+  return result;
+};
 
-  locals
-    .activityIdsSet
-    .forEach((id) => {
-      const promise = rootCollections
+const deleteUpdates = oldPhoneNumberUid => {
+  if (!oldPhoneNumberUid) {
+    return Promise
+      .resolve();
+  }
+
+  return rootCollections
+    .updates
+    .doc(oldPhoneNumberUid)
+    .collection('Addendum')
+    .get()
+    .then(docs => {
+      const batch = db.batch();
+
+      docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      batch.delete(rootCollections
         .updates
-        .where('activityId', '==', id)
-        .where('user', '==', conn.req.body.oldPhoneNumber)
-        .get();
+        .doc(oldPhoneNumberUid));
 
-      promises.push(promise);
-    });
-
-  // TODO: Handle > 500 docs here.
-  return Promise
-    .all(promises)
-    .then((snapShots) => {
-      snapShots
-        .forEach(
-          (snapShot) => snapShot.forEach((doc) => locals.batch.delete(doc.ref))
-        );
-
-      if (locals.toDeleteAuth) {
-        return deleteAuth(conn.req.body.oldPhoneNumber);
+      return batch.commit();
+    })
+    .then(() => {
+      return auth
+        .deleteUser(oldPhoneNumberUid);
+    })
+    .catch(error => {
+      if (error.code === 'auth/user-not-found') {
+        return;
       }
 
-      return null;
-    })
-    .then(() => commitBatch(conn, locals.batch))
-    .catch(error => handleError(conn, error));
+      console.error(error);
+    });
 };
 
-const handleMonthlyDocs = (conn, locals) => {
+const getCanEditValue = (canEditRule, creator, conn, locals) => {
+  if (canEditRule === 'CREATOR') {
+    return creator === conn.req.body.newPhoneNumber;
+  }
+
+  if (canEditRule === 'ADMIN') {
+    return locals
+      .newPhoneNumberIsAdmin;
+  }
+
+  if (canEditRule === 'EMPLOYEE') {
+    // If the new phone number is already an employee,
+    // code the request will be rejected in the previous step.
+    return false;
+  }
+
+  if (canEditRule === 'NONE') {
+    return false;
+  }
+
+  // canEditRule is `ALL`
+  return true;
+};
+
+const transferActivitiesToNewProfile = (conn, locals) => {
   let iterations = 0;
 
   const runQuery = (query, resolve, reject) => {
     return query
       .get()
-      .then((docs) => {
-        if (docs.empty) {
+      .then(activitiesInProfile => {
+        if (activitiesInProfile.empty) {
           return [0];
         }
 
-        const batch = db.batch();
-
-        docs.forEach((doc) => {
-          batch.set(doc.ref, {
-            phoneNumber: conn.req.body.newPhoneNumber,
-          }, {
-              merge: true,
-            });
-        });
-
-        return Promise
-          .all([
-            Promise
-              .resolve(docs.docs[docs.size - 1]),
-            batch
-              .commit(),
-          ]);
-      })
-      .then((result) => {
         iterations++;
-
-        const [lastDoc] = result;
-
-        if (!lastDoc) {
-          console.log('number of iterations for monthly docs', iterations);
-
-          return resolve();
-        }
-
-        console.log({ lastDocId: lastDoc.id });
-
-        return process
-          .nextTick(() => {
-            const newQuery = query
-              .where(fieldPath, '>', lastDoc.id);
-
-            return runQuery(newQuery, resolve, reject);
-          });
-      })
-      .catch(reject);
-  };
-
-  const MAX_UPDATES_AT_ONCE = 499;
-  const query = locals
-    .officeDoc
-    .ref
-    .collection('Monthly')
-    .where('phoneNumber', '==', conn.req.body.newPhoneNumber)
-    .orderBy(fieldPath)
-    .limit(MAX_UPDATES_AT_ONCE);
-
-  return new Promise((resolve, reject) => {
-    return runQuery(query, resolve, reject);
-  })
-    .then(() => deleteAddendum(conn, locals))
-    .catch((error) => handleError(conn, error));
-};
-
-
-const updateActivities = (conn, locals) => {
-  let iterations = 0;
-
-  const runQuery = (query, resolve, reject) => {
-    return query
-      .get()
-      .then(docs => {
-        if (docs.empty) {
-          return [0];
-        }
+        console.log('profileActivities', activitiesInProfile.size);
 
         const batch = db.batch();
 
-        docs.forEach(doc => {
-          const activityId = doc.id;
-          const rootActivityRef = rootCollections.activities.doc(activityId);
-          const template = doc.get('template');
-          const creator = doc.get('creator');
-          const canEditRule = doc.get('canEditRule');
-          const attachmentObject = doc.get('attachment');
-          const phoneNumberInAttachment = numberInAttachment(
-            conn.req.body.oldPhoneNumber,
-            attachmentObject
+        activitiesInProfile.forEach(profileActivity => {
+          const rootActivityRef = rootCollections
+            .activities
+            .doc(profileActivity.id);
+          const canEdit = getCanEditValue(
+            profileActivity.get('canEditRule'),
+            profileActivity.get('creator'),
+            conn,
+            locals
           );
 
-          locals.activityIdsSet.add(activityId);
-
-          // if (template === 'subscription') {
-          //   const Template = doc.get('attachment.Template.value');
-
-          //   if (locals.newPhoneNumberSubscriptionsSet.has(Template)) {
-          //     // Do nothing because the new phone already has the subscription
-          //     // Not transferring the subscription from old to the new number
-          //     // since that would give 2 or more subcriptions to the new
-          //     // phone number.
-          //     return;
-          //   }
-          // }
-
-          if (phoneNumberInAttachment.found) {
-            const { fieldName } = phoneNumberInAttachment;
-
-            attachmentObject[fieldName]
-              .value = conn.req.body.newPhoneNumber;
-          }
-
-          const addToInclude = template !== 'subscription';
-          const canEdit = (() => {
-            if (canEditRule === 'CREATOR') {
-              return creator === conn.req.body.newPhoneNumber;
-            }
-
-            if (canEditRule === 'ADMIN') {
-              return locals.newPhoneNumberIsAdmin;
-            }
-
-            if (canEditRule === 'EMPLOYEE') {
-              // If the new phone number is already an employee,
-              // code the request will be rejected in the previous step.
-              return false;
-            }
-
-            if (canEditRule === 'NONE') {
-              return false;
-            }
-
-            // canEditRule is `ALL`
-            return true;
-          })();
+          console.log({
+            id: rootActivityRef.id,
+            template: profileActivity.get('template'),
+          });
 
           // Add new assignee
           batch
@@ -302,7 +221,7 @@ const updateActivities = (conn, locals) => {
               .collection('Assignees')
               .doc(conn.req.body.newPhoneNumber), {
                 canEdit,
-                addToInclude,
+                addToInclude: profileActivity.get('template') !== 'subscription',
               }, {
                 merge: true,
               });
@@ -311,23 +230,19 @@ const updateActivities = (conn, locals) => {
           batch
             .delete(rootActivityRef
               .collection('Assignees')
-              .doc(conn.req.body.oldPhoneNumber));
+              .doc(conn.req.body.oldPhoneNumber)
+            );
 
-          const newCreator = (() => {
-            if (creator === conn.req.body.oldPhoneNumber) {
-              return conn.req.body.newPhoneNumber;
-            }
-
-            return creator;
-          })();
+          const activityData = updatePhoneNumberFields(
+            profileActivity,
+            conn.req.body.oldPhoneNumber,
+            conn.req.body.newPhoneNumber,
+            locals.newPhoneNumberAuth
+          );
 
           // Update the main activity in root `Activities` collection
-          locals.batch.set(rootActivityRef, {
-            timestamp: Date.now(),
-            addendumDocRef: null,
-            attachment: attachmentObject,
-            creator: newCreator,
-          }, {
+          batch
+            .set(rootActivityRef, activityData, {
               merge: true,
             });
         });
@@ -335,14 +250,12 @@ const updateActivities = (conn, locals) => {
         return Promise
           .all([
             Promise
-              .resolve(docs.docs[docs.size - 1]),
+              .resolve(activitiesInProfile.docs[activitiesInProfile.size - 1]),
             batch
               .commit(),
           ]);
       })
       .then(result => {
-        iterations++;
-
         const [lastDoc] = result;
 
         if (!lastDoc) {
@@ -356,173 +269,36 @@ const updateActivities = (conn, locals) => {
               // to start after the last activity which was
               // processed by this code otherwise some activities
               // might be updated more than once.
-              .where(fieldPath, '>', lastDoc.id);
+              .where(admin.firestore.FieldPath.documentId(), '>', lastDoc.id);
 
             return runQuery(newQuery, resolve, reject);
           });
       })
-      .catch(new Error(reject));
+      .catch(reject);
   };
 
-  /**
-   * Updating 200 activities at most in a singe loop
-   * because firestore's batch only allows 500 docs to be
-   * updated at once.
-   */
   const MAX_UPDATES_AT_ONCE = 200;
   const query = rootCollections
     .profiles
     .doc(conn.req.body.oldPhoneNumber)
     .collection('Activities')
     .where('office', '==', conn.req.body.office)
-    .orderBy(fieldPath)
+    .orderBy(admin.firestore.FieldPath.documentId())
     .limit(MAX_UPDATES_AT_ONCE);
 
-  console.log({ iterations });
-
   return new Promise((resolve, reject) => {
+    console.log('transferActivitiesToNewProfile');
+
     return runQuery(query, resolve, reject);
   })
     .then(() => {
-      console.log(locals.activityIdsSet);
+      console.log({ iterations });
 
-      return handleMonthlyDocs(conn, locals);
-    })
-    .catch(error => handleError(conn, error));
+      return deleteUpdates(locals.oldPhoneNumberUid);
+    });
 };
 
-
-const checkForAdmin = (conn, locals) =>
-  rootCollections
-    .offices
-    .doc(locals.officeDoc.id)
-    .collection('Activities')
-    .where('status', '==', 'CONFIRMED')
-    .where('attachment.Admin.value', '==', conn.req.body.newPhoneNumber)
-    .limit(1)
-    .get()
-    .then(docs => {
-      // Not empty means the person is an admin
-      locals.newPhoneNumberIsAdmin = !docs.empty;
-
-      return updateActivities(conn, locals);
-    })
-    .catch(error => handleError(conn, error));
-
-
-const checkForEmployee = (conn, locals) => {
-  const activitiesRef = rootCollections
-    .offices
-    .doc(locals.officeDoc.id)
-    .collection('Activities');
-
-  return Promise
-    .all([
-      activitiesRef
-        .where('status', '==', 'CONFIRMED')
-        .where('attachment.Employee Contact.value', '==', conn.req.body.oldPhoneNumber)
-        .limit(1)
-        .get(),
-      activitiesRef
-        .where('status', '==', 'CONFIRMED')
-        .where('attachment.Employee Contact.value', '==', conn.req.body.newPhoneNumber)
-        .limit(1)
-        .get(),
-      rootCollections
-        .profiles
-        .doc(conn.req.body.oldPhoneNumber)
-        .get(),
-      rootCollections
-        .profiles
-        .doc(conn.req.body.newPhoneNumber)
-        .get(),
-      rootCollections
-        .updates
-        .where('phoneNumber', '==', conn.req.body.oldPhoneNumber)
-        .limit(1)
-        .get(),
-      rootCollections
-        .profiles
-        .doc(conn.req.body.newPhoneNumber)
-        .collection('Subscriptions')
-        .get(),
-    ])
-    .then(result => {
-      const [
-        oldPhoneNumberQuery,
-        newPhoneNumberQuery,
-        oldUserProfile,
-        newUserProfile,
-        oldPhoneNumberUpdatesDocsQuery,
-        newPhoneNumberSubscriptionsQuery,
-      ] = result;
-
-      if (oldPhoneNumberQuery.empty) {
-        return sendResponse(
-          conn,
-          code.badRequest,
-          `${conn.req.body.oldPhoneNumber} is not an employee`
-        );
-      }
-
-      if (!newPhoneNumberQuery.empty) {
-        return sendResponse(
-          conn,
-          code.badRequest,
-          `${conn.req.body.newPhoneNumber} is already in use by someone else`
-        );
-      }
-
-      const employeeOf = oldUserProfile.get('employeeOf') || {};
-
-      if (employeeOf[conn.req.body.office]) {
-        locals.batch.set(oldUserProfile.ref, {
-          employeeOf: {
-            [conn.req.body.office]: deleteField(),
-          },
-        }, {
-            merge: true,
-          });
-
-        locals.batch.set(newUserProfile.ref, {
-          employeeOf: {
-            [conn.req.body.office]: locals.officeDoc.id,
-          },
-        }, {
-            merge: true,
-          });
-      }
-
-      if (!oldPhoneNumberUpdatesDocsQuery.empty) {
-        const updatesDoc = oldPhoneNumberUpdatesDocsQuery.docs[0];
-        const officeList = Object.keys(employeeOf);
-
-        locals
-          .oldPhoneNumberUid = oldPhoneNumberUpdatesDocsQuery.docs[0].id;
-        // If person is only in a single office, removing auth.
-        locals
-          .toDeleteAuth = officeList.length === 1;
-
-        // Will be deleting this person's auth
-        if (officeList.length === 1) {
-          locals.batch.delete(updatesDoc.ref);
-        }
-      }
-
-      locals.newPhoneNumberSubscriptionsSet = new Set();
-
-      newPhoneNumberSubscriptionsQuery.forEach(doc => {
-        const template = doc.get('attachment.Template.value');
-
-        locals.newPhoneNumberSubscriptionsSet.add(template);
-      });
-
-      return checkForAdmin(conn, locals);
-    })
-    .catch((error) => handleError(conn, error));
-};
-
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
       conn,
@@ -540,46 +316,158 @@ module.exports = (conn) => {
     );
   }
 
-  if (conn.requester.isSupportRequest) {
-    if (!conn.req.body.hasOwnProperty('office')
-      || !isNonEmptyString(conn.req.body.office)) {
-      return sendResponse(
-        conn,
-        code.badRequest,
-        `Invalid/Missing 'office' name in the request body`
-      );
-    }
-  }
-
   const validationResult = validateRequest(conn.req.body);
 
   if (!validationResult.isValid) {
-    return sendResponse(conn, code.badRequest, validationResult.message);
+    return sendResponse(
+      conn,
+      code.badRequest,
+      validationResult.message
+    );
   }
 
-  return rootCollections
-    .offices
-    .where('office', '==', conn.req.body.office)
-    .limit(1)
-    .get()
-    .then((officeDocsQuery) => {
-      if (officeDocsQuery.empty) {
+  if (conn.requester.phoneNumber
+    === conn.req.body.oldPhoneNumber) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `You cannot change your own phone number`
+    );
+  }
+
+  if (conn.req.body.oldPhoneNumber
+    === conn.req.body.newPhoneNumber) {
+    return sendResponse(
+      conn,
+      code.badRequest,
+      'Old and the new phone number cannot be the same.'
+    );
+  }
+
+  let failed = false;
+  const locals = {};
+
+  return Promise
+    .all([
+      rootCollections
+        .offices
+        .where('office', '==', conn.req.body.office)
+        .limit(1)
+        .get(),
+      rootCollections
+        .activities
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'employee')
+        .where('attachment.Employee Contact.value', '==', conn.req.body.oldPhoneNumber)
+        .limit(1)
+        .get(),
+      rootCollections
+        .activities
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'employee')
+        .where('attachment.Employee Contact.value', '==', conn.req.body.newPhoneNumber)
+        .limit(1)
+        .get(),
+      rootCollections
+        .activities
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'admin')
+        .where('attachment.Admin.value', '==', conn.req.body.newPhoneNumber)
+        .limit(1)
+        .get(),
+      rootCollections
+        .profiles
+        .doc(conn.req.body.oldPhoneNumber)
+        .get(),
+      rootCollections
+        .profiles
+        .doc(conn.req.body.newPhoneNumber)
+        .get(),
+      getAuth(conn.req.body.newPhoneNumber)
+    ])
+    .then(result => {
+      const [
+        officeQueryResult,
+        oldEmployeeQueryResult,
+        newEmployeeQueryResult,
+        newPhoneNumberAdminQueryResult,
+        oldPhoneNumberProfileDoc,
+        newPhoneNumberProfileDoc,
+        newPhoneNumberAuth,
+      ] = result;
+
+      if (officeQueryResult.empty) {
+        failed = true;
+
         return sendResponse(
           conn,
           code.badRequest,
-          `Office '${conn.req.body.office}' does not exist.`
+          `Office: ${conn.req.body.office} not found`
         );
       }
 
-      const locals = {
-        batch: db.batch(),
-        activityIdsSet: new Set(),
-        officeDoc: officeDocsQuery.docs[0],
-        timezone: officeDocsQuery.docs[0].get('attachment.Timezone.value'),
-        momentObject: momentTz().tz(officeDocsQuery.docs[0].get('attachment.Timezone.value')),
-      };
+      if (oldEmployeeQueryResult.empty) {
+        failed = true;
 
-      return checkForEmployee(conn, locals);
+        return sendResponse(
+          conn,
+          code.badRequest,
+          `${conn.req.body.oldPhoneNumber} is not an employee`
+        );
+      }
+
+      if (!newEmployeeQueryResult.empty) {
+        failed = true;
+
+        return sendResponse(
+          conn,
+          code.badRequest,
+          `${conn.req.body.newPhoneNumber} is already an employee`
+        );
+      }
+
+      locals.oldPhoneNumberUid = '';
+      locals.officeDoc = officeQueryResult.docs[0];
+      locals.oldPhoneNumberProfileDoc = oldPhoneNumberProfileDoc;
+      locals.newPhoneNumberIsAdmin = newPhoneNumberAdminQueryResult.size !== 0;
+      locals.newPhoneNumberAuth = newPhoneNumberAuth;
+
+      if (oldPhoneNumberProfileDoc.exists) {
+        locals
+          .oldPhoneNumberUid = oldPhoneNumberProfileDoc
+            .get('uid') || '';
+      }
+
+      if (newPhoneNumberProfileDoc.exists) {
+        const employeeOf = newPhoneNumberProfileDoc
+          .get('employeeOf') || {};
+
+        /** Is in single office */
+        locals
+          .deleteOldProfile = Object
+            .keys(employeeOf)
+            .length <= 1;
+      }
+
+      return transferActivitiesToNewProfile(conn, locals);
     })
-    .catch(console.error);
+    .then(() => {
+      if (failed) return;
+      if (!locals.deleteOldProfile) return;
+
+      return locals
+        .oldPhoneNumberProfileDoc
+        .ref
+        .delete();
+    })
+    .then(() => {
+      if (failed) return;
+
+      return sendResponse(
+        conn,
+        code.ok,
+        'Phone number updated successfully'
+      );
+    })
+    .catch(error => handleError(conn, error));
 };
