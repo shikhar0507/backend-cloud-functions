@@ -1154,7 +1154,6 @@ module.exports = (req, res) => {
         conn.res.status(result.status || code.ok).set(conn.headers);
 
         return conn.res.json(html);
-
       }
 
       if (result.empty) {

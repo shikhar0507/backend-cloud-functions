@@ -72,6 +72,8 @@ const validateRequestBody = requestBody => {
 const sendCustomVerificationEmail = options => {
   const { displayName, email, phoneNumber, uid } = options;
 
+  console.log('Email Sent', options);
+
   if (!env.isProduction) {
     return Promise.resolve();
   }
@@ -181,13 +183,7 @@ const createVerificationFlow = options => {
       code: code.ok,
       message: 'Profile updated successfully',
     }))
-    .catch(error => {
-      return {
-        success: false,
-        message: error.toString(),
-        code: code.badRequest,
-      };
-    });
+    .catch(console.error);
 };
 
 const handleAdminRequest = (conn, requester) => {
