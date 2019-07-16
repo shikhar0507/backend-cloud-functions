@@ -500,7 +500,8 @@ const handleRecipient = (locals) => {
       .doc(locals.change.after.id);
 
   if (locals.addendumDoc
-    && locals.addendumDoc.get('action') === httpsActions.comment) {
+    && locals.addendumDoc.get('action')
+    === httpsActions.comment) {
     return Promise.resolve();
   }
 
@@ -691,7 +692,12 @@ const handleXTypeTemplates = locals => {
       const batch = db.batch();
 
       assigneeSet.forEach(phoneNumber => {
-        const ref = locals.change.after.ref.collection('Assignees').doc(phoneNumber);
+        const ref = locals
+          .change
+          .after
+          .ref
+          .collection('Assignees')
+          .doc(phoneNumber);
 
         batch.set(ref, {
           canEdit: adminsSet.has(phoneNumber),
@@ -723,7 +729,6 @@ const autoAssignFlow = locals => {
    * make the subscriber of this template as an assignee
    * of the fetched activities
    */
-
   const batch = db.batch();
   const officeId = locals.change.after.get('officeId');
   const subscribedTemplate = locals.change.after.get('attachment.Template.value');
@@ -757,12 +762,13 @@ const autoAssignFlow = locals => {
             merge: true,
           });
 
-        batch.set(activityRef.collection('Assignees').doc(subscriberPhoneNumber), {
-          canEdit: isAdmin(subscriberPhoneNumber),
-          addToInclude: false,
-        }, {
-            merge: true,
-          });
+        batch
+          .set(activityRef.collection('Assignees').doc(subscriberPhoneNumber), {
+            canEdit: isAdmin(subscriberPhoneNumber),
+            addToInclude: false,
+          }, {
+              merge: true,
+            });
       });
 
       return batch.commit();
@@ -787,7 +793,7 @@ const handleCanEditRule = (locals, templateDoc) => {
   return createAdmin(locals, subscriberPhoneNumber);
 };
 
-const handleSubscription = (locals) => {
+const handleSubscription = locals => {
   const template = locals.change.after.get('template');
 
   if (template !== 'subscription') {
@@ -796,10 +802,11 @@ const handleSubscription = (locals) => {
 
   const batch = db.batch();
   const templateName = locals.change.after.get('attachment.Template.value');
-  const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
+  const newSubscriber = locals.change.after.get('attachment.Subscriber.value');
+  const oldSubscriber = locals.change.before.get('attachment.Subscriber.value');
   const subscriptionDocRef = rootCollections
     .profiles
-    .doc(subscriberPhoneNumber)
+    .doc(newSubscriber)
     .collection('Subscriptions')
     .doc(locals.change.after.id);
 
@@ -808,19 +815,17 @@ const handleSubscription = (locals) => {
     .where('name', '==', templateName)
     .limit(1)
     .get()
-    .then((templateDocsQuery) => {
+    .then(templateDocsQuery => {
       const templateDoc = templateDocsQuery.docs[0];
-
       const include = [];
-
       locals
         .assigneePhoneNumbersArray
-        .forEach((phoneNumber) => {
+        .forEach(phoneNumber => {
           /**
            * The user's own phone number is redundant in the include array since they
            * will be the one creating an activity using the subscription to this activity.
            */
-          if (subscriberPhoneNumber === phoneNumber) return;
+          if (newSubscriber === phoneNumber) return;
 
           /**
            * For the subscription template, people from
@@ -828,25 +833,28 @@ const handleSubscription = (locals) => {
            */
           if (!locals.assigneesMap.get(phoneNumber).addToInclude) return;
 
-          include.push(phoneNumber);
+          include
+            .push(phoneNumber);
         });
 
-      batch.set(subscriptionDocRef, {
-        include,
-        schedule: templateDoc.get('schedule'),
-        venue: templateDoc.get('venue'),
-        template: templateDoc.get('name'),
-        attachment: templateDoc.get('attachment'),
-        timestamp: locals.change.after.get('timestamp'),
-        office: locals.change.after.get('office'),
-        status: locals.change.after.get('status'),
-        canEditRule: templateDoc.get('canEditRule'),
-        hidden: templateDoc.get('hidden'),
-        statusOnCreate: templateDoc.get('statusOnCreate'),
-      });
+      batch
+        .set(subscriptionDocRef, {
+          include,
+          schedule: templateDoc.get('schedule'),
+          venue: templateDoc.get('venue'),
+          template: templateDoc.get('name'),
+          attachment: templateDoc.get('attachment'),
+          timestamp: locals.change.after.get('timestamp'),
+          office: locals.change.after.get('office'),
+          status: locals.change.after.get('status'),
+          canEditRule: templateDoc.get('canEditRule'),
+          hidden: templateDoc.get('hidden'),
+          statusOnCreate: templateDoc.get('statusOnCreate'),
+        });
 
       if (locals.change.after.get('status') === 'CANCELLED') {
-        batch.delete(subscriptionDocRef);
+        batch
+          .delete(subscriptionDocRef);
       }
 
       /**
@@ -854,38 +862,28 @@ const handleSubscription = (locals) => {
        * if the phone number has been changed in the
        * subscription activity.
        */
-      const subscriberChanged = locals.change.before.data()
-        && (locals.change.before.get('attachment.Subscriber.value')
-          !== locals.change.after.get('attachment.Subscriber.value'));
+      const subscriberChanged = locals
+        .change
+        .before
+        .data()
+        && oldSubscriber !== newSubscriber;
 
       if (subscriberChanged) {
-        const oldDocRef = rootCollections
-          .profiles
-          .doc(locals.change.before.get('attachment.Subscriber.value'))
-          .collection('Subscriptions')
-          .doc(locals.change.after.id);
-
-        batch.delete(oldDocRef);
+        batch
+          .delete(rootCollections
+            .profiles
+            .doc(oldSubscriber)
+            .collection('Subscriptions')
+            .doc(locals.change.after.id)
+          );
       }
 
       return Promise
         .all([
-          Promise
-            .resolve(templateDoc),
           batch
             .commit(),
-        ]);
-    })
-    .then((result) => {
-      const [
-        templateDoc,
-      ] = result;
-
-      return Promise
-        .all([
-          // handleAutoAssign(locals),
+          handleCanEditRule(locals, templateDoc),
           autoAssignFlow(locals),
-          handleCanEditRule(locals, templateDoc)
         ]);
     })
     .catch(console.error);
@@ -921,7 +919,7 @@ const removeFromOfficeActivities = (locals) => {
   const runQuery = (query, resolve, reject) =>
     query
       .get()
-      .then((docs) => {
+      .then(docs => {
         console.log('size ==>', docs.size);
 
         if (docs.empty) {
@@ -930,7 +928,7 @@ const removeFromOfficeActivities = (locals) => {
 
         const batch = db.batch();
 
-        docs.forEach((doc) => {
+        docs.forEach(doc => {
           const template = doc.get('template');
           const activityStatus = doc.get('status');
 
@@ -939,7 +937,8 @@ const removeFromOfficeActivities = (locals) => {
            * to run. Allowing that will send the activityOnWrite
            * to an infinite spiral.
            */
-          if (template === 'employee' && doc.id === activityDoc.id) {
+          if (template === 'employee'
+            && doc.id === activityDoc.id) {
             return;
           }
 
@@ -1025,23 +1024,13 @@ const removeFromOfficeActivities = (locals) => {
 };
 
 
-const deleteMonthlyDocs = () => {
-  // TODO: Implement this...
-  return Promise.resolve();
-};
-
-
-const handleMonthlyDocs = (locals, hasBeenCancelled) => {
+const handleMonthlyDocs = locals => {
   const template = locals.change.after.get('template');
   const office = locals.change.after.get('office');
   const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
 
   if (template !== 'employee') {
     return Promise.resolve();
-  }
-
-  if (hasBeenCancelled) {
-    return deleteMonthlyDocs(locals);
   }
 
   let timezone;
@@ -1055,7 +1044,7 @@ const handleMonthlyDocs = (locals, hasBeenCancelled) => {
     .where('office', '==', office)
     .limit(1)
     .get()
-    .then((docs) => {
+    .then(docs => {
       officeDoc = docs.docs[0];
       timezone = officeDoc.get('attachment.Timezone.value');
       momentToday = momentTz().tz(timezone);
@@ -1069,7 +1058,7 @@ const handleMonthlyDocs = (locals, hasBeenCancelled) => {
         .limit(1)
         .get();
     })
-    .then((snapShot) => {
+    .then(snapShot => {
       /** Doc already exists. No need to do anything */
       if (!snapShot.empty) {
         return Promise.resolve();
@@ -1103,7 +1092,10 @@ const createDefaultSubscriptionsForEmployee = (locals, hasBeenCancelled) => {
     return Promise.resolve();
   }
 
-  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
+  const phoneNumber = locals
+    .change
+    .after
+    .get('attachment.Employee Contact.value');
 
   return Promise
     .all([
@@ -1113,7 +1105,7 @@ const createDefaultSubscriptionsForEmployee = (locals, hasBeenCancelled) => {
 };
 
 
-const handleEmployee = (locals) => {
+const handleEmployee = locals => {
   const template = locals.change.after.get('template');
 
   if (template !== 'employee') {
@@ -1198,14 +1190,27 @@ const handleEmployee = (locals) => {
         return Promise.resolve();
       }
 
-      const ref = realtimeDb.ref(`${officeId}/${template}-cancelled/${phoneNumber}`);
+      const ref = realtimeDb
+        .ref(`${officeId}/${template}-cancelled/${phoneNumber}`);
 
       return new Promise((resolve, reject) => {
         const data = locals.change.after.data();
 
         delete data.addendumDocRef;
-        data.createTime = locals.change.after.createTime.toDate().getTime();
-        data.updateTime = locals.change.after.updateTime.toDate().getTime();
+        data
+          .createTime = locals
+            .change
+            .after
+            .createTime
+            .toDate()
+            .getTime();
+        data
+          .updateTime = locals
+            .change
+            .after
+            .updateTime
+            .toDate()
+            .getTime();
 
         ref.set(data, error => {
           if (error) reject(error);
@@ -1217,9 +1222,14 @@ const handleEmployee = (locals) => {
     .catch(console.error);
 };
 
-const createFootprintsRecipient = (locals) => {
+const createFootprintsRecipient = locals => {
   const activityRef = rootCollections.activities.doc();
-  const addendumDocRef = locals.change.after.ref.collection('Addendum').doc();
+  const addendumDocRef = locals
+    .change
+    .after
+    .ref
+    .collection('Addendum')
+    .doc();
   const batch = db.batch();
 
   return rootCollections
@@ -1249,27 +1259,49 @@ const createFootprintsRecipient = (locals) => {
       };
       const addendumDocData = {
         activityData,
-        user: locals.change.after.get('creator').phoneNumber,
-        userDisplayName: locals.change.after.get('creator').displayName,
+        user: locals
+          .change
+          .after
+          .get('creator')
+          .phoneNumber,
+        userDisplayName: locals
+          .change
+          .after
+          .get('creator')
+          .displayName,
         action: httpsActions.create,
         template: 'recipient',
         isAutoGenerated: true,
         timestamp: Date.now(),
-        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+        userDeviceTimestamp: locals
+          .addendumDoc
+          .get('userDeviceTimestamp'),
         activityId: activityRef.id,
-        location: locals.addendumDoc.get('location'),
-        isSupportRequest: locals.addendumDoc.get('isSupportRequest') || false,
-        isAdminRequest: locals.addendumDoc.get('isAdminRequest') || false,
+        location: locals
+          .addendumDoc
+          .get('location'),
+        isSupportRequest: locals
+          .addendumDoc
+          .get('isSupportRequest') || false,
+        isAdminRequest: locals
+          .addendumDoc
+          .get('isAdminRequest') || false,
         geopointAccuracy: null,
         provider: null,
       };
 
-      const firstContact = locals.change.after.get('attachment.First Contact.value');
-      const secondContact = locals.change.after.get('attachment.Second Contact.value');
+      const firstContact = locals
+        .change
+        .after
+        .get('attachment.First Contact.value');
+      const secondContact = locals
+        .change
+        .after
+        .get('attachment.Second Contact.value');
 
       locals
         .assigneePhoneNumbersArray
-        .forEach((phoneNumber) => {
+        .forEach(phoneNumber => {
           batch.set(activityRef.collection('Assignees').doc(phoneNumber), {
             /** canEditRule is admin */
             canEdit: phoneNumber === firstContact || phoneNumber === secondContact,
