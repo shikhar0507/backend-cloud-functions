@@ -191,7 +191,9 @@ const handleSheetTwo = locals => {
       const baseLocation = employeesData[phoneNumber]['Base Location'];
 
       if (locals.branchesWithHoliday.has(baseLocation)) {
-        statusObject[yesterdaysDate].holiday = true;
+        statusObject[
+          yesterdaysDate
+        ].holiday = true;
       }
 
       locals
@@ -218,11 +220,12 @@ const handleSheetTwo = locals => {
             currentBatchIndex++;
 
             batchesArray
-              .push(db.batch());
+              .push(
+                db.batch()
+              );
 
             /** Batch reset to a new instance */
             numberOfDocsInCurrentBatch = 0;
-
             batch = batchesArray[currentBatchIndex];
           }
 
@@ -272,11 +275,13 @@ const handleSheetTwo = locals => {
 
           statusObject[
             yesterdaysDate
-          ]
-            .firstAction = firstAction;
+          ].firstAction = firstAction;
           locals
             .statusObjectMap
-            .set(phoneNumber, statusObject);
+            .set(
+              phoneNumber,
+              statusObject
+            );
 
           batch
             .set(monthlyDocRef, {
@@ -307,11 +312,12 @@ const handleSheetTwo = locals => {
             currentBatchIndex++;
 
             batchesArray
-              .push(db.batch());
+              .push(
+                db.batch()
+              );
 
             /** Batch resetted */
             numberOfDocsInCurrentBatch = 0;
-
             batch = batchesArray[currentBatchIndex];
           }
 
@@ -335,7 +341,10 @@ const handleSheetTwo = locals => {
           if (snapShot.empty) {
             locals
               .statusObjectMap
-              .set(phoneNumber, statusObject);
+              .set(
+                phoneNumber,
+                statusObject
+              );
 
             batch
               .set(monthlyDocRef, {
@@ -362,11 +371,13 @@ const handleSheetTwo = locals => {
 
           statusObject[
             yesterdaysDate
-          ]
-            .lastAction = lastAction;
+          ].lastAction = lastAction;
           locals
             .statusObjectMap
-            .set(phoneNumber, statusObject);
+            .set(
+              phoneNumber,
+              statusObject
+            );
 
           batch
             .set(monthlyDocRef, {
@@ -424,7 +435,10 @@ const handleSheetTwo = locals => {
               };
             }
 
-            const { firstAction, lastAction } = statusObject[date] || {};
+            const {
+              firstAction,
+              lastAction,
+            } = statusObject[date] || {};
             const statusValueOnDate = (() => {
               if (date === yesterdaysDate) {
                 if (locals.onLeaveSet.has(phoneNumber)) {
@@ -654,18 +668,25 @@ module.exports = locals => {
       return Promise
         .all(regTokenFetchPromises);
     })
-    .then((tokensSnapShot) => {
+    .then(tokensSnapShot => {
       if (!locals.sendMail) {
         return Promise
           .resolve();
       }
 
       tokensSnapShot
-        .forEach((item) => {
-          const { phoneNumber, registrationToken, updatesDocExists } = item;
+        .forEach(item => {
+          const {
+            phoneNumber,
+            registrationToken,
+            updatesDocExists,
+          } = item;
 
           regTokenMap
-            .set(phoneNumber, registrationToken);
+            .set(
+              phoneNumber,
+              registrationToken
+            );
 
           /** For checking if auth exists */
           if (!updatesDocExists) {
@@ -716,8 +737,7 @@ module.exports = locals => {
             && employeesData[phoneNumber]['Weekly Off'] === yesterdaysDayName) {
             statusObject[
               yesterdaysDate
-            ]
-              .weeklyOff = true;
+            ].weeklyOff = true;
             weeklyOffSet
               .add(phoneNumber);
           }
