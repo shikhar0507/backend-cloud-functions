@@ -45,7 +45,12 @@ const moment = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
 const { execFile } = require('child_process');
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
-
+const googleMapsClient =
+  require('@google/maps')
+    .createClient({
+      key: env.mapsApiKey,
+      Promise: Promise,
+    });
 
 
 sgMail.setApiKey(env.sgMailApiKey);
@@ -1362,6 +1367,131 @@ const getEmployeesMapFromRealtimeDb = officeId => {
   });
 };
 
+const millitaryToHourMinutes = fourDigitTime => {
+  if (!fourDigitTime) return '';
+
+  let hours = Number(fourDigitTime.substring(0, 2));
+  let minutes = Number(fourDigitTime.substring(2));
+
+  if (hours < 10) hours = `0${hours}`;
+  if (minutes < 10) minutes = `0${minutes}`;
+
+  return `${hours}:${minutes}`;
+};
+
+const addressToCustomer = queryObject => {
+  const activityObject = {
+    placeId: '',
+    venueDescriptor: 'Customer Office',
+    location: queryObject.venue,
+    address: queryObject.address,
+    latitude: '',
+    longitude: '',
+    Name: queryObject.venue,
+    'First Contact': '',
+    'Second Contact': '',
+    'Customer Type': '',
+    'Customer Code': '',
+    'Daily Start Time': '',
+    'Daily End Time': '',
+    'Weekly Off': '',
+  };
+
+  let success = false;
+
+  return googleMapsClient
+    .places({
+      query: queryObject.address,
+    })
+    .asPromise()
+    .then(response => {
+      console.log('address', queryObject.address);
+      const firstResult = response.json.results[0];
+
+      success = Boolean(firstResult);
+
+      if (!success) return queryObject;
+
+      console.log('NAME:', firstResult.name);
+
+      activityObject.latitude = firstResult.geometry.location.lat;
+      activityObject.longitude = firstResult.geometry.location.lng;
+      activityObject.placeId = firstResult['place_id'];
+
+      return googleMapsClient
+        .place({
+          placeid: firstResult['place_id'],
+        })
+        .asPromise();
+    })
+    .then(result => {
+      if (!success) return queryObject;
+
+      const weekdayStartTime = (() => {
+        const openingHours = result.json.result['opening_hours'];
+
+        if (!openingHours) return '';
+
+        const periods = openingHours.periods;
+        const relevantObject = periods.filter(item => {
+          return item.close && item.close.day === 0;
+        });
+
+        if (!relevantObject[0]) return '';
+
+        return relevantObject[0].open.time;
+      })();
+
+      const weekdayEndTime = (() => {
+        const openingHours = result
+          .json
+          .result['opening_hours'];
+
+        if (!openingHours) return '';
+
+        const periods = openingHours.periods;
+        const relevantObject = periods.filter(item => {
+          return item.close && item.close.day === 0;
+        });
+
+        if (!relevantObject[0]) return '';
+
+        return relevantObject[0].close.time;
+      })();
+
+      const weeklyOff = (() => {
+        const openingHours = result.json.result['opening_hours'];
+
+        if (!openingHours) return '';
+
+        const weekdayText = openingHours['weekday_text'];
+
+        if (!weekdayText) return '';
+
+        const closedWeekday = weekdayText
+          // ['Sunday: Closed']
+          .filter(str => str.includes('Closed'))[0];
+
+        if (!closedWeekday) return '';
+
+        const parts = closedWeekday.split(':');
+
+        if (!parts[0]) return '';
+
+        // ['Sunday' 'Closed']
+        return parts[0].toLowerCase();
+      })();
+
+      activityObject['Daily Start Time'] = millitaryToHourMinutes(weekdayStartTime);
+      activityObject['Daily End Time'] = millitaryToHourMinutes(weekdayEndTime);
+
+      activityObject['Weekly Off'] = weeklyOff;
+
+      return activityObject;
+    })
+    .catch(console.error);
+};
+
 
 module.exports = {
   slugify,
@@ -1392,6 +1522,7 @@ module.exports = {
   isNonEmptyString,
   cloudflareCdnUrl,
   isE164PhoneNumber,
+  addressToCustomer,
   getObjectFromSnap,
   hasSuperUserClaims,
   isValidCanEditRule,
