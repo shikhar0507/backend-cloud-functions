@@ -1079,18 +1079,15 @@ module.exports = addendumDoc => {
         .get(),
       rootCollections
         .activities
-        // Branch, customer, and office
+        // Branch, and customer
         .where('office', '==', addendumDoc.get('activityData.office'))
+        .where('status', '==', 'CONFIRMED')
         .where('adjustedGeopoints', '==', `${gp.latitude},${gp.longitude}`)
         .limit(1)
         .get()
     ])
     .then(result => {
-      const [
-        addendumQuery,
-        activityQuery,
-      ] = result;
-
+      const [addendumQuery, activityQuery] = result;
       activityDoc = activityQuery.docs[0];
 
       locals
