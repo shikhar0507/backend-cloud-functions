@@ -355,7 +355,9 @@ const handleAdmin = (locals) => {
         customClaims = { admin: [office] };
       }
 
-      if (status === 'CANCELLED' && customClaims.admin && customClaims.admin.includes(office)) {
+      if (status === 'CANCELLED'
+        && customClaims.admin
+        && customClaims.admin.includes(office)) {
         const index = customClaims.admin.includes(office);
 
         customClaims.admin.splice(index, 1);
@@ -403,7 +405,7 @@ const createAdmin = (locals, adminContact) => {
         .limit(1)
         .get(),
     ])
-    .then((result) => {
+    .then(result => {
       const [adminTemplateQuery, adminQuery] = result;
 
       /** Is already an admin */
@@ -852,11 +854,6 @@ const handleSubscription = locals => {
           statusOnCreate: templateDoc.get('statusOnCreate'),
         });
 
-      if (locals.change.after.get('status') === 'CANCELLED') {
-        batch
-          .delete(subscriptionDocRef);
-      }
-
       /**
        * Delete subscription doc from old profile
        * if the phone number has been changed in the
@@ -1019,7 +1016,122 @@ const removeFromOfficeActivities = (locals) => {
     .orderBy(admin.firestore.FieldPath.documentId())
     .limit(250);
 
-  return new Promise((resolve, reject) => runQuery(query, resolve, reject))
+  return new Promise((resolve, reject) => {
+    return runQuery(query, resolve, reject);
+  })
+    .catch(console.error);
+};
+
+const handleEmployeeSupervisors = locals => {
+  const status = locals.change.after.get('status');
+
+  if (status === 'CANCELLED') {
+    return Promise.resolve();
+  }
+
+  const employeeContact = locals
+    .change
+    .after
+    .get('attachment.Employee Contact.value');
+  const firstSupervisorOld = locals
+    .change
+    .before
+    .get('attachment.First Supervisor.value');
+  const secondSupervisorOld = locals
+    .change
+    .before
+    .get('attachment.Second Supervisor.value');
+  const thirdSupervisorOld = locals
+    .change
+    .before
+    .get('attachment.Third Supervisor.value');
+  const firstSupervisorNew = locals
+    .change
+    .after
+    .get('attachment.First Supervisor.value');
+  const secondSupervisorNew = locals
+    .change
+    .after
+    .get('attachment.Second Supervisor.value');
+  const thirdSupervisorNew = locals
+    .change
+    .after
+    .get('attachment.Third Supervisor.value');
+
+  if (firstSupervisorOld === firstSupervisorNew
+    && secondSupervisorOld === secondSupervisorNew
+    && thirdSupervisorOld === thirdSupervisorNew) {
+    return Promise.resolve();
+  }
+
+  const batch = db.batch();
+  const log = {
+    employeeContact,
+    firstSupervisorOld,
+    firstSupervisorNew,
+    secondSupervisorOld,
+    secondSupervisorNew,
+    thirdSupervisorOld,
+    thirdSupervisorNew,
+    adminsSet: locals.adminsCanEdit,
+    ids: [],
+  };
+
+  return rootCollections
+    .activities
+    .where('template', '==', 'subscription')
+    .where('attachment.Subscriber.value', '==', employeeContact)
+    .where('office', '==', locals.change.after.get('office'))
+    .get()
+    .then(docs => {
+      docs.forEach(doc => {
+        log.ids.push(doc.id);
+
+        batch.set(doc.ref, {
+          timestamp: Date.now(),
+          addendumDocRef: null,
+        }, {
+            merge: true,
+          });
+
+        const firstSupervisorChanged = firstSupervisorOld
+          && firstSupervisorOld !== firstSupervisorNew;
+        const secondSupervisorChanged = secondSupervisorOld
+          && secondSupervisorOld !== secondSupervisorNew;
+        const thirdSupervisorChanged = thirdSupervisorOld
+          && thirdSupervisorOld !== thirdSupervisorNew;
+
+        if (firstSupervisorChanged) {
+          batch
+            .delete(doc.ref.collection('Assignees').doc(firstSupervisorOld));
+        }
+
+        if (secondSupervisorChanged) {
+          batch
+            .delete(doc.ref.collection('Assignees').doc(secondSupervisorOld));
+        }
+
+        if (thirdSupervisorChanged) {
+          batch
+            .delete(doc.ref.collection('Assignees').doc(thirdSupervisorOld));
+        }
+
+        [firstSupervisorNew,
+          secondSupervisorNew,
+          thirdSupervisorNew
+        ].filter(Boolean) // Any or all of these values could be empty strings...
+          .forEach(phoneNumber => {
+            batch.set(doc.ref.collection('Assignees').doc(phoneNumber), {
+              canEdit: locals.adminsCanEdit.includes(phoneNumber),
+              addToInclude: true,
+            });
+          });
+      });
+
+      console.log(log);
+
+      return batch.commit();
+    })
     .catch(console.error);
 };
 
@@ -1133,7 +1245,8 @@ const handleEmployee = locals => {
     [office]: officeId,
   };
 
-  const hasBeenCreated = locals.addendumDoc
+  const hasBeenCreated = locals
+    .addendumDoc
     && locals.addendumDoc.get('action') === httpsActions.create;
   const batch = db.batch();
 
@@ -1184,6 +1297,7 @@ const handleEmployee = locals => {
     .then(() => sendEmployeeCreationSms(locals))
     .then(() => handleMonthlyDocs(locals, hasBeenCancelled))
     .then(() => createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled))
+    .then(() => handleEmployeeSupervisors(locals))
     .then(() => {
       // Manages cancelled employees
       if (!hasBeenCancelled) {
