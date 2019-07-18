@@ -75,6 +75,8 @@ const commitMultiBatch = (statusObjectsMap, docRefsMap, momentYesterday) => {
         });
     });
 
+  console.log('BatchCounter', data);
+
   return Promise
     .all(batchArray.map(batch => batch.commit()));
 };
@@ -621,21 +623,28 @@ module.exports = locals => {
             statusObject[yesterdayDate].statusForDay
           );
 
+          if (minimumDailyActivityCount) {
+            const rev = 1 / minimumDailyActivityCount;
+
+            if (statusObject[yesterdayDate].statusForDay <= rev) {
+              return statusObject[yesterdayDate].statusForDay = rev;
+            } else {
+              statusObject[
+                yesterdayDate
+              ].statusForDay = Math
+                .floor(
+                  statusObject[yesterdayDate].statusForDay / rev
+                ) * rev;
+            }
+          }
+
           if (statusObject[yesterdayDate].statusForDay > 1) {
             statusObject[
               yesterdayDate
             ].statusForDay = 1;
           }
 
-          // if (numberOfActionsInTheDay === 1
-          //   && minimumWorkingHours === 1) {
-          //   const maxForTheEmployee = minimumDailyActivityCount;
-
-          //   statusObject[
-          //     yesterdayDate
-          //   ].statusForDay = Math
-          //     .max(statusObject[yesterdayDate].statusForDay, maxForTheEmployee);
-          // }
+          console.log(statusObject[yesterdayDate].statusForDay);
 
           /** Updating the map after updating the status object */
           statusObjectsMapForCurrentMonth
@@ -725,8 +734,7 @@ module.exports = locals => {
 
                 return statusObject[
                   date
-                ]
-                  .statusForDay || 0;
+                ].statusForDay || 0;
               })();
 
               totalCount += paydaySheetValue;

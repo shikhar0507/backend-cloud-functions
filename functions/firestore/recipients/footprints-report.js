@@ -39,6 +39,11 @@ const getComment = doc => {
   }
 
   if (action === httpsActions.create) {
+    if (doc.get('activityData.template') === 'enquiry') {
+      return `${doc.get('activityData.attachment.Product.value')}`
+        + ` ${doc.get('activityData.attachment.Enquiry.value')}`;
+    }
+
     return `Created ${doc.get('activityData.template')}`;
   }
 
@@ -446,7 +451,7 @@ const handleSheetTwo = locals => {
                 }
 
                 if (locals.onArSet.has(phoneNumber)) {
-                  return 'ON AR';
+                  return 'AR';
                 }
 
                 if (locals.holidaySet.has(phoneNumber)) {
@@ -477,7 +482,7 @@ const handleSheetTwo = locals => {
               }
 
               if (statusObject[date].onAr) {
-                return 'ON AR';
+                return 'AR';
               }
 
               if (statusObject[date].holiday) {
@@ -979,7 +984,7 @@ module.exports = locals => {
             }
 
             if (onArSet.has(phoneNumber)) {
-              return 'ON AR';
+              return 'AR';
             }
 
             if (holidaySet.has(phoneNumber)) {

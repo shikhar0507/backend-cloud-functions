@@ -81,6 +81,15 @@ module.exports = change => {
     throw new Error('Invalid timestamp passed');
   }
 
+  const todaysEnd = momentTz().endOf('day');
+  const timestampIsOfFuture = timestamp > todaysEnd.valueOf();
+
+  if (timestampIsOfFuture) {
+    console.log('Future timestamp', timestamp);
+
+    return Promise.resolve();
+  }
+
   /**
    * A temporary polyfill for using `Object.values` since sendgrid has
    * probably removed support for Node 6, but the Node 8 runtime is still
