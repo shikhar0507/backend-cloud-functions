@@ -820,7 +820,7 @@ function getActivityEditForm(doc) {
   }
 
   const buttonContainer = document.createElement('div');
-  buttonContainer.classList.add('flexed', 'ml-16', 'pad-10', 'activity-buttons', 'flexed-center');
+  buttonContainer.classList.add('flexed', 'pad-10', 'activity-buttons', 'flexed-center');
   const updateButton = getButton('Update');
   const confirmButton = getButton('Confirm', true);
   const cancelButton = getButton('Cancel', true);

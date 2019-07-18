@@ -50,14 +50,6 @@ handlebars.registerPartial('appFeaturesPartial', appFeaturesPartial);
 handlebars.registerPartial('heroPartial', heroPartial);
 handlebars.registerPartial('enquiryPartial', enquiryPartial);
 
-const getIdToken = (parsedCookies) => {
-  if (!parsedCookies.__session) {
-    return '';
-  }
-
-  return parsedCookies.__session;
-};
-
 const getStaticMapsUrl = (branchObjectsArray) => {
   let url = `https://maps.googleapis.com/maps/api/staticmap?center=New+Delhi&zoom=13&maptype=roadmap`;
 
@@ -80,18 +72,37 @@ const getStaticMapsUrl = (branchObjectsArray) => {
  * @param {string} cookies Cookie string from the browser.
  * @returns {object} The cookie object.
  */
-const parseCookies = (cookies = '') => {
+const parseCookies = headers => {
+  const cookies = headers.cookie || '';
   const cookieObject = {};
 
   cookies
     .split(';')
-    .forEach((cookie) => {
+    .forEach(cookie => {
       const parts = cookie.split('=');
 
       cookieObject[parts.shift().trim()] = decodeURI(parts.join('='));
     });
 
-  return cookieObject;
+  const getIdToken = parsedCookies => {
+    if (!parsedCookies.__session) {
+      return '';
+    }
+
+    return parsedCookies.__session;
+  };
+
+  const idToken = getIdToken(cookieObject);
+
+  if (idToken) return idToken;
+
+  if (!headers.authorization
+    || typeof headers.authorization !== 'string'
+    || !headers.authorization.startsWith('Bearer ')) {
+    return '';
+  }
+
+  return headers.authorization.split('Bearer ')[1];
 };
 
 const getEmployeesRange = (employeesData = {}) => {
@@ -113,14 +124,14 @@ const getEmployeesRange = (employeesData = {}) => {
   return `1000+`;
 };
 
-const getSlugFromUrl = (requestUrl) => {
+const getSlugFromUrl = requestUrl => {
   const parsed = url.parse(requestUrl);
   const officeName = parsed.pathname;
 
   return officeName.split('/')[1];
 };
 
-const getLoggedInStatus = (idToken) => {
+const getLoggedInStatus = idToken => {
   return auth
     .verifyIdToken(idToken, true)
     .then(decodedIdToken => auth.getUser(decodedIdToken.uid))
@@ -151,7 +162,7 @@ const getLoggedInStatus = (idToken) => {
         isTemplateManager: customClaims.manageTemplates,
       };
     })
-    .catch((error) => {
+    .catch(error => {
       const authError = new Set(['auth/invalid-argument'])
         .has(error.code);
 
@@ -990,6 +1001,8 @@ module.exports = (req, res) => {
   // For CORS
   if (conn.req.method === 'OPTIONS'
     || conn.req.method === 'HEAD') {
+    conn.res.status(code.ok).set(conn.headers);
+
     return conn.res.send({ success: true });
   }
 
@@ -1007,11 +1020,11 @@ module.exports = (req, res) => {
   }
 
   let requester = {};
-  const parsedCookies = parseCookies(req.headers.cookie);
+  const idToken = parseCookies(req.headers);
 
   console.log('slug', slug);
 
-  const idToken = getIdToken(parsedCookies);
+  // const idToken = getIdToken(parsedCookies);
   let html;
 
   /**
@@ -1054,8 +1067,6 @@ module.exports = (req, res) => {
   if (slug === 'verify-email') {
     return handleEmailVerificationFlow(conn);
   }
-
-  console.log('idToken', idToken);
 
   return getLoggedInStatus(idToken)
     .then((result) => {
@@ -1176,7 +1187,7 @@ module.exports = (req, res) => {
       return conn.res.send(html);
     })
     .catch(error => {
-      console.error('Error', error);
+      console.error('Error', error, conn.req.body);
       const html = handleServerError();
 
       return conn

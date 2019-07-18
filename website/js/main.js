@@ -510,9 +510,6 @@ firebase
 
 window
   .addEventListener('__trackView', handleTrackView);
-// window
-//   .addEventListener('DOMContentLoaded', onDomContentLoaded);
-
 
 /* This is a prototype */
 const createSnackbar = (function () {
