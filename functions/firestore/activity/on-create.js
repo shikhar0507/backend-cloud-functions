@@ -59,7 +59,9 @@ const fs = require('fs');
 
 const createDocsWithBatch = (conn, locals) => {
   const canEditMap = {};
-  locals.objects.allPhoneNumbers
+  locals
+    .objects
+    .allPhoneNumbers
     .forEach(phoneNumber => {
       let addToInclude = true;
 
