@@ -1412,8 +1412,6 @@ const addressToCustomer = queryObject => {
 
       if (!success) return queryObject;
 
-      console.log('NAME:', firstResult.name);
-
       activityObject.latitude = firstResult.geometry.location.lat;
       activityObject.longitude = firstResult.geometry.location.lng;
       activityObject.placeId = firstResult['place_id'];
@@ -1492,6 +1490,12 @@ const addressToCustomer = queryObject => {
     .catch(console.error);
 };
 
+const filterPhoneNumber = phoneNumber =>
+  phoneNumber
+    .replace(/[()']+/g, '')
+    .replace(/[-]/g, '')
+    .replace(/ +/g, '')
+    .trim();
 
 module.exports = {
   slugify,
@@ -1519,6 +1523,7 @@ module.exports = {
   multipartParser,
   hasSupportClaims,
   adjustedGeopoint,
+  filterPhoneNumber,
   isNonEmptyString,
   cloudflareCdnUrl,
   isE164PhoneNumber,

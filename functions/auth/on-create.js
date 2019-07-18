@@ -32,6 +32,7 @@ const {
 } = require('../admin/admin');
 const {
   getObjectFromSnap,
+  filterPhoneNumber,
 } = require('../admin/utils');
 const {
   reportNames,
@@ -153,10 +154,8 @@ module.exports = (userRecord) => {
           customClaimsObject.admin.push(office);
         });
 
-      const {
-        uid,
-        phoneNumber,
-      } = userRecord;
+      const uid = userRecord.uid;
+      const phoneNumber = filterPhoneNumber(userRecord.phoneNumber);
 
       batch.set(rootCollections
         .updates
