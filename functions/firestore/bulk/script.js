@@ -465,11 +465,11 @@ const createObjects = (conn, locals, trialRun) => {
         activityObject.venue[0].geopoint.longitude
       );
 
-      activityObject
-        .adjustedGeopoints = adjustedGeopoint(activityObject.venue[0].geopoint);
-    }
+      const adjusted = adjustedGeopoint(activityObject.venue[0].geopoint);
 
-    console.log('activityObject', activityObject);
+      activityObject
+        .adjustedGeopoints = `${adjusted.latitude},${adjusted.longitude}`;
+    }
 
     const addendumObject = {
       timestamp,
