@@ -46,7 +46,6 @@ const {
 const env = require('../admin/env');
 const routes = require('../routes');
 
-
 const handleResource = conn => {
   const resource = routes(conn.req);
 
