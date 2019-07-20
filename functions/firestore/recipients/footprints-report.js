@@ -669,7 +669,7 @@ module.exports = locals => {
         .forEach(branchDoc => {
           branchDoc
             .get('schedule')
-            .forEach((schedule) => {
+            .forEach(schedule => {
               if (schedule.startTime >= yesterdayStartTimestamp
                 && schedule.endTime < yesterdayEndTimestamp) {
                 branchesWithHoliday.add(
@@ -780,40 +780,26 @@ module.exports = locals => {
       /** Default sheet */
       worksheet
         .deleteSheet('Sheet1');
-
       footprintsSheet
         .row(1)
         .style('bold', true);
-      footprintsSheet
-        .cell(`A1`)
-        .value('Dated');
-      footprintsSheet
-        .cell('B1')
-        .value('Employee Name');
-      footprintsSheet
-        .cell('C1')
-        .value('Employee Contact');
-      footprintsSheet
-        .cell('D1')
-        .value('Employee Code');
-      footprintsSheet
-        .cell('E1')
-        .value('Time');
-      footprintsSheet
-        .cell('F1')
-        .value('Distance Travelled');
-      footprintsSheet
-        .cell('G1')
-        .value('Address');
-      footprintsSheet
-        .cell('H1')
-        .value('Comment');
-      footprintsSheet
-        .cell('I1')
-        .value('Department');
-      footprintsSheet
-        .cell('J1')
-        .value('Base Location');
+
+      [
+        'Dated',
+        'Employee Name',
+        'Employee Contact',
+        'Employee Code',
+        'Time',
+        'Distance Travelled',
+        'Address',
+        'Comment',
+        'Department',
+        'Base Location'
+      ].forEach((field, index) => {
+        footprintsSheet
+          .cell(`${alphabetsArray[index]}1`)
+          .value(field);
+      });
 
       /**
        * Not using count param from the `callback` function because
