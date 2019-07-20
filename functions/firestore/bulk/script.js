@@ -1421,6 +1421,8 @@ module.exports = conn => {
         employeesSet: new Set(),
       };
 
+      const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
+
       if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
         const templateNamesSet = new Set();
 
@@ -1436,6 +1438,7 @@ module.exports = conn => {
        * strings as the value.
        */
       conn.req.body.data.forEach((object, index) => {
+        /** Empty rows in excel cause unnecessary errors */
         if (isEmptyObject(object)) {
           delete conn.req.body.data[index];
 
@@ -1452,6 +1455,12 @@ module.exports = conn => {
           && conn.req.body.data[index].venueDescriptor !== venueDescriptor) {
           conn.req.body.data[index].venueDescriptor = venueDescriptor;
         }
+
+        attachmentFieldsSet.forEach(fieldName => {
+          if (conn.req.body.data[index].hasOwnProperty(fieldName)) return;
+
+          conn.req.body.data[index][fieldName] = '';
+        });
       });
 
       const isSupportRequest = conn.requester.isSupportRequest;
