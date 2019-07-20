@@ -284,7 +284,15 @@ const checkAuthorizationToken = (conn) => {
  * @returns {void}
  */
 module.exports = (req, res) => {
-  const allowedMethods = ['OPTIONS', 'HEAD', 'POST', 'GET', 'PATCH', 'PUT'];
+  const allowedMethods = [
+    'OPTIONS',
+    'HEAD',
+    'POST',
+    'GET',
+    'PATCH',
+    'PUT'
+  ];
+
   const conn = {
     req,
     res,
