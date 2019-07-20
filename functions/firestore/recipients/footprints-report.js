@@ -23,6 +23,16 @@ const env = require('../../admin/env');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 
+const msToMin = ms => {
+  let seconds = Math.floor(ms / 1000);
+  let minute = Math.floor(seconds / 60);
+
+  seconds = seconds % 60;
+  minute = minute % 60;
+
+  return minute;
+};
+
 const getComment = doc => {
   if (doc.get('activityData.attachment.Comment.value')) {
     return doc.get('activityData.attachment.Comment.value');
@@ -521,6 +531,9 @@ const handleSheetTwo = locals => {
     .catch(console.error);
 };
 
+const isDiffLessThanFiveMinutes = (first, second) => {
+  return msToMin(Math.abs(first - second)) <= 5;
+};
 
 module.exports = locals => {
   let lastIndex = 1;
@@ -592,6 +605,9 @@ module.exports = locals => {
     onLeaveWeeklyOffHoliday: 0,
   };
 
+  const prevTemplateForPersonMap = new Map();
+  const prevDocTimestampMap = new Map();
+
   return Promise
     .all([
       locals
@@ -656,8 +672,9 @@ module.exports = locals => {
             .forEach((schedule) => {
               if (schedule.startTime >= yesterdayStartTimestamp
                 && schedule.endTime < yesterdayEndTimestamp) {
-                branchesWithHoliday
-                  .add(branchDoc.get('attachment.Name.value'));
+                branchesWithHoliday.add(
+                  branchDoc.get('attachment.Name.value')
+                );
               }
             });
         });
@@ -818,11 +835,55 @@ module.exports = locals => {
             return;
           }
 
+          const distanceTravelled = (() => {
+            let value = Number(doc.get('distanceTravelled') || 0);
+
+            if (distanceMap.has(phoneNumber)) {
+              value += distanceMap.get(phoneNumber);
+            } else {
+              // Distance starts with 0 for every person each day
+              value = 0;
+            }
+
+            // Value in the map also needs to be updated otherwise
+            // it will always add only the last updated value on each iteration.
+            distanceMap
+              .set(phoneNumber, value);
+
+            return value
+              .toFixed(2);
+          })();
+
+          const template = doc.get('activityData.template');
+          const prevTemplateForPerson = prevTemplateForPersonMap.get(phoneNumber);
+          const prevDocTimestamp = prevDocTimestampMap.get(phoneNumber);
+          const timestampDiffLessThanFiveMinutes =
+            isDiffLessThanFiveMinutes(prevDocTimestamp, doc.get('timestamp'));
+          const distanceFromPrevious = Math
+            .floor(
+              Number(doc.get('distanceTravelled') || 0)
+            );
+
+          /**
+           * Checkins from the same location within 5 minutes are merged into
+           * a single line. Only the first occurrence of the event is logged
+           * in the excel file. All subsequent items are glossed over.
+           */
+          if (template === 'check-in'
+            && prevTemplateForPerson === 'check-in'
+            && timestampDiffLessThanFiveMinutes
+            && distanceFromPrevious === 0) {
+            return;
+          }
+
+          prevTemplateForPersonMap.set(phoneNumber, template);
+          prevDocTimestampMap.set(phoneNumber, doc.get('timestamp'));
+
+          count++;
+
           if (action === httpsActions.create) {
             counterObject.activitiesCreated++;
           }
-
-          count++;
 
           activeUsersSet
             .add(phoneNumber);
@@ -881,24 +942,6 @@ module.exports = locals => {
             timestampToConvert: doc.get('timestamp'),
           });
           const employeeCode = employeeObject.employeeCode;
-          const distanceTravelled = (() => {
-            let value = Number(doc.get('distanceTravelled') || 0);
-
-            if (distanceMap.has(phoneNumber)) {
-              value += distanceMap.get(phoneNumber);
-            } else {
-              // Distance starts with 0 for every person each day
-              value = 0;
-            }
-
-            // Value in the map also needs to be updated otherwise
-            // it will always add only the last updated value on each iteration.
-            distanceMap
-              .set(phoneNumber, value);
-
-            return value
-              .toFixed(2);
-          })();
 
           footprintsSheet
             .cell(`A${columnIndex}`)
