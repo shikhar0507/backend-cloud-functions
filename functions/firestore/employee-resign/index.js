@@ -116,9 +116,17 @@ const cancelEmployee = (conn, officeDoc) => {
           });
       }
 
-      return batch.commit();
+      return Promise
+        .all([
+          batch
+            .commit(),
+          sendResponse(
+            conn,
+            code.ok,
+            `${conn.req.body.phoneNumber} has been CANCELLED`
+          )
+        ]);
     })
-    .then(() => sendResponse(conn, code.ok, `${conn.req.body.phoneNumber} has been CANCELLED`))
     .catch((error) => handleError(conn, error));
 };
 
