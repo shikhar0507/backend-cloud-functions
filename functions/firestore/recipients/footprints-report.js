@@ -137,6 +137,44 @@ const getTopHeaders = momentYesterday => {
   return result;
 };
 
+const getUrl = doc => {
+  if (doc.get('venueQuery')
+    && doc.get('venueQuery').location) {
+    return toMapsUrl(doc.get('venueQuery').geopoint);
+  }
+
+  const venue = doc
+    .get('activityData.venue');
+
+  if (!venue || !venue[0] || !venue[0].location) {
+    return doc
+      .get('url');
+  }
+
+  return toMapsUrl(venue[0].geopoint);
+};
+
+
+const getIdentifier = doc => {
+  if (doc.get('venueQuery')
+    && doc.get('venueQuery').location) {
+    return doc
+      .get('venueQuery')
+      .location;
+  }
+
+  const venue = doc
+    .get('activityData.venue');
+
+  if (!venue || !venue[0] || !venue[0].location) {
+    return doc
+      .get('identifier');
+  }
+
+  return venue[0]
+    .location;
+};
+
 const getMonthlyDocRef = (phoneNumber, monthlyDocRef) =>
   monthlyDocRef
     .get(phoneNumber);
@@ -147,7 +185,7 @@ const getStatusObject = (statusObjectMap, phoneNumber) =>
 
 const handleSheetTwo = locals => {
   const mtdSheet = locals
-    .worksheet
+    .workbook
     .addSheet('Footprints MTD');
   mtdSheet
     .row(0)
@@ -405,8 +443,9 @@ const handleSheetTwo = locals => {
               });
         });
 
-      return Promise
-        .all(batchesArray.map(batch => batch.commit()));
+      // return Promise
+      //   .all(batchesArray.map(batch => batch.commit()));
+      return;
     })
     .then(() => {
       locals
@@ -455,38 +494,6 @@ const handleSheetTwo = locals => {
               lastAction,
             } = statusObject[date] || {};
             const statusValueOnDate = (() => {
-              if (date === yesterdaysDate) {
-                if (locals.onLeaveSet.has(phoneNumber)) {
-                  return 'LEAVE';
-                }
-
-                if (locals.onArSet.has(phoneNumber)) {
-                  return 'AR';
-                }
-
-                if (locals.holidaySet.has(phoneNumber)) {
-                  return 'HOLIDAY';
-                }
-
-                if (locals.weeklyOffSet.has(phoneNumber)) {
-                  return 'WEEKLY OFF';
-                }
-
-                if (locals.holidaySet.has(phoneNumber)) {
-                  return 'HOLIDAY';
-                }
-
-                if (firstAction) {
-                  return `${firstAction} | ${lastAction || firstAction}`;
-                }
-
-                if (locals.notInstalledSet.has(phoneNumber)) {
-                  return 'NOT INSTALLED';
-                }
-
-                return 'NOT ACTIVE';
-              }
-
               if (statusObject[date].onLeave) {
                 return 'LEAVE';
               }
@@ -508,7 +515,8 @@ const handleSheetTwo = locals => {
               }
 
               if (firstAction) {
-                return `${firstAction} | ${lastAction || firstAction}`;
+                return `${firstAction}`
+                  + ` | ${lastAction || firstAction}`;
               }
 
               return 'NOT ACTIVE';
@@ -525,7 +533,7 @@ const handleSheetTwo = locals => {
         });
 
       return locals
-        .worksheet
+        .workbook
         .outputAsync('base64');
     })
     .catch(console.error);
@@ -537,7 +545,7 @@ const isDiffLessThanFiveMinutes = (first, second) => {
 
 module.exports = locals => {
   let lastIndex = 1;
-  let worksheet;
+  let workbook;
   let footprintsSheet;
   let dailyStatusDoc;
   let addendumDocs;
@@ -583,7 +591,6 @@ module.exports = locals => {
     .keys(employeesData);
   const activeUsersSet = new Set();
   const regTokenFetchPromises = [];
-  const regTokenMap = new Map();
   const installedSet = new Set();
   const signedUpSet = new Set();
   const onLeaveSet = new Set();
@@ -650,10 +657,10 @@ module.exports = locals => {
         monthlyDocsQuery,
         branchDocsQuery,
         dailyStatusDocsQuery,
-        workbook,
+        wb,
       ] = result;
 
-      worksheet = workbook;
+      workbook = wb;
       addendumDocs = addendumDocsQuery;
       monthlyDocs = monthlyDocsQuery;
       dailyStatusDoc = dailyStatusDocsQuery;
@@ -700,15 +707,8 @@ module.exports = locals => {
         .forEach(item => {
           const {
             phoneNumber,
-            registrationToken,
             updatesDocExists,
           } = item;
-
-          regTokenMap
-            .set(
-              phoneNumber,
-              registrationToken
-            );
 
           /** For checking if auth exists */
           if (!updatesDocExists) {
@@ -753,7 +753,7 @@ module.exports = locals => {
 
           /**
            * employeesData[phoneNumber]: This check is required because the monthly
-           * doc might exist for someone who is not a employee.
+           * doc might exist for someone who is not a employee currently.
            */
           if (employeesData[phoneNumber]
             && employeesData[phoneNumber]['Weekly Off'] === yesterdaysDayName) {
@@ -775,10 +775,10 @@ module.exports = locals => {
           .sendMail = false;
       }
 
-      footprintsSheet = worksheet
+      footprintsSheet = workbook
         .addSheet('Footprints');
       /** Default sheet */
-      worksheet
+      workbook
         .deleteSheet('Sheet1');
       footprintsSheet
         .row(1)
@@ -834,7 +834,10 @@ module.exports = locals => {
             // Value in the map also needs to be updated otherwise
             // it will always add only the last updated value on each iteration.
             distanceMap
-              .set(phoneNumber, value);
+              .set(
+                phoneNumber,
+                value
+              );
 
             return value
               .toFixed(2);
@@ -842,9 +845,12 @@ module.exports = locals => {
 
           const template = doc.get('activityData.template');
           const prevTemplateForPerson = prevTemplateForPersonMap.get(phoneNumber);
-          const prevDocTimestamp = prevDocTimestampMap.get(phoneNumber);
-          const timestampDiffLessThanFiveMinutes =
-            isDiffLessThanFiveMinutes(prevDocTimestamp, doc.get('timestamp'));
+          const prevDocTimestamp = prevDocTimestampMap
+            .get(phoneNumber);
+          const timestampDiffLessThanFiveMinutes = isDiffLessThanFiveMinutes(
+            prevDocTimestamp,
+            doc.get('timestamp')
+          );
           const distanceFromPrevious = Math
             .floor(
               Number(doc.get('distanceTravelled') || 0)
@@ -862,8 +868,16 @@ module.exports = locals => {
             return;
           }
 
-          prevTemplateForPersonMap.set(phoneNumber, template);
-          prevDocTimestampMap.set(phoneNumber, doc.get('timestamp'));
+          prevTemplateForPersonMap
+            .set(
+              phoneNumber,
+              template
+            );
+          prevDocTimestampMap
+            .set(
+              phoneNumber,
+              doc.get('timestamp')
+            );
 
           count++;
 
@@ -884,50 +898,19 @@ module.exports = locals => {
               .add(phoneNumber);
           }
 
-          const employeeObject = employeeInfo(employeesData, phoneNumber);
-          const name = employeeObject.name;
-          const department = employeeObject.department;
-          const baseLocation = employeeObject.baseLocation;
-          const url = (() => {
-            if (doc.get('venueQuery')
-              && doc.get('venueQuery').location) {
-              return toMapsUrl(doc.get('venueQuery').geopoint);
-            }
+          const {
+            name,
+            department,
+            baseLocation,
+            employeeCode,
+          } = employeeInfo(employeesData, phoneNumber);
 
-            const venue = doc
-              .get('activityData.venue');
-
-            if (!venue || !venue[0] || !venue[0].location) {
-              return doc
-                .get('url');
-            }
-
-            return toMapsUrl(venue[0].geopoint);
-          })();
-          const identifier = (() => {
-            if (doc.get('venueQuery')
-              && doc.get('venueQuery').location) {
-              return doc
-                .get('venueQuery')
-                .location;
-            }
-
-            const venue = doc
-              .get('activityData.venue');
-
-            if (!venue || !venue[0] || !venue[0].location) {
-              return doc
-                .get('identifier');
-            }
-
-            return venue[0]
-              .location;
-          })();
+          const identifier = getIdentifier(doc);
+          const url = getUrl(doc);
           const time = timeStringWithOffset({
             timezone,
             timestampToConvert: doc.get('timestamp'),
           });
-          const employeeCode = employeeObject.employeeCode;
 
           footprintsSheet
             .cell(`A${columnIndex}`)
@@ -977,13 +960,17 @@ module.exports = locals => {
         .forEach(phoneNumber => {
           const statusObject = getStatusObject(statusObjectMap, phoneNumber);
 
-          if (!statusObject[yesterdaysDate]) {
-            statusObject[yesterdaysDate] = {
-              firstAction: '',
-              lastAction: '',
-              distanceTravelled: distanceMap.get(phoneNumber) || 0,
-            };
-          }
+          statusObject[yesterdaysDate] = statusObject[yesterdaysDate] || {
+            firstAction: '',
+            lastAction: '',
+            distanceTravelled: distanceMap.get(phoneNumber) || 0,
+          };
+
+          statusObjectMap
+            .set(
+              phoneNumber,
+              statusObject
+            );
 
           if (!monthlyDocRefsMap.has(phoneNumber)) {
             monthlyDocRefsMap
@@ -1058,8 +1045,8 @@ module.exports = locals => {
           if (comment === 'NOT INSTALLED') {
             statusObject[
               yesterdaysDate
-            ]
-              .notInstalled = true;
+            ].notInstalled = true;
+
             notInstalledSet
               .add(phoneNumber);
           }
@@ -1069,12 +1056,14 @@ module.exports = locals => {
               .notActive++;
             statusObject[
               yesterdaysDate
-            ]
-              .notActive = true;
+            ].notActive = true;
           }
 
           statusObjectMap
-            .set(phoneNumber, statusObject);
+            .set(
+              phoneNumber,
+              statusObject
+            );
 
           const {
             name,
@@ -1118,7 +1107,7 @@ module.exports = locals => {
       locals
         .onArSet = onArSet;
       locals
-        .worksheet = worksheet;
+        .workbook = workbook;
       locals
         .onLeaveSet = onLeaveSet;
       locals
@@ -1137,8 +1126,6 @@ module.exports = locals => {
         .employeePhoneNumbersArray = employeePhoneNumbersArray;
       locals
         .branchesWithHoliday = branchesWithHoliday;
-      locals
-        .regTokenMap = regTokenMap;
       counterObject
         .active = activeUsersSet.size;
       counterObject
