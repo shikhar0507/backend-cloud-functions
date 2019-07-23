@@ -693,7 +693,8 @@ const handleJsonGetRequest = (conn, requester) => {
     return Promise.resolve({});
   }
 
-  if (conn.req.query.action === 'get-template-xlsx') {
+  if (requester.isAdmin
+    && conn.req.query.action === 'get-template-xlsx') {
     return require('./excel-handler')(conn);
   }
 
