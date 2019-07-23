@@ -1297,7 +1297,7 @@ const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
   });
 };
 
-const addEmployeeToRealtimeDb = doc => {
+const addEmployeeToRealtimeDb = async doc => {
   const admin = require('firebase-admin');
   const realtimeDb = admin.database();
   const phoneNumber = doc.get('attachment.Employee Contact.value');
@@ -1318,9 +1318,10 @@ const addEmployeeToRealtimeDb = doc => {
     });
   }
 
-  const getEmployeeDataObject = () => {
+  const getEmployeeDataObject = hasInstalled => {
     const attachment = doc.get('attachment');
     const result = {
+      hasInstalled,
       createTime: doc.createTime.toDate().getTime(),
       updateTime: doc.updateTime.toDate().getTime(),
     };
@@ -1336,8 +1337,30 @@ const addEmployeeToRealtimeDb = doc => {
     return result;
   };
 
-  return new Promise((resolve, reject) => {
-    ref.set(getEmployeeDataObject(), error => {
+  const [
+    updatesQueryResult
+    // branchQueryResult,
+  ] = await Promise
+    .all([
+      rootCollections
+        .updates
+        .where('phoneNumber', '==', phoneNumber)
+        .limit(1)
+        .get(),
+      // rootCollections
+      //   .activities
+      //   .where('template', '==', 'branch')
+      //   .where('status', '==', 'CONFIRMED')
+      //   .where('office', '==', doc.get('office'))
+      //   .where('attachment.Name.value', doc.get('attachment.Base Location.value'))
+      //   .limit(1)
+      //   .get()
+    ]);
+
+  const hasInstalled = !updatesQueryResult.empty;
+
+  return await new Promise((resolve, reject) => {
+    ref.set(getEmployeeDataObject(hasInstalled), error => {
       if (error) {
         return reject(error);
       }
