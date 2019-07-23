@@ -298,6 +298,10 @@ module.exports = change => {
       return Promise.all(notifications);
     })
     .then(() => {
+      if (!locals.sendMail) {
+        return Promise.resolve(null);
+      }
+
       const momentYesterday = momentTz().subtract(1, 'day');
 
       return rootCollections
@@ -310,6 +314,10 @@ module.exports = change => {
         .get();
     })
     .then(snapShot => {
+      if (!locals.sendMail) {
+        return Promise.resolve(null);
+      }
+
       const dailyStatusDoc = snapShot.docs[0];
       const data = dailyStatusDoc.data();
       const office = locals.officeDoc.get('office');
