@@ -1169,6 +1169,7 @@ function populateTemplateSelect(selectElement) {
 
       selectElement.onchange = function () {
         removeAllChildren(document.querySelector('.bc-results-list'));
+        document.getElementById('download-sample').href = '/json?action=get-template-xlsx&templateName='+selectElement.value
 
         document
           .querySelector('.bc-file-drag')
@@ -1182,6 +1183,7 @@ function populateTemplateSelect(selectElement) {
       };
       selectElement.value = response[0]
       selectElement.onchange()
+
     })
     .catch(console.error);
 }
@@ -1297,7 +1299,7 @@ function bulkdCreateDom() {
           <input type="file" accept=".csv,.xlsx,.xls" data-maxsize="2M" id='bulk-upload'>
       </div>
       <p>Or</p>
-<button class="button" id='download-sample'>Download Sample</button></form>
+    <a class='button' href='#' id='download-sample' target="_blank">Download Sample</a>
   </form>
   <div class="bc-results hidden mt-16">
       <h5 class="bold ttuc">Bulk Creation Results:</h5>
@@ -1320,11 +1322,6 @@ function bulkCreate() {
 
       const fileDragInput = document.getElementById('bulk-upload')
       fileDragInput.onchange = handleExcelOrCsvFile;
-      const downloadSample = document.getElementById('download-sample');
-      downloadSample.addEventListener('click', function (evt) {
-        evt.preventDefault()
-        createExcelSheet(selectElement)
-      });
     });
 
 }

@@ -488,7 +488,9 @@ textarea {
     font-family: inherit;
     font-weight: bold;
 }
-
+a.button {
+    height: auto;
+}
 .button:hover {
     background: white;
     color: #89273E;
