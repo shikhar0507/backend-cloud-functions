@@ -693,6 +693,11 @@ const handleJsonGetRequest = (conn, requester) => {
     return Promise.resolve({});
   }
 
+  if (requester.isAdmin
+    && conn.req.query.action === 'get-template-xlsx') {
+    return require('./excel-handler')(conn);
+  }
+
   if (conn.req.query.action === 'office-list'
     && requester.isSupport) {
     return rootCollections

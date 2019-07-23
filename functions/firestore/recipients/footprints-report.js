@@ -48,6 +48,10 @@ const getComment = doc => {
     return `Installed Growthfile`;
   }
 
+  if (action === httpsActions.updatePhoneNumber) {
+    return ``;
+  }
+
   if (action === httpsActions.create) {
     if (doc.get('activityData.template') === 'enquiry') {
       return `${doc.get('activityData.attachment.Product.value')}`
@@ -443,9 +447,8 @@ const handleSheetTwo = locals => {
               });
         });
 
-      // return Promise
-      //   .all(batchesArray.map(batch => batch.commit()));
-      return;
+      return Promise
+        .all(batchesArray.map(batch => batch.commit()));
     })
     .then(() => {
       locals
