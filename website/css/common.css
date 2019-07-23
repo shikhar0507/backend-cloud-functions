@@ -55,6 +55,8 @@ body {
     /* Golden Ratio */
     line-height: 1.61803398875em;
     /* font-size: 1em/1.61803398875em; */
+    display: flex;
+    flex-direction: column;
 }
 
 label {
@@ -457,8 +459,8 @@ textarea {
 }
 
 .container {
-    margin: 0 auto;
-    min-height: 100%;
+    
+    flex: 1 0 auto;
 }
 
 .hidden {
@@ -541,13 +543,8 @@ button[disabled] {
 
 footer {
     /* font-size: 12px; */
-    min-width: 100%;
-    position: relative;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    margin-top: auto;
     padding-bottom: 20px;
+    flex-shrink: 0;
 }
 
 .bt {
