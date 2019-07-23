@@ -3,17 +3,29 @@
 const {
   rootCollections,
 } = require('../admin/admin');
+const {
+  code,
+} = require('../admin/responses');
 const xlsxPopulate = require('xlsx-populate');
 
-module.exports = (conn, templateName) => {
-  const fileName = `${templateName}.xlsx`;
+module.exports = conn => {
+  // const templateName = conn.req.query.templateName;
+  const fileName = `${conn.req.query.templateName}.xlsx`;
   const filePath = `/tmp/${fileName}`;
+
+  if (!conn.req.query.templateName) {
+    return {
+      success: false,
+      message: `Query param 'templateName' is required`,
+      code: code.badRequest,
+    };
+  }
 
   return Promise
     .all([
       rootCollections
         .activityTemplates
-        .where('name', '==', templateName)
+        .where('name', '==', conn.req.query.templateName)
         .limit(1)
         .get(),
       xlsxPopulate
