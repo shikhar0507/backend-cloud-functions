@@ -9,9 +9,7 @@
 <body data-user="\{{user}}" data-offices="\{{adminOffices}}">
     \{{> headerPartial this}}
     \{{#if isLoggedIn}}
-    <div class="pad-below-header">
-        <div class="action-title pad ttuc">My Growthfile</div>
-    </div>
+  
     <div id="progressBar" class="progress-bar--container"></div>
     \{{else}}
     <div class="pad-below-header no-login"></div>
@@ -22,7 +20,7 @@
             \{{#if isLoggedIn}}
             <div class="breadcrumbs">
                 <ul>
-                    <li><a href="#">Home</a></li>
+                    <li><a href="javascript:window.location.reload(true)">Home</a></li>
                 </ul>
             </div>
             \{{/if}}
@@ -63,7 +61,7 @@
             </div>
 
             <div class="hero-actions">
-                <div class="hidden pad bc-container">
+                {{!-- <div class="hidden pad bc-container">
                     <select class="input-field mb-16 mw-100" id="create-new-template-select">
                         <option value="">Loading...</option>
                     </select>
@@ -80,8 +78,8 @@
                             <ul class="bc-results-list"> </ul>
                         </div>
                     </div>
-                </div>
-                <div class="pad search-update hidden">
+                </div> --}}
+                <div class="hidden pad search-update">
                     {{!-- search and update --}}
                     <div>
                         <p class="col-gray">Select a template</p>

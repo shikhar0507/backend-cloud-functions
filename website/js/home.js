@@ -66,55 +66,26 @@ function hideActionsSection() {
     .add('hidden');
 }
 
-function setBreadcrumb(action) {
+function addBreadCrumb(breadcrumbName) {
   const ul = document.querySelector('.breadcrumbs ul');
-
-  removeAllChildren(ul);
-
-  const home = document.createElement('li');
-  const homeA = document.createElement('a');
-
-  homeA.textContent = document.body.dataset.office || 'Home';
-  homeA.href = '#';
-
-  homeA.onclick = function (evt) {
-    evt.preventDefault();
-
-    showActionsSection();
-    setBreadcrumb();
-    removeAllChildren(document.querySelector('.forms-parent'));
-
-    document
-      .querySelector('.hero-actions')
-      .classList
-      .toggle('hidden');
-  };
-
-  home.appendChild(homeA);
-
   const li = document.createElement('li');
+  li.onclick = function () {  
+    const lastLi = ul.lastElementChild
+    if(lastLi == li) return;
+    document.getElementById('actions-section').classList.remove('hidden')
+    const formsParent = document.querySelector('.forms-parent')
+    formsParent.classList.remove('pad')
+    removeAllChildren(formsParent)
+    ul.removeChild(ul.lastElementChild);
+  };
   const a = document.createElement('a');
-  a.textContent = action;
-  a.href = '#';
-
-  /** Do nothing since this path is open already for the user */
-  a.onclick = function (evt) { evt.preventDefault(); };
-  a.classList.add('bold');
-  li.appendChild(a);
-  ul.append(home);
-
-  if (action) {
-    ul.appendChild(li);
-  }
+  a.textContent = breadcrumbName;
+  li.appendChild(a)
+  ul.appendChild(li)
 }
 
-function setActionTitle(text) {
-  document
-    .querySelector('.action-title')
-    .textContent = text;
 
-  if (text) setBreadcrumb(text);
-}
+
 
 function handleTopSelectTemplateClick(evt) {
   console.log('handleTopSelectTemplateClick', evt);
@@ -131,7 +102,7 @@ function allOfficeSelectOnChange() {
 
   // showActionsSection();
   toggleActionsSection();
-  setBreadcrumb(null);
+  addBreadCrumb(office);
 }
 
 function fetchOfficeList() {
@@ -238,7 +209,9 @@ function handlePhoneNumberChange() {
   console.log('requestBody', requestBody);
 
   sendApiRequest(requestUrl, requestBody, 'POST')
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       createSnackbar(response.message || 'Phone Number updated successfully');
     })
@@ -280,15 +253,16 @@ function handleUpdateAuthRequest() {
   }
 
   sendApiRequest(
-    `${apiBaseUrl}/update-auth`,
-    {
-      phoneNumber,
-      displayName,
-      email,
-    },
-    'POST'
-  )
-    .then(function (response) { return response.json(); })
+      `${apiBaseUrl}/update-auth`, {
+        phoneNumber,
+        displayName,
+        email,
+      },
+      'POST'
+    )
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('result', response);
       createSnackbar(response.message || 'Success');
@@ -445,8 +419,8 @@ function showActivityCancellationWarning(doc) {
   modalBodyElement.className += 'pad';
 
   const p = document.createElement('p');
-  p.textContent = `You are about to cancel`
-    + ` ${doc.activityName}`;
+  p.textContent = `You are about to cancel` +
+    ` ${doc.activityName}`;
 
   modalBodyElement.append(p);
 
@@ -489,8 +463,8 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
     }
   })();
 
-  if (newStatus === 'CANCELLED'
-    && !window.warningShownAlready) {
+  if (newStatus === 'CANCELLED' &&
+    !window.warningShownAlready) {
     showActivityCancellationWarning(doc);
 
     return;
@@ -516,7 +490,9 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
 
       return sendApiRequest(`${requestUrl}`, requestBody, 'PATCH')
     })
-    .then(function (response) { return response.json() })
+    .then(function (response) {
+      return response.json()
+    })
     .then(function (response) {
       createSnackbar(response.message || 'Update Successful');
     })
@@ -583,7 +559,9 @@ function addAssigneeToActivity(doc) {
 
         return sendApiRequest(requestUrl, requestBody, 'PATCH')
       })
-      .then(function (response) { return response.json() })
+      .then(function (response) {
+        return response.json()
+      })
       .then(function (response) {
         console.log('Response', response);
 
@@ -613,7 +591,10 @@ function getActivityEditForm(doc) {
   Object
     .keys(doc.attachment)
     .forEach(function (field) {
-      const { type, value } = doc.attachment[field];
+      const {
+        type,
+        value
+      } = doc.attachment[field];
 
       const label = document.createElement('label');
       label.textContent = field;
@@ -673,8 +654,8 @@ function getActivityEditForm(doc) {
 
       input.classList.add('input-field');
 
-      if (field === 'Name'
-        || field === 'Number') {
+      if (field === 'Name' ||
+        field === 'Number') {
         input.required = true;
       }
 
@@ -700,7 +681,11 @@ function getActivityEditForm(doc) {
   doc
     .schedule
     .forEach(function (item) {
-      const { name, startTime, endTime } = item;
+      const {
+        name,
+        startTime,
+        endTime
+      } = item;
 
       const label = document.createElement('label');
       label.textContent = name;
@@ -856,9 +841,9 @@ function getActivityEditForm(doc) {
   }
 
   // cannot change status for employee and subscription activities
-  if (doc.status === 'CANCELLED'
-    && doc.template !== 'employee'
-    && doc.template !== 'subscription') {
+  if (doc.status === 'CANCELLED' &&
+    doc.template !== 'employee' &&
+    doc.template !== 'subscription') {
     buttonContainer.append(confirmButton, pendingButton);
   }
 
@@ -980,10 +965,10 @@ function filterResultsForSearchAndUpdate() {
 
     const template = document.querySelector('.forms-parent select').value;
 
-    let requestUrl = `/json?office=${encodeURIComponent(document.body.dataset.office)}`
-      + `&attachmentField=${fieldSelect.value}`
-      + `&query=${encodeURIComponent(input.value)}`
-      + `&template=${template}`;
+    let requestUrl = `/json?office=${encodeURIComponent(document.body.dataset.office)}` +
+      `&attachmentField=${fieldSelect.value}` +
+      `&query=${encodeURIComponent(input.value)}` +
+      `&template=${template}`;
 
     if (isSupport()) {
       requestUrl += '&support=true';
@@ -992,7 +977,9 @@ function filterResultsForSearchAndUpdate() {
     console.log(requestUrl);
 
     sendApiRequest(requestUrl)
-      .then(function (response) { return response.json(); })
+      .then(function (response) {
+        return response.json();
+      })
       .then(function (response) {
 
         /** Calling this function to repopulate the activity list */
@@ -1036,7 +1023,9 @@ function searchUpdateTemplateSelectOnChange(url) {
   // removeAllChildren(document.querySelector('.activity-form'));
 
   sendApiRequest(url)
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('response', response);
 
@@ -1050,14 +1039,14 @@ function searchUpdateTemplateSelectOnChange(url) {
           if (index === 0) {
             window
               .searchTemplateAttachmentFields = Object
-                .keys(doc.attachment)
-                .map(function (field) {
-                  return ({
-                    field,
-                    value: doc.attachment[field].value,
-                    type: doc.attachment[field].type,
-                  });
+              .keys(doc.attachment)
+              .map(function (field) {
+                return ({
+                  field,
+                  value: doc.attachment[field].value,
+                  type: doc.attachment[field].type,
                 });
+              });
           }
 
           const li = getActivityListItem(doc);
@@ -1073,7 +1062,7 @@ function searchUpdateTemplateSelectOnChange(url) {
 }
 
 function searchAndUpdate() {
-  setActionTitle('Search & Update');
+  addBreadCrumb('Search & Update');
   hideActionsSection();
 
   const container = document.querySelector('.forms-parent');
@@ -1138,8 +1127,8 @@ function searchAndUpdate() {
 
       listOfTemplates.onchange = function () {
         const templateSelect = document.querySelector('.forms-parent select');
-        const url = `/json?office=${document.body.dataset.office}`
-          + `&template=${templateSelect.value}`;
+        const url = `/json?office=${document.body.dataset.office}` +
+          `&template=${templateSelect.value}`;
 
         searchUpdateTemplateSelectOnChange(url);
       };
@@ -1164,7 +1153,9 @@ function joinFormSelfPhoneOnInput(evt) {
 
 function populateTemplateSelect(selectElement) {
   return sendApiRequest(`/json?action=get-template-names`)
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       selectElement.firstElementChild.remove();
 
@@ -1189,6 +1180,8 @@ function populateTemplateSelect(selectElement) {
           .style
           .minHeight = '200px';
       };
+      selectElement.value = response[0]
+      selectElement.onchange()
     })
     .catch(console.error);
 }
@@ -1249,6 +1242,7 @@ function sendBulkCreateJson(jsonData) {
     template: document.querySelector('.bc-container select').value,
   };
 
+
   if (window.creatingOffice) {
     requestBody.template = 'office';
   }
@@ -1256,7 +1250,6 @@ function sendBulkCreateJson(jsonData) {
   getLocation()
     .then(function (location) {
       requestBody.geopoint = location;
-
       return sendApiRequest(requestUrl, requestBody, 'POST');
     })
     .then(function (response) {
@@ -1264,7 +1257,6 @@ function sendBulkCreateJson(jsonData) {
     })
     .then(function (response) {
       delete window.creatingOffice;
-
       populateBulkCreationResult(response);
     })
     .catch(console.error);
@@ -1293,20 +1285,53 @@ function handleExcelOrCsvFile(element) {
   };
 }
 
-function bulkCreate() {
-  setActionTitle('Create New');
+function bulkdCreateDom() {
+  return `<div class="pad bc-container">
+  <select class="input-field mb-16 mw-100" id="create-new-template-select">
+      <option value="">Loading...</option>
+  </select>
+  <form>
+      <p>Drag a file here to upload</p>
+      <div class="bc-file-drag hidden raised pad-10 tac">
+          <i class="fas fa-cloud-upload-alt ft-60"></i>
+          <input type="file" accept=".csv,.xlsx,.xls" data-maxsize="2M" id='bulk-upload'>
+      </div>
+      <p>Or</p>
+<button class="button" id='download-sample'>Download Sample</button></form>
+  </form>
+  <div class="bc-results hidden mt-16">
+      <h5 class="bold ttuc">Bulk Creation Results:</h5>
+      <div>
+          <ul class="bc-results-list"> </ul>
+      </div>
+  </div>
+</div>`
+}
 
-  const bcContainer = document.querySelector('.bc-container');
-  const selectElement = bcContainer.querySelector('select');
-  bcContainer.classList.remove('hidden');
+function bulkCreate() {
+  addBreadCrumb('Create New');
+  hideActionsSection();
+  const formParent = document.querySelector('.forms-parent');
+  formParent.innerHTML = bulkdCreateDom();
+  const selectElement = document.getElementById('create-new-template-select');
 
   populateTemplateSelect(selectElement)
     .then(function () {
 
-      const fileDragInput = bcContainer.querySelector('input[type="file"]');
-
+      const fileDragInput = document.getElementById('bulk-upload')
       fileDragInput.onchange = handleExcelOrCsvFile;
+      const downloadSample = document.getElementById('download-sample');
+      downloadSample.addEventListener('click', function (evt) {
+        evt.preventDefault()
+        createExcelSheet(selectElement)
+      });
     });
+
+}
+
+
+function createExcelSheet(selectElement) {
+
 }
 
 function recipientAssigneeUpdateOnClick(evt) {
@@ -1357,7 +1382,9 @@ function recipientAssigneeUpdateOnClick(evt) {
 
   const finalAssignees = Array.from(final);
 
-  console.log({ finalAssignees });
+  console.log({
+    finalAssignees
+  });
 
   const requestBody = {
     timestamp: Date.now(),
@@ -1377,7 +1404,9 @@ function recipientAssigneeUpdateOnClick(evt) {
 
       return sendApiRequest(requestUrl, requestBody, 'PATCH');
     })
-    .then(function (response) { return response.json() })
+    .then(function (response) {
+      return response.json()
+    })
     .then(function (response) {
       createSnackbar(response.message || 'Update Successful');
     })
@@ -1461,12 +1490,14 @@ function getRecipientActivityContainer(doc) {
 }
 
 function handleRecipientSelectOnChange(evt) {
-  const requestUrl = `/json?`
-    + `action=${document.body.dataset.office}`
-    + `&template=${evt.target.value}`;
+  const requestUrl = `/json?` +
+    `action=${document.body.dataset.office}` +
+    `&template=${evt.target.value}`;
 
   sendApiRequest(requestUrl)
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('Response', response);
     })
@@ -1477,31 +1508,29 @@ function handleRecipientSelectOnChange(evt) {
 
 function updateEmailInReports() {
   console.log('Update Email in reports clicked');
-  setActionTitle('Update Report Emails');
+  addBreadCrumb('Update Report Emails');
   hideActionsSection();
-
   const container = document.createElement('div');
   container.className = 'pad';
   const heading = document.createElement('h5');
   heading.className = 'ft-size-20 ttuc tac bold mb-16';
   heading.textContent = 'Update Report Recipients';
   const div = document.createElement('div');
-
   div.classList.add('grid-container-1', 'gg-5');
-
   container.append(heading, div);
-
   document
     .querySelector('.forms-parent')
     .appendChild(container);
 
-  const requestUrl = `/json?template=recipient`
-    + `&office=${document.body.dataset.office}`;
+  const requestUrl = `/json?template=recipient` +
+    `&office=${document.body.dataset.office}`;
 
   console.log('RequestSent', requestUrl);
 
   sendApiRequest(requestUrl)
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('Response', response);
 
@@ -1539,7 +1568,7 @@ function onDomContentLoaded() {
 }
 
 function updateAuth() {
-  setActionTitle('Verify Email Addresses');
+  addBreadCrumb('Verify Email Addresses');
   hideActionsSection();
 
   const container = document.querySelector('.forms-parent');
@@ -1601,8 +1630,8 @@ function updateAuth() {
 function recipientSubmitOnClick() {
   const form = document.querySelector('.forms-parent');
   const startTime = new Date(
-    form.querySelector('input[type="date"]').value
-  )
+      form.querySelector('input[type="date"]').value
+    )
     .getTime();
   const triggerResult = form.querySelector('p');
 
@@ -1618,9 +1647,11 @@ function recipientSubmitOnClick() {
   console.log('Request sent', requestBody);
 
   sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, requestBody,
-    'POST'
-  )
-    .then(function (response) { return response.json(); })
+      'POST'
+    )
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('Response', response);
 
@@ -1628,8 +1659,8 @@ function recipientSubmitOnClick() {
         triggerResult.classList.add('warning-label');
       }
 
-      triggerResult.textContent = response.message
-        || 'Report triggered successfully';
+      triggerResult.textContent = response.message ||
+        'Report triggered successfully';
 
     })
     .catch(function (error) {
@@ -1638,7 +1669,7 @@ function recipientSubmitOnClick() {
 }
 
 function triggerReports() {
-  setActionTitle('Trigger Reports');
+  addBreadCrumb('Trigger Reports');
   hideActionsSection();
 
   const container = document.createElement('div');
@@ -1682,8 +1713,8 @@ function triggerReports() {
     .querySelector('.forms-parent')
     .append(container);
 
-  const requestUrl = `/json?template=recipient`
-    + `&office=${document.body.dataset.office}`;
+  const requestUrl = `/json?template=recipient` +
+    `&office=${document.body.dataset.office}`;
 
   sendApiRequest(requestUrl, null, 'GET')
     .then(function (response) {
@@ -1710,7 +1741,7 @@ function triggerReports() {
 }
 
 function changePhoneNumber() {
-  setActionTitle('Change Phone Number');
+  addBreadCrumb('Change Phone Number');
   hideActionsSection();
 
   const container = document.createElement('div');
@@ -1773,7 +1804,9 @@ function changePhoneNumber() {
 
 function sendUpdateTemplateRequest(newText) {
   sendApiRequest('/json?action=update-template', JSON.parse(newText), 'POST')
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('Response', response);
 
@@ -1863,7 +1896,7 @@ function viewTemplateButtonOnClick(evt) {
 }
 
 function manageTemplates() {
-  setActionTitle('Manage Templates');
+  addBreadCrumb('Manage Templates');
   hideActionsSection();
 
   const container = document.createElement('div');
@@ -1878,7 +1911,9 @@ function manageTemplates() {
   ul.className += ' template-list';
 
   sendApiRequest('/json?action=view-templates')
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('View Templates', response);
 
@@ -1955,9 +1990,9 @@ function addNewOffice() {
 
   fileDragInput.onchange = handleExcelOrCsvFile;
 
-  // const jsonData = {};
+  const jsonData = {};
 
-  // sendBulkCreateJson(jsonData);
+  sendBulkCreateJson(jsonData);
 }
 
 function windowOnLoad() {
