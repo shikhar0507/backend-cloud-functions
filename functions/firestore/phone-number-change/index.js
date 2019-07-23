@@ -15,6 +15,9 @@ const {
 const {
   code,
 } = require('../../admin/responses');
+const {
+  httpsActions,
+} = require('../../admin/constants');
 const admin = require('firebase-admin');
 
 
@@ -183,6 +186,27 @@ const getCanEditValue = (canEditRule, creator, conn, locals) => {
   return true;
 };
 
+const createAddendum = async (conn, locals) => {
+  const moment = require('moment');
+
+  return locals
+    .officeDoc
+    .ref
+    .collection('Addendum')
+    .doc()
+    .set({
+      date: moment().date(),
+      month: moment().month(),
+      year: moment().year(),
+      timestamp: Date.now(),
+      user: conn.requester.phoneNumber,
+      action: httpsActions.updatePhoneNumber,
+      oldPhoneNumber: conn.req.body.oldPhoneNumber,
+      newPhoneNumber: conn.req.body.newPhoneNumber,
+      isSupportRequest: conn.requester.isSupportRequest || false,
+    });
+};
+
 const transferActivitiesToNewProfile = (conn, locals) => {
   let iterations = 0;
 
@@ -295,7 +319,8 @@ const transferActivitiesToNewProfile = (conn, locals) => {
       console.log({ iterations });
 
       return deleteUpdates(locals.oldPhoneNumberUid);
-    });
+    })
+    .then(() => createAddendum(conn, locals));
 };
 
 module.exports = conn => {

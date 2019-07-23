@@ -668,6 +668,14 @@ const getCommentString = (locals, recipient) => {
     return `${pronoun} updated ${getUpdatedFieldNames(options)}`;
   }
 
+  if (action === httpsActions.updatePhoneNumber) {
+    const doc = locals.addendumDoc;
+
+    return `Phone number`
+      + ` '${doc.get('oldPhoneNumber')} was`
+      + ` changed to ${doc.get('newPhoneNumber')}`;
+  }
+
   /** Action is `comment` */
   return locals.addendumDoc.get('comment');
 };
@@ -763,8 +771,6 @@ const createComments = async (addendumDoc, locals) => {
       return 0;
     };
 
-    console.log(phoneNumber, comment);
-
     batch.set(ref, {
       comment,
       activityId,
@@ -798,7 +804,8 @@ module.exports = addendumDoc => {
     || action === httpsActions.signup
     || action === httpsActions.branchView
     || action === httpsActions.productView
-    || action === httpsActions.videoPlay;
+    || action === httpsActions.videoPlay
+    || action === httpsActions.updatePhoneNumber;
 
   if (isSkippableEvent) {
     return addendumDoc
