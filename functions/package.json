@@ -45,6 +45,7 @@
     "firebase-functions": "^3.1.0",
     "firebase-tools": "^7.1.1",
     "google-libphonenumber": "^3.2.3",
+    "googleapis": "^41.0.1",
     "handlebars": "^4.1.2",
     "moment": "^2.24.0",
     "moment-timezone": "^0.5.26",

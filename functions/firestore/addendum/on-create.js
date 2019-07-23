@@ -15,6 +15,9 @@ const {
   adjustedGeopoint,
 } = require('../../admin/utils');
 const {
+  vowels,
+} = require('../../admin/constants');
+const {
   toMapsUrl,
 } = require('../recipients/report-utils');
 const momentTz = require('moment-timezone');
@@ -415,6 +418,367 @@ const checkDistanceAccurate = (addendumDoc, activityDoc) => {
   return distanceBetween < distanceTolerance;
 };
 
+const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
+  const updatedFields = [];
+
+  console.log({ newSchedule, oldSchedule });
+
+  oldSchedule.forEach((item, index) => {
+    const name = item.name;
+    /** Request body ===> Update API request body. */
+    const newStartTime = newSchedule[index].startTime;
+    const newEndTime = newSchedule[index].endTime;
+    const oldStartTime = item.startTime;
+    const oldEndTime = item.endTime;
+
+    if (newEndTime === oldEndTime && newStartTime === oldStartTime) {
+      return;
+    }
+
+    updatedFields.push(name);
+  });
+
+  return updatedFields;
+};
+
+const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
+  const updatedFields = [];
+
+  oldVenue.forEach((venue, index) => {
+    const venueDescriptor = venue.venueDescriptor;
+    const oldLocation = venue.location;
+    const oldAddress = venue.address;
+    const oldGeopoint = venue.geopoint;
+    const oldLongitude = oldGeopoint._longitude;
+    const oldLatitude = oldGeopoint._latitude;
+    const newLocation = newVenue[index].location;
+    const newAddress = newVenue[index].address;
+    const newGeopoint = newVenue[index].geopoint;
+    const newLatitude = newGeopoint.latitude;
+    const newLongitude = newGeopoint.longitude;
+
+    if (oldLocation === newLocation
+      && oldAddress === newAddress
+      && oldLatitude === newLatitude
+      && oldLongitude === newLongitude) return;
+
+    updatedFields.push(venueDescriptor);
+  });
+
+  return updatedFields;
+};
+
+const getUpdatedAttachmentFieldNames = (newAttachment, oldAttachment) => {
+  const updatedFields = [];
+
+  Object
+    .keys(newAttachment)
+    .forEach((field) => {
+      /** Comparing the `base64` photo string is expensive. Not doing it. */
+      if (newAttachment[field].type === 'photo') return;
+
+      const oldFieldValue = oldAttachment[field].value;
+      const newFieldValue = newAttachment[field].value;
+      const isUpdated = oldFieldValue !== newFieldValue;
+
+      if (!isUpdated) return;
+
+      updatedFields.push(field);
+    });
+
+  return updatedFields;
+};
+
+const getUpdatedFieldNames = (options) => {
+  const {
+    before: activityOld,
+    after: activityNew,
+  } = options;
+  const oldSchedule = activityOld.schedule;
+  const oldVenue = activityOld.venue;
+  const oldAttachment = activityOld.attachment;
+  const newSchedule = activityNew.get('schedule');
+  const newVenue = activityNew.get('venue');
+  const newAttachment = activityNew.get('attachment');
+
+  const allFields = [
+    ...getUpdatedScheduleNames(newSchedule, oldSchedule),
+    ...getUpdatedVenueDescriptors(newVenue, oldVenue),
+    ...getUpdatedAttachmentFieldNames(newAttachment, oldAttachment),
+  ];
+
+  let commentString = '';
+
+  if (allFields.length === 1) return commentString += `${allFields[0]}`;
+
+  allFields
+    .forEach((field, index) => {
+      if (index === allFields.length - 1) {
+        commentString += `& ${field}`;
+
+        return;
+      }
+
+      commentString += `${field}, `;
+    });
+
+  return commentString;
+};
+
+const getPronoun = (locals, recipient) => {
+  const addendumCreator = locals.addendumDoc.get('user');
+  const assigneesMap = locals.assigneesMap;
+  /**
+   * People are denoted with their phone numbers unless
+   * the person creating the addendum is the same as the one
+   * receiving it.
+   */
+  let pronoun = addendumCreator;
+
+  if (addendumCreator === recipient) {
+    pronoun = 'You';
+  }
+
+  if (pronoun !== 'You'
+    && assigneesMap.get(addendumCreator)
+    && assigneesMap.get(addendumCreator).displayName) {
+    pronoun = assigneesMap.get(addendumCreator).displayName;
+  }
+
+  if (!assigneesMap.get(addendumCreator)
+    && !locals.addendumCreatorInAssignees) {
+    pronoun = locals.addendumCreator.displayName;
+  }
+
+  return pronoun;
+};
+
+const getCreateActionComment = (template, pronoun, locationFromVenue) => {
+  const templateNameFirstCharacter = template[0];
+  const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
+
+  if (template === 'check-in'
+    && locationFromVenue) {
+    return `${pronoun} checked in from ${locationFromVenue}`;
+  }
+
+  return `${pronoun} created ${article} ${template}`;
+};
+
+const getChangeStatusComment = (status, activityName, pronoun) => {
+  /** `PENDING` isn't grammatically correct with the comment here. */
+  if (status === 'PENDING') status = 'reversed';
+
+  return `${pronoun} ${status.toLowerCase()} ${activityName}`;
+};
+
+const getCommentString = (locals, recipient) => {
+  const action = locals.addendumDoc.get('action');
+  const pronoun = getPronoun(locals, recipient);
+  const creator = locals.addendumDoc.get('user');
+  const activityName = locals.addendumDoc.get('activityName');
+  const template = locals.addendumDoc.get('activityData.template');
+
+  if (action === httpsActions.create) {
+    if (locals.addendumDoc.get('activityData.template') === 'duty roster') {
+      if (recipient === creator) {
+        return getCreateActionComment(template, pronoun);
+      }
+
+      const creatorName = (() => {
+        if (locals.assigneesMap.get('creator')
+          && locals.assigneesMap.get('creator').displayName) {
+          return locals.assigneesMap.get('creator').displayName;
+        }
+
+        return creator;
+      })();
+
+      return `${creatorName} assigned you a duty "${activityName}"`;
+    }
+
+    const locationFromVenue = (() => {
+      if (template !== 'check-in') return null;
+
+      if (locals.addendumDocData.venueQuery) {
+        return locals.addendumDocData.venueQuery.location;
+      }
+
+      if (locals.addendumDocData.activityData
+        && locals.addendumDocData.activityData.venue
+        && locals.addendumDocData.activityData.venue[0]
+        && locals.addendumDocData.activityData.venue[0].location) {
+        return locals.addendumDocData.activityData.venue[0].location;
+      }
+
+      return locals.addendumDocData.identifier;
+    })();
+
+    console.log('locationFromVenue', locationFromVenue);
+
+    return getCreateActionComment(template, pronoun, locationFromVenue);
+  }
+
+  if (action === httpsActions.changeStatus) {
+    const status = locals.addendumDoc.get('status');
+
+    return getChangeStatusComment(status, activityName, pronoun);
+  }
+
+  if (action === httpsActions.share) {
+    const share = locals.addendumDoc.get('share');
+    let str = `${pronoun} added`;
+
+    if (share.length === 1) {
+      let name = locals.assigneesMap.get(share[0]).displayName || share[0];
+
+      if (share[0] === recipient) {
+        name = 'you';
+      }
+
+      return str += ` ${name}`;
+    }
+
+    /** The `share` array will never have the `user` themselves */
+    share.forEach((phoneNumber, index) => {
+      let name = locals
+        .assigneesMap.get(phoneNumber).displayName || phoneNumber;
+      if (phoneNumber === recipient) {
+        name = 'you';
+      }
+
+      if (share.length - 1 === index) {
+        str += ` & ${name}`;
+
+        return;
+      }
+
+      str += ` ${name}, `;
+    });
+
+    return str;
+  }
+
+  if (action === httpsActions.update) {
+    const options = {
+      before: locals.addendumDoc.get('activityOld'),
+      after: locals.activityNew,
+    };
+
+    return `${pronoun} updated ${getUpdatedFieldNames(options)}`;
+  }
+
+  /** Action is `comment` */
+  return locals.addendumDoc.get('comment');
+};
+
+const getAuth = phoneNumber => {
+  return require('firebase-admin')
+    .auth()
+    .getUserByPhoneNumber(phoneNumber)
+    .catch(error => {
+      if (error.code === 'auth/user-not-found') {
+        return {};
+      }
+
+      console.error(error);
+    });
+};
+
+const createComments = async (addendumDoc, locals) => {
+  if (addendumDoc.get('activityData.hidden') === 1) {
+    return Promise.resolve();
+  }
+
+  // Fetch activity assignees
+  const activityId = addendumDoc.get('activityId');
+  locals.addendumDoc = addendumDoc;
+  locals.assigneesMap = new Map();
+
+  const [assignees, activityNew] = await Promise
+    .all([
+      rootCollections
+        .activities
+        .doc(activityId)
+        .collection('Assignees')
+        .get(),
+      rootCollections
+        .activities
+        .doc(activityId)
+        .get(),
+    ]);
+
+  locals.activityNew = activityNew;
+
+  const batch = db.batch();
+  const assigneeAuthPromises = [];
+
+  assignees.forEach(assignee => {
+    const phoneNumber = assignee.id;
+    const authFetch = getAuth(phoneNumber);
+
+    assigneeAuthPromises.push(authFetch);
+  });
+
+  assigneeAuthPromises
+    .push(getAuth(locals.addendumDoc.get('user')));
+
+  const assigneeAuthResults = await Promise.all(assigneeAuthPromises);
+
+  assigneeAuthResults.forEach(userRecord => {
+    if (!userRecord.uid) return;
+
+    locals
+      .assigneesMap
+      .set(userRecord.phoneNumber, userRecord);
+
+    if (userRecord.phoneNumber === locals.addendumDoc.get('user')) {
+      locals
+        .addendumCreatorInAssignees = true;
+    }
+  });
+
+  assignees.forEach(assignee => {
+    const phoneNumber = assignee.id;
+    const auth = locals.assigneesMap.get(phoneNumber);
+
+    if (!auth) return;
+
+    const ref = rootCollections
+      .updates
+      .doc(auth.uid)
+      .collection('Addendum')
+      .doc(addendumDoc.id);
+
+    const comment = getCommentString(locals, phoneNumber);
+    /**
+     * Checks if the action was a comment.
+     * @param {string} action Can be one of the activity actions from HTTPS functions.
+     * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
+     */
+    const isComment = action => {
+      // Making this a closure since this function is not going to be used anywhere else.
+      if (action === httpsActions.comment) return 1;
+
+      return 0;
+    };
+
+    console.log(phoneNumber, comment);
+
+    batch.set(ref, {
+      comment,
+      activityId,
+      isComment: isComment(locals.addendumDoc.get('action')),
+      timestamp: Date.now(),
+      userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
+      location: addendumDoc.get('location'),
+      user: addendumDoc.get('user'),
+    });
+  });
+
+  return await batch.commit();
+};
+
 
 module.exports = addendumDoc => {
   const action = addendumDoc.get('action');
@@ -601,6 +965,8 @@ module.exports = addendumDoc => {
         updateObject.venueQuery = activityDoc.get('venue')[0];
       }
 
+      locals.addendumDocData = Object.assign({}, addendumDoc.data(), updateObject);
+
       console.log(JSON.stringify({
         phoneNumber,
         updateObject,
@@ -627,6 +993,7 @@ module.exports = addendumDoc => {
           merge: true,
         });
     })
+    .then(() => createComments(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))
     .then(() => logLocations(addendumDoc, locals))
     .catch(error => {

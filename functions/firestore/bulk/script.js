@@ -18,6 +18,7 @@ const {
   adjustedGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
+  addressToCustomer,
   getEmployeesMapFromRealtimeDb,
 } = require('../../admin/utils');
 const {
@@ -919,11 +920,48 @@ const fetchTemplates = (conn, locals) => {
     });
 };
 
+const handleCustomer = conn => {
+  if (conn.req.body.template !== 'customer') {
+    return Promise.resolve();
+  }
+
+  const placesApiPromises = [];
+  const rejectedIndexes = new Set();
+
+  conn.req.body.data.forEach((item, index) => {
+    if (!isNonEmptyString(item.Venue) || !isNonEmptyString(item.Address)) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = 'Missing Venue or Address';
+
+      rejectedIndexes.add(index);
+
+      return;
+    }
+
+    placesApiPromises.push(addressToCustomer({
+      venue: item.Venue,
+      address: item.Address,
+    }));
+  });
+
+  return Promise
+    .all(placesApiPromises)
+    .then(customers => {
+      customers.forEach((customer, index) => {
+        conn.req.body.data[index] = customer;
+        conn.req.body.data[index].share = conn.req.body.data[index].share || [];
+      });
+
+      return Promise.resolve();
+    });
+};
 
 const validateDataArray = (conn, locals) => {
   const scheduleFields = locals.templateDoc.get('schedule');
   const venueFields = getVenueFieldsSet(locals.templateDoc);
-  const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
+  const attachmentFieldsSet = new Set(
+    Object.keys(locals.templateDoc.get('attachment'))
+  );
   const scheduleFieldsSet = new Set(scheduleFields);
   const allFieldsArray = [
     ...attachmentFieldsSet,
@@ -940,8 +978,6 @@ const validateDataArray = (conn, locals) => {
   const subscriptionsMap = new Map();
   const namesToCheck = [];
   const employeesToCheck = [];
-  const checkName = locals.templateDoc.get('attachment').hasOwnProperty('Name');
-  const checkNumber = locals.templateDoc.get('attachment').hasOwnProperty('Number');
   const adminsSet = new Set();
   const adminToCheck = [];
   const verifyValidTypes = new Map();
@@ -949,8 +985,7 @@ const validateDataArray = (conn, locals) => {
   const namesSet = new Set();
   const assigneesFromAttachment = new Map();
   const officeContacts = new Map();
-  locals.rejectionObjects = [];
-  locals.successObjects = [];
+  const nameOrNumberIndex = new Map();
 
   conn.req.body.data.forEach((dataObject, index) => {
     const objectProperties = Object.keys(dataObject);
@@ -967,7 +1002,9 @@ const validateDataArray = (conn, locals) => {
       if (attachmentFieldsSet.has(field)
         && locals.templateDoc.get('attachment')[field].type === 'number'
         && conn.req.body.data[index][field]) {
-        conn.req.body.data[index][field] = Number(conn.req.body.data[index][field]);
+        conn.req.body.data[index][field] = Number(
+          conn.req.body.data[index][field]
+        );
       }
 
       if (!objectProperties.includes(field)) {
@@ -976,26 +1013,47 @@ const validateDataArray = (conn, locals) => {
         return;
       }
 
-      if (locals.templateDoc.get('venue').length > 0
-        && conn.req.body.data[index].latitude
-        && conn.req.body.data[index].longitude
-        && !isValidGeopoint({
-          latitude: conn.req.body.data[index].latitude,
-          longitude: conn.req.body.data[index].longitude,
-        }, false)) {
-        conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `Either fill all location fields`
-          + ` (address, location latitude, longitude, and placeId) or none`;
+      if (locals.templateDoc.get('venue').length > 0) {
+        const msg = `Either fill all location fields`
+          + ` (address, location latitude, longitude,`
+          + ` and placeId) or none`;
+        const allVenueFields = [
+          conn.req.body.data[index].latitude,
+          conn.req.body.data[index].longitude,
+          conn.req.body.data[index].address,
+          conn.req.body.data[index].location
+        ];
+
+        if ((conn.req.body.data[index].latitude
+          || conn.req.body.data[index].longitude
+          || conn.req.body.data[index].address
+          || conn.req.body.data[index].location)
+          && allVenueFields
+            .filter(Boolean)
+            .length !== allVenueFields.length) {
+          conn.req.body.data[index].rejected = true;
+          conn.req.body.data[index].reason = msg + '.';
+        }
+
+        if (conn.req.body.data[index].latitude
+          && conn.req.body.data[index].longitude
+          && !isValidGeopoint({
+            latitude: conn.req.body.data[index].latitude,
+            longitude: conn.req.body.data[index].longitude,
+          }, false)) {
+          conn.req.body.data[index].rejected = true;
+          conn.req.body.data[index].reason = msg;
+        }
       }
 
-      if (checkName
+      if (locals.templateDoc.get('attachment').hasOwnProperty('Name')
         && !conn.req.body.data[index].rejected
         && !isNonEmptyString(conn.req.body.data[index].Name)) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Missing the field 'Name'`;
       }
 
-      if (checkNumber
+      if (locals.templateDoc.get('attachment').hasOwnProperty('Number')
         && !conn.req.body.data[index].rejected
         && typeof conn.req.body.data[index].Number !== 'number') {
         conn.req.body.data[index].rejected = true;
@@ -1003,7 +1061,8 @@ const validateDataArray = (conn, locals) => {
       }
     });
 
-    if (conn.req.body.template !== templateNamesObject.OFFICE) {
+    if (conn.req.body.template
+      !== templateNamesObject.OFFICE) {
       const firstContact = locals.officeDoc.get('attachment.First Contact.value');
       const secondContact = locals.officeDoc.get('attachment.Second Contact.value');
 
@@ -1016,38 +1075,52 @@ const validateDataArray = (conn, locals) => {
       }
     }
 
-    if (checkName || checkNumber) {
-      const value =
-        conn.req.body.data[index].Name
+    if (locals.templateDoc.get('attachment').hasOwnProperty('Name')
+      || locals.templateDoc.get('attachment').hasOwnProperty('Number')) {
+      const value = conn.req.body.data[index].Name
         || conn.req.body.data[index].Number;
+
+      // const set = nameOrNumberIndex.get(value) || new Set();
+
+      // if (set.has(value)) {
+      //   conn.req.body.data[index].rejected = true;
+      //   conn.req.body.data[index].reason = 'Duplicate';
+      // }
+
+      // set.add(index);
+
+      // nameOrNumberIndex.set(value, set);
 
       if (namesSet.has(value)) {
         duplicateRowIndex = index + 1;
 
-        console.log('duplicate', value);
         toRejectAll = true;
       } else {
         namesSet.add(value);
       }
     }
 
-    if (conn.req.body.template === templateNamesObject.OFFICE) {
+    if (conn.req.body.template
+      === templateNamesObject.OFFICE) {
       const firstContact = conn.req.body.data[index]['First Contact'];
       const secondContact = conn.req.body.data[index]['Second Contact'];
       const timezone = conn.req.body.data[index].Timezone;
 
-      if (firstContact === secondContact) {
+      if (firstContact
+        === secondContact) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
           `Both contacts cannot be the same or empty`;
       }
 
-      if (!firstContact && !secondContact) {
+      if (!firstContact
+        && !secondContact) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `At least one contact is required`;
       }
 
-      if (!timezone || !timezonesSet.has(timezone)) {
+      if (!timezone
+        || !timezonesSet.has(timezone)) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Invalid/Missing timezone`;
       }
@@ -1060,7 +1133,8 @@ const validateDataArray = (conn, locals) => {
       officeContacts.set(index, contacts);
     }
 
-    if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
+    if (conn.req.body.template
+      === templateNamesObject.SUBSCRIPTION) {
       const phoneNumber = conn.req.body.data[index].Subscriber;
       const template = conn.req.body.data[index].Template;
 
@@ -1075,7 +1149,8 @@ const validateDataArray = (conn, locals) => {
       }
 
       /** Subscription of template office and subscription is not allowed for everyone */
-      if (template === 'office' || template === templateNamesObject.SUBSCRIPTION) {
+      if (template === 'office'
+        || template === templateNamesObject.SUBSCRIPTION) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
           `Subscription of template: '${template}' is not allowed`;
@@ -1102,13 +1177,15 @@ const validateDataArray = (conn, locals) => {
         subscriptionsMap.set(phoneNumber, new Set().add(template));
       }
 
-      subscriptionsToCheck.push({
-        phoneNumber: conn.req.body.data[index].Subscriber,
-        template: conn.req.body.data[index].Template,
-      });
+      subscriptionsToCheck
+        .push({
+          phoneNumber: conn.req.body.data[index].Subscriber,
+          template: conn.req.body.data[index].Template,
+        });
     }
 
-    if (conn.req.body.template === templateNamesObject.ADMIN) {
+    if (conn.req.body.template
+      === templateNamesObject.ADMIN) {
       const phoneNumber = conn.req.body.data[index].Admin;
 
       // Duplication
@@ -1122,30 +1199,27 @@ const validateDataArray = (conn, locals) => {
       adminToCheck.push(phoneNumber);
     }
 
-    if (conn.req.body.template === templateNamesObject.EMPLOYEE) {
+    if (conn.req.body.template
+      === templateNamesObject.EMPLOYEE) {
       const firstSupervisor = conn.req.body.data[index]['First Supervisor'];
       const secondSupervisor = conn.req.body.data[index]['Second Supervisor'];
+      const thirdSupervisor = conn.req.body.data[index]['Third Supervisor'];
 
-      if (!firstSupervisor && !secondSupervisor) {
+      if (!firstSupervisor
+        && !secondSupervisor
+        && !thirdSupervisor) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Please add at least one supervisor`;
       }
     }
 
-    objectProperties.forEach((property) => {
+    objectProperties.forEach(property => {
       const value = dataObject[property];
 
       if (duplicatesSet.has(value)) {
         duplicateRowIndex = index + 1;
         toRejectAll = true;
       }
-
-      // if (!allFieldsSet.has(property)) {
-      //   conn.req.body.data[index].rejected = true;
-      //   conn.req.body.data[index].reason = `Invalid property: '${property}'`;
-
-      //   return;
-      // }
 
       if (value
         && scheduleFieldsSet.has(property)
@@ -1277,11 +1351,13 @@ const validateDataArray = (conn, locals) => {
       }
     });
 
-    if (checkName) {
-      namesToCheck.push(conn.req.body.data[index].Name);
+    if (locals.templateDoc.get('attachment').hasOwnProperty('Name')) {
+      namesToCheck
+        .push(conn.req.body.data[index].Name);
     }
 
-    if (conn.req.body.template === templateNamesObject.EMPLOYEE) {
+    if (conn.req.body.template
+      === templateNamesObject.EMPLOYEE) {
       employeesToCheck.push({
         name: conn.req.body.data[index].Name,
         phoneNumber: conn.req.body.data[index]['Employee Contact'],
@@ -1332,6 +1408,7 @@ const validateDataArray = (conn, locals) => {
     .then(() => fetchTemplates(conn, locals))
     .then(() => handleAdmins(conn, locals))
     .then(() => handleSubscriptions(conn, locals))
+    .then(() => handleCustomer(conn))
     .then(() => handleUniqueness(conn, locals))
     .then(() => fetchDataForCanEditRule(conn, locals))
     .then(() => handleEmployees(conn, locals))
@@ -1380,7 +1457,8 @@ module.exports = conn => {
       .get(),
   ];
 
-  if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
+  if (conn.req.body.template
+    === templateNamesObject.SUBSCRIPTION) {
     const promise = rootCollections
       .activityTemplates
       .get();
@@ -1421,9 +1499,12 @@ module.exports = conn => {
         employeesSet: new Set(),
       };
 
-      const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
+      const attachmentFieldsSet = new Set(
+        Object.keys(locals.templateDoc.get('attachment'))
+      );
 
-      if (conn.req.body.template === templateNamesObject.SUBSCRIPTION) {
+      if (conn.req.body.template
+        === templateNamesObject.SUBSCRIPTION) {
         const templateNamesSet = new Set();
 
         templatesCollectionQuery

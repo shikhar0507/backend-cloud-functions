@@ -45,10 +45,11 @@
             \{{#if isSupport}}
             <section id="support-office-search" class="pad">
                 <div>
-                    <form autocomplete="off" id="all-office-form" class="flexed">
+                    <form autocomplete="off" id="all-office-form" class="flexed flexed-column">
                         <select class="input-field f1">
                             <option value="">Loading...</option>
                         </select>
+                        <input onclick="addNewOffice()" class="button mt-16" type="button" value="Create New Office">
                     </form>
                     <div id="office-search-results" class="hidden border animated fadeIn mt-16">
                         <p id="error" class="hidden bold col-red"></p>

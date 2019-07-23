@@ -283,7 +283,7 @@ const checkAuthorizationToken = (conn) => {
  * @param {Object} res Express Response object.
  * @returns {void}
  */
-module.exports = (req, res) => {
+module.exports = async (req, res) => {
   const allowedMethods = [
     'OPTIONS',
     'HEAD',

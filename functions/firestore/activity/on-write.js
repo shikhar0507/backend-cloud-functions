@@ -34,7 +34,6 @@ const {
 } = require('../../admin/admin');
 const {
   httpsActions,
-  vowels,
 } = require('../../admin/constants');
 const {
   sendSMS,
@@ -53,7 +52,6 @@ const {
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
-const realtimeDb = require('firebase-admin').database();
 const googleMapsClient =
   require('@google/maps')
     .createClient({
@@ -82,27 +80,6 @@ const sendEmployeeCreationSms = locals => {
   return sendSMS(phoneNumber, smsText);
 };
 
-const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
-  const updatedFields = [];
-
-  oldSchedule.forEach((item, index) => {
-    const name = item.name;
-    /** Request body ===> Update API request body. */
-    const newStartTime = newSchedule[index].startTime;
-    const newEndTime = newSchedule[index].endTime;
-    const oldStartTime = item.startTime;
-    const oldEndTime = item.endTime;
-
-    if (newEndTime === oldEndTime && newStartTime === oldStartTime) {
-      return;
-    }
-
-    updatedFields.push(name);
-  });
-
-  return updatedFields;
-};
-
 const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   const updatedFields = [];
 
@@ -128,205 +105,6 @@ const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   });
 
   return updatedFields;
-};
-
-const getUpdatedAttachmentFieldNames = (newAttachment, oldAttachment) => {
-  const updatedFields = [];
-
-  Object
-    .keys(newAttachment)
-    .forEach((field) => {
-      /** Comparing the `base64` photo string is expensive. Not doing it. */
-      if (newAttachment[field].type === 'photo') return;
-
-      const oldFieldValue = oldAttachment[field].value;
-      const newFieldValue = newAttachment[field].value;
-      const isUpdated = oldFieldValue !== newFieldValue;
-
-      if (!isUpdated) return;
-
-      updatedFields.push(field);
-    });
-
-  return updatedFields;
-};
-
-const getUpdatedFieldNames = (options) => {
-  const {
-    before,
-    after,
-  } = options;
-  const oldSchedule = before.get('schedule');
-  const oldVenue = before.get('venue');
-  const oldAttachment = before.get('attachment');
-  const newSchedule = after.get('schedule');
-  const newVenue = after.get('venue');
-  const newAttachment = after.get('attachment');
-
-  const allFields = [
-    ...getUpdatedScheduleNames(newSchedule, oldSchedule),
-    ...getUpdatedVenueDescriptors(newVenue, oldVenue),
-    ...getUpdatedAttachmentFieldNames(newAttachment, oldAttachment),
-  ];
-
-  let commentString = '';
-
-  if (allFields.length === 1) return commentString += `${allFields[0]}`;
-
-  allFields
-    .forEach((field, index) => {
-      if (index === allFields.length - 1) {
-        commentString += `& ${field}`;
-
-        return;
-      }
-
-      commentString += `${field}, `;
-    });
-
-  return commentString;
-};
-
-const getPronoun = (locals, recipient) => {
-  const addendumCreator = locals.addendumDoc.get('user');
-  const assigneesMap = locals.assigneesMap;
-  /**
-   * People are denoted with their phone numbers unless
-   * the person creating the addendum is the same as the one
-   * receiving it.
-   */
-  let pronoun = addendumCreator;
-
-  if (addendumCreator === recipient) {
-    pronoun = 'You';
-  }
-
-  if (pronoun !== 'You'
-    && assigneesMap.get(addendumCreator)
-    && assigneesMap.get(addendumCreator).displayName) {
-    pronoun = assigneesMap.get(addendumCreator).displayName;
-  }
-
-  if (!assigneesMap.get(addendumCreator)
-    && !locals.addendumCreatorInAssignees) {
-    pronoun = locals.addendumCreator.displayName;
-  }
-
-  return pronoun;
-};
-
-const getCreateActionComment = (template, pronoun, locationFromVenue) => {
-  const templateNameFirstCharacter = template[0];
-  const article = vowels.has(templateNameFirstCharacter) ? 'an' : 'a';
-
-  if (template === 'check-in'
-    && locationFromVenue) {
-    return `${pronoun} checked in from ${locationFromVenue}`;
-  }
-
-  return `${pronoun} created ${article} ${template}`;
-};
-
-const getChangeStatusComment = (status, activityName, pronoun) => {
-  /** `PENDING` isn't grammatically correct with the comment here. */
-  if (status === 'PENDING') status = 'reversed';
-
-  return `${pronoun} ${status.toLowerCase()} ${activityName}`;
-};
-
-const getCommentString = (locals, recipient) => {
-  const action = locals.addendumDoc.get('action');
-  const pronoun = getPronoun(locals, recipient);
-  const creator = locals.addendumDoc.get('user');
-  const activityName = locals.addendumDoc.get('activityName');
-  const template = locals.addendumDoc.get('activityData.template');
-
-  if (action === httpsActions.create) {
-    if (locals.addendumDoc.get('activityData.template') === 'duty roster') {
-      if (recipient === creator) {
-        return getCreateActionComment(template, pronoun);
-      }
-
-      const creatorName = (() => {
-        if (locals.assigneesMap.get('creator')
-          && locals.assigneesMap.get('creator').displayName) {
-          return locals.assigneesMap.get('creator').displayName;
-        }
-
-        return creator;
-      })();
-
-      return `${creatorName} assigned you a duty "${activityName}"`;
-    }
-
-    const locationFromVenue = (() => {
-      if (template !== 'check-in') return null;
-
-      if (locals.addendumDoc.get('venueQuery')) {
-        return locals.addendumDoc.get('venueQuery').location;
-      }
-
-      if (locals.addendumDoc.get('activityData.venue')[0].location) {
-        return locals.addendumDoc.get('activityData.venue')[0].location;
-      }
-
-      return locals.addendumDoc.get('identifier');
-    })();
-
-    return getCreateActionComment(template, pronoun, locationFromVenue);
-  }
-
-  if (action === httpsActions.changeStatus) {
-    const status = locals.addendumDoc.get('status');
-
-    return getChangeStatusComment(status, activityName, pronoun);
-  }
-
-  if (action === httpsActions.share) {
-    const share = locals.addendumDoc.get('share');
-    let str = `${pronoun} added`;
-
-    if (share.length === 1) {
-      let name = locals.assigneesMap.get(share[0]).displayName || share[0];
-
-      if (share[0] === recipient) {
-        name = 'you';
-      }
-
-      return str += ` ${name}`;
-    }
-
-    /** The `share` array will never have the `user` themselves */
-    share.forEach((phoneNumber, index) => {
-      let name = locals
-        .assigneesMap.get(phoneNumber).displayName || phoneNumber;
-      if (phoneNumber === recipient) {
-        name = 'you';
-      }
-
-      if (share.length - 1 === index) {
-        str += ` & ${name}`;
-
-        return;
-      }
-
-      str += ` ${name}, `;
-    });
-
-    return str;
-  }
-
-  if (action === httpsActions.update) {
-    const options = {
-      before: locals.change.before,
-      after: locals.change.after,
-    };
-
-    return `${pronoun} updated ${getUpdatedFieldNames(options)}`;
-  }
-
-  /** Action is `comment` */
-  return locals.addendumDoc.get('comment');
 };
 
 const handleAdmin = (locals) => {
@@ -1272,7 +1050,8 @@ const handleEmployee = locals => {
   };
 
   if (hasBeenCreated) {
-    profileData.lastLocationMapUpdateTimestamp = Date.now();
+    profileData
+      .lastLocationMapUpdateTimestamp = Date.now();
   }
 
   batch
@@ -1298,41 +1077,6 @@ const handleEmployee = locals => {
     .then(() => handleMonthlyDocs(locals, hasBeenCancelled))
     .then(() => createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled))
     .then(() => handleEmployeeSupervisors(locals))
-    .then(() => {
-      // Manages cancelled employees
-      if (!hasBeenCancelled) {
-        return Promise.resolve();
-      }
-
-      const ref = realtimeDb
-        .ref(`${officeId}/${template}-cancelled/${phoneNumber}`);
-
-      return new Promise((resolve, reject) => {
-        const data = locals.change.after.data();
-
-        delete data.addendumDocRef;
-        data
-          .createTime = locals
-            .change
-            .after
-            .createTime
-            .toDate()
-            .getTime();
-        data
-          .updateTime = locals
-            .change
-            .after
-            .updateTime
-            .toDate()
-            .getTime();
-
-        ref.set(data, error => {
-          if (error) reject(error);
-
-          resolve();
-        });
-      });
-    })
     .catch(console.error);
 };
 
@@ -1725,6 +1469,9 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
     .doc(officeId)
     .collection('Addendum')
     .doc();
+
+  const gp = adjustedGeopoint(branchData.venue[0].geopoint);
+
   const activityData = {
     officeId,
     addendumDocRef,
@@ -1745,7 +1492,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
       templateName: 'branch',
       requester: locals.change.after.get('creator'),
     }),
-    adjustedGeopoints: adjustedGeopoint(branchData.venue[0].geopoint),
+    adjustedGeopoints: `${gp.latitude},${gp.longitude}`,
   };
 
   const addendumDocData = {
@@ -2053,7 +1800,7 @@ module.exports = (change, context) => {
       const allAdminPhoneNumbersSet = new Set(
         adminsSnapShot
           .docs
-          .map((doc) => doc.get('attachment.Admin.value'))
+          .map(doc => doc.get('attachment.Admin.value'))
       );
 
       if (addendumDoc) {
@@ -2062,7 +1809,7 @@ module.exports = (change, context) => {
 
       const authFetch = [];
 
-      assigneesSnapShot.forEach((doc) => {
+      assigneesSnapShot.forEach(doc => {
         if (addendumDoc
           && doc.id === addendumDoc.get('user')) {
           locals.addendumCreatorInAssignees = true;
@@ -2097,7 +1844,7 @@ module.exports = (change, context) => {
 
       return Promise.all(authFetch);
     })
-    .then((userRecords) => {
+    .then(userRecords => {
       userRecords.forEach((userRecord) => {
         const phoneNumber = Object.keys(userRecord)[0];
         const record = userRecord[`${phoneNumber}`];
@@ -2152,7 +1899,7 @@ module.exports = (change, context) => {
           const result = [];
 
           locals
-            .assigneePhoneNumbersArray.forEach((phoneNumber) => {
+            .assigneePhoneNumbersArray.forEach(phoneNumber => {
               let displayName = '';
               let photoURL = '';
 
@@ -2178,71 +1925,6 @@ module.exports = (change, context) => {
           activityData
         );
       });
-
-      return batch;
-    })
-    .then((batch) => {
-      /**
-       * Skipping comment creation for the case when the activity
-       * is not visible in the front-end.
-       *
-       * OR when the addendumDocRef field is set to `null`.
-       */
-      if (change.after.get('hidden') === 1) return batch;
-      /**
-       * When activity is not updated via an https function, we update the
-       * set the `addendumDocRef` as `null`.
-       */
-      if (!locals.addendumDoc) return batch;
-
-      /**
-       * Checks if the action was a comment.
-       * @param {string} action Can be one of the activity actions from HTTPS functions.
-       * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
-       */
-      const isComment = (action) => {
-        // Making this a closure since this function is not going to be used anywhere else.
-        if (action === httpsActions.comment) return 1;
-
-        return 0;
-      };
-
-      locals
-        .assigneePhoneNumbersArray
-        .forEach((phoneNumber) => {
-          /** Without `uid` the doc in `Updates/(uid)` will not exist. */
-          if (!locals.assigneesMap.get(phoneNumber).uid) return;
-          /**
-           * If the person has used up all their leaves, for the `create`/`update`
-           * flow, the comment created for them  will be from this function
-           */
-          const comment = (() => {
-            if (locals.addendumDoc && locals.addendumDoc.get('cancellationMessage')) {
-              return locals.addendumDoc.get('cancellationMessage');
-            }
-
-            return getCommentString(locals, phoneNumber);
-          })();
-
-          batch.set(rootCollections
-            .updates
-            .doc(locals.assigneesMap.get(phoneNumber).uid)
-            .collection('Addendum')
-            /**
-             * Handless duplicate addendum creation. Occasionally, the `activityOnWrite`
-             * function triggers twice/multiple times for a single write resulting in
-             * multiple addendum being created with the same text.
-             */
-            .doc(locals.addendumDoc.id), {
-              comment,
-              activityId,
-              timestamp: Date.now(),
-              isComment: isComment(locals.addendumDoc.get('action')),
-              userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-              location: locals.addendumDoc.get('location'),
-              user: locals.addendumDoc.get('user'),
-            });
-        });
 
       return batch;
     })

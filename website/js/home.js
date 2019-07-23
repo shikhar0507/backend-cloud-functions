@@ -1249,6 +1249,10 @@ function sendBulkCreateJson(jsonData) {
     template: document.querySelector('.bc-container select').value,
   };
 
+  if (window.creatingOffice) {
+    requestBody.template = 'office';
+  }
+
   getLocation()
     .then(function (location) {
       requestBody.geopoint = location;
@@ -1259,6 +1263,8 @@ function sendBulkCreateJson(jsonData) {
       return response.json();
     })
     .then(function (response) {
+      delete window.creatingOffice;
+
       populateBulkCreationResult(response);
     })
     .catch(console.error);
@@ -1915,6 +1921,43 @@ function manageTemplates() {
     .catch(function (error) {
       createSnackbar(error);
     });
+}
+
+function addNewOffice() {
+  // support-office-search
+  const supportSearch = document.querySelector('#support-office-search');
+
+  supportSearch.remove();
+
+  removeAllChildren(document.querySelector('.bc-results-list'));
+
+  document
+    .querySelector('.bc-file-drag')
+    .classList
+    .remove('hidden');
+
+  const bcContainer = document
+    .querySelector('.bc-container');
+
+  document
+    .querySelector('.bc-container')
+    .style
+    .minHeight = '200px';
+
+  document
+    .querySelector('.bc-container')
+    .classList
+    .remove('hidden');
+
+  window.creatingOffice = true;
+
+  const fileDragInput = bcContainer.querySelector('input[type="file"]');
+
+  fileDragInput.onchange = handleExcelOrCsvFile;
+
+  // const jsonData = {};
+
+  // sendBulkCreateJson(jsonData);
 }
 
 function windowOnLoad() {
