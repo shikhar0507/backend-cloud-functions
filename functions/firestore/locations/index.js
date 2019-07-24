@@ -8,6 +8,7 @@ const {
   toMapsUrl,
 } = require('../../firestore/recipients/report-utils');
 const momentTz = require('moment-timezone');
+const admin = require('firebase-admin');
 
 /**
  * Queries the Offices/officeId/Addendum collection for
@@ -67,6 +68,7 @@ module.exports = async (snap, context) => {
     batchesArray[
       batchIndex
     ].set(doc.ref, {
+      venueQuery: admin.firestore.FieldValue.delete(),
       distanceAccurate: true,
       url: toMapsUrl({
         latitude: locationObject.latitude,
