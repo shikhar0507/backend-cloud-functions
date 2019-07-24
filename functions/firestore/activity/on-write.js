@@ -52,6 +52,9 @@ const {
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const {
+  google
+} = require('googleapis');
 const googleMapsClient =
   require('@google/maps')
     .createClient({
@@ -406,153 +409,121 @@ const createAutoSubscription = (locals, templateName, subscriber) => {
     });
 };
 
-const handleXTypeTemplates = locals => {
-  const template = locals.change.after.get('template');
-  const hasBeenCreated = !locals.change.before.data() && locals.change.after.data();
-
-  if (!hasBeenCreated) return Promise.resolve();
-
-  const templateNameParts = template.split('-');
-  const lastPart = templateNameParts[templateNameParts.length - 1];
-
-  if (lastPart !== 'type') {
+const handleXTypeActivities = async locals => {
+  if (locals.change.after.get('template') !== 'subscription') {
     return Promise.resolve();
   }
 
-  const assigneeFetchPromises = [];
-  const officeId = locals.change.after.get('officeId');
-  const assigneeSet = new Set();
-  const adminsSet = new Set();
-
-  return Promise
-    .all([
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Activities')
-        .where('template', '==', 'subscription')
-        .where('attachment.Template.value', '==', template[0])
-        .get(),
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Activities')
-        .where('template', '==', 'admin')
-        .where('status', '==', 'CONFIRMED')
-        .get()
-    ])
-    .then(result => {
-      const [
-        subscriptionActivities,
-        adminActivities,
-      ] = result;
-
-      adminActivities.forEach(doc => {
-        const admin = doc.get('attachment.Admin.value');
-
-        adminsSet.add(admin);
-      });
-
-      subscriptionActivities.forEach(doc => {
-        const promise = doc.ref.collection('Assignees').get();
-        assigneeFetchPromises.push(promise);
-      });
-
-      return Promise.all(assigneeFetchPromises);
-    })
-    .then(snapShots => {
-      snapShots.forEach(snapShot => {
-        snapShot.forEach(doc => {
-          const phoneNumber = doc.id;
-
-          assigneeSet.add(phoneNumber);
-        });
-      });
-
-      const batch = db.batch();
-
-      assigneeSet.forEach(phoneNumber => {
-        const ref = locals
-          .change
-          .after
-          .ref
-          .collection('Assignees')
-          .doc(phoneNumber);
-
-        batch.set(ref, {
-          canEdit: adminsSet.has(phoneNumber),
-          addToInclude: false,
-        });
-      });
-
-      return batch.commit();
-    });
-};
-
-const autoAssignFlow = locals => {
-  const template = locals.change.after.get('template');
-  const status = locals.change.after.get('status');
-
-  if (template !== 'subscription'
-    || status === 'CANCELLED') {
-    return Promise.resolve();
-  }
-
-  /**
-   * Subscriber will become an assignee of all the activities
-   * where template = '${attachment.Template.value-type}'
-   * where office = subscription activity office
-   *
-   * e.g, subscription of template customer
-   * fetch all template = customer-type activities
-   * and status = confirmed
-   * make the subscriber of this template as an assignee
-   * of the fetched activities
-   */
-  const batch = db.batch();
-  const officeId = locals.change.after.get('officeId');
-  const subscribedTemplate = locals.change.after.get('attachment.Template.value');
-  const subscriberPhoneNumber = locals.change.after.get('attachment.Subscriber.value');
-
-  const isAdmin = phoneNumber => {
-    return locals.adminsCanEdit.includes(phoneNumber);
+  const getAuth = async phoneNumber => {
+    try {
+      return await auth.getUserByPhoneNumber(phoneNumber);
+    } catch (error) {
+      if (error.code === 'auth/user-not-found'
+        || error.code === 'auth/invalid-phone-number') {
+        return {
+          phoneNumber,
+        };
+      }
+    }
   };
 
-  /**
-   * Adds the subscriber to template-type activities so that
-   * they can get the option of selecting the type while creating
-   * a template activity.
-   */
-  return rootCollections
+  const template = locals.change.after.get('attachment.Template.value');
+  const officeId = locals.change.after.get('officeId');
+  const typeActivities = await rootCollections
     .offices
     .doc(officeId)
     .collection('Activities')
-    .where('template', '==', `${subscribedTemplate}-type`)
     .where('status', '==', 'CONFIRMED')
-    .get()
-    .then(snapShot => {
-      snapShot.forEach(doc => {
-        const activityId = doc.id;
-        const activityRef = rootCollections.activities.doc(activityId);
+    .where('template', '==', `${template}-type`)
+    .get();
 
-        batch.set(activityRef, {
-          timestamp: Date.now(),
-          addendumDocRef: null,
-        }, {
-            merge: true,
-          });
+  const subscriber = locals.change.after.get('attachment.Subscriber.value');
+  const assigneesFetch = [];
+  const authFetch = [];
+  const assigneeMap = new Map();
+  const assigneesPhoneNumbers = new Set();
+  const userRecordMap = new Map();
 
-        batch
-          .set(activityRef.collection('Assignees').doc(subscriberPhoneNumber), {
-            canEdit: isAdmin(subscriberPhoneNumber),
-            addToInclude: false,
-          }, {
-              merge: true,
-            });
+  typeActivities.forEach(activity => {
+    const assigneeFetch = rootCollections
+      .activities
+      .doc(activity.id)
+      .collection('Assignees')
+      .get();
+
+    assigneeMap.set(activity.id, new Set());
+    assigneesFetch.push(assigneeFetch);
+  });
+
+  const snaps = await Promise.all(assigneesFetch);
+
+  snaps.forEach(snap => {
+    snap.forEach(doc => {
+      assigneesPhoneNumbers.add(doc.id);
+
+      const activityId = doc.ref.path.split('/')[1];
+      const set = assigneeMap.get(activityId);
+
+      set.add(doc.id);
+      set.add(subscriber);
+
+      assigneeMap.set(activityId, set);
+    });
+  });
+
+  assigneesPhoneNumbers.forEach(phoneNumber => {
+    authFetch.push(getAuth(phoneNumber));
+  });
+
+  const userRecords = await Promise.all(authFetch);
+
+  userRecords.forEach(userRecord => {
+    const {
+      uid,
+      phoneNumber,
+      displayName,
+      photoURL,
+    } = userRecord;
+
+    userRecordMap.set(phoneNumber, { uid, displayName, photoURL });
+  });
+
+  console.log('userRecordMap', userRecordMap);
+  console.log('assigneeMap', assigneeMap);
+
+  // if subscription is created/updated
+  // fetch all x-type activities from
+  // Offices/(officeId)/Activities
+  // Put those activities in the subscriber path
+  // Profiles/(subscriber)/Activities/{x-type activityId}/
+  const batch = db.batch();
+
+  typeActivities.forEach(activity => {
+    const activityData = activity.data();
+
+    delete activityData.addendumDocRef;
+
+    activityData.assignees = (() => {
+      const result = [];
+
+      const phoneNumbers = assigneeMap.get(activity.id);
+      phoneNumbers.forEach(phoneNumber => {
+        const auth = userRecordMap.get(phoneNumber);
+
+        result.push({
+          phoneNumber,
+          displayName: auth.displayName || '',
+          photoURL: auth.photoURL || '',
+        });
       });
 
-      return batch.commit();
-    });
+      return result;
+    })();
+
+    batch.set(activity.ref, activityData, { merge: true });
+  });
+
+  return batch.commit();
 };
 
 const handleCanEditRule = (locals, templateDoc) => {
@@ -658,13 +629,13 @@ const handleSubscription = locals => {
           batch
             .commit(),
           handleCanEditRule(locals, templateDoc),
-          autoAssignFlow(locals),
+          handleXTypeActivities(locals)
         ]);
     })
     .catch(console.error);
 };
 
-const removeFromOfficeActivities = (locals) => {
+const removeFromOfficeActivities = locals => {
   const activityDoc = locals.change.after;
   const {
     status,
@@ -866,7 +837,6 @@ const handleEmployeeSupervisors = locals => {
         log.ids.push(doc.id);
 
         batch.set(doc.ref, {
-          timestamp: Date.now(),
           addendumDocRef: null,
         }, {
             merge: true,
@@ -1595,6 +1565,64 @@ const createBranches = (locals) => {
     .catch(console.error);
 };
 
+const mangeYouTubeDataApi = async locals => {
+  const template = locals.change.after.get('template');
+
+  if (template !== 'office') {
+    return Promise.resolve();
+  }
+
+  if (!env.isProduction) {
+    return Promise.resolve();
+  }
+
+  const youtube = google.youtube('v3');
+
+  const auth = await google.auth.getClient({
+    credentials: require('../../admin/cert.json'),
+    scopes: [
+      'https://www.googleapis.com/auth/youtube.force-ssl',
+      'https://www.googleapis.com/auth/youtube'
+    ],
+  });
+
+  const id = locals.change.after.get('attachment.Youtube ID.value');
+
+  if (!id) {
+    return Promise.resolve();
+  }
+
+  const oldTitle = locals.change.before.get('office');
+  const newTitle = locals.change.after.get('office');
+  const oldDescription = locals.change.before.get('attachment.Description.value');
+  const newDescription = locals.change.after.get('attachment.Description.value');
+
+  if (oldTitle === newTitle
+    && oldDescription === newDescription) {
+    return Promise.resolve();
+  }
+
+  const opt = {
+    auth,
+    part: 'snippet',
+    requestBody: {
+      id,
+      snippet: {
+        categoryId: 22, // People & Blogs
+        title: newTitle,
+        description: newDescription,
+      },
+    },
+  };
+
+
+  try {
+    return await youtube.videos.update(opt);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 
 const handleOffice = (locals) => {
   const template = locals.change.after.get('template');
@@ -1613,7 +1641,8 @@ const handleOffice = (locals) => {
     .then(() => createAutoSubscription(locals, 'subscription', secondContact))
     .then(() => createAdmin(locals, firstContact))
     .then(() => createAdmin(locals, secondContact))
-    .then(() => createBranches(locals));
+    .then(() => createBranches(locals))
+    .then(() => mangeYouTubeDataApi(locals));
 };
 
 const setLocationsReadEvent = locals => {
@@ -1991,7 +2020,6 @@ module.exports = (change, context) => {
     .then(() => handleEmployee(locals))
     .then(() => handleOffice(locals))
     .then(() => handleLocations(locals))
-    .then(() => handleXTypeTemplates(locals))
     .catch(error => {
       console.error({
         error,
