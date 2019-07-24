@@ -600,12 +600,14 @@ function getActivityEditForm(doc) {
         input = document.createElement('select');
         const yes = document.createElement('option');
         const no = document.createElement('option');
+      
         yes.textContent = 'Yes';
         no.textContent = 'No';
         yes.value = true;
         no.value = false;
-
         input.append(yes, no);
+
+        input.value = value || false;
       }
 
       if (type === 'weekday') {

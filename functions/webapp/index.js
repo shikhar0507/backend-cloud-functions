@@ -145,7 +145,7 @@ const getLoggedInStatus = idToken => {
       if (isAdmin) {
         adminOffices = customClaims.admin;
       }
-
+     
       return {
         isAdmin,
         customClaims,
