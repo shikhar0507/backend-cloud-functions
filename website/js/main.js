@@ -490,7 +490,7 @@ function initializeTelInput(inputElement) {
     initialCountry: 'IN',
     nationalMode: false,
     formatOnDisplay: true,
-    customContainer: 'mb-16',
+    customContainer: 'mb-16 mt-16 mw-100',
     separateDialCode: true,
     customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
       window.countryCode = selectedCountryData.dialCode;

@@ -1545,12 +1545,14 @@ function updateEmailInReports() {
   const heading = document.createElement('h5');
   heading.className = 'ft-size-20 ttuc tac bold mb-16';
   heading.textContent = 'Update Report Recipients';
+
   const div = document.createElement('div');
   div.classList.add('grid-container-1', 'gg-5');
-  container.append(heading, div);
+  container.append(heading, div,getSpinnerElement('report-spinner').center());
   document
     .querySelector('.forms-parent')
     .appendChild(container);
+
 
   const requestUrl = `/json?template=recipient` +
     `&office=${document.body.dataset.office}`;
@@ -1563,6 +1565,7 @@ function updateEmailInReports() {
     })
     .then(function (response) {
       console.log('Response', response);
+      document.getElementById('report-spinner').remove()
 
       Object
         .keys(response)
@@ -1573,6 +1576,7 @@ function updateEmailInReports() {
         });
     })
     .catch(function (error) {
+      document.getElementById('report-spinner').remove()
       createSnackbar(error);
     });
 }
@@ -1714,7 +1718,7 @@ function triggerReports() {
   dateInput.valueAsDate = new Date();
   dateInput.className += ' input-field';
 
-  const submit = document.querySelector('input');
+  const submit = document.createElement('input');
   submit.type = 'button';
   submit.value = 'Submit';
   // submit.classList.add('button');
