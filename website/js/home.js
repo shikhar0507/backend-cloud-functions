@@ -1730,7 +1730,7 @@ function triggerReports() {
 
   const form = document.createElement('form');
 
-  form.className += 'pad raised flexed-column';
+  form.className += 'pad raised flexed-column hidden';
 
   const head = document.createElement('div');
   const h5 = document.createElement('h5');
@@ -1740,7 +1740,7 @@ function triggerReports() {
   description.textContent = '';
   description.className += ` col-gray`;
 
-  head.append(h5, description);
+  head.append(h5, description,getSpinnerElement('report-spinner').center());
 
   head.classList.add('tac');
   form.append(select, dateInput, submit);
@@ -1758,20 +1758,23 @@ function triggerReports() {
     })
     .then(function (response) {
       console.log('response', response);
-
+      document.getElementById('report-spinner').remove()
       const nonCancelledReports = []
-      Object.keys(response).map(function (id) {
+      Object.keys(response).forEach(function (id) {
         if (hiddenReports[response[id].attachment.Name.value]) return;
         if (response[id].status === 'CANCELLED') return
 
-        nonCancelledReports.push(response)
+        nonCancelledReports.push(response[id])
 
       })
       if(!nonCancelledReports.length) {
-        description.textContent = 'No Report Found';
+        description.textContent = 'No Reports Found';
         description.classList.add('error')
+        
         return;
       }
+      description.textContent = 'Select a date to get reports to your email';
+      form.classList.remove('hidden')
       console.log(nonCancelledReports)
       nonCancelledReports
         .forEach(function (item) {
@@ -1784,6 +1787,8 @@ function triggerReports() {
       submit.onclick = recipientSubmitOnClick;
     })
     .catch(function (error) {
+      document.getElementById('report-spinner').remove()
+
       createSnackbar(error);
     });
 }
