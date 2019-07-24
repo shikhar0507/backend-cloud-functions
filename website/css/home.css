@@ -1,6 +1,5 @@
 .container {
-    max-width: 1200px;
-    background: white;
+    padding-top: 60px;
 }
 
 .breadcrumbs {
@@ -343,6 +342,7 @@ section h1 {
     transition: all 1s;
     color: #FFFFFF;
     font-size: 100px;
+    margin-bottom: 20px;
 }
 
 .bc-file-drag:hover {
@@ -433,9 +433,6 @@ aside {
 }
 
 @media (min-width: 768px) {
-    main {
-        margin-top: 16px;
-    }
 
     .template-list {
         margin-left: auto;
