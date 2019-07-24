@@ -359,9 +359,7 @@ section h1 {
     opacity: 0;
     cursor: pointer;
 }
-.bc-results h5 {
-    color: lightgreen;
-}
+
 .bc-results-list {
     max-height: 50vh;
     overflow-y: auto;

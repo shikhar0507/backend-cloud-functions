@@ -69,9 +69,9 @@ function hideActionsSection() {
 function addBreadCrumb(breadcrumbName) {
   const ul = document.querySelector('.breadcrumbs ul');
   const li = document.createElement('li');
-  li.onclick = function () {  
+  li.onclick = function () {
     const lastLi = ul.lastElementChild
-    if(lastLi == li) return;
+    if (lastLi == li) return;
     document.getElementById('actions-section').classList.remove('hidden')
     const formsParent = document.querySelector('.forms-parent')
     formsParent.classList.remove('pad')
@@ -1151,80 +1151,83 @@ function joinFormSelfPhoneOnInput(evt) {
   startOfficeJoinFlow();
 }
 
-function populateTemplateSelect(selectElement) {
-  return sendApiRequest(`/json?action=get-template-names`)
-    .then(function (response) {
-      return response.json();
-    })
-    .then(function (response) {
-      selectElement.firstElementChild.remove();
 
-      response.forEach(function (name) {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        selectElement.appendChild(option);
-      });
 
-      selectElement.onchange = function () {
-        removeAllChildren(document.querySelector('.bc-results-list'));
-        document.getElementById('download-sample').href = '/json?action=get-template-xlsx&templateName='+selectElement.value
+function populateTemplateSelect(selectElement, defaultValue) {
 
-        document
-          .querySelector('.bc-file-drag')
-          .classList
-          .remove('hidden');
 
-        document
-          .querySelector('.bc-container')
-          .style
-          .minHeight = '200px';
-      };
-      selectElement.value = response[0]
-      selectElement.onchange()
+  selectElement.onchange = function () {
+    removeAllChildren(document.querySelector('.bc-results-list'));
+    document.getElementById('download-sample').href = '/json?action=get-template-xlsx&templateName=' + selectElement.value
+    document.querySelector('.bc-results').classList.add('hidden')
+    document
+      .querySelector('.bc-file-drag')
+      .classList
+      .remove('hidden');
 
-    })
-    .catch(console.error);
+    document
+      .querySelector('.bc-container')
+      .style
+      .minHeight = '200px';
+  };
+  selectElement.value = defaultValue;
+  selectElement.onchange()
+
 }
 
-function getBulkCreateResultLi(item) {
-  
+function getBulkCreateResultLi(item, rowNumber) {
+
   const container = document.createElement('li');
-  container.classList.add('success', 'flexed-column','failure','raised');
+  container.classList.add('success', 'flexed-column', 'failure', 'raised');
   const firstRow = document.createElement('span');
   const secondRow = document.createElement('span');
   const thirdRow = document.createElement('span')
   firstRow.textContent = item.Name || item.Admin || item.Subscriber;
   secondRow.textContent = item.reason || '';
-  thirdRow.textContent = 'at row number ' + item.__rowNum__
-  container.append(firstRow, secondRow);
-  
+  thirdRow.textContent = 'Error at row number ' + rowNumber
+  container.append(firstRow, secondRow, thirdRow);
+
   return container;
 }
 
-function populateBulkCreationResult(response) {
+function setMessageForBulkCreate(message, className) {
+  const resultHeading = document.querySelector('.bc-results h5 span')
+  resultHeading.textContent = message;
+  resultHeading.className = className
+}
+
+function populateBulkCreationResult(response, originalJson) {
   document
     .querySelector('.bc-results')
     .classList
     .remove('hidden');
-  document.querySelector('.bc-results h5').textContent = 'Result : '+response.totalDocsCreated
-  const ul = document.querySelector('.bc-results-list');
-  const rejectedRows = response.data.filter(function(item){
+
+  const rejectedRows = response.data.filter(function (item) {
     return item.rejected
   })
- 
-  rejectedRows.forEach(function (item, index) {  
-    const li = getBulkCreateResultLi(item);
+  if (!rejectedRows.length) {
+    setMessageForBulkCreate('Success', 'success')
+    return;
+  }
+  setMessageForBulkCreate('Error', 'error')
+
+  const ul = document.querySelector('.bc-results-list');
+  removeAllChildren(ul);
+
+
+
+  rejectedRows.forEach(function (item, index) {
+    const rowNumber = originalJson[index].__rowNum__
+    const li = getBulkCreateResultLi(item, rowNumber);
     if (index === 0) {
       li.tabIndex = 0;
     }
-
     ul.appendChild(li);
   });
 }
 
 
-function sendBulkCreateJson(jsonData) {
+function sendBulkCreateJson(jsonData, templateName) {
   console.log('jsonData:', jsonData);
 
   let requestUrl = `${apiBaseUrl}/admin/bulk`;
@@ -1237,13 +1240,9 @@ function sendBulkCreateJson(jsonData) {
     timestamp: Date.now(),
     office: document.body.dataset.office,
     data: jsonData,
-    template: document.querySelector('.bc-container select').value,
+    template: templateName
   };
 
-
-  if (window.creatingOffice) {
-    requestBody.template = 'office';
-  }
 
   getLocation()
     .then(function (location) {
@@ -1254,28 +1253,31 @@ function sendBulkCreateJson(jsonData) {
       return response.json();
     })
     .then(function (response) {
-      delete window.creatingOffice;
-      populateBulkCreationResult(response);
+
+      populateBulkCreationResult(response, jsonData);
       removeFileSpinner()
     })
-    .catch(function(error){
+    .catch(function (error) {
       console.log(error)
+      setMessageForBulkCreate(error.message, 'error')
       removeFileSpinner()
     });
 }
 
 function showFileSpinner() {
-  const parent =  document.querySelector('.bc-file-drag')
+  const parent = document.querySelector('.bc-file-drag')
   parent.appendChild(getSpinnerElement('file-upload-spin').center())
   parent.querySelector('i').classList.add('hidden');
 }
-function removeFileSpinner(){
- document.getElementById("file-upload-spin").remove()
- document.querySelector('.bc-file-drag i').classList.remove('hidden');
+
+function removeFileSpinner() {
+  document.getElementById("file-upload-spin").remove()
+  document.querySelector('.bc-file-drag i').classList.remove('hidden');
 }
 
-function handleExcelOrCsvFile(element) {
+function handleExcelOrCsvFile(element, templateName) {
   showFileSpinner()
+
   const file = element.target.files[0];
   const fReader = new FileReader();
 
@@ -1295,7 +1297,9 @@ function handleExcelOrCsvFile(element) {
     });
 
     console.log(jsonData)
-    sendBulkCreateJson(jsonData);
+    sendBulkCreateJson(jsonData, templateName);
+    element.target.value = null;
+
   };
 }
 
@@ -1314,7 +1318,7 @@ function bulkdCreateDom() {
     <a class='button' href='#' id='download-sample' target="_blank">Download Sample</a>
   </form>
   <div class="bc-results hidden mt-16">
-      <h5 class="bold ttuc"></h5>
+      <h5 class="bold ttuc">Result : <span class='result-value'></span></h5>
       <div>
           <ul class="bc-results-list"> </ul>
       </div>
@@ -1327,21 +1331,44 @@ function bulkCreate() {
   hideActionsSection();
   const formParent = document.querySelector('.forms-parent');
   formParent.innerHTML = bulkdCreateDom();
+
   const selectElement = document.getElementById('create-new-template-select');
-
-  populateTemplateSelect(selectElement)
-    .then(function () {
-
+  sendApiRequest(`/json?action=get-template-names`)
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      selectElement.firstElementChild.remove()
+      addOptionToSelect(response, selectElement);
+      populateTemplateSelect(selectElement, response[0])
       const fileDragInput = document.getElementById('bulk-upload')
-      fileDragInput.onchange = handleExcelOrCsvFile;
-    });
-
+      fileDragInput.onchange = function (event) {
+        handleExcelOrCsvFile(event, selectElement.value);
+      };
+    }).catch(console.error)
 }
 
 
-function createExcelSheet(selectElement) {
+function addNewOffice() {
+  addBreadCrumb('Create New Office')
+  document.getElementById('support-office-search').remove()
+  const formParent = document.querySelector('.forms-parent');
+  formParent.innerHTML = bulkdCreateDom();
+  
+  const selectElement = document.getElementById('create-new-template-select');
+  selectElement.classList.add('hidden')
+  selectElement.firstElementChild.remove()
+ 
+  addOptionToSelect(['office'], selectElement);
+  populateTemplateSelect(selectElement, 'office')
+
+  const fileDragInput = document.getElementById('bulk-upload')
+  fileDragInput.onchange = function (event) {
+    handleExcelOrCsvFile(event, selectElement.value);
+  };
 
 }
+
 
 function recipientAssigneeUpdateOnClick(evt) {
   const container = document
@@ -1967,39 +1994,6 @@ function manageTemplates() {
     });
 }
 
-function addNewOffice() {
-  // support-office-search
-  const formParent = document.querySelector('.forms-parent');
-  formParent.innerHTML = bulkdCreateDom();
-  document.getElementById('create-new-template-select').remove();
-  document.querySelector('.bc-file-drag').classList.remove('hidden')
-
-  const supportSearch = document.querySelector('#support-office-search');
-
-  supportSearch.remove();
-
-  removeAllChildren(document.querySelector('.bc-results-list'));
-
- 
-
-  const bcContainer = document
-    .querySelector('.bc-container');
-
-  document
-    .querySelector('.bc-container')
-    .style
-    .minHeight = '200px';
-
-  window.creatingOffice = true;
-
-  const fileDragInput = bcContainer.querySelector('input[type="file"]');
-
-
-  fileDragInput.onchange = handleExcelOrCsvFile;
-
-  // const jsonData = {};
-  // sendBulkCreateJson(jsonData);
-}
 
 function windowOnLoad() {
   const officeSelect = document.querySelector('#all-office-form');

@@ -814,6 +814,13 @@ input:disabled {
     opacity: 0;
 }
 
+.error {
+    color: red;
+}
+.success {
+    color: lightgreen
+}
+
 @keyframes progress-bar_fill {
     0% {
         transform: scaleX(0) translateX(0);

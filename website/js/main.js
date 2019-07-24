@@ -160,7 +160,16 @@ function createModal(actionContent) {
   div.appendChild(content)
   return div;
 }
+function addOptionToSelect(data,el,defaultValue){
 
+  data.forEach(function (name) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    el.appendChild(option);
+  });
+  if(defaultValue) el.value = defaultValue
+}
 function isDomElementString(el) {
   return typeof el == 'string';
 }
