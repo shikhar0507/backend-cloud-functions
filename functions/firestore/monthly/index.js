@@ -4,12 +4,12 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 
-module.exports = (change, context) => {
+module.exports = async (change, context) => {
   const {
-    statusObject,
     month,
     year,
     phoneNumber,
+    statusObject,
   } = change.after.data();
 
   Object
@@ -19,12 +19,23 @@ module.exports = (change, context) => {
       statusObject[date].year = year;
     });
 
+  const profileDoc = await rootCollections.profiles.doc(phoneNumber).get();
+  const employeeOf = profileDoc.get('employeeOf') || {};
+  const officeIdList = Object.values(employeeOf);
+  const officeIdIndex = officeIdList.indexOf(context.params.officeId);
+
+  if (officeIdIndex === -1) {
+    return Promise.resolve();
+  }
+
+  const officeName = Object.keys(employeeOf)[officeIdIndex];
+
   return rootCollections
     .profiles
     .doc(phoneNumber)
     .set({
       statusObject: {
-        [context.params.officeId]: statusObject,
+        [officeName]: statusObject,
       }
     }, {
         merge: true,
