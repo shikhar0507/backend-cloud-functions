@@ -37,13 +37,7 @@ function isTemplateManager() {
   return JSON.parse(document.body.dataset.user || {}).isTemplateManager;
 }
 
-function removeAllChildren(element) {
-  if (!element || !element.firstChild) return;
 
-  while (element.firstChild) {
-    element.firstChild.remove();
-  }
-}
 
 function showActionsSection() {
   document
@@ -66,55 +60,26 @@ function hideActionsSection() {
     .add('hidden');
 }
 
-function setBreadcrumb(action) {
+function addBreadCrumb(breadcrumbName) {
   const ul = document.querySelector('.breadcrumbs ul');
-
-  removeAllChildren(ul);
-
-  const home = document.createElement('li');
-  const homeA = document.createElement('a');
-
-  homeA.textContent = document.body.dataset.office || 'Home';
-  homeA.href = '#';
-
-  homeA.onclick = function (evt) {
-    evt.preventDefault();
-
-    showActionsSection();
-    setBreadcrumb();
-    removeAllChildren(document.querySelector('.forms-parent'));
-
-    document
-      .querySelector('.hero-actions')
-      .classList
-      .toggle('hidden');
-  };
-
-  home.appendChild(homeA);
-
   const li = document.createElement('li');
+  li.onclick = function () {
+    const lastLi = ul.lastElementChild
+    if (lastLi == li) return;
+    document.getElementById('actions-section').classList.remove('hidden')
+    const formsParent = document.querySelector('.forms-parent')
+    formsParent.classList.remove('pad')
+    removeAllChildren(formsParent)
+    ul.removeChild(ul.lastElementChild);
+  };
   const a = document.createElement('a');
-  a.textContent = action;
-  a.href = '#';
-
-  /** Do nothing since this path is open already for the user */
-  a.onclick = function (evt) { evt.preventDefault(); };
-  a.classList.add('bold');
-  li.appendChild(a);
-  ul.append(home);
-
-  if (action) {
-    ul.appendChild(li);
-  }
+  a.textContent = breadcrumbName;
+  li.appendChild(a)
+  ul.appendChild(li)
 }
 
-function setActionTitle(text) {
-  document
-    .querySelector('.action-title')
-    .textContent = text;
 
-  if (text) setBreadcrumb(text);
-}
+
 
 function handleTopSelectTemplateClick(evt) {
   console.log('handleTopSelectTemplateClick', evt);
@@ -131,7 +96,7 @@ function allOfficeSelectOnChange() {
 
   // showActionsSection();
   toggleActionsSection();
-  setBreadcrumb(null);
+  addBreadCrumb(office);
 }
 
 function fetchOfficeList() {
@@ -224,8 +189,8 @@ function startAdmin() {
 function handlePhoneNumberChange() {
   const form = document.querySelector('.pnc-form');
   const requestBody = {
-    oldPhoneNumber: form.querySelector('input[data-old-phone-number="true"]').value,
-    newPhoneNumber: form.querySelector('input[data-new-phone-number="true"]').value,
+    oldPhoneNumber: getPhoneNumber('old-phone-number'),
+    newPhoneNumber: getPhoneNumber('new-phone-number'),
     office: document.body.dataset.office,
   };
 
@@ -238,7 +203,9 @@ function handlePhoneNumberChange() {
   console.log('requestBody', requestBody);
 
   sendApiRequest(requestUrl, requestBody, 'POST')
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       createSnackbar(response.message || 'Phone Number updated successfully');
     })
@@ -249,7 +216,7 @@ function handlePhoneNumberChange() {
 
 function handleUpdateAuthRequest() {
   const form = document.querySelector('.forms-parent');
-  const phoneNumber = form.querySelector('input[type="tel"]').value;
+  const phoneNumber = getPhoneNumber('verify-email-number')
   const displayName = form.querySelector('input[data-display-name=true]').value;
   const email = form.querySelector('input[type="email"]').value;
   const p = form.querySelector('p');
@@ -259,9 +226,7 @@ function handleUpdateAuthRequest() {
   console.log('phoneNumber', phoneNumber);
   if (!isValidPhoneNumber(phoneNumber)) {
     p.textContent = 'Invalid phone number';
-
     p.classList.remove('hidden');
-
     return;
   }
 
@@ -278,22 +243,24 @@ function handleUpdateAuthRequest() {
 
     return;
   }
-
   sendApiRequest(
-    `${apiBaseUrl}/update-auth`,
-    {
-      phoneNumber,
-      displayName,
-      email,
-    },
-    'POST'
-  )
-    .then(function (response) { return response.json(); })
+      `${apiBaseUrl}/update-auth`, {
+        phoneNumber,
+        displayName,
+        email,
+      },
+      'POST'
+    )
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('result', response);
+
       createSnackbar(response.message || 'Success');
     })
     .catch(function (error) {
+
       createSnackbar(error);
     });
 }
@@ -445,8 +412,8 @@ function showActivityCancellationWarning(doc) {
   modalBodyElement.className += 'pad';
 
   const p = document.createElement('p');
-  p.textContent = `You are about to cancel`
-    + ` ${doc.activityName}`;
+  p.textContent = `You are about to cancel` +
+    ` ${doc.activityName}`;
 
   modalBodyElement.append(p);
 
@@ -489,8 +456,8 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
     }
   })();
 
-  if (newStatus === 'CANCELLED'
-    && !window.warningShownAlready) {
+  if (newStatus === 'CANCELLED' &&
+    !window.warningShownAlready) {
     showActivityCancellationWarning(doc);
 
     return;
@@ -516,7 +483,9 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
 
       return sendApiRequest(`${requestUrl}`, requestBody, 'PATCH')
     })
-    .then(function (response) { return response.json() })
+    .then(function (response) {
+      return response.json()
+    })
     .then(function (response) {
       createSnackbar(response.message || 'Update Successful');
     })
@@ -583,7 +552,9 @@ function addAssigneeToActivity(doc) {
 
         return sendApiRequest(requestUrl, requestBody, 'PATCH')
       })
-      .then(function (response) { return response.json() })
+      .then(function (response) {
+        return response.json()
+      })
       .then(function (response) {
         console.log('Response', response);
 
@@ -613,7 +584,10 @@ function getActivityEditForm(doc) {
   Object
     .keys(doc.attachment)
     .forEach(function (field) {
-      const { type, value } = doc.attachment[field];
+      const {
+        type,
+        value
+      } = doc.attachment[field];
 
       const label = document.createElement('label');
       label.textContent = field;
@@ -627,12 +601,14 @@ function getActivityEditForm(doc) {
         input = document.createElement('select');
         const yes = document.createElement('option');
         const no = document.createElement('option');
+
         yes.textContent = 'Yes';
         no.textContent = 'No';
         yes.value = true;
         no.value = false;
-
         input.append(yes, no);
+
+        input.value = value || false;
       }
 
       if (type === 'weekday') {
@@ -673,8 +649,8 @@ function getActivityEditForm(doc) {
 
       input.classList.add('input-field');
 
-      if (field === 'Name'
-        || field === 'Number') {
+      if (field === 'Name' ||
+        field === 'Number') {
         input.required = true;
       }
 
@@ -700,7 +676,11 @@ function getActivityEditForm(doc) {
   doc
     .schedule
     .forEach(function (item) {
-      const { name, startTime, endTime } = item;
+      const {
+        name,
+        startTime,
+        endTime
+      } = item;
 
       const label = document.createElement('label');
       label.textContent = name;
@@ -856,9 +836,9 @@ function getActivityEditForm(doc) {
   }
 
   // cannot change status for employee and subscription activities
-  if (doc.status === 'CANCELLED'
-    && doc.template !== 'employee'
-    && doc.template !== 'subscription') {
+  if (doc.status === 'CANCELLED' &&
+    doc.template !== 'employee' &&
+    doc.template !== 'subscription') {
     buttonContainer.append(confirmButton, pendingButton);
   }
 
@@ -980,10 +960,10 @@ function filterResultsForSearchAndUpdate() {
 
     const template = document.querySelector('.forms-parent select').value;
 
-    let requestUrl = `/json?office=${encodeURIComponent(document.body.dataset.office)}`
-      + `&attachmentField=${fieldSelect.value}`
-      + `&query=${encodeURIComponent(input.value)}`
-      + `&template=${template}`;
+    let requestUrl = `/json?office=${encodeURIComponent(document.body.dataset.office)}` +
+      `&attachmentField=${fieldSelect.value}` +
+      `&query=${encodeURIComponent(input.value)}` +
+      `&template=${template}`;
 
     if (isSupport()) {
       requestUrl += '&support=true';
@@ -992,7 +972,9 @@ function filterResultsForSearchAndUpdate() {
     console.log(requestUrl);
 
     sendApiRequest(requestUrl)
-      .then(function (response) { return response.json(); })
+      .then(function (response) {
+        return response.json();
+      })
       .then(function (response) {
 
         /** Calling this function to repopulate the activity list */
@@ -1036,7 +1018,9 @@ function searchUpdateTemplateSelectOnChange(url) {
   // removeAllChildren(document.querySelector('.activity-form'));
 
   sendApiRequest(url)
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('response', response);
 
@@ -1050,14 +1034,14 @@ function searchUpdateTemplateSelectOnChange(url) {
           if (index === 0) {
             window
               .searchTemplateAttachmentFields = Object
-                .keys(doc.attachment)
-                .map(function (field) {
-                  return ({
-                    field,
-                    value: doc.attachment[field].value,
-                    type: doc.attachment[field].type,
-                  });
+              .keys(doc.attachment)
+              .map(function (field) {
+                return ({
+                  field,
+                  value: doc.attachment[field].value,
+                  type: doc.attachment[field].type,
                 });
+              });
           }
 
           const li = getActivityListItem(doc);
@@ -1073,7 +1057,7 @@ function searchUpdateTemplateSelectOnChange(url) {
 }
 
 function searchAndUpdate() {
-  setActionTitle('Search & Update');
+  addBreadCrumb('Search & Update');
   hideActionsSection();
 
   const container = document.querySelector('.forms-parent');
@@ -1138,8 +1122,8 @@ function searchAndUpdate() {
 
       listOfTemplates.onchange = function () {
         const templateSelect = document.querySelector('.forms-parent select');
-        const url = `/json?office=${document.body.dataset.office}`
-          + `&template=${templateSelect.value}`;
+        const url = `/json?office=${document.body.dataset.office}` +
+          `&template=${templateSelect.value}`;
 
         searchUpdateTemplateSelectOnChange(url);
       };
@@ -1162,78 +1146,82 @@ function joinFormSelfPhoneOnInput(evt) {
   startOfficeJoinFlow();
 }
 
-function populateTemplateSelect(selectElement) {
-  return sendApiRequest(`/json?action=get-template-names`)
-    .then(function (response) { return response.json(); })
-    .then(function (response) {
-      selectElement.firstElementChild.remove();
 
-      response.forEach(function (name) {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
 
-        selectElement.appendChild(option);
-      });
+function populateTemplateSelect(selectElement, defaultValue) {
 
-      selectElement.onchange = function () {
-        removeAllChildren(document.querySelector('.bc-results-list'));
+  selectElement.onchange = function () {
+    removeAllChildren(document.querySelector('.bc-results-list'));
+    document.getElementById('download-sample').href = '/json?action=get-template-xlsx&templateName=' + selectElement.value
+    document.querySelector('.bc-results').classList.add('hidden')
+    document
+      .querySelector('.bc-file-drag')
+      .classList
+      .remove('hidden');
 
-        document
-          .querySelector('.bc-file-drag')
-          .classList
-          .remove('hidden');
+    document
+      .querySelector('.bc-container')
+      .style
+      .minHeight = '200px';
+  };
+  selectElement.value = defaultValue;
+  selectElement.onchange()
 
-        document
-          .querySelector('.bc-container')
-          .style
-          .minHeight = '200px';
-      };
-    })
-    .catch(console.error);
 }
 
-function getBulkCreateResultLi(item) {
+function getBulkCreateResultLi(item, rowNumber) {
+
   const container = document.createElement('li');
-  container.classList.add('success', 'flexed-column');
+  container.classList.add('success', 'flexed-column', 'failure', 'raised');
   const firstRow = document.createElement('span');
   const secondRow = document.createElement('span');
+  const thirdRow = document.createElement('span')
   firstRow.textContent = item.Name || item.Admin || item.Subscriber;
   secondRow.textContent = item.reason || '';
-
-  container.append(firstRow, secondRow);
-
-  if (item.rejected) {
-    container.classList.remove('success');
-    container.classList.add('failure', 'raised');
-  }
+  thirdRow.textContent = 'Error at row number ' + rowNumber
+  container.append(firstRow, secondRow, thirdRow);
 
   return container;
 }
 
-function populateBulkCreationResult(response) {
+function setMessageForBulkCreate(message, className) {
+  const resultHeading = document.querySelector('.bc-results h5 span')
+  resultHeading.textContent = message;
+  resultHeading.className = className
+}
+
+function populateBulkCreationResult(response, originalJson) {
   document
     .querySelector('.bc-results')
     .classList
     .remove('hidden');
 
-  console.log('response', response);
+  const rejectedRows = response.data.filter(function (item) {
+    return item.rejected
+  })
+  if (!rejectedRows.length) {
+    setMessageForBulkCreate('Success', 'success')
+    return;
+  }
+  setMessageForBulkCreate('Error', 'error')
 
   const ul = document.querySelector('.bc-results-list');
+  removeAllChildren(ul);
 
-  response.data.forEach(function (item, index) {
-    const li = getBulkCreateResultLi(item);
 
+
+  rejectedRows.forEach(function (item, index) {
+    const rowNumber = originalJson[index].__rowNum__
+    const li = getBulkCreateResultLi(item, rowNumber);
     if (index === 0) {
       li.tabIndex = 0;
     }
-
     ul.appendChild(li);
   });
 }
 
 
-function sendBulkCreateJson(jsonData) {
+function sendBulkCreateJson(jsonData, templateName) {
   console.log('jsonData:', jsonData);
 
   let requestUrl = `${apiBaseUrl}/admin/bulk`;
@@ -1246,31 +1234,44 @@ function sendBulkCreateJson(jsonData) {
     timestamp: Date.now(),
     office: document.body.dataset.office,
     data: jsonData,
-    template: document.querySelector('.bc-container select').value,
+    template: templateName
   };
 
-  if (window.creatingOffice) {
-    requestBody.template = 'office';
-  }
 
   getLocation()
     .then(function (location) {
       requestBody.geopoint = location;
-
       return sendApiRequest(requestUrl, requestBody, 'POST');
     })
     .then(function (response) {
       return response.json();
     })
     .then(function (response) {
-      delete window.creatingOffice;
 
-      populateBulkCreationResult(response);
+      populateBulkCreationResult(response, jsonData);
+      removeFileSpinner()
     })
-    .catch(console.error);
+    .catch(function (error) {
+      console.log(error)
+      setMessageForBulkCreate(error.message, 'error')
+      removeFileSpinner()
+    });
 }
 
-function handleExcelOrCsvFile(element) {
+function showFileSpinner() {
+  const parent = document.querySelector('.bc-file-drag')
+  parent.appendChild(getSpinnerElement('file-upload-spin').center())
+  parent.querySelector('i').classList.add('hidden');
+}
+
+function removeFileSpinner() {
+  document.getElementById("file-upload-spin").remove()
+  document.querySelector('.bc-file-drag i').classList.remove('hidden');
+}
+
+function handleExcelOrCsvFile(element, templateName) {
+  showFileSpinner()
+
   const file = element.target.files[0];
   const fReader = new FileReader();
 
@@ -1289,25 +1290,79 @@ function handleExcelOrCsvFile(element) {
       raw: false
     });
 
-    sendBulkCreateJson(jsonData);
+    console.log(jsonData)
+    sendBulkCreateJson(jsonData, templateName);
+    element.target.value = null;
+
   };
 }
 
-function bulkCreate() {
-  setActionTitle('Create New');
-
-  const bcContainer = document.querySelector('.bc-container');
-  const selectElement = bcContainer.querySelector('select');
-  bcContainer.classList.remove('hidden');
-
-  populateTemplateSelect(selectElement)
-    .then(function () {
-
-      const fileDragInput = bcContainer.querySelector('input[type="file"]');
-
-      fileDragInput.onchange = handleExcelOrCsvFile;
-    });
+function bulkdCreateDom() {
+  return `<div class="pad bc-container">
+  <select class="input-field mb-16 mw-100" id="create-new-template-select">
+      <option value="">Loading...</option>
+  </select>
+  <form>
+      <p>Drag a file here to upload</p>
+      <div class="bc-file-drag hidden raised pad-10 tac">
+          <i class="fas fa-cloud-upload-alt ft-60"></i>
+          <input type="file" accept=".csv,.xlsx,.xls" data-maxsize="2M" id='bulk-upload'>
+      </div>
+      <p>Or</p>
+    <a class='button' href='#' id='download-sample' target="_blank" download>Download Sample</a>
+  </form>
+  <div class="bc-results hidden mt-16">
+      <h5 class="bold ttuc">Result : <span class='result-value'></span></h5>
+      <div>
+          <ul class="bc-results-list"> </ul>
+      </div>
+  </div>
+</div>`
 }
+
+function bulkCreate() {
+  addBreadCrumb('Create New');
+  hideActionsSection();
+  const formParent = document.querySelector('.forms-parent');
+  formParent.innerHTML = bulkdCreateDom();
+
+  const selectElement = document.getElementById('create-new-template-select');
+  sendApiRequest(`/json?action=get-template-names`)
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (response) {
+      selectElement.firstElementChild.remove()
+      addOptionToSelect(response, selectElement);
+      populateTemplateSelect(selectElement, response[0])
+      const fileDragInput = document.getElementById('bulk-upload')
+      fileDragInput.onchange = function (event) {
+        handleExcelOrCsvFile(event, selectElement.value);
+      };
+    }).catch(console.error)
+}
+
+
+function addNewOffice() {
+  addBreadCrumb('Create New Office')
+  document.getElementById('support-office-search').remove()
+  const formParent = document.querySelector('.forms-parent');
+  formParent.innerHTML = bulkdCreateDom();
+
+  const selectElement = document.getElementById('create-new-template-select');
+  selectElement.classList.add('hidden')
+  selectElement.firstElementChild.remove()
+
+  addOptionToSelect(['office'], selectElement);
+  populateTemplateSelect(selectElement, 'office')
+
+  const fileDragInput = document.getElementById('bulk-upload')
+  fileDragInput.onchange = function (event) {
+    handleExcelOrCsvFile(event, selectElement.value);
+  };
+
+}
+
 
 function recipientAssigneeUpdateOnClick(evt) {
   const container = document
@@ -1333,9 +1388,9 @@ function recipientAssigneeUpdateOnClick(evt) {
   const toAdd = new Set();
 
   telInputs.forEach(function (elem) {
-    if (!isValidPhoneNumber(elem.value)) {
-      return;
-    }
+    // if (!isValidPhoneNumber(elem.value)) {
+    //   return;
+    // }
 
     toAdd.add(elem.value);
     allPhoneNumbers.add(elem.value);
@@ -1352,13 +1407,15 @@ function recipientAssigneeUpdateOnClick(evt) {
       return;
     }
 
-    final.add(phoneNumber);
+    final.add(formatPhoneNumber(phoneNumber));
   });
 
   const finalAssignees = Array.from(final);
 
-  console.log({ finalAssignees });
-
+  console.log({
+    finalAssignees
+  });
+  return;
   const requestBody = {
     timestamp: Date.now(),
     activityId: container.dataset.activityId,
@@ -1377,7 +1434,9 @@ function recipientAssigneeUpdateOnClick(evt) {
 
       return sendApiRequest(requestUrl, requestBody, 'PATCH');
     })
-    .then(function (response) { return response.json() })
+    .then(function (response) {
+      return response.json()
+    })
     .then(function (response) {
       createSnackbar(response.message || 'Update Successful');
     })
@@ -1390,6 +1449,7 @@ function recipientActivityAddMoreOnClick(evt) {
   const parent = evt.target.parentElement;
   const ul = parent.querySelector('ul');
   const input = document.createElement('input');
+
   input.classList.add('input-field', 'w-100');
 
   insertAfterNode(ul, input);
@@ -1453,20 +1513,22 @@ function getRecipientActivityContainer(doc) {
 
   addMore.classList.add('pad-10', 'tac', 'border', 'cur-ptr');
   addMore.append(addPhoneNumberIcon);
-  addMore.onclick = recipientActivityAddMoreOnClick;
   container.append(heading, list, addMore, buttonContainer);
+  addMore.onclick = recipientActivityAddMoreOnClick;
   container.className += ' raised pad mb-16';
 
   return container;
 }
 
 function handleRecipientSelectOnChange(evt) {
-  const requestUrl = `/json?`
-    + `action=${document.body.dataset.office}`
-    + `&template=${evt.target.value}`;
+  const requestUrl = `/json?` +
+    `action=${document.body.dataset.office}` +
+    `&template=${evt.target.value}`;
 
   sendApiRequest(requestUrl)
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('Response', response);
     })
@@ -1477,31 +1539,30 @@ function handleRecipientSelectOnChange(evt) {
 
 function updateEmailInReports() {
   console.log('Update Email in reports clicked');
-  setActionTitle('Update Report Emails');
+  addBreadCrumb('Update Report Emails');
   hideActionsSection();
-
   const container = document.createElement('div');
   container.className = 'pad';
   const heading = document.createElement('h5');
   heading.className = 'ft-size-20 ttuc tac bold mb-16';
   heading.textContent = 'Update Report Recipients';
+
   const div = document.createElement('div');
-
   div.classList.add('grid-container-1', 'gg-5');
-
   container.append(heading, div);
-
   document
     .querySelector('.forms-parent')
     .appendChild(container);
 
-  const requestUrl = `/json?template=recipient`
-    + `&office=${document.body.dataset.office}`;
+
+  const requestUrl = `/json?template=recipient` +
+    `&office=${document.body.dataset.office}`;
 
   console.log('RequestSent', requestUrl);
-
   sendApiRequest(requestUrl)
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('Response', response);
 
@@ -1514,6 +1575,7 @@ function updateEmailInReports() {
         });
     })
     .catch(function (error) {
+
       createSnackbar(error);
     });
 }
@@ -1539,7 +1601,7 @@ function onDomContentLoaded() {
 }
 
 function updateAuth() {
-  setActionTitle('Verify Email Addresses');
+  addBreadCrumb('Verify Email Addresses');
   hideActionsSection();
 
   const container = document.querySelector('.forms-parent');
@@ -1554,7 +1616,7 @@ function updateAuth() {
   const phoneInput = document.createElement('input');
   phoneInput.classList.add('input-field');
   phoneInput.type = 'tel';
-
+  phoneInput.id = 'verify-email-number'
   const nameLabel = document.createElement('label');
   nameLabel.textContent = 'Name';
 
@@ -1601,8 +1663,8 @@ function updateAuth() {
 function recipientSubmitOnClick() {
   const form = document.querySelector('.forms-parent');
   const startTime = new Date(
-    form.querySelector('input[type="date"]').value
-  )
+      form.querySelector('input[type="date"]').value
+    )
     .getTime();
   const triggerResult = form.querySelector('p');
 
@@ -1618,9 +1680,11 @@ function recipientSubmitOnClick() {
   console.log('Request sent', requestBody);
 
   sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, requestBody,
-    'POST'
-  )
-    .then(function (response) { return response.json(); })
+      'POST'
+    )
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('Response', response);
 
@@ -1628,8 +1692,8 @@ function recipientSubmitOnClick() {
         triggerResult.classList.add('warning-label');
       }
 
-      triggerResult.textContent = response.message
-        || 'Report triggered successfully';
+      triggerResult.textContent = response.message ||
+        'Report triggered successfully';
 
     })
     .catch(function (error) {
@@ -1638,9 +1702,12 @@ function recipientSubmitOnClick() {
 }
 
 function triggerReports() {
-  setActionTitle('Trigger Reports');
+  addBreadCrumb('Trigger Reports');
   hideActionsSection();
 
+  const hiddenReports = {
+    'footprints': true
+  }
   const container = document.createElement('div');
   container.className += ' trigger-reports pad';
   const select = document.createElement('select');
@@ -1653,7 +1720,7 @@ function triggerReports() {
   dateInput.valueAsDate = new Date();
   dateInput.className += ' input-field';
 
-  const submit = document.querySelector('input');
+  const submit = document.createElement('input');
   submit.type = 'button';
   submit.value = 'Submit';
   // submit.classList.add('button');
@@ -1663,14 +1730,14 @@ function triggerReports() {
 
   const form = document.createElement('form');
 
-  form.className += 'pad raised flexed-column';
+  form.className += 'pad raised flexed-column hidden';
 
   const head = document.createElement('div');
   const h5 = document.createElement('h5');
   h5.classList += ' ttuc bold';
   h5.textContent = 'Trigger Reports';
   const description = document.createElement('p');
-  description.textContent = 'Select a date to get reports to your email';
+  description.textContent = '';
   description.className += ` col-gray`;
 
   head.append(h5, description);
@@ -1682,20 +1749,33 @@ function triggerReports() {
     .querySelector('.forms-parent')
     .append(container);
 
-  const requestUrl = `/json?template=recipient`
-    + `&office=${document.body.dataset.office}`;
+  const requestUrl = `/json?template=recipient` +
+    `&office=${document.body.dataset.office}`;
 
   sendApiRequest(requestUrl, null, 'GET')
     .then(function (response) {
       return response.json();
     })
     .then(function (response) {
-      console.log('response', response);
 
-      Object
-        .keys(response)
-        .forEach(function (activityId) {
-          const item = response[activityId];
+
+      const nonCancelledReports = []
+      Object.keys(response).forEach(function (id) {
+        if (hiddenReports[response[id].attachment.Name.value]) return;
+        if (response[id].status === 'CANCELLED') return
+        nonCancelledReports.push(response[id])
+      })
+
+      if (!nonCancelledReports.length) {
+        description.textContent = 'No Reports Found';
+        description.classList.add('error')
+        return;
+      }
+      description.textContent = 'Select a date to get reports to your email';
+      form.classList.remove('hidden')
+
+      nonCancelledReports
+        .forEach(function (item) {
           const option = document.createElement('option');
           option.value = item.attachment.Name.value;
           option.textContent = item.attachment.Name.value;
@@ -1705,12 +1785,14 @@ function triggerReports() {
       submit.onclick = recipientSubmitOnClick;
     })
     .catch(function (error) {
+
+
       createSnackbar(error);
     });
 }
 
 function changePhoneNumber() {
-  setActionTitle('Change Phone Number');
+  addBreadCrumb('Change Phone Number');
   hideActionsSection();
 
   const container = document.createElement('div');
@@ -1734,14 +1816,15 @@ function changePhoneNumber() {
   newLabel.textContent = 'New Phone Number';
   const oldInput = document.createElement('input');
   oldInput.type = 'tel';
-  oldInput.dataset.oldPhoneNumber = true;
+  oldInput.id = 'old-phone-number'
   oldInput.className += ' input-field';
 
   const newInput = document.createElement('input');
   newInput.type = 'tel';
-  newInput.dataset.newPhoneNumber = true;
+  
+  
   newInput.className += ' input-field';
-
+  newInput.id = 'new-phone-number'
   const submit = document.createElement('input');
   submit.type = 'button';
   submit.value = 'Submit';
@@ -1773,7 +1856,9 @@ function changePhoneNumber() {
 
 function sendUpdateTemplateRequest(newText) {
   sendApiRequest('/json?action=update-template', JSON.parse(newText), 'POST')
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('Response', response);
 
@@ -1863,7 +1948,7 @@ function viewTemplateButtonOnClick(evt) {
 }
 
 function manageTemplates() {
-  setActionTitle('Manage Templates');
+  addBreadCrumb('Manage Templates');
   hideActionsSection();
 
   const container = document.createElement('div');
@@ -1878,7 +1963,9 @@ function manageTemplates() {
   ul.className += ' template-list';
 
   sendApiRequest('/json?action=view-templates')
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      return response.json();
+    })
     .then(function (response) {
       console.log('View Templates', response);
 
@@ -1923,42 +2010,6 @@ function manageTemplates() {
     });
 }
 
-function addNewOffice() {
-  // support-office-search
-  const supportSearch = document.querySelector('#support-office-search');
-
-  supportSearch.remove();
-
-  removeAllChildren(document.querySelector('.bc-results-list'));
-
-  document
-    .querySelector('.bc-file-drag')
-    .classList
-    .remove('hidden');
-
-  const bcContainer = document
-    .querySelector('.bc-container');
-
-  document
-    .querySelector('.bc-container')
-    .style
-    .minHeight = '200px';
-
-  document
-    .querySelector('.bc-container')
-    .classList
-    .remove('hidden');
-
-  window.creatingOffice = true;
-
-  const fileDragInput = bcContainer.querySelector('input[type="file"]');
-
-  fileDragInput.onchange = handleExcelOrCsvFile;
-
-  // const jsonData = {};
-
-  // sendBulkCreateJson(jsonData);
-}
 
 function windowOnLoad() {
   const officeSelect = document.querySelector('#all-office-form');

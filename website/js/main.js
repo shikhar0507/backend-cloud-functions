@@ -11,10 +11,8 @@ function handleRecaptcha(callbackFunction) {
   });
 }
 
-
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
-
   return phoneNumber.search(pattern) !== -1;
 }
 
@@ -160,7 +158,16 @@ function createModal(actionContent) {
   div.appendChild(content)
   return div;
 }
+function addOptionToSelect(data,el,defaultValue){
 
+  data.forEach(function (name) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    el.appendChild(option);
+  });
+  if(defaultValue) el.value = defaultValue
+}
 function isDomElementString(el) {
   return typeof el == 'string';
 }
@@ -240,7 +247,13 @@ function sendApiRequest(apiUrl, requestBody = null, method = 'GET') {
     .catch(console.error);
 }
 
+function removeAllChildren(element) {
+  if (!element || !element.firstChild) return;
 
+  while (element.firstChild) {
+    element.firstChild.remove();
+  }
+}
 document.addEventListener('click', (event) => {
   if (event.target === document.getElementById('form-submit-button')) {
     return void startOfficeCreationFlow(event)
@@ -460,6 +473,19 @@ function getModal(options) {
   return modalContainer;
 }
 
+//todo : param should be input value not id
+function getPhoneNumber(id) {
+  const inputValue = document.getElementById(id).value;
+  return formatPhoneNumber(inputValue)
+ 
+}
+
+function formatPhoneNumber(value) {
+  if(value.startsWith(`+${window.countryCode}`)) return value;
+  
+  return `+${window.countryCode}${value}`
+}
+
 function initializeTelInput(inputElement) {
   /** Is already initialized. */
   if (inputElement.dataset.intlInitialized) {
@@ -477,7 +503,7 @@ function initializeTelInput(inputElement) {
     initialCountry: 'IN',
     nationalMode: false,
     formatOnDisplay: true,
-    customContainer: 'mb-16',
+    customContainer: 'mb-16 mt-16 mw-100',
     separateDialCode: true,
     customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
       window.countryCode = selectedCountryData.dialCode;
