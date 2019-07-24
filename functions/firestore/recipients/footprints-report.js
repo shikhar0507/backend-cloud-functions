@@ -447,10 +447,14 @@ const handleSheetTwo = locals => {
               });
         });
 
+      console.log('Writing data');
+
       return Promise
         .all(batchesArray.map(batch => batch.commit()));
     })
     .then(() => {
+      console.log('Writing data complete');
+
       locals
         .employeePhoneNumbersArray
         .forEach((phoneNumber, outerIndex) => {
