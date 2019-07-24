@@ -1143,7 +1143,9 @@ module.exports = (req, res) => {
       }
 
       if (slug === 'auth' && locals.isLoggedIn) {
-        return res.status(code.temporaryRedirect).redirect('/');
+        res.status(code.temporaryRedirect).redirect('/');
+
+        return;
       }
 
       if (slug === 'json') {
@@ -1151,7 +1153,9 @@ module.exports = (req, res) => {
       }
 
       if (html) {
-        return conn.res.send(html);
+        conn.res.send(html);
+
+        return;
       }
 
       return rootCollections
@@ -1167,15 +1171,23 @@ module.exports = (req, res) => {
 
       if (slug === 'json') {
         html = result;
-        conn.res.status(result.status || code.ok).set(conn.headers);
 
-        return conn.res.json(html);
+        conn
+          .res
+          .status(result.status || code.ok)
+          .set(conn.headers);
+
+        conn.res.json(html);
+
+        return;
       }
 
       if (result.empty) {
         html = handle404Page();
 
-        return conn.res.status(code.notFound).send(html);
+        conn.res.status(code.notFound).send(html);
+
+        return;
       }
 
       locals.officeDoc = result.docs[0];
@@ -1189,7 +1201,18 @@ module.exports = (req, res) => {
 
       html = officeHtml;
 
-      return conn.res.send(html);
+
+      if (conn.req.query.action === 'get-template-xlsx') {
+        conn
+          .res
+          .download(`/tmp/${conn.req.query.templateName}.xlsx`);
+
+        return;
+      }
+
+      conn.res.send(html);
+
+      return;
     })
     .catch(error => {
       console.error('Error', error, conn.req.body);

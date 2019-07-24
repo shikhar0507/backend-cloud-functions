@@ -107,6 +107,11 @@ const temporaryImageHandler = functions
   .object()
   .onFinalize(require('./temporary-image-handler.js'));
 
+const locationOnCreate = functions
+  .database
+  .ref('{officeId}/locations/{activityId}')
+  .onCreate(require('./firestore/locations'));
+
 
 module.exports = {
   api,
@@ -119,6 +124,7 @@ module.exports = {
   instantOnCreate,
   activityOnWrite,
   assigneeOnDelete,
+  locationOnCreate,
   addendumOnCreate,
   recipientsOnUpdate,
   sendPushNotification,
