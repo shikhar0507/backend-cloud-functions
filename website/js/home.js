@@ -600,7 +600,7 @@ function getActivityEditForm(doc) {
         input = document.createElement('select');
         const yes = document.createElement('option');
         const no = document.createElement('option');
-      
+
         yes.textContent = 'Yes';
         no.textContent = 'No';
         yes.value = true;
@@ -1352,7 +1352,7 @@ function addNewOffice() {
   const selectElement = document.getElementById('create-new-template-select');
   selectElement.classList.add('hidden')
   selectElement.firstElementChild.remove()
- 
+
   addOptionToSelect(['office'], selectElement);
   populateTemplateSelect(selectElement, 'office')
 
@@ -1548,7 +1548,7 @@ function updateEmailInReports() {
 
   const div = document.createElement('div');
   div.classList.add('grid-container-1', 'gg-5');
-  container.append(heading, div,getSpinnerElement('report-spinner').center());
+  container.append(heading, div, getSpinnerElement('report-spinner').center());
   document
     .querySelector('.forms-parent')
     .appendChild(container);
@@ -1705,7 +1705,9 @@ function recipientSubmitOnClick() {
 function triggerReports() {
   addBreadCrumb('Trigger Reports');
   hideActionsSection();
-
+  const hiddenReports = {
+    'footprints': true
+  }
   const container = document.createElement('div');
   container.className += ' trigger-reports pad';
   const select = document.createElement('select');
@@ -1735,7 +1737,7 @@ function triggerReports() {
   h5.classList += ' ttuc bold';
   h5.textContent = 'Trigger Reports';
   const description = document.createElement('p');
-  description.textContent = 'Select a date to get reports to your email';
+  description.textContent = '';
   description.className += ` col-gray`;
 
   head.append(h5, description);
@@ -1757,10 +1759,22 @@ function triggerReports() {
     .then(function (response) {
       console.log('response', response);
 
-      Object
-        .keys(response)
-        .forEach(function (activityId) {
-          const item = response[activityId];
+      const nonCancelledReports = []
+      Object.keys(response).map(function (id) {
+        if (hiddenReports[response[id].attachment.Name.value]) return;
+        if (response[id].status === 'CANCELLED') return
+
+        nonCancelledReports.push(response)
+
+      })
+      if(!nonCancelledReports.length) {
+        description.textContent = 'No Report Found';
+        description.classList.add('error')
+        return;
+      }
+      console.log(nonCancelledReports)
+      nonCancelledReports
+        .forEach(function (item) {
           const option = document.createElement('option');
           option.value = item.attachment.Name.value;
           option.textContent = item.attachment.Name.value;
