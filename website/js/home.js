@@ -1163,7 +1163,6 @@ function populateTemplateSelect(selectElement) {
         const option = document.createElement('option');
         option.value = name;
         option.textContent = name;
-
         selectElement.appendChild(option);
       });
 
@@ -1189,20 +1188,17 @@ function populateTemplateSelect(selectElement) {
 }
 
 function getBulkCreateResultLi(item) {
+  
   const container = document.createElement('li');
-  container.classList.add('success', 'flexed-column');
+  container.classList.add('success', 'flexed-column','failure','raised');
   const firstRow = document.createElement('span');
   const secondRow = document.createElement('span');
+  const thirdRow = document.createElement('span')
   firstRow.textContent = item.Name || item.Admin || item.Subscriber;
   secondRow.textContent = item.reason || '';
-
+  thirdRow.textContent = 'at row number ' + item.__rowNum__
   container.append(firstRow, secondRow);
-
-  if (item.rejected) {
-    container.classList.remove('success');
-    container.classList.add('failure', 'raised');
-  }
-
+  
   return container;
 }
 
@@ -1211,14 +1207,14 @@ function populateBulkCreationResult(response) {
     .querySelector('.bc-results')
     .classList
     .remove('hidden');
-
-  console.log('response', response);
-
+  document.querySelector('.bc-results h5').textContent = 'Result : '+response.totalDocsCreated
   const ul = document.querySelector('.bc-results-list');
-
-  response.data.forEach(function (item, index) {
+  const rejectedRows = response.data.filter(function(item){
+    return item.rejected
+  })
+ 
+  rejectedRows.forEach(function (item, index) {  
     const li = getBulkCreateResultLi(item);
-
     if (index === 0) {
       li.tabIndex = 0;
     }
@@ -1260,11 +1256,26 @@ function sendBulkCreateJson(jsonData) {
     .then(function (response) {
       delete window.creatingOffice;
       populateBulkCreationResult(response);
+      removeFileSpinner()
     })
-    .catch(console.error);
+    .catch(function(error){
+      console.log(error)
+      removeFileSpinner()
+    });
+}
+
+function showFileSpinner() {
+  const parent =  document.querySelector('.bc-file-drag')
+  parent.appendChild(getSpinnerElement('file-upload-spin').center())
+  parent.querySelector('i').classList.add('hidden');
+}
+function removeFileSpinner(){
+ document.getElementById("file-upload-spin").remove()
+ document.querySelector('.bc-file-drag i').classList.remove('hidden');
 }
 
 function handleExcelOrCsvFile(element) {
+  showFileSpinner()
   const file = element.target.files[0];
   const fReader = new FileReader();
 
@@ -1283,6 +1294,7 @@ function handleExcelOrCsvFile(element) {
       raw: false
     });
 
+    console.log(jsonData)
     sendBulkCreateJson(jsonData);
   };
 }
@@ -1302,7 +1314,7 @@ function bulkdCreateDom() {
     <a class='button' href='#' id='download-sample' target="_blank">Download Sample</a>
   </form>
   <div class="bc-results hidden mt-16">
-      <h5 class="bold ttuc">Bulk Creation Results:</h5>
+      <h5 class="bold ttuc"></h5>
       <div>
           <ul class="bc-results-list"> </ul>
       </div>
@@ -1957,16 +1969,18 @@ function manageTemplates() {
 
 function addNewOffice() {
   // support-office-search
+  const formParent = document.querySelector('.forms-parent');
+  formParent.innerHTML = bulkdCreateDom();
+  document.getElementById('create-new-template-select').remove();
+  document.querySelector('.bc-file-drag').classList.remove('hidden')
+
   const supportSearch = document.querySelector('#support-office-search');
 
   supportSearch.remove();
 
   removeAllChildren(document.querySelector('.bc-results-list'));
 
-  document
-    .querySelector('.bc-file-drag')
-    .classList
-    .remove('hidden');
+ 
 
   const bcContainer = document
     .querySelector('.bc-container');
@@ -1976,20 +1990,15 @@ function addNewOffice() {
     .style
     .minHeight = '200px';
 
-  document
-    .querySelector('.bc-container')
-    .classList
-    .remove('hidden');
-
   window.creatingOffice = true;
 
   const fileDragInput = bcContainer.querySelector('input[type="file"]');
 
+
   fileDragInput.onchange = handleExcelOrCsvFile;
 
-  const jsonData = {};
-
-  sendBulkCreateJson(jsonData);
+  // const jsonData = {};
+  // sendBulkCreateJson(jsonData);
 }
 
 function windowOnLoad() {
