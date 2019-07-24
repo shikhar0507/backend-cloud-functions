@@ -473,6 +473,19 @@ function getModal(options) {
   return modalContainer;
 }
 
+//todo : param should be input value not id
+function getPhoneNumber(id) {
+  const inputValue = document.getElementById(id).value;
+  return formatPhoneNumber(inputValue)
+ 
+}
+
+function formatPhoneNumber(value) {
+  if(value.startsWith(`+${window.countryCode}`)) return value;
+  
+  return `+${window.countryCode}${value}`
+}
+
 function initializeTelInput(inputElement) {
   /** Is already initialized. */
   if (inputElement.dataset.intlInitialized) {

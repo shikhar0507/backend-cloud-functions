@@ -24,15 +24,7 @@ function showNameEmailContainer() {
   document.getElementById('name-email-container').classList.remove('hidden');
 }
 
-function getPhoneNumber(id) {
-  let result = `+${window.countryCode}${document.getElementById(id).value}`;
 
-  if (result.startsWith(window.countryCode)) {
-    result = result.replace(window.countryCode, '');
-  }
-
-  return result;
-}
 
 const submitButton = document.getElementById('auth-flow-start');
 const cancelAuthFlowButton = document.getElementById('cancel-auth-flow-start')

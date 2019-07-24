@@ -189,8 +189,8 @@ function startAdmin() {
 function handlePhoneNumberChange() {
   const form = document.querySelector('.pnc-form');
   const requestBody = {
-    oldPhoneNumber: form.querySelector('input[data-old-phone-number="true"]').value,
-    newPhoneNumber: form.querySelector('input[data-new-phone-number="true"]').value,
+    oldPhoneNumber: getPhoneNumber('old-phone-number'),
+    newPhoneNumber: getPhoneNumber('new-phone-number'),
     office: document.body.dataset.office,
   };
 
@@ -216,7 +216,7 @@ function handlePhoneNumberChange() {
 
 function handleUpdateAuthRequest() {
   const form = document.querySelector('.forms-parent');
-  const phoneNumber = form.querySelector('input[type="tel"]').value;
+  const phoneNumber = getPhoneNumber('verify-email-number')
   const displayName = form.querySelector('input[data-display-name=true]').value;
   const email = form.querySelector('input[type="email"]').value;
   const p = form.querySelector('p');
@@ -243,7 +243,6 @@ function handleUpdateAuthRequest() {
 
     return;
   }
-
   sendApiRequest(
       `${apiBaseUrl}/update-auth`, {
         phoneNumber,
@@ -257,9 +256,11 @@ function handleUpdateAuthRequest() {
     })
     .then(function (response) {
       console.log('result', response);
+
       createSnackbar(response.message || 'Success');
     })
     .catch(function (error) {
+
       createSnackbar(error);
     });
 }
@@ -1149,7 +1150,6 @@ function joinFormSelfPhoneOnInput(evt) {
 
 function populateTemplateSelect(selectElement, defaultValue) {
 
-
   selectElement.onchange = function () {
     removeAllChildren(document.querySelector('.bc-results-list'));
     document.getElementById('download-sample').href = '/json?action=get-template-xlsx&templateName=' + selectElement.value
@@ -1309,7 +1309,7 @@ function bulkdCreateDom() {
           <input type="file" accept=".csv,.xlsx,.xls" data-maxsize="2M" id='bulk-upload'>
       </div>
       <p>Or</p>
-    <a class='button' href='#' id='download-sample' target="_blank">Download Sample</a>
+    <a class='button' href='#' id='download-sample' target="_blank" download>Download Sample</a>
   </form>
   <div class="bc-results hidden mt-16">
       <h5 class="bold ttuc">Result : <span class='result-value'></span></h5>
@@ -1388,9 +1388,9 @@ function recipientAssigneeUpdateOnClick(evt) {
   const toAdd = new Set();
 
   telInputs.forEach(function (elem) {
-    if (!isValidPhoneNumber(elem.value)) {
-      return;
-    }
+    // if (!isValidPhoneNumber(elem.value)) {
+    //   return;
+    // }
 
     toAdd.add(elem.value);
     allPhoneNumbers.add(elem.value);
@@ -1407,7 +1407,7 @@ function recipientAssigneeUpdateOnClick(evt) {
       return;
     }
 
-    final.add(phoneNumber);
+    final.add(formatPhoneNumber(phoneNumber));
   });
 
   const finalAssignees = Array.from(final);
@@ -1415,7 +1415,7 @@ function recipientAssigneeUpdateOnClick(evt) {
   console.log({
     finalAssignees
   });
-
+  return;
   const requestBody = {
     timestamp: Date.now(),
     activityId: container.dataset.activityId,
@@ -1449,6 +1449,7 @@ function recipientActivityAddMoreOnClick(evt) {
   const parent = evt.target.parentElement;
   const ul = parent.querySelector('ul');
   const input = document.createElement('input');
+
   input.classList.add('input-field', 'w-100');
 
   insertAfterNode(ul, input);
@@ -1512,8 +1513,8 @@ function getRecipientActivityContainer(doc) {
 
   addMore.classList.add('pad-10', 'tac', 'border', 'cur-ptr');
   addMore.append(addPhoneNumberIcon);
-  addMore.onclick = recipientActivityAddMoreOnClick;
   container.append(heading, list, addMore, buttonContainer);
+  addMore.onclick = recipientActivityAddMoreOnClick;
   container.className += ' raised pad mb-16';
 
   return container;
@@ -1548,7 +1549,7 @@ function updateEmailInReports() {
 
   const div = document.createElement('div');
   div.classList.add('grid-container-1', 'gg-5');
-  container.append(heading, div, getSpinnerElement('report-spinner').center());
+  container.append(heading, div);
   document
     .querySelector('.forms-parent')
     .appendChild(container);
@@ -1558,14 +1559,12 @@ function updateEmailInReports() {
     `&office=${document.body.dataset.office}`;
 
   console.log('RequestSent', requestUrl);
-
   sendApiRequest(requestUrl)
     .then(function (response) {
       return response.json();
     })
     .then(function (response) {
       console.log('Response', response);
-      document.getElementById('report-spinner').remove()
 
       Object
         .keys(response)
@@ -1576,7 +1575,7 @@ function updateEmailInReports() {
         });
     })
     .catch(function (error) {
-      document.getElementById('report-spinner').remove()
+
       createSnackbar(error);
     });
 }
@@ -1617,7 +1616,7 @@ function updateAuth() {
   const phoneInput = document.createElement('input');
   phoneInput.classList.add('input-field');
   phoneInput.type = 'tel';
-
+  phoneInput.id = 'verify-email-number'
   const nameLabel = document.createElement('label');
   nameLabel.textContent = 'Name';
 
@@ -1705,6 +1704,7 @@ function recipientSubmitOnClick() {
 function triggerReports() {
   addBreadCrumb('Trigger Reports');
   hideActionsSection();
+
   const hiddenReports = {
     'footprints': true
   }
@@ -1740,7 +1740,7 @@ function triggerReports() {
   description.textContent = '';
   description.className += ` col-gray`;
 
-  head.append(h5, description,getSpinnerElement('report-spinner').center());
+  head.append(h5, description);
 
   head.classList.add('tac');
   form.append(select, dateInput, submit);
@@ -1757,25 +1757,23 @@ function triggerReports() {
       return response.json();
     })
     .then(function (response) {
-      console.log('response', response);
-      document.getElementById('report-spinner').remove()
+
+
       const nonCancelledReports = []
       Object.keys(response).forEach(function (id) {
         if (hiddenReports[response[id].attachment.Name.value]) return;
         if (response[id].status === 'CANCELLED') return
-
         nonCancelledReports.push(response[id])
-
       })
-      if(!nonCancelledReports.length) {
+
+      if (!nonCancelledReports.length) {
         description.textContent = 'No Reports Found';
         description.classList.add('error')
-        
         return;
       }
       description.textContent = 'Select a date to get reports to your email';
       form.classList.remove('hidden')
-      console.log(nonCancelledReports)
+
       nonCancelledReports
         .forEach(function (item) {
           const option = document.createElement('option');
@@ -1787,7 +1785,7 @@ function triggerReports() {
       submit.onclick = recipientSubmitOnClick;
     })
     .catch(function (error) {
-      document.getElementById('report-spinner').remove()
+
 
       createSnackbar(error);
     });
@@ -1818,14 +1816,15 @@ function changePhoneNumber() {
   newLabel.textContent = 'New Phone Number';
   const oldInput = document.createElement('input');
   oldInput.type = 'tel';
-  oldInput.dataset.oldPhoneNumber = true;
+  oldInput.id = 'old-phone-number'
   oldInput.className += ' input-field';
 
   const newInput = document.createElement('input');
   newInput.type = 'tel';
-  newInput.dataset.newPhoneNumber = true;
+  
+  
   newInput.className += ' input-field';
-
+  newInput.id = 'new-phone-number'
   const submit = document.createElement('input');
   submit.type = 'button';
   submit.value = 'Submit';
