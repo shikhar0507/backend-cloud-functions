@@ -37,13 +37,7 @@ function isTemplateManager() {
   return JSON.parse(document.body.dataset.user || {}).isTemplateManager;
 }
 
-function removeAllChildren(element) {
-  if (!element || !element.firstChild) return;
 
-  while (element.firstChild) {
-    element.firstChild.remove();
-  }
-}
 
 function showActionsSection() {
   document
@@ -232,9 +226,7 @@ function handleUpdateAuthRequest() {
   console.log('phoneNumber', phoneNumber);
   if (!isValidPhoneNumber(phoneNumber)) {
     p.textContent = 'Invalid phone number';
-
     p.classList.remove('hidden');
-
     return;
   }
 
@@ -1354,7 +1346,7 @@ function addNewOffice() {
   document.getElementById('support-office-search').remove()
   const formParent = document.querySelector('.forms-parent');
   formParent.innerHTML = bulkdCreateDom();
-  
+
   const selectElement = document.getElementById('create-new-template-select');
   selectElement.classList.add('hidden')
   selectElement.firstElementChild.remove()

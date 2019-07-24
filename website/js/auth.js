@@ -17,7 +17,9 @@ function showPhoneNumberInput() {
 function showOtpInput() {
   document.getElementById('otp-container').classList.remove('hidden');
 }
-
+function hideOtpInput() {
+  document.getElementById('otp-container').classList.add('hidden');
+}
 function showNameEmailContainer() {
   document.getElementById('name-email-container').classList.remove('hidden');
 }
@@ -33,6 +35,7 @@ function getPhoneNumber(id) {
 }
 
 const submitButton = document.getElementById('auth-flow-start');
+const cancelAuthFlowButton = document.getElementById('cancel-auth-flow-start')
 
 function hideMessage() {
   const messageNode = document.getElementById('message');
@@ -157,13 +160,13 @@ function fetchAuth() {
 
   if (!isValidPhoneNumber(phoneNumber)) {
     setMessage('Invalid phone number');
-
     return;
   }
+  const phoneNumberField =  document
+  .getElementById('phone');
+  phoneNumberField.setAttribute("disabled",true)
+ 
 
-  document
-    .getElementById('phone')
-    .setAttribute('disabled', true);
 
   let rejectionMessage = '';
   const init = {
@@ -185,13 +188,13 @@ function fetchAuth() {
       return response.json();
     })
     .then(function (result) {
+
       if (!result) {
         return Promise.resolve();
       }
 
       if (!result.success) {
         rejectionMessage = result.message;
-
         setMessage(rejectionMessage);
 
         return Promise.resolve();
@@ -199,11 +202,11 @@ function fetchAuth() {
 
       console.log('response received', result);
 
-      if (result.showFullLogin) {
+      // if (result.showFullLogin) {
         window.showFullLogin = true;
         console.log('full login shown');
         showNameEmailContainer();
-      }
+      // }
       window.recaptchaVerifier = handleRecaptcha();
 
       /** Render recaptcha */
@@ -219,8 +222,14 @@ function fetchAuth() {
 
       window.recaptchaVerifier.verify().then(function () {
         window.recaptchaResolved = true
+
         sendOtpToPhoneNumber().then(function (confirmResult) {
           setMessage(`Otp sent to ${phoneNumber}`);
+          cancelAuthFlowButton.classList.remove('hidden')
+          cancelAuthFlowButton.onclick = function(){
+            window.location.reload()
+          };
+
           showOtpInput();
           document
             .getElementById('recaptcha-container')
@@ -239,6 +248,7 @@ function fetchAuth() {
       console.error(error);
       window.recaptchaResolved = false
       setMessage(rejectionMessage || 'Something went wrong');
+     
     });
 }
 

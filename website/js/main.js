@@ -11,10 +11,8 @@ function handleRecaptcha(callbackFunction) {
   });
 }
 
-
 function isValidPhoneNumber(phoneNumber = '') {
   const pattern = /^\+[0-9\s\-\(\)]+$/;
-
   return phoneNumber.search(pattern) !== -1;
 }
 
@@ -249,7 +247,13 @@ function sendApiRequest(apiUrl, requestBody = null, method = 'GET') {
     .catch(console.error);
 }
 
+function removeAllChildren(element) {
+  if (!element || !element.firstChild) return;
 
+  while (element.firstChild) {
+    element.firstChild.remove();
+  }
+}
 document.addEventListener('click', (event) => {
   if (event.target === document.getElementById('form-submit-button')) {
     return void startOfficeCreationFlow(event)

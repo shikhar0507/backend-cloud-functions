@@ -7,12 +7,15 @@ form {
 fieldset {
     display: flex;
     flex-direction: column;
+    width: 100%;
 }
+
 
 label,
 .input-field {
     margin-bottom: 16px;
     height: 35px;
+    width: inherit;
 }
 
 form label {
