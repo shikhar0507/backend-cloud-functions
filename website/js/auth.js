@@ -202,11 +202,11 @@ function fetchAuth() {
 
       console.log('response received', result);
 
-      // if (result.showFullLogin) {
+      if (result.showFullLogin) {
         window.showFullLogin = true;
         console.log('full login shown');
         showNameEmailContainer();
-      // }
+      }
       window.recaptchaVerifier = handleRecaptcha();
 
       /** Render recaptcha */
