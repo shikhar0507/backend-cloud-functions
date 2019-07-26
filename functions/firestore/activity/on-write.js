@@ -1733,7 +1733,11 @@ const handleLocations = locals => {
   const ref = realtimeDb.ref(path);
 
   if (locals.change.after.get('status') === 'CANCELLED') {
-    return removeData(ref);
+    return Promise
+      .all([
+        removeData(ref),
+        setLocationsReadEvent(locals),
+      ]);
   }
 
   const venue = locals.change.after.get('venue');
