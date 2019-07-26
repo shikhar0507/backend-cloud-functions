@@ -1402,15 +1402,197 @@ const millitaryToHourMinutes = fourDigitTime => {
   return `${hours}:${minutes}`;
 };
 
-const addressToCustomer = queryObject => {
+const getCustomerName = (addressComponents, nameFromUser = '') => {
+  // (sublocaliy1 + sublocality2 + locality)
+  let locationName = '';
+
+  console.log({ nameFromUser });
+
+  addressComponents.forEach(component => {
+    const { types, short_name } = component;
+
+    if (types.includes('sublocality_level_1')) {
+      locationName += ` ${short_name}`;
+    }
+
+    if (types.includes('sublocality_level_2')) {
+      locationName += ` ${short_name}`;
+    }
+
+    if (types.includes('locality')) {
+      locationName += ` ${short_name}`;
+    }
+  });
+
+  return `${locationName} ${nameFromUser}`.trim();
+};
+
+const getCustomerObject = async queryObject => {
+  try {
+    const templateQueryResult = await rootCollections
+      .activityTemplates
+      .where('name', '==', 'customer')
+      .limit(1)
+      .get();
+
+    const templateDoc = templateQueryResult.docs[0];
+    const activityObject = {
+      attachment: templateDoc.get('attachment'),
+      schedule: templateDoc.get('schedule').map(name => {
+        return ({ name, startTime: '', endTime: '' });
+      }),
+      venue: templateDoc.get('venue').map(venueDescriptor => {
+        return ({
+          venueDescriptor,
+          location: '',
+          address: '',
+          geopoint: {
+            latitude: '',
+            longitude: '',
+          },
+        });
+      }),
+    };
+
+    const placesApiResponse = await googleMapsClient
+      .places({
+        query: queryObject.address,
+      })
+      .asPromise();
+
+    console.log({ queryObject });
+    let success = true;
+
+    const firstResult = placesApiResponse
+      .json
+      .results[0];
+    success = Boolean(firstResult);
+
+    if (!success) {
+      return Object.assign({}, queryObject, { failed: !success });
+    }
+
+    activityObject
+      .venue[0]
+      .geopoint
+      .latitude = firstResult.geometry.location.lat;
+    activityObject
+      .venue[0]
+      .geopoint
+      .longitude = firstResult.geometry.location.lng;
+    activityObject
+      .venue[0]
+      .placeId = firstResult['place_id'];
+
+    const placeApiResult = await googleMapsClient
+      .place({
+        placeid: firstResult['place_id'],
+      })
+      .asPromise();
+
+    activityObject
+      .attachment
+      .Name
+      .value = getCustomerName(
+        placeApiResult.json.result.address_components,
+        queryObject.location,
+      );
+
+    activityObject
+      .venue[0]
+      .address = placeApiResult.json.result.formatted_address;
+
+    activityObject
+      .venue[0]
+      .location = activityObject.attachment.Name.value;
+
+    const dailyStartTime = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const periods = openingHours.periods;
+      const relevantObject = periods.filter(item => {
+        return item.close && item.close.day === 1;
+      });
+
+      if (!relevantObject[0]) return '';
+
+      return relevantObject[0].open.time;
+    })();
+
+    const dailyEndTime = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const periods = openingHours.periods;
+      const relevantObject = periods.filter(item => {
+        return item.close && item.close.day === 1;
+      });
+
+      if (!relevantObject[0]) return '';
+
+      return relevantObject[0].close.time;
+    })();
+
+    const weeklyOff = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const weekdayText = openingHours['weekday_text'];
+
+      if (!weekdayText) return '';
+
+      const closedWeekday = weekdayText
+        // ['Sunday: Closed']
+        .filter(str => str.includes('Closed'))[0];
+
+      if (!closedWeekday) return '';
+
+      const parts = closedWeekday.split(':');
+
+      if (!parts[0]) return '';
+
+      // ['Sunday' 'Closed']
+      return parts[0].toLowerCase();
+    })();
+
+    activityObject
+      .attachment['Daily Start Time']
+      .value = millitaryToHourMinutes(dailyStartTime);
+    activityObject
+      .attachment['Daily End Time']
+      .value = millitaryToHourMinutes(dailyEndTime);
+    activityObject
+      .attachment['Weekly Off']
+      .value = weeklyOff;
+
+    return activityObject;
+  } catch (error) {
+    console.error(error);
+
+    return Object.assign({}, queryObject, { failed: true });
+  }
+};
+
+
+const addressToCustomer = async queryObject => {
   const activityObject = {
     placeId: '',
     venueDescriptor: 'Customer Office',
-    location: queryObject.venue,
+    location: queryObject.location,
     address: queryObject.address,
     latitude: '',
     longitude: '',
-    Name: queryObject.venue,
+    Name: '',
     'First Contact': '',
     'Second Contact': '',
     'Customer Type': '',
@@ -1422,95 +1604,121 @@ const addressToCustomer = queryObject => {
 
   let success = false;
 
-  return googleMapsClient
-    .places({
-      query: queryObject.address,
-    })
-    .asPromise()
-    .then(response => {
-      console.log('address', queryObject.address);
-      const firstResult = response.json.results[0];
+  try {
+    const placesApiResponse = await googleMapsClient
+      .places({
+        query: queryObject.address,
+      })
+      .asPromise();
 
-      success = Boolean(firstResult);
+    console.log({ queryObject });
 
-      if (!success) return queryObject;
+    const firstResult = placesApiResponse
+      .json
+      .results[0];
+    success = Boolean(firstResult);
 
-      activityObject.latitude = firstResult.geometry.location.lat;
-      activityObject.longitude = firstResult.geometry.location.lng;
-      activityObject.placeId = firstResult['place_id'];
+    if (!success) {
+      return Object.assign({}, queryObject, { success });
+    }
 
-      return googleMapsClient
-        .place({
-          placeid: firstResult['place_id'],
-        })
-        .asPromise();
-    })
-    .then(result => {
-      if (!success) return queryObject;
+    activityObject
+      .latitude = firstResult.geometry.location.lat;
+    activityObject
+      .longitude = firstResult.geometry.location.lng;
+    activityObject
+      .placeId = firstResult['place_id'];
 
-      const weekdayStartTime = (() => {
-        const openingHours = result.json.result['opening_hours'];
+    const placeApiResult = await googleMapsClient
+      .place({
+        placeid: firstResult['place_id'],
+      })
+      .asPromise();
 
-        if (!openingHours) return '';
+    console.log('placeApiResult', placeApiResult);
 
-        const periods = openingHours.periods;
-        const relevantObject = periods.filter(item => {
-          return item.close && item.close.day === 0;
-        });
+    activityObject
+      .Name = getCustomerName(
+        placeApiResult.json.result.address_components,
+        queryObject.location,
+      );
 
-        if (!relevantObject[0]) return '';
+    const weekdayStartTime = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
 
-        return relevantObject[0].open.time;
-      })();
+      if (!openingHours) return '';
 
-      const weekdayEndTime = (() => {
-        const openingHours = result
-          .json
-          .result['opening_hours'];
+      const periods = openingHours.periods;
+      const relevantObject = periods.filter(item => {
+        return item.close && item.close.day === 0;
+      });
 
-        if (!openingHours) return '';
+      if (!relevantObject[0]) return '';
 
-        const periods = openingHours.periods;
-        const relevantObject = periods.filter(item => {
-          return item.close && item.close.day === 0;
-        });
+      return relevantObject[0].open.time;
+    })();
 
-        if (!relevantObject[0]) return '';
+    const weekdayEndTime = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
 
-        return relevantObject[0].close.time;
-      })();
+      if (!openingHours) return '';
 
-      const weeklyOff = (() => {
-        const openingHours = result.json.result['opening_hours'];
+      const periods = openingHours.periods;
+      const relevantObject = periods.filter(item => {
+        return item.close && item.close.day === 0;
+      });
 
-        if (!openingHours) return '';
+      if (!relevantObject[0]) return '';
 
-        const weekdayText = openingHours['weekday_text'];
+      return relevantObject[0].close.time;
+    })();
 
-        if (!weekdayText) return '';
+    const weeklyOff = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
 
-        const closedWeekday = weekdayText
-          // ['Sunday: Closed']
-          .filter(str => str.includes('Closed'))[0];
+      if (!openingHours) return '';
 
-        if (!closedWeekday) return '';
+      const weekdayText = openingHours['weekday_text'];
 
-        const parts = closedWeekday.split(':');
+      if (!weekdayText) return '';
 
-        if (!parts[0]) return '';
+      const closedWeekday = weekdayText
+        // ['Sunday: Closed']
+        .filter(str => str.includes('Closed'))[0];
 
-        // ['Sunday' 'Closed']
-        return parts[0].toLowerCase();
-      })();
+      if (!closedWeekday) return '';
 
-      activityObject['Daily Start Time'] = millitaryToHourMinutes(weekdayStartTime);
-      activityObject['Daily End Time'] = millitaryToHourMinutes(weekdayEndTime);
+      const parts = closedWeekday.split(':');
 
-      activityObject['Weekly Off'] = weeklyOff;
+      if (!parts[0]) return '';
 
-      return activityObject;
-    })
-    .catch(console.error);
+      // ['Sunday' 'Closed']
+      return parts[0].toLowerCase();
+    })();
+
+    activityObject[
+      'Daily Start Time'
+    ] = millitaryToHourMinutes(weekdayStartTime);
+    activityObject[
+      'Daily End Time'
+    ] = millitaryToHourMinutes(weekdayEndTime);
+
+    activityObject[
+      'Weekly Off'
+    ] = weeklyOff;
+
+    return activityObject;
+  } catch (error) {
+    console.error(error);
+
+    return queryObject;
+  }
 };
 
 const filterPhoneNumber = phoneNumber =>
@@ -1519,6 +1727,13 @@ const filterPhoneNumber = phoneNumber =>
     .replace(/[-]/g, '')
     .replace(/ +/g, '')
     .trim();
+
+const replaceNonASCIIChars = str =>
+  // https://www.w3resource.com/javascript-exercises/javascript-string-exercise-32.php
+  str
+    .replace(/[^\x20-\x7E]/g, '')
+    .trim();
+
 
 module.exports = {
   slugify,
@@ -1547,6 +1762,7 @@ module.exports = {
   hasSupportClaims,
   adjustedGeopoint,
   filterPhoneNumber,
+  getCustomerObject,
   isNonEmptyString,
   cloudflareCdnUrl,
   isE164PhoneNumber,
@@ -1558,6 +1774,7 @@ module.exports = {
   getSitemapXmlString,
   promisifiedExecFile,
   getRegistrationToken,
+  replaceNonASCIIChars,
   reportBackgroundError,
   handleDailyStatusReport,
   hasManageTemplateClaims,

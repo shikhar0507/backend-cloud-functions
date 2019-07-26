@@ -57,7 +57,7 @@ const momentTz = require('moment-timezone');
 const fs = require('fs');
 
 
-const createDocsWithBatch = (conn, locals) => {
+const createDocsWithBatch = async (conn, locals) => {
   const canEditMap = {};
   locals
     .objects
@@ -91,32 +91,69 @@ const createDocsWithBatch = (conn, locals) => {
 
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
 
-  const activityData = {
-    addendumDocRef,
-    timezone,
+  let activityData = {
     venue: locals.objects.venueArray,
-    timestamp: Date.now(),
-    office: conn.req.body.office,
-    template: conn.req.body.template,
     schedule: locals.objects.scheduleArray,
-    status: locals.static.statusOnCreate,
     attachment: conn.req.body.attachment,
-    canEditRule: locals.static.canEditRule,
-    activityName: activityName({
-      requester: conn.requester,
-      attachmentObject: conn.req.body.attachment,
-      templateName: conn.req.body.template,
-    }),
-    officeId: locals.static.officeId,
-    hidden: locals.static.hidden,
-    creator: {
-      phoneNumber: conn.requester.phoneNumber,
-      displayName: conn.requester.displayName,
-      photoURL: conn.requester.photoURL,
-    },
-    createTimestamp: Date.now(),
-    forSalesReport: forSalesReport(conn.req.body.template),
   };
+
+  if (conn.req.body.template === 'customer') {
+    const {
+      getCustomerObject,
+    } = require('../../admin/utils');
+
+    const placesQueryResult = await getCustomerObject({
+      address: conn.req.body.venue[0].address,
+      location: conn.req.body.attachment.Name.value
+    });
+
+    activityData
+      .attachment[
+      'First Contact'
+    ].value = conn.req.body.attachment['First Contact'].value || '';
+
+    activityData = placesQueryResult;
+
+    if (placesQueryResult.failed) {
+      activityData.attachment = conn.req.body.attachment;
+      activityData.schedule = conn.req.body.schedule;
+      activityData.venue = conn.req.body.venue;
+
+      delete activityData.location;
+      delete activityData.address;
+
+      locals.batch.set(rootCollections.instant.doc(), {
+        subject: `${process.env.GCLOUD_PROJECT}: Customer Created with ZERO_RESULTS from Places API`,
+        messageBody: JSON.stringify({
+          requestBody: conn.req.body,
+          requester: conn.requester.phoneNumber,
+        }, ' ', 2),
+      });
+    }
+  }
+
+  activityData.office = conn.req.body.office;
+  activityData.addendumDocRef = addendumDocRef;
+  activityData.timezone = timezone;
+  activityData.timestamp = Date.now();
+  activityData.template = conn.req.body.template;
+  activityData.status = locals.static.statusOnCreate;
+  activityData.status = locals.static.statusOnCreate;
+  activityData.canEditRule = locals.static.canEditRule;
+  activityData.activityName = activityName({
+    requester: conn.requester,
+    attachmentObject: conn.req.body.attachment,
+    templateName: conn.req.body.template,
+  });
+  activityData.officeId = locals.static.officeId;
+  activityData.hidden = locals.static.hidden;
+  activityData.creator = {
+    phoneNumber: conn.requester.phoneNumber,
+    displayName: conn.requester.displayName,
+    photoURL: conn.requester.photoURL,
+  };
+  activityData.createTimestamp = Date.now();
+  activityData.forSalesReport = forSalesReport(conn.req.body.template);
 
   const adjustedGeopoints = getAdjustedGeopointsFromVenue(
     locals.objects.venueArray
