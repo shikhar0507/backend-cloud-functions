@@ -145,7 +145,7 @@ const getLoggedInStatus = idToken => {
       if (isAdmin) {
         adminOffices = customClaims.admin;
       }
-     
+
       return {
         isAdmin,
         customClaims,
@@ -360,12 +360,14 @@ const fetchOfficeData = (locals, requester) => {
         .ref
         .collection('Activities')
         .where('template', '==', 'branch')
+        .where('status', '==', 'CONFIRMED')
         .get(),
       locals
         .officeDoc
         .ref
         .collection('Activities')
         .where('template', '==', 'product')
+        .where('status', '==', 'CONFIRMED')
         .get(),
     ])
     .then((result) => {
@@ -377,7 +379,7 @@ const fetchOfficeData = (locals, requester) => {
 
       locals
         .branchDocs
-        .forEach((doc) => {
+        .forEach(doc => {
           /** Currently branch has only 1 venue */
           const venue = doc.get('venue')[0];
 
@@ -693,7 +695,7 @@ const handleJsonGetRequest = (conn, requester) => {
     return Promise.resolve({});
   }
 
-  if (requester.isAdmin
+  if ((requester.isAdmin || requester.isSupport)
     && conn.req.query.action === 'get-template-xlsx') {
     return require('./excel-handler')(conn);
   }
@@ -1153,9 +1155,7 @@ module.exports = (req, res) => {
       }
 
       if (html) {
-        conn.res.send(html);
-
-        return;
+        return conn.res.send(html);
       }
 
       return rootCollections
@@ -1170,6 +1170,15 @@ module.exports = (req, res) => {
       }
 
       if (slug === 'json') {
+        if (conn.req.query.action === 'get-template-xlsx') {
+          const xlsxPopulate = require('xlsx-populate');
+          conn.res.type(xlsxPopulate.MIME_TYPE);
+
+          return conn
+            .res
+            .download(`/tmp/sample.xlsx`);
+        }
+
         html = result;
 
         conn
@@ -1177,20 +1186,20 @@ module.exports = (req, res) => {
           .status(result.status || code.ok)
           .set(conn.headers);
 
-        conn.res.json(html);
-
-        return;
+        return conn.res.json(html);
       }
 
       if (result.empty) {
         html = handle404Page();
 
-        conn.res.status(code.notFound).send(html);
-
-        return;
+        return conn
+          .res
+          .status(code.notFound)
+          .send(html);
       }
 
-      locals.officeDoc = result.docs[0];
+      locals
+        .officeDoc = result.docs[0];
 
       return fetchOfficeData(locals, requester);
     })
@@ -1199,16 +1208,9 @@ module.exports = (req, res) => {
         return Promise.resolve();
       }
 
+      console.log('Excel sent....');
+
       html = officeHtml;
-
-
-      if (conn.req.query.action === 'get-template-xlsx') {
-        conn
-          .res
-          .download(`/tmp/${conn.req.query.templateName}.xlsx`);
-
-        return;
-      }
 
       conn.res.send(html);
 
