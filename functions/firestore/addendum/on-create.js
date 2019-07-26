@@ -22,7 +22,6 @@ const {
 } = require('../recipients/report-utils');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
-
 const googleMapsClient =
   require('@google/maps')
     .createClient({
@@ -61,7 +60,6 @@ const getLocalityCityState = (components) => {
   return { locality, city, state };
 };
 
-
 const getLatLngString = (location) =>
   `${location._latitude},${location._longitude}`;
 
@@ -93,7 +91,6 @@ const getPlaceInformation = (mapsApiResult, geopoint) => {
     url: getLocationUrl(plusCode),
   };
 };
-
 
 const handleDailyStatusReport = (addendumDoc, locals) => {
   if (!env.isProduction) {
@@ -298,7 +295,6 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
     })
     .catch(console.error);
 };
-
 
 const logLocations = (addendumDoc, locals) => {
   const geopointAccuracy = addendumDoc.get('geopointAccuracy');
@@ -600,15 +596,15 @@ const getCommentString = (locals, recipient) => {
     const locationFromVenue = (() => {
       if (template !== 'check-in') return null;
 
-      if (locals.addendumDocData.venueQuery) {
-        return locals.addendumDocData.venueQuery.location;
-      }
-
       if (locals.addendumDocData.activityData
         && locals.addendumDocData.activityData.venue
         && locals.addendumDocData.activityData.venue[0]
         && locals.addendumDocData.activityData.venue[0].location) {
         return locals.addendumDocData.activityData.venue[0].location;
+      }
+
+      if (locals.addendumDocData.venueQuery) {
+        return locals.addendumDocData.venueQuery.location;
       }
 
       return locals.addendumDocData.identifier;
@@ -990,9 +986,7 @@ module.exports = addendumDoc => {
       /**
        * Seperating this part out because handling even a single crash
        * with `addendumOnCreate` cloud function messes up whole data for the user
-       * after the time of the crash. This part should remain seperated
-       * because further object/data in the `Inits` collection is pretty simple
-       * to recreate.
+       * after the time of the crash.
        */
       return addendumDoc
         .ref
