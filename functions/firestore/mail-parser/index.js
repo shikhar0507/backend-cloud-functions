@@ -2,6 +2,7 @@
 
 const {
   users,
+  auth,
 } = require('../../admin/admin');
 const {
   sendJSON,
@@ -14,7 +15,7 @@ const XLSX = require('xlsx');
 const env = require('../../admin/env');
 
 
-const getEmail = (from) => {
+const getEmail = from => {
   // TODO: Replace this with the following:
   // Foo Bar <foo.bar@gmail.com>'.split(/[<>]/);
   const emailFromSendgrid = Buffer.from(from).toString();
@@ -52,10 +53,25 @@ const toAllowRequest = (customClaims, officeName) => {
   return false;
 };
 
+const getAuth = async phoneNumber => {
+  try {
+    return await auth.getUserByEmail(phoneNumber);
+  } catch (error) {
+    return {
+      phoneNumber,
+    };
+  }
+};
 
-module.exports = (conn) => {
-  if (conn.req.query.token !== env.sgMailParseToken) {
-    return sendJSON(conn, code.ok);
+
+module.exports = async conn => {
+  if (conn.req.query.token
+    !== env.sgMailParseToken) {
+    return {
+      success: false,
+      code: code.unauthorized,
+      message: 'Missing the parse token',
+    };
   }
 
   // body is of type buffer
@@ -92,45 +108,39 @@ module.exports = (conn) => {
     data: arrayOfObjects,
     timestamp: Date.now(),
     senderEmail: getEmail(parsedData.from),
-    createNotExistingDocs: true,
     template: attachmentNameParts[0]
       .trim()
       .toLowerCase(),
     office: attachmentNameParts[1]
       .split('.xlsx')[0]
       .trim(),
+    geopoint: {
+      latitude: 28.5463443,
+      longitude: 77.2519989,
+    },
   };
 
-  return users
-    .getUserByEmail(conn.req.body.senderEmail)
-    .then((userRecord) => {
-      const customClaims = userRecord[conn.req.body.senderEmail].customClaims;
+  const userRecord = await getAuth(conn.req.body.senderEmail);
+  const {
+    customClaims
+  } = userRecord;
 
-      if (!toAllowRequest(customClaims, conn.req.body.office)) {
-        return sendJSON(conn, {});
-      }
+  if (!toAllowRequest(customClaims, conn.req.body.office)) {
+    return {
+      code: code.unauthorized,
+      message: 'Unknown user',
+      success: false,
+    };
+  }
 
-      conn
-        .requester = {
-          isSupportRequest: false,
-          email: conn.req.body.senderEmail || '',
-          uid: userRecord[conn.req.body.senderEmail].uid,
-          phoneNumber: userRecord[conn.req.body.senderEmail].phoneNumber,
-          displayName: userRecord[conn.req.body.senderEmail].displayName || '',
-          customClaims: userRecord[conn.req.body.senderEmail].customClaims,
-        };
+  conn.requester = {
+    isSupportRequest: false,
+    email: conn.req.body.senderEmail || '',
+    uid: userRecord.uid,
+    phoneNumber: userRecord.phoneNumber,
+    displayName: userRecord.displayName || '',
+    customClaims: userRecord.customClaims,
+  };
 
-      // TODO: This is just a placeholder
-      conn.req.body.geopoint = {
-        latitude: 12.12121,
-        longitude: 12.1212,
-      };
-
-      return require('../firestore/bulk/script')(conn);
-    })
-    .catch((error) => {
-      console.error(error);
-
-      return sendJSON(conn, 200);
-    });
+  return await require('../firestore/bulk/script')(conn);
 };
