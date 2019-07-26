@@ -90,17 +90,6 @@ module.exports = change => {
     return Promise.resolve();
   }
 
-  /**
-   * A temporary polyfill for using `Object.values` since sendgrid has
-   * probably removed support for Node 6, but the Node 8 runtime is still
-   * suffering from "connection error" issue at this time.
-   * Will remove this after a few days.
-   *
-   * @see https://github.com/sendgrid/sendgrid-nodejs/issues/929
-   * @see https://github.com/firebase/firebase-functions/issues/429
-   */
-  Object.values = Object.values || valuesPolyfill;
-
   const locals = {
     change,
     sgMail,
@@ -145,7 +134,7 @@ module.exports = change => {
   const authFetch = [];
 
   include
-    .forEach((phoneNumber) => {
+    .forEach(phoneNumber => {
       authFetch
         .push(users.getUserByPhoneNumber(phoneNumber.trim()));
     });

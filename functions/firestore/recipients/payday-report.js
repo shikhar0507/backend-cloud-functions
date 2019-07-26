@@ -632,9 +632,7 @@ module.exports = locals => {
               statusObject[
                 yesterdayDate
               ].statusForDay = Math
-                .floor(
-                  statusObject[yesterdayDate].statusForDay / rev
-                ) * rev;
+                .floor(statusObject[yesterdayDate].statusForDay / rev) * rev;
             }
           }
 
@@ -643,8 +641,6 @@ module.exports = locals => {
               yesterdayDate
             ].statusForDay = 1;
           }
-
-          console.log(statusObject[yesterdayDate].statusForDay);
 
           /** Updating the map after updating the status object */
           statusObjectsMapForCurrentMonth

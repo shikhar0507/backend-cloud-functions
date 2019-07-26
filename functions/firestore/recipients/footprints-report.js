@@ -33,6 +33,11 @@ const msToMin = ms => {
   return minute;
 };
 
+
+const isDiffLessThanFiveMinutes = (first, second) => {
+  return msToMin(Math.abs(first - second)) <= 5;
+};
+
 const getComment = doc => {
   if (doc.get('activityData.attachment.Comment.value')) {
     return doc.get('activityData.attachment.Comment.value');
@@ -142,24 +147,30 @@ const getTopHeaders = momentYesterday => {
 };
 
 const getUrl = doc => {
+  const venue = doc
+    .get('activityData.venue');
+
+  if (venue && venue[0] && venue[0].location) {
+    return toMapsUrl(venue[0].geopoint);
+  }
+
   if (doc.get('venueQuery')
     && doc.get('venueQuery').location) {
     return toMapsUrl(doc.get('venueQuery').geopoint);
   }
 
-  const venue = doc
-    .get('activityData.venue');
-
-  if (!venue || !venue[0] || !venue[0].location) {
-    return doc
-      .get('url');
-  }
-
-  return toMapsUrl(venue[0].geopoint);
+  return doc.get('url') || '';
 };
 
 
 const getIdentifier = doc => {
+  const venue = doc
+    .get('activityData.venue');
+
+  if (venue && venue[0] && venue[0].location) {
+    return venue[0].location;
+  }
+
   if (doc.get('venueQuery')
     && doc.get('venueQuery').location) {
     return doc
@@ -167,16 +178,7 @@ const getIdentifier = doc => {
       .location;
   }
 
-  const venue = doc
-    .get('activityData.venue');
-
-  if (!venue || !venue[0] || !venue[0].location) {
-    return doc
-      .get('identifier');
-  }
-
-  return venue[0]
-    .location;
+  return doc.get('identifier');
 };
 
 const getMonthlyDocRef = (phoneNumber, monthlyDocRef) =>
@@ -546,9 +548,6 @@ const handleSheetTwo = locals => {
     .catch(console.error);
 };
 
-const isDiffLessThanFiveMinutes = (first, second) => {
-  return msToMin(Math.abs(first - second)) <= 5;
-};
 
 module.exports = locals => {
   let lastIndex = 1;
