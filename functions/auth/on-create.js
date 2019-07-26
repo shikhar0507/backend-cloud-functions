@@ -56,7 +56,7 @@ const env = require('../admin/env');
  * @param {Object} userRecord Object with user info.
  * @returns {Promise<Object>} Batch object.
  */
-module.exports = (userRecord) => {
+module.exports = async userRecord => {
   const batch = db.batch();
   const momentToday = moment()
     .utc()
@@ -111,7 +111,7 @@ module.exports = (userRecord) => {
         .where('attachment.Admin.value', '==', userRecord.phoneNumber)
         .get(),
     ])
-    .then((result) => {
+    .then(result => {
       const [
         counterDocsQuery,
         initDocsQuery,
