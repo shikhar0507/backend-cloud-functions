@@ -505,7 +505,9 @@ const createObjects = (conn, locals, trialRun) => {
       .data[index]
       .share
       .forEach(phoneNumber => {
-        const ref = activityRef.collection('Assignees').doc(phoneNumber.trim());
+        const ref = activityRef
+          .collection('Assignees')
+          .doc(phoneNumber.trim());
         const addToInclude = conn.req.body.template === templateNamesObject.SUBSCRIPTION
           && phoneNumber !== activityObject.attachment.Subscriber.value;
 
@@ -552,7 +554,8 @@ const createObjects = (conn, locals, trialRun) => {
 const fetchDataForCanEditRule = (conn, locals) => {
   const rule = locals.templateDoc.get('canEditRule');
 
-  if (rule !== 'ADMIN' && rule !== 'EMPLOYEE') {
+  if (rule !== 'ADMIN'
+    && rule !== 'EMPLOYEE') {
     return Promise.resolve();
   }
 
@@ -565,7 +568,7 @@ const fetchDataForCanEditRule = (conn, locals) => {
     .then(docs => {
       const set = new Set();
 
-      docs.forEach((doc) => {
+      docs.forEach(doc => {
         const phoneNumber =
           doc.get('attachment.Employee Contact.value')
           || doc.get('attachment.Admin.value');
@@ -920,42 +923,6 @@ const fetchTemplates = (conn, locals) => {
     });
 };
 
-const handleCustomer = conn => {
-  if (conn.req.body.template !== 'customer') {
-    return Promise.resolve();
-  }
-
-  const placesApiPromises = [];
-  const rejectedIndexes = new Set();
-
-  conn.req.body.data.forEach((item, index) => {
-    if (!isNonEmptyString(item.Venue) || !isNonEmptyString(item.Address)) {
-      conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = 'Missing Venue or Address';
-
-      rejectedIndexes.add(index);
-
-      return;
-    }
-
-    placesApiPromises.push(addressToCustomer({
-      venue: item.Venue,
-      address: item.Address,
-    }));
-  });
-
-  return Promise
-    .all(placesApiPromises)
-    .then(customers => {
-      customers.forEach((customer, index) => {
-        conn.req.body.data[index] = customer;
-        conn.req.body.data[index].share = conn.req.body.data[index].share || [];
-      });
-
-      return Promise.resolve();
-    });
-};
-
 const validateDataArray = (conn, locals) => {
   const scheduleFields = locals.templateDoc.get('schedule');
   const venueFields = getVenueFieldsSet(locals.templateDoc);
@@ -985,7 +952,6 @@ const validateDataArray = (conn, locals) => {
   const namesSet = new Set();
   const assigneesFromAttachment = new Map();
   const officeContacts = new Map();
-  const nameOrNumberIndex = new Map();
 
   conn.req.body.data.forEach((dataObject, index) => {
     const objectProperties = Object.keys(dataObject);
@@ -1014,9 +980,7 @@ const validateDataArray = (conn, locals) => {
       }
 
       if (locals.templateDoc.get('venue').length > 0) {
-        const msg = `Either fill all location fields`
-          + ` (address, location latitude, longitude,`
-          + ` and placeId) or none`;
+        const msg = `All location fields are required`;
         const allVenueFields = [
           conn.req.body.data[index].latitude,
           conn.req.body.data[index].longitude,
@@ -1080,16 +1044,14 @@ const validateDataArray = (conn, locals) => {
       const value = conn.req.body.data[index].Name
         || conn.req.body.data[index].Number;
 
-      // const set = nameOrNumberIndex.get(value) || new Set();
+      const set = nameOrNumberIndex.get(value) || new Set();
 
-      // if (set.has(value)) {
-      //   conn.req.body.data[index].rejected = true;
-      //   conn.req.body.data[index].reason = 'Duplicate';
-      // }
+      if (set.has(value)) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = 'Duplicate';
+      }
 
-      // set.add(index);
-
-      // nameOrNumberIndex.set(value, set);
+      set.add(index);
 
       if (namesSet.has(value)) {
         duplicateRowIndex = index + 1;
@@ -1148,7 +1110,9 @@ const validateDataArray = (conn, locals) => {
         conn.req.body.data[index].reason = `Invalid template`;
       }
 
-      /** Subscription of template office and subscription is not allowed for everyone */
+      /** Subscription of template office and subscription
+       * is not allowed for everyone
+       */
       if (template === 'office'
         || template === templateNamesObject.SUBSCRIPTION) {
         conn.req.body.data[index].rejected = true;
@@ -1377,7 +1341,14 @@ const validateDataArray = (conn, locals) => {
        */
       && !conn.req.body.data[index].rejected
       && conn.req.body.template !== 'customer'
-      && conn.req.body.template !== 'branch') {
+      && conn.req.body.template !== 'branch'
+      /**
+       * Templates like `leave-type`, `expense-type` and `customer-type`
+       * are auto assigned to their respective recipients via
+       * `activityOnWrite` on creation of subscription of leave, expense
+       * and customer activities.
+       */
+      && !conn.req.body.template.endsWith('-type')) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `No assignees found`;
     }
@@ -1408,7 +1379,6 @@ const validateDataArray = (conn, locals) => {
     .then(() => fetchTemplates(conn, locals))
     .then(() => handleAdmins(conn, locals))
     .then(() => handleSubscriptions(conn, locals))
-    .then(() => handleCustomer(conn))
     .then(() => handleUniqueness(conn, locals))
     .then(() => fetchDataForCanEditRule(conn, locals))
     .then(() => handleEmployees(conn, locals))
@@ -1416,6 +1386,104 @@ const validateDataArray = (conn, locals) => {
     // .then((responseObject) => sendExcelFromResponse(conn, locals, responseObject))
     .then(responseObject => sendJSON(conn, responseObject));
 };
+
+const getBranchActivity = await address => {
+  const googleMapsClient =
+    require('@google/maps')
+      .createClient({
+        key: env.mapsApiKey,
+        Promise: Promise,
+      });
+
+  const placesApiResponse = await googleMapsClient
+    .places({
+      query: queryObject.address,
+    })
+    .asPromise();
+
+  let success = true;
+
+  const firstResult = placesApiResponse
+    .json
+    .results[0];
+  success = Boolean(firstResult);
+
+  if (!success) {
+    return Object.assign({}, { address, failed: !success });
+  }
+
+  const activityObject = {
+    venueDescriptor: 'Branch Office',
+    location: '',
+    address: '',
+    latitude: '',
+    longitude: '',
+    // schedule
+    Name: '',
+    'First Contact': '',
+    'Second Contact': '',
+    'Branch Code': '',
+    'Weekday Start Time': '',
+    'Weekday End Time': '',
+    'Saturday Start Time': '',
+    'Saturday End Time': '',
+    'Weekly Off': '',
+  };
+
+  Array.from(Array(15)).forEach((_, index) => {
+    activityObject[`Holiday ${index + 1}`] = '';
+  });
+
+
+};
+
+const handleBranch = async (conn, locals) => {
+  // if (conn.req.body.template !== 'branch') {
+  //   return Promise.resolve();
+  // }
+
+  return validateDataArray(conn, locals);
+};
+
+const handleCustomer = async (conn, locals) => {
+  if (conn.req.body.template !== 'customer') {
+    return Promise.resolve();
+  }
+
+  const placesApiPromises = [];
+  const rejectedIndexes = new Set();
+
+  conn.req.body.data.forEach((item, index) => {
+    if (!isNonEmptyString(item.address)) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = 'address is required';
+
+      rejectedIndexes.add(index);
+
+      return;
+    }
+
+    placesApiPromises.push(addressToCustomer({
+      location: item.location,
+      address: item.address,
+    }));
+  });
+
+  const customers = await Promise.all(placesApiPromises);
+
+  customers.forEach((customer, index) => {
+    if (!customers.success) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = 'Not a known location';
+    }
+
+    conn.req.body.data[index] = customer;
+    conn.req.body.data[index].share = conn.req.body.data[index].share || [];
+  });
+
+  return handleBranch(conn, locals);
+};
+
 
 module.exports = conn => {
   /**
@@ -1544,15 +1612,14 @@ module.exports = conn => {
         });
       });
 
-      const isSupportRequest = conn.requester.isSupportRequest;
-      const isAdminRequest = !isSupportRequest
+      locals
+        .isSupportRequest = conn.requester.isSupportRequest;
+      locals
+        .isAdminRequest = !isSupportRequest
         && conn.requester.customClaims.admin
         && conn.requester.customClaims.admin.length > 0;
 
-      locals.isSupportRequest = isSupportRequest;
-      locals.isAdminRequest = isAdminRequest;
-
-      return validateDataArray(conn, locals);
+      return handleCustomer(conn, locals);
     })
     .catch(error => handleError(conn, error));
 };
