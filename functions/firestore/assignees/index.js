@@ -43,56 +43,61 @@ const { rootCollections } = require('../../admin/admin');
  * @param {Object} context Data related to the `onDelete` event.
  * @returns {Promise <Object>} Firestore `Batch` object.
  */
-module.exports = (doc, context) => {
-  const phoneNumber = context.params.phoneNumber;
-  const activityId = context.params.activityId;
+module.exports = async (doc, context) => {
+  const {
+    phoneNumber,
+    activityId,
+  } = context.params;
 
   const profileRef = rootCollections
     .profiles
     .doc(phoneNumber);
+  const promises = [
+    profileRef
+      .get(),
+    rootCollections
+      .activities
+      .doc(activityId)
+      .get(),
+    profileRef
+      .collection('Activities')
+      .doc(activityId)
+      .delete(),
+  ];
 
-  return Promise
-    .all([
-      profileRef
-        .get(),
-      profileRef
-        .collection('Activities')
-        .doc(activityId)
-        .delete(),
-    ])
-    .then((result) => {
-      const [
-        profileDoc,
-      ] = result;
+  try {
+    const [profileDoc, activityDoc] = await Promise.all(promises);
 
-      const timestamp = Date.now();
-      const uid = profileDoc.get('uid');
+    const timestamp = Date.now();
+    const uid = profileDoc.get('uid');
 
-      /** This person may not have created their auth via OTP */
-      if (!uid) return Promise.resolve();
+    /** This person may not have created their auth via OTP */
+    if (!uid
+      || activityDoc.get('hidden') === 1) {
+      return Promise.resolve();
+    }
 
-      const addendumRef = rootCollections
-        .updates
-        .doc(uid)
-        .collection('Addendum')
-        .doc();
+    const addendumRef = rootCollections
+      .updates
+      .doc(uid)
+      .collection('Addendum')
+      .doc();
 
-      console.log('id', addendumRef.id);
-
-      return addendumRef
-        .set({
-          timestamp,
-          activityId,
-          isComment: 0,
-          location: {
-            _latitude: '',
-            _longitude: '',
-          },
-          userDeviceTimestamp: timestamp,
-          user: phoneNumber,
-          unassign: true,
-          comment: 'You were removed',
-        });
-    })
-    .catch(console.error);
+    return addendumRef
+      .set({
+        timestamp,
+        activityId,
+        isComment: 0,
+        location: {
+          _latitude: '',
+          _longitude: '',
+        },
+        userDeviceTimestamp: timestamp,
+        user: phoneNumber,
+        unassign: true,
+        comment: 'You were removed',
+      });
+  } catch (error) {
+    console.error(error);
+  }
 };
