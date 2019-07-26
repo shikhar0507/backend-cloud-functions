@@ -54,6 +54,7 @@ function logoutUser(event) {
     .auth()
     .signOut()
     .then(function () {
+      sessionStorage.clear();
       window.location.reload();
 
       return;
@@ -158,7 +159,7 @@ function createModal(actionContent) {
   div.appendChild(content)
   return div;
 }
-function addOptionToSelect(data,el,defaultValue){
+function addOptionToSelect(data, el, defaultValue) {
 
   data.forEach(function (name) {
     const option = document.createElement('option');
@@ -166,7 +167,7 @@ function addOptionToSelect(data,el,defaultValue){
     option.textContent = name;
     el.appendChild(option);
   });
-  if(defaultValue) el.value = defaultValue
+  if (defaultValue) el.value = defaultValue
 }
 function isDomElementString(el) {
   return typeof el == 'string';
@@ -477,12 +478,12 @@ function getModal(options) {
 function getPhoneNumber(id) {
   const inputValue = document.getElementById(id).value;
   return formatPhoneNumber(inputValue)
- 
+
 }
 
 function formatPhoneNumber(value) {
-  if(value.startsWith(`+${window.countryCode}`)) return value;
-  
+  if (value.startsWith(`+${window.countryCode}`)) return value;
+
   return `+${window.countryCode}${value}`
 }
 
