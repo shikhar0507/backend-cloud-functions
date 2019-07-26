@@ -169,13 +169,14 @@ const getSubscriptionObject = doc => {
 const getLocations = ref => new Promise(resolve => ref.on('value', resolve));
 
 
-module.exports = conn => {
+module.exports = async conn => {
   const result = validateRequest(conn);
 
   if (!result.isValid) {
     return sendResponse(conn, code.badRequest, result.message);
   }
 
+  const batch = db.batch();
   const employeeOf = conn.requester.employeeOf || {};
   const officeList = Object.keys(employeeOf);
   const from = parseInt(conn.req.query.from);
@@ -244,83 +245,83 @@ module.exports = conn => {
     promises.push(Promise.all(locationPromises));
   }
 
-  return Promise
-    .all(promises)
-    .then(result => {
-      const [
-        addendum,
-        activities,
-        subscriptions,
-        locationResults,
-      ] = result;
+  try {
+    const [
+      addendum,
+      activities,
+      subscriptions,
+      locationResults,
+    ] = await Promise.all(promises);
 
-      if (!addendum.empty) {
-        jsonObject.upto = addendum
-          .docs[addendum.size - 1]
-          .get('timestamp');
-      }
+    if (!addendum.empty) {
+      jsonObject.upto = addendum
+        .docs[addendum.size - 1]
+        .get('timestamp');
+    }
 
-      console.log('sending in /read', conn.requester.phoneNumber, {
-        activities: activities.size,
-        addendum: addendum.size,
-        subscriptions: subscriptions.size,
-        from: conn.req.query.from,
+    console.log('sending in /read', conn.requester.phoneNumber, {
+      activities: activities.size,
+      addendum: addendum.size,
+      subscriptions: subscriptions.size,
+      from: conn.req.query.from,
+    });
+
+    if (locationResults) {
+      locationResults.forEach(snapShot => {
+        if (!snapShot) return;
+
+        snapShot.forEach(item => {
+          jsonObject.locations.push(item.val());
+        });
+      });
+    }
+
+    addendum
+      .forEach(doc => {
+        jsonObject
+          .addendum
+          .push(getAddendumObject(doc));
       });
 
-      if (locationResults) {
-        locationResults.forEach(snapShot => {
-          if (!snapShot) return;
+    activities
+      .forEach(doc => {
+        jsonObject
+          .activities
+          .push(getActivityObject(doc));
+      });
 
-          snapShot.forEach(item => {
-            jsonObject.locations.push(item.val());
-          });
-        });
-      }
+    subscriptions
+      .forEach(doc => {
+        /** Client side APIs don't allow admin templates. */
+        if (doc.get('canEditRule') === 'ADMIN') return;
 
-      addendum
-        .forEach(doc =>
-          jsonObject
-            .addendum
-            .push(getAddendumObject(doc)));
+        jsonObject
+          .templates
+          .push(getSubscriptionObject(doc));
+      });
 
-      activities
-        .forEach(doc =>
-          jsonObject
-            .activities
-            .push(getActivityObject(doc)));
+    batch.set(rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber), {
+        lastQueryFrom: from,
+      }, {
+        /** Profile has other stuff too. */
+        merge: true,
+      });
 
-      subscriptions
-        .forEach(doc => {
-          /** Client side APIs don't allow admin templates. */
-          if (doc.get('canEditRule') === 'ADMIN') return;
-
-          jsonObject
-            .templates
-            .push(getSubscriptionObject(doc));
-        });
-
-      const batch = db.batch();
-
-      batch.set(rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber), {
-          lastQueryFrom: from,
-        }, {
-          /** Profile has other stuff too. */
+    if (conn.requester.profileDoc
+      && conn.requester.profileDoc.get('statusObject')) {
+      batch.set(conn.requester.profileDoc.ref, {
+        statusObject: admin.firestore.FieldValue.delete(),
+      }, {
           merge: true,
         });
+    }
 
-      if (conn.requester.profileDoc
-        && conn.requester.profileDoc.get('statusObject')) {
-        batch.set(conn.requester.profileDoc.ref, {
-          statusObject: admin.firestore.FieldValue.delete(),
-        }, {
-            merge: true,
-          });
-      }
+    await batch.commit();
 
-      return batch.commit();
-    })
-    .then(() => sendJSON(conn, jsonObject))
-    .catch((error) => handleError(conn, error));
+    return sendJSON(conn, jsonObject);
+  } catch (error) {
+    return handleError(conn, error);
+  }
 };
