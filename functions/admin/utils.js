@@ -1337,37 +1337,27 @@ const addEmployeeToRealtimeDb = async doc => {
     return result;
   };
 
-  const [
-    updatesQueryResult
-    // branchQueryResult,
-  ] = await Promise
-    .all([
-      rootCollections
-        .updates
-        .where('phoneNumber', '==', phoneNumber)
-        .limit(1)
-        .get(),
-      // rootCollections
-      //   .activities
-      //   .where('template', '==', 'branch')
-      //   .where('status', '==', 'CONFIRMED')
-      //   .where('office', '==', doc.get('office'))
-      //   .where('attachment.Name.value', doc.get('attachment.Base Location.value'))
-      //   .limit(1)
-      //   .get()
-    ]);
+  try {
+    const updatesQueryResult = await rootCollections
+      .updates
+      .where('phoneNumber', '==', phoneNumber)
+      .limit(1)
+      .get();
 
-  const hasInstalled = !updatesQueryResult.empty;
+    const hasInstalled = !updatesQueryResult.empty;
 
-  return await new Promise((resolve, reject) => {
-    ref.set(getEmployeeDataObject(hasInstalled), error => {
-      if (error) {
-        return reject(error);
-      }
+    return new Promise((resolve, reject) => {
+      ref.set(getEmployeeDataObject(hasInstalled), error => {
+        if (error) {
+          return reject(error);
+        }
 
-      return resolve();
+        return resolve();
+      });
     });
-  });
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const getEmployeesMapFromRealtimeDb = officeId => {

@@ -794,7 +794,6 @@ const handleAdmins = (conn, locals) => {
           .get()
         );
     });
-
   const adminsToReject = new Set();
 
   return Promise
@@ -955,6 +954,7 @@ const validateDataArray = (conn, locals) => {
   const namesSet = new Set();
   const assigneesFromAttachment = new Map();
   const officeContacts = new Map();
+  const nameOrNumberIndex = new Set();
 
   conn.req.body.data.forEach((dataObject, index) => {
     const objectProperties = Object.keys(dataObject);
@@ -1397,12 +1397,7 @@ const validateDataArray = (conn, locals) => {
     .then(responseObject => sendJSON(conn, responseObject));
 };
 
-/**
- * Unused fuction
- * @param {*} address 
- * @param {*} queryObject 
- 
-async function getBranchActivity(address,queryObject) {
+const getBranchActivity = async address => {
   const googleMapsClient =
     require('@google/maps')
     .createClient({
@@ -1412,7 +1407,7 @@ async function getBranchActivity(address,queryObject) {
 
   const placesApiResponse = await googleMapsClient
     .places({
-      query: queryObject.address,
+      query: address,
     })
     .asPromise();
 
@@ -1451,10 +1446,8 @@ async function getBranchActivity(address,queryObject) {
   Array.from(Array(15)).forEach((_, index) => {
     activityObject[`Holiday ${index + 1}`] = '';
   });
+};
 
-
-}
-*/
 const handleBranch = async (conn, locals) => {
   // if (conn.req.body.template !== 'branch') {
   //   return Promise.resolve();
@@ -1633,9 +1626,9 @@ module.exports = conn => {
       locals
         .isSupportRequest = conn.requester.isSupportRequest;
       locals
-        .isAdminRequest = !conn.requester.isSupportRequest &&
-        conn.requester.customClaims.admin &&
-        conn.requester.customClaims.admin.length > 0;
+        .isAdminRequest = !conn.requester.isSupportRequest
+        && conn.requester.customClaims.admin
+        && conn.requester.customClaims.admin.length > 0;
 
       return handleCustomer(conn, locals);
     })
