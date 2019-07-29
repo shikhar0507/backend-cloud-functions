@@ -39,6 +39,24 @@ const {
 } = require('../admin/constants');
 const moment = require('moment');
 const env = require('../admin/env');
+const admin = require('firebase-admin');
+
+
+const getDataFromRef = ref => {
+  return new Promise((resolve) => {
+    ref.on('value', resolve);
+  });
+};
+
+const setDataWithRef = async (ref, data) => {
+  return new Promise((resolve, reject) => {
+    ref.set(data, error => {
+      if (error) reject(error);
+
+      resolve();
+    });
+  });
+};
 
 
 /**
@@ -62,16 +80,6 @@ module.exports = async userRecord => {
     .utc()
     .toObject();
 
-  // Remove this while running a seperate project
-  // or set the appropriate project env
-  // using `process.env.GCLOUD_PROJECT` in the env.js file.
-  if (!env.isProduction) {
-    return auth
-      .updateUser(userRecord.uid, {
-        disabled: true,
-      });
-  }
-
   /**
    * Users with anonymous don't get a doc in Profiles/<phoneNumber>
    * and Updates/<uid>
@@ -88,106 +96,137 @@ module.exports = async userRecord => {
         });
   }
 
-  return Promise
-    .all([
-      rootCollections
-        .inits
-        .where('report', '==', 'counter')
-        .limit(1)
-        .get(),
-      rootCollections
-        .inits
-        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-        .where('date', '==', momentToday.date)
-        .where('month', '==', momentToday.months)
-        .where('year', '==', momentToday.years)
-        .limit(1)
-        .get(),
-      rootCollections
-        .profiles
-        .doc(userRecord.phoneNumber)
-        .collection('Activities')
-        .where('template', '==', 'admin')
-        .where('attachment.Admin.value', '==', userRecord.phoneNumber)
-        .get(),
-    ])
-    .then(result => {
-      const [
-        counterDocsQuery,
-        initDocsQuery,
-        adminActivitiesQuery,
-      ] = result;
+  const promises = [
+    rootCollections
+      .inits
+      .where('report', '==', 'counter')
+      .limit(1)
+      .get(),
+    rootCollections
+      .inits
+      .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+      .where('date', '==', momentToday.date)
+      .where('month', '==', momentToday.months)
+      .where('year', '==', momentToday.years)
+      .limit(1)
+      .get(),
+    rootCollections
+      .profiles
+      .doc(userRecord.phoneNumber)
+      .collection('Activities')
+      .where('template', '==', 'admin')
+      .where('attachment.Admin.value', '==', userRecord.phoneNumber)
+      .get(),
+    rootCollections
+      .activities
+      .where('template', '==', 'employee')
+      .where('status', '==', 'CONFIRMED')
+      .where('attachment.Employee Contact.value', '==', userRecord.phoneNumber)
+      .get(),
+  ];
 
-      const initDoc = getObjectFromSnap(initDocsQuery);
+  try {
+    const [
+      counterDocsQuery,
+      initDocsQuery,
+      adminActivitiesQuery,
+      employeesQuery,
+    ] = await Promise.all(promises);
+
+    const initDoc = getObjectFromSnap(initDocsQuery);
+
+    const usersAdded = (() => {
+      if (initDocsQuery.empty) return 1;
+
+      return initDocsQuery.docs[0].get('usersAdded') || 0;
+    })();
+
+    batch.set(initDoc.ref, {
+      usersAdded: usersAdded + 1,
+    }, {
+        merge: true,
+      });
+
+    if (!counterDocsQuery.empty) {
       const counterDoc = getObjectFromSnap(counterDocsQuery);
-
-      const usersAdded = (() => {
-        if (initDocsQuery.empty) return 1;
-
-        return initDocsQuery.docs[0].get('usersAdded') || 0;
-      })();
-
-      batch.set(initDoc.ref, {
-        usersAdded: usersAdded + 1,
-      }, {
-          merge: true,
-        });
-
       batch.set(counterDoc.ref, {
         totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
       }, {
           merge: true,
         });
+    }
 
-      const customClaimsObject = {};
+    const customClaimsObject = {};
 
-      if (!adminActivitiesQuery.empty) {
-        customClaimsObject.admin = [];
-      }
+    if (!adminActivitiesQuery.empty) {
+      customClaimsObject.admin = [];
+    }
 
-      adminActivitiesQuery
-        .forEach((doc) => {
-          const office = doc.get('office');
+    adminActivitiesQuery
+      .forEach(doc => {
+        const office = doc.get('office');
 
-          console.log('Admin Of:', office);
+        console.log('Admin Of:', office);
 
-          customClaimsObject.admin.push(office);
-        });
+        customClaimsObject.admin.push(office);
+      });
 
-      const uid = userRecord.uid;
-      const phoneNumber = filterPhoneNumber(userRecord.phoneNumber);
+    const uid = userRecord.uid;
+    const phoneNumber = filterPhoneNumber(userRecord.phoneNumber);
 
-      batch.set(rootCollections
-        .updates
-        .doc(uid), {
-          phoneNumber,
-        }, {
-          merge: true,
-        });
+    batch.set(rootCollections
+      .updates
+      .doc(uid), {
+        phoneNumber,
+      }, {
+        merge: true,
+      });
 
-      /**
-       * Profile *may* exist already, if the user signed
-       * up to the platform sometime in the past OR if their
-       * phone number was introduced to the system sometime
-       * in the past via an activity
-       */
-      batch.set(rootCollections
-        .profiles
-        .doc(phoneNumber), {
-          uid,
-        }, {
-          merge: true,
-        });
+    /**
+     * Profile *may* exist already, if the user signed
+     * up to the platform sometime in the past OR if their
+     * phone number was introduced to the system sometime
+     * in the past via an activity
+     */
+    batch.set(rootCollections
+      .profiles
+      .doc(phoneNumber), {
+        uid,
+      }, {
+        merge: true,
+      });
 
-      console.log({ phoneNumber, uid });
+    console.log({ phoneNumber, uid });
 
-      return Promise
-        .all([
-          auth
-            .setCustomUserClaims(uid, customClaimsObject),
-          batch
-            .commit(),
-        ]);
-    })
-    .catch(console.error);
+    const final = [
+      auth
+        .setCustomUserClaims(uid, customClaimsObject),
+      batch
+        .commit(),
+    ];
+
+    console.log(employeesQuery.size);
+
+    if (!employeesQuery.empty) {
+      employeesQuery.forEach(async doc => {
+        const officeId = doc.get('officeId');
+        const phoneNumber = doc.get('attachment.Employee Contact.value');
+        const ref = admin
+          .database()
+          .ref(`${officeId}/employee/${phoneNumber}`);
+
+        console.log('ref', ref.path);
+
+        const data = await getDataFromRef(ref);
+        const updated = data.val();
+
+        updated.hasInstalled = true;
+        promises.push(setDataWithRef(ref, updated));
+      });
+    }
+
+    return Promise.all(final);
+  } catch (error) {
+    console.error(error);
+  }
 };
