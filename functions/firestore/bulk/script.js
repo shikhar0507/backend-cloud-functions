@@ -952,7 +952,7 @@ const validateDataArray = (conn, locals) => {
   const namesSet = new Set();
   const assigneesFromAttachment = new Map();
   const officeContacts = new Map();
-  const nameOrNumberIndex = new Set();
+  const nameOrNumberIndex = new Map();
 
   conn.req.body.data.forEach((dataObject, index) => {
     const objectProperties = Object.keys(dataObject);
@@ -1446,7 +1446,7 @@ const handleBranch = async (conn, locals) => {
 
 const handleCustomer = async (conn, locals) => {
   if (conn.req.body.template !== 'customer') {
-    return Promise.resolve();
+    return handleBranch(conn, locals);
   }
 
   const placesApiPromises = [];
