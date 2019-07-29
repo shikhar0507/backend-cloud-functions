@@ -1318,13 +1318,12 @@ const addEmployeeToRealtimeDb = async doc => {
     });
   }
 
-  const getEmployeeDataObject = hasInstalled => {
+  const getEmployeeDataObject = (options = {}) => {
     const attachment = doc.get('attachment');
-    const result = {
-      hasInstalled,
+    const result = Object.assign({}, options, {
       createTime: doc.createTime.toDate().getTime(),
       updateTime: doc.updateTime.toDate().getTime(),
-    };
+    });
 
     Object
       .keys(attachment)
@@ -1344,10 +1343,22 @@ const addEmployeeToRealtimeDb = async doc => {
       .limit(1)
       .get();
 
-    const hasInstalled = !updatesQueryResult.empty;
+    const checkInSubscriptionQueryResult = await rootCollections
+      .activities
+      .where('office', '==', doc.get('office'))
+      .where('status', '==', 'CONFIRMED')
+      .where('template', '==', 'subscription')
+      .where('attachment.Subscriber.value', '==', phoneNumber)
+      .where('attachment.Template.value', '==', 'check-in')
+      .get();
+
+    const options = {
+      hasInstalled: !updatesQueryResult.empty,
+      hasCheckInSubscription: !checkInSubscriptionQueryResult.empty,
+    };
 
     return new Promise((resolve, reject) => {
-      ref.set(getEmployeeDataObject(hasInstalled), error => {
+      ref.set(getEmployeeDataObject(options), error => {
         if (error) {
           return reject(error);
         }

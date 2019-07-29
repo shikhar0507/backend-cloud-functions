@@ -1588,7 +1588,6 @@ const mangeYouTubeDataApi = async locals => {
   }
 };
 
-
 const handleOffice = (locals) => {
   const template = locals.change.after.get('template');
   const hasBeenCreated = locals.addendumDoc
@@ -1610,7 +1609,7 @@ const handleOffice = (locals) => {
     .then(() => mangeYouTubeDataApi(locals));
 };
 
-const setLocationsReadEvent = locals => {
+const setLocationsReadEvent = async locals => {
   const officeId = locals.change.after.get('officeId');
   const timestamp = Date.now();
 
@@ -1618,14 +1617,42 @@ const setLocationsReadEvent = locals => {
     return Promise.resolve();
   }
 
-  const commitBatch = batch => {
-    return process
-      .nextTick(() => {
-        return batch.commit();
-      });
-  };
+  try {
+    const employeesMap = await getEmployeesMapFromRealtimeDb(officeId);
 
-  const resolveSequentially = batchArray => {
+    const phoneNumbersArray = Object.keys(employeesMap);
+    let docsCounter = 0;
+    let numberOfDocs = phoneNumbersArray.length;
+    const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
+    const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
+    let batchIndex = 0;
+
+    phoneNumbersArray.forEach(phoneNumber => {
+      if (!employeesMap[phoneNumber].hasCheckInSubscription) {
+        return;
+      }
+
+      docsCounter++;
+
+      if (docsCounter > 499) {
+        console.log('reset batch...');
+        docsCounter = 0;
+        batchIndex++;
+      }
+
+      batchArray[batchIndex].set(rootCollections
+        .profiles
+        .doc(phoneNumber), {
+          lastLocationMapUpdateTimestamp: timestamp,
+        }, {
+          merge: true,
+        });
+    });
+
+    const commitBatch = async batch => {
+      return process.nextTick(() => batch.commit());
+    };
+
     return batchArray
       .reduce((accumulatorPromise, currentBatch) => {
         return accumulatorPromise
@@ -1635,37 +1662,9 @@ const setLocationsReadEvent = locals => {
             return commitBatch(currentBatch);
           });
       }, Promise.resolve());
-  };
-
-  return getEmployeesMapFromRealtimeDb(officeId)
-    .then(employeesMap => {
-      const phoneNumbersArray = Object.keys(employeesMap);
-      let docsCounter = 0;
-      let numberOfDocs = phoneNumbersArray.length;
-      const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
-      const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
-      let batchIndex = 0;
-
-      phoneNumbersArray.forEach(phoneNumber => {
-        docsCounter++;
-
-        if (docsCounter > 499) {
-          console.log('reset batch...');
-          docsCounter = 0;
-          batchIndex++;
-        }
-
-        batchArray[batchIndex].set(rootCollections
-          .profiles
-          .doc(phoneNumber), {
-            lastLocationMapUpdateTimestamp: timestamp,
-          }, {
-            merge: true,
-          });
-      });
-
-      return resolveSequentially(batchArray);
-    });
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const handleLocations = locals => {
