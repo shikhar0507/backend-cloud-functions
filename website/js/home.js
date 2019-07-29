@@ -1290,15 +1290,12 @@ function sendBulkCreateJson(jsonData, templateName) {
     })
     .then(function (response) {
       removeFileSpinner()
-      if (response.success) {
-        populateBulkCreationResult(response, jsonData);
-        return
-      }
-      setMessageForBulkCreate(response.message, 'error')
+      console.log(response)
+      populateBulkCreationResult(response, jsonData);
     })
     .catch(function (error) {
       console.log(error)
-
+      setMessageForBulkCreate(error.message, 'error')
       removeFileSpinner()
     });
 }

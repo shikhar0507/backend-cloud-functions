@@ -238,7 +238,7 @@ function sendApiRequest(apiUrl, requestBody = null, method = 'GET') {
   }
 
   showProgressBar();
-
+  console.log(requestBody)
   return fetch(apiUrl, init)
     .then(function (result) {
       hideProgressBar();
