@@ -321,17 +321,17 @@ const headerValid = (headers) => {
  * `lat` and `lng` values.
  *
  * @param {Object} geopoint Contains `lat` and `lng` values.
- * @param {boolean} canBeEmpty Whether to allow geopoints with latitude and longitude as empty strings
+ * @param {boolean} allowEmptyStrings Whether to allow geopoints with latitude and longitude as empty strings
  * @returns {boolean} If the input `latitude` & `longitude` pair is valid.
  */
-const isValidGeopoint = (geopoint, canBeEmpty = true) => {
+const isValidGeopoint = (geopoint, allowEmptyStrings = true) => {
   if (!geopoint) return false;
   if (!geopoint.hasOwnProperty('latitude')) return false;
   if (!geopoint.hasOwnProperty('longitude')) return false;
 
   if (geopoint.latitude === ''
     && geopoint.longitude === ''
-    && canBeEmpty) return true;
+    && allowEmptyStrings) return true;
 
   if (typeof geopoint.latitude !== 'number') return false;
   if (typeof geopoint.longitude !== 'number') return false;
@@ -1724,10 +1724,35 @@ const replaceNonASCIIChars = str =>
     .replace(/[^\x20-\x7E]/g, '')
     .trim();
 
+const getBranchName = addressComponents => {
+  // (sublocaliy1 + sublocality2 + locality)
+  // OR "20chars of address + 'BRANCH'"
+  let locationName = '';
+
+  addressComponents.forEach(component => {
+    const { types, short_name } = component;
+
+    if (types.includes('sublocality_level_1')) {
+      locationName += ` ${short_name}`;
+    }
+
+    if (types.includes('sublocality_level_2')) {
+      locationName += ` ${short_name}`;
+    }
+
+    if (types.includes('locality')) {
+      locationName += ` ${short_name}`;
+    }
+  });
+
+  return `${locationName} BRANCH`.trim();
+};
 
 module.exports = {
   slugify,
   sendSMS,
+  getBranchName,
+  millitaryToHourMinutes,
   sendJSON,
   isValidUrl,
   getFileHash,

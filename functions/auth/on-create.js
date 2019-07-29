@@ -220,8 +220,10 @@ module.exports = async userRecord => {
         const data = await getDataFromRef(ref);
         const updated = data.val();
 
-        updated.hasInstalled = true;
-        promises.push(setDataWithRef(ref, updated));
+        if (updated) {
+          updated.hasInstalled = true;
+          promises.push(setDataWithRef(ref, updated));
+        }
       });
     }
 
