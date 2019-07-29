@@ -17,7 +17,7 @@
     <main>
         \{{> actionsAside this}}
         <div class="container">
-            \{{#if isLoggedIn}}
+            \{{#if showActions}}
              <div id="progressBar" class="progress-bar--container"></div>
             <div class="breadcrumbs">
                 <ul>
@@ -180,8 +180,9 @@
                 </div>
             </section>
 
-
+            \{{#unless isLoggedIn}}
             \{{> heroPartial}}
+            \{{/unless}}
             <div class="">
                 \{{> featuredPartial}}
                 \{{> appFeaturesPartial}}
