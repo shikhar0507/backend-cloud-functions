@@ -166,6 +166,24 @@ const alphabetsArray = [
   'BZ',
 ];
 
+const convertToNumberingScheme = number => {
+  const baseChar = ('A').charCodeAt(0);
+  let letters = '';
+
+  do {
+    number -= 1;
+    letters = String.fromCharCode(baseChar + (number % 26)) + letters;
+    number = (number / 26) >> 0;
+  } while (number > 0);
+
+  return letters;
+};
+
+const getExcelHeader = range => {
+  return [...Array(range).keys()]
+    .map(number => convertToNumberingScheme(number + 1));
+};
+
 // https://momentjs.com/docs/#/displaying/format/
 const dateStringWithOffset = (options) => {
   const {
