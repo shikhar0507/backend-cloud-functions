@@ -39,6 +39,8 @@ const {
   sendSMS,
   slugify,
   addEmployeeToRealtimeDb,
+  millitaryToHourMinutes,
+  getBranchName,
   adjustedGeopoint,
 } = require('../../admin/utils');
 const {
@@ -404,7 +406,6 @@ const createAutoSubscription = (locals, templateName, subscriber) => {
             addToInclude: phoneNumber !== subscriber,
           });
         });
-
       return batch.commit();
     });
 };
@@ -629,7 +630,7 @@ const handleSubscription = locals => {
           batch
             .commit(),
           handleCanEditRule(locals, templateDoc),
-          handleXTypeActivities(locals)
+          // handleXTypeActivities(locals)
         ]);
     })
     .catch(console.error);
@@ -1173,42 +1174,6 @@ const replaceInvalidCharsInOfficeName = office => {
     .replace('pvt', '')
     .replace('private', '')
     .trim();
-};
-
-const millitaryToHourMinutes = (fourDigitTime) => {
-  if (!fourDigitTime) return '';
-
-  let hours = Number(fourDigitTime.substring(0, 2));
-  let minutes = Number(fourDigitTime.substring(2));
-
-  if (hours < 10) hours = `0${hours}`;
-  if (minutes < 10) minutes = `0${minutes}`;
-
-  return `${hours}:${minutes}`;
-};
-
-const getBranchName = (addressComponents) => {
-  // (sublocaliy1 + sublocality2 + locality)
-  // OR "20chars of address + 'BRANCH'"
-  let locationName = '';
-
-  addressComponents.forEach(component => {
-    const { types, short_name } = component;
-
-    if (types.includes('sublocality_level_1')) {
-      locationName += ` ${short_name}`;
-    }
-
-    if (types.includes('sublocality_level_2')) {
-      locationName += ` ${short_name}`;
-    }
-
-    if (types.includes('locality')) {
-      locationName += ` ${short_name}`;
-    }
-  });
-
-  return `${locationName} BRANCH`.trim();
 };
 
 /** Uses autocomplete api for predictions */

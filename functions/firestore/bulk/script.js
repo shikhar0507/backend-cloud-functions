@@ -19,6 +19,7 @@ const {
   isNonEmptyString,
   isE164PhoneNumber,
   addressToCustomer,
+  getBranchName,
   getEmployeesMapFromRealtimeDb,
 } = require('../../admin/utils');
 const {
@@ -36,6 +37,13 @@ const {
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
 const admin = require('firebase-admin');
+const googleMapsClient =
+  require('@google/maps')
+    .createClient({
+      key: env.mapsApiKey,
+      Promise: Promise,
+    });
+
 // const xlsxPopulate = require('xlsx-populate');
 // const {
 //   alphabetsArray,
@@ -993,11 +1001,9 @@ const validateDataArray = (conn, locals) => {
           || conn.req.body.data[index].longitude
           || conn.req.body.data[index].address
           || conn.req.body.data[index].location)
-          && allVenueFields
-            .filter(Boolean)
-            .length !== allVenueFields.length) {
+          && allVenueFields.filter(Boolean).length !== allVenueFields.length) {
           conn.req.body.data[index].rejected = true;
-          conn.req.body.data[index].reason = msg + '.';
+          conn.req.body.data[index].reason = msg + '...';
         }
 
         if (conn.req.body.data[index].latitude
@@ -1389,37 +1395,12 @@ const validateDataArray = (conn, locals) => {
 };
 
 const getBranchActivity = async address => {
-  const googleMapsClient =
-    require('@google/maps')
-      .createClient({
-        key: env.mapsApiKey,
-        Promise: Promise,
-      });
-
-  const placesApiResponse = await googleMapsClient
-    .places({
-      query: address,
-    })
-    .asPromise();
-
-  let success = true;
-
-  const firstResult = placesApiResponse
-    .json
-    .results[0];
-  success = Boolean(firstResult);
-
-  if (!success) {
-    return Object.assign({}, { address, failed: !success });
-  }
-
   const activityObject = {
+    address,
     venueDescriptor: 'Branch Office',
     location: '',
-    address: '',
     latitude: '',
     longitude: '',
-    // schedule
     Name: '',
     'First Contact': '',
     'Second Contact': '',
@@ -1434,19 +1415,191 @@ const getBranchActivity = async address => {
   Array.from(Array(15)).forEach((_, index) => {
     activityObject[`Holiday ${index + 1}`] = '';
   });
+
+  try {
+    const placesApiResponse = await googleMapsClient
+      .places({
+        query: address,
+      })
+      .asPromise();
+
+    let success = true;
+
+    const firstResult = placesApiResponse
+      .json
+      .results[0];
+    success = Boolean(firstResult);
+
+    if (!success) {
+      return Object.assign({}, { address, failed: !success });
+    }
+
+    activityObject
+      .latitude = firstResult.geometry.location.lat;
+    activityObject
+      .longitude = firstResult.geometry.location.lng;
+    activityObject
+      .placeId = firstResult['place_id'];
+
+    const placeApiResult = await googleMapsClient
+      .place({
+        placeid: firstResult['place_id'],
+      })
+      .asPromise();
+
+    const name = getBranchName(placeApiResult.json.result.address_components);
+    activityObject.Name = name;
+    activityObject.location = name;
+
+    console.log('NAME', activityObject.location);
+
+    activityObject['First Contact'] = (() => {
+      const internationalPhoneNumber = placeApiResult
+        .json
+        .result['international_phone_number'];
+
+      if (!internationalPhoneNumber) return '';
+
+      /** If the phoneNumber has spaces in between characters */
+      return internationalPhoneNumber
+        .split(' ')
+        .join('');
+    })();
+
+    activityObject['Weekday Start Time'] = (() => {
+      const openingHours = placeApiResult.json.result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const periods = openingHours.periods;
+
+      const relevantObject = periods.filter(item => {
+        return item.close && item.close.day === 1;
+      });
+
+      if (!relevantObject[0]) return '';
+
+      return relevantObject[0].open.time;
+    })();
+
+    activityObject['Weekday End Time'] = (() => {
+      const openingHours = placeApiResult.json.result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const periods = openingHours.periods;
+
+      const relevantObject = periods.filter(item => {
+        return item.close && item.close.day === 1;
+      });
+
+      if (!relevantObject[0]) return '';
+
+      return relevantObject[0].close.time;
+    })();
+
+    activityObject['Saturday Start Time'] = (() => {
+      const openingHours = placeApiResult.json.result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const periods = openingHours.periods;
+
+      const relevantObject = periods.filter(item => {
+        return item.open && item.open.day === 6;
+      });
+
+      if (!relevantObject[0]) return '';
+
+      return relevantObject[0].open.time;
+    })();
+
+    activityObject['Saturday End Time'] = (() => {
+      const openingHours = placeApiResult.json.result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const periods = openingHours.periods;
+
+      const relevantObject = periods.filter(item => {
+        return item.open && item.open.day === 6;
+      });
+
+      if (!relevantObject[0]) return '';
+
+      return relevantObject[0].close.time;
+    })();
+
+    activityObject['Weekly Off'] = (() => {
+      const openingHours = placeApiResult.json.result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const weekdayText = openingHours['weekday_text'];
+
+      if (!weekdayText) return '';
+
+      const closedWeekday = weekdayText
+        // ['Sunday: Closed']
+        .filter(str => str.includes('Closed'))[0];
+
+      if (!closedWeekday) return '';
+
+      const parts = closedWeekday.split(':');
+
+      if (!parts[0]) return '';
+
+      // ['Sunday' 'Closed']
+      return parts[0].toLowerCase();
+    })();
+
+    return activityObject;
+  } catch (error) {
+    console.error(error);
+  }
 };
 
-const handleBranch = async (conn, locals) => {
-  // if (conn.req.body.template !== 'branch') {
-  //   return Promise.resolve();
-  // }
+const handleBranch = async conn => {
+  if (conn.req.body.template !== 'branch') {
+    return Promise.resolve();
+  }
 
-  return validateDataArray(conn, locals);
+  const promises = [];
+  const addressMap = new Map();
+
+  conn.req.body.data.forEach((item, index) => {
+    addressMap.set(item.address, index);
+
+    if (!isNonEmptyString(item.address)) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = 'address is required';
+
+      return;
+    }
+
+    promises.push(getBranchActivity(item.address));
+  });
+
+  try {
+    const branches = await Promise.all(promises);
+
+    branches.forEach(branch => {
+      const { address } = branch;
+      const index = addressMap.get(address);
+
+      conn.req.body.data[index] = branch;
+      conn.req.body.data[index].share = conn.req.body.data[index].share || [];
+    });
+
+    return Promise.resolve();
+  } catch (error) {
+    console.error(error);
+  }
 };
 
-const handleCustomer = async (conn, locals) => {
+const handleCustomer = async conn => {
   if (conn.req.body.template !== 'customer') {
-    return handleBranch(conn, locals);
+    return Promise.resolve();
   }
 
   const placesApiPromises = [];
@@ -1468,19 +1621,23 @@ const handleCustomer = async (conn, locals) => {
     }));
   });
 
-  const customers = await Promise.all(placesApiPromises);
+  try {
+    const customers = await Promise.all(placesApiPromises);
 
-  customers.forEach((customer, index) => {
-    if (!customers.success) {
-      conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = 'Not a known location';
-    }
+    customers.forEach((customer, index) => {
+      if (!customers.success) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = 'Not a known location';
+      }
 
-    conn.req.body.data[index] = customer;
-    conn.req.body.data[index].share = conn.req.body.data[index].share || [];
-  });
+      conn.req.body.data[index] = customer;
+      conn.req.body.data[index].share = conn.req.body.data[index].share || [];
+    });
 
-  return handleBranch(conn, locals);
+    return Promise.resolve();
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 
@@ -1618,7 +1775,9 @@ module.exports = conn => {
         && conn.requester.customClaims.admin
         && conn.requester.customClaims.admin.length > 0;
 
-      return handleCustomer(conn, locals);
+      return handleCustomer(conn, locals)
+        .then(() => handleBranch(conn, locals))
+        .then(() => validateDataArray(conn, locals));
     })
     .catch(error => handleError(conn, error));
 };
