@@ -1387,7 +1387,7 @@ const validateDataArray = (conn, locals) => {
     .then(responseObject => sendJSON(conn, responseObject));
 };
 
-const getBranchActivity = await address => {
+const getBranchActivity = async address => {
   const googleMapsClient =
     require('@google/maps')
       .createClient({
@@ -1397,7 +1397,7 @@ const getBranchActivity = await address => {
 
   const placesApiResponse = await googleMapsClient
     .places({
-      query: queryObject.address,
+      query: address,
     })
     .asPromise();
 
@@ -1433,8 +1433,6 @@ const getBranchActivity = await address => {
   Array.from(Array(15)).forEach((_, index) => {
     activityObject[`Holiday ${index + 1}`] = '';
   });
-
-
 };
 
 const handleBranch = async (conn, locals) => {
