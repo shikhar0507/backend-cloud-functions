@@ -952,6 +952,7 @@ const validateDataArray = (conn, locals) => {
   const namesSet = new Set();
   const assigneesFromAttachment = new Map();
   const officeContacts = new Map();
+  const nameOrNumberIndex = new Set();
 
   conn.req.body.data.forEach((dataObject, index) => {
     const objectProperties = Object.keys(dataObject);
@@ -1613,7 +1614,7 @@ module.exports = conn => {
       locals
         .isSupportRequest = conn.requester.isSupportRequest;
       locals
-        .isAdminRequest = !isSupportRequest
+        .isAdminRequest = !conn.requester.isSupportRequest
         && conn.requester.customClaims.admin
         && conn.requester.customClaims.admin.length > 0;
 
