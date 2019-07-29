@@ -65,45 +65,48 @@ const templateNamesObject = {
 };
 
 const handleValidation = (body) => {
-  const result = { success: true, message: null };
+  const result = {
+    success: true,
+    message: null
+  };
   const messageString = (field) =>
     `Invalid/Missing field '${field}' found in the request body`;
 
   /** Field 'office' can be skipped. */
-  if (body.template !== templateNamesObject.OFFICE
-    && !isNonEmptyString(body.office)) {
+  if (body.template !== templateNamesObject.OFFICE &&
+    !isNonEmptyString(body.office)) {
     return {
       success: false,
       message: messageString('office'),
     };
   }
 
-  if (!isNonEmptyString(body.template)
-    || !body.hasOwnProperty('template')) {
+  if (!isNonEmptyString(body.template) ||
+    !body.hasOwnProperty('template')) {
     return {
       success: false,
       message: messageString('template'),
     };
   }
 
-  if (!isValidDate(body.timestamp)
-    || !body.hasOwnProperty('timestamp')) {
+  if (!isValidDate(body.timestamp) ||
+    !body.hasOwnProperty('timestamp')) {
     return {
       success: false,
       message: messageString('timestamp'),
     };
   }
 
-  if (!isValidGeopoint(body.geopoint, false)
-    || !body.hasOwnProperty('geopoint')) {
+  if (!isValidGeopoint(body.geopoint, false) ||
+    !body.hasOwnProperty('geopoint')) {
     return {
       success: false,
       message: messageString('geopoint'),
     };
   }
 
-  if (!Array.isArray(body.data)
-    || !body.hasOwnProperty('data')) {
+  if (!Array.isArray(body.data) ||
+    !body.hasOwnProperty('data')) {
     return {
       success: false,
       message: messageString('data'),
@@ -139,8 +142,8 @@ const handleValidation = (body) => {
 
       return {
         success: false,
-        message: `Invalid phoneNumber '${phoneNumber}'`
-          + ` in data object at index: ${iter}`,
+        message: `Invalid phoneNumber '${phoneNumber}'` +
+          ` in data object at index: ${iter}`,
       };
     }
 
@@ -458,9 +461,9 @@ const createObjects = (conn, locals, trialRun) => {
       }
     });
 
-    if (activityObject.venue[0]
-      && activityObject.venue[0].geopoint.latitude
-      && activityObject.venue[0].geopoint.longitude) {
+    if (activityObject.venue[0] &&
+      activityObject.venue[0].geopoint.latitude &&
+      activityObject.venue[0].geopoint.longitude) {
       activityObject.venue[0].geopoint = new admin.firestore.GeoPoint(
         activityObject.venue[0].geopoint.latitude,
         activityObject.venue[0].geopoint.longitude
@@ -508,8 +511,8 @@ const createObjects = (conn, locals, trialRun) => {
         const ref = activityRef
           .collection('Assignees')
           .doc(phoneNumber.trim());
-        const addToInclude = conn.req.body.template === templateNamesObject.SUBSCRIPTION
-          && phoneNumber !== activityObject.attachment.Subscriber.value;
+        const addToInclude = conn.req.body.template === templateNamesObject.SUBSCRIPTION &&
+          phoneNumber !== activityObject.attachment.Subscriber.value;
 
         const canEdit = getCanEditValue(
           locals,
@@ -554,8 +557,8 @@ const createObjects = (conn, locals, trialRun) => {
 const fetchDataForCanEditRule = (conn, locals) => {
   const rule = locals.templateDoc.get('canEditRule');
 
-  if (rule !== 'ADMIN'
-    && rule !== 'EMPLOYEE') {
+  if (rule !== 'ADMIN' &&
+    rule !== 'EMPLOYEE') {
     return Promise.resolve();
   }
 
@@ -570,8 +573,8 @@ const fetchDataForCanEditRule = (conn, locals) => {
 
       docs.forEach(doc => {
         const phoneNumber =
-          doc.get('attachment.Employee Contact.value')
-          || doc.get('attachment.Admin.value');
+          doc.get('attachment.Employee Contact.value') ||
+          doc.get('attachment.Admin.value');
 
         set.add(phoneNumber);
       });
@@ -609,7 +612,7 @@ const handleEmployees = (conn, locals) => {
     .all([
       getEmployeesMapFromRealtimeDb(locals.officeDoc.id),
       Promise
-        .all(promises)
+      .all(promises)
     ])
     .then(result => {
       const [employeesData, snapShots] = result;
@@ -636,8 +639,8 @@ const handleEmployees = (conn, locals) => {
 
         if (employeesData[phoneNumber]) {
           conn.req.body.data[index].rejected = true;
-          conn.req.body.data[index].reason = `Phone number: ${phoneNumber} is already`
-            + ` in use by ${employeesData[phoneNumber].Name}`;
+          conn.req.body.data[index].reason = `Phone number: ${phoneNumber} is already` +
+            ` in use by ${employeesData[phoneNumber].Name}`;
         }
       });
 
@@ -708,8 +711,8 @@ const handleUniqueness = (conn, locals) => {
           doc.get('attachment.Name.value') || doc.get('attachment.Number.value');
         const index = indexMap.get(nameOrNumber);
         const value =
-          conn.req.body.data[index].Name
-          || conn.req.body.data[index].Number;
+          conn.req.body.data[index].Name ||
+          conn.req.body.data[index].Number;
 
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
@@ -783,12 +786,12 @@ const handleAdmins = (conn, locals) => {
       promises
         .push(
           rootCollections
-            .activities
-            .where('template', '==', templateNamesObject.ADMIN)
-            .where('attachment.Admin.value', '==', phoneNumber)
-            .where('status', '==', 'CONFIRMED')
-            .limit(1)
-            .get()
+          .activities
+          .where('template', '==', templateNamesObject.ADMIN)
+          .where('attachment.Admin.value', '==', phoneNumber)
+          .where('status', '==', 'CONFIRMED')
+          .limit(1)
+          .get()
         );
     });
 
@@ -900,15 +903,15 @@ const fetchTemplates = (conn, locals) => {
   return Promise
     .all([
       rootCollections
-        .activityTemplates
-        .where('name', '==', templateNamesObject.ADMIN)
-        .limit(1)
-        .get(),
+      .activityTemplates
+      .where('name', '==', templateNamesObject.ADMIN)
+      .limit(1)
+      .get(),
       rootCollections
-        .activityTemplates
-        .where('name', '==', templateNamesObject.SUBSCRIPTION)
-        .limit(1)
-        .get(),
+      .activityTemplates
+      .where('name', '==', templateNamesObject.SUBSCRIPTION)
+      .limit(1)
+      .get(),
     ])
     .then(result => {
       const [
@@ -965,9 +968,9 @@ const validateDataArray = (conn, locals) => {
        * Convert fields with type 'number' to an actual number
        * if value has been provided
        */
-      if (attachmentFieldsSet.has(field)
-        && locals.templateDoc.get('attachment')[field].type === 'number'
-        && conn.req.body.data[index][field]) {
+      if (attachmentFieldsSet.has(field) &&
+        locals.templateDoc.get('attachment')[field].type === 'number' &&
+        conn.req.body.data[index][field]) {
         conn.req.body.data[index][field] = Number(
           conn.req.body.data[index][field]
         );
@@ -988,20 +991,20 @@ const validateDataArray = (conn, locals) => {
           conn.req.body.data[index].location
         ];
 
-        if ((conn.req.body.data[index].latitude
-          || conn.req.body.data[index].longitude
-          || conn.req.body.data[index].address
-          || conn.req.body.data[index].location)
-          && allVenueFields
-            .filter(Boolean)
-            .length !== allVenueFields.length) {
+        if ((conn.req.body.data[index].latitude ||
+            conn.req.body.data[index].longitude ||
+            conn.req.body.data[index].address ||
+            conn.req.body.data[index].location) &&
+          allVenueFields
+          .filter(Boolean)
+          .length !== allVenueFields.length) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = msg + '.';
         }
 
-        if (conn.req.body.data[index].latitude
-          && conn.req.body.data[index].longitude
-          && !isValidGeopoint({
+        if (conn.req.body.data[index].latitude &&
+          conn.req.body.data[index].longitude &&
+          !isValidGeopoint({
             latitude: conn.req.body.data[index].latitude,
             longitude: conn.req.body.data[index].longitude,
           }, false)) {
@@ -1010,23 +1013,23 @@ const validateDataArray = (conn, locals) => {
         }
       }
 
-      if (locals.templateDoc.get('attachment').hasOwnProperty('Name')
-        && !conn.req.body.data[index].rejected
-        && !isNonEmptyString(conn.req.body.data[index].Name)) {
+      if (locals.templateDoc.get('attachment').hasOwnProperty('Name') &&
+        !conn.req.body.data[index].rejected &&
+        !isNonEmptyString(conn.req.body.data[index].Name)) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Missing the field 'Name'`;
       }
 
-      if (locals.templateDoc.get('attachment').hasOwnProperty('Number')
-        && !conn.req.body.data[index].rejected
-        && typeof conn.req.body.data[index].Number !== 'number') {
+      if (locals.templateDoc.get('attachment').hasOwnProperty('Number') &&
+        !conn.req.body.data[index].rejected &&
+        typeof conn.req.body.data[index].Number !== 'number') {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Missing the field 'Number'`;
       }
     });
 
-    if (conn.req.body.template
-      !== templateNamesObject.OFFICE) {
+    if (conn.req.body.template !==
+      templateNamesObject.OFFICE) {
       const firstContact = locals.officeDoc.get('attachment.First Contact.value');
       const secondContact = locals.officeDoc.get('attachment.Second Contact.value');
 
@@ -1039,10 +1042,10 @@ const validateDataArray = (conn, locals) => {
       }
     }
 
-    if (locals.templateDoc.get('attachment').hasOwnProperty('Name')
-      || locals.templateDoc.get('attachment').hasOwnProperty('Number')) {
-      const value = conn.req.body.data[index].Name
-        || conn.req.body.data[index].Number;
+    if (locals.templateDoc.get('attachment').hasOwnProperty('Name') ||
+      locals.templateDoc.get('attachment').hasOwnProperty('Number')) {
+      const value = conn.req.body.data[index].Name ||
+        conn.req.body.data[index].Number;
 
       const set = nameOrNumberIndex.get(value) || new Set();
 
@@ -1062,27 +1065,27 @@ const validateDataArray = (conn, locals) => {
       }
     }
 
-    if (conn.req.body.template
-      === templateNamesObject.OFFICE) {
+    if (conn.req.body.template ===
+      templateNamesObject.OFFICE) {
       const firstContact = conn.req.body.data[index]['First Contact'];
       const secondContact = conn.req.body.data[index]['Second Contact'];
       const timezone = conn.req.body.data[index].Timezone;
 
-      if (firstContact
-        === secondContact) {
+      if (firstContact ===
+        secondContact) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
           `Both contacts cannot be the same or empty`;
       }
 
-      if (!firstContact
-        && !secondContact) {
+      if (!firstContact &&
+        !secondContact) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `At least one contact is required`;
       }
 
-      if (!timezone
-        || !timezonesSet.has(timezone)) {
+      if (!timezone ||
+        !timezonesSet.has(timezone)) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Invalid/Missing timezone`;
       }
@@ -1095,8 +1098,8 @@ const validateDataArray = (conn, locals) => {
       officeContacts.set(index, contacts);
     }
 
-    if (conn.req.body.template
-      === templateNamesObject.SUBSCRIPTION) {
+    if (conn.req.body.template ===
+      templateNamesObject.SUBSCRIPTION) {
       const phoneNumber = conn.req.body.data[index].Subscriber;
       const template = conn.req.body.data[index].Template;
 
@@ -1113,8 +1116,8 @@ const validateDataArray = (conn, locals) => {
       /** Subscription of template office and subscription
        * is not allowed for everyone
        */
-      if (template === 'office'
-        || template === templateNamesObject.SUBSCRIPTION) {
+      if (template === 'office' ||
+        template === templateNamesObject.SUBSCRIPTION) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
           `Subscription of template: '${template}' is not allowed`;
@@ -1148,8 +1151,8 @@ const validateDataArray = (conn, locals) => {
         });
     }
 
-    if (conn.req.body.template
-      === templateNamesObject.ADMIN) {
+    if (conn.req.body.template ===
+      templateNamesObject.ADMIN) {
       const phoneNumber = conn.req.body.data[index].Admin;
 
       // Duplication
@@ -1163,15 +1166,15 @@ const validateDataArray = (conn, locals) => {
       adminToCheck.push(phoneNumber);
     }
 
-    if (conn.req.body.template
-      === templateNamesObject.EMPLOYEE) {
+    if (conn.req.body.template ===
+      templateNamesObject.EMPLOYEE) {
       const firstSupervisor = conn.req.body.data[index]['First Supervisor'];
       const secondSupervisor = conn.req.body.data[index]['Second Supervisor'];
       const thirdSupervisor = conn.req.body.data[index]['Third Supervisor'];
 
-      if (!firstSupervisor
-        && !secondSupervisor
-        && !thirdSupervisor) {
+      if (!firstSupervisor &&
+        !secondSupervisor &&
+        !thirdSupervisor) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Please add at least one supervisor`;
       }
@@ -1185,12 +1188,12 @@ const validateDataArray = (conn, locals) => {
         toRejectAll = true;
       }
 
-      if (value
-        && scheduleFieldsSet.has(property)
-        && !isValidDate(value)) {
+      if (value &&
+        scheduleFieldsSet.has(property) &&
+        !isValidDate(value)) {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `The field ${property}`
-          + ` should be a valid unix timestamp`;
+        conn.req.body.data[index].reason = `The field ${property}` +
+          ` should be a valid unix timestamp`;
 
         return;
       }
@@ -1201,21 +1204,25 @@ const validateDataArray = (conn, locals) => {
         if (!validTypes.has(type) && value) {
           // Used for querying activities which should exist on the
           // basis of name
-          verifyValidTypes.set(index, { value, type, field: property });
+          verifyValidTypes.set(index, {
+            value,
+            type,
+            field: property
+          });
         }
 
-        if (conn.req.body.template === templateNamesObject.EMPLOYEE
-          && property === 'Employee Contact'
-          && !isE164PhoneNumber(value)) {
+        if (conn.req.body.template === templateNamesObject.EMPLOYEE &&
+          property === 'Employee Contact' &&
+          !isE164PhoneNumber(value)) {
           conn.req.body.data[index].rejected = true;
-          conn.req.body.data[index].reason = `Employee ${property}`
-            + ` should be a valid phone number`;
+          conn.req.body.data[index].reason = `Employee ${property}` +
+            ` should be a valid phone number`;
 
           return;
         }
 
-        if (value
-          && type === 'phoneNumber') {
+        if (value &&
+          type === 'phoneNumber') {
           if (assigneesFromAttachment.has(index)) {
             const set = assigneesFromAttachment.get(index);
 
@@ -1227,27 +1234,28 @@ const validateDataArray = (conn, locals) => {
           }
         }
 
-        if (value
-          && type === 'number'
+        if (value &&
+          type === 'number'
           /** Handled stringified numbers */
-          && typeof Number(value) !== 'number') {
+          &&
+          typeof Number(value) !== 'number') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'string'
-          && typeof value !== 'string') {
+        if (type === 'string' &&
+          typeof value !== 'string') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (property === 'Number'
-          && !isNonEmptyString(value)
-          && typeof value !== 'number') {
+        if (property === 'Number' &&
+          !isNonEmptyString(value) &&
+          typeof value !== 'number') {
           duplicatesSet.add(value);
 
           conn.req.body.data[index].rejected = true;
@@ -1256,8 +1264,8 @@ const validateDataArray = (conn, locals) => {
           return;
         }
 
-        if (property === 'Name'
-          && !isNonEmptyString(value)) {
+        if (property === 'Name' &&
+          !isNonEmptyString(value)) {
           duplicatesSet.add(value);
 
           conn.req.body.data[index].rejected = true;
@@ -1273,40 +1281,40 @@ const validateDataArray = (conn, locals) => {
          */
         if (!isNonEmptyString(value)) return;
 
-        if (type === 'email'
-          && !isValidEmail(value)) {
+        if (type === 'email' &&
+          !isValidEmail(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'weekday'
-          && !weekdays.has(value)) {
+        if (type === 'weekday' &&
+          !weekdays.has(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'phoneNumber'
-          && !isE164PhoneNumber(value)) {
+        if (type === 'phoneNumber' &&
+          !isE164PhoneNumber(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'HH:MM'
-          && !isHHMMFormat(value)) {
+        if (type === 'HH:MM' &&
+          !isHHMMFormat(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'base64'
-          && typeof value !== 'string') {
+        if (type === 'base64' &&
+          typeof value !== 'string') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
@@ -1320,8 +1328,8 @@ const validateDataArray = (conn, locals) => {
         .push(conn.req.body.data[index].Name);
     }
 
-    if (conn.req.body.template
-      === templateNamesObject.EMPLOYEE) {
+    if (conn.req.body.template ===
+      templateNamesObject.EMPLOYEE) {
       employeesToCheck.push({
         name: conn.req.body.data[index].Name,
         phoneNumber: conn.req.body.data[index]['Employee Contact'],
@@ -1330,8 +1338,8 @@ const validateDataArray = (conn, locals) => {
   });
 
   conn.req.body.data.forEach((_, index) => {
-    if (!assigneesFromAttachment.has(index)
-      && conn.req.body.data[index].share.length === 0
+    if (!assigneesFromAttachment.has(index) &&
+      conn.req.body.data[index].share.length === 0
       /**
        * If the object has already been rejected for some reason,
        * it's assigneesFromAttachment map will most probably be empty.
@@ -1339,16 +1347,18 @@ const validateDataArray = (conn, locals) => {
        * even if the rejection was because of some other issue in
        * the object.
        */
-      && !conn.req.body.data[index].rejected
-      && conn.req.body.template !== 'customer'
-      && conn.req.body.template !== 'branch'
+      &&
+      !conn.req.body.data[index].rejected &&
+      conn.req.body.template !== 'customer' &&
+      conn.req.body.template !== 'branch'
       /**
        * Templates like `leave-type`, `expense-type` and `customer-type`
        * are auto assigned to their respective recipients via
        * `activityOnWrite` on creation of subscription of leave, expense
        * and customer activities.
        */
-      && !conn.req.body.template.endsWith('-type')) {
+      &&
+      !conn.req.body.template.endsWith('-type')) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `No assignees found`;
     }
@@ -1372,8 +1382,8 @@ const validateDataArray = (conn, locals) => {
   }
 
   /** Only support can use `trailRun` */
-  const trialRun = conn.requester.isSupportRequest
-    && conn.req.query.trialRun === 'true';
+  const trialRun = conn.requester.isSupportRequest &&
+    conn.req.query.trialRun === 'true';
 
   return fetchValidTypes(conn, locals)
     .then(() => fetchTemplates(conn, locals))
@@ -1387,13 +1397,18 @@ const validateDataArray = (conn, locals) => {
     .then(responseObject => sendJSON(conn, responseObject));
 };
 
-const getBranchActivity = await address => {
+/**
+ * Unused fuction
+ * @param {*} address 
+ * @param {*} queryObject 
+ 
+async function getBranchActivity(address,queryObject) {
   const googleMapsClient =
     require('@google/maps')
-      .createClient({
-        key: env.mapsApiKey,
-        Promise: Promise,
-      });
+    .createClient({
+      key: env.mapsApiKey,
+      Promise: Promise,
+    });
 
   const placesApiResponse = await googleMapsClient
     .places({
@@ -1409,7 +1424,10 @@ const getBranchActivity = await address => {
   success = Boolean(firstResult);
 
   if (!success) {
-    return Object.assign({}, { address, failed: !success });
+    return Object.assign({}, {
+      address,
+      failed: !success
+    });
   }
 
   const activityObject = {
@@ -1435,8 +1453,8 @@ const getBranchActivity = await address => {
   });
 
 
-};
-
+}
+*/
 const handleBranch = async (conn, locals) => {
   // if (conn.req.body.template !== 'branch') {
   //   return Promise.resolve();
@@ -1495,8 +1513,8 @@ module.exports = conn => {
    * location: `object(latitude, longitude)`
    */
   if (!conn.requester.isSupportRequest) {
-    if (!conn.requester.customClaims.admin
-      || !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
+    if (!conn.requester.customClaims.admin ||
+      !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
       return sendResponse(
         conn,
         code.unauthorized,
@@ -1513,20 +1531,20 @@ module.exports = conn => {
 
   const promises = [
     rootCollections
-      .offices
-      /** Office field can be skipped while creating `offices` in bulk */
-      .where('office', '==', conn.req.body.office || '')
-      .limit(1)
-      .get(),
+    .offices
+    /** Office field can be skipped while creating `offices` in bulk */
+    .where('office', '==', conn.req.body.office || '')
+    .limit(1)
+    .get(),
     rootCollections
-      .activityTemplates
-      .where('name', '==', conn.req.body.template)
-      .limit(1)
-      .get(),
+    .activityTemplates
+    .where('name', '==', conn.req.body.template)
+    .limit(1)
+    .get(),
   ];
 
-  if (conn.req.body.template
-    === templateNamesObject.SUBSCRIPTION) {
+  if (conn.req.body.template ===
+    templateNamesObject.SUBSCRIPTION) {
     const promise = rootCollections
       .activityTemplates
       .get();
@@ -1543,8 +1561,8 @@ module.exports = conn => {
         templatesCollectionQuery,
       ] = result;
 
-      if (conn.req.body.template !== templateNamesObject.OFFICE
-        && officeDocsQuery.empty) {
+      if (conn.req.body.template !== templateNamesObject.OFFICE &&
+        officeDocsQuery.empty) {
         return sendResponse(
           conn,
           code.badRequest,
@@ -1571,8 +1589,8 @@ module.exports = conn => {
         Object.keys(locals.templateDoc.get('attachment'))
       );
 
-      if (conn.req.body.template
-        === templateNamesObject.SUBSCRIPTION) {
+      if (conn.req.body.template ===
+        templateNamesObject.SUBSCRIPTION) {
         const templateNamesSet = new Set();
 
         templatesCollectionQuery
@@ -1600,8 +1618,8 @@ module.exports = conn => {
 
         const venueDescriptor = locals.templateDoc.get('venue')[0];
 
-        if (venueDescriptor
-          && conn.req.body.data[index].venueDescriptor !== venueDescriptor) {
+        if (venueDescriptor &&
+          conn.req.body.data[index].venueDescriptor !== venueDescriptor) {
           conn.req.body.data[index].venueDescriptor = venueDescriptor;
         }
 
@@ -1615,9 +1633,9 @@ module.exports = conn => {
       locals
         .isSupportRequest = conn.requester.isSupportRequest;
       locals
-        .isAdminRequest = !isSupportRequest
-        && conn.requester.customClaims.admin
-        && conn.requester.customClaims.admin.length > 0;
+        .isAdminRequest = !conn.requester.isSupportRequest &&
+        conn.requester.customClaims.admin &&
+        conn.requester.customClaims.admin.length > 0;
 
       return handleCustomer(conn, locals);
     })
