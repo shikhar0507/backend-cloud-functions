@@ -17,7 +17,7 @@ const {
 
 module.exports = async conn => {
   const fileName = `${conn.req.query.templateName}.xlsx`;
-  const filePath = `/tmp/${fileName}`;
+ 
 
   console.log('In excel handler'.repeat(10));
 

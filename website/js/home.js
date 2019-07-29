@@ -1152,7 +1152,18 @@ function populateTemplateSelect(selectElement, defaultValue) {
 
   selectElement.onchange = function () {
     removeAllChildren(document.querySelector('.bc-results-list'));
-    document.getElementById('download-sample').href = '/json?action=get-template-xlsx&templateName=' + selectElement.value
+    document.getElementById('download-sample').addEventListener('click', function (evt) {
+      evt.preventDefault()
+      sendApiRequest(`/json?action=view-templates&name=${selectElement.value}`)
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (response) {
+          const key = Object.keys(response)[0]
+          createExcelSheet(response[key]);
+
+        }).catch(console.error)
+    });
     document.querySelector('.bc-results').classList.add('hidden')
     document
       .querySelector('.bc-file-drag')
@@ -1166,6 +1177,33 @@ function populateTemplateSelect(selectElement, defaultValue) {
   };
   selectElement.value = defaultValue;
   selectElement.onchange()
+
+}
+
+function createExcelSheet(rawTemplate) {
+
+  var wb = XLSX.utils.book_new();
+  wb.props = {
+    Title: rawTemplate.name,
+    Subject: `${rawTemplate.name} sheet`,
+    Author: 'Growthfile',
+    CreatedDate: new Date()
+  }
+  const data = [];
+  if (rawTemplate.venue.length) {
+    data.push(['address', 'location'])
+  } else {
+    data.push(Object.keys(rawTemplate.attachment));
+  }
+  const ws = XLSX.utils.aoa_to_sheet(data);
+
+  console.log(ws)
+  XLSX.utils.book_append_sheet(wb, ws, "Sheet");
+  const about = XLSX.write(wb, {
+    bookType: 'xlsx',
+    type: 'binary'
+  });
+  XLSX.writeFile(wb, rawTemplate.name + '.xlsx');
 
 }
 
@@ -1195,7 +1233,7 @@ function populateBulkCreationResult(response, originalJson) {
     .querySelector('.bc-results')
     .classList
     .remove('hidden');
-
+  console.log(response)
   const rejectedRows = response.data.filter(function (item) {
     return item.rejected
   })
@@ -1244,12 +1282,16 @@ function sendBulkCreateJson(jsonData, templateName) {
       return sendApiRequest(requestUrl, requestBody, 'POST');
     })
     .then(function (response) {
+      document
+        .querySelector('.bc-results')
+        .classList
+        .remove('hidden');
       return response.json();
     })
     .then(function (response) {
-
-      populateBulkCreationResult(response, jsonData);
       removeFileSpinner()
+      console.log(response)
+      populateBulkCreationResult(response, jsonData);
     })
     .catch(function (error) {
       console.log(error)
@@ -1309,7 +1351,7 @@ function bulkdCreateDom() {
           <input type="file" accept=".csv,.xlsx,.xls" data-maxsize="2M" id='bulk-upload'>
       </div>
       <p>Or</p>
-    <a class='button' href='#' id='download-sample' target="_blank" download>Download Sample</a>
+    <a class='button' id='download-sample' >Download Sample</a>
   </form>
   <div class="bc-results hidden mt-16">
       <h5 class="bold ttuc">Result : <span class='result-value'></span></h5>
@@ -1821,8 +1863,8 @@ function changePhoneNumber() {
 
   const newInput = document.createElement('input');
   newInput.type = 'tel';
-  
-  
+
+
   newInput.className += ' input-field';
   newInput.id = 'new-phone-number'
   const submit = document.createElement('input');

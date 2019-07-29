@@ -710,8 +710,7 @@ const handleJsonGetRequest = (conn, requester) => {
       });
   }
 
-  if (conn.req.query.action === 'view-templates'
-    && requester.isTemplateManager) {
+  if (conn.req.query.action === 'view-templates') {
     return getTemplatesListJSON(conn.req.query.name);
   }
 
