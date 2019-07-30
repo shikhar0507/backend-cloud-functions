@@ -771,8 +771,7 @@ const createComments = async (addendumDoc, locals) => {
       comment,
       activityId,
       isComment: isComment(locals.addendumDoc.get('action')),
-      timestamp: Date.now(),
-      userDeviceTimestamp: addendumDoc.get('userDeviceTimestamp'),
+      timestamp: addendumDoc.get('userDeviceTimestamp'),
       location: addendumDoc.get('location'),
       user: addendumDoc.get('user'),
     });
