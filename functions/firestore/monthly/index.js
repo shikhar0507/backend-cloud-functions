@@ -4,41 +4,34 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 
+const findKeyByValue = (obj, value) =>
+  Object.keys(obj).find(key => obj[key] === value);
+
+
 module.exports = async (change, context) => {
-  const {
-    month,
-    year,
-    phoneNumber,
-    statusObject,
-  } = change.after.data();
+  const { statusObject } = change.after.data();
+  const { phoneNumber, officeId } = context.params;
 
-  Object
-    .keys(statusObject)
-    .forEach(date => {
-      statusObject[date].month = month;
-      statusObject[date].year = year;
-    });
+  try {
+    const profileDoc = await rootCollections.profiles.doc(phoneNumber).get();
+    const employeeOf = profileDoc.get('employeeOf') || {};
+    const office = findKeyByValue(employeeOf, officeId);
 
-  const profileDoc = await rootCollections.profiles.doc(phoneNumber).get();
-  const employeeOf = profileDoc.get('employeeOf') || {};
-  const officeIdList = Object.values(employeeOf);
-  const officeIdIndex = officeIdList.indexOf(context.params.officeId);
+    if (!office) {
+      return Promise.resolve();
+    }
 
-  if (officeIdIndex === -1) {
-    return Promise.resolve();
+    return rootCollections
+      .profiles
+      .doc(phoneNumber)
+      .set({
+        statusObject: {
+          [office]: statusObject,
+        }
+      }, {
+          merge: true,
+        });
+  } catch (error) {
+    console.error(error);
   }
-
-  const officeName = Object.keys(employeeOf)[officeIdIndex];
-
-  return rootCollections
-    .profiles
-    .doc(phoneNumber)
-    .set({
-      statusObject: {
-        [officeName]: statusObject,
-      }
-    }, {
-        merge: true,
-      })
-    .catch(console.error);
 };

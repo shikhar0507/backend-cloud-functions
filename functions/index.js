@@ -34,6 +34,9 @@ const authOnCreate = functions
   .onCreate(require('./auth/on-create'));
 
 const api = functions
+  // .runWith({
+  //   timeoutSeconds: '540',
+  // })
   .https
   .onRequest(require('./server/server'));
 
@@ -98,7 +101,7 @@ const getUser = functions
 
 const monthlyOnWrite = functions
   .firestore
-  .document('Offices/{officeId}/Monthly/{docId}')
+  .document('Offices/{officeId}/Statuses/{monthYear}/Employees/{phoneNumber}')
   .onWrite(require('./firestore/monthly'));
 
 const temporaryImageHandler = functions
