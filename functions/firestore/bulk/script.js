@@ -620,7 +620,7 @@ const handleEmployees = (conn, locals) => {
     .all([
       getEmployeesMapFromRealtimeDb(locals.officeDoc.id),
       Promise
-      .all(promises)
+        .all(promises)
     ])
     .then(result => {
       const [employeesData, snapShots] = result;
@@ -794,12 +794,12 @@ const handleAdmins = (conn, locals) => {
       promises
         .push(
           rootCollections
-          .activities
-          .where('template', '==', templateNamesObject.ADMIN)
-          .where('attachment.Admin.value', '==', phoneNumber)
-          .where('status', '==', 'CONFIRMED')
-          .limit(1)
-          .get()
+            .activities
+            .where('template', '==', templateNamesObject.ADMIN)
+            .where('attachment.Admin.value', '==', phoneNumber)
+            .where('status', '==', 'CONFIRMED')
+            .limit(1)
+            .get()
         );
     });
   const adminsToReject = new Set();
@@ -910,15 +910,15 @@ const fetchTemplates = (conn, locals) => {
   return Promise
     .all([
       rootCollections
-      .activityTemplates
-      .where('name', '==', templateNamesObject.ADMIN)
-      .limit(1)
-      .get(),
+        .activityTemplates
+        .where('name', '==', templateNamesObject.ADMIN)
+        .limit(1)
+        .get(),
       rootCollections
-      .activityTemplates
-      .where('name', '==', templateNamesObject.SUBSCRIPTION)
-      .limit(1)
-      .get(),
+        .activityTemplates
+        .where('name', '==', templateNamesObject.SUBSCRIPTION)
+        .limit(1)
+        .get(),
     ])
     .then(result => {
       const [
@@ -945,8 +945,7 @@ const validateDataArray = (conn, locals) => {
     ...scheduleFields,
     ...venueFields,
   ];
-  let toRejectAll = false;
-  let duplicateRowIndex = 0;
+
   /**
    * Set for managing uniques from the request body.
    * If any duplicate is found rejecting all data.
@@ -959,12 +958,37 @@ const validateDataArray = (conn, locals) => {
   const adminToCheck = [];
   const verifyValidTypes = new Map();
   const subscriptionsToCheck = [];
-  const namesSet = new Set();
   const assigneesFromAttachment = new Map();
   const officeContacts = new Map();
-  const nameOrNumberIndex = new Map();
+  const uniqueMap = new Map();
 
   conn.req.body.data.forEach((dataObject, index) => {
+    const uniqueValue = (() => {
+      if (conn.req.body.template === 'employee') {
+        return dataObject['Employee Contact'];
+      }
+
+      if (conn.req.body.template === 'admin') {
+        return dataObject.Admin;
+      }
+
+      /**
+       * For template subscription, the combination of Subscriber
+       * and Template is unique
+       */
+      if (conn.req.body.template === 'subscription') {
+        return `${dataObject.Subscriber}-${dataObject.Template}`;
+      }
+
+      return dataObject.Name || dataObject.Number;
+    })();
+
+    if (uniqueValue) {
+      const indexSet = uniqueMap.get(uniqueValue) || new Set();
+      indexSet.add(index);
+      uniqueMap.set(uniqueValue, indexSet);
+    }
+
     const objectProperties = Object.keys(dataObject);
     /**
      * TODO: This is O(n * m * q) loop most probably. Don't have
@@ -1048,29 +1072,6 @@ const validateDataArray = (conn, locals) => {
       }
     }
 
-    if (locals.templateDoc.get('attachment').hasOwnProperty('Name') ||
-      locals.templateDoc.get('attachment').hasOwnProperty('Number')) {
-      const value = conn.req.body.data[index].Name ||
-        conn.req.body.data[index].Number;
-
-      const set = nameOrNumberIndex.get(value) || new Set();
-
-      if (set.has(value)) {
-        conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = 'Duplicate';
-      }
-
-      set.add(index);
-
-      if (namesSet.has(value)) {
-        duplicateRowIndex = index + 1;
-
-        toRejectAll = true;
-      } else {
-        namesSet.add(value);
-      }
-    }
-
     if (conn.req.body.template ===
       templateNamesObject.OFFICE) {
       const firstContact = conn.req.body.data[index]['First Contact'];
@@ -1138,11 +1139,6 @@ const validateDataArray = (conn, locals) => {
       if (subscriptionsMap.has(phoneNumber)) {
         const set = subscriptionsMap.get(phoneNumber);
 
-        if (set.has(template)) {
-          duplicateRowIndex = index + 1;
-          toRejectAll = true;
-        }
-
         set.add(template);
 
         subscriptionsMap.set(phoneNumber, set);
@@ -1161,14 +1157,7 @@ const validateDataArray = (conn, locals) => {
       templateNamesObject.ADMIN) {
       const phoneNumber = conn.req.body.data[index].Admin;
 
-      // Duplication
-      if (adminsSet.has(phoneNumber)) {
-        duplicateRowIndex = index + 1;
-        toRejectAll = true;
-      } else {
-        adminsSet.add(phoneNumber);
-      }
-
+      adminsSet.add(phoneNumber);
       adminToCheck.push(phoneNumber);
     }
 
@@ -1188,11 +1177,6 @@ const validateDataArray = (conn, locals) => {
 
     objectProperties.forEach(property => {
       const value = dataObject[property];
-
-      if (duplicatesSet.has(value)) {
-        duplicateRowIndex = index + 1;
-        toRejectAll = true;
-      }
 
       if (value &&
         scheduleFieldsSet.has(property) &&
@@ -1343,6 +1327,17 @@ const validateDataArray = (conn, locals) => {
     }
   });
 
+
+  uniqueMap.forEach(setOfIndexes => {
+    if (setOfIndexes.size === 1) return;
+
+    setOfIndexes.forEach(index => {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Duplicates`;
+      conn.req.body.data[index].duplicatesAt = Array.from(setOfIndexes);
+    });
+  });
+
   conn.req.body.data.forEach((_, index) => {
     if (!assigneesFromAttachment.has(index) &&
       conn.req.body.data[index].share.length === 0
@@ -1378,14 +1373,6 @@ const validateDataArray = (conn, locals) => {
   locals.assigneesFromAttachment = assigneesFromAttachment;
   locals.officeContacts = officeContacts;
   locals.allFieldsArray = allFieldsArray;
-
-  if (toRejectAll) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      `Duplication found at row: ${duplicateRowIndex}. 0 docs created.`
-    );
-  }
 
   /** Only support can use `trailRun` */
   const trialRun = conn.requester.isSupportRequest &&
@@ -1678,16 +1665,16 @@ module.exports = conn => {
 
   const promises = [
     rootCollections
-    .offices
-    /** Office field can be skipped while creating `offices` in bulk */
-    .where('office', '==', conn.req.body.office || '')
-    .limit(1)
-    .get(),
+      .offices
+      /** Office field can be skipped while creating `offices` in bulk */
+      .where('office', '==', conn.req.body.office || '')
+      .limit(1)
+      .get(),
     rootCollections
-    .activityTemplates
-    .where('name', '==', conn.req.body.template)
-    .limit(1)
-    .get(),
+      .activityTemplates
+      .where('name', '==', conn.req.body.template)
+      .limit(1)
+      .get(),
   ];
 
   if (conn.req.body.template ===
@@ -1747,6 +1734,7 @@ module.exports = conn => {
           .templateNamesSet = templateNamesSet;
       }
 
+      // const uniqueMap = new Map();
       /**
        * Ignoring objects where all fields have empty
        * strings as the value.
@@ -1775,7 +1763,43 @@ module.exports = conn => {
 
           conn.req.body.data[index][fieldName] = '';
         });
+
+        // const uniqueValue = (() => {
+        //   if (conn.req.body.template === 'employee') {
+        //     return object['Employee Contact'];
+        //   }
+
+        //   if (conn.req.body.template === 'admin') {
+        //     return object.Admin;
+        //   }
+
+        //   /**
+        //    * For template subscription, the combination of Subscriber
+        //    * and Template is unique
+        //    */
+        //   if (conn.req.body.template === 'subscription') {
+        //     return `${object.Subscriber}-${object.Template}`;
+        //   }
+
+        //   return object.Name || object.Number;
+        // })();
+
+        // if (uniqueValue) {
+        //   const indexSet = uniqueMap.get(uniqueValue) || new Set();
+        //   indexSet.add(index);
+        //   uniqueMap.set(uniqueValue, indexSet);
+        // }
       });
+
+      // uniqueMap.forEach(setOfIndexes => {
+      //   if (setOfIndexes.size === 1) return;
+
+      //   setOfIndexes.forEach(index => {
+      //     conn.req.body.data[index].rejected = true;
+      //     conn.req.body.data[index].reason = `Duplicates`;
+      //     conn.req.body.data[index].duplicatesAt = Array.from(setOfIndexes);
+      //   });
+      // });
 
       locals
         .isSupportRequest = conn.requester.isSupportRequest;
@@ -1783,6 +1807,7 @@ module.exports = conn => {
         .isAdminRequest = !conn.requester.isSupportRequest
         && conn.requester.customClaims.admin
         && conn.requester.customClaims.admin.length > 0;
+
 
       return handleCustomer(conn, locals)
         .then(() => handleBranch(conn, locals))
