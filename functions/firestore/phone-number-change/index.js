@@ -65,6 +65,63 @@ const deleteUpdates = async uid => {
 };
 
 
+const validateRequest = body => {
+  const messageObject = {
+    isValid: true,
+    message: null,
+  };
+
+  if (!body.hasOwnProperty('oldPhoneNumber')) {
+    messageObject.isValid = false;
+    messageObject.message =
+      `Request body is missing the field: 'oldPhoneNumber'`;
+
+    return messageObject;
+  }
+
+  if (!body.hasOwnProperty('newPhoneNumber')) {
+    messageObject.isValid = false;
+    messageObject.message =
+      `Request body is missing the field: 'newPhoneNumber'`;
+
+    return messageObject;
+  }
+
+  if (!body.hasOwnProperty('office')) {
+    messageObject.isValid = false;
+    messageObject.message = `Request body is missing the field: 'office'`;
+
+    return messageObject;
+  }
+
+  if (!isNonEmptyString(body.office)) {
+    messageObject.isValid = false;
+    messageObject.message = `The field 'office' should be a non-empty string`;
+
+    return messageObject;
+  }
+
+  if (!isE164PhoneNumber(body.oldPhoneNumber)) {
+    messageObject.isValid = false;
+    messageObject.message = `The field 'oldPhoneNumber' should be`
+      + ` a valid E.164 phone number`;
+
+    return messageObject;
+  }
+
+  if (!isE164PhoneNumber(body.newPhoneNumber)) {
+    messageObject.isValid = false;
+    messageObject.message =
+      `The field 'newPhoneNumber' should be`
+      + ` a valid E.164 phone number`;
+
+    return messageObject;
+  }
+
+  return messageObject;
+};
+
+
 const updatePhoneNumberFields = (doc, oldPhoneNumber, newPhoneNumber, newPhoneNumberAuth) => {
   const result = doc.data();
   const attachment = doc.get('attachment');
@@ -116,11 +173,6 @@ const transferActivitiesToNewProfile = async conn => {
           const rootActivityRef = rootCollections
             .activities
             .doc(profileActivity.id);
-
-          console.log({
-            id: rootActivityRef.id,
-            template: profileActivity.get('template'),
-          });
 
           // Add new assignee
           batch
@@ -200,62 +252,6 @@ const transferActivitiesToNewProfile = async conn => {
   } catch (error) {
     console.error(error);
   }
-};
-
-const validateRequest = body => {
-  const messageObject = {
-    isValid: true,
-    message: null,
-  };
-
-  if (!body.hasOwnProperty('oldPhoneNumber')) {
-    messageObject.isValid = false;
-    messageObject.message =
-      `Request body is missing the field: 'oldPhoneNumber'`;
-
-    return messageObject;
-  }
-
-  if (!body.hasOwnProperty('newPhoneNumber')) {
-    messageObject.isValid = false;
-    messageObject.message =
-      `Request body is missing the field: 'newPhoneNumber'`;
-
-    return messageObject;
-  }
-
-  if (!body.hasOwnProperty('office')) {
-    messageObject.isValid = false;
-    messageObject.message = `Request body is missing the field: 'office'`;
-
-    return messageObject;
-  }
-
-  if (!isNonEmptyString(body.office)) {
-    messageObject.isValid = false;
-    messageObject.message = `The field 'office' should be a non-empty string`;
-
-    return messageObject;
-  }
-
-  if (!isE164PhoneNumber(body.oldPhoneNumber)) {
-    messageObject.isValid = false;
-    messageObject.message = `The field 'oldPhoneNumber' should be`
-      + ` a valid E.164 phone number`;
-
-    return messageObject;
-  }
-
-  if (!isE164PhoneNumber(body.newPhoneNumber)) {
-    messageObject.isValid = false;
-    messageObject.message =
-      `The field 'newPhoneNumber' should be`
-      + ` a valid E.164 phone number`;
-
-    return messageObject;
-  }
-
-  return messageObject;
 };
 
 
@@ -362,9 +358,12 @@ module.exports = async conn => {
       employeeOf
     } = oldProfileDoc.data();
 
+    console.log('oldProfileUid', uid);
+
     const officeList = Object.keys(employeeOf || {});
 
     if (officeList.length <= 1) {
+      console.log('Deleting old profile');
       await oldProfileDoc.ref.delete();
     }
 
@@ -400,6 +399,6 @@ module.exports = async conn => {
       'Phone number updated successfully'
     );
   } catch (error) {
-    handleError(conn, error);
+    return handleError(conn, error);
   }
 };
