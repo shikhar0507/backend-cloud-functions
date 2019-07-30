@@ -1246,8 +1246,6 @@ function populateBulkCreationResult(response, originalJson) {
   const ul = document.querySelector('.bc-results-list');
   removeAllChildren(ul);
 
-
-
   rejectedRows.forEach(function (item, index) {
     const rowNumber = originalJson[index].__rowNum__
     const li = getBulkCreateResultLi(item, rowNumber);
@@ -1292,6 +1290,9 @@ function sendBulkCreateJson(jsonData, templateName) {
       removeFileSpinner()
       console.log(response)
       populateBulkCreationResult(response, jsonData);
+      if(templateName === 'office') {
+        sessionStorage.removeItem('officeNamesList')
+      }
     })
     .catch(function (error) {
       console.log(error)
@@ -1307,8 +1308,10 @@ function showFileSpinner() {
 }
 
 function removeFileSpinner() {
-  document.getElementById("file-upload-spin").remove()
-  document.querySelector('.bc-file-drag i').classList.remove('hidden');
+  if( document.getElementById("file-upload-spin")) {
+    document.getElementById("file-upload-spin").remove()
+    document.querySelector('.bc-file-drag i').classList.remove('hidden');
+  }
 }
 
 function handleExcelOrCsvFile(element, templateName) {
