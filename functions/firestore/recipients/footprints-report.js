@@ -460,8 +460,6 @@ module.exports = async locals => {
     const oldCountsObject = doc.get('countsObject') || {};
     oldCountsObject[office] = counterObject;
 
-    console.log('SR:', office, oldCountsObject);
-
     return doc
       .ref
       .set({

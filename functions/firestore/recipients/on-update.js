@@ -221,16 +221,24 @@ module.exports = async change => {
       merge: true,
     });
 
+    if (report === reportNames.FOOTPRINTS) {
+      await require('./footprints-report')(locals);
+    }
+
+    if (report === reportNames.PAYROLL) {
+      await require('./payday-report')(locals);
+    }
+
     /**
     * When all recipient function instances have completed their work,
     * we trigger the daily status report. We are doing this because
     */
     if (expectedRecipientTriggersCount
       === recipientsTriggeredToday) {
-      return handleDailyStatusReport();
+      await handleDailyStatusReport();
     }
 
-    return Promise.resolve();
+    return batch.commit();
   } catch (error) {
     const errorObject = {
       error,
