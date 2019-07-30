@@ -399,9 +399,11 @@ function hideProgressBar() {
 }
 
 function closeModal() {
+  document.body.style.overflowY = 'auto'
   const modalContainer = document.querySelector('#modal-container');
 
   if (modalContainer) modalContainer.remove();
+
 }
 
 function getModal(options) {

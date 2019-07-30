@@ -331,10 +331,10 @@ function handleActivityEditOnClick(doc) {
       // Remove spaces between characters that some people use
       // while writing phone numbers
       value = value.replace(/\s+/g, '');
-
-      if (!value.startsWith(window.countryCode)) {
-        value = `+${window.countryCode}${value}`;
-      }
+      value = formatPhoneNumber(value)
+      // if (!value.startsWith(window.countryCode)) {
+      //   value = `+${window.countryCode}${value}`;
+      // }
     }
 
     if (type === 'number') {
@@ -380,7 +380,6 @@ function handleActivityEditOnClick(doc) {
   });
 
   console.log('requestBody', requestBody);
-
   getLocation()
     .then(function (location) {
       requestBody.geopoint = location;
@@ -530,7 +529,9 @@ function addAssigneeToActivity(doc) {
   initializeTelInput(phoneInput);
 
   button.onclick = function () {
-    if (!isValidPhoneNumber(phoneInput.value)) {
+    const value = formatPhoneNumber(phoneInput.value);
+
+    if (!isValidPhoneNumber(value)) {
       return createSnackbar('Invalid phone number');
     }
 
@@ -543,7 +544,7 @@ function addAssigneeToActivity(doc) {
     const requestBody = {
       activityId: doc.activityId,
       timestamp: Date.now(),
-      share: [phoneInput.value],
+      share: [value],
     };
 
     getLocation()
@@ -978,7 +979,7 @@ function filterResultsForSearchAndUpdate() {
       .then(function (response) {
 
         /** Calling this function to repopulate the activity list */
-        searchUpdateTemplateSelectOnChange(requestUrl);
+        searchUpdateTemplateSelectOnChange(requestUrl, template);
 
         console.log('Response', response);
       })
@@ -1004,8 +1005,8 @@ function searchUpdateTemplateSelectOnChange(url) {
   const selectedTemplate = templateSelect.value;
 
   if (!selectedTemplate) return;
-
-  document.querySelector('.activity-filter').classList.remove('hidden');
+  const activityFilter =  document.querySelector('.activity-filter')
+  activityFilter.classList.remove('hidden');
 
   const ul = document.querySelector('.activity-list');
 
@@ -1023,9 +1024,13 @@ function searchUpdateTemplateSelectOnChange(url) {
     })
     .then(function (response) {
       console.log('response', response);
-
-      Object
-        .keys(response)
+      const keys = Object.keys(response);
+      if (!keys.length) {
+        createSnackbar('No ' + selectedTemplate + ' Found')
+        return
+      }
+      
+      keys
         .forEach(function (key, index) {
 
           const doc = response[key];
@@ -1049,7 +1054,7 @@ function searchUpdateTemplateSelectOnChange(url) {
           if (index === 0) {
             li.tabIndex = 0;
           }
-
+          activityFilter.onclick = filterResultsForSearchAndUpdate
           ul.appendChild(li);
         });
     })
@@ -1086,12 +1091,10 @@ function searchAndUpdate() {
   searchIcon.classList.add('material-icons');
 
   filterDiv.append(searchIcon);
-  filterDiv.classList.add('cur-ptr');
-  filterDiv.classList += ' activity-filter hidden';
-  filterDiv.onclick = filterResultsForSearchAndUpdate;
+  filterDiv.className = 'cur-ptr activity-filter hidden';
 
   const listContainer = document.createElement('div');
-  listContainer.className += ' activity-list-container';
+  listContainer.className += 'activity-list-container';
   listContainer.append(filterDiv, listOfActivities);
 
   activityDiv.append(listContainer, singleActivity);
@@ -1125,7 +1128,7 @@ function searchAndUpdate() {
         const url = `/json?office=${document.body.dataset.office}` +
           `&template=${templateSelect.value}`;
 
-        searchUpdateTemplateSelectOnChange(url);
+        searchUpdateTemplateSelectOnChange(url, templateSelect.value);
       };
     })
     .catch(console.error);
@@ -1238,9 +1241,11 @@ function populateBulkCreationResult(response, originalJson) {
     return item.rejected
   })
   if (!rejectedRows.length) {
+    document.querySelector('.bc-results-list').classList.add("hidden")
     setMessageForBulkCreate('Success', 'success')
     return;
   }
+  document.querySelector('.bc-results-list').classList.remove("hidden")
   setMessageForBulkCreate('Error', 'error')
 
   const ul = document.querySelector('.bc-results-list');
@@ -1265,10 +1270,13 @@ function sendBulkCreateJson(jsonData, templateName) {
   if (isSupport()) {
     requestUrl += `?support=true`;
   }
-
+  let isCreateOffice = false;
+  if (templateName === 'office') {
+    isCreateOffice = true
+  }
   const requestBody = {
     timestamp: Date.now(),
-    office: document.body.dataset.office,
+    office: isCreateOffice ? '' : document.body.dataset.office,
     data: jsonData,
     template: templateName
   };
@@ -1290,8 +1298,14 @@ function sendBulkCreateJson(jsonData, templateName) {
       removeFileSpinner()
       console.log(response)
       populateBulkCreationResult(response, jsonData);
-      if(templateName === 'office') {
-        sessionStorage.removeItem('officeNamesList')
+
+      if (isCreateOffice) {
+        let currentCachedOfficelist = sessionStorage.getItem('officeNamesList')
+        jsonData.forEach(function (item) {
+
+          currentCachedOfficelist += `,${item.Name}`
+        })
+        sessionStorage.setItem('officeNamesList', currentCachedOfficelist);
       }
     })
     .catch(function (error) {
@@ -1308,7 +1322,7 @@ function showFileSpinner() {
 }
 
 function removeFileSpinner() {
-  if( document.getElementById("file-upload-spin")) {
+  if (document.getElementById("file-upload-spin")) {
     document.getElementById("file-upload-spin").remove()
     document.querySelector('.bc-file-drag i').classList.remove('hidden');
   }
