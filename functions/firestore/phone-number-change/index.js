@@ -162,30 +162,6 @@ const deleteUpdates = oldPhoneNumberUid => {
     });
 };
 
-const getCanEditValue = (canEditRule, creator, conn, locals) => {
-  if (canEditRule === 'CREATOR') {
-    return creator === conn.req.body.newPhoneNumber;
-  }
-
-  if (canEditRule === 'ADMIN') {
-    return locals
-      .newPhoneNumberIsAdmin;
-  }
-
-  if (canEditRule === 'EMPLOYEE') {
-    // If the new phone number is already an employee,
-    // code the request will be rejected in the previous step.
-    return false;
-  }
-
-  if (canEditRule === 'NONE') {
-    return false;
-  }
-
-  // canEditRule is `ALL`
-  return true;
-};
-
 const createAddendum = async (conn, locals) => {
   const moment = require('moment');
 
@@ -227,12 +203,6 @@ const transferActivitiesToNewProfile = (conn, locals) => {
           const rootActivityRef = rootCollections
             .activities
             .doc(profileActivity.id);
-          const canEdit = getCanEditValue(
-            profileActivity.get('canEditRule'),
-            profileActivity.get('creator'),
-            conn,
-            locals
-          );
 
           console.log({
             id: rootActivityRef.id,
@@ -244,7 +214,7 @@ const transferActivitiesToNewProfile = (conn, locals) => {
             .set(rootActivityRef
               .collection('Assignees')
               .doc(conn.req.body.newPhoneNumber), {
-                canEdit,
+                canEdit: profileActivity.get('canEdit'),
                 addToInclude: profileActivity.get('template') !== 'subscription',
               }, {
                 merge: true,
