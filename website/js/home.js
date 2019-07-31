@@ -1210,25 +1210,40 @@ function createExcelSheet(rawTemplate) {
 
 }
 
-function getBulkCreateResultLi(item, rowNumber) {
+function getBulkCreateResultLi(item, originalJson,index) {
 
   const container = document.createElement('li');
-  container.classList.add('success', 'flexed-column', 'failure', 'raised');
+  if (!index) {
+    container.tabIndex = 0;
+  };
+  container.classList.add('flexed-column', 'raised');
   const firstRow = document.createElement('span');
   const secondRow = document.createElement('span');
-  const thirdRow = document.createElement('span')
+  const thirdRow = document.createElement('span');
   firstRow.textContent = item.Name || item.Admin || item.Subscriber;
-  secondRow.textContent = item.reason || '';
-  thirdRow.textContent = 'Error at row number ' + rowNumber
+  if(item.rejected) {
+    container.classList.add('failure')
+    const rowNumber = originalJson[index].__rowNum__ + 1
+    secondRow.textContent = item.reason || '';
+    thirdRow.textContent = 'Result : Error at row number ' + rowNumber;
+  }
+  else {
+    container.classList.add('success')
+    thirdRow.textContent = 'Result : Success';
+  }
   container.append(firstRow, secondRow, thirdRow);
-
   return container;
 }
 
-function setMessageForBulkCreate(message, className) {
-  const resultHeading = document.querySelector('.bc-results h5 span')
-  resultHeading.textContent = message;
-  resultHeading.className = className
+function setMessageForBulkCreate(totalSent,totalCreated,totalRejected) {
+  const resultHeading = document.getElementById('result-meta')
+  const metaDetail = `<div class='result-row'>
+  <div class='result-column'>Total Records :  ${totalSent}</div>
+  <div class='result-column'> Created  : ${totalCreated}</div>
+  <div class='result-column'>Not Created : ${totalRejected}</div>
+
+  </div>`
+  resultHeading.innerHTML = metaDetail
 }
 
 function populateBulkCreationResult(response, originalJson) {
@@ -1236,29 +1251,27 @@ function populateBulkCreationResult(response, originalJson) {
     .querySelector('.bc-results')
     .classList
     .remove('hidden');
-  console.log(response)
-  const rejectedRows = response.data.filter(function (item) {
-    return item.rejected
-  })
-  if (!rejectedRows.length) {
-    document.querySelector('.bc-results-list').classList.add("hidden")
-    setMessageForBulkCreate('Success', 'success')
-    return;
-  }
-  document.querySelector('.bc-results-list').classList.remove("hidden")
-  setMessageForBulkCreate('Error', 'error')
-
+  console.log(response);
   const ul = document.querySelector('.bc-results-list');
   removeAllChildren(ul);
+  let totalRejected = 0
+  let totalCreated = 0
+  response.data.forEach(function (item, index) {
 
-  rejectedRows.forEach(function (item, index) {
-    const rowNumber = originalJson[index].__rowNum__
-    const li = getBulkCreateResultLi(item, rowNumber);
-    if (index === 0) {
-      li.tabIndex = 0;
+    if(item.rejected) {
+      totalRejected += 1;
     }
+    else {
+      totalCreated += 1;
+    }
+
+    const li = getBulkCreateResultLi(item, originalJson,index);
+    
     ul.appendChild(li);
   });
+ 
+  setMessageForBulkCreate(originalJson.length,totalCreated,totalRejected)
+
 }
 
 
@@ -1302,15 +1315,17 @@ function sendBulkCreateJson(jsonData, templateName) {
       if (isCreateOffice) {
         let currentCachedOfficelist = sessionStorage.getItem('officeNamesList')
         jsonData.forEach(function (item) {
-
-          currentCachedOfficelist += `,${item.Name}`
+          if(!item.rejected) {
+            currentCachedOfficelist += `,${item.Name}`
+          }
         })
+
         sessionStorage.setItem('officeNamesList', currentCachedOfficelist);
       }
     })
     .catch(function (error) {
       console.log(error)
-      setMessageForBulkCreate(error.message, 'error')
+      snacks(error.message)
       removeFileSpinner()
     });
 }
@@ -1371,7 +1386,8 @@ function bulkdCreateDom() {
     <a class='button' id='download-sample' >Download Sample</a>
   </form>
   <div class="bc-results hidden mt-16">
-      <h5 class="bold ttuc">Result : <span class='result-value'></span></h5>
+      <div id='result-meta'>
+      </div>
       <div>
           <ul class="bc-results-list"> </ul>
       </div>
@@ -1391,6 +1407,10 @@ function bulkCreate() {
       return response.json();
     })
     .then(function (response) {
+      if(!Array.isArray(response)) {
+        createSnackbar('No Subscriptions Found')
+        return
+      }
       selectElement.firstElementChild.remove()
       addOptionToSelect(response, selectElement);
       populateTemplateSelect(selectElement, response[0])
