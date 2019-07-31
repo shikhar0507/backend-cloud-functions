@@ -803,17 +803,6 @@ const handleEmployeeSupervisors = locals => {
   }
 
   const batch = db.batch();
-  const log = {
-    employeeContact,
-    firstSupervisorOld,
-    firstSupervisorNew,
-    secondSupervisorOld,
-    secondSupervisorNew,
-    thirdSupervisorOld,
-    thirdSupervisorNew,
-    adminsSet: locals.adminsCanEdit,
-    ids: [],
-  };
 
   return rootCollections
     .activities
@@ -823,8 +812,6 @@ const handleEmployeeSupervisors = locals => {
     .get()
     .then(docs => {
       docs.forEach(doc => {
-        log.ids.push(doc.id);
-
         batch.set(doc.ref, {
           addendumDocRef: null,
         }, {
@@ -853,7 +840,8 @@ const handleEmployeeSupervisors = locals => {
             .delete(doc.ref.collection('Assignees').doc(thirdSupervisorOld));
         }
 
-        [firstSupervisorNew,
+        [
+          firstSupervisorNew,
           secondSupervisorNew,
           thirdSupervisorNew
         ].filter(Boolean) // Any or all of these values could be empty strings...
@@ -876,6 +864,7 @@ const handleMonthlyDocs = async locals => {
   const officeId = locals.change.after.get('officeId');
   const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
   const timezone = locals.change.after.get('timezone');
+
   if (template !== 'employee') {
     return Promise.resolve();
   }
@@ -1010,7 +999,7 @@ const handleEmployee = locals => {
       return removeFromOfficeActivities(locals);
     })
     .then(() => sendEmployeeCreationSms(locals))
-    .then(() => handleMonthlyDocs(locals, hasBeenCancelled))
+    // .then(() => handleMonthlyDocs(locals, hasBeenCancelled))
     .then(() => createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled))
     .then(() => handleEmployeeSupervisors(locals))
     .catch(console.error);
