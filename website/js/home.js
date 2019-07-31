@@ -1223,8 +1223,10 @@ function getBulkCreateResultLi(item, originalJson,index) {
   firstRow.textContent = item.Name || item.Admin || item.Subscriber;
   if(item.rejected) {
     container.classList.add('failure')
-    const rowNumber = originalJson[index].__rowNum__ + 1
-    secondRow.textContent = item.reason || '';
+    const rowNumber = originalJson[index].__rowNum__ + 1;
+    if(item.reason) {
+      secondRow.textContent = 'Reason : ' + item.reason;
+    }
     thirdRow.textContent = 'Result : Error at row number ' + rowNumber;
   }
   else {
