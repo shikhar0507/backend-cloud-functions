@@ -1733,8 +1733,7 @@ module.exports = conn => {
         locals
           .templateNamesSet = templateNamesSet;
       }
-
-      // const uniqueMap = new Map();
+      
       /**
        * Ignoring objects where all fields have empty
        * strings as the value.
@@ -1763,43 +1762,7 @@ module.exports = conn => {
 
           conn.req.body.data[index][fieldName] = '';
         });
-
-        // const uniqueValue = (() => {
-        //   if (conn.req.body.template === 'employee') {
-        //     return object['Employee Contact'];
-        //   }
-
-        //   if (conn.req.body.template === 'admin') {
-        //     return object.Admin;
-        //   }
-
-        //   /**
-        //    * For template subscription, the combination of Subscriber
-        //    * and Template is unique
-        //    */
-        //   if (conn.req.body.template === 'subscription') {
-        //     return `${object.Subscriber}-${object.Template}`;
-        //   }
-
-        //   return object.Name || object.Number;
-        // })();
-
-        // if (uniqueValue) {
-        //   const indexSet = uniqueMap.get(uniqueValue) || new Set();
-        //   indexSet.add(index);
-        //   uniqueMap.set(uniqueValue, indexSet);
-        // }
       });
-
-      // uniqueMap.forEach(setOfIndexes => {
-      //   if (setOfIndexes.size === 1) return;
-
-      //   setOfIndexes.forEach(index => {
-      //     conn.req.body.data[index].rejected = true;
-      //     conn.req.body.data[index].reason = `Duplicates`;
-      //     conn.req.body.data[index].duplicatesAt = Array.from(setOfIndexes);
-      //   });
-      // });
 
       locals
         .isSupportRequest = conn.requester.isSupportRequest;
