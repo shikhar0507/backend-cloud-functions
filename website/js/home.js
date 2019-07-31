@@ -244,13 +244,13 @@ function handleUpdateAuthRequest() {
     return;
   }
   sendApiRequest(
-      `${apiBaseUrl}/update-auth`, {
-        phoneNumber,
-        displayName,
-        email,
-      },
-      'POST'
-    )
+    `${apiBaseUrl}/update-auth`, {
+      phoneNumber,
+      displayName,
+      email,
+    },
+    'POST'
+  )
     .then(function (response) {
       return response.json();
     })
@@ -1005,7 +1005,7 @@ function searchUpdateTemplateSelectOnChange(url) {
   const selectedTemplate = templateSelect.value;
 
   if (!selectedTemplate) return;
-  const activityFilter =  document.querySelector('.activity-filter')
+  const activityFilter = document.querySelector('.activity-filter')
   activityFilter.classList.remove('hidden');
 
   const ul = document.querySelector('.activity-list');
@@ -1029,7 +1029,7 @@ function searchUpdateTemplateSelectOnChange(url) {
         createSnackbar('No ' + selectedTemplate + ' Found')
         return
       }
-      
+
       keys
         .forEach(function (key, index) {
 
@@ -1039,14 +1039,14 @@ function searchUpdateTemplateSelectOnChange(url) {
           if (index === 0) {
             window
               .searchTemplateAttachmentFields = Object
-              .keys(doc.attachment)
-              .map(function (field) {
-                return ({
-                  field,
-                  value: doc.attachment[field].value,
-                  type: doc.attachment[field].type,
+                .keys(doc.attachment)
+                .map(function (field) {
+                  return ({
+                    field,
+                    value: doc.attachment[field].value,
+                    type: doc.attachment[field].type,
+                  });
                 });
-              });
           }
 
           const li = getActivityListItem(doc);
@@ -1722,8 +1722,8 @@ function updateAuth() {
 function recipientSubmitOnClick() {
   const form = document.querySelector('.forms-parent');
   const startTime = new Date(
-      form.querySelector('input[type="date"]').value
-    )
+    form.querySelector('input[type="date"]').value
+  )
     .getTime();
   const triggerResult = form.querySelector('p');
 
@@ -1739,8 +1739,8 @@ function recipientSubmitOnClick() {
   console.log('Request sent', requestBody);
 
   sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, requestBody,
-      'POST'
-    )
+    'POST'
+  )
     .then(function (response) {
       return response.json();
     })

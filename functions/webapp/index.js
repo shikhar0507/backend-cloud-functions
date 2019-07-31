@@ -569,7 +569,6 @@ const handleDownloadPage = (locals, requester) => {
   return html;
 };
 
-
 const handleContactPage = (locals, requester) => {
   const source = require('./views/contact.hbs')();
   const template = handlebars.compile(source, { strict: true });
@@ -1027,10 +1026,6 @@ module.exports = (req, res) => {
 
   let requester = {};
   const idToken = parseCookies(req.headers);
-
-  console.log('slug', slug);
-
-  // const idToken = getIdToken(parsedCookies);
   let html;
 
   /**
@@ -1106,11 +1101,6 @@ module.exports = (req, res) => {
           isTemplateManager,
           customClaims,
         };
-      }
-
-      /** Ask client to log-out the user */
-      if (result.clearCookie) {
-        conn.res.clearCookie('__session');
       }
 
       /** Home page */
@@ -1206,8 +1196,6 @@ module.exports = (req, res) => {
       if (html) {
         return Promise.resolve();
       }
-
-      console.log('Excel sent....');
 
       html = officeHtml;
 
