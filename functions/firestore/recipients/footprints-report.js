@@ -18,18 +18,10 @@ const {
   timeStringWithOffset,
 } = require('./report-utils');
 
-const msToMin = ms => {
-  let seconds = Math.floor(ms / 1000);
-  let minute = Math.floor(seconds / 60);
-
-  seconds = seconds % 60;
-  minute = minute % 60;
-
-  return minute;
-};
-
 const isDiffLessThanFiveMinutes = (first, second) => {
-  return msToMin(Math.abs(first - second)) <= 5;
+  if (!first || !second) return false;
+
+  return Math.abs(momentTz(second).diff(first, 'minute')) < 5;
 };
 
 const getComment = doc => {
@@ -147,7 +139,6 @@ const getIdentifier = doc => {
 
   return doc.get('identifier');
 };
-
 
 module.exports = async locals => {
   const timezone = locals
@@ -354,8 +345,10 @@ module.exports = async locals => {
         .value(baseLocation);
     });
 
-    counterObject.active = distanceMap.size;
-    counterObject.notActive = counterObject.totalUsers - counterObject.active;
+    counterObject
+      .active = distanceMap.size;
+    counterObject
+      .notActive = counterObject.totalUsers - counterObject.active;
 
     const numberOfDocs = employeePhoneNumbersArray.length;
     const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
@@ -438,9 +431,11 @@ module.exports = async locals => {
     const momentFromTimer = momentTz(todayFromTimer)
       .tz(timezone)
       .startOf('day');
-    const isDateToday = momentToday.startOf('day').valueOf() === momentFromTimer.startOf('day').valueOf();
-
-    console.log('isDateToday:', isDateToday);
+    const isDateToday = momentToday
+      .startOf('day')
+      .valueOf() === momentFromTimer
+        .startOf('day')
+        .valueOf();
 
     if (!isDateToday) {
       return Promise
