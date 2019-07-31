@@ -33,6 +33,7 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
+  dateFormats,
   httpsActions,
 } = require('../../admin/constants');
 const {
@@ -165,7 +166,7 @@ const createAdmin = (locals, adminContact) => {
   }
 
   const batch = db.batch();
-  const officeId = locals.change.after.id;
+  const officeId = locals.change.after.get('officeId');
   const activityRef = rootCollections.activities.doc();
   const addendumDocRef = rootCollections
     .offices
@@ -489,9 +490,6 @@ const handleXTypeActivities = async locals => {
     userRecordMap.set(phoneNumber, { uid, displayName, photoURL });
   });
 
-  console.log('userRecordMap', userRecordMap);
-  console.log('assigneeMap', assigneeMap);
-
   // if subscription is created/updated
   // fetch all x-type activities from
   // Offices/(officeId)/Activities
@@ -537,8 +535,6 @@ const handleCanEditRule = (locals, templateDoc) => {
   const isAlreadyAdmin = locals.adminsCanEdit.includes(subscriberPhoneNumber);
 
   if (isAlreadyAdmin) {
-    console.log('subscription activity; already admin', subscriberPhoneNumber);
-
     return Promise.resolve();
   }
 
@@ -630,7 +626,7 @@ const handleSubscription = locals => {
           batch
             .commit(),
           handleCanEditRule(locals, templateDoc),
-          // handleXTypeActivities(locals)
+          handleXTypeActivities(locals)
         ]);
     })
     .catch(console.error);
@@ -667,8 +663,6 @@ const removeFromOfficeActivities = locals => {
     query
       .get()
       .then(docs => {
-        console.log('size ==>', docs.size);
-
         if (docs.empty) {
           return 0;
         }
@@ -694,13 +688,9 @@ const removeFromOfficeActivities = locals => {
             return;
           }
 
-          console.log('id', doc.ref.path);
-
           const phoneNumberInAttachment
             = doc.get('attachment.Admin.value')
             || doc.get('attachment.Subscriber.value');
-
-          console.log({ phoneNumberInAttachment });
 
           // Cancelling admin to remove their custom claims.
           // Cancelling subscription to stop them from
@@ -741,8 +731,6 @@ const removeFromOfficeActivities = locals => {
       })
       .then((lastDoc) => {
         if (!lastDoc) return resolve();
-
-        console.log({ lastDocId: lastDoc.id });
 
         return process
           .nextTick(() => {
@@ -877,72 +865,49 @@ const handleEmployeeSupervisors = locals => {
           });
       });
 
-      console.log(log);
-
       return batch.commit();
     })
     .catch(console.error);
 };
 
 
-const handleMonthlyDocs = locals => {
+const handleMonthlyDocs = async locals => {
   const template = locals.change.after.get('template');
-  const office = locals.change.after.get('office');
+  const officeId = locals.change.after.get('officeId');
   const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
-
+  const timezone = locals.change.after.get('timezone');
   if (template !== 'employee') {
     return Promise.resolve();
   }
 
-  let timezone;
-  let officeDoc;
-  let momentToday;
-  const batch = db.batch();
+  try {
+    const momentToday = momentTz().tz(timezone);
+    const monthYearString = momentToday.format(dateFormats.MONTH_YEAR);
+    const statusDoc = await rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Statuses')
+      .doc(monthYearString)
+      .collection('Employees')
+      .doc(phoneNumber)
+      .get();
 
-  // Create doc for the current month.
-  return rootCollections
-    .offices
-    .where('office', '==', office)
-    .limit(1)
-    .get()
-    .then(docs => {
-      officeDoc = docs.docs[0];
-      timezone = officeDoc.get('attachment.Timezone.value');
-      momentToday = momentTz().tz(timezone);
+    /** Doc already exists, so no need to create one */
+    if (statusDoc.exists) {
+      return Promise.resolve();
+    }
 
-      return officeDoc
-        .ref
-        .collection('Monthly')
-        .where('phoneNumber', '==', phoneNumber)
-        .where('month', '==', momentToday.month())
-        .where('year', '==', momentToday.year())
-        .limit(1)
-        .get();
-    })
-    .then(snapShot => {
-      /** Doc already exists. No need to do anything */
-      if (!snapShot.empty) {
-        return Promise.resolve();
-      }
-
-      batch.set(officeDoc
-        .ref
-        .collection('Monthly')
-        .doc(), {
-          phoneNumber,
-          month: momentToday.month(),
-          year: momentToday.year(),
-          statusObject: {
-            [momentToday.date()]: {
-              firstAction: '',
-              lastAction: '',
-            },
-          },
+    return db
+      .doc(statusDoc.ref.path)
+      .set({
+        [momentToday.date()]: {},
+      }, {
+          merge: true,
         });
 
-      return batch.commit();
-    })
-    .catch(console.error);
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const createDefaultSubscriptionsForEmployee = (locals, hasBeenCancelled) => {
@@ -1236,19 +1201,6 @@ const getPlaceName = (placeid) => {
         ),
       };
 
-      const firstContact = (() => {
-        const internationalPhoneNumber = result
-          .json
-          .result['international_phone_number'];
-
-        if (!internationalPhoneNumber) return '';
-
-        /** If the phoneNumber has spaces in between characters */
-        return internationalPhoneNumber
-          .split(' ')
-          .join('');
-      })();
-
       const weekdayStartTime = (() => {
         const openingHours = result.json.result['opening_hours'];
 
@@ -1354,7 +1306,7 @@ const getPlaceName = (placeid) => {
             type: 'string',
           },
           'First Contact': {
-            value: firstContact,
+            value: '',
             type: 'phoneNumber',
           },
           'Second Contact': {
@@ -1473,7 +1425,6 @@ const createBranches = (locals) => {
   const getBranchBodies = (office) => {
     return getPlaceIds(office)
       .then(ids => {
-        console.log(failureCount, ids);
         const promises = [];
 
         if (ids.length === 0) {
@@ -1483,18 +1434,14 @@ const createBranches = (locals) => {
             // Has failed once with the actual office name
             // and 2nd time even by replacing invalid chars
             // Give up.
-            console.log('Resolving early...');
 
             return Promise.all(promises);
           }
 
           const filteredOfficeName = replaceInvalidCharsInOfficeName(office);
-          console.log(`Called ${failureCount} times`, filteredOfficeName);
 
           return getBranchBodies(filteredOfficeName);
         }
-
-        console.log('Called...');
 
         ids.forEach(id => {
           promises.push(getPlaceName(id));
@@ -1635,7 +1582,6 @@ const setLocationsReadEvent = async locals => {
       docsCounter++;
 
       if (docsCounter > 499) {
-        console.log('reset batch...');
         docsCounter = 0;
         batchIndex++;
       }
@@ -1657,8 +1603,6 @@ const setLocationsReadEvent = async locals => {
       .reduce((accumulatorPromise, currentBatch) => {
         return accumulatorPromise
           .then(() => {
-            console.log('Commiting', currentBatch._ops.length);
-
             return commitBatch(currentBatch);
           });
       }, Promise.resolve());
@@ -1746,8 +1690,6 @@ const handleLocations = locals => {
 module.exports = (change, context) => {
   /** Activity was deleted. For debugging only. */
   if (!change.after.data()) {
-    console.log('Activity was deleted.', 'ID:', change.before.id);
-
     return Promise.resolve();
   }
 
