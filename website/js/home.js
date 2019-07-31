@@ -1319,7 +1319,7 @@ function sendBulkCreateJson(jsonData, templateName) {
             currentCachedOfficelist += `,${item.Name}`
           }
         })
-        
+
         sessionStorage.setItem('officeNamesList', currentCachedOfficelist);
       }
     })
@@ -1407,6 +1407,10 @@ function bulkCreate() {
       return response.json();
     })
     .then(function (response) {
+      if(!Array.isArray(response)) {
+        createSnackbar('No Subscriptions Found')
+        return
+      }
       selectElement.firstElementChild.remove()
       addOptionToSelect(response, selectElement);
       populateTemplateSelect(selectElement, response[0])
