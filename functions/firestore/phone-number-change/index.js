@@ -47,7 +47,7 @@ const deleteUpdates = async uid => {
 
   batch.delete(rootCollections.updates.doc(uid));
 
-  const docs = rootCollections
+  const docs = await rootCollections
     .updates
     .doc(uid)
     .collection('Addendum')
