@@ -328,8 +328,6 @@ const logLocations = (addendumDoc, locals) => {
         return docs.docs[0].ref;
       })();
 
-      console.log('error doc:', ref.path, { isPoor, isBad });
-
       const accuracyType = (() => {
         if (isPoor) {
           return 'poor';
@@ -416,8 +414,6 @@ const checkDistanceAccurate = (addendumDoc, activityDoc) => {
 
 const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
   const updatedFields = [];
-
-  console.log({ newSchedule, oldSchedule });
 
   oldSchedule.forEach((item, index) => {
     const name = item.name;
@@ -609,8 +605,6 @@ const getCommentString = (locals, recipient) => {
 
       return locals.addendumDocData.identifier;
     })();
-
-    console.log('locationFromVenue', locationFromVenue);
 
     return getCreateActionComment(template, pronoun, locationFromVenue);
   }

@@ -107,10 +107,7 @@ const createDocsWithBatch = async (conn, locals) => {
       location: conn.req.body.attachment.Name.value
     });
 
-    activityData
-      .attachment[
-      'First Contact'
-    ].value = conn.req.body.attachment['First Contact'].value || '';
+    activityData.attachment['First Contact'].value = '';
 
     activityData = placesQueryResult;
 

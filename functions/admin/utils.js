@@ -1640,8 +1640,6 @@ const addressToCustomer = async queryObject => {
       })
       .asPromise();
 
-    console.log('placeApiResult', placeApiResult);
-
     activityObject
       .Name = getCustomerName(
         placeApiResult.json.result.address_components,

@@ -85,7 +85,12 @@ const getPayDaySheetTopRow = allDates => {
   return topRowValues;
 };
 
-const getPaydayTimingsSheetValue = (statusObject, date) => {
+const getPaydayTimingsSheetValue = options => {
+  const {
+    statusObject,
+    date,
+  } = options;
+
   if (statusObject[date].onLeave) {
     return 'ON LEAVE';
   }
@@ -264,8 +269,17 @@ module.exports = async locals => {
       statusObjectsPrevMonth, // could be undefined
     ] = await Promise.all(promises);
 
-    const paydaySheet = worksheet.addSheet(`PayDay_${momentYesterday.format(dateFormats.MONTH_YEAR)}`);
-    const paydayTimingsSheet = worksheet.addSheet(`PayDay Timings_${momentYesterday.format(dateFormats.MONTH_YEAR)}`);
+    const paydaySheet = worksheet
+      .addSheet(`PayDay_${momentYesterday.format(dateFormats.MONTH_YEAR)}`);
+    const paydayTimingsSheet = worksheet
+      .addSheet(`PayDay Timings_${momentYesterday.format(dateFormats.MONTH_YEAR)}`);
+
+    paydaySheet
+      .row(1)
+      .style('bold', true);
+    paydayTimingsSheet
+      .row(1)
+      .style('bold', true);
 
     getPayDaySheetTopRow(allDates)
       .forEach((value, index) => {
@@ -335,6 +349,11 @@ module.exports = async locals => {
       addendumPromises.push(baseQuery);
     });
 
+    // const createData = momentTz()
+    //   .format(dateFormats.DATE)
+    //   === momentToday
+    //     .format(dateFormats.DATE);
+
     const addendumDocSnapshots = await Promise.all(addendumPromises);
 
     addendumDocSnapshots.forEach((snap, index) => {
@@ -382,8 +401,12 @@ module.exports = async locals => {
         return Math.floor(minOfRatios / rev) * rev;
       })();
 
-      const firstAction = momentTz(firstActionTimestamp).tz(timezone).format(dateFormats.TIME);
-      const lastAction = momentTz(lastActionTimestamp).tz(timezone).format(dateFormats.TIME);
+      const firstAction = momentTz(firstActionTimestamp)
+        .tz(timezone)
+        .format(dateFormats.TIME);
+      const lastAction = momentTz(lastActionTimestamp)
+        .tz(timezone)
+        .format(dateFormats.TIME);
 
       yesterdaysStatusMap
         .set(phoneNumber, {
@@ -398,15 +421,11 @@ module.exports = async locals => {
         });
     });
 
-    console.log('Commiting');
-
     await commitStatuses(
       yesterdaysStatusMap,
       momentYesterday,
       locals.officeDoc.id
     );
-
-    console.log('Commiting done');
 
     const allDocs = []
       .concat(
@@ -433,6 +452,15 @@ module.exports = async locals => {
         .add(phoneNumber);
       statusObjectsMap
         .set(`${phoneNumber}-${monthYearString}`, statusObject);
+    });
+
+    const monthYearString = momentYesterday.format(dateFormats.MONTH_YEAR);
+
+    yesterdaysStatusMap.forEach((statusObjectForYesterday, phoneNumber) => {
+      const oldStatusObject = statusObjectsMap.get(`${phoneNumber}-${monthYearString}`) || {};
+      oldStatusObject[dateYesterday] = statusObjectForYesterday;
+
+      statusObjectsMap.set(`${phoneNumber}-${monthYearString}`, oldStatusObject);
     });
 
     /** Set (`allPhoneNumbers`) doesn't have an index */
@@ -510,7 +538,7 @@ module.exports = async locals => {
           .value(paydaySheetValue);
         paydayTimingsSheet
           .cell(paydayTimingsSheetCell)
-          .value(getPaydayTimingsSheetValue(statusObject, date));
+          .value(getPaydayTimingsSheetValue({ statusObject, date }));
 
         paydaySheetAlphabetIndex++;
         paydayTimingsSheetIndex++;

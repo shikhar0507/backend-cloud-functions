@@ -259,13 +259,6 @@ module.exports = async conn => {
         .get('timestamp');
     }
 
-    console.log('sending in /read', conn.requester.phoneNumber, {
-      activities: activities.size,
-      addendum: addendum.size,
-      subscriptions: subscriptions.size,
-      from: conn.req.query.from,
-    });
-
     if (locationResults) {
       locationResults.forEach(snapShot => {
         if (!snapShot) return;
