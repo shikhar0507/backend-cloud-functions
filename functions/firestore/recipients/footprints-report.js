@@ -6,6 +6,7 @@ const {
   db,
   rootCollections,
 } = require('../../admin/admin');
+const env = require('../../admin/env');
 const {
   reportNames,
   httpsActions,
@@ -260,20 +261,6 @@ module.exports = async locals => {
         && prevTemplateForPerson === 'check-in'
         && timestampDiffLessThanFiveMinutes
         && distanceFromPrevious === 0) {
-
-        if (phoneNumber === '+917303296806') {
-          const obj = {
-            template,
-            prevTemplateForPerson,
-            timestampDiffLessThanFiveMinutes,
-            distanceFromPrevious,
-            prevDocTimestamp,
-            currDocTimestamp: prevDocTimestamp,
-          };
-
-          console.log(JSON.stringify(obj, ' ', 2));
-        }
-
         return;
       }
 
@@ -406,6 +393,10 @@ module.exports = async locals => {
       report: reportNames.FOOTPRINTS,
       to: locals.messageObject.to,
     }, ' ', 2));
+
+    if (!env.isProduction) {
+      return Promise.resolve();
+    }
 
     await locals
       .sgMail

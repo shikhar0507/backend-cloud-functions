@@ -15,6 +15,7 @@ const {
   db,
   rootCollections,
 } = require('../../admin/admin');
+const env = require('../../admin/env');
 
 const roundToNearestQuarter = number => {
   return Math.floor(number / 0.25) * 0.25;
@@ -306,8 +307,6 @@ module.exports = async locals => {
       const phoneNumber = doc.id;
       const statusObject = doc.get('statusObject') || {};
 
-      console.log(doc.ref.path);
-
       statusObject[
         dateYesterday
       ] = statusObject[dateYesterday] || getDefaultStatusObject();
@@ -352,11 +351,6 @@ module.exports = async locals => {
       queryIndexeByPhoneNumber.push(phoneNumber);
       addendumPromises.push(baseQuery);
     });
-
-    // const createData = momentTz()
-    //   .format(dateFormats.DATE)
-    //   === momentToday
-    //     .format(dateFormats.DATE);
 
     const addendumDocSnapshots = await Promise.all(addendumPromises);
 
@@ -576,6 +570,10 @@ module.exports = async locals => {
       report: reportNames.PAYROLL,
       to: locals.messageObject.to,
     }, ' ', 2));
+
+    if (!env.isProduction) {
+      return Promise.resolve();
+    }
 
     return locals
       .sgMail

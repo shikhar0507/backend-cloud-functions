@@ -193,6 +193,18 @@ module.exports = async change => {
       });
     });
 
+    if (report === reportNames.FOOTPRINTS) {
+      await require('./footprints-report')(locals);
+    }
+
+    if (report === reportNames.PAYROLL) {
+      await require('./payday-report')(locals);
+    }
+
+    if (!env.isProduction) {
+      return Promise.resolve();
+    }
+
     const momentYesterday = momentTz().subtract(1, 'day');
     const dailyStatusDocQueryResult = await rootCollections
       .inits
@@ -220,14 +232,6 @@ module.exports = async change => {
     batch.set(dailyStatusDoc.ref, data, {
       merge: true,
     });
-
-    if (report === reportNames.FOOTPRINTS) {
-      await require('./footprints-report')(locals);
-    }
-
-    if (report === reportNames.PAYROLL) {
-      await require('./payday-report')(locals);
-    }
 
     /**
     * When all recipient function instances have completed their work,
