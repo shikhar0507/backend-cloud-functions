@@ -810,6 +810,7 @@ module.exports = addendumDoc => {
 
   const geopoint = addendumDoc.get('location');
   const gp = adjustedGeopoint(geopoint);
+  const batch = db.batch();
 
   return Promise
     .all([
@@ -958,10 +959,26 @@ module.exports = addendumDoc => {
       if (activityDoc
         && activityDoc.get('venue')[0]
         && activityDoc.get('venue')[0].location) {
-        updateObject.venueQuery = activityDoc.get('venue')[0];
+        updateObject
+          .venueQuery = activityDoc.get('venue')[0];
+
+        if (addendumDoc.get('activityData.venue')
+          && addendumDoc.get('activityData.venue')[0]
+          && addendumDoc.get('activityData.venue')[0].location === '') {
+          const phoneNumber = addendumDoc.get('user');
+          const ref = rootCollections.profiles.doc(phoneNumber);
+
+          batch
+            .set(ref, {
+              lastLocationMapUpdateTimestamp: Date.now(),
+            }, {
+                merge: true,
+              });
+        }
       }
 
-      locals.addendumDocData = Object.assign({}, addendumDoc.data(), updateObject);
+      locals
+        .addendumDocData = Object.assign({}, addendumDoc.data(), updateObject);
 
       console.log(JSON.stringify({
         phoneNumber,
@@ -981,11 +998,11 @@ module.exports = addendumDoc => {
        * with `addendumOnCreate` cloud function messes up whole data for the user
        * after the time of the crash.
        */
-      return addendumDoc
-        .ref
-        .set(updateObject, {
-          merge: true,
-        });
+      batch.set(addendumDoc.ref, updateObject, {
+        merge: true,
+      });
+
+      return batch.commit();
     })
     .then(() => createComments(addendumDoc, locals))
     .then(() => handleDailyStatusReport(addendumDoc, locals))
