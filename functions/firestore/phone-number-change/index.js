@@ -43,6 +43,8 @@ const getAuth = async phoneNumber => {
 
 
 const deleteUpdates = async uid => {
+  if (!uid) return Promise.resolve();
+
   const batch = db.batch();
 
   batch.delete(rootCollections.updates.doc(uid));

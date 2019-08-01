@@ -10,7 +10,6 @@ const {
 } = require('./report-utils');
 const {
   dateFormats,
-  httpsActions,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
