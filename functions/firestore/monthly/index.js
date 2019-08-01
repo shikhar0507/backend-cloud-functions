@@ -9,8 +9,10 @@ const findKeyByValue = (obj, value) =>
 
 
 module.exports = async (change, context) => {
-  const { statusObject } = change.after.data();
+  const statusObject = change.after.get('statusObject') || {};
   const { phoneNumber, officeId } = context.params;
+
+  console.log(context);
 
   try {
     const profileDoc = await rootCollections.profiles.doc(phoneNumber).get();
