@@ -396,44 +396,7 @@ const isE164PhoneNumber = (phoneNumber) => {
   }
 };
 
-
-const reportBackgroundError = (error, context = {}, logName) => {
-  const { Logging } = require('@google-cloud/logging');
-
-  // DOCS: https://firebase.google.com/docs/functions/reporting-errors
-  const logging = new Logging();
-  const log = logging.log(logName);
-  const metadata = {
-    resource: {
-      type: 'cloud_function',
-      labels: {
-        'function_name': process.env.FUNCTION_NAME,
-      },
-    },
-  };
-
-  const errorEvent = {
-    context,
-    message: error.stack,
-    serviceContext: {
-      service: process.env.FUNCTION_NAME,
-      resourceType: 'cloud_function',
-    },
-  };
-
-  console.log({ context });
-
-  return new Promise((resolve, reject) => {
-    return log.write(log.entry(metadata, errorEvent), (error) => {
-      if (error) return reject(new Error(error));
-
-      return resolve();
-    });
-  });
-};
-
-
-const getObjectFromSnap = (snap) => {
+const getObjectFromSnap = snap => {
   if (snap.empty) {
     return {
       ref: rootCollections.inits.doc(),
@@ -1818,7 +1781,6 @@ module.exports = {
   promisifiedExecFile,
   getRegistrationToken,
   replaceNonASCIIChars,
-  reportBackgroundError,
   handleDailyStatusReport,
   hasManageTemplateClaims,
   addEmployeeToRealtimeDb,
