@@ -748,7 +748,8 @@ const createComments = async (addendumDoc, locals) => {
       .collection('Addendum')
       .doc(addendumDoc.id);
 
-    const comment = getCommentString(locals, phoneNumber);
+    const comment = addendumDoc.get('cancellationMessage')
+      || getCommentString(locals, phoneNumber);
     /**
      * Checks if the action was a comment.
      * @param {string} action Can be one of the activity actions from HTTPS functions.
