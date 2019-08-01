@@ -238,7 +238,7 @@ const transferActivitiesToNewProfile = async conn => {
       .catch(reject);
   };
 
-  const MAX_UPDATES_AT_ONCE = 200;
+  const MAX_UPDATES_AT_ONCE = 100;
   const query = rootCollections
     .profiles
     .doc(conn.req.body.oldPhoneNumber)
@@ -358,9 +358,7 @@ module.exports = async conn => {
     const {
       uid,
       employeeOf
-    } = oldProfileDoc.data();
-
-    console.log('oldProfileUid', uid);
+    } = oldProfileDoc.data() || {};
 
     const officeList = Object.keys(employeeOf || {});
 
@@ -369,8 +367,8 @@ module.exports = async conn => {
       await oldProfileDoc.ref.delete();
     }
 
-    await transferActivitiesToNewProfile(conn);
     await deleteUpdates(uid);
+    await transferActivitiesToNewProfile(conn);
 
     const officeDoc = officeQueryResult.docs[0];
     const {
