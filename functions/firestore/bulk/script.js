@@ -575,6 +575,7 @@ const fetchDataForCanEditRule = (conn, locals) => {
     .activities
     .where('template', '==', rule.toLowerCase())
     .where('status', '==', 'CONFIRMED')
+    .where('office', '==', conn.req.body.office)
     .get()
     .then(docs => {
       const set = new Set();
@@ -603,6 +604,7 @@ const handleEmployees = (conn, locals) => {
     .forEach(item => {
       const promise = rootCollections
         .activities
+        .where('office', '==', conn.req.body.office)
         .where('template', '==', templateNamesObject.EMPLOYEE)
         .where('attachment.Employee Contact.value', '==', item.phoneNumber)
         .where('attachment.Name.value', '==', item.name)
@@ -681,7 +683,8 @@ const handleUniqueness = (conn, locals) => {
     return rootCollections
       .activities
       .where('status', '==', 'CONFIRMED')
-      .where('template', '==', conn.req.body.template);
+      .where('template', '==', conn.req.body.template)
+      .where('office', '==', conn.req.body.office);
   })();
 
   const param = (() => {
@@ -700,7 +703,7 @@ const handleUniqueness = (conn, locals) => {
     index++;
 
     const promise = baseQuery
-      .where('attachment.Name.value', '==', item.Name || item.Number)
+      .where(`attachment.${param}.value`, '==', item.Name || item.Number)
       .limit(1)
       .get();
 
@@ -711,7 +714,6 @@ const handleUniqueness = (conn, locals) => {
     .all(promises)
     .then(snapShots => {
       snapShots.forEach(snapShot => {
-        console.log(snapShot.size);
         // Empty means that the person with the name/number doesn't exist.
         if (snapShot.empty) return;
 
@@ -753,6 +755,7 @@ const handleSubscriptions = (conn, locals) => {
 
       const promise = rootCollections
         .activities
+        .where('office', '==', conn.req.body.office)
         .where('status', '==', 'CONFIRMED')
         .where('template', '==', templateNamesObject.SUBSCRIPTION)
         .where('attachment.Subscriber.value', '==', phoneNumber)
@@ -795,6 +798,7 @@ const handleAdmins = (conn, locals) => {
         .push(
           rootCollections
             .activities
+            .where('office', '==', conn.req.body.office)
             .where('template', '==', templateNamesObject.ADMIN)
             .where('attachment.Admin.value', '==', phoneNumber)
             .where('status', '==', 'CONFIRMED')
@@ -856,6 +860,7 @@ const fetchValidTypes = (conn, locals) => {
 
       const promise = rootCollections
         .activities
+        .where('office', '==', conn.req.body.office)
         .where('template', '==', type)
         .where(`attachment.Name.value`, '==', value)
         .where('status', '==', 'CONFIRMED')
@@ -897,37 +902,6 @@ const fetchValidTypes = (conn, locals) => {
             }
           });
         });
-
-      return Promise.resolve();
-    });
-};
-
-const fetchTemplates = (conn, locals) => {
-  if (conn.req.body.template !== templateNamesObject.OFFICE) {
-    return Promise.resolve();
-  }
-
-  return Promise
-    .all([
-      rootCollections
-        .activityTemplates
-        .where('name', '==', templateNamesObject.ADMIN)
-        .limit(1)
-        .get(),
-      rootCollections
-        .activityTemplates
-        .where('name', '==', templateNamesObject.SUBSCRIPTION)
-        .limit(1)
-        .get(),
-    ])
-    .then(result => {
-      const [
-        adminTemplateQuery,
-        subscriptionTemplateQuery,
-      ] = result;
-
-      locals.subscriptionTemplateDoc = subscriptionTemplateQuery.docs[0];
-      locals.adminTemplateDoc = adminTemplateQuery.docs[0];
 
       return Promise.resolve();
     });
@@ -1379,14 +1353,12 @@ const validateDataArray = (conn, locals) => {
     conn.req.query.trialRun === 'true';
 
   return fetchValidTypes(conn, locals)
-    .then(() => fetchTemplates(conn, locals))
     .then(() => handleAdmins(conn, locals))
     .then(() => handleSubscriptions(conn, locals))
     .then(() => handleUniqueness(conn, locals))
     .then(() => fetchDataForCanEditRule(conn, locals))
     .then(() => handleEmployees(conn, locals))
     .then(() => createObjects(conn, locals, trialRun))
-    // .then((responseObject) => sendExcelFromResponse(conn, locals, responseObject))
     .then(responseObject => sendJSON(conn, responseObject));
 };
 
@@ -1446,9 +1418,6 @@ const getBranchActivity = async address => {
     const name = getBranchName(placeApiResult.json.result.address_components);
     activityObject.Name = name;
     activityObject.location = name;
-
-    console.log('NAME', activityObject.location);
-
     activityObject['First Contact'] = (() => {
       const internationalPhoneNumber = placeApiResult
         .json
