@@ -187,7 +187,7 @@ module.exports = async conn => {
     activities: [],
     templates: [],
     locations: [],
-    statusObject: {},
+    statusObject: [],
   };
 
   if (conn.requester.profileDoc
