@@ -12,11 +12,13 @@ const {
   dateFormats,
 } = require('../../admin/constants');
 const {
-  toMapsUrl,
   alphabetsArray,
   employeeInfo,
   timeStringWithOffset,
+  getUrl,
+  getIdentifier,
 } = require('./report-utils');
+
 
 const isDiffLessThanFiveMinutes = (first, second) => {
   if (!first || !second) return false;
@@ -97,47 +99,8 @@ const getComment = doc => {
     return '';
   }
 
-  if (doc.get('template') === 'enquiry') {
-    return `${doc.get('user')} submitted an enquiry for the product:`
-      + ` ${doc.get('activityData.attachment.Product.value')}`;
-  }
-
   // action is 'comment'
   return doc.get('comment');
-};
-
-const getUrl = doc => {
-  const venue = doc
-    .get('activityData.venue');
-
-  if (venue && venue[0] && venue[0].location) {
-    return toMapsUrl(venue[0].geopoint);
-  }
-
-  if (doc.get('venueQuery')
-    && doc.get('venueQuery').location) {
-    return toMapsUrl(doc.get('venueQuery').geopoint);
-  }
-
-  return doc.get('url') || '';
-};
-
-const getIdentifier = doc => {
-  const venue = doc
-    .get('activityData.venue');
-
-  if (venue && venue[0] && venue[0].location) {
-    return venue[0].location;
-  }
-
-  if (doc.get('venueQuery')
-    && doc.get('venueQuery').location) {
-    return doc
-      .get('venueQuery')
-      .location;
-  }
-
-  return doc.get('identifier');
 };
 
 module.exports = async locals => {
@@ -227,12 +190,22 @@ module.exports = async locals => {
       const action = doc.get('action');
       const columnIndex = count + 2;
       const phoneNumber = doc.get('user');
-      const {
-        name,
-        department,
-        baseLocation,
-        employeeCode,
-      } = employeeInfo(locals.employeesData, phoneNumber);
+      const employeeObject = employeeInfo(locals.employeesData, phoneNumber);
+
+      const name = (() => {
+        if (doc.get('isSupportRequest')) {
+          return 'Growthfile Support';
+        }
+
+        if (employeeObject.name) {
+          return employeeObject.name;
+        }
+
+        return doc.get('userDisplayName') || '';
+      })();
+
+      const { department, baseLocation, employeeCode } = employeeObject;
+
       const identifier = getIdentifier(doc);
       const url = getUrl(doc);
       const time = timeStringWithOffset({
@@ -287,6 +260,20 @@ module.exports = async locals => {
         && prevTemplateForPerson === 'check-in'
         && timestampDiffLessThanFiveMinutes
         && distanceFromPrevious === 0) {
+
+        if (phoneNumber === '+917303296806') {
+          const obj = {
+            template,
+            prevTemplateForPerson,
+            timestampDiffLessThanFiveMinutes,
+            distanceFromPrevious,
+            prevDocTimestamp,
+            currDocTimestamp: prevDocTimestamp,
+          };
+
+          console.log(JSON.stringify(obj, ' ', 2));
+        }
+
         return;
       }
 
@@ -399,6 +386,9 @@ module.exports = async locals => {
         });
       });
 
+    await Promise
+      .all(batchArray.map(batch => batch.commit()));
+
     locals
       .messageObject
       .attachments
@@ -410,9 +400,6 @@ module.exports = async locals => {
         type: 'text/csv',
         disposition: 'attachment',
       });
-
-    await Promise
-      .all(batchArray.map(batch => batch.commit()));
 
     console.log(JSON.stringify({
       office,

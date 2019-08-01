@@ -149,6 +149,8 @@ const commitStatuses = (statusMap, momentYesterday, officeId) => {
     docsCounter++;
 
     batchArray[batchIndex].set(ref, {
+      month: momentYesterday.month(),
+      year: momentYesterday.year(),
       statusObject: {
         [dateYesterday]: statusObject,
       },
@@ -302,7 +304,9 @@ module.exports = async locals => {
 
     statusObjectsCurrMonth.forEach(doc => {
       const phoneNumber = doc.id;
-      const statusObject = doc.get('statusObject');
+      const statusObject = doc.get('statusObject') || {};
+
+      console.log(doc.ref.path);
 
       statusObject[
         dateYesterday

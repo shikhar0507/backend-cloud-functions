@@ -289,9 +289,45 @@ const getEmployeeDetailsString = (employeesData, phoneNumber) => {
     + `${supervisorsString}`;
 };
 
+const getUrl = doc => {
+  const venue = doc
+    .get('activityData.venue');
+
+  if (venue && venue[0] && venue[0].location) {
+    return toMapsUrl(venue[0].geopoint);
+  }
+
+  if (doc.get('venueQuery')
+    && doc.get('venueQuery').location) {
+    return toMapsUrl(doc.get('venueQuery').geopoint);
+  }
+
+  return doc.get('url') || '';
+};
+
+const getIdentifier = doc => {
+  const venue = doc
+    .get('activityData.venue');
+
+  if (venue && venue[0] && venue[0].location) {
+    return venue[0].location;
+  }
+
+  if (doc.get('venueQuery')
+    && doc.get('venueQuery').location) {
+    return doc
+      .get('venueQuery')
+      .location;
+  }
+
+  return doc.get('identifier');
+};
+
 
 module.exports = {
   toMapsUrl,
+  getUrl,
+  getIdentifier,
   monthsArray,
   employeeInfo,
   weekdaysArray,

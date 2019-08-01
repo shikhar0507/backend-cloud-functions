@@ -1761,6 +1761,20 @@ const getBranchName = addressComponents => {
   return `${locationName} BRANCH`.trim();
 };
 
+const getUsersWithCheckIn = async officeId => {
+  const realtimeDb = admin.database();
+
+  const getData = officeId => {
+    return new Promise((resolve, reject) => {
+      realtimeDb.ref(`/${officeId}/check-in`).on('value', resolve, reject);
+    });
+  };
+
+  const d = await getData(officeId);
+
+  return Object.keys(d.val());
+};
+
 module.exports = {
   slugify,
   sendSMS,
@@ -1799,6 +1813,7 @@ module.exports = {
   hasSuperUserClaims,
   isValidCanEditRule,
   promisifiedRequest,
+  getUsersWithCheckIn,
   getSitemapXmlString,
   promisifiedExecFile,
   getRegistrationToken,

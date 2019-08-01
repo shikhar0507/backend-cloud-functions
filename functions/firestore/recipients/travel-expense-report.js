@@ -5,6 +5,8 @@ const {
   dateStringWithOffset,
   timeStringWithOffset,
   getEmployeeDetailsString,
+  getUrl,
+  getIdentifier,
 } = require('./report-utils');
 const {
   dateFormats,
@@ -16,11 +18,12 @@ const xlsxPopulate = require('xlsx-populate');
 
 module.exports = locals => {
   const office = locals.officeDoc.get('office');
-  const employeesData = locals.officeDoc.get('employeesData');
+  // const employeesData = locals.employeesData;
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const timestampFromTimer = locals.change.after.get('timestamp');
-  const tsStart = momentTz(timestampFromTimer).tz(timezone).startOf('month');
-  const tsEnd = momentTz(timestampFromTimer).tz(timezone).endOf('day');
+  // const timestampFromTimer = locals.change.after.get('timestamp');
+  const tsStart = momentTz(new Date('16 July 2019')).startOf('day');
+  const tsEnd = momentTz(new Date('31 July 2019')).endOf('day');
+
   const sheetRefsMap = new Map();
   const rowIndexMap = new Map();
   const prevDateStringMap = new Map();
@@ -45,28 +48,27 @@ module.exports = locals => {
 
       worksheet = workbook;
 
-      addendumDocsQuery.docs.forEach((doc) => {
+      addendumDocsQuery.docs.forEach(doc => {
         let employeeSheet;
         let rowIndex;
         const phoneNumber = doc.get('user');
         const distanceTravelled = doc.get('distanceTravelled') || 0;
-
 
         if (!distanceTravelled) {
           return;
         }
 
         const sheetName = (() => {
-          if (employeesData[phoneNumber]) {
-            return employeesData[phoneNumber].Name;
+          if (locals.employeesData[phoneNumber]) {
+            return locals.employeesData[phoneNumber].Name;
           }
 
           return phoneNumber;
         })();
 
         const employeeName = (() => {
-          if (employeesData[phoneNumber]) {
-            return employeesData[phoneNumber].Name;
+          if (locals.employeesData[phoneNumber]) {
+            return locals.employeesData[phoneNumber].Name;
           }
 
           return phoneNumber;
@@ -81,23 +83,8 @@ module.exports = locals => {
           timestampToConvert: doc.get('timestamp'),
           format: dateFormats.TIME,
         });
-        const identifier = (() => {
-          const template = doc.get('template');
-          const action = doc.get('action');
-
-          if (template !== 'check-in' || action !== httpsActions.create) {
-            return doc.get('identifier');
-          }
-
-          const venue = doc.get('activityData.venue')[0];
-
-          if (!venue || !venue.location) {
-            return doc.get('identifier');
-          }
-
-          return venue.location;
-        })();
-        const url = doc.get('url');
+        const identifier = getIdentifier(doc);
+        const url = getUrl(doc);
 
         if (rowIndexMap.has(phoneNumber)) {
           rowIndex = rowIndexMap.get(phoneNumber);
@@ -252,7 +239,7 @@ module.exports = locals => {
             .value(distanceTravelled.toFixed(2));
           employeeSheet
             .cell(`H${rowIndex}`)
-            .value(getEmployeeDetailsString(employeesData, phoneNumber));
+            .value(getEmployeeDetailsString(locals.employeesData, phoneNumber));
 
           rowIndexMap.set(phoneNumber, rowIndex);
           sheetRefsMap.set(sheetName, employeeSheet);
@@ -262,8 +249,11 @@ module.exports = locals => {
       });
 
       worksheet.deleteSheet('Sheet1');
+      const dateString = `${tsStart.format(dateFormats.DATE)}`
+        + `-${tsEnd.format(dateFormats.DATE)}`;
 
-      return worksheet.outputAsync('base64');
+      // return worksheet.outputAsync('base64');
+      return worksheet.toFileAsync(`/tmp/Travel Expense Report_${office}_${dateString}.xlsx`);
     })
     .then((content) => {
       if (!locals.sendMail) {
@@ -290,9 +280,9 @@ module.exports = locals => {
           disposition: 'attachment',
         });
 
-      return locals
-        .sgMail
-        .sendMultiple(locals.messageObject);
+      // return locals
+      //   .sgMail
+      //   .sendMultiple(locals.messageObject);
     })
     .catch(console.error);
 };
