@@ -40,11 +40,12 @@ const {
   disableAccount,
   hasSupportClaims,
   hasAdminClaims,
-  reportBackgroundError,
   hasManageTemplateClaims,
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
+const { Logging } = require('@google-cloud/logging');
+
 
 const handleResource = conn => {
   const resource = routes(conn.req);
@@ -233,25 +234,37 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) => {
 };
 
 
-const handleRejections = (conn, errorObject) => {
-  const context = {
-    ip: conn.req.ip,
-    header: conn.req.headers,
-    url: conn.req.url,
-    origin: conn.req.get('origin'),
+const reportBackgroundError = (error, context = {}, logName) => {
+  // DOCS: https://firebase.google.com/docs/functions/reporting-errors
+  const logging = new Logging();
+  const log = logging.log(logName);
+  const metadata = {
+    resource: {
+      type: 'cloud_function',
+      labels: {
+        'function_name': process.env.FUNCTION_NAME,
+      },
+    },
   };
 
-  console.error({ context });
+  const errorEvent = {
+    context,
+    message: error.stack,
+    serviceContext: {
+      service: process.env.FUNCTION_NAME,
+      resourceType: 'cloud_function',
+    },
+  };
 
-  if (errorObject.code && !errorObject.code.startsWith('auth/')) {
-    console.error(errorObject);
+  return new Promise((resolve, reject) => {
+    return log.write(log.entry(metadata, errorEvent), error => {
+      if (error) return reject(new Error(error));
 
-    return sendResponse(conn, code.internalServerError, 'Something went wrong');
-  }
-
-  return reportBackgroundError(errorObject, context, 'AUTH_REJECTION')
-    .then(() => sendResponse(conn, code.unauthorized, 'Unauthorized'));
+      return resolve();
+    });
+  });
 };
+
 
 /**
  * Verifies the `id-token` form the Authorization header in the request.
@@ -259,20 +272,38 @@ const handleRejections = (conn, errorObject) => {
  * @param {Object} conn Contains Express' Request and Response objects.
  * @returns {void}
  */
-const checkAuthorizationToken = (conn) => {
+const checkAuthorizationToken = async conn => {
   const result = headerValid(conn.req.headers);
 
   if (!result.isValid) {
     return sendResponse(conn, code.forbidden, result.message);
   }
 
-  /** Checks if the token was revoked recently when set to `true` */
-  const checkRevoked = true;
+  try {
+    const decodedIdToken = await auth.verifyIdToken(result.authToken);
 
-  return auth
-    .verifyIdToken(result.authToken, checkRevoked)
-    .then(decodedIdToken => getUserAuthFromIdToken(conn, decodedIdToken))
-    .catch(error => handleRejections(conn, error));
+    return getUserAuthFromIdToken(conn, decodedIdToken);
+  } catch (error) {
+    if (error.code === 'auth/id-token-expired'
+      || error.code === 'auth/id-token-revoked') {
+      return sendResponse(
+        conn,
+        code.unauthorized,
+        'Please login again'
+      );
+    }
+
+    const errorObject = {
+      error,
+      url: conn.req.url,
+      body: conn.req.body,
+      header: conn.req.headers,
+    };
+
+    await reportBackgroundError(errorObject, context, 'AUTH_REJECTION');
+
+    return sendResponse(conn, code.unauthorized, 'Unauthorized');
+  }
 };
 
 
@@ -312,7 +343,10 @@ module.exports = async (req, res) => {
   /** For handling CORS */
   if (req.method === 'HEAD'
     || req.method === 'OPTIONS') {
-    return sendResponse(conn, code.noContent);
+    return sendResponse(
+      conn,
+      code.noContent
+    );
   }
 
   if (!allowedMethods.includes(req.method)) {
@@ -324,11 +358,14 @@ module.exports = async (req, res) => {
     );
   }
 
-  if (env.isProduction) {
-    if (!conn.req.headers['x-cf-secret']
-      || conn.req.headers['x-cf-secret'] !== env.cfSecret) {
-      return sendResponse(conn, code.forbidden, 'Not allowed');
-    }
+  if (env.isProduction
+    && (!conn.req.headers['x-cf-secret']
+      || conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      'Not allowed'
+    );
   }
 
   return checkAuthorizationToken(conn);
