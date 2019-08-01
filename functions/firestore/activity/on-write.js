@@ -34,6 +34,7 @@ const {
 } = require('../../admin/admin');
 const {
   httpsActions,
+  dateFormats,
 } = require('../../admin/constants');
 const {
   sendSMS,
@@ -51,6 +52,7 @@ const {
 const env = require('../../admin/env');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const momentTz = require('moment-timezone');
 const {
   google
 } = require('googleapis');
@@ -874,6 +876,46 @@ const createDefaultSubscriptionsForEmployee = (locals, hasBeenCancelled) => {
     ]);
 };
 
+const handleStatusDocs = async locals => {
+  const template = locals.change.after.get('template');
+  const timezone = locals.change.after.get('timezone');
+  const officeId = locals.change.after.get('officeId');
+  const employeeContact = locals.change.after.get('attachment.Employee Contact.value');
+
+  const hasBeenCreated = !locals.change.before.data()
+    && locals.change.after.data();
+
+  if (template !== 'employee'
+    || !hasBeenCreated) return;
+
+  const monthYearString = momentTz()
+    .tz(timezone)
+    .format(dateFormats.MONTH_YEAR);
+
+  try {
+    const statusDoc = await rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Statuses')
+      .doc(monthYearString)
+      .collection('Employees')
+      .doc(employeeContact)
+      .get();
+
+    if (statusDoc.exists) return;
+
+    return statusDoc
+      .ref
+      .set({
+        statusObject: {},
+      }, {
+          merge: true,
+        });
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 
 const handleEmployee = locals => {
   const template = locals.change.after.get('template');
@@ -956,6 +998,7 @@ const handleEmployee = locals => {
     .then(() => sendEmployeeCreationSms(locals))
     .then(() => createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled))
     .then(() => handleEmployeeSupervisors(locals))
+    .then(() => handleStatusDocs(locals))
     .catch(console.error);
 };
 
