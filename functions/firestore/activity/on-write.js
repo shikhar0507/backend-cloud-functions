@@ -33,7 +33,6 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
-  dateFormats,
   httpsActions,
 } = require('../../admin/constants');
 const {
@@ -43,16 +42,13 @@ const {
   millitaryToHourMinutes,
   getBranchName,
   adjustedGeopoint,
+  getUsersWithCheckIn,
 } = require('../../admin/utils');
 const {
   activityName,
   forSalesReport,
 } = require('../activity/helper');
 const env = require('../../admin/env');
-const {
-  getEmployeesMapFromRealtimeDb,
-} = require('../../admin/utils');
-const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 const {
@@ -858,47 +854,6 @@ const handleEmployeeSupervisors = locals => {
     .catch(console.error);
 };
 
-
-const handleMonthlyDocs = async locals => {
-  const template = locals.change.after.get('template');
-  const officeId = locals.change.after.get('officeId');
-  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
-  const timezone = locals.change.after.get('timezone');
-
-  if (template !== 'employee') {
-    return Promise.resolve();
-  }
-
-  try {
-    const momentToday = momentTz().tz(timezone);
-    const monthYearString = momentToday.format(dateFormats.MONTH_YEAR);
-    const statusDoc = await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Statuses')
-      .doc(monthYearString)
-      .collection('Employees')
-      .doc(phoneNumber)
-      .get();
-
-    /** Doc already exists, so no need to create one */
-    if (statusDoc.exists) {
-      return Promise.resolve();
-    }
-
-    return db
-      .doc(statusDoc.ref.path)
-      .set({
-        [momentToday.date()]: {},
-      }, {
-          merge: true,
-        });
-
-  } catch (error) {
-    console.error(error);
-  }
-};
-
 const createDefaultSubscriptionsForEmployee = (locals, hasBeenCancelled) => {
   const hasBeenCreated = locals.addendumDoc
     && locals.addendumDoc.get('action') === httpsActions.create;
@@ -999,7 +954,6 @@ const handleEmployee = locals => {
       return removeFromOfficeActivities(locals);
     })
     .then(() => sendEmployeeCreationSms(locals))
-    // .then(() => handleMonthlyDocs(locals, hasBeenCancelled))
     .then(() => createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled))
     .then(() => handleEmployeeSupervisors(locals))
     .catch(console.error);
@@ -1554,9 +1508,7 @@ const setLocationsReadEvent = async locals => {
   }
 
   try {
-    const employeesMap = await getEmployeesMapFromRealtimeDb(officeId);
-
-    const phoneNumbersArray = Object.keys(employeesMap);
+    const phoneNumbersArray = await getUsersWithCheckIn(officeId);
     let docsCounter = 0;
     let numberOfDocs = phoneNumbersArray.length;
     const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
@@ -1564,10 +1516,6 @@ const setLocationsReadEvent = async locals => {
     let batchIndex = 0;
 
     phoneNumbersArray.forEach(phoneNumber => {
-      if (!employeesMap[phoneNumber].hasCheckInSubscription) {
-        return;
-      }
-
       docsCounter++;
 
       if (docsCounter > 499) {
@@ -1589,11 +1537,10 @@ const setLocationsReadEvent = async locals => {
     };
 
     return batchArray
-      .reduce((accumulatorPromise, currentBatch) => {
-        return accumulatorPromise
-          .then(() => {
-            return commitBatch(currentBatch);
-          });
+      .reduce(async (accumulatorPromise, currentBatch) => {
+        await accumulatorPromise;
+
+        return commitBatch(currentBatch);
       }, Promise.resolve());
   } catch (error) {
     console.error(error);
