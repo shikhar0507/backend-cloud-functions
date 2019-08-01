@@ -1210,34 +1210,36 @@ function createExcelSheet(rawTemplate) {
 
 }
 
-function getBulkCreateResultLi(item, originalJson,index) {
-
+function getBulkCreateResultLi(item, originalJson, index) {
   const container = document.createElement('li');
   if (!index) {
     container.tabIndex = 0;
   };
+
   container.classList.add('flexed-column', 'raised');
   const firstRow = document.createElement('span');
   const secondRow = document.createElement('span');
   const thirdRow = document.createElement('span');
   firstRow.textContent = item.Name || item.Admin || item.Subscriber;
-  if(item.rejected) {
+
+  if (item.rejected) {
     container.classList.add('failure')
     const rowNumber = originalJson[index].__rowNum__ + 1;
-    if(item.reason) {
-      secondRow.textContent = 'Reason : ' + item.reason;
+    if (item.reason) {
+      secondRow.textContent = 'Reason: ' + item.reason;
     }
-    thirdRow.textContent = 'Result : Error at row number ' + rowNumber;
-  }
-  else {
+
+    thirdRow.textContent = 'Result: Error at row number ' + rowNumber;
+  } else {
     container.classList.add('success')
-    thirdRow.textContent = 'Result : Success';
+    thirdRow.textContent = 'Result: Success';
   }
   container.append(firstRow, secondRow, thirdRow);
+
   return container;
 }
 
-function setMessageForBulkCreate(totalSent,totalCreated,totalRejected) {
+function setMessageForBulkCreate(totalSent, totalCreated, totalRejected) {
   const resultHeading = document.getElementById('result-meta')
   const metaDetail = `<div class='result-row'>
   <div class='result-column'>Total Records :  ${totalSent}</div>
@@ -1260,19 +1262,19 @@ function populateBulkCreationResult(response, originalJson) {
   let totalCreated = 0
   response.data.forEach(function (item, index) {
 
-    if(item.rejected) {
+    if (item.rejected) {
       totalRejected += 1;
     }
     else {
       totalCreated += 1;
     }
 
-    const li = getBulkCreateResultLi(item, originalJson,index);
-    
+    const li = getBulkCreateResultLi(item, originalJson, index);
+
     ul.appendChild(li);
   });
- 
-  setMessageForBulkCreate(originalJson.length,totalCreated,totalRejected)
+
+  setMessageForBulkCreate(originalJson.length, totalCreated, totalRejected)
 
 }
 
@@ -1317,7 +1319,7 @@ function sendBulkCreateJson(jsonData, templateName) {
       if (isCreateOffice) {
         let currentCachedOfficelist = sessionStorage.getItem('officeNamesList')
         jsonData.forEach(function (item) {
-          if(!item.rejected) {
+          if (!item.rejected) {
             currentCachedOfficelist += `,${item.Name}`
           }
         })
@@ -1409,7 +1411,7 @@ function bulkCreate() {
       return response.json();
     })
     .then(function (response) {
-      if(!Array.isArray(response)) {
+      if (!Array.isArray(response)) {
         createSnackbar('No Subscriptions Found')
         return
       }
