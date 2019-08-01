@@ -630,8 +630,7 @@ const handleEmployees = (conn, locals) => {
 
         /** Doc exists, employee already exists */
         const doc = snapShot.docs[0];
-        const phoneNumber = doc.get('attachment.Name.value');
-
+        const phoneNumber = doc.get('attachment.Employee Contact.value');
         phoneNumbersToRejectSet.add(phoneNumber);
       });
 
@@ -640,7 +639,8 @@ const handleEmployees = (conn, locals) => {
 
         if (phoneNumbersToRejectSet.has(phoneNumber)) {
           conn.req.body.data[index].rejected = true;
-          conn.req.body.data[index].reason = `Phone number ${phoneNumber} is already an employee`;
+          conn.req.body.data[index].reason = `Phone number`
+            + ` ${phoneNumber} is already an employee`;
 
           return;
         }
@@ -692,7 +692,7 @@ const handleUniqueness = (conn, locals) => {
     return 'Name';
   })();
 
-  conn.req.body.data.forEach((item) => {
+  conn.req.body.data.forEach(item => {
     // Not querying anything for already rejected objects
     if (item.rejected) return;
 
@@ -709,18 +709,18 @@ const handleUniqueness = (conn, locals) => {
 
   return Promise
     .all(promises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
+    .then(snapShots => {
+      snapShots.forEach(snapShot => {
+        console.log(snapShot.size);
         // Empty means that the person with the name/number doesn't exist.
         if (snapShot.empty) return;
 
         const doc = snapShot.docs[0];
-        const nameOrNumber =
-          doc.get('attachment.Name.value') || doc.get('attachment.Number.value');
+        const nameOrNumber = doc.get('attachment.Name.value')
+          || doc.get('attachment.Number.value');
         const index = indexMap.get(nameOrNumber);
-        const value =
-          conn.req.body.data[index].Name ||
-          conn.req.body.data[index].Number;
+        const value = conn.req.body.data[index].Name
+          || conn.req.body.data[index].Number;
 
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
@@ -1733,7 +1733,7 @@ module.exports = conn => {
         locals
           .templateNamesSet = templateNamesSet;
       }
-      
+
       /**
        * Ignoring objects where all fields have empty
        * strings as the value.
