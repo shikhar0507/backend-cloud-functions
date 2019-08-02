@@ -48,10 +48,10 @@ const {
 const handleLeaveAndOnDuty = (conn, activityDoc) => {
   const hasBeenCancelled = activityDoc.get('status') !== 'CANCELLED'
     && conn.req.body.status === 'CANCELLED';
-  const isLeaveOrOnDuty = new Set(['leave', 'attendance regularization'])
+  const isLeaveOrAr = new Set(['leave', 'attendance regularization'])
     .has(activityDoc.get('template'));
 
-  if (!isLeaveOrOnDuty) {
+  if (!isLeaveOrAr) {
     return Promise.resolve({});
   }
 

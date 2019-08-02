@@ -30,7 +30,6 @@ const {
 } = require('../../admin/responses');
 const {
   httpsActions,
-  reportNames,
 } = require('../../admin/constants');
 const {
   db,
@@ -283,8 +282,8 @@ const handleLeaveOrOnDuty = (conn, locals) => {
 
 const handlePayroll = (conn, locals) => {
   if (!new Set()
-    .add(reportNames.LEAVE)
-    .add(reportNames.ON_DUTY)
+    .add('leave')
+    .add('attendance regularization')
     .has(conn.req.body.template)) {
     return createDocsWithBatch(conn, locals);
   }
