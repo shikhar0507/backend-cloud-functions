@@ -410,8 +410,11 @@ const createAutoSubscription = (locals, templateName, subscriber) => {
 };
 
 const handleXTypeActivities = async locals => {
-  if (locals.change.after.get('template') !== 'subscription') {
-    return Promise.resolve();
+  const typeActivityTemplates = new Set(['customer', 'leave', 'expense claim']);
+  const template = locals.change.after.get('template');
+
+  if (template !== 'subscription' || !typeActivityTemplates.has(template)) {
+    return;
   }
 
   const getAuth = async phoneNumber => {
@@ -427,14 +430,13 @@ const handleXTypeActivities = async locals => {
     }
   };
 
-  const template = locals.change.after.get('attachment.Template.value');
   const officeId = locals.change.after.get('officeId');
   const typeActivities = await rootCollections
     .offices
     .doc(officeId)
     .collection('Activities')
     .where('status', '==', 'CONFIRMED')
-    .where('template', '==', `${template}-type`)
+    .where('template', '==', `${locals.change.after.get('attachment.Template.value')}-type`)
     .get();
 
   const subscriber = locals.change.after.get('attachment.Subscriber.value');
@@ -517,7 +519,13 @@ const handleXTypeActivities = async locals => {
       return result;
     })();
 
-    batch.set(activity.ref, activityData, { merge: true });
+    const ref = rootCollections
+      .profiles
+      .doc(subscriber)
+      .collection('Activities')
+      .doc(activity.id);
+
+    batch.set(ref, activityData, { merge: true });
   });
 
   return batch.commit();
@@ -794,11 +802,11 @@ const handleEmployeeSupervisors = locals => {
     .after
     .get('attachment.Third Supervisor.value');
 
-  if (firstSupervisorOld === firstSupervisorNew
-    && secondSupervisorOld === secondSupervisorNew
-    && thirdSupervisorOld === thirdSupervisorNew) {
-    return Promise.resolve();
-  }
+  // if (firstSupervisorOld === firstSupervisorNew
+  //   && secondSupervisorOld === secondSupervisorNew
+  //   && thirdSupervisorOld === thirdSupervisorNew) {
+  //   return Promise.resolve();
+  // }
 
   const batch = db.batch();
 
@@ -1785,7 +1793,7 @@ module.exports = (change, context) => {
         locals.assigneesMap.get(phoneNumber).photoURL = record.photoURL;
         locals.assigneesMap.get(phoneNumber).customClaims = record.customClaims;
 
-        /** New user introduced to the system. Saving their phone number. */
+        // /** New user introduced to the system. Saving their phone number. */
         if (!record.hasOwnProperty('uid')) {
           const creator = (() => {
             if (typeof change.after.get('creator') === 'string') {
