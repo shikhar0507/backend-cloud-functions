@@ -1329,7 +1329,7 @@ function sendBulkCreateJson(jsonData, templateName) {
     })
     .catch(function (error) {
       console.log(error)
-      snacks(error.message)
+      createSnackbar(error.message)
       removeFileSpinner()
     });
 }

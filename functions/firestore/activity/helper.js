@@ -32,11 +32,15 @@ const {
   rootCollections,
 } = require('./../../admin/admin');
 const {
+  getStatusForDay,
+} = require('../recipients/report-utils');
+const {
   isValidDate,
   isValidEmail,
   isValidGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
+  getEmployeeFromRealtimeDb,
 } = require('../../admin/utils');
 const {
   validTypes,
@@ -1224,7 +1228,6 @@ const toEmployeesData = (activity) => {
   };
 };
 
-
 const getAllMonthYearCombinations = (startTime, endTime, timezone) => {
   const datesSet = new Set();
 
@@ -1241,6 +1244,31 @@ const getAllMonthYearCombinations = (startTime, endTime, timezone) => {
   return datesSet;
 };
 
+const getAllDateObjects = (startTime, endTime, timezone) => {
+  const dates = [];
+
+  const currDate = momentTz(startTime).tz(timezone).startOf('day');
+  const lastDate = momentTz(endTime).tz(timezone).endOf('day');
+
+  dates.push({
+    date: currDate.date(),
+    month: currDate.month(),
+    year: currDate.year(),
+  });
+
+  while (currDate.add(1, 'days').diff(lastDate) <= 0) {
+    const clone = currDate.clone();
+
+    dates.push({
+      date: clone.date(),
+      month: clone.month(),
+      year: clone.year(),
+    });
+  }
+
+  return dates;
+};
+
 const getAllDatesSet = (startTime, endTime, timezone) => {
   const datesSet = new Set();
 
@@ -1249,8 +1277,6 @@ const getAllDatesSet = (startTime, endTime, timezone) => {
   datesSet.add(start.format());
 
   while (start.add(1, 'days').diff(end) <= 0) {
-    // const dateString = start.format(dateFormats.DATE);
-
     datesSet.add(start.format());
   }
 
@@ -1280,9 +1306,83 @@ const cancelLeaveOrDuty = async (phoneNumber, officeId, startTime, endTime, temp
     const officeDoc = await rootCollections.offices.doc(officeId).get();
     const timezone = officeDoc.get('attachment.Timezone.value');
     const allMonthYears = getAllMonthYearCombinations(startTime, endTime, timezone);
-    const allDates = getAllDatesSet(startTime, endTime, timezone);
+    const allDateStrings = getAllDatesSet(startTime, endTime, timezone);
+    const allDateObjects = getAllDateObjects(startTime, endTime, timezone);
+    let employeeData = await getEmployeeFromRealtimeDb(officeDoc.id, phoneNumber);
 
-    const promises = [];
+    // Will be null for non-existing employees
+    employeeData = employeeData || {};
+
+    const addendumPromises = [];
+
+    console.log('allDateObjects', JSON.stringify(allDateObjects, ' ', 2));
+
+    allDateObjects.forEach(dateObject => {
+      const addendumPromise = officeDoc
+        .ref
+        .collection('Addendum')
+        /** `Warning`: Modifying the ordering of the
+         * `where` clause will result in this code to stop working
+         */
+        .where('user', '==', phoneNumber)
+        .where('date', '==', dateObject.date)
+        .where('month', '==', dateObject.month)
+        .where('year', '==', dateObject.year)
+        .get();
+
+      addendumPromises.push(addendumPromise);
+    });
+
+    const snaps = await Promise.all(addendumPromises);
+    const minimumDailyActivityCount = employeeData['Minimum Daily Activity Count'] || 1;
+    const minimumWorkingHours = employeeData['Minimum Working Hours'] || 1;
+
+    const newStatusMap = new Map();
+
+    snaps.forEach(snap => {
+      const numberOfCheckIns = snap.size;
+      const fieldFilters = snap.query._queryOptions.fieldFilters;
+      const phoneNumber = fieldFilters[0].value;
+      const date = fieldFilters[1].value;
+      const month = fieldFilters[2].value;
+      const year = fieldFilters[3].value;
+      const monthYearString = momentTz()
+        .date(date)
+        .month(month)
+        .year(year)
+        .tz(timezone)
+        .format(dateFormats.MONTH_YEAR);
+
+      console.log(JSON.stringify({
+        numberOfCheckIns,
+        date,
+        month,
+        year,
+      }, ' '));
+
+      if (numberOfCheckIns === 0) {
+        newStatusMap.set(`${phoneNumber}-${date}-${monthYearString}`, numberOfCheckIns);
+
+        return;
+      }
+
+      const firstDoc = snap.docs[0];
+      const lastDoc = snap.docs[snap.size - 1];
+      const firstTimestamp = firstDoc.get('timestamp');
+      const lastTimestamp = lastDoc.get('timestamp');
+      const hoursWorked = momentTz(lastTimestamp).diff(firstTimestamp, 'hours');
+      const statusForDay = getStatusForDay({
+        numberOfCheckIns,
+        minimumDailyActivityCount,
+        minimumWorkingHours,
+        hoursWorked,
+      });
+
+      newStatusMap
+        .set(`${phoneNumber}-${date}-${monthYearString}`, statusForDay);
+    });
+
+    const statusPromises = [];
 
     allMonthYears.forEach(monthYearString => {
       const promise = officeDoc
@@ -1293,27 +1393,26 @@ const cancelLeaveOrDuty = async (phoneNumber, officeId, startTime, endTime, temp
         .doc(phoneNumber)
         .get();
 
-      promises.push(promise);
+      statusPromises.push(promise);
     });
 
-    const docs = await Promise.all(promises);
+    const docs = await Promise.all(statusPromises);
     const statusObjectMap = new Map();
 
     docs.forEach(doc => {
       // Doc might not exist
-      const { statusObject } = doc.data() || {};
+      const statusObject = doc.get('statusObject') || {};
       const { path } = doc.ref;
       const parts = path.split('/');
       const monthYearString = parts[3];
       statusObjectMap.set(monthYearString, statusObject || {});
     });
 
-    allDates.forEach(dateString => {
+    allDateStrings.forEach(dateString => {
       const momentFromString = momentTz(dateString).tz(timezone);
       const monthYearString = momentFromString.format(dateFormats.MONTH_YEAR);
       const statusObject = statusObjectMap.get(monthYearString);
       const date = momentFromString.date();
-
       statusObject[date] = statusObject[date] || {};
 
       if (template === 'leave') {
@@ -1324,6 +1423,11 @@ const cancelLeaveOrDuty = async (phoneNumber, officeId, startTime, endTime, temp
         statusObject[date].onAr = false;
       }
 
+      const statusForDay = newStatusMap.get(`${phoneNumber}-${date}-${monthYearString}`);
+      statusObject[date].statusForDay = statusForDay || 0;
+
+      console.log('statusForDay', statusForDay);
+
       statusObjectMap.set(monthYearString, statusObject);
     });
 
@@ -1332,6 +1436,8 @@ const cancelLeaveOrDuty = async (phoneNumber, officeId, startTime, endTime, temp
         .doc(monthYearString)
         .collection('Employees')
         .doc(phoneNumber);
+
+      console.log(ref.path);
 
       batch.set(ref, {
         statusObject,
@@ -1430,10 +1536,12 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
 
       if (template === 'leave') {
         statusObject[date].onLeave = true;
+        statusObject[date].statusForDay = 1;
       }
 
       if (template === 'attendance regularization') {
         statusObject[date].onAr = true;
+        statusObject[date].statusForDay = 1;
       }
 
       statusObjectMap.set(monthYearString, statusObject);
@@ -1452,6 +1560,7 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
         });
     });
 
+    // No conflicting dates; its safe to write the updates
     if (conflictingDates.length === 0) {
       await batch.commit();
     }

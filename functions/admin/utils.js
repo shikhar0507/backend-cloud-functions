@@ -1250,7 +1250,6 @@ const getSitemapXmlString = () => {
 };
 
 const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
-  const admin = require('firebase-admin');
   const realtimeDb = admin.database();
 
   if (!isNonEmptyString(officeId)) {

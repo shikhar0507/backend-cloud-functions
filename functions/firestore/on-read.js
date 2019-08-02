@@ -39,7 +39,11 @@ const {
   isValidDate,
   isNonEmptyString,
 } = require('../admin/utils');
+const {
+  dateFormats,
+} = require('../admin/constants');
 const admin = require('firebase-admin');
+const momentTz = require('moment-timezone');
 
 
 const validateRequest = (conn) => {
@@ -169,6 +173,84 @@ const getSubscriptionObject = doc => {
 const getLocations = ref => new Promise(resolve => ref.on('value', resolve));
 
 
+const getStatusObject = async profileDoc => {
+  const result = [];
+
+  if (!profileDoc) return result;
+
+  const allMonths = {
+    'January': 0,
+    'February': 1,
+    'March': 2,
+    'April': 3,
+    'May': 4,
+    'June': 5,
+    'July': 6,
+    'August': 7,
+    'September': 8,
+    'October': 9,
+    'November': 10,
+    'December': 11,
+  };
+
+  const promises = [];
+  const phoneNumber = profileDoc.id;
+  const employeeOf = profileDoc.get('employeeOf') || {};
+  const allOffices = Object.entries(employeeOf);
+  const monthYearString = momentTz().format(dateFormats.MONTH_YEAR);
+  const officeNamesMap = new Map();
+
+  allOffices.forEach(item => {
+    const [name, id] = item;
+
+    officeNamesMap.set(id, name);
+  });
+
+  officeNamesMap.forEach((id, name) => {
+    const p = rootCollections
+      .offices
+      .doc(name)
+      .collection('Statuses')
+      .doc(monthYearString)
+      .collection('Employees')
+      .doc(phoneNumber)
+      .get();
+
+    promises.push(p);
+  });
+
+  try {
+    const docs = await Promise.all(promises);
+
+    docs.forEach(doc => {
+      const statusObject = doc.get('statusObject') || {};
+      const { path } = doc.ref;
+      const parts = path.split('/');
+      const monthYearString = parts[3];
+      const [month, year] = monthYearString.split(' ');
+      const officeId = parts[1];
+      const office = officeNamesMap.get(officeId);
+
+      Object
+        .keys(statusObject)
+        .forEach(date => {
+          const obj = Object.assign({
+            date: Number(date),
+            month: allMonths[month],
+            year,
+            office,
+          }, statusObject[date]);
+
+          result.push(obj);
+        });
+    });
+
+    return result;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 module.exports = async conn => {
   const result = validateRequest(conn);
 
@@ -196,7 +278,7 @@ module.exports = async conn => {
       .statusObject = conn
         .requester
         .profileDoc
-        .get('statusObject') || {};
+        .get('statusObject');
   }
 
   const promises = [
@@ -309,6 +391,11 @@ module.exports = async conn => {
       }, {
           merge: true,
         });
+    }
+
+    if (from === 0) {
+      jsonObject
+        .statusObject = await getStatusObject(conn.requester.profileDoc);
     }
 
     await batch.commit();

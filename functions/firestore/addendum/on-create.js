@@ -692,6 +692,7 @@ const createComments = async (addendumDoc, locals) => {
   const activityId = addendumDoc.get('activityId');
   locals.addendumDoc = addendumDoc;
   locals.assigneesMap = new Map();
+  const newPhoneNumbers = [];
 
   const [assignees, activityNew] = await Promise
     .all([
@@ -740,7 +741,11 @@ const createComments = async (addendumDoc, locals) => {
     const phoneNumber = assignee.id;
     const auth = locals.assigneesMap.get(phoneNumber);
 
-    if (!auth) return;
+    if (!auth) {
+      newPhoneNumbers.push(phoneNumber);
+
+      return;
+    }
 
     const ref = rootCollections
       .updates
@@ -772,7 +777,9 @@ const createComments = async (addendumDoc, locals) => {
     });
   });
 
-  return await batch.commit();
+  // TODO: Create phone number profiles using newPhoneNumbers array
+
+  return batch.commit();
 };
 
 

@@ -234,7 +234,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) => {
 };
 
 
-const reportBackgroundError = (error, context = {}, logName) => {
+const reportBackgroundError = (error, logName) => {
   // DOCS: https://firebase.google.com/docs/functions/reporting-errors
   const logging = new Logging();
   const log = logging.log(logName);
@@ -248,7 +248,6 @@ const reportBackgroundError = (error, context = {}, logName) => {
   };
 
   const errorEvent = {
-    context,
     message: error.stack,
     serviceContext: {
       service: process.env.FUNCTION_NAME,
@@ -300,7 +299,7 @@ const checkAuthorizationToken = async conn => {
       header: conn.req.headers,
     };
 
-    await reportBackgroundError(errorObject, context, 'AUTH_REJECTION');
+    await reportBackgroundError(errorObject, 'AUTH_REJECTION');
 
     return sendResponse(conn, code.unauthorized, 'Unauthorized');
   }

@@ -323,15 +323,47 @@ const getIdentifier = doc => {
   return doc.get('identifier');
 };
 
+const getStatusForDay = options => {
+  const {
+    numberOfCheckIns,
+    minimumDailyActivityCount,
+    minimumWorkingHours,
+    hoursWorked,
+  } = options;
+
+  let activityRatio = numberOfCheckIns / minimumDailyActivityCount;
+
+  if (activityRatio > 1) {
+    activityRatio = 1;
+  }
+
+  /** Could be `undefined`, so ignoring further actions related it it */
+  if (!minimumWorkingHours) {
+    return activityRatio;
+  }
+
+  let workHoursRatio = hoursWorked / minimumWorkingHours;
+  const minOfRatios = Math.min(activityRatio, workHoursRatio);
+  const rev = 1 / minimumDailyActivityCount;
+
+  if (minOfRatios <= rev) {
+    return rev;
+  }
+
+  return Math.floor(minOfRatios / rev) * rev;
+};
+
 
 module.exports = {
-  toMapsUrl,
   getUrl,
-  getIdentifier,
+  toMapsUrl,
   monthsArray,
   employeeInfo,
   weekdaysArray,
+  getIdentifier,
+  getExcelHeader,
   alphabetsArray,
+  getStatusForDay,
   momentOffsetObject,
   dateStringWithOffset,
   timeStringWithOffset,

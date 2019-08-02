@@ -8,6 +8,7 @@ const {
 } = require('../../admin/constants');
 const {
   alphabetsArray,
+  getStatusForDay,
   dateStringWithOffset,
   getEmployeeDetailsString,
 } = require('./report-utils');
@@ -194,7 +195,8 @@ module.exports = async locals => {
   const firstDayOfMonthlyCycle = locals
     .officeDoc
     .get('attachment.First Day Of Monthly Cycle.value') || 1;
-  const fetchPreviousMonthDocs = firstDayOfMonthlyCycle < momentYesterday.date();
+
+  const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentYesterday.date();
   const cycleStartMoment = (() => {
     if (fetchPreviousMonthDocs) {
       let start = momentYesterday
@@ -243,6 +245,8 @@ module.exports = async locals => {
       .get(),
   ];
 
+  console.log('fetchPreviousMonthDocs', fetchPreviousMonthDocs);
+
   if (fetchPreviousMonthDocs) {
     const prevMonth = momentYesterday
       .clone()
@@ -264,6 +268,8 @@ module.exports = async locals => {
    * Employees who are on Leave, branch holiday and weekly off
    */
   const allowedToBeInactive = new Set();
+  const allPhoneNumbers = new Set();
+  const statusObjectsMap = new Map();
 
   try {
     const [
@@ -324,6 +330,8 @@ module.exports = async locals => {
     const yesterdaysStatusMap = new Map();
 
     employeePhoneNumbers.forEach(phoneNumber => {
+      allPhoneNumbers.add(phoneNumber);
+
       if (allowedToBeInactive.has(phoneNumber)) {
         return;
       }
@@ -376,27 +384,16 @@ module.exports = async locals => {
         .employeesData[phoneNumber]['Minimum Working Hours'] || 1;
 
       const statusForDay = (() => {
-        let activityRatio = numberOfCheckIns / minimumDailyActivityCount;
-
-        if (activityRatio > 1) {
-          activityRatio = 1;
+        if (allowedToBeInactive.has(phoneNumber)) {
+          return 1;
         }
 
-        /** Could be `undefined`, so ignoring further actions related it it */
-        if (!minimumWorkingHours) {
-          return activityRatio;
-        }
-
-        let workHoursRatio = hoursWorked / minimumWorkingHours;
-
-        const minOfRatios = Math.min(activityRatio, workHoursRatio);
-        const rev = 1 / minimumDailyActivityCount;
-
-        if (minOfRatios <= rev) {
-          return rev;
-        }
-
-        return Math.floor(minOfRatios / rev) * rev;
+        return getStatusForDay({
+          numberOfCheckIns,
+          minimumDailyActivityCount,
+          minimumWorkingHours,
+          hoursWorked,
+        });
       })();
 
       const firstAction = momentTz(firstActionTimestamp)
@@ -430,9 +427,6 @@ module.exports = async locals => {
         ((statusObjectsPrevMonth || []).docs) || [],
         statusObjectsCurrMonth.docs
       );
-
-    const allPhoneNumbers = new Set();
-    const statusObjectsMap = new Map();
 
     allDocs.forEach(doc => {
       const { path } = doc.ref;
