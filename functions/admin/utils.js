@@ -1304,6 +1304,8 @@ const addEmployeeToRealtimeDb = async doc => {
     return result;
   };
 
+  console.log('phoneNumber', phoneNumber);
+
   try {
     const updatesQueryResult = await rootCollections
       .updates
@@ -1324,6 +1326,40 @@ const addEmployeeToRealtimeDb = async doc => {
       hasInstalled: !updatesQueryResult.empty,
       hasCheckInSubscription: !checkInSubscriptionQueryResult.empty,
     };
+
+    const baseLocation = doc.get('attachment.Base Location.value');
+    const timezone = doc.get('timezone');
+
+    if (baseLocation) {
+      const baseLocationQueryResult = await rootCollections
+        .activities
+        .where('office', '==', doc.get('office'))
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'branch')
+        .where('attachment.Name.value', '==', baseLocation)
+        .limit(1)
+        .get();
+
+      if (!baseLocationQueryResult.empty) {
+        const baseLocationDoc = baseLocationQueryResult.docs[0];
+        const schedule = baseLocationDoc.get('schedule');
+        const branchHolidays = [];
+
+        schedule.forEach(object => {
+          const { startTime } = object;
+
+          if (!startTime) return;
+
+          const formattedDate = moment(startTime)
+            .tz(timezone)
+            .format(dateFormats.DATE);
+
+          branchHolidays.push(formattedDate);
+        });
+
+        options.branchHolidays = branchHolidays;
+      }
+    }
 
     return new Promise((resolve, reject) => {
       ref.set(getEmployeeDataObject(options), error => {
