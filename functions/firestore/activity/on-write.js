@@ -440,55 +440,6 @@ const handleXTypeActivities = async locals => {
     .get();
 
   const subscriber = locals.change.after.get('attachment.Subscriber.value');
-  const assigneesFetch = [];
-  const authFetch = [];
-  const assigneeMap = new Map();
-  const assigneesPhoneNumbers = new Set();
-  const userRecordMap = new Map();
-
-  typeActivities.forEach(activity => {
-    const assigneeFetch = rootCollections
-      .activities
-      .doc(activity.id)
-      .collection('Assignees')
-      .get();
-
-    assigneeMap.set(activity.id, new Set());
-    assigneesFetch.push(assigneeFetch);
-  });
-
-  const snaps = await Promise.all(assigneesFetch);
-
-  snaps.forEach(snap => {
-    snap.forEach(doc => {
-      assigneesPhoneNumbers.add(doc.id);
-
-      const activityId = doc.ref.path.split('/')[1];
-      const set = assigneeMap.get(activityId);
-
-      set.add(doc.id);
-      set.add(subscriber);
-
-      assigneeMap.set(activityId, set);
-    });
-  });
-
-  assigneesPhoneNumbers.forEach(phoneNumber => {
-    authFetch.push(getAuth(phoneNumber));
-  });
-
-  const userRecords = await Promise.all(authFetch);
-
-  userRecords.forEach(userRecord => {
-    const {
-      uid,
-      phoneNumber,
-      displayName,
-      photoURL,
-    } = userRecord;
-
-    userRecordMap.set(phoneNumber, { uid, displayName, photoURL });
-  });
 
   // if subscription is created/updated
   // fetch all x-type activities from
@@ -502,22 +453,7 @@ const handleXTypeActivities = async locals => {
 
     delete activityData.addendumDocRef;
 
-    activityData.assignees = (() => {
-      const result = [];
-
-      const phoneNumbers = assigneeMap.get(activity.id);
-      phoneNumbers.forEach(phoneNumber => {
-        const auth = userRecordMap.get(phoneNumber);
-
-        result.push({
-          phoneNumber,
-          displayName: auth.displayName || '',
-          photoURL: auth.photoURL || '',
-        });
-      });
-
-      return result;
-    })();
+    activityData.assignees = [];
 
     const ref = rootCollections
       .profiles
@@ -546,6 +482,57 @@ const handleCanEditRule = (locals, templateDoc) => {
 
   return createAdmin(locals, subscriberPhoneNumber);
 };
+
+const handleCheckInSubscription = async locals => {
+  // if check-in subscription has been created
+  const setData = (ref, data) => {
+    return new Promise((resolve, reject) => {
+      ref.set(data, error => {
+        if (error) reject(error);
+
+        resolve();
+      });
+    });
+  };
+
+  const getData = ref => {
+    return new Promise(resolve => {
+      ref.on('value', resolve);
+    });
+  };
+
+  const deleteData = ref => {
+    return new Promise((resolve, reject) => {
+      ref.delete(error => {
+        if (error) reject(error);
+
+        resolve();
+      });
+    });
+  };
+
+  const officeId = locals.change.after.get('officeId');
+  const ref = admin.database().ref(`${officeId}/check-in`);
+  const subscriber = locals.change.after.get('attachment.Subscriber.value');
+  const status = locals.change.after.get('status');
+
+  try {
+    if (status === 'CANCELLED') {
+      return deleteData(ref);
+    }
+
+    let oldObject = await getData(getData);
+
+    oldObject = oldObject || {};
+
+    oldObject[subscriber] = true;
+
+    return setData(ref, oldObject);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 
 const handleSubscription = locals => {
   const template = locals.change.after.get('template');
@@ -631,6 +618,7 @@ const handleSubscription = locals => {
         .all([
           batch
             .commit(),
+          handleCheckInSubscription(locals),
           handleCanEditRule(locals, templateDoc),
           handleXTypeActivities(locals)
         ]);
