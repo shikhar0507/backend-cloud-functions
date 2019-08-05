@@ -43,7 +43,9 @@ const getComment = doc => {
   }
 
   if (action === httpsActions.updatePhoneNumber) {
-    return ``;
+    const oldPhoneNumber = doc.get('oldPhoneNumber');
+    const newPhoneNumber = doc.get('newPhoneNumber');
+    return `Phone number changed: ${oldPhoneNumber} to ${newPhoneNumber}`;
   }
 
   if (action === httpsActions.create) {
