@@ -119,7 +119,7 @@ const getPaydayTimingsSheetValue = options => {
     + ` ${statusObject[date].numberOfCheckIns || 0}`;
 };
 
-const commitStatuses = (statusMap, momentYesterday, officeId) => {
+const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeId) => {
   const dateYesterday = momentYesterday.date();
   const monthYearString = momentYesterday.format(dateFormats.MONTH_YEAR);
   const numberOfDocs = statusMap.size;
@@ -149,6 +149,10 @@ const commitStatuses = (statusMap, momentYesterday, officeId) => {
     }
 
     docsCounter++;
+
+    if (allowedToBeInactive.has(phoneNumber)) {
+      statusObject.statusForDay = 1;
+    }
 
     batchArray[batchIndex].set(ref, {
       month: momentYesterday.month(),
@@ -245,8 +249,6 @@ module.exports = async locals => {
       .get(),
   ];
 
-  console.log('fetchPreviousMonthDocs', fetchPreviousMonthDocs);
-
   if (fetchPreviousMonthDocs) {
     const prevMonth = momentYesterday
       .clone()
@@ -308,6 +310,10 @@ module.exports = async locals => {
     worksheet
       .deleteSheet('Sheet1');
     const dateYesterday = momentYesterday.date();
+    const onLeaveSet = new Set();
+    const onArSet = new Set();
+    const weeklyOffSet = new Set();
+    const holidaySet = new Set();
 
     statusObjectsCurrMonth.forEach(doc => {
       const phoneNumber = doc.id;
@@ -323,6 +329,22 @@ module.exports = async locals => {
         || statusObject[dateYesterday].holiday) {
         allowedToBeInactive.add(phoneNumber);
       }
+
+      if (statusObject[dateYesterday].onLeave) {
+        onLeaveSet.add(phoneNumber);
+      }
+
+      if (statusObject[dateYesterday].onAr) {
+        onArSet.add(phoneNumber);
+      }
+
+      if (statusObject[dateYesterday].weeklyOff) {
+        weeklyOffSet.add(phoneNumber);
+      }
+
+      if (statusObject[dateYesterday].weeklyOff) {
+        holidaySet.add(phoneNumber);
+      }
     });
 
     const addendumPromises = [];
@@ -333,6 +355,15 @@ module.exports = async locals => {
       allPhoneNumbers.add(phoneNumber);
 
       if (allowedToBeInactive.has(phoneNumber)) {
+        const emptyStatusObject = getDefaultStatusObject();
+        emptyStatusObject.statusForDay = 1;
+        emptyStatusObject.onLeave = onLeaveSet.has(phoneNumber);
+        emptyStatusObject.onAr = onArSet.has(phoneNumber);
+        emptyStatusObject.weeklyOff = weeklyOffSet.has(phoneNumber);
+        emptyStatusObject.holiday = holidaySet.has(phoneNumber);
+
+        yesterdaysStatusMap.set(phoneNumber, emptyStatusObject);
+
         return;
       }
 
@@ -383,18 +414,12 @@ module.exports = async locals => {
       const minimumWorkingHours = locals
         .employeesData[phoneNumber]['Minimum Working Hours'] || 1;
 
-      const statusForDay = (() => {
-        if (allowedToBeInactive.has(phoneNumber)) {
-          return 1;
-        }
-
-        return getStatusForDay({
-          numberOfCheckIns,
-          minimumDailyActivityCount,
-          minimumWorkingHours,
-          hoursWorked,
-        });
-      })();
+      const statusForDay = getStatusForDay({
+        numberOfCheckIns,
+        minimumDailyActivityCount,
+        minimumWorkingHours,
+        hoursWorked,
+      });
 
       const firstAction = momentTz(firstActionTimestamp)
         .tz(timezone)
@@ -418,6 +443,7 @@ module.exports = async locals => {
 
     await commitStatuses(
       yesterdaysStatusMap,
+      allowedToBeInactive,
       momentYesterday,
       locals.officeDoc.id
     );
