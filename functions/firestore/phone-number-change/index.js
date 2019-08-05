@@ -19,6 +19,7 @@ const {
   httpsActions,
 } = require('../../admin/constants');
 const admin = require('firebase-admin');
+const momentTz = require('moment-timezone');
 
 const deleteAuth = async uid => {
   try {
@@ -47,7 +48,8 @@ const deleteUpdates = async uid => {
 
   const batch = db.batch();
 
-  batch.delete(rootCollections.updates.doc(uid));
+  batch
+    .delete(rootCollections.updates.doc(uid));
 
   const docs = await rootCollections
     .updates
@@ -122,7 +124,6 @@ const validateRequest = body => {
 
   return messageObject;
 };
-
 
 const updatePhoneNumberFields = (doc, oldPhoneNumber, newPhoneNumber, newPhoneNumberAuth) => {
   const result = doc.data();
@@ -238,6 +239,15 @@ const transferActivitiesToNewProfile = async conn => {
       .catch(reject);
   };
 
+  /**
+   * Updating 3 items at once.
+   * 1. Update the activity fields
+   * 2. Assign new phone number
+   * 3. Unassign old phone number
+   * 300 docs at once
+   * For firebase batch, max 500 updates are allowed
+   * at once.
+   */
   const MAX_UPDATES_AT_ONCE = 100;
   const query = rootCollections
     .profiles
@@ -305,11 +315,6 @@ module.exports = async conn => {
 
   const promises = [
     rootCollections
-      .offices
-      .where('office', '==', conn.req.body.office)
-      .limit(1)
-      .get(),
-    rootCollections
       .activities
       .where('office', '==', conn.req.body.office)
       .where('status', '==', 'CONFIRMED')
@@ -333,7 +338,6 @@ module.exports = async conn => {
 
   try {
     const [
-      officeQueryResult,
       oldEmployeeQueryResult,
       newEmployeeQueryResult,
       oldProfileDoc,
@@ -370,21 +374,21 @@ module.exports = async conn => {
     await deleteUpdates(uid);
     await transferActivitiesToNewProfile(conn);
 
-    const officeDoc = officeQueryResult.docs[0];
-    const {
-      date,
-      months,
-      years
-    } = require('moment')().toObject();
+    const timezone = oldEmployeeQueryResult.docs[0].get('timezone');
+    const momentToday = momentTz().tz(timezone);
+    const officeId = oldEmployeeQueryResult
+      .docs[0]
+      .get('officeId');
 
-    await officeDoc
-      .ref
+    await rootCollections
+      .offices
+      .doc(officeId)
       .collection('Addendum')
       .doc()
       .set({
-        date,
-        month: months,
-        year: years,
+        date: momentToday.date(),
+        month: momentToday.month(),
+        year: momentToday.year(),
         timestamp: Date.now(),
         user: conn.requester.phoneNumber,
         action: httpsActions.updatePhoneNumber,
