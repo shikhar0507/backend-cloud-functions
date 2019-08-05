@@ -503,7 +503,7 @@ const handleCheckInSubscription = async locals => {
 
   const deleteData = ref => {
     return new Promise((resolve, reject) => {
-      ref.delete(error => {
+      ref.remove(error => {
         if (error) reject(error);
 
         resolve();
