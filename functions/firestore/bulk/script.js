@@ -212,80 +212,6 @@ const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
   return true;
 };
 
-
-// const sendXLSXToCreaator = (conn, locals, responseObject) => {
-//   const fileName = `${conn.req.body.template}--${conn.req.body.office}.xlsx`;
-//   const messageObject = {
-//     to: {
-//       name: conn.requester.displayName,
-//       email: conn.req.body.senderEmail || conn.requester.email,
-//     },
-//     from: {
-//       name: 'Growthfile',
-//       email: env.systemEmail,
-//     },
-//     html: '<h1>Docs created</h1>',
-//     subject: `Bulk Creation of ${conn.req.body.template} result`,
-//     attachments: [],
-//   };
-
-//   if (!messageObject.to) {
-//     return Promise.resolve(responseObject);
-//   }
-
-//   const items = responseObject.data;
-
-//   return xlsxPopulate
-//     .fromBlankAsync()
-//     .then((workbook) => {
-//       const resultSheet = workbook.sheet('Sheet1');
-//       const firstItem = items[0];
-//       const objectFields = Object.keys(firstItem);
-
-//       resultSheet
-//         .row(1)
-//         .style('bold', true);
-
-//       locals
-//         .allFieldsArray
-//         .forEach((value, index) => {
-//           resultSheet.cell(`${alphabetsArray[index]}1`).value(value);
-//         });
-
-//       items.forEach((item, outerIndex) => {
-//         // const alphabet =
-//         objectFields.forEach((field, innerIndex) => {
-//           if (field === 'share') {
-//             return;
-//           }
-
-//           const idx = `${alphabetsArray[innerIndex]}${outerIndex + 2}`;
-//           const val = item[field];
-
-//           resultSheet.cell(idx).value(val);
-//         });
-//       });
-
-//       locals.mySheet = workbook;
-
-
-//       return workbook.outputAsync('base64');
-//     })
-//     .then((content) => {
-//       messageObject
-//         .attachments
-//         .push({
-//           fileName,
-//           content,
-//           type: xlsxPopulate.MIME_TYPE,
-//           disposition: 'attachment',
-//         });
-
-//       return sgMail.sendMultiple(messageObject);
-//     })
-//     .then(() => Promise.resolve(responseObject));
-// };
-
 const executeSequentially = (batchFactories) => {
   let result = Promise.resolve();
 
@@ -1703,12 +1629,11 @@ module.exports = conn => {
           .templateNamesSet = templateNamesSet;
       }
 
-      /**
-       * Ignoring objects where all fields have empty
-       * strings as the value.
-       */
       conn.req.body.data.forEach((object, index) => {
-        /** Empty rows in excel cause unnecessary errors */
+        /**
+         * Ignoring objects where all fields have empty
+         * strings as the value.
+         */
         if (isEmptyObject(object)) {
           delete conn.req.body.data[index];
 
@@ -1739,7 +1664,6 @@ module.exports = conn => {
         .isAdminRequest = !conn.requester.isSupportRequest
         && conn.requester.customClaims.admin
         && conn.requester.customClaims.admin.length > 0;
-
 
       return handleCustomer(conn, locals)
         .then(() => handleBranch(conn, locals))
