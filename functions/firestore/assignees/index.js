@@ -95,7 +95,7 @@ module.exports = async (doc, context) => {
         userDeviceTimestamp: timestamp,
         user: phoneNumber,
         unassign: true,
-        comment: 'You were removed',
+        comment: '',
       });
   } catch (error) {
     console.error(error);
