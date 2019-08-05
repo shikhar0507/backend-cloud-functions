@@ -90,3 +90,6 @@ env.*
 # Firebase cache files
 .cache/
 .firebase/
+
+# Public keys
+*.pem
