@@ -511,8 +511,20 @@ const handleCheckInSubscription = async locals => {
     });
   };
 
+  const template = locals.change.after.get('template');
+
+  if (template !== 'subscription') {
+    return;
+  }
+
+  const subscribedTemplate = locals.change.after.get('attachment.Template.value');
+
+  if (subscribedTemplate !== 'check-in') {
+    return;
+  }
+
   const officeId = locals.change.after.get('officeId');
-  const ref = admin.database().ref(`${officeId}/check-in`);
+  const ref = admin.database().ref(`${officeId}/${subscribedTemplate}`);
   const subscriber = locals.change.after.get('attachment.Subscriber.value');
   const status = locals.change.after.get('status');
 
@@ -521,7 +533,7 @@ const handleCheckInSubscription = async locals => {
       return deleteData(ref);
     }
 
-    let oldObject = await getData(getData);
+    let oldObject = await getData(ref);
 
     oldObject = oldObject || {};
 
