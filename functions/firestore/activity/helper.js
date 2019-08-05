@@ -1479,8 +1479,45 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
   try {
     const officeDoc = await rootCollections.offices.doc(officeId).get();
     const timezone = officeDoc.get('attachment.Timezone.value');
-    const allMonthYears = getAllMonthYearCombinations(startTime, endTime, timezone);
-    const allDates = getAllDatesSet(startTime, endTime, timezone);
+
+    if (template === 'attendance regularization') {
+      const recipientQueryResult = await rootCollections
+        .activities
+        .where('officeId', '==', officeId)
+        .where('template', '==', 'recipient')
+        .where('status', '==', 'CONFIRMED')
+        .where('attachment.Name.value', '==', 'payroll')
+        .limit(1)
+        .get();
+
+      if (recipientQueryResult.empty) {
+        response.success = false;
+        response.message = `Your organization has not`
+          + ` subscribed to Growthfile's Payroll Automation`;
+
+        return response;
+      }
+    }
+
+    const now = momentTz().tz(timezone);
+
+    if (startTime >= now.startOf('day').valueOf()) {
+      response.success = false;
+      response.message = 'Attendance can only be applied for the past';
+
+      return response;
+    }
+
+    const allMonthYears = getAllMonthYearCombinations(
+      startTime,
+      endTime,
+      timezone
+    );
+    const allDates = getAllDatesSet(
+      startTime,
+      endTime,
+      timezone
+    );
 
     const promises = [];
 
@@ -1505,8 +1542,33 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       const { path } = doc.ref;
       const parts = path.split('/');
       const monthYearString = parts[3];
-      statusObjectMap.set(monthYearString, statusObject || {});
+      statusObjectMap
+        .set(
+          monthYearString,
+          statusObject || {}
+        );
     });
+
+    if (template === 'attendance regularization') {
+      const momentStartTime = momentTz(startTime)
+        .tz(timezone);
+      const monthYear = momentStartTime
+        .format(dateFormats.MONTH_YEAR);
+      const statusObject = statusObjectMap
+        .get(monthYear);
+
+      if (!statusObject
+        || !statusObject[momentStartTime.date()]
+        || !statusObject[momentStartTime.date()].statusForDay
+        || !statusObject[momentStartTime.date()].statusForDay === 1) {
+        response.success = false;
+        response.message = `Your status for `
+          + `${momentStartTime.format(dateFormats.DATE)}`
+          + ` is already 'Present'`;
+
+        return response;
+      }
+    }
 
     allDates.forEach(dateString => {
       const momentFromString = momentTz(dateString).tz(timezone);
