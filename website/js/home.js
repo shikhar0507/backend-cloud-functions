@@ -1498,7 +1498,7 @@ function recipientAssigneeUpdateOnClick(evt) {
   console.log({
     finalAssignees
   });
-  return;
+
   const requestBody = {
     timestamp: Date.now(),
     activityId: container.dataset.activityId,
