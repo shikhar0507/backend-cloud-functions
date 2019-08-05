@@ -1725,16 +1725,17 @@ const getBranchName = addressComponents => {
 
 const getUsersWithCheckIn = async officeId => {
   const realtimeDb = admin.database();
-
   const getData = officeId => {
     return new Promise((resolve, reject) => {
-      realtimeDb.ref(`/${officeId}/check-in`).on('value', resolve, reject);
+      realtimeDb
+        .ref(`/${officeId}/check-in`)
+        .on('value', resolve, reject);
     });
   };
 
   const d = await getData(officeId);
 
-  return Object.keys(d.val());
+  return Object.keys(d.val() || {});
 };
 
 module.exports = {
