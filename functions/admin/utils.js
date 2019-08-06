@@ -715,6 +715,8 @@ const adjustedGeopoint = (geopoint) => {
 };
 
 const sendSMS = (phoneNumber, smsText) => {
+  if (!env.isProduction) return;
+
   const sendTo = phoneNumber;
   const encodedMessage = `${encodeURI(smsText)}`;
 
@@ -1276,9 +1278,9 @@ const addEmployeeToRealtimeDb = async doc => {
   // Remove from the map
   if (status === 'CANCELLED') {
     return new Promise((resolve, reject) => {
-      ref.remove((error) => {
+      ref.remove(error => {
         if (error) {
-          reject(error);
+          return reject(error);
         }
 
         resolve();
@@ -1304,8 +1306,6 @@ const addEmployeeToRealtimeDb = async doc => {
     return result;
   };
 
-  console.log('phoneNumber', phoneNumber);
-
   try {
     const updatesQueryResult = await rootCollections
       .updates
@@ -1328,13 +1328,12 @@ const addEmployeeToRealtimeDb = async doc => {
     };
 
     const baseLocation = doc.get('attachment.Base Location.value');
-    const timezone = doc.get('timezone');
+    const timezone = doc.get('timezone') || 'Asia/Kolkata';
 
     if (baseLocation) {
       const baseLocationQueryResult = await rootCollections
         .activities
         .where('office', '==', doc.get('office'))
-        .where('status', '==', 'CONFIRMED')
         .where('template', '==', 'branch')
         .where('attachment.Name.value', '==', baseLocation)
         .limit(1)
@@ -1343,7 +1342,7 @@ const addEmployeeToRealtimeDb = async doc => {
       if (!baseLocationQueryResult.empty) {
         const baseLocationDoc = baseLocationQueryResult.docs[0];
         const schedule = baseLocationDoc.get('schedule');
-        const branchHolidays = [];
+        const branchHolidays = {};
 
         schedule.forEach(object => {
           const { startTime } = object;
@@ -1354,8 +1353,10 @@ const addEmployeeToRealtimeDb = async doc => {
             .tz(timezone)
             .format(dateFormats.DATE);
 
-          branchHolidays.push(formattedDate);
+          branchHolidays[formattedDate] = true;
         });
+
+        options['Weekly Off'] = baseLocationDoc.get('attachment.Weekly Off.value');
 
         options.branchHolidays = branchHolidays;
       }
@@ -1378,7 +1379,6 @@ const addEmployeeToRealtimeDb = async doc => {
 const getEmployeesMapFromRealtimeDb = officeId => {
   const realtimeDb = admin.database();
   const path = `${officeId}/employee`;
-
   const ref = realtimeDb.ref(path);
   const employeesData = {};
 
