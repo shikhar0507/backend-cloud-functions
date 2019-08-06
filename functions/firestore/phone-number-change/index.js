@@ -2,8 +2,8 @@
 
 const {
   rootCollections,
-  db,
-  auth,
+  // db,
+  // auth,
 } = require('../../admin/admin');
 const {
   sendResponse,
@@ -18,55 +18,54 @@ const {
 const {
   httpsActions,
 } = require('../../admin/constants');
-const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
+// const admin = require('firebase-admin');
 
-const deleteAuth = async uid => {
-  try {
-    return auth.deleteUser(uid);
-  } catch (error) {
-    console.warn(error);
-    return {};
-  }
-};
+// const deleteAuth = async uid => {
+//   try {
+//     return auth.deleteUser(uid);
+//   } catch (error) {
+//     console.warn(error);
+//     return {};
+//   }
+// };
 
-const getAuth = async phoneNumber => {
-  try {
-    return auth.getUserByPhoneNumber(phoneNumber);
-  } catch (error) {
-    console.warn(error);
+// const getAuth = async phoneNumber => {
+//   try {
+//     return auth.getUserByPhoneNumber(phoneNumber);
+//   } catch (error) {
+//     console.warn(error);
 
-    return {
-      phoneNumber: {},
-    };
-  }
-};
+//     return {
+//       phoneNumber: {},
+//     };
+//   }
+// };
 
+// const deleteUpdates = async uid => {
+//   if (!uid) return Promise.resolve();
 
-const deleteUpdates = async uid => {
-  if (!uid) return Promise.resolve();
+//   const batch = db.batch();
 
-  const batch = db.batch();
+//   batch
+//     .delete(rootCollections.updates.doc(uid));
 
-  batch
-    .delete(rootCollections.updates.doc(uid));
+//   const docs = await rootCollections
+//     .updates
+//     .doc(uid)
+//     .collection('Addendum')
+//     .get();
 
-  const docs = await rootCollections
-    .updates
-    .doc(uid)
-    .collection('Addendum')
-    .get();
+//   docs.forEach(doc => {
+//     batch.delete(doc.ref);
+//   });
 
-  docs.forEach(doc => {
-    batch.delete(doc.ref);
-  });
-
-  return Promise
-    .all([
-      batch.commit(),
-      deleteAuth(uid)
-    ]);
-};
+//   return Promise
+//     .all([
+//       batch.commit(),
+//       deleteAuth(uid)
+//     ]);
+// };
 
 
 const validateRequest = body => {
@@ -125,147 +124,6 @@ const validateRequest = body => {
   return messageObject;
 };
 
-const updatePhoneNumberFields = (doc, oldPhoneNumber, newPhoneNumber, newPhoneNumberAuth) => {
-  const result = doc.data();
-  const attachment = doc.get('attachment');
-  const creator = doc.get('creator');
-  result.timestamp = Date.now();
-  result.addendumDocRef = null;
-  delete result.assignees;
-
-  if (creator === oldPhoneNumber
-    || creator.phoneNumber === oldPhoneNumber) {
-    result.creator = {
-      phoneNumber: newPhoneNumber,
-      photoURL: newPhoneNumberAuth.photoURL || '',
-      displayName: newPhoneNumberAuth.displayName || '',
-    };
-  }
-
-  Object
-    .keys(attachment)
-    .forEach(field => {
-      const item = attachment[field];
-
-      if (item.value === oldPhoneNumber) {
-        result
-          .attachment[field]
-          .value = newPhoneNumber;
-      }
-    });
-
-  return result;
-};
-
-const transferActivitiesToNewProfile = async conn => {
-  const newPhoneNumberAuth = await getAuth(conn.req.body.newPhoneNumber);
-
-  const runQuery = (query, resolve, reject) => {
-    return query
-      .get()
-      .then(activitiesInProfile => {
-        if (activitiesInProfile.empty) {
-          return [0];
-        }
-
-        console.log('profileActivities', activitiesInProfile.size);
-
-        const batch = db.batch();
-
-        activitiesInProfile.forEach(profileActivity => {
-          const rootActivityRef = rootCollections
-            .activities
-            .doc(profileActivity.id);
-
-          // Add new assignee
-          batch
-            .set(rootActivityRef
-              .collection('Assignees')
-              .doc(conn.req.body.newPhoneNumber), {
-                canEdit: profileActivity.get('canEdit'),
-                addToInclude: profileActivity.get('template') !== 'subscription',
-              }, {
-                merge: true,
-              });
-
-          // Remove old assignee
-          batch
-            .delete(rootActivityRef
-              .collection('Assignees')
-              .doc(conn.req.body.oldPhoneNumber)
-            );
-
-          const activityData = updatePhoneNumberFields(
-            profileActivity,
-            conn.req.body.oldPhoneNumber,
-            conn.req.body.newPhoneNumber,
-            newPhoneNumberAuth
-          );
-
-          // Update the main activity in root `Activities` collection
-          batch
-            .set(rootActivityRef, activityData, {
-              merge: true,
-            });
-        });
-
-        return Promise
-          .all([
-            Promise
-              .resolve(activitiesInProfile.docs[activitiesInProfile.size - 1]),
-            batch
-              .commit(),
-          ]);
-      })
-      .then(result => {
-        const [lastDoc] = result;
-
-        if (!lastDoc) {
-          return resolve();
-        }
-
-        return process
-          .nextTick(() => {
-            const newQuery = query
-              // Using greater than sign because we need
-              // to start after the last activity which was
-              // processed by this code otherwise some activities
-              // might be updated more than once.
-              .where(admin.firestore.FieldPath.documentId(), '>', lastDoc.id);
-
-            return runQuery(newQuery, resolve, reject);
-          });
-      })
-      .catch(reject);
-  };
-
-  /**
-   * Updating 3 items at once.
-   * 1. Update the activity fields
-   * 2. Assign new phone number
-   * 3. Unassign old phone number
-   * 300 docs at once
-   * For firebase batch, max 500 updates are allowed
-   * at once.
-   */
-  const MAX_UPDATES_AT_ONCE = 100;
-  const query = rootCollections
-    .profiles
-    .doc(conn.req.body.oldPhoneNumber)
-    .collection('Activities')
-    .where('office', '==', conn.req.body.office)
-    .orderBy(admin.firestore.FieldPath.documentId())
-    .limit(MAX_UPDATES_AT_ONCE);
-
-  try {
-    return new Promise((resolve, reject) => {
-      return runQuery(query, resolve, reject);
-    });
-  } catch (error) {
-    console.error(error);
-  }
-};
-
 
 module.exports = async conn => {
   if (conn.req.method !== 'POST') {
@@ -313,26 +171,20 @@ module.exports = async conn => {
     );
   }
 
+  const baseQuery = rootCollections
+    .activities
+    .where('office', '==', conn.req.body.office)
+    .where('status', '==', 'CONFIRMED')
+    .where('template', '==', 'employee');
+
   const promises = [
-    rootCollections
-      .activities
-      .where('office', '==', conn.req.body.office)
-      .where('status', '==', 'CONFIRMED')
-      .where('template', '==', 'employee')
+    baseQuery
       .where('attachment.Employee Contact.value', '==', conn.req.body.oldPhoneNumber)
       .limit(1)
       .get(),
-    rootCollections
-      .activities
-      .where('office', '==', conn.req.body.office)
-      .where('status', '==', 'CONFIRMED')
-      .where('template', '==', 'employee')
+    baseQuery
       .where('attachment.Employee Contact.value', '==', conn.req.body.newPhoneNumber)
       .limit(1)
-      .get(),
-    rootCollections
-      .profiles
-      .doc(conn.req.body.oldPhoneNumber)
       .get(),
   ];
 
@@ -340,7 +192,6 @@ module.exports = async conn => {
     const [
       oldEmployeeQueryResult,
       newEmployeeQueryResult,
-      oldProfileDoc,
     ] = await Promise.all(promises);
 
     if (oldEmployeeQueryResult.empty) {
@@ -359,20 +210,21 @@ module.exports = async conn => {
       );
     }
 
-    const {
-      uid,
-      employeeOf
-    } = oldProfileDoc.data() || {};
+    const employeeActivity = oldEmployeeQueryResult.docs[0];
 
-    const officeList = Object.keys(employeeOf || {});
-
-    if (officeList.length <= 1) {
-      console.log('Deleting old profile');
-      await oldProfileDoc.ref.delete();
-    }
-
-    await deleteUpdates(uid);
-    await transferActivitiesToNewProfile(conn);
+    await employeeActivity
+      .ref
+      .set({
+        addendumDocRef: null,
+        timestamp: Date.now(),
+        attachment: {
+          'Employee Contact': {
+            value: conn.req.body.newPhoneNumber,
+          },
+        },
+      }, {
+          merge: true,
+        });
 
     const timezone = oldEmployeeQueryResult.docs[0].get('timezone');
     const momentToday = momentTz().tz(timezone);
