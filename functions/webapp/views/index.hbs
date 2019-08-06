@@ -117,9 +117,9 @@
                         </div>
                         {{!-- manage templates end --}}
                         \{{/if}}
-
-                        \{{#if isAdminOrSupport}}
-                        <div id="update-auth" onclick="updateAuth()" class="card">
+                        
+                        \{{#if isSupport}} 
+                           <div id="update-auth" onclick="updateAuth()" class="card">
                             <span class="flexed-jc-center mb-16">
                                 <i class="fas fa-user-edit col-black"></i>
                             </span>
@@ -127,7 +127,10 @@
                                 <p class="icon-text">Verify Email Addresses</p>
                             </span>
                         </div>
+                        \{{/if}}
 
+                        \{{#if isAdminOrSupport}}
+                     
                         <div id="add-employees" onclick="bulkCreate()" class="card">
                             <span class="flexed-jc-center mb-16">
                                 <i class="fas fa-user-plus col-black"></i>

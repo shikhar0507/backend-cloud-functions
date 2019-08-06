@@ -1153,20 +1153,20 @@ function joinFormSelfPhoneOnInput(evt) {
 
 function populateTemplateSelect(selectElement, defaultValue) {
 
+  document.getElementById('download-sample').addEventListener('click', function (evt) {
+    evt.preventDefault()
+    sendApiRequest(`/json?action=view-templates&name=${selectElement.value}`)
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (response) {
+        const key = Object.keys(response)[0]
+        createExcelSheet(response[key]);
+
+      }).catch(console.error)
+  });
   selectElement.onchange = function () {
     removeAllChildren(document.querySelector('.bc-results-list'));
-    document.getElementById('download-sample').addEventListener('click', function (evt) {
-      evt.preventDefault()
-      sendApiRequest(`/json?action=view-templates&name=${selectElement.value}`)
-        .then(function (response) {
-          return response.json();
-        })
-        .then(function (response) {
-          const key = Object.keys(response)[0]
-          createExcelSheet(response[key]);
-
-        }).catch(console.error)
-    });
     document.querySelector('.bc-results').classList.add('hidden')
     document
       .querySelector('.bc-file-drag')

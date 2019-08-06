@@ -154,7 +154,7 @@ const getLoggedInStatus = idToken => {
         email: userRecord.email,
         photoURL: userRecord.photoURL,
         disabled: userRecord.disabled,
-        isSupport: customClaims.support,
+        isSupport: customClaims.isSupport,
         phoneNumber: userRecord.phoneNumber,
         isAnonymous: userRecord.isAnonymous,
         displayName: userRecord.displayName,
