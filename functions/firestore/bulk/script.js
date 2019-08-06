@@ -316,7 +316,7 @@ const createObjects = (conn, locals, trialRun) => {
       }
 
       return locals.officeDoc.get('attachment.Timezone.value');
-      // return 'Asia/Kolkata';
+    
     })();
 
     const activityObject = {

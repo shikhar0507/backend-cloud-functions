@@ -60,9 +60,7 @@ const handleResource = conn => {
       `The path: '${conn.req.url}' was not found on this server.`
     );
   }
-  console.log("support : ", conn.requester.isSupport);
-  console.log("Req : ", conn.requester.customClaims);
-  
+
   if (resource
     .checkSupport && conn.requester.isSupport) {
     return resource.func(conn);
