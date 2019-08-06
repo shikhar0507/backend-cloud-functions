@@ -567,6 +567,14 @@ const handleResult = (conn, docs) => {
 
   const [activityDoc] = docs;
 
+  if (activityDoc.get('template') === 'subscription') {
+    return sendResponse(
+      conn,
+      code.badRequest,
+      'Subscription activity cannot be updated'
+    );
+  }
+
   const locals = {
     batch: db.batch(),
     objects: {
