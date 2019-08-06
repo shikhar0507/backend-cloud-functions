@@ -94,11 +94,11 @@ const getPaydayTimingsSheetValue = options => {
   } = options;
 
   if (statusObject[date].onLeave) {
-    return 'ON LEAVE';
+    return 'LEAVE';
   }
 
   if (statusObject[date].onAr) {
-    return 'ON AR';
+    return 'AR';
   }
 
   if (statusObject[date].weeklyOff) {
