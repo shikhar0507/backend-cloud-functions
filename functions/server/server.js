@@ -44,7 +44,9 @@ const {
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
-const { Logging } = require('@google-cloud/logging');
+const {
+  Logging
+} = require('@google-cloud/logging');
 
 
 const handleResource = conn => {
@@ -58,62 +60,84 @@ const handleResource = conn => {
       `The path: '${conn.req.url}' was not found on this server.`
     );
   }
-
-  const rejectAdminRequest = resource
-    .checkAdmin
-    && !hasAdminClaims(conn.requester.customClaims)
-    && !conn.requester.isSupportRequest;
-  const rejectSupportRequest = resource
-    .checkSupport
-    && !hasSupportClaims(conn.requester.customClaims);
-  const rejectManageTemplatesRequest = resource
-    .checkManageTemplates
-    && !hasManageTemplateClaims(conn.requester.customClaims);
-
-  if (rejectAdminRequest
-    || rejectSupportRequest
-    || rejectManageTemplatesRequest) {
-    return sendResponse(
-      conn,
-      code.forbidden,
-      `You are not allowed to access this resource`
-    );
+  console.log("support : ", conn.requester.isSupport);
+  console.log("Req : ", conn.requester.customClaims);
+  
+  if (resource
+    .checkSupport && conn.requester.isSupport) {
+    return resource.func(conn);
   }
 
-  return resource.func(conn);
+  if (conn.requester.customClaims.admin && conn.requester.customClaims.admin.length) {
+    return resource.func(conn);
+  }
+
+  if (conn.requester.customClaims.manageTemplates && resource.checkManageTemplates) {
+    return resource.func(conn);
+  }
+
+ return sendResponse(
+    conn,
+    code.forbidden,
+    `You are not allowed to access this resource`
+  );
 };
+
+// const rejectAdminRequest = resource
+//   .checkAdmin &&
+//   !hasAdminClaims(conn.requester.customClaims) &&
+//   !conn.requester.isSupportRequest;
+// const rejectSupportRequest = resource
+//   .checkSupport &&
+//   !hasSupportClaims(conn.requester.customClaims);
+// const rejectManageTemplatesRequest = resource
+//   .checkManageTemplates &&
+//   !hasManageTemplateClaims(conn.requester.customClaims);
+
+// if (rejectAdminRequest ||
+//   rejectSupportRequest ||
+//   rejectManageTemplatesRequest) {
+//   return sendResponse(
+//     conn,
+//     code.forbidden,
+//     `You are not allowed to access this resource`
+//   );
+// }
+
+
+// };
 
 
 const getProfile = conn => {
   const batch = db.batch();
   /**
-    * When a user signs up for the first time, the `authOnCreate`
-    * cloud function creates two docs in the Firestore.
-    *
-    * `Profiles/(phoneNumber)`, & `Updates/(uid)`.
-    *
-    * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
-    * It has one field `uid` = the uid from the auth.
-    *
-    * The `Updates` doc has the `doc-id` as the `uid` from the auth
-    * and one field `phoneNumber` = phoneNumber from auth.
-    *
-    * When a user signs up via the user facing app, they instantly hit
-    * the `/api` endpoint. In normal flow, the
-    * `getProfile` is called.
-    *
-    * It compares the `uid` from profile doc and the `uid` from auth.
-    * If the `authOnCreate` hasn't completed execution in this time,
-    * chances are that this doc won't be found and getting the uid
-    * from this non-existing doc will result in `disableAccount` function
-    * being called.
-    *
-    * To counter this, we allow a grace period of `60` seconds between
-    * the `auth` creation and the hit time on the `api`.
-    */
+   * When a user signs up for the first time, the `authOnCreate`
+   * cloud function creates two docs in the Firestore.
+   *
+   * `Profiles/(phoneNumber)`, & `Updates/(uid)`.
+   *
+   * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
+   * It has one field `uid` = the uid from the auth.
+   *
+   * The `Updates` doc has the `doc-id` as the `uid` from the auth
+   * and one field `phoneNumber` = phoneNumber from auth.
+   *
+   * When a user signs up via the user facing app, they instantly hit
+   * the `/api` endpoint. In normal flow, the
+   * `getProfile` is called.
+   *
+   * It compares the `uid` from profile doc and the `uid` from auth.
+   * If the `authOnCreate` hasn't completed execution in this time,
+   * chances are that this doc won't be found and getting the uid
+   * from this non-existing doc will result in `disableAccount` function
+   * being called.
+   *
+   * To counter this, we allow a grace period of `60` seconds between
+   * the `auth` creation and the hit time on the `api`.
+   */
   const AUTH_CREATION_TIMESTAMP = new Date(
-    conn.requester.creationTime
-  )
+      conn.requester.creationTime
+    )
     .getTime();
   const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
@@ -140,8 +164,8 @@ const getProfile = conn => {
        * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
        *   run `authOnCreate` logic again.
        */
-      if (profileDoc.get('uid')
-        && profileDoc.get('uid') !== conn.requester.uid) {
+      if (profileDoc.get('uid') &&
+        profileDoc.get('uid') !== conn.requester.uid) {
         console.log({
           authCreationTime: AUTH_CREATION_TIMESTAMP,
           now: Date.now(),
@@ -170,8 +194,8 @@ const getProfile = conn => {
           .set(profileDoc.ref, {
             uid: conn.requester.uid,
           }, {
-              merge: true,
-            });
+            merge: true,
+          });
 
         batch
           .set(rootCollections
@@ -186,7 +210,7 @@ const getProfile = conn => {
       return Promise
         .all([
           batch
-            .commit(),
+          .commit(),
           handleResource(conn)
         ]);
     })
@@ -202,8 +226,8 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) => {
         return sendResponse(
           conn,
           code.forbidden,
-          `This account has been temporarily disabled. Please contact`
-          + ` your admin`
+          `This account has been temporarily disabled. Please contact` +
+          ` your admin`
         );
       }
 
@@ -283,8 +307,8 @@ const checkAuthorizationToken = async conn => {
 
     return getUserAuthFromIdToken(conn, decodedIdToken);
   } catch (error) {
-    if (error.code === 'auth/id-token-expired'
-      || error.code === 'auth/id-token-revoked') {
+    if (error.code === 'auth/id-token-expired' ||
+      error.code === 'auth/id-token-revoked') {
       return sendResponse(
         conn,
         code.unauthorized,
@@ -340,8 +364,8 @@ module.exports = async (req, res) => {
   };
 
   /** For handling CORS */
-  if (req.method === 'HEAD'
-    || req.method === 'OPTIONS') {
+  if (req.method === 'HEAD' ||
+    req.method === 'OPTIONS') {
     return sendResponse(
       conn,
       code.noContent
@@ -352,14 +376,14 @@ module.exports = async (req, res) => {
     return sendResponse(
       conn,
       code.notImplemented,
-      `${req.method} is not supported for any request.`
-      + ' Please use `GET`, `POST`, `PATCH`, or `PUT` to amake your requests'
+      `${req.method} is not supported for any request.` +
+      ' Please use `GET`, `POST`, `PATCH`, or `PUT` to amake your requests'
     );
   }
 
-  if (env.isProduction
-    && (!conn.req.headers['x-cf-secret']
-      || conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
+  if (env.isProduction &&
+    (!conn.req.headers['x-cf-secret'] ||
+      conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
     return sendResponse(
       conn,
       code.forbidden,
@@ -368,4 +392,12 @@ module.exports = async (req, res) => {
   }
 
   return checkAuthorizationToken(conn);
+
+  // const r = await auth.getUserByPhoneNumber('+918527801091');
+  // await auth.setCustomUserClaims(r.uid, {
+  //   support: true,
+  // })
+
+  // sendResponse(conn ,200);
+
 };

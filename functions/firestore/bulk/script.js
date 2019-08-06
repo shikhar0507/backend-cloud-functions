@@ -307,11 +307,16 @@ const createObjects = (conn, locals, trialRun) => {
       return locals.officeDoc.get('attachment.Name.value');
     })();
     const timezone = (() => {
+      
+      console.log("present tz " ,conn.req.body.data[index].Timezone);
+      console.log("match tz , ", locals.officeDoc.get('attachment.Timezone.value'));
+
       if (conn.req.body.template === templateNamesObject.OFFICE) {
         return conn.req.body.data[index].Timezone;
       }
 
       return locals.officeDoc.get('attachment.Timezone.value');
+      // return 'Asia/Kolkata';
     })();
 
     const activityObject = {
@@ -1541,8 +1546,11 @@ module.exports = conn => {
    * encoded: csvString
    * location: `object(latitude, longitude)`
    */
+
+  
+  console.log("Req : ",conn.requester.customClaims);
   if (!conn.requester.isSupportRequest) {
-    if (!conn.requester.customClaims.admin ||
+    if (!conn.requester.customClaims.admin || 
       !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
       return sendResponse(
         conn,

@@ -489,7 +489,7 @@ const handleJoinPage = (locals, requester) => {
 const handleHomePage = (locals, requester) => {
   const source = require('./views/index.hbs')();
   const template = handlebars.compile(source, { strict: true });
-
+ console.log("Admin " , requester.isAdmin,"support " , requester.isSupport);
   const html = template({
     user: JSON.stringify({
       isSupport: requester.isSupport,
