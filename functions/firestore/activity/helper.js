@@ -1562,7 +1562,7 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
         || !statusObject[momentStartTime.date()].statusForDay
         || !statusObject[momentStartTime.date()].statusForDay === 1) {
         response.success = false;
-        response.message = `Your status for `
+        response.message = `The status for `
           + `${momentStartTime.format(dateFormats.DATE)}`
           + ` is already 'Present'`;
 

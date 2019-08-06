@@ -98,7 +98,7 @@ const getPaydayTimingsSheetValue = options => {
   }
 
   if (statusObject[date].onAr) {
-    return 'ON DUTY';
+    return 'ON AR';
   }
 
   if (statusObject[date].weeklyOff) {
@@ -199,7 +199,19 @@ module.exports = async locals => {
   const firstDayOfMonthlyCycle = locals
     .officeDoc
     .get('attachment.First Day Of Monthly Cycle.value') || 1;
+  const weekdayYesterday = momentYesterday.format('dddd').toLowerCase();
 
+  const reportTriggeredForToday = momentTz(timestampFromTimer)
+    .format(dateFormats.DATE) === momentTz().format(dateFormats.DATE);
+  const employeePhoneNumbers = Object.keys(locals.employeesData);
+  /**
+   * Employees who are on Leave, branch holiday and weekly off
+   */
+  const allowedToBeInactive = new Set();
+  const allPhoneNumbers = new Set();
+  const statusObjectsMap = new Map();
+
+  const formattedDateYesterday = momentYesterday.format(dateFormats.DATE);
   const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentYesterday.date();
   const cycleStartMoment = (() => {
     if (fetchPreviousMonthDocs) {
@@ -265,14 +277,6 @@ module.exports = async locals => {
     promises.push(p);
   }
 
-  const employeePhoneNumbers = Object.keys(locals.employeesData);
-  /**
-   * Employees who are on Leave, branch holiday and weekly off
-   */
-  const allowedToBeInactive = new Set();
-  const allPhoneNumbers = new Set();
-  const statusObjectsMap = new Map();
-
   try {
     const [
       worksheet,
@@ -323,27 +327,33 @@ module.exports = async locals => {
         dateYesterday
       ] = statusObject[dateYesterday] || getDefaultStatusObject();
 
+
       if (statusObject[dateYesterday].onLeave
-        || statusObject[dateYesterday].onAr
-        || statusObject[dateYesterday].weeklyOff
-        || statusObject[dateYesterday].holiday) {
+        || statusObject[dateYesterday].onAr) {
         allowedToBeInactive.add(phoneNumber);
       }
 
       if (statusObject[dateYesterday].onLeave) {
         onLeaveSet.add(phoneNumber);
+        allowedToBeInactive.add(phoneNumber);
       }
 
       if (statusObject[dateYesterday].onAr) {
         onArSet.add(phoneNumber);
+        allowedToBeInactive.add(phoneNumber);
       }
 
-      if (statusObject[dateYesterday].weeklyOff) {
+      if (locals.employeesData[phoneNumber]
+        && locals.employeesData[phoneNumber]['Weekly Off'] === weekdayYesterday) {
         weeklyOffSet.add(phoneNumber);
+        allowedToBeInactive.add(phoneNumber);
       }
 
-      if (statusObject[dateYesterday].weeklyOff) {
+      const branchHolidaysObject = locals.employeesData[phoneNumber] || {};
+
+      if (branchHolidaysObject[formattedDateYesterday]) {
         holidaySet.add(phoneNumber);
+        allowedToBeInactive.add(phoneNumber);
       }
     });
 
@@ -354,16 +364,26 @@ module.exports = async locals => {
     employeePhoneNumbers.forEach(phoneNumber => {
       allPhoneNumbers.add(phoneNumber);
 
-      if (allowedToBeInactive.has(phoneNumber)) {
-        const emptyStatusObject = getDefaultStatusObject();
-        emptyStatusObject.statusForDay = 1;
-        emptyStatusObject.onLeave = onLeaveSet.has(phoneNumber);
-        emptyStatusObject.onAr = onArSet.has(phoneNumber);
-        emptyStatusObject.weeklyOff = weeklyOffSet.has(phoneNumber);
-        emptyStatusObject.holiday = holidaySet.has(phoneNumber);
+      if (onLeaveSet.has(phoneNumber)
+        || onArSet.has(phoneNumber)
+        || weeklyOffSet.has(phoneNumber)
+        || holidaySet.has(phoneNumber)) {
+        yesterdaysStatusMap
+          .set(
+            phoneNumber,
+            Object.assign(getDefaultStatusObject(), {
+              statusForDay: 1,
+              onLeave: onLeaveSet.has(phoneNumber),
+              onAr: onArSet.has(phoneNumber),
+              weeklyOff: weeklyOffSet.has(phoneNumber),
+              holiday: holidaySet.has(phoneNumber),
+            })
+          );
 
-        yesterdaysStatusMap.set(phoneNumber, emptyStatusObject);
+        return;
+      }
 
+      if (!reportTriggeredForToday) {
         return;
       }
 
@@ -441,12 +461,14 @@ module.exports = async locals => {
         });
     });
 
-    await commitStatuses(
-      yesterdaysStatusMap,
-      allowedToBeInactive,
-      momentYesterday,
-      locals.officeDoc.id
-    );
+    if (reportTriggeredForToday) {
+      await commitStatuses(
+        yesterdaysStatusMap,
+        allowedToBeInactive,
+        momentYesterday,
+        locals.officeDoc.id
+      );
+    }
 
     const allDocs = []
       .concat(

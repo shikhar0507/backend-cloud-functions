@@ -12,8 +12,6 @@ module.exports = async (change, context) => {
   const statusObject = change.after.get('statusObject') || {};
   const { phoneNumber, officeId } = context.params;
 
-  console.log(context);
-
   try {
     const profileDoc = await rootCollections.profiles.doc(phoneNumber).get();
     const employeeOf = profileDoc.get('employeeOf') || {};

@@ -168,7 +168,7 @@ const handleValidation = (body) => {
   return result;
 };
 
-const getActivityName = (params) => {
+const getActivityName = params => {
   const {
     template,
     subscriber,
@@ -226,7 +226,7 @@ const executeSequentially = (batchFactories) => {
   return result;
 };
 
-const commitData = (conn, batchesArray, batchFactories) => {
+const commitData = (batchesArray, batchFactories) => {
   // For a single batch, no need to create batch factories
   if (batchesArray.length === 1) {
     return batchesArray[0].commit();
@@ -488,7 +488,7 @@ const createObjects = (conn, locals, trialRun) => {
     return Promise.resolve(responseObject);
   }
 
-  return commitData(conn, batchesArray, batchFactories)
+  return commitData(batchesArray, batchFactories)
     .then(() => childActivitiesBatch.commit())
     .then(() => responseObject);
 };

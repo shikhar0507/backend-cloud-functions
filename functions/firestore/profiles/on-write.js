@@ -30,10 +30,14 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
+  sendSMS,
+} = require('../../admin/utils');
+const {
   reportNames,
   httpsActions,
 } = require('../../admin/constants');
-const moment = require('moment');
+const momentTz = require('moment-timezone');
+const env = require('../../admin/env');
 
 const purgeDocs = (query, resolve, reject, count) =>
   query
@@ -150,7 +154,7 @@ const handleSignUpAndInstall = (options) => {
       promises.push(promise);
     });
 
-  const momentToday = moment().toObject();
+  const momentToday = momentTz().toObject();
 
   return rootCollections
     .inits
@@ -240,7 +244,7 @@ const handleSignUpAndInstall = (options) => {
  * @param {Object} change Contains snapshot of `old` and `new` doc in `context`.
  * @returns {Promise<Batch>} Firestore `Batch` object.
  */
-module.exports = (change) => {
+module.exports = async change => {
   const {
     before,
     after,
@@ -309,10 +313,24 @@ module.exports = (change) => {
    *    For each office (current) create sign up doc with `signedUpOn` field
    * Delete addendum if new `lastFromQuery` > old `lastFromQuery`.
    */
-  return Promise
-    .resolve()
-    .then(() => handleSignUpAndInstall(options))
-    .then(() => manageAddendum(change))
-    .then(() => manageOldCheckins(change))
-    .catch(console.error);
+
+  const toSendSMS = !change.before.data()
+    && change.after.data()
+    && !change.after.get('uid');
+
+  try {
+    await handleSignUpAndInstall(options);
+    await manageAddendum(change);
+    await manageOldCheckins(change);
+
+    if (!toSendSMS) return;
+
+    const office = change.after.get('smsContext.office');
+    const smsText = `${office} will use Growthfile for attendance and leave.`
+      + ` Download now to CHECK-IN ${env.downloadUrl}`;
+
+    return sendSMS(phoneNumber, smsText);
+  } catch (error) {
+    console.error(error);
+  }
 };
