@@ -975,7 +975,7 @@ const validateDataArray = (conn, locals) => {
     if (conn.req.body.template === templateNamesObject.RECIPIENT) {
       const templateName = conn.req.body.data[index].Name;
 
-      const validReports = new Set(['footprints', 'footprints']);
+      const validReports = new Set(['footprints', 'payroll']);
 
       if (!validReports.has(templateName)) {
         conn.req.body.data[index].rejected = true;
