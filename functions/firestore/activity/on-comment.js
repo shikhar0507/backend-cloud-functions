@@ -74,6 +74,7 @@ const createDocs = (conn, activity) => {
     activityData: activity.data(),
     geopointAccuracy: conn.req.body.geopoint.accuracy || null,
     provider: conn.req.body.geopoint.provider || null,
+    userDisplayName: conn.requester.displayName,
   });
 
   batch

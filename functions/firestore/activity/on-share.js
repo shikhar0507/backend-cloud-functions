@@ -230,6 +230,7 @@ const handleResult = (conn, docs) => {
         isSupportRequest: conn.requester.isSupportRequest,
         provider: conn.req.body.geopoint.provider || null,
         geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+        userDisplayName: conn.requester.displayName,
       });
 
       return batch.commit();
