@@ -37,13 +37,13 @@ const {
   dateFormats,
 } = require('../../admin/constants');
 const {
-  sendSMS,
   slugify,
   addEmployeeToRealtimeDb,
   millitaryToHourMinutes,
   getBranchName,
   adjustedGeopoint,
   getUsersWithCheckIn,
+  getEmployeesMapFromRealtimeDb,
 } = require('../../admin/utils');
 const {
   activityName,
@@ -62,27 +62,6 @@ const googleMapsClient =
       key: env.mapsApiKey,
       Promise: Promise,
     });
-
-
-const sendEmployeeCreationSms = locals => {
-  const template = locals.change.after.get('template');
-
-  if (template !== 'employee'
-    || !locals.addendumDoc
-    || locals.addendumDoc.get('action') !== httpsActions.create
-    || !env.isProduction) {
-    return Promise.resolve();
-  }
-
-  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
-  /** Only 20 chars are allowed by smsgupshup */
-  const office = locals.change.after.get('office').substring(0, 20);
-
-  const smsText = `${office} will use Growthfile for attendance and leave.`
-    + ` Download now to CHECK-IN ${env.downloadUrl}`;
-
-  return sendSMS(phoneNumber, smsText);
-};
 
 const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   const updatedFields = [];
@@ -266,50 +245,6 @@ const createAdmin = (locals, adminContact) => {
 
       return batch.commit();
     });
-};
-
-
-const handleRecipient = (locals) => {
-  const template = locals.change.after.get('template');
-
-  if (template !== 'recipient') {
-    return Promise.resolve();
-  }
-
-  const batch = db.batch();
-
-  const recipientsDocRef =
-    rootCollections
-      .recipients
-      .doc(locals.change.after.id);
-
-  if (locals.addendumDoc
-    && locals.addendumDoc.get('action')
-    === httpsActions.comment) {
-    return Promise.resolve();
-  }
-
-  batch
-    .set(recipientsDocRef, {
-      include: locals.assigneePhoneNumbersArray,
-      cc: locals.change.after.get('attachment.cc.value'),
-      office: locals.change.after.get('office'),
-      report: locals.change.after.get('attachment.Name.value'),
-      officeId: locals.change.after.get('officeId'),
-      status: locals.change.after.get('status'),
-    }, {
-        /**
-         * Required since anyone updating the this activity will cause
-         * the report data to be lost.
-         */
-        merge: true,
-      });
-
-  if (locals.change.after.get('status') === 'CANCELLED') {
-    batch.delete(recipientsDocRef);
-  }
-
-  return batch.commit();
 };
 
 
@@ -550,67 +485,57 @@ const handleCanEditRule = async (locals, templateDoc) => {
 
 const handleCheckInSubscription = async locals => {
   // if check-in subscription has been created
-  const setData = (ref, data) => {
-    return new Promise((resolve, reject) => {
-      ref.set(data, error => {
-        if (error) return reject(error);
-
-        resolve();
-      });
-    });
-  };
-
-  const getData = ref => {
-    return new Promise(resolve => {
-      ref.on('value', resolve);
-    });
-  };
-
-  const deleteData = ref => {
-    return new Promise((resolve, reject) => {
-      ref.remove(error => {
-        if (error) return reject(error);
-
-        resolve();
-      });
-    });
-  };
-
+  // Employee should receive locations map
   const template = locals.change.after.get('template');
 
   if (template !== 'subscription') {
     return;
   }
 
-  const subscribedTemplate = locals.change.after.get('attachment.Template.value');
+  const subscribedTemplate = locals
+    .change
+    .after
+    .get('attachment.Template.value');
 
   if (subscribedTemplate !== 'check-in') {
     return;
   }
 
   const officeId = locals.change.after.get('officeId');
-  const ref = admin.database().ref(`${officeId}/${subscribedTemplate}`);
+  // const ref = admin.database().ref(`${officeId}/${subscribedTemplate}`);
   const oldSubscriber = locals.change.before.get('attachment.Subscriber.value');
   const newSubscriber = locals.change.after.get('attachment.Subscriber.value');
   const status = locals.change.after.get('status');
 
   try {
     if (status === 'CANCELLED') {
-      return deleteData(ref);
+      return admin
+        .database()
+        .ref(`${officeId}/check-in/${newSubscriber}`)
+        .remove();
     }
 
-    if (oldSubscriber
-      && oldSubscriber !== newSubscriber) {
-      const ref = admin.database().ref(`${officeId}/${oldSubscriber}`);
-
-      await deleteData(ref);
+    // Subscriber changed, removing
+    if (oldSubscriber && (oldSubscriber !== newSubscriber)) {
+      await admin
+        .database()
+        .ref(`${officeId}/check-in/${oldSubscriber}`)
+        .remove();
     }
 
-    let oldObject = await getData(ref);
+    let oldObject = await admin
+      .database()
+      .ref(`${officeId}/${subscribedTemplate}`)
+      .once('value');
+
     oldObject = oldObject || {};
+
     oldObject[newSubscriber] = true;
 
-    return setData(ref, oldObject);
+    return admin
+      .database()
+      .ref(`${officeId}/check-in`)
+      .set(oldObject);
   } catch (error) {
     console.error(error);
   }
@@ -1263,8 +1188,6 @@ const handleEmployee = async locals => {
       await removeFromOfficeActivities(locals);
     }
 
-    // Move this to `profileOnWrite`
-    await sendEmployeeCreationSms(locals);
     await createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled);
     await handleEmployeeSupervisors(locals);
 
@@ -1894,7 +1817,7 @@ const handleLocations = locals => {
     });
   };
 
-  const realtimeDb = require('firebase-admin').database();
+  const realtimeDb = admin.database();
   const officeId = locals.change.after.get('officeId');
   const path = `${officeId}/locations/${locals.change.after.id}`;
   const ref = realtimeDb.ref(path);
@@ -1975,6 +1898,83 @@ const handleBranch = async locals => {
     employees.forEach(employee => {
       promises.push(addEmployeeToRealtimeDb(employee));
     });
+
+    return Promise.all(promises);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+
+const handleRecipient = async locals => {
+  const template = locals.change.after.get('template');
+
+  if (template !== 'recipient') {
+    return;
+  }
+
+  const batch = db.batch();
+
+  const recipientsDocRef =
+    rootCollections
+      .recipients
+      .doc(locals.change.after.id);
+
+  if (locals.addendumDoc
+    && locals.addendumDoc.get('action')
+    === httpsActions.comment) {
+    return;
+  }
+
+  batch
+    .set(recipientsDocRef, {
+      include: locals.assigneePhoneNumbersArray,
+      cc: locals.change.after.get('attachment.cc.value'),
+      office: locals.change.after.get('office'),
+      report: locals.change.after.get('attachment.Name.value'),
+      officeId: locals.change.after.get('officeId'),
+      status: locals.change.after.get('status'),
+    }, {
+        /**
+         * Required since anyone updating the this activity will cause
+         * the report data to be lost.
+         */
+        merge: true,
+      });
+
+  if (locals.change.after.get('status') === 'CANCELLED') {
+    batch.delete(recipientsDocRef);
+  }
+
+  const hasBeenCreated = locals
+    .addendumDoc
+    && locals.addendumDoc.get('action') === httpsActions.create;
+
+  await batch.commit();
+
+  if (!hasBeenCreated) return;
+
+  try {
+    /**
+     * If a recipient activity is created with
+     * attachment.Name.value === 'payroll',
+     * all employees of the office should get
+     * the subscription of attendance regularization
+     */
+    const officeId = locals.change.after.get('officeId');
+    const employees = await getEmployeesMapFromRealtimeDb(officeId);
+    const promises = [];
+    const phoneNumbers = Object.keys(employees);
+
+    console.log('phoneNumbers size', phoneNumbers.length);
+
+    phoneNumbers.forEach(phoneNumber => {
+      promises.push(
+        createAutoSubscription(locals, 'attendance regularization', phoneNumber)
+      );
+    });
+
+    console.log('Giving subscriptions', promises.length);
 
     return Promise.all(promises);
   } catch (error) {
