@@ -325,7 +325,7 @@ module.exports = async change => {
 
     if (!toSendSMS) return;
 
-    const office = change.after.get('smsContext.office');
+    const office = change.after.get('smsContext.office').substring(0, 20);
     const smsText = `${office} will use Growthfile for attendance and leave.`
       + ` Download now to CHECK-IN ${env.downloadUrl}`;
 
