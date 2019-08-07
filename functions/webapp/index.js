@@ -260,6 +260,7 @@ const handleOfficePage = (locals, requester) => {
     isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
     officeFirstChar: locals.officeDoc.get('office').charAt(0),
+    pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
   return Promise.resolve(html);
@@ -481,6 +482,7 @@ const handleJoinPage = (locals, requester) => {
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
+    pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
   return html;
@@ -517,6 +519,7 @@ const handleHomePage = (locals, requester) => {
     showActions: requester.isAdmin
       || requester.isSupport
       || requester.isTemplateManager,
+    pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
   return html;
@@ -541,6 +544,7 @@ const handleAuthPage = (locals, requester) => {
     isTemplateManager: requester.isTemplateManager,
     initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
+    pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
   return html;
@@ -564,6 +568,7 @@ const handleDownloadPage = (locals, requester) => {
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
+    pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
   return html;
@@ -586,6 +591,7 @@ const handleContactPage = (locals, requester) => {
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
+    pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
   return html;
@@ -608,6 +614,7 @@ const handleTermsAndConditionsPage = (locals, requester) => {
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
+    pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
   return html;
@@ -634,6 +641,7 @@ const handlePrivacyPolicyPage = (locals, requester) => {
     isAdmin: requester.isAdmin,
     isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
+    pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
   return html;
