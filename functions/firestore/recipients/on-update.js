@@ -93,7 +93,7 @@ module.exports = async change => {
      * This check is required since writing invalid value to
      *  this function might spoil data in the `/Monthly` docs.
      */
-    throw new Error('Invalid timestamp passed');
+    return;
   }
 
   const todaysEnd = momentTz().endOf('day');
@@ -101,14 +101,14 @@ module.exports = async change => {
 
   if (timestampIsOfFuture
     || include.length === 0) {
-    return Promise.resolve();
+    return;
   }
 
   try {
     const officeDoc = await rootCollections.offices.doc(officeId).get();
 
     if (officeDoc.get('status') === 'CANCELLED') {
-      return Promise.resolve();
+      return;
     }
 
     const timezone = officeDoc.get('attachment.Timezone.value');
@@ -202,7 +202,7 @@ module.exports = async change => {
     }
 
     if (!env.isProduction) {
-      return Promise.resolve();
+      return;
     }
 
     const momentYesterday = momentTz().subtract(1, 'day');
