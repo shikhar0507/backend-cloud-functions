@@ -38,7 +38,6 @@ function isTemplateManager() {
 }
 
 
-
 function showActionsSection() {
   document
     .querySelector('#actions-section')
@@ -1152,11 +1151,11 @@ function joinFormSelfPhoneOnInput(evt) {
 
 
 function populateTemplateSelect(selectElement, defaultValue) {
+  document
+    .getElementById('download-sample')
+    .addEventListener('click', function (evt) {
+      evt.preventDefault();
 
-  selectElement.onchange = function () {
-    removeAllChildren(document.querySelector('.bc-results-list'));
-    document.getElementById('download-sample').addEventListener('click', function (evt) {
-      evt.preventDefault()
       sendApiRequest(`/json?action=view-templates&name=${selectElement.value}`)
         .then(function (response) {
           return response.json();
@@ -1167,6 +1166,10 @@ function populateTemplateSelect(selectElement, defaultValue) {
 
         }).catch(console.error)
     });
+
+  selectElement.onchange = function () {
+    removeAllChildren(document.querySelector('.bc-results-list'));
+
     document.querySelector('.bc-results').classList.add('hidden')
     document
       .querySelector('.bc-file-drag')
@@ -1184,7 +1187,6 @@ function populateTemplateSelect(selectElement, defaultValue) {
 }
 
 function createExcelSheet(rawTemplate) {
-
   var wb = XLSX.utils.book_new();
   wb.props = {
     Title: rawTemplate.name,
