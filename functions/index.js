@@ -34,9 +34,6 @@ const authOnCreate = functions
   .onCreate(require('./auth/on-create'));
 
 const api = functions
-  // .runWith({
-  //   timeoutSeconds: '540',
-  // })
   .https
   .onRequest(require('./server/server'));
 
