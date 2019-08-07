@@ -972,6 +972,17 @@ const validateDataArray = (conn, locals) => {
       }
     }
 
+    if (conn.req.body.template === templateNamesObject.RECIPIENT) {
+      const templateName = conn.req.body.data[index].Name;
+
+      const validReports = new Set(['footprints', 'footprints']);
+
+      if (!validReports.has(templateName)) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `${templateName} is not a valid report`;
+      }
+    }
+
     if (conn.req.body.template ===
       templateNamesObject.OFFICE) {
       const firstContact = conn.req.body.data[index]['First Contact'];
