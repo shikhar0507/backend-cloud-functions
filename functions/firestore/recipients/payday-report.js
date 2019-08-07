@@ -349,9 +349,9 @@ module.exports = async locals => {
         allowedToBeInactive.add(phoneNumber);
       }
 
-      const branchHolidaysObject = locals.employeesData[phoneNumber] || {};
-
-      if (branchHolidaysObject[formattedDateYesterday]) {
+      if (locals.employeesData[phoneNumber]
+        && locals.employeesData[phoneNumber].branchHolidays
+        && locals.employeesData[phoneNumber].branchHolidays[formattedDateYesterday]) {
         holidaySet.add(phoneNumber);
         allowedToBeInactive.add(phoneNumber);
       }
