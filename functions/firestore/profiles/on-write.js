@@ -75,11 +75,11 @@ const manageOldCheckins = (change) => {
   const newFromValue = change.after.get('lastQueryFrom');
 
   /**
-     * Both old and the new values should be available
-     * None should be 0.
-     * The newer value should be greater than the older
-     * value.
-     */
+   * Both old and the new values should be available
+   * None should be 0.
+   * The newer value should be greater than the older
+   * value.
+   */
   if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
     return Promise.resolve();
   }
@@ -323,10 +323,12 @@ module.exports = async change => {
     await manageAddendum(change);
     await manageOldCheckins(change);
 
-    if (!toSendSMS) return;
 
-    const office = change.after.get('smsContext.office').substring(0, 20);
-    const smsText = `${office} will use Growthfile for attendance and leave.`
+    const office = change.after.get('smsContext.office');
+    if (!toSendSMS || !office) return;
+
+    const smsText = `${office.substring(0, 20)} will use`
+      + ` Growthfile for attendance and leave.`
       + ` Download now to CHECK-IN ${env.downloadUrl}`;
 
     return sendSMS(phoneNumber, smsText);
