@@ -109,8 +109,8 @@ module.exports = conn => {
       }
 
       const timezone = officeDocQuery.docs[0].get('attachment.Timezone.value');
-      const startDay = momentTz().tz(timezone).startOf('day');
-      const endDay = momentTz().tz(timezone).endOf('day');
+      const startDay = momentTz().tz(timezone);
+      const endDay = momentTz().tz(timezone);
       const numberOfDays = Math.abs(endDay.diff(startDay, 'day'));
 
       const timestampsArray = [
@@ -122,6 +122,8 @@ module.exports = conn => {
 
         timestampsArray.push(newMoment.valueOf());
       }
+
+      console.log(JSON.stringify(timestampsArray, ' ', 2));
 
       timestampsArray.forEach((timestamp) => {
         batch.set(recipientDocsQuery.docs[0].ref, {
