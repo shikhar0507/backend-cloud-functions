@@ -717,11 +717,13 @@ const handleJsonGetRequest = (conn, requester) => {
       });
   }
 
-  if (conn.req.query.action === 'view-templates') {
+  if ((requester.isAdmin || requester.isSupport)
+    && conn.req.query.action === 'view-templates') {
     return getTemplatesListJSON(conn.req.query.name);
   }
 
-  if (conn.req.query.action === 'get-template-names') {
+  if ((requester.isAdmin || requester.isSupport)
+    && conn.req.query.action === 'get-template-names') {
     return rootCollections
       .activityTemplates
       .get()

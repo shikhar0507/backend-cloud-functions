@@ -1257,13 +1257,20 @@ function populateBulkCreationResult(response, originalJson) {
     .querySelector('.bc-results')
     .classList
     .remove('hidden');
-  console.log(response);
   const ul = document.querySelector('.bc-results-list');
+
   removeAllChildren(ul);
+
   let totalRejected = 0
   let totalCreated = 0
-  response.data.forEach(function (item, index) {
 
+  if (response.message) {
+    createSnackbar(response.message);
+
+    return;
+  }
+
+  response.data.forEach(function (item, index) {
     if (item.rejected) {
       totalRejected += 1;
     }
@@ -1277,7 +1284,6 @@ function populateBulkCreationResult(response, originalJson) {
   });
 
   setMessageForBulkCreate(originalJson.length, totalCreated, totalRejected)
-
 }
 
 
@@ -1315,7 +1321,7 @@ function sendBulkCreateJson(jsonData, templateName) {
     })
     .then(function (response) {
       removeFileSpinner()
-      console.log(response)
+      // console.log(response)
       populateBulkCreationResult(response, jsonData);
 
       if (isCreateOffice) {
@@ -2125,7 +2131,6 @@ function windowOnBeforeUnload() {
   }
 }
 
-// window.onload = windowOnLoad;
 window
   .onbeforeunload = windowOnBeforeUnload;
 window
