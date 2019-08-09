@@ -40,7 +40,6 @@ const {
   disableAccount,
   hasSupportClaims,
   hasAdminClaims,
-  hasManageTemplateClaims,
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
@@ -65,14 +64,11 @@ const handleResource = conn => {
     && !conn.requester.isSupportRequest;
   const rejectSupportRequest = resource
     .checkSupport
+    && conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims);
-  const rejectManageTemplatesRequest = resource
-    .checkManageTemplates
-    && !hasManageTemplateClaims(conn.requester.customClaims);
 
   if (rejectAdminRequest
-    || rejectSupportRequest
-    || rejectManageTemplatesRequest) {
+    || rejectSupportRequest) {
     return sendResponse(
       conn,
       code.forbidden,
