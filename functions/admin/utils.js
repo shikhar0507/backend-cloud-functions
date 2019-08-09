@@ -714,7 +714,7 @@ const adjustedGeopoint = (geopoint) => {
   };
 };
 
-const sendSMS = (phoneNumber, smsText) => {
+const sendSMS = async (phoneNumber, smsText) => {
   if (!env.isProduction) return;
 
   const sendTo = phoneNumber;
@@ -1313,18 +1313,8 @@ const addEmployeeToRealtimeDb = async doc => {
       .limit(1)
       .get();
 
-    const checkInSubscriptionQueryResult = await rootCollections
-      .activities
-      .where('office', '==', doc.get('office'))
-      .where('status', '==', 'CONFIRMED')
-      .where('template', '==', 'subscription')
-      .where('attachment.Subscriber.value', '==', phoneNumber)
-      .where('attachment.Template.value', '==', 'check-in')
-      .get();
-
     const options = {
       hasInstalled: !updatesQueryResult.empty,
-      hasCheckInSubscription: !checkInSubscriptionQueryResult.empty,
     };
 
     const baseLocation = doc.get('attachment.Base Location.value');
