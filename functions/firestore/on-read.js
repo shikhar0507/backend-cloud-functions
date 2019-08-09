@@ -375,23 +375,27 @@ module.exports = async conn => {
           .push(getSubscriptionObject(doc));
       });
 
-    batch.set(rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber), {
-        lastQueryFrom: from,
-      }, {
-        /** Profile has other stuff too. */
-        merge: true,
-      });
+    const profileUpdate = {
+      lastQueryFrom: from,
+    };
 
     if (conn.requester.profileDoc
       && conn.requester.profileDoc.get('statusObject')) {
-      batch.set(conn.requester.profileDoc.ref, {
-        statusObject: admin.firestore.FieldValue.delete(),
-      }, {
-          merge: true,
-        });
+      profileUpdate
+        .statusObject = admin.firestore.FieldValue.delete();
     }
+
+    if (sendLocations) {
+      profileUpdate
+        .locationsSentForTimestamp = from;
+    }
+
+    batch.set(rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber), profileUpdate, {
+        /** Profile has other stuff too. */
+        merge: true,
+      });
 
     if (from === 0) {
       jsonObject
