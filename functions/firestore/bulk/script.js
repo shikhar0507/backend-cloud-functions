@@ -124,7 +124,7 @@ const handleValidation = (body) => {
   if (body.data.length === 0) {
     return {
       success: false,
-      message: `Data cannot be empty`,
+      message: `Invalid/empty excel file`,
     };
   }
 
