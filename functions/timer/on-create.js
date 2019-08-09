@@ -35,6 +35,7 @@ const {
 } = require('../admin/utils');
 const {
   reportNames,
+  dateFormats,
 } = require('../admin/constants');
 const moment = require('moment');
 const env = require('../admin/env');
@@ -43,13 +44,7 @@ sgMail.setApiKey(env.sgMailApiKey);
 const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
 
-
 const sendErrorReport = () => {
-  const {
-    dateFormats,
-  } = require('../admin/constants');
-  const momentTz = require('moment-timezone');
-
   const today = momentTz().subtract(1, 'days');
 
   const getHTMLString = (doc, index) => {
@@ -204,6 +199,27 @@ const setBackblazeIdToken = timerDoc => {
     .catch(console.error);
 };
 
+const deleteInstantDocs = async () => {
+  const momentToday = momentTz();
+  const hundredDaysBeforeMoment = momentToday.subtract(100, 'days');
+  const batch = db.batch();
+
+  // Delete docs older than 100 days
+  try {
+    const docs = await rootCollections
+      .instant
+      .where('timestamp', '<=', hundredDaysBeforeMoment.valueOf())
+      .get();
+
+
+    docs.forEach(doc => batch.delete(doc.ref));
+
+    return batch.commit();
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 module.exports = timerDoc => {
   if (timerDoc.get('sent')) {
     // Helps to check if email is sent already.
@@ -296,5 +312,6 @@ module.exports = timerDoc => {
 
       return batch.commit();
     })
+    .then(() => deleteInstantDocs())
     .catch(console.error);
 };
