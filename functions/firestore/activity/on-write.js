@@ -523,13 +523,12 @@ const handleCheckInSubscription = async locals => {
         .remove();
     }
 
-    let oldObject = await admin
+    const oldObjectResult = await admin
       .database()
       .ref(`${officeId}/${subscribedTemplate}`)
       .once('value');
 
-    oldObject = oldObject || {};
-
+    const oldObject = oldObjectResult.val() || {};
     oldObject[newSubscriber] = true;
 
     return admin
@@ -858,13 +857,11 @@ const handleEmployeeSupervisors = locals => {
     .catch(console.error);
 };
 
-const createDefaultSubscriptionsForEmployee = (locals, hasBeenCancelled) => {
+const createDefaultSubscriptionsForEmployee = locals => {
   const hasBeenCreated = locals.addendumDoc
     && locals.addendumDoc.get('action') === httpsActions.create;
 
-  if (hasBeenCancelled || !hasBeenCreated) {
-    return Promise.resolve();
-  }
+  if (!hasBeenCreated) return;
 
   const phoneNumber = locals
     .change
@@ -1724,7 +1721,7 @@ const mangeYouTubeDataApi = async locals => {
   }
 };
 
-const handleOffice = (locals) => {
+const handleOffice = async locals => {
   const template = locals.change.after.get('template');
   const hasBeenCreated = locals.addendumDoc
     && locals.addendumDoc.get('action') === httpsActions.create;
@@ -1736,13 +1733,14 @@ const handleOffice = (locals) => {
   const firstContact = locals.change.after.get('attachment.First Contact.value');
   const secondContact = locals.change.after.get('attachment.Second Contact.value');
 
-  return createFootprintsRecipient(locals)
-    .then(() => createAutoSubscription(locals, 'subscription', firstContact))
-    .then(() => createAutoSubscription(locals, 'subscription', secondContact))
-    .then(() => createAdmin(locals, firstContact))
-    .then(() => createAdmin(locals, secondContact))
-    .then(() => createBranches(locals))
-    .then(() => mangeYouTubeDataApi(locals));
+  await createFootprintsRecipient(locals);
+  await createAutoSubscription(locals, 'subscription', firstContact);
+  await createAutoSubscription(locals, 'subscription', secondContact);
+  await createAdmin(locals, firstContact);
+  await createAdmin(locals, secondContact);
+  await createBranches(locals);
+
+  return mangeYouTubeDataApi(locals);
 };
 
 const setLocationsReadEvent = async locals => {
@@ -2097,10 +2095,22 @@ module.exports = (change, context) => {
           return;
         }
 
-        locals.assigneesMap.get(phoneNumber).displayName = record.displayName;
-        locals.assigneesMap.get(phoneNumber).uid = record.uid;
-        locals.assigneesMap.get(phoneNumber).photoURL = record.photoURL;
-        locals.assigneesMap.get(phoneNumber).customClaims = record.customClaims;
+        locals
+          .assigneesMap
+          .get(phoneNumber)
+          .displayName = record.displayName;
+        locals
+          .assigneesMap
+          .get(phoneNumber)
+          .uid = record.uid;
+        locals
+          .assigneesMap
+          .get(phoneNumber)
+          .photoURL = record.photoURL;
+        locals
+          .assigneesMap
+          .get(phoneNumber)
+          .customClaims = record.customClaims;
 
         // /** New user introduced to the system. Saving their phone number. */
         if (!record.hasOwnProperty('uid')) {
@@ -2151,6 +2161,19 @@ module.exports = (change, context) => {
 
           return result;
         })();
+
+        /**
+         * Check-ins clutter the Activities collection and
+         * make the /read resource slow.
+         */
+        if (template === 'check-in'
+          && (!locals.assigneesMap.has(phoneNumber)
+            || !locals.assigneesMap.get(phoneNumber).uid)) {
+          console.log('skipping', phoneNumber);
+          return;
+        } else {
+          console.log('writing', phoneNumber);
+        }
 
         batch.set(rootCollections
           .profiles
