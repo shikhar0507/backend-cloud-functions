@@ -38,134 +38,213 @@ const {
 } = require('../admin/responses');
 
 
-module.exports = (conn) => {
+module.exports = async conn => {
   if (conn.req.method !== 'POST') {
-    sendResponse(
+    return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for ${conn.req.url}. Use 'POST'.`
+      `${conn.req.method} is not allowed`
+      + ` for ${conn.req.url}. Use 'POST'.`
     );
-
-    return;
   }
 
   const phoneNumber = conn.requester.phoneNumber;
   const message = conn.req.body.message;
 
   if (!message) {
-    sendResponse(conn, code.noContent);
-
-    return;
+    return sendResponse(conn, code.noContent);
   }
 
-  const MAX_THRESHOLD = 10;
+  const THRESHOLD = 10;
   const dateObject = new Date();
   const date = dateObject.getDate();
   const month = dateObject.getMonth();
   const year = dateObject.getFullYear();
 
-  // message, body, device
-  rootCollections
-    .errors
-    .where('message', '==', message)
-    .where('date', '==', date)
-    .where('month', '==', month)
-    .where('year', '==', year)
-    .limit(1)
-    .get()
-    .then((docs) => {
-      if (docs.empty) {
-        return rootCollections
-          .errors
-          .doc()
-          .set({
-            message,
-            date,
-            month,
-            year,
-            count: 1,
-            affectedUsers: {
-              [phoneNumber]: 1,
-            },
-            bodyObject: {
-              [phoneNumber]: conn.req.body.body || '',
-            },
-            deviceObject: {
-              [phoneNumber]: conn.req.body.device || '',
-            },
+  try {
+    const errorDocsQueryResult = await rootCollections
+      .errors
+      .where('message', '==', message)
+      .where('date', '==', date)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .limit(1)
+      .get();
+
+    const doc = (() => {
+      if (errorDocsQueryResult.empty) {
+        return rootCollections.errors.doc();
+      }
+
+      return errorDocsQueryResult.docs[0];
+    })();
+
+    const getValue = field => {
+      if (errorDocsQueryResult.empty) return {};
+
+      return errorDocsQueryResult.docs[0].get(field) || {};
+    };
+
+    console.log(doc);
+
+    const affectedUsers = getValue('affectedUsers');
+    const bodyObject = getValue('bodyObject');
+    const deviceObject = getValue('deviceObject');
+    // const emailSent = doc.get('emailSent') || false;
+
+    if (!bodyObject[phoneNumber]) {
+      const data = (() => {
+        if (typeof conn.req.body.body === 'string') {
+          return conn.req.body.body;
+        }
+
+        return JSON.stringify(conn.req.body.body);
+      })();
+
+      bodyObject[phoneNumber] = `${data || ''}`;
+    }
+
+    if (!deviceObject[phoneNumber]) {
+      const data = (() => {
+        if (typeof conn.req.body.device === 'string') {
+          return conn.req.body.device;
+        }
+
+        return JSON.stringify(conn.req.body.device);
+      })();
+
+      deviceObject[phoneNumber] = `${data || ''}`;
+    }
+
+    const batch = db.batch();
+
+    // Increment the count
+    affectedUsers[
+      phoneNumber
+    ] = (affectedUsers[phoneNumber] || 0) + 1;
+
+    const docData = {
+      affectedUsers,
+      bodyObject,
+      deviceObject,
+      timestamp: Date.now(),
+    };
+
+    if (conn.req.body.hasOwnProperty('locationError')
+      && typeof conn.req.body.locationError === 'boolean') {
+      docData
+        .locationError = conn.req.body.locationError;
+    }
+
+    if (!errorDocsQueryResult.empty
+      && !errorDocsQueryResult.docs[0].get('emailSent')
+      && Object.keys(affectedUsers).length >= THRESHOLD) {
+      const getSubject = (message) =>
+        `Error count >= 10: '${message}': ${process.env.GCLOUD_PROJECT}`;
+
+      batch
+        .set(rootCollections
+          .instant
+          .doc(), {
+            subject: getSubject(message),
+            messageBody: JSON.stringify(docData, ' ', 2),
           });
-      }
 
-      const doc = docs.docs[0];
-      const {
-        affectedUsers,
-        bodyObject,
-        deviceObject,
-        emailSent,
-      } = doc.data();
+      docData
+        .emailSent = true;
+    }
 
-      if (!bodyObject[phoneNumber]) {
-        const data = (() => {
-          if (typeof conn.req.body.body === 'string') {
-            return conn.req.body.body;
-          }
+    const special = `We have blocked all requests`;
+    // console.log(conn.req.body.message);
 
-          return JSON.stringify(conn.req.body.body);
-        })();
+    if (conn.req.body.message.startsWith(special)) {
+      // last read
+      // last now
+      // last activity
+      // last addendum
+      const lastQueryFrom = conn
+        .requester
+        .profileDoc
+        .get('lastQueryFrom');
+      const updatesDoc = await rootCollections
+        .updates
+        .doc(conn.requester.uid)
+        .get();
+      const lastNowRequestTimestamp = updatesDoc
+        .get('lastNowRequestTimestamp');
+      const latestActivityQuery = await rootCollections
+        .profiles
+        .doc(phoneNumber)
+        .collection('Activities')
+        .orderBy('timestamp', 'desc')
+        .limit(1)
+        .get();
 
-        bodyObject[phoneNumber] = `${data || ''}`;
-      }
+      docData
+        .blockedRequests = docData.blockedRequests || {};
+      docData
+        .blockedRequests[
+        phoneNumber
+      ] = docData.blockedRequests[phoneNumber] || [];
 
-      if (!deviceObject[phoneNumber]) {
-        const data = (() => {
-          if (typeof conn.req.body.device === 'string') {
-            return conn.req.body.device;
-          }
-
-          return JSON.stringify(conn.req.body.device);
-        })();
-
-        deviceObject[phoneNumber] = `${data || ''}`;
-      }
-
-      const batch = db.batch();
-
-      // Increment the count
-      affectedUsers[phoneNumber] = (affectedUsers[phoneNumber] || 0) + 1;
-
-      const docData = {
-        affectedUsers,
-        bodyObject,
-        deviceObject,
+      const object = {
+        lastQueryFrom: lastQueryFrom || null,
+        lastNowRequestTimestamp: lastNowRequestTimestamp || null,
       };
 
-      if (conn.req.body.hasOwnProperty('locationError')
-        && typeof conn.req.body.locationError === 'boolean') {
-        docData.locationError = conn.req.body.locationError;
+      if (!latestActivityQuery.empty) {
+        object
+          .latestActivityQuery = latestActivityQuery
+            .docs[0]
+            .data();
       }
 
-      if (!emailSent
-        && Object.keys(affectedUsers).length >= MAX_THRESHOLD) {
-        const getSubject = (message) =>
-          `Error count >= 10: '${message}': ${process.env.GCLOUD_PROJECT}`;
+      const employeeOf = conn
+        .requester
+        .profileDoc
+        .get('employeeOf') || {};
+      const officeId = Object.values(employeeOf)[0];
 
-        batch
-          .set(rootCollections
-            .instant
-            .doc(), {
-              subject: getSubject(message),
-              messageBody: JSON.stringify(docData, ' ', 2),
-            });
+      if (officeId) {
+        const latestAddendumQueryResult = await rootCollections
+          .offices
+          .doc(officeId)
+          .collection('Addendum')
+          .where('user', '==', phoneNumber)
+          .orderBy('timestamp', 'desc')
+          .limit(1)
+          .get();
 
-        docData.emailSent = true;
+        if (!latestAddendumQueryResult.empty) {
+          object
+            .latestAddendumDoc = latestAddendumQueryResult
+              .docs[0].data();
+        }
       }
 
-      batch.set(doc.ref, docData, {
-        merge: true,
-      });
+      docData
+        .blockedRequests[
+        phoneNumber
+      ].push(object);
+    }
 
-      return batch.commit();
-    })
-    .then(() => sendResponse(conn, code.noContent))
-    .catch((error) => handleError(conn, error));
+    const errorDocRef = rootCollections
+      .errors
+      .doc(doc.id);
+
+    docData.date = date;
+    docData.month = month;
+    docData.year = year;
+    docData.message = conn.req.body.message;
+
+    batch.set(errorDocRef, docData, {
+      merge: true,
+    });
+
+    await batch.commit();
+
+    return sendResponse(conn, code.ok, docData);
+  } catch (error) {
+    return handleError(conn, error);
+  }
 };
