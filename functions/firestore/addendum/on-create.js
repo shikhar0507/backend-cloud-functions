@@ -694,92 +694,94 @@ const createComments = async (addendumDoc, locals) => {
   locals.assigneesMap = new Map();
   const newPhoneNumbers = [];
 
-  const [assignees, activityNew] = await Promise
-    .all([
-      rootCollections
-        .activities
-        .doc(activityId)
-        .collection('Assignees')
-        .get(),
-      rootCollections
-        .activities
-        .doc(activityId)
-        .get(),
-    ]);
+  try {
+    const [assignees, activityNew] = await Promise
+      .all([
+        rootCollections
+          .activities
+          .doc(activityId)
+          .collection('Assignees')
+          .get(),
+        rootCollections
+          .activities
+          .doc(activityId)
+          .get(),
+      ]);
 
-  locals.activityNew = activityNew;
+    locals.activityNew = activityNew;
 
-  const batch = db.batch();
-  const assigneeAuthPromises = [];
+    const batch = db.batch();
+    const assigneeAuthPromises = [];
 
-  assignees.forEach(assignee => {
-    const phoneNumber = assignee.id;
-    const authFetch = getAuth(phoneNumber);
+    assignees.forEach(assignee => {
+      const phoneNumber = assignee.id;
+      const authFetch = getAuth(phoneNumber);
 
-    assigneeAuthPromises.push(authFetch);
-  });
-
-  assigneeAuthPromises
-    .push(getAuth(locals.addendumDoc.get('user')));
-
-  const assigneeAuthResults = await Promise.all(assigneeAuthPromises);
-
-  assigneeAuthResults.forEach(userRecord => {
-    if (!userRecord.uid) return;
-
-    locals
-      .assigneesMap
-      .set(userRecord.phoneNumber, userRecord);
-
-    if (userRecord.phoneNumber === locals.addendumDoc.get('user')) {
-      locals
-        .addendumCreatorInAssignees = true;
-    }
-  });
-
-  assignees.forEach(assignee => {
-    const phoneNumber = assignee.id;
-    const auth = locals.assigneesMap.get(phoneNumber);
-
-    if (!auth) {
-      newPhoneNumbers.push(phoneNumber);
-
-      return;
-    }
-
-    const ref = rootCollections
-      .updates
-      .doc(auth.uid)
-      .collection('Addendum')
-      .doc(addendumDoc.id);
-
-    const comment = addendumDoc.get('cancellationMessage')
-      || getCommentString(locals, phoneNumber);
-    /**
-     * Checks if the action was a comment.
-     * @param {string} action Can be one of the activity actions from HTTPS functions.
-     * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
-     */
-    const isComment = action => {
-      // Making this a closure since this function is not going to be used anywhere else.
-      if (action === httpsActions.comment) return 1;
-
-      return 0;
-    };
-
-    batch.set(ref, {
-      comment,
-      activityId,
-      isComment: isComment(locals.addendumDoc.get('action')),
-      timestamp: addendumDoc.get('userDeviceTimestamp'),
-      location: addendumDoc.get('location'),
-      user: addendumDoc.get('user'),
+      assigneeAuthPromises.push(authFetch);
     });
-  });
 
-  // TODO: Create phone number profiles using newPhoneNumbers array
+    assigneeAuthPromises
+      .push(getAuth(locals.addendumDoc.get('user')));
 
-  return batch.commit();
+    const assigneeAuthResults = await Promise.all(assigneeAuthPromises);
+
+    assigneeAuthResults.forEach(userRecord => {
+      if (!userRecord.uid) return;
+
+      locals
+        .assigneesMap
+        .set(userRecord.phoneNumber, userRecord);
+
+      if (userRecord.phoneNumber === locals.addendumDoc.get('user')) {
+        locals
+          .addendumCreatorInAssignees = true;
+      }
+    });
+
+    assignees.forEach(assignee => {
+      const phoneNumber = assignee.id;
+      const auth = locals.assigneesMap.get(phoneNumber);
+
+      if (!auth) {
+        newPhoneNumbers.push(phoneNumber);
+
+        return;
+      }
+
+      const ref = rootCollections
+        .updates
+        .doc(auth.uid)
+        .collection('Addendum')
+        .doc(addendumDoc.id);
+
+      const comment = addendumDoc.get('cancellationMessage')
+        || getCommentString(locals, phoneNumber);
+      /**
+       * Checks if the action was a comment.
+       * @param {string} action Can be one of the activity actions from HTTPS functions.
+       * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
+       */
+      const isComment = action => {
+        // Making this a closure since this function is not going to be used anywhere else.
+        if (action === httpsActions.comment) return 1;
+
+        return 0;
+      };
+
+      batch.set(ref, {
+        comment,
+        activityId,
+        isComment: isComment(locals.addendumDoc.get('action')),
+        timestamp: addendumDoc.get('userDeviceTimestamp'),
+        location: addendumDoc.get('location'),
+        user: addendumDoc.get('user'),
+      });
+    });
+
+    return batch.commit();
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 
