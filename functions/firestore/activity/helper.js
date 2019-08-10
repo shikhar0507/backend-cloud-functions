@@ -1471,8 +1471,8 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
     return response;
   }
 
-  const ON_LEAVE_CONFLICT_MESSAGE = 'Leave already applied for the following date(s)';
-  const ON_AR_CONFLICT_MESSAGE = 'Attendance already regularized for the following date(s)';
+  const LEAVE_WITH_LEAVE_MESSAGE = 'Leave already applied for the following date(s)';
+  const AR_WITH_AR_MESSAGE = 'Attendance already regularized for the following date(s)';
   const conflictingDates = [];
   const batch = db.batch();
 
@@ -1555,12 +1555,11 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       const monthYear = momentStartTime
         .format(dateFormats.MONTH_YEAR);
       const statusObject = statusObjectMap
-        .get(monthYear);
+        .get(monthYear) || {};
 
       if (!statusObject
         || !statusObject[momentStartTime.date()]
-        || !statusObject[momentStartTime.date()].statusForDay
-        || !statusObject[momentStartTime.date()].statusForDay === 1) {
+        || statusObject[momentStartTime.date()].statusForDay === 1) {
         response.success = false;
         response.message = `The status for `
           + `${momentStartTime.format(dateFormats.DATE)}`
@@ -1581,7 +1580,7 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       if (template === 'leave'
         && (statusObject[date].onLeave || statusObject[date].onAr)) {
         conflictingDates.push(momentFromString.format(dateFormats.DATE));
-        response.message = ON_LEAVE_CONFLICT_MESSAGE;
+        response.message = LEAVE_WITH_LEAVE_MESSAGE;
         response.success = false;
 
         return;
@@ -1590,7 +1589,7 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       if (template === 'attendance regularization'
         && (statusObject[date].onAr || statusObject[date].onLeave)) {
         conflictingDates.push(momentFromString.format(dateFormats.DATE));
-        response.message = ON_AR_CONFLICT_MESSAGE;
+        response.message = AR_WITH_AR_MESSAGE;
         response.success = false;
 
         return;
