@@ -808,6 +808,7 @@ module.exports = conn => {
       .collection('Subscriptions')
       .where('office', '==', conn.req.body.office)
       .where('template', '==', conn.req.body.template)
+      .where('status', '==', 'CONFIRMED')
       .limit(1)
       .get(),
     rootCollections
