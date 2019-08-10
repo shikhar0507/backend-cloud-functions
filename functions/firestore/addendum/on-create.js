@@ -359,6 +359,7 @@ const logLocations = (addendumDoc, locals) => {
           // No need in the report because these are simply
           // paths to the docs.
           skipFromErrorReport: true,
+          timestamp: Date.now(),
         }, {
             merge: true,
           });
