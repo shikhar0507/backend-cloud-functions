@@ -190,6 +190,11 @@ module.exports = async conn => {
       const object = {
         lastQueryFrom: lastQueryFrom || null,
         lastNowRequestTimestamp: lastNowRequestTimestamp || null,
+        userRecord: {
+          phoneNumber: conn.requester.phoneNumber,
+          emailVerified: conn.requester.emailVerified,
+          email: conn.requester.email,
+        },
       };
 
       if (!latestActivityQuery.empty) {
