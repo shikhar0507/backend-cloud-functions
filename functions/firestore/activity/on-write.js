@@ -1536,7 +1536,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
   const activityRef = rootCollections
     .activities
     .doc();
-  const officeId = locals.change.after.id;
+  const officeId = locals.change.after.get('officeId');
   const addendumDocRef = rootCollections
     .offices
     .doc(officeId)
@@ -1557,7 +1557,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
     venue: branchData.venue,
     attachment: branchData.attachment,
     canEditRule: branchTemplateDoc.get('canEditRule'),
-    timezone: locals.change.after.get('attachment.Timezone.value'),
+    timezone: locals.change.after.get('timezone'),
     timestamp: Date.now(),
     office: locals.change.after.get('office'),
     activityName: activityName({
@@ -1566,11 +1566,12 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
       requester: locals.change.after.get('creator'),
     }),
     adjustedGeopoints: `${gp.latitude},${gp.longitude}`,
+    creator: locals.change.after.get('creator'),
   };
 
   const addendumDocData = {
     activityData,
-    timezone: locals.change.after.get('attachment.Timezone.value'),
+    timezone: locals.change.after.get('timezone'),
     user: locals.change.after.get('creator.phoneNumber'),
     userDisplayName: locals.change.after.get('creator.displayName'),
     action: httpsActions.create,
@@ -1713,11 +1714,34 @@ const mangeYouTubeDataApi = async locals => {
     },
   };
 
-
   try {
     return youtube.videos.update(opt);
   } catch (error) {
     console.error(error);
+  }
+};
+
+const handleSitemap = async locals => {
+  try {
+    const path = 'sitemap';
+    const sitemapObject = await admin.database().ref(path).once('value');
+    const sitemap = sitemapObject.val() || {};
+    const office = locals.change.after.get('office');
+
+    sitemap[
+      slugify(office)
+    ] = {
+        office: locals.change.after.get('office'),
+        lastMod: locals.change.after.updateTime.toDate().toJSON(),
+        createTime: locals.change.after.createTime.toDate().toJSON(),
+      };
+
+    return admin
+      .database()
+      .ref(path)
+      .set(sitemap);
+  } catch (error) {
+    console.error();
   }
 };
 
@@ -1739,6 +1763,7 @@ const handleOffice = async locals => {
   await createAdmin(locals, firstContact);
   await createAdmin(locals, secondContact);
   await createBranches(locals);
+  await handleSitemap(locals);
 
   return mangeYouTubeDataApi(locals);
 };
@@ -2169,10 +2194,7 @@ module.exports = (change, context) => {
         if (template === 'check-in'
           && (!locals.assigneesMap.has(phoneNumber)
             || !locals.assigneesMap.get(phoneNumber).uid)) {
-          console.log('skipping', phoneNumber);
           return;
-        } else {
-          console.log('writing', phoneNumber);
         }
 
         batch.set(rootCollections
