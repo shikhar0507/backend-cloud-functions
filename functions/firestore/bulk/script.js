@@ -44,12 +44,6 @@ const googleMapsClient =
       Promise: Promise,
     });
 
-// const xlsxPopulate = require('xlsx-populate');
-// const {
-//   alphabetsArray,
-// } = require('../../firestore/recipients/report-utils');
-
-
 const getVenueFieldsSet = templateDoc => {
   if (!templateDoc.get('venue').length > 0) {
     return new Set();
@@ -57,7 +51,6 @@ const getVenueFieldsSet = templateDoc => {
 
   return new Set()
     .add('venueDescriptor')
-    // .add('placeId')
     .add('location')
     .add('address')
     .add('latitude')
