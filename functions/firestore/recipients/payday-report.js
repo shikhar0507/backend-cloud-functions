@@ -397,7 +397,8 @@ module.exports = async locals => {
         .where('timestamp', '>=', addendumQueryStart)
         .where('timestamp', '<', addendumQueryEnd);
 
-      if (checkDistanceAccurate) {
+      // could be a string with something other than a boolean
+      if (checkDistanceAccurate === true) {
         baseQuery = baseQuery
           .where('distanceAccurate', '==', true);
       }
