@@ -990,6 +990,64 @@ const handleEmailVerificationFlow = conn => {
     });
 };
 
+const handleSitemap = async conn => {
+  const getUrlItem = (slug = '', object = {}) => {
+    let str = `<url>`;
+    str += '<loc>';
+    str += `https://growthfile.com/${slug}`;
+    str += `</loc>`;
+
+    if (object) {
+      str += `<lastmod>`;
+      str += `${object.lastMod}`;
+      str += `</lastmod>`;
+    }
+
+    str += `</url>`;
+
+    return str;
+  };
+
+  try {
+    const path = 'sitemap';
+    const result = await admin.database().ref(path).once('value');
+    const sitemapObject = result.val() || {};
+    const allOffices = Object.entries(sitemapObject);
+    let xmlString = '';
+
+    allOffices.forEach((office, index) => {
+      const [slug, object] = office;
+
+      if (index === 0) {
+        xmlString += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+      }
+
+      xmlString += getUrlItem(slug, object);
+    });
+
+    const lastMod = new Date().toJSON();
+
+    [
+      '', // home page
+      'privacy-policy',
+      'contact',
+      'terms-and-conditions'
+    ].forEach(slug => {
+      xmlString += getUrlItem(slug, { lastMod });
+    });
+
+    xmlString += `</urlset>`;
+    conn.res.set('Content-Type', 'text/xml');
+
+    return conn
+      .res
+      .send(xmlString);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+
 module.exports = (req, res) => {
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
   const slug = getSlugFromUrl(req.url);
@@ -1049,21 +1107,7 @@ module.exports = (req, res) => {
   }
 
   if (slug === 'sitemap') {
-    return rootCollections
-      .sitemaps
-      .doc('growthfile.com')
-      .get()
-      .then((doc) => {
-        conn.res.set('Content-Type', 'text/xml');
-
-        return conn.res.send(doc.get('sitemap'));
-      })
-      .catch(error => {
-        console.error(error);
-        const html = handleServerError();
-
-        return conn.res.status(code.internalServerError).send(html);
-      });
+    return handleSitemap(conn);
   }
 
   if (slug === 'config') {
