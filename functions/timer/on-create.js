@@ -31,7 +31,6 @@ const {
 } = require('../admin/admin');
 const {
   getRelevantTime,
-  promisifiedRequest,
 } = require('../admin/utils');
 const {
   reportNames,
@@ -43,6 +42,8 @@ const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
 const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
+const rpn = require('request-promise-native');
+const url = require('url');
 
 const sendErrorReport = () => {
   const today = momentTz().subtract(1, 'days');
@@ -168,7 +169,7 @@ const handleRelevantTime = () => {
   });
 };
 
-const setBackblazeIdToken = timerDoc => {
+const setBackblazeIdToken = async timerDoc => {
   const getKeyId = (applicationKey, keyId) => {
     return `${keyId}:${applicationKey}`;
   };
@@ -179,24 +180,28 @@ const setBackblazeIdToken = timerDoc => {
   const authorization =
     `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
 
-  return promisifiedRequest({
-    hostname: `api.backblazeb2.com`,
-    path: `/b2api/v2/b2_authorize_account`,
-    headers: {
-      Authorization: authorization,
-    },
-  })
-    .then(response => {
-      return timerDoc
-        .ref
-        .set({
-          apiUrl: response.apiUrl,
-          backblazeAuthorizationToken: response.authorizationToken,
-        }, {
-            merge: true,
-          });
-    })
-    .catch(console.error);
+  try {
+    const uri = url.resolve('https://api.backblazeb2.com', '/b2api/v2/b2_authorize_account');
+
+    const response = await rpn(uri, {
+      headers: {
+        Authorization: authorization,
+      },
+      json: true,
+    });
+
+    return timerDoc
+      .ref
+      .set({
+        apiUrl: response.apiUrl,
+        backblazeAuthorizationToken: response.authorizationToken,
+        downloadUrl: response.downloadUrl,
+      }, {
+          merge: true,
+        });
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const deleteInstantDocs = async () => {
