@@ -155,8 +155,8 @@ const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeD
       statusObject.statusForDay = 1;
     }
 
-    // TODO: Store office in this doc
     batchArray[batchIndex].set(ref, {
+      officeId: officeDoc.id,
       office: officeDoc.get('office'),
       month: momentYesterday.month(),
       year: momentYesterday.year(),
