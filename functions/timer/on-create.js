@@ -45,7 +45,8 @@ const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
 
-const sendErrorReport = () => {
+
+const sendErrorReport = async () => {
   const today = momentTz().subtract(1, 'days');
 
   const getHTMLString = (doc, index) => {
@@ -62,44 +63,39 @@ const sendErrorReport = () => {
     <hr>`;
   };
 
-  return rootCollections
+  const docs = await rootCollections
     .errors
     .where('date', '==', today.date())
     .where('month', '==', today.month())
     .where('year', '==', today.year())
-    .get()
-    .then((snapShot) => {
-      if (snapShot.empty) {
-        // No errors yesterday
-        return Promise.resolve();
-      }
+    .get();
 
-      let messageBody = '';
-      let index = 0;
+  if (docs.empty) {
+    // No errors yesterday
+    return;
+  }
 
-      snapShot.docs.forEach((doc) => {
-        if (doc.get('skipFromErrorReport')) return;
+  let messageBody = '';
+  let index = 0;
 
-        messageBody += `${getHTMLString(doc, index)}\n\n`;
+  docs.docs.forEach((doc) => {
+    if (doc.get('skipFromErrorReport')) return;
 
-        index++;
-      });
+    messageBody += `${getHTMLString(doc, index)}\n\n`;
 
-      const subject = `${process.env.GCLOUD_PROJECT}`
-        + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
+    index++;
+  });
 
-      const sgMail = require('@sendgrid/mail');
-      const env = require('../admin/env');
-      sgMail.setApiKey(env.sgMailApiKey);
+  const subject = `${process.env.GCLOUD_PROJECT}`
+    + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
 
-      return sgMail.send({
-        subject,
-        to: env.instantEmailRecipientEmails,
-        from: { name: 'Growthile', email: env.systemEmail },
-        html: messageBody,
-      });
-    })
-    .catch(console.error);
+  return sgMail
+    .send({
+      subject,
+      to: env.instantEmailRecipientEmails,
+      from: { name: 'Growthile', email: env.systemEmail },
+      html: messageBody,
+    });
 };
 
 const runQuery = (query, resolve, reject) => {
@@ -210,113 +206,104 @@ const deleteInstantDocs = async () => {
   const batch = db.batch();
 
   // Delete docs older than 100 days
-  try {
-    const docs = await rootCollections
-      .instant
-      .where('timestamp', '<=', hundredDaysBeforeMoment.valueOf())
-      .get();
+  const docs = await rootCollections
+    .instant
+    .where('timestamp', '<=', hundredDaysBeforeMoment.valueOf())
+    .get();
 
 
-    docs.forEach(doc => batch.delete(doc.ref));
+  docs.forEach(doc => batch.delete(doc.ref));
 
-    return batch.commit();
-  } catch (error) {
-    console.error(error);
-  }
+  return batch.commit();
 };
 
-module.exports = timerDoc => {
+module.exports = async timerDoc => {
   if (timerDoc.get('sent')) {
     // Helps to check if email is sent already.
     // Cloud functions sometimes trigger multiple times
     // For a single write.
-    return Promise.resolve();
+    return;
   }
 
-  return timerDoc
-    .ref
-    .set({
-      sent: true,
+  try {
+    await timerDoc.ref.set({ sent: true }, { merge: true });
+
+    const messages = [];
+
+    env
+      .instantEmailRecipientEmails
+      .forEach(email => {
+        const html = `<p>Date (DD-MM-YYYY): `
+          + `${timerDoc.id}</p>
+            <p>Timestamp:`
+          + ` ${new Date(timerDoc.get('timestamp')).toJSON()}</p>`;
+        const message = {
+          html,
+          cc: '',
+          subject: 'FROM Timer function',
+          to: email,
+          from: {
+            name: 'Growthfile',
+            email: env.systemEmail,
+          },
+        };
+
+        messages.push(message);
+      });
+
+    await Promise
+      .all([
+        sgMail.sendMultiple(messages),
+        sendErrorReport(),
+        setBackblazeIdToken(timerDoc)
+      ]);
+
+    const momentYesterday = moment()
+      .subtract(1, 'day')
+      .startOf('day');
+
+    const [
+      recipientsQuery,
+      counterDocsQuery,
+    ] = await Promise
+      .all([
+        rootCollections
+          .recipients
+          .get(),
+        rootCollections
+          .inits
+          .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+          .where('date', '==', momentYesterday.date())
+          .where('month', '==', momentYesterday.month())
+          .where('year', '==', momentYesterday.year())
+          .limit(1)
+          .get(),
+      ]);
+
+    const batch = db.batch();
+
+    recipientsQuery
+      .forEach(doc => {
+        batch
+          .set(doc.ref, { timestamp: Date.now() }, { merge: true });
+      });
+
+    batch.set(counterDocsQuery.docs[0].ref, {
+      /**
+       * Storing this value in the daily status report counts doc in order
+       * to check if all reports have finished their work.
+       */
+      expectedRecipientTriggersCount: recipientsQuery.size,
+      recipientsTriggeredToday: 0,
     }, {
         merge: true,
-      })
-    .then(() => {
-      const messages = [];
+      });
 
-      env
-        .instantEmailRecipientEmails
-        .forEach(email => {
-          const html = `<p>Date (DD-MM-YYYY): `
-            + `${timerDoc.id}</p>
-            <p>Timestamp:`
-            + ` ${new Date(timerDoc.get('timestamp')).toJSON()}</p>`;
+    await batch.commit();
 
-          messages.push({
-            html,
-            cc: '',
-            subject: 'FROM Timer function',
-            to: email,
-            from: {
-              name: 'Growthfile',
-              email: env.systemEmail,
-            },
-          });
-        });
+    return deleteInstantDocs();
 
-      return Promise
-        .all([
-          sgMail.sendMultiple(messages),
-          sendErrorReport(),
-          setBackblazeIdToken(timerDoc)
-        ]);
-    })
-    .then(() => {
-      const momentYesterday = moment()
-        .subtract(1, 'day')
-        .startOf('day');
-
-      return Promise
-        .all([
-          rootCollections
-            .recipients
-            .get(),
-          rootCollections
-            .inits
-            .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-            .where('date', '==', momentYesterday.date())
-            .where('month', '==', momentYesterday.month())
-            .where('year', '==', momentYesterday.year())
-            .limit(1)
-            .get(),
-        ]);
-    })
-    .then(result => {
-      const [
-        recipientsQuery,
-        counterDocsQuery,
-      ] = result;
-
-      const batch = db.batch();
-
-      recipientsQuery
-        .forEach(doc => {
-          batch
-            .set(doc.ref, { timestamp: Date.now() }, { merge: true });
-        });
-
-      batch.set(counterDocsQuery.docs[0].ref, {
-        /**
-         * Storing this value in the daily status report counts doc in order
-         * to check if all reports have finished their work.
-         */
-        expectedRecipientTriggersCount: recipientsQuery.size,
-        recipientsTriggeredToday: 0,
-      }, {
-          merge: true,
-        });
-
-      return batch.commit();
-    })
-    .then(() => deleteInstantDocs())
-    .catch(console.error);
+  } catch (error) {
+    console.error(error);
+  }
 };
