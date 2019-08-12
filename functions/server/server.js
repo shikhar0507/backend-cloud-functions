@@ -360,7 +360,7 @@ module.exports = async (req, res) => {
     return sendResponse(
       conn,
       code.forbidden,
-      'Not allowed'
+      `Missing 'X-CF-Secret' header in the request headers`
     );
   }
 
