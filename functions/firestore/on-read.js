@@ -163,9 +163,6 @@ const getSubscriptionObject = doc => ({
   report: doc.get('report') || null,
 });
 
-const getLocations = ref => new Promise(resolve => ref.on('value', resolve));
-
-
 const getStatusObject = async profileDoc => {
   const result = [];
 
@@ -199,17 +196,15 @@ const getStatusObject = async profileDoc => {
     officeNamesMap.set(id, name);
   });
 
-  officeNamesMap.forEach((id, name) => {
-    const p = rootCollections
+  officeNamesMap.forEach((_, name) => {
+    promises.push(rootCollections
       .offices
       .doc(name)
       .collection('Statuses')
       .doc(monthYearString)
       .collection('Employees')
       .doc(phoneNumber)
-      .get();
-
-    promises.push(p);
+      .get());
   });
 
   try {
@@ -314,7 +309,7 @@ module.exports = async conn => {
         .database()
         .ref(path);
 
-      locationPromises.push(getLocations(ref));
+      locationPromises.push(ref.once('value'));
     });
 
     promises.push(Promise.all(locationPromises));
