@@ -177,7 +177,7 @@ module.exports = async conn => {
         merge: true,
       });
 
-    const timezone = 'Asia/Kolkata';
+    const timezone = employeeActivity.get('timezone') || 'Asia/Kolkata';
     const momentToday = momentTz().tz(timezone);
     const officeId = oldEmployeeQueryResult
       .docs[0]
