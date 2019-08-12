@@ -119,8 +119,9 @@ const getPaydayTimingsSheetValue = options => {
     + ` ${statusObject[date].numberOfCheckIns || 0}`;
 };
 
-const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeId) => {
+const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeDoc) => {
   const dateYesterday = momentYesterday.date();
+  const officeId = officeDoc.get('officeId');
   const monthYearString = momentYesterday.format(dateFormats.MONTH_YEAR);
   const numberOfDocs = statusMap.size;
   const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
@@ -154,7 +155,9 @@ const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeI
       statusObject.statusForDay = 1;
     }
 
+    // TODO: Store office in this doc
     batchArray[batchIndex].set(ref, {
+      office: officeDoc.get('office'),
       month: momentYesterday.month(),
       year: momentYesterday.year(),
       statusObject: {
@@ -467,7 +470,7 @@ module.exports = async locals => {
         yesterdaysStatusMap,
         allowedToBeInactive,
         momentYesterday,
-        locals.officeDoc.id
+        locals.officeDoc
       );
     }
 
