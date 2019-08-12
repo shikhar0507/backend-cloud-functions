@@ -50,10 +50,22 @@ handlebars.registerPartial('appFeaturesPartial', appFeaturesPartial);
 handlebars.registerPartial('heroPartial', heroPartial);
 handlebars.registerPartial('enquiryPartial', enquiryPartial);
 
-const getStaticMapsUrl = (branchObjectsArray) => {
-  let url = `https://maps.googleapis.com/maps/api/staticmap?center=New+Delhi&zoom=13&maptype=roadmap`;
+const sendHTML = (conn, html) => conn.res.send(html);
+const sendJSON = (conn, json) => conn.res.json(json);
+const sendXML = (conn, xml) => {
+  conn
+    .res
+    .set('Content-Type', 'text/xml');
 
-  branchObjectsArray.forEach((branch) => {
+  return conn.res.send(xml);
+};
+
+
+const getStaticMapsUrl = (branchObjectsArray) => {
+  let url = `https://maps.googleapis.com/maps/api/`
+    + `staticmap?center=New+Delhi&zoom=13&maptype=roadmap`;
+
+  branchObjectsArray.forEach(branch => {
     const { gp } = branch;
 
     if (!gp || !gp.latitude || !gp.longitude) return;
@@ -159,7 +171,6 @@ const getLoggedInStatus = idToken => {
         isAnonymous: userRecord.isAnonymous,
         displayName: userRecord.displayName,
         emailVerified: userRecord.emailVerified,
-        isTemplateManager: customClaims.manageTemplates,
       };
     })
     .catch(error => {
@@ -196,12 +207,12 @@ const handleOfficePage = (locals, requester) => {
       return locals.officeDoc.get('attachment.Description.value') || '';
     }
 
-    return `Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, and going through the cites of the word in classical literature, discovered the undoubtable source.`;
+    return `Contrary to popular belief, Lorem Ipsum is not simply random text.`;
   })();
 
   const logoURL = (() => {
-    if (locals.officeDoc.get('attachment.logoURL.value')) {
-      return locals.officeDoc.get('attachment.logoURL.value');
+    if (locals.officeDoc.get('attachment.Company Logo.value')) {
+      return locals.officeDoc.get('attachment.Company Logo.value');
     }
 
     const slug = locals.officeDoc.get('slug');
@@ -235,11 +246,11 @@ const handleOfficePage = (locals, requester) => {
     userEmail: requester.email || '',
     userDisplayName: requester.displayName || '',
     userPhoneNumber: requester.phoneNumber || '',
-    officeEmployeeSize: locals.officeEmployeeSize,
+    // officeEmployeeSize: locals.officeEmployeeSize,
     officeName: locals.officeDoc.get('office'),
     pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
     mainImageUrl: '/img/logo-main.jpg',
-    cannonicalUrl: `${env.mainDomain}/locals.slug`,
+    cannonicalUrl: `${env.mainDomain}/${locals.slug}`,
     mapsApiKey: env.mapsApiKey,
     branchObjectsArray: locals.branchObjectsArray,
     staticMapsUrl: getStaticMapsUrl(locals.branchObjectsArray),
@@ -247,8 +258,7 @@ const handleOfficePage = (locals, requester) => {
     displayBranch: locals.branchObjectsArray.length > 0,
     displayProducts: locals.productObjectsArray.length > 0,
     slug: locals.slug,
-    isLoggedIn: locals.isLoggedIn,
-    showPersistentBar: true,
+    isLoggedIn: !!requester.uid,
     pageIndexable: true,
     phoneNumber: requester.phoneNumber,
     email: requester.email,
@@ -257,13 +267,12 @@ const handleOfficePage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
     officeFirstChar: locals.officeDoc.get('office').charAt(0),
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
-  return Promise.resolve(html);
+  return html;
 };
 
 const getBranchOpenStatus = (doc, timezone) => {
@@ -290,30 +299,45 @@ const getBranchOpenStatus = (doc, timezone) => {
     return result;
   }
 
-  const currentMoment = momentTz().tz(timezone);
-  const currentTimestamp = currentMoment.valueOf();
-  const todaysDay = currentMoment.format('dddd').toLowerCase();
+  const currentMoment = momentTz()
+    .tz(timezone);
+  const currentTimestamp = currentMoment
+    .valueOf();
+  const todaysDay = currentMoment
+    .format('dddd')
+    .toLowerCase();
   const MILLS_IN_1_HOUR = 3600000;
   const isSaturday = todaysDay === 'saturday';
 
   if (todaysDay === weeklyOff) {
     result.isClosed = true;
-    const nextDayMoment = currentMoment.startOf('day').add(1, 'day');
-    const isNextDaySaturday = nextDayMoment.format('dddd').toLowerCase() === 'saturday';
+    const nextDayMoment = currentMoment
+      .startOf('day')
+      .add(1, 'day');
+    const isNextDaySaturday = nextDayMoment
+      .format('dddd')
+      .toLowerCase() === 'saturday';
 
     if (isNextDaySaturday) {
-      result.openingTime = momentTz(saturdayStartTime).tz(timezone).format(dateFormats.TIME);
+      result
+        .openingTime = momentTz(saturdayStartTime)
+          .tz(timezone)
+          .format(dateFormats.TIME);
 
       return result;
     }
 
-    result.openingTime = momentTz(weekdayStartTime).tz(timezone).format(dateFormats.DATE);
+    result
+      .openingTime = momentTz(weekdayStartTime)
+        .tz(timezone)
+        .format(dateFormats.DATE);
 
     return result;
   }
 
   if (isSaturday) {
-    if (currentMoment < saturdayStartTime || currentMoment > saturdayEndTime) {
+    if (currentMoment < saturdayStartTime
+      || currentMoment > saturdayEndTime) {
       result.isClosed = true;
       result.openingTime = momentTz(saturdayStartTime)
         .tz(timezone)
@@ -333,7 +357,8 @@ const getBranchOpenStatus = (doc, timezone) => {
     return result;
   }
 
-  if (weekdayStartTime >= currentTimestamp && weekdayEndTime <= currentTimestamp) {
+  if (weekdayStartTime >= currentTimestamp
+    && weekdayEndTime <= currentTimestamp) {
     const diff = weekdayEndTime - currentTimestamp;
 
     if (diff <= MILLS_IN_1_HOUR) {
@@ -350,6 +375,7 @@ const getBranchOpenStatus = (doc, timezone) => {
 
   return result;
 };
+
 
 const fetchOfficeData = (locals, requester) => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
@@ -374,9 +400,12 @@ const fetchOfficeData = (locals, requester) => {
     .then((result) => {
       const [branchQuery, productQuery] = result;
 
-      locals.branchDocs = branchQuery.docs;
-      locals.productDocs = productQuery.docs;
-      locals.branchObjectsArray = [];
+      locals
+        .branchDocs = branchQuery.docs;
+      locals
+        .productDocs = productQuery.docs;
+      locals
+        .branchObjectsArray = [];
 
       locals
         .branchDocs
@@ -405,36 +434,34 @@ const fetchOfficeData = (locals, requester) => {
             closingTime = '';
           }
 
-          const branchContact = (() => {
-            if (env.isProduction) {
-              return doc.get('attachment.First Contact.value')
-                || doc.get('attachment.Second Contact.value')
-                || '';
-            }
+          const branchContact = doc.get('attachment.First Contact.value')
+            || doc.get('attachment.Second Contact.value')
+            /** Some random number */
+            || '+919090909090';
 
-            // Some random number for the purpose of testing
-            return `+911234567890`;
-          })();
-
-          /** Not sure why I'm doing this... */
-          const latitude = venue.geopoint._latitude || venue.geopoint.latitude;
-          const longitude = venue.geopoint._longitude || venue.geopoint.longitude;
-
-          locals.branchObjectsArray.push({
-            latitude,
-            longitude,
-            isOpen,
-            isClosed,
-            isClosingSoon,
-            openingTime,
-            closingTime,
-            branchContact,
-            gp: { latitude, longitude },
-            address: venue.address,
-            name: doc.get('attachment.Name.value'),
-            weeklyOff: doc.get('attachment.Weekly Off.value'),
-            mapsUrl: toMapsUrl({ latitude, longitude }),
-          });
+          locals
+            .branchObjectsArray
+            .push({
+              isOpen,
+              isClosed,
+              isClosingSoon,
+              openingTime,
+              closingTime,
+              branchContact,
+              address: venue.address,
+              name: doc.get('attachment.Name.value'),
+              weeklyOff: doc.get('attachment.Weekly Off.value'),
+              latitude: venue.geopoint._latitude || venue.geopoint.latitude,
+              longitude: venue.geopoint._longitude || venue.geopoint.longitude,
+              mapsUrl: toMapsUrl({
+                latitude: venue.geopoint._latitude || venue.geopoint.latitude,
+                longitude: venue.geopoint._longitude || venue.geopoint.longitude,
+              }),
+              gp: {
+                latitude: venue.geopoint._latitude || venue.geopoint.latitude,
+                longitude: venue.geopoint._latitude || venue.geopoint.longitude,
+              },
+            });
         });
 
       const office = locals.officeDoc.get('office');
@@ -468,8 +495,7 @@ const handleJoinPage = (locals, requester) => {
   const template = handlebars.compile(source, { strict: true });
   const html = template({
     pageTitle: 'Join Growthfile',
-    isLoggedIn: locals.isLoggedIn,
-    showPersistentBar: false,
+    isLoggedIn: !!requester.uid,
     pageIndexable: true,
     pageDescription: 'Join Growthfile',
     phoneNumber: requester.phoneNumber,
@@ -479,8 +505,6 @@ const handleJoinPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManager: requester.isTemplateManager,
-    initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
@@ -496,12 +520,11 @@ const handleHomePage = (locals, requester) => {
     user: JSON.stringify({
       isSupport: requester.isSupport,
       admin: requester.isAdmin,
-      isTemplateManager: requester.isTemplateManager,
     }),
     mapsApiKey: env.mapsApiKey,
     pageTitle: 'Growthfile Home',
     pageDescription: 'One app for employees of all offices',
-    isLoggedIn: locals.isLoggedIn,
+    isLoggedIn: !!requester.uid,
     /** Person is Support or already an admin of an office */
     pageIndexable: true,
     phoneNumber: requester.phoneNumber,
@@ -512,13 +535,9 @@ const handleHomePage = (locals, requester) => {
     isSupport: requester.isSupport,
     isAdmin: requester.isAdmin,
     adminOffices: requester.adminOffices,
-    isTemplateManager: requester.isTemplateManager,
-    initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
     isAdminOrSupport: requester.isAdmin || requester.isSupport,
-    showActions: requester.isAdmin
-      || requester.isSupport
-      || requester.isTemplateManager,
+    showActions: requester.isAdmin || requester.isSupport,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
 
@@ -531,8 +550,7 @@ const handleAuthPage = (locals, requester) => {
   const html = template({
     pageTitle: 'Login to Growthfile',
     pageDescription: '',
-    isLoggedIn: locals.isLoggedIn,
-    showPersistentBar: false,
+    isLoggedIn: !!requester.uid,
     pageIndexable: false,
     phoneNumber: requester.phoneNumber,
     email: requester.email,
@@ -541,8 +559,6 @@ const handleAuthPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManager: requester.isTemplateManager,
-    initOptions: env.webappInitOptions,
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
@@ -556,8 +572,7 @@ const handleDownloadPage = (locals, requester) => {
   const html = template({
     pageTitle: 'Download Growthfile App for your Android and iOS Phones',
     pageDescription: 'Download growthfile app for your android and iOS devices',
-    isLoggedIn: locals.isLoggedIn,
-    showPersistentBar: true,
+    isLoggedIn: !!requester.uid,
     pageIndexable: true,
     phoneNumber: requester.phoneNumber,
     email: requester.email,
@@ -566,7 +581,6 @@ const handleDownloadPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
@@ -580,8 +594,7 @@ const handleContactPage = (locals, requester) => {
   const html = template({
     pageTitle: 'Contact Us | Growthfile',
     pageDescription: 'Please fill the form to contact us',
-    isLoggedIn: locals.isLoggedIn,
-    showPersistentBar: false,
+    isLoggedIn: !!requester.uid,
     phoneNumber: requester.phoneNumber,
     email: requester.email,
     emailVerified: requester.emailVerified,
@@ -589,7 +602,6 @@ const handleContactPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
@@ -603,8 +615,7 @@ const handleTermsAndConditionsPage = (locals, requester) => {
   const html = template({
     pageTitle: 'Terms and Conditions | Growthfile',
     pageDescription: 'Terms and conditions for Growthfile',
-    isLoggedIn: locals.isLoggedIn,
-    showPersistentBar: true,
+    isLoggedIn: !!requester.uid,
     phoneNumber: requester.phoneNumber,
     email: requester.email,
     emailVerified: requester.emailVerified,
@@ -612,7 +623,6 @@ const handleTermsAndConditionsPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
@@ -620,9 +630,19 @@ const handleTermsAndConditionsPage = (locals, requester) => {
   return html;
 };
 
-const handle404Page = () => '<h1>Page not found</h1>';
+const handle404Page = conn => {
+  return conn
+    .res
+    .status(code.notFound)
+    .send('<h1>Page not found</h1>');
+};
 
-const handleServerError = () => '<h1>Something went wrong</h1>';
+const handleServerError = conn => {
+  return conn
+    .res
+    .status(code.internalServerError)
+    .send('<h1>Something went wrong</h1>');
+};
 
 const handlePrivacyPolicyPage = (locals, requester) => {
   const source = require('./views/privacy-policy.hbs')();
@@ -630,8 +650,7 @@ const handlePrivacyPolicyPage = (locals, requester) => {
   const html = template({
     pageTitle: 'Privacy Policy | Growthfile',
     pageDescription: 'Privacy Policy for Growthfile Analytics Pvt. Ltd.',
-    isLoggedIn: locals.isLoggedIn,
-    showPersistentBar: true,
+    isLoggedIn: !!requester.uid,
     phoneNumber: requester.phoneNumber,
     email: requester.email,
     emailVerified: requester.emailVerified,
@@ -639,7 +658,6 @@ const handlePrivacyPolicyPage = (locals, requester) => {
     photoURL: requester.photoURL,
     isSupport: requester.support,
     isAdmin: requester.isAdmin,
-    isTemplateManager: requester.isTemplateManager,
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
@@ -819,7 +837,11 @@ const handleKnownUserView = (conn, requester) => {
   // if pageview is for an office page -> create an addendum
   const batch = db.batch();
   // const phoneNumber = conn.req.body.phoneNumber;
-  const ref = rootCollections.profiles.doc(requester.phoneNumber).collection('Webapp').doc();
+  const ref = rootCollections
+    .profiles
+    .doc(requester.phoneNumber)
+    .collection('Webapp')
+    .doc();
 
   batch
     .set(ref, {
@@ -884,30 +906,6 @@ const handleJsonPostRequest = (conn, requester) => {
     return handleTrackViews(conn);
   }
 
-  if (conn.req.query.action === 'create-template'
-    && requester.isTemplateManager) {
-    conn.requester = {
-      phoneNumber: requester.phoneNumber,
-      uid: requester.uid,
-      customClaims: requester.customClaims,
-      displayName: requester.displayName,
-    };
-
-    return require('../firestore/activity-templates/on-create')(conn);
-  }
-
-  if (conn.req.query.action === 'update-template'
-    && requester.isTemplateManager) {
-    conn.requester = {
-      phoneNumber: requester.phoneNumber,
-      uid: requester.uid,
-      customClaims: requester.customClaims,
-      displayName: requester.displayName,
-    };
-
-    return require('../firestore/activity-templates/on-update')(conn);
-  }
-
   if (conn.req.query.action === 'parse-mail'
     && conn.req.query.token === env.sgMailParseToken) {
     conn.requester = {
@@ -934,7 +932,7 @@ const handleJsonPostRequest = (conn, requester) => {
   return Promise.resolve(json);
 };
 
-const jsonApi = (conn, requester) => {
+const jsonApi = async (conn, requester) => {
   if (conn.req.method === 'POST') {
     return handleJsonPostRequest(conn, requester);
   }
@@ -943,7 +941,7 @@ const jsonApi = (conn, requester) => {
 };
 
 
-const handleEmailVerificationFlow = conn => {
+const handleEmailVerificationFlow = async conn => {
   if (!isNonEmptyString(conn.req.query.uid)) {
     return conn
       .res
@@ -951,46 +949,36 @@ const handleEmailVerificationFlow = conn => {
       .redirect('/');
   }
 
-  return rootCollections
+  const updatesDoc = await rootCollections
     .updates
     .doc(conn.req.query.uid)
-    .get()
-    .then(updatesDoc => {
-      if (!updatesDoc.exists
-        || !updatesDoc.get('emailVerificationRequestPending')) {
-        return conn.res.status(code.temporaryRedirect).redirect('/');
-      }
+    .get();
 
-      return Promise
-        .all([
-          auth
-            .updateUser(conn.req.query.uid, {
-              emailVerified: true,
-            }),
-          updatesDoc
-            .ref
-            .set({
-              emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
-              verificationRequestsCount: (updatesDoc.get('verificationRequestsCount') || 0) + 1,
-            }, {
-                merge: true,
-              })
-        ]);
-    })
-    .then(() => {
-      // TODO: Also set __session cookie in order to login the user.
-      return conn.res.status(code.temporaryRedirect).redirect('/');
-    })
-    .catch(error => {
-      console.error(error);
+  if (!updatesDoc.exists
+    || !updatesDoc.get('emailVerificationRequestPending')) {
+    return conn.res.status(code.temporaryRedirect).redirect('/');
+  }
 
-      const html = handleServerError();
+  await Promise
+    .all([
+      auth
+        .updateUser(conn.req.query.uid, {
+          emailVerified: true,
+        }),
+      updatesDoc
+        .ref
+        .set({
+          emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
+          verificationRequestsCount: (updatesDoc.get('verificationRequestsCount') || 0) + 1,
+        }, {
+            merge: true,
+          })
+    ]);
 
-      return conn.res.status(code.internalServerError).send(html);
-    });
+  return conn.res.status(code.temporaryRedirect).redirect('/');
 };
 
-const handleSitemap = async conn => {
+const handleSitemap = async () => {
   const getUrlItem = (slug = '', object = {}) => {
     let str = `<url>`;
     str += '<loc>';
@@ -1032,51 +1020,63 @@ const handleSitemap = async conn => {
       'privacy-policy',
       'contact',
       'terms-and-conditions'
-    ].forEach(slug => {
-      xmlString += getUrlItem(slug, { lastMod });
-    });
+    ].forEach(slug => xmlString += getUrlItem(slug, { lastMod }));
 
     xmlString += `</urlset>`;
-    conn.res.set('Content-Type', 'text/xml');
 
-    return conn
-      .res
-      .send(xmlString);
+    return xmlString;
   } catch (error) {
     console.error(error);
   }
 };
 
+const getHeaders = () => ({
+  /** The pre-flight headers */
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': `GET,POST,OPTIONS,HEAD`,
+  'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
+    'Content-Type, Accept',
+  'Access-Control-Max-Age': 86400,
+  'Content-Type': 'application/json',
+  'Content-Language': 'en-US',
+  'Cache-Control': 'no-cache',
+});
 
-module.exports = (req, res) => {
+const getAuthFromIdToken = async idToken => {
+  try {
+    const decodedIdToken = await auth.verifyIdToken(idToken);
+
+    return auth.getUser(decodedIdToken.uid);
+  } catch (error) {
+    return {
+      phoneNumber: null,
+      uid: null,
+      customClaims: {},
+    };
+  }
+};
+
+module.exports = async (req, res) => {
   // https://firebase.google.com/docs/hosting/full-config#glob_pattern_matching
   const slug = getSlugFromUrl(req.url);
   const conn = {
     req,
     res,
-    headers: {
-      /** The pre-flight headers */
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': `GET,POST,OPTIONS,HEAD`,
-      'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
-        'Content-Type, Accept',
-      'Access-Control-Max-Age': 86400,
-      'Content-Type': 'application/json',
-      'Content-Language': 'en-US',
-      'Cache-Control': 'no-cache',
-    },
+    headers: getHeaders(),
   };
   const locals = {
     slug,
-    isLoggedIn: false,
   };
 
   // For CORS
   if (conn.req.method === 'OPTIONS'
     || conn.req.method === 'HEAD') {
-    conn.res.status(code.ok).set(conn.headers);
+    conn
+      .res
+      .status(code.ok)
+      .set(conn.headers);
 
-    return conn.res.send({ success: true });
+    return sendJSON(conn.res, { success: true });
   }
 
   // Only GET and POST are allowed
@@ -1092,10 +1092,6 @@ module.exports = (req, res) => {
       });
   }
 
-  let requester = {};
-  const idToken = parseCookies(req.headers);
-  let html;
-
   /**
    * Avoids duplicate content issues since there is no native way
    * currently to set up a redirect in the firebase hosting settings.
@@ -1107,163 +1103,114 @@ module.exports = (req, res) => {
   }
 
   if (slug === 'sitemap') {
-    return handleSitemap(conn);
+    return sendXML(
+      conn,
+      await handleSitemap(conn)
+    );
   }
 
   if (slug === 'config') {
-    return conn
-      .res
-      .json({
-        apiBaseUrl: env.apiBaseUrl,
-        getUserBaseUrl: env.getUserBaseUrl,
-      });
+    return sendJSON(conn, {
+      apiBaseUrl: env.apiBaseUrl,
+      getUserBaseUrl: env.getUserBaseUrl,
+    });
   }
 
   if (slug === 'verify-email') {
     return handleEmailVerificationFlow(conn);
   }
 
-  return getLoggedInStatus(idToken)
-    .then((result) => {
-      const {
-        uid,
-        email,
-        isAdmin,
-        photoURL,
-        disabled,
-        isSupport,
-        phoneNumber,
-        displayName,
-        customClaims,
-        emailVerified,
-        isTemplateManager,
-      } = result;
+  try {
+    const idToken = parseCookies(req.headers);
+    const userRecord = await getAuthFromIdToken(idToken);
+    locals.isLoggedIn = !!userRecord.uid;
 
-      locals.isLoggedIn = uid !== null;
+    const requester = Object.assign({}, userRecord);
+    requester
+      .adminOffices = userRecord.customClaims.admin || [];
+    requester
+      .isAdmin = (userRecord.customClaims.admin || []).length > 0;
+    requester
+      .isSupport = !!requester.customClaims.support;
+    /** Home page */
 
-      if (locals.isLoggedIn) {
-        requester = {
-          uid,
-          email,
-          photoURL,
-          disabled,
-          phoneNumber,
-          displayName,
-          emailVerified,
-          isAdmin,
-          isSupport,
-          isTemplateManager,
-          customClaims,
-        };
+    if (!slug) {
+      return sendHTML(
+        conn,
+        await handleHomePage(locals, requester)
+      );
+    }
+
+    if (slug === 'contact') {
+      return sendHTML(
+        conn,
+        await handleContactPage(locals, requester)
+      );
+    }
+
+    if (slug === 'privacy-policy') {
+      return sendHTML(
+        conn,
+        await handlePrivacyPolicyPage(locals, requester)
+      );
+    }
+
+    if (slug === 'terms-and-conditions') {
+      return sendHTML(
+        conn,
+        await handleTermsAndConditionsPage(locals, requester)
+      );
+    }
+
+    if (slug === 'join') {
+      return sendHTML(
+        conn,
+        await handleJoinPage(locals, requester)
+      );
+    }
+
+    if (slug === 'download') {
+      return sendHTML(
+        conn,
+        await handleDownloadPage(locals, requester)
+      );
+    }
+
+    if (slug === 'auth') {
+      if (userRecord.uid) {
+        return res
+          .status(code.temporaryRedirect)
+          .redirect('/');
       }
 
-      /** Home page */
-      if (!slug) {
-        requester.adminOffices = result.adminOffices;
-        html = handleHomePage(locals, requester);
-      }
+      return sendHTML(
+        conn,
+        await handleAuthPage(locals, requester)
+      );
+    }
 
-      if (slug === 'contact') {
-        html = handleContactPage(locals, requester);
-      }
+    if (slug === 'json') {
+      return sendJSON(
+        conn,
+        await jsonApi(conn, requester)
+      );
+    }
 
-      if (slug === 'privacy-policy') {
-        html = handlePrivacyPolicyPage(locals, requester);
-      }
+    const officeDocQueryResult = await rootCollections
+      .offices
+      .where('slug', '==', slug)
+      .limit(1)
+      .get();
 
-      if (slug === 'terms-and-conditions') {
-        html = handleTermsAndConditionsPage(locals, requester);
-      }
+    if (officeDocQueryResult.empty) {
+      return handle404Page(conn);
+    }
 
-      if (slug === 'join') {
-        html = handleJoinPage(locals, requester);
-      }
+    locals
+      .officeDoc = officeDocQueryResult.docs[0];
 
-      if (slug === 'download') {
-        html = handleDownloadPage(locals, requester);
-      }
-
-      if (slug === 'auth' && !locals.isLoggedIn) {
-        html = handleAuthPage(locals, requester);
-      }
-
-      if (slug === 'auth' && locals.isLoggedIn) {
-        res.status(code.temporaryRedirect).redirect('/');
-
-        return;
-      }
-
-      if (slug === 'json') {
-        return jsonApi(conn, requester);
-      }
-
-      if (html) {
-        return conn.res.send(html);
-      }
-
-      return rootCollections
-        .offices
-        .where('slug', '==', slug)
-        .limit(1)
-        .get();
-    })
-    .then(result => {
-      if (!result || html) {
-        return Promise.resolve();
-      }
-
-      if (slug === 'json') {
-        if (conn.req.query.action === 'get-template-xlsx') {
-          const xlsxPopulate = require('xlsx-populate');
-          conn.res.type(xlsxPopulate.MIME_TYPE);
-
-          return conn
-            .res
-            .download(`/tmp/sample.xlsx`);
-        }
-
-        html = result;
-
-        conn
-          .res
-          .status(result.status || code.ok)
-          .set(conn.headers);
-
-        return conn.res.json(html);
-      }
-
-      if (result.empty) {
-        html = handle404Page();
-
-        return conn
-          .res
-          .status(code.notFound)
-          .send(html);
-      }
-
-      locals
-        .officeDoc = result.docs[0];
-
-      return fetchOfficeData(locals, requester);
-    })
-    .then(officeHtml => {
-      if (html) {
-        return Promise.resolve();
-      }
-
-      html = officeHtml;
-
-      conn.res.send(html);
-
-      return;
-    })
-    .catch(error => {
-      console.error('Error', error, conn.req.body);
-      const html = handleServerError();
-
-      return conn
-        .res
-        .status(code.internalServerError)
-        .send(html);
-    });
+    return sendHTML(conn, await fetchOfficeData(locals, requester));
+  } catch (error) {
+    return handleServerError(conn);
+  }
 };
