@@ -598,6 +598,7 @@ const handleSubscription = locals => {
           canEditRule: templateDoc.get('canEditRule'),
           hidden: templateDoc.get('hidden'),
           statusOnCreate: templateDoc.get('statusOnCreate'),
+          report: templateDoc.get('report') || null,
         });
 
       /**
