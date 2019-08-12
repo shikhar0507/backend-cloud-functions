@@ -81,7 +81,7 @@ const validateRequest = (conn) => {
   };
 };
 
-const getAddendumObject = (doc) => {
+const getAddendumObject = doc => {
   const singleDoc = {
     addendumId: doc.id,
     activityId: doc.get('activityId'),
@@ -137,38 +137,31 @@ const getCreator = phoneNumberOrObject => {
   return phoneNumberOrObject;
 };
 
-const getActivityObject = doc => {
-  const singleDoc = {
-    activityId: doc.id,
-    status: doc.get('status'),
-    canEdit: doc.get('canEdit'),
-    schedule: doc.get('schedule'),
-    venue: doc.get('venue'),
-    timestamp: doc.get('timestamp'),
-    template: doc.get('template'),
-    activityName: doc.get('activityName'),
-    office: doc.get('office'),
-    attachment: doc.get('attachment'),
-    creator: getCreator(doc.get('creator')),
-    hidden: doc.get('hidden'),
-    assignees: getAssigneesArray(doc.get('assignees')),
-  };
+const getActivityObject = doc => ({
+  activityId: doc.id,
+  status: doc.get('status'),
+  canEdit: doc.get('canEdit'),
+  schedule: doc.get('schedule'),
+  venue: doc.get('venue'),
+  timestamp: doc.get('timestamp'),
+  template: doc.get('template'),
+  activityName: doc.get('activityName'),
+  office: doc.get('office'),
+  attachment: doc.get('attachment'),
+  creator: getCreator(doc.get('creator')),
+  hidden: doc.get('hidden'),
+  assignees: getAssigneesArray(doc.get('assignees')),
+});
 
-  return singleDoc;
-};
-
-const getSubscriptionObject = doc => {
-  const singleDoc = {
-    template: doc.get('template'),
-    schedule: doc.get('schedule'),
-    venue: doc.get('venue'),
-    attachment: doc.get('attachment'),
-    office: doc.get('office'),
-    status: doc.get('status'),
-  };
-
-  return singleDoc;
-};
+const getSubscriptionObject = doc => ({
+  template: doc.get('template'),
+  schedule: doc.get('schedule'),
+  venue: doc.get('venue'),
+  attachment: doc.get('attachment'),
+  office: doc.get('office'),
+  status: doc.get('status'),
+  report: doc.get('report') || null,
+});
 
 const getLocations = ref => new Promise(resolve => ref.on('value', resolve));
 
