@@ -10,7 +10,7 @@ const {
   isValidCanEditRule,
 } = require('../admin/utils');
 
-const validateSchedules = (scheduleArray) => {
+const validateSchedules = scheduleArray => {
   const result = { success: true, message: [] };
 
   scheduleArray.forEach((schedule, index) => {
@@ -65,7 +65,6 @@ class Activity {
   constructor(template) {
     this.template = template;
     this.timestamp = Date.now();
-    // this.addendumDocRef =
   }
 
   set setTimezone(timezone) {
@@ -129,11 +128,7 @@ class Activity {
         `+ ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
       );
     }
-    const {
-      displayName,
-      phoneNumber,
-      photoURL,
-    } = creator;
+    const { displayName, phoneNumber, photoURL } = creator;
 
     if (typeof displayName !== 'string') {
       throw new Error(
