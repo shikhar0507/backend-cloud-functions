@@ -1275,20 +1275,11 @@ const addEmployeeToRealtimeDb = async doc => {
   const ref = realtimeDb.ref(`${officeId}/employee/${phoneNumber}`);
   const status = doc.get('status');
 
-  // Remove from the map
-  if (status === 'CANCELLED') {
-    return new Promise((resolve, reject) => {
-      ref.remove(error => {
-        if (error) {
-          return reject(error);
-        }
-
-        resolve();
-      });
-    });
-  }
-
   const getEmployeeDataObject = (options = {}) => {
+    if (status === 'CANCELLED') {
+      return null;
+    }
+
     const attachment = doc.get('attachment');
     const result = Object.assign({}, options, {
       createTime: doc.createTime.toDate().getTime(),
@@ -1352,15 +1343,7 @@ const addEmployeeToRealtimeDb = async doc => {
       }
     }
 
-    return new Promise((resolve, reject) => {
-      ref.set(getEmployeeDataObject(options), error => {
-        if (error) {
-          return reject(error);
-        }
-
-        return resolve();
-      });
-    });
+    return ref.set(getEmployeeDataObject(options));
   } catch (error) {
     console.error(error);
   }
