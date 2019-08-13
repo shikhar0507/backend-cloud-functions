@@ -1442,8 +1442,8 @@ const cancelLeaveOrDuty = async (phoneNumber, officeId, startTime, endTime, temp
       batch.set(ref, {
         statusObject,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
     });
 
     await batch.commit();
@@ -1497,15 +1497,15 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
 
         return response;
       }
-    }
 
-    const now = momentTz().tz(timezone);
+      const now = momentTz().tz(timezone);
 
-    if (startTime >= now.startOf('day').valueOf()) {
-      response.success = false;
-      response.message = 'Attendance can only be applied for the past';
+      if (startTime >= now.startOf('day').valueOf()) {
+        response.success = false;
+        response.message = 'Attendance can only be applied for the past';
 
-      return response;
+        return response;
+      }
     }
 
     const allMonthYears = getAllMonthYearCombinations(
@@ -1617,8 +1617,8 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       batch.set(ref, {
         statusObject,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
     });
 
     // No conflicting dates; its safe to write the updates
