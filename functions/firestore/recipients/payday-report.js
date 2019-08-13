@@ -9,8 +9,6 @@ const {
 const {
   alphabetsArray,
   getStatusForDay,
-  dateStringWithOffset,
-  getEmployeeDetailsString,
 } = require('./report-utils');
 const {
   db,
@@ -68,7 +66,7 @@ const getPayDaySheetTopRow = allDates => {
   const topRowValues = [
     'Employee Name',
     'Employee Code',
-    'Live Since',
+    'Employee Phone Number',
   ];
 
   // Dates for curr and prev months
@@ -81,7 +79,12 @@ const getPayDaySheetTopRow = allDates => {
   topRowValues
     .push(
       'Total Payable Days',
-      'Employee Details'
+      'Total Deductions',
+      'Department',
+      'Designation',
+      'Supervisor',
+      'Branch',
+      'Region'
     );
 
   return topRowValues;
@@ -173,7 +176,7 @@ const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeD
 };
 
 const getPayDayTimingsTopRow = allDates => {
-  const topRowValues = ['Employee Name'];
+  const topRowValues = ['Employee Name', 'Employee Code'];
 
   allDates
     .forEach(dateItem => {
@@ -183,6 +186,43 @@ const getPayDayTimingsTopRow = allDates => {
 
   return topRowValues;
 };
+
+const getName = (employeesData, phoneNumber) => {
+  if (employeesData[phoneNumber]) {
+    return employeesData[phoneNumber].Name;
+  }
+
+  return phoneNumber;
+};
+
+// const getSupervisors = (employeesData, phoneNumber) => {
+//   let str = '';
+//   const employeeData = employeesData[phoneNumber];
+//   const firstSupervisor = employeeData['First Supervisor'];
+//   const secondSupervisor = employeeData['Second Supervisor'];
+//   const thirdSupervisor = employeeData['Third Supervisor'];
+//   const allSvs = [
+//     firstSupervisor,
+//     secondSupervisor,
+//     thirdSupervisor
+//   ].filter(Boolean);
+
+//   if (allSvs.length === 0) return '';
+//   if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
+
+//   allSvs.forEach((phoneNumber, index) => {
+//     const name = getName(employeesData, phoneNumber);
+//     const isLast = index === allSvs.length - 1;
+
+//     if (isLast) {
+//       str += 'and';
+//     }
+
+//     str += ` ${name}, `;
+//   });
+
+//   return str.trim();
+// };
 
 
 module.exports = async locals => {
@@ -509,20 +549,9 @@ module.exports = async locals => {
 
     /** Set (`allPhoneNumbers`) doesn't have an index */
     let index = 0;
+    const daysCount = cycleEndMoment.diff(cycleStartMoment, 'days') + 1;
 
     allPhoneNumbers.forEach(phoneNumber => {
-      const createTime = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber].createTime;
-        }
-
-        return '';
-      })();
-      const liveSince = dateStringWithOffset({
-        timezone,
-        timestampToConvert: createTime,
-        format: dateFormats.DATE,
-      });
       const name = (() => {
         if (locals.employeesData[phoneNumber]) {
           return locals.employeesData[phoneNumber].Name;
@@ -548,14 +577,18 @@ module.exports = async locals => {
         .value(employeeCode);
       paydaySheet
         .cell(`C${columnIndex}`)
-        .value(liveSince);
+        .value(phoneNumber);
+
       paydayTimingsSheet
         .cell(`A${columnIndex}`)
         .value(name);
+      paydayTimingsSheet
+        .cell(`B${columnIndex}`)
+        .value(employeeCode);
 
-      let totalCount = 0;
+      let totalPayableDays = 0;
       let paydaySheetAlphabetIndex = 3;
-      let paydayTimingsSheetIndex = 1;
+      let paydayTimingsSheetIndex = 2;
 
       allDates.forEach(dateObject => {
         const {
@@ -586,15 +619,24 @@ module.exports = async locals => {
 
         paydaySheetAlphabetIndex++;
         paydayTimingsSheetIndex++;
-        totalCount += paydaySheetValue;
+        totalPayableDays += paydaySheetValue;
       });
 
-      paydaySheet
-        .cell(`${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`)
-        .value(totalCount);
-      paydaySheet
-        .cell(`${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`)
-        .value(getEmployeeDetailsString(locals.employeesData, phoneNumber));
+      [
+        totalPayableDays,
+        Math.abs(daysCount - totalPayableDays),
+        locals.employeesData[phoneNumber].Department,
+        locals.employeesData[phoneNumber].Designation,
+        getName(locals.employeesData, locals.employeesData[phoneNumber]['First Supervisor']),
+        locals.employeesData[phoneNumber]['Base Location'],
+        locals.employeesData[phoneNumber].Region || '',
+      ].forEach((item, i) => {
+        const cell = `${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`;
+
+        paydaySheet
+          .cell(cell)
+          .value(item);
+      });
 
       index++;
     });
