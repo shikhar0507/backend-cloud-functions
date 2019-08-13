@@ -122,7 +122,6 @@ const alphabetsArray = [
   'AI',
   'AJ',
   'AK',
-  'AK',
   'AL',
   'AM',
   'AN',
