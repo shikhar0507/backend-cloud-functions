@@ -44,7 +44,7 @@ module.exports = (req, requester) => {
   }
 
   return query
-    .limit(200)
+    .limit(50)
     .get()
     .then(docs => {
       failed = docs.empty;
