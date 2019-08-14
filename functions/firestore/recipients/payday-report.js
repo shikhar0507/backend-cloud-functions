@@ -167,8 +167,8 @@ const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeD
         [dateYesterday]: statusObject,
       },
     }, {
-        merge: true,
-      });
+      merge: true,
+    });
   });
 
   return Promise
@@ -630,7 +630,7 @@ module.exports = async locals => {
         getName(locals.employeesData, locals.employeesData[phoneNumber]['First Supervisor']),
         locals.employeesData[phoneNumber]['Base Location'],
         locals.employeesData[phoneNumber].Region || '',
-      ].forEach((item, i) => {
+      ].forEach(item => {
         const cell = `${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`;
 
         paydaySheet
