@@ -256,7 +256,6 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
   const office = locals.change.after.get('office');
   const officeId = locals.change.after.get('officeId');
   const batch = db.batch();
-  // const subscribedTemplate = locals.change.after.get('attachment.Template.value');
   const isArSubscription = templateName === 'attendance regularization';
 
   const promises = [
@@ -340,7 +339,7 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
     const addendumDocData = {
       activityData,
       user: locals.change.after.get('creator').phoneNumber,
-      userDisplayName: locals.change.after.get('creator').displayName,
+      userDisplayName: locals.change.after.get('creator.displayName'),
       share: locals.assigneePhoneNumbersArray,
       action: httpsActions.create,
       template: 'subscription',
@@ -384,16 +383,26 @@ const handleXTypeActivities = async locals => {
   }
 
   const officeId = locals.change.after.get('officeId');
+  const templateName = (() => {
+    const template = locals.change.after.get('attachment.Template.value');
+
+    if (template === 'expense claim') return 'expense-type';
+
+    return `${template}-type`;
+  })();
+
   try {
     const typeActivities = await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
+      .activities
+      .where('officeId', '==', officeId)
       .where('status', '==', 'CONFIRMED')
-      .where('template', '==', `${locals.change.after.get('attachment.Template.value')}-type`)
+      .where('template', '==', templateName)
       .get();
 
-    const subscriber = locals.change.after.get('attachment.Subscriber.value');
+    const subscriber = locals
+      .change
+      .after
+      .get('attachment.Subscriber.value');
 
     // if subscription is created/updated
     // fetch all x-type activities from
@@ -407,7 +416,8 @@ const handleXTypeActivities = async locals => {
 
       delete activityData.addendumDocRef;
 
-      activityData.assignees = [];
+      /** List of assignee doesn't matter */
+      activityData.assignees = activityData.assignees || [];
 
       const ref = rootCollections
         .profiles
@@ -465,8 +475,8 @@ const handleCanEditRule = async (locals, templateDoc) => {
           status: 'CANCELLED',
           addendumDocRef: null,
         }, {
-            merge: true,
-          });
+          merge: true,
+        });
     }
 
     const isAlreadyAdmin = locals
@@ -705,8 +715,8 @@ const removeFromOfficeActivities = locals => {
               status: 'CANCELLED',
               addendumDocRef: null,
             }, {
-                merge: true,
-              });
+              merge: true,
+            });
 
             return;
           }
@@ -715,8 +725,8 @@ const removeFromOfficeActivities = locals => {
             addendumDocRef: null,
             timestamp: Date.now(),
           }, {
-              merge: true,
-            });
+            merge: true,
+          });
 
           batch.delete(rootCollections.activities.doc(doc.id)
             .collection('Assignees')
@@ -815,8 +825,8 @@ const handleEmployeeSupervisors = locals => {
         batch.set(doc.ref, {
           addendumDocRef: null,
         }, {
-            merge: true,
-          });
+          merge: true,
+        });
 
         const firstSupervisorChanged = firstSupervisorOld
           && firstSupervisorOld !== firstSupervisorNew;
@@ -911,8 +921,8 @@ const handleStatusDocs = async locals => {
       .set({
         statusObject: {},
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
   } catch (error) {
     console.error(error);
   }
@@ -991,11 +1001,11 @@ const replaceNumberInActivities = async locals => {
             .set(activityRef
               .collection('Assignees')
               .doc(newPhoneNumber), {
-                canEdit: doc.get('canEdit'),
-                addToInclude: template !== 'subscription',
-              }, {
-                merge: true,
-              });
+              canEdit: doc.get('canEdit'),
+              addToInclude: template !== 'subscription',
+            }, {
+              merge: true,
+            });
 
           // Remove old assignee
           batch
@@ -1113,72 +1123,71 @@ const handleEmployee = async locals => {
     employeeOf[office] = deleteField();
   }
 
-  let profileData = {
-    employeeOf,
-  };
+  let profileData = {};
 
   if (hasBeenCreated) {
     profileData
       .lastLocationMapUpdateTimestamp = Date.now();
-  }
-
-  // Phone number changed
-  if (oldEmployeeContact
-    && oldEmployeeContact !== newEmployeeContact) {
-    batch.set(rootCollections.profiles.doc(oldEmployeeContact), {
-      employeeOf: {
-        [office]: deleteField(),
-      },
-    }, {
-        merge: true,
-      });
-
-    const path = `${officeId}/employee/${oldEmployeeContact}`;
-    const ref = admin.database().ref(path);
-
-    await new Promise((resolve, reject) => {
-      ref.remove(error => {
-        if (error) reject(error);
-
-        resolve();
-      });
-    });
-
-    const profileDoc = await rootCollections.profiles.doc(oldEmployeeContact).get();
-    const data = profileDoc.data();
-
-    profileData = Object.assign(profileData, data);
-
-    const updatesQueryResult = await rootCollections
-      .updates
-      .where('phoneNumber', '==', oldEmployeeContact)
-      .limit(1)
-      .get();
-
-    if (!updatesQueryResult.empty) {
-      const updatesDoc = updatesQueryResult.docs[0];
-      const removeFromOffice = updatesDoc.get('removeFromOffice') || [];
-
-      removeFromOffice.push(office);
-
-      batch.set(updatesDoc.ref, {
-        removeFromOffice,
-      }, {
-          merge: true,
-        });
-    }
-
-    await replaceNumberInActivities(locals);
+    profileData
+      .employeeOf = employeeOf;
   }
 
   batch
     .set(rootCollections
       .profiles
       .doc(newEmployeeContact), profileData, {
+      merge: true,
+    });
+
+  try {
+    // Phone number changed
+    if (oldEmployeeContact
+      && oldEmployeeContact !== newEmployeeContact) {
+      batch.set(rootCollections.profiles.doc(oldEmployeeContact), {
+        employeeOf: {
+          [office]: deleteField(),
+        },
+      }, {
         merge: true,
       });
 
-  try {
+      const path = `${officeId}/employee/${oldEmployeeContact}`;
+      const ref = admin.database().ref(path);
+
+      await ref.remove();
+
+      const profileDoc = await rootCollections
+        .profiles
+        .doc(oldEmployeeContact)
+        .get();
+      const data = profileDoc.data();
+
+      profileData = Object.assign(profileData, data);
+
+      const updatesQueryResult = await rootCollections
+        .updates
+        .where('phoneNumber', '==', oldEmployeeContact)
+        .limit(1)
+        .get();
+
+      if (!updatesQueryResult.empty) {
+        const updatesDoc = updatesQueryResult.docs[0];
+        const removeFromOffice = updatesDoc.get('removeFromOffice') || [];
+
+        removeFromOffice
+          .push(office);
+
+        batch
+          .set(updatesDoc.ref, {
+            removeFromOffice,
+          }, {
+            merge: true,
+          });
+      }
+
+      await replaceNumberInActivities(locals);
+    }
+
     await batch.commit();
     await addEmployeeToRealtimeDb(locals.change.after);
 
@@ -1796,10 +1805,10 @@ const setLocationsReadEvent = async locals => {
       batchArray[batchIndex].set(rootCollections
         .profiles
         .doc(phoneNumber), {
-          lastLocationMapUpdateTimestamp: timestamp,
-        }, {
-          merge: true,
-        });
+        lastLocationMapUpdateTimestamp: timestamp,
+      }, {
+        merge: true,
+      });
     });
 
     const commitBatch = async batch => {
@@ -1898,16 +1907,6 @@ const handleBranch = async locals => {
   if (template !== 'branch') return;
 
   const office = locals.change.after.get('office');
-  const oldSchedule = locals.change.before.get('schedule') || [];
-  const newSchedule = locals.change.after.get('schedule') || [];
-
-  const venueUpdated = newSchedule
-    .filter((val, index) => {
-      return oldSchedule[index]
-        && oldSchedule[index].startTime !== val.startTime;
-    });
-
-  if (venueUpdated.length === 0) return;
 
   try {
     const employees = await rootCollections
@@ -1959,12 +1958,12 @@ const handleRecipient = async locals => {
       officeId: locals.change.after.get('officeId'),
       status: locals.change.after.get('status'),
     }, {
-        /**
-         * Required since anyone updating the this activity will cause
-         * the report data to be lost.
-         */
-        merge: true,
-      });
+      /**
+       * Required since anyone updating the this activity will cause
+       * the report data to be lost.
+       */
+      merge: true,
+    });
 
   if (locals.change.after.get('status') === 'CANCELLED') {
     batch.delete(recipientsDocRef);
@@ -2007,7 +2006,7 @@ const handleRecipient = async locals => {
 };
 
 
-module.exports = (change, context) => {
+module.exports = async (change, context) => {
   /** Activity was deleted. For debugging only. */
   if (!change.after.data()) {
     return Promise.resolve();
@@ -2025,6 +2024,8 @@ module.exports = (change, context) => {
     addendumCreatorInAssignees: false,
     adminsCanEdit: [],
   };
+
+  const newProfilesMap = new Map();
 
   const promises = [
     rootCollections
@@ -2138,7 +2139,7 @@ module.exports = (change, context) => {
           .get(phoneNumber)
           .customClaims = record.customClaims;
 
-        // /** New user introduced to the system. Saving their phone number. */
+        /** New user introduced to the system. Saving their phone number. */
         if (!record.hasOwnProperty('uid')) {
           const creator = (() => {
             if (typeof change.after.get('creator') === 'string') {
@@ -2148,17 +2149,11 @@ module.exports = (change, context) => {
             return change.after.get('creator').phoneNumber;
           })();
 
-          batch.set(rootCollections
-            .profiles
-            .doc(phoneNumber), {
-              smsContext: {
-                activityName: change.after.get('activityName'),
-                creator,
-                office: change.after.get('office'),
-              },
-            }, {
-              merge: true,
-            });
+          newProfilesMap.set(phoneNumber, {
+            activityName: change.after.get('activityName'),
+            creator,
+            office: change.after.get('office'),
+          });
         }
 
         /** Document below the user profile. */
@@ -2273,6 +2268,36 @@ module.exports = (change, context) => {
     .then(() => handleEmployee(locals))
     .then(() => handleOffice(locals))
     .then(() => handleLocations(locals))
+    .then(async () => {
+      const profileBatch = db.batch();
+      const profilePromises = [];
+
+      newProfilesMap.forEach((_, phoneNumber) => {
+        const promise = rootCollections
+          .profiles
+          .doc(phoneNumber)
+          .get();
+
+        profilePromises.push(promise);
+      });
+
+      const snap = await Promise.all(profilePromises);
+
+      snap.forEach(doc => {
+        /** Profile already exists */
+        if (doc.exists) return;
+
+        const phoneNumber = doc.id;
+
+        profileBatch.set(doc.ref, {
+          smsContext: newProfilesMap.get(phoneNumber),
+        }, {
+          merge: true,
+        });
+      });
+
+      return profileBatch.commit();
+    })
     .catch(error => {
       console.error({
         error,
