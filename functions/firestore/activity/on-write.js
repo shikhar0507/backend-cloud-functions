@@ -63,6 +63,13 @@ const googleMapsClient =
       Promise: Promise,
     });
 
+
+const getAuth = phoneNumber => {
+  return auth
+    .getUserByPhoneNumber(phoneNumber)
+    .catch(() => ({ phoneNumber }));
+};
+
 const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   const updatedFields = [];
 
@@ -1053,13 +1060,6 @@ const replaceNumberInActivities = async locals => {
           });
       })
       .catch(new Error(reject));
-  };
-
-  const getAuth = phoneNumber => {
-    return auth.getUserByPhoneNumber(phoneNumber)
-      .catch(() => {
-        return ({ phoneNumber });
-      });
   };
 
   try {
