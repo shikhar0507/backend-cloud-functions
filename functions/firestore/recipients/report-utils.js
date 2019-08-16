@@ -324,10 +324,10 @@ const getIdentifier = doc => {
 
 const getStatusForDay = options => {
   const {
-    numberOfCheckIns,
+    numberOfCheckIns, // number of actions done in the day by the user
     minimumDailyActivityCount,
     minimumWorkingHours,
-    hoursWorked,
+    hoursWorked // difference between first and last action in hours,
   } = options;
 
   let activityRatio = numberOfCheckIns / minimumDailyActivityCount;
@@ -341,7 +341,7 @@ const getStatusForDay = options => {
     return activityRatio;
   }
 
-  let workHoursRatio = hoursWorked / minimumWorkingHours;
+  const workHoursRatio = hoursWorked / minimumWorkingHours;
   const minOfRatios = Math.min(activityRatio, workHoursRatio);
   const rev = 1 / minimumDailyActivityCount;
 
