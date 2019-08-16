@@ -14,6 +14,7 @@ const {
   isNonEmptyString,
   hasAdminClaims,
   hasSupportClaims,
+  getEmployeesMapFromRealtimeDb,
 } = require('../admin/utils');
 const {
   dateFormats,
@@ -143,138 +144,6 @@ const getSlugFromUrl = requestUrl => {
   return officeName.split('/')[1];
 };
 
-const getLoggedInStatus = idToken => {
-  return auth
-    .verifyIdToken(idToken, true)
-    .then(decodedIdToken => auth.getUser(decodedIdToken.uid))
-    .then(userRecord => {
-      const customClaims = userRecord.customClaims || {};
-      let adminOffices;
-
-      const isAdmin = customClaims.admin
-        && customClaims.admin.length > 0;
-
-      if (isAdmin) {
-        adminOffices = customClaims.admin;
-      }
-
-      return {
-        isAdmin,
-        customClaims,
-        adminOffices,
-        uid: userRecord.uid,
-        email: userRecord.email,
-        photoURL: userRecord.photoURL,
-        disabled: userRecord.disabled,
-        isSupport: customClaims.support,
-        phoneNumber: userRecord.phoneNumber,
-        isAnonymous: userRecord.isAnonymous,
-        displayName: userRecord.displayName,
-        emailVerified: userRecord.emailVerified,
-      };
-    })
-    .catch(error => {
-      const authError = new Set(['auth/invalid-argument'])
-        .has(error.code);
-
-      if (authError) {
-        throw new Error(error);
-      }
-
-      const clearCookie = new Set([
-        'auth/id-token-expired',
-        'auth/id-token-revoked',
-        'auth/session-cookie-expired',
-        'auth/session-cookie-revoked',
-        'auth/invalid-session-cookie-duration',
-      ])
-        .has(error.code);
-
-      const result = {
-        clearCookie,
-        uid: null,
-      };
-
-      return result;
-    });
-};
-
-const handleOfficePage = (locals, requester) => {
-  const source = require('./views/office.hbs')();
-  const template = handlebars.compile(source, { strict: true });
-  const description = (() => {
-    if (env.isProduction) {
-      return locals.officeDoc.get('attachment.Description.value') || '';
-    }
-
-    return `Contrary to popular belief, Lorem Ipsum is not simply random text.`;
-  })();
-
-  const logoURL = (() => {
-    if (locals.officeDoc.get('attachment.Company Logo.value')) {
-      return locals.officeDoc.get('attachment.Company Logo.value');
-    }
-
-    const slug = locals.officeDoc.get('slug');
-
-    return `img/logo-${slug}.png`;
-  })();
-
-  const videoId = (() => {
-    if (env.isProduction) {
-      return locals.officeDoc.get('attachment.Youtube ID.value');
-    }
-
-    // NOTE: Just for testing
-    return 'jCyEX6u-Yhs';
-  })();
-
-  const shortDescription = (() => {
-    if (env.isProduction) {
-      return locals.officeDoc.get('attachment.Short Description.value') || '';
-    }
-
-    return `Lorem Ipsum is simply dummy text of the printing and typesetting industry.`;
-  })();
-
-  const html = template({
-    logoURL,
-    videoId,
-    shortDescription,
-    aboutOffice: description,
-    pageDescription: shortDescription,
-    userEmail: requester.email || '',
-    userDisplayName: requester.displayName || '',
-    userPhoneNumber: requester.phoneNumber || '',
-    // officeEmployeeSize: locals.officeEmployeeSize,
-    officeName: locals.officeDoc.get('office'),
-    pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
-    mainImageUrl: '/img/logo-main.jpg',
-    cannonicalUrl: `${env.mainDomain}/${locals.slug}`,
-    mapsApiKey: env.mapsApiKey,
-    branchObjectsArray: locals.branchObjectsArray,
-    staticMapsUrl: getStaticMapsUrl(locals.branchObjectsArray),
-    productObjectsArray: locals.productObjectsArray,
-    displayBranch: locals.branchObjectsArray.length > 0,
-    displayProducts: locals.productObjectsArray.length > 0,
-    slug: locals.slug,
-    isLoggedIn: !!requester.uid,
-    pageIndexable: true,
-    phoneNumber: requester.phoneNumber,
-    email: requester.email,
-    emailVerified: requester.emailVerified,
-    displayName: requester.displayName,
-    photoURL: requester.photoURL,
-    isSupport: requester.support,
-    isAdmin: requester.isAdmin,
-    isProduction: env.isProduction,
-    officeFirstChar: locals.officeDoc.get('office').charAt(0),
-    pageUrl: `https://growthfile.com/${locals.slug}`,
-  });
-
-  return html;
-};
-
 const getBranchOpenStatus = (doc, timezone) => {
   const result = {
     isOpen: false,
@@ -346,7 +215,8 @@ const getBranchOpenStatus = (doc, timezone) => {
       return result;
     }
 
-    if (currentMoment >= saturdayStartTime && currentMoment <= saturdayEndTime) {
+    if (currentMoment >= saturdayStartTime
+      && currentMoment <= saturdayEndTime) {
       result.isOpen = true;
 
       return result;
@@ -376,11 +246,84 @@ const getBranchOpenStatus = (doc, timezone) => {
   return result;
 };
 
+const handleOfficePage = (locals, requester) => {
+  const source = require('./views/office.hbs')();
+  const template = handlebars.compile(source, { strict: true });
+  const description = (() => {
+    if (env.isProduction) {
+      return locals.officeDoc.get('attachment.Description.value') || '';
+    }
 
-const fetchOfficeData = (locals, requester) => {
+    return `Contrary to popular belief, Lorem Ipsum is not simply random text.`;
+  })();
+
+  const logoURL = (() => {
+    if (locals.officeDoc.get('attachment.Company Logo.value')) {
+      return locals.officeDoc.get('attachment.Company Logo.value');
+    }
+
+    const slug = locals.officeDoc.get('slug');
+
+    return `img/logo-${slug}.png`;
+  })();
+
+  const videoId = (() => {
+    if (env.isProduction) {
+      return locals.officeDoc.get('attachment.Youtube ID.value');
+    }
+
+    // NOTE: Just for testing
+    return 'jCyEX6u-Yhs';
+  })();
+
+  const shortDescription = (() => {
+    if (env.isProduction) {
+      return locals.officeDoc.get('attachment.Short Description.value') || '';
+    }
+
+    return `Lorem Ipsum is simply dummy text of the printing and typesetting industry.`;
+  })();
+
+  return template({
+    logoURL,
+    videoId,
+    shortDescription,
+    aboutOffice: description,
+    pageDescription: shortDescription,
+    userEmail: requester.email || '',
+    userDisplayName: requester.displayName || '',
+    userPhoneNumber: requester.phoneNumber || '',
+    officeEmployeeSize: locals.officeEmployeeSize,
+    officeName: locals.officeDoc.get('office'),
+    pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
+    mainImageUrl: '/img/logo-main.jpg',
+    cannonicalUrl: `${env.mainDomain}/${locals.slug}`,
+    mapsApiKey: env.mapsApiKey,
+    branchObjectsArray: locals.branchObjectsArray,
+    staticMapsUrl: getStaticMapsUrl(locals.branchObjectsArray),
+    productObjectsArray: locals.productObjectsArray,
+    displayBranch: locals.branchObjectsArray.length > 0,
+    displayProducts: locals.productObjectsArray.length > 0,
+    slug: locals.slug,
+    isLoggedIn: !!requester.uid,
+    pageIndexable: true,
+    phoneNumber: requester.phoneNumber,
+    email: requester.email,
+    emailVerified: requester.emailVerified,
+    displayName: requester.displayName,
+    photoURL: requester.photoURL,
+    isSupport: requester.support,
+    isAdmin: requester.isAdmin,
+    isProduction: env.isProduction,
+    officeFirstChar: locals.officeDoc.get('office').charAt(0),
+    pageUrl: `https://growthfile.com/${locals.slug}`,
+  });
+};
+
+
+const fetchOfficeData = async (locals, requester) => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-
-  return Promise
+  const [branchQuery, productQuery] = await Promise
     .all([
       locals
         .officeDoc
@@ -396,104 +339,105 @@ const fetchOfficeData = (locals, requester) => {
         .where('template', '==', 'product')
         .where('status', '==', 'CONFIRMED')
         .get(),
-    ])
-    .then((result) => {
-      const [branchQuery, productQuery] = result;
+    ]);
 
-      locals
-        .branchDocs = branchQuery.docs;
-      locals
-        .productDocs = productQuery.docs;
-      locals
-        .branchObjectsArray = [];
+  const branchObjectsArray = [];
 
-      locals
-        .branchDocs
-        .forEach(doc => {
-          /** Currently branch has only 1 venue */
-          const venue = doc.get('venue')[0];
+  branchQuery
+    .forEach(doc => {
+      /** Currently branch has only 1 venue */
+      const venue = doc.get('venue')[0];
 
-          if (!venue.geopoint.latitude || !venue.geopoint._latitude) {
-            return;
-          }
+      if (!venue.geopoint.latitude || !venue.geopoint._latitude) {
+        return;
+      }
 
-          const openStatusResult = getBranchOpenStatus(doc, timezone);
-          let isOpen = openStatusResult.isOpen;
-          let isClosed = openStatusResult.isClosed;
-          let closingTime = openStatusResult.closingTime;
-          let openingTime = openStatusResult.openingTime;
-          let isClosingSoon = openStatusResult.isClosingSoon;
+      const openStatusResult = getBranchOpenStatus(doc, timezone);
+      let isOpen = openStatusResult.isOpen;
+      let isClosed = openStatusResult.isClosed;
+      let closingTime = openStatusResult.closingTime;
+      let openingTime = openStatusResult.openingTime;
+      let isClosingSoon = openStatusResult.isClosingSoon;
 
-          // Dates are not set
-          if (isClosed
-            && closingTime === 'Invalid date'
-            || openingTime === 'Invalid date') {
-            isClosed = false;
-            isOpen = true;
-            openingTime = '';
-            closingTime = '';
-          }
+      // Dates are not set
+      if (isClosed
+        && closingTime === 'Invalid date'
+        || openingTime === 'Invalid date') {
+        isClosed = false;
+        isOpen = true;
+        openingTime = '';
+        closingTime = '';
+      }
 
-          const branchContact = doc.get('attachment.First Contact.value')
-            || doc.get('attachment.Second Contact.value')
-            /** Some random number */
-            || '+919090909090';
+      const branchContact = (() => {
+        if (env.isProduction) {
+          return doc.get('attachment.First Contact.value')
+            || doc.get('attachment.Second Contact.value') || '';
+        }
 
-          locals
-            .branchObjectsArray
-            .push({
-              isOpen,
-              isClosed,
-              isClosingSoon,
-              openingTime,
-              closingTime,
-              branchContact,
-              address: venue.address,
-              name: doc.get('attachment.Name.value'),
-              weeklyOff: doc.get('attachment.Weekly Off.value'),
-              latitude: venue.geopoint._latitude || venue.geopoint.latitude,
-              longitude: venue.geopoint._longitude || venue.geopoint.longitude,
-              mapsUrl: toMapsUrl({
-                latitude: venue.geopoint._latitude || venue.geopoint.latitude,
-                longitude: venue.geopoint._longitude || venue.geopoint.longitude,
-              }),
-              gp: {
-                latitude: venue.geopoint._latitude || venue.geopoint.latitude,
-                longitude: venue.geopoint._latitude || venue.geopoint.longitude,
-              },
-            });
+        /** Some random number for testing environments*/
+        return `+919${Math.random().toString().slice(2, 12)}`;
+      })();
+
+      branchObjectsArray
+        .push({
+          isOpen,
+          isClosed,
+          isClosingSoon,
+          openingTime,
+          closingTime,
+          branchContact,
+          address: venue.address,
+          name: doc.get('attachment.Name.value'),
+          weeklyOff: doc.get('attachment.Weekly Off.value'),
+          latitude: venue.geopoint._latitude || venue.geopoint.latitude,
+          longitude: venue.geopoint._longitude || venue.geopoint.longitude,
+          mapsUrl: toMapsUrl({
+            latitude: venue.geopoint._latitude || venue.geopoint.latitude,
+            longitude: venue.geopoint._longitude || venue.geopoint.longitude,
+          }),
+          gp: {
+            latitude: venue.geopoint._latitude || venue.geopoint.latitude,
+            longitude: venue.geopoint._latitude || venue.geopoint.longitude,
+          },
         });
-
-      const office = locals.officeDoc.get('office');
-
-      locals
-        .productObjectsArray = productQuery.docs.map((doc) => {
-          const name = doc.get('attachment.Name.value');
-          const imageUrl = `img/${name}-${office}.png`.replace(/\s+/g, '-');
-
-          return {
-            imageUrl,
-            name,
-            nameFirstChar: name.charAt(0),
-            productType: doc.get('attachment.Product Type.value'),
-            brand: doc.get('attachment.Brand.value'),
-            model: doc.get('attachment.Model.value'),
-            size: doc.get('attachment.Size.value'),
-          };
-        });
-
-      const employeesData = locals.officeDoc.get('employeesData');
-
-      locals.officeEmployeeSize = getEmployeesRange(employeesData);
-
-      return handleOfficePage(locals, requester);
     });
+
+  const office = locals.officeDoc.get('office');
+  const officeId = locals.officeDoc.get('officeId');
+
+  const productObjectsArray = productQuery.docs.map((doc) => {
+    const name = doc.get('attachment.Name.value');
+    const imageUrl = `img/${name}-${office}.png`.replace(/\s+/g, '-');
+
+    return {
+      imageUrl,
+      name,
+      nameFirstChar: name.charAt(0),
+      productType: doc.get('attachment.Product Type.value'),
+      brand: doc.get('attachment.Brand.value'),
+      model: doc.get('attachment.Model.value'),
+      size: doc.get('attachment.Size.value'),
+    };
+  });
+
+  const employeesData = await getEmployeesMapFromRealtimeDb(officeId);
+
+  locals
+    .officeEmployeeSize = getEmployeesRange(employeesData);
+  locals
+    .productObjectsArray = productObjectsArray;
+  locals
+    .branchObjectsArray = branchObjectsArray;
+
+  return handleOfficePage(locals, requester);
 };
 
 const handleJoinPage = (locals, requester) => {
   const source = require('./views/join.hbs')();
   const template = handlebars.compile(source, { strict: true });
-  const html = template({
+
+  return template({
     pageTitle: 'Join Growthfile',
     isLoggedIn: !!requester.uid,
     pageIndexable: true,
@@ -508,15 +452,13 @@ const handleJoinPage = (locals, requester) => {
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
-
-  return html;
 };
 
 const handleHomePage = (locals, requester) => {
   const source = require('./views/index.hbs')();
   const template = handlebars.compile(source, { strict: true });
 
-  const html = template({
+  return template({
     user: JSON.stringify({
       isSupport: requester.isSupport,
       admin: requester.isAdmin,
@@ -540,14 +482,13 @@ const handleHomePage = (locals, requester) => {
     showActions: requester.isAdmin || requester.isSupport,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
-
-  return html;
 };
 
 const handleAuthPage = (locals, requester) => {
   const source = require('./views/auth.hbs')();
   const template = handlebars.compile(source, { strict: true });
-  const html = template({
+
+  return template({
     pageTitle: 'Login to Growthfile',
     pageDescription: '',
     isLoggedIn: !!requester.uid,
@@ -562,14 +503,12 @@ const handleAuthPage = (locals, requester) => {
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
-
-  return html;
 };
 
 const handleDownloadPage = (locals, requester) => {
   const source = require('./views/download.hbs')();
   const template = handlebars.compile(source, { strict: true });
-  const html = template({
+  return template({
     pageTitle: 'Download Growthfile App for your Android and iOS Phones',
     pageDescription: 'Download growthfile app for your android and iOS devices',
     isLoggedIn: !!requester.uid,
@@ -584,14 +523,13 @@ const handleDownloadPage = (locals, requester) => {
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
-
-  return html;
 };
 
 const handleContactPage = (locals, requester) => {
   const source = require('./views/contact.hbs')();
   const template = handlebars.compile(source, { strict: true });
-  const html = template({
+
+  return template({
     pageTitle: 'Contact Us | Growthfile',
     pageDescription: 'Please fill the form to contact us',
     isLoggedIn: !!requester.uid,
@@ -605,14 +543,13 @@ const handleContactPage = (locals, requester) => {
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
-
-  return html;
 };
 
 const handleTermsAndConditionsPage = (locals, requester) => {
   const source = require('./views/terms-and-conditions.hbs')();
   const template = handlebars.compile(source, { strict: true });
-  const html = template({
+
+  return template({
     pageTitle: 'Terms and Conditions | Growthfile',
     pageDescription: 'Terms and conditions for Growthfile',
     isLoggedIn: !!requester.uid,
@@ -626,8 +563,6 @@ const handleTermsAndConditionsPage = (locals, requester) => {
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
-
-  return html;
 };
 
 const handle404Page = conn => {
@@ -647,7 +582,8 @@ const handleServerError = conn => {
 const handlePrivacyPolicyPage = (locals, requester) => {
   const source = require('./views/privacy-policy.hbs')();
   const template = handlebars.compile(source, { strict: true });
-  const html = template({
+
+  return template({
     pageTitle: 'Privacy Policy | Growthfile',
     pageDescription: 'Privacy Policy for Growthfile Analytics Pvt. Ltd.',
     isLoggedIn: !!requester.uid,
@@ -661,8 +597,6 @@ const handlePrivacyPolicyPage = (locals, requester) => {
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
-
-  return html;
 };
 
 const createJsonRecord = (doc) => {
@@ -714,15 +648,9 @@ function getTemplatesListJSON(name) {
 
 const handleJsonGetRequest = (conn, requester) => {
   const json = {};
-  const allowedTemplates = new Set(['enquiry']);
 
   if (!requester.uid) {
     return Promise.resolve({});
-  }
-
-  if ((requester.isAdmin || requester.isSupport)
-    && conn.req.query.action === 'get-template-xlsx') {
-    return require('./excel-handler')(conn);
   }
 
   if (conn.req.query.action === 'office-list'
@@ -754,33 +682,6 @@ const handleJsonGetRequest = (conn, requester) => {
       });
   }
 
-  if (conn.req.query.template
-    && !conn.req.query.office
-    && !conn.req.query.query) {
-    if (!allowedTemplates.has(conn.req.query.template)) {
-      return Promise.resolve(json);
-    }
-
-    return rootCollections
-      .profiles
-      .doc(requester.phoneNumber)
-      .collection('Activities')
-      .where('template', '==', conn.req.query.template)
-      .get()
-      .then((docs) => {
-        docs.forEach((doc) => {
-          if (!json[doc.get('template')]) {
-            json[doc.get('template')] = [createJsonRecord(doc)];
-          }
-          else {
-            json[doc.get('template')].push(createJsonRecord(doc));
-          }
-        });
-
-        return Promise.resolve(json);
-      });
-  }
-
   if (!isNonEmptyString(conn.req.query.office)) {
     return Promise.resolve(json);
   }
@@ -801,9 +702,7 @@ const handleJsonGetRequest = (conn, requester) => {
     return Promise.resolve(json);
   }
 
-  const webappSearch = require('./search');
-
-  return webappSearch(conn.req, requester);
+  return require('./search')(conn.req, requester);
 };
 
 const handleOfficeJoinRequest = (conn, requester) => {
@@ -895,7 +794,7 @@ const handleJsonPostRequest = (conn, requester) => {
   const json = {};
 
   if (!conn.req.query.action) {
-    return Promise.resolve({});
+    return json;
   }
 
   if (conn.req.query.action === 'update-auth') {
@@ -929,7 +828,7 @@ const handleJsonPostRequest = (conn, requester) => {
     return handleOfficeJoinRequest(conn);
   }
 
-  return Promise.resolve(json);
+  return json;
 };
 
 const jsonApi = async (conn, requester) => {
@@ -971,8 +870,8 @@ const handleEmailVerificationFlow = async conn => {
           emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
           verificationRequestsCount: (updatesDoc.get('verificationRequestsCount') || 0) + 1,
         }, {
-            merge: true,
-          })
+          merge: true,
+        })
     ]);
 
   return conn.res.status(code.temporaryRedirect).redirect('/');
@@ -1129,7 +1028,7 @@ module.exports = async (req, res) => {
     requester
       .adminOffices = userRecord.customClaims.admin || [];
     requester
-      .isAdmin = (userRecord.customClaims.admin || []).length > 0;
+      .isAdmin = requester.adminOffices.length > 0;
     requester
       .isSupport = !!requester.customClaims.support;
     /** Home page */
@@ -1137,42 +1036,42 @@ module.exports = async (req, res) => {
     if (!slug) {
       return sendHTML(
         conn,
-        await handleHomePage(locals, requester)
+        handleHomePage(locals, requester)
       );
     }
 
     if (slug === 'contact') {
       return sendHTML(
         conn,
-        await handleContactPage(locals, requester)
+        handleContactPage(locals, requester)
       );
     }
 
     if (slug === 'privacy-policy') {
       return sendHTML(
         conn,
-        await handlePrivacyPolicyPage(locals, requester)
+        handlePrivacyPolicyPage(locals, requester)
       );
     }
 
     if (slug === 'terms-and-conditions') {
       return sendHTML(
         conn,
-        await handleTermsAndConditionsPage(locals, requester)
+        handleTermsAndConditionsPage(locals, requester)
       );
     }
 
     if (slug === 'join') {
       return sendHTML(
         conn,
-        await handleJoinPage(locals, requester)
+        handleJoinPage(locals, requester)
       );
     }
 
     if (slug === 'download') {
       return sendHTML(
         conn,
-        await handleDownloadPage(locals, requester)
+        handleDownloadPage(locals, requester)
       );
     }
 
@@ -1185,7 +1084,7 @@ module.exports = async (req, res) => {
 
       return sendHTML(
         conn,
-        await handleAuthPage(locals, requester)
+        handleAuthPage(locals, requester)
       );
     }
 
@@ -1211,6 +1110,8 @@ module.exports = async (req, res) => {
 
     return sendHTML(conn, await fetchOfficeData(locals, requester));
   } catch (error) {
+    console.error(error);
+
     return handleServerError(conn);
   }
 };
