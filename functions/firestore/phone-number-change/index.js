@@ -166,16 +166,16 @@ module.exports = async conn => {
     const batch = db.batch();
     batch.set(employeeActivity
       .ref, {
-        addendumDocRef: null,
-        timestamp: Date.now(),
-        attachment: {
-          'Employee Contact': {
-            value: conn.req.body.newPhoneNumber,
-          },
+      addendumDocRef: null,
+      timestamp: Date.now(),
+      attachment: {
+        'Employee Contact': {
+          value: conn.req.body.newPhoneNumber,
         },
-      }, {
-        merge: true,
-      });
+      },
+    }, {
+      merge: true,
+    });
 
     const timezone = employeeActivity.get('timezone') || 'Asia/Kolkata';
     const momentToday = momentTz().tz(timezone);
@@ -187,16 +187,16 @@ module.exports = async conn => {
       .doc(officeId)
       .collection('Addendum')
       .doc(), {
-        date: momentToday.date(),
-        month: momentToday.month(),
-        year: momentToday.year(),
-        timestamp: Date.now(),
-        user: conn.requester.phoneNumber,
-        action: httpsActions.updatePhoneNumber,
-        oldPhoneNumber: conn.req.body.oldPhoneNumber,
-        newPhoneNumber: conn.req.body.newPhoneNumber,
-        isSupportRequest: conn.requester.isSupportRequest || false,
-      });
+      date: momentToday.date(),
+      month: momentToday.month(),
+      year: momentToday.year(),
+      timestamp: Date.now(),
+      user: conn.requester.phoneNumber,
+      action: httpsActions.updatePhoneNumber,
+      oldPhoneNumber: conn.req.body.oldPhoneNumber,
+      newPhoneNumber: conn.req.body.newPhoneNumber,
+      isSupportRequest: conn.requester.isSupportRequest || false,
+    });
 
     await batch.commit();
 
