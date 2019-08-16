@@ -166,17 +166,17 @@ const getProfile = conn => {
           .set(profileDoc.ref, {
             uid: conn.requester.uid,
           }, {
-              merge: true,
-            });
+            merge: true,
+          });
 
         batch
           .set(rootCollections
             .updates
             .doc(conn.requester.uid), {
-              phoneNumber: conn.requester.phoneNumber,
-            }, {
-              merge: true,
-            });
+            phoneNumber: conn.requester.phoneNumber,
+          }, {
+            merge: true,
+          });
       }
 
       return Promise
