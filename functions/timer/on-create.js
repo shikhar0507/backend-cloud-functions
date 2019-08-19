@@ -86,6 +86,9 @@ const sendErrorReport = async () => {
     index++;
   });
 
+  // No loggable errors for the day
+  if (!messageBody) return;
+
   const subject = `${process.env.GCLOUD_PROJECT}`
     + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
 
@@ -115,8 +118,8 @@ const runQuery = (query, resolve, reject) => {
           addendumDocRef: null,
           relevantTime: getRelevantTime(scheduleArray),
         }, {
-            merge: true,
-          });
+          merge: true,
+        });
       });
 
       /* eslint-disable */
@@ -193,8 +196,8 @@ const setBackblazeIdToken = async timerDoc => {
         backblazeAuthorizationToken: response.authorizationToken,
         downloadUrl: response.downloadUrl,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
   } catch (error) {
     console.error(error);
   }
@@ -296,8 +299,8 @@ module.exports = async timerDoc => {
       expectedRecipientTriggersCount: recipientsQuery.size,
       recipientsTriggeredToday: 0,
     }, {
-        merge: true,
-      });
+      merge: true,
+    });
 
     await batch.commit();
 
