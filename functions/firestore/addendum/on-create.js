@@ -28,6 +28,7 @@ const googleMapsClient =
       key: require('../../admin/env').mapsApiKey,
       Promise: Promise,
     });
+const admin = require('firebase-admin');
 
 
 const initDocRef = (snapShot) => {
@@ -43,7 +44,7 @@ const getLocalityCityState = (components) => {
   let city = '';
   let state = '';
 
-  components.forEach((component) => {
+  components.forEach(component => {
     if (component.types.includes('locality')) {
       locality = component.long_name;
     }
@@ -63,7 +64,7 @@ const getLocalityCityState = (components) => {
 const getLatLngString = (location) =>
   `${location._latitude},${location._longitude}`;
 
-const getLocationUrl = (plusCode) => `https://plus.codes/${plusCode}`;
+const getLocationUrl = plusCode => `https://plus.codes/${plusCode}`;
 
 const getPlaceInformation = (mapsApiResult, geopoint) => {
   const value = toMapsUrl(geopoint);
@@ -92,9 +93,9 @@ const getPlaceInformation = (mapsApiResult, geopoint) => {
   };
 };
 
-const handleDailyStatusReport = (addendumDoc, locals) => {
+const handleDailyStatusReport = async (addendumDoc, locals) => {
   if (!env.isProduction) {
-    return Promise.resolve();
+    return;
   }
 
   const batch = db.batch();
@@ -131,7 +132,7 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
         .limit(1)
         .get(),
     ])
-    .then((result) => {
+    .then(result => {
       const [
         todayInitQuery,
         counterDocsQuery,
@@ -288,8 +289,8 @@ const handleDailyStatusReport = (addendumDoc, locals) => {
         totalCreatedWithClientApi,
         totalCreatedWithSupport,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
 
       return batch.commit();
     })
@@ -361,8 +362,8 @@ const logLocations = (addendumDoc, locals) => {
           skipFromErrorReport: true,
           timestamp: Date.now(),
         }, {
-            merge: true,
-          });
+          merge: true,
+        });
     })
     .catch(console.error);
 };
@@ -521,29 +522,27 @@ const getUpdatedFieldNames = (options) => {
 const getPronoun = (locals, recipient) => {
   const addendumCreator = locals.addendumDoc.get('user');
   const assigneesMap = locals.assigneesMap;
+
+  if (addendumCreator === recipient) {
+    return 'You';
+  }
+
+  if (assigneesMap.get(addendumCreator)
+    && assigneesMap.get(addendumCreator).displayName) {
+    return assigneesMap.get(addendumCreator).displayName;
+  }
+
+  if (!assigneesMap.get(addendumCreator)
+    && !locals.addendumCreatorInAssignees) {
+    return locals.addendumCreator.displayName;
+  }
+
   /**
    * People are denoted with their phone numbers unless
    * the person creating the addendum is the same as the one
    * receiving it.
    */
-  let pronoun = addendumCreator;
-
-  if (addendumCreator === recipient) {
-    pronoun = 'You';
-  }
-
-  if (pronoun !== 'You'
-    && assigneesMap.get(addendumCreator)
-    && assigneesMap.get(addendumCreator).displayName) {
-    pronoun = assigneesMap.get(addendumCreator).displayName;
-  }
-
-  if (!assigneesMap.get(addendumCreator)
-    && !locals.addendumCreatorInAssignees) {
-    pronoun = locals.addendumCreator.displayName;
-  }
-
-  return pronoun;
+  return addendumCreator;
 };
 
 const getCreateActionComment = (template, pronoun, locationFromVenue) => {
@@ -568,28 +567,13 @@ const getChangeStatusComment = (status, activityName, pronoun) => {
 const getCommentString = (locals, recipient) => {
   const action = locals.addendumDoc.get('action');
   const pronoun = getPronoun(locals, recipient);
-  const creator = locals.addendumDoc.get('user');
-  const activityName = locals.addendumDoc.get('activityName');
   const template = locals.addendumDoc.get('activityData.template');
 
+  if (locals.addendumDoc.get('cancellationMessage')) {
+    return locals.addendumDoc.get('cancellationMessage');
+  }
+
   if (action === httpsActions.create) {
-    if (locals.addendumDoc.get('activityData.template') === 'duty roster') {
-      if (recipient === creator) {
-        return getCreateActionComment(template, pronoun);
-      }
-
-      const creatorName = (() => {
-        if (locals.assigneesMap.get('creator')
-          && locals.assigneesMap.get('creator').displayName) {
-          return locals.assigneesMap.get('creator').displayName;
-        }
-
-        return creator;
-      })();
-
-      return `${creatorName} assigned you a duty "${activityName}"`;
-    }
-
     const locationFromVenue = (() => {
       if (template !== 'check-in') return null;
 
@@ -611,9 +595,11 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.changeStatus) {
-    const status = locals.addendumDoc.get('status');
-
-    return getChangeStatusComment(status, activityName, pronoun);
+    return getChangeStatusComment(
+      locals.addendumDoc.get('status'),
+      locals.addendumDoc.get('activityData.activityName'),
+      pronoun
+    );
   }
 
   if (action === httpsActions.share) {
@@ -623,29 +609,29 @@ const getCommentString = (locals, recipient) => {
     if (share.length === 1) {
       let name = locals.assigneesMap.get(share[0]).displayName || share[0];
 
-      if (share[0] === recipient) {
-        name = 'you';
-      }
+      if (share[0] === recipient) name = 'you';
 
       return str += ` ${name}`;
     }
 
     /** The `share` array will never have the `user` themselves */
-    share.forEach((phoneNumber, index) => {
-      let name = locals
-        .assigneesMap.get(phoneNumber).displayName || phoneNumber;
-      if (phoneNumber === recipient) {
-        name = 'you';
-      }
+    share
+      .forEach((phoneNumber, index) => {
+        let name = locals
+          .assigneesMap.get(phoneNumber).displayName || phoneNumber;
 
-      if (share.length - 1 === index) {
-        str += ` & ${name}`;
+        if (phoneNumber === recipient) {
+          name = 'you';
+        }
 
-        return;
-      }
+        if (share.length - 1 === index) {
+          str += ` & ${name}`;
 
-      str += ` ${name}, `;
-    });
+          return;
+        }
+
+        str += ` ${name}, `;
+      });
 
     return str;
   }
@@ -660,43 +646,48 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.updatePhoneNumber) {
-    const doc = locals.addendumDoc;
-
     return `Phone number`
-      + ` '${doc.get('oldPhoneNumber')} was`
-      + ` changed to ${doc.get('newPhoneNumber')}`;
+      + ` '${locals.addendumDoc.get('oldPhoneNumber')} was`
+      + ` changed to ${locals.addendumDoc.get('newPhoneNumber')}`;
   }
 
   /** Action is `comment` */
   return locals.addendumDoc.get('comment');
 };
 
-const getAuth = phoneNumber => {
-  return require('firebase-admin')
-    .auth()
-    .getUserByPhoneNumber(phoneNumber)
-    .catch(error => {
-      if (error.code === 'auth/user-not-found') {
-        return {};
-      }
+/**
+ * Checks if the action was a comment.
+ * @param {string} action Can be one of the activity actions from HTTPS functions.
+ * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
+ */
+const isComment = action => {
+  // Making this a closure since this function is not going to be used anywhere else.
+  if (action === httpsActions.comment) return 1;
 
-      console.error(error);
-    });
+  return 0;
 };
+
+const getAuth = phoneNumber => admin
+  .auth()
+  .getUserByPhoneNumber(phoneNumber)
+  .catch(() => ({ phoneNumber }));
 
 const createComments = async (addendumDoc, locals) => {
   if (addendumDoc.get('activityData.hidden') === 1) {
-    return Promise.resolve();
+    return;
   }
 
-  // Fetch activity assignees
   const activityId = addendumDoc.get('activityId');
-  locals.addendumDoc = addendumDoc;
-  locals.assigneesMap = new Map();
-  const newPhoneNumbers = [];
+  locals
+    .addendumDoc = addendumDoc;
+  locals
+    .assigneesMap = new Map();
 
   try {
-    const [assignees, activityNew] = await Promise
+    const [
+      assignees,
+      activityNew
+    ] = await Promise
       .all([
         rootCollections
           .activities
@@ -709,16 +700,17 @@ const createComments = async (addendumDoc, locals) => {
           .get(),
       ]);
 
-    locals.activityNew = activityNew;
+    locals
+      .activityNew = activityNew;
 
     const batch = db.batch();
     const assigneeAuthPromises = [];
 
     assignees.forEach(assignee => {
       const phoneNumber = assignee.id;
-      const authFetch = getAuth(phoneNumber);
 
-      assigneeAuthPromises.push(authFetch);
+      assigneeAuthPromises
+        .push(getAuth(phoneNumber));
     });
 
     assigneeAuthPromises
@@ -739,45 +731,32 @@ const createComments = async (addendumDoc, locals) => {
       }
     });
 
-    assignees.forEach(assignee => {
-      const phoneNumber = assignee.id;
-      const auth = locals.assigneesMap.get(phoneNumber);
+    assignees
+      .forEach(assignee => {
+        const phoneNumber = assignee.id;
+        const auth = locals.assigneesMap.get(phoneNumber);
 
-      if (!auth) {
-        newPhoneNumbers.push(phoneNumber);
+        if (!auth) {
+          return;
+        }
 
-        return;
-      }
+        const comment = getCommentString(locals, phoneNumber);
 
-      const ref = rootCollections
-        .updates
-        .doc(auth.uid)
-        .collection('Addendum')
-        .doc(addendumDoc.id);
+        console.log(phoneNumber, comment);
 
-      const comment = addendumDoc.get('cancellationMessage')
-        || getCommentString(locals, phoneNumber);
-      /**
-       * Checks if the action was a comment.
-       * @param {string} action Can be one of the activity actions from HTTPS functions.
-       * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
-       */
-      const isComment = action => {
-        // Making this a closure since this function is not going to be used anywhere else.
-        if (action === httpsActions.comment) return 1;
-
-        return 0;
-      };
-
-      batch.set(ref, {
-        comment,
-        activityId,
-        isComment: isComment(locals.addendumDoc.get('action')),
-        timestamp: addendumDoc.get('userDeviceTimestamp'),
-        location: addendumDoc.get('location'),
-        user: addendumDoc.get('user'),
+        batch.set(rootCollections
+          .updates
+          .doc(auth.uid)
+          .collection('Addendum')
+          .doc(addendumDoc.id), {
+          comment,
+          activityId,
+          isComment: isComment(locals.addendumDoc.get('action')),
+          timestamp: addendumDoc.get('userDeviceTimestamp'),
+          location: addendumDoc.get('location'),
+          user: addendumDoc.get('user'),
+        });
       });
-    });
 
     return batch.commit();
   } catch (error) {
@@ -789,11 +768,10 @@ const createComments = async (addendumDoc, locals) => {
 module.exports = addendumDoc => {
   const action = addendumDoc.get('action');
   const phoneNumber = addendumDoc.get('user');
-  const officeId = addendumDoc.get('activityData.officeId');
-  const timezone = addendumDoc.get('activityData.timezone') || 'Asia/Kolkata';
   const locals = {
     dateObject: new Date(),
-    momentWithOffset: momentTz().tz(timezone),
+    momentWithOffset: momentTz()
+      .tz(addendumDoc.get('activityData.timezone') || 'Asia/Kolkata'),
   };
 
   let previousGeopoint;
@@ -815,8 +793,8 @@ module.exports = addendumDoc => {
         month: locals.momentWithOffset.month(),
         year: locals.momentWithOffset.year(),
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
   }
 
   const geopoint = addendumDoc.get('location');
@@ -827,7 +805,7 @@ module.exports = addendumDoc => {
     .all([
       rootCollections
         .offices
-        .doc(officeId)
+        .doc(addendumDoc.get('activityData.officeId'))
         .collection('Addendum')
         .where('user', '==', phoneNumber)
         .orderBy('timestamp', 'desc')
@@ -843,7 +821,10 @@ module.exports = addendumDoc => {
         .get()
     ])
     .then(result => {
-      const [addendumQuery, activityQuery] = result;
+      const [
+        addendumQuery,
+        activityQuery
+      ] = result;
       activityDoc = activityQuery.docs[0];
 
       locals
@@ -907,9 +888,12 @@ module.exports = addendumDoc => {
         const components = mapsApiResult.json.results[0].address_components;
         const { city, state, locality } = getLocalityCityState(components);
 
-        locals.city = city;
-        locals.state = state;
-        locals.locality = locality;
+        locals
+          .city = city;
+        locals
+          .state = state;
+        locals
+          .locality = locality;
       }
 
       const distanceData = (() => {
@@ -972,24 +956,29 @@ module.exports = addendumDoc => {
         && activityDoc.get('venue')[0].location) {
         updateObject
           .venueQuery = activityDoc.get('venue')[0];
-
-        if (addendumDoc.get('activityData.venue')
-          && addendumDoc.get('activityData.venue')[0]
-          && addendumDoc.get('activityData.venue')[0].location === '') {
-          const phoneNumber = addendumDoc.get('user');
-          const ref = rootCollections.profiles.doc(phoneNumber);
-
-          batch
-            .set(ref, {
-              lastLocationMapUpdateTimestamp: Date.now(),
-            }, {
-                merge: true,
-              });
-        }
       }
 
+      if (addendumDoc.get('activityData.venue')
+        && addendumDoc.get('activityData.venue')[0]
+        && addendumDoc.get('activityData.venue')[0].location === '') {
+        batch
+          .set(rootCollections
+            .profiles
+            .doc(phoneNumber), {
+            lastLocationMapUpdateTimestamp: Date.now(),
+          }, {
+            merge: true,
+          });
+      }
+
+      // Required for comment creation since the addendumDoc.data() won't contain
+      // the updates made during this function instance
       locals
-        .addendumDocData = Object.assign({}, addendumDoc.data(), updateObject);
+        .addendumDocData = Object.assign(
+          {},
+          addendumDoc.data(),
+          updateObject
+        );
 
       console.log(JSON.stringify({
         phoneNumber,
@@ -1025,7 +1014,5 @@ module.exports = addendumDoc => {
       };
 
       console.error('Context:', context);
-
-      return Promise.resolve();
     });
 };
