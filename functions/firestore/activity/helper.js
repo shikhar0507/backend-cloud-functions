@@ -28,7 +28,6 @@
 const {
   db,
   getGeopointObject,
-  deleteField,
   rootCollections,
 } = require('./../../admin/admin');
 const {
@@ -52,6 +51,7 @@ const {
   toMapsUrl,
 } = require('../../firestore/recipients/report-utils');
 const momentTz = require('moment-timezone');
+const admin = require('firebase-admin');
 
 const forSalesReport = (template) =>
   new Set(['dsr', 'customer']).has(template);
@@ -1148,7 +1148,7 @@ const activityName = (options) => {
 const toAttachmentValues = (conn, locals) => {
   // activityId, createTime, attachment, status
   if (conn.req.body.status === 'CANCELLED') {
-    return deleteField();
+    return admin.firestore.FieldValue.delete();
   }
 
   const object = {

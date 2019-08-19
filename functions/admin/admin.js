@@ -93,15 +93,6 @@ const getGeopointObject = geopoint => {
 
 
 /**
- * Deletes the field from Firestore that field is set equal to
- * this function's return value.
- *
- * @returns {Object} Firestore FieldValue Object.
- */
-const deleteField = () => admin.firestore.FieldValue.delete();
-
-
-/**
  * Updates the phone number of a user in the auth for Firebase.
  *
  * @param {string} uid A 30 character alpha-numeric string.
@@ -283,9 +274,6 @@ const rootCollections = {
   versions: db.collection('Versions'),
   events: db.collection('Events'),
   errors: db.collection('Errors'),
-  sitemaps: db.collection('Sitemaps'),
-  pendingOffices: db.collection('Pending Offices'),
-  mailEvents: db.collection('MailEvents'),
   anonymous: db.collection('Anonymous'),
 };
 
@@ -307,7 +295,6 @@ module.exports = {
   auth,
   users,
   fieldPath,
-  deleteField,
   rootCollections,
   getGeopointObject,
 };
