@@ -269,9 +269,9 @@ const disableAccount = (conn, reason) => {
           disabledFor: reason,
           disabledTimestamp: Date.now(),
         }, {
-            /** This doc may have other fields too. */
-            merge: true,
-          }),
+          /** This doc may have other fields too. */
+          merge: true,
+        }),
       rootCollections
         .instant
         .doc()
@@ -379,6 +379,7 @@ const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
 const isE164PhoneNumber = (phoneNumber) => {
   if (typeof phoneNumber !== 'string'
     || phoneNumber.trim() !== phoneNumber
+    || phoneNumber.length < 5
     || phoneNumber.replace(/ +/g, '') !== phoneNumber) {
     return false;
   }
