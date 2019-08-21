@@ -144,7 +144,7 @@ const getSlugFromUrl = requestUrl => {
   return officeName.split('/')[1];
 };
 
-const getBranchOpenStatus = (doc, timezone) => {
+const getBranchOpenStatus = doc => {
   const result = {
     isOpen: false,
     isClosed: false,
@@ -168,8 +168,7 @@ const getBranchOpenStatus = (doc, timezone) => {
     return result;
   }
 
-  const currentMoment = momentTz()
-    .tz(timezone);
+  const currentMoment = momentTz();
   const currentTimestamp = currentMoment
     .valueOf();
   const todaysDay = currentMoment
@@ -190,7 +189,6 @@ const getBranchOpenStatus = (doc, timezone) => {
     if (isNextDaySaturday) {
       result
         .openingTime = momentTz(saturdayStartTime)
-          .tz(timezone)
           .format(dateFormats.TIME);
 
       return result;
@@ -198,7 +196,6 @@ const getBranchOpenStatus = (doc, timezone) => {
 
     result
       .openingTime = momentTz(weekdayStartTime)
-        .tz(timezone)
         .format(dateFormats.DATE);
 
     return result;
@@ -209,7 +206,6 @@ const getBranchOpenStatus = (doc, timezone) => {
       || currentMoment > saturdayEndTime) {
       result.isClosed = true;
       result.openingTime = momentTz(saturdayStartTime)
-        .tz(timezone)
         .format(dateFormats.TIME);
 
       return result;
@@ -246,7 +242,7 @@ const getBranchOpenStatus = (doc, timezone) => {
   return result;
 };
 
-const handleOfficePage = (locals, requester) => {
+const handleOfficePage = async (locals, requester) => {
   const source = require('./views/office.hbs')();
   const template = handlebars.compile(source, { strict: true });
   const description = (() => {
@@ -284,6 +280,8 @@ const handleOfficePage = (locals, requester) => {
     return `Lorem Ipsum is simply dummy text of the printing and typesetting industry.`;
   })();
 
+  const employeesData = await getEmployeesMapFromRealtimeDb(locals.officeDoc.get('officeId'));
+
   return template({
     logoURL,
     videoId,
@@ -293,7 +291,7 @@ const handleOfficePage = (locals, requester) => {
     userEmail: requester.email || '',
     userDisplayName: requester.displayName || '',
     userPhoneNumber: requester.phoneNumber || '',
-    officeEmployeeSize: locals.officeEmployeeSize,
+    officeEmployeeSize: getEmployeesRange(employeesData),
     officeName: locals.officeDoc.get('office'),
     pageTitle: `${locals.officeDoc.get('office')} | Growthfile`,
     mainImageUrl: '/img/logo-main.jpg',
@@ -341,14 +339,13 @@ const fetchOfficeData = async (locals, requester) => {
         .get(),
     ]);
 
-  const branchObjectsArray = [];
-
   branchQuery
     .forEach(doc => {
       /** Currently branch has only 1 venue */
       const venue = doc.get('venue')[0];
 
-      if (!venue.geopoint.latitude || !venue.geopoint._latitude) {
+      if (!venue.geopoint.latitude
+        || !venue.geopoint._latitude) {
         return;
       }
 
@@ -379,7 +376,17 @@ const fetchOfficeData = async (locals, requester) => {
         return `+919${Math.random().toString().slice(2, 12)}`;
       })();
 
-      branchObjectsArray
+      const latitude = venue
+        .geopoint
+        ._latitude
+        || venue.geopoint.latitude;
+      const longitude = venue
+        .geopoint
+        ._longitude
+        || venue.geopoint.longitude;
+
+      locals
+        .branchObjectsArray
         .push({
           isOpen,
           isClosed,
@@ -387,48 +394,35 @@ const fetchOfficeData = async (locals, requester) => {
           openingTime,
           closingTime,
           branchContact,
+          latitude,
+          longitude,
           address: venue.address,
           name: doc.get('attachment.Name.value'),
           weeklyOff: doc.get('attachment.Weekly Off.value'),
-          latitude: venue.geopoint._latitude || venue.geopoint.latitude,
-          longitude: venue.geopoint._longitude || venue.geopoint.longitude,
-          mapsUrl: toMapsUrl({
-            latitude: venue.geopoint._latitude || venue.geopoint.latitude,
-            longitude: venue.geopoint._longitude || venue.geopoint.longitude,
-          }),
-          gp: {
-            latitude: venue.geopoint._latitude || venue.geopoint.latitude,
-            longitude: venue.geopoint._latitude || venue.geopoint.longitude,
-          },
+          mapsUrl: toMapsUrl({ latitude, longitude }),
+          gp: { latitude, longitude },
         });
     });
 
   const office = locals.officeDoc.get('office');
-  const officeId = locals.officeDoc.get('officeId');
-
-  const productObjectsArray = productQuery.docs.map((doc) => {
-    const name = doc.get('attachment.Name.value');
-    const imageUrl = `img/${name}-${office}.png`.replace(/\s+/g, '-');
-
-    return {
-      imageUrl,
-      name,
-      nameFirstChar: name.charAt(0),
-      productType: doc.get('attachment.Product Type.value'),
-      brand: doc.get('attachment.Brand.value'),
-      model: doc.get('attachment.Model.value'),
-      size: doc.get('attachment.Size.value'),
-    };
-  });
-
-  const employeesData = await getEmployeesMapFromRealtimeDb(officeId);
 
   locals
-    .officeEmployeeSize = getEmployeesRange(employeesData);
-  locals
-    .productObjectsArray = productObjectsArray;
-  locals
-    .branchObjectsArray = branchObjectsArray;
+    .productObjectsArray = productQuery
+      .docs
+      .map(doc => {
+        const name = doc.get('attachment.Name.value');
+        const imageUrl = `img/${name}-${office}.png`.replace(/\s+/g, '-');
+
+        return {
+          imageUrl,
+          name,
+          nameFirstChar: name.charAt(0),
+          productType: doc.get('attachment.Product Type.value'),
+          brand: doc.get('attachment.Brand.value'),
+          model: doc.get('attachment.Model.value'),
+          size: doc.get('attachment.Size.value'),
+        };
+      });
 
   return handleOfficePage(locals, requester);
 };
@@ -597,23 +591,6 @@ const handlePrivacyPolicyPage = (locals, requester) => {
     isProduction: env.isProduction,
     pageUrl: `https://growthfile.com/${locals.slug}`,
   });
-};
-
-const createJsonRecord = (doc) => {
-  return {
-    activityId: doc.id,
-    status: doc.get('status'),
-    canEdit: doc.get('canEdit'),
-    schedule: doc.get('schedule'),
-    venue: doc.get('venue'),
-    timestamp: doc.get('timestamp'),
-    template: doc.get('template'),
-    activityName: doc.get('activityName'),
-    office: doc.get('office'),
-    attachment: doc.get('attachment'),
-    creator: doc.get('creator'),
-    hidden: doc.get('hidden'),
-  };
 };
 
 function getTemplatesListJSON(name) {
@@ -965,6 +942,7 @@ module.exports = async (req, res) => {
   };
   const locals = {
     slug,
+    branchObjectsArray: [],
   };
 
   // For CORS
