@@ -46,7 +46,7 @@ const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
 
 
-const validateRequest = (conn) => {
+const validateRequest = conn => {
   if (conn.req.method !== 'GET') {
     return {
       isValid: false,
@@ -99,7 +99,7 @@ const getAddendumObject = doc => {
   return singleDoc;
 };
 
-const getAssigneesArray = (arrayOfPhoneNumbers) => {
+const getAssigneesArray = arrayOfPhoneNumbers => {
   // Could be a string (phoneNumber) or an object
   const firstItem = arrayOfPhoneNumbers[0];
 
@@ -223,10 +223,10 @@ const getStatusObject = async profileDoc => {
         .keys(statusObject)
         .forEach(date => {
           const obj = Object.assign({
-            date: Number(date),
-            month: allMonths[month],
             year,
             office,
+            date: Number(date),
+            month: allMonths[month],
           }, statusObject[date]);
 
           result.push(obj);
@@ -236,6 +236,8 @@ const getStatusObject = async profileDoc => {
     return result;
   } catch (error) {
     console.error(error);
+
+    return [];
   }
 };
 
@@ -309,10 +311,12 @@ module.exports = async conn => {
         .database()
         .ref(path);
 
-      locationPromises.push(ref.once('value'));
+      locationPromises
+        .push(ref.once('value'));
     });
 
-    promises.push(Promise.all(locationPromises));
+    promises
+      .push(Promise.all(locationPromises));
   }
 
   try {
@@ -381,9 +385,9 @@ module.exports = async conn => {
     batch.set(rootCollections
       .profiles
       .doc(conn.requester.phoneNumber), profileUpdate, {
-        /** Profile has other stuff too. */
-        merge: true,
-      });
+      /** Profile has other stuff too. */
+      merge: true,
+    });
 
     if (from === 0) {
       jsonObject
