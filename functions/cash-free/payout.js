@@ -202,6 +202,16 @@ const addBeneficiary = async options => {
   });
 };
 
+
+const getBeneficiary = async beneId => {
+  const uri = url.resolve(endpoint, `/payout/v1/getBeneficiary/${beneId}`);
+
+  return rpn(uri, {
+    headers: await getHeaders(),
+  });
+};
+
+
 const verifyWebhookPost = webhookData => {
   let concatenatedValues = '';
   const receivedSignature = webhookData.signature;
@@ -218,10 +228,21 @@ const verifyWebhookPost = webhookData => {
   return calculatedSignature === receivedSignature;
 };
 
+const getBalance = async () => {
+  const uri = url.resolve(endpoint, '/payout/v1/getBalance');
+
+  return rpn(uri, {
+    headers: await getHeaders(),
+    json: true,
+  });
+};
+
 module.exports = {
+  getBalance,
   validateBank,
+  getBeneficiary,
   addBeneficiary,
   requestTransfer,
-  getTransferStatus,
   verifyWebhookPost,
+  getTransferStatus,
 };
