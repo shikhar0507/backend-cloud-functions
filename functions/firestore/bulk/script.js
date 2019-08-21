@@ -20,6 +20,7 @@ const {
   isE164PhoneNumber,
   addressToCustomer,
   getBranchName,
+  millitaryToHourMinutes,
   getEmployeesMapFromRealtimeDb,
 } = require('../../admin/utils');
 const {
@@ -1348,18 +1349,6 @@ const getBranchActivity = async address => {
     const name = getBranchName(placeApiResult.json.result.address_components);
     activityObject.Name = name;
     activityObject.location = name;
-    activityObject['First Contact'] = (() => {
-      const internationalPhoneNumber = placeApiResult
-        .json
-        .result['international_phone_number'];
-
-      if (!internationalPhoneNumber) return '';
-
-      /** If the phoneNumber has spaces in between characters */
-      return internationalPhoneNumber
-        .split(' ')
-        .join('');
-    })();
 
     activityObject['Weekday Start Time'] = (() => {
       const openingHours = placeApiResult.json.result['opening_hours'];
@@ -1374,7 +1363,7 @@ const getBranchActivity = async address => {
 
       if (!relevantObject[0]) return '';
 
-      return relevantObject[0].open.time;
+      return millitaryToHourMinutes(relevantObject[0].open.time);
     })();
 
     activityObject['Weekday End Time'] = (() => {
@@ -1385,12 +1374,13 @@ const getBranchActivity = async address => {
       const periods = openingHours.periods;
 
       const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 1;
+        return item.close
+          && item.close.day === 1;
       });
 
       if (!relevantObject[0]) return '';
 
-      return relevantObject[0].close.time;
+      return millitaryToHourMinutes(relevantObject[0].close.time);
     })();
 
     activityObject['Saturday Start Time'] = (() => {
@@ -1406,7 +1396,7 @@ const getBranchActivity = async address => {
 
       if (!relevantObject[0]) return '';
 
-      return relevantObject[0].open.time;
+      return millitaryToHourMinutes(relevantObject[0].open.time);
     })();
 
     activityObject['Saturday End Time'] = (() => {
@@ -1422,7 +1412,7 @@ const getBranchActivity = async address => {
 
       if (!relevantObject[0]) return '';
 
-      return relevantObject[0].close.time;
+      return millitaryToHourMinutes(relevantObject[0].close.time);
     })();
 
     activityObject['Weekly Off'] = (() => {
@@ -1445,7 +1435,8 @@ const getBranchActivity = async address => {
       if (!parts[0]) return '';
 
       // ['Sunday' 'Closed']
-      return parts[0].toLowerCase();
+      return parts[0]
+        .toLowerCase();
     })();
 
     return activityObject;
