@@ -462,7 +462,11 @@ module.exports = async locals => {
       const numberOfCheckIns = snap.size;
 
       if (numberOfCheckIns === 0) {
-        yesterdaysStatusMap.set(phoneNumber, getDefaultStatusObject());
+        yesterdaysStatusMap
+          .set(
+            phoneNumber,
+            getDefaultStatusObject()
+          );
 
         return;
       }
@@ -476,8 +480,7 @@ module.exports = async locals => {
       const minimumDailyActivityCount = locals
         .employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
       const minimumWorkingHours = locals
-        .employeesData[phoneNumber]['Minimum Working Hours'] || 1;
-
+        .employeesData[phoneNumber]['Minimum Working Hours'];
       const statusForDay = getStatusForDay({
         numberOfCheckIns,
         minimumDailyActivityCount,
@@ -526,10 +529,6 @@ module.exports = async locals => {
       const monthYearString = parts[3];
       const phoneNumber = parts[parts.length - 1];
 
-      if (!locals.employeesData[phoneNumber]) {
-        return;
-      }
-
       const { statusObject } = doc.data();
 
       allPhoneNumbers
@@ -552,21 +551,15 @@ module.exports = async locals => {
     const daysCount = cycleEndMoment.diff(cycleStartMoment, 'days') + 1;
 
     allPhoneNumbers.forEach(phoneNumber => {
-      const name = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber].Name;
-        }
+      // The statusObject might exist for a phone number
+      // which is not currently an active employee
+      locals
+        .employeesData[
+        phoneNumber
+      ] = locals.employeesData[phoneNumber] || {};
 
-        return phoneNumber;
-      })();
-      const employeeCode = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber]['Employee Code'];
-        }
-
-        return '';
-      })();
-
+      const name = locals.employeesData[phoneNumber].Name;
+      const employeeCode = locals.employeesData[phoneNumber]['Employee Code'];
       const columnIndex = index + 2;
 
       paydaySheet
@@ -581,7 +574,7 @@ module.exports = async locals => {
 
       paydayTimingsSheet
         .cell(`A${columnIndex}`)
-        .value(name);
+        .value(name || phoneNumber);
       paydayTimingsSheet
         .cell(`B${columnIndex}`)
         .value(employeeCode);
@@ -660,7 +653,7 @@ module.exports = async locals => {
     }, ' ', 2));
 
     if (!env.isProduction) {
-      return Promise.resolve();
+      return;
     }
 
     return locals
