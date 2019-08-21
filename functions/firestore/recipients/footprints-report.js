@@ -314,7 +314,6 @@ module.exports = async locals => {
 
       if (template === 'check-in'
         && doc.get('activityData.attachment.Photo.value').startsWith('http')) {
-        console.log(doc.id);
         footprintsSheet
           .cell(`H${columnIndex}`)
           .value(comment)
