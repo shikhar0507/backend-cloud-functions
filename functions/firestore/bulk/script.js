@@ -66,7 +66,6 @@ const templateNamesObject = {
   RECIPIENT: 'recipient',
 };
 
-
 const handleValidation = body => {
   const result = {
     success: true,
@@ -164,7 +163,6 @@ const handleValidation = body => {
   return result;
 };
 
-
 const getActivityName = params => {
   const {
     template,
@@ -187,8 +185,9 @@ const getActivityName = params => {
     result += `${admin}`;
   } else if (template === templateNamesObject.SUBSCRIPTION) {
     result += `${subscriber}`;
-  } else if () {
-    result += `${customerName}`
+  } else if (customerName) {
+    /** Duty name -> DUTY: Customer Name */
+    result += `${customerName}`;
   } else {
     result += `${displayName || phoneNumber}`;
   }
@@ -199,7 +198,6 @@ const getActivityName = params => {
 
   return result;
 };
-
 
 const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
   const canEditRule = locals.templateDoc.get('canEditRule');
@@ -212,7 +210,6 @@ const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
   // for `ALL`
   return true;
 };
-
 
 const executeSequentially = batchFactories => {
   let result = Promise.resolve();
@@ -244,7 +241,6 @@ const createObjects = (conn, locals, trialRun) => {
   const batchFactories = [];
   const batchesArray = [];
   const timestamp = Date.now();
-  const childActivitiesBatch = db.batch();
   const isOfficeTemplate = conn.req.body.template === templateNamesObject.OFFICE;
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(locals.templateDoc.get('schedule'));
@@ -278,18 +274,13 @@ const createObjects = (conn, locals, trialRun) => {
 
     const activityRef = rootCollections.activities.doc();
     const officeRef = (() => {
-      if (conn.req.body.template
-        === templateNamesObject.OFFICE) {
-        return rootCollections
-          .offices
-          .doc(activityRef.id);
+      if (conn.req.body.template === templateNamesObject.OFFICE) {
+        return rootCollections.offices.doc(activityRef.id);
       }
 
       return locals.officeDoc.ref;
     })();
-    const addendumDocRef = officeRef
-      .collection('Addendum')
-      .doc();
+    const addendumDocRef = officeRef.collection('Addendum').doc();
     const params = {
       subscriber: item.Subscriber,
       admin: item.Admin,
@@ -310,23 +301,29 @@ const createObjects = (conn, locals, trialRun) => {
         return officeRef.id;
       }
 
-      return locals.officeDoc.id;
+      return locals
+        .officeDoc
+        .id;
     })();
-
     const office = (() => {
       if (isOfficeTemplate) {
         return item.Name;
       }
 
-      return locals.officeDoc.get('attachment.Name.value');
+      return locals
+        .officeDoc
+        .get('attachment.Name.value');
     })();
-
     const timezone = (() => {
-      if (conn.req.body.template === templateNamesObject.OFFICE) {
-        return item.Timezone;
+      if (conn.req.body.template
+        === templateNamesObject.OFFICE) {
+        return item
+          .Timezone;
       }
 
-      return locals.officeDoc.get('attachment.Timezone.value');
+      return locals
+        .officeDoc
+        .get('attachment.Timezone.value');
     })();
 
     const activityObject = {
@@ -423,15 +420,17 @@ const createObjects = (conn, locals, trialRun) => {
         }
       });
 
-    if (activityObject.venue[0] &&
-      activityObject.venue[0].geopoint.latitude &&
-      activityObject.venue[0].geopoint.longitude) {
+    if (activityObject.venue[0]
+      && activityObject.venue[0].geopoint.latitude
+      && activityObject.venue[0].geopoint.longitude) {
       activityObject.venue[0].geopoint = new admin.firestore.GeoPoint(
         activityObject.venue[0].geopoint.latitude,
         activityObject.venue[0].geopoint.longitude
       );
 
-      const adjusted = adjustedGeopoint(activityObject.venue[0].geopoint);
+      const adjusted = adjustedGeopoint(
+        activityObject.venue[0].geopoint
+      );
 
       activityObject
         .adjustedGeopoints = `${adjusted.latitude},${adjusted.longitude}`;
@@ -460,20 +459,28 @@ const createObjects = (conn, locals, trialRun) => {
         .assigneesFromAttachment
         .get(index)
         .forEach(phoneNumber => {
-          item
+          conn
+            .req
+            .body
+            .data[index]
             .share
             .push(phoneNumber);
         });
     }
 
-    item
+    conn
+      .req
+      .body
+      .data[index]
       .share
       .forEach(phoneNumber => {
-        const assigneeRef = activityRef
+        const ref = activityRef
           .collection('Assignees')
           .doc(phoneNumber.trim());
-        const addToInclude = conn.req.body.template === templateNamesObject.SUBSCRIPTION
-          && phoneNumber !== activityObject.attachment.Subscriber.value;
+        const addToInclude = conn.req.body.template
+          === templateNamesObject.SUBSCRIPTION
+          && phoneNumber
+          !== activityObject.attachment.Subscriber.value;
 
         const canEdit = getCanEditValue(
           locals,
@@ -481,7 +488,7 @@ const createObjects = (conn, locals, trialRun) => {
           conn.requester.phoneNumber
         );
 
-        batch.set(assigneeRef, {
+        batch.set(ref, {
           canEdit,
           addToInclude,
         });
@@ -495,8 +502,8 @@ const createObjects = (conn, locals, trialRun) => {
     // Second for addendum
     totalDocsCreated += 2;
     batchDocsCount += 2;
-    batchDocsCount += item.share.length;
-    totalDocsCreated += item.share.length;
+    batchDocsCount += conn.req.body.data[index].share.length;
+    totalDocsCreated += conn.req.body.data[index].share.length;
   });
 
   const responseObject = {
@@ -507,19 +514,18 @@ const createObjects = (conn, locals, trialRun) => {
 
   /** For testing out code */
   if (trialRun) {
-    return Promise.resolve(responseObject);
+    return responseObject;
   }
 
   return commitData(batchesArray, batchFactories)
-    .then(() => childActivitiesBatch.commit())
     .then(() => responseObject);
 };
 
 const fetchDataForCanEditRule = async (conn, locals) => {
   const rule = locals.templateDoc.get('canEditRule');
 
-  if (rule !== 'ADMIN'
-    && rule !== 'EMPLOYEE') {
+  if (rule !== 'ADMIN' &&
+    rule !== 'EMPLOYEE') {
     return;
   }
 
@@ -545,7 +551,8 @@ const fetchDataForCanEditRule = async (conn, locals) => {
 const handleEmployees = async (conn, locals) => {
   const promises = [];
 
-  if (conn.req.body.template !== templateNamesObject.EMPLOYEE) {
+  if (conn.req.body.template
+    !== templateNamesObject.EMPLOYEE) {
     return;
   }
 
@@ -578,30 +585,29 @@ const handleEmployees = async (conn, locals) => {
   const [employeesData, snapShots] = result;
 
   snapShots.forEach(snapShot => {
-    if (snapShot.empty) {
+    if (snapShot.empty)
       return;
-    }
-
     /** Doc exists, employee already exists */
     const doc = snapShot.docs[0];
     const phoneNumber = doc.get('attachment.Employee Contact.value');
-
     phoneNumbersToRejectSet.add(phoneNumber);
   });
-
   conn.req.body.data.forEach((item, index) => {
-    const phoneNumber_1 = item['Employee Contact'];
-    if (phoneNumbersToRejectSet.has(phoneNumber_1)) {
+    const phoneNumber = item['Employee Contact'];
+
+    if (phoneNumbersToRejectSet.has(phoneNumber)) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `Phone number`
-        + ` ${phoneNumber_1} is already an employee`;
+        + ` ${phoneNumber} is already an employee`;
+
       return;
     }
 
-    if (employeesData[phoneNumber_1]) {
+    if (employeesData[phoneNumber]) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Phone number: ${phoneNumber_1} is already` +
-        ` in use by ${employeesData[phoneNumber_1].Name}`;
+      conn.req.body.data[index].reason = `Phone number:`
+        + ` ${phoneNumber} is already`
+        + ` in use by ${employeesData[phoneNumber].Name}`;
     }
   });
 
@@ -618,8 +624,9 @@ const handleUniqueness = async (conn, locals) => {
     .get('attachment')
     .hasOwnProperty('Number');
 
-  if (!hasName && !hasNumber) {
-    return Promise.resolve();
+  if (!hasName
+    && !hasNumber) {
+    return;
   }
 
   const promises = [];
@@ -662,7 +669,6 @@ const handleUniqueness = async (conn, locals) => {
 
   const snapShots = await Promise
     .all(promises);
-
   snapShots.forEach(snapShot => {
     // Empty means that the person with the name/number doesn't exist.
     if (snapShot.empty) {
@@ -698,10 +704,7 @@ const handleSubscriptions = async (conn, locals) => {
   locals
     .subscriptionsToCheck
     .forEach(item => {
-      const {
-        phoneNumber,
-        template,
-      } = item;
+      const { phoneNumber, template } = item;
 
       const promise = rootCollections
         .activities
@@ -718,7 +721,6 @@ const handleSubscriptions = async (conn, locals) => {
 
   const snapShots = await Promise
     .all(promises);
-
   snapShots.forEach((snapShot, index) => {
     if (snapShot.empty) {
       return;
@@ -746,18 +748,19 @@ const handleAdmins = async (conn, locals) => {
   locals
     .adminToCheck
     .forEach((phoneNumber) => {
+      const promise = rootCollections
+        .activities
+        .where('office', '==', conn.req.body.office)
+        .where('template', '==', templateNamesObject.ADMIN)
+        .where('attachment.Admin.value', '==', phoneNumber)
+        .where('status', '==', 'CONFIRMED')
+        .limit(1)
+        .get();
+
       promises
-        .push(
-          rootCollections
-            .activities
-            .where('office', '==', conn.req.body.office)
-            .where('template', '==', templateNamesObject.ADMIN)
-            .where('attachment.Admin.value', '==', phoneNumber)
-            .where('status', '==', 'CONFIRMED')
-            .limit(1)
-            .get()
-        );
+        .push(promise);
     });
+
   const adminsToReject = new Set();
 
   const snapShots = await Promise
@@ -773,16 +776,16 @@ const handleAdmins = async (conn, locals) => {
   });
 
   conn.req.body.data.forEach((object, index) => {
-    const adminContact = object.Admin;
-    if (!adminContact) {
+    const phoneNumber = object.Admin;
+    if (!phoneNumber) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason =
-        `Invalid value '${adminContact || 'empty'}' for Admin phone number`;
+        `Invalid value '${phoneNumber || 'empty'}' for Admin phone number`;
     }
-    if (adminsToReject.has(adminContact)) {
+    if (adminsToReject.has(phoneNumber)) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason =
-        `${adminContact} is already an Admin`;
+        `${phoneNumber} is already an Admin`;
     }
   });
 
@@ -828,17 +831,21 @@ const fetchValidTypes = async (conn, locals) => {
       /** Doc exists, so creation is allowed */
       return;
     }
+
     const nonExistingValue = queryMap.get(index);
+
     nonExistingValuesSet.add(nonExistingValue);
   });
 
-  conn.req
+  conn
+    .req
     .body
     .data
     .forEach((object, index) => {
       const fields = Object.keys(object);
-      fields.forEach((field) => {
+      fields.forEach(field => {
         const value = object[field];
+
         if (nonExistingValuesSet.has(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason =
@@ -897,13 +904,17 @@ const validateDataArray = async (conn, locals) => {
         return `${dataObject.Subscriber}-${dataObject.Template}`;
       }
 
-      return dataObject.Name || dataObject.Number;
+      return dataObject.Name
+        || dataObject.Number;
     })();
 
     if (uniqueValue) {
-      const indexSet = uniqueMap.get(uniqueValue) || new Set();
-      indexSet.add(index);
-      uniqueMap.set(uniqueValue, indexSet);
+      const indexSet = uniqueMap.get(uniqueValue)
+        || new Set();
+      indexSet
+        .add(index);
+      uniqueMap
+        .set(uniqueValue, indexSet);
     }
 
     const objectProperties = Object.keys(dataObject);
@@ -990,18 +1001,17 @@ const validateDataArray = async (conn, locals) => {
     }
 
     if (conn.req.body.template === templateNamesObject.RECIPIENT) {
-      const templateName = conn.req.body.data[index].Name;
-
+      const reportName = conn.req.body.data[index].Name;
       const validReports = new Set(['footprints', 'payroll']);
 
-      if (!validReports.has(templateName)) {
+      if (!validReports.has(reportName)) {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `${templateName} is not a valid report`;
+        conn.req.body.data[index].reason = `${reportName} is not a valid report`;
       }
     }
 
-    if (conn.req.body.template ===
-      templateNamesObject.OFFICE) {
+    if (conn.req.body.template
+      === templateNamesObject.OFFICE) {
       const firstContact = conn.req.body.data[index]['First Contact'];
       const secondContact = conn.req.body.data[index]['Second Contact'];
       const timezone = conn.req.body.data[index].Timezone;
@@ -1030,6 +1040,7 @@ const validateDataArray = async (conn, locals) => {
       if (firstContact) {
         contacts.push(firstContact);
       }
+
       if (secondContact) {
         contacts.push(secondContact);
       }
@@ -1037,8 +1048,8 @@ const validateDataArray = async (conn, locals) => {
       officeContacts.set(index, contacts);
     }
 
-    if (conn.req.body.template ===
-      templateNamesObject.SUBSCRIPTION) {
+    if (conn.req.body.template
+      === templateNamesObject.SUBSCRIPTION) {
       const phoneNumber = conn.req.body.data[index].Subscriber;
       const template = conn.req.body.data[index].Template;
 
@@ -1055,7 +1066,7 @@ const validateDataArray = async (conn, locals) => {
       /** Subscription of template office and subscription
        * is not allowed for everyone
        */
-      if (template === 'office'
+      if (template === templateNamesObject.OFFICE
         || template === templateNamesObject.SUBSCRIPTION) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
@@ -1071,11 +1082,20 @@ const validateDataArray = async (conn, locals) => {
       if (subscriptionsMap.has(phoneNumber)) {
         const set = subscriptionsMap.get(phoneNumber);
 
-        set.add(template);
+        set
+          .add(template);
 
-        subscriptionsMap.set(phoneNumber, set);
+        subscriptionsMap
+          .set(
+            phoneNumber,
+            set
+          );
       } else {
-        subscriptionsMap.set(phoneNumber, new Set().add(template));
+        subscriptionsMap
+          .set(
+            phoneNumber,
+            new Set().add(template)
+          );
       }
 
       subscriptionsToCheck
@@ -1110,9 +1130,9 @@ const validateDataArray = async (conn, locals) => {
     objectProperties.forEach(property => {
       const value = dataObject[property];
 
-      if (value &&
-        scheduleFieldsSet.has(property) &&
-        !isValidDate(value)) {
+      if (value
+        && scheduleFieldsSet.has(property)
+        && !isValidDate(value)) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `The field ${property}` +
           ` should be a valid unix timestamp`;
@@ -1123,7 +1143,8 @@ const validateDataArray = async (conn, locals) => {
       if (attachmentFieldsSet.has(property)) {
         const type = locals.templateDoc.get('attachment')[property].type;
 
-        if (!validTypes.has(type) && value) {
+        if (!validTypes.has(type)
+          && value) {
           // Used for querying activities which should exist on the
           // basis of name
           verifyValidTypes.set(index, {
@@ -1133,9 +1154,10 @@ const validateDataArray = async (conn, locals) => {
           });
         }
 
-        if (conn.req.body.template === templateNamesObject.EMPLOYEE &&
-          property === 'Employee Contact' &&
-          !isE164PhoneNumber(value)) {
+        if (conn.req.body.template
+          === templateNamesObject.EMPLOYEE
+          && property === 'Employee Contact'
+          && !isE164PhoneNumber(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Employee ${property}` +
             ` should be a valid phone number`;
@@ -1143,42 +1165,48 @@ const validateDataArray = async (conn, locals) => {
           return;
         }
 
-        if (value &&
-          type === 'phoneNumber') {
+        if (value
+          && type === 'phoneNumber') {
           if (assigneesFromAttachment.has(index)) {
             const set = assigneesFromAttachment.get(index);
 
-            set.add(value);
+            set
+              .add(value);
 
-            assigneesFromAttachment.set(index, set);
+            assigneesFromAttachment
+              .set(index, set);
           } else {
-            assigneesFromAttachment.set(index, new Set().add(value));
+            assigneesFromAttachment
+              .set(
+                index,
+                new Set().add(value)
+              );
           }
         }
 
-        if (value &&
-          type === 'number'
+        if (value
+          && type === 'number'
           /** Handled stringified numbers */
-          &&
-          typeof Number(value) !== 'number') {
+          && typeof Number(value) !== 'number') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'string' &&
-          typeof value !== 'string') {
+        if (type === 'string'
+          && typeof value !== 'string') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (property === 'Number' &&
-          !isNonEmptyString(value) &&
-          typeof value !== 'number') {
-          duplicatesSet.add(value);
+        if (property === 'Number'
+          && !isNonEmptyString(value)
+          && typeof value !== 'number') {
+          duplicatesSet
+            .add(value);
 
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
@@ -1186,8 +1214,8 @@ const validateDataArray = async (conn, locals) => {
           return;
         }
 
-        if (property === 'Name' &&
-          !isNonEmptyString(value)) {
+        if (property === 'Name'
+          && !isNonEmptyString(value)) {
           duplicatesSet.add(value);
 
           conn.req.body.data[index].rejected = true;
@@ -1201,42 +1229,44 @@ const validateDataArray = async (conn, locals) => {
          * the value is non-empty string because they are not
          * required.
          */
-        if (!isNonEmptyString(value)) return;
+        if (!isNonEmptyString(value)) {
+          return;
+        }
 
-        if (type === 'email' &&
-          !isValidEmail(value)) {
+        if (type === 'email'
+          && !isValidEmail(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'weekday' &&
-          !weekdays.has(value)) {
+        if (type === 'weekday'
+          && !weekdays.has(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'phoneNumber' &&
-          !isE164PhoneNumber(value)) {
+        if (type === 'phoneNumber'
+          && !isE164PhoneNumber(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'HH:MM' &&
-          !isHHMMFormat(value)) {
+        if (type === 'HH:MM'
+          && !isHHMMFormat(value)) {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'base64' &&
-          typeof value !== 'string') {
+        if (type === 'base64'
+          && typeof value !== 'string') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
@@ -1250,8 +1280,8 @@ const validateDataArray = async (conn, locals) => {
         .push(conn.req.body.data[index].Name);
     }
 
-    if (conn.req.body.template ===
-      templateNamesObject.EMPLOYEE) {
+    if (conn.req.body.template
+      === templateNamesObject.EMPLOYEE) {
       employeesToCheck.push({
         name: conn.req.body.data[index].Name,
         phoneNumber: conn.req.body.data[index]['Employee Contact'],
