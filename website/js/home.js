@@ -244,10 +244,10 @@ function handleUpdateAuthRequest() {
   }
   sendApiRequest(
     `${apiBaseUrl}/update-auth`, {
-      phoneNumber,
-      displayName,
-      email,
-    },
+    phoneNumber,
+    displayName,
+    email,
+  },
     'POST'
   )
     .then(function (response) {
@@ -1194,12 +1194,28 @@ function createExcelSheet(rawTemplate) {
     Author: 'Growthfile',
     CreatedDate: new Date()
   }
+
   const data = [];
+
   if (rawTemplate.venue.length) {
     data.push(['address', 'location'])
   } else {
-    data.push(Object.keys(rawTemplate.attachment));
+    const allKeys = Object.keys(rawTemplate.attachment);
+
+    rawTemplate
+      .schedule
+      .forEach(function (name) {
+        allKeys.push(name);
+      });
+
+    data.push(allKeys);
+
+
+    // rawTemplate.schedule.forEach(function (name) {
+    //   data.push(name);
+    // });
   }
+
   const ws = XLSX.utils.aoa_to_sheet(data);
 
   console.log(ws)
