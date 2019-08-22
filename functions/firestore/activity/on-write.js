@@ -68,8 +68,8 @@ const googleMapsClient =
     });
 
 
-const getAuth = phoneNumber =>
-  auth
+const getAuth = phoneNumber => {
+  return auth
     .getUserByPhoneNumber(phoneNumber)
     .catch(() => ({
       phoneNumber,
@@ -78,6 +78,15 @@ const getAuth = phoneNumber =>
       emailVerified: false,
       displayName: '',
     }));
+};
+
+
+const deleteAuth = async phoneNumber => {
+  return auth
+    .getUserByPhoneNumber(phoneNumber)
+    .then(userRecord => auth.deleteUser(userRecord.uid))
+    .catch(() => Promise.resolve());
+};
 
 
 const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
@@ -1225,12 +1234,15 @@ const handleEmployee = async locals => {
         merge: true,
       });
 
+      await deleteAuth(oldEmployeeContact);
+
       const path = `${officeId}/employee/${oldEmployeeContact}`;
       const ref = admin
         .database()
         .ref(path);
 
-      await ref.remove();
+      await ref
+        .remove();
 
       const profileDoc = await rootCollections
         .profiles
@@ -2496,6 +2508,9 @@ const handleComments = async (addendumDoc, locals) => {
   if (!addendumDoc) return;
 
   locals
+    .activityNew = locals.change.after;
+
+  locals
     .assigneePhoneNumbersArray
     .forEach(phoneNumber => {
       const userRecord = locals.assigneesMap.get(phoneNumber);
@@ -3081,6 +3096,178 @@ const handleAddendum = async locals => {
   return handleDailyStatusReport(addendumDoc);
 };
 
+const handleActivityUpdates = async locals => {
+  /**
+   * If name is updated
+   * get all the activities with this name
+   * and update the activities
+   * If this instance has run because of activity being cancelled
+   * during status-change, set all the activities using this value
+   * in their type as '' (empty string).
+   */
+  const newName = locals.change.after.get('attachment.Name.value');
+  const oldName = locals.change.before.get('attachment.Name.value');
+  const newStatus = locals.change.after.get('status');
+  const officeId = locals.change.after.get('officeId');
+
+  // Activity doesn't have a name
+  if (!newName) return;
+
+  const template = locals
+    .change
+    .after
+    .get('template');
+
+  const baseQuery = rootCollections
+    .activities
+    .where('officeId', '==', officeId)
+    .where('template', '==', 'employee');
+
+  const query = (() => {
+    if (template === 'branch') {
+      return baseQuery
+        .where('attachment.Base Location.value', '==', oldName);
+    }
+
+    if (template === 'region') {
+      return baseQuery
+        .where('attachment.Region.value', '==', oldName);
+    }
+
+    if (template === 'department') {
+      return baseQuery
+        .where('attachment.Department.value', '==', oldName);
+    }
+
+    return null;
+  })();
+
+  // Only proceed for branch, region and department
+  if (!query) return;
+
+  const docs = await query.get();
+
+  const value = (() => {
+    if (newStatus === 'CANCELLED') {
+      return '';
+    }
+
+    return oldName;
+  })();
+
+  const field = (() => {
+    if (template === 'branch') return 'Base Location';
+    if (template === 'region') return 'Region';
+    if (template === 'department') return 'Department';
+  })();
+
+  const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
+  const numberOfBatches = Math
+    .round(
+      Math
+        .ceil(docs.size / MAX_DOCS_ALLOWED_IN_A_BATCH)
+    );
+  const batchArray = Array
+    .from(Array(numberOfBatches)).map(() => db.batch());
+  let batchIndex = 0;
+  let docsCounter = 0;
+
+  docs.forEach(doc => {
+    if (docsCounter > 499) {
+      docsCounter = 0;
+      batchIndex++;
+    }
+
+    docsCounter++;
+
+    batchArray[
+      batchIndex
+    ].set(doc.ref, {
+      addendumDocRef: null,
+      attachment: {
+        [field]: {
+          value,
+        },
+      },
+    }, {
+      merge: true,
+    });
+  });
+
+  return Promise
+    .all(batchArray.map(batch => batch.commit()));
+};
+
+// const handleLeaveType = async locals => {
+//   // fetch all 'leave' activities with attachment.Leave Type.value
+//   // and set it to attachment.Name.value of this activity
+//   const name = locals.change.after.get('attachment.Name.value');
+//   const officeId = locals.change.after.get('officeId');
+//   // const annualLimit = locals.change.after.get('attachment.Annual Limit.value');
+
+//   const leaveActivities = await rootCollections
+//     .activities
+//     .where('template', '==', 'leave')
+//     .where('attachment.Leave Type.value', '==', name)
+//     .where('officeId', '==', officeId)
+//     .get();
+
+//   const batch = db.batch();
+//   const now = Date.now();
+
+//   leaveActivities
+//     .forEach(doc => {
+//       const relevantTime = doc.get('relevantTime');
+
+//       if (relevantTime < now) return;
+
+//       batch.set(doc.ref, {
+//         attachment: {
+//           'Leave Type': {
+//             value: name,
+//           },
+//         },
+//       }, {
+//         merge: true,
+//       });
+//     });
+// };
+
+const handleCustomer = async locals => {
+  // Create customer map.
+  const rtdb = admin
+    .database();
+  const officeId = locals.change.after.get('officeId');
+  const activityId = locals.change.after.id;
+  const ref = rtdb.ref(`${officeId}/customer/${activityId}`);
+  const attachment = locals.change.after.get('attachment');
+  const object = {
+    createTime: locals.change.after.createTime.toDate().getTime(),
+    updateTime: locals.change.after.updateTime.toDate().getTime(),
+  };
+
+  Object
+    .keys(attachment)
+    .forEach(field => {
+      const { value } = field;
+
+      object[field] = value;
+    });
+
+  const status = locals
+    .change
+    .after
+    .get('status');
+
+  if (status === 'CANCELLED') {
+    return ref
+      .remove();
+  }
+
+  return ref
+    .set(object);
+};
+
 
 module.exports = async (change, context) => {
   /** Activity was deleted. For debugging only. */
@@ -3383,6 +3570,20 @@ module.exports = async (change, context) => {
     if (template === 'admin') {
       await handleAdmin(locals);
     }
+
+    if (template === 'customer') {
+      await handleCustomer(locals);
+    }
+
+    // if (template === 'leave-type') {
+    //   await handleLeaveType(locals);
+    // }
+
+    // if(template === 'claim-type') {
+    //   await handleClaimType(locals);
+    // }
+
+    await handleActivityUpdates(locals);
 
     return;
   } catch (error) {
