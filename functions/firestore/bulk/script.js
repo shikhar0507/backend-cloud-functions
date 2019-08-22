@@ -64,6 +64,7 @@ const templateNamesObject = {
   EMPLOYEE: 'employee',
   OFFICE: 'office',
   RECIPIENT: 'recipient',
+  DUTY: 'duty',
 };
 
 const handleValidation = body => {
@@ -223,6 +224,16 @@ const executeSequentially = batchFactories => {
   });
 
   return result;
+};
+
+const getauth = async phoneNumber => {
+  return admin
+    .auth()
+    .getUserByPhoneNumber(phoneNumber)
+    .catch(() => ({
+      phoneNumber,
+      uid: null,
+    }));
 };
 
 const commitData = (batchesArray, batchFactories) => {
@@ -1581,6 +1592,198 @@ const handleCustomer = async conn => {
   return;
 };
 
+const handleDuty = async (conn, locals) => {
+  const template = conn.req.body.template;
+
+  if (template !== templateNamesObject.DUTY) return;
+
+  const customerPromises = [];
+  const now = Date.now();
+  const dutyTypePromises = [];
+  const authPromises = [];
+  const phoneNumberIndexMap = new Map();
+
+  conn.req.body.data.forEach((item, index) => {
+    // empty schedule not allowed
+    // schedule start time should be of the future
+    // schedule cannot be empty
+    // location (customer cannot be empty)
+    // include can be empty
+    if (!isValidDate(item.Duty)
+      || item.Duty < now) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Duty can only`
+        + ` be created for the future`;
+
+      return;
+    }
+
+    if (!isE164PhoneNumber(item.Supervisor)) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Invalid/missing 'Supervisor' phone number`;
+
+      return;
+    }
+
+    if (!item.Location) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Customer cannot be left blank`;
+    }
+
+    if (item.Location) {
+      const customerPromise = rootCollections
+        .activities
+        .where('template', '==', 'customer')
+        .where('status', '==', 'CONFIRMED')
+        .where('officeId', '==', locals.officeDoc.id)
+        .where('attachment.Name.value', '==', item.Location)
+        .limit(1)
+        .get();
+
+      customerPromises.push(customerPromise);
+    }
+
+    const phoneNumbers = item.Include.split(',');
+
+    phoneNumbers
+      .push(item.Supervisor);
+    phoneNumbers
+      .push(conn.requester.phoneNumber);
+
+    phoneNumbers.forEach(phoneNumber => {
+      const authPromise = getauth(phoneNumber.trim());
+
+      authPromises.push(authPromise);
+
+      const oldIndexArray = phoneNumberIndexMap
+        .get(phoneNumber.trim())
+        || new Set().add(index);
+
+      oldIndexArray
+        .add(index);
+
+      phoneNumberIndexMap
+        .set(
+          phoneNumber.trim(),
+          oldIndexArray
+        );
+    });
+
+    if (typeof item['Duty Type'] !== 'string') {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].rejected = `Invalid Duty Type`;
+
+      return;
+    }
+
+    // Could be an empty string, in which case, we don't
+    // need to query
+    if (item['Duty Type']) {
+      const promise = rootCollections
+        .activities
+        .where('officeId', '==', locals.officeDoc.id)
+        .where('attachment.Name.value', '==', item['Duty Type'])
+        .where('status', '==', 'CONFIRMED')
+        .limit(1)
+        .get();
+
+      dutyTypePromises
+        .push(promise);
+    }
+  });
+
+  const dutyTypeSnapshots = await Promise.all(dutyTypePromises);
+  const rejectedValues = new Set();
+
+  dutyTypeSnapshots.forEach(snapShot => {
+    if (!snapShot.empty) return;
+
+    // snapshot is empty, reject items with this duty type
+    const filters = snapShot.query._queryOptions.fieldFilters;
+    const value = filters[1].value;
+
+    rejectedValues.add(value);
+  });
+
+  const customerSnapshots = await Promise.all(customerPromises);
+  const existingCustomersSet = new Set();
+
+  customerSnapshots.forEach(snap => {
+    if (snap.empty) return;
+
+    const name = snap.docs[0].get('attachment.Name.value');
+
+    existingCustomersSet.add(name);
+  });
+
+  conn.req.body.data.forEach((item, index) => {
+    if (item.rejected) return;
+
+    const dutyType = item['Duty Type'];
+    const customer = item.Location;
+
+    if (!existingCustomersSet.has(customer)) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Invalid Customer: ${customer}`;
+
+      return;
+    }
+
+    if (rejectedValues.has(dutyType)) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Invalid Duty Type`;
+
+      return;
+    }
+  });
+
+  const userRecords = await Promise
+    .all(authPromises);
+  const usersWithAuth = new Set();
+
+  userRecords
+    .forEach(userRecord => {
+      const { uid, phoneNumber } = userRecord;
+
+      if (uid) {
+        usersWithAuth.add(phoneNumber);
+      }
+    });
+
+  conn.req.body.data.forEach((item, index) => {
+    if (item.rejected) return;
+
+    // If include list is empty, split will result in an array
+    // of length 1
+    const phoneNumbers = item
+      .Include
+      .split(',')
+      .filter(Boolean);
+
+    if (phoneNumbers.length === 0) {
+      return;
+    }
+
+    phoneNumbers.forEach(phoneNumber => {
+      if (usersWithAuth.has(phoneNumber)) {
+        conn.req.body.data[index].share.push(phoneNumber);
+
+        return;
+      }
+
+      const indexSet = phoneNumberIndexMap.get(phoneNumber);
+
+      if (indexSet.has(index)) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `${phoneNumber}`
+          + ` is not an active user`;
+      }
+    });
+  });
+
+  return;
+};
+
 module.exports = async conn => {
   /**
    * Request body
@@ -1730,6 +1933,7 @@ module.exports = async conn => {
 
     await handleCustomer(conn, locals);
     await handleBranch(conn, locals);
+    await handleDuty(conn, locals);
 
     return validateDataArray(conn, locals);
   } catch (error) {
