@@ -548,51 +548,35 @@ const getSearchables = (string) => {
  * Returns the `timestamp` that is closest to the current
  * `timestamp`.
  *
- * @param {Array} schedules Array of schedule objects.
- * @param {number} now Unix timestamp.
+ * @param {Array} schedule Array of schedule objects.
  * @returns {number} Unix timestamp.
  */
-const getRelevantTime = (schedules, now = Date.now()) => {
-  const allTimestamps = [];
+const getRelevantTime = schedule => {
+  const allSchedules = [];
 
-  schedules.forEach((schedule) => {
-    const {
-      startTime,
-      endTime,
-    } = schedule;
+  schedule
+    .forEach(timestamp => {
+      allSchedules
+        .push(
+          timestamp.startTime.valueOf(),
+          timestamp.endTime.valueOf()
+        );
+    });
 
-    allTimestamps.push(startTime);
-    allTimestamps.push(endTime);
-  });
+  allSchedules.sort();
 
-  let result;
-  let prevDiff = 0;
+  const closestTo = moment().valueOf();
+  let result = null;
 
-  allTimestamps.forEach((ts) => {
-    const currDif = ts - now;
+  for (let i = 0; i <= allSchedules.length; i++) {
+    const item = allSchedules[i];
+    const diff = item - closestTo;
 
-    /** The ts is before current time */
-    if (currDif < 0) {
-      return;
+    if (diff > 0) {
+      result = item;
+      break;
     }
-
-    if (!prevDiff) {
-      prevDiff = currDif;
-      result = ts;
-
-      return;
-    }
-
-    if (prevDiff > currDif) {
-
-      return;
-    }
-
-    prevDiff = currDif;
-    result = ts;
-  });
-
-  console.log('result:', result);
+  }
 
   return result;
 };
