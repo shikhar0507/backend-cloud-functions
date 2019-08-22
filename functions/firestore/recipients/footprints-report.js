@@ -310,9 +310,21 @@ module.exports = async locals => {
           .value('');
       }
 
-      footprintsSheet
-        .cell(`H${columnIndex}`)
-        .value(getComment(doc));
+      const comment = getComment(doc);
+
+      if (template === 'check-in'
+        && doc.get('activityData.attachment.Photo.value').startsWith('http')) {
+        footprintsSheet
+          .cell(`H${columnIndex}`)
+          .value(comment)
+          .style({ fontColor: '0563C1', underline: true })
+          .hyperlink(doc.get('activityData.attachment.Photo.value'));
+      } else {
+        footprintsSheet
+          .cell(`H${columnIndex}`)
+          .value(comment);
+      }
+
       footprintsSheet
         .cell(`I${columnIndex}`)
         .value(department);
@@ -440,8 +452,8 @@ module.exports = async locals => {
       .set({
         countsObject: oldCountsObject,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
   } catch (error) {
     console.error(error);
   }

@@ -8,7 +8,6 @@ module.exports = (req) => {
   let checkSupport = req.query.support === 'true';
   let checkAdmin = false;
   let checkSuperuser = false;
-  let checkManageTemplates = false;
   let func;
 
   switch (parsedUrl.pathname.replace(/^\/|\/$/g, '')) {
@@ -61,15 +60,12 @@ module.exports = (req) => {
       func = require('../services/on-permissions');
       break;
     case 'services/templates/create':
-      checkManageTemplates = true;
       func = require('../firestore/activity-templates/on-create');
       break;
     case 'services/templates/update':
-      checkManageTemplates = true;
       func = require('../firestore/activity-templates/on-update');
       break;
     case 'services/templates/read':
-      checkManageTemplates = true;
       func = require('../firestore/activity-templates/on-read');
       break;
     case 'services/logs':
@@ -104,7 +100,6 @@ module.exports = (req) => {
 
   return {
     func,
-    checkManageTemplates,
     checkAdmin,
     checkSupport,
     checkSuperuser,

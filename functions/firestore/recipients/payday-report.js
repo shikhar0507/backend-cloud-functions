@@ -9,8 +9,6 @@ const {
 const {
   alphabetsArray,
   getStatusForDay,
-  dateStringWithOffset,
-  getEmployeeDetailsString,
 } = require('./report-utils');
 const {
   db,
@@ -68,7 +66,7 @@ const getPayDaySheetTopRow = allDates => {
   const topRowValues = [
     'Employee Name',
     'Employee Code',
-    'Live Since',
+    'Employee Phone Number',
   ];
 
   // Dates for curr and prev months
@@ -81,7 +79,12 @@ const getPayDaySheetTopRow = allDates => {
   topRowValues
     .push(
       'Total Payable Days',
-      'Employee Details'
+      'Total Deductions',
+      'Department',
+      'Designation',
+      'Supervisor',
+      'Branch',
+      'Region'
     );
 
   return topRowValues;
@@ -94,11 +97,11 @@ const getPaydayTimingsSheetValue = options => {
   } = options;
 
   if (statusObject[date].onLeave) {
-    return 'ON LEAVE';
+    return 'LEAVE';
   }
 
   if (statusObject[date].onAr) {
-    return 'ON AR';
+    return 'AR';
   }
 
   if (statusObject[date].weeklyOff) {
@@ -119,8 +122,9 @@ const getPaydayTimingsSheetValue = options => {
     + ` ${statusObject[date].numberOfCheckIns || 0}`;
 };
 
-const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeId) => {
+const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeDoc) => {
   const dateYesterday = momentYesterday.date();
+  const officeId = officeDoc.get('officeId');
   const monthYearString = momentYesterday.format(dateFormats.MONTH_YEAR);
   const numberOfDocs = statusMap.size;
   const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
@@ -155,14 +159,16 @@ const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeI
     }
 
     batchArray[batchIndex].set(ref, {
+      officeId: officeDoc.id,
+      office: officeDoc.get('office'),
       month: momentYesterday.month(),
       year: momentYesterday.year(),
       statusObject: {
         [dateYesterday]: statusObject,
       },
     }, {
-        merge: true,
-      });
+      merge: true,
+    });
   });
 
   return Promise
@@ -170,7 +176,7 @@ const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeI
 };
 
 const getPayDayTimingsTopRow = allDates => {
-  const topRowValues = ['Employee Name'];
+  const topRowValues = ['Employee Name', 'Employee Code'];
 
   allDates
     .forEach(dateItem => {
@@ -180,6 +186,43 @@ const getPayDayTimingsTopRow = allDates => {
 
   return topRowValues;
 };
+
+const getName = (employeesData, phoneNumber) => {
+  if (employeesData[phoneNumber]) {
+    return employeesData[phoneNumber].Name;
+  }
+
+  return phoneNumber;
+};
+
+// const getSupervisors = (employeesData, phoneNumber) => {
+//   let str = '';
+//   const employeeData = employeesData[phoneNumber];
+//   const firstSupervisor = employeeData['First Supervisor'];
+//   const secondSupervisor = employeeData['Second Supervisor'];
+//   const thirdSupervisor = employeeData['Third Supervisor'];
+//   const allSvs = [
+//     firstSupervisor,
+//     secondSupervisor,
+//     thirdSupervisor
+//   ].filter(Boolean);
+
+//   if (allSvs.length === 0) return '';
+//   if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
+
+//   allSvs.forEach((phoneNumber, index) => {
+//     const name = getName(employeesData, phoneNumber);
+//     const isLast = index === allSvs.length - 1;
+
+//     if (isLast) {
+//       str += 'and';
+//     }
+
+//     str += ` ${name}, `;
+//   });
+
+//   return str.trim();
+// };
 
 
 module.exports = async locals => {
@@ -349,9 +392,9 @@ module.exports = async locals => {
         allowedToBeInactive.add(phoneNumber);
       }
 
-      const branchHolidaysObject = locals.employeesData[phoneNumber] || {};
-
-      if (branchHolidaysObject[formattedDateYesterday]) {
+      if (locals.employeesData[phoneNumber]
+        && locals.employeesData[phoneNumber].branchHolidays
+        && locals.employeesData[phoneNumber].branchHolidays[formattedDateYesterday]) {
         holidaySet.add(phoneNumber);
         allowedToBeInactive.add(phoneNumber);
       }
@@ -397,7 +440,8 @@ module.exports = async locals => {
         .where('timestamp', '>=', addendumQueryStart)
         .where('timestamp', '<', addendumQueryEnd);
 
-      if (checkDistanceAccurate) {
+      // could be a string with something other than a boolean
+      if (checkDistanceAccurate === true) {
         baseQuery = baseQuery
           .where('distanceAccurate', '==', true);
       }
@@ -418,7 +462,11 @@ module.exports = async locals => {
       const numberOfCheckIns = snap.size;
 
       if (numberOfCheckIns === 0) {
-        yesterdaysStatusMap.set(phoneNumber, getDefaultStatusObject());
+        yesterdaysStatusMap
+          .set(
+            phoneNumber,
+            getDefaultStatusObject()
+          );
 
         return;
       }
@@ -432,8 +480,7 @@ module.exports = async locals => {
       const minimumDailyActivityCount = locals
         .employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
       const minimumWorkingHours = locals
-        .employeesData[phoneNumber]['Minimum Working Hours'] || 1;
-
+        .employeesData[phoneNumber]['Minimum Working Hours'];
       const statusForDay = getStatusForDay({
         numberOfCheckIns,
         minimumDailyActivityCount,
@@ -466,7 +513,7 @@ module.exports = async locals => {
         yesterdaysStatusMap,
         allowedToBeInactive,
         momentYesterday,
-        locals.officeDoc.id
+        locals.officeDoc
       );
     }
 
@@ -481,10 +528,6 @@ module.exports = async locals => {
       const parts = path.split('/');
       const monthYearString = parts[3];
       const phoneNumber = parts[parts.length - 1];
-
-      if (!locals.employeesData[phoneNumber]) {
-        return;
-      }
 
       const { statusObject } = doc.data();
 
@@ -505,35 +548,18 @@ module.exports = async locals => {
 
     /** Set (`allPhoneNumbers`) doesn't have an index */
     let index = 0;
+    const daysCount = cycleEndMoment.diff(cycleStartMoment, 'days') + 1;
 
     allPhoneNumbers.forEach(phoneNumber => {
-      const createTime = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber].createTime;
-        }
+      // The statusObject might exist for a phone number
+      // which is not currently an active employee
+      locals
+        .employeesData[
+        phoneNumber
+      ] = locals.employeesData[phoneNumber] || {};
 
-        return '';
-      })();
-      const liveSince = dateStringWithOffset({
-        timezone,
-        timestampToConvert: createTime,
-        format: dateFormats.DATE,
-      });
-      const name = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber].Name;
-        }
-
-        return phoneNumber;
-      })();
-      const employeeCode = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber]['Employee Code'];
-        }
-
-        return '';
-      })();
-
+      const name = locals.employeesData[phoneNumber].Name;
+      const employeeCode = locals.employeesData[phoneNumber]['Employee Code'];
       const columnIndex = index + 2;
 
       paydaySheet
@@ -544,14 +570,18 @@ module.exports = async locals => {
         .value(employeeCode);
       paydaySheet
         .cell(`C${columnIndex}`)
-        .value(liveSince);
+        .value(phoneNumber);
+
       paydayTimingsSheet
         .cell(`A${columnIndex}`)
-        .value(name);
+        .value(name || phoneNumber);
+      paydayTimingsSheet
+        .cell(`B${columnIndex}`)
+        .value(employeeCode);
 
-      let totalCount = 0;
+      let totalPayableDays = 0;
       let paydaySheetAlphabetIndex = 3;
-      let paydayTimingsSheetIndex = 1;
+      let paydayTimingsSheetIndex = 2;
 
       allDates.forEach(dateObject => {
         const {
@@ -582,15 +612,24 @@ module.exports = async locals => {
 
         paydaySheetAlphabetIndex++;
         paydayTimingsSheetIndex++;
-        totalCount += paydaySheetValue;
+        totalPayableDays += paydaySheetValue;
       });
 
-      paydaySheet
-        .cell(`${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`)
-        .value(totalCount);
-      paydaySheet
-        .cell(`${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`)
-        .value(getEmployeeDetailsString(locals.employeesData, phoneNumber));
+      [
+        totalPayableDays,
+        Math.abs(daysCount - totalPayableDays),
+        locals.employeesData[phoneNumber].Department,
+        locals.employeesData[phoneNumber].Designation,
+        getName(locals.employeesData, locals.employeesData[phoneNumber]['First Supervisor']),
+        locals.employeesData[phoneNumber]['Base Location'],
+        locals.employeesData[phoneNumber].Region || '',
+      ].forEach(item => {
+        const cell = `${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`;
+
+        paydaySheet
+          .cell(cell)
+          .value(item);
+      });
 
       index++;
     });
@@ -614,7 +653,7 @@ module.exports = async locals => {
     }, ' ', 2));
 
     if (!env.isProduction) {
-      return Promise.resolve();
+      return;
     }
 
     return locals

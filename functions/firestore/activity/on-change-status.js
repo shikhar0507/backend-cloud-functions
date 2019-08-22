@@ -129,6 +129,7 @@ const createDocs = (conn, activityDoc) => {
     isSupportRequest: conn.requester.isSupportRequest,
     geopointAccuracy: conn.req.body.geopoint.accuracy || null,
     provider: conn.req.body.geopoint.provider || null,
+    userDisplayName: conn.requester.displayName,
   };
 
   const hasBeenCancelled = activityDoc.get('status') !== 'CANCELLED'

@@ -40,7 +40,6 @@ const {
   disableAccount,
   hasSupportClaims,
   hasAdminClaims,
-  hasManageTemplateClaims,
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
@@ -61,9 +60,22 @@ const handleResource = conn => {
     );
   }
 
-  if (resource
-    .checkSupport && conn.requester.isSupport) {
-    return resource.func(conn);
+  const rejectAdminRequest = resource
+    .checkAdmin
+    && !hasAdminClaims(conn.requester.customClaims)
+    && !conn.requester.isSupportRequest;
+  const rejectSupportRequest = resource
+    .checkSupport
+    && conn.requester.isSupportRequest
+    && !hasSupportClaims(conn.requester.customClaims);
+
+  if (rejectAdminRequest
+    || rejectSupportRequest) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `You are not allowed to access this resource`
+    );
   }
 
   if (conn.requester.customClaims.admin && conn.requester.customClaims.admin.length) {
@@ -199,10 +211,10 @@ const getProfile = conn => {
           .set(rootCollections
             .updates
             .doc(conn.requester.uid), {
-              phoneNumber: conn.requester.phoneNumber,
-            }, {
-              merge: true,
-            });
+            phoneNumber: conn.requester.phoneNumber,
+          }, {
+            merge: true,
+          });
       }
 
       return Promise
@@ -231,6 +243,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) => {
 
       conn.requester = {
         uid: decodedIdToken.uid,
+        emailVerified: userRecord.emailVerified,
         email: userRecord.email || '',
         phoneNumber: userRecord.phoneNumber,
         displayName: userRecord.displayName || '',
@@ -385,7 +398,7 @@ module.exports = async (req, res) => {
     return sendResponse(
       conn,
       code.forbidden,
-      'Not allowed'
+      `Missing 'X-CF-Secret' header in the request headers`
     );
   }
 

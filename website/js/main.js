@@ -174,9 +174,6 @@ function isDomElementString(el) {
 }
 
 function setContentInModal(el, parent) {
-  console.log(el)
-  console.log(parent);
-
   if (isDomElementString(el)) {
     parent.innerHTML = el;
   } else {
@@ -534,7 +531,7 @@ firebase
 
     document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
 
-    console.log('new cookie set', idToken);
+    console.log('new cookie set');
   });
 
 window

@@ -46,7 +46,7 @@ const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
 
 
-const validateRequest = (conn) => {
+const validateRequest = conn => {
   if (conn.req.method !== 'GET') {
     return {
       isValid: false,
@@ -81,7 +81,7 @@ const validateRequest = (conn) => {
   };
 };
 
-const getAddendumObject = (doc) => {
+const getAddendumObject = doc => {
   const singleDoc = {
     addendumId: doc.id,
     activityId: doc.get('activityId'),
@@ -99,7 +99,7 @@ const getAddendumObject = (doc) => {
   return singleDoc;
 };
 
-const getAssigneesArray = (arrayOfPhoneNumbers) => {
+const getAssigneesArray = arrayOfPhoneNumbers => {
   // Could be a string (phoneNumber) or an object
   const firstItem = arrayOfPhoneNumbers[0];
 
@@ -137,41 +137,31 @@ const getCreator = phoneNumberOrObject => {
   return phoneNumberOrObject;
 };
 
-const getActivityObject = doc => {
-  const singleDoc = {
-    activityId: doc.id,
-    status: doc.get('status'),
-    canEdit: doc.get('canEdit'),
-    schedule: doc.get('schedule'),
-    venue: doc.get('venue'),
-    timestamp: doc.get('timestamp'),
-    template: doc.get('template'),
-    activityName: doc.get('activityName'),
-    office: doc.get('office'),
-    attachment: doc.get('attachment'),
-    creator: getCreator(doc.get('creator')),
-    hidden: doc.get('hidden'),
-    assignees: getAssigneesArray(doc.get('assignees')),
-  };
+const getActivityObject = doc => ({
+  activityId: doc.id,
+  status: doc.get('status'),
+  canEdit: doc.get('canEdit'),
+  schedule: doc.get('schedule'),
+  venue: doc.get('venue'),
+  timestamp: doc.get('timestamp'),
+  template: doc.get('template'),
+  activityName: doc.get('activityName'),
+  office: doc.get('office'),
+  attachment: doc.get('attachment'),
+  creator: getCreator(doc.get('creator')),
+  hidden: doc.get('hidden'),
+  assignees: getAssigneesArray(doc.get('assignees')),
+});
 
-  return singleDoc;
-};
-
-const getSubscriptionObject = doc => {
-  const singleDoc = {
-    template: doc.get('template'),
-    schedule: doc.get('schedule'),
-    venue: doc.get('venue'),
-    attachment: doc.get('attachment'),
-    office: doc.get('office'),
-    status: doc.get('status'),
-  };
-
-  return singleDoc;
-};
-
-const getLocations = ref => new Promise(resolve => ref.on('value', resolve));
-
+const getSubscriptionObject = doc => ({
+  template: doc.get('template'),
+  schedule: doc.get('schedule'),
+  venue: doc.get('venue'),
+  attachment: doc.get('attachment'),
+  office: doc.get('office'),
+  status: doc.get('status'),
+  report: doc.get('report') || null,
+});
 
 const getStatusObject = async profileDoc => {
   const result = [];
@@ -206,17 +196,15 @@ const getStatusObject = async profileDoc => {
     officeNamesMap.set(id, name);
   });
 
-  officeNamesMap.forEach((id, name) => {
-    const p = rootCollections
+  officeNamesMap.forEach((_, name) => {
+    promises.push(rootCollections
       .offices
       .doc(name)
       .collection('Statuses')
       .doc(monthYearString)
       .collection('Employees')
       .doc(phoneNumber)
-      .get();
-
-    promises.push(p);
+      .get());
   });
 
   try {
@@ -235,10 +223,10 @@ const getStatusObject = async profileDoc => {
         .keys(statusObject)
         .forEach(date => {
           const obj = Object.assign({
-            date: Number(date),
-            month: allMonths[month],
             year,
             office,
+            date: Number(date),
+            month: allMonths[month],
           }, statusObject[date]);
 
           result.push(obj);
@@ -248,6 +236,8 @@ const getStatusObject = async profileDoc => {
     return result;
   } catch (error) {
     console.error(error);
+
+    return [];
   }
 };
 
@@ -321,10 +311,12 @@ module.exports = async conn => {
         .database()
         .ref(path);
 
-      locationPromises.push(getLocations(ref));
+      locationPromises
+        .push(ref.once('value'));
     });
 
-    promises.push(Promise.all(locationPromises));
+    promises
+      .push(Promise.all(locationPromises));
   }
 
   try {
@@ -375,23 +367,27 @@ module.exports = async conn => {
           .push(getSubscriptionObject(doc));
       });
 
-    batch.set(rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber), {
-        lastQueryFrom: from,
-      }, {
-        /** Profile has other stuff too. */
-        merge: true,
-      });
+    const profileUpdate = {
+      lastQueryFrom: from,
+    };
 
     if (conn.requester.profileDoc
       && conn.requester.profileDoc.get('statusObject')) {
-      batch.set(conn.requester.profileDoc.ref, {
-        statusObject: admin.firestore.FieldValue.delete(),
-      }, {
-          merge: true,
-        });
+      profileUpdate
+        .statusObject = admin.firestore.FieldValue.delete();
     }
+
+    if (sendLocations) {
+      profileUpdate
+        .locationsSentForTimestamp = from;
+    }
+
+    batch.set(rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber), profileUpdate, {
+      /** Profile has other stuff too. */
+      merge: true,
+    });
 
     if (from === 0) {
       jsonObject

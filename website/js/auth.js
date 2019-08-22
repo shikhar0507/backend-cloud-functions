@@ -97,7 +97,7 @@ function logInWithOtp(confirmationResult) {
       }
 
       const user = firebase.auth().currentUser;
-
+      console.log(user)
       if (window.showFullLogin) {
         user.updateEmail(getEmail()).then(function () {
           user.sendEmailVerification().then(function () {

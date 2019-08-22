@@ -10,7 +10,7 @@ const {
   isValidCanEditRule,
 } = require('../admin/utils');
 
-const validateSchedules = (scheduleArray) => {
+const validateSchedules = scheduleArray => {
   const result = { success: true, message: [] };
 
   scheduleArray.forEach((schedule, index) => {
@@ -41,11 +41,11 @@ const validateSchedules = (scheduleArray) => {
   return result;
 };
 
-const validateVenues = (venueArray) => {
+const validateVenues = venue => {
   const result = { success: true, message: [] };
 
-  venueArray.forEach((venue, index) => {
-    const { venueDescriptor, address, location, geopoint } = venue;
+  venue.forEach((object, index) => {
+    const { venueDescriptor, address, location, geopoint } = object;
 
     if (!isNonEmptyString(venueDescriptor)
       || !isNonEmptyString(address)
@@ -62,8 +62,8 @@ const validateVenues = (venueArray) => {
 };
 
 class Activity {
-  constructor(templateName) {
-    this.template = templateName;
+  constructor(template) {
+    this.template = template;
     this.timestamp = Date.now();
   }
 
@@ -128,15 +128,11 @@ class Activity {
         `+ ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
       );
     }
-    const {
-      displayName,
-      phoneNumber,
-      photoURL,
-    } = creator;
+    const { displayName, phoneNumber, photoURL } = creator;
 
-    if (!isNonEmptyString(displayName)) {
+    if (typeof displayName !== 'string') {
       throw new Error(
-        'The displayName should be a non-empty string',
+        'The displayName should be a string',
       );
     }
 
@@ -155,27 +151,23 @@ class Activity {
     };
   }
 
-  set setSchedule(scheduleArray) {
-    const result = validateSchedules(scheduleArray);
+  set setSchedule(schedule) {
+    const result = validateSchedules(schedule);
     if (!result.success) {
       throw new Error(result.message);
     }
 
-    this.schedule = scheduleArray;
+    this.schedule = schedule;
   }
 
-  set setVenue(venueArray) {
-    const result = validateVenues(venueArray);
+  set setVenue(venue) {
+    const result = validateVenues(venue);
 
     if (!result.success) {
       throw new Error(result.message);
     }
 
-    this.venue = venueArray;
-  }
-
-  setStuff(stuff) {
-    this.stuff = stuff;
+    this.venue = venue;
   }
 
   toObject() {
@@ -184,7 +176,11 @@ class Activity {
 }
 
 class Creator {
-  constructor(phoneNumber, displayName, photoURL) {
+  constructor(phoneNumber, displayName = '', photoURL = '') {
+    if (!isE164PhoneNumber(phoneNumber)) {
+      throw new Error(`Invalid phoneNumber ${phoneNumber}`);
+    }
+
     this.phoneNumber = phoneNumber;
     this.displayName = displayName;
     this.photoURL = photoURL;
@@ -199,7 +195,29 @@ class Creator {
   }
 }
 
+class Attachment {
+  constructor(object, attachmentTemplate) {
+    Object
+      .entries(attachmentTemplate)
+      .forEach(value => {
+        const [field, child] = value;
+
+        object[field] = object[field] || {};
+
+        this[field] = {
+          value: object[field].value || '',
+          type: child.type,
+        };
+      });
+  }
+
+  toObject() {
+    return this;
+  }
+}
+
 module.exports = {
-  Activity,
   Creator,
+  Activity,
+  Attachment,
 };
