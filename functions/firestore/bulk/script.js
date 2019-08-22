@@ -1602,6 +1602,7 @@ const handleDuty = async (conn, locals) => {
   const dutyTypePromises = [];
   const authPromises = [];
   const phoneNumberIndexMap = new Map();
+  const includeArrayMap = new Map();
 
   conn.req.body.data.forEach((item, index) => {
     // empty schedule not allowed
@@ -1643,15 +1644,21 @@ const handleDuty = async (conn, locals) => {
       customerPromises.push(customerPromise);
     }
 
-    const phoneNumbers = item.Include.split(',');
+    const phoneNumbers = item
+      .Include
+      .split(',')
+      .filter(Boolean)
+      .map(phoneNumber => phoneNumber.trim());
+
+    includeArrayMap.set(index, phoneNumbers);
 
     phoneNumbers
-      .push(item.Supervisor);
+      .push(item.Supervisor.trim());
     phoneNumbers
       .push(conn.requester.phoneNumber);
 
     phoneNumbers.forEach(phoneNumber => {
-      const authPromise = getauth(phoneNumber.trim());
+      const authPromise = getauth(phoneNumber);
 
       authPromises.push(authPromise);
 
@@ -1751,14 +1758,11 @@ const handleDuty = async (conn, locals) => {
     });
 
   conn.req.body.data.forEach((item, index) => {
-    if (item.rejected) return;
+    if (item.rejected) {
+      return;
+    }
 
-    // If include list is empty, split will result in an array
-    // of length 1
-    const phoneNumbers = item
-      .Include
-      .split(',')
-      .filter(Boolean);
+    const phoneNumbers = includeArrayMap.get(index) || [];
 
     if (phoneNumbers.length === 0) {
       return;
