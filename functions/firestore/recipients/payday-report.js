@@ -195,34 +195,34 @@ const getName = (employeesData, phoneNumber) => {
   return phoneNumber;
 };
 
-// const getSupervisors = (employeesData, phoneNumber) => {
-//   let str = '';
-//   const employeeData = employeesData[phoneNumber];
-//   const firstSupervisor = employeeData['First Supervisor'];
-//   const secondSupervisor = employeeData['Second Supervisor'];
-//   const thirdSupervisor = employeeData['Third Supervisor'];
-//   const allSvs = [
-//     firstSupervisor,
-//     secondSupervisor,
-//     thirdSupervisor
-//   ].filter(Boolean);
+const getSupervisors = (employeesData, phoneNumber) => {
+  let str = '';
+  const employeeData = employeesData[phoneNumber];
+  const firstSupervisor = employeeData['First Supervisor'];
+  const secondSupervisor = employeeData['Second Supervisor'];
+  const thirdSupervisor = employeeData['Third Supervisor'];
+  const allSvs = [
+    firstSupervisor,
+    secondSupervisor,
+    thirdSupervisor
+  ].filter(Boolean);
 
-//   if (allSvs.length === 0) return '';
-//   if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
+  if (allSvs.length === 0) return '';
+  if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
 
-//   allSvs.forEach((phoneNumber, index) => {
-//     const name = getName(employeesData, phoneNumber);
-//     const isLast = index === allSvs.length - 1;
+  allSvs.forEach((phoneNumber, index) => {
+    const name = getName(employeesData, phoneNumber);
+    const isLast = index === allSvs.length - 1;
 
-//     if (isLast) {
-//       str += 'and';
-//     }
+    if (isLast) {
+      str += 'and';
+    }
 
-//     str += ` ${name}, `;
-//   });
+    str += ` ${name}, `;
+  });
 
-//   return str.trim();
-// };
+  return str.trim();
+};
 
 
 module.exports = async locals => {
@@ -621,6 +621,7 @@ module.exports = async locals => {
         locals.employeesData[phoneNumber].Department,
         locals.employeesData[phoneNumber].Designation,
         getName(locals.employeesData, locals.employeesData[phoneNumber]['First Supervisor']),
+        // getSupervisors(locals.employeesData, phoneNumber),
         locals.employeesData[phoneNumber]['Base Location'],
         locals.employeesData[phoneNumber].Region || '',
       ].forEach(item => {
