@@ -176,7 +176,7 @@ module.exports = async locals => {
       'Employee Contact',
       'Employee Code',
       'Time',
-      'Distance Travelled',
+      'Distance Travelled (in KM)',
       'Address',
       'Comment',
       'Department',
