@@ -266,6 +266,11 @@ module.exports = async locals => {
         return;
       }
 
+      if (doc.get('action')
+        === httpsActions.checkIn) {
+        return;
+      }
+
       count++;
 
       prevTemplateForPersonMap
@@ -408,8 +413,10 @@ module.exports = async locals => {
       to: locals.messageObject.to,
     }, ' ', 2));
 
-    if (!env.isProduction) {
-      return Promise.resolve();
+    if (!env.isProduction
+      /** No activities yesterday */
+      || addendumDocsQueryResult.empty) {
+      return;
     }
 
     await locals
@@ -430,8 +437,7 @@ module.exports = async locals => {
         .valueOf();
 
     if (!isDateToday) {
-      return Promise
-        .resolve();
+      return;
     }
 
     const dailyStatusDocsQueryResult = await rootCollections
