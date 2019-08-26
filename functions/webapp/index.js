@@ -1054,6 +1054,9 @@ module.exports = async (req, res) => {
     locals.isLoggedIn = !!userRecord.uid;
 
     const requester = Object.assign({}, userRecord);
+
+    userRecord
+      .customClaims = userRecord.customClaims || {};
     requester
       .adminOffices = userRecord.customClaims.admin || [];
     requester
