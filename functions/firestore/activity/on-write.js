@@ -159,9 +159,9 @@ const handleAdmin = async locals => {
 };
 
 
-const createAdmin = (locals, adminContact) => {
+const createAdmin = async (locals, adminContact) => {
   if (!adminContact) {
-    return Promise.resolve();
+    return;
   }
 
   const batch = db.batch();
@@ -418,14 +418,22 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 
 
 const handleXTypeActivities = async locals => {
-  const typeActivityTemplates = new Set(['customer', 'leave', 'claim', 'duty']);
+  console.log('In handleXTypeActivities');
+
+  const typeActivityTemplates = new Set([
+    'customer',
+    'leave',
+    'claim',
+    'duty',
+  ]);
   const template = locals
     .change
     .after
-    .get('template');
+    .get('attachment.Template.value');
 
-  if (template !== 'subscription'
-    || !typeActivityTemplates.has(template)) {
+  if (!typeActivityTemplates.has(template)) {
+    console.log('returning typeActivityTemplates');
+
     return;
   }
 
@@ -433,25 +441,15 @@ const handleXTypeActivities = async locals => {
     .change
     .after
     .get('officeId');
-  const templateName = (() => {
-    const template = locals
-      .change
-      .after
-      .get('attachment.Template.value');
-
-    if (template === 'expense claim') {
-      return 'expense-type';
-    }
-
-    return `${template}-type`;
-  })();
-
+  const templateName = `${template}-type`;
   const typeActivities = await rootCollections
     .activities
     .where('officeId', '==', officeId)
     .where('status', '==', 'CONFIRMED')
     .where('template', '==', templateName)
     .get();
+
+  console.log('typeActivities', typeActivities.size);
 
   const subscriber = locals
     .change
@@ -473,16 +471,20 @@ const handleXTypeActivities = async locals => {
       delete activityData
         .addendumDocRef;
 
-      /** List of assignee doesn't matter */
+      /** List of assignee doesn't matter for -type activities */
       activityData
         .assignees = activityData.assignees || [];
 
+      const ref = rootCollections
+        .profiles
+        .doc(subscriber)
+        .collection('Activities')
+        .doc(activity.id);
+
+      console.log('X-TYPE:', ref.path);
+
       batch
-        .set(rootCollections
-          .profiles
-          .doc(subscriber)
-          .collection('Activities')
-          .doc(activity.id),
+        .set(ref,
           activityData, {
           merge: true,
         });
@@ -502,6 +504,10 @@ const handleCanEditRule = async (locals, templateDoc) => {
     .change
     .after
     .get('office');
+  const officeId = locals
+    .change
+    .after
+    .get('officeId');
   const status = locals
     .change
     .after
@@ -529,7 +535,7 @@ const handleCanEditRule = async (locals, templateDoc) => {
       .where('status', '==', 'CONFIRMED')
       .where('template', '==', 'admin')
       .where('attachment.Admin.value', '==', subscriberPhoneNumber)
-      .where('office', '==', office)
+      .where('officeId', '==', officeId)
       .limit(1)
       .get();
 
@@ -619,17 +625,17 @@ const handleCheckInSubscription = async locals => {
     .ref(`${officeId}/${subscribedTemplate}`)
     .once('value');
 
-  const oldObject = oldObjectResult.val() || {};
-  oldObject[newSubscriber] = true;
+  const checkInMap = oldObjectResult.val() || {};
+  checkInMap[newSubscriber] = true;
 
   return admin
     .database()
     .ref(`${officeId}/check-in`)
-    .set(oldObject);
+    .set(checkInMap);
 };
 
 
-const handleSubscription = locals => {
+const handleSubscription = async locals => {
   const batch = db.batch();
   const templateName = locals
     .change
@@ -649,79 +655,79 @@ const handleSubscription = locals => {
     .collection('Subscriptions')
     .doc(locals.change.after.id);
 
-  return rootCollections
+  const templateDocsQueryResult = await rootCollections
     .activityTemplates
     .where('name', '==', templateName)
     .limit(1)
-    .get()
-    .then(templateDocsQuery => {
-      const templateDoc = templateDocsQuery.docs[0];
-      const include = [];
-      locals
-        .assigneePhoneNumbersArray
-        .forEach(phoneNumber => {
-          /**
-           * The user's own phone number is redundant in the include array since they
-           * will be the one creating an activity using the subscription to this activity.
-           */
-          if (newSubscriber === phoneNumber) return;
+    .get();
 
-          /**
-           * For the subscription template, people from
-           * the share array are not added to the include array.
-           */
-          if (!locals.assigneesMap.get(phoneNumber).addToInclude) return;
-
-          include
-            .push(phoneNumber);
-        });
-
-      batch
-        .set(subscriptionDocRef, {
-          include,
-          schedule: templateDoc.get('schedule'),
-          venue: templateDoc.get('venue'),
-          template: templateDoc.get('name'),
-          attachment: templateDoc.get('attachment'),
-          timestamp: locals.change.after.get('timestamp'),
-          office: locals.change.after.get('office'),
-          status: locals.change.after.get('status'),
-          canEditRule: templateDoc.get('canEditRule'),
-          hidden: templateDoc.get('hidden'),
-          statusOnCreate: templateDoc.get('statusOnCreate'),
-          report: templateDoc.get('report') || null,
-        });
-
+  const templateDoc = templateDocsQueryResult.docs[0];
+  const include = [];
+  locals
+    .assigneePhoneNumbersArray
+    .forEach(phoneNumber => {
       /**
-       * Delete subscription doc from old profile
-       * if the phone number has been changed in the
-       * subscription activity.
+       * The user's own phone number is redundant in the include array since they
+       * will be the one creating an activity using the subscription to this activity.
        */
-      const subscriberChanged = locals
-        .change
-        .before
-        .data()
-        && oldSubscriber !== newSubscriber;
-
-      if (subscriberChanged) {
-        batch
-          .delete(rootCollections
-            .profiles
-            .doc(oldSubscriber)
-            .collection('Subscriptions')
-            .doc(locals.change.after.id)
-          );
+      if (newSubscriber === phoneNumber) {
+        return;
       }
 
-      return Promise
-        .all([
-          batch.commit(),
-          handleCheckInSubscription(locals),
-          handleCanEditRule(locals, templateDoc),
-          handleXTypeActivities(locals)
-        ]);
-    })
-    .catch(console.error);
+      /**
+       * For the subscription template, people from
+       * the share array are not added to the include array.
+       */
+      if (!locals.assigneesMap.get(phoneNumber).addToInclude) {
+        return;
+      }
+
+      include
+        .push(phoneNumber);
+    });
+
+  batch
+    .set(subscriptionDocRef, {
+      include,
+      schedule: templateDoc.get('schedule'),
+      venue: templateDoc.get('venue'),
+      template: templateDoc.get('name'),
+      attachment: templateDoc.get('attachment'),
+      timestamp: locals.change.after.get('timestamp'),
+      office: locals.change.after.get('office'),
+      status: locals.change.after.get('status'),
+      canEditRule: templateDoc.get('canEditRule'),
+      hidden: templateDoc.get('hidden'),
+      statusOnCreate: templateDoc.get('statusOnCreate'),
+      report: templateDoc.get('report') || null,
+    });
+
+  /**
+   * Delete subscription doc from old profile
+   * if the phone number has been changed in the
+   * subscription activity.
+   */
+  const subscriberChanged = locals
+    .change
+    .before
+    .data()
+    && oldSubscriber !== newSubscriber;
+
+  if (subscriberChanged) {
+    batch
+      .delete(rootCollections
+        .profiles
+        .doc(oldSubscriber)
+        .collection('Subscriptions')
+        .doc(locals.change.after.id)
+      );
+  }
+
+  await batch.commit();
+  await handleCheckInSubscription(locals);
+  await handleCanEditRule(locals, templateDoc);
+
+  return handleXTypeActivities(locals);
 };
 
 
@@ -3053,12 +3059,19 @@ const handleActivityUpdates = async locals => {
    * during status-change, set all the activities using this value
    * in their type as '' (empty string).
    */
+  const oldStatus = locals.change.before.get('status');
   const newName = locals.change.after.get('attachment.Name.value');
   const oldName = locals.change.before.get('attachment.Name.value');
   const newStatus = locals.change.after.get('status');
   const officeId = locals.change.after.get('officeId');
+  const hasBeenCancelled = oldStatus !== 'CANCELLED'
+    && newStatus === 'CANCELLED';
 
-  if (!newName || (oldName === newName)) {
+  if (oldName
+    && (oldName === newName)
+    && !hasBeenCancelled) {
+    console.log('Update returning');
+
     return;
   }
 
@@ -3170,8 +3183,7 @@ const handleLeaveUpdates = async locals => {
   // activity. So, activity on write will trigger again.
   // So, in order to avoid the infinite loop, we check if conflictingDuties
   // array was modified. If it was, then we can assume that one or more conflicts
-  // were resolved, and thus that caused the 2nd activityOnWrite instance.
-  // For that case, we are returning early.
+  // were resolved, and thus that caused the 2nd activityOnWrite instance to trigger.
   if (oldConflictingDuties.length
     !== newConflictingDuties.length) {
     return;
@@ -3230,14 +3242,6 @@ const handleLeaveUpdates = async locals => {
       return;
     }
 
-    /**
-     * If leave schedule start time >= relevantTime
-     * and leave schedule end time <= relevantTime
-     * return;
-     *
-     * if(!hasBeenCancelled) return;
-     */
-    // if()
     if (relevantTime >= newSchedule.startTime
       && relevantTime <= leaveEndTs
       && !hasBeenCancelled) {
@@ -3355,8 +3359,10 @@ const handleLeave = async locals => {
     return;
   }
 
-
-  const leaveSchedule = locals.change.after.get('schedule')[0];
+  const leaveSchedule = locals
+    .change
+    .after
+    .get('schedule')[0];
   const leaveStart = leaveSchedule.startTime;
   const leaveEnd = leaveSchedule.endTime;
 
@@ -3401,11 +3407,13 @@ const handleLeave = async locals => {
 
   duties.forEach(doc => {
     // activity should be for the same office
-    if (doc.get('officeId') !== officeId) {
+    if (doc.get('officeId')
+      !== officeId) {
       return;
     }
 
-    if (doc.get('template') !== 'duty') {
+    if (doc.get('template')
+      !== 'duty') {
       return;
     }
 
@@ -3577,7 +3585,8 @@ const handleCheckIn = async locals => {
   const momentNow = momentTz().tz(timezone);
   const phoneNumber = locals.change.after.get('creator.phoneNumber');
   const venue = (() => {
-    if (locals.change.after.get('venue')[0]) {
+    // venue has been populated
+    if (locals.change.after.get('venue')[0].location) {
       console.log('venue from venue');
       return locals.change.after.get('venue')[0];
     }
@@ -3657,6 +3666,7 @@ const handleCheckIn = async locals => {
     const rt = getRelevantTime(doc.get('schedule'));
 
     console.log('doc.ref', doc.ref.path);
+
     const activityRef = rootCollections
       .activities
       .doc(doc.id);
@@ -3672,6 +3682,78 @@ const handleCheckIn = async locals => {
   });
 
   return batch.commit();
+};
+
+const handleTypeActivityCreation = async locals => {
+  if (locals.addendumDoc
+    && (locals.addendumDoc.get('action') === httpsActions.comment
+      || locals.addendumDoc.get('action') === httpsActions.share)) {
+    return;
+  }
+
+  const template = locals
+    .change
+    .after
+    .get('template');
+
+  // leave-type -> 'leave'
+  const parentTemplate = template
+    .split('-type')[0];
+
+  console.log('parentTemplate', parentTemplate);
+
+  if (!parentTemplate) {
+    return;
+  }
+
+  const officeId = locals
+    .change
+    .after
+    .get('officeId');
+
+  const docs = await rootCollections
+    .activities
+    .where('template', '==', 'subscription')
+    .where('officeId', '==', officeId)
+    .where('status', '==', 'CONFIRMED')
+    .where('attachment.Template.value', '==', parentTemplate)
+    .get();
+
+  console.log('Found (-type) activities', docs.size);
+
+  const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
+  const numberOfBatches = Math
+    .round(
+      Math
+        .ceil(docs.size / MAX_DOCS_ALLOWED_IN_A_BATCH)
+    );
+  const batchArray = Array
+    .from(Array(numberOfBatches)).map(() => db.batch());
+  let batchIndex = 0;
+  let docsCounter = 0;
+
+  docs.forEach(doc => {
+    if (docsCounter > 499) {
+      docsCounter = 0;
+      batchIndex++;
+    }
+
+    docsCounter++;
+
+    batchArray[
+      batchIndex
+    ].set(doc.ref, {
+      addendumDocRef: null,
+      timestamp: Date.now(),
+    }, {
+      merge: true,
+    });
+  });
+
+  console.log('Number of batches', batchArray.length);
+
+  return Promise
+    .all(batchArray.map(batch => batch.commit()));
 };
 
 
@@ -3993,6 +4075,10 @@ module.exports = async (change, context) => {
 
     if (template === 'check-in') {
       await handleCheckIn(locals);
+    }
+
+    if (template.endsWith('-type')) {
+      await handleTypeActivityCreation(locals);
     }
 
     await handleActivityUpdates(locals);
