@@ -20,6 +20,7 @@ const {
   isE164PhoneNumber,
   addressToCustomer,
   getBranchName,
+  getRelevantTime,
   millitaryToHourMinutes,
   getEmployeesMapFromRealtimeDb,
 } = require('../../admin/utils');
@@ -31,6 +32,7 @@ const {
 } = require('../activity/helper');
 const {
   weekdays,
+  dateFormats,
   validTypes,
   httpsActions,
   timezonesSet,
@@ -44,6 +46,7 @@ const googleMapsClient =
       key: env.mapsApiKey,
       Promise: Promise,
     });
+const momentTz = require('moment-timezone');
 
 const getVenueFieldsSet = templateDoc => {
   if (!templateDoc.get('venue').length > 0) {
@@ -380,11 +383,41 @@ const createObjects = (conn, locals, trialRun) => {
         }
 
         if (isFromSchedule) {
-          activityObject.schedule.push({
-            startTime: value,
-            endTime: value,
-            name: locals.templateDoc.get('schedule')[scheduleCount],
-          });
+          const [
+            startTime,
+            endTime
+          ] = (value || '')
+            .split(',');
+
+          const object = {
+            name: locals
+              .templateDoc
+              .get('schedule')[scheduleCount],
+            startTime: '',
+            endTime: '',
+          };
+
+          if (startTime) {
+            console.log('in start time');
+            object
+              .startTime = momentTz(startTime).tz(timezone).valueOf(),
+              object
+                .endTime = object.startTime;
+          }
+
+          if (endTime) {
+            console.log('in end time');
+            object
+              .endTime = momentTz(endTime).tz(timezone).valueOf();
+          }
+
+          activityObject
+            .schedule
+            .push(object);
+
+          console.log('field', JSON.stringify({
+            object,
+          }, ' ', 2));
 
           scheduleCount++;
 
@@ -392,10 +425,11 @@ const createObjects = (conn, locals, trialRun) => {
         }
 
         if (isFromVenue) {
-          activityObject.venue[0] = activityObject.venue[0] || {
-            venueDescriptor: locals.templateDoc.get('venue')[0],
-            geopoint: {},
-          };
+          activityObject
+            .venue[0] = activityObject.venue[0] || {
+              venueDescriptor: locals.templateDoc.get('venue')[0],
+              geopoint: {},
+            };
 
           if (field === 'placeId') {
             activityObject
@@ -440,11 +474,27 @@ const createObjects = (conn, locals, trialRun) => {
       );
 
       const adjusted = adjustedGeopoint(
-        activityObject.venue[0].geopoint
+        activityObject
+          .venue[0].geopoint
       );
 
       activityObject
         .adjustedGeopoints = `${adjusted.latitude},${adjusted.longitude}`;
+    }
+
+    const relevantTime = getRelevantTime(activityObject.schedule);
+
+    if (activityObject.schedule.length > 0) {
+      activityObject
+        .relevantTime = relevantTime;
+    }
+
+    if (activityObject.attachment.Location
+      && activityObject.attachment.Location.value
+      && activityObject.relevantTime) {
+      activityObject
+        .relevantTimeAndVenue = `${activityObject.attachment.Location.value}`
+        + ` ${activityObject.relevantTime}`;
     }
 
     const addendumObject = {
@@ -845,7 +895,8 @@ const fetchValidTypes = async (conn, locals) => {
 
     const nonExistingValue = queryMap.get(index);
 
-    nonExistingValuesSet.add(nonExistingValue);
+    nonExistingValuesSet
+      .add(nonExistingValue);
   });
 
   conn
@@ -1142,6 +1193,8 @@ const validateDataArray = async (conn, locals) => {
       const value = dataObject[property];
 
       if (value
+        // Handling duty schedule in a special function
+        && conn.req.body.template !== templateNamesObject.DUTY
         && scheduleFieldsSet.has(property)
         && !isValidDate(value)) {
         conn.req.body.data[index].rejected = true;
@@ -1206,7 +1259,8 @@ const validateDataArray = async (conn, locals) => {
         }
 
         if (type === 'string'
-          && typeof value !== 'string') {
+          && typeof value !== 'string'
+          && conn.req.body.template !== 'duty') {
           conn.req.body.data[index].rejected = true;
           conn.req.body.data[index].reason = `Invalid ${property} '${value}'`;
 
@@ -1595,14 +1649,21 @@ const handleCustomer = async conn => {
 const handleDuty = async (conn, locals) => {
   const template = conn.req.body.template;
 
-  if (template !== templateNamesObject.DUTY) return;
+  if (template
+    !== templateNamesObject.DUTY) {
+    return;
+  }
 
+  const schedule = locals.templateDoc.get('schedule')[0];
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const now = momentTz().tz(timezone).valueOf();
   const customerPromises = [];
-  const now = Date.now();
   const dutyTypePromises = [];
   const authPromises = [];
   const phoneNumberIndexMap = new Map();
   const includeArrayMap = new Map();
+  const statusObjectPromises = [];
+  const statusObjectMap = new Map();
 
   conn.req.body.data.forEach((item, index) => {
     // empty schedule not allowed
@@ -1610,25 +1671,74 @@ const handleDuty = async (conn, locals) => {
     // schedule cannot be empty
     // location (customer cannot be empty)
     // include can be empty
-    if (!isValidDate(item.Duty)
-      || item.Duty < now) {
+    const singleSchedule = item[schedule];
+
+    if (!singleSchedule) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Duty can only`
-        + ` be created for the future`;
+      conn.req.body.data[index].reason = `Missing`
+        + ` the schedule '${schedule}'`;
+
+      return;
+    }
+
+    const scheduleParts = singleSchedule.split(',');
+    const startTime = scheduleParts[0].trim();
+    const endTime = (scheduleParts[1] || startTime).trim();
+
+    // console
+    //   .log(JSON.stringify({ startTime, endTime }, ' ', 2));
+
+    if (!isValidDate(startTime.trim())
+      || !isValidDate(endTime.trim())) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Invalid Duty Time`;
+
+      return;
+    }
+
+    const momentStartTimeFromSchedule = momentTz(
+      new Date(startTime.trim())
+    ).tz(timezone);
+    const momentEndTimeFromSchedule = momentTz(
+      new Date(endTime.trim())
+    ).tz(timezone);
+
+    conn.req.body.data[index].formattedStartTime = momentStartTimeFromSchedule
+      .format();
+    conn.req.body.data[index].formattedEndTime = momentEndTimeFromSchedule
+      .format();
+
+    if (momentStartTimeFromSchedule.valueOf() < now) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Duty start`
+        + ` time is from the past`;
+
+      return;
+    }
+
+    if (momentStartTimeFromSchedule.valueOf()
+      > momentEndTimeFromSchedule.valueOf()) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `Duty end`
+        + ` time should be after the duty start time`;
 
       return;
     }
 
     if (!isE164PhoneNumber(item.Supervisor)) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Invalid/missing 'Supervisor' phone number`;
+      conn.req.body.data[index].reason = `Invalid/missing`
+        + ` 'Supervisor' phone number`;
 
       return;
     }
 
-    if (!item.Location) {
+    if (!isNonEmptyString(item.Location)) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Customer cannot be left blank`;
+      conn.req.body.data[index].reason = `Customer`
+        + ` cannot be left blank`;
+
+      return;
     }
 
     if (item.Location) {
@@ -1641,7 +1751,8 @@ const handleDuty = async (conn, locals) => {
         .limit(1)
         .get();
 
-      customerPromises.push(customerPromise);
+      customerPromises
+        .push(customerPromise);
     }
 
     const phoneNumbers = item
@@ -1650,17 +1761,41 @@ const handleDuty = async (conn, locals) => {
       .filter(Boolean)
       .map(phoneNumber => phoneNumber.trim());
 
-    includeArrayMap.set(index, phoneNumbers);
+    includeArrayMap
+      .set(index, phoneNumbers);
 
     phoneNumbers
       .push(item.Supervisor.trim());
     phoneNumbers
       .push(conn.requester.phoneNumber);
 
+    conn.req.body.data[index].Include = phoneNumbers;
+
+    conn.req.body.data[index].Include = [
+      ...new Set(phoneNumbers)
+    ];
+
     phoneNumbers.forEach(phoneNumber => {
       const authPromise = getauth(phoneNumber);
 
-      authPromises.push(authPromise);
+      authPromises
+        .push(authPromise);
+
+      const monthYearString = momentStartTimeFromSchedule
+        .format(dateFormats.MONTH_YEAR);
+      const statusObjectPromise = locals
+        .officeDoc
+        .ref
+        .collection('Statuses')
+        .doc(monthYearString)
+        .collection('Employees')
+        .doc(phoneNumber)
+        .get();
+
+      console.log('monthYearString', monthYearString);
+
+      statusObjectPromises
+        .push(statusObjectPromise);
 
       const oldIndexArray = phoneNumberIndexMap
         .get(phoneNumber.trim())
@@ -1676,31 +1811,54 @@ const handleDuty = async (conn, locals) => {
         );
     });
 
-    if (typeof item['Duty Type'] !== 'string') {
+    if (!isNonEmptyString(item['Duty Type'])) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].rejected = `Invalid Duty Type`;
+      conn.req.body.data[index].reason = `Invalid Duty Type`;
 
       return;
     }
 
-    // Could be an empty string, in which case, we don't
-    // need to query
-    if (item['Duty Type']) {
-      const promise = rootCollections
-        .activities
-        .where('officeId', '==', locals.officeDoc.id)
-        .where('attachment.Name.value', '==', item['Duty Type'])
-        .where('status', '==', 'CONFIRMED')
-        .limit(1)
-        .get();
+    const promise = rootCollections
+      .activities
+      .where('officeId', '==', locals.officeDoc.id)
+      .where('attachment.Name.value', '==', item['Duty Type'])
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get();
 
-      dutyTypePromises
-        .push(promise);
-    }
+    dutyTypePromises
+      .push(promise);
   });
 
-  const dutyTypeSnapshots = await Promise.all(dutyTypePromises);
-  const rejectedValues = new Set();
+  const statusObjectSnapshot = await Promise
+    .all(statusObjectPromises);
+
+  console.log('statusObjectPromises', statusObjectPromises.length);
+
+  statusObjectSnapshot
+    .forEach(doc => {
+      const { path } = doc.ref;
+      const parts = path.split('/');
+      const phoneNumber = parts[parts.length - 1];
+
+      if (!doc.exists) {
+        return;
+      }
+
+      const statusObject = doc.get('statusObject') || {};
+
+      statusObjectMap
+        .set(
+          phoneNumber,
+          statusObject
+        );
+    });
+
+  console.log('statusObjectMap', statusObjectMap.size);
+
+  const dutyTypeSnapshots = await Promise
+    .all(dutyTypePromises);
+  const rejectedDutyTypes = new Set();
 
   dutyTypeSnapshots.forEach(snapShot => {
     if (!snapShot.empty) return;
@@ -1709,39 +1867,80 @@ const handleDuty = async (conn, locals) => {
     const filters = snapShot.query._queryOptions.fieldFilters;
     const value = filters[1].value;
 
-    rejectedValues.add(value);
+    rejectedDutyTypes
+      .add(value);
   });
 
-  const customerSnapshots = await Promise.all(customerPromises);
+  const customerSnapshots = await Promise
+    .all(customerPromises);
   const existingCustomersSet = new Set();
 
   customerSnapshots.forEach(snap => {
-    if (snap.empty) return;
+    if (snap.empty) {
+      return;
+    }
 
-    const name = snap.docs[0].get('attachment.Name.value');
+    const name = snap
+      .docs[0]
+      .get('attachment.Name.value');
 
-    existingCustomersSet.add(name);
+    existingCustomersSet
+      .add(name);
   });
 
-  conn.req.body.data.forEach((item, index) => {
-    if (item.rejected) return;
+  conn.req.body.data.forEach((dutyObject, index) => {
+    if (dutyObject.rejected) {
+      return;
+    }
 
-    const dutyType = item['Duty Type'];
-    const customer = item.Location;
-
-    if (!existingCustomersSet.has(customer)) {
+    if (!existingCustomersSet.has(dutyObject.Location)) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Invalid Customer: ${customer}`;
+      conn.req.body.data[index].reason = `Invalid`
+        + ` Customer: ${dutyObject.Location}`;
 
       return;
     }
 
-    if (rejectedValues.has(dutyType)) {
+    if (rejectedDutyTypes.has(dutyObject['Duty Type'])) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `Invalid Duty Type`;
 
       return;
     }
+
+    const formattedStartTime = dutyObject.formattedStartTime;
+    // const formattedEndTime = dutyObject.formattedEndTime;
+
+    dutyObject
+      .Include
+      .forEach(phoneNumber => {
+        const statusObject = statusObjectMap
+          .get(phoneNumber) || {};
+
+        Object
+          .keys(statusObject)
+          .forEach(date => {
+            const statusItem = statusObject[date] || {};
+
+            console.log(
+              'formattedStartTime',
+              momentTz(formattedStartTime).date(),
+              typeof momentTz(formattedStartTime).date()
+            );
+
+            if (Number(date)
+              !== momentTz(formattedStartTime).date()) {
+              return;
+            }
+
+            if (statusItem.onLeave) {
+              conn.req.body.data[index].rejected = true;
+              conn.req.body.data[index].reason = `Duty cannot be assigned to`
+                + ` ${phoneNumber}. Employee has applied for a`
+                + ` leave on ${momentTz(formattedStartTime).format(dateFormats.DATE)}`;
+            }
+          });
+      });
   });
 
   const userRecords = await Promise
@@ -1762,27 +1961,32 @@ const handleDuty = async (conn, locals) => {
       return;
     }
 
-    const phoneNumbers = includeArrayMap.get(index) || [];
+    const phoneNumbers = includeArrayMap
+      .get(index)
+      || [];
 
-    if (phoneNumbers.length === 0) {
-      return;
-    }
+    phoneNumbers
+      .forEach(phoneNumber => {
+        if (usersWithAuth.has(phoneNumber)) {
+          conn.req.body.data[index].share.push(phoneNumber);
 
-    phoneNumbers.forEach(phoneNumber => {
-      if (usersWithAuth.has(phoneNumber)) {
-        conn.req.body.data[index].share.push(phoneNumber);
+          // FIXME: This could be improved
+          conn.req.body.data[index].share = [
+            ...new Set(conn.req.body.data[index].share)
+          ];
 
-        return;
-      }
+          return;
+        }
 
-      const indexSet = phoneNumberIndexMap.get(phoneNumber);
+        const indexSet = phoneNumberIndexMap
+          .get(phoneNumber);
 
-      if (indexSet.has(index)) {
-        conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `${phoneNumber}`
-          + ` is not an active user`;
-      }
-    });
+        if (indexSet.has(index)) {
+          conn.req.body.data[index].rejected = true;
+          conn.req.body.data[index].reason = `${phoneNumber}`
+            + ` is not an active user`;
+        }
+      });
   });
 
   return;
@@ -1878,8 +2082,8 @@ module.exports = async conn => {
       Object.keys(locals.templateDoc.get('attachment'))
     );
 
-    if (conn.req.body.template ===
-      templateNamesObject.SUBSCRIPTION) {
+    if (conn.req.body.template
+      === templateNamesObject.SUBSCRIPTION) {
       const templateNamesSet = new Set();
 
       templatesCollectionQuery

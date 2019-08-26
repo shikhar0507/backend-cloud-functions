@@ -129,6 +129,7 @@ const phoneNumberUpdateBodyFields = new Map()
   .set('phoneNumber', 'phoneNumber');
 
 const httpsActions = {
+  checkIn: 'check-in',
   share: 'share',
   update: 'update',
   create: 'create',
