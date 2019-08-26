@@ -30,9 +30,6 @@ const {
   rootCollections,
 } = require('../admin/admin');
 const {
-  getRelevantTime,
-} = require('../admin/utils');
-const {
   reportNames,
   dateFormats,
 } = require('../admin/constants');
@@ -40,7 +37,6 @@ const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
-const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
@@ -101,73 +97,6 @@ const sendErrorReport = async () => {
     });
 };
 
-const runQuery = (query, resolve, reject) => {
-  return query
-    .get()
-    .then((docs) => {
-      if (docs.empty) {
-        return 0;
-      }
-
-      const batch = db.batch();
-
-      docs.forEach((doc) => {
-        const scheduleArray = doc.get('schedule');
-
-        batch.set(doc.ref, {
-          addendumDocRef: null,
-          relevantTime: getRelevantTime(scheduleArray),
-        }, {
-          merge: true,
-        });
-      });
-
-      /* eslint-disable */
-      return batch
-        .commit()
-        .then(() => docs.docs[docs.size - 1]);
-      /* eslint-enable */
-    })
-    .then(lastDoc => {
-      if (!lastDoc) return resolve();
-
-      return process
-        .nextTick(() => {
-          const newQuery = query
-            // Using greater than sign because we need
-            // to start after the last activity which was
-            // processed by this code otherwise some activities
-            // might be updated more than once.
-            .where(admin.firestore.FieldPath.documentId(), '>', lastDoc.id);
-
-          return runQuery(newQuery, resolve, reject);
-        });
-    })
-    .catch(reject);
-};
-
-const handleRelevantTime = () => {
-  const start = momentTz()
-    .subtract('1', 'day')
-    .startOf('day')
-    .valueOf();
-  const end = momentTz()
-    .subtract('1', 'day')
-    .endOf('day')
-    .valueOf();
-
-  const query = rootCollections
-    .activities
-    .where('relevantTime', '>=', start)
-    .where('relevantTime', '<=', end)
-    .orderBy(admin.firestore.FieldPath.documentId())
-    .limit(250);
-
-  return new Promise((resolve, reject) => {
-    return runQuery(query, resolve, reject);
-  });
-};
-
 const setBackblazeIdToken = async timerDoc => {
   const getKeyId = (applicationKey, keyId) => {
     return `${keyId}:${applicationKey}`;
@@ -205,7 +134,8 @@ const setBackblazeIdToken = async timerDoc => {
 
 const deleteInstantDocs = async () => {
   const momentToday = momentTz();
-  const hundredDaysBeforeMoment = momentToday.subtract(100, 'days');
+  const hundredDaysBeforeMoment = momentToday
+    .subtract(100, 'days');
   const batch = db.batch();
 
   // Delete docs older than 100 days
@@ -213,7 +143,6 @@ const deleteInstantDocs = async () => {
     .instant
     .where('timestamp', '<=', hundredDaysBeforeMoment.valueOf())
     .get();
-
 
   docs.forEach(doc => batch.delete(doc.ref));
 
@@ -303,9 +232,7 @@ module.exports = async timerDoc => {
     });
 
     await batch.commit();
-
     return deleteInstantDocs();
-
   } catch (error) {
     console.error(error);
   }
