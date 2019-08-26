@@ -552,14 +552,18 @@ const getSearchables = (string) => {
  * @returns {number} Unix timestamp.
  */
 const getRelevantTime = schedule => {
+  if (schedule.length === 0) {
+    return null;
+  }
+
   const allSchedules = [];
 
   schedule
-    .forEach(timestamp => {
+    .forEach(object => {
       allSchedules
         .push(
-          timestamp.startTime.valueOf(),
-          timestamp.endTime.valueOf()
+          object.startTime.valueOf(),
+          object.endTime.valueOf()
         );
     });
 
@@ -578,7 +582,16 @@ const getRelevantTime = schedule => {
     }
   }
 
-  return result;
+  /**
+   * If a schedule is found with the closes future timestamp
+   * using that. Else the furthest `timestmap` from the current
+   * timestamp.
+   *
+   * If the schedule is empty, returning `null`
+   */
+  return result
+    || allSchedules[allSchedules.length - 1]
+    || null;
 };
 
 // https://github.com/freesoftwarefactory/parse-multipart
@@ -1572,8 +1585,6 @@ const addressToCustomer = async queryObject => {
       })
       .asPromise();
 
-    console.log({ queryObject });
-
     const firstResult = placesApiResponse
       .json
       .results[0];
@@ -1601,6 +1612,8 @@ const addressToCustomer = async queryObject => {
         placeApiResult.json.result.address_components,
         queryObject.location,
       );
+    activityObject
+      .location = activityObject.Name;
 
     const weekdayStartTime = (() => {
       const openingHours = placeApiResult
