@@ -953,7 +953,7 @@ module.exports = async (req, res) => {
       .status(code.ok)
       .set(conn.headers);
 
-    return sendJSON(conn.res, { success: true });
+    return sendJSON(conn, { success: true });
   }
 
   // Only GET and POST are allowed
