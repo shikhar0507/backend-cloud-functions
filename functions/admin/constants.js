@@ -814,6 +814,7 @@ const dateFormats = {
 };
 
 const reportNames = {
+  SCHEDULE: 'schedule',
   COUNTER: 'counter',
   CUSTOMER: 'customer',
   ACTIVIT_REPORT: 'activity report',

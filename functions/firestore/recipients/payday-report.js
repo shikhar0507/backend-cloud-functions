@@ -9,6 +9,7 @@ const {
 const {
   alphabetsArray,
   getStatusForDay,
+  getSupervisors,
 } = require('./report-utils');
 const {
   db,
@@ -186,44 +187,6 @@ const getPayDayTimingsTopRow = allDates => {
 
   return topRowValues;
 };
-
-const getName = (employeesData, phoneNumber) => {
-  if (employeesData[phoneNumber]) {
-    return employeesData[phoneNumber].Name;
-  }
-
-  return phoneNumber;
-};
-
-const getSupervisors = (employeesData, phoneNumber) => {
-  let str = '';
-  const employeeData = employeesData[phoneNumber];
-  const firstSupervisor = employeeData['First Supervisor'];
-  const secondSupervisor = employeeData['Second Supervisor'];
-  const thirdSupervisor = employeeData['Third Supervisor'];
-  const allSvs = [
-    firstSupervisor,
-    secondSupervisor,
-    thirdSupervisor
-  ].filter(Boolean);
-
-  if (allSvs.length === 0) return '';
-  if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
-
-  allSvs.forEach((phoneNumber, index) => {
-    const name = getName(employeesData, phoneNumber);
-    const isLast = index === allSvs.length - 1;
-
-    if (isLast) {
-      str += 'and';
-    }
-
-    str += ` ${name}, `;
-  });
-
-  return str.trim();
-};
-
 
 module.exports = async locals => {
   const timezone = locals
@@ -620,8 +583,7 @@ module.exports = async locals => {
         Math.abs(daysCount - totalPayableDays),
         locals.employeesData[phoneNumber].Department,
         locals.employeesData[phoneNumber].Designation,
-        getName(locals.employeesData, locals.employeesData[phoneNumber]['First Supervisor']),
-        // getSupervisors(locals.employeesData, phoneNumber),
+        getSupervisors(locals.employeesData, phoneNumber),
         locals.employeesData[phoneNumber]['Base Location'],
         locals.employeesData[phoneNumber].Region || '',
       ].forEach(item => {

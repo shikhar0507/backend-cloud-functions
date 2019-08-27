@@ -471,10 +471,6 @@ const handleXTypeActivities = async locals => {
       delete activityData
         .addendumDocRef;
 
-      /** List of assignee doesn't matter for -type activities */
-      activityData
-        .assignees = activityData.assignees || [];
-
       const ref = rootCollections
         .profiles
         .doc(subscriber)
@@ -871,11 +867,14 @@ const removeFromOfficeActivities = async locals => {
 };
 
 
-const handleEmployeeSupervisors = locals => {
-  const status = locals.change.after.get('status');
+const handleEmployeeSupervisors = async locals => {
+  const status = locals
+    .change
+    .after
+    .get('status');
 
   if (status === 'CANCELLED') {
-    return Promise.resolve();
+    return;
   }
 
   const employeeContact = locals
@@ -910,63 +909,61 @@ const handleEmployeeSupervisors = locals => {
   if (firstSupervisorOld === firstSupervisorNew
     && secondSupervisorOld === secondSupervisorNew
     && thirdSupervisorOld === thirdSupervisorNew) {
-    return Promise.resolve();
+    return;
   }
 
   const batch = db.batch();
-
-  return rootCollections
+  const subscriptions = await rootCollections
     .activities
     .where('template', '==', 'subscription')
     .where('attachment.Subscriber.value', '==', employeeContact)
     .where('office', '==', locals.change.after.get('office'))
-    .get()
-    .then(docs => {
-      docs.forEach(doc => {
-        batch.set(doc.ref, {
-          addendumDocRef: null,
-        }, {
-          merge: true,
+    .get();
+
+  subscriptions.forEach(doc => {
+    batch.set(doc.ref, {
+      addendumDocRef: null,
+    }, {
+      merge: true,
+    });
+
+    const firstSupervisorChanged = firstSupervisorOld
+      && firstSupervisorOld !== firstSupervisorNew;
+    const secondSupervisorChanged = secondSupervisorOld
+      && secondSupervisorOld !== secondSupervisorNew;
+    const thirdSupervisorChanged = thirdSupervisorOld
+      && thirdSupervisorOld !== thirdSupervisorNew;
+
+    if (firstSupervisorChanged) {
+      batch
+        .delete(doc.ref.collection('Assignees').doc(firstSupervisorOld));
+    }
+
+    if (secondSupervisorChanged) {
+      batch
+        .delete(doc.ref.collection('Assignees').doc(secondSupervisorOld));
+    }
+
+    if (thirdSupervisorChanged) {
+      batch
+        .delete(doc.ref.collection('Assignees').doc(thirdSupervisorOld));
+    }
+
+    [
+      firstSupervisorNew,
+      secondSupervisorNew,
+      thirdSupervisorNew
+    ].filter(Boolean) // Any or all of these values could be empty strings...
+      .forEach(phoneNumber => {
+        batch.set(doc.ref.collection('Assignees').doc(phoneNumber), {
+          canEdit: locals.adminsCanEdit.includes(phoneNumber),
+          addToInclude: true,
         });
-
-        const firstSupervisorChanged = firstSupervisorOld
-          && firstSupervisorOld !== firstSupervisorNew;
-        const secondSupervisorChanged = secondSupervisorOld
-          && secondSupervisorOld !== secondSupervisorNew;
-        const thirdSupervisorChanged = thirdSupervisorOld
-          && thirdSupervisorOld !== thirdSupervisorNew;
-
-        if (firstSupervisorChanged) {
-          batch
-            .delete(doc.ref.collection('Assignees').doc(firstSupervisorOld));
-        }
-
-        if (secondSupervisorChanged) {
-          batch
-            .delete(doc.ref.collection('Assignees').doc(secondSupervisorOld));
-        }
-
-        if (thirdSupervisorChanged) {
-          batch
-            .delete(doc.ref.collection('Assignees').doc(thirdSupervisorOld));
-        }
-
-        [
-          firstSupervisorNew,
-          secondSupervisorNew,
-          thirdSupervisorNew
-        ].filter(Boolean) // Any or all of these values could be empty strings...
-          .forEach(phoneNumber => {
-            batch.set(doc.ref.collection('Assignees').doc(phoneNumber), {
-              canEdit: locals.adminsCanEdit.includes(phoneNumber),
-              addToInclude: true,
-            });
-          });
       });
+  });
 
-      return batch.commit();
-    })
-    .catch(console.error);
+  return batch
+    .commit();
 };
 
 
@@ -2152,7 +2149,13 @@ const handleRecipient = async locals => {
       .delete(recipientsDocRef);
   }
 
-  await batch.commit();
+  await batch
+    .commit();
+
+  if (locals.change.after.get('attachment.Name.value')
+    !== 'payroll') {
+    return;
+  }
 
   /**
    * If a recipient activity is created with
@@ -2164,27 +2167,24 @@ const handleRecipient = async locals => {
     .change
     .after
     .get('officeId');
+  const employees = await getEmployeesMapFromRealtimeDb(officeId);
+  const promises = [];
+  const phoneNumbers = Object.keys(employees);
 
-  if (locals.change.after.get('attachment.Name.value') === 'payroll') {
-    const employees = await getEmployeesMapFromRealtimeDb(officeId);
-    const promises = [];
-    const phoneNumbers = Object.keys(employees);
+  phoneNumbers
+    .forEach(phoneNumber => {
+      const promise = createAutoSubscription(
+        locals,
+        'attendance regularization',
+        phoneNumber
+      );
 
-    phoneNumbers
-      .forEach(phoneNumber => {
-        const promise = createAutoSubscription(
-          locals,
-          'attendance regularization',
-          phoneNumber
-        );
+      promises
+        .push(promise);
+    });
 
-        promises
-          .push(promise);
-      });
-
-    return Promise
-      .all(promises);
-  }
+  return Promise
+    .all(promises);
 };
 
 
@@ -2202,7 +2202,8 @@ const createNewProfiles = async newProfilesMap => {
       profilePromises.push(promise);
     });
 
-  const snap = await Promise.all(profilePromises);
+  const snap = await Promise
+    .all(profilePromises);
 
   snap.forEach(doc => {
     /** Profile already exists */
@@ -2217,7 +2218,8 @@ const createNewProfiles = async newProfilesMap => {
     });
   });
 
-  return profileBatch.commit();
+  return profileBatch
+    .commit();
 };
 
 
@@ -2262,11 +2264,13 @@ const getUpdatedScheduleNames = (newSchedule, oldSchedule) => {
     const oldStartTime = item.startTime;
     const oldEndTime = item.endTime;
 
-    if (newEndTime === oldEndTime && newStartTime === oldStartTime) {
+    if (newEndTime === oldEndTime
+      && newStartTime === oldStartTime) {
       return;
     }
 
-    updatedFields.push(name);
+    updatedFields
+      .push(name);
   });
 
   return updatedFields;
@@ -2280,22 +2284,27 @@ const getUpdatedAttachmentFieldNames = (newAttachment, oldAttachment) => {
     .keys(newAttachment)
     .forEach((field) => {
       /** Comparing the `base64` photo string is expensive. Not doing it. */
-      if (newAttachment[field].type === 'photo') return;
+      if (newAttachment[field].type === 'photo') {
+        return;
+      }
 
       const oldFieldValue = oldAttachment[field].value;
       const newFieldValue = newAttachment[field].value;
       const isUpdated = oldFieldValue !== newFieldValue;
 
-      if (!isUpdated) return;
+      if (!isUpdated) {
+        return;
+      }
 
-      updatedFields.push(field);
+      updatedFields
+        .push(field);
     });
 
   return updatedFields;
 };
 
 
-const getUpdatedFieldNames = (options) => {
+const getUpdatedFieldNames = options => {
   const {
     before: activityOld,
     after: activityNew,
@@ -2315,7 +2324,9 @@ const getUpdatedFieldNames = (options) => {
 
   let commentString = '';
 
-  if (allFields.length === 1) return commentString += `${allFields[0]}`;
+  if (allFields.length === 1) {
+    return commentString += `${allFields[0]}`;
+  }
 
   allFields
     .forEach((field, index) => {
@@ -2475,7 +2486,9 @@ const getCommentString = (locals, recipient) => {
 const handleComments = async (addendumDoc, locals) => {
   const batch = db.batch();
 
-  if (!addendumDoc) return;
+  if (!addendumDoc) {
+    return;
+  }
 
   locals
     .activityNew = locals.change.after;
@@ -2485,7 +2498,9 @@ const handleComments = async (addendumDoc, locals) => {
     .forEach(phoneNumber => {
       const userRecord = locals.assigneesMap.get(phoneNumber);
 
-      if (!userRecord.uid) return;
+      if (!userRecord.uid) {
+        return;
+      }
 
       const comment = getCommentString(locals, phoneNumber);
 
@@ -2503,7 +2518,8 @@ const handleComments = async (addendumDoc, locals) => {
       });
     });
 
-  return batch.commit();
+  return batch
+    .commit();
 };
 
 
@@ -2715,7 +2731,8 @@ const handleDailyStatusReport = async addendumDoc => {
 
 
 const getAccuracyTolerance = accuracy => {
-  if (accuracy && accuracy < 350) {
+  if (accuracy
+    && accuracy < 350) {
     return 500;
   }
 
@@ -3105,7 +3122,9 @@ const handleActivityUpdates = async locals => {
   })();
 
   // Only proceed for branch, region and department
-  if (!query) return;
+  if (!query) {
+    return;
+  }
 
   const docs = await query.get();
 
@@ -3195,9 +3214,10 @@ const handleLeaveUpdates = async locals => {
   }
 
   // Schedule not updated, no need to do anything since
-  // even if there was a conflict, nothing relevant has changed.
+  // even if there was a conflict, nothing significant has changed.
   if (oldSchedule.startTime === newSchedule.startTime
-    && oldSchedule.endTime === newSchedule.endTime) {
+    && oldSchedule.endTime === newSchedule.endTime
+    && oldStatus === newStatus) {
     return;
   }
 
@@ -3315,27 +3335,29 @@ const handleLeaveUpdates = async locals => {
         merge: true,
       });
 
-    batch.set(addendumDocRef, {
-      date: dateObject.getDate(),
-      month: dateObject.getMonth(),
-      year: dateObject.getFullYear(),
-      user: phoneNumber,
-      action: httpsActions.comment,
-      location: locals.addendumDoc.get('location'),
-      timestamp: Date.now(),
-      userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-      isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-      geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-      provider: locals.addendumDoc.get('provider'),
-      userDisplayName: displayName,
-      isAutoGenerated: true,
-      comment: automaticComment,
-      activityData: doc.data(),
-      activityId: doc.ref.id,
-    });
+    batch
+      .set(addendumDocRef, {
+        date: dateObject.getDate(),
+        month: dateObject.getMonth(),
+        year: dateObject.getFullYear(),
+        user: phoneNumber,
+        action: httpsActions.comment,
+        location: locals.addendumDoc.get('location'),
+        timestamp: Date.now(),
+        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+        isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+        geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
+        provider: locals.addendumDoc.get('provider'),
+        userDisplayName: displayName,
+        isAutoGenerated: true,
+        comment: automaticComment,
+        activityData: doc.data(),
+        activityId: doc.ref.id,
+      });
   });
 
-  return batch.commit();
+  return batch
+    .commit();
 };
 
 const handleLeave = async locals => {
@@ -3454,12 +3476,13 @@ const handleLeave = async locals => {
         .collection('Addendum')
         .doc();
 
-      batch.set(doc.ref, {
-        addendumDocRef,
-        timestamp: Date.now(),
-      }, {
-        merge: true,
-      });
+      batch
+        .set(doc.ref, {
+          addendumDocRef,
+          timestamp: Date.now(),
+        }, {
+          merge: true,
+        });
 
       batch.set(addendumDocRef, {
         date: dateObject.getDate(),
@@ -3499,27 +3522,29 @@ const handleLeave = async locals => {
 
     console.log('updating', locals.change.after.ref.path);
 
-    batch.set(addendumDocRef, {
-      date: dateObject.getDate(),
-      month: dateObject.getMonth(),
-      year: dateObject.getFullYear(),
-      user: phoneNumber,
-      action: httpsActions.comment,
-      location: locals.addendumDoc.get('location'),
-      timestamp: Date.now(),
-      userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-      isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-      geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-      provider: locals.addendumDoc.get('provider'),
-      userDisplayName: displayName,
-      isAutoGenerated: true,
-      comment: automaticComment,
-      activityData: locals.change.after.data(),
-      activityId: locals.change.after.ref.id,
-    });
+    batch
+      .set(addendumDocRef, {
+        date: dateObject.getDate(),
+        month: dateObject.getMonth(),
+        year: dateObject.getFullYear(),
+        user: phoneNumber,
+        action: httpsActions.comment,
+        location: locals.addendumDoc.get('location'),
+        timestamp: Date.now(),
+        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+        isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+        geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
+        provider: locals.addendumDoc.get('provider'),
+        userDisplayName: displayName,
+        isAutoGenerated: true,
+        comment: automaticComment,
+        activityData: locals.change.after.data(),
+        activityId: locals.change.after.ref.id,
+      });
   }
 
-  return batch.commit();
+  return batch
+    .commit();
 };
 
 
@@ -3574,16 +3599,29 @@ const handleCheckIn = async locals => {
     return;
   }
 
+
   // Only allowed for create
   if (locals.addendumDocData.action
     !== httpsActions.create) {
     return;
   }
 
-  const officeId = locals.change.after.get('officeId');
-  const timezone = locals.change.after.get('timezone');
-  const momentNow = momentTz().tz(timezone);
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
+  console.log('In handle check-in');
+
+  const officeId = locals
+    .change
+    .after
+    .get('officeId');
+  const timezone = locals
+    .change
+    .after
+    .get('timezone');
+  const momentNow = momentTz()
+    .tz(timezone);
+  const phoneNumber = locals
+    .change
+    .after
+    .get('creator.phoneNumber');
   const venue = (() => {
     // venue has been populated
     if (locals.change.after.get('venue')[0].location) {
@@ -3631,57 +3669,66 @@ const handleCheckIn = async locals => {
 
   const batch = db.batch();
 
-  relevantTimeActivities.forEach(doc => {
-    if (doc.get('officeId') !== officeId) {
-      return;
-    }
+  relevantTimeActivities
+    .forEach(doc => {
+      if (doc.get('officeId')
+        !== officeId) {
+        return;
+      }
 
-    const addendumDocRef = rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Addendum')
-      .doc();
-    const dateObject = new Date();
+      const addendumDocRef = rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Addendum')
+        .doc();
+      const dateObject = new Date();
 
-    batch.set(addendumDocRef, {
-      date: dateObject.getDate(),
-      month: dateObject.getMonth(),
-      year: dateObject.getFullYear(),
-      user: phoneNumber,
-      action: httpsActions.checkIn,
-      location: locals.addendumDoc.get('location'),
-      timestamp: Date.now(),
-      userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-      isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-      geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-      provider: locals.addendumDoc.get('provider'),
-      userDisplayName: displayName,
-      isAutoGenerated: true,
-      comment: `${displayName || phoneNumber} checked `
-        + `in from Duty Location: ${venue.location}`,
-      activityData: doc.data(),
-      activityId: doc.ref.id,
+      batch.set(addendumDocRef, {
+        date: dateObject.getDate(),
+        month: dateObject.getMonth(),
+        year: dateObject.getFullYear(),
+        user: phoneNumber,
+        action: httpsActions.checkIn,
+        location: locals.addendumDoc.get('location'),
+        timestamp: Date.now(),
+        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+        isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+        geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
+        provider: locals.addendumDoc.get('provider'),
+        userDisplayName: displayName,
+        isAutoGenerated: true,
+        comment: `${displayName || phoneNumber} checked `
+          + `in from Duty Location: ${venue.location}`,
+        activityData: doc.data(),
+        activityId: doc.ref.id,
+      });
+
+      const rt = getRelevantTime(doc.get('schedule'));
+
+      console.log('doc.ref', doc.ref.path);
+      const activityRef = rootCollections
+        .activities
+        .doc(doc.id);
+      const checkIns = doc.get('checkIns') || {};
+
+      checkIns[phoneNumber] = checkIns[phoneNumber] || [];
+      checkIns[phoneNumber].push(Date.now());
+
+      const activityData = {
+        addendumDocRef,
+        checkIns,
+        timestamp: Date.now(),
+        relevantTime: rt,
+        relevantTimeAndVenue: `${venue.location} ${rt}`,
+      };
+
+      batch.set(activityRef, activityData, {
+        merge: true,
+      });
     });
 
-    const rt = getRelevantTime(doc.get('schedule'));
-
-    console.log('doc.ref', doc.ref.path);
-
-    const activityRef = rootCollections
-      .activities
-      .doc(doc.id);
-
-    batch.set(activityRef, {
-      addendumDocRef,
-      timestamp: Date.now(),
-      relevantTime: rt,
-      relevantTimeAndVenue: `${venue.location} ${rt}`,
-    }, {
-      merge: true,
-    });
-  });
-
-  return batch.commit();
+  return batch
+    .commit();
 };
 
 const handleTypeActivityCreation = async locals => {
@@ -3870,117 +3917,118 @@ module.exports = async (change, context) => {
     const userRecords = await Promise
       .all(authFetch);
 
-    userRecords.forEach(userRecord => {
-      const { phoneNumber } = userRecord;
+    userRecords
+      .forEach(userRecord => {
+        const { phoneNumber } = userRecord;
 
-      if (addendumDoc
-        && !locals.addendumCreatorInAssignees
-        && phoneNumber === addendumDoc.get('user')) {
+        if (addendumDoc
+          && !locals.addendumCreatorInAssignees
+          && phoneNumber === addendumDoc.get('user')) {
+          locals
+            .addendumCreator
+            .displayName = userRecord.displayName;
+
+          /**
+           * Since addendum creator was not in the assignees list,
+           * returning from the iteration since we don't want to
+           * add them to the activity unnecessarily.
+           */
+          return;
+        }
+
         locals
-          .addendumCreator
+          .assigneesMap
+          .get(phoneNumber)
           .displayName = userRecord.displayName;
+        locals
+          .assigneesMap
+          .get(phoneNumber)
+          .uid = userRecord.uid;
+        locals
+          .assigneesMap
+          .get(phoneNumber)
+          .photoURL = userRecord.photoURL;
+        locals
+          .assigneesMap
+          .get(phoneNumber)
+          .customClaims = userRecord.customClaims;
+
+        /** New user introduced to the system. Saving their phone number. */
+        if (!userRecord.uid) {
+          const creator = change
+            .after
+            .get('creator.phoneNumber')
+            || change
+              .after
+              .get('creator');
+
+          newProfilesMap
+            .set(phoneNumber, {
+              creator,
+              activityName: change.after.get('activityName'),
+              office: change.after.get('office'),
+            });
+        }
+
+        /** Document below the user profile. */
+        const profileActivityObject = Object
+          .assign({}, change.after.data(), {
+            canEdit: locals.assigneesMap.get(phoneNumber).canEdit,
+            timestamp: Date.now(),
+          });
+
+        profileActivityObject
+          .assignees = (() => {
+            const result = [];
+
+            locals
+              .assigneePhoneNumbersArray
+              .forEach(phoneNumber => {
+                let displayName = '';
+                let photoURL = '';
+
+                if (locals.assigneesMap.has(phoneNumber)) {
+                  displayName = locals
+                    .assigneesMap
+                    .get(phoneNumber)
+                    .displayName || '';
+                  photoURL = locals
+                    .assigneesMap
+                    .get(phoneNumber)
+                    .photoURL || '';
+                }
+
+                result
+                  .push({
+                    phoneNumber,
+                    displayName,
+                    photoURL,
+                  });
+              });
+
+            return result;
+          })();
 
         /**
-         * Since addendum creator was not in the assignees list,
-         * returning from the iteration since we don't want to
-         * add them to the activity unnecessarily.
+         * Check-ins clutter the Activities collection and
+         * make the /read resource slow.
          */
-        return;
-      }
+        if (template === 'check-in'
+          && (!locals.assigneesMap.has(phoneNumber)
+            || !locals.assigneesMap.get(phoneNumber).uid)) {
+          return;
+        }
 
-      locals
-        .assigneesMap
-        .get(phoneNumber)
-        .displayName = userRecord.displayName;
-      locals
-        .assigneesMap
-        .get(phoneNumber)
-        .uid = userRecord.uid;
-      locals
-        .assigneesMap
-        .get(phoneNumber)
-        .photoURL = userRecord.photoURL;
-      locals
-        .assigneesMap
-        .get(phoneNumber)
-        .customClaims = userRecord.customClaims;
+        const ref = rootCollections
+          .profiles
+          .doc(phoneNumber)
+          .collection('Activities')
+          .doc(context.params.activityId);
 
-      /** New user introduced to the system. Saving their phone number. */
-      if (!userRecord.uid) {
-        const creator = change
-          .after
-          .get('creator.phoneNumber')
-          || change
-            .after
-            .get('creator');
-
-        newProfilesMap
-          .set(phoneNumber, {
-            creator,
-            activityName: change.after.get('activityName'),
-            office: change.after.get('office'),
-          });
-      }
-
-      /** Document below the user profile. */
-      const profileActivityObject = Object
-        .assign({}, change.after.data(), {
-          canEdit: locals.assigneesMap.get(phoneNumber).canEdit,
-          timestamp: Date.now(),
+        batch.set(ref, profileActivityObject, {
+          merge: true
         });
-
-      profileActivityObject
-        .assignees = (() => {
-          const result = [];
-
-          locals
-            .assigneePhoneNumbersArray
-            .forEach(phoneNumber => {
-              let displayName = '';
-              let photoURL = '';
-
-              if (locals.assigneesMap.has(phoneNumber)) {
-                displayName = locals
-                  .assigneesMap
-                  .get(phoneNumber)
-                  .displayName || '';
-                photoURL = locals
-                  .assigneesMap
-                  .get(phoneNumber)
-                  .photoURL || '';
-              }
-
-              result
-                .push({
-                  phoneNumber,
-                  displayName,
-                  photoURL,
-                });
-            });
-
-          return result;
-        })();
-
-      /**
-       * Check-ins clutter the Activities collection and
-       * make the /read resource slow.
-       */
-      if (template === 'check-in'
-        && (!locals.assigneesMap.has(phoneNumber)
-          || !locals.assigneesMap.get(phoneNumber).uid)) {
-        return;
-      }
-
-      const ref = rootCollections
-        .profiles
-        .doc(phoneNumber)
-        .collection('Activities')
-        .doc(context.params.activityId);
-
-      batch.set(ref, profileActivityObject, {
-        merge: true
       });
-    });
 
     console.log({
       template,
@@ -4006,10 +4054,44 @@ module.exports = async (change, context) => {
         .creationMonth = date.getMonth();
       activityData
         .creationYear = date.getFullYear();
+
+      if (template === 'duty') {
+        const customer = activityData
+          .attachment
+          .Location
+          .value;
+        const customerActivityResult = await rootCollections
+          .activities
+          .where('attachment.Name.value', '==', customer)
+          .where('officeId', '==', activityData.officeId)
+          .where('status', '==', 'CONFIRMED')
+          .get();
+        const customerDoc = customerActivityResult.docs[0];
+        const attachment = customerDoc.get('attachment');
+        const object = {};
+
+        Object
+          .keys(attachment)
+          .forEach(field => {
+            object[field] = attachment[field].value;
+          });
+
+        const venue = customerDoc.get('venue')[0];
+        const geopoint = venue.geopoint;
+
+        object.latitude = geopoint.latitude || geopoint._latitude;
+        object.longitude = geopoint.longitude || geopoint._longitude;
+        object.address = venue.address;
+        object.location = venue.location;
+
+        activityData
+          .customerObject = object;
+      }
     }
 
     if (template === 'office') {
-      activityData.slug = slugify(activityData.attachment.Name.value);
+      activityData
+        .slug = slugify(activityData.attachment.Name.value);
       delete activityData.adminsCanEdit;
     }
 

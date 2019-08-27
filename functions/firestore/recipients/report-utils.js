@@ -361,15 +361,55 @@ const getStatusForDay = options => {
   return Math.floor(minOfRatios / rev) * rev;
 };
 
+const getName = (employeesData, phoneNumber) => {
+  if (employeesData[phoneNumber]) {
+    return employeesData[phoneNumber].Name;
+  }
+
+  return phoneNumber;
+};
+
+
+const getSupervisors = (employeesData, phoneNumber) => {
+  let str = '';
+  const employeeData = employeesData[phoneNumber];
+  const firstSupervisor = employeeData['First Supervisor'];
+  const secondSupervisor = employeeData['Second Supervisor'];
+  const thirdSupervisor = employeeData['Third Supervisor'];
+  const allSvs = [
+    firstSupervisor,
+    secondSupervisor,
+    thirdSupervisor
+  ].filter(Boolean);
+
+  if (allSvs.length === 0) return '';
+  if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
+
+  allSvs.forEach((phoneNumber, index) => {
+    const name = getName(employeesData, phoneNumber);
+    const isLast = index === allSvs.length - 1;
+
+    if (isLast) {
+      str += 'and';
+    }
+
+    str += ` ${name}, `;
+  });
+
+  return str.trim();
+};
+
 
 module.exports = {
   getUrl,
+  getName,
   toMapsUrl,
   monthsArray,
   employeeInfo,
   weekdaysArray,
   getIdentifier,
   getExcelHeader,
+  getSupervisors,
   alphabetsArray,
   getStatusForDay,
   momentOffsetObject,
