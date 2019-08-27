@@ -108,13 +108,11 @@ module.exports = async locals => {
           .keys(checkIns)
           .forEach(phoneNumber => {
             const timestamps = checkIns[phoneNumber]; // Array of ts
-            const [firstCheckInTimestamp, lastCheckInTimestamp] = timestamps;
-
             const name = getName(locals.employeesData, phoneNumber);
-            const firstCheckInFormatted = momentTz(firstCheckInTimestamp)
+            const firstCheckInFormatted = momentTz(timestamps[0])
               .tz(timezone)
               .format(dateFormats.DATE_TIME);
-            const lastCheckInFormatted = momentTz(lastCheckInTimestamp || firstCheckInTimestamp)
+            const lastCheckInFormatted = momentTz(timestamps[timestamps.length - 1])
               .tz(timezone)
               .format(dateFormats.DATE_TIME);
 
