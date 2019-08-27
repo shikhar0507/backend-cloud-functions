@@ -98,10 +98,18 @@ const getPaydayTimingsSheetValue = options => {
   } = options;
 
   if (statusObject[date].onLeave) {
+    if (statusObject[date].leaveType) {
+      return `LEAVE - ${statusObject[date].leaveType}`;
+    }
+
     return 'LEAVE';
   }
 
   if (statusObject[date].onAr) {
+    if (statusObject[date].arReason) {
+      return `AR - ${statusObject[date].arReason}`;
+    }
+
     return 'AR';
   }
 

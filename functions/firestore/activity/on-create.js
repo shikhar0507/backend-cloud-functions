@@ -278,13 +278,39 @@ const handleLeaveOrOnDuty = (conn, locals) => {
     return createDocsWithBatch(conn, locals);
   }
 
-  return setOnLeaveOrAr(
-    conn.requester.phoneNumber,
+  const leaveType = (() => {
+    if (conn.req.body.template === 'leave') {
+      return conn.req.body.attachment['Leave Type'].value;
+    }
+
+    return '';
+  })();
+  const arReason = (() => {
+    if (conn.req.body.template === 'attendance regularization') {
+      return conn.req.body.attachment.Reason.value;
+    }
+
+    return '';
+  })();
+
+  console.log('params', conn.requester.phoneNumber,
     locals.officeDoc.id,
     startTime,
     endTime,
-    conn.req.body.template
-  )
+    conn.req.body.template,
+    leaveType,
+    arReason
+  );
+
+  return setOnLeaveOrAr({
+    startTime,
+    endTime,
+    leaveType,
+    arReason,
+    officeId: locals.officeDoc.id,
+    template: conn.req.body.template,
+    phoneNumber: conn.requester.phoneNumber,
+  })
     .then(result => {
       const { success, message } = result;
 
