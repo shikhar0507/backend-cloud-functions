@@ -971,8 +971,12 @@ const getHeaders = () => ({
 const getAuthFromIdToken = async idToken => {
   try {
     const decodedIdToken = await auth.verifyIdToken(idToken);
+    const userRecord = await auth
+      .getUser(decodedIdToken.uid);
 
-    return auth.getUser(decodedIdToken.uid);
+    return Object.assign({}, userRecord, {
+      adminOffices: Object.keys(userRecord.customClaims || {}),
+    });
   } catch (error) {
     return {
       phoneNumber: null,
@@ -1051,20 +1055,20 @@ module.exports = async (req, res) => {
   try {
     const idToken = parseCookies(req.headers);
     const userRecord = await getAuthFromIdToken(idToken);
-    locals.isLoggedIn = !!userRecord.uid;
-
     const requester = Object.assign({}, userRecord);
+    // This is a read only property
+    const customClaims = userRecord.customClaims || {};
 
-    userRecord
-      .customClaims = userRecord.customClaims || {};
     requester
-      .adminOffices = userRecord.customClaims.admin || [];
+      .customClaims = customClaims;
+    requester
+      .adminOffices = requester.customClaims.admin || [];
     requester
       .isAdmin = requester.adminOffices.length > 0;
     requester
       .isSupport = !!requester.customClaims.support;
-    /** Home page */
 
+    /** Home page */
     if (!slug) {
       return sendHTML(
         conn,
