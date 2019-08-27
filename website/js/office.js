@@ -21,10 +21,9 @@ function initMap(location, populateWithMarkers) {
 
   map = new google.maps.Map(
     document.getElementById('map'), {
-      zoom: 16,
-      center: curr,
-    }
-  );
+    zoom: 16,
+    center: curr,
+  });
 
   const marker = new google.maps.Marker({
     position: curr,

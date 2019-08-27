@@ -176,7 +176,7 @@ module.exports = async locals => {
       'Employee Contact',
       'Employee Code',
       'Time',
-      'Distance Travelled',
+      'Distance Travelled (in KM)',
       'Address',
       'Comment',
       'Department',
@@ -266,6 +266,11 @@ module.exports = async locals => {
         return;
       }
 
+      if (doc.get('action')
+        === httpsActions.checkIn) {
+        return;
+      }
+
       count++;
 
       prevTemplateForPersonMap
@@ -310,9 +315,21 @@ module.exports = async locals => {
           .value('');
       }
 
-      footprintsSheet
-        .cell(`H${columnIndex}`)
-        .value(getComment(doc));
+      const comment = getComment(doc);
+
+      if (template === 'check-in'
+        && doc.get('activityData.attachment.Photo.value').startsWith('http')) {
+        footprintsSheet
+          .cell(`H${columnIndex}`)
+          .value(comment)
+          .style({ fontColor: '0563C1', underline: true })
+          .hyperlink(doc.get('activityData.attachment.Photo.value'));
+      } else {
+        footprintsSheet
+          .cell(`H${columnIndex}`)
+          .value(comment);
+      }
+
       footprintsSheet
         .cell(`I${columnIndex}`)
         .value(department);
@@ -396,8 +413,10 @@ module.exports = async locals => {
       to: locals.messageObject.to,
     }, ' ', 2));
 
-    if (!env.isProduction) {
-      return Promise.resolve();
+    if (!env.isProduction
+      /** No activities yesterday */
+      || addendumDocsQueryResult.empty) {
+      return;
     }
 
     await locals
@@ -418,8 +437,7 @@ module.exports = async locals => {
         .valueOf();
 
     if (!isDateToday) {
-      return Promise
-        .resolve();
+      return;
     }
 
     const dailyStatusDocsQueryResult = await rootCollections
@@ -440,8 +458,8 @@ module.exports = async locals => {
       .set({
         countsObject: oldCountsObject,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
   } catch (error) {
     console.error(error);
   }

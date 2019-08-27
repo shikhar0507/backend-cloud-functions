@@ -30,26 +30,19 @@ const {
   rootCollections,
 } = require('../admin/admin');
 const {
-  getRelevantTime,
-  promisifiedRequest,
-} = require('../admin/utils');
-const {
   reportNames,
+  dateFormats,
 } = require('../admin/constants');
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
-const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
+const rpn = require('request-promise-native');
+const url = require('url');
 
 
-const sendErrorReport = () => {
-  const {
-    dateFormats,
-  } = require('../admin/constants');
-  const momentTz = require('moment-timezone');
-
+const sendErrorReport = async () => {
   const today = momentTz().subtract(1, 'days');
 
   const getHTMLString = (doc, index) => {
@@ -66,114 +59,45 @@ const sendErrorReport = () => {
     <hr>`;
   };
 
-  return rootCollections
+  const docs = await rootCollections
     .errors
     .where('date', '==', today.date())
     .where('month', '==', today.month())
     .where('year', '==', today.year())
-    .get()
-    .then((snapShot) => {
-      if (snapShot.empty) {
-        // No errors yesterday
-        return Promise.resolve();
-      }
+    .get();
 
-      let messageBody = '';
-      let index = 0;
+  if (docs.empty) {
+    // No errors yesterday
+    return;
+  }
 
-      snapShot.docs.forEach((doc) => {
-        if (doc.get('skipFromErrorReport')) return;
+  let messageBody = '';
+  let index = 0;
 
-        messageBody += `${getHTMLString(doc, index)}\n\n`;
+  docs.docs.forEach((doc) => {
+    if (doc.get('skipFromErrorReport')) return;
 
-        index++;
-      });
+    messageBody += `${getHTMLString(doc, index)}\n\n`;
 
-      const subject = `${process.env.GCLOUD_PROJECT}`
-        + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
-
-      const sgMail = require('@sendgrid/mail');
-      const env = require('../admin/env');
-      sgMail.setApiKey(env.sgMailApiKey);
-
-      return sgMail.send({
-        subject,
-        to: env.instantEmailRecipientEmails,
-        from: { name: 'Growthile', email: env.systemEmail },
-        html: messageBody,
-      });
-    })
-    .catch(console.error);
-};
-
-const runQuery = (query, resolve, reject) => {
-  return query
-    .get()
-    .then((docs) => {
-      if (docs.empty) {
-        return 0;
-      }
-
-      const batch = db.batch();
-
-      docs.forEach((doc) => {
-        const scheduleArray = doc.get('schedule');
-
-        batch.set(doc.ref, {
-          addendumDocRef: null,
-          relevantTime: getRelevantTime(scheduleArray),
-        }, {
-            merge: true,
-          });
-      });
-
-      /* eslint-disable */
-      return batch
-        .commit()
-        .then(() => docs.docs[docs.size - 1]);
-      /* eslint-enable */
-    })
-    .then(lastDoc => {
-      if (!lastDoc) return resolve();
-
-      return process
-        .nextTick(() => {
-          const newQuery = query
-            // Using greater than sign because we need
-            // to start after the last activity which was
-            // processed by this code otherwise some activities
-            // might be updated more than once.
-            .where(admin.firestore.FieldPath.documentId(), '>', lastDoc.id);
-
-          return runQuery(newQuery, resolve, reject);
-        });
-    })
-    .catch(reject);
-};
-
-const handleRelevantTime = () => {
-  const start = momentTz()
-    .subtract('1', 'day')
-    .startOf('day')
-    .valueOf();
-  const end = momentTz()
-    .subtract('1', 'day')
-    .endOf('day')
-    .valueOf();
-
-  const query = rootCollections
-    .activities
-    .where('relevantTime', '>=', start)
-    .where('relevantTime', '<=', end)
-    .orderBy(admin.firestore.FieldPath.documentId())
-    .limit(250);
-
-  return new Promise((resolve, reject) => {
-    return runQuery(query, resolve, reject);
+    index++;
   });
+
+  // No loggable errors for the day
+  if (!messageBody) return;
+
+  const subject = `${process.env.GCLOUD_PROJECT}`
+    + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
+
+  return sgMail
+    .send({
+      subject,
+      to: env.instantEmailRecipientEmails,
+      from: { name: 'Growthile', email: env.systemEmail },
+      html: messageBody,
+    });
 };
 
-const setBackblazeIdToken = timerDoc => {
+const setBackblazeIdToken = async timerDoc => {
   const getKeyId = (applicationKey, keyId) => {
     return `${keyId}:${applicationKey}`;
   };
@@ -184,117 +108,132 @@ const setBackblazeIdToken = timerDoc => {
   const authorization =
     `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
 
-  return promisifiedRequest({
-    hostname: `api.backblazeb2.com`,
-    path: `/b2api/v2/b2_authorize_account`,
-    headers: {
-      Authorization: authorization,
-    },
-  })
-    .then(response => {
-      return timerDoc
-        .ref
-        .set({
-          apiUrl: response.apiUrl,
-          backblazeAuthorizationToken: response.authorizationToken,
-        }, {
-            merge: true,
-          });
-    })
-    .catch(console.error);
+  try {
+    const uri = url.resolve('https://api.backblazeb2.com', '/b2api/v2/b2_authorize_account');
+
+    const response = await rpn(uri, {
+      headers: {
+        Authorization: authorization,
+      },
+      json: true,
+    });
+
+    return timerDoc
+      .ref
+      .set({
+        apiUrl: response.apiUrl,
+        backblazeAuthorizationToken: response.authorizationToken,
+        downloadUrl: response.downloadUrl,
+      }, {
+        merge: true,
+      });
+  } catch (error) {
+    console.error(error);
+  }
 };
 
-module.exports = timerDoc => {
+const deleteInstantDocs = async () => {
+  const momentToday = momentTz();
+  const hundredDaysBeforeMoment = momentToday
+    .subtract(100, 'days');
+  const batch = db.batch();
+
+  // Delete docs older than 100 days
+  const docs = await rootCollections
+    .instant
+    .where('timestamp', '<=', hundredDaysBeforeMoment.valueOf())
+    .get();
+
+  docs.forEach(doc => batch.delete(doc.ref));
+
+  return batch.commit();
+};
+
+module.exports = async timerDoc => {
   if (timerDoc.get('sent')) {
     // Helps to check if email is sent already.
     // Cloud functions sometimes trigger multiple times
     // For a single write.
-    return Promise.resolve();
+    return;
   }
 
-  return timerDoc
-    .ref
-    .set({
-      sent: true,
-    }, {
-        merge: true,
-      })
-    .then(() => {
-      const messages = [];
+  try {
+    await timerDoc.ref.set({ sent: true }, { merge: true });
 
-      env
-        .instantEmailRecipientEmails
-        .forEach(email => {
-          const html = `<p>Date (DD-MM-YYYY): `
-            + `${timerDoc.id}</p>
+    const messages = [];
+
+    env
+      .instantEmailRecipientEmails
+      .forEach(email => {
+        const html = `<p>Date (DD-MM-YYYY): `
+          + `${timerDoc.id}</p>
             <p>Timestamp:`
-            + ` ${new Date(timerDoc.get('timestamp')).toJSON()}</p>`;
+          + ` ${new Date(timerDoc.get('timestamp')).toJSON()}</p>`;
+        const message = {
+          html,
+          cc: '',
+          subject: 'FROM Timer function',
+          to: email,
+          from: {
+            name: 'Growthfile',
+            email: env.systemEmail,
+          },
+        };
 
-          messages.push({
-            html,
-            cc: '',
-            subject: 'FROM Timer function',
-            to: email,
-            from: {
-              name: 'Growthfile',
-              email: env.systemEmail,
-            },
-          });
-        });
+        messages.push(message);
+      });
 
-      return Promise
-        .all([
-          sgMail.sendMultiple(messages),
-          sendErrorReport(),
-          setBackblazeIdToken(timerDoc)
-        ]);
-    })
-    .then(() => {
-      const momentYesterday = moment()
-        .subtract(1, 'day')
-        .startOf('day');
+    await Promise
+      .all([
+        sgMail.sendMultiple(messages),
+        sendErrorReport(),
+        setBackblazeIdToken(timerDoc)
+      ]);
 
-      return Promise
-        .all([
-          rootCollections
-            .recipients
-            .get(),
-          rootCollections
-            .inits
-            .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-            .where('date', '==', momentYesterday.date())
-            .where('month', '==', momentYesterday.month())
-            .where('year', '==', momentYesterday.year())
-            .limit(1)
-            .get(),
-        ]);
-    })
-    .then(result => {
-      const [
-        recipientsQuery,
-        counterDocsQuery,
-      ] = result;
+    const momentYesterday = moment()
+      .subtract(1, 'day')
+      .startOf('day');
 
-      const batch = db.batch();
+    const [
+      recipientsQuery,
+      counterDocsQuery,
+    ] = await Promise
+      .all([
+        rootCollections
+          .recipients
+          .get(),
+        rootCollections
+          .inits
+          .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+          .where('date', '==', momentYesterday.date())
+          .where('month', '==', momentYesterday.month())
+          .where('year', '==', momentYesterday.year())
+          .limit(1)
+          .get(),
+      ]);
 
-      recipientsQuery
-        .forEach(doc => {
-          batch
-            .set(doc.ref, { timestamp: Date.now() }, { merge: true });
-        });
+    const batch = db.batch();
 
-      batch.set(counterDocsQuery.docs[0].ref, {
-        /**
-         * Storing this value in the daily status report counts doc in order
-         * to check if all reports have finished their work.
-         */
-        expectedRecipientTriggersCount: recipientsQuery.size,
-        recipientsTriggeredToday: 0,
-      }, {
-          merge: true,
-        });
+    recipientsQuery
+      .forEach(doc => {
+        batch
+          .set(doc.ref, { timestamp: Date.now() }, { merge: true });
+      });
 
-      return batch.commit();
-    })
-    .catch(console.error);
+    batch.set(counterDocsQuery.docs[0].ref, {
+      /**
+       * Storing this value in the daily status report counts doc in order
+       * to check if all reports have finished their work.
+       */
+      expectedRecipientTriggersCount: recipientsQuery.size,
+      recipientsTriggeredToday: 0,
+    }, {
+      merge: true,
+    });
+
+    await batch.commit();
+    return deleteInstantDocs();
+  } catch (error) {
+    console.error(error);
+  }
 };

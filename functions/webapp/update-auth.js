@@ -22,21 +22,6 @@ const env = require('../admin/env');
 
 sgMail.setApiKey(env.sgMailApiKey);
 
-const valuesPolyfill = (object) => {
-  return Object.keys(object).map((key) => object[key]);
-};
-
-/**
- * A temporary polyfill for using `Object.values` since sendgrid has
- * probably removed support for Node 6, but the Node 8 runtime is still
- * suffering from "connection error" issue at this time.
- * Will remove this after a few days.
- *
- * @see https://github.com/sendgrid/sendgrid-nodejs/issues/929
- * @see https://github.com/firebase/firebase-functions/issues/429
- */
-Object.values = Object.values || valuesPolyfill;
-
 const validateRequestBody = requestBody => {
   const result = {
     success: true,
@@ -174,8 +159,8 @@ const createVerificationFlow = options => {
               verificationRequestsCount: verificationRequestsCount + 1,
               emailVerificationRequestPending: true,
             }, {
-                merge: true,
-              })
+              merge: true,
+            })
         ]);
     })
     .then(() => ({

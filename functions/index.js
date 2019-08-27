@@ -34,9 +34,6 @@ const authOnCreate = functions
   .onCreate(require('./auth/on-create'));
 
 const api = functions
-  // .runWith({
-  //   timeoutSeconds: '540',
-  // })
   .https
   .onRequest(require('./server/server'));
 
@@ -80,11 +77,6 @@ const recipientsOnUpdate = functions
   .document('Recipients/{docId}')
   .onUpdate(require('./firestore/recipients/on-update'));
 
-const addendumOnCreate = functions
-  .firestore
-  .document('Offices/{officeId}/Addendum/{docId}')
-  .onCreate(require('./firestore/addendum/on-create'));
-
 /** For sending notifications to the client app */
 const sendPushNotification = functions
   .firestore
@@ -122,7 +114,6 @@ module.exports = {
   instantOnCreate,
   activityOnWrite,
   assigneeOnDelete,
-  addendumOnCreate,
   recipientsOnUpdate,
   sendPushNotification,
   temporaryImageHandler,

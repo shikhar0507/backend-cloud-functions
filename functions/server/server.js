@@ -40,7 +40,6 @@ const {
   disableAccount,
   hasSupportClaims,
   hasAdminClaims,
-  hasManageTemplateClaims,
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
@@ -65,14 +64,11 @@ const handleResource = conn => {
     && !conn.requester.isSupportRequest;
   const rejectSupportRequest = resource
     .checkSupport
+    && conn.requester.isSupportRequest
     && !hasSupportClaims(conn.requester.customClaims);
-  const rejectManageTemplatesRequest = resource
-    .checkManageTemplates
-    && !hasManageTemplateClaims(conn.requester.customClaims);
 
   if (rejectAdminRequest
-    || rejectSupportRequest
-    || rejectManageTemplatesRequest) {
+    || rejectSupportRequest) {
     return sendResponse(
       conn,
       code.forbidden,
@@ -170,17 +166,17 @@ const getProfile = conn => {
           .set(profileDoc.ref, {
             uid: conn.requester.uid,
           }, {
-              merge: true,
-            });
+            merge: true,
+          });
 
         batch
           .set(rootCollections
             .updates
             .doc(conn.requester.uid), {
-              phoneNumber: conn.requester.phoneNumber,
-            }, {
-              merge: true,
-            });
+            phoneNumber: conn.requester.phoneNumber,
+          }, {
+            merge: true,
+          });
       }
 
       return Promise
@@ -209,6 +205,7 @@ const getUserAuthFromIdToken = (conn, decodedIdToken) => {
 
       conn.requester = {
         uid: decodedIdToken.uid,
+        emailVerified: userRecord.emailVerified,
         email: userRecord.email || '',
         phoneNumber: userRecord.phoneNumber,
         displayName: userRecord.displayName || '',
@@ -363,7 +360,7 @@ module.exports = async (req, res) => {
     return sendResponse(
       conn,
       code.forbidden,
-      'Not allowed'
+      `Missing 'X-CF-Secret' header in the request headers`
     );
   }
 

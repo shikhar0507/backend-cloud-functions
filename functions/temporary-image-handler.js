@@ -17,7 +17,7 @@ const env = require('./admin/env');
 const url = require('url');
 
 
-module.exports = object => {
+module.exports = async object => {
   const filePath = object.name;
   const bucket = admin.storage().bucket(object.bucket);
   const batch = db.batch();

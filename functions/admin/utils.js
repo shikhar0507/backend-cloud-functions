@@ -269,9 +269,9 @@ const disableAccount = (conn, reason) => {
           disabledFor: reason,
           disabledTimestamp: Date.now(),
         }, {
-            /** This doc may have other fields too. */
-            merge: true,
-          }),
+          /** This doc may have other fields too. */
+          merge: true,
+        }),
       rootCollections
         .instant
         .doc()
@@ -379,6 +379,7 @@ const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
 const isE164PhoneNumber = (phoneNumber) => {
   if (typeof phoneNumber !== 'string'
     || phoneNumber.trim() !== phoneNumber
+    || phoneNumber.length < 5
     || phoneNumber.replace(/ +/g, '') !== phoneNumber) {
     return false;
   }
@@ -547,53 +548,50 @@ const getSearchables = (string) => {
  * Returns the `timestamp` that is closest to the current
  * `timestamp`.
  *
- * @param {Array} schedules Array of schedule objects.
- * @param {number} now Unix timestamp.
+ * @param {Array} schedule Array of schedule objects.
  * @returns {number} Unix timestamp.
  */
-const getRelevantTime = (schedules, now = Date.now()) => {
-  const allTimestamps = [];
+const getRelevantTime = schedule => {
+  if (schedule.length === 0) {
+    return null;
+  }
 
-  schedules.forEach((schedule) => {
-    const {
-      startTime,
-      endTime,
-    } = schedule;
+  const allSchedules = [];
 
-    allTimestamps.push(startTime);
-    allTimestamps.push(endTime);
-  });
+  schedule
+    .forEach(object => {
+      allSchedules
+        .push(
+          object.startTime.valueOf(),
+          object.endTime.valueOf()
+        );
+    });
 
-  let result;
-  let prevDiff = 0;
+  allSchedules.sort();
 
-  allTimestamps.forEach((ts) => {
-    const currDif = ts - now;
+  const closestTo = moment().valueOf();
+  let result = null;
 
-    /** The ts is before current time */
-    if (currDif < 0) {
-      return;
+  for (let i = 0; i <= allSchedules.length; i++) {
+    const item = allSchedules[i];
+    const diff = item - closestTo;
+
+    if (diff > 0) {
+      result = item;
+      break;
     }
+  }
 
-    if (!prevDiff) {
-      prevDiff = currDif;
-      result = ts;
-
-      return;
-    }
-
-    if (prevDiff > currDif) {
-
-      return;
-    }
-
-    prevDiff = currDif;
-    result = ts;
-  });
-
-  console.log('result:', result);
-
-  return result;
+  /**
+   * If a schedule is found with the closes future timestamp
+   * using that. Else the furthest `timestmap` from the current
+   * timestamp.
+   *
+   * If the schedule is empty, returning `null`
+   */
+  return result
+    || allSchedules[allSchedules.length - 1]
+    || null;
 };
 
 // https://github.com/freesoftwarefactory/parse-multipart
@@ -714,7 +712,7 @@ const adjustedGeopoint = (geopoint) => {
   };
 };
 
-const sendSMS = (phoneNumber, smsText) => {
+const sendSMS = async (phoneNumber, smsText) => {
   if (!env.isProduction) return;
 
   const sendTo = phoneNumber;
@@ -1275,20 +1273,11 @@ const addEmployeeToRealtimeDb = async doc => {
   const ref = realtimeDb.ref(`${officeId}/employee/${phoneNumber}`);
   const status = doc.get('status');
 
-  // Remove from the map
-  if (status === 'CANCELLED') {
-    return new Promise((resolve, reject) => {
-      ref.remove(error => {
-        if (error) {
-          return reject(error);
-        }
-
-        resolve();
-      });
-    });
-  }
-
   const getEmployeeDataObject = (options = {}) => {
+    if (status === 'CANCELLED') {
+      return null;
+    }
+
     const attachment = doc.get('attachment');
     const result = Object.assign({}, options, {
       createTime: doc.createTime.toDate().getTime(),
@@ -1313,18 +1302,8 @@ const addEmployeeToRealtimeDb = async doc => {
       .limit(1)
       .get();
 
-    const checkInSubscriptionQueryResult = await rootCollections
-      .activities
-      .where('office', '==', doc.get('office'))
-      .where('status', '==', 'CONFIRMED')
-      .where('template', '==', 'subscription')
-      .where('attachment.Subscriber.value', '==', phoneNumber)
-      .where('attachment.Template.value', '==', 'check-in')
-      .get();
-
     const options = {
       hasInstalled: !updatesQueryResult.empty,
-      hasCheckInSubscription: !checkInSubscriptionQueryResult.empty,
     };
 
     const baseLocation = doc.get('attachment.Base Location.value');
@@ -1362,15 +1341,7 @@ const addEmployeeToRealtimeDb = async doc => {
       }
     }
 
-    return new Promise((resolve, reject) => {
-      ref.set(getEmployeeDataObject(options), error => {
-        if (error) {
-          return reject(error);
-        }
-
-        return resolve();
-      });
-    });
+    return ref.set(getEmployeeDataObject(options));
   } catch (error) {
     console.error(error);
   }
@@ -1614,8 +1585,6 @@ const addressToCustomer = async queryObject => {
       })
       .asPromise();
 
-    console.log({ queryObject });
-
     const firstResult = placesApiResponse
       .json
       .results[0];
@@ -1643,6 +1612,8 @@ const addressToCustomer = async queryObject => {
         placeApiResult.json.result.address_components,
         queryObject.location,
       );
+    activityObject
+      .location = activityObject.Name;
 
     const weekdayStartTime = (() => {
       const openingHours = placeApiResult
@@ -1761,17 +1732,15 @@ const getBranchName = addressComponents => {
 
 const getUsersWithCheckIn = async officeId => {
   const realtimeDb = admin.database();
-  const getData = officeId => {
-    return new Promise((resolve, reject) => {
-      realtimeDb
-        .ref(`/${officeId}/check-in`)
-        .on('value', resolve, reject);
-    });
-  };
 
-  const d = await getData(officeId);
+  try {
+    const path = `${officeId}/check-in`;
+    const d = await realtimeDb.ref(path).once('value');
 
-  return Object.keys(d.val() || {});
+    return Object.keys(d.val() || {});
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 module.exports = {

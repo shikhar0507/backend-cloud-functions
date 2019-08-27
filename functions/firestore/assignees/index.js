@@ -25,8 +25,8 @@
 'use strict';
 
 
-const { rootCollections } = require('../../admin/admin');
-
+const { rootCollections, db } = require('../../admin/admin');
+const admin = require('firebase-admin');
 
 /**
  * Removes the doc from the `Profile/(phoneNumber)/Activities/(activityId)`
@@ -71,7 +71,6 @@ module.exports = async (doc, context) => {
     const timestamp = Date.now();
     const uid = profileDoc.get('uid');
 
-    /** This person may not have created their auth via OTP */
     if (!uid
       || activityDoc.get('hidden') === 1) {
       return Promise.resolve();

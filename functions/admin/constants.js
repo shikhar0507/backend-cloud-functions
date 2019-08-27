@@ -129,6 +129,7 @@ const phoneNumberUpdateBodyFields = new Map()
   .set('phoneNumber', 'phoneNumber');
 
 const httpsActions = {
+  checkIn: 'check-in',
   share: 'share',
   update: 'update',
   create: 'create',
@@ -813,6 +814,7 @@ const dateFormats = {
 };
 
 const reportNames = {
+  SCHEDULE: 'schedule',
   COUNTER: 'counter',
   CUSTOMER: 'customer',
   ACTIVIT_REPORT: 'activity report',

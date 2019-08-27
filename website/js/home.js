@@ -38,7 +38,6 @@ function isTemplateManager() {
 }
 
 
-
 function showActionsSection() {
   document
     .querySelector('#actions-section')
@@ -245,10 +244,10 @@ function handleUpdateAuthRequest() {
   }
   sendApiRequest(
     `${apiBaseUrl}/update-auth`, {
-      phoneNumber,
-      displayName,
-      email,
-    },
+    phoneNumber,
+    displayName,
+    email,
+  },
     'POST'
   )
     .then(function (response) {
@@ -1152,11 +1151,11 @@ function joinFormSelfPhoneOnInput(evt) {
 
 
 function populateTemplateSelect(selectElement, defaultValue) {
+  document
+    .getElementById('download-sample')
+    .addEventListener('click', function (evt) {
+      evt.preventDefault();
 
-  selectElement.onchange = function () {
-    removeAllChildren(document.querySelector('.bc-results-list'));
-    document.getElementById('download-sample').addEventListener('click', function (evt) {
-      evt.preventDefault()
       sendApiRequest(`/json?action=view-templates&name=${selectElement.value}`)
         .then(function (response) {
           return response.json();
@@ -1167,6 +1166,10 @@ function populateTemplateSelect(selectElement, defaultValue) {
 
         }).catch(console.error)
     });
+
+  selectElement.onchange = function () {
+    removeAllChildren(document.querySelector('.bc-results-list'));
+
     document.querySelector('.bc-results').classList.add('hidden')
     document
       .querySelector('.bc-file-drag')
@@ -1184,7 +1187,6 @@ function populateTemplateSelect(selectElement, defaultValue) {
 }
 
 function createExcelSheet(rawTemplate) {
-
   var wb = XLSX.utils.book_new();
   wb.props = {
     Title: rawTemplate.name,
@@ -1192,12 +1194,28 @@ function createExcelSheet(rawTemplate) {
     Author: 'Growthfile',
     CreatedDate: new Date()
   }
+
   const data = [];
+
   if (rawTemplate.venue.length) {
     data.push(['address', 'location'])
   } else {
-    data.push(Object.keys(rawTemplate.attachment));
+    const allKeys = Object.keys(rawTemplate.attachment);
+
+    rawTemplate
+      .schedule
+      .forEach(function (name) {
+        allKeys.push(name);
+      });
+
+    data.push(allKeys);
+
+
+    // rawTemplate.schedule.forEach(function (name) {
+    //   data.push(name);
+    // });
   }
+
   const ws = XLSX.utils.aoa_to_sheet(data);
 
   console.log(ws)
@@ -1255,13 +1273,20 @@ function populateBulkCreationResult(response, originalJson) {
     .querySelector('.bc-results')
     .classList
     .remove('hidden');
-  console.log(response);
   const ul = document.querySelector('.bc-results-list');
+
   removeAllChildren(ul);
+
   let totalRejected = 0
   let totalCreated = 0
-  response.data.forEach(function (item, index) {
 
+  if (response.message) {
+    createSnackbar(response.message);
+
+    return;
+  }
+
+  response.data.forEach(function (item, index) {
     if (item.rejected) {
       totalRejected += 1;
     }
@@ -1275,7 +1300,6 @@ function populateBulkCreationResult(response, originalJson) {
   });
 
   setMessageForBulkCreate(originalJson.length, totalCreated, totalRejected)
-
 }
 
 
@@ -1313,7 +1337,7 @@ function sendBulkCreateJson(jsonData, templateName) {
     })
     .then(function (response) {
       removeFileSpinner()
-      console.log(response)
+      // console.log(response)
       populateBulkCreationResult(response, jsonData);
 
       if (isCreateOffice) {
@@ -2123,7 +2147,6 @@ function windowOnBeforeUnload() {
   }
 }
 
-// window.onload = windowOnLoad;
 window
   .onbeforeunload = windowOnBeforeUnload;
 window

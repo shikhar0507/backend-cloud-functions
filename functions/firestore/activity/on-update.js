@@ -120,6 +120,7 @@ const updateDocsWithBatch = (conn, locals) => {
       location: getGeopointObject(conn.req.body.geopoint),
       geopointAccuracy: conn.req.body.geopoint.accuracy || null,
       provider: conn.req.body.geopoint.provider || null,
+      userDisplayName: conn.requester.displayName,
     });
 
   Object

@@ -28,7 +28,6 @@
 const {
   db,
   getGeopointObject,
-  deleteField,
   rootCollections,
 } = require('./../../admin/admin');
 const {
@@ -52,6 +51,7 @@ const {
   toMapsUrl,
 } = require('../../firestore/recipients/report-utils');
 const momentTz = require('moment-timezone');
+const admin = require('firebase-admin');
 
 const forSalesReport = (template) =>
   new Set(['dsr', 'customer']).has(template);
@@ -1148,7 +1148,7 @@ const activityName = (options) => {
 const toAttachmentValues = (conn, locals) => {
   // activityId, createTime, attachment, status
   if (conn.req.body.status === 'CANCELLED') {
-    return deleteField();
+    return admin.firestore.FieldValue.delete();
   }
 
   const object = {
@@ -1442,8 +1442,8 @@ const cancelLeaveOrDuty = async (phoneNumber, officeId, startTime, endTime, temp
       batch.set(ref, {
         statusObject,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
     });
 
     await batch.commit();
@@ -1471,8 +1471,8 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
     return response;
   }
 
-  const ON_LEAVE_CONFLICT_MESSAGE = 'Leave already applied for the following date(s)';
-  const ON_AR_CONFLICT_MESSAGE = 'Attendance already regularized for the following date(s)';
+  const LEAVE_WITH_LEAVE_MESSAGE = 'Leave already applied for the following date(s)';
+  const AR_WITH_AR_MESSAGE = 'Attendance already regularized for the following date(s)';
   const conflictingDates = [];
   const batch = db.batch();
 
@@ -1497,15 +1497,15 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
 
         return response;
       }
-    }
 
-    const now = momentTz().tz(timezone);
+      const now = momentTz().tz(timezone);
 
-    if (startTime >= now.startOf('day').valueOf()) {
-      response.success = false;
-      response.message = 'Attendance can only be applied for the past';
+      if (startTime >= now.startOf('day').valueOf()) {
+        response.success = false;
+        response.message = 'Attendance can only be applied for the past';
 
-      return response;
+        return response;
+      }
     }
 
     const allMonthYears = getAllMonthYearCombinations(
@@ -1555,12 +1555,11 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       const monthYear = momentStartTime
         .format(dateFormats.MONTH_YEAR);
       const statusObject = statusObjectMap
-        .get(monthYear);
+        .get(monthYear) || {};
 
       if (!statusObject
         || !statusObject[momentStartTime.date()]
-        || !statusObject[momentStartTime.date()].statusForDay
-        || !statusObject[momentStartTime.date()].statusForDay === 1) {
+        || statusObject[momentStartTime.date()].statusForDay === 1) {
         response.success = false;
         response.message = `The status for `
           + `${momentStartTime.format(dateFormats.DATE)}`
@@ -1581,7 +1580,7 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       if (template === 'leave'
         && (statusObject[date].onLeave || statusObject[date].onAr)) {
         conflictingDates.push(momentFromString.format(dateFormats.DATE));
-        response.message = ON_LEAVE_CONFLICT_MESSAGE;
+        response.message = LEAVE_WITH_LEAVE_MESSAGE;
         response.success = false;
 
         return;
@@ -1590,7 +1589,7 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       if (template === 'attendance regularization'
         && (statusObject[date].onAr || statusObject[date].onLeave)) {
         conflictingDates.push(momentFromString.format(dateFormats.DATE));
-        response.message = ON_AR_CONFLICT_MESSAGE;
+        response.message = AR_WITH_AR_MESSAGE;
         response.success = false;
 
         return;
@@ -1618,8 +1617,8 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
       batch.set(ref, {
         statusObject,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
     });
 
     // No conflicting dates; its safe to write the updates
@@ -1661,156 +1660,6 @@ const setOnLeaveOrAr = async (phoneNumber, officeId, startTime, endTime, templat
   }
 };
 
-/**
- * Creates an activity for the specified Office and template
- * for a subscriber.
- *
- * @param {Object} options Object with Firestore officeDoc (@type FirestoreDocument), templateDoc (@type FirestoreDocument),
- * subscriber (phone number), creator (phone number) and assignees (array of phone numbers).
- * @returns {Object} result object with properties: success and messages.
- */
-const createSubscriptionActivity = (options) => {
-  const {
-    officeDoc,
-    templateDoc,
-    subscriber,
-    creator,
-    assignees,
-  } = options;
-  const batch = db.batch();
-  const timestamp = Date.now();
-  const response = { success: false, message: [] };
-  const adminPromises = [];
-  let subscriptionTemplateDoc;
-  const adminsSet = new Set();
-
-  if (!creator || !creator.hasOwnProperty('')) {
-    response.success = false;
-    response.message.push(
-      `The parm 'creator' should be an object with `
-    );
-  }
-
-  if (!assignees
-    || Array.isArray(assignees)
-    || !assignees.length) {
-    response.success = false;
-    response.message.push(
-      `The param 'assignees' should be a non-empty array of`
-      + ` valid E.164 phone numbers.`
-    );
-
-    return Promise.resolve(response);
-  }
-
-  assignees.forEach((phoneNumber) => {
-    const promise = rootCollections
-      .activities
-      .where('template', '==', 'admin')
-      .where('attachment.Admin.value', '==', phoneNumber)
-      .where('office', '==', officeDoc.get('office'))
-      .limit(1)
-      .get();
-
-    adminPromises.push(promise);
-  });
-
-  return Promise
-    .all([
-      rootCollections
-        .activities
-        .where('template', '==', templateDoc.get('name'))
-        .limit(1)
-        .get(),
-      rootCollections
-        .activityTemplates
-        .where('template', '==', 'subscription')
-        .limit(1)
-        .get(),
-    ])
-    .then((result) => {
-      const [
-        subscriptionQuery,
-        subscriptionTemplateQuery,
-      ] = result;
-
-      if (!subscriptionQuery.empty) {
-        response.success = false;
-        response.message.push(
-          `${subscriber} already has the subscription for template: ${templateDoc.get('name')}`
-        );
-
-        throw new Error(response);
-      }
-
-      subscriptionTemplateDoc = subscriptionTemplateQuery.docs[0];
-
-      return Promise.all(adminPromises);
-    })
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
-
-        const doc = snapShot.docs[0];
-        const adminPhoneNumber = doc.get('attachment.Admin.value');
-
-        adminsSet.add(adminPhoneNumber);
-      });
-
-      const activityDocRef = rootCollections.activities.doc();
-      const addendumDocRef = officeDoc.ref.collection('Addendum').doc();
-      const attachment = subscriptionTemplateDoc.get('attachment');
-      attachment.Subscriber.value = subscriber;
-      attachment.Template.value = templateDoc.get('name');
-      const activityData = {
-        creator,
-        timestamp,
-        attachment,
-        addendumDocRef,
-        office: officeDoc.get('office'),
-        officeId: officeDoc.id,
-        hidden: subscriptionTemplateDoc.get('hidden'),
-        schedule: [],
-        venue: [],
-        activityName: `SUBSCRIPTION: ${subscriber}`,
-        canEditRule: subscriptionTemplateDoc.get('canEditRule'),
-        template: subscriptionTemplateDoc.get('name'),
-        timezone: officeDoc.get('attachment.Timezone.value'),
-      };
-      const addendumDocData = {
-        timestamp,
-        activityData,
-        office: officeDoc.get('office'),
-      };
-
-      batch.set(activityDocRef, activityData);
-      batch.set(addendumDocRef, addendumDocData);
-
-      assignees.forEach((phoneNumber) => {
-        const ref = activityDocRef
-          .collection('Assignees')
-          .doc(phoneNumber);
-
-        batch.set(ref, {
-          canEdit: adminsSet.has(phoneNumber),
-          addToInclude: phoneNumber !== subscriber,
-        });
-      });
-
-      return batch.commit();
-    })
-    .then(() => response)
-    .catch((error) => {
-      if (!response.success) {
-        return response;
-      }
-
-      console.error(error);
-
-      return Promise.resolve();
-    });
-};
-
 
 module.exports = {
   forSalesReport,
@@ -1828,6 +1677,5 @@ module.exports = {
   toAttachmentValues,
   setOnLeaveOrAr,
   checkActivityAndAssignee,
-  createSubscriptionActivity,
   getPhoneNumbersFromAttachment,
 };

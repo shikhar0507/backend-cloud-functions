@@ -122,7 +122,6 @@ const alphabetsArray = [
   'AI',
   'AJ',
   'AK',
-  'AK',
   'AL',
   'AM',
   'AN',
@@ -325,25 +324,34 @@ const getIdentifier = doc => {
 
 const getStatusForDay = options => {
   const {
-    numberOfCheckIns,
+    numberOfCheckIns: numberOfActions, // number of actions done in the day by the user
     minimumDailyActivityCount,
     minimumWorkingHours,
-    hoursWorked,
+    hoursWorked // difference between first and last action in hours,
   } = options;
 
-  let activityRatio = numberOfCheckIns / minimumDailyActivityCount;
+  if (minimumDailyActivityCount === 1 && numberOfActions !== 0) {
+    return 1;
+  }
+
+  let activityRatio = numberOfActions / minimumDailyActivityCount;
 
   if (activityRatio > 1) {
     activityRatio = 1;
   }
 
-  /** Could be `undefined`, so ignoring further actions related it it */
-  if (!minimumWorkingHours) {
-    return activityRatio;
-  }
+  const workHoursRatio = (() => {
+    if (!minimumWorkingHours) {
+      return 1;
+    }
 
-  let workHoursRatio = hoursWorked / minimumWorkingHours;
+    return hoursWorked / minimumWorkingHours;
+  })();
+
   const minOfRatios = Math.min(activityRatio, workHoursRatio);
+
+  if (minOfRatios >= 1) return 1;
+
   const rev = 1 / minimumDailyActivityCount;
 
   if (minOfRatios <= rev) {
@@ -353,15 +361,55 @@ const getStatusForDay = options => {
   return Math.floor(minOfRatios / rev) * rev;
 };
 
+const getName = (employeesData, phoneNumber) => {
+  if (employeesData[phoneNumber]) {
+    return employeesData[phoneNumber].Name;
+  }
+
+  return phoneNumber;
+};
+
+
+const getSupervisors = (employeesData, phoneNumber) => {
+  let str = '';
+  const employeeData = employeesData[phoneNumber];
+  const firstSupervisor = employeeData['First Supervisor'];
+  const secondSupervisor = employeeData['Second Supervisor'];
+  const thirdSupervisor = employeeData['Third Supervisor'];
+  const allSvs = [
+    firstSupervisor,
+    secondSupervisor,
+    thirdSupervisor
+  ].filter(Boolean);
+
+  if (allSvs.length === 0) return '';
+  if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
+
+  allSvs.forEach((phoneNumber, index) => {
+    const name = getName(employeesData, phoneNumber);
+    const isLast = index === allSvs.length - 1;
+
+    if (isLast) {
+      str += 'and';
+    }
+
+    str += ` ${name}, `;
+  });
+
+  return str.trim();
+};
+
 
 module.exports = {
   getUrl,
+  getName,
   toMapsUrl,
   monthsArray,
   employeeInfo,
   weekdaysArray,
   getIdentifier,
   getExcelHeader,
+  getSupervisors,
   alphabetsArray,
   getStatusForDay,
   momentOffsetObject,

@@ -174,9 +174,6 @@ function isDomElementString(el) {
 }
 
 function setContentInModal(el, parent) {
-  console.log(el)
-  console.log(parent);
-
   if (isDomElementString(el)) {
     parent.innerHTML = el;
   } else {
@@ -532,9 +529,11 @@ firebase
       return;
     }
 
-    document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
+    const EXPIRY = 60 * 60 * 1000; // 1 Hour
+    document.cookie = `__session=${idToken};`
+      + `max-age=${idToken ? EXPIRY : 0};`;
 
-    console.log('new cookie set', idToken);
+    console.log('new cookie set');
   });
 
 window

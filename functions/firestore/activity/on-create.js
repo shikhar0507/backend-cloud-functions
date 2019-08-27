@@ -49,6 +49,7 @@ const {
 const {
   handleError,
   sendResponse,
+  getRelevantTime,
   getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
@@ -77,9 +78,9 @@ const createDocsWithBatch = async (conn, locals) => {
       locals.batch.set(locals.docs.activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
-          addToInclude,
-          canEdit,
-        });
+        addToInclude,
+        canEdit,
+      });
     });
 
   const addendumDocRef = rootCollections
@@ -88,13 +89,30 @@ const createDocsWithBatch = async (conn, locals) => {
     .collection('Addendum')
     .doc();
 
-  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const timezone = locals
+    .officeDoc
+    .get('attachment.Timezone.value');
 
   let activityData = {
     venue: locals.objects.venueArray,
     schedule: locals.objects.scheduleArray,
     attachment: conn.req.body.attachment,
   };
+
+  const relevantTime = getRelevantTime(activityData.schedule);
+
+  if (activityData.schedule.length > 0) {
+    activityData
+      .relevantTime = relevantTime;
+  }
+
+  if (activityData.attachment.Location
+    && activityData.attachment.Location.value
+    && activityData.relevantTime) {
+    activityData
+      .relevantTimeAndVenue = `${activityData.attachment.Location.value}`
+      + ` ${activityData.relevantTime}`;
+  }
 
   if (conn.req.body.template === 'customer') {
     const {
@@ -119,7 +137,8 @@ const createDocsWithBatch = async (conn, locals) => {
       delete activityData.address;
 
       locals.batch.set(rootCollections.instant.doc(), {
-        subject: `${process.env.GCLOUD_PROJECT}: Customer Created with ZERO_RESULTS from Places API`,
+        subject: `${process.env.GCLOUD_PROJECT}: Customer`
+          + ` created with ZERO_RESULTS from Places API`,
         messageBody: JSON.stringify({
           requestBody: conn.req.body,
           requester: conn.requester.phoneNumber,
@@ -808,6 +827,7 @@ module.exports = conn => {
       .collection('Subscriptions')
       .where('office', '==', conn.req.body.office)
       .where('template', '==', conn.req.body.template)
+      .where('status', '==', 'CONFIRMED')
       .limit(1)
       .get(),
     rootCollections

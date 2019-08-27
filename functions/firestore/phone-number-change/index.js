@@ -2,7 +2,7 @@
 
 const {
   rootCollections,
-  // db,
+  db,
   // auth,
 } = require('../../admin/admin');
 const {
@@ -19,54 +19,6 @@ const {
   httpsActions,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
-// const admin = require('firebase-admin');
-
-// const deleteAuth = async uid => {
-//   try {
-//     return auth.deleteUser(uid);
-//   } catch (error) {
-//     console.warn(error);
-//     return {};
-//   }
-// };
-
-// const getAuth = async phoneNumber => {
-//   try {
-//     return auth.getUserByPhoneNumber(phoneNumber);
-//   } catch (error) {
-//     console.warn(error);
-
-//     return {
-//       phoneNumber: {},
-//     };
-//   }
-// };
-
-// const deleteUpdates = async uid => {
-//   if (!uid) return Promise.resolve();
-
-//   const batch = db.batch();
-
-//   batch
-//     .delete(rootCollections.updates.doc(uid));
-
-//   const docs = await rootCollections
-//     .updates
-//     .doc(uid)
-//     .collection('Addendum')
-//     .get();
-
-//   docs.forEach(doc => {
-//     batch.delete(doc.ref);
-//   });
-
-//   return Promise
-//     .all([
-//       batch.commit(),
-//       deleteAuth(uid)
-//     ]);
-// };
-
 
 const validateRequest = body => {
   const messageObject = {
@@ -211,43 +163,42 @@ module.exports = async conn => {
     }
 
     const employeeActivity = oldEmployeeQueryResult.docs[0];
-
-    await employeeActivity
-      .ref
-      .set({
-        addendumDocRef: null,
-        timestamp: Date.now(),
-        attachment: {
-          'Employee Contact': {
-            value: conn.req.body.newPhoneNumber,
-          },
+    const batch = db.batch();
+    batch.set(employeeActivity
+      .ref, {
+      addendumDocRef: null,
+      timestamp: Date.now(),
+      attachment: {
+        'Employee Contact': {
+          value: conn.req.body.newPhoneNumber,
         },
-      }, {
-          merge: true,
-        });
+      },
+    }, {
+      merge: true,
+    });
 
-    const timezone = oldEmployeeQueryResult.docs[0].get('timezone');
+    const timezone = employeeActivity.get('timezone') || 'Asia/Kolkata';
     const momentToday = momentTz().tz(timezone);
     const officeId = oldEmployeeQueryResult
       .docs[0]
       .get('officeId');
-
-    await rootCollections
+    batch.set(rootCollections
       .offices
       .doc(officeId)
       .collection('Addendum')
-      .doc()
-      .set({
-        date: momentToday.date(),
-        month: momentToday.month(),
-        year: momentToday.year(),
-        timestamp: Date.now(),
-        user: conn.requester.phoneNumber,
-        action: httpsActions.updatePhoneNumber,
-        oldPhoneNumber: conn.req.body.oldPhoneNumber,
-        newPhoneNumber: conn.req.body.newPhoneNumber,
-        isSupportRequest: conn.requester.isSupportRequest || false,
-      });
+      .doc(), {
+      date: momentToday.date(),
+      month: momentToday.month(),
+      year: momentToday.year(),
+      timestamp: Date.now(),
+      user: conn.requester.phoneNumber,
+      action: httpsActions.updatePhoneNumber,
+      oldPhoneNumber: conn.req.body.oldPhoneNumber,
+      newPhoneNumber: conn.req.body.newPhoneNumber,
+      isSupportRequest: conn.requester.isSupportRequest || false,
+    });
+
+    await batch.commit();
 
     return sendResponse(
       conn,
