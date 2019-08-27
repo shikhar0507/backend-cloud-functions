@@ -70,21 +70,21 @@ const handleLeaveAndOnDuty = (conn, activityDoc) => {
   })();
 
   if (hasBeenCancelled) {
-    return cancelLeaveOrDuty(
+    return cancelLeaveOrDuty({
       phoneNumber,
       officeId,
       startTime,
       endTime,
       template
-    );
+    });
   } else {
-    return setOnLeaveOrAr(
+    return setOnLeaveOrAr({
       phoneNumber,
       officeId,
       startTime,
       endTime,
       template
-    );
+    });
   }
 };
 
@@ -100,12 +100,12 @@ const createDocs = (conn, activityDoc) => {
   batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
-      addendumDocRef,
-      status: conn.req.body.status,
-      timestamp: Date.now(),
-    }, {
-      merge: true,
-    });
+    addendumDocRef,
+    status: conn.req.body.status,
+    timestamp: Date.now(),
+  }, {
+    merge: true,
+  });
 
   const now = new Date();
   const addendumData = {
