@@ -21,9 +21,9 @@ function initMap(location, populateWithMarkers) {
 
   map = new google.maps.Map(
     document.getElementById('map'), {
-    zoom: 16,
-    center: curr,
-  });
+      zoom: 16,
+      center: curr,
+    });
 
   const marker = new google.maps.Marker({
     position: curr,
@@ -53,20 +53,37 @@ function initMap(location, populateWithMarkers) {
 }
 
 function handleProductClick(elem) {
-  const detailsContainer = elem
-    .querySelector('.product-details-container');
+  const productDescription = elem.dataset.productdescription
+  const productName = elem.dataset.productname
+  const productImage = elem.dataset.src
 
-  /** Only shows the details when some detail is present */
-  // if (detailsContainer.querySelector('.product-details-container ul').childElementCount) {
-  //   detailsContainer
-  //     .classList
-  //     .toggle('hidden');
-  // }
 
-  const actionContent = document.createElement('div');
-  actionContent.textContent = 'hello';
+  const modalHTML = `<div class="modal-div">
+  <div class="modal-image">
+  <img class="modal-image" src=${productImage}>
+  </div>
+  <div>
+  <p class="product-description">${productDescription}</p>
+  </div
+  </div>`
 
-  createModal(actionContent);
+  const modalTittleHTML = `<h3>${productName}</h3>`
+
+
+  const productTitleName = document.createElement('H3')
+  productTitleName.innerHTML = modalTittleHTML;
+  const modalBodyElement = document.createElement('div');
+  modalBodyElement.innerHTML = modalHTML;
+
+
+  const modal = getModal({
+    title: `${productName}`,
+    modalBodyElement,
+  });
+
+  document.body.appendChild(modal);
+
+
 };
 
 function handleBranchClick(latitude, longitude) {

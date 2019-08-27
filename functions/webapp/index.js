@@ -428,6 +428,7 @@ const fetchOfficeData = async (locals, requester) => {
           brand: doc.get('attachment.Brand.value'),
           model: doc.get('attachment.Model.value'),
           size: doc.get('attachment.Size.value'),
+          productDescription: doc.get('attachment.Product Description.value')
         };
       });
 
