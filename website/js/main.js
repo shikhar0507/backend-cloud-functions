@@ -529,7 +529,9 @@ firebase
       return;
     }
 
-    document.cookie = `__session=${idToken};max-age=${idToken ? 3600 : 0};`;
+    const EXPIRY = 60 * 60 * 1000; // 1 Hour
+    document.cookie = `__session=${idToken};`
+      + `max-age=${idToken ? EXPIRY : 0};`;
 
     console.log('new cookie set');
   });
