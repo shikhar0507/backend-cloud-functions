@@ -36,10 +36,11 @@ const {
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
-sgMail.setApiKey(env.sgMailApiKey);
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
+
+sgMail.setApiKey(env.sgMailApiKey);
 
 
 const sendErrorReport = async () => {
@@ -97,39 +98,36 @@ const sendErrorReport = async () => {
     });
 };
 
-const setBackblazeIdToken = async timerDoc => {
+const fetchExternalTokens = async timerDoc => {
   const getKeyId = (applicationKey, keyId) => {
     return `${keyId}:${applicationKey}`;
   };
 
-  const applicationKey = env.backblaze.apiKey;
-  const keyId = env.backblaze.keyId;
-  const keyWithPrefix = getKeyId(applicationKey, keyId);
+  const keyWithPrefix = getKeyId(
+    env.backblaze.apiKey,
+    env.backblaze.keyId
+  );
   const authorization =
     `Basic ${new Buffer(keyWithPrefix).toString('base64')}`;
 
-  try {
-    const uri = url.resolve('https://api.backblazeb2.com', '/b2api/v2/b2_authorize_account');
+  const uri = url.resolve('https://api.backblazeb2.com', '/b2api/v2/b2_authorize_account');
 
-    const response = await rpn(uri, {
-      headers: {
-        Authorization: authorization,
-      },
-      json: true,
+  const response = await rpn(uri, {
+    headers: {
+      Authorization: authorization,
+    },
+    json: true,
+  });
+
+  return timerDoc
+    .ref
+    .set({
+      apiUrl: response.apiUrl,
+      backblazeAuthorizationToken: response.authorizationToken,
+      downloadUrl: response.downloadUrl,
+    }, {
+      merge: true,
     });
-
-    return timerDoc
-      .ref
-      .set({
-        apiUrl: response.apiUrl,
-        backblazeAuthorizationToken: response.authorizationToken,
-        downloadUrl: response.downloadUrl,
-      }, {
-        merge: true,
-      });
-  } catch (error) {
-    console.error(error);
-  }
 };
 
 const deleteInstantDocs = async () => {
@@ -158,7 +156,13 @@ module.exports = async timerDoc => {
   }
 
   try {
-    await timerDoc.ref.set({ sent: true }, { merge: true });
+    await timerDoc
+      .ref
+      .set({
+        sent: true,
+      }, {
+        merge: true,
+      });
 
     const messages = [];
 
@@ -185,9 +189,10 @@ module.exports = async timerDoc => {
 
     await Promise
       .all([
-        sgMail.sendMultiple(messages),
+        sgMail
+          .sendMultiple(messages),
         sendErrorReport(),
-        setBackblazeIdToken(timerDoc)
+        fetchExternalTokens(timerDoc)
       ]);
 
     const momentYesterday = moment()
@@ -232,6 +237,8 @@ module.exports = async timerDoc => {
     });
 
     await batch.commit();
+    await handleCheckInLocations();
+
     return deleteInstantDocs();
   } catch (error) {
     console.error(error);
