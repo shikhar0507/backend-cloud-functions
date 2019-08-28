@@ -25,11 +25,11 @@ module.exports = async locals => {
   const timestampMinus24Hours = momentFromTimer
     .clone()
     .startOf('day')
-    .subtract(60, 'hours');
+    .subtract(24, 'hours');
   const timestampPlus24Hours = momentFromTimer
     .clone()
     .endOf('day')
-    .add(60, 'hours');
+    .add(24, 'hours');
   const monthYearString = momentFromTimer
     .format(dateFormats.MONTH_YEAR);
 
