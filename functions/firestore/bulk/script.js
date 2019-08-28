@@ -248,7 +248,7 @@ const commitData = (batchesArray, batchFactories) => {
   return executeSequentially(batchFactories);
 };
 
-const createObjects = (conn, locals, trialRun) => {
+const createObjects = async (conn, locals, trialRun) => {
   let totalDocsCreated = 0;
   let currentBatchIndex = 0;
   let batchDocsCount = 0;
@@ -398,7 +398,6 @@ const createObjects = (conn, locals, trialRun) => {
           };
 
           if (startTime) {
-            console.log('in start time');
             object
               .startTime = momentTz(startTime).tz(timezone).valueOf(),
               object
@@ -406,7 +405,6 @@ const createObjects = (conn, locals, trialRun) => {
           }
 
           if (endTime) {
-            console.log('in end time');
             object
               .endTime = momentTz(endTime).tz(timezone).valueOf();
           }
@@ -414,10 +412,6 @@ const createObjects = (conn, locals, trialRun) => {
           activityObject
             .schedule
             .push(object);
-
-          console.log('field', JSON.stringify({
-            object,
-          }, ' ', 2));
 
           scheduleCount++;
 
@@ -578,15 +572,16 @@ const createObjects = (conn, locals, trialRun) => {
     return responseObject;
   }
 
-  return commitData(batchesArray, batchFactories)
-    .then(() => responseObject);
+  await commitData(batchesArray, batchFactories);
+
+  return responseObject;
 };
 
 const fetchDataForCanEditRule = async (conn, locals) => {
   const rule = locals.templateDoc.get('canEditRule');
 
-  if (rule !== 'ADMIN' &&
-    rule !== 'EMPLOYEE') {
+  if (rule !== 'ADMIN'
+    && rule !== 'EMPLOYEE') {
     return;
   }
 
@@ -854,8 +849,8 @@ const handleAdmins = async (conn, locals) => {
 };
 
 const fetchValidTypes = async (conn, locals) => {
-  if (conn.req.body.template === 'office') {
-    return Promise.resolve();
+  if (conn.req.body.template === templateNamesObject.OFFICE) {
+    return;
   }
 
   const promises = [];
@@ -1064,11 +1059,13 @@ const validateDataArray = async (conn, locals) => {
 
     if (conn.req.body.template === templateNamesObject.RECIPIENT) {
       const reportName = conn.req.body.data[index].Name;
-      const validReports = new Set(['footprints', 'payroll']);
+      const validReports = new Set(['footprints', 'payroll', 'schedule']);
 
       if (!validReports.has(reportName)) {
         conn.req.body.data[index].rejected = true;
-        conn.req.body.data[index].reason = `${reportName} is not a valid report`;
+        conn.req.body.data[index].reason = `${reportName}`
+          + ` is not a valid report.`
+          + ` Use ${Array.from(validReports.keys())}`;
       }
     }
 
@@ -1078,8 +1075,8 @@ const validateDataArray = async (conn, locals) => {
       const secondContact = conn.req.body.data[index]['Second Contact'];
       const timezone = conn.req.body.data[index].Timezone;
 
-      if (firstContact ===
-        secondContact) {
+      if (firstContact
+        === secondContact) {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason =
           `Both contacts cannot be the same or empty`;
@@ -1383,7 +1380,7 @@ const validateDataArray = async (conn, locals) => {
       && conn.req.body.template !== 'customer'
       && conn.req.body.template !== 'branch'
       /**
-       * Templates like `leave-type`, `expense-type` and `customer-type`
+       * Templates like `leave-type`, `claim-type` and `customer-type`
        * are auto assigned to their respective recipients via
        * `activityOnWrite` on creation of subscription of leave, expense
        * and customer activities.
@@ -1575,7 +1572,7 @@ const getBranchActivity = async address => {
 
 const handleBranch = async conn => {
   if (conn.req.body.template !== 'branch') {
-    return Promise.resolve();
+    return;
   }
 
   const promises = [];
@@ -1609,7 +1606,7 @@ const handleBranch = async conn => {
 
 const handleCustomer = async conn => {
   if (conn.req.body.template !== 'customer') {
-    return Promise.resolve();
+    return;
   }
 
   const placesApiPromises = [];
@@ -1684,9 +1681,6 @@ const handleDuty = async (conn, locals) => {
     const scheduleParts = singleSchedule.split(',');
     const startTime = scheduleParts[0].trim();
     const endTime = (scheduleParts[1] || startTime).trim();
-
-    // console
-    //   .log(JSON.stringify({ startTime, endTime }, ' ', 2));
 
     if (!isValidDate(startTime.trim())
       || !isValidDate(endTime.trim())) {
@@ -1792,8 +1786,6 @@ const handleDuty = async (conn, locals) => {
         .doc(phoneNumber)
         .get();
 
-      console.log('monthYearString', monthYearString);
-
       statusObjectPromises
         .push(statusObjectPromise);
 
@@ -1833,8 +1825,6 @@ const handleDuty = async (conn, locals) => {
   const statusObjectSnapshot = await Promise
     .all(statusObjectPromises);
 
-  console.log('statusObjectPromises', statusObjectPromises.length);
-
   statusObjectSnapshot
     .forEach(doc => {
       const { path } = doc.ref;
@@ -1853,8 +1843,6 @@ const handleDuty = async (conn, locals) => {
           statusObject
         );
     });
-
-  console.log('statusObjectMap', statusObjectMap.size);
 
   const dutyTypeSnapshots = await Promise
     .all(dutyTypePromises);
@@ -1921,12 +1909,6 @@ const handleDuty = async (conn, locals) => {
           .keys(statusObject)
           .forEach(date => {
             const statusItem = statusObject[date] || {};
-
-            console.log(
-              'formattedStartTime',
-              momentTz(formattedStartTime).date(),
-              typeof momentTz(formattedStartTime).date()
-            );
 
             if (Number(date)
               !== momentTz(formattedStartTime).date()) {
