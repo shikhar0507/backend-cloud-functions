@@ -142,7 +142,7 @@ const getEmployeeCode = (employeesData, phoneNumber) => {
 
 const commitStatuses = params => {
   const {
-    statusMap,
+    yesterdaysStatusMap: statusMap,
     allowedToBeInactive,
     momentYesterday,
     officeDoc,
