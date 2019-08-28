@@ -54,6 +54,10 @@ const getTemplateId = report => {
     return sendGridTemplateIds.payroll;
   }
 
+  if (report === reportNames.SCHEDULE) {
+    return sendGridTemplateIds.schedule;
+  }
+
   return null;
 };
 
@@ -201,6 +205,10 @@ module.exports = async change => {
       await require('./payday-report')(locals);
     }
 
+    if (report === reportNames.SCHEDULE) {
+      await require('./schedule-report')(locals);
+    }
+
     if (!env.isProduction) {
       return;
     }
@@ -235,7 +243,7 @@ module.exports = async change => {
 
     /**
     * When all recipient function instances have completed their work,
-    * we trigger the daily status report. We are doing this because
+    * we trigger the daily status report.
     */
     if (expectedRecipientTriggersCount
       === recipientsTriggeredToday) {

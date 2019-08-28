@@ -165,6 +165,7 @@ const sendGridTemplateIds = {
   activityReports: 'd-2972abe4d32443fab45c75d901ffb02a',
   verificationEmail: 'd-7645b372912a490eb2062cf5cc076041',
   dailyStatusReport: 'd-a48d570e46914d0d8989f77a844a26e9',
+  sendGridTemplateIds: '',
 };
 
 const templatesWithNumber = new Set()
