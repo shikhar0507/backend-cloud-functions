@@ -191,9 +191,9 @@ const handleResult = (conn, docs) => {
           .doc(conn.req.body.activityId)
           .collection('Assignees')
           .doc(phoneNumber), {
-            addToInclude,
-            canEdit: getCanEditValue(locals, phoneNumber),
-          });
+          addToInclude,
+          canEdit: getCanEditValue(locals, phoneNumber),
+        });
       });
 
       const addendumDocRef = rootCollections
@@ -205,11 +205,11 @@ const handleResult = (conn, docs) => {
       batch.set(rootCollections
         .activities
         .doc(conn.req.body.activityId), {
-          addendumDocRef,
-          timestamp: Date.now(),
-        }, {
-          merge: true,
-        });
+        addendumDocRef,
+        timestamp: Date.now(),
+      }, {
+        merge: true,
+      });
 
       const now = new Date();
 

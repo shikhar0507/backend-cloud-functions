@@ -418,8 +418,6 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 
 
 const handleXTypeActivities = async locals => {
-  console.log('In handleXTypeActivities');
-
   const typeActivityTemplates = new Set([
     'customer',
     'leave',
@@ -432,8 +430,6 @@ const handleXTypeActivities = async locals => {
     .get('attachment.Template.value');
 
   if (!typeActivityTemplates.has(template)) {
-    console.log('returning typeActivityTemplates');
-
     return;
   }
 
@@ -448,9 +444,6 @@ const handleXTypeActivities = async locals => {
     .where('status', '==', 'CONFIRMED')
     .where('template', '==', templateName)
     .get();
-
-  console.log('typeActivities', typeActivities.size);
-
   const subscriber = locals
     .change
     .after
@@ -476,8 +469,6 @@ const handleXTypeActivities = async locals => {
         .doc(subscriber)
         .collection('Activities')
         .doc(activity.id);
-
-      console.log('X-TYPE:', ref.path);
 
       batch
         .set(ref,
@@ -920,19 +911,20 @@ const handleEmployeeSupervisors = async locals => {
     .where('office', '==', locals.change.after.get('office'))
     .get();
 
+  const firstSupervisorChanged = firstSupervisorOld
+    && firstSupervisorOld !== firstSupervisorNew;
+  const secondSupervisorChanged = secondSupervisorOld
+    && secondSupervisorOld !== secondSupervisorNew;
+  const thirdSupervisorChanged = thirdSupervisorOld
+    && thirdSupervisorOld !== thirdSupervisorNew;
+
   subscriptions.forEach(doc => {
     batch.set(doc.ref, {
       addendumDocRef: null,
+      timestamp: Date.now(),
     }, {
       merge: true,
     });
-
-    const firstSupervisorChanged = firstSupervisorOld
-      && firstSupervisorOld !== firstSupervisorNew;
-    const secondSupervisorChanged = secondSupervisorOld
-      && secondSupervisorOld !== secondSupervisorNew;
-    const thirdSupervisorChanged = thirdSupervisorOld
-      && thirdSupervisorOld !== thirdSupervisorNew;
 
     if (firstSupervisorChanged) {
       batch
@@ -949,11 +941,13 @@ const handleEmployeeSupervisors = async locals => {
         .delete(doc.ref.collection('Assignees').doc(thirdSupervisorOld));
     }
 
-    [
+    const allSvs = [
       firstSupervisorNew,
       secondSupervisorNew,
       thirdSupervisorNew
-    ].filter(Boolean) // Any or all of these values could be empty strings...
+    ];
+
+    allSvs.filter(Boolean) // Any or all of these values could be empty strings...
       .forEach(phoneNumber => {
         batch.set(doc.ref.collection('Assignees').doc(phoneNumber), {
           canEdit: locals.adminsCanEdit.includes(phoneNumber),
@@ -3087,7 +3081,6 @@ const handleActivityUpdates = async locals => {
   if (oldName
     && (oldName === newName)
     && !hasBeenCancelled) {
-    console.log('Update returning');
 
     return;
   }
@@ -3422,8 +3415,6 @@ const handleLeave = async locals => {
     .where('relevantTime', '<=', leaveEndTs)
     .get();
 
-  console.log('duties', duties.size);
-
   const conflictingDutyActivities = [];
   const conflictingActivityIds = [];
 
@@ -3460,8 +3451,6 @@ const handleLeave = async locals => {
     conflictingActivityIds
       .push(doc.id);
   });
-
-  console.log('conflictingDutyActivities', conflictingDutyActivities.length, leaveStart, leaveEnd);
 
   const batch = db.batch();
   const dateObject = new Date();
@@ -3520,8 +3509,6 @@ const handleLeave = async locals => {
         merge: true,
       });
 
-    console.log('updating', locals.change.after.ref.path);
-
     batch
       .set(addendumDocRef, {
         date: dateObject.getDate(),
@@ -3548,50 +3535,6 @@ const handleLeave = async locals => {
 };
 
 
-const handleCustomer = async locals => {
-  // Create customer map.
-  const rtdb = admin
-    .database();
-  const officeId = locals.change.after.get('officeId');
-  const name = locals.change.after.get('attachment.Name.value');
-  const ref = rtdb.ref(`${officeId}/customer/${name}`);
-  const attachment = locals.change.after.get('attachment');
-  const object = {
-    createTime: locals.change.after.createTime.toDate().getTime(),
-    updateTime: locals.change.after.updateTime.toDate().getTime(),
-    activityId: locals.change.after.id,
-  };
-  const venue = locals.change.after.get('venue')[0];
-
-  Object
-    .keys(venue)
-    .forEach(field => {
-      object[field] = venue[field];
-    });
-
-  Object
-    .keys(attachment)
-    .forEach(field => {
-      const { value } = attachment[field];
-
-      object[field] = value;
-    });
-
-  const status = locals
-    .change
-    .after
-    .get('status');
-
-  if (status === 'CANCELLED') {
-    return ref
-      .remove();
-  }
-
-  return ref
-    .set(object);
-};
-
-
 const handleCheckIn = async locals => {
   const addendumDocData = locals.addendumDocData;
 
@@ -3605,8 +3548,6 @@ const handleCheckIn = async locals => {
     !== httpsActions.create) {
     return;
   }
-
-  console.log('In handle check-in');
 
   const officeId = locals
     .change
@@ -3625,12 +3566,10 @@ const handleCheckIn = async locals => {
   const venue = (() => {
     // venue has been populated
     if (locals.change.after.get('venue')[0].location) {
-      console.log('venue from venue');
       return locals.change.after.get('venue')[0];
     }
 
     if (addendumDocData.venueQuery) {
-      console.log('venue from adjusted gp');
       return addendumDocData.venueQuery;
     }
 
@@ -3661,11 +3600,6 @@ const handleCheckIn = async locals => {
     .where('relevantTimeAndVenue', '>=', keyStart)
     .where('relevantTimeAndVenue', '<=', keyEnd)
     .get();
-
-  console.log('displayName', displayName);
-  console.log('keyStart', keyStart);
-  console.log('keyEnd', keyEnd);
-  console.log('relevantTimeActivities', relevantTimeActivities.size);
 
   const batch = db.batch();
 
@@ -3704,8 +3638,6 @@ const handleCheckIn = async locals => {
       });
 
       const rt = getRelevantTime(doc.get('schedule'));
-
-      console.log('doc.ref', doc.ref.path);
       const activityRef = rootCollections
         .activities
         .doc(doc.id);
@@ -3747,8 +3679,6 @@ const handleTypeActivityCreation = async locals => {
   const parentTemplate = template
     .split('-type')[0];
 
-  console.log('parentTemplate', parentTemplate);
-
   if (!parentTemplate) {
     return;
   }
@@ -3765,8 +3695,6 @@ const handleTypeActivityCreation = async locals => {
     .where('status', '==', 'CONFIRMED')
     .where('attachment.Template.value', '==', parentTemplate)
     .get();
-
-  console.log('Found (-type) activities', docs.size);
 
   const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
   const numberOfBatches = Math
@@ -3796,8 +3724,6 @@ const handleTypeActivityCreation = async locals => {
       merge: true,
     });
   });
-
-  console.log('Number of batches', batchArray.length);
 
   return Promise
     .all(batchArray.map(batch => batch.commit()));
@@ -4137,10 +4063,6 @@ module.exports = async (change, context) => {
 
     if (template === 'admin') {
       await handleAdmin(locals);
-    }
-
-    if (template === 'customer') {
-      await handleCustomer(locals);
     }
 
     // if (template === 'leave-type') {
