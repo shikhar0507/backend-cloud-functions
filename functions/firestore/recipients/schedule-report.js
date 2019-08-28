@@ -117,7 +117,7 @@ module.exports = async locals => {
               .format(dateFormats.DATE_TIME);
 
             checkInTimes += `${name} (${firstCheckInFormatted}`
-              + ` to ${lastCheckInFormatted}), ${timestamps.length}`;
+              + ` to ${lastCheckInFormatted}, ${timestamps.length})`;
 
             checkInTimes += '\n';
           });
