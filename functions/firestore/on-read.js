@@ -99,7 +99,7 @@ const getAddendumObject = doc => {
   return singleDoc;
 };
 
-const getAssigneesArray = arrayOfPhoneNumbers => {
+const getAssigneesArray = (arrayOfPhoneNumbers) => {
   // Could be a string (phoneNumber) or an object
   const firstItem = arrayOfPhoneNumbers[0];
 
@@ -150,7 +150,11 @@ const getActivityObject = doc => ({
   attachment: doc.get('attachment'),
   creator: getCreator(doc.get('creator')),
   hidden: doc.get('hidden'),
-  assignees: getAssigneesArray(doc.get('assignees')),
+  /**
+   * Activity with template -type or customer/branch might
+   * not have an assignee, so this array could be undefined
+   */
+  assignees: getAssigneesArray(doc.get('assignees') || []),
 });
 
 const getSubscriptionObject = doc => ({
