@@ -117,6 +117,33 @@ const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   return updatedFields;
 };
 
+const getCustomerObject = async (customer, officeId) => {
+  const customerActivityResult = await rootCollections
+    .activities
+    .where('attachment.Name.value', '==', customer)
+    .where('officeId', '==', officeId)
+    .where('status', '==', 'CONFIRMED')
+    .get();
+  const customerDoc = customerActivityResult.docs[0];
+  const attachment = customerDoc.get('attachment');
+  const object = {};
+
+  Object
+    .keys(attachment)
+    .forEach(field => {
+      object[field] = attachment[field].value;
+    });
+
+  const venue = customerDoc.get('venue')[0];
+  const geopoint = venue.geopoint;
+
+  object.latitude = geopoint.latitude || geopoint._latitude;
+  object.longitude = geopoint.longitude || geopoint._longitude;
+  object.address = venue.address;
+  object.location = venue.location;
+
+  return object;
+};
 
 const handleAdmin = async locals => {
   const phoneNumber = locals
@@ -276,8 +303,8 @@ const createAdmin = async (locals, adminContact) => {
 
 
 const createAutoSubscription = async (locals, templateName, subscriber) => {
-  if (!subscriber) {
-    return Promise.resolve();
+  if (!subscriber || !locals.addendumDoc) {
+    return;
   }
 
   const office = locals
@@ -2146,8 +2173,7 @@ const handleRecipient = async locals => {
   await batch
     .commit();
 
-  if (locals.change.after.get('attachment.Name.value')
-    !== 'payroll') {
+  if (locals.change.after.get('attachment.Name.value') !== 'payroll') {
     return;
   }
 
@@ -3542,7 +3568,6 @@ const handleCheckIn = async locals => {
     return;
   }
 
-
   // Only allowed for create
   if (locals.addendumDocData.action
     !== httpsActions.create) {
@@ -3981,37 +4006,19 @@ module.exports = async (change, context) => {
       activityData
         .creationYear = date.getFullYear();
 
-      if (template === 'duty') {
-        const customer = activityData
-          .attachment
-          .Location
-          .value;
-        const customerActivityResult = await rootCollections
-          .activities
-          .where('attachment.Name.value', '==', customer)
-          .where('officeId', '==', activityData.officeId)
-          .where('status', '==', 'CONFIRMED')
-          .get();
-        const customerDoc = customerActivityResult.docs[0];
-        const attachment = customerDoc.get('attachment');
-        const object = {};
-
-        Object
-          .keys(attachment)
-          .forEach(field => {
-            object[field] = attachment[field].value;
-          });
-
-        const venue = customerDoc.get('venue')[0];
-        const geopoint = venue.geopoint;
-
-        object.latitude = geopoint.latitude || geopoint._latitude;
-        object.longitude = geopoint.longitude || geopoint._longitude;
-        object.address = venue.address;
-        object.location = venue.location;
-
+      if (activityData.attachment.Location
+        && activityData.attachment.Location.value) {
         activityData
-          .customerObject = object;
+          .customerObject = await getCustomerObject(
+            activityData
+              .attachment
+              .Location
+              .value,
+            activityData
+              .officeId
+          );
+
+        console.log('duty', JSON.stringify(activityData.customerObject, ' ', 2));
       }
     }
 
@@ -4064,14 +4071,6 @@ module.exports = async (change, context) => {
     if (template === 'admin') {
       await handleAdmin(locals);
     }
-
-    // if (template === 'leave-type') {
-    //   await handleLeaveType(locals);
-    // }
-
-    // if(template === 'claim-type') {
-    //   await handleClaimType(locals);
-    // }
 
     if (template === 'leave') {
       await handleLeave(locals);
