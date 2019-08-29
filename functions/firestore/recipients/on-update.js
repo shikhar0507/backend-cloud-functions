@@ -72,6 +72,10 @@ const getSubject = (report, office, dateString) => {
     start += 'Payroll';
   }
 
+  if (report === 'schedule') {
+    start += `Schedule`;
+  }
+
   return `${start} Report_${office}_${dateString}`;
 };
 
