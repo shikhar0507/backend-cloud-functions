@@ -237,7 +237,6 @@ module.exports = async timerDoc => {
     });
 
     await batch.commit();
-    await handleCheckInLocations();
 
     return deleteInstantDocs();
   } catch (error) {

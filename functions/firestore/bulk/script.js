@@ -48,6 +48,111 @@ const googleMapsClient =
     });
 const momentTz = require('moment-timezone');
 
+const isOnLeave = async params => {
+  const {
+    startTime,
+    endTime,
+    timezone,
+    officeId,
+    phoneNumber,
+  } = params;
+
+  const leaveDates = [];
+  const allMonthYears = new Set();
+  const startTimeMoment = momentTz(startTime)
+    .tz(timezone)
+    .startOf('day');
+  const endTimeMoment = momentTz(endTime)
+    .tz(timezone)
+    .endOf('day');
+
+  allMonthYears
+    .add(startTimeMoment.format(dateFormats.MONTH_YEAR));
+
+  while (startTimeMoment.add(1, 'day').diff(endTimeMoment) <= 0) {
+    const formatted = startTimeMoment.format(dateFormats.MONTH_YEAR);
+
+    allMonthYears
+      .add(formatted);
+  }
+
+  const promises = [];
+
+  allMonthYears
+    .forEach(monthYearString => {
+      const promise = rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Statuses')
+        .doc(monthYearString)
+        .collection('Employees')
+        .doc(phoneNumber)
+        .get();
+
+      promises
+        .push(promise);
+    });
+
+  const docs = await Promise
+    .all(promises);
+
+  docs.forEach(doc => {
+    if (!doc.exists) {
+      return;
+    }
+
+    const statusObject = doc.get('statusObject') || {};
+    const month = doc.get('month');
+    const year = doc.get('year');
+
+    Object
+      .keys(statusObject)
+      .forEach(date => {
+        const item = statusObject[date];
+
+        if (!item.onLeave) {
+          return;
+        }
+
+        const dateMoment = momentTz()
+          .tz(timezone)
+          .date(Number(date))
+          .month(month)
+          .year(year);
+        const start = momentTz(startTime)
+          .tz(timezone)
+          .startOf('day');
+        const end = momentTz(endTime)
+          .tz(timezone)
+          .endOf('day');
+        const isBefore = dateMoment.isSameOrAfter(start);
+        const isAfter = dateMoment.isSameOrBefore(end);
+        const isBetween = isBefore && isAfter;
+
+        const formatted = dateMoment
+          .format(dateFormats.DATE);
+
+        console.log({
+          // isBetween,
+          isBefore,
+          isAfter,
+          dateMoment: dateMoment.format(dateFormats.DATE_TIME),
+          start: start.format(dateFormats.DATE_TIME),
+          end: end.format(dateFormats.DATE_TIME),
+        });
+
+        if (!isBetween) {
+          return;
+        }
+
+        leaveDates
+          .push(formatted);
+      });
+  });
+
+  return { phoneNumber, leaveDates };
+};
+
 const getVenueFieldsSet = templateDoc => {
   if (!templateDoc.get('venue').length > 0) {
     return new Set();
@@ -398,15 +503,17 @@ const createObjects = async (conn, locals, trialRun) => {
           };
 
           if (startTime) {
+            const val = conn.req.body.data[index].formattedStartTime;
             object
-              .startTime = momentTz(startTime).tz(timezone).valueOf(),
+              .startTime = momentTz(val || startTime).tz(timezone).valueOf(),
               object
                 .endTime = object.startTime;
           }
 
           if (endTime) {
+            const val = conn.req.body.data[index].formattedEndTime;
             object
-              .endTime = momentTz(endTime).tz(timezone).valueOf();
+              .endTime = momentTz(val || endTime).tz(timezone).valueOf();
           }
 
           activityObject
@@ -1057,7 +1164,8 @@ const validateDataArray = async (conn, locals) => {
       }
     }
 
-    if (conn.req.body.template === templateNamesObject.RECIPIENT) {
+    if (conn.req.body.template
+      === templateNamesObject.RECIPIENT) {
       const reportName = conn.req.body.data[index].Name;
       const validReports = new Set(['footprints', 'payroll', 'schedule']);
 
@@ -1653,9 +1761,9 @@ const handleDuty = async (conn, locals) => {
 
   const schedule = locals.templateDoc.get('schedule')[0];
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const now = momentTz().tz(timezone).valueOf();
   const customerPromises = [];
   const dutyTypePromises = [];
+  const leavePromises = [];
   const authPromises = [];
   const phoneNumberIndexMap = new Map();
   const includeArrayMap = new Map();
@@ -1670,48 +1778,65 @@ const handleDuty = async (conn, locals) => {
     // include can be empty
     const singleSchedule = item[schedule];
 
-    if (!singleSchedule) {
+    if (typeof singleSchedule !== 'string') {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Missing`
-        + ` the schedule '${schedule}'`;
+      conn.req.body.data[index].reason = `Schedule`
+        + ` '${schedule}' is invalid/missing`
+        + ` Use the format `
+        + `'${momentTz().format(dateFormats.EXCEL_INPUT)}'`;
 
       return;
     }
 
     const scheduleParts = singleSchedule.split(',');
     const startTime = scheduleParts[0].trim();
-    const endTime = (scheduleParts[1] || startTime).trim();
+    // start time is the same as endtime if endtime is not defined
+    const endTime = (scheduleParts[1] || scheduleParts[0]).trim();
 
-    if (!isValidDate(startTime.trim())
-      || !isValidDate(endTime.trim())) {
+    const stValid = momentTz(startTime, dateFormats.EXCEL_INPUT, true).isValid();
+    const etValid = momentTz(endTime, dateFormats.EXCEL_INPUT, true).isValid();
+
+    console.log({
+      startTime,
+      endTime,
+      stValid,
+      etValid,
+    });
+
+    if (!stValid || !etValid) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Invalid Duty Time`;
+      conn.req.body.data[index].reason = `Invalid Duty.`
+        + ` Use the format `
+        + ` '${momentTz().format(dateFormats.EXCEL_INPUT)}'`;
 
       return;
     }
 
     const momentStartTimeFromSchedule = momentTz(
-      new Date(startTime.trim())
+      new Date(startTime).toJSON()
     ).tz(timezone);
     const momentEndTimeFromSchedule = momentTz(
-      new Date(endTime.trim())
+      new Date(endTime).toJSON()
     ).tz(timezone);
 
-    conn.req.body.data[index].formattedStartTime = momentStartTimeFromSchedule
-      .format();
-    conn.req.body.data[index].formattedEndTime = momentEndTimeFromSchedule
-      .format();
+    conn.req.body.data[
+      index
+    ].formattedStartTime = momentStartTimeFromSchedule;
 
-    if (momentStartTimeFromSchedule.valueOf() < now) {
+    conn.req.body.data[
+      index
+    ].formattedEndTime = momentEndTimeFromSchedule;
+
+    // Duty can't be for the past
+    if (momentStartTimeFromSchedule.isBefore(momentTz().tz(timezone))) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `Duty start`
-        + ` time is from the past`;
+        + ` time '${startTime}' is from the past`;
 
       return;
     }
 
-    if (momentStartTimeFromSchedule.valueOf()
-      > momentEndTimeFromSchedule.valueOf()) {
+    if (momentStartTimeFromSchedule.isAfter(momentEndTimeFromSchedule, 'minute')) {
       conn.req.body.data[index].rejected = true;
       conn.req.body.data[index].reason = `Duty end`
         + ` time should be after the duty start time`;
@@ -1735,19 +1860,17 @@ const handleDuty = async (conn, locals) => {
       return;
     }
 
-    if (item.Location) {
-      const customerPromise = rootCollections
-        .activities
-        .where('template', '==', 'customer')
-        .where('status', '==', 'CONFIRMED')
-        .where('officeId', '==', locals.officeDoc.id)
-        .where('attachment.Name.value', '==', item.Location)
-        .limit(1)
-        .get();
+    const customerPromise = rootCollections
+      .activities
+      .where('template', '==', 'customer')
+      .where('status', '==', 'CONFIRMED')
+      .where('officeId', '==', locals.officeDoc.id)
+      .where('attachment.Name.value', '==', item.Location)
+      .limit(1)
+      .get();
 
-      customerPromises
-        .push(customerPromise);
-    }
+    customerPromises
+      .push(customerPromise);
 
     const phoneNumbers = item
       .Include
@@ -1755,13 +1878,15 @@ const handleDuty = async (conn, locals) => {
       .filter(Boolean)
       .map(phoneNumber => phoneNumber.trim());
 
+    if (phoneNumbers.length === 0) {
+      conn.req.body.data[index].rejected = true;
+      conn.req.body.data[index].reason = `'Include' is empty`;
+
+      return;
+    }
+
     includeArrayMap
       .set(index, phoneNumbers);
-
-    phoneNumbers
-      .push(item.Supervisor.trim());
-    phoneNumbers
-      .push(conn.requester.phoneNumber);
 
     conn.req.body.data[index].Include = phoneNumbers;
 
@@ -1769,43 +1894,62 @@ const handleDuty = async (conn, locals) => {
       ...new Set(phoneNumbers)
     ];
 
-    phoneNumbers.forEach(phoneNumber => {
-      const authPromise = getauth(phoneNumber);
+    phoneNumbers
+      .push(item.Supervisor.trim());
 
-      authPromises
-        .push(authPromise);
+    if (!conn.requester.isSupportRequest) {
+      phoneNumbers
+        .push(conn.requester.phoneNumber);
+    }
 
-      const monthYearString = momentStartTimeFromSchedule
-        .format(dateFormats.MONTH_YEAR);
-      const statusObjectPromise = locals
-        .officeDoc
-        .ref
-        .collection('Statuses')
-        .doc(monthYearString)
-        .collection('Employees')
-        .doc(phoneNumber)
-        .get();
+    phoneNumbers
+      .forEach(phoneNumber => {
+        const authPromise = getauth(phoneNumber);
+        const leavePromise = isOnLeave({
+          timezone,
+          phoneNumber,
+          startTime: momentStartTimeFromSchedule.valueOf(),
+          endTime: momentEndTimeFromSchedule.valueOf(),
+          officeId: locals.officeDoc.id,
+        });
 
-      statusObjectPromises
-        .push(statusObjectPromise);
+        leavePromises
+          .push(leavePromise);
 
-      const oldIndexArray = phoneNumberIndexMap
-        .get(phoneNumber.trim())
-        || new Set().add(index);
+        authPromises
+          .push(authPromise);
 
-      oldIndexArray
-        .add(index);
+        const monthYearString = momentStartTimeFromSchedule
+          .format(dateFormats.MONTH_YEAR);
+        const statusObjectPromise = locals
+          .officeDoc
+          .ref
+          .collection('Statuses')
+          .doc(monthYearString)
+          .collection('Employees')
+          .doc(phoneNumber)
+          .get();
 
-      phoneNumberIndexMap
-        .set(
-          phoneNumber.trim(),
-          oldIndexArray
-        );
-    });
+        statusObjectPromises
+          .push(statusObjectPromise);
+
+        const oldIndexArray = phoneNumberIndexMap
+          .get(phoneNumber.trim())
+          || new Set().add(index);
+
+        oldIndexArray
+          .add(index);
+
+        phoneNumberIndexMap
+          .set(
+            phoneNumber.trim(),
+            oldIndexArray
+          );
+      });
 
     if (!isNonEmptyString(item['Duty Type'])) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Invalid Duty Type`;
+      conn.req.body.data[index].reason = `Missing Duty Type`;
 
       return;
     }
@@ -1827,9 +1971,7 @@ const handleDuty = async (conn, locals) => {
 
   statusObjectSnapshot
     .forEach(doc => {
-      const { path } = doc.ref;
-      const parts = path.split('/');
-      const phoneNumber = parts[parts.length - 1];
+      const phoneNumber = doc.get('phoneNumber');
 
       if (!doc.exists) {
         return;
@@ -1848,33 +1990,58 @@ const handleDuty = async (conn, locals) => {
     .all(dutyTypePromises);
   const rejectedDutyTypes = new Set();
 
-  dutyTypeSnapshots.forEach(snapShot => {
-    if (!snapShot.empty) return;
+  dutyTypeSnapshots
+    .forEach(snapShot => {
+      if (!snapShot.empty) return;
 
-    // snapshot is empty, reject items with this duty type
-    const filters = snapShot.query._queryOptions.fieldFilters;
-    const value = filters[1].value;
+      // snapshot is empty, reject items with this duty type
+      const filters = snapShot.query._queryOptions.fieldFilters;
+      const value = filters[1].value;
 
-    rejectedDutyTypes
-      .add(value);
-  });
+      rejectedDutyTypes
+        .add(value);
+    });
 
   const customerSnapshots = await Promise
     .all(customerPromises);
   const existingCustomersSet = new Set();
 
-  customerSnapshots.forEach(snap => {
-    if (snap.empty) {
-      return;
-    }
+  customerSnapshots
+    .forEach(snap => {
+      if (snap.empty) {
+        return;
+      }
 
-    const name = snap
-      .docs[0]
-      .get('attachment.Name.value');
+      const name = snap
+        .docs[0]
+        .get('attachment.Name.value');
 
-    existingCustomersSet
-      .add(name);
-  });
+      existingCustomersSet
+        .add(name);
+    });
+
+  const leavePromisesResult = await Promise
+    .all(leavePromises);
+
+  leavePromisesResult
+    .forEach(item => {
+      const { leaveDates, phoneNumber } = item;
+
+      const indexes = phoneNumberIndexMap
+        .get(phoneNumber) || [];
+
+      if (leaveDates.length === 0) {
+        return;
+      }
+
+      indexes
+        .forEach(index => {
+          conn.req.body.data[index].rejected = true;
+          conn.req.body.data[index].reason = `Duty cannot be assigned to`
+            + ` ${phoneNumber}. Employee has applied for a`
+            + ` leave on ${leaveDates}`;
+        });
+    });
 
   conn.req.body.data.forEach((dutyObject, index) => {
     if (dutyObject.rejected) {
@@ -1883,46 +2050,11 @@ const handleDuty = async (conn, locals) => {
 
     if (!existingCustomersSet.has(dutyObject.Location)) {
       conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Invalid`
-        + ` Customer: ${dutyObject.Location}`;
+      conn.req.body.data[index].reason = `Customer:` +
+        ` ${dutyObject.Location} not found`;
 
       return;
     }
-
-    if (rejectedDutyTypes.has(dutyObject['Duty Type'])) {
-      conn.req.body.data[index].rejected = true;
-      conn.req.body.data[index].reason = `Invalid Duty Type`;
-
-      return;
-    }
-
-    const formattedStartTime = dutyObject.formattedStartTime;
-    // const formattedEndTime = dutyObject.formattedEndTime;
-
-    dutyObject
-      .Include
-      .forEach(phoneNumber => {
-        const statusObject = statusObjectMap
-          .get(phoneNumber) || {};
-
-        Object
-          .keys(statusObject)
-          .forEach(date => {
-            const statusItem = statusObject[date] || {};
-
-            if (Number(date)
-              !== momentTz(formattedStartTime).date()) {
-              return;
-            }
-
-            if (statusItem.onLeave) {
-              conn.req.body.data[index].rejected = true;
-              conn.req.body.data[index].reason = `Duty cannot be assigned to`
-                + ` ${phoneNumber}. Employee has applied for a`
-                + ` leave on ${momentTz(formattedStartTime).format(dateFormats.DATE)}`;
-            }
-          });
-      });
   });
 
   const userRecords = await Promise
