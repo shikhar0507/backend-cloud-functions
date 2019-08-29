@@ -68,7 +68,16 @@ const handleResult = (conn, docs) => {
   const [activity] = docs;
   const batch = db.batch();
   const template = activity.get('template');
-  const isSpecialTemplate = template === 'recipient' || template === 'subscription';
+
+  if (template === 'subscription') {
+    return sendResponse(
+      conn,
+      code.conflict,
+      'Subscription activity cannot be updated'
+    );
+  }
+
+  const isSpecialTemplate = template === 'recipient';
 
   docs.forEach((doc, index) => {
     /**
