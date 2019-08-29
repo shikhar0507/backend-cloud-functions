@@ -12,7 +12,10 @@ function handleRecaptcha(callbackFunction) {
 }
 
 function isValidPhoneNumber(phoneNumber = '') {
+  if (phoneNumber.length < 5) return false;
+
   const pattern = /^\+[0-9\s\-\(\)]+$/;
+
   return phoneNumber.search(pattern) !== -1;
 }
 
@@ -529,7 +532,7 @@ firebase
       return;
     }
 
-    const EXPIRY = 60 * 60 * 1000; // 1 Hour
+    const EXPIRY = 3600000 * 24 * 14; // 14 days
     document.cookie = `__session=${idToken};`
       + `max-age=${idToken ? EXPIRY : 0};`;
 
