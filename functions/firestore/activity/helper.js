@@ -1593,6 +1593,7 @@ const setOnLeaveOrAr = async params => {
 
       if (template === 'leave'
         && (statusObject[date].onLeave || statusObject[date].onAr)) {
+        conflictingDates.push(momentFromString.format(dateFormats.DATE));
         response.message = LEAVE_WITH_LEAVE_MESSAGE;
         response.success = false;
 
