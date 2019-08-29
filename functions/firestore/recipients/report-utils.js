@@ -373,6 +373,9 @@ const getName = (employeesData, phoneNumber) => {
 const getSupervisors = (employeesData, phoneNumber) => {
   let str = '';
   const employeeData = employeesData[phoneNumber];
+
+  if (!employeeData) return str;
+
   const firstSupervisor = employeeData['First Supervisor'];
   const secondSupervisor = employeeData['Second Supervisor'];
   const thirdSupervisor = employeeData['Third Supervisor'];

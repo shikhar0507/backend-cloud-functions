@@ -214,6 +214,14 @@ const getPayDayTimingsTopRow = allDates => {
   return topRowValues;
 };
 
+const getValueFromEmployeeMap = (employeeMap, phoneNumber, field) => {
+  if (employeeMap[phoneNumber]) {
+    return employeeMap[phoneNumber][field] || '';
+  }
+
+  return '';
+};
+
 module.exports = async locals => {
   const timezone = locals
     .officeDoc
@@ -518,6 +526,8 @@ module.exports = async locals => {
         statusObjectsCurrMonth.docs
       );
 
+    const detailsFromStatusDoc = new Map();
+
     allDocs.forEach(doc => {
       const { path } = doc.ref;
       const parts = path.split('/');
@@ -525,6 +535,11 @@ module.exports = async locals => {
       const phoneNumber = parts[parts.length - 1];
 
       const { statusObject } = doc.data();
+
+      detailsFromStatusDoc.set(phoneNumber, {
+        name: doc.get('name') || '',
+        employeeCode: doc.get('employeeCode') || '',
+      });
 
       allPhoneNumbers
         .add(phoneNumber);
@@ -552,23 +567,17 @@ module.exports = async locals => {
 
     allPhoneNumbers
       .forEach(phoneNumber => {
-        // The statusObject might exist for a phone number
-        // which is not currently an active employee
-        locals
-          .employeesData[
-          phoneNumber
-        ] = locals.employeesData[phoneNumber] || {};
-
-        const name = locals.employeesData[phoneNumber].Name;
-        const employeeCode = locals.employeesData[phoneNumber]['Employee Code'];
+        const name = getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Name');
+        const employeeCode = getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Employee Code');
         const columnIndex = index + 2;
+        const detailsFromStatusObject = detailsFromStatusDoc.get(phoneNumber) || {};
 
         paydaySheet
           .cell(`A${columnIndex}`)
-          .value(name);
+          .value(name || detailsFromStatusObject.name || '');
         paydaySheet
           .cell(`B${columnIndex}`)
-          .value(employeeCode);
+          .value(employeeCode || detailsFromStatusObject.employeeCode || '');
         paydaySheet
           .cell(`C${columnIndex}`)
           .value(phoneNumber);
@@ -590,6 +599,7 @@ module.exports = async locals => {
               date,
               monthYear,
             } = dateObject;
+
             const statusObject = statusObjectsMap
               .get(`${phoneNumber}-${monthYear}`) || {};
             const paydaySheetCell = `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
@@ -601,7 +611,8 @@ module.exports = async locals => {
             const paydaySheetValue = (() => {
               if (date === dateYesterday
                 && monthYear === monthYearString) {
-                return (yesterdaysStatusMap.get(phoneNumber) || {}).statusForDay || 0;
+                return (yesterdaysStatusMap.get(phoneNumber) || {})
+                  .statusForDay || 0;
               }
 
               return statusObject[date].statusForDay || 0;
@@ -622,11 +633,11 @@ module.exports = async locals => {
         [
           totalPayableDays,
           Math.abs(daysCount - totalPayableDays),
-          locals.employeesData[phoneNumber].Department,
-          locals.employeesData[phoneNumber].Designation,
+          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Department'),
+          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Designation'),
           getSupervisors(locals.employeesData, phoneNumber),
-          locals.employeesData[phoneNumber]['Base Location'],
-          locals.employeesData[phoneNumber].Region || '',
+          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Base Location'),
+          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Region'),
         ].forEach(item => {
           const cell = `${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`;
 
