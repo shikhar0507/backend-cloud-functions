@@ -38,7 +38,6 @@ const {
   reportNames,
 } = require('../admin/constants');
 const moment = require('moment');
-const env = require('../admin/env');
 const admin = require('firebase-admin');
 
 
@@ -91,9 +90,9 @@ module.exports = async userRecord => {
       .set({
         timestamp: Date.now(),
       }, {
-          /** Probably isn't required. Not sure why I'm doing this */
-          merge: true,
-        });
+        /** Probably isn't required. Not sure why I'm doing this */
+        merge: true,
+      });
   }
 
   const promises = [
@@ -144,16 +143,16 @@ module.exports = async userRecord => {
     batch.set(initDoc.ref, {
       usersAdded: usersAdded + 1,
     }, {
-        merge: true,
-      });
+      merge: true,
+    });
 
     if (!counterDocsQuery.empty) {
       const counterDoc = getObjectFromSnap(counterDocsQuery);
       batch.set(counterDoc.ref, {
         totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
     }
 
     const customClaimsObject = {};
@@ -177,10 +176,10 @@ module.exports = async userRecord => {
     batch.set(rootCollections
       .updates
       .doc(uid), {
-        phoneNumber,
-      }, {
-        merge: true,
-      });
+      phoneNumber,
+    }, {
+      merge: true,
+    });
 
     /**
      * Profile *may* exist already, if the user signed
@@ -191,10 +190,10 @@ module.exports = async userRecord => {
     batch.set(rootCollections
       .profiles
       .doc(phoneNumber), {
-        uid,
-      }, {
-        merge: true,
-      });
+      uid,
+    }, {
+      merge: true,
+    });
 
     console.log({ phoneNumber, uid });
 

@@ -25,8 +25,7 @@
 'use strict';
 
 
-const { rootCollections, db } = require('../../admin/admin');
-const admin = require('firebase-admin');
+const { rootCollections } = require('../../admin/admin');
 
 /**
  * Removes the doc from the `Profile/(phoneNumber)/Activities/(activityId)`
