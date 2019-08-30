@@ -1881,11 +1881,17 @@ const handleDuty = async (conn, locals) => {
     customerPromises
       .push(customerPromise);
 
-    const phoneNumbers = item
-      .Include
-      .split(',')
-      .filter(Boolean)
-      .map(phoneNumber => phoneNumber.trim());
+    const phoneNumbers = (() => {
+      if (Array.isArray(item.Include)) {
+        return item.Include;
+      }
+
+      return item
+        .Include
+        .split(',')
+        .filter(Boolean)
+        .map(phoneNumber => phoneNumber.trim());
+    })();
 
     if (phoneNumbers.length === 0) {
       conn.req.body.data[index].rejected = true;
