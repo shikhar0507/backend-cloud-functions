@@ -179,14 +179,6 @@ const handleResult = (conn, docs) => {
   const hasName = attachment.hasOwnProperty('Name');
   const officeId = activityDoc.get('officeId');
 
-  if (template === 'subscription') {
-    return sendResponse(
-      conn,
-      code.conflict,
-      'Subscription activity cannot be updated'
-    );
-  }
-
   if (!hasName || conn.req.body.status !== 'CANCELLED') {
     return createDocs(conn, activityDoc);
   }

@@ -201,15 +201,6 @@ const handleValidation = body => {
     };
   }
 
-  const unsupportedTemplates = new Set(['subscription']);
-
-  if (unsupportedTemplates.has(body.template)) {
-    return {
-      success: false,
-      message: `Template: 'subscription' is not supported`,
-    };
-  }
-
   if (!isValidDate(body.timestamp)
     || !body.hasOwnProperty('timestamp')) {
     return {
