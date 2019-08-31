@@ -63,6 +63,10 @@ const profileOnWrite = functions
   .onWrite(require('./firestore/profiles/on-write'));
 
 const activityTemplatesOnUpdate = functions
+  .runWith({
+    memory: '1GB',
+    timeoutSeconds: '120'
+  })
   .firestore
   .document('ActivityTemplates/{docId}')
   .onUpdate(require('./firestore/subscriptions/on-update'));
