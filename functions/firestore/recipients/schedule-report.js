@@ -32,6 +32,7 @@ module.exports = async locals => {
     .add(24, 'hours');
   const monthYearString = momentFromTimer
     .format(dateFormats.MONTH_YEAR);
+  let numberOfEntries = 0;
 
   try {
     const [
@@ -50,6 +51,10 @@ module.exports = async locals => {
         xlsxPopulate
           .fromBlankAsync(),
       ]);
+
+    if (activities.empty) {
+      return;
+    }
 
     const worksheet = workbook
       .addSheet(`Schedule ${monthYearString}`);
@@ -85,6 +90,8 @@ module.exports = async locals => {
         if (doc.get('template') !== 'duty') {
           return;
         }
+
+        numberOfEntries++;
 
         const columnIndex = index + 2;
         const activityName = doc.get('activityName');
@@ -169,6 +176,10 @@ module.exports = async locals => {
 
         index++;
       });
+
+    if (numberOfEntries === 0) {
+      return;
+    }
 
     locals
       .messageObject
