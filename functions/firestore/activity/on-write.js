@@ -303,7 +303,8 @@ const createAdmin = async (locals, adminContact) => {
 
 
 const createAutoSubscription = async (locals, templateName, subscriber) => {
-  if (!subscriber || !locals.addendumDoc) {
+  if (!subscriber
+    || !locals.addendumDoc) {
     return;
   }
 
@@ -651,6 +652,7 @@ const handleCheckInSubscription = async locals => {
 
 const handleSubscription = async locals => {
   const batch = db.batch();
+  const activityId = locals.change.after.id;
   const templateName = locals
     .change
     .after
@@ -669,14 +671,35 @@ const handleSubscription = async locals => {
     .collection('Subscriptions')
     .doc(locals.change.after.id);
 
-  const templateDocsQueryResult = await rootCollections
-    .activityTemplates
-    .where('name', '==', templateName)
-    .limit(1)
-    .get();
+  const [
+    templateDocsQueryResult,
+    profileSubscriptionDoc,
+  ] = await Promise
+    .all([
+      rootCollections
+        .activityTemplates
+        .where('name', '==', templateName)
+        .limit(1)
+        .get(),
+      rootCollections
+        .profiles
+        .doc(newSubscriber)
+        .collection('Subscriptions')
+        .doc(activityId)
+        .get()
+    ]);
 
-  const templateDoc = templateDocsQueryResult.docs[0];
-  const include = [];
+  const templateDoc = templateDocsQueryResult
+    .docs[0];
+  const include = (() => {
+    if (!profileSubscriptionDoc.exists) {
+      return [];
+    }
+
+    return profileSubscriptionDoc
+      .get('include') || [];
+  })();
+
   locals
     .assigneePhoneNumbersArray
     .forEach(phoneNumber => {
@@ -702,7 +725,7 @@ const handleSubscription = async locals => {
 
   batch
     .set(subscriptionDocRef, {
-      include,
+      include: Array.from(new Set(include)),
       schedule: templateDoc.get('schedule'),
       venue: templateDoc.get('venue'),
       template: templateDoc.get('name'),
@@ -894,6 +917,8 @@ const handleEmployeeSupervisors = async locals => {
   if (status === 'CANCELLED') {
     return;
   }
+
+  console.log('handleEmployeeSupervisors');
 
   const employeeContact = locals
     .change
