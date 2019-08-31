@@ -128,6 +128,7 @@ const getActivityNew = (activityOld, templateDoc) => {
 
 const updateActivities = change => {
   const templateName = change.after.get('name');
+  const timestamp = Date.now();
 
   /** Updating subscriptions for check-in, but not the activities */
   if (templateName === 'check-in') {
@@ -150,6 +151,8 @@ const updateActivities = change => {
             doc.data(),
             change.after.data()
           ));
+
+          data.timestamp = timestamp;
 
           batch.set(doc.ref, data, { merge: true });
         });
@@ -202,8 +205,8 @@ const updateSubscriptions = (query, resolve, reject) => {
           timestamp: Date.now(),
           addendumDocRef: null,
         }, {
-            merge: true,
-          });
+          merge: true,
+        });
       });
 
       /* eslint-disable */
