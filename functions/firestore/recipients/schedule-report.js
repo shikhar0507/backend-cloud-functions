@@ -97,16 +97,18 @@ module.exports = async locals => {
         const activityName = doc.get('activityName');
         // This is duty type
         const activityType = doc.get('attachment.Duty Type.value');
-        // const customerName = doc.get('attachment.Customer.value');
         const schedule = doc.get('schedule')[0];
         const status = doc.get('status');
         const startTime = momentTz(schedule.startTime)
+          .tz(timezone)
           .format(dateFormats.DATE_TIME);
         const endTime = momentTz(schedule.endTime)
+          .tz(timezone)
           .format(dateFormats.DATE_TIME);
         const createdBy = doc.get('creator.displayName')
           || doc.get('creator.phoneNumber');
         const lastUpdatedOn = momentTz(doc.get('timestamp'))
+          .tz(timezone)
           .format(dateFormats.DATE_TIME);
         const checkIns = doc.get('checkIns') || {};
         let checkInTimes = '';
@@ -135,44 +137,28 @@ module.exports = async locals => {
           .get('customerObject.Customer Code');
         const customerAddress = doc
           .get('customerObject.address');
-        const supervisors = getName(
+        const supervisor = getName(
           locals.employeesData,
           doc.get('attachment.Supervisor.value')
         );
 
-        worksheet
-          .cell(`A${columnIndex}`)
-          .value(activityName);
-        worksheet
-          .cell(`B${columnIndex}`)
-          .value(activityType);
-        worksheet
-          .cell(`C${columnIndex}`)
-          .value(customerName);
-        worksheet
-          .cell(`D${columnIndex}`)
-          .value(customerCode);
-        worksheet
-          .cell(`E${columnIndex}`)
-          .value(customerAddress);
-        worksheet
-          .cell(`F${columnIndex}`)
-          .value(`${startTime} - ${endTime}`);
-        worksheet
-          .cell(`G${columnIndex}`)
-          .value(createdBy);
-        worksheet
-          .cell(`H${columnIndex}`)
-          .value(supervisors);
-        worksheet
-          .cell(`I${columnIndex}`)
-          .value(status);
-        worksheet
-          .cell(`J${columnIndex}`)
-          .value(lastUpdatedOn);
-        worksheet
-          .cell(`K${columnIndex}`)
-          .value(checkInTimes);
+        [
+          activityName,
+          activityType,
+          customerName,
+          customerCode,
+          customerAddress,
+          `${startTime} - ${endTime}`,
+          createdBy,
+          supervisor,
+          status,
+          lastUpdatedOn,
+          checkInTimes,
+        ].forEach((value, i) => {
+          worksheet
+            .cell(`${alphabetsArray[i]}${columnIndex}`)
+            .value(value);
+        });
 
         index++;
       });
