@@ -323,13 +323,14 @@ const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
 const executeSequentially = batchFactories => {
   let result = Promise.resolve();
 
-  batchFactories.forEach((promiseFactory, index) => {
-    result = result
-      .then(promiseFactory)
-      .then(() => console.log(
-        `Commited ${index + 1} of ${batchFactories.length}`
-      ));
-  });
+  batchFactories
+    .forEach((promiseFactory, index) => {
+      result = result
+        .then(promiseFactory)
+        .then(() => console.log(
+          `Commited ${index + 1} of ${batchFactories.length}`
+        ));
+    });
 
   return result;
 };
@@ -346,6 +347,8 @@ const getauth = async phoneNumber => {
 
 const commitData = (batchesArray, batchFactories) => {
   // For a single batch, no need to create batch factories
+  // array will be empty since the threshold of 499 docs is
+  // not reached
   if (batchesArray.length === 1) {
     return batchesArray[0].commit();
   }
@@ -367,7 +370,12 @@ const createObjects = async (conn, locals, trialRun) => {
     .add('placeId');
 
   conn.req.body.data.forEach((item, index) => {
-    if (item.rejected) {
+    /**
+     * Items are rejected/skipped if a conflict with the state of DB and
+     * the request body exists,
+     */
+    if (item.rejected
+      || item.skipped) {
 
       return;
     }
@@ -376,7 +384,8 @@ const createObjects = async (conn, locals, trialRun) => {
       const batchPart = db.batch();
 
       if (batchesArray.length === 0) {
-        batchesArray.push(batchPart);
+        batchesArray
+          .push(batchPart);
       }
 
       if (batchDocsCount > 450) {
@@ -385,7 +394,8 @@ const createObjects = async (conn, locals, trialRun) => {
         batchesArray.push(batchPart);
 
         currentBatchIndex++;
-        batchFactories.push(() => batchPart.commit());
+        batchFactories
+          .push(() => batchPart.commit());
       }
 
       return batchesArray[currentBatchIndex];
@@ -667,15 +677,18 @@ const createObjects = async (conn, locals, trialRun) => {
           conn.requester.phoneNumber
         );
 
-        batch.set(ref, {
-          canEdit,
-          addToInclude,
-        });
+        batch
+          .set(ref, {
+            canEdit,
+            addToInclude,
+          });
       });
 
     // 1 activity doc, and 2 addendum object
-    batch.set(activityRef, activityObject);
-    batch.set(addendumDocRef, addendumObject);
+    batch
+      .set(activityRef, activityObject);
+    batch
+      .set(addendumDocRef, addendumObject);
 
     // One doc for activity
     // Second for addendum
@@ -722,7 +735,8 @@ const fetchDataForCanEditRule = async (conn, locals) => {
   docs.forEach(doc => {
     const phoneNumber = doc.get('attachment.Employee Contact.value') ||
       doc.get('attachment.Admin.value');
-    set.add(phoneNumber);
+    set
+      .add(phoneNumber);
   });
 
   return;
@@ -750,7 +764,8 @@ const handleEmployees = async (conn, locals) => {
         .limit(1)
         .get();
 
-      promises.push(promise);
+      promises
+        .push(promise);
     });
 
   const phoneNumbersToRejectSet = new Set();
@@ -764,14 +779,20 @@ const handleEmployees = async (conn, locals) => {
 
   const [employeesData, snapShots] = result;
 
-  snapShots.forEach(snapShot => {
-    if (snapShot.empty)
-      return;
-    /** Doc exists, employee already exists */
-    const doc = snapShot.docs[0];
-    const phoneNumber = doc.get('attachment.Employee Contact.value');
-    phoneNumbersToRejectSet.add(phoneNumber);
-  });
+  snapShots
+    .forEach(snapShot => {
+      if (snapShot.empty) {
+        return;
+      }
+
+      /** Doc exists, employee already exists */
+      const doc = snapShot.docs[0];
+      const phoneNumber = doc.get('attachment.Employee Contact.value');
+
+      phoneNumbersToRejectSet
+        .add(phoneNumber);
+    });
+
   conn.req.body.data.forEach((item, index) => {
     const phoneNumber = item['Employee Contact'];
 
@@ -813,7 +834,8 @@ const handleUniqueness = async (conn, locals) => {
   let index = 0;
   const indexMap = new Map();
   const baseQuery = (() => {
-    if (conn.req.body.template === templateNamesObject.OFFICE) {
+    if (conn.req.body.template
+      === templateNamesObject.OFFICE) {
       return rootCollections.offices;
     }
 
@@ -836,19 +858,23 @@ const handleUniqueness = async (conn, locals) => {
     // Not querying anything for already rejected objects
     if (item.rejected) return;
 
-    indexMap.set(item.Name || item.Number, index);
     index++;
+
+    indexMap
+      .set(item.Name || item.Number, index);
 
     const promise = baseQuery
       .where(`attachment.${param}.value`, '==', item.Name || item.Number)
       .limit(1)
       .get();
 
-    promises.push(promise);
+    promises
+      .push(promise);
   });
 
   const snapShots = await Promise
     .all(promises);
+
   snapShots.forEach(snapShot => {
     // Empty means that the person with the name/number doesn't exist.
     if (snapShot.empty) {
@@ -889,32 +915,68 @@ const handleSubscriptions = async (conn, locals) => {
       const promise = rootCollections
         .activities
         .where('office', '==', conn.req.body.office)
-        .where('status', '==', 'CONFIRMED')
         .where('template', '==', templateNamesObject.SUBSCRIPTION)
         .where('attachment.Subscriber.value', '==', phoneNumber)
         .where('attachment.Template.value', '==', template)
         .limit(1)
         .get();
 
-      promises.push(promise);
+      promises
+        .push(promise);
     });
+
+  const batch = db.batch();
 
   const snapShots = await Promise
     .all(promises);
-  snapShots.forEach((snapShot, index) => {
-    if (snapShot.empty) {
-      return;
-    }
 
-    const doc = snapShot.docs[0];
-    const phoneNumber = doc.get('attachment.Subscriber.value');
-    const template = doc.get('attachment.Template.value');
-    conn.req.body.data[index].rejected = true;
-    conn.req.body.data[index].reason =
-      `${phoneNumber} already has subscription of '${template}'`;
-  });
+  snapShots
+    .forEach((snapShot, index) => {
+      if (snapShot.empty) {
+        // The user doesn't have the subscription
+        // Creation is allowed.
+        return;
+      }
 
-  return;
+      const doc = snapShot.docs[0];
+      const phoneNumber = doc.get('attachment.Subscriber.value');
+      const template = doc.get('attachment.Template.value');
+      const status = doc.get('status');
+
+      if (status === 'CONFIRMED') {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason =
+          `${phoneNumber} already has subscription of '${template}'`;
+
+        return;
+      }
+
+      /**
+       * This user has a `CANCELLED` subscription of the
+       * template. Instead of creating another subcription
+       * with the same template, we are simply `CONFIRMI`-ing
+       * the old doc to avoid unnecessary duplicates
+       */
+      console.log('Updating existing subscription', phoneNumber);
+
+      conn.req.body.data[index].skipped = true;
+
+      batch
+        .set(doc.ref, {
+          addendumDocRef: null,
+          status: 'CONFIRMED',
+          timestamp: Date.now(),
+        }, {
+          merge: true,
+        });
+    });
+
+  if (conn.req.query.trialRun === 'true') {
+    return;
+  }
+
+  return batch
+    .commit();
 };
 
 const handleAdmins = async (conn, locals) => {
