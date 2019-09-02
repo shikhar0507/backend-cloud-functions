@@ -2198,7 +2198,8 @@ const handleRecipient = async locals => {
   await batch
     .commit();
 
-  if (locals.change.after.get('attachment.Name.value') !== 'payroll') {
+  if (!locals.addendumDoc
+    || locals.change.after.get('attachment.Name.value') !== 'payroll') {
     return;
   }
 
@@ -3645,14 +3646,12 @@ const handleCheckIn = async locals => {
   const nowPlus24Hours = momentNow
     .clone()
     .add(24, 'hours');
-  const keyStart = `${venue.location} ${nowMinus24Hours.valueOf()}`;
-  const keyEnd = `${venue.location} ${nowPlus24Hours.valueOf()}`;
   const relevantTimeActivities = await rootCollections
     .profiles
     .doc(phoneNumber)
     .collection('Activities')
-    .where('relevantTimeAndVenue', '>=', keyStart)
-    .where('relevantTimeAndVenue', '<=', keyEnd)
+    .where('relevantTime', '>=', nowMinus24Hours.valueOf())
+    .where('relevantTime', '<=', nowPlus24Hours.valueOf())
     .get();
 
   const batch = db.batch();
@@ -3661,6 +3660,20 @@ const handleCheckIn = async locals => {
     .forEach(doc => {
       if (doc.get('officeId')
         !== officeId) {
+        return;
+      }
+
+      if (!doc.get('attachment.Location')) {
+        return;
+      }
+
+      const gp2 = locals.addendumDocData.location;
+      const gp1 = {
+        latitude: relevantTimeActivities.customerObject.latitude,
+        longitude: relevantTimeActivities.customerObject.longitude,
+      };
+
+      if (haversineDistance(gp1, gp2) > 1) {
         return;
       }
 
