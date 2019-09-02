@@ -3005,10 +3005,13 @@ const handleAddendum = async locals => {
       locality,
     } = getLocalityCityState(components);
 
+    // eslint-disable-next-line require-atomic-updates
     locals
       .city = city;
+    // eslint-disable-next-line require-atomic-updates
     locals
       .state = state;
+    // eslint-disable-next-line require-atomic-updates
     locals
       .locality = locality;
   }
@@ -3090,6 +3093,7 @@ const handleAddendum = async locals => {
 
   // Required for comment creation since the addendumDoc.data() won't contain
   // the updates made during this function instance
+  // eslint-disable-next-line require-atomic-updates
   locals
     .addendumDocData = Object.assign(
       {},
@@ -4042,8 +4046,6 @@ module.exports = async (change, context) => {
             activityData
               .officeId
           );
-
-        console.log('duty', JSON.stringify(activityData.customerObject, ' ', 2));
       }
     }
 
