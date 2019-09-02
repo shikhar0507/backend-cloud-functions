@@ -125,7 +125,7 @@ const updateDocsWithBatch = (conn, locals) => {
 
   Object
     .keys(locals.objects.permissions)
-    .forEach((phoneNumber) => {
+    .forEach(phoneNumber => {
       const isRequester = conn.requester.phoneNumber === phoneNumber;
       let addToInclude = true;
 
@@ -136,13 +136,13 @@ const updateDocsWithBatch = (conn, locals) => {
       locals.batch.set(activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
-          canEdit: getCanEditValue(locals, phoneNumber),
-          /**
-           * These people are not from the `share` array of the request body.
-           * The update api doesn't accept the `share` array.
-           */
-          addToInclude,
-        });
+        canEdit: getCanEditValue(locals, phoneNumber),
+        /**
+         * These people are not from the `share` array of the request body.
+         * The update api doesn't accept the `share` array.
+         */
+        addToInclude,
+      });
     });
 
   locals
@@ -151,33 +151,59 @@ const updateDocsWithBatch = (conn, locals) => {
       merge: true,
     });
 
-  if (locals.docs.activity.get('template') !== 'customer') {
-    return locals
-      .batch
-      .commit()
-      .then(() => sendResponse(conn, code.ok, 'Success'))
-      .catch((error) => handleError(conn, error));
+  if (locals.docs.activity.get('template') === 'employee') {
+    const sv1 = activityUpdateObject.attachment['First Supervisor'].value;
+    const sv2 = activityUpdateObject.attachment['Second Supervisor'].value;
+    const sv3 = activityUpdateObject.attachment['Third Supervisor'].value;
+
+    if (!sv1
+      && !sv2
+      && !sv3) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Employee's First, Second and Third Supervisors cannot be empty`
+        + ` at the same time`
+      );
+    }
+
+    if (sv1 === sv2
+      && sv2 === sv3) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Employee First, Second and Third Supervisors should be distinct`
+        + ` phone numbers`
+      );
+    }
   }
 
-  return rootCollections
-    .offices
-    .doc(locals.docs.activity.get('officeId'))
-    .get()
-    .then((doc) => {
-      const customersData = doc.get('customersData') || {};
 
-      customersData[conn.req.body.attachment.Name.value] = toCustomerObject(
-        conn.req.body,
-        locals.docs.activity.createTime.toDate().getTime());
+  if (locals.docs.activity.get('template') === 'office') {
+    if (!activityUpdateObject.attachment['First Contact'].value
+      && !activityUpdateObject.attachment['Second Contact'].value) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Office's First and Second Contacts cannot be empty`
+        + ` at the same time.`
+      );
+    }
 
-      locals.batch.set(doc.ref, {
-        customersData,
-      }, {
-          merge: true,
-        });
+    if (activityUpdateObject.attachment['First Contact'].value
+      === activityUpdateObject.attachment['Second Contact'].value) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Office's First and Second Contacts should be distinct`
+        + ` phone numbers`
+      );
+    }
+  }
 
-      return locals.batch.commit();
-    })
+  return locals
+    .batch
+    .commit()
     .then(() => sendResponse(conn, code.ok, 'Success'))
     .catch((error) => handleError(conn, error));
 };
