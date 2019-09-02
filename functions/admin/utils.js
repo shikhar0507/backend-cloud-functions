@@ -1743,7 +1743,25 @@ const getUsersWithCheckIn = async officeId => {
   }
 };
 
+const getAuth = async phoneNumber => {
+  try {
+    return auth
+      .getUserByPhoneNumber(phoneNumber);
+  }
+  catch (e) {
+    return ({
+      phoneNumber,
+      uid: null,
+      email: '',
+      emailVerified: false,
+      displayName: '',
+    });
+  }
+};
+
+
 module.exports = {
+  getAuth,
   slugify,
   sendSMS,
   getBranchName,

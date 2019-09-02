@@ -38,6 +38,7 @@ const {
   getGeopointObject,
 } = require('../../admin/admin');
 const {
+  getAuth,
   handleError,
   sendResponse,
 } = require('../../admin/utils');
@@ -51,16 +52,18 @@ const {
  * @param {Array} docs Docs fetched from Firestore.
  * @returns {void}
  */
-const handleResult = (conn, docs) => {
+const handleResult = async (conn, docs) => {
   const result = checkActivityAndAssignee(
     docs,
     conn.requester.isSupportRequest
   );
 
   if (!result.isValid) {
-    sendResponse(conn, code.badRequest, result.message);
-
-    return;
+    return sendResponse(
+      conn,
+      code.badRequest,
+      result.message
+    );
   }
 
   let allAreNew = true;
@@ -70,37 +73,39 @@ const handleResult = (conn, docs) => {
   const template = activity.get('template');
   const isSpecialTemplate = template === 'recipient';
 
-  docs.forEach((doc, index) => {
-    /**
-     * The first two docs are activity doc and the
-     * requester's doc. They have already been validated above.
-     */
-    const isActivityDoc = index === 0;
-    const isRequesterAssigneeDoc = index === 1;
+  docs
+    .forEach((doc, index) => {
+      /**
+       * The first two docs are activity doc and the
+       * requester's doc. They have already been validated above.
+       */
+      const isActivityDoc = index === 0;
+      const isRequesterAssigneeDoc = index === 1;
 
-    if (isActivityDoc) return;
+      if (isActivityDoc) {
+        return;
+      }
 
-    if (isRequesterAssigneeDoc) {
-      return;
-    }
+      if (isRequesterAssigneeDoc) {
+        return;
+      }
 
-    /**
-     * If an `assignee` already exists in the Activity assignee list.
-     */
-    if (doc.exists) {
-      allAreNew = false;
-      phoneNumber = doc.id;
-    }
-  });
+      /**
+       * If an `assignee` already exists in the Activity assignee list.
+       */
+      if (doc.exists) {
+        allAreNew = false;
+        phoneNumber = doc.id;
+      }
+    });
 
-  if (!allAreNew && !isSpecialTemplate) {
-    sendResponse(
+  if (!allAreNew
+    && !isSpecialTemplate) {
+    return sendResponse(
       conn,
       code.badRequest,
       `${phoneNumber} is already an assignee of the activity.`
     );
-
-    return;
   }
 
   const locals = {
@@ -115,6 +120,24 @@ const handleResult = (conn, docs) => {
   };
 
   const promises = [];
+  const checkIns = activity.get('checkIns') || {};
+  const addendumDocRef = rootCollections
+    .offices
+    .doc(activity.get('officeId'))
+    .collection('Addendum')
+    .doc();
+
+  const activityUpdate = {
+    addendumDocRef,
+    timestamp: Date.now(),
+  };
+
+  if (activity.get('template') === 'duty') {
+    activityUpdate
+      .checkIns = {};
+  }
+
+  const authPromises = [];
 
   /**
    * The `share` array from the request body may not
@@ -123,144 +146,172 @@ const handleResult = (conn, docs) => {
   conn.req.body.share.forEach(phoneNumber => {
     const isRequester = phoneNumber === conn.requester.phoneNumber;
 
-    locals.objects.permissions[phoneNumber] = {
-      isAdmin: false,
-      isEmployee: false,
-      isCreator: isRequester,
-    };
+    locals
+      .objects
+      .permissions[phoneNumber] = {
+        isAdmin: false,
+        isEmployee: false,
+        isCreator: isRequester,
+      };
+
+    if (activity.get('template') === 'duty'
+      && !checkIns.hasOwnProperty(phoneNumber)) {
+      activityUpdate
+        .checkIns[phoneNumber] = [];
+
+      authPromises.push(getAuth(phoneNumber));
+    }
 
     if (activity.get('canEditRule') === 'EMPLOYEE') {
-      promises.push(rootCollections
-        .offices
-        .doc(locals.static.officeId)
-        .collection('Activities')
-        .where('attachment.Employee Contact.value', '==', phoneNumber)
-        .where('template', '==', 'employee')
-        .limit(1)
-        .get()
-      );
+      promises
+        .push(rootCollections
+          .offices
+          .doc(activity.get('officeId'))
+          .collection('Activities')
+          .where('attachment.Employee Contact.value', '==', phoneNumber)
+          .where('template', '==', 'employee')
+          .limit(1)
+          .get()
+        );
     }
 
     if (activity.get('canEditRule') === 'ADMIN') {
-      promises.push(rootCollections
-        .offices
-        .doc(locals.static.officeId)
-        .collection('Activities')
-        .where('attachment.Admin.value', '==', phoneNumber)
-        .where('template', '==', 'admin')
-        .limit(1)
-        .get()
-      );
+      promises
+        .push(rootCollections
+          .offices
+          .doc(activity.get('officeId'))
+          .collection('Activities')
+          .where('attachment.Admin.value', '==', phoneNumber)
+          .where('template', '==', 'admin')
+          .limit(1)
+          .get()
+        );
     }
   });
 
-  Promise
-    .all(promises)
-    .then(snapShots => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
+  // All assignees in duty should have `auth`
+  if (activity.get('template') === 'duty') {
+    const userRecords = await Promise
+      .all(authPromises);
 
-        let phoneNumber;
-        const doc = snapShot.docs[0];
-        const template = doc.get('template');
-        const isAdmin = template === 'admin';
-        const isEmployee = template === 'employee';
+    for (const userRecord of userRecords) {
+      if (userRecord.uid) {
+        continue;
+      }
 
-        if (isAdmin) {
-          phoneNumber = doc.get('attachment.Admin.value');
-          locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
-        }
+      return sendResponse(
+        conn,
+        code.conflict,
+        `${userRecord.phoneNumber} is not an active user`
+      );
+    }
+  }
 
-        if (isEmployee) {
-          phoneNumber = doc.get('attachment.Employee Contact.value');
-          locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
-        }
-      });
+  const snapShots = await Promise
+    .all(promises);
 
-      let addToInclude = true;
+  snapShots
+    .forEach(snapShot => {
+      if (snapShot.empty) {
+        return;
+      }
 
-      conn.req.body.share.forEach(phoneNumber => {
-        const isRequester = conn.requester.phoneNumber === phoneNumber;
+      let phoneNumber;
+      const doc = snapShot.docs[0];
+      const template = doc.get('template');
+      const isAdmin = template === 'admin';
+      const isEmployee = template === 'employee';
 
-        if (locals.static.template === 'subscription' && isRequester) {
-          addToInclude = false;
-        }
+      if (isAdmin) {
+        phoneNumber = doc.get('attachment.Admin.value');
+        locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
+      }
 
-        batch.set(rootCollections
-          .activities
-          .doc(conn.req.body.activityId)
-          .collection('Assignees')
-          .doc(phoneNumber), {
-          addToInclude,
-          canEdit: getCanEditValue(locals, phoneNumber),
-        });
-      });
+      if (isEmployee) {
+        phoneNumber = doc.get('attachment.Employee Contact.value');
+        locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
+      }
+    });
 
-      const addendumDocRef = rootCollections
-        .offices
-        .doc(activity.get('officeId'))
-        .collection('Addendum')
-        .doc();
+  let addToInclude = true;
 
-      batch.set(rootCollections
+  conn.req.body.share.forEach(phoneNumber => {
+    const isRequester = conn.requester.phoneNumber === phoneNumber;
+
+    if (activity.get('template') === 'subscription'
+      && isRequester) {
+      addToInclude = false;
+    }
+
+    batch
+      .set(rootCollections
         .activities
-        .doc(conn.req.body.activityId), {
-        addendumDocRef,
-        timestamp: Date.now(),
-      }, {
-        merge: true,
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(phoneNumber), {
+        addToInclude,
+        canEdit: getCanEditValue(locals, phoneNumber),
       });
+  });
 
-      const now = new Date();
+  batch
+    .set(rootCollections
+      .activities
+      .doc(conn.req.body.activityId), activityUpdate, {
+      merge: true,
+    });
 
-      batch.set(addendumDocRef, {
-        date: now.getDate(),
-        month: now.getMonth(),
-        year: now.getFullYear(),
-        dateString: now.toDateString(),
-        activityData: activity.data(),
-        user: conn.requester.phoneNumber,
-        share: conn.req.body.share,
-        action: httpsActions.share,
-        location: getGeopointObject(conn.req.body.geopoint),
-        timestamp: Date.now(),
-        userDeviceTimestamp: conn.req.body.timestamp,
-        activityId: conn.req.body.activityId,
-        activityName: activity.get('activityName'),
-        isSupportRequest: conn.requester.isSupportRequest,
-        provider: conn.req.body.geopoint.provider || null,
-        geopointAccuracy: conn.req.body.geopoint.accuracy || null,
-        userDisplayName: conn.requester.displayName,
-      });
+  const now = new Date();
 
-      return batch.commit();
-    })
-    .then(() => sendResponse(conn, code.ok, ''))
-    .catch((error) => handleError(conn, error));
+  batch
+    .set(addendumDocRef, {
+      date: now.getDate(),
+      month: now.getMonth(),
+      year: now.getFullYear(),
+      dateString: now.toDateString(),
+      activityData: activity.data(),
+      user: conn.requester.phoneNumber,
+      share: conn.req.body.share,
+      action: httpsActions.share,
+      location: getGeopointObject(conn.req.body.geopoint),
+      timestamp: Date.now(),
+      userDeviceTimestamp: conn.req.body.timestamp,
+      activityId: conn.req.body.activityId,
+      activityName: activity.get('activityName'),
+      isSupportRequest: conn.requester.isSupportRequest,
+      provider: conn.req.body.geopoint.provider || null,
+      geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+      userDisplayName: conn.requester.displayName,
+    });
+
+  await batch
+    .commit();
+
+  return sendResponse(
+    conn,
+    code.ok,
+    ''
+  );
 };
 
 
 module.exports = conn => {
   if (conn.req.method !== 'PATCH') {
-    sendResponse(
+    return sendResponse(
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for the /share endpoint. Use PATCH.`
     );
-
-    return;
   }
 
   const result = isValidRequestBody(conn.req.body, httpsActions.share);
 
   if (!result.isValid) {
-    sendResponse(
+    return sendResponse(
       conn,
       code.badRequest,
       result.message
     );
-
-    return;
   }
 
   const activityRef = rootCollections
@@ -277,6 +328,8 @@ module.exports = conn => {
       .get(),
   ];
 
+  // TODO: Handle large number of phone number of phone numbers in the field
+  // 'share'. Firestore batch only accepts 500 docs at once.
   conn
     .req
     .body
@@ -284,7 +337,7 @@ module.exports = conn => {
       promises.push(assigneesCollectionRef.doc(phoneNumber).get())
     );
 
-  Promise
+  return Promise
     .all(promises)
     .then(docs => handleResult(conn, docs))
     .catch(error => handleError(conn, error));

@@ -468,6 +468,23 @@ const createObjects = async (conn, locals, trialRun) => {
       forSalesReport: forSalesReport(locals.templateDoc.get('name')),
     };
 
+    /**
+     * `Note`: This is nested loop, however, the amount of data is pretty
+     * small. This **WILL NOT** matter for a few hundred entries. But, for a
+     * large excel file, this needs to be optimimzed.
+     */
+    if (conn.req.body.template === 'duty') {
+      []
+        .concat(conn.req.body.data[index].Include)
+        .concat(conn.req.body.data[index].Supervisor)
+        .forEach(phoneNumber => {
+          activityObject
+            .checkIns = activityObject.checkIns || {};
+          activityObject
+            .checkIns[phoneNumber] = [];
+        });
+    }
+
     const objectFields = Object.keys(item);
     let scheduleCount = 0;
 
