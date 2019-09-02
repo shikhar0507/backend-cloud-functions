@@ -1309,6 +1309,12 @@ const validateDataArray = async (conn, locals) => {
         conn.req.body.data[index].rejected = true;
         conn.req.body.data[index].reason = `Please add at least one supervisor`;
       }
+
+      if (firstSupervisor === secondSupervisor && secondSupervisor === thirdSupervisor) {
+        conn.req.body.data[index].rejected = true;
+        conn.req.body.data[index].reason = `Employee supervisors should be distinct`
+          + ` phone numbers`;
+      }
     }
 
     objectProperties.forEach(property => {
