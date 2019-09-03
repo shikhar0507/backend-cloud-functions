@@ -1380,8 +1380,6 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
   // (sublocaliy1 + sublocality2 + locality)
   let locationName = '';
 
-  console.log({ nameFromUser });
-
   addressComponents.forEach(component => {
     const { types, short_name } = component;
 
@@ -1433,8 +1431,6 @@ const getCustomerObject = async queryObject => {
         query: queryObject.address,
       })
       .asPromise();
-
-    console.log({ queryObject });
     let success = true;
 
     const firstResult = placesApiResponse

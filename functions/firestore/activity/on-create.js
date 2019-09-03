@@ -50,6 +50,7 @@ const {
   handleError,
   sendResponse,
   getRelevantTime,
+  getCustomerObject,
   getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
@@ -115,10 +116,6 @@ const createDocsWithBatch = async (conn, locals) => {
   }
 
   if (conn.req.body.template === 'customer') {
-    const {
-      getCustomerObject,
-    } = require('../../admin/utils');
-
     const placesQueryResult = await getCustomerObject({
       address: conn.req.body.venue[0].address,
       location: conn.req.body.attachment.Name.value
@@ -129,21 +126,11 @@ const createDocsWithBatch = async (conn, locals) => {
     activityData = placesQueryResult;
 
     if (placesQueryResult.failed) {
-      activityData.attachment = conn.req.body.attachment;
-      activityData.schedule = conn.req.body.schedule;
-      activityData.venue = conn.req.body.venue;
-
-      delete activityData.location;
-      delete activityData.address;
-
-      locals.batch.set(rootCollections.instant.doc(), {
-        subject: `${process.env.GCLOUD_PROJECT}: Customer`
-          + ` created with ZERO_RESULTS from Places API`,
-        messageBody: JSON.stringify({
-          requestBody: conn.req.body,
-          requester: conn.requester.phoneNumber,
-        }, ' ', 2),
-      });
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Address '${conn.req.body.venue[0].address}' is not valid`
+      );
     }
   }
 
