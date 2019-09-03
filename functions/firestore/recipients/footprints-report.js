@@ -170,8 +170,6 @@ const handleScheduleReport = async (locals, workbook) => {
         return;
       }
 
-      numberOfEntries++;
-
       const columnIndex = index + 2;
       const activityName = doc.get('activityName');
       // This is duty type
