@@ -2330,6 +2330,14 @@ module.exports = async conn => {
         attachmentFieldsSet
           .forEach(fieldName => {
             if (conn.req.body.data[index].hasOwnProperty(fieldName)) {
+              if (typeof conn.req.body.data[index][fieldName] === 'string') {
+                conn.req.body.data[index][fieldName] =
+                  // Replacing tab and newline chars from input
+                  conn.req.body.data[index][fieldName]
+                    .replace(/\s\s+/g, ' ')
+                    .trim();
+              }
+
               return;
             }
 
