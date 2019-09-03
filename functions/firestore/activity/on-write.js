@@ -492,6 +492,11 @@ const handleXTypeActivities = async locals => {
       delete activityData
         .addendumDocRef;
 
+      activityData
+        .canEdit = locals
+          .adminsCanEdit
+          .includes(subscriber);
+
       const ref = rootCollections
         .profiles
         .doc(subscriber)
@@ -3669,8 +3674,8 @@ const handleCheckIn = async locals => {
 
       const gp2 = locals.addendumDocData.location;
       const gp1 = {
-        latitude: relevantTimeActivities.customerObject.latitude,
-        longitude: relevantTimeActivities.customerObject.longitude,
+        latitude: doc.get('customerObject.latitude'),
+        longitude: doc.get('customerObject.longitude'),
       };
 
       if (haversineDistance(gp1, gp2) > 1) {
