@@ -54,10 +54,6 @@ const getTemplateId = report => {
     return sendGridTemplateIds.payroll;
   }
 
-  if (report === reportNames.SCHEDULE) {
-    return sendGridTemplateIds.schedule;
-  }
-
   return null;
 };
 
@@ -70,10 +66,6 @@ const getSubject = (report, office, dateString) => {
 
   if (report === 'payroll') {
     start += 'Payroll';
-  }
-
-  if (report === 'schedule') {
-    start += `Schedule`;
   }
 
   return `${start} Report_${office}_${dateString}`;
@@ -207,10 +199,6 @@ module.exports = async change => {
 
     if (report === reportNames.PAYROLL) {
       await require('./payday-report')(locals);
-    }
-
-    if (report === reportNames.SCHEDULE) {
-      await require('./schedule-report')(locals);
     }
 
     if (!env.isProduction) {

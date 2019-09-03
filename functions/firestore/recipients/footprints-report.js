@@ -13,6 +13,7 @@ const {
   dateFormats,
 } = require('../../admin/constants');
 const {
+  getName,
   alphabetsArray,
   employeeInfo,
   timeStringWithOffset,
@@ -105,6 +106,150 @@ const getComment = doc => {
   // action is 'comment'
   return doc.get('comment');
 };
+
+const handleScheduleReport = async (locals, workbook) => {
+  const timestampFromTimer = locals
+    .change
+    .after
+    .get('timestamp');
+  const timezone = locals
+    .officeDoc
+    .get('attachment.Timezone.value');
+  const momentFromTimer = momentTz(timestampFromTimer)
+    .tz(timezone);
+  const timestampMinus24Hours = momentFromTimer
+    .clone()
+    .startOf('day')
+    .subtract(24, 'hours');
+  const timestampPlus24Hours = momentFromTimer
+    .clone()
+    .endOf('day')
+    .add(24, 'hours');
+  const monthYearString = momentFromTimer
+    .format(dateFormats.MONTH_YEAR);
+
+  const activities = await locals
+    .officeDoc
+    .ref
+    .collection('Activities')
+    .where('relevantTime', '>=', timestampMinus24Hours.valueOf())
+    .where('relevantTime', '<=', timestampPlus24Hours.valueOf())
+    .orderBy('relevantTime', 'desc')
+    .get();
+
+  if (activities.empty) {
+    return;
+  }
+
+  const worksheet = workbook
+    .addSheet(`Schedule ${monthYearString}`);
+
+  [
+    'Activity Name',
+    'Activity - Type',
+    'Customer Name',
+    'Customer Code',
+    'Customer Address',
+    'Schedule',
+    'Created By',
+    'Supervisor',
+    'Status',
+    'Last Updated On',
+    'Check-In Times'
+  ].forEach((field, index) => {
+    worksheet
+      .cell(`${alphabetsArray[index]}1`)
+      .value(field);
+  });
+
+  let index = 0;
+
+  activities
+    .forEach(doc => {
+      if (doc.get('template') !== 'duty') {
+        return;
+      }
+
+      numberOfEntries++;
+
+      const columnIndex = index + 2;
+      const activityName = doc.get('activityName');
+      // This is duty type
+      const activityType = doc.get('attachment.Duty Type.value');
+      const schedule = doc.get('schedule')[0];
+      const status = doc.get('status');
+      const startTime = momentTz(schedule.startTime)
+        .tz(timezone)
+        .format(dateFormats.DATE_TIME);
+      const endTime = momentTz(schedule.endTime)
+        .tz(timezone)
+        .format(dateFormats.DATE_TIME);
+      const createdBy = doc.get('creator.displayName')
+        || doc.get('creator.phoneNumber');
+      const lastUpdatedOn = momentTz(doc.get('timestamp'))
+        .tz(timezone)
+        .format(dateFormats.DATE_TIME);
+      const checkIns = doc.get('checkIns') || {};
+      let checkInTimes = '';
+
+      Object
+        .keys(checkIns)
+        .forEach(phoneNumber => {
+          const timestamps = checkIns[phoneNumber]; // Array of ts
+          const name = getName(locals.employeesData, phoneNumber);
+
+          if (timestamps.length === 0) {
+            checkInTimes += `${name} (-- to --, 0) \n`;
+
+            return;
+          }
+
+          const firstCheckInFormatted = momentTz(timestamps[0])
+            .tz(timezone)
+            .format(dateFormats.DATE_TIME);
+          const lastCheckInFormatted = momentTz(timestamps[timestamps.length - 1])
+            .tz(timezone)
+            .format(dateFormats.DATE_TIME);
+
+          checkInTimes += `${name} (${firstCheckInFormatted}`
+            + ` to ${lastCheckInFormatted}, ${timestamps.length})`;
+
+          checkInTimes += '\n';
+        });
+
+      const customerName = doc
+        .get('customerObject.Name');
+      const customerCode = doc
+        .get('customerObject.Customer Code');
+      const customerAddress = doc
+        .get('customerObject.address');
+      const supervisor = getName(
+        locals.employeesData,
+        doc.get('attachment.Supervisor.value')
+      );
+
+      [
+        activityName,
+        activityType,
+        customerName,
+        customerCode,
+        customerAddress,
+        `${startTime} - ${endTime}`,
+        createdBy,
+        supervisor,
+        status,
+        lastUpdatedOn,
+        checkInTimes,
+      ].forEach((value, i) => {
+        worksheet
+          .cell(`${alphabetsArray[i]}${columnIndex}`)
+          .value(value);
+      });
+
+      index++;
+    });
+};
+
 
 module.exports = async locals => {
   const timezone = locals
@@ -394,6 +539,8 @@ module.exports = async locals => {
 
     await Promise
       .all(batchArray.map(batch => batch.commit()));
+
+    await handleScheduleReport(locals, workbook);
 
     locals
       .messageObject
