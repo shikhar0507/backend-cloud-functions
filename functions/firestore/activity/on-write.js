@@ -3084,19 +3084,6 @@ const handleAddendum = async locals => {
       .venueQuery = activityDoc.get('venue')[0];
   }
 
-  if (addendumDoc.get('activityData.venue')
-    && addendumDoc.get('activityData.venue')[0]
-    && addendumDoc.get('activityData.venue')[0].location === '') {
-    batch
-      .set(rootCollections
-        .profiles
-        .doc(phoneNumber), {
-        lastLocationMapUpdateTimestamp: Date.now(),
-      }, {
-        merge: true,
-      });
-  }
-
   // Required for comment creation since the addendumDoc.data() won't contain
   // the updates made during this function instance
   // eslint-disable-next-line require-atomic-updates
