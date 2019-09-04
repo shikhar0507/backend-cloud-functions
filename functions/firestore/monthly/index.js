@@ -60,8 +60,8 @@ module.exports = async (change, context) => {
       .set({
         statusObject: result,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
   } catch (error) {
     console.error(error);
   }
