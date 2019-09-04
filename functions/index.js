@@ -104,7 +104,7 @@ const temporaryImageHandler = functions
   .storage
   .bucket(env.tempBucketName)
   .object()
-  .onFinalize(require('./temporary-image-handler.js'));
+  .onFinalize(require('./temporary-image-handler'));
 
 
 module.exports = {
