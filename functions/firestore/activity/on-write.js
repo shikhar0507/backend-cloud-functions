@@ -2149,7 +2149,7 @@ const handleBranch = async locals => {
     .where('template', '==', 'employee')
     .where('status', '==', 'CONFIRMED')
     .where('office', '==', office)
-    .where('attachment.Branch.value', '==', branchName)
+    .where('attachment.Base Location.value', '==', branchName)
     .get();
 
   const promises = [];
@@ -3648,6 +3648,8 @@ const handleCheckIn = async locals => {
 
   const batch = db.batch();
 
+  console.log('relevantTimeActivities', relevantTimeActivities.size);
+
   relevantTimeActivities
     .forEach(doc => {
       if (doc.get('officeId')
@@ -3661,11 +3663,18 @@ const handleCheckIn = async locals => {
 
       const gp2 = locals.addendumDocData.location;
       const gp1 = {
-        latitude: doc.get('customerObject.latitude'),
-        longitude: doc.get('customerObject.longitude'),
+        _latitude: doc.get('customerObject.latitude'),
+        _longitude: doc.get('customerObject.longitude'),
       };
 
-      if (haversineDistance(gp1, gp2) > 1) {
+      console.log('gp1', gp1);
+      console.log('gp2', gp2);
+
+      const hd = haversineDistance(gp1, gp2);
+
+      console.log('hd', hd);
+
+      if (hd > 1) {
         return;
       }
 
@@ -3902,6 +3911,17 @@ module.exports = async (change, context) => {
     const userRecords = await Promise
       .all(authFetch);
 
+    let customerObject = null;
+
+    if (locals.addendumDoc
+      && locals.addendumDoc.get('action') === httpsActions.create
+      && locals.change.after.get('attachment.Location.value')) {
+      customerObject = await getCustomerObject(
+        locals.change.after.get('attachment.Location.value'),
+        locals.change.after.get('officeId')
+      );
+    }
+
     userRecords
       .forEach(userRecord => {
         const { phoneNumber } = userRecord;
@@ -3961,6 +3981,11 @@ module.exports = async (change, context) => {
             canEdit: locals.assigneesMap.get(phoneNumber).canEdit,
             timestamp: Date.now(),
           });
+
+        if (customerObject) {
+          profileActivityObject
+            .customerObject = customerObject;
+        }
 
         profileActivityObject
           .assignees = (() => {
@@ -4040,17 +4065,9 @@ module.exports = async (change, context) => {
       activityData
         .creationYear = date.getFullYear();
 
-      if (activityData.attachment.Location
-        && activityData.attachment.Location.value) {
+      if (customerObject) {
         activityData
-          .customerObject = await getCustomerObject(
-            activityData
-              .attachment
-              .Location
-              .value,
-            activityData
-              .officeId
-          );
+          .customerObject = customerObject;
       }
     }
 
