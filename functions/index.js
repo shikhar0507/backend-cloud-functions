@@ -106,6 +106,12 @@ const temporaryImageHandler = functions
   .object()
   .onFinalize(require('./storage/temporary-image-handler'));
 
+const bulkCreateHandler = functions
+  .storage
+  .bucket(env.bulkStorageBucketName)
+  .object()
+  .onFinalize(require('./storage/bulk'));
+
 
 module.exports = {
   api,
@@ -118,6 +124,7 @@ module.exports = {
   instantOnCreate,
   activityOnWrite,
   assigneeOnDelete,
+  bulkCreateHandler,
   recipientsOnUpdate,
   sendPushNotification,
   temporaryImageHandler,
