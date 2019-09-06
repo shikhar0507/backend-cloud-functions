@@ -1377,26 +1377,31 @@ const millitaryToHourMinutes = fourDigitTime => {
 };
 
 const getCustomerName = (addressComponents, nameFromUser = '') => {
-  // (sublocaliy1 + sublocality2 + locality)
+  // old: (sublocaliy1 + sublocality2 + locality)
+  // new: sublocality_level_1 + administrative_area_level_1 (long_name) + admininstrative_area_level_1 (short_name)
   let locationName = '';
 
   addressComponents.forEach(component => {
-    const { types, short_name } = component;
+    const {
+      types,
+      short_name,
+      long_name,
+    } = component;
 
     if (types.includes('sublocality_level_1')) {
-      locationName += ` ${short_name}`;
+      locationName += ` ${long_name}`;
     }
 
-    if (types.includes('sublocality_level_2')) {
-      locationName += ` ${short_name}`;
+    if (types.includes('administrative_area_level_2')) {
+      locationName += ` ${long_name}`;
     }
 
-    if (types.includes('locality')) {
+    if (types.includes('administrative_area_level_1')) {
       locationName += ` ${short_name}`;
     }
   });
 
-  return `${locationName} ${nameFromUser}`.trim();
+  return `${nameFromUser.substring(0, 10)} ${locationName}`.trim();
 };
 
 const getCustomerObject = async queryObject => {
