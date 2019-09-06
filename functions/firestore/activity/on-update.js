@@ -35,7 +35,6 @@ const {
   db,
 } = require('../../admin/admin');
 const {
-  toCustomerObject,
   activityName,
   validateVenues,
   getCanEditValue,

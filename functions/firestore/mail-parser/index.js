@@ -1,11 +1,9 @@
 'use strict';
 
 const {
-  users,
   auth,
 } = require('../../admin/admin');
 const {
-  sendJSON,
   multipartParser,
 } = require('../../admin/utils');
 const {
@@ -142,5 +140,5 @@ module.exports = async conn => {
     customClaims: userRecord.customClaims,
   };
 
-  return await require('../firestore/bulk/script')(conn);
+  return require('../firestore/bulk/script')(conn);
 };
