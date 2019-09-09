@@ -1401,7 +1401,11 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
     }
   });
 
-  return `${nameFromUser.substring(0, 10)} ${locationName}`.trim();
+  return `${nameFromUser.substring(0, 10)}`
+    + ` ${locationName}`
+      .trim()
+      // Replace double spaces and other non-printable chars
+      .replace(/\s\s+/g, ' ');
 };
 
 const getCustomerObject = async queryObject => {
@@ -1745,19 +1749,17 @@ const getUsersWithCheckIn = async officeId => {
 };
 
 const getAuth = async phoneNumber => {
-  try {
-    return auth
-      .getUserByPhoneNumber(phoneNumber);
-  }
-  catch (e) {
-    return ({
-      phoneNumber,
-      uid: null,
-      email: '',
-      emailVerified: false,
-      displayName: '',
+  return auth
+    .getUserByPhoneNumber(phoneNumber)
+    .catch(() => {
+      return ({
+        phoneNumber,
+        uid: null,
+        email: '',
+        emailVerified: false,
+        displayName: '',
+      });
     });
-  }
 };
 
 
