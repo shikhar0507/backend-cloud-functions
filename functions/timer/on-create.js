@@ -225,16 +225,18 @@ module.exports = async timerDoc => {
           .set(doc.ref, { timestamp: Date.now() }, { merge: true });
       });
 
-    batch.set(counterDocsQuery.docs[0].ref, {
-      /**
-       * Storing this value in the daily status report counts doc in order
-       * to check if all reports have finished their work.
-       */
-      expectedRecipientTriggersCount: recipientsQuery.size,
-      recipientsTriggeredToday: 0,
-    }, {
-      merge: true,
-    });
+    if (env.isProduction) {
+      batch.set(counterDocsQuery.docs[0].ref, {
+        /**
+         * Storing this value in the daily status report counts doc in order
+         * to check if all reports have finished their work.
+         */
+        expectedRecipientTriggersCount: recipientsQuery.size,
+        recipientsTriggeredToday: 0,
+      }, {
+        merge: true,
+      });
+    }
 
     await batch.commit();
 
