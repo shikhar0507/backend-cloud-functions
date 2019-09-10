@@ -2,7 +2,6 @@
 
 const {
   dateFormats,
-  httpsActions,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
@@ -29,6 +28,10 @@ module.exports = async locals => {
   const mmomentYesterday = momentToday
     .clone()
     .subtract(1, 'day');
+  const dateYesterday = mmomentYesterday
+    .date();
+  const monthYearString = mmomentYesterday
+    .format(dateFormats.MONTH_YEAR);
 
   const [
     snapShot,
@@ -38,11 +41,9 @@ module.exports = async locals => {
       locals
         .officeDoc
         .ref
-        .collection('Addendum')
-        .where('action', '==', httpsActions.checkIn)
-        .where('date', '==', mmomentYesterday.date())
-        .where('month', '==', mmomentYesterday.month())
-        .where('year', '==', mmomentYesterday.year())
+        .collection('Statuses')
+        .doc(monthYearString)
+        .collection('Employees')
         .get(),
       xlsxPopulate
         .fromBlankAsync(),
@@ -64,63 +65,68 @@ module.exports = async locals => {
     'Status',
   ].forEach((value, index) => {
     reimbursementSheet
-      .cell(`${alphabetsArray[index]}`)
+      .cell(`${alphabetsArray[index]}1`)
       .value(value);
   });
 
+  const allDates = Array
+    .from(
+      new Array(dateYesterday),
+      (_, i) => i + 1
+    );
+  const allOrderedItems = [];
+
   snapShot
-    .docs
-    .forEach((doc, index) => {
+    .forEach(doc => {
+      const statusObject = doc.get('statusObject');
+
+      allDates
+        .forEach(date => {
+          const item = statusObject[date] || {};
+          const reimbursements = item.reimbursements || [];
+
+          // FIXME: This loop is bad. Optimize this.
+          reimbursements
+            .forEach(object => {
+              allOrderedItems.push({
+                photoUrl: object.photoUrl,
+                amount: object.amount,
+                details: object.details,
+                identifier: object.identifier,
+                latitude: object.latitude,
+                longitude: object.longitude,
+                template: object.template,
+                phoneNumber: doc.get('phoneNumber'),
+              });
+            });
+        });
+    });
+
+  allOrderedItems
+    .forEach((item, index) => {
       const columnIndex = index + 2;
-      const phoneNumber = doc.get('user');
-      const name = getName(locals.employeesData, phoneNumber);
-      const createTime = momentTz(doc.createTime.toDate())
-        .tz(timezone)
-        .format(dateFormats.DATE_TIME);
-      const photoUrl = doc.get('attachment.Photo Url.value');
-
-      const type = (() => {
-        const template = doc.get('activityData.template');
-
-        if (template === 'km allowance'
-          || template === 'daily allowance') {
-          return template;
-        }
-
-        return doc.get('attachment.Claim Type.value');
-      })();
 
       reimbursementSheet
         .cell(`A${columnIndex}`)
-        .value(name); // employee name
+        .value(getName(locals.employeesData, item.phoneNumber));
       reimbursementSheet
         .cell(`B${columnIndex}`)
-        .value(type); // claim type // 'km allowance' || 'daily allowance'
+        .value(item.template);
       reimbursementSheet
         .cell(`C${columnIndex}`)
-        .value(doc.get('attachment.Amount.value')); // amount
+        .value(item.amount);
       reimbursementSheet
         .cell(`D${columnIndex}`)
-        .value(doc.get('attachment.Details.value')); // details
-
-      if (phoneNumber) {
-        reimbursementSheet
-          .cell(`E${columnIndex}`)
-          .value(photoUrl)
-          .style({ fontColor: '0563C1', underline: true })
-          .hyperlink(doc.get('activityData.attachment.Photo.value'));
-      } else {
-        reimbursementSheet
-          .cell(`E${columnIndex}`)
-          .value('');
-      }
-
+        .value(item.details);
+      reimbursementSheet
+        .cell(`E${columnIndex}`)
+        .value(item['Photo Url']);
       reimbursementSheet
         .cell(`F${columnIndex}`)
-        .value(createTime);
+        .value(momentTz(item.timestamp).tz(timezone).format(dateFormats.DATE_TIME));
       reimbursementSheet
         .cell(`G${columnIndex}`)
-        .value(doc.get('activityData.status'));
+        .value(item.status);
     });
 
   locals
