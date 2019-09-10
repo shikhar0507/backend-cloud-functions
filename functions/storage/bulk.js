@@ -57,6 +57,7 @@ const templateNamesObject = {
   DUTY: 'duty',
   CUSTOMER: 'customer',
   BRANCH: 'branch',
+  KM_ALLOWANCE: 'km allowance',
 };
 
 const getOrderedFields = name => {
@@ -400,6 +401,10 @@ const generateExcel = async locals => {
           name: userRecord.displayName,
         });
     });
+
+  if (!env.isProduction) {
+    messageObject.to = env.devEmail;
+  }
 
   console.log('Mail sent to:', messageObject.to);
 
@@ -2086,6 +2091,82 @@ const handleBranch = async locals => {
   return;
 };
 
+const handleKmAllowance = async locals => {
+  if (locals.templateDoc.get('name')
+    !== templateNamesObject.KM_ALLOWANCE) {
+    return;
+  }
+
+  const homeLocationPromises = [];
+  const homeLocationsSet = new Set();
+  const officeId = locals.officeDoc.id;
+  const existingLocationsSet = new Set();
+
+  locals.inputObjects.forEach((item, index) => {
+    // const homeLocation = item['Home Location'];
+    const filters = [
+      item['Include Branch'],
+      item.Local,
+      item['Up Country'],
+    ];
+
+    if (filters.filter(Boolean).length === filters.length) {
+      locals.inputObjects[index].rejected = true;
+      locals.inputObjects[index].reason = `Only one among (Include Branch, Local and Up Country)`
+        + ` can be true`;
+    }
+
+    homeLocationsSet.add(item['Home Location']);
+  });
+
+  homeLocationsSet.forEach(homeLocation => {
+    const baseQuery = rootCollections
+      .activities
+      .where('officeId', '==', officeId)
+      .where('status', '==', 'CONFIRMED')
+      .where('attachment.Name.value', '==', homeLocation);
+
+    const p1 = baseQuery
+      .where('template', '==', 'customer')
+      .limit(1)
+      .get();
+
+    const p2 = baseQuery
+      .where('template', '==', 'branch')
+      .limit(1)
+      .get();
+
+    homeLocationPromises
+      .push(p1, p2);
+  });
+
+  const snaps = await Promise.all(homeLocationPromises);
+
+  snaps.forEach(snap => {
+    if (snap.empty) {
+      return;
+    }
+
+    const doc = snap.docs[0];
+    const name = doc.get('attachment.Name.value');
+
+    existingLocationsSet.add(name);
+  });
+
+  locals.inputObjects.forEach((item, index) => {
+    const homeLocation = item['Home Location'];
+
+    if (existingLocationsSet.has(homeLocation)) {
+      return;
+    }
+
+    locals.inputObjects[index].rejected = true;
+    locals.inputObjects[index].reason = `Home Location:`
+      + ` '${homeLocation} doesn't exist'`;
+  });
+
+  return;
+};
 
 const handleDuty = async locals => {
   if (locals.templateDoc.get('name')
@@ -2623,6 +2704,7 @@ module.exports = async (object, context) => {
     await handleCustomer(locals);
     await handleBranch(locals);
     await handleDuty(locals);
+    await handleKmAllowance(locals);
 
     return validateDataArray(locals);
   } catch (error) {
