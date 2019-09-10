@@ -152,7 +152,7 @@ const createDocs = (conn, activityDoc) => {
 };
 
 
-const handleResult = (conn, docs) => {
+const handleResult = async (conn, docs) => {
   const result = checkActivityAndAssignee(
     docs,
     conn.requester.isSupportRequest
@@ -166,7 +166,8 @@ const handleResult = (conn, docs) => {
     activityDoc,
   ] = docs;
 
-  if (activityDoc.get('status') === conn.req.body.status) {
+  if (activityDoc.get('status')
+    === conn.req.body.status) {
     return sendResponse(
       conn,
       code.conflict,
@@ -174,32 +175,36 @@ const handleResult = (conn, docs) => {
     );
   }
 
-  const template = activityDoc.get('template');
-  const attachment = activityDoc.get('attachment');
-  const hasName = attachment.hasOwnProperty('Name');
-  const officeId = activityDoc.get('officeId');
+  const attachment = activityDoc
+    .get('attachment');
 
-  if (!hasName || conn.req.body.status !== 'CANCELLED') {
+  if (!attachment.hasOwnProperty('Name')
+    || conn.req.body.status !== 'CANCELLED') {
     return createDocs(conn, activityDoc);
   }
 
-  return rootCollections
+  // name is cancelled and another activity with
+  // the same template and name exists, then
+  // dont allow setting the status to CONFIRMED.
+  const namedActivities = await rootCollections
     .offices
-    .doc(officeId)
+    .doc(activityDoc.get('officeId'))
     .collection('Activities')
-    .where('template', '==', template)
+    .where('template', '==', activityDoc.get('template'))
     .where('attachment.Name.value', '==', attachment.Name.value)
     .where('isCancelled', '==', false)
     .limit(2)
-    .get()
-    .then((docs) => {
-      if (docs.size > 1) {
-        return sendResponse(conn, code.conflict, 'Not allowed');
-      }
+    .get();
 
-      return createDocs(conn, activityDoc);
-    })
-    .catch((error) => handleError(conn, error));
+  if (namedActivities.size > 1) {
+    return sendResponse(
+      conn,
+      code.conflict,
+      'Not allowed'
+    );
+  }
+
+  return createDocs(conn, activityDoc);
 };
 
 
