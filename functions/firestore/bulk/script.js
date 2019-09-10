@@ -61,58 +61,6 @@ const handleValidation = body => {
     };
   }
 
-  // if (!Array.isArray(body.data) ||
-  //   !body.hasOwnProperty('data')) {
-  //   return {
-  //     success: false,
-  //     message: messageString('data'),
-  //   };
-  // }
-
-  // if (body.data.length === 0) {
-  //   return {
-  //     success: false,
-  //     message: `Invalid/empty excel file`,
-  //   };
-  // }
-
-  // for (let iter = 0; iter < body.data.length; iter++) {
-  //   const item = body.data[iter];
-
-  //   if (!item) {
-  //     return {
-  //       success: false,
-  //       message: `Expected an array of objects in the field 'data'`,
-  //     };
-  //   }
-
-  //   const shareArray = item.share || [];
-
-  //   for (let index = 0; index < shareArray.length; index++) {
-  //     const phoneNumber = shareArray[index];
-
-  //     if (isE164PhoneNumber(phoneNumber)) {
-  //       continue;
-  //     }
-
-  //     return {
-  //       success: false,
-  //       message: `Invalid phoneNumber '${phoneNumber}'` +
-  //         ` in data object at index: ${iter}`,
-  //     };
-  //   }
-
-  //   // Only an actual object is allowed
-  //   if (Object.prototype.toString.call(item) === '[object Object]') {
-  //     continue;
-  //   }
-
-  //   return {
-  //     success: false,
-  //     message: `In field 'data', object at position: ${iter} is invalid`,
-  //   };
-  // }
-
   return result;
 };
 

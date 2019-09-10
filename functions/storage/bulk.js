@@ -2097,15 +2097,8 @@ const handleKmAllowance = async locals => {
     return;
   }
 
-  const homeLocationPromises = [];
-  const homeLocationsSet = new Set();
-  const officeId = locals.officeDoc.id;
-  const existingLocationsSet = new Set();
-
   locals.inputObjects.forEach((item, index) => {
-    // const homeLocation = item['Home Location'];
     const filters = [
-      item['Include Branch'],
       item.Local,
       item['Up Country'],
     ];
@@ -2115,54 +2108,6 @@ const handleKmAllowance = async locals => {
       locals.inputObjects[index].reason = `Only one among (Include Branch, Local and Up Country)`
         + ` can be true`;
     }
-
-    homeLocationsSet.add(item['Home Location']);
-  });
-
-  homeLocationsSet.forEach(homeLocation => {
-    const baseQuery = rootCollections
-      .activities
-      .where('officeId', '==', officeId)
-      .where('status', '==', 'CONFIRMED')
-      .where('attachment.Name.value', '==', homeLocation);
-
-    const p1 = baseQuery
-      .where('template', '==', 'customer')
-      .limit(1)
-      .get();
-
-    const p2 = baseQuery
-      .where('template', '==', 'branch')
-      .limit(1)
-      .get();
-
-    homeLocationPromises
-      .push(p1, p2);
-  });
-
-  const snaps = await Promise.all(homeLocationPromises);
-
-  snaps.forEach(snap => {
-    if (snap.empty) {
-      return;
-    }
-
-    const doc = snap.docs[0];
-    const name = doc.get('attachment.Name.value');
-
-    existingLocationsSet.add(name);
-  });
-
-  locals.inputObjects.forEach((item, index) => {
-    const homeLocation = item['Home Location'];
-
-    if (existingLocationsSet.has(homeLocation)) {
-      return;
-    }
-
-    locals.inputObjects[index].rejected = true;
-    locals.inputObjects[index].reason = `Home Location:`
-      + ` '${homeLocation} doesn't exist'`;
   });
 
   return;
@@ -2533,7 +2478,6 @@ module.exports = async (object, context) => {
     const [
       officeId,
       template,
-      fileName,
     ] = object.name.split('/');
     const bucket = admin
       .storage()
@@ -2565,15 +2509,6 @@ module.exports = async (object, context) => {
         defval: '',
         raw: false,
       });
-
-    console.log({
-      officeId,
-      template,
-      fileName,
-      inputObjects: inputObjects.length,
-      metadataResponse: metadataResponse.metadata,
-      metageneration: object.metageneration,
-    });
 
     const promises = [
       rootCollections
