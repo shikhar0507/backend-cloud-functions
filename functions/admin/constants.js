@@ -129,6 +129,7 @@ const phoneNumberUpdateBodyFields = new Map()
   .set('phoneNumber', 'phoneNumber');
 
 const httpsActions = {
+  checkIn: 'check-in',
   share: 'share',
   update: 'update',
   create: 'create',
@@ -152,18 +153,12 @@ const reportingActions = {
 };
 
 const sendGridTemplateIds = {
-  dsr: 'd-e7a922e42d67456dafcc2926731250a0',
-  leave: 'd-ae3a31066b0f447bbf8661570b4dc719',
   payroll: 'd-cf7785c6a4a04285b1b2cee7d0227052',
-  signUps: 'd-a73b2f579c8746758ba2753fbb0341df',
-  enquiry: 'd-9a2c07b40a644b1b97a5345bbc984c4c',
-  installs: 'd-835f877b46bb4cc8aad6df8d735e27a1',
-  dutyRoster: 'd-9b9c44018c3b41a8805189476a38c172',
   footprints: 'd-90095557c1c54de1a153626bb0fbe03d',
-  expenseClaim: 'd-ae3a31066b0f447bbf8661570b4dc719',
   activityReports: 'd-2972abe4d32443fab45c75d901ffb02a',
   verificationEmail: 'd-7645b372912a490eb2062cf5cc076041',
   dailyStatusReport: 'd-a48d570e46914d0d8989f77a844a26e9',
+  schedule: 'd-ae3a31066b0f447bbf8661570b4dc719',
 };
 
 const templatesWithNumber = new Set()
@@ -806,13 +801,16 @@ const timezonesSet = new Set()
 
 const dateFormats = {
   TIME: 'LT',
+  HH_MM: 'HH:mm',
   DATE: 'Do MMM YYYY',
   DATE_TIME: 'MMM D YYYY HH[:]mm A',
   MONTH_YEAR: 'MMMM YYYY',
   MONTH_DATE: 'MMM DD',
+  EXCEL_INPUT: 'D MMMM gggg HH:mm',
 };
 
 const reportNames = {
+  SCHEDULE: 'schedule',
   COUNTER: 'counter',
   CUSTOMER: 'customer',
   ACTIVIT_REPORT: 'activity report',

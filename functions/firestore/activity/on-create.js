@@ -49,11 +49,73 @@ const {
 const {
   handleError,
   sendResponse,
+  getRelevantTime,
+  getCustomerObject,
   getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 const fs = require('fs');
+const dinero = require('dinero.js');
+
+
+const getClaimStatus = async params => {
+  const {
+    claimType,
+    officeId,
+    phoneNumber,
+    timezone,
+  } = params;
+  const momentToday = momentTz()
+    .tz(timezone);
+
+  const [
+    claimActivities,
+    claimTypeActivity,
+  ] = await Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Activities')
+        .where('template', '==', 'claim')
+        .where('creator.phoneNumber', '==', phoneNumber)
+        .where('attachment.Claim Type.value', '==', claimType)
+        .where('creationMonth', '==', momentToday.month())
+        .where('creationYear', '==', momentToday.year())
+        .where('isCancelled', '==', false)
+        .get(),
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Activities')
+        .where('template', '==', 'claim-type')
+        .where('attachment.Name.value', '==', claimType)
+        .limit(1)
+        .get()
+    ]);
+
+  const claimTypeDoc = claimTypeActivity.docs[0];
+  const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
+
+  let claimsThisMonth = dinero({ amount: 0 });
+
+  claimActivities.forEach(doc => {
+    const amount = Number(doc.get('attachment.Amount.value') || 0);
+
+    claimsThisMonth = claimsThisMonth
+      .add(dinero({ amount }));
+  });
+
+  const o = {
+    monthlyLimit,
+    claimsThisMonth: claimsThisMonth.getAmount(),
+  };
+
+  console.log(JSON.stringify(o, ' ', 2));
+
+  return o;
+};
 
 
 const createDocsWithBatch = async (conn, locals) => {
@@ -77,9 +139,9 @@ const createDocsWithBatch = async (conn, locals) => {
       locals.batch.set(locals.docs.activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
-          addToInclude,
-          canEdit,
-        });
+        addToInclude,
+        canEdit,
+      });
     });
 
   const addendumDocRef = rootCollections
@@ -88,7 +150,9 @@ const createDocsWithBatch = async (conn, locals) => {
     .collection('Addendum')
     .doc();
 
-  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const timezone = locals
+    .officeDoc
+    .get('attachment.Timezone.value');
 
   let activityData = {
     venue: locals.objects.venueArray,
@@ -96,11 +160,22 @@ const createDocsWithBatch = async (conn, locals) => {
     attachment: conn.req.body.attachment,
   };
 
-  if (conn.req.body.template === 'customer') {
-    const {
-      getCustomerObject,
-    } = require('../../admin/utils');
+  const relevantTime = getRelevantTime(activityData.schedule);
 
+  if (activityData.schedule.length > 0) {
+    activityData
+      .relevantTime = relevantTime;
+  }
+
+  if (activityData.attachment.Location
+    && activityData.attachment.Location.value
+    && activityData.relevantTime) {
+    activityData
+      .relevantTimeAndVenue = `${activityData.attachment.Location.value}`
+      + ` ${activityData.relevantTime}`;
+  }
+
+  if (conn.req.body.template === 'customer') {
     const placesQueryResult = await getCustomerObject({
       address: conn.req.body.venue[0].address,
       location: conn.req.body.attachment.Name.value
@@ -111,20 +186,11 @@ const createDocsWithBatch = async (conn, locals) => {
     activityData = placesQueryResult;
 
     if (placesQueryResult.failed) {
-      activityData.attachment = conn.req.body.attachment;
-      activityData.schedule = conn.req.body.schedule;
-      activityData.venue = conn.req.body.venue;
-
-      delete activityData.location;
-      delete activityData.address;
-
-      locals.batch.set(rootCollections.instant.doc(), {
-        subject: `${process.env.GCLOUD_PROJECT}: Customer Created with ZERO_RESULTS from Places API`,
-        messageBody: JSON.stringify({
-          requestBody: conn.req.body,
-          requester: conn.requester.phoneNumber,
-        }, ' ', 2),
-      });
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Address '${conn.req.body.venue[0].address}' is not valid`
+      );
     }
   }
 
@@ -244,7 +310,7 @@ const createDocsWithBatch = async (conn, locals) => {
     .catch(error => handleError(conn, error));
 };
 
-const handleLeaveOrOnDuty = (conn, locals) => {
+const handleLeaveOrOnDuty = async (conn, locals) => {
   const startTime = conn.req.body.schedule[0].startTime;
   const endTime = conn.req.body.schedule[0].endTime;
   const startTimeMoment = momentTz(startTime);
@@ -259,28 +325,54 @@ const handleLeaveOrOnDuty = (conn, locals) => {
     return createDocsWithBatch(conn, locals);
   }
 
-  return setOnLeaveOrAr(
-    conn.requester.phoneNumber,
+  const leaveType = (() => {
+    if (conn.req.body.template === 'leave') {
+      return conn.req.body.attachment['Leave Type'].value;
+    }
+
+    return '';
+  })();
+  const arReason = (() => {
+    if (conn.req.body.template === 'attendance regularization') {
+      return conn.req.body.attachment.Reason.value;
+    }
+
+    return '';
+  })();
+
+  console.log('params', conn.requester.phoneNumber,
     locals.officeDoc.id,
     startTime,
     endTime,
-    conn.req.body.template
-  )
-    .then(result => {
-      const { success, message } = result;
+    conn.req.body.template,
+    leaveType,
+    arReason
+  );
 
-      if (!success) {
-        locals.static.statusOnCreate = 'CANCELLED';
-        locals.cancellationMessage = `${conn.req.body.template.toUpperCase()} CANCELLED: ${message}`;
-      }
-
-      return createDocsWithBatch(conn, locals);
-    })
-    .catch(error => handleError(conn, error));
+  try {
+    let result = await setOnLeaveOrAr({
+      startTime,
+      endTime,
+      leaveType,
+      arReason,
+      officeId: locals.officeDoc.id,
+      template: conn.req.body.template,
+      phoneNumber: conn.requester.phoneNumber,
+    });
+    const { success, message } = result;
+    if (!success) {
+      locals.static.statusOnCreate = 'CANCELLED';
+      locals.cancellationMessage = `${conn.req.body.template.toUpperCase()} CANCELLED: ${message}`;
+    }
+    return createDocsWithBatch(conn, locals);
+  }
+  catch (error) {
+    return handleError(conn, error);
+  }
 };
 
 
-const handlePayroll = (conn, locals) => {
+const handlePayroll = async (conn, locals) => {
   if (!new Set()
     .add('leave')
     .add('attendance regularization')
@@ -309,73 +401,57 @@ const handlePayroll = (conn, locals) => {
     locals.maxLeavesAllowed = 20;
   }
 
-  return Promise
-    .all([
-      rootCollections
-        .offices
-        .doc(locals.static.officeId)
-        .collection('Activities')
-        .where('template', '==', 'leave-type')
-        .where('attachment.Name.value', '==', leaveType || null)
-        .limit(1)
-        .get(),
-      rootCollections
-        .offices
-        .doc(locals.static.officeId)
-        .collection('Activities')
-        .where('creator', '==', conn.requester.phoneNumber)
-        .where('template', '==', 'leave')
-        .where('attachment.Leave Type.value', '==', leaveType || null)
-        .where('startYear', '==', startMoment.year())
-        .where('endYear', '==', endMoment.year())
-        /** Cancelled leaves don't count to the full number */
-        .where('isCancelled', '==', false)
-        .get(),
-    ])
-    .then(result => {
-      const [
-        leaveTypeQuery,
-        leaveActivityQuery,
-      ] = result;
-
-      if (!leaveTypeQuery.empty) {
-        locals
-          .maxLeavesAllowed =
-          Number(leaveTypeQuery
-            .docs[0]
-            .get('attachment.Annual Limit.value') || 0);
-      }
-
-      leaveActivityQuery.forEach((doc) => {
-        const {
-          startTime,
-          endTime,
-        } = doc.get('schedule')[0];
-        const start = momentTz(startTime).startOf('day').unix() * 1000;
-        const end = momentTz(endTime).endOf('day').unix() * 1000;
-
-        locals.leavesTakenThisYear += momentTz(end).diff(start, 'days');
-      });
-
-      if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
-        console.log('CANCELL HERE 3');
-
-        locals
-          .cancellationMessage = `LEAVE LIMIT EXCEEDED:`
-          + ` You have exceeded the limit for leave`
-          + ` application under ${leaveType}`
-          + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
-
-        locals
-          .static
-          .statusOnCreate = 'CANCELLED';
-
-        return createDocsWithBatch(conn, locals);
-      }
-
-      return handleLeaveOrOnDuty(conn, locals);
-    })
-    .catch(error => handleError(conn, error));
+  try {
+    let result = await Promise
+      .all([
+        rootCollections
+          .offices
+          .doc(locals.static.officeId)
+          .collection('Activities')
+          .where('template', '==', 'leave-type')
+          .where('attachment.Name.value', '==', leaveType || null)
+          .limit(1)
+          .get(),
+        rootCollections
+          .offices
+          .doc(locals.static.officeId)
+          .collection('Activities')
+          .where('creator', '==', conn.requester.phoneNumber)
+          .where('template', '==', 'leave')
+          .where('attachment.Leave Type.value', '==', leaveType || null)
+          .where('startYear', '==', startMoment.year())
+          .where('endYear', '==', endMoment.year())
+          /** Cancelled leaves don't count to the full number */
+          .where('isCancelled', '==', false)
+          .get(),
+      ]);
+    const [leaveTypeQuery, leaveActivityQuery,] = result;
+    if (!leaveTypeQuery.empty) {
+      locals.maxLeavesAllowed =
+        Number(leaveTypeQuery.docs[0]
+          .get('attachment.Annual Limit.value') || 0);
+    }
+    leaveActivityQuery.forEach((doc) => {
+      const { startTime: startTime_1, endTime: endTime_1, } = doc.get('schedule')[0];
+      const start = momentTz(startTime_1).startOf('day').unix() * 1000;
+      const end = momentTz(endTime_1).endOf('day').unix() * 1000;
+      locals.leavesTakenThisYear += momentTz(end).diff(start, 'days');
+    });
+    if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
+      console.log('CANCELL HERE 3');
+      locals.cancellationMessage = `LEAVE LIMIT EXCEEDED:`
+        + ` You have exceeded the limit for leave`
+        + ` application under ${leaveType}`
+        + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
+      locals.static
+        .statusOnCreate = 'CANCELLED';
+      return createDocsWithBatch(conn, locals);
+    }
+    return handleLeaveOrOnDuty(conn, locals);
+  }
+  catch (error) {
+    return handleError(conn, error);
+  }
 };
 
 
@@ -437,110 +513,136 @@ const handleAssignees = (conn, locals) => {
     .catch(error => handleError(conn, error));
 };
 
-
-const resolveQuerySnapshotShouldNotExistPromises = (conn, locals, result) => {
-  const promises = result.querySnapshotShouldNotExist;
-
-  if (promises.length === 0) {
+const handleClaims = async (conn, locals) => {
+  if (conn.req.body.template !== 'claim') {
     return handleAssignees(conn, locals);
   }
 
-  return Promise
-    .all(promises)
-    .then(snapShots => {
-      let successful = true;
-      let message = null;
+  const claimType = conn.req.body.attachment['Claim Type'].value;
+  const amount = conn.req.body.attachment.Amount.value;
 
-      for (const snapShot of snapShots) {
-        const filters = snapShot.query._queryOptions.fieldFilters;
-        const value = filters[0].value;
-        const type = filters[1].value;
+  if (!claimType) {
+    return handleAssignees(conn, locals);
+  }
 
-        if (!snapShot.empty) {
-          successful = false;
-          message = `The ${type} '${value}' already exists`;
-          break;
-        }
-      }
+  if (Number(amount || 0) < 1) {
+    return sendResponse(
+      conn,
+      code.badRequest,
+      `Amount should be a positive number`
+    );
+  }
 
-      if (!successful) {
-        return sendResponse(conn, code.badRequest, message);
-      }
+  const {
+    claimsThisMonth,
+    monthlyLimit,
+  } = await getClaimStatus({
+    claimType,
+    officeId: locals.officeDoc.id,
+    phoneNumber: conn.requester.phoneNumber,
+    timezone: locals.officeDoc.get('attachment.Timezone.value'),
+  });
 
-      return handleAssignees(conn, locals);
-    })
-    .catch(error => handleError(conn, error));
+  if (claimsThisMonth + amount > monthlyLimit) {
+    locals.static.statusOnCreate = 'CANCELLED';
+    locals.cancellationMessage = `CLAIM CANCELLED: Exceeded`
+      + ` Max Claims (${monthlyLimit}) this month.`;
+  }
+
+  return handleAssignees(conn, locals);
 };
 
 
-const resolveQuerySnapshotShouldExistPromises = (conn, locals, result) => {
+const resolveQuerySnapshotShouldNotExistPromises = async (conn, locals, result) => {
+  const promises = result.querySnapshotShouldNotExist;
+
+  try {
+    const snapShots = await Promise
+      .all(promises);
+    let successful = true;
+    let message = null;
+    for (const snapShot of snapShots) {
+      const filters = snapShot.query._queryOptions.fieldFilters;
+      const value = filters[0].value;
+      const type = filters[1].value;
+      if (!snapShot.empty) {
+        successful = false;
+        message = `The ${type} '${value}' already exists`;
+        break;
+      }
+    }
+    if (!successful) {
+      return sendResponse(conn, code.badRequest, message);
+    }
+    return handleClaims(conn, locals);
+  }
+  catch (error) {
+    return handleError(conn, error);
+  }
+};
+
+
+const resolveQuerySnapshotShouldExistPromises = async (conn, locals, result) => {
   if (result.querySnapshotShouldExist.length === 0) {
     return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
   }
 
-  return Promise
-    .all(result.querySnapshotShouldExist)
-    .then(snapShots => {
-      let successful = true;
-      let message;
-
-      for (const snapShot of snapShots) {
-        const filters = snapShot.query._queryOptions.fieldFilters;
-        const value = filters[0].value;
-        const type = filters[1].value;
-
-        console.log({ value, type });
-
-        message = `${type} ${value} does not exist`;
-
-        if (snapShot.empty) {
-          successful = false;
-          break;
-        }
+  try {
+    const snapShots = await Promise
+      .all(result.querySnapshotShouldExist);
+    let successful = true;
+    let message;
+    for (const snapShot of snapShots) {
+      const filters = snapShot.query._queryOptions.fieldFilters;
+      const value = filters[0].value;
+      const type = filters[1].value;
+      console.log({ value, type });
+      message = `${type} ${value} does not exist`;
+      if (snapShot.empty) {
+        successful = false;
+        break;
       }
-
-      if (!successful && conn.req.body.template !== 'dsr') {
-        return sendResponse(conn, code.badRequest, message);
-      }
-
-      return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
-    })
-    .catch(error => handleError(conn, error));
+    }
+    if (!successful && conn.req.body.template !== 'dsr') {
+      return sendResponse(conn, code.badRequest, message);
+    }
+    return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
+  }
+  catch (error) {
+    return handleError(conn, error);
+  }
 };
 
 
-const resolveProfileCheckPromises = (conn, locals, result) => {
+const resolveProfileCheckPromises = async (conn, locals, result) => {
   if (result.profileDocShouldExist.length === 0) {
     return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
   }
 
-  return Promise
-    .all(result.profileDocShouldExist)
-    .then(snapShots => {
-      let successful = true;
-      let message = null;
-
-      for (const doc of snapShots) {
-        message = `The user ${doc.id} has not signed up on Growthfile.`;
-
-        if (!doc.exists) {
-          successful = false;
-          break;
-        }
-
-        if (!doc.get('uid')) {
-          successful = false;
-          break;
-        }
+  try {
+    const snapShots = await Promise
+      .all(result.profileDocShouldExist);
+    let successful = true;
+    let message = null;
+    for (const doc of snapShots) {
+      message = `The user ${doc.id} has not signed up on Growthfile.`;
+      if (!doc.exists) {
+        successful = false;
+        break;
       }
-
-      if (!successful) {
-        return sendResponse(conn, code.badRequest, message);
+      if (!doc.get('uid')) {
+        successful = false;
+        break;
       }
-
-      return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
-    })
-    .catch(error => handleError(conn, error));
+    }
+    if (!successful) {
+      return sendResponse(conn, code.badRequest, message);
+    }
+    return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
+  }
+  catch (error) {
+    return handleError(conn, error);
+  }
 };
 
 

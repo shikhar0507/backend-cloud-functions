@@ -99,7 +99,7 @@ const getAddendumObject = doc => {
   return singleDoc;
 };
 
-const getAssigneesArray = arrayOfPhoneNumbers => {
+const getAssigneesArray = (arrayOfPhoneNumbers) => {
   // Could be a string (phoneNumber) or an object
   const firstItem = arrayOfPhoneNumbers[0];
 
@@ -150,7 +150,11 @@ const getActivityObject = doc => ({
   attachment: doc.get('attachment'),
   creator: getCreator(doc.get('creator')),
   hidden: doc.get('hidden'),
-  assignees: getAssigneesArray(doc.get('assignees')),
+  /**
+   * Activity with template -type or customer/branch might
+   * not have an assignee, so this array could be undefined
+   */
+  assignees: getAssigneesArray(doc.get('assignees') || []),
 });
 
 const getSubscriptionObject = doc => ({
@@ -166,7 +170,9 @@ const getSubscriptionObject = doc => ({
 const getStatusObject = async profileDoc => {
   const result = [];
 
-  if (!profileDoc) return result;
+  if (!profileDoc) {
+    return result;
+  }
 
   const allMonths = {
     'January': 0,
@@ -188,6 +194,9 @@ const getStatusObject = async profileDoc => {
   const employeeOf = profileDoc.get('employeeOf') || {};
   const allOffices = Object.entries(employeeOf);
   const monthYearString = momentTz().format(dateFormats.MONTH_YEAR);
+  const prevMonthYearString = momentTz()
+    .subtract(1, 'month')
+    .format(dateFormats.MONTH_YEAR);
   const officeNamesMap = new Map();
 
   allOffices.forEach(item => {
@@ -205,6 +214,17 @@ const getStatusObject = async profileDoc => {
       .collection('Employees')
       .doc(phoneNumber)
       .get());
+
+    if (momentTz().date() <= 10) {
+      promises.push(rootCollections
+        .offices
+        .doc(name)
+        .collection('Statuses')
+        .doc(prevMonthYearString)
+        .collection('Employees')
+        .doc(phoneNumber)
+        .get());
+    }
   });
 
   try {
@@ -217,14 +237,13 @@ const getStatusObject = async profileDoc => {
       const monthYearString = parts[3];
       const [month, year] = monthYearString.split(' ');
       const officeId = parts[1];
-      const office = officeNamesMap.get(officeId);
 
       Object
         .keys(statusObject)
         .forEach(date => {
           const obj = Object.assign({
             year,
-            office,
+            office: officeNamesMap.get(officeId),
             date: Number(date),
             month: allMonths[month],
           }, statusObject[date]);

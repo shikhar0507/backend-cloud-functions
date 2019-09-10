@@ -9,6 +9,8 @@ const {
 const {
   alphabetsArray,
   getStatusForDay,
+  getSupervisors,
+  getName,
 } = require('./report-utils');
 const {
   db,
@@ -97,10 +99,18 @@ const getPaydayTimingsSheetValue = options => {
   } = options;
 
   if (statusObject[date].onLeave) {
+    if (statusObject[date].leaveType) {
+      return `LEAVE - ${statusObject[date].leaveType}`;
+    }
+
     return 'LEAVE';
   }
 
   if (statusObject[date].onAr) {
+    if (statusObject[date].arReason) {
+      return `AR - ${statusObject[date].arReason}`;
+    }
+
     return 'AR';
   }
 
@@ -122,7 +132,22 @@ const getPaydayTimingsSheetValue = options => {
     + ` ${statusObject[date].numberOfCheckIns || 0}`;
 };
 
-const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeDoc) => {
+const getEmployeeCode = (employeesData, phoneNumber) => {
+  if (!employeesData[phoneNumber]) {
+    return '';
+  }
+
+  return employeesData[phoneNumber]['Employee Code'] || '';
+};
+
+const commitStatuses = params => {
+  const {
+    yesterdaysStatusMap: statusMap,
+    allowedToBeInactive,
+    momentYesterday,
+    officeDoc,
+    employeesData,
+  } = params;
   const dateYesterday = momentYesterday.date();
   const officeId = officeDoc.get('officeId');
   const monthYearString = momentYesterday.format(dateFormats.MONTH_YEAR);
@@ -159,6 +184,8 @@ const commitStatuses = (statusMap, allowedToBeInactive, momentYesterday, officeD
     }
 
     batchArray[batchIndex].set(ref, {
+      name: getName(employeesData, phoneNumber),
+      employeeCode: getEmployeeCode(employeesData, phoneNumber),
       officeId: officeDoc.id,
       office: officeDoc.get('office'),
       month: momentYesterday.month(),
@@ -187,43 +214,13 @@ const getPayDayTimingsTopRow = allDates => {
   return topRowValues;
 };
 
-const getName = (employeesData, phoneNumber) => {
-  if (employeesData[phoneNumber]) {
-    return employeesData[phoneNumber].Name;
+const getValueFromEmployeeMap = (employeeMap, phoneNumber, field) => {
+  if (employeeMap[phoneNumber]) {
+    return employeeMap[phoneNumber][field] || '';
   }
 
-  return phoneNumber;
+  return '';
 };
-
-// const getSupervisors = (employeesData, phoneNumber) => {
-//   let str = '';
-//   const employeeData = employeesData[phoneNumber];
-//   const firstSupervisor = employeeData['First Supervisor'];
-//   const secondSupervisor = employeeData['Second Supervisor'];
-//   const thirdSupervisor = employeeData['Third Supervisor'];
-//   const allSvs = [
-//     firstSupervisor,
-//     secondSupervisor,
-//     thirdSupervisor
-//   ].filter(Boolean);
-
-//   if (allSvs.length === 0) return '';
-//   if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
-
-//   allSvs.forEach((phoneNumber, index) => {
-//     const name = getName(employeesData, phoneNumber);
-//     const isLast = index === allSvs.length - 1;
-
-//     if (isLast) {
-//       str += 'and';
-//     }
-
-//     str += ` ${name}, `;
-//   });
-
-//   return str.trim();
-// };
-
 
 module.exports = async locals => {
   const timezone = locals
@@ -243,7 +240,6 @@ module.exports = async locals => {
     .officeDoc
     .get('attachment.First Day Of Monthly Cycle.value') || 1;
   const weekdayYesterday = momentYesterday.format('dddd').toLowerCase();
-
   const reportTriggeredForToday = momentTz(timestampFromTimer)
     .format(dateFormats.DATE) === momentTz().format(dateFormats.DATE);
   const employeePhoneNumbers = Object.keys(locals.employeesData);
@@ -253,8 +249,8 @@ module.exports = async locals => {
   const allowedToBeInactive = new Set();
   const allPhoneNumbers = new Set();
   const statusObjectsMap = new Map();
-
-  const formattedDateYesterday = momentYesterday.format(dateFormats.DATE);
+  const formattedDateYesterday = momentYesterday
+    .format(dateFormats.DATE);
   const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentYesterday.date();
   const cycleStartMoment = (() => {
     if (fetchPreviousMonthDocs) {
@@ -309,15 +305,15 @@ module.exports = async locals => {
       .clone()
       .subtract(1, 'month')
       .format(dateFormats.MONTH_YEAR);
-    const p = locals
-      .officeDoc
-      .ref
-      .collection('Statuses')
-      .doc(prevMonth)
-      .collection('Employees')
-      .get();
 
-    promises.push(p);
+    promises
+      .push(locals
+        .officeDoc
+        .ref
+        .collection('Statuses')
+        .doc(prevMonth)
+        .collection('Employees')
+        .get());
   }
 
   try {
@@ -325,7 +321,8 @@ module.exports = async locals => {
       worksheet,
       statusObjectsCurrMonth,
       statusObjectsPrevMonth, // could be undefined
-    ] = await Promise.all(promises);
+    ] = await Promise
+      .all(promises);
 
     const paydaySheet = worksheet
       .addSheet(`PayDay_${momentYesterday.format(dateFormats.MONTH_YEAR)}`);
@@ -362,43 +359,44 @@ module.exports = async locals => {
     const weeklyOffSet = new Set();
     const holidaySet = new Set();
 
-    statusObjectsCurrMonth.forEach(doc => {
-      const phoneNumber = doc.id;
-      const statusObject = doc.get('statusObject') || {};
+    statusObjectsCurrMonth
+      .forEach(doc => {
+        const phoneNumber = doc.id;
+        const statusObject = doc.get('statusObject') || {};
 
-      statusObject[
-        dateYesterday
-      ] = statusObject[dateYesterday] || getDefaultStatusObject();
+        statusObject[
+          dateYesterday
+        ] = statusObject[dateYesterday] || getDefaultStatusObject();
 
 
-      if (statusObject[dateYesterday].onLeave
-        || statusObject[dateYesterday].onAr) {
-        allowedToBeInactive.add(phoneNumber);
-      }
+        if (statusObject[dateYesterday].onLeave
+          || statusObject[dateYesterday].onAr) {
+          allowedToBeInactive.add(phoneNumber);
+        }
 
-      if (statusObject[dateYesterday].onLeave) {
-        onLeaveSet.add(phoneNumber);
-        allowedToBeInactive.add(phoneNumber);
-      }
+        if (statusObject[dateYesterday].onLeave) {
+          onLeaveSet.add(phoneNumber);
+          allowedToBeInactive.add(phoneNumber);
+        }
 
-      if (statusObject[dateYesterday].onAr) {
-        onArSet.add(phoneNumber);
-        allowedToBeInactive.add(phoneNumber);
-      }
+        if (statusObject[dateYesterday].onAr) {
+          onArSet.add(phoneNumber);
+          allowedToBeInactive.add(phoneNumber);
+        }
 
-      if (locals.employeesData[phoneNumber]
-        && locals.employeesData[phoneNumber]['Weekly Off'] === weekdayYesterday) {
-        weeklyOffSet.add(phoneNumber);
-        allowedToBeInactive.add(phoneNumber);
-      }
+        if (locals.employeesData[phoneNumber]
+          && locals.employeesData[phoneNumber]['Weekly Off'] === weekdayYesterday) {
+          weeklyOffSet.add(phoneNumber);
+          allowedToBeInactive.add(phoneNumber);
+        }
 
-      if (locals.employeesData[phoneNumber]
-        && locals.employeesData[phoneNumber].branchHolidays
-        && locals.employeesData[phoneNumber].branchHolidays[formattedDateYesterday]) {
-        holidaySet.add(phoneNumber);
-        allowedToBeInactive.add(phoneNumber);
-      }
-    });
+        if (locals.employeesData[phoneNumber]
+          && locals.employeesData[phoneNumber].branchHolidays
+          && locals.employeesData[phoneNumber].branchHolidays[formattedDateYesterday]) {
+          holidaySet.add(phoneNumber);
+          allowedToBeInactive.add(phoneNumber);
+        }
+      });
 
     const addendumPromises = [];
     const queryIndexeByPhoneNumber = [];
@@ -451,70 +449,75 @@ module.exports = async locals => {
         .orderBy('timestamp')
         .get();
 
-      queryIndexeByPhoneNumber.push(phoneNumber);
-      addendumPromises.push(baseQuery);
+      queryIndexeByPhoneNumber
+        .push(phoneNumber);
+      addendumPromises
+        .push(baseQuery);
     });
 
-    const addendumDocSnapshots = await Promise.all(addendumPromises);
+    const addendumDocSnapshots = await Promise
+      .all(addendumPromises);
 
-    addendumDocSnapshots.forEach((snap, index) => {
-      const phoneNumber = queryIndexeByPhoneNumber[index];
-      const numberOfCheckIns = snap.size;
+    addendumDocSnapshots
+      .forEach((snap, index) => {
+        const phoneNumber = queryIndexeByPhoneNumber[index];
+        const numberOfCheckIns = snap.size;
 
-      if (numberOfCheckIns === 0) {
+        if (numberOfCheckIns === 0) {
+          yesterdaysStatusMap
+            .set(
+              phoneNumber,
+              getDefaultStatusObject()
+            );
+
+          return;
+        }
+
+        const firstDoc = snap.docs[0];
+        const lastDoc = snap.docs[snap.docs.length - 1];
+        const firstActionTimestamp = firstDoc.get('timestamp');
+        const lastActionTimestamp = lastDoc.get('timestamp');
+        const hoursWorked = momentTz(lastActionTimestamp)
+          .diff(firstActionTimestamp, 'hours');
+        const minimumDailyActivityCount = locals
+          .employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
+        const minimumWorkingHours = locals
+          .employeesData[phoneNumber]['Minimum Working Hours'];
+        const statusForDay = getStatusForDay({
+          numberOfCheckIns,
+          minimumDailyActivityCount,
+          minimumWorkingHours,
+          hoursWorked,
+        });
+
+        const firstAction = momentTz(firstActionTimestamp)
+          .tz(timezone)
+          .format(dateFormats.TIME);
+        const lastAction = momentTz(lastActionTimestamp)
+          .tz(timezone)
+          .format(dateFormats.TIME);
+
         yesterdaysStatusMap
-          .set(
-            phoneNumber,
-            getDefaultStatusObject()
-          );
-
-        return;
-      }
-
-      const firstDoc = snap.docs[0];
-      const lastDoc = snap.docs[snap.docs.length - 1];
-      const firstActionTimestamp = firstDoc.get('timestamp');
-      const lastActionTimestamp = lastDoc.get('timestamp');
-      const hoursWorked = momentTz(lastActionTimestamp)
-        .diff(firstActionTimestamp, 'hours');
-      const minimumDailyActivityCount = locals
-        .employeesData[phoneNumber]['Minimum Daily Activity Count'] || 1;
-      const minimumWorkingHours = locals
-        .employeesData[phoneNumber]['Minimum Working Hours'];
-      const statusForDay = getStatusForDay({
-        numberOfCheckIns,
-        minimumDailyActivityCount,
-        minimumWorkingHours,
-        hoursWorked,
+          .set(phoneNumber, {
+            numberOfCheckIns,
+            firstCheckIn: firstAction,
+            lastCheckIn: lastAction,
+            firstCheckInTimestamp: firstActionTimestamp,
+            lastCheckInTimestamp: lastActionTimestamp,
+            weeklyOff: false,
+            holiday: false,
+            statusForDay: roundToNearestQuarter(statusForDay),
+          });
       });
 
-      const firstAction = momentTz(firstActionTimestamp)
-        .tz(timezone)
-        .format(dateFormats.TIME);
-      const lastAction = momentTz(lastActionTimestamp)
-        .tz(timezone)
-        .format(dateFormats.TIME);
-
-      yesterdaysStatusMap
-        .set(phoneNumber, {
-          numberOfCheckIns,
-          firstCheckIn: firstAction,
-          lastCheckIn: lastAction,
-          firstCheckInTimestamp: firstActionTimestamp,
-          lastCheckInTimestamp: lastActionTimestamp,
-          weeklyOff: false,
-          holiday: false,
-          statusForDay: roundToNearestQuarter(statusForDay),
-        });
-    });
-
     if (reportTriggeredForToday) {
-      await commitStatuses(
+      await commitStatuses({
         yesterdaysStatusMap,
         allowedToBeInactive,
         momentYesterday,
-        locals.officeDoc
-      );
+        officeDoc: locals.officeDoc,
+        employeesData: locals.employeesData,
+      });
     }
 
     const allDocs = []
@@ -522,6 +525,8 @@ module.exports = async locals => {
         ((statusObjectsPrevMonth || []).docs) || [],
         statusObjectsCurrMonth.docs
       );
+
+    const detailsFromStatusDoc = new Map();
 
     allDocs.forEach(doc => {
       const { path } = doc.ref;
@@ -531,108 +536,118 @@ module.exports = async locals => {
 
       const { statusObject } = doc.data();
 
+      detailsFromStatusDoc.set(phoneNumber, {
+        name: doc.get('name') || '',
+        employeeCode: doc.get('employeeCode') || '',
+      });
+
       allPhoneNumbers
         .add(phoneNumber);
       statusObjectsMap
         .set(`${phoneNumber}-${monthYearString}`, statusObject);
     });
 
-    const monthYearString = momentYesterday.format(dateFormats.MONTH_YEAR);
+    const monthYearString = momentYesterday
+      .format(dateFormats.MONTH_YEAR);
 
-    yesterdaysStatusMap.forEach((statusObjectForYesterday, phoneNumber) => {
-      const oldStatusObject = statusObjectsMap.get(`${phoneNumber}-${monthYearString}`) || {};
-      oldStatusObject[dateYesterday] = statusObjectForYesterday;
+    yesterdaysStatusMap
+      .forEach((statusObjectForYesterday, phoneNumber) => {
+        const id = `${phoneNumber}-${monthYearString}`;
+        const oldStatusObject = statusObjectsMap.get(id) || {};
+        oldStatusObject[dateYesterday] = statusObjectForYesterday;
 
-      statusObjectsMap.set(`${phoneNumber}-${monthYearString}`, oldStatusObject);
-    });
+        statusObjectsMap
+          .set(id, oldStatusObject);
+      });
 
     /** Set (`allPhoneNumbers`) doesn't have an index */
     let index = 0;
-    const daysCount = cycleEndMoment.diff(cycleStartMoment, 'days') + 1;
+    const daysCount = cycleEndMoment
+      .diff(cycleStartMoment, 'days') + 1;
 
-    allPhoneNumbers.forEach(phoneNumber => {
-      // The statusObject might exist for a phone number
-      // which is not currently an active employee
-      locals
-        .employeesData[
-        phoneNumber
-      ] = locals.employeesData[phoneNumber] || {};
-
-      const name = locals.employeesData[phoneNumber].Name;
-      const employeeCode = locals.employeesData[phoneNumber]['Employee Code'];
-      const columnIndex = index + 2;
-
-      paydaySheet
-        .cell(`A${columnIndex}`)
-        .value(name);
-      paydaySheet
-        .cell(`B${columnIndex}`)
-        .value(employeeCode);
-      paydaySheet
-        .cell(`C${columnIndex}`)
-        .value(phoneNumber);
-
-      paydayTimingsSheet
-        .cell(`A${columnIndex}`)
-        .value(name || phoneNumber);
-      paydayTimingsSheet
-        .cell(`B${columnIndex}`)
-        .value(employeeCode);
-
-      let totalPayableDays = 0;
-      let paydaySheetAlphabetIndex = 3;
-      let paydayTimingsSheetIndex = 2;
-
-      allDates.forEach(dateObject => {
-        const {
-          date,
-          monthYear,
-        } = dateObject;
-        const statusObject = statusObjectsMap.get(`${phoneNumber}-${monthYear}`) || {};
-        const paydaySheetCell = `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
-        const paydayTimingsSheetCell = `${alphabetsArray[paydayTimingsSheetIndex]}${columnIndex}`;
-
-        statusObject[date] = statusObject[date] || getDefaultStatusObject();
-
-        const paydaySheetValue = (() => {
-          if (date === dateYesterday
-            && monthYear === monthYearString) {
-            return (yesterdaysStatusMap.get(phoneNumber) || {}).statusForDay || 0;
-          }
-
-          return statusObject[date].statusForDay || 0;
-        })();
+    allPhoneNumbers
+      .forEach(phoneNumber => {
+        const name = getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Name');
+        const employeeCode = getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Employee Code');
+        const columnIndex = index + 2;
+        const detailsFromStatusObject = detailsFromStatusDoc.get(phoneNumber) || {};
 
         paydaySheet
-          .cell(paydaySheetCell)
-          .value(paydaySheetValue);
+          .cell(`A${columnIndex}`)
+          .value(name || detailsFromStatusObject.name || '');
+        paydaySheet
+          .cell(`B${columnIndex}`)
+          .value(employeeCode || detailsFromStatusObject.employeeCode || '');
+        paydaySheet
+          .cell(`C${columnIndex}`)
+          .value(phoneNumber);
+
         paydayTimingsSheet
-          .cell(paydayTimingsSheetCell)
-          .value(getPaydayTimingsSheetValue({ statusObject, date }));
+          .cell(`A${columnIndex}`)
+          .value(name || phoneNumber);
+        paydayTimingsSheet
+          .cell(`B${columnIndex}`)
+          .value(employeeCode);
 
-        paydaySheetAlphabetIndex++;
-        paydayTimingsSheetIndex++;
-        totalPayableDays += paydaySheetValue;
+        let totalPayableDays = 0;
+        let paydaySheetAlphabetIndex = 3;
+        let paydayTimingsSheetIndex = 2;
+
+        allDates
+          .forEach(dateObject => {
+            const {
+              date,
+              monthYear,
+            } = dateObject;
+
+            const statusObject = statusObjectsMap
+              .get(`${phoneNumber}-${monthYear}`) || {};
+            const paydaySheetCell = `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
+            const paydayTimingsSheetCell = `${alphabetsArray[paydayTimingsSheetIndex]}${columnIndex}`;
+
+            statusObject[date] = statusObject[date]
+              || getDefaultStatusObject();
+
+            const paydaySheetValue = (() => {
+              if (date === dateYesterday
+                && monthYear === monthYearString) {
+                return (yesterdaysStatusMap.get(phoneNumber) || {})
+                  .statusForDay || 0;
+              }
+
+              return statusObject[date].statusForDay || 0;
+            })();
+
+            paydaySheet
+              .cell(paydaySheetCell)
+              .value(paydaySheetValue);
+            paydayTimingsSheet
+              .cell(paydayTimingsSheetCell)
+              .value(getPaydayTimingsSheetValue({ statusObject, date }));
+
+            paydaySheetAlphabetIndex++;
+            paydayTimingsSheetIndex++;
+            totalPayableDays += paydaySheetValue;
+          });
+
+        [
+          totalPayableDays,
+          Math.abs(daysCount - totalPayableDays),
+          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Department'),
+          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Designation'),
+          getSupervisors(locals.employeesData, phoneNumber),
+          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Base Location'),
+          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Region'),
+        ].forEach(item => {
+          const cell = `${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`;
+
+          paydaySheet
+            .cell(cell)
+            .value(item);
+        });
+
+        index++;
       });
-
-      [
-        totalPayableDays,
-        Math.abs(daysCount - totalPayableDays),
-        locals.employeesData[phoneNumber].Department,
-        locals.employeesData[phoneNumber].Designation,
-        getName(locals.employeesData, locals.employeesData[phoneNumber]['First Supervisor']),
-        locals.employeesData[phoneNumber]['Base Location'],
-        locals.employeesData[phoneNumber].Region || '',
-      ].forEach(item => {
-        const cell = `${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`;
-
-        paydaySheet
-          .cell(cell)
-          .value(item);
-      });
-
-      index++;
-    });
 
     locals
       .messageObject

@@ -1197,7 +1197,8 @@ function createExcelSheet(rawTemplate) {
 
   const data = [];
 
-  if (rawTemplate.venue.length) {
+  if (rawTemplate.name === 'customer'
+    || rawTemplate.name === 'branch') {
     data.push(['address', 'location'])
   } else {
     const allKeys = Object.keys(rawTemplate.attachment);
@@ -1206,6 +1207,11 @@ function createExcelSheet(rawTemplate) {
       .schedule
       .forEach(function (name) {
         allKeys.push(name);
+      });
+    rawTemplate
+      .venue
+      .forEach(function (venueDescriptor) {
+        allKeys.push(venueDescriptor);
       });
 
     data.push(allKeys);
@@ -1303,25 +1309,29 @@ function populateBulkCreationResult(response, originalJson) {
 }
 
 
-function sendBulkCreateJson(jsonData, templateName) {
-  console.log('jsonData:', jsonData);
-
+function sendBulkCreateJson(result, templateName) {
   let requestUrl = `${apiBaseUrl}/admin/bulk`;
 
   if (isSupport()) {
     requestUrl += `?support=true`;
   }
+
   let isCreateOffice = false;
+
   if (templateName === 'office') {
     isCreateOffice = true
   }
+
+  // const fd = new FormData();
+  // fd.append('data', result);
+
   const requestBody = {
     timestamp: Date.now(),
     office: isCreateOffice ? '' : document.body.dataset.office,
-    data: jsonData,
+    data: result, // binary string
+    // data: fd,
     template: templateName
-  };
-
+  }
 
   getLocation()
     .then(function (location) {
@@ -1338,18 +1348,20 @@ function sendBulkCreateJson(jsonData, templateName) {
     .then(function (response) {
       removeFileSpinner()
       // console.log(response)
-      populateBulkCreationResult(response, jsonData);
+      // populateBulkCreationResult(response, jsonData);
 
-      if (isCreateOffice) {
-        let currentCachedOfficelist = sessionStorage.getItem('officeNamesList')
-        jsonData.forEach(function (item) {
-          if (!item.rejected) {
-            currentCachedOfficelist += `,${item.Name}`
-          }
-        })
+      // if (isCreateOffice) {
+      //   let currentCachedOfficelist = sessionStorage.getItem('officeNamesList')
+      //   jsonData.forEach(function (item) {
+      //     if (!item.rejected) {
+      //       currentCachedOfficelist += `,${item.Name}`
+      //     }
+      //   })
 
-        sessionStorage.setItem('officeNamesList', currentCachedOfficelist);
-      }
+      //   sessionStorage.setItem('officeNamesList', currentCachedOfficelist);
+      // }
+
+      console.log('response', response);
     })
     .catch(function (error) {
       console.log(error)
@@ -1380,22 +1392,25 @@ function handleExcelOrCsvFile(element, templateName) {
   fReader.readAsBinaryString(file);
 
   fReader.onloadend = function (event) {
-    const wb = XLSX.read(event.target.result, {
-      type: 'binary'
-    });
+    // const wb = XLSX.read(event.target.result, {
+    //   type: 'binary'
+    // });
 
-    const ws = wb.Sheets[wb.SheetNames[0]];
+    // const ws = wb.Sheets[wb.SheetNames[0]];
 
-    const jsonData = XLSX.utils.sheet_to_json(ws, {
-      blankRows: true,
-      defval: '',
-      raw: false
-    });
+    // const jsonData = XLSX.utils.sheet_to_json(ws, {
+    //   blankRows: true,
+    //   defval: '',
+    //   raw: false
+    // });
 
-    console.log(jsonData)
-    sendBulkCreateJson(jsonData, templateName);
+    // console.log(jsonData)
+    // sendBulkCreateJson(jsonData, templateName);
+
+    console.log('typeof result: ', typeof event.target.result);
+
+    sendBulkCreateJson(event.target.result, templateName);
     element.target.value = null;
-
   };
 }
 

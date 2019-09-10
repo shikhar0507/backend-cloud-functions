@@ -19,7 +19,8 @@ const momentTz = require('moment-timezone');
 const validateRequestBody = (requestBody) => {
   const result = { isValid: true, message: null };
 
-  if (!isValidDate(requestBody.startTime) || !isValidDate(requestBody.endTime)) {
+  if (!isValidDate(requestBody.startTime)
+    || !isValidDate(requestBody.endTime)) {
     result.isValid = false;
     result.message = `Fields 'startTime' and 'endTime' should be valid unix timestamps`;
   }
@@ -29,7 +30,7 @@ const validateRequestBody = (requestBody) => {
     result.message = `Field: 'office' should be a non-empty string`;
   }
 
-  const names = new Set(['footprints', 'payroll', 'expense claim']);
+  const names = new Set(['footprints', 'payroll', 'schedule']);
 
   if (!names.has(requestBody.report)) {
     result.isValid = false;
@@ -129,8 +130,8 @@ module.exports = conn => {
         batch.set(recipientDocsQuery.docs[0].ref, {
           timestamp,
         }, {
-            merge: true,
-          });
+          merge: true,
+        });
       });
 
       return Promise

@@ -47,94 +47,73 @@
             {{!-- <div class="products-container grid-50"> --}}
             <div class="products-container">
                 \{{#each productObjectsArray}}
-                <div class="product-box cur-ptr" onclick="handleProductClick(this)">
+                <div data-\{{this.name}}="" class="hidden avatar">\{{this.nameFirstChar}}</div>
+                <div class="product-box cur-ptr" data-productDescription="\{{this.productDescription}}"
+                    data-productName="\{{this.name}}" data-src="\{{this.imageUrl}}" onclick=" handleProductClick(this)">
                     <div class="product-image-name-container">
-                        <div data-\{{this.name}}="" class="hidden avatar">\{{this.nameFirstChar}}</div>
+
                         <img class="border" onerror="this.onerror=null; this.src='img/office-placeholder.jpg'"
                             src=\{{this.imageUrl}} alt="product \{{this.name}}">
+
                         <div class="product-name-container">
                             <p>\{{this.name}}</p>
                         </div>
-                        <div class="hidden">
-                            \{{#if this.productType}}
-                            <div>
-                                <span class="bold">TYPE:</span>
-                                \{{this.productType}}
-                            </div>
-                            \{{/if}}
-                            \{{#if this.brand}}
-                            <div>
-                                <span class="bold">BRAND:</span>
-                                \{{this.brand}}
-                            </div>
-                            \{{/if}}
-                            \{{#if this.model}}
-                            <div>
-                                <span class="bold">MODEL:</span>
-                                \{{this.model}}
-                            </div>
-                            \{{/if}}
-                            \{{#if this.size}}
-                            <div>
-                                <span class="bold">SIZE:</span>
-                                \{{this.size}}
-                            </div>
-                            \{{/if}}
-                        </div>
                     </div>
+
                 </div>
                 \{{/each}}
             </div>
-        </section>
-        \{{/if}}
+    </div>
+    </section>
+    \{{/if}}
 
-        \{{#if displayBranch}}
-        <section class="branch-section">
-            <h2>Branch Offices</h2>
-            <div class="branches-box" id="init-map-trigger">
-                {{!-- TODO: Remove all css related to this --}}
-                <div class="tac hidden">
-                    <div id="load-map-button" href="#">
-                        <img id="maps-placeholder" src="\{{staticMapsUrl}}">
-                        <a id="retry-location-button" class="button hidden" href="#">Allow Location Access</a>
-                    </div>
-                    <div id="map__temp"></div>
+    \{{#if displayBranch}}
+    <section class="branch-section">
+        <h2>Branch Offices</h2>
+        <div class="branches-box" id="init-map-trigger">
+            {{!-- TODO: Remove all css related to this --}}
+            <div class="tac hidden">
+                <div id="load-map-button" href="#">
+                    <img id="maps-placeholder" src="\{{staticMapsUrl}}">
+                    <a id="retry-location-button" class="button hidden" href="#">Allow Location Access</a>
                 </div>
-
-                <div id="map"></div>
-                <ul class="branch-list-container pad border">
-                    \{{#each branchObjectsArray}}
-                    <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}
-                        class="list-item flexed flexed-row">
-                        <div class="flexed flexed-column no-ptr-evt">
-                            <span class="mb-8 bold">\{{this.name}}</span>
-                            <span class="col-gray">\{{this.address}}</span>
-                            \{{#if this.isOpen}}
-                            <span class="branch-status col-green">Open now</span>
-                            \{{/if}}
-                            \{{#if this.isClosed}}
-                            <span class="branch-status col-red">Opens at \{{this.openingTime}}</span>
-                            \{{/if}}
-                            \{{#if this.isClosingSoon}}
-                            <span class="branch-status col-orange">Closes at \{{this.closingTime}}</span>
-                            \{{/if}}
-                        </div>
-                        <div class="flexed flexed-row flexed-jc-center flexed-ai-center ft-size-20">
-                            \{{#if this.branchContact}}
-                            <a class="col-light-blue pad-10" href="tel:\{{this.branchContact}}">
-                                <i class="fas fa-phone"></i>
-                            </a>
-                            \{{/if}}
-                            <a class="col-light-blue pad-10" rel="noopener" target="_blank" href="\{{this.mapsUrl}}">
-                                <i class="fas fa-directions"></i>
-                            </a>
-                        </div>
-                    </li>
-                    \{{/each}}
-                </ul>
+                <div id="map__temp"></div>
             </div>
-        </section>
-        \{{/if}}
+
+            <div id="map"></div>
+            <ul class="branch-list-container pad border">
+                \{{#each branchObjectsArray}}
+                <li data-latitude=\{{this.latitude}} data-longitude=\{{this.longitude}}
+                    class="list-item flexed flexed-row">
+                    <div class="flexed flexed-column no-ptr-evt">
+                        <span class="mb-8 bold">\{{this.name}}</span>
+                        <span class="col-gray">\{{this.address}}</span>
+                        \{{#if this.isOpen}}
+                        <span class="branch-status col-green">Open now</span>
+                        \{{/if}}
+                        \{{#if this.isClosed}}
+                        <span class="branch-status col-red">Opens at \{{this.openingTime}}</span>
+                        \{{/if}}
+                        \{{#if this.isClosingSoon}}
+                        <span class="branch-status col-orange">Closes at \{{this.closingTime}}</span>
+                        \{{/if}}
+                    </div>
+                    <div class="flexed flexed-row flexed-jc-center flexed-ai-center ft-size-20">
+                        \{{#if this.branchContact}}
+                        <a class="col-light-blue pad-10" href="tel:\{{this.branchContact}}">
+                            <i class="fas fa-phone"></i>
+                        </a>
+                        \{{/if}}
+                        <a class="col-light-blue pad-10" rel="noopener" target="_blank" href="\{{this.mapsUrl}}">
+                            <i class="fas fa-directions"></i>
+                        </a>
+                    </div>
+                </li>
+                \{{/each}}
+            </ul>
+        </div>
+    </section>
+    \{{/if}}
     </div>
     \{{> scriptsPartial}}
     <script defer src="https://maps.googleapis.com/maps/api/js?key=\{{mapsApiKey}}"></script>

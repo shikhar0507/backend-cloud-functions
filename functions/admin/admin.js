@@ -61,17 +61,6 @@ process
 
 
 /**
- * Sets claims for a user based on `uid`.
- *
- * @param {string} uid A 30 character alpha-numeric string.
- * @param {Object} claims Contains Claims object.
- * @returns {Promise <Object>} A `userRecord` or an `error` object.
- */
-const setCustomUserClaims = (uid, claims) =>
-  auth.setCustomUserClaims(uid, claims);
-
-
-/**
  * Returns a sentinel containing the GeoPoint object for writing a
  * geopoint type in Firestore.
  *
@@ -283,7 +272,6 @@ const users = {
   getUserByUid,
   getUserByEmail,
   createUserInAuth,
-  setCustomUserClaims,
   revokeRefreshTokens,
   getUserByPhoneNumber,
   updateUserPhoneNumberInAuth,

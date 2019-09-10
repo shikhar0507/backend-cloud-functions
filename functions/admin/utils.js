@@ -552,14 +552,18 @@ const getSearchables = (string) => {
  * @returns {number} Unix timestamp.
  */
 const getRelevantTime = schedule => {
+  if (schedule.length === 0) {
+    return null;
+  }
+
   const allSchedules = [];
 
   schedule
-    .forEach(timestamp => {
+    .forEach(object => {
       allSchedules
         .push(
-          timestamp.startTime.valueOf(),
-          timestamp.endTime.valueOf()
+          object.startTime.valueOf(),
+          object.endTime.valueOf()
         );
     });
 
@@ -578,7 +582,16 @@ const getRelevantTime = schedule => {
     }
   }
 
-  return result;
+  /**
+   * If a schedule is found with the closes future timestamp
+   * using that. Else the furthest `timestmap` from the current
+   * timestamp.
+   *
+   * If the schedule is empty, returning `null`
+   */
+  return result
+    || allSchedules[allSchedules.length - 1]
+    || null;
 };
 
 // https://github.com/freesoftwarefactory/parse-multipart
@@ -1365,28 +1378,35 @@ const millitaryToHourMinutes = fourDigitTime => {
 };
 
 const getCustomerName = (addressComponents, nameFromUser = '') => {
-  // (sublocaliy1 + sublocality2 + locality)
+  // old: (sublocaliy1 + sublocality2 + locality)
+  // new: sublocality_level_1 + administrative_area_level_1 (long_name) + admininstrative_area_level_1 (short_name)
   let locationName = '';
 
-  console.log({ nameFromUser });
-
   addressComponents.forEach(component => {
-    const { types, short_name } = component;
+    const {
+      types,
+      short_name,
+      long_name,
+    } = component;
 
     if (types.includes('sublocality_level_1')) {
-      locationName += ` ${short_name}`;
+      locationName += ` ${long_name}`;
     }
 
-    if (types.includes('sublocality_level_2')) {
-      locationName += ` ${short_name}`;
+    if (types.includes('administrative_area_level_2')) {
+      locationName += ` ${long_name}`;
     }
 
-    if (types.includes('locality')) {
+    if (types.includes('administrative_area_level_1')) {
       locationName += ` ${short_name}`;
     }
   });
 
-  return `${locationName} ${nameFromUser}`.trim();
+  return `${nameFromUser.substring(0, 10)}`
+    + ` ${locationName}`
+      .trim()
+      // Replace double spaces and other non-printable chars
+      .replace(/\s\s+/g, ' ');
 };
 
 const getCustomerObject = async queryObject => {
@@ -1421,8 +1441,6 @@ const getCustomerObject = async queryObject => {
         query: queryObject.address,
       })
       .asPromise();
-
-    console.log({ queryObject });
     let success = true;
 
     const firstResult = placesApiResponse
@@ -1573,8 +1591,6 @@ const addressToCustomer = async queryObject => {
       })
       .asPromise();
 
-    console.log({ queryObject });
-
     const firstResult = placesApiResponse
       .json
       .results[0];
@@ -1602,6 +1618,8 @@ const addressToCustomer = async queryObject => {
         placeApiResult.json.result.address_components,
         queryObject.location,
       );
+    activityObject
+      .location = activityObject.Name;
 
     const weekdayStartTime = (() => {
       const openingHours = placeApiResult
@@ -1731,7 +1749,23 @@ const getUsersWithCheckIn = async officeId => {
   }
 };
 
+const getAuth = async phoneNumber => {
+  return auth
+    .getUserByPhoneNumber(phoneNumber)
+    .catch(() => {
+      return ({
+        phoneNumber,
+        uid: null,
+        email: '',
+        emailVerified: false,
+        displayName: '',
+      });
+    });
+};
+
+
 module.exports = {
+  getAuth,
   slugify,
   sendSMS,
   getBranchName,

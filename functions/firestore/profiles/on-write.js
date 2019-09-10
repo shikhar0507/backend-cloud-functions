@@ -192,8 +192,8 @@ const handleSignUpAndInstall = (options) => {
         month: momentToday.months,
         year: momentToday.years,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
 
       return Promise
         .all(promises);
@@ -231,6 +231,37 @@ const handleSignUpAndInstall = (options) => {
       return options.batch.commit();
     })
     .catch(console.error);
+};
+
+const handleCancelledSubscriptions = async change => {
+  const oldFromValue = change.before.get('lastQueryFrom');
+  const newFromValue = change.after.get('lastQueryFrom');
+
+  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
+    return Promise.resolve();
+  }
+
+  const profileSubscriptions = await change
+    .after
+    .ref
+    .collection('Subscriptions')
+    .where('timestamp', '<', oldFromValue)
+    .get();
+
+  const batch = db.batch();
+
+  profileSubscriptions
+    .forEach(doc => {
+      if (doc.get('status') !== 'CANCELLED') {
+        return;
+      }
+
+      batch
+        .delete(doc.ref);
+    });
+
+  return batch
+    .commit();
 };
 
 
@@ -322,7 +353,7 @@ module.exports = async change => {
     await handleSignUpAndInstall(options);
     await manageAddendum(change);
     await manageOldCheckins(change);
-
+    await handleCancelledSubscriptions(change);
 
     const office = change.after.get('smsContext.office');
     if (!toSendSMS || !office) return;

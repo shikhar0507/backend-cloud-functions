@@ -3,17 +3,17 @@
 const {
   rootCollections,
   db,
-} = require('./admin/admin');
+} = require('../admin/admin');
 const {
   getFileHash,
   cloudflareCdnUrl,
   promisifiedRequest,
   promisifiedExecFile,
-} = require('./admin/utils');
+} = require('../admin/utils');
 const admin = require('firebase-admin');
 const fs = require('fs');
 const mozjpeg = require('mozjpeg');
-const env = require('./admin/env');
+const env = require('../admin/env');
 const url = require('url');
 
 

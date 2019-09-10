@@ -63,6 +63,10 @@ const profileOnWrite = functions
   .onWrite(require('./firestore/profiles/on-write'));
 
 const activityTemplatesOnUpdate = functions
+  .runWith({
+    memory: '1GB',
+    timeoutSeconds: '120'
+  })
   .firestore
   .document('ActivityTemplates/{docId}')
   .onUpdate(require('./firestore/subscriptions/on-update'));
@@ -100,7 +104,13 @@ const temporaryImageHandler = functions
   .storage
   .bucket(env.tempBucketName)
   .object()
-  .onFinalize(require('./temporary-image-handler.js'));
+  .onFinalize(require('./storage/temporary-image-handler'));
+
+const bulkCreateHandler = functions
+  .storage
+  .bucket(env.bulkStorageBucketName)
+  .object()
+  .onFinalize(require('./storage/bulk'));
 
 
 module.exports = {
@@ -114,6 +124,7 @@ module.exports = {
   instantOnCreate,
   activityOnWrite,
   assigneeOnDelete,
+  bulkCreateHandler,
   recipientsOnUpdate,
   sendPushNotification,
   temporaryImageHandler,

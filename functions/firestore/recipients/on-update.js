@@ -235,7 +235,7 @@ module.exports = async change => {
 
     /**
     * When all recipient function instances have completed their work,
-    * we trigger the daily status report. We are doing this because
+    * we trigger the daily status report.
     */
     if (expectedRecipientTriggersCount
       === recipientsTriggeredToday) {

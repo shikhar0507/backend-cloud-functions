@@ -229,7 +229,8 @@ const getBranchOpenStatus = doc => {
 
     if (diff <= MILLS_IN_1_HOUR) {
       result.isClosingSoon = true;
-      result.closingTime = momentTz(weekdayEndTime).format(dateFormats.TIME);
+      result.closingTime = momentTz(weekdayEndTime)
+        .format(dateFormats.TIME);
 
       return result;
     }
@@ -247,10 +248,13 @@ const handleOfficePage = async (locals, requester) => {
   const template = handlebars.compile(source, { strict: true });
   const description = (() => {
     if (env.isProduction) {
-      return locals.officeDoc.get('attachment.Description.value') || '';
+      return locals
+        .officeDoc
+        .get('attachment.Description.value') || '';
     }
 
-    return `Contrary to popular belief, Lorem Ipsum is not simply random text.`;
+    return `Contrary to popular belief, Lorem`
+      + ` Ipsum is not simply random text.`;
   })();
 
   const logoURL = (() => {
@@ -277,10 +281,13 @@ const handleOfficePage = async (locals, requester) => {
       return locals.officeDoc.get('attachment.Short Description.value') || '';
     }
 
-    return `Lorem Ipsum is simply dummy text of the printing and typesetting industry.`;
+    return `Lorem Ipsum is simply dummy text of the`
+      + ` printing and typesetting industry.`;
   })();
 
-  const employeesData = await getEmployeesMapFromRealtimeDb(locals.officeDoc.get('officeId'));
+  const employeesData = await getEmployeesMapFromRealtimeDb(
+    locals.officeDoc.get('officeId')
+  );
 
   return template({
     logoURL,
@@ -421,6 +428,7 @@ const fetchOfficeData = async (locals, requester) => {
           brand: doc.get('attachment.Brand.value'),
           model: doc.get('attachment.Model.value'),
           size: doc.get('attachment.Size.value'),
+          productDescription: doc.get('attachment.Product Description.value')
         };
       });
 
@@ -693,26 +701,26 @@ const handleOfficeJoinRequest = (conn, requester) => {
   return ({});
 };
 
-const handleAnonymousView = conn => {
+const handleAnonymousView = async (conn, requester) => {
   // put stuff in /Anonymous
   // if pageview is for an office page --> create an addendum
-  return rootCollections
+  await rootCollections
     .anonymous
     .doc()
     .set({
-      uid: conn.requester.uid,
+      uid: requester.uid,
       timestamp: Date.now(),
       context: conn.req.body,
       action: httpsActions.webapp,
-    })
-    .then(() => ({ success: true, }));
+    });
+
+  return ({ success: true, });
 };
 
-const handleKnownUserView = (conn, requester) => {
+const handleKnownUserView = async (conn, requester) => {
   // Put stuff in /Profiles/<phoneNumber>/Webapp/<autoid>
   // if pageview is for an office page -> create an addendum
   const batch = db.batch();
-  // const phoneNumber = conn.req.body.phoneNumber;
   const ref = rootCollections
     .profiles
     .doc(requester.phoneNumber)
@@ -728,43 +736,51 @@ const handleKnownUserView = (conn, requester) => {
     });
 
   if (!conn.req.body.office) {
-    return batch
-      .commit()
-      .then(() => ({ success: true }));
+    await batch
+      .commit();
+
+    return ({ success: true });
   }
 
-  return rootCollections
+  const officeDocQueryResult = await rootCollections
     .offices
     .where('office', '==', conn.req.body.office)
     .limit(1)
-    .get()
-    .then(docs => {
-      if (docs.empty) {
-        return Promise.resolve();
-      }
+    .get();
 
-      const doc = docs.docs[0].ref.collection('Webapp').doc();
-
-      batch.set(doc, {
-        timestamp: Date.now(),
-        user: requester.phoneNumber,
-        uid: requester.uid,
-        context: conn.req.body,
-        action: httpsActions.webapp,
-      });
-
-      return batch
-        .commit()
-        .then(() => ({ success: true }));
+  if (officeDocQueryResult.empty) {
+    return ({
+      success: false,
+      message: `Office: ${conn.req.body.office} not found`,
     });
-};
-
-const handleTrackViews = conn => {
-  if (conn.requester.isAnonymous) {
-    return handleAnonymousView();
   }
 
-  return handleKnownUserView();
+  const doc = officeDocQueryResult
+    .docs[0]
+    .ref
+    .collection('Webapp')
+    .doc();
+
+  batch.set(doc, {
+    timestamp: Date.now(),
+    user: requester.phoneNumber,
+    uid: requester.uid,
+    context: conn.req.body,
+    action: httpsActions.webapp,
+  });
+
+  await batch
+    .commit();
+
+  return ({ success: true });
+};
+
+const handleTrackViews = (conn, requester) => {
+  if (conn.requester.isAnonymous) {
+    return handleAnonymousView(conn, requester);
+  }
+
+  return handleKnownUserView(conn, requester);
 };
 
 const handleJsonPostRequest = (conn, requester) => {
@@ -779,7 +795,7 @@ const handleJsonPostRequest = (conn, requester) => {
   }
 
   if (conn.req.query.action === 'track-view') {
-    return handleTrackViews(conn);
+    return handleTrackViews(conn, requester);
   }
 
   if (conn.req.query.action === 'parse-mail'
@@ -830,28 +846,62 @@ const handleEmailVerificationFlow = async conn => {
     .doc(conn.req.query.uid)
     .get();
 
+  const verificationRequestsCount = updatesDoc
+    .get('verificationRequestsCount') || 0;
+
   if (!updatesDoc.exists
-    || !updatesDoc.get('emailVerificationRequestPending')) {
-    return conn.res.status(code.temporaryRedirect).redirect('/');
+    || !updatesDoc.get('emailVerificationRequestPending')
+    /**
+     * This user has already requested 3 verification
+     * emails. This will prevent abuse of the system
+     */
+    || verificationRequestsCount >= 3) {
+    return conn
+      .res
+      .status(code.temporaryRedirect)
+      .redirect('/');
   }
 
-  await Promise
-    .all([
-      auth
-        .updateUser(conn.req.query.uid, {
-          emailVerified: true,
-        }),
-      updatesDoc
-        .ref
-        .set({
-          emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
-          verificationRequestsCount: (updatesDoc.get('verificationRequestsCount') || 0) + 1,
-        }, {
-          merge: true,
-        })
-    ]);
+  const phoneNumber = updatesDoc.get('phoneNumber');
+  const uid = updatesDoc.get('uid');
 
-  return conn.res.status(code.temporaryRedirect).redirect('/');
+  if (verificationRequestsCount >= 3) {
+    await rootCollections
+      .instant
+      .doc()
+      .set({
+        subject: `Verification requests count: ${verificationRequestsCount}`,
+        messageBody: `User: ${JSON.stringify({ phoneNumber, uid }, ' ', 2)}`,
+      });
+
+    return conn
+      .res
+      .status(code.temporaryRedirect)
+      .redirect('/');
+  }
+
+  const promises = [
+    auth
+      .updateUser(conn.req.query.uid, {
+        emailVerified: true,
+      }),
+    updatesDoc
+      .ref
+      .set({
+        emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
+        verificationRequestsCount: verificationRequestsCount + 1,
+      }, {
+        merge: true,
+      })
+  ];
+
+  await Promise
+    .all(promises);
+
+  return conn
+    .res
+    .status(code.temporaryRedirect)
+    .redirect('/');
 };
 
 const handleSitemap = async () => {
@@ -872,38 +922,39 @@ const handleSitemap = async () => {
     return str;
   };
 
-  try {
-    const path = 'sitemap';
-    const result = await admin.database().ref(path).once('value');
-    const sitemapObject = result.val() || {};
-    const allOffices = Object.entries(sitemapObject);
-    let xmlString = '';
+  const path = 'sitemap';
+  const result = await admin
+    .database()
+    .ref(path)
+    .once('value');
+  const sitemapObject = result
+    .val() || {};
+  const allOffices = Object
+    .entries(sitemapObject);
+  let xmlString = '';
 
-    allOffices.forEach((office, index) => {
-      const [slug, object] = office;
+  allOffices.forEach((office, index) => {
+    const [slug, object] = office;
 
-      if (index === 0) {
-        xmlString += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
-      }
+    if (index === 0) {
+      xmlString += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+    }
 
-      xmlString += getUrlItem(slug, object);
-    });
+    xmlString += getUrlItem(slug, object);
+  });
 
-    const lastMod = new Date().toJSON();
+  const lastMod = new Date().toJSON();
 
-    [
-      '', // home page
-      'privacy-policy',
-      'contact',
-      'terms-and-conditions'
-    ].forEach(slug => xmlString += getUrlItem(slug, { lastMod }));
+  [
+    '', // home page
+    'privacy-policy',
+    'contact',
+    'terms-and-conditions'
+  ].forEach(slug => xmlString += getUrlItem(slug, { lastMod }));
 
-    xmlString += `</urlset>`;
+  xmlString += `</urlset>`;
 
-    return xmlString;
-  } catch (error) {
-    console.error(error);
-  }
+  return xmlString;
 };
 
 const getHeaders = () => ({
@@ -921,8 +972,12 @@ const getHeaders = () => ({
 const getAuthFromIdToken = async idToken => {
   try {
     const decodedIdToken = await auth.verifyIdToken(idToken);
+    const userRecord = await auth
+      .getUser(decodedIdToken.uid);
 
-    return auth.getUser(decodedIdToken.uid);
+    return Object.assign({}, userRecord, {
+      adminOffices: Object.keys(userRecord.customClaims || {}),
+    });
   } catch (error) {
     return {
       phoneNumber: null,
@@ -953,7 +1008,7 @@ module.exports = async (req, res) => {
       .status(code.ok)
       .set(conn.headers);
 
-    return sendJSON(conn.res, { success: true });
+    return sendJSON(conn, { success: true });
   }
 
   // Only GET and POST are allowed
@@ -973,7 +1028,8 @@ module.exports = async (req, res) => {
    * Avoids duplicate content issues since there is no native way
    * currently to set up a redirect in the firebase hosting settings.
    */
-  if (req.headers['x-forwarded-host'] === env.firebaseDomain) {
+  if (req.headers['x-forwarded-host']
+    === env.firebaseDomain) {
     return res
       .status(code.permanentRedirect)
       .redirect(env.mainDomain);
@@ -1000,17 +1056,20 @@ module.exports = async (req, res) => {
   try {
     const idToken = parseCookies(req.headers);
     const userRecord = await getAuthFromIdToken(idToken);
-    locals.isLoggedIn = !!userRecord.uid;
-
     const requester = Object.assign({}, userRecord);
+    // This is a read only property
+    const customClaims = userRecord.customClaims || {};
+
     requester
-      .adminOffices = userRecord.customClaims.admin || [];
+      .customClaims = customClaims;
+    requester
+      .adminOffices = requester.customClaims.admin || [];
     requester
       .isAdmin = requester.adminOffices.length > 0;
     requester
       .isSupport = !!requester.customClaims.support;
-    /** Home page */
 
+    /** Home page */
     if (!slug) {
       return sendHTML(
         conn,
