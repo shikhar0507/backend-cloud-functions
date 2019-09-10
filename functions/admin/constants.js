@@ -801,6 +801,7 @@ const timezonesSet = new Set()
 
 const dateFormats = {
   TIME: 'LT',
+  HH_MM: 'HH:mm',
   DATE: 'Do MMM YYYY',
   DATE_TIME: 'MMM D YYYY HH[:]mm A',
   MONTH_YEAR: 'MMMM YYYY',
