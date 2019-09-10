@@ -3797,6 +3797,7 @@ const handleCheckIn = async locals => {
   const batch = db.batch();
 
   console.log('relevantTimeActivities', relevantTimeActivities.size);
+  console.log(nowMinus24Hours.valueOf(), nowPlus24Hours.valueOf());
 
   relevantTimeActivities
     .forEach(doc => {
@@ -3815,7 +3816,12 @@ const handleCheckIn = async locals => {
         _longitude: doc.get('customerObject.longitude'),
       };
 
+      console.log('gp1', gp1);
+      console.log('gp2', gp2);
+
       const hd = haversineDistance(gp1, gp2);
+
+      console.log('HD', hd, doc.id);
 
       if (hd > 1) {
         return;
@@ -3962,8 +3968,7 @@ const handleClaim = async locals => {
   const statusObject = statusObjectDoc.get('statusObject') || {};
   const activityId = locals.change.after.id;
   const details = locals.change.after.get('attachment.Details.value') || '';
-  const amount = locals.change.after.get('attachment.Amount.value');
-  // const name = locals.change.after.get('attachment.Name.value');
+  // const amount = locals.change.after.get('attachment.Amount.value');
 
   statusObject[
     dateToday
@@ -3973,16 +3978,16 @@ const handleClaim = async locals => {
   ].reimbursements = statusObject[dateToday].reimbursements || [];
 
   const newObject = {
-    amount,
     details,
     template,
     phoneNumber,
     activityId,
+    activityName: locals.change.after.get('activityName') || '',
     timestamp: momentNow.valueOf(),
+    amount: locals.change.after.get('attachment.Amount.value'),
     status: locals.change.after.get('status'),
-    startTime: locals.change.after.get('schedule')[0].startTime,
-    endTime: locals.change.after.get('schedule')[0].endTime,
     photoURL: locals.change.after.get('attachment.Photo URL.value') || '',
+    claimType: locals.change.after.get('attachment.Claim Type.value'),
   };
 
   if (locals.addendumDocData) {
@@ -4240,9 +4245,11 @@ const handleCheckInActionForkmAllowance = async locals => {
 
   const newObject = {
     amount,
+    distanceTravelled,
     name: kmAllowanceActivity.get('attachment.Name.value'),
     activityId: kmAllowanceActivity.id,
     template: kmAllowanceActivity.get('template'),
+    rate: kmAllowanceActivity.get('attachment.Rate.value'),
   };
 
   const indexOfObject = statusObject[
