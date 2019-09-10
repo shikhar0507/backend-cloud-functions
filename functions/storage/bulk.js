@@ -1828,6 +1828,7 @@ const validateDataArray = async locals => {
       && !locals.inputObjects[index].rejected
       && locals.templateDoc.get('name') !== templateNamesObject.CUSTOMER
       && locals.templateDoc.get('name') !== templateNamesObject.BRANCH
+      && locals.templateDoc.get('name') !== templateNamesObject.KM_ALLOWANCE
       /**
        * Templates like `leave-type`, `claim-type` and `customer-type`
        * are auto assigned to their respective recipients via
@@ -2098,15 +2099,33 @@ const handleKmAllowance = async locals => {
   }
 
   locals.inputObjects.forEach((item, index) => {
-    const filters = [
-      item.Local,
-      item['Up Country'],
-    ];
+    console.log('local', item.Local, typeof item.Local);
+    console.log('upCountry', item['Up Country'], typeof item['Up Country']);
 
-    if (filters.filter(Boolean).length === filters.length) {
+    if (item.Local === 'TRUE'
+      && item['Up Country'] === 'TRUE') {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Only one among (Include Branch, Local and Up Country)`
+      locals.inputObjects[index].reason = `Only one among`
+        + ` (Local and Up Country)`
         + ` can be true`;
+
+      return;
+    }
+
+    if (item.Local === 'TRUE') {
+      locals.inputObjects[index].Local = true;
+    }
+
+    if (item.Local === 'FALSE') {
+      locals.inputObjects[index].Local = false;
+    }
+
+    if (item['Up Country'] === 'TRUE') {
+      locals.inputObjects[index]['Up Country'] = true;
+    }
+
+    if (item['Up Country'] === 'FALSE') {
+      locals.inputObjects[index]['Up Country'] = false;
     }
   });
 
