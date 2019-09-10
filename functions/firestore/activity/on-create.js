@@ -101,7 +101,7 @@ const getClaimStatus = async params => {
   let claimsThisMonth = dinero({ amount: 0 });
 
   claimActivities.forEach(doc => {
-    const amount = Number(doc.get('attachment.Amount.value'));
+    const amount = Number(doc.get('attachment.Amount.value') || 0);
 
     claimsThisMonth = claimsThisMonth
       .add(dinero({ amount }));
@@ -525,7 +525,7 @@ const handleClaims = async (conn, locals) => {
     return handleAssignees(conn, locals);
   }
 
-  if (Number(amount) < 1) {
+  if (Number(amount || 0) < 1) {
     return sendResponse(
       conn,
       code.badRequest,
