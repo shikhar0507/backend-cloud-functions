@@ -231,6 +231,8 @@ module.exports = async conn => {
       .profiles
       .doc(conn.requester.phoneNumber);
 
+    console.log('/now lastLocationMapUpdateTimestamp');
+
     batch
       .set(ref, {
         lastLocationMapUpdateTimestamp: Date.now(),

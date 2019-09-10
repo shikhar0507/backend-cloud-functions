@@ -270,6 +270,7 @@ const getCustomerObject = doc => {
     office: doc.get('office'),
     officeId: doc.get('officeId'),
     status: doc.get('status'),
+    template: doc.get('template'),
     timestamp: doc.get('timestamp'),
     venueDescriptor: doc.get('venue')[0].venueDescriptor,
   });
@@ -334,6 +335,9 @@ module.exports = async conn => {
       .profileDoc
       .get('lastLocationMapUpdateTimestamp') > from;
 
+  console.log('sendLocations', conn.requester.phoneNumber, sendLocations);
+  console.log('from', jsonObject.from);
+
   if (sendLocations) {
     const locationPromises = [];
 
@@ -374,9 +378,10 @@ module.exports = async conn => {
     ] = await Promise.all(promises);
 
     if (!addendum.empty) {
-      jsonObject.upto = addendum
-        .docs[addendum.size - 1]
-        .get('timestamp');
+      jsonObject
+        .upto = addendum
+          .docs[addendum.size - 1]
+          .get('timestamp');
     }
 
     if (locationResults) {
@@ -388,6 +393,8 @@ module.exports = async conn => {
             });
         });
     }
+
+    console.log('locationResults', jsonObject.locations.length);
 
     addendum
       .forEach(doc => {

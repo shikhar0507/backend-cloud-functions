@@ -1948,11 +1948,6 @@ const setLocationsReadEvent = async locals => {
     .change
     .after
     .get('officeId');
-  const timestamp = Date.now();
-
-  if (locals.change.after.get('status') === 'CANCELLED') {
-    return;
-  }
 
   let docsCounter = 0;
   let batchIndex = 0;
@@ -1962,6 +1957,24 @@ const setLocationsReadEvent = async locals => {
   let numberOfDocs = phoneNumbersArray.length;
   const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
   const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
+  const authPromises = [];
+
+  phoneNumbersArray.forEach(phoneNumber => {
+    // const authPromises = getAuth(phoneNumber);
+    authPromises
+      .push(getAuth(phoneNumber));
+  });
+
+  const userRecords = await Promise.all(authPromises);
+
+  userRecords.forEach(userRecord => {
+    const { uid, phoneNumber } = userRecord;
+
+    if (!uid) return;
+
+    uidMap
+      .set(phoneNumber, uid);
+  });
 
   phoneNumbersArray
     .forEach(phoneNumber => {
@@ -1983,7 +1996,7 @@ const setLocationsReadEvent = async locals => {
       ].set(rootCollections
         .updates
         .doc(uid), {
-        lastLocationMapUpdateTimestamp: timestamp,
+        lastLocationMapUpdateTimestamp: Date.now(),
       }, {
         merge: true,
       });
