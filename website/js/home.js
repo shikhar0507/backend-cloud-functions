@@ -1197,7 +1197,8 @@ function createExcelSheet(rawTemplate) {
 
   const data = [];
 
-  if (rawTemplate.venue.length) {
+  if (rawTemplate.name === 'customer'
+    || rawTemplate.name === 'branch') {
     data.push(['address', 'location'])
   } else {
     const allKeys = Object.keys(rawTemplate.attachment);
@@ -1206,6 +1207,11 @@ function createExcelSheet(rawTemplate) {
       .schedule
       .forEach(function (name) {
         allKeys.push(name);
+      });
+    rawTemplate
+      .venue
+      .forEach(function (venueDescriptor) {
+        allKeys.push(venueDescriptor);
       });
 
     data.push(allKeys);
