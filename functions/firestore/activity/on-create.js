@@ -101,7 +101,7 @@ const getClaimStatus = async params => {
   let claimsThisMonth = dinero({ amount: 0 });
 
   claimActivities.forEach(doc => {
-    const amount = Number(doc.get('attachment.Amount.value') || 0);
+    const amount = parseInt(doc.get('attachment.Amount.value') || 0);
 
     claimsThisMonth = claimsThisMonth
       .add(dinero({ amount }));
@@ -546,7 +546,7 @@ const handleClaims = async (conn, locals) => {
   if (claimsThisMonth + amount > monthlyLimit) {
     locals.static.statusOnCreate = 'CANCELLED';
     locals.cancellationMessage = `CLAIM CANCELLED: Exceeded`
-      + ` Max Claims (${monthlyLimit}) this month.`;
+      + ` Max Claims (${monthlyLimit}) amount this month.`;
   }
 
   return handleAssignees(conn, locals);
