@@ -1736,16 +1736,21 @@ const getBranchName = addressComponents => {
 };
 
 const getUsersWithCheckIn = async officeId => {
-  const realtimeDb = admin.database();
+  const result = [];
 
-  try {
-    const path = `${officeId}/check-in`;
-    const d = await realtimeDb.ref(path).once('value');
+  const checkInSubscriptions = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Activities')
+    .where('template', '==', 'subscription')
+    .where('attachment.Template.value', '==', 'check-in')
+    .where('status', '==', 'CONFIRMED')
+    .get();
 
-    return Object.keys(d.val() || {});
-  } catch (error) {
-    console.error(error);
-  }
+  checkInSubscriptions
+    .forEach(doc => result.push(doc.get('attachment.Subscriber.value')));
+
+  return result;
 };
 
 const getAuth = async phoneNumber => {

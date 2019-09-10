@@ -587,75 +587,6 @@ const handleCanEditRule = async (locals, templateDoc) => {
 };
 
 
-const handleCheckInSubscription = async locals => {
-  // if check-in subscription has been created
-  // Employee should receive locations map
-  const template = locals
-    .change
-    .after
-    .get('template');
-
-  if (template !== 'subscription') {
-    return;
-  }
-
-  const subscribedTemplate = locals
-    .change
-    .after
-    .get('attachment.Template.value');
-
-  if (subscribedTemplate !== 'check-in') {
-    return;
-  }
-
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const oldSubscriber = locals
-    .change
-    .before
-    .get('attachment.Subscriber.value');
-  const newSubscriber = locals
-    .change
-    .after
-    .get('attachment.Subscriber.value');
-  const status = locals
-    .change
-    .after
-    .get('status');
-
-  if (status === 'CANCELLED') {
-    return admin
-      .database()
-      .ref(`${officeId}/check-in/${newSubscriber}`)
-      .remove();
-  }
-
-  // Subscriber changed, removing
-  if (oldSubscriber
-    && (oldSubscriber !== newSubscriber)) {
-    await admin
-      .database()
-      .ref(`${officeId}/check-in/${oldSubscriber}`)
-      .remove();
-  }
-
-  const oldObjectResult = await admin
-    .database()
-    .ref(`${officeId}/${subscribedTemplate}`)
-    .once('value');
-
-  const checkInMap = oldObjectResult.val() || {};
-  checkInMap[newSubscriber] = true;
-
-  return admin
-    .database()
-    .ref(`${officeId}/check-in`)
-    .set(checkInMap);
-};
-
-
 const handleSubscription = async locals => {
   const batch = db.batch();
   const activityId = locals.change.after.id;
@@ -767,7 +698,6 @@ const handleSubscription = async locals => {
   }
 
   await batch.commit();
-  await handleCheckInSubscription(locals);
   await handleCanEditRule(locals, templateDoc);
 
   return handleXTypeActivities(locals);
@@ -2018,8 +1948,7 @@ const setLocationsReadEvent = async locals => {
     .change
     .after
     .get('officeId');
-  const timestamp = Date
-    .now();
+  const timestamp = Date.now();
 
   if (locals.change.after.get('status') === 'CANCELLED') {
     return;
@@ -2029,6 +1958,7 @@ const setLocationsReadEvent = async locals => {
   let batchIndex = 0;
 
   const phoneNumbersArray = await getUsersWithCheckIn(officeId);
+  const uidMap = new Map();
   let numberOfDocs = phoneNumbersArray.length;
   const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
   const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
@@ -2042,11 +1972,17 @@ const setLocationsReadEvent = async locals => {
         batchIndex++;
       }
 
+      const uid = uidMap.get(phoneNumber);
+
+      if (!uid) {
+        return;
+      }
+
       batchArray[
         batchIndex
       ].set(rootCollections
-        .profiles
-        .doc(phoneNumber), {
+        .updates
+        .doc(uid), {
         lastLocationMapUpdateTimestamp: timestamp,
       }, {
         merge: true,
@@ -2064,77 +2000,6 @@ const setLocationsReadEvent = async locals => {
 
       return commitBatch(currentBatch);
     }, Promise.resolve());
-};
-
-
-const handleLocations = locals => {
-  const rtdb = admin
-    .database();
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const path = `${officeId}/locations/${locals.change.after.id}`;
-
-  if (locals.change.after.get('status') === 'CANCELLED') {
-    return Promise
-      .all([
-        rtdb
-          .ref(path)
-          .remove(),
-        setLocationsReadEvent(locals),
-      ]);
-  }
-
-  const venue = locals
-    .change
-    .after
-    .get('venue');
-
-  if (!venue
-    || !venue[0]
-    || !venue[0].location) {
-    return;
-  }
-
-  const oldVenue = locals
-    .change
-    .before
-    .get('venue');
-  const newVenue = locals
-    .change
-    .after
-    .get('venue');
-
-  if (oldVenue && newVenue) {
-    const updatesArray = getUpdatedVenueDescriptors(newVenue, oldVenue);
-
-    if (!updatesArray.length) {
-      return;
-    }
-  }
-
-  const data = {
-    officeId,
-    activityId: locals.change.after.id,
-    timestamp: Date.now(),
-    office: locals.change.after.get('office'),
-    latitude: venue[0].geopoint.latitude,
-    longitude: venue[0].geopoint.longitude,
-    venueDescriptor: venue[0].venueDescriptor,
-    location: venue[0].location,
-    address: venue[0].address,
-    template: locals.change.after.get('template'),
-    status: locals.change.after.get('status'),
-  };
-
-  return Promise
-    .all([
-      rtdb
-        .ref(path)
-        .set(data),
-      setLocationsReadEvent(locals)
-    ]);
 };
 
 
@@ -4607,7 +4472,7 @@ module.exports = async (change, context) => {
 
     if (template === 'branch'
       || template === 'customer') {
-      await handleLocations(locals);
+      await setLocationsReadEvent(locals);
     }
 
     if (template === 'admin') {
