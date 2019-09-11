@@ -4,7 +4,6 @@
 const {
   sendResponse,
   getISO8601Date,
-  handleError,
   sendJSON,
 } = require('../../admin/utils');
 const {
