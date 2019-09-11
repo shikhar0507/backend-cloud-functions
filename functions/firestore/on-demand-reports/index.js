@@ -30,7 +30,7 @@ const validateRequestBody = (requestBody) => {
     result.message = `Field: 'office' should be a non-empty string`;
   }
 
-  const names = new Set(['footprints', 'payroll', 'schedule']);
+  const names = new Set(['footprints', 'payroll', 'payroll master']);
 
   if (!names.has(requestBody.report)) {
     result.isValid = false;
