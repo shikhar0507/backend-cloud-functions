@@ -1341,6 +1341,24 @@ const addEmployeeToRealtimeDb = async doc => {
       }
     }
 
+    const leaves = await rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Activities')
+      .where('template', '==', 'leave')
+      .where('isCancelled', '==', false)
+      .where('creator.phoneNumber', '==', phoneNumber)
+      .where('creationYear', '==', moment().tz(timezone).year())
+      .get();
+
+    leaves.forEach(doc => {
+      const leaveType = doc.get('attachment.Leave Type.value') || 'unset';
+
+      options.leaves = options.leaves || {};
+      options.leaves[leaveType] = options.leaves[leaveType] || 0;
+      options.leaves[leaveType]++;
+    });
+
     return ref.set(getEmployeeDataObject(options));
   } catch (error) {
     console.error(error);
