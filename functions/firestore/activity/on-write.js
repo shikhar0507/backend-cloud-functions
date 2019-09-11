@@ -3428,6 +3428,31 @@ const handleLeaveUpdates = async locals => {
 
 
 const handleLeave = async locals => {
+  const officeId = locals.change.after.get('officeId');
+  const phoneNumber = locals.change.after.get('creator.phoneNumber');
+
+  if (locals.addendumDoc
+    && locals.addendumDoc.get('action') === httpsActions.create
+    || locals.addendumDoc.get('action') === httpsActions.update
+    || locals.addendumDoc.get('action') === httpsActions.changeStatus) {
+
+    const docs = await rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Activities')
+      .where('status', '==', 'CONFIRMED')
+      .where('template', '==', 'employee')
+      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .limit(1)
+      .get();
+
+    const doc = docs.docs[0];
+
+    if (doc) {
+      await addEmployeeToRealtimeDb(doc);
+    }
+  }
+
   if (locals.addendumDoc
     && locals.addendumDoc.get('action') === httpsActions.comment) {
     return;
@@ -3437,8 +3462,6 @@ const handleLeave = async locals => {
     && locals.addendumDoc.get('action') === httpsActions.create;
   const newStatus = locals.change.after.get('status');
   const displayName = locals.change.after.get('creator.displayName');
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
-  const officeId = locals.change.after.get('officeId');
   const conflictingDuties = locals.change.after.get('conflictingDuties') || [];
 
   // Leave was created with cancelled status
@@ -3862,6 +3885,7 @@ const handleClaim = async locals => {
     activityId,
     activityName: locals.change.after.get('activityName') || '',
     timestamp: momentNow.valueOf(),
+    createTimestamp: locals.change.after.createTime.toDate().getTime(),
     amount: locals.change.after.get('attachment.Amount.value'),
     status: locals.change.after.get('status'),
     photoURL: locals.change.after.get('attachment.Photo URL.value') || '',
