@@ -32,6 +32,7 @@ const {
   validTypes,
   httpsActions,
   timezonesSet,
+  reportNames,
 } = require('../admin/constants');
 const {
   alphabetsArray,
@@ -1502,7 +1503,12 @@ const validateDataArray = async locals => {
     if (locals.templateDoc.get('name')
       === templateNamesObject.RECIPIENT) {
       const reportName = locals.inputObjects[index].Name;
-      const validReports = new Set(['footprints', 'payroll', 'schedule']);
+      const validReports = new Set([
+        reportNames.FOOTPRINTS,
+        reportNames.PAYROLL,
+        reportNames.REIMBURSEMENT,
+        reportNames.PAYROLL_MASTER,
+      ]);
 
       if (!validReports.has(reportName)) {
         locals.inputObjects[index].rejected = true;

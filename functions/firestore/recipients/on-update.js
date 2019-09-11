@@ -54,6 +54,10 @@ const getTemplateId = report => {
     return sendGridTemplateIds.payroll;
   }
 
+  if (report === reportNames.REIMBURSEMENT) {
+    return sendGridTemplateIds.reimbursement;
+  }
+
   return null;
 };
 
@@ -66,6 +70,10 @@ const getSubject = (report, office, dateString) => {
 
   if (report === 'payroll') {
     start += 'Payroll';
+  }
+
+  if (report === 'reimbursement') {
+    start += `Reimbursement`;
   }
 
   return `${start} Report_${office}_${dateString}`;
@@ -199,6 +207,14 @@ module.exports = async change => {
 
     if (report === reportNames.PAYROLL) {
       await require('./payday-report')(locals);
+    }
+
+    if (report === reportNames.REIMBURSEMENT) {
+      await require('./reimbursements-report')(locals);
+    }
+
+    if (report === reportNames.PAYROLL_MASTER) {
+      await require('./payroll-master-report')(locals);
     }
 
     if (!env.isProduction) {

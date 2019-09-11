@@ -158,7 +158,8 @@ const sendGridTemplateIds = {
   activityReports: 'd-2972abe4d32443fab45c75d901ffb02a',
   verificationEmail: 'd-7645b372912a490eb2062cf5cc076041',
   dailyStatusReport: 'd-a48d570e46914d0d8989f77a844a26e9',
-  schedule: 'd-ae3a31066b0f447bbf8661570b4dc719',
+  reimbursement: 'd-ae3a31066b0f447bbf8661570b4dc719',
+  payrollMaster: 'd-4fa81720b3894e889522a3d48782e593',
 };
 
 const templatesWithNumber = new Set()
@@ -810,6 +811,8 @@ const dateFormats = {
 };
 
 const reportNames = {
+  PAYROLL_MASTER: 'payroll master',
+  REIMBURSEMENT: 'reimbursement',
   SCHEDULE: 'schedule',
   COUNTER: 'counter',
   CUSTOMER: 'customer',
