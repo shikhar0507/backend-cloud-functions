@@ -58,6 +58,10 @@ const getTemplateId = report => {
     return sendGridTemplateIds.reimbursement;
   }
 
+  if (report === reportNames.PAYROLL_MASTER) {
+    return sendGridTemplateIds.payrollMaster;
+  }
+
   return null;
 };
 
