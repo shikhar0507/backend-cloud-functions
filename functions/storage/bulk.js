@@ -32,6 +32,7 @@ const {
   validTypes,
   httpsActions,
   timezonesSet,
+  reportNames,
 } = require('../admin/constants');
 const {
   alphabetsArray,
@@ -1502,7 +1503,12 @@ const validateDataArray = async locals => {
     if (locals.templateDoc.get('name')
       === templateNamesObject.RECIPIENT) {
       const reportName = locals.inputObjects[index].Name;
-      const validReports = new Set(['footprints', 'payroll', 'schedule']);
+      const validReports = new Set([
+        reportNames.FOOTPRINTS,
+        reportNames.PAYROLL,
+        reportNames.REIMBURSEMENT,
+        reportNames.PAYROLL_MASTER,
+      ]);
 
       if (!validReports.has(reportName)) {
         locals.inputObjects[index].rejected = true;
@@ -1828,6 +1834,7 @@ const validateDataArray = async locals => {
       && !locals.inputObjects[index].rejected
       && locals.templateDoc.get('name') !== templateNamesObject.CUSTOMER
       && locals.templateDoc.get('name') !== templateNamesObject.BRANCH
+      && locals.templateDoc.get('name') !== templateNamesObject.KM_ALLOWANCE
       /**
        * Templates like `leave-type`, `claim-type` and `customer-type`
        * are auto assigned to their respective recipients via
@@ -2097,72 +2104,35 @@ const handleKmAllowance = async locals => {
     return;
   }
 
-  const homeLocationPromises = [];
-  const homeLocationsSet = new Set();
-  const officeId = locals.officeDoc.id;
-  const existingLocationsSet = new Set();
-
   locals.inputObjects.forEach((item, index) => {
-    // const homeLocation = item['Home Location'];
-    const filters = [
-      item['Include Branch'],
-      item.Local,
-      item['Up Country'],
-    ];
+    console.log('local', item.Local, typeof item.Local);
+    console.log('upCountry', item['Up Country'], typeof item['Up Country']);
 
-    if (filters.filter(Boolean).length === filters.length) {
+    if (item.Local === 'TRUE'
+      && item['Up Country'] === 'TRUE') {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Only one among (Include Branch, Local and Up Country)`
+      locals.inputObjects[index].reason = `Only one among`
+        + ` (Local and Up Country)`
         + ` can be true`;
-    }
 
-    homeLocationsSet.add(item['Home Location']);
-  });
-
-  homeLocationsSet.forEach(homeLocation => {
-    const baseQuery = rootCollections
-      .activities
-      .where('officeId', '==', officeId)
-      .where('status', '==', 'CONFIRMED')
-      .where('attachment.Name.value', '==', homeLocation);
-
-    const p1 = baseQuery
-      .where('template', '==', 'customer')
-      .limit(1)
-      .get();
-
-    const p2 = baseQuery
-      .where('template', '==', 'branch')
-      .limit(1)
-      .get();
-
-    homeLocationPromises
-      .push(p1, p2);
-  });
-
-  const snaps = await Promise.all(homeLocationPromises);
-
-  snaps.forEach(snap => {
-    if (snap.empty) {
       return;
     }
 
-    const doc = snap.docs[0];
-    const name = doc.get('attachment.Name.value');
-
-    existingLocationsSet.add(name);
-  });
-
-  locals.inputObjects.forEach((item, index) => {
-    const homeLocation = item['Home Location'];
-
-    if (existingLocationsSet.has(homeLocation)) {
-      return;
+    if (item.Local === 'TRUE') {
+      locals.inputObjects[index].Local = true;
     }
 
-    locals.inputObjects[index].rejected = true;
-    locals.inputObjects[index].reason = `Home Location:`
-      + ` '${homeLocation} doesn't exist'`;
+    if (item.Local === 'FALSE') {
+      locals.inputObjects[index].Local = false;
+    }
+
+    if (item['Up Country'] === 'TRUE') {
+      locals.inputObjects[index]['Up Country'] = true;
+    }
+
+    if (item['Up Country'] === 'FALSE') {
+      locals.inputObjects[index]['Up Country'] = false;
+    }
   });
 
   return;
@@ -2533,7 +2503,6 @@ module.exports = async (object, context) => {
     const [
       officeId,
       template,
-      fileName,
     ] = object.name.split('/');
     const bucket = admin
       .storage()
@@ -2565,15 +2534,6 @@ module.exports = async (object, context) => {
         defval: '',
         raw: false,
       });
-
-    console.log({
-      officeId,
-      template,
-      fileName,
-      inputObjects: inputObjects.length,
-      metadataResponse: metadataResponse.metadata,
-      metageneration: object.metageneration,
-    });
 
     const promises = [
       rootCollections

@@ -260,6 +260,22 @@ const getStatusObject = async profileDoc => {
   }
 };
 
+const getCustomerObject = doc => {
+  return ({
+    activityId: doc.id,
+    address: doc.get('venue')[0].address,
+    location: doc.get('venue')[0].location,
+    latitude: doc.get('venue')[0].geopoint.latitude,
+    longitude: doc.get('venue')[0].geopoint.longitude,
+    office: doc.get('office'),
+    officeId: doc.get('officeId'),
+    status: doc.get('status'),
+    template: doc.get('template'),
+    timestamp: doc.get('timestamp'),
+    venueDescriptor: doc.get('venue')[0].venueDescriptor,
+  });
+};
+
 module.exports = async conn => {
   const result = validateRequest(conn);
 
@@ -319,19 +335,34 @@ module.exports = async conn => {
       .profileDoc
       .get('lastLocationMapUpdateTimestamp') > from;
 
+  console.log('sendLocations', conn.requester.phoneNumber, sendLocations);
+  console.log('from', jsonObject.from);
+
   if (sendLocations) {
     const locationPromises = [];
 
     officeList.forEach(name => {
-      const officeId = employeeOf[name];
-      const path = `${officeId}/locations`;
+      const customers = rootCollections
+        .offices
+        .doc(employeeOf[name])
+        .collection('Activities')
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'customer')
+        .get();
 
-      const ref = admin
-        .database()
-        .ref(path);
+      const branches = rootCollections
+        .offices
+        .doc(employeeOf[name])
+        .collection('Activities')
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'branch')
+        .get();
 
       locationPromises
-        .push(ref.once('value'));
+        .push(
+          customers,
+          branches
+        );
     });
 
     promises
@@ -347,20 +378,23 @@ module.exports = async conn => {
     ] = await Promise.all(promises);
 
     if (!addendum.empty) {
-      jsonObject.upto = addendum
-        .docs[addendum.size - 1]
-        .get('timestamp');
+      jsonObject
+        .upto = addendum
+          .docs[addendum.size - 1]
+          .get('timestamp');
     }
 
     if (locationResults) {
-      locationResults.forEach(snapShot => {
-        if (!snapShot) return;
-
-        snapShot.forEach(item => {
-          jsonObject.locations.push(item.val());
+      locationResults
+        .forEach(snap => {
+          snap
+            .forEach(doc => {
+              jsonObject.locations.push(getCustomerObject(doc));
+            });
         });
-      });
     }
+
+    console.log('locationResults', jsonObject.locations.length);
 
     addendum
       .forEach(doc => {

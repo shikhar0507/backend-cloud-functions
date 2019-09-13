@@ -1342,6 +1342,24 @@ const addEmployeeToRealtimeDb = async doc => {
       }
     }
 
+    const leaves = await rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Activities')
+      .where('template', '==', 'leave')
+      .where('isCancelled', '==', false)
+      .where('creator.phoneNumber', '==', phoneNumber)
+      .where('creationYear', '==', moment().tz(timezone).year())
+      .get();
+
+    leaves.forEach(doc => {
+      const leaveType = doc.get('attachment.Leave Type.value') || 'unset';
+
+      options.leaves = options.leaves || {};
+      options.leaves[leaveType] = options.leaves[leaveType] || 0;
+      options.leaves[leaveType]++;
+    });
+
     return ref.set(getEmployeeDataObject(options));
   } catch (error) {
     console.error(error);
@@ -1737,16 +1755,21 @@ const getBranchName = addressComponents => {
 };
 
 const getUsersWithCheckIn = async officeId => {
-  const realtimeDb = admin.database();
+  const result = [];
 
-  try {
-    const path = `${officeId}/check-in`;
-    const d = await realtimeDb.ref(path).once('value');
+  const checkInSubscriptions = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Activities')
+    .where('template', '==', 'subscription')
+    .where('attachment.Template.value', '==', 'check-in')
+    .where('status', '==', 'CONFIRMED')
+    .get();
 
-    return Object.keys(d.val() || {});
-  } catch (error) {
-    console.error(error);
-  }
+  checkInSubscriptions
+    .forEach(doc => result.push(doc.get('attachment.Subscriber.value')));
+
+  return result;
 };
 
 const getAuth = async phoneNumber => {

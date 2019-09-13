@@ -1322,9 +1322,6 @@ function sendBulkCreateJson(result, templateName) {
     isCreateOffice = true
   }
 
-  // const fd = new FormData();
-  // fd.append('data', result);
-
   const requestBody = {
     timestamp: Date.now(),
     office: isCreateOffice ? '' : document.body.dataset.office,
@@ -1361,6 +1358,8 @@ function sendBulkCreateJson(result, templateName) {
       //   sessionStorage.setItem('officeNamesList', currentCachedOfficelist);
       // }
 
+      createSnackbar(response.message || `File Uploaded. Check your email for the results`);
+
       console.log('response', response);
     })
     .catch(function (error) {
@@ -1392,22 +1391,23 @@ function handleExcelOrCsvFile(element, templateName) {
   fReader.readAsBinaryString(file);
 
   fReader.onloadend = function (event) {
-    // const wb = XLSX.read(event.target.result, {
-    //   type: 'binary'
-    // });
+    const wb = XLSX.read(event.target.result, {
+      type: 'binary'
+    });
 
-    // const ws = wb.Sheets[wb.SheetNames[0]];
+    const ws = wb.Sheets[wb.SheetNames[0]];
 
-    // const jsonData = XLSX.utils.sheet_to_json(ws, {
-    //   blankRows: true,
-    //   defval: '',
-    //   raw: false
-    // });
+    const jsonData = XLSX.utils.sheet_to_json(ws, {
+      blankRows: true,
+      defval: '',
+      raw: false
+    });
 
-    // console.log(jsonData)
-    // sendBulkCreateJson(jsonData, templateName);
+    if (Object.keys(jsonData).length === 0) {
+      return createSnackbar('Invalid Excel file');
+    }
 
-    console.log('typeof result: ', typeof event.target.result);
+    console.log(jsonData);
 
     sendBulkCreateJson(event.target.result, templateName);
     element.target.value = null;

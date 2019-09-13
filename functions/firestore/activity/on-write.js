@@ -587,75 +587,6 @@ const handleCanEditRule = async (locals, templateDoc) => {
 };
 
 
-const handleCheckInSubscription = async locals => {
-  // if check-in subscription has been created
-  // Employee should receive locations map
-  const template = locals
-    .change
-    .after
-    .get('template');
-
-  if (template !== 'subscription') {
-    return;
-  }
-
-  const subscribedTemplate = locals
-    .change
-    .after
-    .get('attachment.Template.value');
-
-  if (subscribedTemplate !== 'check-in') {
-    return;
-  }
-
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const oldSubscriber = locals
-    .change
-    .before
-    .get('attachment.Subscriber.value');
-  const newSubscriber = locals
-    .change
-    .after
-    .get('attachment.Subscriber.value');
-  const status = locals
-    .change
-    .after
-    .get('status');
-
-  if (status === 'CANCELLED') {
-    return admin
-      .database()
-      .ref(`${officeId}/check-in/${newSubscriber}`)
-      .remove();
-  }
-
-  // Subscriber changed, removing
-  if (oldSubscriber
-    && (oldSubscriber !== newSubscriber)) {
-    await admin
-      .database()
-      .ref(`${officeId}/check-in/${oldSubscriber}`)
-      .remove();
-  }
-
-  const oldObjectResult = await admin
-    .database()
-    .ref(`${officeId}/${subscribedTemplate}`)
-    .once('value');
-
-  const checkInMap = oldObjectResult.val() || {};
-  checkInMap[newSubscriber] = true;
-
-  return admin
-    .database()
-    .ref(`${officeId}/check-in`)
-    .set(checkInMap);
-};
-
-
 const handleSubscription = async locals => {
   const batch = db.batch();
   const activityId = locals.change.after.id;
@@ -767,7 +698,6 @@ const handleSubscription = async locals => {
   }
 
   await batch.commit();
-  await handleCheckInSubscription(locals);
   await handleCanEditRule(locals, templateDoc);
 
   return handleXTypeActivities(locals);
@@ -2018,20 +1948,33 @@ const setLocationsReadEvent = async locals => {
     .change
     .after
     .get('officeId');
-  const timestamp = Date
-    .now();
-
-  if (locals.change.after.get('status') === 'CANCELLED') {
-    return;
-  }
 
   let docsCounter = 0;
   let batchIndex = 0;
 
   const phoneNumbersArray = await getUsersWithCheckIn(officeId);
+  const uidMap = new Map();
   let numberOfDocs = phoneNumbersArray.length;
   const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
   const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
+  const authPromises = [];
+
+  phoneNumbersArray.forEach(phoneNumber => {
+    // const authPromises = getAuth(phoneNumber);
+    authPromises
+      .push(getAuth(phoneNumber));
+  });
+
+  const userRecords = await Promise.all(authPromises);
+
+  userRecords.forEach(userRecord => {
+    const { uid, phoneNumber } = userRecord;
+
+    if (!uid) return;
+
+    uidMap
+      .set(phoneNumber, uid);
+  });
 
   phoneNumbersArray
     .forEach(phoneNumber => {
@@ -2042,12 +1985,18 @@ const setLocationsReadEvent = async locals => {
         batchIndex++;
       }
 
+      const uid = uidMap.get(phoneNumber);
+
+      if (!uid) {
+        return;
+      }
+
       batchArray[
         batchIndex
       ].set(rootCollections
-        .profiles
-        .doc(phoneNumber), {
-        lastLocationMapUpdateTimestamp: timestamp,
+        .updates
+        .doc(uid), {
+        lastLocationMapUpdateTimestamp: Date.now(),
       }, {
         merge: true,
       });
@@ -2064,77 +2013,6 @@ const setLocationsReadEvent = async locals => {
 
       return commitBatch(currentBatch);
     }, Promise.resolve());
-};
-
-
-const handleLocations = locals => {
-  const rtdb = admin
-    .database();
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const path = `${officeId}/locations/${locals.change.after.id}`;
-
-  if (locals.change.after.get('status') === 'CANCELLED') {
-    return Promise
-      .all([
-        rtdb
-          .ref(path)
-          .remove(),
-        setLocationsReadEvent(locals),
-      ]);
-  }
-
-  const venue = locals
-    .change
-    .after
-    .get('venue');
-
-  if (!venue
-    || !venue[0]
-    || !venue[0].location) {
-    return;
-  }
-
-  const oldVenue = locals
-    .change
-    .before
-    .get('venue');
-  const newVenue = locals
-    .change
-    .after
-    .get('venue');
-
-  if (oldVenue && newVenue) {
-    const updatesArray = getUpdatedVenueDescriptors(newVenue, oldVenue);
-
-    if (!updatesArray.length) {
-      return;
-    }
-  }
-
-  const data = {
-    officeId,
-    activityId: locals.change.after.id,
-    timestamp: Date.now(),
-    office: locals.change.after.get('office'),
-    latitude: venue[0].geopoint.latitude,
-    longitude: venue[0].geopoint.longitude,
-    venueDescriptor: venue[0].venueDescriptor,
-    location: venue[0].location,
-    address: venue[0].address,
-    template: locals.change.after.get('template'),
-    status: locals.change.after.get('status'),
-  };
-
-  return Promise
-    .all([
-      rtdb
-        .ref(path)
-        .set(data),
-      setLocationsReadEvent(locals)
-    ]);
 };
 
 
@@ -3550,6 +3428,31 @@ const handleLeaveUpdates = async locals => {
 
 
 const handleLeave = async locals => {
+  const officeId = locals.change.after.get('officeId');
+  const phoneNumber = locals.change.after.get('creator.phoneNumber');
+
+  if (locals.addendumDoc
+    && locals.addendumDoc.get('action') === httpsActions.create
+    || locals.addendumDoc.get('action') === httpsActions.update
+    || locals.addendumDoc.get('action') === httpsActions.changeStatus) {
+
+    const docs = await rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Activities')
+      .where('status', '==', 'CONFIRMED')
+      .where('template', '==', 'employee')
+      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .limit(1)
+      .get();
+
+    const doc = docs.docs[0];
+
+    if (doc) {
+      await addEmployeeToRealtimeDb(doc);
+    }
+  }
+
   if (locals.addendumDoc
     && locals.addendumDoc.get('action') === httpsActions.comment) {
     return;
@@ -3559,8 +3462,6 @@ const handleLeave = async locals => {
     && locals.addendumDoc.get('action') === httpsActions.create;
   const newStatus = locals.change.after.get('status');
   const displayName = locals.change.after.get('creator.displayName');
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
-  const officeId = locals.change.after.get('officeId');
   const conflictingDuties = locals.change.after.get('conflictingDuties') || [];
 
   // Leave was created with cancelled status
@@ -3758,24 +3659,6 @@ const handleCheckIn = async locals => {
     .change
     .after
     .get('creator.phoneNumber');
-  const venue = (() => {
-    // venue has been populated
-    if (locals.change.after.get('venue')[0].location) {
-      return locals.change.after.get('venue')[0];
-    }
-
-    if (addendumDocData.venueQuery) {
-      return addendumDocData.venueQuery;
-    }
-
-    return null;
-  })();
-
-  if (!venue
-    || !venue.location) {
-    return;
-  }
-
   const displayName = locals
     .change
     .after
@@ -3797,6 +3680,7 @@ const handleCheckIn = async locals => {
   const batch = db.batch();
 
   console.log('relevantTimeActivities', relevantTimeActivities.size);
+  console.log(nowMinus24Hours.valueOf(), nowPlus24Hours.valueOf());
 
   relevantTimeActivities
     .forEach(doc => {
@@ -3815,7 +3699,12 @@ const handleCheckIn = async locals => {
         _longitude: doc.get('customerObject.longitude'),
       };
 
+      console.log('gp1', gp1);
+      console.log('gp2', gp2);
+
       const hd = haversineDistance(gp1, gp2);
+
+      console.log('HD', hd, doc.id);
 
       if (hd > 1) {
         return;
@@ -3827,6 +3716,8 @@ const handleCheckIn = async locals => {
         .collection('Addendum')
         .doc();
       const dateObject = new Date();
+      const location = doc
+        .get('attachment.Location.value');
 
       batch.set(addendumDocRef, {
         date: dateObject.getDate(),
@@ -3843,7 +3734,7 @@ const handleCheckIn = async locals => {
         userDisplayName: displayName,
         isAutoGenerated: true,
         comment: `${displayName || phoneNumber} checked `
-          + `in from Duty Location: ${venue.location}`,
+          + `in from Duty Location: ${location}`,
         activityData: doc.data(),
         activityId: doc.ref.id,
       });
@@ -3962,8 +3853,7 @@ const handleClaim = async locals => {
   const statusObject = statusObjectDoc.get('statusObject') || {};
   const activityId = locals.change.after.id;
   const details = locals.change.after.get('attachment.Details.value') || '';
-  const amount = locals.change.after.get('attachment.Amount.value');
-  // const name = locals.change.after.get('attachment.Name.value');
+  // const amount = locals.change.after.get('attachment.Amount.value');
 
   statusObject[
     dateToday
@@ -3973,16 +3863,17 @@ const handleClaim = async locals => {
   ].reimbursements = statusObject[dateToday].reimbursements || [];
 
   const newObject = {
-    amount,
     details,
     template,
     phoneNumber,
     activityId,
+    activityName: locals.change.after.get('activityName') || '',
     timestamp: momentNow.valueOf(),
+    createTimestamp: locals.change.after.createTime.toDate().getTime(),
+    amount: locals.change.after.get('attachment.Amount.value'),
     status: locals.change.after.get('status'),
-    startTime: locals.change.after.get('schedule')[0].startTime,
-    endTime: locals.change.after.get('schedule')[0].endTime,
     photoURL: locals.change.after.get('attachment.Photo URL.value') || '',
+    claimType: locals.change.after.get('attachment.Claim Type.value'),
   };
 
   if (locals.addendumDocData) {
@@ -4240,9 +4131,11 @@ const handleCheckInActionForkmAllowance = async locals => {
 
   const newObject = {
     amount,
+    distanceTravelled,
     name: kmAllowanceActivity.get('attachment.Name.value'),
     activityId: kmAllowanceActivity.id,
     template: kmAllowanceActivity.get('template'),
+    rate: kmAllowanceActivity.get('attachment.Rate.value'),
   };
 
   const indexOfObject = statusObject[
@@ -4600,7 +4493,7 @@ module.exports = async (change, context) => {
 
     if (template === 'branch'
       || template === 'customer') {
-      await handleLocations(locals);
+      await setLocationsReadEvent(locals);
     }
 
     if (template === 'admin') {

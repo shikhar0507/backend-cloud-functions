@@ -392,9 +392,23 @@ module.exports = async (req, res) => {
     );
   }
 
-  if (env.isProduction &&
-    (!conn.req.headers['x-cf-secret'] ||
-      conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
+  if (conn.req.query.cashFreeToken
+    === env.cashFreeToken) {
+    await rootCollections
+      .errors
+      .doc()
+      .set({
+        report: 'cashfree',
+        body: conn.req.body || {},
+        timestamp: Date.now(),
+      });
+
+    return sendResponse(conn, code.ok);
+  }
+
+  if (env.isProduction
+    && (!conn.req.headers['x-cf-secret']
+      || conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
     return sendResponse(
       conn,
       code.forbidden,

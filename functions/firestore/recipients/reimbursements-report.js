@@ -54,6 +54,8 @@ module.exports = async locals => {
   reimbursementSheet
     .row(0)
     .style('bold', true);
+  workbook
+    .deleteSheet('Sheet1');
 
   [
     'Employee',
@@ -120,7 +122,7 @@ module.exports = async locals => {
         .value(item.details);
       reimbursementSheet
         .cell(`E${columnIndex}`)
-        .value(item['Photo Url']);
+        .value(item.photoUrl);
       reimbursementSheet
         .cell(`F${columnIndex}`)
         .value(momentTz(item.timestamp).tz(timezone).format(dateFormats.DATE_TIME));
@@ -145,7 +147,9 @@ module.exports = async locals => {
     return;
   }
 
-  await locals
+  console.log('mail sent', locals.messageObject.to);
+
+  return locals
     .sgMail
     .sendMultiple(locals.messageObject);
 };

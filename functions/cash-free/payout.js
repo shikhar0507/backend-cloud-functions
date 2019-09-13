@@ -237,9 +237,26 @@ const getBalance = async () => {
   });
 };
 
+const selfWithdrawal = async options => {
+  const uri = url.resolve(endpoint, '/payout/v1/selfWithdrawal');
+
+  return rpn(uri, {
+    headers: await getHeaders(),
+    json: true,
+    method: 'POST',
+    body: {
+      amount: options.amount,
+      remarks: options.remarks,
+      withdrawalId: crypto.randomBytes(16).toString('hex'),
+    },
+  });
+};
+
+
 module.exports = {
   getBalance,
   validateBank,
+  selfWithdrawal,
   getBeneficiary,
   addBeneficiary,
   requestTransfer,
