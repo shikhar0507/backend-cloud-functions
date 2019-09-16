@@ -91,6 +91,9 @@ module.exports = async locals => {
           reimbursements
             .forEach(object => {
               allOrderedItems.push({
+                date,
+                month: doc.get('month'),
+                year: doc.get('year'),
                 photoUrl: object.photoUrl,
                 amount: object.amount,
                 details: object.details,
@@ -103,6 +106,10 @@ module.exports = async locals => {
             });
         });
     });
+
+  if (allOrderedItems.length === 0) {
+    return;
+  }
 
   allOrderedItems
     .forEach((item, index) => {
@@ -123,9 +130,17 @@ module.exports = async locals => {
       reimbursementSheet
         .cell(`E${columnIndex}`)
         .value(item.photoUrl);
+
+      const dd = momentTz()
+        .date(item.date)
+        .month(item.month)
+        .year(item.year)
+        .tz(timezone)
+        .format(dateFormats.DATE);
+
       reimbursementSheet
         .cell(`F${columnIndex}`)
-        .value(momentTz(item.timestamp).tz(timezone).format(dateFormats.DATE_TIME));
+        .value(dd);
       reimbursementSheet
         .cell(`G${columnIndex}`)
         .value(item.status);
