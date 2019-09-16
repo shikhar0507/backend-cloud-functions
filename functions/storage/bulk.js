@@ -2105,11 +2105,8 @@ const handleKmAllowance = async locals => {
   }
 
   locals.inputObjects.forEach((item, index) => {
-    console.log('local', item.Local, typeof item.Local);
-    console.log('upCountry', item['Up Country'], typeof item['Up Country']);
-
     if (item.Local === 'TRUE'
-      && item['Up Country'] === 'TRUE') {
+      && item.Travel === 'TRUE') {
       locals.inputObjects[index].rejected = true;
       locals.inputObjects[index].reason = `Only one among`
         + ` (Local and Up Country)`
@@ -2126,12 +2123,12 @@ const handleKmAllowance = async locals => {
       locals.inputObjects[index].Local = false;
     }
 
-    if (item['Up Country'] === 'TRUE') {
-      locals.inputObjects[index]['Up Country'] = true;
+    if (item.Travel === 'TRUE') {
+      locals.inputObjects[index].Travel = true;
     }
 
-    if (item['Up Country'] === 'FALSE') {
-      locals.inputObjects[index]['Up Country'] = false;
+    if (item.Travel === 'FALSE') {
+      locals.inputObjects[index].Travel = false;
     }
   });
 
