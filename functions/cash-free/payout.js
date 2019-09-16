@@ -221,7 +221,7 @@ const verifyWebhookPost = webhookData => {
   sortedKeys.forEach(key => concatenatedValues += `${webhookData[key]}`);
 
   const calculatedSignature = crypto
-    .createHash('sha256')
+    .createHmac('sha256', env.cashFree.autocollect.clientSecret)
     .update(concatenatedValues)
     .digest('base64');
 
