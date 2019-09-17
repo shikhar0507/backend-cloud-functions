@@ -1957,20 +1957,26 @@ const setLocationsReadEvent = async locals => {
   let numberOfDocs = phoneNumbersArray.length;
   const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
   const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
-  const authPromises = [];
+  const updatesPromises = [];
 
   phoneNumbersArray.forEach(phoneNumber => {
-    // const authPromises = getAuth(phoneNumber);
-    authPromises
-      .push(getAuth(phoneNumber));
+    const p = rootCollections
+      .updates
+      .where('phoneNumber', '==', phoneNumber)
+      .limit(1)
+      .get();
+
+    updatesPromises
+      .push(p);
   });
 
-  const userRecords = await Promise.all(authPromises);
+  const updateDocs = await Promise.all(updatesPromises);
 
-  userRecords.forEach(userRecord => {
-    const { uid, phoneNumber } = userRecord;
+  updateDocs.forEach(doc => {
+    if (!doc.exists) return;
 
-    if (!uid) return;
+    const phoneNumber = doc.get('phoneNumber');
+    const uid = doc.id;
 
     uidMap
       .set(phoneNumber, uid);
@@ -2769,9 +2775,16 @@ const getLocalityCityState = components => {
 
 
 const handleCheckInActionForDailyAllowance = async locals => {
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
+  const phoneNumber = locals
+    .change
+    .after
+    .get('creator.phoneNumber')
+    || locals
+      .change
+      .after
+      .get('phoneNumber');
   const officeId = locals.change.after.get('officeId');
-  const timezone = locals.change.after.get('timezone');
+  const timezone = locals.change.after.get('timezone') || 'Asia/Kolkata';
 
   const docs = await rootCollections
     .offices
@@ -4146,6 +4159,19 @@ const handleCheckInActionForkmAllowance = async locals => {
       return el.activityId === kmAllowanceActivity.id;
     });
 
+  const claimedToday = statusObject[
+    dateToday
+  ].reimbursements
+    .reduce((acc, el) => acc + el.amount, 0);
+
+  const dailyLimit = kmAllowanceActivity
+    .get('attachment.Daily Limit.value');
+
+  if (dailyLimit
+    && (claimedToday > dailyLimit)) {
+    return;
+  }
+
   if (indexOfObject === -1) {
     statusObject[
       dateToday
@@ -4159,7 +4185,9 @@ const handleCheckInActionForkmAllowance = async locals => {
     ] = newObject;
   }
 
-  console.log('path', statusObjectDoc.ref.path);
+  if (amount)
+
+    console.log('path', statusObjectDoc.ref.path);
 
   batch
     .set(statusObjectDoc.ref, {
