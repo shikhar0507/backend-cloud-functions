@@ -335,9 +335,6 @@ module.exports = async conn => {
       .profileDoc
       .get('lastLocationMapUpdateTimestamp') > from;
 
-  console.log('sendLocations', conn.requester.phoneNumber, sendLocations);
-  console.log('from', jsonObject.from);
-
   if (sendLocations) {
     const locationPromises = [];
 
@@ -393,8 +390,6 @@ module.exports = async conn => {
             });
         });
     }
-
-    console.log('locationResults', jsonObject.locations.length);
 
     addendum
       .forEach(doc => {
