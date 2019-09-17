@@ -29,7 +29,7 @@ const {
   isValidRequestBody,
   checkActivityAndAssignee,
   setOnLeaveOrAr,
-  cancelLeaveOrDuty,
+  cancelLeaveOrAr,
 } = require('./helper');
 const { code } = require('../../admin/responses');
 const {
@@ -70,12 +70,15 @@ const handleLeaveAndOnDuty = (conn, activityDoc) => {
   })();
 
   if (hasBeenCancelled) {
-    return cancelLeaveOrDuty({
+    return cancelLeaveOrAr({
       phoneNumber,
       officeId,
       startTime,
       endTime,
-      template
+      template,
+      // Used for storing the phone number of the person
+      // canelling the leave/ar.
+      requestersPhoneNumber: conn.requester.phoneNumber,
     });
   } else {
     return setOnLeaveOrAr({
@@ -83,13 +86,13 @@ const handleLeaveAndOnDuty = (conn, activityDoc) => {
       officeId,
       startTime,
       endTime,
-      template
+      template,
     });
   }
 };
 
 
-const createDocs = (conn, activityDoc) => {
+const createDocs = async (conn, activityDoc) => {
   const batch = db.batch();
   const addendumDocRef = rootCollections
     .offices
@@ -97,15 +100,16 @@ const createDocs = (conn, activityDoc) => {
     .collection('Addendum')
     .doc();
 
-  batch.set(rootCollections
-    .activities
-    .doc(conn.req.body.activityId), {
-    addendumDocRef,
-    status: conn.req.body.status,
-    timestamp: Date.now(),
-  }, {
-    merge: true,
-  });
+  batch
+    .set(rootCollections
+      .activities
+      .doc(conn.req.body.activityId), {
+      addendumDocRef,
+      status: conn.req.body.status,
+      timestamp: Date.now(),
+    }, {
+      merge: true,
+    });
 
   const now = new Date();
   const addendumData = {
@@ -135,20 +139,19 @@ const createDocs = (conn, activityDoc) => {
   const hasBeenCancelled = activityDoc.get('status') !== 'CANCELLED'
     && conn.req.body.status === 'CANCELLED';
 
-  return handleLeaveAndOnDuty(conn, activityDoc)
-    .then((result) => {
-      console.log('result', result);
+  const result = await handleLeaveAndOnDuty(conn, activityDoc);
 
-      if (result.message && hasBeenCancelled) {
-        addendumData.cancellationMessage = result.message;
-      }
+  if (result.message && hasBeenCancelled) {
+    addendumData.cancellationMessage = result.message;
+  }
 
-      batch.set(addendumDocRef, addendumData);
+  batch
+    .set(addendumDocRef, addendumData);
 
-      return batch.commit();
-    })
-    .then(() => sendResponse(conn, code.ok))
-    .catch((error) => handleError(conn, error));
+  await batch
+    .commit();
+
+  return sendResponse(conn, code.ok);
 };
 
 
@@ -159,7 +162,11 @@ const handleResult = async (conn, docs) => {
   );
 
   if (!result.isValid) {
-    return sendResponse(conn, code.badRequest, result.message);
+    return sendResponse(
+      conn,
+      code.badRequest,
+      result.message
+    );
   }
 
   const [
@@ -180,7 +187,10 @@ const handleResult = async (conn, docs) => {
 
   if (!attachment.hasOwnProperty('Name')
     || conn.req.body.status !== 'CANCELLED') {
-    return createDocs(conn, activityDoc);
+    return createDocs(
+      conn,
+      activityDoc
+    );
   }
 
   // name is cancelled and another activity with
@@ -208,7 +218,7 @@ const handleResult = async (conn, docs) => {
 };
 
 
-module.exports = (conn) => {
+module.exports = async conn => {
   if (conn.req.method !== 'PATCH') {
     return sendResponse(
       conn,
@@ -218,7 +228,10 @@ module.exports = (conn) => {
     );
   }
 
-  const result = isValidRequestBody(conn.req.body, httpsActions.changeStatus);
+  const result = isValidRequestBody(
+    conn.req.body,
+    httpsActions.changeStatus
+  );
 
   if (!result.isValid) {
     return sendResponse(
@@ -228,19 +241,25 @@ module.exports = (conn) => {
     );
   }
 
-  return Promise
-    .all([
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .get(),
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .doc(conn.requester.phoneNumber)
-        .get(),
-    ])
-    .then((docs) => handleResult(conn, docs))
-    .catch((error) => handleError(conn, error));
+  const promises = [
+    rootCollections
+      .activities
+      .doc(conn.req.body.activityId)
+      .get(),
+    rootCollections
+      .activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .doc(conn.requester.phoneNumber)
+      .get(),
+  ];
+
+  try {
+    const docs = await Promise
+      .all(promises);
+
+    return handleResult(conn, docs);
+  } catch (error) {
+    return handleError(conn, error);
+  }
 };

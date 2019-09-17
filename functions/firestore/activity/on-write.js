@@ -1954,7 +1954,7 @@ const setLocationsReadEvent = async locals => {
 
   const phoneNumbersArray = await getUsersWithCheckIn(officeId);
   const uidMap = new Map();
-  let numberOfDocs = phoneNumbersArray.length;
+  const numberOfDocs = phoneNumbersArray.length;
   const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
   const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
   const updatesPromises = [];
@@ -2980,7 +2980,7 @@ const handleAddendum = async locals => {
   const activityDoc = adjustedGeopointQueryResult
     .docs[0];
 
-  let previousAddendumDoc = (() => {
+  const previousAddendumDoc = (() => {
     if (addendumQuery.docs[0]
       && addendumQuery.docs[0].id !== addendumDoc.id) {
       return addendumQuery.docs[0];
@@ -3440,7 +3440,7 @@ const handleLeaveUpdates = async locals => {
 };
 
 
-const handleLeave = async locals => {
+const handleLeaveAndDutyConflict = async locals => {
   const officeId = locals.change.after.get('officeId');
   const phoneNumber = locals.change.after.get('creator.phoneNumber');
 
@@ -3644,8 +3644,54 @@ const handleLeave = async locals => {
     .commit();
 };
 
+const addCheckInTimestamps = async locals => {
+  const timezone = locals.change.after.get('timezone');
+  const createTime = locals.change.after.createTime.toDate().getTime();
+  const momentToday = momentTz(createTime).tz(timezone);
+  const monthYearString = momentToday.format(dateFormats.MONTH_YEAR);
+  const officeId = locals.change.after.get('officeId');
+  const phoneNumber = locals.change.after.get('creator.phoneNumber');
 
-const handleCheckIn = async locals => {
+  const statusDocQueryResult = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Statuses')
+    .doc(monthYearString)
+    .collection('Employees')
+    .doc(phoneNumber)
+    .get();
+
+  const date = momentToday.date();
+  const statusObject = statusDocQueryResult.get('statusObject') || {};
+
+  statusObject[date] = statusObject[date] || {};
+  statusObject[date].numberOfCheckIns = statusObject[date].numberOfCheckIns || 0;
+
+  if (!statusObject[date].firstCheckInTimestamp) {
+    statusObject[date].firstCheckInTimestamp = createTime;
+    statusObject[date].firstCheckIn = momentToday.format(dateFormats.TIME);
+  }
+
+  statusObject[date].lastCheckInTimestamp = createTime;
+  statusObject[date].lastCheckIn = momentToday.format(dateFormats.TIME);
+
+  statusObject[date].numberOfCheckIns++;
+
+  return statusDocQueryResult
+    .ref
+    .set({
+      date,
+      phoneNumber,
+      statusObject,
+      month: momentToday.month(),
+      year: momentToday.year(),
+    }, {
+      merge: true,
+    });
+};
+
+
+const handleRelevantTimeActivities = async locals => {
   const addendumDocData = locals.addendumDocData;
 
   if (!addendumDocData) {
@@ -3709,12 +3755,7 @@ const handleCheckIn = async locals => {
         _longitude: doc.get('customerObject.longitude'),
       };
 
-      console.log('gp1', gp1);
-      console.log('gp2', gp2);
-
       const hd = haversineDistance(gp1, gp2);
-
-      console.log('HD', hd, doc.id);
 
       if (hd > 1) {
         return;
@@ -3853,7 +3894,10 @@ const handleClaim = async locals => {
       return momentTz(schedule.startTime).tz(timezone);
     }
 
-    return momentTz().tz(timezone);
+    const createTime = locals.change.after.createTime.toDate().getTime();
+
+    return momentTz(createTime)
+      .tz(timezone);
   })();
 
   const monthYearString = momentNow
@@ -3875,7 +3919,9 @@ const handleClaim = async locals => {
   ] = statusObject[dateToday] || {};
   statusObject[
     dateToday
-  ].reimbursements = statusObject[dateToday].reimbursements || [];
+  ].reimbursements = statusObject[
+    dateToday
+  ].reimbursements || [];
 
   const newObject = {
     phoneNumber,
@@ -3890,6 +3936,12 @@ const handleClaim = async locals => {
     photoURL: locals.change.after.get('attachment.Photo URL.value') || '',
     claimType: locals.change.after.get('attachment.Claim Type.value'),
   };
+
+  if (locals.addendumDocData
+    && locals.addendumDocData.action === httpsActions.changeStatus
+    && newObject.status === 'CONFIRMED') {
+    newObject.confirmedBy = locals.addendumDocData.user;
+  }
 
   if (locals.addendumDocData) {
     newObject
@@ -4083,12 +4135,8 @@ const handleCheckInActionForkmAllowance = async locals => {
     .get();
 
   if (kmAllowanceActivities.empty) {
-    console.log('no km allowance activities');
-
     return;
   }
-
-  console.log('kmAllowanceActivities size', kmAllowanceActivities.size);
 
   if (kmAllowanceActivities.size > 1) {
     const o = {
@@ -4162,7 +4210,7 @@ const handleCheckInActionForkmAllowance = async locals => {
   const claimedToday = statusObject[
     dateToday
   ].reimbursements
-    .reduce((acc, el) => acc + el.amount, 0);
+    .reduce((acc, el) => acc + Number(el.amount), 0);
 
   const dailyLimit = kmAllowanceActivity
     .get('attachment.Daily Limit.value');
@@ -4185,10 +4233,6 @@ const handleCheckInActionForkmAllowance = async locals => {
     ] = newObject;
   }
 
-  if (amount)
-
-    console.log('path', statusObjectDoc.ref.path);
-
   batch
     .set(statusObjectDoc.ref, {
       statusObject,
@@ -4198,8 +4242,6 @@ const handleCheckInActionForkmAllowance = async locals => {
     }, {
       merge: true,
     });
-
-  console.log('committing kmAllowanceActivities');
 
   return batch
     .commit();
@@ -4530,11 +4572,12 @@ module.exports = async (change, context) => {
     }
 
     if (template === 'leave') {
-      await handleLeave(locals);
+      await handleLeaveAndDutyConflict(locals);
     }
 
     if (template === 'check-in') {
-      await handleCheckIn(locals);
+      await handleRelevantTimeActivities(locals);
+      await addCheckInTimestamps(locals);
     }
 
     if (template.endsWith('-type')) {

@@ -251,7 +251,7 @@ const getEmployeeDetailsString = (employeesData, phoneNumber) => {
   }
 
   const supervisorsString = (() => {
-    let result = [];
+    const result = [];
     let firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
     let secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
 

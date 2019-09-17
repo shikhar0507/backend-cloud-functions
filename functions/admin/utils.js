@@ -1407,15 +1407,15 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
     } = component;
 
     if (types.includes('sublocality_level_1')) {
-      locationName += ` ${long_name}`;
+      locationName += ` ${long_name} `;
     }
 
     if (types.includes('administrative_area_level_2')) {
-      locationName += ` ${long_name}`;
+      locationName += ` ${long_name} `;
     }
 
     if (types.includes('administrative_area_level_1')) {
-      locationName += ` ${short_name}`;
+      locationName += ` ${short_name} `;
     }
   });
 

@@ -1283,13 +1283,14 @@ const getAllDatesSet = (startTime, endTime, timezone) => {
   return datesSet;
 };
 
-const cancelLeaveOrDuty = async params => {
+const cancelLeaveOrAr = async params => {
   const {
     phoneNumber,
     officeId,
     startTime,
     endTime,
     template,
+    requestersPhoneNumber,
   } = params;
 
   const response = {
@@ -1342,7 +1343,6 @@ const cancelLeaveOrDuty = async params => {
   const snaps = await Promise.all(addendumPromises);
   const minimumDailyActivityCount = employeeData['Minimum Daily Activity Count'] || 1;
   const minimumWorkingHours = employeeData['Minimum Working Hours'] || 1;
-
   const newStatusMap = new Map();
 
   snaps
@@ -1422,16 +1422,23 @@ const cancelLeaveOrDuty = async params => {
 
     if (template === 'leave') {
       statusObject[date].onLeave = false;
+      statusObject[date].leaveStatus = 'CANCELLED';
+      statusObject[date].leaveCancelledBy = requestersPhoneNumber;
     }
 
     if (template === 'attendance regularization') {
       statusObject[date].onAr = false;
+      statusObject[date].arStatus = 'CANCELLED';
+      statusObject[date].arCancelledBy = requestersPhoneNumber;
     }
 
     const statusForDay = newStatusMap
       .get(`${phoneNumber}-${date}-${monthYearString}`);
 
-    statusObject[date].statusForDay = statusForDay || 0;
+    statusObject[
+      date
+    ].statusForDay = statusForDay || 0;
+
     statusObjectMap
       .set(monthYearString, statusObject);
   });
@@ -1443,14 +1450,16 @@ const cancelLeaveOrDuty = async params => {
         .collection('Employees')
         .doc(phoneNumber);
 
-      batch.set(ref, {
-        statusObject,
-      }, {
-        merge: true,
-      });
+      batch
+        .set(ref, {
+          statusObject,
+        }, {
+          merge: true,
+        });
     });
 
-  await batch.commit();
+  await batch
+    .commit();
 
   return response;
 };
@@ -1596,6 +1605,7 @@ const setOnLeaveOrAr = async params => {
         conflictingDates.push(momentFromString.format(dateFormats.DATE));
         response.message = LEAVE_WITH_LEAVE_MESSAGE;
         response.success = false;
+        statusObject[date].leaveStatus = 'CANCELLED';
 
         return;
       }
@@ -1605,6 +1615,7 @@ const setOnLeaveOrAr = async params => {
         conflictingDates.push(momentFromString.format(dateFormats.DATE));
         response.message = AR_WITH_AR_MESSAGE;
         response.success = false;
+        statusObject[date].arStatus = 'CANCELLED';
 
         return;
       }
@@ -1613,12 +1624,14 @@ const setOnLeaveOrAr = async params => {
         statusObject[date].onLeave = true;
         statusObject[date].statusForDay = 1;
         statusObject[date].leaveType = leaveType || '';
+        statusObject[date].leaveStatus = 'CONFIRMED';
       }
 
       if (template === 'attendance regularization') {
         statusObject[date].onAr = true;
         statusObject[date].statusForDay = 1;
         statusObject[date].arReason = arReason || '';
+        statusObject[date].arStatus = 'CANCELLED';
       }
 
       statusObjectMap
@@ -1687,7 +1700,7 @@ module.exports = {
   toCustomerObject,
   toEmployeesData,
   validateSchedules,
-  cancelLeaveOrDuty,
+  cancelLeaveOrAr,
   filterAttachment,
   haversineDistance,
   isValidRequestBody,

@@ -1024,14 +1024,15 @@ const handleEmployees = async locals => {
 
   const phoneNumbersToRejectSet = new Set();
 
-  let result = await Promise
+  const [
+    employeesData,
+    snapShots,
+  ] = await Promise
     .all([
       getEmployeesMapFromRealtimeDb(locals.officeDoc.id),
       Promise
         .all(promises)
     ]);
-
-  const [employeesData, snapShots] = result;
 
   snapShots
     .forEach(snapShot => {
