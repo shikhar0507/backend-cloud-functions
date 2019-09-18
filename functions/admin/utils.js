@@ -916,7 +916,7 @@ const handleOfficeActivityReport = (worksheet, yesterdayInitDoc, emailStatusMap)
 };
 
 
-const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => {
+const handleActivityStatusReport = async (worksheet, counterDoc, yesterdayInitDoc) => {
   const activityStatusSheet = worksheet.addSheet('Activity Status Report');
   activityStatusSheet.row(1).style('bold', true);
 
@@ -945,29 +945,12 @@ const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => 
   const {
     templateUsageObject,
   } = yesterdayInitDoc.data();
+  const templateDocs = await rootCollections
+    .activityTemplates
+    .orderBy('name', 'asc')
+    .get();
 
-  const templateNames = [
-    'admin',
-    'branch',
-    'check-in',
-    'customer',
-    'customer-type',
-    'department',
-    'dsr',
-    'duty roster',
-    'employee',
-    'enquiry',
-    'expense claim',
-    'expense-type',
-    'leave',
-    'leave-type',
-    'office',
-    'on duty',
-    'product',
-    'recipient',
-    'subscription',
-    'tour plan',
-  ];
+  const templateNames = templateDocs.docs.map(doc => doc.get('name'));
 
   const getValueFromMap = (map, name) => {
     return map[name] || 0;
@@ -1149,7 +1132,7 @@ const handleDailyStatusReport = toEmail => {
         .get(),
       getEmailStatusMap()
     ])
-    .then(result => {
+    .then(async result => {
       const [
         workbook,
         counterInitQuery,
@@ -1166,7 +1149,7 @@ const handleDailyStatusReport = toEmail => {
         yesterdayInitDoc,
         emailStatusMap
       );
-      handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
+      await handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
       handleUserStatusReport(
         worksheet,
         counterDoc,
