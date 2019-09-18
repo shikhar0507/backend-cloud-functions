@@ -2798,7 +2798,6 @@ const handleCheckInActionForDailyAllowance = async locals => {
   const momentToday = momentTz().tz(timezone);
   let count = 0;
   const monthYearString = momentToday
-    .tz(timezone)
     .format(dateFormats.DATE_TIME);
 
   const montYearDoc = await rootCollections
@@ -3142,7 +3141,9 @@ const handleAddendum = async locals => {
 
   await handleComments(addendumDoc, locals);
 
-  await handleCheckInActionForDailyAllowance(locals);
+  if (addendumDoc.get('action') === httpsActions.checkIn) {
+    await handleCheckInActionForDailyAllowance(locals);
+  }
 
   return handleDailyStatusReport(addendumDoc);
 };
@@ -3652,6 +3653,11 @@ const addCheckInTimestamps = async locals => {
   const officeId = locals.change.after.get('officeId');
   const phoneNumber = locals.change.after.get('creator.phoneNumber');
 
+  if (!locals.addendumDocData
+    || (locals.addendumDocData.action !== httpsActions.create)) {
+    return;
+  }
+
   const statusDocQueryResult = await rootCollections
     .offices
     .doc(officeId)
@@ -3891,12 +3897,12 @@ const handleClaim = async locals => {
     const schedule = locals.change.after.get('schedule')[0];
 
     if (schedule.startTime) {
-      return momentTz(schedule.startTime).tz(timezone);
+      // Do not adjust timestamp because this timestamp is
+      // straight from user's device
+      return momentTz(schedule.startTime);
     }
 
-    const createTime = locals.change.after.createTime.toDate().getTime();
-
-    return momentTz(createTime)
+    return momentTz(locals.change.after.createTime.toDate())
       .tz(timezone);
   })();
 
@@ -3941,19 +3947,7 @@ const handleClaim = async locals => {
     && locals.addendumDocData.action === httpsActions.changeStatus
     && newObject.status === 'CONFIRMED') {
     newObject.confirmedBy = locals.addendumDocData.user;
-  }
-
-  if (locals.addendumDocData) {
-    newObject
-      .latitude = locals.addendumDocData.location.latitude
-      || locals.addendumDocData.location._latitude;
-
-    newObject
-      .longitude = locals.addendumDocData.location.longitude
-      || locals.addendumDocData.location._longitude;
-
-    newObject
-      .identifier = locals.addendumDocData.identifier || '';
+    newObject.approvalTimestamp = Date.now();
   }
 
   if (locals.addendumDocData
@@ -4198,6 +4192,7 @@ const handleCheckInActionForkmAllowance = async locals => {
     activityId: kmAllowanceActivity.id,
     template: kmAllowanceActivity.get('template'),
     rate: kmAllowanceActivity.get('attachment.Rate.value'),
+    geopoint: locals.addendumDocData.location,
   };
 
   const indexOfObject = statusObject[
