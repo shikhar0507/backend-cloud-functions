@@ -30,7 +30,9 @@ module.exports = async locals => {
   const employeesSheet = workbook
     .addSheet('Employees');
   const leaveTypeSheet = workbook
-    .addSheet('Leave Type');
+    .addSheet('Leave Types');
+  const regionsSheet = workbook
+    .addSheet('Regions');
 
   officeSheet
     .row(0
@@ -91,6 +93,7 @@ module.exports = async locals => {
   });
 
   const employeePhoneNumbers = Object.keys(locals.employeesData);
+  const regionsSet = new Set();
   const branchMap = {};
 
   employeePhoneNumbers
@@ -120,6 +123,12 @@ module.exports = async locals => {
           .cell(`${alphabetsArray[innerIndex]}${outerIndex + 2}`)
           .value(value);
       });
+
+      const region = locals.employeesData[phoneNumber].Region;
+
+      if (region) {
+        regionsSet.add(region);
+      }
 
       const branch = locals.employeesData[phoneNumber]['Base Location'];
 
@@ -227,6 +236,22 @@ module.exports = async locals => {
     branchesSheet
       .cell(`${alphabetsArray[index]}1`)
       .value(field);
+  });
+
+  [
+    'Name',
+  ].forEach((field, index) => {
+    regionsSheet
+      .cell(`A${index + 1}`)
+      .value(field);
+  });
+
+  [
+    ...regionsSet.keys(),
+  ].forEach((region, index) => {
+    regionsSheet
+      .cell(`A${index + 2}`)
+      .value(region);
   });
 
   Object
