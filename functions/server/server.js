@@ -392,7 +392,8 @@ module.exports = async (req, res) => {
     );
   }
 
-  if (conn.req.query.cashFreeToken
+  if (env.isProduction
+    && conn.req.query.cashFreeToken
     === env.cashFreeToken) {
     await rootCollections
       .errors

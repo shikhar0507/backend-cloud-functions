@@ -2,9 +2,6 @@
 
 const xlsxPopulate = require('xlsx-populate');
 const {
-  rootCollections,
-} = require('../../admin/admin');
-const {
   dateFormats,
 } = require('../../admin/constants');
 const {
@@ -86,6 +83,7 @@ module.exports = async locals => {
     'Task Specialization',
     'Product Specialization',
     'Maximum Advance Amount Given',
+    'Employee Code',
   ].forEach((field, index) => {
     employeesSheet
       .cell(`${alphabetsArray[index]}1`)
@@ -116,6 +114,7 @@ module.exports = async locals => {
         locals.employeesData[phoneNumber]['Task Specialization'],
         locals.employeesData[phoneNumber]['Product Specialization'],
         locals.employeesData[phoneNumber]['Maximum Advance Amount Given'],
+        locals.employeesData[phoneNumber]['Employee Code'],
       ].forEach((value, innerIndex) => {
         employeesSheet
           .cell(`${alphabetsArray[innerIndex]}${outerIndex + 2}`)
@@ -309,7 +308,7 @@ module.exports = async locals => {
     .messageObject
     .attachments
     .push({
-      fileName: `Reimbursement Report_`
+      fileName: `Payroll Master Report_`
         + `${locals.officeDoc.get('office')}`
         + `_${momentToday.format(dateFormats.DATE)}.xlsx`,
       content: await workbook.outputAsync('base64'),

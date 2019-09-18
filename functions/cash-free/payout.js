@@ -212,7 +212,7 @@ const getBeneficiary = async beneId => {
 };
 
 
-const verifyWebhookPost = webhookData => {
+const verifyWebhookPost = (webhookData, clientSecret) => {
   let concatenatedValues = '';
   const receivedSignature = webhookData.signature;
   delete webhookData.signature;
@@ -221,7 +221,7 @@ const verifyWebhookPost = webhookData => {
   sortedKeys.forEach(key => concatenatedValues += `${webhookData[key]}`);
 
   const calculatedSignature = crypto
-    .createHash('sha256')
+    .createHmac('sha256', clientSecret)
     .update(concatenatedValues)
     .digest('base64');
 

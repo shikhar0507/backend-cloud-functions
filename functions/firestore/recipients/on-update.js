@@ -80,6 +80,10 @@ const getSubject = (report, office, dateString) => {
     start += `Reimbursement`;
   }
 
+  if (report === reportNames.payrollMaster) {
+    start += `Payroll Master`;
+  }
+
   return `${start} Report_${office}_${dateString}`;
 };
 
