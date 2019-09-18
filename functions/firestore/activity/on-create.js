@@ -563,6 +563,53 @@ const handleAssignees = async (conn, locals) => {
     }
   });
 
+  // 'customer',
+  // 'leave',
+  // 'claim',
+  // 'duty',
+
+  const typeActivity = new Set([
+    'customer',
+    'leave',
+    'claim',
+    // 'duty'
+  ]);
+
+  const key = (() => {
+    for (const key of Object.keys(conn.req.body.attachment)) {
+      const { value, type } = conn.req.body.attachment[key];
+
+      if (type.endsWith('-type') && value === '') {
+        return key;
+      }
+    }
+  })();
+
+  /**
+   * If a `x-type` activity exists for the `x` template, and the
+   * user hasn't selected the `x-type` while creating `x` activity,
+   * then don't allow activity creation.
+   */
+  if (key
+    && typeActivity.has(conn.req.body.template)
+    && conn.req.body.attachment[key].value === '') {
+    const typeQueryResult = await rootCollections
+      .activities
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', `${conn.req.body.template}-type`)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get();
+
+    if (!typeQueryResult.empty) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `${key} is required`
+      );
+    }
+  }
+
   return handlePayroll(conn, locals);
 };
 
