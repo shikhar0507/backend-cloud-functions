@@ -8,6 +8,7 @@ const xlsxPopulate = require('xlsx-populate');
 const {
   getName,
   alphabetsArray,
+  toMapsUrl,
 } = require('./report-utils');
 const env = require('../../admin/env');
 const sgMail = require('@sendgrid/mail');
@@ -25,12 +26,12 @@ module.exports = async locals => {
     .get('attachment.Timezone.value');
   const momentToday = momentTz(timestampFromTimer)
     .tz(timezone);
-  const mmomentYesterday = momentToday
+  const momentYesterday = momentToday
     .clone()
     .subtract(1, 'day');
-  const dateYesterday = mmomentYesterday
+  const dateYesterday = momentYesterday
     .date();
-  const monthYearString = mmomentYesterday
+  const monthYearString = momentYesterday
     .format(dateFormats.MONTH_YEAR);
 
   const [
@@ -46,27 +47,30 @@ module.exports = async locals => {
         .collection('Employees')
         .get(),
       xlsxPopulate
-        .fromBlankAsync(),
+        .fromBlankAsync()
     ]);
 
-  const reimbursementSheet = workbook
-    .addSheet(`Reimbursement ${momentToday.format(dateFormats.DATE)}`);
-  reimbursementSheet
-    .row(0)
-    .style('bold', true);
+  const expenseSheet = workbook
+    .addSheet(`Expense${momentToday.format(dateFormats.DATE)}`);
+
   workbook
     .deleteSheet('Sheet1');
 
   [
-    'Employee',
-    'Type',
-    'Amount',
-    'Details',
-    'Reference',
+    'Employee Name',
+    'Employee Contact',
+    'Employee Code',
+    'Base Location',
+    'Region',
+    'Department',
     'Date',
-    'Status',
+    'Local/Travel',
+    'Claim Type',
+    'Amount',
+    'Claim Details',
+    'Approval Details'
   ].forEach((value, index) => {
-    reimbursementSheet
+    expenseSheet
       .cell(`${alphabetsArray[index]}1`)
       .value(value);
   });
@@ -76,6 +80,7 @@ module.exports = async locals => {
       new Array(dateYesterday),
       (_, i) => i + 1
     );
+
   const allOrderedItems = [];
 
   snapShot
@@ -87,27 +92,23 @@ module.exports = async locals => {
           const item = statusObject[date] || {};
           const reimbursements = item.reimbursements || [];
 
-          // FIXME: This loop is bad. Optimize this.
           reimbursements
             .forEach(object => {
-              allOrderedItems.push({
+              const o = Object.assign({}, object, {
                 date,
                 month: doc.get('month'),
                 year: doc.get('year'),
-                photoUrl: object.photoUrl,
-                amount: object.amount,
-                details: object.details,
-                identifier: object.identifier,
-                latitude: object.latitude,
-                longitude: object.longitude,
-                template: object.template,
-                phoneNumber: doc.get('phoneNumber'),
               });
+
+              allOrderedItems.push(o);
             });
         });
     });
 
+
   if (allOrderedItems.length === 0) {
+    console.log('empty data');
+
     return;
   }
 
@@ -115,35 +116,97 @@ module.exports = async locals => {
     .forEach((item, index) => {
       const columnIndex = index + 2;
 
-      reimbursementSheet
+      expenseSheet
         .cell(`A${columnIndex}`)
         .value(getName(locals.employeesData, item.phoneNumber));
-      reimbursementSheet
+      expenseSheet
         .cell(`B${columnIndex}`)
-        .value(item.template);
-      reimbursementSheet
+        .value(item.phoneNumber);
+      expenseSheet
         .cell(`C${columnIndex}`)
-        .value(item.amount);
-      reimbursementSheet
+        .value(locals.employeesData[item.phoneNumber]['Employee Code']);
+      expenseSheet
         .cell(`D${columnIndex}`)
-        .value(item.details);
-      reimbursementSheet
+        .value(locals.employeesData[item.phoneNumber]['Base Location']);
+      expenseSheet
         .cell(`E${columnIndex}`)
-        .value(item.photoUrl);
-
-      const dd = momentTz()
-        .date(item.date)
-        .month(item.month)
-        .year(item.year)
-        .tz(timezone)
-        .format(dateFormats.DATE);
-
-      reimbursementSheet
+        .value(locals.employeesData[item.phoneNumber]['Region']);
+      expenseSheet
         .cell(`F${columnIndex}`)
-        .value(dd);
-      reimbursementSheet
+        .value(locals.employeesData[item.phoneNumber]['Department']);
+
+      const dateString = momentTz(item.timestamp)
+        .tz(timezone)
+        .format(dateFormats.DATE_TIME);
+
+      expenseSheet
         .cell(`G${columnIndex}`)
-        .value(item.status);
+        .value(dateString);
+
+      const localOrTravel = (() => {
+        if (item.isTravel) {
+          return 'travel';
+        }
+
+        return 'local';
+      })();
+
+      expenseSheet
+        .cell(`H${columnIndex}`)
+        .value(localOrTravel);
+
+      expenseSheet
+        .cell(`I${columnIndex}`)
+        .value(item.name || item.claimType || ''); // claim type
+
+      expenseSheet
+        .cell(`J${columnIndex}`)
+        .value(item.amount);
+
+      if (item.template === 'km allowance') {
+        expenseSheet
+          .cell(`K${columnIndex}`)
+          .value(item.amount); // claim details
+      }
+
+      if (item.template === 'daily allowance') {
+        expenseSheet
+          .cell(`K${columnIndex}`)
+          .value(item.timestamp) // claim details
+          .style({ fontColor: '0563C1', underline: true })
+          .hyperlink(toMapsUrl(item));
+      }
+
+      if (item.template === 'claim'
+        && item.photoURL) {
+        expenseSheet
+          .cell(`K${columnIndex}`)
+          .value(`${item.amount}, ${item.claimType}`)
+          .style({ fontColor: '0563C1', underline: true })
+          .hyperlink(item.photoURL || ''); // claim details
+      } else {
+        expenseSheet
+          .cell(`K${columnIndex}`)
+          .value(`${item.amount}, ${item.claimType}`);
+      }
+
+      const approvalDetails = (() => {
+        if (item.template === 'claim') {
+          if (item.confirmedBy) {
+            return `${item.status},`
+              + ` ${getName(locals.employeesData, item.confirmedBy)},`
+              + ` ${momentTz(item.approvalTimestamp).tz(timezone).format(dateFormats.DATE_TIME)}`;
+          }
+
+          return `${item.status}`;
+        }
+
+        return `NA`;
+      })();
+
+      expenseSheet
+        .cell(`L${columnIndex}`)
+        .value(approvalDetails); // approval details
     });
 
   locals
@@ -158,11 +221,7 @@ module.exports = async locals => {
       disposition: 'attachment',
     });
 
-  if (!env.isProduction) {
-    return;
-  }
-
-  console.log('mail sent', locals.messageObject.to);
+  console.log('mailed', locals.messageObject.to);
 
   return locals
     .sgMail
