@@ -403,10 +403,6 @@ const generateExcel = async locals => {
         });
     });
 
-  if (!env.isProduction) {
-    messageObject.to = env.devEmail;
-  }
-
   console.log('Mail sent to:', messageObject.to);
 
   return sgMail
@@ -2106,6 +2102,13 @@ const handleKmAllowance = async locals => {
   }
 
   locals.inputObjects.forEach((item, index) => {
+    if (typeof item.Rate !== 'number') {
+      locals.inputObjects[index].rejected = true;
+      locals.inputObjects[index].reason = `Rate is a required number`;
+
+      return;
+    }
+
     if (item.Local === 'TRUE'
       && item.Travel === 'TRUE') {
       locals.inputObjects[index].rejected = true;
