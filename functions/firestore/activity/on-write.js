@@ -2916,6 +2916,61 @@ const handleCheckInActionForDailyAllowance = async locals => {
 };
 
 
+const addCheckInTimestamps = async locals => {
+  const timezone = locals.change.after.get('timezone');
+  const createTime = locals.change.after.createTime.toDate().getTime();
+  const momentToday = momentTz(createTime).tz(timezone);
+  const monthYearString = momentToday.format(dateFormats.MONTH_YEAR);
+  const officeId = locals.change.after.get('officeId');
+  const phoneNumber = locals.change.after.get('creator.phoneNumber');
+
+  if (!locals.addendumDocData
+    || (locals.addendumDocData.action !== httpsActions.create)) {
+    return;
+  }
+
+  const statusDocQueryResult = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Statuses')
+    .doc(monthYearString)
+    .collection('Employees')
+    .doc(phoneNumber)
+    .get();
+
+  const date = momentToday.date();
+  const statusObject = statusDocQueryResult.get('statusObject') || {};
+
+  statusObject[date] = statusObject[date] || {};
+  statusObject[date].numberOfCheckIns = statusObject[date].numberOfCheckIns || 0;
+
+  if (!statusObject[date].firstCheckInTimestamp) {
+    statusObject[date].firstCheckInTimestamp = createTime;
+    statusObject[date].firstCheckIn = momentToday.format(dateFormats.TIME);
+    statusObject[date].firstCheckInActivityId = locals.change.after.id;
+  }
+
+  statusObject[date].lastCheckInTimestamp = createTime;
+  statusObject[date].lastCheckIn = momentToday.format(dateFormats.TIME);
+  statusObject[date].lastCheckInActivityId = locals.change.after.id;
+
+  statusObject[date].numberOfCheckIns++;
+
+  return statusDocQueryResult
+    .ref
+    .set({
+      date,
+      phoneNumber,
+      statusObject,
+      officeId,
+      month: momentToday.month(),
+      year: momentToday.year(),
+    }, {
+      merge: true,
+    });
+};
+
+
 const handleAddendum = async locals => {
   const addendumDoc = locals.addendumDoc;
 
@@ -3140,6 +3195,10 @@ const handleAddendum = async locals => {
     .commit();
 
   await handleComments(addendumDoc, locals);
+
+  if (addendumDoc.get('activityData.template') === 'check-in') {
+    await addCheckInTimestamps(locals);
+  }
 
   if (addendumDoc.get('action') === httpsActions.checkIn) {
     await handleCheckInActionForDailyAllowance(locals);
@@ -3643,57 +3702,6 @@ const handleLeaveAndDutyConflict = async locals => {
 
   return batch
     .commit();
-};
-
-const addCheckInTimestamps = async locals => {
-  const timezone = locals.change.after.get('timezone');
-  const createTime = locals.change.after.createTime.toDate().getTime();
-  const momentToday = momentTz(createTime).tz(timezone);
-  const monthYearString = momentToday.format(dateFormats.MONTH_YEAR);
-  const officeId = locals.change.after.get('officeId');
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
-
-  if (!locals.addendumDocData
-    || (locals.addendumDocData.action !== httpsActions.create)) {
-    return;
-  }
-
-  const statusDocQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Statuses')
-    .doc(monthYearString)
-    .collection('Employees')
-    .doc(phoneNumber)
-    .get();
-
-  const date = momentToday.date();
-  const statusObject = statusDocQueryResult.get('statusObject') || {};
-
-  statusObject[date] = statusObject[date] || {};
-  statusObject[date].numberOfCheckIns = statusObject[date].numberOfCheckIns || 0;
-
-  if (!statusObject[date].firstCheckInTimestamp) {
-    statusObject[date].firstCheckInTimestamp = createTime;
-    statusObject[date].firstCheckIn = momentToday.format(dateFormats.TIME);
-  }
-
-  statusObject[date].lastCheckInTimestamp = createTime;
-  statusObject[date].lastCheckIn = momentToday.format(dateFormats.TIME);
-
-  statusObject[date].numberOfCheckIns++;
-
-  return statusDocQueryResult
-    .ref
-    .set({
-      date,
-      phoneNumber,
-      statusObject,
-      month: momentToday.month(),
-      year: momentToday.year(),
-    }, {
-      merge: true,
-    });
 };
 
 
@@ -4572,7 +4580,6 @@ module.exports = async (change, context) => {
 
     if (template === 'check-in') {
       await handleRelevantTimeActivities(locals);
-      await addCheckInTimestamps(locals);
     }
 
     if (template.endsWith('-type')) {
