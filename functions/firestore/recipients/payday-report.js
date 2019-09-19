@@ -520,160 +520,162 @@ module.exports = async locals => {
       });
     }
 
-    const allDocs = []
-      .concat(
-        ((statusObjectsPrevMonth || []).docs) || [],
-        statusObjectsCurrMonth.docs
-      );
+    return;
 
-    const detailsFromStatusDoc = new Map();
+    // const allDocs = []
+    //   .concat(
+    //     ((statusObjectsPrevMonth || []).docs) || [],
+    //     statusObjectsCurrMonth.docs
+    //   );
 
-    allDocs.forEach(doc => {
-      const { path } = doc.ref;
-      const parts = path.split('/');
-      const monthYearString = parts[3];
-      const phoneNumber = parts[parts.length - 1];
+    // const detailsFromStatusDoc = new Map();
 
-      const { statusObject } = doc.data();
+    // allDocs.forEach(doc => {
+    //   const { path } = doc.ref;
+    //   const parts = path.split('/');
+    //   const monthYearString = parts[3];
+    //   const phoneNumber = parts[parts.length - 1];
 
-      detailsFromStatusDoc.set(phoneNumber, {
-        name: doc.get('name') || '',
-        employeeCode: doc.get('employeeCode') || '',
-      });
+    //   const { statusObject } = doc.data();
 
-      allPhoneNumbers
-        .add(phoneNumber);
-      statusObjectsMap
-        .set(`${phoneNumber}-${monthYearString}`, statusObject);
-    });
+    //   detailsFromStatusDoc.set(phoneNumber, {
+    //     name: doc.get('name') || '',
+    //     employeeCode: doc.get('employeeCode') || '',
+    //   });
 
-    const monthYearString = momentYesterday
-      .format(dateFormats.MONTH_YEAR);
+    //   allPhoneNumbers
+    //     .add(phoneNumber);
+    //   statusObjectsMap
+    //     .set(`${phoneNumber}-${monthYearString}`, statusObject);
+    // });
 
-    yesterdaysStatusMap
-      .forEach((statusObjectForYesterday, phoneNumber) => {
-        const id = `${phoneNumber}-${monthYearString}`;
-        const oldStatusObject = statusObjectsMap.get(id) || {};
-        oldStatusObject[dateYesterday] = statusObjectForYesterday;
+    // const monthYearString = momentYesterday
+    //   .format(dateFormats.MONTH_YEAR);
 
-        statusObjectsMap
-          .set(id, oldStatusObject);
-      });
+    // yesterdaysStatusMap
+    //   .forEach((statusObjectForYesterday, phoneNumber) => {
+    //     const id = `${phoneNumber}-${monthYearString}`;
+    //     const oldStatusObject = statusObjectsMap.get(id) || {};
+    //     oldStatusObject[dateYesterday] = statusObjectForYesterday;
 
-    /** Set (`allPhoneNumbers`) doesn't have an index */
-    let index = 0;
-    const daysCount = cycleEndMoment
-      .diff(cycleStartMoment, 'days') + 1;
+    //     statusObjectsMap
+    //       .set(id, oldStatusObject);
+    //   });
 
-    allPhoneNumbers
-      .forEach(phoneNumber => {
-        const name = getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Name');
-        const employeeCode = getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Employee Code');
-        const columnIndex = index + 2;
-        const detailsFromStatusObject = detailsFromStatusDoc.get(phoneNumber) || {};
+    // /** Set (`allPhoneNumbers`) doesn't have an index */
+    // let index = 0;
+    // const daysCount = cycleEndMoment
+    //   .diff(cycleStartMoment, 'days') + 1;
 
-        paydaySheet
-          .cell(`A${columnIndex}`)
-          .value(name || detailsFromStatusObject.name || '');
-        paydaySheet
-          .cell(`B${columnIndex}`)
-          .value(employeeCode || detailsFromStatusObject.employeeCode || '');
-        paydaySheet
-          .cell(`C${columnIndex}`)
-          .value(phoneNumber);
+    // allPhoneNumbers
+    //   .forEach(phoneNumber => {
+    //     const name = getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Name');
+    //     const employeeCode = getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Employee Code');
+    //     const columnIndex = index + 2;
+    //     const detailsFromStatusObject = detailsFromStatusDoc.get(phoneNumber) || {};
 
-        paydayTimingsSheet
-          .cell(`A${columnIndex}`)
-          .value(name || phoneNumber);
-        paydayTimingsSheet
-          .cell(`B${columnIndex}`)
-          .value(employeeCode);
+    //     paydaySheet
+    //       .cell(`A${columnIndex}`)
+    //       .value(name || detailsFromStatusObject.name || '');
+    //     paydaySheet
+    //       .cell(`B${columnIndex}`)
+    //       .value(employeeCode || detailsFromStatusObject.employeeCode || '');
+    //     paydaySheet
+    //       .cell(`C${columnIndex}`)
+    //       .value(phoneNumber);
 
-        let totalPayableDays = 0;
-        let paydaySheetAlphabetIndex = 3;
-        let paydayTimingsSheetIndex = 2;
+    //     paydayTimingsSheet
+    //       .cell(`A${columnIndex}`)
+    //       .value(name || phoneNumber);
+    //     paydayTimingsSheet
+    //       .cell(`B${columnIndex}`)
+    //       .value(employeeCode);
 
-        allDates
-          .forEach(dateObject => {
-            const {
-              date,
-              monthYear,
-            } = dateObject;
+    //     let totalPayableDays = 0;
+    //     let paydaySheetAlphabetIndex = 3;
+    //     let paydayTimingsSheetIndex = 2;
 
-            const statusObject = statusObjectsMap
-              .get(`${phoneNumber}-${monthYear}`) || {};
-            const paydaySheetCell = `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
-            const paydayTimingsSheetCell = `${alphabetsArray[paydayTimingsSheetIndex]}${columnIndex}`;
+    //     allDates
+    //       .forEach(dateObject => {
+    //         const {
+    //           date,
+    //           monthYear,
+    //         } = dateObject;
 
-            statusObject[date] = statusObject[date]
-              || getDefaultStatusObject();
+    //         const statusObject = statusObjectsMap
+    //           .get(`${phoneNumber}-${monthYear}`) || {};
+    //         const paydaySheetCell = `${alphabetsArray[paydaySheetAlphabetIndex]}${columnIndex}`;
+    //         const paydayTimingsSheetCell = `${alphabetsArray[paydayTimingsSheetIndex]}${columnIndex}`;
 
-            const paydaySheetValue = (() => {
-              if (date === dateYesterday
-                && monthYear === monthYearString) {
-                return (yesterdaysStatusMap.get(phoneNumber) || {})
-                  .statusForDay || 0;
-              }
+    //         statusObject[date] = statusObject[date]
+    //           || getDefaultStatusObject();
 
-              return statusObject[date].statusForDay || 0;
-            })();
+    //         const paydaySheetValue = (() => {
+    //           if (date === dateYesterday
+    //             && monthYear === monthYearString) {
+    //             return (yesterdaysStatusMap.get(phoneNumber) || {})
+    //               .statusForDay || 0;
+    //           }
 
-            paydaySheet
-              .cell(paydaySheetCell)
-              .value(paydaySheetValue);
-            paydayTimingsSheet
-              .cell(paydayTimingsSheetCell)
-              .value(getPaydayTimingsSheetValue({ statusObject, date }));
+    //           return statusObject[date].statusForDay || 0;
+    //         })();
 
-            paydaySheetAlphabetIndex++;
-            paydayTimingsSheetIndex++;
-            totalPayableDays += paydaySheetValue;
-          });
+    //         paydaySheet
+    //           .cell(paydaySheetCell)
+    //           .value(paydaySheetValue);
+    //         paydayTimingsSheet
+    //           .cell(paydayTimingsSheetCell)
+    //           .value(getPaydayTimingsSheetValue({ statusObject, date }));
 
-        [
-          totalPayableDays,
-          Math.abs(daysCount - totalPayableDays),
-          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Department'),
-          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Designation'),
-          getSupervisors(locals.employeesData, phoneNumber),
-          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Base Location'),
-          getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Region'),
-        ].forEach(item => {
-          const cell = `${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`;
+    //         paydaySheetAlphabetIndex++;
+    //         paydayTimingsSheetIndex++;
+    //         totalPayableDays += paydaySheetValue;
+    //       });
 
-          paydaySheet
-            .cell(cell)
-            .value(item);
-        });
+    //     [
+    //       totalPayableDays,
+    //       Math.abs(daysCount - totalPayableDays),
+    //       getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Department'),
+    //       getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Designation'),
+    //       getSupervisors(locals.employeesData, phoneNumber),
+    //       getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Base Location'),
+    //       getValueFromEmployeeMap(locals.employeesData, phoneNumber, 'Region'),
+    //     ].forEach(item => {
+    //       const cell = `${alphabetsArray[paydaySheetAlphabetIndex++]}${columnIndex}`;
 
-        index++;
-      });
+    //       paydaySheet
+    //         .cell(cell)
+    //         .value(item);
+    //     });
 
-    locals
-      .messageObject
-      .attachments
-      .push({
-        fileName: `Payroll Report_`
-          + `${locals.officeDoc.get('office')}`
-          + `_${momentToday.format(dateFormats.DATE)}.xlsx`,
-        content: await worksheet.outputAsync('base64'),
-        type: 'text/csv',
-        disposition: 'attachment',
-      });
+    //     index++;
+    //   });
 
-    console.log(JSON.stringify({
-      office: locals.officeDoc.get('office'),
-      report: reportNames.PAYROLL,
-      to: locals.messageObject.to,
-    }, ' ', 2));
+    // locals
+    //   .messageObject
+    //   .attachments
+    //   .push({
+    //     fileName: `Payroll Report_`
+    //       + `${locals.officeDoc.get('office')}`
+    //       + `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+    //     content: await worksheet.outputAsync('base64'),
+    //     type: 'text/csv',
+    //     disposition: 'attachment',
+    //   });
 
-    if (!env.isProduction) {
-      return;
-    }
+    // console.log(JSON.stringify({
+    //   office: locals.officeDoc.get('office'),
+    //   report: reportNames.PAYROLL,
+    //   to: locals.messageObject.to,
+    // }, ' ', 2));
 
-    return locals
-      .sgMail
-      .sendMultiple(locals.messageObject);
+    // if (!env.isProduction) {
+    //   return;
+    // }
+
+    // return locals
+    //   .sgMail
+    //   .sendMultiple(locals.messageObject);
   } catch (error) {
     console.error(error);
   }
