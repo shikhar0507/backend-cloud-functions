@@ -6,10 +6,10 @@ const {
 } = require('../../admin/constants');
 const {
   alphabetsArray,
+  toMapsUrl,
 } = require('./report-utils');
 const xlsxPopulate = require('xlsx-populate');
 const env = require('../../admin/env');
-
 
 const getDetails = (el, timezone) => {
   if (el.onAr) {
@@ -86,7 +86,7 @@ module.exports = async locals => {
     .format(dateFormats.MONTH_YEAR);
   const firstDayOfMonthlyCycle = locals
     .officeDoc
-    .get('attachment.First Day Of Monthly Cycle.value');
+    .get('attachment.First Day Of Monthly Cycle.value')||1;
   // const weeklyOffSet = new Set();
   // const holidaySet = new Set();
   const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentYesterday.date();
@@ -364,9 +364,17 @@ module.exports = async locals => {
         .cell(`J${rowIndex + 2}`)
         .value(el.statusForDay || 0);
 
-      payrollSheet
-        .cell(`K${rowIndex + 2}`)
-        .value(getDetails(el, timezone));
+      if (!el.onAr && !el.onLeave && el.firstCheckIn && el.geopoint) {
+        payrollSheet
+          .cell(`K${rowIndex + 2}`)
+          .value(getDetails(el, timezone))
+          .style({ fontColor: '0563C1', underline: true })
+          .hyperlink(toMapsUrl(el.geopoint));
+      } else {
+        payrollSheet
+          .cell(`K${rowIndex + 2}`)
+          .value(getDetails(el, timezone))
+      }
 
       rowIndex++;
     });
