@@ -42,12 +42,13 @@ const {
 } = require('../firestore/recipients/report-utils');
 const crypto = require('crypto');
 const env = require('./env');
-const https = require('https');
 const xlsxPopulate = require('xlsx-populate');
 const moment = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
 const { execFile } = require('child_process');
 const admin = require('firebase-admin');
+const url = require('url');
+const rpn = require('request-promise-native');
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 const googleMapsClient =
   require('@google/maps')
@@ -718,7 +719,7 @@ const sendSMS = async (phoneNumber, smsText) => {
   const sendTo = phoneNumber;
   const encodedMessage = `${encodeURI(smsText)}`;
 
-  const host = `enterprise.smsgupshup.com`;
+  const host = `https://enterprise.smsgupshup.com`;
   const path = `/GatewayAPI/rest?method=SendMessage`
     + `&send_to=${sendTo}`
     + `&msg=${encodedMessage}`
@@ -729,58 +730,11 @@ const sendSMS = async (phoneNumber, smsText) => {
     + `&v=1.1`
     + `&format=text`;
 
-  const params = {
-    host,
-    path,
-    // HTTPS port is 443
-    port: 443,
-  };
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(params, (res) => {
-      // reject on bad status
-      console.log('res.statusCode', res.statusCode);
-
-      if (res.statusCode > 226) {
-        reject(new Error(`statusCode=${res.statusCode}`));
-
-        return;
-      }
-
-      // cumulate data
-      let chunks = [];
-
-      res
-        .on('data', (chunk) => chunks.push(chunk));
-
-      // resolve on end
-      res
-        .on('end', () => {
-          chunks = Buffer.concat(chunks).toString();
-
-          if (chunks.includes('error')) {
-            reject(new Error(chunks));
-
-            return;
-          }
-
-          resolve(chunks);
-        });
-    });
-
-    // reject on request error
-    // This is not a "Second reject", just a different sort of failure
-    req.on('error', (err) => {
-      console.log('in err');
-
-      reject(new Error(err));
-
-      return;
-    });
-
-    // IMPORTANT otherwise socket won't close.
-    req.end();
-  });
+  try {
+    return rpn(url.resolve(host, path));
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const isEmptyObject = (object) =>
