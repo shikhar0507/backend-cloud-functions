@@ -1624,14 +1624,14 @@ const setOnLeaveOrAr = async params => {
         statusObject[date].onLeave = true;
         statusObject[date].statusForDay = 1;
         statusObject[date].leaveType = leaveType || '';
-        statusObject[date].leaveStatus = 'CONFIRMED';
+        statusObject[date].leaveStatus = 'PENDING';
       }
 
       if (template === 'attendance regularization') {
         statusObject[date].onAr = true;
         statusObject[date].statusForDay = 1;
         statusObject[date].arReason = arReason || '';
-        statusObject[date].arStatus = 'CANCELLED';
+        statusObject[date].arStatus = 'PENDING';
       }
 
       statusObjectMap
