@@ -77,7 +77,7 @@ const handleLeaveAndOnDuty = (conn, activityDoc) => {
       endTime,
       template,
       // Used for storing the phone number of the person
-      // canelling the leave/ar.
+      // cancelling the leave/ar.
       requestersPhoneNumber: conn.requester.phoneNumber,
     });
   } else {
@@ -87,6 +87,8 @@ const handleLeaveAndOnDuty = (conn, activityDoc) => {
       startTime,
       endTime,
       template,
+      status: conn.req.body.status,
+      requestersPhoneNumber: conn.requester.phoneNumber,
     });
   }
 };

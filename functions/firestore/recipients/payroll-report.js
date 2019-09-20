@@ -67,6 +67,62 @@ const allMonths = {
   'December': 11,
 };
 
+
+const getNumbersbetween = (start, end) => {
+  return new Array(end - start)
+    .fill()
+    .map((d, i) => i + start);
+};
+
+
+const getType = el => {
+  if (el.onAr) {
+    return 'Attendance Regularization';
+  }
+
+  if (el.onLeave) {
+    return `Leave ${el.leaveType || ''}`;
+  }
+
+  if (el.weeklyOff) {
+    return 'Weekly Off';
+  }
+
+  if (el.holiday) {
+    return 'Holiday';
+  }
+
+  if (el.firstCheckIn) {
+    return `Check-in`;
+  }
+
+  return '';
+};
+
+const getSignUpDate = params => {
+  const {
+    employeesData,
+    phoneNumber,
+    timezone,
+    yesterdaysMonth,
+  } = params;
+
+  if (!employeesData[phoneNumber]) {
+    return '';
+  }
+
+  const createTime = momentz(employeesData[phoneNumber].createTime)
+    .tz(timezone);
+
+  if (yesterdaysMonth === createTime.month()) {
+    return createTime
+      .format(dateFormats.DATE);
+  }
+
+  return '';
+};
+
+
 module.exports = async locals => {
   const timeStampFromTimer = locals
     .change
@@ -80,36 +136,17 @@ module.exports = async locals => {
   const momentYesterday = momentToday
     .clone()
     .subtract(1, 'day');
-  // const dateYesterday = momentYesterday
-  //   .date();
   const monthYearString = momentYesterday
     .format(dateFormats.MONTH_YEAR);
-  const firstDayOfMonthlyCycle = locals
-    .officeDoc
-    .get('attachment.First Day Of Monthly Cycle.value')||1;
-  // const weeklyOffSet = new Set();
-  // const holidaySet = new Set();
+  // const firstDayOfMonthlyCycle = locals
+  //   .officeDoc
+  //   .get('attachment.First Day Of Monthly Cycle.value') || 1;
+
+  const firstDayOfMonthlyCycle = locals.__first;
+
+  const weeklyOffSet = new Set();
+  const holidaySet = new Set();
   const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentYesterday.date();
-  // const cycleStartMoment = (() => {
-  //   if (fetchPreviousMonthDocs) {
-  //     let start = momentYesterday
-  //       .clone()
-  //       .startOf('month')
-  //       .date(firstDayOfMonthlyCycle);
-
-  //     const isPrevMonth = firstDayOfMonthlyCycle > momentYesterday.date();
-
-  //     if (isPrevMonth) {
-  //       start = start.subtract(1, 'month');
-  //     }
-
-  //     return start;
-  //   }
-
-  //   return momentYesterday
-  //     .clone()
-  //     .date(firstDayOfMonthlyCycle);
-  // })();
 
   /** Just for better readability. */
   const cycleEndMoment = momentYesterday;
@@ -125,6 +162,27 @@ module.exports = async locals => {
       .collection('Employees')
       .get(),
   ];
+
+  Object
+    .entries(locals.employeesData)
+    .forEach(entry => {
+      const [
+        phoneNumber,
+        employeeData
+      ] = entry;
+
+      if (employeeData['Weekly Off']
+        === momentYesterday.format('dddd').toLowerCase()) {
+        weeklyOffSet
+          .add(phoneNumber);
+      }
+
+      if (employeeData.branchHolidays
+        && employeeData.branchHolidays[momentYesterday.format(dateFormats.DATE)]) {
+        holidaySet
+          .add(phoneNumber);
+      }
+    });
 
   if (fetchPreviousMonthDocs) {
     const prevMonth = momentYesterday
@@ -174,15 +232,11 @@ module.exports = async locals => {
       .value(value);
   });
 
-  const getNumbersbetween = (start, end) => {
-    return new Array(end - start).fill().map((d, i) => i + start);
-  };
-
   const firstRange = (() => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
-        firstDayOfMonthlyCycle + 1,
-        cycleEndMoment.clone().endOf('month').date(),
+        firstDayOfMonthlyCycle,
+        cycleEndMoment.clone().endOf('month').date() + 1,
       );
     }
 
@@ -190,14 +244,10 @@ module.exports = async locals => {
   })();
   const secondRange = getNumbersbetween(
     firstDayOfMonthlyCycle,
-    cycleEndMoment.clone().date(),
+    cycleEndMoment.clone().date() + 1,
   );
 
   let rowIndex = 0;
-
-  // statusObjectsPrevMonth // snap
-  // statusObjectsPrevMonth.docs
-  // ((statusObjectsPrevMonth || []).docs) || [];
 
   const allMonthlyDocs = []
     .concat(
@@ -205,180 +255,167 @@ module.exports = async locals => {
       statusObjectsCurrMonth.docs,
     );
 
-  allMonthlyDocs.forEach(doc => {
-    const statusObject = doc.get('statusObject');
-    const { path } = doc.ref;
-    const parts = path.split('/');
-    const phoneNumber = doc.id;
-    const monthYearString = parts[3];
-    const [
-      monthName,
-      year
-    ] = monthYearString.split(' ');
-    const month = allMonths[monthName];
+  allMonthlyDocs
+    .forEach(doc => {
+      const statusObject = doc.get('statusObject');
+      const { path } = doc.ref;
+      const parts = path.split('/');
+      const phoneNumber = doc.id;
+      const monthYearString = parts[3];
+      const [
+        monthName,
+        year,
+      ] = monthYearString.split(' ');
+      const month = allMonths[monthName];
 
-    const range = (() => {
-      if (month !== momentYesterday.month()) {
-        return firstRange; // range from prev month cycle to prev month end.
-      }
-
-      return secondRange; // current month start to yesterday
-    })();
-
-    range.forEach(date => {
-      const el = statusObject[date] || {};
-
-      const employeeName = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber].Name;
+      const range = (() => {
+        if (month !== momentYesterday.month()) {
+          return firstRange; // range from prev month cycle to prev month end.
         }
 
-        if (doc.get('employeeName')) {
-          return doc.get('employeeName');
-        }
-
-        return '';
+        return secondRange; // current month's start to yesterday
       })();
 
-      const employeeCode = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber]['Employee Code'];
-        }
+      range
+        .forEach(date => {
+          const el = statusObject[date] || {};
 
-        if (doc.get('employeeCode')) {
-          return doc.get('employeeCode');
-        }
+          if (date === momentYesterday.date()
+            && month === momentYesterday.month()
+            && year === momentYesterday.year()) {
+            el
+              .weeklyOff = weeklyOffSet.has(phoneNumber);
+            el
+              .holiday = holidaySet.has(phoneNumber);
 
-        return '';
-      })();
-
-      const baseLocation = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber]['Base Location'];
-        }
-
-        if (doc.get('baseLocation')) {
-          return doc.get('baseLocation');
-        }
-
-        return '';
-      })();
-
-      const region = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber].Region;
-        }
-
-        if (doc.get('region')) {
-          return doc.get('region');
-        }
-
-        return '';
-      })();
-
-      const department = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          return locals.employeesData[phoneNumber].Department;
-        }
-
-        if (doc.get('department')) {
-          return doc.get('department');
-        }
-
-        return '';
-      })();
-
-      const signUpDate = (() => {
-        if (locals.employeesData[phoneNumber]) {
-          const createTime = momentz(locals.employeesData[phoneNumber].createTime)
-            .tz(timezone);
-
-          if (momentYesterday.month() === createTime.month()) {
-            return createTime
-              .format(dateFormats.DATE);
+            if (el.weeklyOff || el.holiday) {
+              el.branchName = locals.employeesData[phoneNumber]['Base Location'];
+            }
           }
 
-          return '';
-        }
+          const employeeName = (() => {
+            if (locals.employeesData[phoneNumber]) {
+              return locals.employeesData[phoneNumber].Name;
+            }
 
-        return '';
-      })();
+            if (doc.get('employeeName')) {
+              return doc.get('employeeName');
+            }
 
-      const type = (() => {
-        if (el.onAr) {
-          return 'attendance regularization';
-        }
+            return '';
+          })();
 
-        if (el.onLeave) {
-          return el.leaveType || '';
-        }
+          const employeeCode = (() => {
+            if (locals.employeesData[phoneNumber]) {
+              return locals.employeesData[phoneNumber]['Employee Code'];
+            }
 
-        if (el.weeklyOff) {
-          return 'Weekly Off';
-        }
+            if (doc.get('employeeCode')) {
+              return doc.get('employeeCode');
+            }
 
-        if (el.holiday) {
-          return 'Holiday';
-        }
+            return '';
+          })();
 
-        return `check-in`;
-      })();
+          const baseLocation = (() => {
+            if (locals.employeesData[phoneNumber]) {
+              return locals.employeesData[phoneNumber]['Base Location'];
+            }
 
-      payrollSheet
-        .cell(`A${rowIndex + 2}`)
-        .value(employeeName);
+            if (doc.get('baseLocation')) {
+              return doc.get('baseLocation');
+            }
 
-      payrollSheet
-        .cell(`B${rowIndex + 2}`)
-        .value(phoneNumber);
+            return '';
+          })();
 
-      payrollSheet
-        .cell(`C${rowIndex + 2}`)
-        .value(employeeCode);
+          const region = (() => {
+            if (locals.employeesData[phoneNumber]) {
+              return locals.employeesData[phoneNumber].Region;
+            }
 
-      payrollSheet
-        .cell(`D${rowIndex + 2}`)
-        .value(baseLocation);
+            if (doc.get('region')) {
+              return doc.get('region');
+            }
 
-      payrollSheet
-        .cell(`E${rowIndex + 2}`)
-        .value(region);
+            return '';
+          })();
 
-      payrollSheet
-        .cell(`F${rowIndex + 2}`)
-        .value(department);
+          const department = (() => {
+            if (locals.employeesData[phoneNumber]) {
+              return locals.employeesData[phoneNumber].Department;
+            }
 
-      payrollSheet
-        .cell(`G${rowIndex + 2}`)
-        .value(momentz().date(date).month(month).year(year).format(dateFormats.DATE));
+            if (doc.get('department')) {
+              return doc.get('department');
+            }
 
-      payrollSheet
-        .cell(`H${rowIndex + 2}`)
-        .value(signUpDate);
+            return '';
+          })();
 
-      payrollSheet
-        .cell(`I${rowIndex + 2}`)
-        .value(type);
+          payrollSheet
+            .cell(`A${rowIndex + 2}`)
+            .value(employeeName);
 
-      payrollSheet
-        .cell(`J${rowIndex + 2}`)
-        .value(el.statusForDay || 0);
+          payrollSheet
+            .cell(`B${rowIndex + 2}`)
+            .value(phoneNumber);
 
-      if (!el.onAr && !el.onLeave && el.firstCheckIn && el.geopoint) {
-        payrollSheet
-          .cell(`K${rowIndex + 2}`)
-          .value(getDetails(el, timezone))
-          .style({ fontColor: '0563C1', underline: true })
-          .hyperlink(toMapsUrl(el.geopoint));
-      } else {
-        payrollSheet
-          .cell(`K${rowIndex + 2}`)
-          .value(getDetails(el, timezone))
-      }
+          payrollSheet
+            .cell(`C${rowIndex + 2}`)
+            .value(employeeCode);
 
-      rowIndex++;
+          payrollSheet
+            .cell(`D${rowIndex + 2}`)
+            .value(baseLocation);
+
+          payrollSheet
+            .cell(`E${rowIndex + 2}`)
+            .value(region);
+
+          payrollSheet
+            .cell(`F${rowIndex + 2}`)
+            .value(department);
+
+          payrollSheet
+            .cell(`G${rowIndex + 2}`)
+            .value(momentz().date(date).month(month).year(year).format(dateFormats.DATE));
+
+          payrollSheet
+            .cell(`H${rowIndex + 2}`)
+            .value(getSignUpDate({
+              phoneNumber,
+              timezone,
+              employeesData: locals.employeesData,
+              yesterdaysMonth: momentYesterday.month(),
+            }));
+
+          payrollSheet
+            .cell(`I${rowIndex + 2}`)
+            .value(getType(el));
+
+          payrollSheet
+            .cell(`J${rowIndex + 2}`)
+            .value(el.statusForDay || 0);
+
+          if (!el.onAr
+            && !el.onLeave
+            && el.firstCheckIn
+            && el.geopoint) {
+            payrollSheet
+              .cell(`K${rowIndex + 2}`)
+              .value(getDetails(el, timezone))
+              .style({ fontColor: '0563C1', underline: true })
+              .hyperlink(toMapsUrl(el.geopoint));
+          } else {
+            payrollSheet
+              .cell(`K${rowIndex + 2}`)
+              .value(getDetails(el, timezone));
+          }
+
+          rowIndex++;
+        });
     });
-  });
 
   locals
     .messageObject

@@ -1418,18 +1418,32 @@ const cancelLeaveOrAr = async params => {
     const statusObject = statusObjectMap.get(monthYearString);
     const date = momentFromString.date();
 
-    statusObject[date] = statusObject[date] || {};
+    statusObject[
+      date
+    ] = statusObject[date] || {};
 
     if (template === 'leave') {
-      statusObject[date].onLeave = false;
-      statusObject[date].leaveStatus = 'CANCELLED';
-      statusObject[date].leaveCancelledBy = requestersPhoneNumber;
+      statusObject[
+        date
+      ].onLeave = false;
+      statusObject[
+        date
+      ].leaveStatus = 'CANCELLED';
+      statusObject[
+        date
+      ].leaveCancelledBy = requestersPhoneNumber;
     }
 
     if (template === 'attendance regularization') {
-      statusObject[date].onAr = false;
-      statusObject[date].arStatus = 'CANCELLED';
-      statusObject[date].arCancelledBy = requestersPhoneNumber;
+      statusObject[
+        date
+      ].onAr = false;
+      statusObject[
+        date
+      ].arStatus = 'CANCELLED';
+      statusObject[
+        date
+      ].arCancelledBy = requestersPhoneNumber;
     }
 
     const statusForDay = newStatusMap
@@ -1445,7 +1459,9 @@ const cancelLeaveOrAr = async params => {
 
   statusObjectMap
     .forEach((statusObject, monthYearString) => {
-      const ref = officeDoc.ref.collection('Statuses')
+      const ref = officeDoc
+        .ref
+        .collection('Statuses')
         .doc(monthYearString)
         .collection('Employees')
         .doc(phoneNumber);
@@ -1473,7 +1489,11 @@ const setOnLeaveOrAr = async params => {
     template,
     leaveType,
     arReason,
+    status,
+    requestersPhoneNumber,
   } = params;
+
+  console.log('status', status);
 
   const response = {
     success: true,
@@ -1497,7 +1517,10 @@ const setOnLeaveOrAr = async params => {
   const conflictingDates = [];
   const batch = db.batch();
 
-  const officeDoc = await rootCollections.offices.doc(officeId).get();
+  const officeDoc = await rootCollections
+    .offices
+    .doc(officeId)
+    .get();
   const timezone = officeDoc.get('attachment.Timezone.value');
 
   if (template === 'attendance regularization') {
@@ -1555,7 +1578,8 @@ const setOnLeaveOrAr = async params => {
         .push(promise);
     });
 
-  const docs = await Promise.all(promises);
+  const docs = await Promise
+    .all(promises);
   const statusObjectMap = new Map();
 
   docs.forEach(doc => {
@@ -1598,40 +1622,99 @@ const setOnLeaveOrAr = async params => {
       const statusObject = statusObjectMap.get(monthYearString);
       const date = momentFromString.date();
 
-      statusObject[date] = statusObject[date] || {};
+      statusObject[
+        date
+      ] = statusObject[date] || {};
 
       if (template === 'leave'
         && (statusObject[date].onLeave || statusObject[date].onAr)) {
-        conflictingDates.push(momentFromString.format(dateFormats.DATE));
-        response.message = LEAVE_WITH_LEAVE_MESSAGE;
-        response.success = false;
-        statusObject[date].leaveStatus = 'CANCELLED';
+        conflictingDates
+          .push(momentFromString.format(dateFormats.DATE));
+        response
+          .message = LEAVE_WITH_LEAVE_MESSAGE;
+        response
+          .success = false;
+        statusObject[
+          date
+        ].leaveStatus = 'CANCELLED';
 
         return;
       }
 
       if (template === 'attendance regularization'
         && (statusObject[date].onAr || statusObject[date].onLeave)) {
-        conflictingDates.push(momentFromString.format(dateFormats.DATE));
-        response.message = AR_WITH_AR_MESSAGE;
-        response.success = false;
-        statusObject[date].arStatus = 'CANCELLED';
+        conflictingDates
+          .push(momentFromString.format(dateFormats.DATE));
+        response
+          .message = AR_WITH_AR_MESSAGE;
+        response
+          .success = false;
+
+        statusObject[
+          date
+        ].arStatus = 'CANCELLED';
 
         return;
       }
 
       if (template === 'leave') {
-        statusObject[date].onLeave = true;
-        statusObject[date].statusForDay = 1;
-        statusObject[date].leaveType = leaveType || '';
-        statusObject[date].leaveStatus = 'PENDING';
+        statusObject[
+          date
+        ].onLeave = true;
+        statusObject[
+          date
+        ].statusForDay = 1;
+        statusObject[
+          date
+        ].leaveType = leaveType || '';
+        statusObject[
+          date
+        ].leaveStatus = 'PENDING';
+        statusObject[
+          date
+        ].leaveStartTime = startTime;
+        statusObject[
+          date
+        ].leaveEndTime = endTime;
+
+        if (status === 'CONFIRMED') {
+          statusObject[
+            date
+          ].leaveApprovedOn = momentTz().tz(timezone).valueOf();
+          statusObject[
+            date
+          ].leaveApprovedBy = requestersPhoneNumber;
+        }
       }
 
       if (template === 'attendance regularization') {
-        statusObject[date].onAr = true;
-        statusObject[date].statusForDay = 1;
-        statusObject[date].arReason = arReason || '';
-        statusObject[date].arStatus = 'PENDING';
+        statusObject[
+          date
+        ].onAr = true;
+        statusObject[
+          date
+        ].statusForDay = 1;
+        statusObject[
+          date
+        ].arReason = arReason || '';
+        statusObject[
+          date
+        ].arStatus = 'PENDING';
+        statusObject[
+          date
+        ].arStartTime = startTime;
+        statusObject[
+          date
+        ].arEndTime = endTime;
+
+        if (status === 'CONFIRMED') {
+          statusObject[
+            date
+          ].arApprovedOn = momentTz().tz(timezone).valueOf();
+          statusObject[
+            date
+          ].arApprovedBy = requestersPhoneNumber;
+        }
       }
 
       statusObjectMap
@@ -1640,7 +1723,9 @@ const setOnLeaveOrAr = async params => {
 
   statusObjectMap
     .forEach((statusObject, monthYearString) => {
-      const ref = officeDoc.ref.collection('Statuses')
+      const ref = officeDoc
+        .ref
+        .collection('Statuses')
         .doc(monthYearString)
         .collection('Employees')
         .doc(phoneNumber);
@@ -1651,6 +1736,8 @@ const setOnLeaveOrAr = async params => {
         merge: true,
       });
     });
+
+  console.log('conflictingDates', conflictingDates.length);
 
   // No conflicting dates; its safe to write the updates
   if (conflictingDates.length === 0) {
@@ -1683,8 +1770,10 @@ const setOnLeaveOrAr = async params => {
 
   // Message set means conflict between dates
   if (response.message) {
-    response.message = `${response.message}: ${datesString}`;
-    response.success = false;
+    response
+      .message = `${response.message}: ${datesString}`;
+    response
+      .success = false;
   }
 
   return response;

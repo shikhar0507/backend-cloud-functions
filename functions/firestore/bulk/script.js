@@ -140,6 +140,26 @@ module.exports = async conn => {
       employeesSet: new Set(),
     };
 
+    // const subQuery = await locals
+    //   .officeDoc
+    //   .ref
+    //   .collection('Activities')
+    //   .where('template', '==', 'subscription')
+    //   .where('status', '==', 'CONFIRMED')
+    //   .where('attachment.Subscriber.value', '==', conn.requester.phoneNumber)
+    //   .where('attachment.Template.value', '==', 'subscription')
+    //   .limit(1)
+    //   .get();
+
+    // if (!conn.requester.isSupportRequest
+    //   && subQuery.empty) {
+    //   return sendResponse(
+    //     conn,
+    //     code.unauthorized,
+    //     `You are not allowed to access this resource`
+    //   );
+    // }
+
     const fileName = `${conn.req.body.template}.xlsx`;
     const filePath = `/tmp/${fileName}`;
 
@@ -151,7 +171,7 @@ module.exports = async conn => {
     const template = locals.templateDoc.get('name');
     const officeId = (() => {
       if (template === 'office') {
-        return 'office';
+        return template;
       }
 
       return locals.officeDoc.id;
@@ -162,7 +182,6 @@ module.exports = async conn => {
     const destination = `${officeId}/${template}/`
       + `${ts}__${fileName}`;
 
-    // const [uploadResponse] =
     await bucket
       .upload(filePath, {
         destination,

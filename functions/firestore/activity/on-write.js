@@ -854,8 +854,6 @@ const handleEmployeeSupervisors = async locals => {
     return;
   }
 
-  console.log('handleEmployeeSupervisors');
-
   const employeeContact = locals
     .change
     .after
@@ -1165,11 +1163,17 @@ const handleEmployee = async locals => {
     .after
     .get('attachment.Employee Contact.value');
 
-  const oldStatus = locals.change.before.get('status');
-  const newStatus = locals.change.after.get('status');
+  // const oldStatus = locals.change.before.get('status');
+  // const newStatus = locals.change.after.get('status');
 
-  const hasBeenCancelled = oldStatus !== 'CANCELLED'
-    && newStatus === 'CANCELLED';
+  const hasBeenCancelled = locals
+    .change
+    .before
+    .get('status') !== 'CANCELLED'
+    && locals
+      .change
+      .after
+      .get('status') === 'CANCELLED';
 
   const employeeOf = {
     [office]: officeId,
@@ -1214,12 +1218,9 @@ const handleEmployee = async locals => {
 
     await deleteAuth(oldEmployeeContact);
 
-    const path = `${officeId}/employee/${oldEmployeeContact}`;
-    const ref = admin
+    await admin
       .database()
-      .ref(path);
-
-    await ref
+      .ref(`${officeId}/employee/${oldEmployeeContact}`)
       .remove();
 
     const profileDoc = await rootCollections
@@ -1287,16 +1288,22 @@ const createFootprintsRecipient = async locals => {
     .doc();
   const batch = db.batch();
 
-  const recipientTemplateQueryResult = await rootCollections
-    .activityTemplates
-    .where('name', '==', 'recipient')
-    .get();
-  const recipientActivityQueryResult = await rootCollections
-    .activities
-    .where('template', '==', 'recipient')
-    .where('attachment.Name.value', '==', 'footprints')
-    .limit(1)
-    .get();
+  const [
+    recipientTemplateQueryResult,
+    recipientActivityQueryResult,
+  ] = await Promise
+    .all([
+      rootCollections
+        .activityTemplates
+        .where('name', '==', 'recipient')
+        .get(),
+      rootCollections
+        .activities
+        .where('template', '==', 'recipient')
+        .where('attachment.Name.value', '==', 'footprints')
+        .limit(1)
+        .get()
+    ]);
 
   if (!recipientActivityQueryResult.empty) return;
 
@@ -1909,33 +1916,98 @@ const handleSitemap = async locals => {
     .set(sitemap);
 };
 
+const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
+  const docs = await rootCollections
+    .activities
+    .where('officeId', '==', officeId)
+    .where('template', '==', 'subscription')
+    .where('attachment.Template.value', '==', 'subscription')
+    .where('attachment.Subscriber.value', '==', phoneNumber)
+    .limit(1)
+    .get();
+
+  if (docs.empty) return;
+
+  const doc = docs.docs[0];
+
+  if (doc.get('status') === 'CANCELLED') return;
+
+  return doc
+    .ref
+    .set({
+      timestamp: Date.now(),
+      addendumDocRef: null,
+      status: 'CANCELLED',
+    }, {
+      merge: true,
+    });
+};
+
+const cancelAdmin = async (officeId, phoneNumber) => {
+  const docs = await rootCollections
+    .activities
+    .where('officeId', '==', officeId)
+    .where('template', '==', 'admin')
+    .where('attachment.Admin.value', '==', phoneNumber)
+    .get();
+
+  if (docs.empty) return;
+
+  const doc = docs.docs[0];
+
+  if (doc.get('status') === 'CANCELLED') return;
+
+  return doc
+    .ref
+    .set({
+      timestamp: Date.now(),
+      addendumDocRef: null,
+      status: 'CANCELLED',
+    }, {
+      merge: true,
+    });
+};
 
 const handleOffice = async locals => {
-  const template = locals
-    .change
-    .after
-    .get('template');
-  const hasBeenCreated = locals
-    .addendumDoc
-    && locals.addendumDoc.get('action') === httpsActions.create;
-
-  if (template !== 'office'
-    || !hasBeenCreated) {
-    return;
-  }
-
-  const firstContact = locals
+  const firstContactNew = locals
     .change
     .after
     .get('attachment.First Contact.value');
-  const secondContact = locals
+  const firstContactOld = locals
+    .change
+    .before
+    .get('attachment.First Contact.value');
+  const secondContactNew = locals
     .change
     .after
     .get('attachment.Second Contact.value');
+  const secondContactOld = locals
+    .change
+    .before
+    .get('attachment.Second Contact.value');
+  const officeId = locals.change.after.id;
+
+  if (firstContactOld
+    && firstContactOld !== firstContactNew) {
+    await Promise
+      .all([
+        cancelSubscriptionOfSubscription(officeId, firstContactOld),
+        cancelAdmin(officeId, firstContactOld)
+      ]);
+  }
+
+  if (secondContactOld
+    && secondContactOld !== secondContactNew) {
+    await Promise
+      .all([
+        cancelSubscriptionOfSubscription(officeId, secondContactOld),
+        cancelAdmin(officeId, secondContactOld),
+      ]);
+  }
 
   await createFootprintsRecipient(locals);
-  await createAutoSubscription(locals, 'subscription', firstContact);
-  await createAutoSubscription(locals, 'subscription', secondContact);
+  await createAutoSubscription(locals, 'subscription', firstContactNew);
+  await createAutoSubscription(locals, 'subscription', secondContactNew);
   await createBranches(locals);
   await handleSitemap(locals);
 
@@ -2667,12 +2739,15 @@ const handleDailyStatusReport = async addendumDoc => {
 
 
 const getAccuracyTolerance = accuracy => {
+  /**
+   * Client sends geopointAccuracy in meteres.
+   */
   if (accuracy
     && accuracy < 350) {
-    return 500;
+    return 0.5;
   }
 
-  return 1000;
+  return 1;
 };
 
 
@@ -2929,32 +3004,84 @@ const addCheckInTimestamps = async locals => {
     return;
   }
 
-  const statusDocQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Statuses')
-    .doc(monthYearString)
-    .collection('Employees')
-    .doc(phoneNumber)
-    .get();
+  const [
+    statusDocQueryResult,
+    employeeDocQueryResult,
+  ] = await Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Statuses')
+        .doc(monthYearString)
+        .collection('Employees')
+        .doc(phoneNumber)
+        .get(),
+      rootCollections
+        .activities
+        .where('officeId', '==', officeId)
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'employee')
+        .where('attachment.Employee Contact.value', '==', phoneNumber)
+        .limit(1)
+        .get(),
+    ]);
 
-  const date = momentToday.date();
-  const statusObject = statusDocQueryResult.get('statusObject') || {};
+  const employeeDoc = employeeDocQueryResult.docs[0];
 
-  statusObject[date] = statusObject[date] || {};
-  statusObject[date].numberOfCheckIns = statusObject[date].numberOfCheckIns || 0;
-
-  if (!statusObject[date].firstCheckInTimestamp) {
-    statusObject[date].firstCheckInTimestamp = createTime;
-    statusObject[date].firstCheckIn = momentToday.format(dateFormats.TIME);
-    statusObject[date].firstCheckInActivityId = locals.change.after.id;
+  /**
+   * If person creating a check-in is an employee,
+   * and the `Location Validation Check` is `true`
+   * and the distanceAccurate is not true, the count
+   * of check-in will not be counted.
+   */
+  if (employeeDoc
+    /**
+     * `Location Validation Check` could be an empty string,
+     * or something else but we need an explicit check for
+     * `distanceAccurate`.
+     */
+    && employeeDoc.get('attachment.Location Validation Check.value') === true
+    && !locals.addendumDocData.distanceAccurate === false) {
+    return;
   }
 
-  statusObject[date].lastCheckInTimestamp = createTime;
-  statusObject[date].lastCheckIn = momentToday.format(dateFormats.TIME);
-  statusObject[date].lastCheckInActivityId = locals.change.after.id;
+  const date = momentToday.date();
+  const statusObject = statusDocQueryResult
+    .get('statusObject') || {};
 
-  statusObject[date].numberOfCheckIns++;
+  statusObject[
+    date
+  ] = statusObject[date] || {};
+  statusObject[
+    date
+  ].numberOfCheckIns = statusObject[date].numberOfCheckIns || 0;
+
+  if (!statusObject[date].firstCheckInTimestamp) {
+    statusObject[
+      date
+    ].firstCheckInTimestamp = createTime;
+    statusObject[
+      date
+    ].firstCheckIn = momentToday.format(dateFormats.TIME);
+    statusObject[
+      date
+    ].firstCheckInActivityId = locals.change.after.id;
+  }
+
+  statusObject[
+    date
+  ].lastCheckInTimestamp = createTime;
+  statusObject[
+    date
+  ].lastCheckIn = momentToday.format(dateFormats.TIME);
+  statusObject[
+    date
+  ].lastCheckInActivityId = locals.change.after.id;
+
+  statusObject[
+    date
+  ].numberOfCheckIns++;
 
   return statusDocQueryResult
     .ref

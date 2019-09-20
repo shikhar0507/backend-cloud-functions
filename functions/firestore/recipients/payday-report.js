@@ -510,7 +510,11 @@ module.exports = async locals => {
           });
       });
 
+    console.log('before writing');
+
     if (reportTriggeredForToday) {
+      console.log('writing data');
+
       await commitStatuses({
         yesterdaysStatusMap,
         allowedToBeInactive,
@@ -519,6 +523,8 @@ module.exports = async locals => {
         employeesData: locals.employeesData,
       });
     }
+
+    console.log('data written to');
 
     return;
 
