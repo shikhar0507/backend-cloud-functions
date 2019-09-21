@@ -138,12 +138,9 @@ module.exports = async locals => {
     .subtract(1, 'day');
   const monthYearString = momentYesterday
     .format(dateFormats.MONTH_YEAR);
-  // const firstDayOfMonthlyCycle = locals
-  //   .officeDoc
-  //   .get('attachment.First Day Of Monthly Cycle.value') || 1;
-
-  const firstDayOfMonthlyCycle = locals.__first;
-
+  const firstDayOfMonthlyCycle = locals
+    .officeDoc
+    .get('attachment.First Day Of Monthly Cycle.value') || 1;
   const weeklyOffSet = new Set();
   const holidaySet = new Set();
   const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentYesterday.date();
@@ -231,6 +228,8 @@ module.exports = async locals => {
       .cell(`${alphabetsArray[index]}1`)
       .value(value);
   });
+
+  console.log('fetchPreviousMonthDocs', fetchPreviousMonthDocs);
 
   const firstRange = (() => {
     if (fetchPreviousMonthDocs) {

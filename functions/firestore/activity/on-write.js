@@ -35,6 +35,7 @@ const {
   dateFormats,
   vowels,
   reportNames,
+  subcollectionNames,
 } = require('../../admin/constants');
 const {
   slugify,
@@ -203,7 +204,7 @@ const createAdmin = async (locals, adminContact) => {
   const addendumDocRef = rootCollections
     .offices
     .doc(officeId)
-    .collection('Addendum')
+    .collection(subcollectionNames.ADDENDUM)
     .doc();
 
   return Promise
@@ -292,13 +293,19 @@ const createAdmin = async (locals, adminContact) => {
       locals
         .assigneePhoneNumbersArray
         .forEach(phoneNumber => {
-          batch.set(activityRef.collection('Assignees').doc(phoneNumber), {
-            canEdit: getCanEditValueForAdminActivity(phoneNumber, adminContact),
-            addToInclude: false,
-          });
+          const ref = activityRef
+            .collection(subcollectionNames.ASSIGNEES)
+            .doc(phoneNumber);
+
+          batch
+            .set(ref, {
+              canEdit: getCanEditValueForAdminActivity(phoneNumber, adminContact),
+              addToInclude: false,
+            });
         });
 
-      return batch.commit();
+      return batch
+        .commit();
     });
 };
 
@@ -375,9 +382,9 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
   const addendumDocRef = rootCollections
     .offices
     .doc(officeId)
-    .collection('Addendum')
+    // Addendum
+    .collection(subcollectionNames.ADDENDUM)
     .doc();
-
   const attachment = subscriptionTemplateDoc
     .get('attachment');
   attachment
@@ -407,7 +414,7 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 
   const addendumDocData = {
     activityData,
-    user: locals.change.after.get('creator').phoneNumber,
+    user: locals.change.after.get('creator.phoneNumber'),
     userDisplayName: locals.change.after.get('creator.displayName'),
     share: locals.assigneePhoneNumbersArray,
     action: httpsActions.create,
@@ -433,7 +440,7 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
     .forEach(phoneNumber => {
       batch
         .set(activityRef
-          .collection('Assignees')
+          .collection(subcollectionNames.ASSIGNEES)
           .doc(phoneNumber), {
           /** Subscription's canEditRule is ADMIN */
           canEdit: locals.adminsCanEdit.includes(phoneNumber),
@@ -501,7 +508,7 @@ const handleXTypeActivities = async locals => {
       const ref = rootCollections
         .profiles
         .doc(subscriber)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .doc(activity.id);
 
       batch
@@ -542,7 +549,7 @@ const handleCanEditRule = async (locals, templateDoc) => {
     const userSubscriptions = await rootCollections
       .profiles
       .doc(subscriberPhoneNumber)
-      .collection('Subscriptions')
+      .collection(subcollectionNames.SUBSCRIPTIONS)
       .where('canEditRule', '==', 'ADMIN')
       .where('status', '==', 'CONFIRMED')
       .where('office', '==', office)
@@ -587,6 +594,71 @@ const handleCanEditRule = async (locals, templateDoc) => {
 };
 
 
+const handleAttendances = async locals => {
+  // If subscription has been created, create doc for the employee
+  const isCreated = !locals.change.before.data()
+    && locals.change.after.data();
+
+  if (!isCreated) {
+    return;
+  }
+
+  const phoneNumber = locals
+    .change
+    .after
+    .get('attachment.Subscriber.value');
+  const officeId = locals
+    .change
+    .after
+    .get('officeId');
+  const momentToday = momentTz();
+  const baseQuery = rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ATTENDANCES)
+    .doc(momentToday.format(dateFormats.MONTH_YEAR))
+    .collection(phoneNumber);
+
+  const [
+    attendanceDoc,
+    summaryDoc,
+  ] = await Promise
+    .all([
+      baseQuery
+        .doc(`${momentToday.date()}`)
+        .get(),
+      baseQuery
+        .doc('summary')
+        .get(),
+    ]);
+
+  const batch = db.batch();
+
+  if (!attendanceDoc.exists) {
+    batch
+      .set(attendanceDoc.ref, {
+        phoneNumber,
+        month: momentToday.month(),
+        year: momentToday.year(),
+      }, {
+        merge: true,
+      });
+  }
+
+  if (!summaryDoc.exists) {
+    batch
+      .set(summaryDoc.ref, {
+        phoneNumber,
+        month: momentToday.month(),
+        year: momentToday.year(),
+      });
+  }
+
+  return batch
+    .commit();
+};
+
+
 const handleSubscription = async locals => {
   const batch = db.batch();
   const activityId = locals.change.after.id;
@@ -605,7 +677,7 @@ const handleSubscription = async locals => {
   const subscriptionDocRef = rootCollections
     .profiles
     .doc(newSubscriber)
-    .collection('Subscriptions')
+    .collection(subcollectionNames.SUBSCRIPTIONS)
     .doc(locals.change.after.id);
 
   const [
@@ -621,7 +693,7 @@ const handleSubscription = async locals => {
       rootCollections
         .profiles
         .doc(newSubscriber)
-        .collection('Subscriptions')
+        .collection(subcollectionNames.SUBSCRIPTIONS)
         .doc(activityId)
         .get()
     ]);
@@ -692,13 +764,23 @@ const handleSubscription = async locals => {
       .delete(rootCollections
         .profiles
         .doc(oldSubscriber)
-        .collection('Subscriptions')
+        .collection(subcollectionNames.SUBSCRIPTIONS)
         .doc(locals.change.after.id)
       );
   }
 
-  await batch.commit();
-  await handleCanEditRule(locals, templateDoc);
+  await Promise
+    .all([
+      batch
+        .commit(),
+      handleCanEditRule(
+        locals,
+        templateDoc
+      ),
+      handleAttendances(
+        locals
+      ),
+    ]);
 
   return handleXTypeActivities(locals);
 };
@@ -802,7 +884,7 @@ const removeFromOfficeActivities = async locals => {
               .delete(rootCollections
                 .activities
                 .doc(doc.id)
-                .collection('Assignees')
+                .collection(subcollectionNames.ASSIGNEES)
                 .doc(phoneNumber));
           });
 
@@ -832,7 +914,7 @@ const removeFromOfficeActivities = async locals => {
   const query = rootCollections
     .profiles
     .doc(phoneNumber)
-    .collection('Activities')
+    .collection(subcollectionNames.ACTIVITIES)
     .where('office', '==', office)
     .orderBy(admin.firestore.FieldPath.documentId())
     .limit(250);
@@ -914,17 +996,32 @@ const handleEmployeeSupervisors = async locals => {
 
     if (firstSupervisorChanged) {
       batch
-        .delete(doc.ref.collection('Assignees').doc(firstSupervisorOld));
+        .delete(
+          doc
+            .ref
+            .collection(subcollectionNames.ASSIGNEES)
+            .doc(firstSupervisorOld)
+        );
     }
 
     if (secondSupervisorChanged) {
       batch
-        .delete(doc.ref.collection('Assignees').doc(secondSupervisorOld));
+        .delete(
+          doc
+            .ref
+            .collection(subcollectionNames.ASSIGNEES)
+            .doc(secondSupervisorOld)
+        );
     }
 
     if (thirdSupervisorChanged) {
       batch
-        .delete(doc.ref.collection('Assignees').doc(thirdSupervisorOld));
+        .delete(
+          doc
+            .ref
+            .collection(subcollectionNames.ASSIGNEES)
+            .doc(thirdSupervisorOld)
+        );
     }
 
     const allSvs = [
@@ -935,10 +1032,16 @@ const handleEmployeeSupervisors = async locals => {
 
     allSvs.filter(Boolean) // Any or all of these values could be empty strings...
       .forEach(phoneNumber => {
-        batch.set(doc.ref.collection('Assignees').doc(phoneNumber), {
-          canEdit: locals.adminsCanEdit.includes(phoneNumber),
-          addToInclude: true,
-        });
+        const ref = doc
+          .ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(phoneNumber);
+
+        batch
+          .set(ref, {
+            canEdit: locals.adminsCanEdit.includes(phoneNumber),
+            addToInclude: true,
+          });
       });
   });
 
@@ -948,8 +1051,11 @@ const handleEmployeeSupervisors = async locals => {
 
 
 const createDefaultSubscriptionsForEmployee = locals => {
-  const hasBeenCreated = locals.addendumDoc
-    && locals.addendumDoc.get('action') === httpsActions.create;
+  const hasBeenCreated = locals
+    .addendumDoc
+    && locals
+      .addendumDoc
+      .get('action') === httpsActions.create;
 
   if (!hasBeenCreated) return;
 
@@ -964,44 +1070,6 @@ const createDefaultSubscriptionsForEmployee = locals => {
       createAutoSubscription(locals, 'leave', phoneNumber),
       createAutoSubscription(locals, 'attendance regularization', phoneNumber),
     ]);
-};
-
-
-const handleStatusDocs = async locals => {
-  const template = locals.change.after.get('template');
-  const timezone = locals.change.after.get('timezone');
-  const officeId = locals.change.after.get('officeId');
-  const employeeContact = locals.change.after.get('attachment.Employee Contact.value');
-
-  const hasBeenCreated = !locals.change.before.data()
-    && locals.change.after.data();
-
-  if (template !== 'employee'
-    || !hasBeenCreated) return;
-
-  const monthYearString = momentTz()
-    .tz(timezone)
-    .format(dateFormats.MONTH_YEAR);
-
-  const statusDoc = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Statuses')
-    .doc(monthYearString)
-    .collection('Employees')
-    .doc(employeeContact)
-    .get();
-
-  /** Status doc already exists */
-  if (statusDoc.exists) return;
-
-  return statusDoc
-    .ref
-    .set({
-      statusObject: {},
-    }, {
-      merge: true,
-    });
 };
 
 
@@ -1076,7 +1144,7 @@ const replaceNumberInActivities = async locals => {
 
           batch
             .set(activityRef
-              .collection('Assignees')
+              .collection(subcollectionNames.ASSIGNEES)
               .doc(newPhoneNumber), {
               canEdit: doc.get('canEdit'),
               addToInclude: template !== 'subscription',
@@ -1087,7 +1155,7 @@ const replaceNumberInActivities = async locals => {
           // Remove old assignee
           batch
             .delete(activityRef
-              .collection('Assignees')
+              .collection(subcollectionNames.ASSIGNEES)
               .doc(oldPhoneNumber)
             );
 
@@ -1137,7 +1205,7 @@ const replaceNumberInActivities = async locals => {
   const query = rootCollections
     .profiles
     .doc(oldPhoneNumber)
-    .collection('Activities')
+    .collection(subcollectionNames.ACTIVITIES)
     .where('office', '==', locals.change.after.get('office'))
     .orderBy(admin.firestore.FieldPath.documentId())
     .limit(100);
@@ -1263,9 +1331,7 @@ const handleEmployee = async locals => {
   }
 
   await createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled);
-  await handleEmployeeSupervisors(locals);
-
-  return handleStatusDocs(locals);
+  return handleEmployeeSupervisors(locals);
 };
 
 
@@ -1284,7 +1350,7 @@ const createFootprintsRecipient = async locals => {
   const addendumDocRef = rootCollections
     .offices
     .doc(officeId)
-    .collection('Addendum')
+    .collection(subcollectionNames.ADDENDUM)
     .doc();
   const batch = db.batch();
 
@@ -1373,12 +1439,17 @@ const createFootprintsRecipient = async locals => {
   locals
     .assigneePhoneNumbersArray
     .forEach(phoneNumber => {
-      batch.set(activityRef.collection('Assignees').doc(phoneNumber), {
-        /** canEditRule is admin */
-        canEdit: phoneNumber === firstContact
-          || phoneNumber === secondContact,
-        addToInclude: false,
-      });
+      const ref = activityRef
+        .collection(subcollectionNames.ASSIGNEES)
+        .doc(phoneNumber);
+
+      batch
+        .set(ref, {
+          /** canEditRule is admin */
+          canEdit: phoneNumber === firstContact
+            || phoneNumber === secondContact,
+          addToInclude: false,
+        });
     });
 
   batch
@@ -1677,7 +1748,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
   const addendumDocRef = rootCollections
     .offices
     .doc(officeId)
-    .collection('Addendum')
+    .collection(subcollectionNames.ADDENDUM)
     .doc();
 
   const gp = adjustedGeopoint(branchData.venue[0].geopoint);
@@ -1726,7 +1797,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
     .assigneePhoneNumbersArray.forEach(phoneNumber => {
       batch
         .set(activityRef
-          .collection('Assignees')
+          .collection(subcollectionNames.ASSIGNEES)
           .doc(phoneNumber), {
           canEdit: true,
           addToInclude: false,
@@ -1886,7 +1957,9 @@ const mangeYouTubeDataApi = async locals => {
     },
   };
 
-  return youtube.videos.update(opt);
+  return youtube
+    .videos
+    .update(opt);
 };
 
 
@@ -2025,60 +2098,44 @@ const setLocationsReadEvent = async locals => {
   let batchIndex = 0;
 
   const phoneNumbersArray = await getUsersWithCheckIn(officeId);
-  const uidMap = new Map();
-  const numberOfDocs = phoneNumbersArray.length;
-  const numberOfBatches = Math.round(Math.ceil(numberOfDocs / 500));
+  const numberOfBatches = Math.round(Math.ceil(phoneNumbersArray.length / 500));
   const batchArray = Array.from(Array(numberOfBatches)).map(() => db.batch());
   const updatesPromises = [];
 
-  phoneNumbersArray.forEach(phoneNumber => {
-    const p = rootCollections
-      .updates
-      .where('phoneNumber', '==', phoneNumber)
-      .limit(1)
-      .get();
+  phoneNumbersArray
+    .forEach(phoneNumber => {
+      updatesPromises
+        .push(rootCollections
+          .updates
+          .where('phoneNumber', '==', phoneNumber)
+          .limit(1)
+          .get()
+        );
+    });
 
-    updatesPromises
-      .push(p);
-  });
-
-  const updateDocs = await Promise.all(updatesPromises);
+  const updateDocs = await Promise
+    .all(updatesPromises);
 
   updateDocs.forEach(doc => {
     if (!doc.exists) return;
 
-    const phoneNumber = doc.get('phoneNumber');
-    const uid = doc.id;
+    docsCounter++;
 
-    uidMap
-      .set(phoneNumber, uid);
-  });
+    if (docsCounter > 499) {
+      docsCounter = 0;
+      batchIndex++;
+    }
 
-  phoneNumbersArray
-    .forEach(phoneNumber => {
-      docsCounter++;
-
-      if (docsCounter > 499) {
-        docsCounter = 0;
-        batchIndex++;
-      }
-
-      const uid = uidMap.get(phoneNumber);
-
-      if (!uid) {
-        return;
-      }
-
-      batchArray[
-        batchIndex
-      ].set(rootCollections
-        .updates
-        .doc(uid), {
-        lastLocationMapUpdateTimestamp: Date.now(),
-      }, {
-        merge: true,
-      });
+    batchArray[
+      batchIndex
+    ].set(rootCollections
+      .updates
+      .doc(doc.id), {
+      lastLocationMapUpdateTimestamp: Date.now(),
+    }, {
+      merge: true,
     });
+  });
 
   const commitBatch = async batch => {
     return process
@@ -2099,14 +2156,12 @@ const handleBranch = async locals => {
     .change
     .after
     .get('office');
-  const branchName = locals.change.after.get('attachment.Name.value');
-
   const employees = await rootCollections
     .activities
     .where('template', '==', 'employee')
     .where('status', '==', 'CONFIRMED')
     .where('office', '==', office)
-    .where('attachment.Base Location.value', '==', branchName)
+    .where('attachment.Base Location.value', '==', locals.change.after.get('attachment.Name.value'))
     .get();
 
   const promises = [];
@@ -2207,24 +2262,25 @@ const createNewProfiles = async newProfilesMap => {
         .doc(phoneNumber)
         .get();
 
-      profilePromises.push(promise);
+      profilePromises
+        .push(promise);
     });
 
   const snap = await Promise
     .all(profilePromises);
 
-  snap.forEach(doc => {
-    /** Profile already exists */
-    if (doc.exists) return;
+  snap
+    .forEach(doc => {
+      /** Profile already exists */
+      if (doc.exists) return;
 
-    const phoneNumber = doc.id;
-
-    profileBatch.set(doc.ref, {
-      smsContext: newProfilesMap.get(phoneNumber),
-    }, {
-      merge: true,
+      profileBatch.set(doc.ref, {
+        // doc.id => phoneNumber
+        smsContext: newProfilesMap.get(doc.id),
+      }, {
+        merge: true,
+      });
     });
-  });
 
   return profileBatch
     .commit();
@@ -2290,7 +2346,7 @@ const getUpdatedAttachmentFieldNames = (newAttachment, oldAttachment) => {
 
   Object
     .keys(newAttachment)
-    .forEach((field) => {
+    .forEach(field => {
       /** Comparing the `base64` photo string is expensive. Not doing it. */
       if (newAttachment[field].type === 'photo') {
         return;
@@ -2395,7 +2451,8 @@ const getChangeStatusComment = (status, activityName, pronoun) => {
   /** `PENDING` isn't grammatically correct with the comment here. */
   if (status === 'PENDING') status = 'reversed';
 
-  return `${pronoun} ${status.toLowerCase()} ${activityName}`;
+  return `${pronoun}`
+    + ` ${status.toLowerCase()} ${activityName}`;
 };
 
 
@@ -2405,7 +2462,9 @@ const getCommentString = (locals, recipient) => {
   const template = locals.addendumDoc.get('activityData.template');
 
   if (locals.addendumDoc.get('cancellationMessage')) {
-    return locals.addendumDoc.get('cancellationMessage');
+    return locals
+      .addendumDoc
+      .get('cancellationMessage');
   }
 
   if (action === httpsActions.create) {
@@ -2416,14 +2475,23 @@ const getCommentString = (locals, recipient) => {
         && locals.addendumDocData.activityData.venue
         && locals.addendumDocData.activityData.venue[0]
         && locals.addendumDocData.activityData.venue[0].location) {
-        return locals.addendumDocData.activityData.venue[0].location;
+        return locals
+          .addendumDocData
+          .activityData
+          .venue[0]
+          .location;
       }
 
       if (locals.addendumDocData.venueQuery) {
-        return locals.addendumDocData.venueQuery.location;
+        return locals
+          .addendumDocData
+          .venueQuery
+          .location;
       }
 
-      return locals.addendumDocData.identifier;
+      return locals
+        .addendumDocData
+        .identifier;
     })();
 
     return getCreateActionComment(template, pronoun, locationFromVenue);
@@ -4414,13 +4482,14 @@ module.exports = async (change, context) => {
     rootCollections
       .activities
       .doc(context.params.activityId)
-      .collection('Assignees')
+      .collection(subcollectionNames.ASSIGNEES)
       .get(),
     rootCollections
       .offices
       .doc(change.after.get('officeId'))
       .collection('Activities')
       .where('template', '==', 'admin')
+      .where('status', '==', 'CONFIRMED')
       .get(),
   ];
 
@@ -4612,7 +4681,7 @@ module.exports = async (change, context) => {
         const ref = rootCollections
           .profiles
           .doc(phoneNumber)
-          .collection('Activities')
+          .collection(subcollectionNames.ASSIGNEES)
           .doc(context.params.activityId);
 
         batch.set(ref, profileActivityObject, {

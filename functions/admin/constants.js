@@ -842,8 +842,18 @@ const loggingTags = {
   AUTH_REJECTIONS: 'AUTH_REJECTIONS',
 };
 
+const subcollectionNames = {
+  ACTIVITIES: 'Activities',
+  ATTENDANCES: 'Attendances',
+  ADDENDUM: 'Addendum',
+  SUBSCRIPTIONS: 'Subscriptions',
+  WEBAPP: 'Webapp',
+  ASSIGNEES: 'Assignees',
+};
+
 
 module.exports = {
+  subcollectionNames,
   vowels,
   weekdays,
   validTypes,

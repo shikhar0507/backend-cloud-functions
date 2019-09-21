@@ -1691,8 +1691,6 @@ const getBranchName = addressComponents => {
 };
 
 const getUsersWithCheckIn = async officeId => {
-  const result = [];
-
   const checkInSubscriptions = await rootCollections
     .offices
     .doc(officeId)
@@ -1702,10 +1700,9 @@ const getUsersWithCheckIn = async officeId => {
     .where('status', '==', 'CONFIRMED')
     .get();
 
-  checkInSubscriptions
-    .forEach(doc => result.push(doc.get('attachment.Subscriber.value')));
-
-  return result;
+  return checkInSubscriptions
+    .docs
+    .map(doc => doc.get('attachment.Subscriber.value'));
 };
 
 const getAuth = async phoneNumber => {
