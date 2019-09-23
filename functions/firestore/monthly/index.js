@@ -3,9 +3,12 @@
 const {
   rootCollections,
 } = require('../../admin/admin');
-
-const findKeyByValue = (obj, value) =>
-  Object.keys(obj).find(key => obj[key] === value);
+const {
+  allMonths,
+} = require('../../admin/constants');
+const {
+  findKeyByValue,
+} = require('../../admin/constants');
 
 
 module.exports = async (change, context) => {
@@ -25,21 +28,6 @@ module.exports = async (change, context) => {
     const parts = path.split('/');
     const monthYearString = parts[3];
     const [month, year] = monthYearString.split(' ');
-
-    const allMonths = {
-      'January': 0,
-      'February': 1,
-      'March': 2,
-      'April': 3,
-      'May': 4,
-      'June': 5,
-      'July': 6,
-      'August': 7,
-      'September': 8,
-      'October': 9,
-      'November': 10,
-      'December': 11,
-    };
 
     const result = [];
 

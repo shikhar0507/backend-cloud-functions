@@ -3,13 +3,18 @@
 const momentz = require('moment-timezone');
 const {
   dateFormats,
+  allMonths,
 } = require('../../admin/constants');
 const {
   alphabetsArray,
   toMapsUrl,
 } = require('./report-utils');
+const {
+  getNumbersbetween,
+} = require('../../admin/utils');
 const xlsxPopulate = require('xlsx-populate');
 const env = require('../../admin/env');
+
 
 const getDetails = (el, timezone) => {
   if (el.onAr) {
@@ -52,28 +57,6 @@ const getDetails = (el, timezone) => {
     + ` ${el.numberOfCheckIns || 0}`;
 };
 
-const allMonths = {
-  'January': 0,
-  'February': 1,
-  'March': 2,
-  'April': 3,
-  'May': 4,
-  'June': 5,
-  'July': 6,
-  'August': 7,
-  'September': 8,
-  'October': 9,
-  'November': 10,
-  'December': 11,
-};
-
-
-const getNumbersbetween = (start, end) => {
-  return new Array(end - start)
-    .fill()
-    .map((d, i) => i + start);
-};
-
 
 const getType = el => {
   if (el.onAr) {
@@ -98,6 +81,7 @@ const getType = el => {
 
   return '';
 };
+
 
 const getSignUpDate = params => {
   const {
@@ -228,8 +212,6 @@ module.exports = async locals => {
       .cell(`${alphabetsArray[index]}1`)
       .value(value);
   });
-
-  console.log('fetchPreviousMonthDocs', fetchPreviousMonthDocs);
 
   const firstRange = (() => {
     if (fetchPreviousMonthDocs) {

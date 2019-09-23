@@ -330,7 +330,8 @@ const getStatusForDay = options => {
     hoursWorked // difference between first and last action in hours,
   } = options;
 
-  if (minimumDailyActivityCount === 1 && numberOfActions !== 0) {
+  if (minimumDailyActivityCount === 1
+    && numberOfActions !== 0) {
     return 1;
   }
 

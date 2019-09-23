@@ -1230,10 +1230,6 @@ const handleEmployee = async locals => {
     .change
     .after
     .get('attachment.Employee Contact.value');
-
-  // const oldStatus = locals.change.before.get('status');
-  // const newStatus = locals.change.after.get('status');
-
   const hasBeenCancelled = locals
     .change
     .before
@@ -1276,13 +1272,18 @@ const handleEmployee = async locals => {
   // Phone number changed
   if (oldEmployeeContact
     && oldEmployeeContact !== newEmployeeContact) {
-    batch.set(rootCollections.profiles.doc(oldEmployeeContact), {
-      employeeOf: {
-        [office]: admin.firestore.FieldValue.delete(),
-      },
-    }, {
-      merge: true,
-    });
+    const ref = rootCollections
+      .profiles
+      .doc(oldEmployeeContact);
+
+    batch
+      .set(ref, {
+        employeeOf: {
+          [office]: admin.firestore.FieldValue.delete(),
+        },
+      }, {
+        merge: true,
+      });
 
     await deleteAuth(oldEmployeeContact);
 
@@ -1295,9 +1296,11 @@ const handleEmployee = async locals => {
       .profiles
       .doc(oldEmployeeContact)
       .get();
-    const data = profileDoc.data();
+    const data = profileDoc
+      .data();
 
-    profileData = Object.assign(profileData, data);
+    profileData = Object
+      .assign(profileData, data);
 
     const updatesQueryResult = await rootCollections
       .updates
@@ -1323,14 +1326,19 @@ const handleEmployee = async locals => {
     await replaceNumberInActivities(locals);
   }
 
-  await batch.commit();
+  await batch
+    .commit();
   await addEmployeeToRealtimeDb(locals.change.after);
 
   if (hasBeenCancelled) {
     await removeFromOfficeActivities(locals);
   }
 
-  await createDefaultSubscriptionsForEmployee(locals, hasBeenCancelled);
+  await createDefaultSubscriptionsForEmployee(
+    locals,
+    hasBeenCancelled
+  );
+
   return handleEmployeeSupervisors(locals);
 };
 
@@ -1366,15 +1374,19 @@ const createFootprintsRecipient = async locals => {
       rootCollections
         .activities
         .where('template', '==', 'recipient')
-        .where('attachment.Name.value', '==', 'footprints')
+        .where('attachment.Name.value', '==', reportNames.FOOTPRINTS)
         .limit(1)
         .get()
     ]);
 
   if (!recipientActivityQueryResult.empty) return;
 
-  const attachment = recipientTemplateQueryResult.docs[0].get('attachment');
-  attachment.Name.value = 'footprints';
+  const attachment = recipientTemplateQueryResult
+    .docs[0]
+    .get('attachment');
+  attachment
+    .Name
+    .value = 'footprints';
 
   const activityData = {
     addendumDocRef,
@@ -1498,31 +1510,24 @@ const replaceInvalidCharsInOfficeName = office => {
 
 
 /** Uses autocomplete api for predictions */
-const getPlaceIds = office => {
-  return googleMapsClient
+const getPlaceIds = async office => {
+  const result = await googleMapsClient
     .placesAutoComplete({
       input: office,
       sessiontoken: crypto.randomBytes(64).toString('hex'),
       components: { country: 'in' },
     })
-    .asPromise()
-    .then(result => {
-      const Ids = [];
+    .asPromise();
 
-      result.json.predictions.forEach(prediction => {
-        const { place_id: placeid } = prediction;
-
-        Ids.push(placeid);
-      });
-
-      return Ids;
-    })
-    .catch(console.error);
+  return result
+    .json
+    .predictions
+    .map(prediction => prediction.place_id);
 };
 
 
-const getPlaceName = placeid => {
-  return googleMapsClient
+const getPlaceName = async placeid => {
+  const result = await googleMapsClient
     .place({
       placeid,
       fields: [
@@ -1540,199 +1545,198 @@ const getPlaceName = placeid => {
         "website"
       ]
     })
-    .asPromise()
-    .then(result => {
-      const {
-        address_components: addressComponents
-      } = result.json.result;
+    .asPromise();
 
-      const branchName = getBranchName(addressComponents);
-      const branchOffice = {
-        placeId: result.json.result['place_id'],
-        venueDescriptor: 'Branch Office',
-        address: result.json.result['formatted_address'],
-        location: branchName,
-        geopoint: new admin.firestore.GeoPoint(
-          result.json.result.geometry.location.lat,
-          result.json.result.geometry.location.lng
-        ),
+  const {
+    address_components: addressComponents
+  } = result.json.result;
+
+  const branchName = getBranchName(addressComponents);
+  const branchOffice = {
+    placeId: result.json.result['place_id'],
+    venueDescriptor: 'Branch Office',
+    address: result.json.result['formatted_address'],
+    location: branchName,
+    geopoint: new admin.firestore.GeoPoint(
+      result.json.result.geometry.location.lat,
+      result.json.result.geometry.location.lng
+    ),
+  };
+
+  const weekdayStartTime = (() => {
+    const openingHours = result
+      .json
+      .result['opening_hours'];
+
+    if (!openingHours) {
+      return '';
+    }
+
+    const periods = openingHours.periods;
+
+    const relevantObject = periods.filter(item => {
+      return item.close && item.close.day === 1;
+    });
+
+    if (!relevantObject[0]) {
+      return '';
+    }
+
+    return relevantObject[0].open.time;
+  })();
+
+  const weekdayEndTime = (() => {
+    const openingHours = result
+      .json
+      .result['opening_hours'];
+
+    if (!openingHours) {
+      return '';
+    }
+
+    const periods = openingHours.periods;
+
+    const relevantObject = periods.filter(item => {
+      return item.close
+        && item.close.day === 1;
+    });
+
+    if (!relevantObject[0]) {
+      return '';
+    }
+
+    return relevantObject[0].close.time;
+  })();
+
+  const saturdayStartTime = (() => {
+    const openingHours = result
+      .json
+      .result['opening_hours'];
+
+    if (!openingHours) {
+      return '';
+    }
+
+    const relevantObject = openingHours
+      .periods
+      .filter(item => item.open && item.open.day === 6);
+
+    if (!relevantObject[0]) {
+      return '';
+    }
+
+    return relevantObject[0].open.time;
+  })();
+
+  const saturdayEndTime = (() => {
+    const openingHours = result
+      .json
+      .result['opening_hours'];
+
+    if (!openingHours) {
+      return '';
+    }
+
+    const relevantObject = openingHours
+      .periods
+      .filter(item => item.open && item.open.day === 6);
+
+    if (!relevantObject[0]) {
+      return '';
+    }
+
+    return relevantObject[0].close.time;
+  })();
+
+  const weeklyOff = (() => {
+    const openingHours = result
+      .json
+      .result['opening_hours'];
+
+    if (!openingHours) {
+      return '';
+    }
+
+    const weekdayText = openingHours['weekday_text'];
+
+    if (!weekdayText) {
+      return '';
+    }
+
+    const closedWeekday = weekdayText
+      // ['Sunday: Closed']
+      .filter(str => str.includes('Closed'))[0];
+
+    if (!closedWeekday) {
+      return '';
+    }
+
+    const parts = closedWeekday
+      .split(':');
+
+    if (!parts[0]) {
+      return '';
+    }
+
+    // ['Sunday' 'Closed']
+    return parts[0].toLowerCase();
+  })();
+
+  const schedulesArray = Array
+    .from(Array(15))
+    .map((_, index) => {
+      return {
+        name: `Holiday ${index + 1}`,
+        startTime: '',
+        endTime: '',
       };
+    });
 
-      const weekdayStartTime = (() => {
-        const openingHours = result
-          .json
-          .result['opening_hours'];
+  const activityObject = {
+    // All assignees from office creation instance
+    venue: [branchOffice],
+    schedule: schedulesArray,
+    attachment: {
+      Name: {
+        value: branchName,
+        type: 'string',
+      },
+      'First Contact': {
+        value: '',
+        type: 'phoneNumber',
+      },
+      'Second Contact': {
+        value: '',
+        type: 'phoneNumber',
+      },
+      'Branch Code': {
+        value: '',
+        type: 'string',
+      },
+      'Weekday Start Time': {
+        value: millitaryToHourMinutes(weekdayStartTime),
+        type: 'HH:MM',
+      },
+      'Weekday End Time': {
+        value: millitaryToHourMinutes(weekdayEndTime),
+        type: 'HH:MM',
+      },
+      'Saturday Start Time': {
+        value: millitaryToHourMinutes(saturdayStartTime),
+        type: 'HH:MM',
+      },
+      'Saturday End Time': {
+        value: millitaryToHourMinutes(saturdayEndTime),
+        type: 'HH:MM',
+      },
+      'Weekly Off': {
+        value: weeklyOff,
+        type: 'weekday',
+      },
+    },
+  };
 
-        if (!openingHours) {
-          return '';
-        }
-
-        const periods = openingHours.periods;
-
-        const relevantObject = periods.filter(item => {
-          return item.close && item.close.day === 1;
-        });
-
-        if (!relevantObject[0]) {
-          return '';
-        }
-
-        return relevantObject[0].open.time;
-      })();
-
-      const weekdayEndTime = (() => {
-        const openingHours = result
-          .json
-          .result['opening_hours'];
-
-        if (!openingHours) {
-          return '';
-        }
-
-        const periods = openingHours.periods;
-
-        const relevantObject = periods.filter(item => {
-          return item.close
-            && item.close.day === 1;
-        });
-
-        if (!relevantObject[0]) {
-          return '';
-        }
-
-        return relevantObject[0].close.time;
-      })();
-
-      const saturdayStartTime = (() => {
-        const openingHours = result
-          .json
-          .result['opening_hours'];
-
-        if (!openingHours) return '';
-
-        const periods = openingHours.periods;
-
-        const relevantObject = periods.filter(item => {
-          return item.open
-            && item.open.day === 6;
-        });
-
-        if (!relevantObject[0]) {
-          return '';
-        }
-
-        return relevantObject[0].open.time;
-      })();
-
-      const saturdayEndTime = (() => {
-        const openingHours = result
-          .json
-          .result['opening_hours'];
-
-        if (!openingHours) return '';
-
-        const periods = openingHours.periods;
-
-        const relevantObject = periods.filter(item => {
-          return item.open
-            && item.open.day === 6;
-        });
-
-        if (!relevantObject[0]) {
-          return '';
-        }
-
-        return relevantObject[0].close.time;
-      })();
-
-      const weeklyOff = (() => {
-        const openingHours = result
-          .json
-          .result['opening_hours'];
-
-        if (!openingHours) {
-          return '';
-        }
-
-        const weekdayText = openingHours['weekday_text'];
-
-        if (!weekdayText) {
-          return '';
-        }
-
-        const closedWeekday = weekdayText
-          // ['Sunday: Closed']
-          .filter(str => str.includes('Closed'))[0];
-
-        if (!closedWeekday) {
-          return '';
-        }
-
-        const parts = closedWeekday.split(':');
-
-        if (!parts[0]) {
-          return '';
-        }
-
-        // ['Sunday' 'Closed']
-        return parts[0].toLowerCase();
-      })();
-
-      const schedulesArray = Array.from(Array(15)).map((_, index) => {
-        return {
-          name: `Holiday ${index + 1}`,
-          startTime: '',
-          endTime: '',
-        };
-      });
-
-      const activityObject = {
-        // All assignees from office creation instance
-        venue: [branchOffice],
-        schedule: schedulesArray,
-        attachment: {
-          'Name': {
-            value: branchName,
-            type: 'string',
-          },
-          'First Contact': {
-            value: '',
-            type: 'phoneNumber',
-          },
-          'Second Contact': {
-            value: '',
-            type: 'phoneNumber',
-          },
-          'Branch Code': {
-            value: '',
-            type: 'string',
-          },
-          'Weekday Start Time': {
-            value: millitaryToHourMinutes(weekdayStartTime),
-            type: 'HH:MM',
-          },
-          'Weekday End Time': {
-            value: millitaryToHourMinutes(weekdayEndTime),
-            type: 'HH:MM',
-          },
-          'Saturday Start Time': {
-            value: millitaryToHourMinutes(saturdayStartTime),
-            type: 'HH:MM',
-          },
-          'Saturday End Time': {
-            value: millitaryToHourMinutes(saturdayEndTime),
-            type: 'HH:MM',
-          },
-          'Weekly Off': {
-            value: weeklyOff,
-            type: 'weekday',
-          },
-        },
-      };
-
-      return activityObject;
-    })
-    .catch(console.error);
+  return activityObject;
 };
 
 
@@ -1794,7 +1798,8 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
   };
 
   locals
-    .assigneePhoneNumbersArray.forEach(phoneNumber => {
+    .assigneePhoneNumbersArray
+    .forEach(phoneNumber => {
       batch
         .set(activityRef
           .collection(subcollectionNames.ASSIGNEES)
@@ -3533,8 +3538,8 @@ const handleLeaveUpdates = async locals => {
     && newStatus === 'CANCELLED';
 
   // If duty conflict was removed during a previous instance for this leave
-  // activity. So, activity on write will trigger again.
-  // So, in order to avoid the infinite loop, we check if conflictingDuties
+  // activity. The activity on write will trigger again.
+  // In order to avoid the infinite loop, we check if `conflictingDuties`
   // array was modified. If it was, then we can assume that one or more conflicts
   // were resolved, and thus that caused the 2nd activityOnWrite instance to trigger.
   if (oldConflictingDuties.length
@@ -3567,7 +3572,8 @@ const handleLeaveUpdates = async locals => {
         .valueOf();
     }
 
-    return newSchedule.endTime;
+    return newSchedule
+      .endTime;
   })();
 
   const conflictingDutyActivityPromises = [];
@@ -3589,23 +3595,24 @@ const handleLeaveUpdates = async locals => {
   const docs = await Promise
     .all(conflictingDutyActivityPromises);
 
-  docs.forEach(doc => {
-    const relevantTime = doc.get('relevantTime');
+  docs
+    .forEach(doc => {
+      const relevantTime = doc.get('relevantTime');
 
-    if (!relevantTime) {
-      return;
-    }
+      if (!relevantTime) {
+        return;
+      }
 
-    if (relevantTime >= newSchedule.startTime
-      && relevantTime <= leaveEndTs
-      && !hasBeenCancelled) {
-      // Leave updated, but still has conflict.
-      return;
-    }
+      if (relevantTime >= newSchedule.startTime
+        && relevantTime <= leaveEndTs
+        && !hasBeenCancelled) {
+        // Leave updated, but still has conflict.
+        return;
+      }
 
-    resolvedConflictDocs
-      .push(doc);
-  });
+      resolvedConflictDocs
+        .push(doc);
+    });
 
   // No conflicts were resolved during this update instance.
   if (resolvedConflictDocs.length === 0) {
@@ -3624,71 +3631,74 @@ const handleLeaveUpdates = async locals => {
     .collection('Addendum')
     .doc();
 
-  batch.set(locals.change.after.ref, {
-    addendumDocRef: leaveAddendumRef,
-    timestamp: Date.now(),
-    resolvedConflictIds: admin
-      .firestore
-      .FieldValue
-      .arrayRemove(...resolvedConflictDocs.map(doc => doc.id)),
-  }, {
-    merge: true,
-  });
+  batch
+    .set(locals.change.after.ref, {
+      addendumDocRef: leaveAddendumRef,
+      timestamp: Date.now(),
+      resolvedConflictIds: admin
+        .firestore
+        .FieldValue
+        .arrayRemove(...resolvedConflictDocs.map(doc => doc.id)),
+    }, {
+      merge: true,
+    });
 
-  batch.set(leaveAddendumRef, {
-    date: dateObject.getDate(),
-    month: dateObject.getMonth(),
-    year: dateObject.getFullYear(),
-    user: phoneNumber,
-    action: httpsActions.comment,
-    location: locals.addendumDoc.get('location'),
-    timestamp: Date.now(),
-    userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-    isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-    geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-    provider: locals.addendumDoc.get('provider'),
-    userDisplayName: displayName,
-    isAutoGenerated: true,
-    comment: automaticComment,
-    activityData: locals.change.after.data(),
-    activityId: locals.change.after.ref.id,
-  });
+  batch
+    .set(leaveAddendumRef, {
+      date: dateObject.getDate(),
+      month: dateObject.getMonth(),
+      year: dateObject.getFullYear(),
+      user: phoneNumber,
+      action: httpsActions.comment,
+      location: locals.addendumDoc.get('location'),
+      timestamp: Date.now(),
+      userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+      isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+      geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
+      provider: locals.addendumDoc.get('provider'),
+      userDisplayName: displayName,
+      isAutoGenerated: true,
+      comment: automaticComment,
+      activityData: locals.change.after.data(),
+      activityId: locals.change.after.ref.id,
+    });
 
-  resolvedConflictDocs.forEach(doc => {
-    const addendumDocRef = rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Addendum')
-      .doc();
+  resolvedConflictDocs
+    .forEach(doc => {
+      const addendumDocRef = rootCollections
+        .offices
+        .doc(officeId)
+        .collection('Addendum')
+        .doc();
 
-    batch
-      .set(doc.ref, {
-        timestamp: Date.now(),
-        addendumDocRef: addendumDocRef,
-      }, {
-        merge: true,
-      });
+      batch
+        .set(doc.ref, {
+          timestamp: Date.now(),
+          addendumDocRef: addendumDocRef,
+        }, {
+          merge: true,
+        });
 
-    batch
-      .set(addendumDocRef, {
-        date: dateObject.getDate(),
-        month: dateObject.getMonth(),
-        year: dateObject.getFullYear(),
-        user: phoneNumber,
-        action: httpsActions.comment,
-        location: locals.addendumDoc.get('location'),
-        timestamp: Date.now(),
-        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-        isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-        geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-        provider: locals.addendumDoc.get('provider'),
-        userDisplayName: displayName,
-        isAutoGenerated: true,
-        comment: automaticComment,
-        activityData: doc.data(),
-        activityId: doc.ref.id,
-      });
-  });
+      batch
+        .set(addendumDocRef, {
+          date: dateObject.getDate(),
+          month: dateObject.getMonth(),
+          year: dateObject.getFullYear(),
+          user: phoneNumber,
+          action: httpsActions.comment,
+          location: locals.addendumDoc.get('location'),
+          timestamp: Date.now(),
+          userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+          isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+          geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
+          provider: locals.addendumDoc.get('provider'),
+          userDisplayName: displayName,
+          isAutoGenerated: true,
+          comment: automaticComment,
+          activityData: doc.data(),
+          activityId: doc.ref.id,
+        });
+    });
 
   return batch
     .commit();
@@ -3783,39 +3793,40 @@ const handleLeaveAndDutyConflict = async locals => {
   const conflictingDutyActivities = [];
   const conflictingActivityIds = [];
 
-  duties.forEach(doc => {
-    // activity should be for the same office
-    if (doc.get('officeId')
-      !== officeId) {
-      return;
-    }
+  duties
+    .forEach(doc => {
+      // activity should be for the same office
+      if (doc.get('officeId')
+        !== officeId) {
+        return;
+      }
 
-    if (doc.get('template')
-      !== 'duty') {
-      return;
-    }
+      if (doc.get('template')
+        !== 'duty') {
+        return;
+      }
 
-    // This leave has already been updated with the comment
-    // about the conflict. Removing this check will cause infinite
-    // loop in activityOnWrite.
-    if (conflictingDuties.includes(doc.id)) {
-      return;
-    }
+      // This leave has already been updated with the comment
+      // about the conflict. Removing this check will cause infinite
+      // loop in activityOnWrite.
+      if (conflictingDuties.includes(doc.id)) {
+        return;
+      }
 
-    const supervisor = doc.get('attachment.Supervisor.value');
-    const include = doc.get('attachment.Include.value');
-    const allPhoneNumbersInActivity = [supervisor].concat(include);
+      const supervisor = doc.get('attachment.Supervisor.value');
+      const include = doc.get('attachment.Include.value');
+      const allPhoneNumbersInActivity = [supervisor].concat(include);
 
-    if (!allPhoneNumbersInActivity.includes(phoneNumber)) {
-      return;
-    }
+      if (!allPhoneNumbersInActivity.includes(phoneNumber)) {
+        return;
+      }
 
-    conflictingDutyActivities
-      .push(doc);
+      conflictingDutyActivities
+        .push(doc);
 
-    conflictingActivityIds
-      .push(doc.id);
-  });
+      conflictingActivityIds
+        .push(doc.id);
+    });
 
   const batch = db.batch();
   const dateObject = new Date();
@@ -3838,24 +3849,25 @@ const handleLeaveAndDutyConflict = async locals => {
           merge: true,
         });
 
-      batch.set(addendumDocRef, {
-        date: dateObject.getDate(),
-        month: dateObject.getMonth(),
-        year: dateObject.getFullYear(),
-        user: phoneNumber,
-        action: httpsActions.comment,
-        location: locals.addendumDoc.get('location'),
-        timestamp: Date.now(),
-        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-        isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-        geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-        provider: locals.addendumDoc.get('provider'),
-        userDisplayName: displayName,
-        isAutoGenerated: true,
-        comment: automaticComment,
-        activityData: doc.data(),
-        activityId: doc.ref.id,
-      });
+      batch
+        .set(addendumDocRef, {
+          date: dateObject.getDate(),
+          month: dateObject.getMonth(),
+          year: dateObject.getFullYear(),
+          user: phoneNumber,
+          action: httpsActions.comment,
+          location: locals.addendumDoc.get('location'),
+          timestamp: Date.now(),
+          userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+          isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+          geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
+          provider: locals.addendumDoc.get('provider'),
+          userDisplayName: displayName,
+          isAutoGenerated: true,
+          comment: automaticComment,
+          activityData: doc.data(),
+          activityId: doc.ref.id,
+        });
     });
 
   if (conflictingDutyActivities.length > 0) {
@@ -4014,9 +4026,10 @@ const handleRelevantTimeActivities = async locals => {
         relevantTime: rt,
       };
 
-      batch.set(activityRef, activityData, {
-        merge: true,
-      });
+      batch
+        .set(activityRef, activityData, {
+          merge: true,
+        });
     });
 
   await batch

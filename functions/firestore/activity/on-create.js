@@ -388,10 +388,14 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
     startTime,
     endTime,
     leaveType,
-    arReason,
     officeId: locals.officeDoc.id,
+    timezone: locals.officeDoc.get('attachment.Timezone.value'),
     template: conn.req.body.template,
-    phoneNumber: conn.requester.phoneNumber,
+    status: locals.templateDoc.get('statusOnCreate'),
+    leaveReason: conn.req.body.attachment.Reason.value,
+    arReason: conn.req.body.attachment.Reason.value,
+    creatorsPhoneNumber: conn.requester.phoneNumber,
+    requestersPhoneNumber: conn.requester.phoneNumber,
   });
 
   if (!success) {
