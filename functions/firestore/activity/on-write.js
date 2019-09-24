@@ -4107,10 +4107,11 @@ const handleTypeActivityCreation = async locals => {
 
 
 const handleClaim = async locals => {
+  const batch = db.batch();
   const timezone = locals.change.after.get('timezone');
   const officeId = locals.change.after.get('officeId');
   const phoneNumber = locals.change.after.get('creator.phoneNumber');
-
+  const activityId = locals.change.after.id;
   const momentNow = (() => {
     const schedule = locals.change.after.get('schedule')[0];
 
@@ -4124,28 +4125,17 @@ const handleClaim = async locals => {
       .tz(timezone);
   })();
 
+  const dateToday = momentNow.date();
   const monthYearString = momentNow
     .format(dateFormats.MONTH_YEAR);
-  const statusObjectDoc = await rootCollections
+  const reimbursementsDoc = await rootCollections
     .offices
     .doc(officeId)
-    .collection('Statuses')
+    .collection(subcollectionNames.REIMBURSEMENTS)
     .doc(monthYearString)
-    .collection('Employees')
-    .doc(phoneNumber)
+    .collection(phoneNumber)
+    .doc(`${dateToday}`)
     .get();
-  const dateToday = momentNow.date();
-  const statusObject = statusObjectDoc.get('statusObject') || {};
-  const activityId = locals.change.after.id;
-
-  statusObject[
-    dateToday
-  ] = statusObject[dateToday] || {};
-  statusObject[
-    dateToday
-  ].reimbursements = statusObject[
-    dateToday
-  ].reimbursements || [];
 
   const newObject = {
     phoneNumber,
@@ -4164,8 +4154,10 @@ const handleClaim = async locals => {
   if (locals.addendumDocData
     && locals.addendumDocData.action === httpsActions.changeStatus
     && newObject.status === 'CONFIRMED') {
-    newObject.confirmedBy = locals.addendumDocData.user;
-    newObject.approvalTimestamp = Date.now();
+    newObject
+      .claimConfirmedBy = locals.addendumDocData.user;
+    newObject
+      .claimConfirmedAt = Date.now();
   }
 
   if (locals.addendumDocData
@@ -4174,32 +4166,76 @@ const handleClaim = async locals => {
       .identifier = locals.addendumDocData.venueQuery.location;
   }
 
-  const index = statusObject[
-    dateToday
-  ].reimbursements
-    .findIndex(el => el.activityId === activityId);
-
-  if (index === -1) {
-    statusObject[
-      dateToday
-    ].reimbursements
-      .push(newObject);
-  } else {
-    statusObject[
-      dateToday
-    ].reimbursements[index] = newObject;
-  }
-
-  return statusObjectDoc
-    .ref
-    .set({
+  const reimbursementsData = reimbursementsDoc.data()
+    || Object.assign({}, {
       phoneNumber,
-      statusObject,
+      date: dateToday,
       month: momentNow.month(),
       year: momentNow.year(),
-    }, {
-      merge: true,
     });
+
+  reimbursementsData
+    .reimbursements = reimbursementsData.reimbursements || [];
+
+  const index = reimbursementsData
+    .reimbursements
+    .findIndex(el => el.activityId === activityId);
+
+  if (index > -1) {
+    reimbursementsData
+      .reimbursements[
+      index
+    ] = newObject;
+  } else {
+    reimbursementsData
+      .reimbursements
+      .push(newObject);
+  }
+
+  batch
+    .set(reimbursementsDoc.ref, reimbursementsData, { merge: true });
+
+  // claim updated
+  if (locals.change.before.data()) {
+    const oldSchedule = locals.change.before.get('schedule')[0];
+    const oldMoment = momentTz(oldSchedule.startTime);
+
+    if (oldSchedule.startTime
+      && !momentNow.isSame(oldSchedule.startTime, 'day')) {
+      const oldDoc = await rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.REIMBURSEMENTS)
+        .doc(oldMoment.format(dateFormats.MONTH_YEAR))
+        .collection(phoneNumber)
+        .doc(`${oldMoment.date()}`)
+        .get();
+
+      const oldData = oldDoc
+        .data() || {};
+
+      oldData
+        .reimbursements = oldData.reimbursements || [];
+
+      if (oldDoc.exists) {
+        const index = oldData
+          .reimbursements
+          .findIndex(el => el.activityId === activityId);
+
+        if (index > -1) {
+          oldData
+            .reimbursements
+            .splice(index, 1);
+
+          batch
+            .set(oldDoc.ref, oldData, { merge: true });
+        }
+      }
+    }
+  }
+
+  return batch
+    .commit();
 };
 
 
