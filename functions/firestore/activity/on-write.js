@@ -3065,30 +3065,52 @@ const handleCheckInActionForDailyAllowance = async locals => {
 
 
 const addCheckInTimestamps = async locals => {
-  const timezone = locals.change.after.get('timezone');
-  const createTime = locals.change.after.createTime.toDate().getTime();
-  const momentToday = momentTz(createTime).tz(timezone);
-  const monthYearString = momentToday.format(dateFormats.MONTH_YEAR);
-  const officeId = locals.change.after.get('officeId');
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
+  if (locals.addendumDocData
+    && (locals.addendumDocData.action !== httpsActions.create)) {
+    console.log('addCheckInTimestamps returning');
 
-  if (!locals.addendumDocData
-    || (locals.addendumDocData.action !== httpsActions.create)) {
     return;
   }
 
+  console.log('addCheckInTimestamps');
+
+  const timezone = locals
+    .change
+    .after
+    .get('timezone');
+  const createTime = locals
+    .change
+    .after
+    .createTime
+    .toDate()
+    .getTime();
+  const momentToday = momentTz(createTime)
+    .tz(timezone);
+  const date = momentToday.date();
+  const monthYearString = momentToday
+    .format(dateFormats.MONTH_YEAR);
+  const officeId = locals
+    .change
+    .after
+    .get('officeId');
+  const phoneNumber = locals
+    .change
+    .after
+    .get('creator.phoneNumber');
+
   const [
-    statusDocQueryResult,
+    attendanceDoc,
     employeeDocQueryResult,
   ] = await Promise
     .all([
       rootCollections
         .offices
         .doc(officeId)
-        .collection('Statuses')
+        .collection('Attendances')
         .doc(monthYearString)
-        .collection('Employees')
-        .doc(phoneNumber)
+        .collection(phoneNumber)
+        /** Path values are strings */
+        .doc(`${date}`)
         .get(),
       rootCollections
         .activities
@@ -3119,53 +3141,33 @@ const addCheckInTimestamps = async locals => {
     return;
   }
 
-  const date = momentToday.date();
-  const statusObject = statusDocQueryResult
-    .get('statusObject') || {};
-
-  statusObject[
-    date
-  ] = statusObject[date] || {};
-  statusObject[
-    date
-  ].numberOfCheckIns = statusObject[date].numberOfCheckIns || 0;
-
-  if (!statusObject[date].firstCheckInTimestamp) {
-    statusObject[
-      date
-    ].firstCheckInTimestamp = createTime;
-    statusObject[
-      date
-    ].firstCheckIn = momentToday.format(dateFormats.TIME);
-    statusObject[
-      date
-    ].firstCheckInActivityId = locals.change.after.id;
-  }
-
-  statusObject[
-    date
-  ].lastCheckInTimestamp = createTime;
-  statusObject[
-    date
-  ].lastCheckIn = momentToday.format(dateFormats.TIME);
-  statusObject[
-    date
-  ].lastCheckInActivityId = locals.change.after.id;
-
-  statusObject[
-    date
-  ].numberOfCheckIns++;
-
-  return statusDocQueryResult
-    .ref
-    .set({
+  const attendanceDocData = attendanceDoc
+    .data() || Object.assign({}, {
       date,
       phoneNumber,
-      statusObject,
-      officeId,
+      firstCheckInTimestamp: locals.addendumDocData.timestamp,
+      firstCheckIn: momentTz(locals.addendumDocData.timestamp)
+        .tz(timezone)
+        .valueOf(),
       month: momentToday.month(),
       year: momentToday.year(),
-    }, {
+    });
+
+  attendanceDocData
+    .lastCheckInTimestamp = locals.addendumDocData.timestamp;
+  attendanceDocData
+    .lastCheckIn = momentTz(locals.addendumDocData.timestamp)
+      .tz(timezone)
+      .format(dateFormats.TIME);
+  attendanceDocData
+    .numberOfCheckIns = attendanceDocData.numberOfCheckIns || 0;
+
+  attendanceDocData
+    .numberOfCheckIns++;
+
+  return attendanceDoc
+    .ref
+    .set(attendanceDocData, {
       merge: true,
     });
 };
@@ -4148,10 +4150,10 @@ const handleClaim = async locals => {
   const newObject = {
     phoneNumber,
     activityId,
+    timestamp: Date.now(),
     template: locals.change.after.get('template'),
     details: locals.change.after.get('attachment.Details.value') || '',
     activityName: locals.change.after.get('activityName') || '',
-    timestamp: Date.now(),
     createTimestamp: locals.change.after.createTime.toDate().getTime(),
     amount: locals.change.after.get('attachment.Amount.value'),
     status: locals.change.after.get('status'),
