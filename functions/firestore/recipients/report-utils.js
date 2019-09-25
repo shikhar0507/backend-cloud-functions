@@ -403,11 +403,20 @@ const getSupervisors = (employeesData, phoneNumber) => {
   return str.trim();
 };
 
+const getFieldValue = (employeesData, phoneNumber, field) => {
+  if (employeesData[phoneNumber]) {
+    return employeesData[phoneNumber][field] || '';
+  }
+
+  return '';
+};
+
 
 module.exports = {
   getUrl,
   getName,
   toMapsUrl,
+  getFieldValue,
   monthsArray,
   employeeInfo,
   weekdaysArray,
