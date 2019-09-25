@@ -9,6 +9,7 @@ const {
   getName,
   alphabetsArray,
   toMapsUrl,
+  getFieldValue,
 } = require('./report-utils');
 const env = require('../../admin/env');
 const sgMail = require('@sendgrid/mail');
@@ -50,8 +51,11 @@ module.exports = async locals => {
         .fromBlankAsync()
     ]);
 
+  const expenseSummarySheet = workbook
+    .addSheet(`Expense Summary`);
+
   const expenseSheet = workbook
-    .addSheet(`Expense${momentToday.format(dateFormats.DATE)}`);
+    .addSheet(`Expense ${momentToday.format(dateFormats.DATE)}`);
 
   workbook
     .deleteSheet('Sheet1');
@@ -75,17 +79,25 @@ module.exports = async locals => {
       .value(value);
   });
 
+  let allExpeneTypes = new Set();
+
   const allDates = Array
     .from(
       new Array(dateYesterday),
       (_, i) => i + 1
     );
 
+  const expenseMap = new Map();
   const allOrderedItems = [];
+  const allPhoneNumbers = new Set();
 
   snapShot
     .forEach(doc => {
       const statusObject = doc.get('statusObject');
+      const phoneNumber = doc.id;
+
+      allPhoneNumbers
+        .add(phoneNumber);
 
       allDates
         .forEach(date => {
@@ -93,17 +105,85 @@ module.exports = async locals => {
           const reimbursements = item.reimbursements || [];
 
           reimbursements
-            .forEach(object => {
-              const o = Object.assign({}, object, {
+            .forEach(reimbursement => {
+              const ri = Object.assign({}, reimbursement, {
                 date,
                 month: doc.get('month'),
                 year: doc.get('year'),
               });
 
-              allOrderedItems.push(o);
+              if (ri.template) {
+                allExpeneTypes
+                  .add(ri.template);
+              }
+
+              const old = expenseMap.get(phoneNumber) || {};
+
+              old[ri.template] = old[ri.template] || 0;
+
+              if (ri.status !== 'CANCELLED') {
+                old[ri.template] += Number(ri.amount);
+              }
+
+              expenseMap
+                .set(phoneNumber, old);
+
+              allOrderedItems
+                .push(ri);
             });
         });
     });
+
+  console.log('allExpeneTypes', allExpeneTypes.size);
+
+  allExpeneTypes = [...allExpeneTypes.keys()];
+
+  [
+    'Employee Name',
+    'Employee Contact',
+    'Employee Code',
+    'Base Location',
+    'Region',
+    'Department',
+    ...allExpeneTypes,
+  ].forEach((value, index) => {
+    expenseSummarySheet
+      .cell(`${alphabetsArray[index]}1`)
+      .value(value);
+  });
+
+  let summarySheetIndex = 0;
+
+  allPhoneNumbers.forEach(phoneNumber => {
+    const values = [
+      getFieldValue(locals.employeesData, phoneNumber, 'Name'),
+      phoneNumber,
+      getFieldValue(locals.employeesData, phoneNumber, 'Employee Code'),
+      getFieldValue(locals.employeesData, phoneNumber, 'Base Location'),
+      getFieldValue(locals.employeesData, phoneNumber, 'Region'),
+      getFieldValue(locals.employeesData, phoneNumber, 'Department')
+    ];
+
+    const expensesForUser = expenseMap
+      .get(phoneNumber) || {};
+
+    allExpeneTypes
+      .forEach(template => {
+        const amount = expensesForUser[template] || 0;
+
+        values
+          .push(amount);
+      });
+
+    values
+      .forEach((value, innerIndex) => {
+        expenseSummarySheet
+          .cell(`${alphabetsArray[innerIndex]}${summarySheetIndex + 2}`)
+          .value(value);
+      });
+
+    summarySheetIndex++;
+  });
 
 
   if (allOrderedItems.length === 0) {
