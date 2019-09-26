@@ -1753,7 +1753,7 @@ const getAttendancesPath = params => {
       .collection(collectionName || subcollectionNames.ATTENDANCES)
       .doc(monthYearString)
       .collection(phoneNumber)
-      .doc(now.date());
+      .doc(`${now.date()}`);
 
     result
       .push(ref.get());

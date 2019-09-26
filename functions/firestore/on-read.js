@@ -100,7 +100,7 @@ const getAddendumObject = doc => {
   return singleDoc;
 };
 
-const getAssigneesArray = (arrayOfPhoneNumbers) => {
+const getAssigneesArray = arrayOfPhoneNumbers => {
   // Could be a string (phoneNumber) or an object
   const firstItem = arrayOfPhoneNumbers[0];
 
@@ -178,7 +178,6 @@ const getStatusObject = async params => {
   const momentToday = momentTz();
   const officeNames = Object.keys(employeeOf);
   const fetchPrevMonth = momentToday.date() <= 10;
-  // const fetchPrevMonth = true;
 
   officeNames
     .forEach(name => {
@@ -278,9 +277,6 @@ const getStatusObject = async params => {
 
           const data = doc.data();
 
-          data
-            .date = doc.id;
-
           result
             .push(data);
         });
@@ -365,6 +361,14 @@ module.exports = async conn => {
       .requester
       .profileDoc
       .get('lastLocationMapUpdateTimestamp') > from;
+
+  const sendStatusObjects = conn
+    .requester
+    .profileDoc
+    && conn
+      .requester
+      .profileDoc
+      .get('lastStatusDocUpdateTimestamp') > from;
 
   if (sendLocations) {
     const locationPromises = [];
@@ -477,7 +481,9 @@ module.exports = async conn => {
         merge: true,
       });
 
-    if (from === 0) {
+    console.log('sending statusObjects', from === 0 || sendStatusObjects);
+
+    if (from === 0 || sendStatusObjects) {
       jsonObject
         .statusObject = await getStatusObject({
           employeeOf,

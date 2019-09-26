@@ -1258,15 +1258,11 @@ const cancelLeaveOrAr = async params => {
         .where('officeId', '==', officeId)
         .where('status', '==', 'CONFIRMED')
         .where('template', '==', 'employee')
-        .where('attachment.Employee Contact.value', creatorsPhoneNumber)
+        .where('attachment.Employee Contact.value', '==', creatorsPhoneNumber)
         .limit(1)
         .get(),
     ]);
   const batch = db.batch();
-  // numberOfCheckIns: numberOfActions, // number of actions done in the day by the user
-  // minimumDailyActivityCount,
-  // minimumWorkingHours,
-  // hoursWorked // difference between 1first and last action in hours,
   const addendumPromises = [];
   const queryDates = [];
 
@@ -1365,6 +1361,25 @@ const cancelLeaveOrAr = async params => {
           merge: true,
         });
     });
+
+  const updatesQuery = await rootCollections
+    .updates
+    .where('phoneNumber', '==', creatorsPhoneNumber)
+    .limit(1)
+    .get();
+
+  const doc = updatesQuery.docs[0];
+
+  if (doc) {
+    batch.set(doc.ref, {
+      lastStatusDocUpdateTimestamp: Date.now()
+    }, {
+      merge: true,
+    });
+  }
+
+  await batch
+    .commit();
 
   return batch
     .commit();
@@ -1543,6 +1558,22 @@ const setOnLeaveOrAr = async params => {
    * No conflicts, that means the leave can be created successfully
    */
   if (conflictsSet.size === 0) {
+    const updatesQuery = await rootCollections
+      .updates
+      .where('phoneNumber', '==', creatorsPhoneNumber)
+      .limit(1)
+      .get();
+
+    const doc = updatesQuery.docs[0];
+
+    if (doc) {
+      batch.set(doc.ref, {
+        lastStatusDocUpdateTimestamp: Date.now()
+      }, {
+        merge: true,
+      });
+    }
+
     await batch
       .commit();
 

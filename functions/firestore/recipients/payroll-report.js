@@ -3,6 +3,7 @@
 const momentz = require('moment-timezone');
 const {
   dateFormats,
+  allMonths,
 } = require('../../admin/constants');
 const {
   alphabetsArray,
@@ -15,6 +16,7 @@ const {
 } = require('../../admin/utils');
 const {
   db,
+  rootCollections,
 } = require('../../admin/admin');
 const xlsxPopulate = require('xlsx-populate');
 const env = require('../../admin/env');
@@ -141,6 +143,8 @@ module.exports = async locals => {
   const payrollSheet = workbook
     .addSheet(`PayRoll ${momentToday.format(dateFormats.DATE)}`);
 
+  const uidsMap = new Map();
+
   workbook
     .deleteSheet('Sheet1');
 
@@ -241,6 +245,22 @@ module.exports = async locals => {
     cycleEndMoment.clone().date() + 1,
   );
 
+  const totalDays = (() => {
+    // number of days for which the data is being sent for
+    if (fetchPreviousMonthDocs) {
+      const momentPrevMonth = momentYesterday
+        .clone()
+        .subtract(1, 'month')
+        .date(firstDayOfMonthlyCycle);
+
+      return momentPrevMonth
+        .diff(momentYesterday, 'diff');
+    }
+
+    return momentYesterday
+      .diff(momentYesterday.clone().date(firstDayOfMonthlyCycle), 'days');
+  })() + 1;
+
   const attendanceSnapshots = await Promise
     .all(attendanceDocPromises);
   const arCountMap = new Map();
@@ -256,10 +276,19 @@ module.exports = async locals => {
     .forEach(snapShot => {
       snapShot
         .forEach(doc => {
-          const phoneNumber = doc.get('phoneNumber');
-          const date = doc.get('date');
-          const month = doc.get('month');
-          const year = doc.get('year');
+          // const phoneNumber = doc.get('phoneNumber');
+          // const date = doc.get('date');
+          // const month = doc.get('month');
+          // const year = doc.get('year');
+
+          const { path } = doc.ref;
+          const parts = path.split('/');
+          const date = Number(doc.id);
+          const [monthString, yearString] = parts[3].split(' ');
+          const month = allMonths[monthString];
+          const year = Number(yearString);
+          const phoneNumber = parts[4];
+
           const id = `${date}_${month}_${phoneNumber}`;
           const data = doc.data();
 
@@ -313,8 +342,10 @@ module.exports = async locals => {
             const statusForDayCount = statusForDayMap
               .get(phoneNumber) || 0;
 
-            statusForDayMap
-              .set(phoneNumber, statusForDayCount + 1);
+            if ((statusForDayCount + 1) < totalDays) {
+              statusForDayMap
+                .set(phoneNumber, statusForDayCount + 1);
+            }
           }
 
           // TODO: This is probably not useful becuase weekly off and holiday
@@ -349,8 +380,19 @@ module.exports = async locals => {
         });
     });
 
+  const authFetchPromises = [];
+
   allPhoneNumbers
     .forEach(phoneNumber => {
+      const updatesFetch = rootCollections
+        .updates
+        .where('phoneNumber', '==', phoneNumber)
+        .limit(1)
+        .get();
+
+      authFetchPromises
+        .push(updatesFetch);
+
       const rangeCallback = (date, moment) => {
         const month = moment.month();
         const year = moment.year();
@@ -370,7 +412,7 @@ module.exports = async locals => {
 
           const interm = getStatusForDay(params);
 
-          if (interm) {
+          if (interm && el.firstCheckInTimestamp) {
             el
               .statusForDay = interm;
 
@@ -382,14 +424,22 @@ module.exports = async locals => {
             || weeklyOffSet.has(phoneNumber)) {
             el
               .statusForDay = 1;
+
+            if (locals.employeesData[phoneNumber]) {
+              el
+                .branchName = locals.employeesData[phoneNumber]['Base Location'];
+            }
           }
         }
 
         if (el.hasOwnProperty('statusForDay')) {
-          const old = statusForDaySumMap.get(phoneNumber) || 0;
+          const oldSum = statusForDaySumMap.get(phoneNumber) || 0;
+          const newSum = oldSum + (el.statusForDay || 0);
 
-          statusForDaySumMap
-            .set(phoneNumber, old + (el.statusForDay || 0));
+          if (newSum < totalDays) {
+            statusForDaySumMap
+              .set(phoneNumber, newSum);
+          }
         }
 
         [
@@ -445,13 +495,29 @@ module.exports = async locals => {
         });
     });
 
+  const updateDocsSnaps = await Promise
+    .all(authFetchPromises);
+
+  updateDocsSnaps
+    .forEach(snap => {
+      if (snap.empty) {
+        return;
+      }
+
+      const doc = snap.docs[0];
+      const phoneNumber = doc.get('phoneNumber');
+      uidsMap
+        .set(phoneNumber, doc.id);
+    });
+
   /**
    * Report was triggered by Timer, so updating
    * Holiday and Weekly Off list,
    */
   if (momentz().date()
     === momentToday.date()) {
-    const numberOfDocs = allPhoneNumbers.size;
+    // const numberOfDocs = allPhoneNumbers.size + uidsMap.size;
+    const numberOfDocs = 1000000;
     const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
     const numberOfBatches = Math
       .round(
@@ -480,14 +546,16 @@ module.exports = async locals => {
             .doc(`${momentYesterday.date()}`);
         })();
 
-        if (docsCounter > 499) {
+        if (docsCounter > 200) {
           docsCounter = 0;
           batchIndex++;
         }
 
-        docsCounter++;
-
         const update = {
+          phoneNumber,
+          date: momentYesterday.date(),
+          month: momentYesterday.month(),
+          year: momentYesterday.year(),
           holiday: holidaySet.has(phoneNumber),
           weeklyOff: weeklyOffSet.has(phoneNumber),
         };
@@ -501,6 +569,23 @@ module.exports = async locals => {
           update
             .branchName = locals.employeesData[phoneNumber]['Base Location'];
         }
+
+        if (uidsMap.has(phoneNumber)) {
+          const uid = uidsMap.get(phoneNumber);
+          const ref = rootCollections.updates.doc(uid);
+
+          docsCounter++;
+
+          batchArray[
+            batchIndex
+          ].set(ref, {
+            lastStatusDocUpdateTimestamp: Date.now()
+          }, {
+            merge: true,
+          });
+        }
+
+        docsCounter++;
 
         batchArray[
           batchIndex
@@ -550,22 +635,6 @@ module.exports = async locals => {
 
   let summaryRowIndex = 0;
 
-  const totalDays = (() => {
-    // number of days for which the data is being sent for
-    if (fetchPreviousMonthDocs) {
-      const momentPrevMonth = momentz(timestampFromTimer)
-        .subtract(1, 'month')
-        .date(firstDayOfMonthlyCycle);
-
-      return momentPrevMonth
-        .diff(momentYesterday, 'diff');
-    }
-
-    return momentYesterday
-      .clone()
-      .diff(momentYesterday.startOf('month'), 'days');
-  })();
-
   allPhoneNumbers
     .forEach(phoneNumber => {
       const values = [
@@ -578,9 +647,9 @@ module.exports = async locals => {
         arCountMap.get(phoneNumber) || 0, // ar count
         weeklyOffCountMap.get(phoneNumber) || 0, // weekly off count
         holidayCountMap.get(phoneNumber) || 0, // holiday count
-        statusForDayMap.get(phoneNumber) || '', // status for day
+        statusForDayMap.get(phoneNumber) || '', // MTD
         totalDays, // total days
-        statusForDaySumMap.get(phoneNumber) || 0,
+        statusForDaySumMap.get(phoneNumber) || 0, // payable days
       ];
 
       const leaveTypesForUser = leaveTypesMap

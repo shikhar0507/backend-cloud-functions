@@ -2932,8 +2932,7 @@ const handleCheckInActionForDailyAllowance = async locals => {
       .after
       .get('phoneNumber');
   const officeId = locals.change.after.get('officeId');
-  const timezone = locals.change.after.get('timezone') || 'Asia/Kolkata';
-
+  const timezone = locals.change.after.get('timezone');
   const docs = await rootCollections
     .offices
     .doc(officeId)
@@ -2947,77 +2946,85 @@ const handleCheckInActionForDailyAllowance = async locals => {
   let count = 0;
   const monthYearString = momentToday
     .format(dateFormats.DATE_TIME);
-
-  const montYearDoc = await rootCollections
+  const reimbursementsDoc = await rootCollections
     .offices
     .doc(officeId)
-    .collection('Statuses')
+    .collection(subcollectionNames.ATTENDANCES)
     .doc(monthYearString)
-    .collection('Employees')
-    .doc(phoneNumber)
+    .collection(phoneNumber)
+    .doc(`${momentToday.date()}`)
     .get();
 
-  const dateYesterday = momentToday.date();
-  const statusObject = montYearDoc.get('statusObject') || {};
-
-  docs.forEach(doc => {
-    const start = doc.get('attachment.Start Time.value');
-    const end = doc.get('attachment.End Time.value');
-
-    if (!start || !end) {
-      return;
-    }
-
-    const [startHours, startMinutes] = start.split(':');
-    const [endHours, endMinutes] = start.split(':');
-
-    const momentStart = momentTz().tz(timezone).hour(startHours).minute(startMinutes);
-    const momentEnd = momentTz().tz(timezone).hour(endHours).minute(endMinutes);
-
-    if (momentToday.valueOf() < momentStart.valueOf()
-      || momentToday.valueOf() > momentEnd.valueOf()) {
-      return;
-    }
-
-    count++;
-
-    statusObject[
-      dateYesterday
-    ] = statusObject[dateYesterday] || {};
-
-    statusObject[
-      dateYesterday
-    ].reimbursements = statusObject[
-      dateYesterday
-    ].reimbursements || [];
-
-    const newObject = {
-      template: doc.get('template'),
-      name: doc.get('attachment.Name.value') || '',
-      amount: doc.get('attachment.Amount.value') || '',
-      timestamp: Date.now(),
-      status: doc.get('status'),
-      activityId: locals.change.after.id,
-    };
-
-    const index = statusObject[
-      dateYesterday
-    ].reimbursements
-      .indexOf(el => {
-        return el.activityId === locals.change.after.id;
-      });
-
-    if (index === -1) {
-      statusObject[
-        dateYesterday
-      ].reimbursements
-        .push(newObject);
-    } else {
-      statusObject[
-        dateYesterday
-      ].reimbursements[index] = newObject;
-    }
+  const reimbursementsDocData = reimbursementsDoc.data() || Object.assign({}, {
+    phoneNumber,
+    date: momentToday.date(),
+    month: momentToday.month(),
+    year: momentToday.year(),
   });
+
+  reimbursementsDocData
+    .reimbursements = reimbursementsDocData.reimbursements || [];
+
+  docs
+    .forEach(doc => {
+      const start = doc.get('attachment.Start Time.value');
+      const end = doc.get('attachment.End Time.value');
+
+      if (!start || !end) {
+        return;
+      }
+
+      const [
+        startHours,
+        startMinutes
+      ] = start.split(':');
+      const [
+        endHours,
+        endMinutes
+      ] = start.split(':');
+
+      const momentStart = momentTz()
+        .tz(timezone)
+        .hour(startHours)
+        .minute(startMinutes);
+      const momentEnd = momentTz()
+        .tz(timezone)
+        .hour(endHours)
+        .minute(endMinutes);
+
+      if (momentToday.valueOf() < momentStart.valueOf()
+        || momentToday.valueOf() > momentEnd.valueOf()) {
+        return;
+      }
+
+      count++;
+
+      const newObject = {
+        template: doc.get('template'),
+        name: doc.get('attachment.Name.value') || '',
+        amount: doc.get('attachment.Amount.value') || '',
+        timestamp: Date.now(),
+        status: doc.get('status'),
+        activityId: locals.change.after.id,
+      };
+
+      const index = reimbursementsDocData
+        .reimbursements
+        .indexOf(el => {
+          return el.activityId === locals.change.after.id;
+        });
+
+      if (index === -1) {
+        reimbursementsDocData
+          .reimbursements
+          .push(newObject);
+      } else {
+        reimbursementsDocData
+          .reimbursements[
+          index
+        ] = newObject;
+      }
+    });
 
   if (count === 0) {
     return;
@@ -3026,7 +3033,7 @@ const handleCheckInActionForDailyAllowance = async locals => {
   const addendumDocRef = rootCollections
     .offices
     .doc(officeId)
-    .collection('Addendum')
+    .collection(subcollectionNames.ADDENDUM)
     .doc();
 
   batch
@@ -3050,12 +3057,7 @@ const handleCheckInActionForDailyAllowance = async locals => {
     });
 
   batch
-    .set(montYearDoc.ref, {
-      phoneNumber,
-      statusObject,
-      month: momentToday.month(),
-      year: momentToday.year(),
-    }, {
+    .set(reimbursementsDoc.ref, reimbursementsDocData, {
       merge: true,
     });
 
@@ -3141,8 +3143,10 @@ const addCheckInTimestamps = async locals => {
     return;
   }
 
-  const attendanceDocData = attendanceDoc
-    .data() || Object.assign({}, {
+  let attendanceDocData = attendanceDoc.data();
+
+  if (!attendanceDoc.exists) {
+    attendanceDocData = Object.assign({}, {
       date,
       phoneNumber,
       firstCheckInTimestamp: locals.addendumDocData.timestamp,
@@ -3152,6 +3156,7 @@ const addCheckInTimestamps = async locals => {
       month: momentToday.month(),
       year: momentToday.year(),
     });
+  }
 
   attendanceDocData
     .lastCheckInTimestamp = locals.addendumDocData.timestamp;
@@ -3165,11 +3170,20 @@ const addCheckInTimestamps = async locals => {
   attendanceDocData
     .numberOfCheckIns++;
 
-  return attendanceDoc
-    .ref
-    .set(attendanceDocData, {
-      merge: true,
-    });
+  const batch = db.batch();
+
+  const uid = locals.addendumDocData.uid;
+
+  batch.set(rootCollections.updates.doc(uid), {
+    lastStatusDocUpdateTimestamp: Date.now(),
+  }, {
+    merge: true,
+  });
+
+  batch
+    .set(attendanceDoc.ref, attendanceDocData, { merge: true });
+
+  return batch.commit();
 };
 
 
@@ -4258,7 +4272,6 @@ const handleCheckInActionForkmAllowance = async locals => {
   const currentCheckInDate = locals.addendumDocData.date;
   const currentGeopoint = locals.addendumDocData.location;
   const isSameDate = prevCheckInDate === currentCheckInDate;
-
   let previousGeopoint = locals.previousAddendumDoc.get('location');
 
   if (!isSameDate) {
@@ -4409,28 +4422,24 @@ const handleCheckInActionForkmAllowance = async locals => {
       });
   }
 
-  const statusObjectDoc = await rootCollections
+  const reimbursementsDoc = await rootCollections
     .offices
     .doc(officeId)
-    .collection('Statuses')
+    .collection(subcollectionNames.ATTENDANCES)
     .doc(monthYearString)
-    .collection('Employees')
-    .doc(phoneNumber)
+    .collection(phoneNumber)
+    .doc(`${momentNow.date()}`)
     .get();
 
-  const dateToday = momentNow
-    .date();
-  const statusObject = statusObjectDoc
-    .get('statusObject') || {};
+  const reimbursementsDocData = reimbursementsDoc.data() || Object.assign({}, {
+    phoneNumber,
+    date: momentNow.date(),
+    month: momentNow.month(),
+    year: momentNow.year(),
+  });
 
-  statusObject[
-    dateToday
-  ] = statusObject[dateToday] || {};
-  statusObject[
-    dateToday
-  ].reimbursements = statusObject[
-    dateToday
-  ].reimbursements || [];
+  reimbursementsDocData
+    .reimbursements = reimbursementsDocData.reimbursements || [];
 
   const kmAllowanceActivity = kmAllowanceActivities
     .docs[0];
@@ -4449,16 +4458,14 @@ const handleCheckInActionForkmAllowance = async locals => {
     geopoint: locals.addendumDocData.location,
   };
 
-  const indexOfObject = statusObject[
-    dateToday
-  ].reimbursements
+  const indexOfObject = reimbursementsDocData
+    .reimbursements
     .findIndex(el => {
       return el.activityId === kmAllowanceActivity.id;
     });
 
-  const claimedToday = statusObject[
-    dateToday
-  ].reimbursements
+  const claimedToday = reimbursementsDocData
+    .reimbursements
     .reduce((acc, el) => acc + Number(el.amount), 0);
 
   const dailyLimit = kmAllowanceActivity
@@ -4470,25 +4477,18 @@ const handleCheckInActionForkmAllowance = async locals => {
   }
 
   if (indexOfObject === -1) {
-    statusObject[
-      dateToday
-    ].reimbursements
+    reimbursementsDocData
+      .reimbursements
       .push(newObject);
   } else {
-    statusObject[
-      dateToday
-    ].reimbursements[
+    reimbursementsDocData
+      .reimbursements[
       indexOfObject
     ] = newObject;
   }
 
   batch
-    .set(statusObjectDoc.ref, {
-      statusObject,
-      phoneNumber,
-      month: momentNow.month(),
-      year: momentNow.year(),
-    }, {
+    .set(reimbursementsDoc.ref, reimbursementsDocData, {
       merge: true,
     });
 
@@ -4732,7 +4732,7 @@ module.exports = async (change, context) => {
         const ref = rootCollections
           .profiles
           .doc(phoneNumber)
-          .collection(subcollectionNames.ASSIGNEES)
+          .collection(subcollectionNames.ACTIVITIES)
           .doc(context.params.activityId);
 
         batch.set(ref, profileActivityObject, {

@@ -225,7 +225,22 @@ module.exports = async conn => {
     updatesDocData.venues = admin.firestore.FieldValue.delete();
   }
 
-  if (updatesDoc.get('lastLocationMapUpdateTimestamp') > updatesDoc.get('lastNowRequestTimestamp')) {
+  if (updatesDoc.get('lastStatusDocUpdateTimestamp')
+    > updatesDoc.get('lastNowRequestTimestamp')) {
+    const ref = rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber);
+
+    batch
+      .set(ref, {
+        lastStatuseUpdateTimestamp: Date.now(),
+      }, {
+        merge: true,
+      });
+  }
+
+  if (updatesDoc.get('lastLocationMapUpdateTimestamp')
+    > updatesDoc.get('lastNowRequestTimestamp')) {
     const ref = rootCollections
       .profiles
       .doc(conn.requester.phoneNumber);

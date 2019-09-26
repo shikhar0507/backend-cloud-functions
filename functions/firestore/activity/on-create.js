@@ -281,6 +281,7 @@ const createDocsWithBatch = async (conn, locals) => {
     activityData,
     user: conn.requester.phoneNumber,
     userDisplayName: conn.requester.displayName,
+    uid: conn.requester.uid,
     /**
      * Numbers from `attachment`, and all other places will always
      * be present in the `allPhoneNumbers` set. Using that instead of
@@ -391,7 +392,7 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
     officeId: locals.officeDoc.id,
     timezone: locals.officeDoc.get('attachment.Timezone.value'),
     template: conn.req.body.template,
-    status: locals.templateDoc.get('statusOnCreate'),
+    status: locals.static.statusOnCreate,
     leaveReason: conn.req.body.attachment.Reason.value,
     arReason: conn.req.body.attachment.Reason.value,
     creatorsPhoneNumber: conn.requester.phoneNumber,

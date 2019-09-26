@@ -66,7 +66,7 @@ const handleLeaveAndOnDuty = (conn, activityDoc) => {
       return '';
     }
 
-    return conn.req.body.attachment['Leave Type'].value;
+    return activityDoc.get('attachment.Leave Type.value');
   })();
 
   if (hasBeenCancelled) {
@@ -87,8 +87,8 @@ const handleLeaveAndOnDuty = (conn, activityDoc) => {
       leaveType,
       timezone: activityDoc.get('timezone'),
       status: conn.req.body.status,
-      leaveReason: conn.req.body.attachment.Reason.value,
-      arReason: conn.req.body.attachment.Reason.value,
+      leaveReason: activityDoc.get('attachment.Reason.value'),
+      arReason: activityDoc.get('attachment.Reason.value'),
       creatorsPhoneNumber: activityDoc.get('creator.phoneNumber')
         || activityDoc.get('creator'),
       requestersPhoneNumber: conn.requester.phoneNumber,
