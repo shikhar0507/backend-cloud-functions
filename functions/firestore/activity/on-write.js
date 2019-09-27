@@ -2938,29 +2938,36 @@ const handleCheckInActionForDailyAllowance = async locals => {
     .doc(officeId)
     .collection('Activities')
     .where('template', '==', 'daily allowance')
-    .where('status', '==', 'CONFIRMED')
+    .where('isCancelled', '==', false)
     .get();
 
   const batch = db.batch();
-  const momentToday = momentTz().tz(timezone);
+  const momentNow = momentTz()
+    .tz(timezone);
   let count = 0;
-  const monthYearString = momentToday
-    .format(dateFormats.DATE_TIME);
+  const monthYearString = momentNow
+    .format(dateFormats.DATE);
   const reimbursementsDoc = await rootCollections
     .offices
     .doc(officeId)
-    .collection(subcollectionNames.ATTENDANCES)
+    .collection(subcollectionNames.REIMBURSEMENTS)
     .doc(monthYearString)
     .collection(phoneNumber)
-    .doc(`${momentToday.date()}`)
+    .doc(`${momentNow.date()}`)
     .get();
 
-  const reimbursementsDocData = reimbursementsDoc.data() || Object.assign({}, {
-    phoneNumber,
-    date: momentToday.date(),
-    month: momentToday.month(),
-    year: momentToday.year(),
-  });
+  const reimbursementsDocData = (() => {
+    if (reimbursementsDoc.exists) {
+      return reimbursementsDoc.data();
+    }
+
+    return {
+      phoneNumber,
+      date: momentNow.date(),
+      month: momentNow.month(),
+      year: momentNow.year(),
+    };
+  })();
 
   reimbursementsDocData
     .reimbursements = reimbursementsDocData.reimbursements || [];
@@ -2976,24 +2983,26 @@ const handleCheckInActionForDailyAllowance = async locals => {
 
       const [
         startHours,
-        startMinutes
-      ] = start.split(':');
+        startMinutes,
+      ] = start
+        .split(':');
       const [
         endHours,
-        endMinutes
-      ] = start.split(':');
+        endMinutes,
+      ] = end
+        .split(':');
 
-      const momentStart = momentTz()
-        .tz(timezone)
+      const momentStart = momentNow
+        .clone()
         .hour(startHours)
         .minute(startMinutes);
-      const momentEnd = momentTz()
-        .tz(timezone)
+      const momentEnd = momentNow
+        .clone()
         .hour(endHours)
         .minute(endMinutes);
 
-      if (momentToday.valueOf() < momentStart.valueOf()
-        || momentToday.valueOf() > momentEnd.valueOf()) {
+      if (momentNow.isBefore(momentStart)
+        || momentNow.isAfter(momentEnd)) {
         return;
       }
 
@@ -3001,17 +3010,19 @@ const handleCheckInActionForDailyAllowance = async locals => {
 
       const newObject = {
         template: doc.get('template'),
-        name: doc.get('attachment.Name.value') || '',
-        amount: doc.get('attachment.Amount.value') || '',
+        name: doc.get('attachment.Name.value'),
+        amount: doc.get('attachment.Amount.value'),
         timestamp: Date.now(),
         status: doc.get('status'),
         activityId: locals.change.after.id,
       };
 
+      // One type of claim can only be claimed once during the
+      // time range (startTime to endTime)
       const index = reimbursementsDocData
         .reimbursements
         .indexOf(el => {
-          return el.activityId === locals.change.after.id;
+          return el.name === doc.get('attachment.Name.value');
         });
 
       if (index === -1) {
@@ -3038,9 +3049,9 @@ const handleCheckInActionForDailyAllowance = async locals => {
 
   batch
     .set(addendumDocRef, {
-      date: momentToday.date(),
-      month: momentToday.month(),
-      year: momentToday.year(),
+      date: momentNow.date(),
+      month: momentNow.month(),
+      year: momentNow.year(),
       user: phoneNumber,
       action: httpsActions.checkIn,
       location: locals.addendumDoc.get('location'),
@@ -3069,12 +3080,8 @@ const handleCheckInActionForDailyAllowance = async locals => {
 const addCheckInTimestamps = async locals => {
   if (locals.addendumDocData
     && (locals.addendumDocData.action !== httpsActions.create)) {
-    console.log('addCheckInTimestamps returning');
-
     return;
   }
-
-  console.log('addCheckInTimestamps');
 
   const timezone = locals
     .change
@@ -3143,19 +3150,20 @@ const addCheckInTimestamps = async locals => {
     return;
   }
 
-  let attendanceDocData = attendanceDoc.data();
+  let attendanceDocData = attendanceDoc.data() || {};
 
-  if (!attendanceDoc.exists) {
-    attendanceDocData = Object.assign({}, {
-      date,
-      phoneNumber,
-      firstCheckInTimestamp: locals.addendumDocData.timestamp,
-      firstCheckIn: momentTz(locals.addendumDocData.timestamp)
-        .tz(timezone)
-        .valueOf(),
-      month: momentToday.month(),
-      year: momentToday.year(),
-    });
+  if (!attendanceDocData.firstCheckInTimestamp) {
+    attendanceDocData = Object
+      .assign({}, attendanceDocData, {
+        date,
+        phoneNumber,
+        firstCheckInTimestamp: locals.addendumDocData.timestamp,
+        firstCheckIn: momentTz(locals.addendumDocData.timestamp)
+          .tz(timezone)
+          .format(dateFormats.TIME),
+        month: momentToday.month(),
+        year: momentToday.year(),
+      });
   }
 
   attendanceDocData
@@ -3174,16 +3182,18 @@ const addCheckInTimestamps = async locals => {
 
   const uid = locals.addendumDocData.uid;
 
-  batch.set(rootCollections.updates.doc(uid), {
-    lastStatusDocUpdateTimestamp: Date.now(),
-  }, {
-    merge: true,
-  });
+  batch
+    .set(rootCollections.updates.doc(uid), {
+      lastStatusDocUpdateTimestamp: Date.now(),
+    }, {
+      merge: true,
+    });
 
   batch
     .set(attendanceDoc.ref, attendanceDocData, { merge: true });
 
-  return batch.commit();
+  return batch
+    .commit();
 };
 
 
@@ -3414,10 +3424,6 @@ const handleAddendum = async locals => {
 
   if (addendumDoc.get('activityData.template') === 'check-in') {
     await addCheckInTimestamps(locals);
-  }
-
-  if (addendumDoc.get('action') === httpsActions.checkIn) {
-    await handleCheckInActionForDailyAllowance(locals);
   }
 
   return handleDailyStatusReport(addendumDoc);
@@ -3929,9 +3935,7 @@ const handleLeaveAndDutyConflict = async locals => {
 
 
 const handleRelevantTimeActivities = async locals => {
-  const addendumDocData = locals.addendumDocData;
-
-  if (!addendumDocData) {
+  if (!locals.addendumDocData) {
     return;
   }
 
@@ -3961,10 +3965,10 @@ const handleRelevantTimeActivities = async locals => {
     .get('creator.displayName');
   const nowMinus24Hours = momentNow
     .clone()
-    .subtract(24, 'hours');
+    .subtract(48, 'hours');
   const nowPlus24Hours = momentNow
     .clone()
-    .add(24, 'hours');
+    .add(48, 'hours');
   const relevantTimeActivities = await rootCollections
     .profiles
     .doc(phoneNumber)
@@ -4005,26 +4009,35 @@ const handleRelevantTimeActivities = async locals => {
         .doc();
       const dateObject = new Date();
 
-      batch.set(addendumDocRef, {
-        date: dateObject.getDate(),
-        month: dateObject.getMonth(),
-        year: dateObject.getFullYear(),
-        user: phoneNumber,
-        action: httpsActions.checkIn,
-        location: locals.addendumDoc.get('location'),
-        timestamp: Date.now(),
-        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-        isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-        geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-        provider: locals.addendumDoc.get('provider'),
-        userDisplayName: displayName,
-        isAutoGenerated: true,
-        comment: `${displayName || phoneNumber} checked `
-          + `in from Duty Location:`
-          + ` ${doc.get('attachment.Location.value')}`,
-        activityData: doc.data(),
-        activityId: doc.ref.id,
-      });
+      batch
+        .set(addendumDocRef, {
+          date: dateObject.getDate(),
+          month: dateObject.getMonth(),
+          year: dateObject.getFullYear(),
+          user: phoneNumber,
+          action: httpsActions.checkIn,
+          location: locals.addendumDoc.get('location'),
+          timestamp: Date.now(),
+          userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+          isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+          geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
+          provider: locals.addendumDoc.get('provider'),
+          userDisplayName: displayName,
+          isAutoGenerated: true,
+          comment: `${displayName || phoneNumber} checked `
+            + `in from Duty Location:`
+            + ` ${doc.get('attachment.Location.value')}`,
+          activityData: doc.data(),
+          activityId: doc.ref.id,
+        });
+
+      batch
+        .set(locals.change.after.ref, {
+          addendumDocRef,
+          timestamp: Date.now(),
+        }, {
+          merge: true,
+        });
 
       const rt = getRelevantTime(doc.get('schedule'));
       const activityRef = rootCollections
@@ -4308,7 +4321,9 @@ const handleCheckInActionForkmAllowance = async locals => {
 
   const distanceTravelled = (async () => {
     if (isSameDate) {
-      return locals.addendumDocData.distanceTravelled;
+      return locals
+        .addendumDocData
+        .distanceTravelled;
     }
 
     const distanceMatrixApiResult = await googleMapsClient
@@ -4370,7 +4385,7 @@ const handleCheckInActionForkmAllowance = async locals => {
     .doc(officeId)
     .collection('Activities')
     .where('template', '==', 'km allowance')
-    .where('status', '==', 'CONFIRMED');
+    .where('isCancelled', '==', false);
 
   if (isLocal) {
     kmActivitiesQueryBase = kmActivitiesQueryBase
@@ -4431,12 +4446,18 @@ const handleCheckInActionForkmAllowance = async locals => {
     .doc(`${momentNow.date()}`)
     .get();
 
-  const reimbursementsDocData = reimbursementsDoc.data() || Object.assign({}, {
-    phoneNumber,
-    date: momentNow.date(),
-    month: momentNow.month(),
-    year: momentNow.year(),
-  });
+  const reimbursementsDocData = (() => {
+    if (reimbursementsDoc.exists) {
+      return reimbursementsDoc.data();
+    }
+
+    return {
+      phoneNumber,
+      date: momentNow.date(),
+      month: momentNow.month(),
+      year: momentNow.year(),
+    };
+  })();
 
   reimbursementsDocData
     .reimbursements = reimbursementsDocData.reimbursements || [];
@@ -4444,13 +4465,14 @@ const handleCheckInActionForkmAllowance = async locals => {
   const kmAllowanceActivity = kmAllowanceActivities
     .docs[0];
   const amount = dinero({
-    amount: kmAllowanceActivity.get('attachment.Rate.value'),
+    amount: Number(kmAllowanceActivity.get('attachment.Rate.value') || 0),
   })
-    .multiply(Number(distanceTravelled || 0));
+    .multiply(Number(await distanceTravelled || 0))
+    .getAmount();
 
   const newObject = {
     amount,
-    distanceTravelled,
+    distanceTravelled: await distanceTravelled,
     name: kmAllowanceActivity.get('attachment.Name.value'),
     activityId: kmAllowanceActivity.id,
     template: kmAllowanceActivity.get('template'),
@@ -4466,7 +4488,7 @@ const handleCheckInActionForkmAllowance = async locals => {
 
   const claimedToday = reimbursementsDocData
     .reimbursements
-    .reduce((acc, el) => acc + Number(el.amount), 0);
+    .reduce((acc, el) => Number(acc) + Number(el.amount), 0);
 
   const dailyLimit = kmAllowanceActivity
     .get('attachment.Daily Limit.value');
@@ -4840,6 +4862,7 @@ module.exports = async (change, context) => {
     if (locals.addendumDocData
       && locals.addendumDocData.action === httpsActions.checkIn) {
       await handleCheckInActionForkmAllowance(locals);
+      await handleCheckInActionForDailyAllowance(locals);
     }
 
     await handleActivityUpdates(locals);
