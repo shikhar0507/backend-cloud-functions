@@ -154,10 +154,10 @@ const getProfile = conn => {
          * other than out provided endpoint for updating the `auth`.
          * Disabling their account because this is not allowed.
          */
-        // return disableAccount(
-        //   conn,
-        //   `The uid and phone number of the requester does not match.`
-        // );
+        return disableAccount(
+          conn,
+          `The uid and phone number of the requester does not match.`
+        );
       }
 
       /** AuthOnCreate probably failed. This is the fallback */
