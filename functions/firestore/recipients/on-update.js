@@ -214,7 +214,6 @@ module.exports = async change => {
     }
 
     if (report === reportNames.PAYROLL) {
-      // await require('./payday-report')(locals);
       await require('./payroll-report')(locals);
     }
 
