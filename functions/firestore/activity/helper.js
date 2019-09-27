@@ -1199,8 +1199,6 @@ const toCustomerObject = (docData, createTime) => {
     customerOffice.identifier = venue.address;
   }
 
-
-
   const customerObject = {
     customerOffice,
     createTime,
@@ -1292,7 +1290,7 @@ const cancelLeaveOrAr = async params => {
 
   snapShots
     .forEach((snapShot, index) => {
-      const numberOfCheckIns = snapShots.size;
+      const numberOfCheckIns = snapShot.size;
       const minimumDailyActivityCount = employeeQueryResult
         .docs[0]
         .get('attachment.Minimum Daily Activity Count.value');
@@ -1304,8 +1302,8 @@ const cancelLeaveOrAr = async params => {
           return 0;
         }
 
-        const firstCheckIn = snapShots.docs[0];
-        const lastCheckIn = snapShots.docs[snapShot.size - 1];
+        const firstCheckIn = snapShot.docs[0];
+        const lastCheckIn = snapShot.docs[snapShot.size - 1];
 
         return momentTz(lastCheckIn.get('timestamp'))
           .diff(momentTz(firstCheckIn.get('timestamp')), 'hours');
