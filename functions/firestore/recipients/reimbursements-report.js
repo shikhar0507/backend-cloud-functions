@@ -34,30 +34,10 @@ module.exports = async locals => {
   const momentYesterday = momentToday
     .clone()
     .subtract(1, 'day');
-  const dateYesterday = momentYesterday
-    .date();
-  const monthYearString = momentYesterday
-    .format(dateFormats.MONTH_YEAR);
-
-  const [
-    snapShot,
-    workbook,
-  ] = await Promise
-    .all([
-      locals
-        .officeDoc
-        .ref
-        .collection('Statuses')
-        .doc(monthYearString)
-        .collection('Employees')
-        .get(),
-      xlsxPopulate
-        .fromBlankAsync()
-    ]);
-
+  const workbook = await xlsxPopulate
+    .fromBlankAsync();
   const expenseSummarySheet = workbook
     .addSheet(`Expense Summary`);
-
   const expenseSheet = workbook
     .addSheet(`Expense ${momentToday.format(dateFormats.DATE)}`);
 
@@ -108,12 +88,15 @@ module.exports = async locals => {
     momentYesterday.clone().date() + 1,
   );
 
+  console.log('r1 fetching');
   const r1 = await locals
     .officeDoc
     .ref
     .collection(subcollectionNames.REIMBURSEMENTS)
     .doc(momentYesterday.format(dateFormats.MONTH_YEAR))
     .listCollections();
+
+  console.log('r1 fetched');
 
   r1
     .forEach(colRef => {
@@ -128,12 +111,15 @@ module.exports = async locals => {
     });
 
   if (fetchPreviousMonthDocs) {
+    console.log('r2 fetching');
     const r2 = await locals
       .officeDoc
       .ref
       .collection(subcollectionNames.REIMBURSEMENTS)
       .doc(momentPrevMonth.format(dateFormats.MONTH_YEAR))
       .listCollections();
+
+    console.log('r2 fetched');
 
     r2
       .forEach(colRef => {
@@ -149,8 +135,13 @@ module.exports = async locals => {
       });
   }
 
+  console.log('fetching reimbursementSnapshots');
+
   const reimbursementSnapshots = await Promise
     .all(reimbursementDocPromises);
+
+  console.log('reimbursementSnapshots fetched');
+
   const expenseMap = new Map();
   const allPhoneNumbers = new Set();
   let reSheetIndex = 0;
@@ -163,8 +154,10 @@ module.exports = async locals => {
       const year = doc.get('year');
       const reimbursements = doc.get('reimbursements') || [];
 
-      allPhoneNumbers
-        .add(phoneNumber);
+      if (phoneNumber) {
+        allPhoneNumbers
+          .add(phoneNumber);
+      }
 
       reimbursements.forEach(re => {
         const old = expenseMap
@@ -232,7 +225,8 @@ module.exports = async locals => {
             .value(re.amount); // claim details
         }
 
-        if (re.template === 'daily allowance') {
+        if (re.template === 'daily allowance'
+          && re.geopoint) {
           expenseSheet
             .cell(`K${reSheetIndex + 2}`)
             .value(momentTz(re.timestamp).tz(timezone).format(dateFormats.DATE_TIME)) // claim details
@@ -292,6 +286,10 @@ module.exports = async locals => {
   });
 
   let summarySheetIndex = 0;
+
+  if (allPhoneNumbers.size === 0) {
+    return;
+  }
 
   allPhoneNumbers
     .forEach(phoneNumber => {
