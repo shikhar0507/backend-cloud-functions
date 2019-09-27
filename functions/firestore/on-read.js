@@ -41,6 +41,7 @@ const {
   sendJSON,
   isValidDate,
   isNonEmptyString,
+  findKeyByValue,
   getAttendancesPath,
 } = require('../admin/utils');
 const admin = require('firebase-admin');
@@ -275,7 +276,13 @@ const getStatusObject = async params => {
             return;
           }
 
-          const data = doc.data();
+          const { path } = doc.ref;
+          const parts = path.split('/');
+          const officeId = parts[1];
+          const office = findKeyByValue(employeeOf, officeId);
+          const data = Object.assign({}, doc.data(), { office, officeId });
+
+          data.date = data.date || Number(doc.id);
 
           result
             .push(data);
@@ -483,7 +490,8 @@ module.exports = async conn => {
 
     console.log('sending statusObjects', from === 0 || sendStatusObjects);
 
-    if (from === 0 || sendStatusObjects) {
+    if (from === 0
+      || sendStatusObjects) {
       jsonObject
         .statusObject = await getStatusObject({
           employeeOf,

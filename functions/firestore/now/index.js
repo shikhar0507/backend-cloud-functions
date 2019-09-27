@@ -233,7 +233,8 @@ module.exports = async conn => {
 
     batch
       .set(ref, {
-        lastStatuseUpdateTimestamp: Date.now(),
+        // lastStatuseUpdateTimestamp: Date.now(),
+        lastStatusDocUpdateTimestamp: Date.now(),
       }, {
         merge: true,
       });
