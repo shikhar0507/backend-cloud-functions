@@ -54,13 +54,13 @@ const getDetails = (el, timezone) => {
       .branchName;
   }
 
-  if (!el.firstCheckIn) {
+  if (!el.firstCheckInTimestamp) {
     return ``;
   }
 
-  return `${el.firstCheckIn}`
+  return `${momentz(el.firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
     + ` to`
-    + ` ${el.lastCheckIn},`
+    + ` ${momentz(el.lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)},`
     + ` ${el.numberOfCheckIns || 0}`;
 };
 
@@ -469,7 +469,7 @@ module.exports = async locals => {
 
         if (!el.onAr
           && !el.onLeave
-          && el.firstCheckIn
+          && el.firstCheckInTimestamp
           && el.geopoint) {
           payrollSheet
             .cell(`K${rowIndex + 2}`)
@@ -514,10 +514,12 @@ module.exports = async locals => {
    * Report was triggered by Timer, so updating
    * Holiday and Weekly Off list,
    */
-  if (momentz().date()
-    === momentToday.date()) {
-    // const numberOfDocs = allPhoneNumbers.size + uidsMap.size;
-    const numberOfDocs = 1000000;
+
+  // const updateAttendance = momentz().date() === momentToday.date();
+  const updateAttendance = true;
+
+  if (updateAttendance) {
+    const numberOfDocs = allPhoneNumbers.size + uidsMap.size;
     const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
     const numberOfBatches = Math
       .round(
@@ -528,6 +530,9 @@ module.exports = async locals => {
       .from(Array(numberOfBatches)).map(() => db.batch());
     let batchIndex = 0;
     let docsCounter = 0;
+
+    console.log('numberOfDocs', numberOfDocs);
+    console.log('numberOfBatches', numberOfBatches);
 
     allPhoneNumbers
       .forEach(phoneNumber => {
@@ -546,10 +551,14 @@ module.exports = async locals => {
             .doc(`${momentYesterday.date()}`);
         })();
 
-        if (docsCounter > 200) {
+        if (docsCounter > 498) {
           docsCounter = 0;
           batchIndex++;
         }
+
+        const batch = batchArray[
+          batchIndex
+        ];
 
         const update = {
           phoneNumber,
@@ -572,24 +581,20 @@ module.exports = async locals => {
 
         if (uidsMap.has(phoneNumber)) {
           const uid = uidsMap.get(phoneNumber);
-          const ref = rootCollections.updates.doc(uid);
 
           docsCounter++;
 
-          batchArray[
-            batchIndex
-          ].set(ref, {
-            lastStatusDocUpdateTimestamp: Date.now()
-          }, {
-            merge: true,
-          });
+          batch
+            .set(rootCollections.updates.doc(uid), {
+              lastStatusDocUpdateTimestamp: Date.now()
+            }, {
+              merge: true,
+            });
         }
 
         docsCounter++;
 
-        batchArray[
-          batchIndex
-        ].set(ref, update, {
+        batch.set(ref, update, {
           merge: true,
         });
       });
