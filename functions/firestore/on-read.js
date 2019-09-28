@@ -178,13 +178,17 @@ const getStatusObject = async params => {
   const employeeOf = params.employeeOf || {};
   const momentToday = momentTz();
   const officeNames = Object.keys(employeeOf);
-  const fetchPrevMonth = momentToday.date() <= 10;
+  /**
+   * Always sending attendance, reimbursements and transactions objects
+   * whenever sending the statuses.
+   */
+  const fetchPrevMonth = true;
+  const startTime = momentToday.clone().startOf('month').valueOf();
+  const endTime = momentToday.clone().endOf('month').valueOf();
 
   officeNames
     .forEach(name => {
       const officeId = employeeOf[name];
-      const startTime = momentToday.startOf('month').valueOf();
-      const endTime = momentToday.endOf('month').valueOf();
 
       const attendanceDocs = getAttendancesPath({
         officeId,
