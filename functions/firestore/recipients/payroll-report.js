@@ -4,6 +4,7 @@ const momentz = require('moment-timezone');
 const {
   dateFormats,
   allMonths,
+  subcollectionNames,
 } = require('../../admin/constants');
 const {
   alphabetsArray,
@@ -141,9 +142,28 @@ module.exports = async locals => {
   const payrollSummary = workbook
     .addSheet(`Payroll Summary`);
   const payrollSheet = workbook
-    .addSheet(`PayRoll ${momentToday.format(dateFormats.DATE)}`);
+    .addSheet(`Payroll ${momentToday.format(dateFormats.DATE)}`);
 
+  /**
+   * Report was triggered by Timer, so updating
+   * Holiday and Weekly Off list,
+   */
+  const writeAttendanceDocs = momentz().date() === momentToday.date();
+  const attendanceDocPromises = [];
+  const weeklyOffSet = new Set();
+  const holidaySet = new Set();
+  const weeklyOffCountMap = new Map();
+  const holidayCountMap = new Map();
+  const leaveTypesMap = new Map();
+  const statusForDayMap = new Map();
+  const statusForDaySumMap = new Map();
+  const arCountMap = new Map();
+  const allStatusObjects = new Map();
+  const allPhoneNumbers = new Set();
+  const attendanceUpdatesRefMap = new Map();
+  const newStatusMap = new Map();
   const uidsMap = new Map();
+  let allLeaveTypes = new Set();
 
   workbook
     .deleteSheet('Sheet1');
@@ -166,15 +186,6 @@ module.exports = async locals => {
       .value(value);
   });
 
-  const attendanceDocPromises = [];
-  const weeklyOffSet = new Set();
-  const holidaySet = new Set();
-  const weeklyOffCountMap = new Map();
-  const holidayCountMap = new Map();
-  const leaveTypesMap = new Map();
-  const statusForDayMap = new Map();
-  const statusForDaySumMap = new Map();
-
   Object
     .entries(locals.employeesData)
     .forEach(entry => {
@@ -196,40 +207,6 @@ module.exports = async locals => {
       }
     });
 
-  const r1 = await locals
-    .officeDoc
-    .ref
-    .collection('Attendances')
-    .doc(momentYesterday.format(dateFormats.MONTH_YEAR))
-    .listCollections();
-
-  r1
-    .forEach(colRef => {
-      const promise = colRef
-        .get();
-
-      attendanceDocPromises
-        .push(promise);
-    });
-
-  if (fetchPreviousMonthDocs) {
-    const r2 = await locals
-      .officeDoc
-      .ref
-      .collection('Attendances')
-      .doc(momentPrevMonth.format(dateFormats.MONTH_YEAR))
-      .listCollections();
-
-    r2
-      .forEach(colRef => {
-        const promise = colRef
-          .get();
-
-        attendanceDocPromises
-          .push(promise);
-      });
-  }
-
   const firstRange = (() => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
@@ -244,6 +221,46 @@ module.exports = async locals => {
     firstDayOfMonthlyCycle,
     cycleEndMoment.clone().date() + 1,
   );
+
+  const collectionsForYesterdaysMonth = await locals
+    .officeDoc
+    .ref
+    .collection(subcollectionNames.ATTENDANCES)
+    .doc(momentYesterday.format(dateFormats.MONTH_YEAR))
+    .listCollections();
+
+  collectionsForYesterdaysMonth
+    .forEach(collRef => {
+      secondRange
+        .forEach(date => {
+          attendanceDocPromises
+            .push(
+              collRef
+                .doc(`${date}`)
+                .get()
+            );
+        });
+    });
+
+  if (fetchPreviousMonthDocs) {
+    const collectionsForPrevMonths = await locals
+      .officeDoc
+      .ref
+      .collection(subcollectionNames.ATTENDANCES)
+      .doc(momentPrevMonth.format(dateFormats.MONTH_YEAR))
+      .listCollections();
+
+    collectionsForPrevMonths
+      .forEach(colRef => {
+        firstRange
+          .forEach(date => {
+            attendanceDocPromises
+              .push(colRef
+                .doc(`${date}`)
+                .get());
+          });
+      });
+  }
 
   const totalDays = (() => {
     // number of days for which the data is being sent for
@@ -263,124 +280,88 @@ module.exports = async locals => {
 
   const attendanceSnapshots = await Promise
     .all(attendanceDocPromises);
-  const arCountMap = new Map();
-  const allStatusObjects = new Map();
-  const allPhoneNumbers = new Set();
-  const attendanceUpdatesRefMap = new Map();
-  const newStatusMap = new Map();
-  let allLeaveTypes = new Set();
-
-  let rowIndex = 0;
 
   attendanceSnapshots
-    .forEach(snapShot => {
-      snapShot
-        .forEach(doc => {
-          // const phoneNumber = doc.get('phoneNumber');
-          // const date = doc.get('date');
-          // const month = doc.get('month');
-          // const year = doc.get('year');
+    .forEach(doc => {
+      const { path } = doc.ref;
+      const parts = path.split('/');
+      const date = Number(doc.id);
+      const [
+        monthString,
+      ] = parts[3].split(' ');
+      const month = allMonths[monthString];
+      const phoneNumber = parts[4];
 
-          const { path } = doc.ref;
-          const parts = path.split('/');
-          const date = Number(doc.id);
-          const [monthString, yearString] = parts[3].split(' ');
-          const month = allMonths[monthString];
-          const year = Number(yearString);
-          const phoneNumber = parts[4];
+      const id = `${date}_${month}_${phoneNumber}`;
+      const data = doc.data() || {};
 
-          const id = `${date}_${month}_${phoneNumber}`;
-          const data = doc.data();
+      if (locals.employeesData[phoneNumber]) {
+        data
+          .branchName = locals.employeesData[phoneNumber]['Base Location'];
+      }
 
-          if (locals.employeesData[phoneNumber]) {
-            data
-              .branchName = locals.employeesData[phoneNumber]['Base Location'];
-          }
+      if (data.leaveType) {
+        allLeaveTypes
+          .add(data.leaveType);
 
-          if (data.leaveType) {
-            allLeaveTypes
-              .add(data.leaveType);
+        const lt = leaveTypesMap
+          .get(phoneNumber) || {};
 
-            const lt = leaveTypesMap
-              .get(phoneNumber) || {};
+        lt[
+          data.leaveType
+        ] = lt[data.leaveType] || 0;
 
-            lt[
-              data.leaveType
-            ] = lt[data.leaveType] || 0;
+        lt[
+          data.leaveType
+        ]++;
 
-            lt[data.leaveType]++;
+        leaveTypesMap
+          .set(phoneNumber, lt);
+      }
 
-            leaveTypesMap
-              .set(phoneNumber, lt);
-          }
+      if (data.onAr) {
+        const onArCount = arCountMap
+          .get(phoneNumber) || 0;
 
-          if (data.onAr) {
-            const onArCount = arCountMap
-              .get(phoneNumber) || 0;
+        arCountMap
+          .set(phoneNumber, onArCount + 1);
+      }
 
-            arCountMap
-              .set(phoneNumber, onArCount + 1);
-          }
+      if (data.weeklyOff) {
+        const weeklyOffCount = weeklyOffCountMap
+          .get(phoneNumber) || 0;
 
-          if (data.weeklyOff) {
-            const weeklyOffCount = weeklyOffCountMap
-              .get(phoneNumber) || 0;
+        weeklyOffCountMap
+          .set(phoneNumber, weeklyOffCount + 1);
+      }
 
-            weeklyOffCountMap
-              .set(phoneNumber, weeklyOffCount + 1);
-          }
+      if (data.holiday) {
+        const holidayCount = holidayCountMap
+          .get(phoneNumber) || 0;
 
-          if (data.holiday) {
-            const holidayCount = holidayCountMap
-              .get(phoneNumber) || 0;
+        holidayCountMap
+          .set(phoneNumber, holidayCount + 1);
+      }
 
-            holidayCountMap
-              .set(phoneNumber, holidayCount + 1);
-          }
+      if (data.statusForDay) {
+        const statusForDayCount = statusForDayMap
+          .get(phoneNumber) || 0;
 
-          if (data.statusForDay) {
-            const statusForDayCount = statusForDayMap
-              .get(phoneNumber) || 0;
+        if ((statusForDayCount + 1) < totalDays) {
+          statusForDayMap
+            .set(phoneNumber, statusForDayCount + 1);
+        }
+      }
 
-            if ((statusForDayCount + 1) < totalDays) {
-              statusForDayMap
-                .set(phoneNumber, statusForDayCount + 1);
-            }
-          }
+      allStatusObjects
+        .set(id, data);
 
-          // TODO: This is probably not useful becuase weekly off and holiday
-          // isn't present in doc with the date for (date - 1)
-          if (momentYesterday.date() === date
-            && momentYesterday.month() === month
-            && momentYesterday.year() === year) {
-            if (data.weeklyOff) {
-              weeklyOffSet
-                .add(phoneNumber);
-              data
-                .weeklyOff = true;
-              data
-                .branchName = locals.employeesData[phoneNumber]['Base Location'];
-            }
-
-            if (data.holiday) {
-              holidaySet
-                .add(phoneNumber);
-              data
-                .holiday = true;
-              data
-                .branchName = locals.employeesData[phoneNumber]['Base Location'];
-            }
-          }
-
-          allStatusObjects
-            .set(id, data);
-
-          allPhoneNumbers
-            .add(phoneNumber);
-        });
+      allPhoneNumbers
+        .add(phoneNumber);
     });
 
   const authFetchPromises = [];
+  let rowIndex = 0;
 
   allPhoneNumbers
     .forEach(phoneNumber => {
@@ -403,16 +384,15 @@ module.exports = async locals => {
           && momentYesterday.month() === month
           && momentYesterday.year()
           && locals.employeesData[phoneNumber]) {
-          const params = {
+          const interm = getStatusForDay({
             numberOfCheckIns: el.numberOfCheckIns || 0,
             minimumDailyActivityCount: locals.employeesData[phoneNumber]['Minimum Daily Activity Count'],
             minimumWorkingHours: locals.employeesData[phoneNumber]['Minimum Working Hours'],
             hoursWorked: momentz(el.lastCheckInTimestamp).diff(momentz(el.firstCheckInTimestamp), 'hours'),
-          };
+          });
 
-          const interm = getStatusForDay(params);
-
-          if (interm && el.firstCheckInTimestamp) {
+          if (typeof interm === 'number'
+            && el.firstCheckInTimestamp) {
             el
               .statusForDay = interm;
 
@@ -436,10 +416,8 @@ module.exports = async locals => {
           const oldSum = statusForDaySumMap.get(phoneNumber) || 0;
           const newSum = oldSum + (el.statusForDay || 0);
 
-          if (newSum < totalDays) {
-            statusForDaySumMap
-              .set(phoneNumber, newSum);
-          }
+          statusForDaySumMap
+            .set(phoneNumber, newSum);
         }
 
         [
@@ -510,15 +488,7 @@ module.exports = async locals => {
         .set(phoneNumber, doc.id);
     });
 
-  /**
-   * Report was triggered by Timer, so updating
-   * Holiday and Weekly Off list,
-   */
-
-  // const updateAttendance = momentz().date() === momentToday.date();
-  const updateAttendance = true;
-
-  if (updateAttendance) {
+  if (writeAttendanceDocs) {
     const numberOfDocs = allPhoneNumbers.size + uidsMap.size;
     const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
     const numberOfBatches = Math
@@ -531,8 +501,12 @@ module.exports = async locals => {
     let batchIndex = 0;
     let docsCounter = 0;
 
-    console.log('numberOfDocs', numberOfDocs);
-    console.log('numberOfBatches', numberOfBatches);
+    /**
+     * Batch supports 500 docs simultaneously, but we are updating
+     * two docs in a single batch, so some batches might get 501 docs
+     * in a single instance. 498 updates at once fixes this issue.
+     */
+    const MAX_UPDATES = 498;
 
     allPhoneNumbers
       .forEach(phoneNumber => {
@@ -551,7 +525,7 @@ module.exports = async locals => {
             .doc(`${momentYesterday.date()}`);
         })();
 
-        if (docsCounter > 498) {
+        if (docsCounter > MAX_UPDATES) {
           docsCounter = 0;
           batchIndex++;
         }
@@ -569,10 +543,8 @@ module.exports = async locals => {
           weeklyOff: weeklyOffSet.has(phoneNumber),
         };
 
-        if (newStatusMap.has(phoneNumber)) {
-          update
-            .statusForDay = newStatusMap.get(phoneNumber);
-        }
+        update
+          .statusForDay = newStatusMap.get(phoneNumber) || 0;
 
         if (locals.employeesData[phoneNumber]) {
           update
@@ -599,12 +571,8 @@ module.exports = async locals => {
         });
       });
 
-    console.log('writing statuses start');
-
     await Promise
       .all(batchArray.map(batch => batch.commit()));
-
-    console.log('writing statuses end');
   }
 
   /**
