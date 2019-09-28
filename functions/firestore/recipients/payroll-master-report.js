@@ -6,8 +6,6 @@ const {
 } = require('../../admin/constants');
 const {
   alphabetsArray,
-  // getSupervisors,
-  getName,
 } = require('./report-utils');
 const momentTz = require('moment-timezone');
 

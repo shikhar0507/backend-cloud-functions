@@ -374,13 +374,6 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
 
     return '';
   })();
-  const arReason = (() => {
-    if (conn.req.body.template === 'attendance regularization') {
-      return conn.req.body.attachment.Reason.value;
-    }
-
-    return '';
-  })();
 
   const {
     success,
