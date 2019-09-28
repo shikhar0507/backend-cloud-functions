@@ -26,7 +26,9 @@ const env = require('../../admin/env');
 const getDetails = (el, timezone) => {
   if (el.onAr) {
     let result = `${momentz(el.arStartTime).tz(timezone).format(dateFormats.DATE)}`
-      + ` ${el.arStatus || ''}`;
+      + ` ${el.arStatus || ''}`
+      +`, `
+      +`${el.arReason||''}`;
 
     if (el.arApprovedOn) {
       result += ` ${momentz(el.arApprovedOn).tz(timezone).format(dateFormats.DATE)}`;
@@ -176,7 +178,7 @@ module.exports = async locals => {
     'Region',
     'Department',
     'Date',
-    'Sign Up Date',
+    'Employee Creation Date',
     'Type',
     'Status',
     'Details',
@@ -391,15 +393,6 @@ module.exports = async locals => {
             hoursWorked: momentz(el.lastCheckInTimestamp).diff(momentz(el.firstCheckInTimestamp), 'hours'),
           });
 
-          if (typeof interm === 'number'
-            && el.firstCheckInTimestamp) {
-            el
-              .statusForDay = interm;
-
-            newStatusMap
-              .set(phoneNumber, interm);
-          }
-
           if (holidaySet.has(phoneNumber)
             || weeklyOffSet.has(phoneNumber)) {
             el
@@ -409,6 +402,15 @@ module.exports = async locals => {
               el
                 .branchName = locals.employeesData[phoneNumber]['Base Location'];
             }
+          }
+
+          if (typeof interm === 'number'
+            && el.firstCheckInTimestamp) {
+            el
+              .statusForDay = interm;
+
+            newStatusMap
+              .set(phoneNumber, interm);
           }
         }
 
