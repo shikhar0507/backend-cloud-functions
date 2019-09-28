@@ -2946,7 +2946,7 @@ const handleCheckInActionForDailyAllowance = async locals => {
     .tz(timezone);
   let count = 0;
   const monthYearString = momentNow
-    .format(dateFormats.DATE);
+    .format(dateFormats.MONTH_YEAR);
   const reimbursementsDoc = await rootCollections
     .offices
     .doc(officeId)
@@ -3012,7 +3012,7 @@ const handleCheckInActionForDailyAllowance = async locals => {
         template: doc.get('template'),
         name: doc.get('attachment.Name.value'),
         amount: doc.get('attachment.Amount.value'),
-        timestamp: Date.now(),
+        timestamp: doc.createTime.toDate().getTime(),
         status: doc.get('status'),
         activityId: locals.change.after.id,
       };
@@ -3093,10 +3093,10 @@ const addCheckInTimestamps = async locals => {
     .createTime
     .toDate()
     .getTime();
-  const momentToday = momentTz(createTime)
+  const momentNow = momentTz(createTime)
     .tz(timezone);
-  const date = momentToday.date();
-  const monthYearString = momentToday
+  const date = momentNow.date();
+  const monthYearString = momentNow
     .format(dateFormats.MONTH_YEAR);
   const officeId = locals
     .change
@@ -3146,7 +3146,7 @@ const addCheckInTimestamps = async locals => {
      * `distanceAccurate`.
      */
     && employeeDoc.get('attachment.Location Validation Check.value') === true
-    && !locals.addendumDocData.distanceAccurate === false) {
+    && locals.addendumDocData.distanceAccurate === false) {
     return;
   }
 
@@ -3161,9 +3161,28 @@ const addCheckInTimestamps = async locals => {
         firstCheckIn: momentTz(locals.addendumDocData.timestamp)
           .tz(timezone)
           .format(dateFormats.TIME),
-        month: momentToday.month(),
-        year: momentToday.year(),
+        month: momentNow.month(),
+        year: momentNow.year(),
       });
+
+    // if (employeeDoc) {
+    //   const startTime = employeeDoc.get('attachment.Daily Start Time.value');
+
+    //   if (startTime) {
+    //     const [
+    //       startHours,
+    //       startMinutes,
+    //     ] = startTime
+    //       .split(':');
+
+    //     attendanceDocData
+    //       .isLate = momentNow
+    //         .clone()
+    //         .hours(startHours)
+    //         .minutes(startMinutes)
+    //         .diff(momentNow, 'minutes') > 15;
+    //   }
+    // }
   }
 
   attendanceDocData
@@ -4440,7 +4459,7 @@ const handleCheckInActionForkmAllowance = async locals => {
   const reimbursementsDoc = await rootCollections
     .offices
     .doc(officeId)
-    .collection(subcollectionNames.ATTENDANCES)
+    .collection(subcollectionNames.REIMBURSEMENTS)
     .doc(monthYearString)
     .collection(phoneNumber)
     .doc(`${momentNow.date()}`)
