@@ -272,7 +272,6 @@ module.exports = async locals => {
   const dated = momentYesterday
     .format(dateFormats.DATE);
   const office = locals.officeDoc.get('office');
-  const dateYesterday = momentYesterday.date();
   const distanceMap = new Map();
   const prevTemplateForPersonMap = new Map();
   const prevDocTimestampMap = new Map();
@@ -289,27 +288,29 @@ module.exports = async locals => {
     onLeaveWeeklyOffHoliday: 0,
   };
 
-  const promises = [
-    xlsxPopulate
-      .fromBlankAsync(),
-    locals
-      .officeDoc
-      .ref
-      .collection('Addendum')
-      .where('date', '==', momentYesterday.date())
-      .where('month', '==', momentYesterday.month())
-      .where('year', '==', momentYesterday.year())
-      .orderBy('user')
-      .orderBy('timestamp')
-      .get()
-  ];
-
   try {
     const [
       workbook,
-      addendumDocsQueryResult,
+      addendumDocsQueryResult
     ] = await Promise
-      .all(promises);
+      .all([
+        xlsxPopulate
+          .fromBlankAsync(),
+        locals
+          .officeDoc
+          .ref
+          .collection('Addendum')
+          .where('date', '==', momentYesterday.date())
+          .where('month', '==', momentYesterday.month())
+          .where('year', '==', momentYesterday.year())
+          .orderBy('user')
+          .orderBy('timestamp')
+          .get()
+      ]);
+
+    if (addendumDocsQueryResult.empty) {
+      return;
+    }
 
     const footprintsSheet = workbook
       .addSheet('Footprints');
