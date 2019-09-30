@@ -26,22 +26,24 @@
 
 
 const {
-  rootCollections,
   db,
+  rootCollections,
 } = require('../admin/admin');
 const {
   code,
 } = require('../admin/responses');
+const {
+  subcollectionNames,
+} = require('../admin/constants');
 const {
   handleError,
   sendResponse,
   sendJSON,
   isValidDate,
   isNonEmptyString,
+  findKeyByValue,
+  getAttendancesPath,
 } = require('../admin/utils');
-const {
-  dateFormats,
-} = require('../admin/constants');
 const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
 
@@ -99,7 +101,7 @@ const getAddendumObject = doc => {
   return singleDoc;
 };
 
-const getAssigneesArray = (arrayOfPhoneNumbers) => {
+const getAssigneesArray = arrayOfPhoneNumbers => {
   // Could be a string (phoneNumber) or an object
   const firstItem = arrayOfPhoneNumbers[0];
 
@@ -157,6 +159,7 @@ const getActivityObject = doc => ({
   assignees: getAssigneesArray(doc.get('assignees') || []),
 });
 
+
 const getSubscriptionObject = doc => ({
   template: doc.get('template'),
   schedule: doc.get('schedule'),
@@ -167,114 +170,154 @@ const getSubscriptionObject = doc => ({
   report: doc.get('report') || null,
 });
 
-const getStatusObject = async profileDoc => {
+
+const getStatusObject = async params => {
   const result = [];
+  const parentPromises = [];
+  const phoneNumber = params.phoneNumber;
+  const employeeOf = params.employeeOf || {};
+  const momentToday = momentTz();
+  const officeNames = Object.keys(employeeOf);
+  /**
+   * Always sending attendance, reimbursements and transactions objects
+   * whenever sending the statuses.
+   */
+  const fetchPrevMonth = true;
+  const startTime = momentToday.clone().startOf('month').valueOf();
+  const endTime = momentToday.clone().endOf('month').valueOf();
 
-  if (!profileDoc) {
-    return result;
-  }
+  officeNames
+    .forEach(name => {
+      const officeId = employeeOf[name];
 
-  const allMonths = {
-    'January': 0,
-    'February': 1,
-    'March': 2,
-    'April': 3,
-    'May': 4,
-    'June': 5,
-    'July': 6,
-    'August': 7,
-    'September': 8,
-    'October': 9,
-    'November': 10,
-    'December': 11,
-  };
+      const attendanceDocs = getAttendancesPath({
+        officeId,
+        phoneNumber,
+        startTime,
+        endTime,
+      });
 
-  const promises = [];
-  const phoneNumber = profileDoc.id;
-  const employeeOf = profileDoc.get('employeeOf') || {};
-  const allOffices = Object.entries(employeeOf);
-  const monthYearString = momentTz().format(dateFormats.MONTH_YEAR);
-  const prevMonthYearString = momentTz()
-    .subtract(1, 'month')
-    .format(dateFormats.MONTH_YEAR);
-  const officeNamesMap = new Map();
+      const reimbursementDocs = getAttendancesPath({
+        officeId,
+        phoneNumber,
+        startTime,
+        endTime,
+        collectionName: subcollectionNames.REIMBURSEMENTS,
+      });
 
-  allOffices.forEach(item => {
-    const [name, id] = item;
+      const transactionDocs = getAttendancesPath({
+        officeId,
+        phoneNumber,
+        startTime,
+        endTime,
+        collectionName: subcollectionNames.TRANSACTIONS,
+      });
 
-    officeNamesMap.set(id, name);
-  });
+      parentPromises
+        .push(
+          Promise
+            .all(attendanceDocs),
+          Promise
+            .all(reimbursementDocs),
+          Promise
+            .all(transactionDocs),
+        );
 
-  officeNamesMap.forEach((_, name) => {
-    promises.push(rootCollections
-      .offices
-      .doc(name)
-      .collection('Statuses')
-      .doc(monthYearString)
-      .collection('Employees')
-      .doc(phoneNumber)
-      .get());
+      if (fetchPrevMonth) {
+        const momentPrevMonth = momentToday
+          .clone()
+          .subtract(1, 'month');
+        const startTime = momentPrevMonth
+          .startOf('month')
+          .valueOf();
+        const endTime = momentPrevMonth
+          .endOf('month')
+          .valueOf();
 
-    if (momentTz().date() <= 10) {
-      promises.push(rootCollections
-        .offices
-        .doc(name)
-        .collection('Statuses')
-        .doc(prevMonthYearString)
-        .collection('Employees')
-        .doc(phoneNumber)
-        .get());
-    }
-  });
+        const prevMonthAttendanceDocs = getAttendancesPath({
+          officeId,
+          phoneNumber,
+          startTime,
+          endTime,
+        });
 
-  try {
-    const docs = await Promise.all(promises);
+        const prevMonthReimbursementDocs = getAttendancesPath({
+          officeId,
+          phoneNumber,
+          startTime,
+          endTime,
+          collectionName: subcollectionNames.REIMBURSEMENTS,
+        });
 
-    docs.forEach(doc => {
-      const statusObject = doc.get('statusObject') || {};
-      const { path } = doc.ref;
-      const parts = path.split('/');
-      const monthYearString = parts[3];
-      const [month, year] = monthYearString.split(' ');
-      const officeId = parts[1];
+        const prevMonthTransactionDocs = getAttendancesPath({
+          officeId,
+          phoneNumber,
+          startTime,
+          endTime,
+          collectionName: subcollectionNames.TRANSACTIONS,
+        });
 
-      Object
-        .keys(statusObject)
-        .forEach(date => {
-          const obj = Object.assign({
-            year,
-            office: officeNamesMap.get(officeId),
-            date: Number(date),
-            month: allMonths[month],
-          }, statusObject[date]);
+        parentPromises
+          .push(
+            Promise
+              .all(prevMonthAttendanceDocs),
+            Promise
+              .all(prevMonthReimbursementDocs),
+            Promise
+              .all(prevMonthTransactionDocs),
+          );
+      }
+    });
 
-          result.push(obj);
+  const snaps = await Promise
+    .all(parentPromises);
+
+  snaps
+    .forEach(snap => {
+      snap
+        .forEach(doc => {
+          if (!doc.exists) {
+            return;
+          }
+
+          const { path } = doc.ref;
+          const parts = path.split('/');
+          const officeId = parts[1];
+          const office = findKeyByValue(employeeOf, officeId);
+          const data = Object.assign({}, doc.data(), { office, officeId });
+
+          data.date = data.date || Number(doc.id);
+
+          if (data.hasOwnProperty('statusForDay')) {
+            data
+              .attendance = data.statusForDay;
+          }
+
+          result
+            .push(data);
         });
     });
 
-    return result;
-  } catch (error) {
-    console.error(error);
-
-    return [];
-  }
+  return result;
 };
+
 
 const getCustomerObject = doc => {
   return ({
     activityId: doc.id,
-    address: doc.get('venue')[0].address,
-    location: doc.get('venue')[0].location,
-    latitude: doc.get('venue')[0].geopoint.latitude,
-    longitude: doc.get('venue')[0].geopoint.longitude,
     office: doc.get('office'),
     officeId: doc.get('officeId'),
     status: doc.get('status'),
     template: doc.get('template'),
     timestamp: doc.get('timestamp'),
+    address: doc.get('venue')[0].address,
+    location: doc.get('venue')[0].location,
+    latitude: doc.get('venue')[0].geopoint.latitude,
+    longitude: doc.get('venue')[0].geopoint.longitude,
     venueDescriptor: doc.get('venue')[0].venueDescriptor,
   });
 };
+
 
 module.exports = async conn => {
   const result = validateRequest(conn);
@@ -310,19 +353,19 @@ module.exports = async conn => {
     rootCollections
       .updates
       .doc(conn.requester.uid)
-      .collection('Addendum')
+      .collection(subcollectionNames.ADDENDUM)
       .where('timestamp', '>', from)
       .get(),
     rootCollections
       .profiles
       .doc(conn.requester.phoneNumber)
-      .collection('Activities')
+      .collection(subcollectionNames.ACTIVITIES)
       .where('timestamp', '>', from)
       .get(),
     rootCollections
       .profiles
       .doc(conn.requester.phoneNumber)
-      .collection('Subscriptions')
+      .collection(subcollectionNames.SUBSCRIPTIONS)
       .where('timestamp', '>', from)
       .get(),
   ];
@@ -335,6 +378,14 @@ module.exports = async conn => {
       .profileDoc
       .get('lastLocationMapUpdateTimestamp') > from;
 
+  const sendStatusObjects = conn
+    .requester
+    .profileDoc
+    && conn
+      .requester
+      .profileDoc
+      .get('lastStatusDocUpdateTimestamp') > from;
+
   if (sendLocations) {
     const locationPromises = [];
 
@@ -342,7 +393,7 @@ module.exports = async conn => {
       const customers = rootCollections
         .offices
         .doc(employeeOf[name])
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('status', '==', 'CONFIRMED')
         .where('template', '==', 'customer')
         .get();
@@ -350,7 +401,7 @@ module.exports = async conn => {
       const branches = rootCollections
         .offices
         .doc(employeeOf[name])
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('status', '==', 'CONFIRMED')
         .where('template', '==', 'branch')
         .get();
@@ -363,7 +414,10 @@ module.exports = async conn => {
     });
 
     promises
-      .push(Promise.all(locationPromises));
+      .push(
+        Promise
+          .all(locationPromises)
+      );
   }
 
   try {
@@ -372,7 +426,8 @@ module.exports = async conn => {
       activities,
       subscriptions,
       locationResults,
-    ] = await Promise.all(promises);
+    ] = await Promise
+      .all(promises);
 
     if (!addendum.empty) {
       jsonObject
@@ -386,7 +441,9 @@ module.exports = async conn => {
         .forEach(snap => {
           snap
             .forEach(doc => {
-              jsonObject.locations.push(getCustomerObject(doc));
+              jsonObject
+                .locations
+                .push(getCustomerObject(doc));
             });
         });
     }
@@ -408,7 +465,9 @@ module.exports = async conn => {
     subscriptions
       .forEach(doc => {
         /** Client side APIs don't allow admin templates. */
-        if (doc.get('canEditRule') === 'ADMIN') return;
+        if (doc.get('canEditRule') === 'ADMIN') {
+          return;
+        }
 
         jsonObject
           .templates
@@ -430,19 +489,27 @@ module.exports = async conn => {
         .locationsSentForTimestamp = from;
     }
 
-    batch.set(rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber), profileUpdate, {
-      /** Profile has other stuff too. */
-      merge: true,
-    });
+    batch
+      .set(rootCollections
+        .profiles
+        .doc(conn.requester.phoneNumber), profileUpdate, {
+        /** Profile has other stuff too. */
+        merge: true,
+      });
 
-    if (from === 0) {
+    console.log('sending statusObjects', from === 0 || sendStatusObjects);
+
+    if (from === 0
+      || sendStatusObjects) {
       jsonObject
-        .statusObject = await getStatusObject(conn.requester.profileDoc);
+        .statusObject = await getStatusObject({
+          employeeOf,
+          phoneNumber: conn.requester.phoneNumber,
+        });
     }
 
-    await batch.commit();
+    await batch
+      .commit();
 
     return sendJSON(conn, jsonObject);
   } catch (error) {

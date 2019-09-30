@@ -60,34 +60,37 @@ const handleLeaveAndOnDuty = (conn, activityDoc) => {
   const endTime = schedule.endTime;
   const template = activityDoc.get('template');
   const officeId = activityDoc.get('officeId');
-  const creator = activityDoc.get('creator');
-  const phoneNumber = (() => {
-    if (typeof creator === 'string') {
-      return creator;
+
+  const leaveType = (() => {
+    if (activityDoc.get('template') !== 'leave') {
+      return '';
     }
 
-    return creator.phoneNumber;
+    return activityDoc.get('attachment.Leave Type.value');
   })();
 
   if (hasBeenCancelled) {
     return cancelLeaveOrAr({
-      phoneNumber,
       officeId,
       startTime,
       endTime,
       template,
-      // Used for storing the phone number of the person
-      // cancelling the leave/ar.
-      requestersPhoneNumber: conn.requester.phoneNumber,
+      creatorsPhoneNumber: activityDoc.get('creator.phoneNumber')
+        || activityDoc.get('creator'),
     });
   } else {
     return setOnLeaveOrAr({
-      phoneNumber,
       officeId,
       startTime,
       endTime,
       template,
+      leaveType,
+      timezone: activityDoc.get('timezone'),
       status: conn.req.body.status,
+      leaveReason: activityDoc.get('attachment.Reason.value'),
+      arReason: activityDoc.get('attachment.Reason.value'),
+      creatorsPhoneNumber: activityDoc.get('creator.phoneNumber')
+        || activityDoc.get('creator'),
       requestersPhoneNumber: conn.requester.phoneNumber,
     });
   }

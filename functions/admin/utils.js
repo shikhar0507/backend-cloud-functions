@@ -36,6 +36,7 @@ const {
   sendGridTemplateIds,
   reportNames,
   timezonesSet,
+  subcollectionNames,
 } = require('../admin/constants');
 const {
   alphabetsArray,
@@ -43,7 +44,7 @@ const {
 const crypto = require('crypto');
 const env = require('./env');
 const xlsxPopulate = require('xlsx-populate');
-const moment = require('moment-timezone');
+const momentTz = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
 const { execFile } = require('child_process');
 const admin = require('firebase-admin');
@@ -570,7 +571,7 @@ const getRelevantTime = schedule => {
 
   allSchedules.sort();
 
-  const closestTo = moment().valueOf();
+  const closestTo = momentTz().valueOf();
   let result = null;
 
   for (let i = 0; i <= allSchedules.length; i++) {
@@ -1047,7 +1048,7 @@ const getEmailStatusMap = () => {
 };
 
 const handleDailyStatusReport = toEmail => {
-  const momentYesterday = moment().subtract(1, 'day');
+  const momentYesterday = momentTz().subtract(1, 'day');
   const date = momentYesterday.format(dateFormats.DATE);
   const fileName = `Daily Status Report ${date}.xlsx`;
   const messageObject = {
@@ -1135,13 +1136,13 @@ const handleDailyStatusReport = toEmail => {
 
 
 const generateDates = (startTime, endTime) => {
-  const momentStart = moment(startTime);
-  const momentEnd = moment(endTime);
+  const momentStart = momentTz(startTime);
+  const momentEnd = momentTz(endTime);
   const numberOfDays = momentEnd.diff(momentStart, 'days');
   const dates = [];
 
   for (let i = 0; i <= numberOfDays; i++) {
-    const mm = moment(startTime).add(i, 'day');
+    const mm = momentTz(startTime).add(i, 'day');
     const value = mm.toDate().toDateString();
 
     dates.push(value);
@@ -1265,7 +1266,7 @@ const addEmployeeToRealtimeDb = async doc => {
 
           if (!startTime) return;
 
-          const formattedDate = moment(startTime)
+          const formattedDate = momentTz(startTime)
             .tz(timezone)
             .format(dateFormats.DATE);
 
@@ -1285,7 +1286,7 @@ const addEmployeeToRealtimeDb = async doc => {
       .where('template', '==', 'leave')
       .where('isCancelled', '==', false)
       .where('creator.phoneNumber', '==', phoneNumber)
-      .where('creationYear', '==', moment().tz(timezone).year())
+      .where('creationYear', '==', momentTz().tz(timezone).year())
       .get();
 
     leaves.forEach(doc => {
@@ -1691,8 +1692,6 @@ const getBranchName = addressComponents => {
 };
 
 const getUsersWithCheckIn = async officeId => {
-  const result = [];
-
   const checkInSubscriptions = await rootCollections
     .offices
     .doc(officeId)
@@ -1702,10 +1701,9 @@ const getUsersWithCheckIn = async officeId => {
     .where('status', '==', 'CONFIRMED')
     .get();
 
-  checkInSubscriptions
-    .forEach(doc => result.push(doc.get('attachment.Subscriber.value')));
-
-  return result;
+  return checkInSubscriptions
+    .docs
+    .map(doc => doc.get('attachment.Subscriber.value'));
 };
 
 const getAuth = async phoneNumber => {
@@ -1722,13 +1720,56 @@ const getAuth = async phoneNumber => {
     });
 };
 
+const findKeyByValue = (obj, value) =>
+  Object.keys(obj).find(key => obj[key] === value);
+
+
+const getNumbersbetween = (start, end) => {
+  return new Array(end - start)
+    .fill()
+    .map((d, i) => i + start);
+};
+
+const getAttendancesPath = params => {
+  const {
+    startTime,
+    endTime,
+    officeId,
+    phoneNumber,
+    collectionName,
+  } = params;
+  const now = momentTz(startTime)
+    .clone();
+  const end = momentTz(endTime);
+  const result = [];
+
+  while (now.isSameOrBefore(end)) {
+    const monthYearString = now
+      .format(dateFormats.MONTH_YEAR);
+
+    const ref = rootCollections
+      .offices
+      .doc(officeId)
+      .collection(collectionName || subcollectionNames.ATTENDANCES)
+      .doc(monthYearString)
+      .collection(phoneNumber)
+      .doc(`${now.date()}`);
+
+    result
+      .push(ref.get());
+
+    now
+      .add(1, 'day');
+  }
+
+  return result;
+};
+
 
 module.exports = {
   getAuth,
   slugify,
   sendSMS,
-  getBranchName,
-  millitaryToHourMinutes,
   sendJSON,
   isValidUrl,
   getFileHash,
@@ -1742,6 +1783,8 @@ module.exports = {
   generateDates,
   isValidBase64,
   isValidStatus,
+  getBranchName,
+  findKeyByValue,
   disableAccount,
   hasAdminClaims,
   getSearchables,
@@ -1751,15 +1794,17 @@ module.exports = {
   isValidGeopoint,
   multipartParser,
   hasSupportClaims,
+  isNonEmptyString,
+  cloudflareCdnUrl,
   adjustedGeopoint,
   filterPhoneNumber,
   getCustomerObject,
-  isNonEmptyString,
-  cloudflareCdnUrl,
   isE164PhoneNumber,
   addressToCustomer,
+  getNumbersbetween,
   getObjectFromSnap,
   hasSuperUserClaims,
+  getAttendancesPath,
   isValidCanEditRule,
   promisifiedRequest,
   getUsersWithCheckIn,
@@ -1767,6 +1812,7 @@ module.exports = {
   promisifiedExecFile,
   getRegistrationToken,
   replaceNonASCIIChars,
+  millitaryToHourMinutes,
   handleDailyStatusReport,
   hasManageTemplateClaims,
   addEmployeeToRealtimeDb,

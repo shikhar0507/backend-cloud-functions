@@ -11,22 +11,25 @@ const {
   reportNames,
   httpsActions,
   dateFormats,
+  subcollectionNames,
 } = require('../../admin/constants');
 const {
   getName,
   alphabetsArray,
   employeeInfo,
-  timeStringWithOffset,
   getUrl,
   getIdentifier,
 } = require('./report-utils');
 
 
 const isDiffLessThanFiveMinutes = (first, second) => {
-  if (!first || !second) return false;
+  if (!first || !second) {
+    return false;
+  }
 
   return Math.abs(momentTz(second).diff(first, 'minute')) < 5;
 };
+
 
 const getComment = doc => {
   if (doc.get('activityData.attachment.Comment.value')) {
@@ -106,6 +109,7 @@ const getComment = doc => {
   // action is 'comment'
   return doc.get('comment');
 };
+
 
 const handleScheduleReport = async (locals, workbook) => {
   const timestampFromTimer = locals
@@ -246,6 +250,8 @@ const handleScheduleReport = async (locals, workbook) => {
 
       index++;
     });
+
+  return;
 };
 
 
@@ -266,7 +272,6 @@ module.exports = async locals => {
   const dated = momentYesterday
     .format(dateFormats.DATE);
   const office = locals.officeDoc.get('office');
-  const dateYesterday = momentYesterday.date();
   const distanceMap = new Map();
   const prevTemplateForPersonMap = new Map();
   const prevDocTimestampMap = new Map();
@@ -283,28 +288,32 @@ module.exports = async locals => {
     onLeaveWeeklyOffHoliday: 0,
   };
 
-  const promises = [
-    xlsxPopulate
-      .fromBlankAsync(),
-    locals
-      .officeDoc
-      .ref
-      .collection('Addendum')
-      .where('date', '==', momentYesterday.date())
-      .where('month', '==', momentYesterday.month())
-      .where('year', '==', momentYesterday.year())
-      .orderBy('user')
-      .orderBy('timestamp')
-      .get()
-  ];
-
   try {
     const [
       workbook,
-      addendumDocsQueryResult,
-    ] = await Promise.all(promises);
+      addendumDocsQueryResult
+    ] = await Promise
+      .all([
+        xlsxPopulate
+          .fromBlankAsync(),
+        locals
+          .officeDoc
+          .ref
+          .collection('Addendum')
+          .where('date', '==', momentYesterday.date())
+          .where('month', '==', momentYesterday.month())
+          .where('year', '==', momentYesterday.year())
+          .orderBy('user')
+          .orderBy('timestamp')
+          .get()
+      ]);
 
-    const footprintsSheet = workbook.addSheet('Footprints');
+    if (addendumDocsQueryResult.empty) {
+      return;
+    }
+
+    const footprintsSheet = workbook
+      .addSheet('Footprints');
     /** Default sheet */
     workbook
       .deleteSheet('Sheet1');
@@ -332,161 +341,160 @@ module.exports = async locals => {
 
     let count = 0;
 
-    addendumDocsQueryResult.forEach(doc => {
-      const action = doc.get('action');
-      const columnIndex = count + 2;
-      const phoneNumber = doc.get('user');
-      const employeeObject = employeeInfo(locals.employeesData, phoneNumber);
+    addendumDocsQueryResult
+      .forEach(doc => {
+        const action = doc.get('action');
+        const columnIndex = count + 2;
+        const phoneNumber = doc.get('user');
+        const employeeObject = employeeInfo(locals.employeesData, phoneNumber);
 
-      const name = (() => {
-        if (doc.get('isSupportRequest')) {
-          return 'Growthfile Support';
-        }
+        const name = (() => {
+          if (doc.get('isSupportRequest')) {
+            return 'Growthfile Support';
+          }
 
-        if (employeeObject.name) {
-          return employeeObject.name;
-        }
+          return employeeObject.name
+            || doc.get('userDisplayName')
+            || '';
+        })();
 
-        return doc.get('userDisplayName') || '';
-      })();
+        const { department, baseLocation, employeeCode } = employeeObject;
+        const identifier = getIdentifier(doc);
+        const url = getUrl(doc);
+        const time = momentTz(doc.get('timestamp'))
+          .tz(timezone)
+          .format(dateFormats.TIME);
+        const distanceTravelled = (() => {
+          let value = Number(doc.get('distanceTravelled') || 0);
 
-      const { department, baseLocation, employeeCode } = employeeObject;
+          if (distanceMap.has(phoneNumber)) {
+            value += distanceMap
+              .get(phoneNumber);
+          } else {
+            // Distance starts with 0 for every person each day
+            value = 0;
+          }
 
-      const identifier = getIdentifier(doc);
-      const url = getUrl(doc);
-      const time = timeStringWithOffset({
-        timezone,
-        timestampToConvert: doc.get('timestamp'),
-      });
-      const distanceTravelled = (() => {
-        let value = Number(doc.get('distanceTravelled') || 0);
+          // Value in the map also needs to be updated otherwise
+          // it will always add only the last updated value on each iteration.
+          distanceMap
+            .set(
+              phoneNumber,
+              value
+            );
 
-        if (distanceMap.has(phoneNumber)) {
-          value += distanceMap.get(phoneNumber);
-        } else {
-          // Distance starts with 0 for every person each day
-          value = 0;
-        }
+          return value
+            .toFixed(2);
+        })();
 
-        // Value in the map also needs to be updated otherwise
-        // it will always add only the last updated value on each iteration.
-        distanceMap
-          .set(
-            phoneNumber,
-            value
-          );
-
-        return value
-          .toFixed(2);
-      })();
-
-      const template = doc.get('activityData.template');
-      const prevTemplateForPerson = prevTemplateForPersonMap.get(phoneNumber);
-      const prevDocTimestamp = prevDocTimestampMap
-        .get(phoneNumber);
-      const timestampDiffLessThanFiveMinutes = isDiffLessThanFiveMinutes(
-        prevDocTimestamp,
-        doc.get('timestamp')
-      );
-      const distanceFromPrevious = Math
-        .floor(
-          Number(doc.get('distanceTravelled') || 0)
-        );
-
-      if (action == httpsActions.create) {
-        counterObject.activitiesCreated++;
-      }
-
-      /**
-       * Checkins from the same location within 5 minutes are merged into
-       * a single line. Only the first occurrence of the event is logged
-       * in the excel file. All subsequent items are glossed over.
-       */
-      if (template === 'check-in'
-        && prevTemplateForPerson === 'check-in'
-        && timestampDiffLessThanFiveMinutes
-        && distanceFromPrevious === 0) {
-        return;
-      }
-
-      if (doc.get('action')
-        === httpsActions.checkIn) {
-        return;
-      }
-
-      count++;
-
-      prevTemplateForPersonMap
-        .set(
-          phoneNumber,
-          template
-        );
-      prevDocTimestampMap
-        .set(
-          phoneNumber,
+        const template = doc.get('activityData.template');
+        const prevTemplateForPerson = prevTemplateForPersonMap.get(phoneNumber);
+        const prevDocTimestamp = prevDocTimestampMap
+          .get(phoneNumber);
+        const timestampDiffLessThanFiveMinutes = isDiffLessThanFiveMinutes(
+          prevDocTimestamp,
           doc.get('timestamp')
         );
+        const distanceFromPrevious = Math
+          .floor(
+            Number(doc.get('distanceTravelled') || 0)
+          );
 
-      footprintsSheet
-        .cell(`A${columnIndex}`)
-        .value(dated);
-      footprintsSheet
-        .cell(`B${columnIndex}`)
-        .value(name);
-      footprintsSheet
-        .cell(`C${columnIndex}`)
-        .value(phoneNumber);
-      footprintsSheet
-        .cell(`D${columnIndex}`)
-        .value(employeeCode);
-      footprintsSheet
-        .cell(`E${columnIndex}`)
-        .value(time);
-      footprintsSheet
-        .cell(`F${columnIndex}`)
-        .value(distanceTravelled);
+        if (action == httpsActions.create) {
+          counterObject
+            .activitiesCreated++;
+        }
 
-      if (identifier && url) {
+        /**
+         * Checkins from the same location within 5 minutes are merged into
+         * a single line. Only the first occurrence of the event is logged
+         * in the excel file. All subsequent items are glossed over.
+         */
+        if (template === 'check-in'
+          && prevTemplateForPerson === 'check-in'
+          && timestampDiffLessThanFiveMinutes
+          && distanceFromPrevious === 0) {
+          return;
+        }
+
+        if (doc.get('action')
+          === httpsActions.checkIn) {
+          return;
+        }
+
+        count++;
+
+        prevTemplateForPersonMap
+          .set(
+            phoneNumber,
+            template
+          );
+        prevDocTimestampMap
+          .set(
+            phoneNumber,
+            doc.get('timestamp')
+          );
+
         footprintsSheet
-          .cell(`G${columnIndex}`)
-          .value(identifier)
-          .style({ fontColor: '0563C1', underline: true })
-          .hyperlink(url);
-      } else {
+          .cell(`A${columnIndex}`)
+          .value(dated);
         footprintsSheet
-          .cell(`G${columnIndex}`)
-          .value('');
-      }
-
-      const comment = getComment(doc);
-
-      if (template === 'check-in'
-        && doc.get('activityData.attachment.Photo.value').startsWith('http')) {
+          .cell(`B${columnIndex}`)
+          .value(name);
         footprintsSheet
-          .cell(`H${columnIndex}`)
-          .value(comment)
-          .style({ fontColor: '0563C1', underline: true })
-          .hyperlink(doc.get('activityData.attachment.Photo.value'));
-      } else {
+          .cell(`C${columnIndex}`)
+          .value(phoneNumber);
         footprintsSheet
-          .cell(`H${columnIndex}`)
-          .value(comment);
-      }
+          .cell(`D${columnIndex}`)
+          .value(employeeCode);
+        footprintsSheet
+          .cell(`E${columnIndex}`)
+          .value(time);
+        footprintsSheet
+          .cell(`F${columnIndex}`)
+          .value(distanceTravelled);
 
-      footprintsSheet
-        .cell(`I${columnIndex}`)
-        .value(department);
-      footprintsSheet
-        .cell(`J${columnIndex}`)
-        .value(baseLocation);
-    });
+        if (identifier && url) {
+          footprintsSheet
+            .cell(`G${columnIndex}`)
+            .value(identifier)
+            .style({ fontColor: '0563C1', underline: true })
+            .hyperlink(url);
+        } else {
+          footprintsSheet
+            .cell(`G${columnIndex}`)
+            .value('');
+        }
+
+        const comment = getComment(doc);
+
+        if (template === 'check-in'
+          && doc.get('activityData.attachment.Photo.value').startsWith('http')) {
+          footprintsSheet
+            .cell(`H${columnIndex}`)
+            .value(comment)
+            .style({ fontColor: '0563C1', underline: true })
+            .hyperlink(doc.get('activityData.attachment.Photo.value'));
+        } else {
+          footprintsSheet
+            .cell(`H${columnIndex}`)
+            .value(comment);
+        }
+
+        footprintsSheet
+          .cell(`I${columnIndex}`)
+          .value(department);
+        footprintsSheet
+          .cell(`J${columnIndex}`)
+          .value(baseLocation);
+      });
 
     counterObject
       .active = distanceMap.size;
     counterObject
       .notActive = counterObject.totalUsers - counterObject.active;
 
-    const numberOfDocs = employeePhoneNumbersArray.length;
+    const numberOfDocs = distanceMap.size;
     const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
     const numberOfBatches = Math
       .round(
@@ -496,24 +504,32 @@ module.exports = async locals => {
     const batchArray = Array
       .from(Array(numberOfBatches)).map(() => db.batch());
 
+    console.log('numberOfBatches', numberOfBatches);
+    console.log('batchArray', batchArray.length);
+
     let batchIndex = 0;
     let docsCounter = 0;
 
-    employeePhoneNumbersArray
-      .forEach(phoneNumber => {
-        const { hasInstalled } = locals.employeesData[phoneNumber];
+    distanceMap
+      .forEach((distanceTravelled, phoneNumber) => {
+        const {
+          hasInstalled
+        } = locals
+          .employeesData[phoneNumber] || {};
 
         if (!hasInstalled) {
-          counterObject.notInstalled++;
+          counterObject
+            .notInstalled++;
         }
 
         const ref = locals
           .officeDoc
           .ref
-          .collection('Statuses')
+          .collection(subcollectionNames.ATTENDANCES)
           .doc(monthYearString)
-          .collection('Employees')
-          .doc(phoneNumber);
+          .collection(phoneNumber)
+          // Path requires a string
+          .doc(`${momentYesterday.date()}`);
 
         if (docsCounter > 499) {
           docsCounter = 0;
@@ -522,17 +538,11 @@ module.exports = async locals => {
 
         docsCounter++;
 
-        const update = {
-          statusObject: {
-            [dateYesterday]: {
-              distanceTravelled: distanceMap.get(phoneNumber) || 0,
-            },
-          },
-        };
+        const update = { phoneNumber, distanceTravelled };
 
-        batchArray[batchIndex].set(ref, update, {
-          merge: true,
-        });
+        batchArray[
+          batchIndex
+        ].set(ref, update, { merge: true });
       });
 
     await Promise
@@ -568,11 +578,7 @@ module.exports = async locals => {
       .sgMail
       .sendMultiple(locals.messageObject);
 
-    const todayFromTimer = locals
-      .change
-      .after
-      .get('timestamp');
-    const momentFromTimer = momentTz(todayFromTimer)
+    const momentFromTimer = momentTz(timestampFromTimer)
       .tz(timezone)
       .startOf('day');
     const isDateToday = momentToday
@@ -594,9 +600,14 @@ module.exports = async locals => {
       .limit(1)
       .get();
 
-    const doc = dailyStatusDocsQueryResult.docs[0];
-    const oldCountsObject = doc.get('countsObject') || {};
-    oldCountsObject[office] = counterObject;
+    const doc = dailyStatusDocsQueryResult
+      .docs[0];
+    const oldCountsObject = doc
+      .get('countsObject') || {};
+
+    oldCountsObject[
+      office
+    ] = counterObject;
 
     return doc
       .ref

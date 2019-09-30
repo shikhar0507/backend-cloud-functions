@@ -86,6 +86,7 @@ module.exports = async locals => {
     'Product Specialization',
     'Maximum Advance Amount Given',
     'Employee Code',
+    'Region',
   ].forEach((field, index) => {
     employeesSheet
       .cell(`${alphabetsArray[index]}1`)
@@ -119,6 +120,7 @@ module.exports = async locals => {
         locals.employeesData[phoneNumber]['Product Specialization'],
         locals.employeesData[phoneNumber]['Maximum Advance Amount Given'],
         locals.employeesData[phoneNumber]['Employee Code'],
+        locals.employeesData[phoneNumber].Region,
       ].forEach((value, innerIndex) => {
         employeesSheet
           .cell(`${alphabetsArray[innerIndex]}${outerIndex + 2}`)
