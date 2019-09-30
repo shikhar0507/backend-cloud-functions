@@ -1,6 +1,6 @@
 'use strict';
 
-const momentz = require('moment-timezone');
+const momentTz = require('moment-timezone');
 const {
   dateFormats,
   allMonths,
@@ -25,13 +25,13 @@ const env = require('../../admin/env');
 
 const getDetails = (el, timezone) => {
   if (el.onAr) {
-    let result = `${momentz(el.arStartTime).tz(timezone).format(dateFormats.DATE)}`
+    let result = `${momentTz(el.arStartTime).tz(timezone).format(dateFormats.DATE)}`
       + ` ${el.arStatus || ''}`
-      +`, `
-      +`${el.arReason||''}`;
+      + `, `
+      + `${el.arReason || ''}`;
 
     if (el.arApprovedOn) {
-      result += ` ${momentz(el.arApprovedOn).tz(timezone).format(dateFormats.DATE)}`;
+      result += ` ${momentTz(el.arApprovedOn).tz(timezone).format(dateFormats.DATE)}`;
 
       result += ` ${el.arApprovedBy}`;
     }
@@ -40,12 +40,17 @@ const getDetails = (el, timezone) => {
   }
 
   if (el.onLeave) {
-    let result = `${momentz(el.leaveStartTime).format(dateFormats.DATE)}`
-      + ` ${el.leaveStatus || ''}`;
+    let result = `${momentTz(el.leaveStartTime).format(dateFormats.DATE)}`;
+
+    if (el.leaveStatus) {
+      result += ` ${el.leaveStatus || ''}`;
+    }
 
     if (el.leaveApprovedOn) {
-      result += ` ${momentz(el.leaveApprovedOn).tz(timezone).format(dateFormats.DATE)}`;
+      result += ` ${momentTz(el.leaveApprovedOn).tz(timezone).format(dateFormats.DATE)}`;
+    }
 
+    if (el.leaveApprovedBy) {
       result += ` ${el.leaveApprovedBy}`;
     }
 
@@ -61,9 +66,9 @@ const getDetails = (el, timezone) => {
     return ``;
   }
 
-  return `${momentz(el.firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
+  return `${momentTz(el.firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
     + ` to`
-    + ` ${momentz(el.lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)},`
+    + ` ${momentTz(el.lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)},`
     + ` ${el.numberOfCheckIns || 0}`;
 };
 
@@ -105,7 +110,7 @@ const getSignUpDate = params => {
     return '';
   }
 
-  const createTime = momentz(employeesData[phoneNumber].createTime)
+  const createTime = momentTz(employeesData[phoneNumber].createTime)
     .tz(timezone);
 
   if (yesterdaysMonth === createTime.month()) {
@@ -125,7 +130,7 @@ module.exports = async locals => {
   const timezone = locals
     .officeDoc
     .get('attachment.Timezone.value');
-  const momentToday = momentz(timestampFromTimer)
+  const momentToday = momentTz(timestampFromTimer)
     .tz(timezone);
   const momentYesterday = momentToday
     .clone()
@@ -146,11 +151,15 @@ module.exports = async locals => {
   const payrollSheet = workbook
     .addSheet(`Payroll ${momentToday.format(dateFormats.DATE)}`);
 
+  workbook
+    .deleteSheet('Sheet1');
+
   /**
    * Report was triggered by Timer, so updating
    * Holiday and Weekly Off list,
    */
-  const writeAttendanceDocs = momentz().date() === momentToday.date();
+  const writeAttendanceDocs = momentTz().date() === momentToday.date();
+  const attendanceUpdatesRefMap = new Map();
   const attendanceDocPromises = [];
   const weeklyOffSet = new Set();
   const holidaySet = new Set();
@@ -162,13 +171,44 @@ module.exports = async locals => {
   const arCountMap = new Map();
   const allStatusObjects = new Map();
   const allPhoneNumbers = new Set();
-  const attendanceUpdatesRefMap = new Map();
   const newStatusMap = new Map();
   const uidsMap = new Map();
   let allLeaveTypes = new Set();
 
-  workbook
-    .deleteSheet('Sheet1');
+  const totalDays = (() => {
+    // number of days for which the data is being sent for
+    if (fetchPreviousMonthDocs) {
+      const momentPrevMonth = momentYesterday
+        .clone()
+        .subtract(1, 'month')
+        .date(firstDayOfMonthlyCycle);
+
+      return momentPrevMonth
+        .diff(momentYesterday, 'diff');
+    }
+
+    return momentYesterday
+      .diff(momentYesterday.clone().date(firstDayOfMonthlyCycle), 'days');
+  })() + 1;
+
+  console.log('totalDays', totalDays);
+
+  const firstRange = (() => {
+    if (fetchPreviousMonthDocs) {
+      return getNumbersbetween(
+        firstDayOfMonthlyCycle,
+        cycleEndMoment.clone().endOf('month').date() + 1,
+      );
+    }
+
+    return [];
+  })();
+  const secondRange = getNumbersbetween(
+    firstDayOfMonthlyCycle,
+    cycleEndMoment.clone().date() + 1,
+  );
+
+  console.log(JSON.stringify({ firstRange, secondRange }, ' ', 2));
 
   [
     'Employee Name',
@@ -209,20 +249,7 @@ module.exports = async locals => {
       }
     });
 
-  const firstRange = (() => {
-    if (fetchPreviousMonthDocs) {
-      return getNumbersbetween(
-        firstDayOfMonthlyCycle,
-        cycleEndMoment.clone().endOf('month').date() + 1,
-      );
-    }
-
-    return [];
-  })();
-  const secondRange = getNumbersbetween(
-    firstDayOfMonthlyCycle,
-    cycleEndMoment.clone().date() + 1,
-  );
+  console.log('fetching collectionsForYesterdaysMonth');
 
   const collectionsForYesterdaysMonth = await locals
     .officeDoc
@@ -231,20 +258,25 @@ module.exports = async locals => {
     .doc(momentYesterday.format(dateFormats.MONTH_YEAR))
     .listCollections();
 
+  console.log('fetched collectionsForYesterdaysMonth');
+
   collectionsForYesterdaysMonth
     .forEach(collRef => {
       secondRange
         .forEach(date => {
+          const promise = collRef
+            .doc(`${date}`)
+            .get();
+
           attendanceDocPromises
-            .push(
-              collRef
-                .doc(`${date}`)
-                .get()
-            );
+            .push(promise);
         });
     });
 
+
   if (fetchPreviousMonthDocs) {
+    console.log('fetching collectionsForPrevMonths');
+
     const collectionsForPrevMonths = await locals
       .officeDoc
       .ref
@@ -252,36 +284,28 @@ module.exports = async locals => {
       .doc(momentPrevMonth.format(dateFormats.MONTH_YEAR))
       .listCollections();
 
+    console.log('fetched collectionsForPrevMonths');
+
     collectionsForPrevMonths
       .forEach(colRef => {
         firstRange
           .forEach(date => {
+            const promise = colRef
+              .doc(`${date}`)
+              .get();
+
             attendanceDocPromises
-              .push(colRef
-                .doc(`${date}`)
-                .get());
+              .push(promise);
           });
       });
   }
 
-  const totalDays = (() => {
-    // number of days for which the data is being sent for
-    if (fetchPreviousMonthDocs) {
-      const momentPrevMonth = momentYesterday
-        .clone()
-        .subtract(1, 'month')
-        .date(firstDayOfMonthlyCycle);
-
-      return momentPrevMonth
-        .diff(momentYesterday, 'diff');
-    }
-
-    return momentYesterday
-      .diff(momentYesterday.clone().date(firstDayOfMonthlyCycle), 'days');
-  })() + 1;
+  console.log('fetching attendanceSnapshots', attendanceDocPromises.length);
 
   const attendanceSnapshots = await Promise
     .all(attendanceDocPromises);
+
+  console.log('fetching attendanceSnapshots');
 
   attendanceSnapshots
     .forEach(doc => {
@@ -290,10 +314,10 @@ module.exports = async locals => {
       const date = Number(doc.id);
       const [
         monthString,
-      ] = parts[3].split(' ');
+      ] = parts[3]
+        .split(' ');
       const month = allMonths[monthString];
       const phoneNumber = parts[4];
-
       const id = `${date}_${month}_${phoneNumber}`;
       const data = doc.data() || {};
 
@@ -367,42 +391,23 @@ module.exports = async locals => {
 
   allPhoneNumbers
     .forEach(phoneNumber => {
-      const updatesFetch = rootCollections
-        .updates
-        .where('phoneNumber', '==', phoneNumber)
-        .limit(1)
-        .get();
-
-      authFetchPromises
-        .push(updatesFetch);
-
       const rangeCallback = (date, moment) => {
         const month = moment.month();
         const year = moment.year();
         const id = `${date}_${month}_${phoneNumber}`;
         const el = allStatusObjects.get(id) || {};
-
-        if (momentYesterday.date() === date
+        const isYesterday = momentYesterday.date() === date
           && momentYesterday.month() === month
-          && momentYesterday.year()
+          && momentYesterday.year();
+
+        if (isYesterday
           && locals.employeesData[phoneNumber]) {
           const interm = getStatusForDay({
             numberOfCheckIns: el.numberOfCheckIns || 0,
             minimumDailyActivityCount: locals.employeesData[phoneNumber]['Minimum Daily Activity Count'],
             minimumWorkingHours: locals.employeesData[phoneNumber]['Minimum Working Hours'],
-            hoursWorked: momentz(el.lastCheckInTimestamp).diff(momentz(el.firstCheckInTimestamp), 'hours'),
+            hoursWorked: momentTz(el.lastCheckInTimestamp).diff(momentTz(el.firstCheckInTimestamp), 'hours'),
           });
-
-          if (holidaySet.has(phoneNumber)
-            || weeklyOffSet.has(phoneNumber)) {
-            el
-              .statusForDay = 1;
-
-            if (locals.employeesData[phoneNumber]) {
-              el
-                .branchName = locals.employeesData[phoneNumber]['Base Location'];
-            }
-          }
 
           if (typeof interm === 'number'
             && el.firstCheckInTimestamp) {
@@ -411,6 +416,17 @@ module.exports = async locals => {
 
             newStatusMap
               .set(phoneNumber, interm);
+          }
+        }
+
+        if (holidaySet.has(phoneNumber)
+          || weeklyOffSet.has(phoneNumber)) {
+          el
+            .statusForDay = 1;
+
+          if (locals.employeesData[phoneNumber]) {
+            el
+              .branchName = locals.employeesData[phoneNumber]['Base Location'];
           }
         }
 
@@ -429,7 +445,7 @@ module.exports = async locals => {
           getFieldValue(locals.employeesData, phoneNumber, 'Base Location'),
           getFieldValue(locals.employeesData, phoneNumber, 'Region'),
           getFieldValue(locals.employeesData, phoneNumber, 'Department'),
-          momentz().date(date).month(month).year(year).format(dateFormats.DATE),
+          momentTz().date(date).month(month).year(year).format(dateFormats.DATE),
           getSignUpDate({
             timezone,
             phoneNumber,
@@ -473,10 +489,23 @@ module.exports = async locals => {
         .forEach(date => {
           rangeCallback(date, momentYesterday.clone());
         });
+
+      const updatesFetch = rootCollections
+        .updates
+        .where('phoneNumber', '==', phoneNumber)
+        .limit(1)
+        .get();
+
+      authFetchPromises
+        .push(updatesFetch);
     });
+
+  console.log('fetching updateDocsSnaps');
 
   const updateDocsSnaps = await Promise
     .all(authFetchPromises);
+
+  console.log('fetched updateDocsSnaps');
 
   updateDocsSnaps
     .forEach(snap => {
@@ -486,6 +515,7 @@ module.exports = async locals => {
 
       const doc = snap.docs[0];
       const phoneNumber = doc.get('phoneNumber');
+
       uidsMap
         .set(phoneNumber, doc.id);
     });
@@ -585,7 +615,7 @@ module.exports = async locals => {
    */
   allLeaveTypes = [...allLeaveTypes.values()];
 
-  const summarySheetHeaders = [
+  [
     'Employee Name',
     'Employee Contact',
     'Employee Code',
@@ -599,14 +629,11 @@ module.exports = async locals => {
     'Total Days',
     'Payable Days',
     ...allLeaveTypes,
-  ];
-
-  summarySheetHeaders
-    .forEach((value, index) => {
-      payrollSummary
-        .cell(`${alphabetsArray[index]}1`)
-        .value(value);
-    });
+  ].forEach((value, index) => {
+    payrollSummary
+      .cell(`${alphabetsArray[index]}1`)
+      .value(value);
+  });
 
   let summaryRowIndex = 0;
 
