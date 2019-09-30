@@ -41,6 +41,7 @@ const {
   validateVenues,
   forSalesReport,
   getCanEditValue,
+  haversineDistance,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
@@ -112,8 +113,6 @@ const getClaimStatus = async params => {
     monthlyLimit,
     claimsThisMonth: claimsThisMonth.getAmount(),
   };
-
-  console.log(JSON.stringify(o, ' ', 2));
 
   return o;
 };
@@ -501,6 +500,147 @@ const handlePayroll = async (conn, locals) => {
   return handleLeaveOrOnDuty(conn, locals);
 };
 
+const handleCheckIn = async (conn, locals) => {
+  if (conn.req.body.template !== 'check-in') {
+    return;
+  }
+
+  const prevAddendum = await rootCollections
+    .offices
+    .doc(locals.officeDoc.id)
+    .collection('Addendum')
+    .where('user', '==', conn.requester.phoneNumber)
+    .orderBy('timestamp', 'desc')
+    .limit(2)
+    .get();
+
+  if (prevAddendum.empty) {
+    return;
+  }
+
+  console.log('prevAddendum', prevAddendum.size);
+
+  const prevGeopoint = prevAddendum.docs[0].get('location');
+
+  if (!prevGeopoint) {
+    return;
+  }
+
+  const currGeopoint = {
+    _latitude: conn.req.body.geopoint.latitude,
+    _longitude: conn.req.body.geopoint.longitude,
+  };
+
+  const distance = haversineDistance(prevGeopoint, currGeopoint);
+  const currTimestamp = conn.req.body.timestamp;
+  // const currTimestamp = Date.now();
+  const prevTimestamp = prevAddendum
+    .docs[0]
+    .get('timestamp');
+  const hours = momentTz(currTimestamp)
+    .diff(prevTimestamp, 'hours', true);
+
+  // units KM/Hours
+  const speed = distance / hours;
+
+  const o = {
+    speed,
+    distance,
+    hours,
+    currTimestamp,
+    prevTimestamp,
+    currGeopoint,
+    prevGeopoint,
+  };
+
+  console.log(JSON.stringify(o, ' ', 2));
+
+  if (speed > 40) {
+    locals
+      .static
+      .statusOnCreate = 'CANCELLED';
+
+    locals
+      .cancellationMessage = `Invalid Check-in.`
+      + ` Please create another one.`;
+    const momentNow = momentTz();
+    const date = momentNow.date();
+    const month = momentNow.month();
+    const year = momentNow.year();
+    const logTag = 'Cancelled Check-in';
+    const logsQueryResult = await rootCollections
+      .errors
+      .where('message', '==', logTag)
+      .where('date', '==', date)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .limit(1)
+      .get();
+
+    const data = (() => {
+      if (logsQueryResult.empty) {
+        return {
+          date,
+          month,
+          year,
+          message: logTag,
+        };
+      }
+
+      return logsQueryResult
+        .docs[0]
+        .data();
+    })();
+
+    data
+      .affectedUsers = data.affectedUsers || {};
+
+    data
+      .affectedUsers[
+      conn.requester.phoneNumber
+    ] = data.affectedUsers[conn.requester.phoneNumber] || 0;
+
+    data
+      .affectedUsers[conn.requester.phoneNumber]++;
+    data
+      .bodyObject = data.bodyObject || {};
+
+    data
+      .bodyObject[
+      conn.requester.phoneNumber
+    ] = data.bodyObject[conn.requester.phoneNumber] || [];
+
+    data
+      .bodyObject[
+      conn.requester.phoneNumber
+    ].push({
+      timestamp: new Date().toUTCString(),
+      activityId: locals.static.activityId,
+    });
+
+    data
+      .deviceObject = data.deviceObject || {};
+
+    const ref = (() => {
+      if (logsQueryResult.empty) {
+        return rootCollections.errors.doc();
+      }
+
+      return logsQueryResult.docs[0].ref;
+    })();
+
+    console.log('writing logs', ref);
+
+    locals
+      .batch
+      .set(ref, data, {
+        merge: true,
+      });
+  }
+
+  return;
+};
+
 
 const handleAssignees = async (conn, locals) => {
   if (locals.objects.allPhoneNumbers.size === 0) {
@@ -608,6 +748,8 @@ const handleAssignees = async (conn, locals) => {
     }
   }
 
+  // await handleCheckIn(conn, locals);
+
   return handlePayroll(conn, locals);
 };
 
@@ -657,9 +799,6 @@ const handleClaims = async (conn, locals) => {
 
 const resolveQuerySnapshotShouldNotExistPromises = async (conn, locals, result) => {
   const snapShots = await Promise.all(result.querySnapshotShouldNotExist);
-
-  console.log('resolveQuerySnapshotShouldNotExistPromises');
-
   let successful = true;
   let message = null;
 
@@ -667,8 +806,6 @@ const resolveQuerySnapshotShouldNotExistPromises = async (conn, locals, result) 
     const filters = snapShot.query._queryOptions.fieldFilters;
     const value = filters[0].value;
     const type = filters[1].value;
-
-    console.log(value, type, snapShot.size);
 
     if (!snapShot.empty) {
       successful = false;
@@ -1006,7 +1143,7 @@ const createLocals = (conn, result) => {
 };
 
 
-module.exports = conn => {
+module.exports = async conn => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
       conn,
@@ -1062,8 +1199,11 @@ module.exports = conn => {
       );
   }
 
-  return Promise
-    .all(promises)
-    .then(result => createLocals(conn, result))
-    .catch(error => handleError(conn, error));
+  try {
+    const result = await Promise
+      .all(promises);
+    return createLocals(conn, result);
+  } catch (error) {
+    return handleError(conn, error);
+  }
 };
