@@ -288,6 +288,11 @@ const getStatusObject = async params => {
 
           data.date = data.date || Number(doc.id);
 
+          if (data.hasOwnProperty('statusForDay')) {
+            data
+              .attendance = data.statusForDay;
+          }
+
           result
             .push(data);
         });
