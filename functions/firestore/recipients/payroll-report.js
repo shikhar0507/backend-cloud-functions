@@ -159,10 +159,8 @@ module.exports = async locals => {
    * Holiday and Weekly Off list,
    */
   const writeAttendanceDocs = momentTz().date() === momentToday.date();
-  const attendanceUpdatesRefMap = new Map();
-  const attendanceDocPromises = [];
-  const weeklyOffSet = new Set();
   const holidaySet = new Set();
+  const weeklyOffSet = new Set();
   const weeklyOffCountMap = new Map();
   const holidayCountMap = new Map();
   const leaveTypesMap = new Map();
@@ -172,7 +170,7 @@ module.exports = async locals => {
   const allStatusObjects = new Map();
   const allPhoneNumbers = new Set();
   const newStatusMap = new Map();
-  const uidsMap = new Map();
+  const attendanceUpdatesRefMap = new Map();
   let allLeaveTypes = new Set();
 
   const totalDays = (() => {
@@ -191,8 +189,6 @@ module.exports = async locals => {
       .diff(momentYesterday.clone().date(firstDayOfMonthlyCycle), 'days');
   })() + 1;
 
-  console.log('totalDays', totalDays);
-
   const firstRange = (() => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
@@ -207,8 +203,6 @@ module.exports = async locals => {
     firstDayOfMonthlyCycle,
     cycleEndMoment.clone().date() + 1,
   );
-
-  console.log(JSON.stringify({ firstRange, secondRange }, ' ', 2));
 
   [
     'Employee Name',
@@ -249,7 +243,7 @@ module.exports = async locals => {
       }
     });
 
-  console.log('fetching collectionsForYesterdaysMonth');
+  const attendanceDocRefs = [];
 
   const collectionsForYesterdaysMonth = await locals
     .officeDoc
@@ -258,25 +252,17 @@ module.exports = async locals => {
     .doc(momentYesterday.format(dateFormats.MONTH_YEAR))
     .listCollections();
 
-  console.log('fetched collectionsForYesterdaysMonth');
-
   collectionsForYesterdaysMonth
     .forEach(collRef => {
       secondRange
         .forEach(date => {
-          const promise = collRef
-            .doc(`${date}`)
-            .get();
-
-          attendanceDocPromises
-            .push(promise);
+          attendanceDocRefs
+            .push(collRef.doc(`${date}`));
         });
     });
 
 
   if (fetchPreviousMonthDocs) {
-    console.log('fetching collectionsForPrevMonths');
-
     const collectionsForPrevMonths = await locals
       .officeDoc
       .ref
@@ -284,28 +270,16 @@ module.exports = async locals => {
       .doc(momentPrevMonth.format(dateFormats.MONTH_YEAR))
       .listCollections();
 
-    console.log('fetched collectionsForPrevMonths');
-
     collectionsForPrevMonths
       .forEach(colRef => {
         firstRange
           .forEach(date => {
-            const promise = colRef
-              .doc(`${date}`)
-              .get();
-
-            attendanceDocPromises
-              .push(promise);
+            attendanceDocRefs.push(colRef.doc(`${date}`));
           });
       });
   }
 
-  console.log('fetching attendanceSnapshots', attendanceDocPromises.length);
-
-  const attendanceSnapshots = await Promise
-    .all(attendanceDocPromises);
-
-  console.log('fetching attendanceSnapshots');
+  const attendanceSnapshots = await db.getAll(...attendanceDocRefs);
 
   attendanceSnapshots
     .forEach(doc => {
@@ -500,28 +474,8 @@ module.exports = async locals => {
         .push(updatesFetch);
     });
 
-  console.log('fetching updateDocsSnaps');
-
-  const updateDocsSnaps = await Promise
-    .all(authFetchPromises);
-
-  console.log('fetched updateDocsSnaps');
-
-  updateDocsSnaps
-    .forEach(snap => {
-      if (snap.empty) {
-        return;
-      }
-
-      const doc = snap.docs[0];
-      const phoneNumber = doc.get('phoneNumber');
-
-      uidsMap
-        .set(phoneNumber, doc.id);
-    });
-
   if (writeAttendanceDocs) {
-    const numberOfDocs = allPhoneNumbers.size + uidsMap.size;
+    const numberOfDocs = allPhoneNumbers.size;
     const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
     const numberOfBatches = Math
       .round(
@@ -538,7 +492,7 @@ module.exports = async locals => {
      * two docs in a single batch, so some batches might get 501 docs
      * in a single instance. 498 updates at once fixes this issue.
      */
-    const MAX_UPDATES = 498;
+    const MAX_UPDATES = 499;
 
     allPhoneNumbers
       .forEach(phoneNumber => {
@@ -551,7 +505,7 @@ module.exports = async locals => {
           return locals
             .officeDoc
             .ref
-            .collection('Attendances')
+            .collection(subcollectionNames.ATTENDANCES)
             .doc(momentYesterday.format(dateFormats.MONTH_YEAR))
             .collection(phoneNumber)
             .doc(`${momentYesterday.date()}`);
@@ -581,19 +535,6 @@ module.exports = async locals => {
         if (locals.employeesData[phoneNumber]) {
           update
             .branchName = locals.employeesData[phoneNumber]['Base Location'];
-        }
-
-        if (uidsMap.has(phoneNumber)) {
-          const uid = uidsMap.get(phoneNumber);
-
-          docsCounter++;
-
-          batch
-            .set(rootCollections.updates.doc(uid), {
-              lastStatusDocUpdateTimestamp: Date.now()
-            }, {
-              merge: true,
-            });
         }
 
         docsCounter++;
