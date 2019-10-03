@@ -189,7 +189,7 @@ const handleAdmin = async locals => {
 
 
 const createAdmin = async (locals, adminContact) => {
-  if (!adminContact) {
+  if (!adminContact || !locals.addendumDoc) {
     return;
   }
 
