@@ -158,8 +158,7 @@ module.exports = async locals => {
    * Report was triggered by Timer, so updating
    * Holiday and Weekly Off list,
    */
-  // const writeAttendanceDocs = momentTz().date() === momentToday.date();
-  const writeAttendanceDocs = false;
+  const writeAttendanceDocs = momentTz().date() === momentToday.date();
   const holidaySet = new Set();
   const weeklyOffSet = new Set();
   const weeklyOffCountMap = new Map();
@@ -283,7 +282,8 @@ module.exports = async locals => {
       });
   }
 
-  const attendanceSnapshots = await db.getAll(...attendanceDocRefs);
+  const attendanceSnapshots = await db
+    .getAll(...attendanceDocRefs);
 
   attendanceSnapshots
     .forEach(doc => {
@@ -406,6 +406,12 @@ module.exports = async locals => {
             el
               .branchName = locals.employeesData[phoneNumber]['Base Location'];
           }
+        }
+
+        if (el.onAr
+          || el.onLeave) {
+          el
+            .statusForDay = 1;
         }
 
         if (el.hasOwnProperty('statusForDay')) {
