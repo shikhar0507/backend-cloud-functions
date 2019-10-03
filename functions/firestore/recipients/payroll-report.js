@@ -158,7 +158,8 @@ module.exports = async locals => {
    * Report was triggered by Timer, so updating
    * Holiday and Weekly Off list,
    */
-  const writeAttendanceDocs = momentTz().date() === momentToday.date();
+  // const writeAttendanceDocs = momentTz().date() === momentToday.date();
+  const writeAttendanceDocs = false;
   const holidaySet = new Set();
   const weeklyOffSet = new Set();
   const weeklyOffCountMap = new Map();
@@ -181,26 +182,29 @@ module.exports = async locals => {
         .subtract(1, 'month')
         .date(firstDayOfMonthlyCycle);
 
-      return momentPrevMonth
-        .diff(momentYesterday, 'diff');
+      return momentYesterday
+        .diff(momentPrevMonth, 'days');
     }
 
     return momentYesterday
       .diff(momentYesterday.clone().date(firstDayOfMonthlyCycle), 'days');
   })() + 1;
 
+  /** Dates for previous month */
   const firstRange = (() => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
         firstDayOfMonthlyCycle,
-        cycleEndMoment.clone().endOf('month').date() + 1,
+        cycleEndMoment.clone().endOf('month').date(),
       );
     }
 
     return [];
   })();
+
+  /** Dates for current month */
   const secondRange = getNumbersbetween(
-    firstDayOfMonthlyCycle,
+    1,
     cycleEndMoment.clone().date() + 1,
   );
 
