@@ -533,7 +533,6 @@ const handleCheckIn = async (conn, locals) => {
 
   const distance = haversineDistance(prevGeopoint, currGeopoint);
   const currTimestamp = conn.req.body.timestamp;
-  // const currTimestamp = Date.now();
   const prevTimestamp = prevAddendum
     .docs[0]
     .get('timestamp');
@@ -543,7 +542,7 @@ const handleCheckIn = async (conn, locals) => {
   // units KM/Hours
   const speed = distance / hours;
 
-  const o = {
+  console.log(JSON.stringify({
     speed,
     distance,
     hours,
@@ -551,9 +550,7 @@ const handleCheckIn = async (conn, locals) => {
     prevTimestamp,
     currGeopoint,
     prevGeopoint,
-  };
-
-  console.log(JSON.stringify(o, ' ', 2));
+  }, ' ', 2));
 
   if (speed > 40) {
     locals
@@ -629,7 +626,7 @@ const handleCheckIn = async (conn, locals) => {
       return logsQueryResult.docs[0].ref;
     })();
 
-    console.log('writing logs', ref);
+    console.log('cancelled check-in logs:', ref);
 
     locals
       .batch
@@ -748,7 +745,7 @@ const handleAssignees = async (conn, locals) => {
     }
   }
 
-  // await handleCheckIn(conn, locals);
+  await handleCheckIn(conn, locals);
 
   return handlePayroll(conn, locals);
 };

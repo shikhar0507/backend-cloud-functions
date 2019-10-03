@@ -3199,7 +3199,9 @@ const addCheckInTimestamps = async locals => {
 
   const batch = db.batch();
 
-  const uid = locals.addendumDocData.uid;
+  // const uid = locals.addendumDocData.uid;
+
+  const uid = locals.assigneesMap.get(phoneNumber).uid;
 
   batch
     .set(rootCollections.updates.doc(uid), {
