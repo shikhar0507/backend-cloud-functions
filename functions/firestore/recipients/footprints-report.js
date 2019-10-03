@@ -251,6 +251,11 @@ const handleScheduleReport = async (locals, workbook) => {
       index++;
     });
 
+  if (index === 0) {
+    workbook
+      .deleteSheet(`Schedule ${monthYearString}`);
+  }
+
   return;
 };
 
