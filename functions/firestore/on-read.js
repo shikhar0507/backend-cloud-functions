@@ -497,8 +497,6 @@ module.exports = async conn => {
         merge: true,
       });
 
-    console.log('sending statusObjects', from === 0 || sendStatusObjects);
-
     if (from === 0
       || sendStatusObjects) {
       jsonObject
