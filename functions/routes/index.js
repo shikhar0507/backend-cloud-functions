@@ -94,6 +94,9 @@ module.exports = (req) => {
       checkSupport = true;
       func = require('./../services/update-auth');
       break;
+    case 'myGrowthfile':
+      func = require('../firestore/my-growthfile/index');
+      break;
     default:
       func = null;
   }

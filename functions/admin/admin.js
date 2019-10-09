@@ -259,6 +259,7 @@ const rootCollections = {
   events: db.collection('Events'),
   errors: db.collection('Errors'),
   anonymous: db.collection('Anonymous'),
+  inboundPayments: db.collection('InboundPayments'),
 };
 
 
