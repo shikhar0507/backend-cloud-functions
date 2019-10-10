@@ -63,12 +63,45 @@ const dinero = require('dinero.js');
 const {
   google
 } = require('googleapis');
-const googleMapsClient =
-  require('@google/maps')
-    .createClient({
-      key: env.mapsApiKey,
-      Promise: Promise,
-    });
+const googleMapsClient = require('@google/maps')
+  .createClient({
+    key: env.mapsApiKey,
+    Promise: Promise,
+  });
+
+const getEmployeeReportData = async (officeId, phoneNumber) => {
+  const employeeQueryResult = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ACTIVITIES)
+    .where('attachment.Employee Contact.value', '==', phoneNumber)
+    .where('template', '==', 'employee')
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get();
+
+  if (employeeQueryResult.empty) {
+    return null;
+  }
+
+  return {
+    id: employeeQueryResult.docs[0].id,
+    employeeName: employeeQueryResult.docs[0].get('attachment.Name.value'),
+    employeeCode: employeeQueryResult.docs[0].get('attachment.Employee Code.value'),
+    baseLocation: employeeQueryResult.docs[0].get('attachment.Base Location.value'),
+    region: employeeQueryResult.docs[0].get('attachment.Region.value'),
+    department: employeeQueryResult.docs[0].get('attachment.Department.value'),
+  };
+};
+
+
+const getValueFromActivity = (change, field, fromOldState = false) => {
+  if (typeof fromOldState === 'boolean' && fromOldState) {
+    return change.before.get(field);
+  }
+
+  return change.after.get(field);
+};
 
 
 const getAuth = phoneNumber => {
@@ -3194,8 +3227,12 @@ const addCheckInTimestamps = async locals => {
   attendanceDocData
     .numberOfCheckIns = attendanceDocData.numberOfCheckIns || 0;
 
-  attendanceDocData
-    .numberOfCheckIns++;
+  // Activity has actually been created.
+  if (!locals.change.before.data()
+    && locals.change.after.data()) {
+    attendanceDocData
+      .numberOfCheckIns++;
+  }
 
   const batch = db.batch();
 
@@ -4286,6 +4323,85 @@ const handleClaim = async locals => {
     .commit();
 };
 
+const getDistanceTravelled = async params => {
+  const {
+    officeId,
+    phoneNumber,
+    previousAddendumDoc,
+    addendumDocData,
+  } = params;
+
+  // if this check-in is user's first check-in for the day
+  // distance travelled is distanceMatrix(baseLocation to currentLocation);
+  // else
+  // return locals.addendumDocData.get('distanceTravelled);
+  const isFirstCheckInForDate = !previousAddendumDoc
+    || (previousAddendumDoc.get('date') !== addendumDocData.date);
+
+  if (!isFirstCheckInForDate) {
+    return addendumDocData.distanceTravelled;
+  }
+
+  const employeeData = await getEmployeeReportData(
+    officeId,
+    phoneNumber
+  );
+
+  if (!employeeData || !employeeData.baseLocation) {
+    return addendumDocData.distanceTravelled;
+  }
+
+  const baseLocationQueryResult = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.REIMBURSEMENTS)
+    .where('template', '==', 'branch')
+    .where('attachment.Name.value', '==', employeeData.baseLocation)
+    .where('status', '==', 'CONFIRMED')
+    .get();
+
+  if (baseLocationQueryResult.empty) {
+    return addendumDocData.distanceTravelled;
+  }
+
+  const currentGeopoint = addendumDocData.location;
+  const baseLocationGeopoint = baseLocationQueryResult.docs[0].get('venue')[0].geopoint;
+
+  if (!Number.isInteger(baseLocationGeopoint.latitude)) {
+    return addendumDocData.distanceTravelled;
+  }
+
+  const distanceMatrixApiResult = await googleMapsClient
+    .distanceMatrix({
+      /**
+       * Ordering is important here. The `legal` distance
+       * between A to B might not be the same as the legal
+       * distance between B to A. So, do not mix the ordering.
+       */
+      origins: getLatLngString(baseLocationGeopoint),
+      destinations: getLatLngString(currentGeopoint),
+      units: 'metric',
+    })
+    .asPromise();
+
+  const distanceData = distanceMatrixApiResult
+    .json
+    .rows[0]
+    .elements[0]
+    .distance;
+
+  // maps api result in meters
+  if (distanceData) {
+    return distanceData.value / 1000;
+  }
+
+  return haversineDistance(
+    baseLocationGeopoint,
+    currentGeopoint
+  );
+};
+
+
 
 const handleCheckInActionForkmAllowance = async locals => {
   if (!locals.addendumDoc
@@ -4537,6 +4653,449 @@ const handleCheckInActionForkmAllowance = async locals => {
 
   return batch
     .commit();
+};
+
+const getReimbursementTimestamp = activityDoc => {
+  const template = activityDoc.get('template');
+
+  // For claim, if the schedule timestamp is present, that timestamp
+  // will be the claim timestamp
+  // otherwise, activity create time is the fallback.
+  if (template === 'claim'
+    && activityDoc.get('schedule')[0]
+    && Number.isInteger(activityDoc.get('schedule')[0].startTime)) {
+    return activityDoc.get('schedule')[0].startTime;
+  }
+
+  return activityDoc.createTime.toDate().getTime();
+};
+
+
+const reimburseClaim = async locals => {
+  const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
+  const timestamp = getReimbursementTimestamp(locals.change.after);
+  const officeId = getValueFromActivity(locals.change, 'officeId');
+  const timezone = getValueFromActivity(locals.change, 'timezone');
+  const momentNow = momentTz(timestamp).tz(timezone);
+  const attachmentName = getValueFromActivity(locals.change, 'attachment.Name.value');
+  const template = getValueFromActivity(locals.change, 'template');
+  const status = getValueFromActivity(locals.change, 'status');
+  const claimsToday = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.REIMBURSEMENTS)
+    .where('date', '==', momentNow.date())
+    .where('month', '==', momentNow.month())
+    .where('year', '==', momentNow.year())
+    .where('template', '==', template)
+    .where('attachmentName', '==', attachmentName)
+    .limit(1)
+    .get();
+
+  const claimsDoc = (() => {
+    if (claimsToday.empty) {
+      return rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.REIMBURSEMENTS)
+        .doc();
+    }
+
+    return claimsToday.docs[0].ref;
+  })();
+
+  const employeeData = await getEmployeeReportData(
+    officeId,
+    phoneNumber
+  );
+
+  const claimUpdate = Object.assign({}, employeeData, {
+    timestamp,
+    status,
+    template: 'claim',
+    date: momentNow.date(),
+    month: momentNow.month(),
+    year: momentNow.year(),
+    photoURL: getValueFromActivity(locals.change, 'attachment.Photo URL.value'),
+    amount: getValueFromActivity(locals.change, 'attachment.Amount.value'),
+    claimType: getValueFromActivity(locals.change, 'attachment.Claim Type.value'),
+  });
+
+  const batch = db.batch();
+
+  if (locals.addendumDocData.action === httpsActions.changeStatus) {
+    if (status === 'CANCELLED') {
+      claimUpdate.cancelledBy = locals.addendumDocData.user;
+      claimUpdate.cancellationTimestamp = locals.addendumDocData.timestamp;
+    }
+
+    if (status === 'CONFIRMED') {
+      claimUpdate.confirmedBy = locals.addendumDocData.user;
+      claimUpdate.confirmationTimestamp = locals.addendumDocData.timestamp;
+    }
+  }
+
+  batch
+    .set(claimsDoc, claimUpdate, {
+      merge: true,
+    });
+
+  return batch
+    .commit();
+};
+
+const getTravelStatus = async params => {
+  const {
+    phoneNumber,
+    currentCity,
+    officeId,
+    currentGeopoint,
+  } = params;
+
+  const employeeQueryResult = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ACTIVITIES)
+    .where('attachment.Employee Contact.value', '==', phoneNumber)
+    .where('status', '==', 'CONFIRMED')
+    .where('template', '==', 'employee')
+    .limit(1)
+    .get();
+
+  if (employeeQueryResult.empty) {
+    return false;
+  }
+
+  const employeeDoc = employeeQueryResult.docs[0];
+  const baseLocation = employeeDoc.get('attachment.Base Location.value');
+
+  if (!baseLocation) {
+    return false;
+  }
+
+  // fetch base location city
+  const baseLocationQuery = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ACTIVITIES)
+    .where('template', '==', 'branch')
+    .where('attachment.Name.value', '==', baseLocation)
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get();
+
+  if (baseLocationQuery.empty) {
+    return false;
+  }
+
+  const baseLocationGeopoint = baseLocationQuery
+    .docs[0]
+    .get('venue')[0]
+    .geopoint;
+
+  if (!baseLocationGeopoint
+    || !Number.isInteger(baseLocationGeopoint.latitude)) {
+    return false;
+  }
+
+  const mapsApiResult = await googleMapsClient
+    .reverseGeocode({
+      latlng: getLatLngString(currentGeopoint),
+    })
+    .asPromise();
+
+  if (mapsApiResult.json.results.length === 0) {
+    return false;
+  }
+
+  const components = mapsApiResult.json.results[0].address_components;
+  const baseLocationCity = getLocalityCityState(components).city;
+
+  return currentCity !== baseLocationCity;
+};
+
+
+const getScheduledOnlyStatus = params => {
+  const {
+    action,
+    template,
+  } = params;
+
+  if (action === httpsActions.create
+    && template === 'check-in') {
+    return false;
+  }
+
+  return action === httpsActions.checkIn;
+};
+
+const reimburseDailyAllowance = async locals => {
+  const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
+  const officeId = getValueFromActivity(locals.change, 'officeId');
+  const timestamp = getReimbursementTimestamp(locals.change.after);
+  const momentNow = momentTz(timestamp);
+  const isTravel = await getTravelStatus({
+    phoneNumber,
+    officeId,
+    currentGeopoint: locals.addendumDocData.location,
+    currentCity: locals.city,
+  });
+
+  const claimsToday = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.REIMBURSEMENTS)
+    .where('date', '==', momentNow.date())
+    .where('month', '==', momentNow.month())
+    .where('year', '==', momentNow.year())
+    .where('template', '==', 'daily allowance')
+    .get();
+
+  console.log('claimsToday', claimsToday.size);
+
+  const existingDas = new Set();
+
+  claimsToday
+    .forEach(doc => {
+      const attachmentName = doc.get('attachmentName');
+
+      existingDas.add(attachmentName);
+    });
+
+  console.log('existingDas', existingDas.size);
+
+  let dailyAllowanceBaseQuery = rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ACTIVITIES)
+    .where('template', '==', 'daily allowance')
+    .where('isCancelled', '==', false);
+
+  if (isTravel) {
+    dailyAllowanceBaseQuery = dailyAllowanceBaseQuery
+      .where('attachment.Trave.value', '==', true);
+  }
+
+  const dailyAllowanceActivities = await dailyAllowanceBaseQuery.get();
+
+  console.log('dailyAllowanceActivities', dailyAllowanceActivities.size);
+
+  if (dailyAllowanceActivities.empty) {
+    return;
+  }
+
+  const employeeDocData = await getEmployeeReportData(
+    officeId,
+    phoneNumber
+  );
+
+  const batch = db.batch();
+
+  dailyAllowanceActivities
+    .forEach(daActivity => {
+      const attachmentStartTime = daActivity.get('attachment.Start Time.value');
+      const attachmentEndTime = daActivity.get('attachment.End Time.value');
+
+      const [startHours, startMinutes] = attachmentStartTime.split(':');
+      const [endHours, endMinutes] = attachmentEndTime.split(':');
+
+      if (!startHours
+        || !startMinutes
+        || !endHours
+        || !endMinutes) {
+        return;
+      }
+
+      const momentStart = momentTz().hours(startHours).minutes(startMinutes);
+      const momentEnd = momentTz().hours(endHours).minutes(endMinutes);
+
+      if (momentNow.isBefore(momentStart)
+        || momentEnd.isAfter(momentEnd)) {
+        return;
+      }
+
+      const attachmentName = daActivity
+        .get('attachment.Name.value');
+
+      if (existingDas.has(attachmentName)) {
+        return;
+      }
+
+      const ref = rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.REIMBURSEMENTS)
+        .doc();
+
+      const update = Object
+        .assign({}, employeeDocData, {
+          timestamp,
+          isTravel,
+          date: momentNow.date(),
+          month: momentNow.month(),
+          year: momentNow.year(),
+          template: 'daily allowance',
+          identifier: locals.addendumDocData.identifier,
+          geopoint: locals.addendumDocData.location,
+          phoneNumber: getValueFromActivity(locals.change, 'creator.phoneNumber'),
+          uid: locals.addendumDocData.uid,
+          claimType: 'daily allowance',
+          attachmentName: daActivity.get('attachment.Name.value'),
+          amount: daActivity.get('attachment.Amount.value'),
+          relevantActivityId: locals.change.after.id,
+          dailyAllowanceActivityId: daActivity.id,
+        });
+
+      console.log('da', update);
+
+      batch
+        .set(ref, update, {
+          merge: true,
+        });
+    });
+
+  return batch
+    .commit();
+};
+
+const reimburseKmAllowance = async locals => {
+  const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
+  const officeId = getValueFromActivity(locals.change, 'officeId');
+  const timestamp = getReimbursementTimestamp(locals.change.after);
+  const template = getValueFromActivity(
+    locals.change,
+    'template'
+  );
+  const momentNow = momentTz(timestamp);
+  const isTravel = await getTravelStatus({
+    phoneNumber,
+    officeId,
+    currentGeopoint: locals.addendumDocData.location,
+    currentCity: locals.city,
+  });
+  const scheduledOnly = getScheduledOnlyStatus({
+    action: locals.addendumDocData.action,
+    template,
+  });
+
+  const claimsToday = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.REIMBURSEMENTS)
+    .where('date', '==', momentNow.date())
+    .where('month', '==', momentNow.month())
+    .where('year', '==', momentNow.year())
+    .where('template', '==', 'km allowance')
+    .get();
+
+  const existingKms = new Map();
+
+  claimsToday
+    .forEach(doc => {
+      const attachmentName = doc.get('attachmentName');
+
+      existingKms
+        .set(attachmentName, {
+          data: doc.data(),
+          ref: doc.ref,
+        });
+    });
+
+  console.log('km claimsToday', claimsToday.size);
+
+  let kmAllowanceBaseQuery = rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ACTIVITIES)
+    .where('template', '==', 'km allowance')
+    .where('isCancelled', '==', false);
+
+  if (isTravel) {
+    kmAllowanceBaseQuery = kmAllowanceBaseQuery
+      .where('attachment.Travel.value', '==', true);
+  }
+
+  if (scheduledOnly) {
+    kmAllowanceBaseQuery = kmAllowanceBaseQuery
+      .where('attachment.Scheduled Only.value', '==', true);
+  }
+
+  const batch = db.batch();
+  const kmAllowanceActivities = await kmAllowanceBaseQuery.get();
+
+  console.log('kmAllowanceActivities', kmAllowanceActivities.size, { isTravel, scheduledOnly });
+
+  const distanceTravelled = await getDistanceTravelled({
+    officeId,
+    phoneNumber,
+    previousAddendumDoc: locals.previousAddendumDoc,
+    addendumDocData: locals.addendumDocData,
+  });
+
+  if (distanceTravelled === 0) {
+    console.log('distanceTravelled', distanceTravelled);
+
+    return;
+  }
+
+  const employeeData = await getEmployeeReportData(officeId, phoneNumber);
+
+  kmAllowanceActivities
+    .forEach(kmActivity => {
+      const attachmentName = kmActivity.get('attachment.Name.value');
+
+      if (existingKms.has(attachmentName)) {
+        return;
+      }
+
+      const ref = rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.REIMBURSEMENTS)
+        .doc();
+
+      const update = Object.assign({}, employeeData, {
+        timestamp,
+        distanceTravelled,
+        attachmentName,
+        phoneNumber,
+        amount: (Number(kmActivity.get('attachment.Rate.value')) * distanceTravelled).toFixed(2),
+        date: momentNow.date(),
+        month: momentNow.month(),
+        year: momentNow.year(),
+        template: kmActivity.get('template'),
+        rate: kmActivity.get('attachment.Rate.value'),
+        relevantActivityId: locals.change.after.id,
+        kmAllowanceActivityId: kmActivity.id,
+        uid: locals.addendumDocData.uid,
+      });
+
+      batch
+        .set(ref, update, {
+          merge: true,
+        });
+    });
+
+  return batch
+    .commit();
+};
+
+
+const handleReimbursement = async locals => {
+  if (!locals.addendumDocData) {
+    return;
+  }
+
+  const template = getValueFromActivity(locals.change, 'template');
+
+  if (template === 'claim') {
+    return reimburseClaim(locals);
+  }
+
+  await reimburseDailyAllowance(locals);
+  await reimburseKmAllowance(locals);
+
+  return;
 };
 
 
@@ -4887,6 +5446,7 @@ module.exports = async (change, context) => {
     }
 
     await handleActivityUpdates(locals);
+    await handleReimbursement(locals);
 
     return;
   } catch (error) {

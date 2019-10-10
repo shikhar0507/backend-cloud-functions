@@ -644,9 +644,7 @@ module.exports = async locals => {
 
   console.log('mail sent', locals.messageObject.to);
 
-  // return locals
-  //   .sgMail
-  //   .sendMultiple(locals.messageObject);
-
-  return;
+  return locals
+    .sgMail
+    .sendMultiple(locals.messageObject);
 };
