@@ -361,7 +361,7 @@ const fetchOfficeData = async (locals, requester) => {
       let isClosed = openStatusResult.isClosed;
       let closingTime = openStatusResult.closingTime;
       let openingTime = openStatusResult.openingTime;
-      let isClosingSoon = openStatusResult.isClosingSoon;
+      // const isClosingSoon = openStatusResult.isClosingSoon;
 
       // Dates are not set
       if (isClosed
@@ -397,13 +397,13 @@ const fetchOfficeData = async (locals, requester) => {
         .push({
           isOpen,
           isClosed,
-          isClosingSoon,
           openingTime,
           closingTime,
           branchContact,
           latitude,
           longitude,
           address: venue.address,
+          isClosingSoon: openStatusResult.isClosingSoon,
           name: doc.get('attachment.Name.value'),
           weeklyOff: doc.get('attachment.Weekly Off.value'),
           mapsUrl: toMapsUrl({ latitude, longitude }),

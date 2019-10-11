@@ -30,11 +30,13 @@ module.exports = async locals => {
   const employeesSheet = workbook
     .addSheet('Employees');
   const leaveTypeSheet = workbook
-    .addSheet('Leave Type');
+    .addSheet('Leave Types');
+  const regionsSheet = workbook
+    .addSheet('Regions');
 
   officeSheet
-    .row(0
-    ).style('bold', true);
+    .row(0)
+    .style('bold', true);
   branchesSheet
     .row(0)
     .style('bold', true);
@@ -84,6 +86,7 @@ module.exports = async locals => {
     'Product Specialization',
     'Maximum Advance Amount Given',
     'Employee Code',
+    'Region',
   ].forEach((field, index) => {
     employeesSheet
       .cell(`${alphabetsArray[index]}1`)
@@ -91,7 +94,9 @@ module.exports = async locals => {
   });
 
   const employeePhoneNumbers = Object.keys(locals.employeesData);
+  const regionsSet = new Set();
   const branchMap = {};
+  const leaveTypesSet = new Set();
 
   employeePhoneNumbers
     .forEach((phoneNumber, outerIndex) => {
@@ -115,16 +120,36 @@ module.exports = async locals => {
         locals.employeesData[phoneNumber]['Product Specialization'],
         locals.employeesData[phoneNumber]['Maximum Advance Amount Given'],
         locals.employeesData[phoneNumber]['Employee Code'],
+        locals.employeesData[phoneNumber].Region,
       ].forEach((value, innerIndex) => {
         employeesSheet
           .cell(`${alphabetsArray[innerIndex]}${outerIndex + 2}`)
           .value(value);
       });
 
+      const region = locals.employeesData[phoneNumber].Region;
+
+      if (region) {
+        regionsSet.add(region);
+      }
+
+      const leaves = locals.employeesData[phoneNumber].leaves;
+
+      if (leaves) {
+        Object
+          .keys(leaves)
+          .forEach(leave => {
+            leaveTypesSet
+              .add(leave);
+          });
+      }
+
       const branch = locals.employeesData[phoneNumber]['Base Location'];
 
       if (branch) {
-        branchMap[branch] = branchMap[branch] || {};
+        branchMap[
+          branch
+        ] = branchMap[branch] || {};
 
         branchMap[
           branch
@@ -229,6 +254,22 @@ module.exports = async locals => {
       .value(field);
   });
 
+  [
+    'Name',
+  ].forEach((field, index) => {
+    regionsSheet
+      .cell(`A${index + 1}`)
+      .value(field);
+  });
+
+  [
+    ...regionsSet.keys(),
+  ].forEach((region, index) => {
+    regionsSheet
+      .cell(`A${index + 2}`)
+      .value(region);
+  });
+
   Object
     .keys(branchMap)
     .forEach((name, outerIndex) => {
@@ -267,42 +308,21 @@ module.exports = async locals => {
       });
     });
 
-  const leaveTypes = await locals
-    .officeDoc
-    .ref
-    .collection('Activities')
-    .where('template', '==', 'leave-type')
-    .get();
-
   [
     'Name',
-    'Annual Limit',
-    'Status',
   ].forEach((field, index) => {
     leaveTypeSheet
       .cell(`${alphabetsArray[index]}1`)
       .value(field);
   });
 
-  leaveTypes
-    .docs
-    .forEach((doc, index) => {
-      const name = doc.get('attachment.Name.value');
-      const annualLimit = doc.get('attachment.Annual Limit.value');
-      const status = doc.get('status');
-
-      leaveTypeSheet
-        .cell(`A${index + 2}`)
-        .value(name);
-
-      leaveTypeSheet
-        .cell(`B${index + 2}`)
-        .value(annualLimit);
-
-      leaveTypeSheet
-        .cell(`C${index + 2}`)
-        .value(status);
-    });
+  [
+    ...leaveTypesSet.keys(),
+  ].forEach((name, index) => {
+    leaveTypeSheet
+      .cell(`A${index + 2}`)
+      .value(name);
+  });
 
   locals
     .messageObject

@@ -36,18 +36,20 @@ const {
   sendGridTemplateIds,
   reportNames,
   timezonesSet,
+  subcollectionNames,
 } = require('../admin/constants');
 const {
   alphabetsArray,
 } = require('../firestore/recipients/report-utils');
 const crypto = require('crypto');
 const env = require('./env');
-const https = require('https');
 const xlsxPopulate = require('xlsx-populate');
-const moment = require('moment-timezone');
+const momentTz = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
 const { execFile } = require('child_process');
 const admin = require('firebase-admin');
+const url = require('url');
+const rpn = require('request-promise-native');
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 const googleMapsClient =
   require('@google/maps')
@@ -569,7 +571,7 @@ const getRelevantTime = schedule => {
 
   allSchedules.sort();
 
-  const closestTo = moment().valueOf();
+  const closestTo = momentTz().valueOf();
   let result = null;
 
   for (let i = 0; i <= allSchedules.length; i++) {
@@ -719,7 +721,7 @@ const sendSMS = async (phoneNumber, smsText) => {
   const sendTo = phoneNumber;
   const encodedMessage = `${encodeURI(smsText)}`;
 
-  const host = `enterprise.smsgupshup.com`;
+  const host = `https://enterprise.smsgupshup.com`;
   const path = `/GatewayAPI/rest?method=SendMessage`
     + `&send_to=${sendTo}`
     + `&msg=${encodedMessage}`
@@ -730,58 +732,11 @@ const sendSMS = async (phoneNumber, smsText) => {
     + `&v=1.1`
     + `&format=text`;
 
-  const params = {
-    host,
-    path,
-    // HTTPS port is 443
-    port: 443,
-  };
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(params, (res) => {
-      // reject on bad status
-      console.log('res.statusCode', res.statusCode);
-
-      if (res.statusCode > 226) {
-        reject(new Error(`statusCode=${res.statusCode}`));
-
-        return;
-      }
-
-      // cumulate data
-      let chunks = [];
-
-      res
-        .on('data', (chunk) => chunks.push(chunk));
-
-      // resolve on end
-      res
-        .on('end', () => {
-          chunks = Buffer.concat(chunks).toString();
-
-          if (chunks.includes('error')) {
-            reject(new Error(chunks));
-
-            return;
-          }
-
-          resolve(chunks);
-        });
-    });
-
-    // reject on request error
-    // This is not a "Second reject", just a different sort of failure
-    req.on('error', (err) => {
-      console.log('in err');
-
-      reject(new Error(err));
-
-      return;
-    });
-
-    // IMPORTANT otherwise socket won't close.
-    req.end();
-  });
+  try {
+    return rpn(url.resolve(host, path));
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const isEmptyObject = (object) =>
@@ -917,7 +872,7 @@ const handleOfficeActivityReport = (worksheet, yesterdayInitDoc, emailStatusMap)
 };
 
 
-const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => {
+const handleActivityStatusReport = async (worksheet, counterDoc, yesterdayInitDoc) => {
   const activityStatusSheet = worksheet.addSheet('Activity Status Report');
   activityStatusSheet.row(1).style('bold', true);
 
@@ -946,29 +901,12 @@ const handleActivityStatusReport = (worksheet, counterDoc, yesterdayInitDoc) => 
   const {
     templateUsageObject,
   } = yesterdayInitDoc.data();
+  const templateDocs = await rootCollections
+    .activityTemplates
+    .orderBy('name', 'asc')
+    .get();
 
-  const templateNames = [
-    'admin',
-    'branch',
-    'check-in',
-    'customer',
-    'customer-type',
-    'department',
-    'dsr',
-    'duty roster',
-    'employee',
-    'enquiry',
-    'expense claim',
-    'expense-type',
-    'leave',
-    'leave-type',
-    'office',
-    'on duty',
-    'product',
-    'recipient',
-    'subscription',
-    'tour plan',
-  ];
+  const templateNames = templateDocs.docs.map(doc => doc.get('name'));
 
   const getValueFromMap = (map, name) => {
     return map[name] || 0;
@@ -1111,7 +1049,7 @@ const getEmailStatusMap = () => {
 };
 
 const handleDailyStatusReport = toEmail => {
-  const momentYesterday = moment().subtract(1, 'day');
+  const momentYesterday = momentTz().subtract(1, 'day');
   const date = momentYesterday.format(dateFormats.DATE);
   const fileName = `Daily Status Report ${date}.xlsx`;
   const messageObject = {
@@ -1150,7 +1088,7 @@ const handleDailyStatusReport = toEmail => {
         .get(),
       getEmailStatusMap()
     ])
-    .then(result => {
+    .then(async result => {
       const [
         workbook,
         counterInitQuery,
@@ -1167,7 +1105,7 @@ const handleDailyStatusReport = toEmail => {
         yesterdayInitDoc,
         emailStatusMap
       );
-      handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
+      await handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
       handleUserStatusReport(
         worksheet,
         counterDoc,
@@ -1199,13 +1137,13 @@ const handleDailyStatusReport = toEmail => {
 
 
 const generateDates = (startTime, endTime) => {
-  const momentStart = moment(startTime);
-  const momentEnd = moment(endTime);
+  const momentStart = momentTz(startTime);
+  const momentEnd = momentTz(endTime);
   const numberOfDays = momentEnd.diff(momentStart, 'days');
   const dates = [];
 
   for (let i = 0; i <= numberOfDays; i++) {
-    const mm = moment(startTime).add(i, 'day');
+    const mm = momentTz(startTime).add(i, 'day');
     const value = mm.toDate().toDateString();
 
     dates.push(value);
@@ -1329,7 +1267,7 @@ const addEmployeeToRealtimeDb = async doc => {
 
           if (!startTime) return;
 
-          const formattedDate = moment(startTime)
+          const formattedDate = momentTz(startTime)
             .tz(timezone)
             .format(dateFormats.DATE);
 
@@ -1349,7 +1287,7 @@ const addEmployeeToRealtimeDb = async doc => {
       .where('template', '==', 'leave')
       .where('isCancelled', '==', false)
       .where('creator.phoneNumber', '==', phoneNumber)
-      .where('creationYear', '==', moment().tz(timezone).year())
+      .where('creationYear', '==', momentTz().tz(timezone).year())
       .get();
 
     leaves.forEach(doc => {
@@ -1408,15 +1346,15 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
     } = component;
 
     if (types.includes('sublocality_level_1')) {
-      locationName += ` ${long_name}`;
+      locationName += ` ${long_name} `;
     }
 
     if (types.includes('administrative_area_level_2')) {
-      locationName += ` ${long_name}`;
+      locationName += ` ${long_name} `;
     }
 
     if (types.includes('administrative_area_level_1')) {
-      locationName += ` ${short_name}`;
+      locationName += ` ${short_name} `;
     }
   });
 
@@ -1755,8 +1693,6 @@ const getBranchName = addressComponents => {
 };
 
 const getUsersWithCheckIn = async officeId => {
-  const result = [];
-
   const checkInSubscriptions = await rootCollections
     .offices
     .doc(officeId)
@@ -1766,10 +1702,9 @@ const getUsersWithCheckIn = async officeId => {
     .where('status', '==', 'CONFIRMED')
     .get();
 
-  checkInSubscriptions
-    .forEach(doc => result.push(doc.get('attachment.Subscriber.value')));
-
-  return result;
+  return checkInSubscriptions
+    .docs
+    .map(doc => doc.get('attachment.Subscriber.value'));
 };
 
 const getAuth = async phoneNumber => {
@@ -1786,13 +1721,56 @@ const getAuth = async phoneNumber => {
     });
 };
 
+const findKeyByValue = (obj, value) =>
+  Object.keys(obj).find(key => obj[key] === value);
+
+
+const getNumbersbetween = (start, end) => {
+  return new Array(end - start)
+    .fill()
+    .map((d, i) => i + start);
+};
+
+const getAttendancesPath = params => {
+  const {
+    startTime,
+    endTime,
+    officeId,
+    phoneNumber,
+    collectionName,
+  } = params;
+  const now = momentTz(startTime)
+    .clone();
+  const end = momentTz(endTime);
+  const result = [];
+
+  while (now.isSameOrBefore(end)) {
+    const monthYearString = now
+      .format(dateFormats.MONTH_YEAR);
+
+    const ref = rootCollections
+      .offices
+      .doc(officeId)
+      .collection(collectionName || subcollectionNames.ATTENDANCES)
+      .doc(monthYearString)
+      .collection(phoneNumber)
+      .doc(`${now.date()}`);
+
+    result
+      .push(ref.get());
+
+    now
+      .add(1, 'day');
+  }
+
+  return result;
+};
+
 
 module.exports = {
   getAuth,
   slugify,
   sendSMS,
-  getBranchName,
-  millitaryToHourMinutes,
   sendJSON,
   isValidUrl,
   getFileHash,
@@ -1806,6 +1784,8 @@ module.exports = {
   generateDates,
   isValidBase64,
   isValidStatus,
+  getBranchName,
+  findKeyByValue,
   disableAccount,
   hasAdminClaims,
   getSearchables,
@@ -1815,15 +1795,17 @@ module.exports = {
   isValidGeopoint,
   multipartParser,
   hasSupportClaims,
+  isNonEmptyString,
+  cloudflareCdnUrl,
   adjustedGeopoint,
   filterPhoneNumber,
   getCustomerObject,
-  isNonEmptyString,
-  cloudflareCdnUrl,
   isE164PhoneNumber,
   addressToCustomer,
+  getNumbersbetween,
   getObjectFromSnap,
   hasSuperUserClaims,
+  getAttendancesPath,
   isValidCanEditRule,
   promisifiedRequest,
   getUsersWithCheckIn,
@@ -1831,6 +1813,7 @@ module.exports = {
   promisifiedExecFile,
   getRegistrationToken,
   replaceNonASCIIChars,
+  millitaryToHourMinutes,
   handleDailyStatusReport,
   hasManageTemplateClaims,
   addEmployeeToRealtimeDb,

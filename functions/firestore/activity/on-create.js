@@ -41,6 +41,7 @@ const {
   validateVenues,
   forSalesReport,
   getCanEditValue,
+  haversineDistance,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
@@ -57,6 +58,7 @@ const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 const fs = require('fs');
 const dinero = require('dinero.js');
+const admin = require('firebase-admin');
 
 
 const getClaimStatus = async params => {
@@ -112,14 +114,13 @@ const getClaimStatus = async params => {
     claimsThisMonth: claimsThisMonth.getAmount(),
   };
 
-  console.log(JSON.stringify(o, ' ', 2));
-
   return o;
 };
 
 
 const createDocsWithBatch = async (conn, locals) => {
   const canEditMap = {};
+
   locals
     .objects
     .allPhoneNumbers
@@ -136,12 +137,14 @@ const createDocsWithBatch = async (conn, locals) => {
 
       canEditMap[phoneNumber] = canEdit;
 
-      locals.batch.set(locals.docs.activityRef
-        .collection('Assignees')
-        .doc(phoneNumber), {
-        addToInclude,
-        canEdit,
-      });
+      locals
+        .batch
+        .set(locals.docs.activityRef
+          .collection('Assignees')
+          .doc(phoneNumber), {
+          addToInclude,
+          canEdit,
+        });
     });
 
   const addendumDocRef = rootCollections
@@ -155,8 +158,8 @@ const createDocsWithBatch = async (conn, locals) => {
     .get('attachment.Timezone.value');
 
   let activityData = {
-    venue: locals.objects.venueArray,
-    schedule: locals.objects.scheduleArray,
+    venue: conn.req.body.venue,
+    schedule: conn.req.body.schedule,
     attachment: conn.req.body.attachment,
   };
 
@@ -181,7 +184,8 @@ const createDocsWithBatch = async (conn, locals) => {
       location: conn.req.body.attachment.Name.value
     });
 
-    activityData.attachment['First Contact'].value = '';
+    activityData
+      .attachment['First Contact'].value = '';
 
     activityData = placesQueryResult;
 
@@ -192,36 +196,73 @@ const createDocsWithBatch = async (conn, locals) => {
         `Address '${conn.req.body.venue[0].address}' is not valid`
       );
     }
+
+    const queryResult = await rootCollections
+      .activities
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', 'customer')
+      .where('status', '==', 'CONFIRMED')
+      .where('attachment.Name.value', '==', activityData.attachment.Name.value)
+      .limit(1)
+      .get();
+
+    if (!queryResult.empty) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `Customer with the name`
+        + ` '${activityData.attachment.Name.value}'`
+        + ` already exists`
+      );
+    }
   }
 
-  activityData.office = conn.req.body.office;
-  activityData.addendumDocRef = addendumDocRef;
-  activityData.timezone = timezone;
-  activityData.timestamp = Date.now();
-  activityData.template = conn.req.body.template;
-  activityData.status = locals.static.statusOnCreate;
-  activityData.status = locals.static.statusOnCreate;
-  activityData.canEditRule = locals.static.canEditRule;
-  activityData.activityName = activityName({
-    requester: conn.requester,
-    attachmentObject: conn.req.body.attachment,
-    templateName: conn.req.body.template,
-  });
-  activityData.officeId = locals.static.officeId;
-  activityData.hidden = locals.static.hidden;
-  activityData.creator = {
-    phoneNumber: conn.requester.phoneNumber,
-    displayName: conn.requester.displayName,
-    photoURL: conn.requester.photoURL,
-  };
-  activityData.createTimestamp = Date.now();
-  activityData.forSalesReport = forSalesReport(conn.req.body.template);
+  activityData
+    .office = conn.req.body.office;
+  activityData
+    .addendumDocRef = addendumDocRef;
+  activityData
+    .timezone = timezone;
+  activityData
+    .timestamp = Date.now();
+  activityData
+    .template = conn.req.body.template;
+  activityData
+    .status = locals.static.statusOnCreate;
+  activityData
+    .status = locals.static.statusOnCreate;
+  activityData
+    .canEditRule = locals.static.canEditRule;
+  activityData
+    .activityName = activityName({
+      requester: conn.requester,
+      attachmentObject: conn.req.body.attachment,
+      templateName: conn.req.body.template,
+    });
+  activityData
+    .officeId = locals.static.officeId;
+  activityData
+    .hidden = locals.static.hidden;
+  activityData
+    .creator = {
+      phoneNumber: conn.requester.phoneNumber,
+      displayName: conn.requester.displayName,
+      photoURL: conn.requester.photoURL,
+    };
+  activityData
+    .createTimestamp = Date.now();
+  activityData
+    .forSalesReport = forSalesReport(conn.req.body.template);
 
   const adjustedGeopoints = getAdjustedGeopointsFromVenue(
-    locals.objects.venueArray
+    conn.req.body.venue
   );
 
-  const templatesToSkip = new Set(['check-in', 'attendance regularization', 'leave']);
+  const templatesToSkip = new Set([
+    'check-in',
+    'attendance regularization',
+    'leave'
+  ]);
 
   if (!templatesToSkip.has(conn.req.body.template)
     && adjustedGeopoints.length > 0) {
@@ -239,6 +280,7 @@ const createDocsWithBatch = async (conn, locals) => {
     activityData,
     user: conn.requester.phoneNumber,
     userDisplayName: conn.requester.displayName,
+    uid: conn.requester.uid,
     /**
      * Numbers from `attachment`, and all other places will always
      * be present in the `allPhoneNumbers` set. Using that instead of
@@ -271,7 +313,8 @@ const createDocsWithBatch = async (conn, locals) => {
     .set(locals.docs.activityRef, activityData);
 
   /** For base64 images, upload the json file to bucket */
-  if (conn.isBase64 && conn.base64Field) {
+  if (conn.isBase64
+    && conn.base64Field) {
     delete activityData.addendumDocRef;
     delete addendumDocObject.activityData.addendumDocRef;
 
@@ -285,29 +328,27 @@ const createDocsWithBatch = async (conn, locals) => {
       requestersPhoneNumber: conn.requester.phoneNumber,
     };
 
-    const storage = require('firebase-admin').storage();
-    const bucketName = env.tempBucketName;
-    const bucket = storage.bucket(bucketName);
+    const storage = admin.storage();
+    const bucket = storage.bucket(env.tempBucketName);
     const activityId = locals.docs.activityRef.id;
     const fileName = `${activityId}.json`;
     const filePath = `/tmp/${fileName}`;
 
-    fs.writeFileSync(filePath, JSON.stringify(json));
+    fs
+      .writeFileSync(filePath, JSON.stringify(json));
 
-    console.log('Uploading to file');
+    await bucket
+      .upload(filePath);
 
-    return bucket
-      .upload(filePath)
-      .then(() => sendResponse(conn, code.created))
-      .catch(error => handleError(conn, error));
+    return sendResponse(conn, code.created);
   }
 
   /** ENDS the response. */
-  return locals
+  await locals
     .batch
-    .commit()
-    .then(() => sendResponse(conn, code.created))
-    .catch(error => handleError(conn, error));
+    .commit();
+
+  return sendResponse(conn, code.created);
 };
 
 const handleLeaveOrOnDuty = async (conn, locals) => {
@@ -332,43 +373,35 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
 
     return '';
   })();
-  const arReason = (() => {
-    if (conn.req.body.template === 'attendance regularization') {
-      return conn.req.body.attachment.Reason.value;
-    }
 
-    return '';
-  })();
-
-  console.log('params', conn.requester.phoneNumber,
-    locals.officeDoc.id,
+  const {
+    success,
+    message
+  } = await setOnLeaveOrAr({
     startTime,
     endTime,
-    conn.req.body.template,
     leaveType,
-    arReason
-  );
+    officeId: locals.officeDoc.id,
+    timezone: locals.officeDoc.get('attachment.Timezone.value'),
+    template: conn.req.body.template,
+    status: locals.static.statusOnCreate,
+    leaveReason: conn.req.body.attachment.Reason.value,
+    arReason: conn.req.body.attachment.Reason.value,
+    creatorsPhoneNumber: conn.requester.phoneNumber,
+    requestersPhoneNumber: conn.requester.phoneNumber,
+  });
 
-  try {
-    let result = await setOnLeaveOrAr({
-      startTime,
-      endTime,
-      leaveType,
-      arReason,
-      officeId: locals.officeDoc.id,
-      template: conn.req.body.template,
-      phoneNumber: conn.requester.phoneNumber,
-    });
-    const { success, message } = result;
-    if (!success) {
-      locals.static.statusOnCreate = 'CANCELLED';
-      locals.cancellationMessage = `${conn.req.body.template.toUpperCase()} CANCELLED: ${message}`;
-    }
-    return createDocsWithBatch(conn, locals);
+  if (!success) {
+    locals
+      .static
+      .statusOnCreate = 'CANCELLED';
+
+    locals
+      .cancellationMessage = `${conn.req.body.template.toUpperCase()}`
+      + ` CANCELLED: ${message}`;
   }
-  catch (error) {
-    return handleError(conn, error);
-  }
+
+  return createDocsWithBatch(conn, locals);
 };
 
 
@@ -380,10 +413,8 @@ const handlePayroll = async (conn, locals) => {
     return createDocsWithBatch(conn, locals);
   }
 
-  const startTime = conn.req.body.schedule[0].startTime;
-  const endTime = conn.req.body.schedule[0].endTime;
-
-  if (!startTime || !endTime) {
+  if (!conn.req.body.schedule[0].startTime
+    || !conn.req.body.schedule[0].endTime) {
     return createDocsWithBatch(conn, locals);
   }
 
@@ -391,73 +422,92 @@ const handlePayroll = async (conn, locals) => {
     return handleLeaveOrOnDuty(conn, locals);
   }
 
-  const leaveType = conn.req.body.attachment['Leave Type'].value;
-  const startMoment = momentTz(conn.req.body.schedule[0].startTime);
+  // const leaveType = conn.req.body.attachment['Leave Type'].value;
+  const startMoment = momentTz(conn.req.body.schedule[0].endTime);
   const endMoment = momentTz(conn.req.body.schedule[0].endTime);
-  locals.maxLeavesAllowed = Number.POSITIVE_INFINITY;
-  locals.leavesTakenThisYear = 0;
 
-  if (!leaveType) {
+  locals
+    .maxLeavesAllowed = Number.POSITIVE_INFINITY;
+  locals
+    .leavesTakenThisYear = 0;
+
+  if (!conn.req.body.attachment['Leave Type'].value) {
     locals.maxLeavesAllowed = 20;
   }
 
-  try {
-    let result = await Promise
-      .all([
-        rootCollections
-          .offices
-          .doc(locals.static.officeId)
-          .collection('Activities')
-          .where('template', '==', 'leave-type')
-          .where('attachment.Name.value', '==', leaveType || null)
-          .limit(1)
-          .get(),
-        rootCollections
-          .offices
-          .doc(locals.static.officeId)
-          .collection('Activities')
-          .where('creator', '==', conn.requester.phoneNumber)
-          .where('template', '==', 'leave')
-          .where('attachment.Leave Type.value', '==', leaveType || null)
-          .where('startYear', '==', startMoment.year())
-          .where('endYear', '==', endMoment.year())
-          /** Cancelled leaves don't count to the full number */
-          .where('isCancelled', '==', false)
-          .get(),
-      ]);
-    const [leaveTypeQuery, leaveActivityQuery,] = result;
-    if (!leaveTypeQuery.empty) {
-      locals.maxLeavesAllowed =
-        Number(leaveTypeQuery.docs[0]
-          .get('attachment.Annual Limit.value') || 0);
-    }
-    leaveActivityQuery.forEach((doc) => {
-      const { startTime: startTime_1, endTime: endTime_1, } = doc.get('schedule')[0];
-      const start = momentTz(startTime_1).startOf('day').unix() * 1000;
-      const end = momentTz(endTime_1).endOf('day').unix() * 1000;
-      locals.leavesTakenThisYear += momentTz(end).diff(start, 'days');
+  const [
+    leaveTypeQuery,
+    leaveActivityQuery
+  ] = await Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('template', '==', 'leave-type')
+        .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
+        .limit(1)
+        .get(),
+      rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection('Activities')
+        .where('creator', '==', conn.requester.phoneNumber)
+        .where('template', '==', 'leave')
+        .where('attachment.Leave Type.value', '==', conn.req.body.attachment['Leave Type'].value)
+        .where('startYear', '==', startMoment.year())
+        .where('endYear', '==', endMoment.year())
+        /** Cancelled leaves don't count to the full number */
+        .where('isCancelled', '==', false)
+        .get(),
+    ]);
+
+  if (!leaveTypeQuery.empty) {
+    locals
+      .maxLeavesAllowed = Number(
+        leaveTypeQuery.docs[0].get('attachment.Annual Limit.value') || 0
+      );
+  }
+
+  leaveActivityQuery
+    .forEach(doc => {
+      const {
+        startTime,
+        endTime,
+      } = doc.get('schedule')[0];
+
+      const start = momentTz(startTime).startOf('day').valueOf();
+      const end = momentTz(endTime).endOf('day').valueOf();
+
+      locals
+        .leavesTakenThisYear += momentTz(end).diff(start, 'days');
     });
-    if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
-      console.log('CANCELL HERE 3');
-      locals.cancellationMessage = `LEAVE LIMIT EXCEEDED:`
-        + ` You have exceeded the limit for leave`
-        + ` application under ${leaveType}`
-        + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
-      locals.static
-        .statusOnCreate = 'CANCELLED';
-      return createDocsWithBatch(conn, locals);
-    }
-    return handleLeaveOrOnDuty(conn, locals);
+
+  if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
+    locals
+      .cancellationMessage = `LEAVE LIMIT EXCEEDED:`
+      + ` You have exceeded the limit for leave`
+      + ` application under ${conn.req.body.attachment['Leave Type'].value}`
+      + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
+
+    locals
+      .static
+      .statusOnCreate = 'CANCELLED';
+
+    return createDocsWithBatch(conn, locals);
   }
-  catch (error) {
-    return handleError(conn, error);
-  }
+
+  return handleLeaveOrOnDuty(conn, locals);
 };
 
 
-const handleAssignees = (conn, locals) => {
+const handleAssignees = async (conn, locals) => {
   if (locals.objects.allPhoneNumbers.size === 0) {
-    return sendResponse(conn, code.badRequest, `No assignees found`);
+    return sendResponse(
+      conn,
+      code.badRequest,
+      `No assignees found`
+    );
   }
 
   const promises = [];
@@ -471,11 +521,15 @@ const handleAssignees = (conn, locals) => {
        * Defaults are `false`, since we don't know right now what
        * these people are in the office in context.
        */
-      locals.objects.permissions[phoneNumber] = {
-        isAdmin: false,
-        isEmployee: false,
-        isCreator: isRequester,
-      };
+      locals
+        .objects
+        .permissions[
+        phoneNumber
+      ] = {
+          isAdmin: false,
+          isEmployee: false,
+          isCreator: isRequester,
+        };
 
       if (locals.static.canEditRule === 'EMPLOYEE') {
         promises
@@ -491,26 +545,69 @@ const handleAssignees = (conn, locals) => {
       }
     });
 
-  return Promise
-    .all(promises)
-    .then(snapShots => {
-      snapShots.forEach((snapShot) => {
-        if (snapShot.empty) return;
+  const snapShots = await Promise.all(promises);
 
-        let phoneNumber;
-        const doc = snapShot.docs[0];
-        const template = doc.get('template');
-        const isEmployee = template === 'employee';
+  snapShots.forEach(snapShot => {
+    if (snapShot.empty) return;
 
-        if (isEmployee) {
-          phoneNumber = doc.get('attachment.Employee Contact.value');
-          locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
-        }
-      });
+    const doc = snapShot.docs[0];
+    const phoneNumber = doc.get('attachment.Employee Contact.value');
+    const template = doc.get('template');
+    const isEmployee = template === 'employee';
 
-      return handlePayroll(conn, locals);
-    })
-    .catch(error => handleError(conn, error));
+    if (isEmployee) {
+      locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
+    }
+  });
+
+  // 'customer',
+  // 'leave',
+  // 'claim',
+  // 'duty',
+
+  const typeActivity = new Set([
+    'customer',
+    'leave',
+    'claim',
+    // 'duty'
+  ]);
+
+  const key = (() => {
+    for (const key of Object.keys(conn.req.body.attachment)) {
+      const { value, type } = conn.req.body.attachment[key];
+
+      if (type.endsWith('-type') && value === '') {
+        return key;
+      }
+    }
+  })();
+
+  /**
+   * If a `x-type` activity exists for the `x` template, and the
+   * user hasn't selected the `x-type` while creating `x` activity,
+   * then don't allow activity creation.
+   */
+  if (key
+    && typeActivity.has(conn.req.body.template)
+    && conn.req.body.attachment[key].value === '') {
+    const typeQueryResult = await rootCollections
+      .activities
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', `${conn.req.body.template}-type`)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get();
+
+    if (!typeQueryResult.empty) {
+      return sendResponse(
+        conn,
+        code.conflict,
+        `${key} is required`
+      );
+    }
+  }
+
+  return handlePayroll(conn, locals);
 };
 
 const handleClaims = async (conn, locals) => {
@@ -544,8 +641,12 @@ const handleClaims = async (conn, locals) => {
   });
 
   if (claimsThisMonth + amount > monthlyLimit) {
-    locals.static.statusOnCreate = 'CANCELLED';
-    locals.cancellationMessage = `CLAIM CANCELLED: Exceeded`
+    locals
+      .static
+      .statusOnCreate = 'CANCELLED';
+
+    locals
+      .cancellationMessage = `CLAIM CANCELLED: Exceeded`
       + ` Max Claims (${monthlyLimit}) amount this month.`;
   }
 
@@ -554,95 +655,81 @@ const handleClaims = async (conn, locals) => {
 
 
 const resolveQuerySnapshotShouldNotExistPromises = async (conn, locals, result) => {
-  const promises = result.querySnapshotShouldNotExist;
+  const snapShots = await Promise.all(result.querySnapshotShouldNotExist);
+  let successful = true;
+  let message = null;
 
-  try {
-    const snapShots = await Promise
-      .all(promises);
-    let successful = true;
-    let message = null;
-    for (const snapShot of snapShots) {
-      const filters = snapShot.query._queryOptions.fieldFilters;
-      const value = filters[0].value;
-      const type = filters[1].value;
-      if (!snapShot.empty) {
-        successful = false;
-        message = `The ${type} '${value}' already exists`;
-        break;
-      }
+  for (const snapShot of snapShots) {
+    const filters = snapShot.query._queryOptions.fieldFilters;
+    const value = filters[0].value;
+    const type = filters[1].value;
+
+    if (!snapShot.empty) {
+      successful = false;
+      message = `The ${type} '${value}' already exists`;
+      break;
     }
-    if (!successful) {
-      return sendResponse(conn, code.badRequest, message);
-    }
-    return handleClaims(conn, locals);
   }
-  catch (error) {
-    return handleError(conn, error);
+
+  if (!successful) {
+    return sendResponse(conn, code.badRequest, message);
   }
+
+  return handleClaims(conn, locals);
 };
 
 
 const resolveQuerySnapshotShouldExistPromises = async (conn, locals, result) => {
-  if (result.querySnapshotShouldExist.length === 0) {
-    return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
+  const snapShots = await Promise.all(result.querySnapshotShouldExist);
+  let successful = true;
+  let message;
+
+  for (const snapShot of snapShots) {
+    const filters = snapShot.query._queryOptions.fieldFilters;
+    const value = filters[0].value;
+    const type = filters[1].value;
+
+    message = `${type} ${value} does not exist`;
+
+    if (snapShot.empty) {
+      successful = false;
+      break;
+    }
   }
 
-  try {
-    const snapShots = await Promise
-      .all(result.querySnapshotShouldExist);
-    let successful = true;
-    let message;
-    for (const snapShot of snapShots) {
-      const filters = snapShot.query._queryOptions.fieldFilters;
-      const value = filters[0].value;
-      const type = filters[1].value;
-      console.log({ value, type });
-      message = `${type} ${value} does not exist`;
-      if (snapShot.empty) {
-        successful = false;
-        break;
-      }
-    }
-    if (!successful && conn.req.body.template !== 'dsr') {
-      return sendResponse(conn, code.badRequest, message);
-    }
-    return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
+  if (!successful) {
+    return sendResponse(conn, code.badRequest, message);
   }
-  catch (error) {
-    return handleError(conn, error);
-  }
+
+  return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
 };
 
 
 const resolveProfileCheckPromises = async (conn, locals, result) => {
-  if (result.profileDocShouldExist.length === 0) {
-    return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
+  const snapShots = await Promise.all(result.profileDocShouldExist);
+
+  let successful = true;
+  let message = null;
+
+  for (const doc of snapShots) {
+    message = `The user ${doc.id} has not signed up on Growthfile.`;
+
+    if (!doc.exists) {
+      successful = false;
+      break;
+    }
+
+    if (!doc.get('uid')) {
+      successful = false;
+      break;
+    }
   }
 
-  try {
-    const snapShots = await Promise
-      .all(result.profileDocShouldExist);
-    let successful = true;
-    let message = null;
-    for (const doc of snapShots) {
-      message = `The user ${doc.id} has not signed up on Growthfile.`;
-      if (!doc.exists) {
-        successful = false;
-        break;
-      }
-      if (!doc.get('uid')) {
-        successful = false;
-        break;
-      }
-    }
-    if (!successful) {
-      return sendResponse(conn, code.badRequest, message);
-    }
-    return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
+  if (!successful) {
+    return sendResponse(conn, code.badRequest, message);
   }
-  catch (error) {
-    return handleError(conn, error);
-  }
+
+  return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
 };
 
 
@@ -684,28 +771,38 @@ const handleAttachment = (conn, locals) => {
 
 
 const handleScheduleAndVenue = (conn, locals) => {
-  const scheduleValidationResult =
-    validateSchedules(conn.req.body, locals.objects.schedule);
+  const scheduleValidationResult = validateSchedules(
+    conn.req.body,
+    locals.objects.schedule
+  );
 
   if (!scheduleValidationResult.isValid) {
-    return sendResponse(conn, code.badRequest, scheduleValidationResult.message);
+    return sendResponse(
+      conn,
+      code.badRequest,
+      scheduleValidationResult.message
+    );
   }
 
-  locals.objects.scheduleArray = scheduleValidationResult.schedules;
+  conn
+    .req
+    .body
+    .schedule = scheduleValidationResult.schedules;
 
-  const venueValidationResult =
-    validateVenues(conn.req.body, locals.objects.venue);
+  const venueValidationResult = validateVenues(
+    conn.req.body,
+    locals.objects.venue
+  );
 
   if (!venueValidationResult.isValid) {
-    return sendResponse(conn, code.badRequest, venueValidationResult.message);
+    return sendResponse(
+      conn,
+      code.badRequest,
+      venueValidationResult.message
+    );
   }
 
-  /**
-   * Can't directly write the `conn.req.body.venue` to the activity root
-   * because venue objects contain `Geopoint` object of Firebase.
-   * We need to convert that from a normal `JS` Object for each venue.
-   */
-  locals.objects.venueArray = venueValidationResult.venues;
+  conn.req.body.venue = venueValidationResult.venues;
 
   return handleAttachment(conn, locals);
 };
@@ -837,25 +934,41 @@ const createLocals = (conn, result) => {
       );
     }
 
-    locals.static.officeId = officeQueryResult.docs[0].id;
-    locals.officeDoc = officeQueryResult.docs[0];
+    locals
+      .static
+      .officeId = officeQueryResult.docs[0].id;
+    locals
+      .officeDoc = officeQueryResult.docs[0];
   }
 
   if (conn.req.body.template === 'enquiry') {
     if (locals.officeDoc.get('attachment.First Contact.value')) {
-      conn.req.body.share.push(locals.officeDoc.get('attachment.First Contact.value'));
+      conn
+        .req
+        .body
+        .share
+        .push(locals.officeDoc.get('attachment.First Contact.value'));
     }
 
     if (locals.officeDoc.get('attachment.Second Contact.value')) {
-      conn.req.body.share.push(locals.officeDoc.get('attachment.Second Contact.value'));
+      conn
+        .req
+        .body
+        .share
+        .push(locals.officeDoc.get('attachment.Second Contact.value'));
     }
   }
 
-  conn.req.body.share.forEach((phoneNumber) => {
-    locals.objects.allPhoneNumbers.add(phoneNumber);
-  });
+  conn
+    .req
+    .body
+    .share
+    .forEach(phoneNumber => {
+      locals.objects.allPhoneNumbers.add(phoneNumber);
+    });
 
-  if (!conn.requester.isSupportRequest && conn.req.body.template !== 'enquiry') {
+  if (!conn.requester.isSupportRequest
+    && conn.req.body.template !== 'enquiry') {
     locals.objects.schedule = subscriptionQueryResult.docs[0].get('schedule');
     locals.objects.venue = subscriptionQueryResult.docs[0].get('venue');
     locals.objects.attachment = subscriptionQueryResult.docs[0].get('attachment');
@@ -887,7 +1000,7 @@ const createLocals = (conn, result) => {
 };
 
 
-module.exports = conn => {
+module.exports = async conn => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
       conn,
@@ -897,10 +1010,17 @@ module.exports = conn => {
     );
   }
 
-  const bodyResult = isValidRequestBody(conn.req.body, httpsActions.create);
+  const bodyResult = isValidRequestBody(
+    conn.req.body,
+    httpsActions.create
+  );
 
   if (!bodyResult.isValid) {
-    return sendResponse(conn, code.badRequest, bodyResult.message);
+    return sendResponse(
+      conn,
+      code.badRequest,
+      bodyResult.message
+    );
   }
 
   const promises = [
@@ -936,8 +1056,11 @@ module.exports = conn => {
       );
   }
 
-  return Promise
-    .all(promises)
-    .then(result => createLocals(conn, result))
-    .catch(error => handleError(conn, error));
+  try {
+    const result = await Promise
+      .all(promises);
+    return createLocals(conn, result);
+  } catch (error) {
+    return handleError(conn, error);
+  }
 };

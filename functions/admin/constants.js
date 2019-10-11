@@ -842,18 +842,44 @@ const loggingTags = {
   AUTH_REJECTIONS: 'AUTH_REJECTIONS',
 };
 
+const subcollectionNames = {
+  ACTIVITIES: 'Activities',
+  ATTENDANCES: 'Attendances',
+  ADDENDUM: 'Addendum',
+  SUBSCRIPTIONS: 'Subscriptions',
+  WEBAPP: 'Webapp',
+  ASSIGNEES: 'Assignees',
+  TRANSACTIONS: 'Transactions',
+  REIMBURSEMENTS: 'Reimbursements',
+};
+
+const allMonths = {
+  'January': 0,
+  'February': 1,
+  'March': 2,
+  'April': 3,
+  'May': 4,
+  'June': 5,
+  'July': 6,
+  'August': 7,
+  'September': 8,
+  'October': 9,
+  'November': 10,
+  'December': 11,
+};
 
 module.exports = {
   vowels,
   weekdays,
+  allMonths,
   validTypes,
   dateFormats,
+  loggingTags,
   reportNames,
+  templatesSet,
   timezonesSet,
   httpsActions,
   canEditRules,
-  loggingTags,
-  templatesSet,
   templateFields,
   customMessages,
   shareBodyFields,
@@ -863,6 +889,7 @@ module.exports = {
   updateBodyFields,
   removeBodyFields,
   commentBodyFields,
+  subcollectionNames,
   sendGridTemplateIds,
   templatesWithNumber,
   changeStatusBodyFields,

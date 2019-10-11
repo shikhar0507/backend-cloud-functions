@@ -41,23 +41,6 @@ const moment = require('moment');
 const admin = require('firebase-admin');
 
 
-const getDataFromRef = ref => {
-  return new Promise((resolve) => {
-    ref.on('value', resolve);
-  });
-};
-
-const setDataWithRef = async (ref, data) => {
-  return new Promise((resolve, reject) => {
-    ref.set(data, error => {
-      if (error) reject(error);
-
-      resolve();
-    });
-  });
-};
-
-
 /**
  * Creates new docs inside `Profile` and `Updates` collection in Firestore for
  * a newly signed up user.
@@ -130,35 +113,44 @@ module.exports = async userRecord => {
       initDocsQuery,
       adminActivitiesQuery,
       employeesQuery,
-    ] = await Promise.all(promises);
+    ] = await Promise
+      .all(promises);
 
     const initDoc = getObjectFromSnap(initDocsQuery);
 
     const usersAdded = (() => {
-      if (initDocsQuery.empty) return 1;
+      if (initDocsQuery.empty) {
+        return 1;
+      }
 
-      return initDocsQuery.docs[0].get('usersAdded') || 0;
+      return initDocsQuery
+        .docs[0]
+        .get('usersAdded') || 0;
     })();
 
-    batch.set(initDoc.ref, {
-      usersAdded: usersAdded + 1,
-    }, {
-      merge: true,
-    });
-
-    if (!counterDocsQuery.empty) {
-      const counterDoc = getObjectFromSnap(counterDocsQuery);
-      batch.set(counterDoc.ref, {
-        totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
+    batch
+      .set(initDoc.ref, {
+        usersAdded: usersAdded + 1,
       }, {
         merge: true,
       });
+
+    if (!counterDocsQuery.empty) {
+      const counterDoc = getObjectFromSnap(counterDocsQuery);
+
+      batch
+        .set(counterDoc.ref, {
+          totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
+        }, {
+          merge: true,
+        });
     }
 
     const customClaimsObject = {};
 
     if (!adminActivitiesQuery.empty) {
-      customClaimsObject.admin = [];
+      customClaimsObject
+        .admin = [];
     }
 
     adminActivitiesQuery
@@ -173,13 +165,14 @@ module.exports = async userRecord => {
     const uid = userRecord.uid;
     const phoneNumber = filterPhoneNumber(userRecord.phoneNumber);
 
-    batch.set(rootCollections
-      .updates
-      .doc(uid), {
-      phoneNumber,
-    }, {
-      merge: true,
-    });
+    batch
+      .set(rootCollections
+        .updates
+        .doc(uid), {
+        phoneNumber,
+      }, {
+        merge: true,
+      });
 
     /**
      * Profile *may* exist already, if the user signed
@@ -187,13 +180,14 @@ module.exports = async userRecord => {
      * phone number was introduced to the system sometime
      * in the past via an activity
      */
-    batch.set(rootCollections
-      .profiles
-      .doc(phoneNumber), {
-      uid,
-    }, {
-      merge: true,
-    });
+    batch
+      .set(rootCollections
+        .profiles
+        .doc(phoneNumber), {
+        uid,
+      }, {
+        merge: true,
+      });
 
     console.log({ phoneNumber, uid });
 
@@ -204,29 +198,30 @@ module.exports = async userRecord => {
         .commit(),
     ];
 
-    console.log(employeesQuery.size);
-
     if (!employeesQuery.empty) {
-      employeesQuery.forEach(async doc => {
-        const officeId = doc.get('officeId');
-        const phoneNumber = doc.get('attachment.Employee Contact.value');
-        const ref = admin
-          .database()
-          .ref(`${officeId}/employee/${phoneNumber}`);
+      employeesQuery
+        .forEach(async doc => {
+          const officeId = doc.get('officeId');
+          const phoneNumber = doc.get('attachment.Employee Contact.value');
+          const ref = admin
+            .database()
+            .ref(`${officeId}/employee/${phoneNumber}`);
 
-        console.log('ref', ref.path);
+          const data = await ref.once('value');
+          const updated = data.val();
 
-        const data = await getDataFromRef(ref);
-        const updated = data.val();
+          if (updated) {
+            updated
+              .hasInstalled = true;
 
-        if (updated) {
-          updated.hasInstalled = true;
-          promises.push(setDataWithRef(ref, updated));
-        }
-      });
+            final
+              .push(ref.set(updated));
+          }
+        });
     }
 
-    return Promise.all(final);
+    return Promise
+      .all(final);
   } catch (error) {
     console.error(error);
   }

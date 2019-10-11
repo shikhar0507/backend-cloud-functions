@@ -39,12 +39,14 @@ const {
   isValidGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
-  getEmployeeFromRealtimeDb,
+  getAttendancesPath,
 } = require('../../admin/utils');
 const {
+  allMonths,
   validTypes,
   timezonesSet,
   dateFormats,
+  subcollectionNames,
   templatesWithNumber,
 } = require('../../admin/constants');
 const {
@@ -1197,8 +1199,6 @@ const toCustomerObject = (docData, createTime) => {
     customerOffice.identifier = venue.address;
   }
 
-
-
   const customerObject = {
     customerOffice,
     createTime,
@@ -1228,149 +1228,87 @@ const toEmployeesData = (activity) => {
   };
 };
 
-const getAllMonthYearCombinations = (startTime, endTime, timezone) => {
-  const datesSet = new Set();
 
-  const start = momentTz(startTime).tz(timezone);
-  const end = momentTz(endTime).tz(timezone);
-  datesSet.add(start.format(dateFormats.MONTH_YEAR));
-
-  while (start.add(1, 'day').diff(end) <= 0) {
-    const dateString = start.format(dateFormats.MONTH_YEAR);
-
-    datesSet.add(dateString);
-  }
-
-  return datesSet;
-};
-
-const getAllDateObjects = (startTime, endTime, timezone) => {
-  const dates = [];
-
-  const currDate = momentTz(startTime).tz(timezone).startOf('day');
-  const lastDate = momentTz(endTime).tz(timezone).endOf('day');
-
-  dates.push({
-    date: currDate.date(),
-    month: currDate.month(),
-    year: currDate.year(),
-  });
-
-  while (currDate.add(1, 'days').diff(lastDate) <= 0) {
-    const clone = currDate.clone();
-
-    dates.push({
-      date: clone.date(),
-      month: clone.month(),
-      year: clone.year(),
-    });
-  }
-
-  return dates;
-};
-
-const getAllDatesSet = (startTime, endTime, timezone) => {
-  const datesSet = new Set();
-
-  const start = momentTz(startTime).tz(timezone);
-  const end = momentTz(endTime).tz(timezone);
-  datesSet.add(start.format());
-
-  while (start.add(1, 'days').diff(end) <= 0) {
-    datesSet.add(start.format());
-  }
-
-  return datesSet;
-};
-
-const cancelLeaveOrDuty = async params => {
+const cancelLeaveOrAr = async params => {
   const {
-    phoneNumber,
     officeId,
     startTime,
     endTime,
     template,
+    creatorsPhoneNumber,
   } = params;
 
-  const response = {
-    success: true,
-    message: null,
-  };
-
-  if (!['leave', 'attendance regularization'].includes(template)) {
-    throw new Error(
-      `The field 'statusToSet' should be a non-empty string`
-      + ` with one of the the values: ${['leave', 'attendance regularization']}`
-    );
-  }
-
-  if (!startTime
-    || !endTime) {
-    return response;
-  }
-
-  const batch = db.batch();
-  const officeDoc = await rootCollections.offices.doc(officeId).get();
-  const timezone = officeDoc.get('attachment.Timezone.value');
-  const allMonthYears = getAllMonthYearCombinations(startTime, endTime, timezone);
-  const allDateStrings = getAllDatesSet(startTime, endTime, timezone);
-  const allDateObjects = getAllDateObjects(startTime, endTime, timezone);
-  let employeeData = await getEmployeeFromRealtimeDb(officeDoc.id, phoneNumber);
-
-  // Will be null for non-existing employees
-  employeeData = employeeData || {};
-
-  const addendumPromises = [];
-
-  allDateObjects.forEach(dateObject => {
-    const addendumPromise = officeDoc
-      .ref
-      .collection('Addendum')
-      /** `Warning`: Modifying the ordering of the
-       * `where` clause will result in this code to stop working
-       */
-      .where('user', '==', phoneNumber)
-      .where('date', '==', dateObject.date)
-      .where('month', '==', dateObject.month)
-      .where('year', '==', dateObject.year)
-      .get();
-
-    addendumPromises
-      .push(addendumPromise);
+  const promises = getAttendancesPath({
+    startTime,
+    endTime,
+    officeId,
+    phoneNumber: creatorsPhoneNumber,
   });
+  const [
+    attendanceDocs,
+    employeeQueryResult,
+  ] = await Promise
+    .all([
+      Promise
+        .all(promises),
+      rootCollections
+        .activities
+        .where('officeId', '==', officeId)
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'employee')
+        .where('attachment.Employee Contact.value', '==', creatorsPhoneNumber)
+        .limit(1)
+        .get(),
+    ]);
+  const batch = db.batch();
+  const addendumPromises = [];
+  const queryDates = [];
 
-  const snaps = await Promise.all(addendumPromises);
-  const minimumDailyActivityCount = employeeData['Minimum Daily Activity Count'] || 1;
-  const minimumWorkingHours = employeeData['Minimum Working Hours'] || 1;
+  attendanceDocs
+    .forEach(doc => {
+      const { month, year } = doc.data();
+      const p = rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.ADDENDUM)
+        .where('date', '==', doc.id)
+        .where('month', '==', month)
+        .where('year', '==', year)
+        .where('user', '==', creatorsPhoneNumber)
+        .get();
 
-  const newStatusMap = new Map();
+      queryDates
+        .push(`${doc.id} ${month} ${year}`);
+      addendumPromises
+        .push(p);
+    });
 
-  snaps
-    .forEach(snap => {
-      const numberOfCheckIns = snap.size;
-      const fieldFilters = snap.query._queryOptions.fieldFilters;
-      const phoneNumber = fieldFilters[0].value;
-      const date = fieldFilters[1].value;
-      const month = fieldFilters[2].value;
-      const year = fieldFilters[3].value;
-      const monthYearString = momentTz()
-        .date(date)
-        .month(month)
-        .year(year)
-        .tz(timezone)
-        .format(dateFormats.MONTH_YEAR);
+  const snapShots = await Promise
+    .all(addendumPromises);
 
-      if (numberOfCheckIns === 0) {
-        newStatusMap.set(`${phoneNumber}-${date}-${monthYearString}`, numberOfCheckIns);
+  const datesMap = new Map();
 
-        return;
-      }
+  snapShots
+    .forEach((snapShot, index) => {
+      const numberOfCheckIns = snapShot.size;
+      const minimumDailyActivityCount = employeeQueryResult
+        .docs[0]
+        .get('attachment.Minimum Daily Activity Count.value');
+      const minimumWorkingHours = employeeQueryResult
+        .docs[0]
+        .get('attachment.Minimum Working Hours.value');
+      const hoursWorked = (() => {
+        if (numberOfCheckIns === 0) {
+          return 0;
+        }
 
-      const firstDoc = snap.docs[0];
-      const lastDoc = snap.docs[snap.size - 1];
-      const firstTimestamp = firstDoc.get('timestamp');
-      const lastTimestamp = lastDoc.get('timestamp');
-      const hoursWorked = momentTz(lastTimestamp).diff(firstTimestamp, 'hours');
+        const firstCheckIn = snapShot.docs[0];
+        const lastCheckIn = snapShot.docs[snapShot.size - 1];
+
+        return momentTz(lastCheckIn.get('timestamp'))
+          .diff(momentTz(firstCheckIn.get('timestamp')), 'hours');
+      })();
+
       const statusForDay = getStatusForDay({
         numberOfCheckIns,
         minimumDailyActivityCount,
@@ -1378,120 +1316,103 @@ const cancelLeaveOrDuty = async params => {
         hoursWorked,
       });
 
-      newStatusMap
-        .set(`${phoneNumber}-${date}-${monthYearString}`, statusForDay);
+      const docUpdate = {
+        statusForDay,
+      };
+
+      if (template === 'leave') {
+        docUpdate
+          .onLeave = false;
+      }
+
+      if (template === 'attendance regularization') {
+        docUpdate
+          .onAr = false;
+      }
+
+      datesMap
+        .set(queryDates[index], docUpdate);
     });
 
-  const statusPromises = [];
+  attendanceDocs
+    .forEach(doc => {
+      const date = doc.id;
+      const { month, year } = doc.data();
+      const onLeave = template === 'leave';
+      const onAr = template === 'attendance regularization';
+      const docUpdates = {
+        statusForDay: datesMap.get(`${date} ${month} ${year}`),
+      };
 
-  allMonthYears.forEach(monthYearString => {
-    const promise = officeDoc
-      .ref
-      .collection('Statuses')
-      .doc(monthYearString)
-      .collection('Employees')
-      .doc(phoneNumber)
-      .get();
+      if (onLeave) {
+        docUpdates
+          .onLeave = false;
+      }
 
-    statusPromises
-      .push(promise);
-  });
+      if (onAr) {
+        docUpdates
+          .onAr = false;
+      }
 
-  const docs = await Promise
-    .all(statusPromises);
-  const statusObjectMap = new Map();
-
-  docs.forEach(doc => {
-    // Doc might not exist
-    const statusObject = doc.get('statusObject') || {};
-    const { path } = doc.ref;
-    const parts = path.split('/');
-    const monthYearString = parts[3];
-
-    statusObjectMap
-      .set(monthYearString, statusObject || {});
-  });
-
-  allDateStrings.forEach(dateString => {
-    const momentFromString = momentTz(dateString).tz(timezone);
-    const monthYearString = momentFromString.format(dateFormats.MONTH_YEAR);
-    const statusObject = statusObjectMap.get(monthYearString);
-    const date = momentFromString.date();
-
-    statusObject[date] = statusObject[date] || {};
-
-    if (template === 'leave') {
-      statusObject[date].onLeave = false;
-    }
-
-    if (template === 'attendance regularization') {
-      statusObject[date].onAr = false;
-    }
-
-    const statusForDay = newStatusMap
-      .get(`${phoneNumber}-${date}-${monthYearString}`);
-
-    statusObject[date].statusForDay = statusForDay || 0;
-    statusObjectMap
-      .set(monthYearString, statusObject);
-  });
-
-  statusObjectMap
-    .forEach((statusObject, monthYearString) => {
-      const ref = officeDoc.ref.collection('Statuses')
-        .doc(monthYearString)
-        .collection('Employees')
-        .doc(phoneNumber);
-
-      batch.set(ref, {
-        statusObject,
-      }, {
-        merge: true,
-      });
+      batch
+        .set(doc.ref, docUpdates, {
+          merge: true,
+        });
     });
 
-  await batch.commit();
+  const updatesQuery = await rootCollections
+    .updates
+    .where('phoneNumber', '==', creatorsPhoneNumber)
+    .limit(1)
+    .get();
 
-  return response;
+  const doc = updatesQuery.docs[0];
+
+  if (doc) {
+    batch.set(doc.ref, {
+      lastStatusDocUpdateTimestamp: Date.now()
+    }, {
+      merge: true,
+    });
+  }
+
+  await batch
+    .commit();
+
+  return batch
+    .commit();
 };
 
 const setOnLeaveOrAr = async params => {
+  const result = {
+    message: null,
+    success: true,
+  };
+
   const {
-    phoneNumber,
     officeId,
+    timezone,
     startTime,
     endTime,
     template,
-    leaveType,
+    status,
+    leaveReason,
     arReason,
+    leaveType,
+    creatorsPhoneNumber,
+    requestersPhoneNumber,
   } = params;
 
-  const response = {
-    success: true,
-    message: null,
-  };
-
-  if (!['leave', 'attendance regularization'].includes(template)) {
-    throw new Error(
-      `The field 'statusToSet' should be a non-empty string`
-      + ` with one of the the values: ${['leave', 'attendance regularization']}`
-    );
-  }
-
-  if (!startTime
-    || !endTime) {
-    return response;
-  }
-
-  const LEAVE_WITH_LEAVE_MESSAGE = 'Leave already applied for the following date(s)';
-  const AR_WITH_AR_MESSAGE = 'Attendance is already regularized for the following date(s)';
-  const conflictingDates = [];
-  const batch = db.batch();
-
-  const officeDoc = await rootCollections.offices.doc(officeId).get();
-  const timezone = officeDoc.get('attachment.Timezone.value');
-
   if (template === 'attendance regularization') {
+    if (startTime >= momentTz().tz(timezone).startOf('day').valueOf()) {
+      result
+        .success = false;
+      result
+        .message = `Attendance can only be applied for the past`;
+
+      return result;
+    }
+
     const recipientQueryResult = await rootCollections
       .activities
       .where('officeId', '==', officeId)
@@ -1502,179 +1423,167 @@ const setOnLeaveOrAr = async params => {
       .get();
 
     if (recipientQueryResult.empty) {
-      response.success = false;
-      response.message = `Your organization has not`
+      result
+        .success = false;
+      result
+        .message = `Your organization has not`
         + ` subscribed to Growthfile's Payroll Automation`;
 
-      return response;
-    }
-
-    const now = momentTz().tz(timezone);
-
-    if (startTime >= now.startOf('day').valueOf()) {
-      response.success = false;
-      response.message = 'Attendance can only be applied for the past';
-
-      return response;
+      return result;
     }
   }
 
-  const allMonthYears = getAllMonthYearCombinations(
+  const promises = getAttendancesPath({
     startTime,
     endTime,
-    timezone
-  );
-  const allDates = getAllDatesSet(
-    startTime,
-    endTime,
-    timezone
-  );
-
-  const promises = [];
-
-  allMonthYears
-    .forEach(monthYearString => {
-      const promise = officeDoc
-        .ref
-        .collection('Statuses')
-        .doc(monthYearString)
-        .collection('Employees')
-        .doc(phoneNumber)
-        .get();
-
-      promises
-        .push(promise);
-    });
-
-  const docs = await Promise.all(promises);
-  const statusObjectMap = new Map();
-
-  docs.forEach(doc => {
-    // Doc might not exist
-    const { statusObject } = doc.data() || {};
-    const { path } = doc.ref;
-    const parts = path.split('/');
-    const monthYearString = parts[3];
-    statusObjectMap
-      .set(
-        monthYearString,
-        statusObject || {}
-      );
+    officeId,
+    phoneNumber: creatorsPhoneNumber,
   });
+  const docs = await Promise
+    .all(promises);
+  const isPending = status === 'PENDING';
+  const isCONFIRMED = status === 'CONFIRMED';
+  const conflictsSet = new Set();
+  const batch = db
+    .batch();
+  const conflictMessage = {
+    AR_WITH_AR: `Attendance already regularized for the following dates:`,
+    AR_WITH_LEAVE: `Leave already applied for the following dates:`,
+    LEAVE_WITH_AR: `Attendance already regularized for the following dates:`,
+    LEAVE_WITH_LEAVE: `Leave already applied for the following dates:`,
+  };
 
-  if (template === 'attendance regularization') {
-    const momentStartTime = momentTz(startTime)
-      .tz(timezone);
-    const monthYear = momentStartTime
-      .format(dateFormats.MONTH_YEAR);
-    const statusObject = statusObjectMap
-      .get(monthYear) || {};
-
-    if (!statusObject
-      || !statusObject[momentStartTime.date()]
-      || statusObject[momentStartTime.date()].statusForDay === 1) {
-      response.success = false;
-      response.message = `The status for `
-        + `${momentStartTime.format(dateFormats.DATE)}`
-        + ` is already 'Present'`;
-
-      return response;
-    }
-  }
-
-  allDates
-    .forEach(dateString => {
-      const momentFromString = momentTz(dateString).tz(timezone);
-      const monthYearString = momentFromString.format(dateFormats.MONTH_YEAR);
-      const statusObject = statusObjectMap.get(monthYearString);
-      const date = momentFromString.date();
-
-      statusObject[date] = statusObject[date] || {};
+  docs
+    .forEach(doc => {
+      const onAr = doc.get('onAr') || false;
+      const onLeave = doc.get('onLeave') || false;
+      const { path } = doc.ref;
+      const parts = path.split('/');
+      const monthYearString = parts[3];
+      const [
+        monthString,
+        year,
+      ] = monthYearString
+        .split(' ');
+      const month = allMonths[monthString];
+      const fmt = momentTz()
+        .date(doc.id)
+        .month(month)
+        .year(year)
+        .tz(timezone)
+        .format(dateFormats.DATE);
+      const docUpdate = doc.data() || {
+        officeId,
+        phoneNumber: creatorsPhoneNumber,
+        month: Number(month),
+        year: Number(year),
+      };
 
       if (template === 'leave'
-        && (statusObject[date].onLeave || statusObject[date].onAr)) {
-        conflictingDates.push(momentFromString.format(dateFormats.DATE));
-        response.message = LEAVE_WITH_LEAVE_MESSAGE;
-        response.success = false;
+        && onLeave
+        && isPending) {
+        conflictsSet.add(fmt);
+        // Leave CANCELLED: Leave already applied for the following dates:
+        result
+          .message = conflictMessage.LEAVE_WITH_LEAVE;
+
+        return;
+      }
+
+      if (template === 'leave'
+        && onAr
+        && isPending) {
+        conflictsSet
+          .add(fmt);
+        // Leave CANCELLED: Attendance already regularized for the following dates:
+        result
+          .message = conflictMessage.LEAVE_WITH_AR;
 
         return;
       }
 
       if (template === 'attendance regularization'
-        && (statusObject[date].onAr || statusObject[date].onLeave)) {
-        conflictingDates.push(momentFromString.format(dateFormats.DATE));
-        response.message = AR_WITH_AR_MESSAGE;
-        response.success = false;
+        && onLeave
+        && isPending) {
+        conflictsSet
+          .add(fmt);
+        // Attendance Regularization CANCELLED: Leave already applied for the following dates:
+        result
+          .message = conflictMessage.AR_WITH_LEAVE;
 
         return;
       }
 
-      if (template === 'leave') {
-        statusObject[date].onLeave = true;
-        statusObject[date].statusForDay = 1;
-        statusObject[date].leaveType = leaveType || '';
+      if (template === 'attendance regularization'
+        && onAr
+        && isPending) {
+        conflictsSet
+          .add(fmt);
+        // Attendance Regularization CANCELLED: Attendance already regularized for the following dates:
+        result
+          .message = conflictMessage.AR_WITH_AR;
+
+        return;
       }
 
-      if (template === 'attendance regularization') {
-        statusObject[date].onAr = true;
-        statusObject[date].statusForDay = 1;
-        statusObject[date].arReason = arReason || '';
+      docUpdate
+        .statusForDay = 1;
+      docUpdate
+        .onLeave = template === 'leave';
+      docUpdate
+        .onAr = template === 'attendance regularization';
+      docUpdate
+        .leaveReason = leaveReason || '',
+        docUpdate
+          .leaveType = leaveType || '';
+      docUpdate
+        .arReason = arReason || '';
+
+      if (isCONFIRMED) {
+        docUpdate
+          .leaveConfirmedBy = requestersPhoneNumber;
+        docUpdate
+          .leaveConfirmedAt = momentTz().tz(timezone).valueOf();
       }
 
-      statusObjectMap
-        .set(monthYearString, statusObject);
+      batch
+        .set(doc.ref, docUpdate, {
+          merge: true,
+        });
     });
 
-  statusObjectMap
-    .forEach((statusObject, monthYearString) => {
-      const ref = officeDoc.ref.collection('Statuses')
-        .doc(monthYearString)
-        .collection('Employees')
-        .doc(phoneNumber);
+  /**
+   * No conflicts, that means the leave can be created successfully
+   */
+  if (conflictsSet.size === 0) {
+    const updatesQuery = await rootCollections
+      .updates
+      .where('phoneNumber', '==', creatorsPhoneNumber)
+      .limit(1)
+      .get();
 
-      batch.set(ref, {
-        statusObject,
+    const doc = updatesQuery.docs[0];
+
+    if (doc) {
+      batch.set(doc.ref, {
+        lastStatusDocUpdateTimestamp: Date.now()
       }, {
         merge: true,
       });
-    });
-
-  // No conflicting dates; its safe to write the updates
-  if (conflictingDates.length === 0) {
-    await batch
-      .commit();
-  }
-
-  const datesString = (() => {
-    if (conflictingDates.length < 2) {
-      return conflictingDates;
     }
 
-    let string = '';
+    await batch
+      .commit();
 
-    conflictingDates
-      .forEach((date, index) => {
-        const isLast = index === conflictingDates.length - 1;
-
-        if (isLast) {
-          string += `and ${date}`;
-
-          return;
-        }
-
-        string += `${date}, `;
-      });
-
-    return string.trim();
-  })();
-
-  // Message set means conflict between dates
-  if (response.message) {
-    response.message = `${response.message}: ${datesString}`;
-    response.success = false;
+    return result;
   }
 
-  return response;
+  result
+    .success = false;
+  result
+    .message = `${result.message} ${[...conflictsSet]}`;
+
+  return result;
 };
 
 
@@ -1687,12 +1596,13 @@ module.exports = {
   toCustomerObject,
   toEmployeesData,
   validateSchedules,
-  cancelLeaveOrDuty,
+  cancelLeaveOrAr,
   filterAttachment,
   haversineDistance,
   isValidRequestBody,
   toAttachmentValues,
   setOnLeaveOrAr,
+  getAttendancesPath,
   checkActivityAndAssignee,
   getPhoneNumbersFromAttachment,
 };

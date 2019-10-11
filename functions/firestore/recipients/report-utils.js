@@ -251,7 +251,7 @@ const getEmployeeDetailsString = (employeesData, phoneNumber) => {
   }
 
   const supervisorsString = (() => {
-    let result = [];
+    const result = [];
     let firstSupervisor = employeesData[phoneNumber]['First Supervisor'];
     let secondSupervisor = employeesData[phoneNumber]['Second Supervisor'];
 
@@ -324,17 +324,18 @@ const getIdentifier = doc => {
 
 const getStatusForDay = options => {
   const {
-    numberOfCheckIns: numberOfActions, // number of actions done in the day by the user
+    numberOfCheckIns, // number of actions done in the day by the user
     minimumDailyActivityCount,
     minimumWorkingHours,
     hoursWorked // difference between first and last action in hours,
   } = options;
 
-  if (minimumDailyActivityCount === 1 && numberOfActions !== 0) {
+  if (minimumDailyActivityCount === 1
+    && numberOfCheckIns !== 0) {
     return 1;
   }
 
-  let activityRatio = numberOfActions / minimumDailyActivityCount;
+  let activityRatio = numberOfCheckIns / minimumDailyActivityCount;
 
   if (activityRatio > 1) {
     activityRatio = 1;
@@ -350,7 +351,9 @@ const getStatusForDay = options => {
 
   const minOfRatios = Math.min(activityRatio, workHoursRatio);
 
-  if (minOfRatios >= 1) return 1;
+  if (minOfRatios >= 1) {
+    return 1;
+  }
 
   const rev = 1 / minimumDailyActivityCount;
 
@@ -402,11 +405,20 @@ const getSupervisors = (employeesData, phoneNumber) => {
   return str.trim();
 };
 
+const getFieldValue = (employeesData, phoneNumber, field) => {
+  if (employeesData[phoneNumber]) {
+    return employeesData[phoneNumber][field] || '';
+  }
+
+  return '';
+};
+
 
 module.exports = {
   getUrl,
   getName,
   toMapsUrl,
+  getFieldValue,
   monthsArray,
   employeeInfo,
   weekdaysArray,

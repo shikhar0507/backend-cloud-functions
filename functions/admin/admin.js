@@ -47,11 +47,6 @@ const db = admin.firestore();
 
 db.settings({ timestampsInSnapshots: true });
 
-/**
- * Sentinel which refers to the document id.
- */
-const fieldPath = admin.firestore.FieldPath.documentId();
-
 /** For the worst cases where there is an omission of a `catch()` block. */
 process
   .on('unhandledRejection', console.log);
@@ -264,6 +259,7 @@ const rootCollections = {
   events: db.collection('Events'),
   errors: db.collection('Errors'),
   anonymous: db.collection('Anonymous'),
+  inboundPayments: db.collection('InboundPayments'),
 };
 
 
@@ -282,7 +278,6 @@ module.exports = {
   db,
   auth,
   users,
-  fieldPath,
   rootCollections,
   getGeopointObject,
 };

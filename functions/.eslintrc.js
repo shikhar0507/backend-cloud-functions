@@ -26,6 +26,8 @@ module.exports = {
     semi: 'warn',
     'no-undef': 'error',
     'no-use-before-define': 'error',
-    'no-prototype-builtins': 'off'
+    'no-prototype-builtins': 'off',
+    'require-atomic-updates': 'off',
+    'prefer-const': 'error',
   },
 };

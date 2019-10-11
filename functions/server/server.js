@@ -387,8 +387,9 @@ module.exports = async (req, res) => {
     return sendResponse(
       conn,
       code.notImplemented,
-      `${req.method} is not supported for any request.` +
-      ' Please use `GET`, `POST`, `PATCH`, or `PUT` to amake your requests'
+      `${req.method} is not supported for any request.`
+      + ' Please use `GET`, `POST`, `PATCH`, or `PUT`'
+      + ' to make your requests'
     );
   }
 

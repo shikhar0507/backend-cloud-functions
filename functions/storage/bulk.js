@@ -61,219 +61,14 @@ const templateNamesObject = {
   KM_ALLOWANCE: 'km allowance',
 };
 
-const getOrderedFields = name => {
-  if (name === 'subscription') {
-    return [
-      'Template',
-      'Subscriber',
-    ];
-  }
+const getOrderedFields = templateDoc => {
+  const venue = templateDoc.get('venue');
+  const schedule = templateDoc.get('schedule');
+  const attachment = Object.keys(templateDoc.get('attachment'));
 
-  if (name === 'recipient') {
-    return [
-      'Name',
-      'cc',
-    ];
-  }
-
-  if (name === 'product') {
-    return [
-      'Name',
-      'Brand',
-      'GST',
-      'Model',
-      'Product Description',
-      'Product Type',
-      'Size',
-      'Stock Keeping Unit',
-      'Unit Value (excluding GST',
-      'Variant',
-    ];
-  }
-
-  if (name === 'order') {
-    return [
-      'Customer',
-      'Estimated Order Value',
-      'Product',
-      'Quantity',
-      'Special Instructions',
-      'Delivery Date',
-      'Payment Date',
-    ];
-  }
-
-  if (name === 'office') {
-    return [
-      'Name',
-      'Branch Place Supported Types',
-      'Company Logo',
-      'Customer Place Supported Types',
-      'Description',
-      'First Contact',
-      'Second Contact',
-      'First Day Of Monthly Cycle',
-      'GST Number',
-      'Registered Office Address',
-      'Short Description',
-      'Timezone',
-      'Usage',
-      'Youtube ID',
-      'Date Of Establishment',
-      'Trial Period',
-    ];
-  }
-
-  if (name === 'leave-type') {
-    return [
-      'Name',
-      'Annual Limit',
-    ];
-  }
-
-  if (name === 'leave') {
-    return [
-      'Leave Type',
-      'Number Of Days',
-      'Reason',
-      'Leave Dates',
-    ];
-  }
-
-  if (name === 'km allowance') {
-    return [
-      'Name',
-      'Amount',
-      'Home Location',
-    ];
-  }
-
-  if (name === 'enquiry') {
-    return [
-      'Company Name',
-      'Enquiry',
-      'Product',
-    ];
-  }
-
-  if (name === 'employee') {
-    return [
-      'Name',
-      'Base Location',
-      'Employee Contact',
-      'First Supervisor',
-      'Second Supervisor',
-      'Third Supervisor',
-      'Employee Code',
-      'Daily Start Time',
-      'Daily End Time',
-      'Department',
-      'Designation',
-      'Employee Based In Customer Location',
-      'Location Validation Check',
-      'Maximum Advance Amount Given',
-      'Minimum Daily Activity Count',
-      'Minimum Working Hours',
-      'Monthly Off Days',
-      'Product Specialization',
-      'Region',
-      'Task Specialization',
-    ];
-  }
-
-  if (name === 'duty-type') {
-    return [
-      'Name',
-      'Specialized',
-    ];
-  }
-
-  if (name === 'duty') {
-    return [
-      'Duty Type',
-      'Include',
-      'Location',
-      'Supervisor',
-      'Duty',
-    ];
-  }
-
-  if (name === 'department') {
-    return [
-      'Name',
-    ];
-  }
-
-  if (name === 'daily allowance') {
-    return [
-      'Name',
-      'Amount',
-      'Start Time',
-      'End Time',
-    ];
-  }
-
-  if (name === 'customer-type') {
-    return [
-      'Name',
-    ];
-  }
-
-  if (name === 'customer') {
-    return [
-      'Name',
-      'Customer Code',
-      'Customer Type',
-      'Daily End Time',
-      'Daily Start Time',
-      'First Contact',
-      'Second Contact',
-      'Weekly Off',
-      'Customer Office',
-    ];
-  }
-
-  if (name === 'branch') {
-    return [
-      'Name',
-      'Branch Code',
-      'First Contact',
-      'Saturday End Time',
-      'Saturday Start Time',
-      'Second Contact',
-      'Weekly End Time',
-      'Weekly Start Time',
-      'Weekly Off',
-      'Branch Office',
-      'Holiday 1',
-      'Holiday 2',
-      'Holiday 3',
-      'Holiday 4',
-      'Holiday 5',
-      'Holiday 6',
-      'Holiday 7',
-      'Holiday 8',
-      'Holiday 9',
-      'Holiday 10',
-      'Holiday 12',
-      'Holiday 13',
-      'Holiday 14',
-      'Holiday 15',
-    ];
-  }
-
-  if (name === 'claim-type') {
-    return [
-      'Monthly Limit',
-      'Name',
-    ];
-  }
-
-  if (name === 'admin') {
-    return ['Admin'];
-  }
-
-  return null;
+  return []
+    .concat(venue, schedule, attachment)
+    .sort();
 };
 
 
@@ -287,11 +82,7 @@ const generateExcel = async locals => {
   wb
     .deleteSheet('Sheet1');
 
-  const orderedFields = getOrderedFields(template);
-
-  if (!orderedFields) {
-    return;
-  }
+  const orderedFields = getOrderedFields(locals.templateDoc);
 
   orderedFields
     .push('rejected', 'reason');
@@ -402,10 +193,6 @@ const generateExcel = async locals => {
           name: userRecord.displayName,
         });
     });
-
-  if (!env.isProduction) {
-    messageObject.to = env.devEmail;
-  }
 
   console.log('Mail sent to:', messageObject.to);
 
@@ -1024,14 +811,15 @@ const handleEmployees = async locals => {
 
   const phoneNumbersToRejectSet = new Set();
 
-  let result = await Promise
+  const [
+    employeesData,
+    snapShots,
+  ] = await Promise
     .all([
       getEmployeesMapFromRealtimeDb(locals.officeDoc.id),
       Promise
         .all(promises)
     ]);
-
-  const [employeesData, snapShots] = result;
 
   snapShots
     .forEach(snapShot => {
@@ -2107,9 +1895,15 @@ const handleKmAllowance = async locals => {
   locals.inputObjects.forEach((item, index) => {
     if (item.Local === 'TRUE'
       && item.Travel === 'TRUE') {
-      locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Only one among`
-        + ` (Local and Up Country)`
+      locals
+        .inputObjects[
+        index
+      ].rejected = true;
+      locals
+        .inputObjects[
+        index
+      ].reason = `Only one among`
+      + ` (Local and Up Country)`
         + ` can be true`;
 
       return;
