@@ -95,6 +95,42 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
 };
 
 
+const getLatLngString = location =>
+  `${location._latitude},${location._longitude}`;
+
+
+const getDistanceFromDistanceMatrix = async (origin, destination) => {
+  const result = await googleMapsClient
+    .distanceMatrix({
+      /**
+       * Ordering is important here. The `legal` distance
+       * between A to B might not be the same as the legal
+       * distance between B to A. So, do not mix the ordering.
+       */
+      origins: getLatLngString(origin),
+      destinations: getLatLngString(destination),
+      units: 'metric',
+    })
+    .asPromise();
+
+  const distanceData = result
+    .json
+    .rows[0]
+    .elements[0]
+    .distance;
+
+  if (distanceData) {
+    return distanceData
+      .value / 1000;
+  }
+
+  return haversineDistance(
+    origin,
+    destination
+  );
+};
+
+
 const getValueFromActivity = (change, field, fromOldState = false) => {
   if (typeof fromOldState === 'boolean' && fromOldState) {
     return change.before.get(field);
@@ -1295,13 +1331,6 @@ const handleEmployee = async locals => {
       .employeeOf = employeeOf;
   }
 
-  batch
-    .set(rootCollections
-      .profiles
-      .doc(newEmployeeContact), profileData, {
-      merge: true,
-    });
-
   // Phone number changed
   if (oldEmployeeContact
     && oldEmployeeContact !== newEmployeeContact) {
@@ -1329,11 +1358,9 @@ const handleEmployee = async locals => {
       .profiles
       .doc(oldEmployeeContact)
       .get();
-    const data = profileDoc
-      .data();
 
     profileData = Object
-      .assign(profileData, data);
+      .assign(profileDoc.data(), profileData);
 
     const updatesQueryResult = await rootCollections
       .updates
@@ -1358,6 +1385,13 @@ const handleEmployee = async locals => {
 
     await replaceNumberInActivities(locals);
   }
+
+  batch
+    .set(rootCollections
+      .profiles
+      .doc(newEmployeeContact), profileData, {
+      merge: true,
+    });
 
   await batch
     .commit();
@@ -2600,9 +2634,23 @@ const getCommentString = (locals, recipient) => {
 const handleComments = async (addendumDoc, locals) => {
   const batch = db.batch();
 
-  if (!addendumDoc) {
-    return;
-  }
+  // const activityDoc = locals.change.after;
+  // const activityCreatedAt = momentTz(activityDoc.createTime.toDate().getTime());
+  // console.log({
+  //   activityCreatedAt: activityCreatedAt.format(dateFormats.DATE_TIME),
+  //   momentTz: momentTz().format(dateFormats.DATE_TIME),
+  //   diff: momentTz().diff(activityCreatedAt, 'minutes'),
+  // });
+
+  // if (momentTz().diff(activityCreatedAt, 'minutes') > 10) {
+  //   console.log('returning for old activity update');
+
+  //   return;
+  // }
+
+  // if (!addendumDoc) {
+  //   return;
+  // }
 
   locals
     .activityNew = locals.change.after;
@@ -2928,10 +2976,6 @@ const getPlaceInformation = (mapsApiResult, geopoint) => {
 };
 
 
-const getLatLngString = location =>
-  `${location._latitude},${location._longitude}`;
-
-
 const getLocalityCityState = components => {
   let locality = '';
   let city = '';
@@ -3235,9 +3279,6 @@ const addCheckInTimestamps = async locals => {
   }
 
   const batch = db.batch();
-
-  // const uid = locals.addendumDocData.uid;
-
   const uid = locals.assigneesMap.get(phoneNumber).uid;
 
   batch
@@ -3258,7 +3299,9 @@ const addCheckInTimestamps = async locals => {
 const handleAddendum = async locals => {
   const addendumDoc = locals.addendumDoc;
 
-  if (!addendumDoc) return;
+  if (!addendumDoc) {
+    return;
+  }
 
   const action = addendumDoc.get('action');
   const phoneNumber = addendumDoc.get('user');
@@ -4327,6 +4370,8 @@ const getDistanceTravelled = async params => {
   const {
     officeId,
     phoneNumber,
+    isLocal,
+    startPoint,
     previousAddendumDoc,
     addendumDocData,
   } = params;
@@ -4342,13 +4387,24 @@ const getDistanceTravelled = async params => {
     return addendumDocData.distanceTravelled;
   }
 
+  const currentGeopoint = addendumDocData.location;
+
+  if (startPoint && isLocal) {
+    return getDistanceFromDistanceMatrix(
+      startPoint,
+      currentGeopoint
+    );
+  }
+
   const employeeData = await getEmployeeReportData(
     officeId,
     phoneNumber
   );
 
-  if (!employeeData || !employeeData.baseLocation) {
-    return addendumDocData.distanceTravelled;
+  if (!employeeData
+    || !employeeData.baseLocation) {
+    return addendumDocData
+      .distanceTravelled;
   }
 
   const baseLocationQueryResult = await rootCollections
@@ -4364,38 +4420,13 @@ const getDistanceTravelled = async params => {
     return addendumDocData.distanceTravelled;
   }
 
-  const currentGeopoint = addendumDocData.location;
   const baseLocationGeopoint = baseLocationQueryResult.docs[0].get('venue')[0].geopoint;
 
   if (!Number.isInteger(baseLocationGeopoint.latitude)) {
     return addendumDocData.distanceTravelled;
   }
 
-  const distanceMatrixApiResult = await googleMapsClient
-    .distanceMatrix({
-      /**
-       * Ordering is important here. The `legal` distance
-       * between A to B might not be the same as the legal
-       * distance between B to A. So, do not mix the ordering.
-       */
-      origins: getLatLngString(baseLocationGeopoint),
-      destinations: getLatLngString(currentGeopoint),
-      units: 'metric',
-    })
-    .asPromise();
-
-  const distanceData = distanceMatrixApiResult
-    .json
-    .rows[0]
-    .elements[0]
-    .distance;
-
-  // maps api result in meters
-  if (distanceData) {
-    return distanceData.value / 1000;
-  }
-
-  return haversineDistance(
+  return getDistanceFromDistanceMatrix(
     baseLocationGeopoint,
     currentGeopoint
   );
@@ -4725,13 +4756,17 @@ const reimburseClaim = async locals => {
 
   if (locals.addendumDocData.action === httpsActions.changeStatus) {
     if (status === 'CANCELLED') {
-      claimUpdate.cancelledBy = locals.addendumDocData.user;
-      claimUpdate.cancellationTimestamp = locals.addendumDocData.timestamp;
+      claimUpdate
+        .cancelledBy = locals.addendumDocData.user;
+      claimUpdate
+        .cancellationTimestamp = locals.addendumDocData.timestamp;
     }
 
     if (status === 'CONFIRMED') {
-      claimUpdate.confirmedBy = locals.addendumDocData.user;
-      claimUpdate.confirmationTimestamp = locals.addendumDocData.timestamp;
+      claimUpdate
+        .confirmedBy = locals.addendumDocData.user;
+      claimUpdate
+        .confirmationTimestamp = locals.addendumDocData.timestamp;
     }
   }
 
@@ -4841,6 +4876,19 @@ const reimburseDailyAllowance = async locals => {
     currentCity: locals.city,
   });
 
+  const scheduledOnly = getScheduledOnlyStatus({
+    action: locals.addendumDocData.action,
+    template: getValueFromActivity(locals.change, 'template'),
+  });
+
+  let uid = locals.addendumDocData.uid;
+
+  if (!uid) {
+    const auth = await admin.auth().getUserByPhoneNumber(phoneNumber);
+
+    uid = auth.uid;
+  }
+
   const claimsToday = await rootCollections
     .offices
     .doc(officeId)
@@ -4849,6 +4897,7 @@ const reimburseDailyAllowance = async locals => {
     .where('month', '==', momentNow.month())
     .where('year', '==', momentNow.year())
     .where('template', '==', 'daily allowance')
+    .where('uid', '==', uid)
     .get();
 
   console.log('claimsToday', claimsToday.size);
@@ -4873,7 +4922,12 @@ const reimburseDailyAllowance = async locals => {
 
   if (isTravel) {
     dailyAllowanceBaseQuery = dailyAllowanceBaseQuery
-      .where('attachment.Trave.value', '==', true);
+      .where('attachment.Travel.value', '==', true);
+  }
+
+  if (scheduledOnly) {
+    dailyAllowanceBaseQuery = dailyAllowanceBaseQuery
+      .where('attachment.Scheduled Only.value', '==', true);
   }
 
   const dailyAllowanceActivities = await dailyAllowanceBaseQuery.get();
@@ -4896,13 +4950,21 @@ const reimburseDailyAllowance = async locals => {
       const attachmentStartTime = daActivity.get('attachment.Start Time.value');
       const attachmentEndTime = daActivity.get('attachment.End Time.value');
 
-      const [startHours, startMinutes] = attachmentStartTime.split(':');
-      const [endHours, endMinutes] = attachmentEndTime.split(':');
+      const [
+        startHours,
+        startMinutes
+      ] = attachmentStartTime.split(':');
+      const [
+        endHours,
+        endMinutes
+      ] = attachmentEndTime.split(':');
 
-      if (!startHours
-        || !startMinutes
-        || !endHours
-        || !endMinutes) {
+      console.log('da:', { startHours, startMinutes, endHours, endMinutes });
+
+      if (startHours === ''
+        || startMinutes === ''
+        || endHours === ''
+        || endMinutes === '') {
         return;
       }
 
@@ -4929,6 +4991,7 @@ const reimburseDailyAllowance = async locals => {
 
       const update = Object
         .assign({}, employeeDocData, {
+          uid,
           timestamp,
           isTravel,
           date: momentNow.date(),
@@ -4938,7 +5001,6 @@ const reimburseDailyAllowance = async locals => {
           identifier: locals.addendumDocData.identifier,
           geopoint: locals.addendumDocData.location,
           phoneNumber: getValueFromActivity(locals.change, 'creator.phoneNumber'),
-          uid: locals.addendumDocData.uid,
           claimType: 'daily allowance',
           attachmentName: daActivity.get('attachment.Name.value'),
           amount: daActivity.get('attachment.Amount.value'),
@@ -4962,11 +5024,14 @@ const reimburseKmAllowance = async locals => {
   const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
   const officeId = getValueFromActivity(locals.change, 'officeId');
   const timestamp = getReimbursementTimestamp(locals.change.after);
+  const timezone = getValueFromActivity(locals.change, 'timezone');
   const template = getValueFromActivity(
     locals.change,
     'template'
   );
-  const momentNow = momentTz(timestamp);
+
+  // Change
+  const momentNow = momentTz(timestamp).tz(timezone);
   const isTravel = await getTravelStatus({
     phoneNumber,
     officeId,
@@ -4977,31 +5042,19 @@ const reimburseKmAllowance = async locals => {
     action: locals.addendumDocData.action,
     template,
   });
+  const includeBranch = (() => {
+    if (locals.addendumDocData.venueQuery) {
+      return locals
+        .addendumDocData
+        .venueQuery
+        .location;
+    }
 
-  const claimsToday = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.REIMBURSEMENTS)
-    .where('date', '==', momentNow.date())
-    .where('month', '==', momentNow.month())
-    .where('year', '==', momentNow.year())
-    .where('template', '==', 'km allowance')
-    .get();
-
-  const existingKms = new Map();
-
-  claimsToday
-    .forEach(doc => {
-      const attachmentName = doc.get('attachmentName');
-
-      existingKms
-        .set(attachmentName, {
-          data: doc.data(),
-          ref: doc.ref,
-        });
-    });
-
-  console.log('km claimsToday', claimsToday.size);
+    return locals
+      .addendumDocData
+      .identifier;
+  })()
+    .endsWith('BRANCH');
 
   let kmAllowanceBaseQuery = rootCollections
     .offices
@@ -5020,34 +5073,94 @@ const reimburseKmAllowance = async locals => {
       .where('attachment.Scheduled Only.value', '==', true);
   }
 
+  // TOOD: add Include Branch query.
+  if (includeBranch) {
+    kmAllowanceBaseQuery = kmAllowanceBaseQuery
+      .where('attachment.Include Branch.value', '==', true);
+  }
+
   const batch = db.batch();
   const kmAllowanceActivities = await kmAllowanceBaseQuery.get();
 
   console.log('kmAllowanceActivities', kmAllowanceActivities.size, { isTravel, scheduledOnly });
 
+  const [
+    profileDoc,
+    employeeData,
+  ] = await Promise
+    .all([
+      rootCollections
+        .profiles
+        .doc(phoneNumber)
+        .get(),
+      getEmployeeReportData(
+        officeId,
+        phoneNumber
+      ),
+    ]);
+
   const distanceTravelled = await getDistanceTravelled({
     officeId,
+    isLocal: !isTravel,
     phoneNumber,
+    startPoint: profileDoc.get('startPoint'),
     previousAddendumDoc: locals.previousAddendumDoc,
     addendumDocData: locals.addendumDocData,
   });
 
-  if (distanceTravelled === 0) {
-    console.log('distanceTravelled', distanceTravelled);
+  console.log('distanceTravelled', distanceTravelled);
 
+  if (distanceTravelled === 0) {
     return;
   }
 
-  const employeeData = await getEmployeeReportData(officeId, phoneNumber);
+  // No base Location => no km allowance
+  if (!employeeData || (!employeeData.baseLocation
+    && !profileDoc.get('startPoint'))) {
+    return;
+  }
+
+  const previousGeopoint = (() => {
+    if (locals.previousAddendumDoc) {
+      return locals
+        .previousAddendumDoc
+        .get('venueQuery.geopoint')
+        || locals.previousAddendumDoc.get('location');
+    }
+
+    return null;
+  })();
+
+  const identifier = (() => {
+    if (locals.addendumDocData.venueQuery) {
+      return locals.addendumDocData.venueQuery.location;
+    }
+
+    return locals.addendumDocData.identifier;
+  })();
+
+  const previousIdentifier = (() => {
+    if (!locals.previousAddendumDoc) {
+      return '';
+    }
+
+    if (locals.previousAddendumDoc.get('venueQuery.location')) {
+      return locals.previousAddendumDoc.get('venueQuery.location');
+    }
+
+    return locals.previousAddendumDoc.get('identifier') || '';
+  })();
+
+  let uid = locals.addendumDocData.uid;
+
+  if (!uid) {
+    const auth = await admin.auth().getUserByPhoneNumber(phoneNumber);
+
+    uid = auth.uid;
+  }
 
   kmAllowanceActivities
     .forEach(kmActivity => {
-      const attachmentName = kmActivity.get('attachment.Name.value');
-
-      if (existingKms.has(attachmentName)) {
-        return;
-      }
-
       const ref = rootCollections
         .offices
         .doc(officeId)
@@ -5057,9 +5170,11 @@ const reimburseKmAllowance = async locals => {
       const update = Object.assign({}, employeeData, {
         timestamp,
         distanceTravelled,
-        attachmentName,
         phoneNumber,
-        amount: (Number(kmActivity.get('attachment.Rate.value')) * distanceTravelled).toFixed(2),
+        previousGeopoint,
+        identifier,
+        uid,
+        previousIdentifier,
         date: momentNow.date(),
         month: momentNow.month(),
         year: momentNow.year(),
@@ -5067,8 +5182,12 @@ const reimburseKmAllowance = async locals => {
         rate: kmActivity.get('attachment.Rate.value'),
         relevantActivityId: locals.change.after.id,
         kmAllowanceActivityId: kmActivity.id,
-        uid: locals.addendumDocData.uid,
+        currentGeopoint: locals.addendumDocData.location,
+        attachmentName: kmActivity.get('attachment.Name.value'),
+        amount: (Number(kmActivity.get('attachment.Rate.value')) * distanceTravelled).toFixed(2),
       });
+
+      console.log('km allowance', update);
 
       batch
         .set(ref, update, {
