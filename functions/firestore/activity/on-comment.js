@@ -50,11 +50,11 @@ const createDocs = (conn, activity) => {
   batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
-      addendumDocRef,
-      timestamp: Date.now(),
-    }, {
-      merge: true,
-    });
+    addendumDocRef,
+    timestamp: Date.now(),
+  }, {
+    merge: true,
+  });
 
   const now = new Date();
 

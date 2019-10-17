@@ -24,11 +24,15 @@ const env = require('../../admin/env');
 
 
 const getDetails = (el, timezone) => {
+  let result = '';
+
   if (el.onAr) {
-    let result = `${momentTz(el.arStartTime).tz(timezone).format(dateFormats.DATE)}`
-      + ` ${el.arStatus || ''}`
-      + `, `
-      + `${el.arReason || ''}`;
+    if (el.arStartTime) {
+      result += `${momentTz(el.arStartTime).tz(timezone).format(dateFormats.DATE)}`
+        + ` ${el.arStatus || ''}`
+        + `, `
+        + `${el.arReason || ''}`;
+    }
 
     if (el.arApprovedOn) {
       result += ` ${momentTz(el.arApprovedOn).tz(timezone).format(dateFormats.DATE)}`;
@@ -40,7 +44,11 @@ const getDetails = (el, timezone) => {
   }
 
   if (el.onLeave) {
-    let result = `${momentTz(el.leaveStartTime).format(dateFormats.DATE)}`;
+    let result = '';
+
+    if (el.leaveStartTime) {
+      result += `${momentTz(el.leaveStartTime).format(dateFormats.DATE)}`;
+    }
 
     if (el.leaveStatus) {
       result += ` ${el.leaveStatus || ''}`;
@@ -91,7 +99,7 @@ const getType = el => {
   }
 
   if (el.firstCheckIn) {
-    return `Check-in`;
+    return `Working`;
   }
 
   return '';
@@ -158,7 +166,9 @@ module.exports = async locals => {
    * Report was triggered by Timer, so updating
    * Holiday and Weekly Off list,
    */
-  const writeAttendanceDocs = momentTz().date() === momentToday.date();
+
+  // const writeAttendanceDocs = momentTz().date() === momentToday.date();
+  const writeAttendanceDocs = false;
   const holidaySet = new Set();
   const weeklyOffSet = new Set();
   const weeklyOffCountMap = new Map();
@@ -554,8 +564,8 @@ module.exports = async locals => {
         });
       });
 
-    await Promise
-      .all(batchArray.map(batch => batch.commit()));
+    // await Promise
+    //   .all(batchArray.map(batch => batch.commit()));
   }
 
   /**

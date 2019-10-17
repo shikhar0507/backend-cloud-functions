@@ -37,7 +37,6 @@ const {
 const {
   activityName,
   validateVenues,
-  getCanEditValue,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
@@ -47,6 +46,7 @@ const {
   handleError,
   sendResponse,
   getAdjustedGeopointsFromVenue,
+  getCanEditValue,
 } = require('../../admin/utils');
 
 
@@ -135,7 +135,6 @@ const updateDocsWithBatch = (conn, locals) => {
       locals.batch.set(activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
-        canEdit: getCanEditValue(locals, phoneNumber),
         /**
          * These people are not from the `share` array of the request body.
          * The update api doesn't accept the `share` array.
@@ -592,6 +591,14 @@ const handleResult = (conn, docs) => {
   }
 
   const [activityDoc] = docs;
+
+  if (!getCanEditValue(activityDoc, conn.requester)) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `You cannot edit this activity`
+    );
+  }
 
   if (activityDoc.get('template') === 'subscription') {
     return sendResponse(

@@ -1765,6 +1765,77 @@ const getAttendancesPath = params => {
   return result;
 };
 
+const getCanEditValue = (doc, requester) => {
+  const canEditRule = doc.get('canEditRule');
+
+  if (canEditRule === 'ALL'
+    /**
+     * Support can edit all activities
+     */
+    || (requester.customClaims && requester.customClaims.support)) {
+    return true;
+  }
+
+  if (canEditRule === 'EMPLOYEE') {
+    return requester.employeeOf
+      && requester.employeeOf.hasOwnProperty(doc.get('office'));
+  }
+
+  if (canEditRule === 'ADMIN') {
+    return requester.customClaims
+      && Array.isArray(requester.customClaims.admin)
+      && requester.customClaims.admin.includes(doc.get('office'));
+  }
+
+  if (canEditRule === 'CREATOR') {
+    return (
+      doc.get('creator')
+      || doc.get('creator.phoneNumber')
+    ) === requester.phoneNumber;
+  }
+
+  return false;
+};
+
+const enumerateDaysBetweenDates = (startDate, endDate, format) => {
+  const now = startDate.clone();
+  const dates = new Set();
+
+  while (now.isSameOrBefore(endDate)) {
+    const formattedDate = (() => {
+      if (typeof format === 'string') {
+        return now.format(format);
+      }
+
+      return now.format();
+    })();
+
+    dates
+      .add(formattedDate);
+    now
+      .add(1, 'days');
+  }
+
+  return [...dates.keys()];
+};
+
+const getDatesToMonthsMap = (startDate, endDate) => {
+  const map = new Map();
+  const now = startDate.clone();
+
+  while (now.isSameOrBefore(endDate)) {
+    const date = now.date();
+    const month = now.month();
+
+    const old = map.get(month) || [];
+    old.push(date);
+    map.set(month, old);
+  }
+
+  return map;
+};
+
+
 
 module.exports = {
   getAuth,
@@ -1791,6 +1862,7 @@ module.exports = {
   getISO8601Date,
   isValidTimezone,
   getRelevantTime,
+  getCanEditValue,
   isValidGeopoint,
   multipartParser,
   hasSupportClaims,
@@ -1810,6 +1882,7 @@ module.exports = {
   getUsersWithCheckIn,
   getSitemapXmlString,
   promisifiedExecFile,
+  getDatesToMonthsMap,
   getRegistrationToken,
   replaceNonASCIIChars,
   millitaryToHourMinutes,
@@ -1817,6 +1890,7 @@ module.exports = {
   hasManageTemplateClaims,
   addEmployeeToRealtimeDb,
   getEmployeeFromRealtimeDb,
+  enumerateDaysBetweenDates,
   getAdjustedGeopointsFromVenue,
   getEmployeesMapFromRealtimeDb,
 };

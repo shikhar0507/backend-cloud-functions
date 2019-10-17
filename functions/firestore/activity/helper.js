@@ -1064,13 +1064,6 @@ const checkActivityAndAssignee = (docs, isSupportRequest) => {
         message,
       };
     }
-
-    if (!requester.get('canEdit')) {
-      return {
-        isValid: false,
-        message,
-      };
-    }
   }
 
   return { isValid: true, message: null };

@@ -499,61 +499,10 @@ module.exports = async locals => {
     counterObject
       .notActive = counterObject.totalUsers - counterObject.active;
 
-    const numberOfDocs = distanceMap.size;
-    const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
-    const numberOfBatches = Math
-      .round(
-        Math
-          .ceil(numberOfDocs / MAX_DOCS_ALLOWED_IN_A_BATCH)
-      );
-    const batchArray = Array
-      .from(Array(numberOfBatches)).map(() => db.batch());
-
-    console.log('numberOfBatches', numberOfBatches);
-    console.log('batchArray', batchArray.length);
-
-    let batchIndex = 0;
-    let docsCounter = 0;
-
-    distanceMap
-      .forEach((distanceTravelled, phoneNumber) => {
-        const {
-          hasInstalled
-        } = locals
-          .employeesData[phoneNumber] || {};
-
-        if (!hasInstalled) {
-          counterObject
-            .notInstalled++;
-        }
-
-        const ref = locals
-          .officeDoc
-          .ref
-          .collection(subcollectionNames.ATTENDANCES)
-          .doc(monthYearString)
-          .collection(phoneNumber)
-          // Path requires a string
-          .doc(`${momentYesterday.date()}`);
-
-        if (docsCounter > 499) {
-          docsCounter = 0;
-          batchIndex++;
-        }
-
-        docsCounter++;
-
-        const update = { phoneNumber, distanceTravelled };
-
-        batchArray[
-          batchIndex
-        ].set(ref, update, { merge: true });
-      });
-
-    await Promise
-      .all(batchArray.map(batch => batch.commit()));
-
-    await handleScheduleReport(locals, workbook);
+    await handleScheduleReport(
+      locals,
+      workbook
+    );
 
     locals
       .messageObject

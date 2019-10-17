@@ -27,7 +27,6 @@
 
 const {
   isValidRequestBody,
-  getCanEditValue,
   checkActivityAndAssignee,
 } = require('./helper');
 const { code } = require('../../admin/responses');
@@ -41,6 +40,7 @@ const {
   getAuth,
   handleError,
   sendResponse,
+  getCanEditValue,
 } = require('../../admin/utils');
 
 
@@ -68,7 +68,19 @@ const handleResult = async (conn, docs) => {
 
   let allAreNew = true;
   let phoneNumber;
-  const [activity] = docs;
+
+  const [
+    activity
+  ] = docs;
+
+  if (!getCanEditValue(activity, conn.requester)) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `You cannot edit this activity`
+    );
+  }
+
   const batch = db.batch();
   const template = activity.get('template');
   const isSpecialTemplate = template === 'recipient';
@@ -248,10 +260,7 @@ const handleResult = async (conn, docs) => {
         .activities
         .doc(conn.req.body.activityId)
         .collection('Assignees')
-        .doc(phoneNumber), {
-        addToInclude,
-        canEdit: getCanEditValue(locals, phoneNumber),
-      });
+        .doc(phoneNumber), { addToInclude });
   });
 
   batch

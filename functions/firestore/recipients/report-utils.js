@@ -330,6 +330,10 @@ const getStatusForDay = options => {
     hoursWorked // difference between first and last action in hours,
   } = options;
 
+  if (numberOfCheckIns === 0) {
+    return 0;
+  }
+
   if (minimumDailyActivityCount === 1
     && numberOfCheckIns !== 0) {
     return 1;
@@ -358,10 +362,10 @@ const getStatusForDay = options => {
   const rev = 1 / minimumDailyActivityCount;
 
   if (minOfRatios <= rev) {
-    return rev;
+    return rev || 0;
   }
 
-  return Math.floor(minOfRatios / rev) * rev;
+  return (Math.floor(minOfRatios / rev) * rev) || 0;
 };
 
 const getName = (employeesData, phoneNumber) => {

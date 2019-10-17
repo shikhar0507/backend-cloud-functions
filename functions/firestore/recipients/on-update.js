@@ -218,9 +218,9 @@ module.exports = async change => {
       await require('./payroll-report')(locals);
     }
 
-    // if (report === reportNames.REIMBURSEMENT) {
-    //   await require('./reimbursements-report')(locals);
-    // }
+    if (report === reportNames.REIMBURSEMENT) {
+      await require('./reimbursements-report')(locals);
+    }
 
     if (report === reportNames.PAYROLL_MASTER) {
       await require('./payroll-master-report')(locals);

@@ -41,7 +41,6 @@ const {
   validateVenues,
   forSalesReport,
   getCanEditValue,
-  haversineDistance,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
@@ -501,6 +500,7 @@ const handlePayroll = async (conn, locals) => {
 };
 
 
+
 const handleAssignees = async (conn, locals) => {
   if (locals.objects.allPhoneNumbers.size === 0) {
     return sendResponse(
@@ -560,16 +560,10 @@ const handleAssignees = async (conn, locals) => {
     }
   });
 
-  // 'customer',
-  // 'leave',
-  // 'claim',
-  // 'duty',
-
   const typeActivity = new Set([
     'customer',
     'leave',
     'claim',
-    // 'duty'
   ]);
 
   const key = (() => {

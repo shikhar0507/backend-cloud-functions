@@ -97,6 +97,14 @@ module.exports = (req) => {
     case 'myGrowthfile':
       func = require('../firestore/my-growthfile/index');
       break;
+    case 'search':
+      checkAdmin = true;
+      checkSupport = true;
+      func = require('../firestore/search');
+      break;
+    case 'changePhoneNumber':
+      func = require('../change-phone-number');
+      break;
     default:
       func = null;
   }

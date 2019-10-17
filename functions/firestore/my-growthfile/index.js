@@ -11,7 +11,10 @@ const {
 const {
   code,
 } = require('../../admin/responses');
-// const momentTz = require('moment-timezone');
+const {
+  dateFormats,
+} = require('../../admin/constants');
+const momentTz = require('moment-timezone');
 
 module.exports = async conn => {
   if (conn.req.method !== 'GET') {
@@ -24,8 +27,8 @@ module.exports = async conn => {
 
   const jsonResponse = {
     pendingPayments: [],
-    pendingTransactions: [],
-    payments: [],
+    pendingDeposits: [],
+    previousDeposits: [],
     payroll: {
       recipient: {
         assignees: [],
@@ -234,16 +237,40 @@ module.exports = async conn => {
       }
     });
 
-  // const timezone = officeDoc.get('attachment.Timezone.value');
-  // const momentNow = momentTz().tz(timezone);
-  // const firstDayOfMonthlyCycle = officeDoc.get('attachment.First Day Of Monthly Cycle.value');
-  const cycle = '';
+  const timezone = officeDoc.get('attachment.Timezone.value');
+  const momentNow = momentTz().tz(timezone);
+  const firstDayOfMonthlyCycle = officeDoc.get('attachment.First Day Of Monthly Cycle.value');
+  const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentNow.date();
+
+  const cycleStart = (() => {
+    if (fetchPreviousMonthDocs) {
+      const momentPrevMonth = momentNow
+        .clone()
+        .subtract(1, 'month')
+        .date(firstDayOfMonthlyCycle);
+
+      return momentNow
+        .diff(momentPrevMonth, 'days');
+    }
+
+    return momentNow
+      .clone()
+      .startOf('month');
+  })();
+
+  const cycleEnd = momentNow;
+
+  console.log('cycleStart', cycleStart.format(dateFormats.DATE));
+  console.log('cycleEnd', cycleEnd.format(dateFormats.DATE));
 
   const pendingPaymentsQueryResult = await officeDoc
     .ref
     .collection('Payments')
-    .where('cycle', '==', cycle)
+    .where('createdAt', '>=', cycleStart.valueOf())
+    .where('createdAt', '<=', cycleEnd.valueOf())
     .get();
+
+  console.log('pendingPaymentsQueryResult', pendingPaymentsQueryResult.size);
 
   jsonResponse
     .pendingPayments = pendingPaymentsQueryResult
@@ -253,6 +280,13 @@ module.exports = async conn => {
           paymentId: doc.id,
         });
       });
+
+  jsonResponse
+    .pendingDeposits = (await rootCollections
+      .deposits
+      .where('createdOn', '>=', cycleStart.valueOf())
+      .where('createdOn', '<=', cycleEnd.valueOf())
+      .get()).docs.map(doc => doc.data());
 
   return sendJSON(
     conn,
