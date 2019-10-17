@@ -7,48 +7,45 @@ const {
 } = require('../../../admin/admin');
 
 
-module.exports = (snapShot, context) => {
-  // Unassign notifications will go to the user when they are cancelled, 
+module.exports = async (snapShot, context) => {
+  // Unassign notifications will go to the user when they are cancelled,
   // or removed as an assignee from an activity for some reason
-  // Not sending in the case of unassign because this will trigger multiple 
+  // Not sending in the case of unassign because this will trigger multiple
   // notifications to the user
-  if (snapShot.get('unassign')) {
-    return Promise.resolve();
+  if (snapShot.get('unassign')
+    || !snapShot.get('comment')) {
+    return;
   }
 
-  return rootCollections
-    .updates
-    .doc(context.params.uid)
-    .get()
-    .then((updatesDoc) => {
-      const registrationToken = updatesDoc.get('registrationToken');
+  try {
+    const updatesDoc = await rootCollections
+      .updates
+      .doc(context.params.uid)
+      .get();
 
-      if (!registrationToken) {
-        return Promise.resolve();
-      }
+    const registrationToken = updatesDoc
+      .get('registrationToken');
 
-      const payload = {
+    if (!registrationToken) {
+      return;
+    }
+
+    return admin
+      .messaging()
+      .sendToDevice(registrationToken, {
         data: {
           // Ask the client to send a request to the /read endpoint
           read: '1',
         },
         notification: {
-          body: snapShot.get('comment'),
+          body: snapShot.get('comment') || '',
           tile: `Growthfile`,
         },
-      };
-      const ONE_MINUTE = 60;
-      const options = {
+      }, {
         priority: 'high',
-        timeToLive: ONE_MINUTE,
-      };
-
-      return admin
-        .messaging()
-        .sendToDevice(registrationToken, payload, options);
-    })
-    .catch((error) => console.error({
-      error,
-      params: context.params,
-    }));
+        timeToLive: 60,
+      });
+  } catch (error) {
+    console.error(error);
+  }
 };

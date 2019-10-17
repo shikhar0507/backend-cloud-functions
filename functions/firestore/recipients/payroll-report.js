@@ -564,8 +564,8 @@ module.exports = async locals => {
         });
       });
 
-    // await Promise
-    //   .all(batchArray.map(batch => batch.commit()));
+    await Promise
+      .all(batchArray.map(batch => batch.commit()));
   }
 
   /**

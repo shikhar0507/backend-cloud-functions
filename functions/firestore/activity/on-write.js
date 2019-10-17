@@ -35,6 +35,7 @@ const {
   dateFormats,
   vowels,
   reportNames,
+  addendumTypes,
   subcollectionNames,
 } = require('../../admin/constants');
 const {
@@ -2707,24 +2708,6 @@ const getCommentString = (locals, recipient) => {
 const handleComments = async (addendumDoc, locals) => {
   const batch = db.batch();
 
-  // const activityDoc = locals.change.after;
-  // const activityCreatedAt = momentTz(activityDoc.createTime.toDate().getTime());
-  // console.log({
-  //   activityCreatedAt: activityCreatedAt.format(dateFormats.DATE_TIME),
-  //   momentTz: momentTz().format(dateFormats.DATE_TIME),
-  //   diff: momentTz().diff(activityCreatedAt, 'minutes'),
-  // });
-
-  // if (momentTz().diff(activityCreatedAt, 'minutes') > 10) {
-  //   console.log('returning for old activity update');
-
-  //   return;
-  // }
-
-  // if (!addendumDoc) {
-  //   return;
-  // }
-
   locals
     .activityNew = locals.change.after;
 
@@ -2737,21 +2720,21 @@ const handleComments = async (addendumDoc, locals) => {
         return;
       }
 
-      const comment = getCommentString(locals, phoneNumber);
-
-      batch.set(rootCollections
-        .updates
-        .doc(userRecord.uid)
-        .collection('Addendum')
-        .doc(addendumDoc.id), {
-        comment,
-        activityData: locals.change.after.data(),
-        activityId: locals.change.after.id,
-        isComment: isComment(addendumDoc.get('action')),
-        timestamp: addendumDoc.get('userDeviceTimestamp'),
-        location: addendumDoc.get('location'),
-        user: addendumDoc.get('user'),
-      });
+      batch
+        .set(rootCollections
+          .updates
+          .doc(userRecord.uid)
+          // Addendum
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(addendumDoc.id), {
+          comment: getCommentString(locals, phoneNumber),
+          type: addendumTypes.COMMENT,
+          activityId: locals.change.after.id,
+          isComment: isComment(addendumDoc.get('action')),
+          timestamp: addendumDoc.get('userDeviceTimestamp'),
+          location: addendumDoc.get('location'),
+          user: addendumDoc.get('user'),
+        });
     });
 
   return batch
@@ -4849,6 +4832,14 @@ const reimburseClaim = async locals => {
       merge: true,
     });
 
+  batch.set(rootCollections
+    .updates
+    .doc(locals.addendumDocData.uid)
+    .collection(subcollectionNames.REIMBURSEMENTS)
+    .doc(claimsDoc.id), claimUpdate, {
+    merge: true,
+  });
+
   return batch
     .commit();
 };
@@ -5074,6 +5065,15 @@ const reimburseDailyAllowance = async locals => {
 
       batch
         .set(ref, update, {
+          merge: true,
+        });
+
+      batch
+        .set(rootCollections
+          .updates
+          .doc(uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(ref.id), update, {
           merge: true,
         });
     });
@@ -5740,6 +5740,10 @@ module.exports = async (change, context) => {
     return;
   }
 
+  const {
+    activityId,
+  } = context.params;
+
   // employee
   // status change
   // created
@@ -5752,7 +5756,6 @@ module.exports = async (change, context) => {
   // branch and customer in rtdb
   // admin -> custom claim
   // profile and activities
-  // const activityId = context.params.activityId;
   const batch = db.batch();
   const template = change.after.get('template');
   const status = change.after.get('status');
@@ -5769,7 +5772,7 @@ module.exports = async (change, context) => {
   const promises = [
     rootCollections
       .activities
-      .doc(context.params.activityId)
+      .doc(activityId)
       .collection(subcollectionNames.ASSIGNEES)
       .get(),
     rootCollections
@@ -5964,20 +5967,30 @@ module.exports = async (change, context) => {
           return;
         }
 
-        const ref = rootCollections
-          .profiles
-          .doc(phoneNumber)
-          .collection(subcollectionNames.ACTIVITIES)
-          .doc(context.params.activityId);
+        batch
+          .set(rootCollections
+            .updates
+            .doc(userRecord.uid)
+            .collection(subcollectionNames.ADDENDUM)
+            .doc(activityId), Object.assign({}, profileActivityObject, {
+              type: addendumTypes.ACTIVITY,
+            }), {
+            merge: true,
+          });
 
-        batch.set(ref, profileActivityObject, {
-          merge: true
-        });
+        batch
+          .set(rootCollections
+            .profiles
+            .doc(phoneNumber)
+            .collection(subcollectionNames.ACTIVITIES)
+            .doc(activityId), profileActivityObject, {
+            merge: true
+          });
       });
 
     console.log({
       template,
-      activityId: context.params.activityId,
+      activityId,
       action: locals.addendumDoc ? locals.addendumDoc.get('action') : 'manual update',
     });
 

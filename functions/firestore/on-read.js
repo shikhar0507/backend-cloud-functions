@@ -34,14 +34,15 @@ const {
 } = require('../admin/responses');
 const {
   subcollectionNames,
+  addendumTypes,
 } = require('../admin/constants');
 const {
-  handleError,
-  sendResponse,
   sendJSON,
   isValidDate,
-  isNonEmptyString,
+  handleError,
+  sendResponse,
   findKeyByValue,
+  isNonEmptyString,
   getAttendancesPath,
 } = require('../admin/utils');
 const admin = require('firebase-admin');
@@ -484,6 +485,15 @@ module.exports = async conn => {
 
     addendum
       .forEach(doc => {
+        const type = doc.get('type');
+        const shouldSend = [
+          addendumTypes.COMMENT
+        ].includes(type);
+
+        if (!shouldSend) {
+          return;
+        }
+
         jsonObject
           .addendum
           .push(getAddendumObject(doc));
