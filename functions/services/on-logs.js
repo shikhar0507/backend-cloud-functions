@@ -37,6 +37,22 @@ const {
   code,
 } = require('../admin/responses');
 
+const getSubject = message => `Error count`
+  + ` >= 10: '${message}':`
+  + ` ${process.env.GCLOUD_PROJECT}`;
+
+
+const getValue = (snap, field) => {
+  if (snap.empty) {
+    return {};
+  }
+
+  return snap
+    .docs[0]
+    .get(field)
+    || {};
+};
+
 
 module.exports = async conn => {
   if (conn.req.method !== 'POST') {
@@ -48,18 +64,23 @@ module.exports = async conn => {
     );
   }
 
-  const phoneNumber = conn.requester.phoneNumber;
-  const message = conn.req.body.message;
-
-  if (!message) {
-    return sendResponse(conn, code.noContent);
-  }
+  const special = [
+    `We have blocked all requests`,
+    `help`,
+  ];
 
   const THRESHOLD = 10;
   const dateObject = new Date();
   const date = dateObject.getDate();
   const month = dateObject.getMonth();
   const year = dateObject.getFullYear();
+  const phoneNumber = conn.requester.phoneNumber;
+  const message = conn.req.body.message;
+  const batch = db.batch();
+
+  if (!message) {
+    return sendResponse(conn, code.noContent);
+  }
 
   try {
     const errorDocsQueryResult = await rootCollections
@@ -71,26 +92,18 @@ module.exports = async conn => {
       .limit(1)
       .get();
 
-    const doc = (() => {
-      if (errorDocsQueryResult.empty) {
-        return rootCollections.errors.doc();
-      }
-
-      return errorDocsQueryResult.docs[0];
-    })();
-
-    const getValue = field => {
-      if (errorDocsQueryResult.empty) return {};
-
-      return errorDocsQueryResult.docs[0].get(field) || {};
-    };
-
-    console.log(doc);
-
-    const affectedUsers = getValue('affectedUsers');
-    const bodyObject = getValue('bodyObject');
-    const deviceObject = getValue('deviceObject');
-    // const emailSent = doc.get('emailSent') || false;
+    const affectedUsers = getValue(
+      errorDocsQueryResult,
+      'affectedUsers'
+    );
+    const bodyObject = getValue(
+      errorDocsQueryResult,
+      'bodyObject'
+    );
+    const deviceObject = getValue(
+      errorDocsQueryResult,
+      'deviceObject'
+    );
 
     if (!bodyObject[phoneNumber]) {
       const data = (() => {
@@ -101,7 +114,9 @@ module.exports = async conn => {
         return JSON.stringify(conn.req.body.body);
       })();
 
-      bodyObject[phoneNumber] = `${data || ''}`;
+      bodyObject[
+        phoneNumber
+      ] = `${data || ''}`;
     }
 
     if (!deviceObject[phoneNumber]) {
@@ -110,19 +125,20 @@ module.exports = async conn => {
           return conn.req.body.device;
         }
 
-        return JSON.stringify(conn.req.body.device);
+        return JSON
+          .stringify(conn.req.body.device);
       })();
 
-      deviceObject[phoneNumber] = `${data || ''}`;
+      deviceObject[
+        phoneNumber
+      ] = `${data || ''}`;
     }
 
-    const batch = db.batch();
+    affectedUsers[phoneNumber] = affectedUsers[phoneNumber] || 0;
+
+    affectedUsers[phoneNumber]++;
 
     // Increment the count
-    affectedUsers[
-      phoneNumber
-    ] = (affectedUsers[phoneNumber] || 0) + 1;
-
     const docData = {
       affectedUsers,
       bodyObject,
@@ -139,25 +155,19 @@ module.exports = async conn => {
     if (!errorDocsQueryResult.empty
       && !errorDocsQueryResult.docs[0].get('emailSent')
       && Object.keys(affectedUsers).length >= THRESHOLD) {
-      const getSubject = (message) =>
-        `Error count >= 10: '${message}': ${process.env.GCLOUD_PROJECT}`;
-
       batch
         .set(rootCollections
           .instant
           .doc(), {
-            subject: getSubject(message),
-            messageBody: JSON.stringify(docData, ' ', 2),
-          });
+          subject: getSubject(message),
+          messageBody: JSON.stringify(docData, ' ', 2),
+        });
 
       docData
         .emailSent = true;
     }
 
-    const special = `We have blocked all requests`;
-    // console.log(conn.req.body.message);
-
-    if (conn.req.body.message.startsWith(special)) {
+    if (special.includes(conn.req.body.message)) {
       // last read
       // last now
       // last activity
@@ -181,11 +191,11 @@ module.exports = async conn => {
         .get();
 
       docData
-        .blockedRequests = docData.blockedRequests || {};
+        .loggedData = docData.loggedData || {};
       docData
-        .blockedRequests[
+        .loggedData[
         phoneNumber
-      ] = docData.blockedRequests[phoneNumber] || [];
+      ] = docData.loggedData[phoneNumber] || [];
 
       const object = {
         lastQueryFrom: lastQueryFrom || null,
@@ -199,7 +209,7 @@ module.exports = async conn => {
 
       if (!latestActivityQuery.empty) {
         object
-          .latestActivityQuery = latestActivityQuery
+          .latestActivity = latestActivityQuery
             .docs[0]
             .data();
       }
@@ -223,32 +233,41 @@ module.exports = async conn => {
         if (!latestAddendumQueryResult.empty) {
           object
             .latestAddendumDoc = latestAddendumQueryResult
-              .docs[0].data();
+              .docs[0]
+              .data();
         }
       }
 
       docData
-        .blockedRequests[
-        phoneNumber
-      ].push(object);
+        .loggedData[phoneNumber]
+        .push(object);
     }
 
-    const errorDocRef = rootCollections
-      .errors
-      .doc(doc.id);
+    const errorDocRef = !errorDocsQueryResult
+      .empty ? errorDocsQueryResult.docs[0].ref : rootCollections
+        .errors
+        .doc();
 
-    docData.date = date;
-    docData.month = month;
-    docData.year = year;
-    docData.message = conn.req.body.message;
+    console.log('errorDocRef:', errorDocRef);
 
-    batch.set(errorDocRef, docData, {
-      merge: true,
-    });
+    batch
+      .set(errorDocRef, Object.assign({}, docData, {
+        date,
+        month,
+        year,
+        message,
+      }), {
+        merge: true,
+      });
 
-    await batch.commit();
+    await batch
+      .commit();
 
-    return sendResponse(conn, code.ok, docData);
+    return sendResponse(
+      conn,
+      code.ok,
+      'Logged successfully'
+    );
   } catch (error) {
     return handleError(conn, error);
   }
