@@ -276,7 +276,11 @@ const checkAuthorizationToken = async conn => {
   }
 
   try {
-    const decodedIdToken = await auth.verifyIdToken(result.authToken);
+    const decodedIdToken = await auth.verifyIdToken(
+      result.authToken,
+      true // checkRevoked is true in order to block all requests
+      // from revoked sessions by a user.
+    );
 
     return getUserAuthFromIdToken(conn, decodedIdToken);
   } catch (error) {
@@ -285,7 +289,7 @@ const checkAuthorizationToken = async conn => {
       return sendResponse(
         conn,
         code.unauthorized,
-        'Please login again'
+        'Please restart the Growthfile app'
       );
     }
 
