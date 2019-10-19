@@ -216,8 +216,45 @@ class Attachment {
   }
 }
 
+
+class Subscription {
+  constructor(templateDoc, activityDoc) {
+    this.name = templateDoc.get('name');
+    this.schedule = templateDoc.get('schedule');
+    this.venue = templateDoc.get('venue');
+    this.template = templateDoc.get('template');
+    this.attachment = templateDoc.get('attachment');
+    this.canEditRule = templateDoc.get('canEditRule');
+    this.hidden = templateDoc.get('hidden');
+    this.statusOnCreate = templateDoc.get('statusOnCreate');
+    this.report = templateDoc.get('report') || null;
+    this.timestamp = activityDoc.get('timestamp');
+    this.status = activityDoc.get('status');
+    this.office = activityDoc.get('office');
+  }
+
+  /**
+   *
+   * @param {Array<String>} phoneNumbers Array of phone numbers
+   */
+  setIncludeArray(phoneNumbers) {
+    if (!Array.isArray(phoneNumbers)
+      || phoneNumbers.length === 0) {
+      throw new Error(`Field 'include' should be a non-empty array of phone numbers`);
+    }
+
+    /** Duplication is reduntant while */
+    this.include = [...new Set(phoneNumbers)];
+  }
+
+  toObject() {
+    return this;
+  }
+}
+
 module.exports = {
   Creator,
   Activity,
   Attachment,
+  Subscription,
 };
