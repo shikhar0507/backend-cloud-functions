@@ -3,7 +3,6 @@
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 const {
-  db,
   rootCollections,
 } = require('../../admin/admin');
 const env = require('../../admin/env');
@@ -11,7 +10,6 @@ const {
   reportNames,
   httpsActions,
   dateFormats,
-  subcollectionNames,
 } = require('../../admin/constants');
 const {
   getName,
