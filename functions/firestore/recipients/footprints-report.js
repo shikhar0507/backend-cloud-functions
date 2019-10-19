@@ -278,8 +278,6 @@ module.exports = async locals => {
   const distanceMap = new Map();
   const prevTemplateForPersonMap = new Map();
   const prevDocTimestampMap = new Map();
-  const monthYearString = momentYesterday
-    .format(dateFormats.MONTH_YEAR);
   const employeePhoneNumbersArray = Object.keys(locals.employeesData);
   const counterObject = {
     totalUsers: employeePhoneNumbersArray.length,
