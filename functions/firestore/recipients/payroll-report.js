@@ -166,9 +166,7 @@ module.exports = async locals => {
    * Report was triggered by Timer, so updating
    * Holiday and Weekly Off list,
    */
-
-  // const writeAttendanceDocs = momentTz().date() === momentToday.date();
-  const writeAttendanceDocs = false;
+  const writeAttendanceDocs = momentTz().date() === momentToday.date();
   const holidaySet = new Set();
   const weeklyOffSet = new Set();
   const weeklyOffCountMap = new Map();
