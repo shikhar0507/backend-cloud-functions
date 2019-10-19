@@ -875,21 +875,37 @@ const handleSubscription = async locals => {
         .push(phoneNumber);
     });
 
+  const subscriptionDocData = {
+    include: Array.from(new Set(include)),
+    schedule: templateDoc.get('schedule'),
+    venue: templateDoc.get('venue'),
+    template: templateDoc.get('name'),
+    attachment: templateDoc.get('attachment'),
+    timestamp: locals.change.after.get('timestamp'),
+    office: locals.change.after.get('office'),
+    status: locals.change.after.get('status'),
+    canEditRule: templateDoc.get('canEditRule'),
+    hidden: templateDoc.get('hidden'),
+    statusOnCreate: templateDoc.get('statusOnCreate'),
+    report: templateDoc.get('report') || null,
+  };
+
   batch
-    .set(subscriptionDocRef, {
-      include: Array.from(new Set(include)),
-      schedule: templateDoc.get('schedule'),
-      venue: templateDoc.get('venue'),
-      template: templateDoc.get('name'),
-      attachment: templateDoc.get('attachment'),
-      timestamp: locals.change.after.get('timestamp'),
-      office: locals.change.after.get('office'),
-      status: locals.change.after.get('status'),
-      canEditRule: templateDoc.get('canEditRule'),
-      hidden: templateDoc.get('hidden'),
-      statusOnCreate: templateDoc.get('statusOnCreate'),
-      report: templateDoc.get('report') || null,
-    });
+    .set(subscriptionDocRef, subscriptionDocData);
+
+  const newSubscriberAuth = await getAuth(newSubscriber);
+
+  if (newSubscriberAuth.uid) {
+    batch
+      .set(
+        rootCollections
+          .updates
+          .doc(newSubscriberAuth.uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(locals.change.after.id),
+        subscriptionDocData
+      );
+  }
 
   /**
    * Delete subscription doc from old profile
@@ -901,6 +917,19 @@ const handleSubscription = async locals => {
     .before
     .data()
     && oldSubscriber !== newSubscriber;
+
+  /** Subscriber changed, so, deleting old doc in old `Updates` */
+  if (newSubscriberAuth.uid
+    && subscriberChanged) {
+    batch
+      .delete(
+        rootCollections
+          .updates
+          .doc(newSubscriberAuth.uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(locals.change.after.id)
+      );
+  }
 
   if (subscriberChanged) {
     batch
@@ -3338,15 +3367,23 @@ const addCheckInTimestamps = async locals => {
   const batch = db.batch();
   const uid = locals.assigneesMap.get(phoneNumber).uid;
 
-  batch
-    .set(rootCollections.updates.doc(uid), {
-      lastStatusDocUpdateTimestamp: Date.now(),
-    }, {
-      merge: true,
-    });
+  if (uid) {
+    batch
+      .set(rootCollections
+        .updates
+        .doc(uid), {
+        lastStatusDocUpdateTimestamp: Date.now(),
+      }, {
+        merge: true,
+      });
+  }
 
   batch
-    .set(attendanceDoc.ref, attendanceDocData, { merge: true });
+    .set(
+      attendanceDoc.ref,
+      attendanceDocData, {
+      merge: true,
+    });
 
   return batch
     .commit();
@@ -3890,9 +3927,9 @@ const handleLeaveAndDutyConflict = async locals => {
   const phoneNumber = locals.change.after.get('creator.phoneNumber');
 
   if (locals.addendumDoc
-    && locals.addendumDoc.get('action') === httpsActions.create
-    || locals.addendumDoc.get('action') === httpsActions.update
-    || locals.addendumDoc.get('action') === httpsActions.changeStatus) {
+    && (locals.addendumDoc.get('action') === httpsActions.create
+      || locals.addendumDoc.get('action') === httpsActions.update
+      || locals.addendumDoc.get('action') === httpsActions.changeStatus)) {
 
     const docs = await rootCollections
       .offices
@@ -4765,9 +4802,8 @@ const reimburseClaim = async locals => {
   const officeId = getValueFromActivity(locals.change, 'officeId');
   const timezone = getValueFromActivity(locals.change, 'timezone');
   const momentNow = momentTz(timestamp).tz(timezone);
-  const attachmentName = getValueFromActivity(locals.change, 'attachment.Name.value');
-  const template = getValueFromActivity(locals.change, 'template');
   const status = getValueFromActivity(locals.change, 'status');
+
   const claimsToday = await rootCollections
     .offices
     .doc(officeId)
@@ -4775,8 +4811,8 @@ const reimburseClaim = async locals => {
     .where('date', '==', momentNow.date())
     .where('month', '==', momentNow.month())
     .where('year', '==', momentNow.year())
-    .where('template', '==', template)
-    .where('attachmentName', '==', attachmentName)
+    .where('phoneNumber', '==', phoneNumber)
+    .where('activityId', '==', locals.change.after.id)
     .limit(1)
     .get();
 
@@ -4800,10 +4836,11 @@ const reimburseClaim = async locals => {
   const claimUpdate = Object.assign({}, employeeData, {
     timestamp,
     status,
-    template: 'claim',
     date: momentNow.date(),
     month: momentNow.month(),
     year: momentNow.year(),
+    activityId: locals.change.after.id,
+    template: getValueFromActivity(locals.change, 'template'),
     photoURL: getValueFromActivity(locals.change, 'attachment.Photo URL.value'),
     amount: getValueFromActivity(locals.change, 'attachment.Amount.value'),
     claimType: getValueFromActivity(locals.change, 'attachment.Claim Type.value'),
@@ -4832,13 +4869,14 @@ const reimburseClaim = async locals => {
       merge: true,
     });
 
-  batch.set(rootCollections
-    .updates
-    .doc(locals.addendumDocData.uid)
-    .collection(subcollectionNames.REIMBURSEMENTS)
-    .doc(claimsDoc.id), claimUpdate, {
-    merge: true,
-  });
+  batch
+    .set(rootCollections
+      .updates
+      .doc(locals.addendumDocData.uid)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .doc(claimsDoc.id), claimUpdate, {
+      merge: true,
+    });
 
   return batch
     .commit();
@@ -5264,6 +5302,11 @@ const reimburseKmAllowance = async locals => {
 
 const handleReimbursement = async locals => {
   if (!locals.addendumDocData) {
+    return;
+  }
+
+  /** Support creates/updates stuff */
+  if (locals.addendumDocData.isSupportRequest) {
     return;
   }
 
@@ -5967,16 +6010,18 @@ module.exports = async (change, context) => {
           return;
         }
 
-        batch
-          .set(rootCollections
-            .updates
-            .doc(userRecord.uid)
-            .collection(subcollectionNames.ADDENDUM)
-            .doc(activityId), Object.assign({}, profileActivityObject, {
-              type: addendumTypes.ACTIVITY,
-            }), {
-            merge: true,
-          });
+        if (userRecord.uid) {
+          batch
+            .set(rootCollections
+              .updates
+              .doc(userRecord.uid)
+              .collection(subcollectionNames.ADDENDUM)
+              .doc(activityId), Object.assign({}, profileActivityObject, {
+                type: addendumTypes.ACTIVITY,
+              }), {
+              merge: true,
+            });
+        }
 
         batch
           .set(rootCollections
