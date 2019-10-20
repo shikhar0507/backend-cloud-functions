@@ -55,8 +55,6 @@ const {
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 
-const forSalesReport = (template) =>
-  new Set(['dsr', 'customer']).has(template);
 
 /**
  * Validates the schedules where the there is a name field present,
@@ -1581,7 +1579,6 @@ const setOnLeaveOrAr = async params => {
 
 
 module.exports = {
-  forSalesReport,
   activityName,
   validateVenues,
   getCanEditValue,

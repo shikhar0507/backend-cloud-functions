@@ -24,9 +24,6 @@ const {
   getEmployeesMapFromRealtimeDb,
 } = require('../admin/utils');
 const {
-  forSalesReport,
-} = require('../firestore/activity/helper');
-const {
   weekdays,
   dateFormats,
   validTypes,
@@ -518,7 +515,6 @@ const createObjects = async (locals, trialRun) => {
       template: locals.templateDoc.get('name'),
       activityName: getActivityName(params),
       createTimestamp: Date.now(),
-      forSalesReport: forSalesReport(locals.templateDoc.get('name')),
     };
 
     /**

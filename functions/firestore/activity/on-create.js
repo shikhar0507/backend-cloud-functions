@@ -39,7 +39,6 @@ const {
 const {
   activityName,
   validateVenues,
-  forSalesReport,
   getCanEditValue,
   filterAttachment,
   validateSchedules,
@@ -250,8 +249,6 @@ const createDocsWithBatch = async (conn, locals) => {
     };
   activityData
     .createTimestamp = Date.now();
-  activityData
-    .forSalesReport = forSalesReport(conn.req.body.template);
 
   const adjustedGeopoints = getAdjustedGeopointsFromVenue(
     conn.req.body.venue
