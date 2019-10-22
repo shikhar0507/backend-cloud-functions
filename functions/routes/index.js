@@ -105,6 +105,12 @@ module.exports = (req) => {
     case 'changePhoneNumber':
       func = require('../change-phone-number');
       break;
+    case 'salaryAccount/create':
+      func = require('../salary-accounts/on-create');
+      break;
+    case 'salaryAccount/delete':
+      func = require('../salary-accounts/on-delete');
+      break;
     default:
       func = null;
   }
