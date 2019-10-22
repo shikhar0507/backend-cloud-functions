@@ -71,6 +71,7 @@ const googleMapsClient = require('@google/maps')
     Promise: Promise,
   });
 
+const handleAdmin = require('./template-handlers/admin');
 
 const replaceInvalidCharsInOfficeName = office => {
   let result = office
@@ -356,43 +357,6 @@ const getCustomerObject = async (customerName, officeId) => {
     });
 
   return object;
-};
-
-const handleAdmin = async locals => {
-  const {
-    attachment,
-    status,
-    office,
-  } = locals.change.after.data();
-  const {
-    value: adminContact,
-  } = attachment.Admin;
-
-  const userRecord = await getAuth(adminContact);
-
-  if (!userRecord.uid) {
-    return;
-  }
-
-  const customClaims = Object
-    .assign({}, userRecord.customClaims);
-
-  customClaims
-    .admin = customClaims.admin || [];
-  customClaims
-    .admin.push(office);
-  customClaims
-    .admin = Array.from(new Set(customClaims.admin));
-
-  if (status === 'CANCELLED') {
-    const index = customClaims.admin.indexOf(office);
-
-    customClaims
-      .admin = customClaims.admin.splice(index, 1);
-  }
-
-  return auth
-    .setCustomUserClaims(userRecord.uid, customClaims);
 };
 
 
@@ -4470,7 +4434,6 @@ const getDistanceTravelled = async params => {
   // if this check-in is user's first check-in for the day
   // distance travelled is distanceMatrix(baseLocation to currentLocation);
   // else
-  // return locals.addendumDocData.get('distanceTravelled);
   const isFirstCheckInForDate = !previousAddendumDoc
     || (previousAddendumDoc.get('date') !== addendumDocData.date);
 
@@ -4978,7 +4941,9 @@ const reimburseDailyAllowance = async locals => {
   let uid = locals.addendumDocData.uid;
 
   if (!uid) {
-    const auth = await admin.auth().getUserByPhoneNumber(phoneNumber);
+    const auth = await admin
+      .auth()
+      .getUserByPhoneNumber(phoneNumber);
 
     uid = auth.uid;
   }
@@ -6092,7 +6057,6 @@ const ActivityOnWrite = async (change, context) => {
 
     if (template === 'check-in') {
       await handleRelevantTimeActivities(locals);
-
       await handleWorkday(locals);
     }
 
