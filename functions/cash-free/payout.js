@@ -208,6 +208,19 @@ const getBeneficiary = async beneId => {
 
   return rpn(uri, {
     headers: await getHeaders(),
+    json: true,
+  });
+};
+
+const removeBeneficiary = async beneId => {
+  const uri = url.resolve(endpoint, '/payout/v1/removeBeneficiary');
+
+  return rpn(uri, {
+    body: {
+      beneId,
+    },
+    headers: await getHeaders(),
+    json: true,
   });
 };
 
@@ -261,5 +274,6 @@ module.exports = {
   addBeneficiary,
   requestTransfer,
   verifyWebhookPost,
+  removeBeneficiary,
   getTransferStatus,
 };
