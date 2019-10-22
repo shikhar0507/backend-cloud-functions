@@ -329,10 +329,11 @@ const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   return updatedFields;
 };
 
-const getCustomerObject = async (customerName, officeId) => {
+const getCustomerObject = async (name, officeId, template) => {
   const customerActivityResult = await rootCollections
     .activities
-    .where('attachment.Name.value', '==', customerName)
+    .where('template', '==', template)
+    .where('attachment.Name.value', '==', name)
     .where('officeId', '==', officeId)
     .where('status', '==', 'CONFIRMED')
     .get();
@@ -5834,12 +5835,18 @@ const ActivityOnWrite = async (change, context) => {
 
     let customerObject = null;
 
-    if (locals.addendumDoc
-      && locals.addendumDoc.get('action') === httpsActions.create
-      && locals.change.after.get('attachment.Location.value')) {
+    if (template === 'duty' || template === 'branch duty') {
+      let type = 'customer';
+
+      if (template === 'branch duty') {
+        type = 'branch';
+      }
+
+      // name, officeId, template
       customerObject = await getCustomerObject(
         locals.change.after.get('attachment.Location.value'),
-        locals.change.after.get('officeId')
+        locals.change.after.get('officeId'),
+        type
       );
     }
 
