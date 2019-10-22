@@ -30,6 +30,7 @@ const {
 } = require('../../admin/responses');
 const {
   httpsActions,
+  subcollectionNames,
 } = require('../../admin/constants');
 const {
   db,
@@ -39,11 +40,10 @@ const {
 const {
   activityName,
   validateVenues,
-  getCanEditValue,
+  setOnLeaveOrAr,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
-  setOnLeaveOrAr,
 } = require('./helper');
 const {
   handleError,
@@ -77,7 +77,7 @@ const getClaimStatus = async params => {
       rootCollections
         .offices
         .doc(officeId)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('template', '==', 'claim')
         .where('creator.phoneNumber', '==', phoneNumber)
         .where('attachment.Claim Type.value', '==', claimType)
@@ -88,7 +88,7 @@ const getClaimStatus = async params => {
       rootCollections
         .offices
         .doc(officeId)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('template', '==', 'claim-type')
         .where('attachment.Name.value', '==', claimType)
         .limit(1)
@@ -124,31 +124,25 @@ const createDocsWithBatch = async (conn, locals) => {
     .allPhoneNumbers
     .forEach(phoneNumber => {
       let addToInclude = true;
-
       const isRequester = phoneNumber === conn.requester.phoneNumber;
 
       if (conn.req.body.template === 'subscription' && isRequester) {
         addToInclude = false;
       }
 
-      const canEdit = getCanEditValue(locals, phoneNumber);
-
-      canEditMap[phoneNumber] = canEdit;
-
       locals
         .batch
         .set(locals.docs.activityRef
-          .collection('Assignees')
+          .collection(subcollectionNames.ASSIGNEES)
           .doc(phoneNumber), {
           addToInclude,
-          canEdit,
         });
     });
 
   const addendumDocRef = rootCollections
     .offices
     .doc(locals.static.officeId)
-    .collection('Addendum')
+    .collection(subcollectionNames.ADDENDUM)
     .doc();
 
   const timezone = locals
@@ -225,8 +219,6 @@ const createDocsWithBatch = async (conn, locals) => {
     .timestamp = Date.now();
   activityData
     .template = conn.req.body.template;
-  activityData
-    .status = locals.static.statusOnCreate;
   activityData
     .status = locals.static.statusOnCreate;
   activityData
@@ -439,7 +431,7 @@ const handlePayroll = async (conn, locals) => {
       rootCollections
         .offices
         .doc(locals.static.officeId)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('template', '==', 'leave-type')
         .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
         .limit(1)
@@ -447,7 +439,7 @@ const handlePayroll = async (conn, locals) => {
       rootCollections
         .offices
         .doc(locals.static.officeId)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('creator', '==', conn.requester.phoneNumber)
         .where('template', '==', 'leave')
         .where('attachment.Leave Type.value', '==', conn.req.body.attachment['Leave Type'].value)
@@ -533,7 +525,7 @@ const handleAssignees = async (conn, locals) => {
           .push(rootCollections
             .offices
             .doc(locals.static.officeId)
-            .collection('Activities')
+            .collection(subcollectionNames.ACTIVITIES)
             .where('attachment.Employee Contact.value', '==', phoneNumber)
             .where('template', '==', 'employee')
             .limit(1)
@@ -1018,7 +1010,7 @@ module.exports = async conn => {
     rootCollections
       .profiles
       .doc(conn.requester.phoneNumber)
-      .collection('Subscriptions')
+      .collection(subcollectionNames.SUBSCRIPTIONS)
       .where('office', '==', conn.req.body.office)
       .where('template', '==', conn.req.body.template)
       .where('status', '==', 'CONFIRMED')

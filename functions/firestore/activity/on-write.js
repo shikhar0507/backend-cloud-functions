@@ -1394,8 +1394,11 @@ const handleEmployee = async locals => {
   } = locals.change.after.get('attachment.Employee Contact');
   const hasBeenCancelled = locals
     .change
-    .before
-    .get('status') !== 'CANCELLED'
+    .before.data()
+    && locals
+      .change
+      .before
+      .get('status') !== 'CANCELLED'
     && locals
       .change
       .after
