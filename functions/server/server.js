@@ -321,7 +321,8 @@ module.exports = async (req, res) => {
     'POST',
     'GET',
     'PATCH',
-    'PUT'
+    'PUT',
+    'DELETE',
   ];
 
   const conn = {
