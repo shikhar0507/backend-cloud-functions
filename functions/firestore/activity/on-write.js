@@ -41,7 +41,6 @@ const {
 const {
   slugify,
   getAuth,
-  // getBranchName,
   getRelevantTime,
   adjustedGeopoint,
   isNonEmptyString,
@@ -279,7 +278,9 @@ const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
       if (oldLocation === newLocation
         && oldAddress === newAddress
         && oldLatitude === newLatitude
-        && oldLongitude === newLongitude) return;
+        && oldLongitude === newLongitude) {
+        return;
+      }
 
       updatedFields
         .push(venueDescriptor);
@@ -4058,12 +4059,9 @@ const reimburseDailyAllowance = async locals => {
   const officeId = getValueFromActivity(locals.change, 'officeId');
   const timestamp = getReimbursementTimestamp(locals.change.after);
   const momentNow = momentTz(timestamp);
-
-  const scheduledOnly = getScheduledOnlyStatus({
-    action: locals.addendumDocData.action,
-    template: getValueFromActivity(locals.change, 'template'),
-  });
-
+  const action = locals.addendumDocData.action;
+  const scheduledOnly = action === httpsActions.checkIn;
+  const existingDailyAllowances = new Set();
   let uid = locals.addendumDocData.uid;
 
   if (!uid) {
@@ -4081,22 +4079,17 @@ const reimburseDailyAllowance = async locals => {
     .where('date', '==', momentNow.date())
     .where('month', '==', momentNow.month())
     .where('year', '==', momentNow.year())
-    .where('template', '==', 'daily allowance')
+    .where('reimbursementType', '==', 'daily allowance')
     .where('uid', '==', uid)
     .get();
 
-  console.log('claimsToday', claimsToday.size);
-
-  const existingDas = new Set();
-
   claimsToday
     .forEach(doc => {
-      const attachmentName = doc.get('attachmentName');
-
-      existingDas.add(attachmentName);
+      existingDailyAllowances
+        .add(doc.get('reimbursementName'));
     });
 
-  console.log('existingDas', existingDas.size);
+  console.log('scheduledOnly', scheduledOnly);
 
   let dailyAllowanceBaseQuery = rootCollections
     .offices
@@ -4110,7 +4103,8 @@ const reimburseDailyAllowance = async locals => {
       .where('attachment.Scheduled Only.value', '==', true);
   }
 
-  const dailyAllowanceActivities = await dailyAllowanceBaseQuery.get();
+  const dailyAllowanceActivities = await dailyAllowanceBaseQuery
+    .get();
 
   console.log('dailyAllowanceActivities', dailyAllowanceActivities.size);
 
@@ -4127,19 +4121,12 @@ const reimburseDailyAllowance = async locals => {
 
   dailyAllowanceActivities
     .forEach(daActivity => {
-      const attachmentStartTime = daActivity.get('attachment.Start Time.value');
-      const attachmentEndTime = daActivity.get('attachment.End Time.value');
-
-      const [
-        startHours,
-        startMinutes
-      ] = attachmentStartTime.split(':');
-      const [
-        endHours,
-        endMinutes
-      ] = attachmentEndTime.split(':');
-
-      console.log('da:', { startHours, startMinutes, endHours, endMinutes });
+      const [startHours, startMinutes] = daActivity
+        .get('attachment.Start Time.value')
+        .split(':');
+      const [endHours, endMinutes] = daActivity
+        .get('attachment.End Time.value')
+        .split(':');
 
       if (startHours === ''
         || startMinutes === ''
@@ -4148,26 +4135,24 @@ const reimburseDailyAllowance = async locals => {
         return;
       }
 
-      const momentStart = momentTz().hours(startHours).minutes(startMinutes);
-      const momentEnd = momentTz().hours(endHours).minutes(endMinutes);
+      const momentStart = momentTz()
+        .hours(startHours)
+        .minutes(startMinutes);
+      const momentEnd = momentTz()
+        .hours(endHours)
+        .minutes(endMinutes);
 
+      /** Is not in the time range */
       if (momentNow.isBefore(momentStart)
         || momentEnd.isAfter(momentEnd)) {
         return;
       }
 
-      const attachmentName = daActivity
-        .get('attachment.Name.value');
+      const attachmentName = daActivity.get('attachment.Name.value');
 
-      if (existingDas.has(attachmentName)) {
+      if (existingDailyAllowances.has(attachmentName)) {
         return;
       }
-
-      const ref = rootCollections
-        .offices
-        .doc(officeId)
-        .collection(subcollectionNames.REIMBURSEMENTS)
-        .doc();
 
       const update = Object
         .assign({}, employeeDocData, {
@@ -4176,18 +4161,33 @@ const reimburseDailyAllowance = async locals => {
           date: momentNow.date(),
           month: momentNow.month(),
           year: momentNow.year(),
-          template: 'daily allowance',
-          identifier: locals.addendumDocData.identifier,
-          geopoint: locals.addendumDocData.location,
-          phoneNumber: getValueFromActivity(locals.change, 'creator.phoneNumber'),
-          claimType: 'daily allowance',
+          reimbursementType: daActivity.get('template'),
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          reimbursementName: daActivity.get('attachment.Name.value'),
+          // rate: ''
+          // startLocation: '',
+          // endLocation: '',
+          // distanceTravelled: '',
+          // photoURL: '',
+          // status: '',
+          // claimId: '',
+          // identifier: locals.addendumDocData.identifier,
+          // geopoint: locals.addendumDocData.location,
+          phoneNumber: getValueFromActivity(
+            locals.change,
+            'creator.phoneNumber'
+          ),
           attachmentName: daActivity.get('attachment.Name.value'),
           amount: daActivity.get('attachment.Amount.value'),
           relevantActivityId: locals.change.after.id,
           dailyAllowanceActivityId: daActivity.id,
         });
 
-      console.log('da', update);
+      const ref = rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.REIMBURSEMENTS)
+        .doc();
 
       batch
         .set(ref, update, {
@@ -4199,7 +4199,9 @@ const reimburseDailyAllowance = async locals => {
           .updates
           .doc(uid)
           .collection(subcollectionNames.ADDENDUM)
-          .doc(ref.id), update, {
+          .doc(ref.id), Object.assign(
+            {},
+            update, { _type: addendumTypes.REIMBURSEMENT }), {
           merge: true,
         });
     });
@@ -4207,6 +4209,7 @@ const reimburseDailyAllowance = async locals => {
   return batch
     .commit();
 };
+
 
 const reimburseKmAllowance = async locals => {
   const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
