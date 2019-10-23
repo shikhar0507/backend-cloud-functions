@@ -35,46 +35,24 @@ const {
 const {
   reportNames,
   httpsActions,
-  addendumTypes,
+  // addendumTypes,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
 
-const purgeDocs = (query, resolve, reject, count) => {
-  const momentMinusHundredDays = momentTz().subtract(100, 'days');
-  return query
+const purgeDocs = (query, resolve, reject, count) =>
+  query
     .get()
     .then(docs => {
       count++;
 
       // When there are no documents left, we are done
-      if (docs.size === 0) {
-        return 0;
-      }
+      if (docs.size === 0) return 0;
 
       // Delete documents in a batch
       const batch = db.batch();
 
-      docs
-        .forEach(doc => {
-          const timestamp = doc.get('timestamp');
-          const isHundredDaysOld = momentTz(timestamp)
-            .isBefore(momentMinusHundredDays, 'days');
-
-          /**
-           * Documents with type `comment` should be deleted as soon as they
-           * reach the client device.
-           * Other docs like Payments, Reimbursements and Attendance will stay
-           * for 100 days in the path: `Updates/{uid}/Addendum/{docId}`
-          */
-          if (doc.get('type') !== addendumTypes.COMMENT
-            && !isHundredDaysOld) {
-            return;
-          }
-
-          batch
-            .delete(doc.ref);
-        });
+      docs.forEach(doc => batch.delete(doc.ref));
 
       /* eslint-disable */
       return batch
@@ -84,9 +62,7 @@ const purgeDocs = (query, resolve, reject, count) => {
     })
     .then(deleteCount => {
       /** All docs deleted */
-      if (deleteCount === 0) {
-        return resolve(count);
-      }
+      if (deleteCount === 0) return resolve(count);
 
       // Recurse on the next process tick, to avoid exploding the stack.
       return process
@@ -94,7 +70,6 @@ const purgeDocs = (query, resolve, reject, count) => {
     })
     .catch(reject);
 
-};
 
 const manageOldCheckins = (change) => {
   const oldFromValue = change.before.get('lastQueryFrom');
