@@ -3921,12 +3921,18 @@ const reimburseClaim = async locals => {
   );
 
   const claimUpdate = Object.assign({}, employeeData, {
-    timestamp,
     status,
+    timestamp,
+    currency: 'INR',
     date: momentNow.date(),
     month: momentNow.month(),
     year: momentNow.year(),
+    office: locals.change.after.get('office'),
+    officeId: locals.change.after.get('officeId'),
     activityId: locals.change.after.id,
+    claimId: locals.change.after.id,
+    reimbursementName: locals.change.after.get('attachment.Claim Type.value'),
+    reimbursementType: locals.change.after.get('template'),
     template: getValueFromActivity(locals.change, 'template'),
     photoURL: getValueFromActivity(locals.change, 'attachment.Photo URL.value'),
     amount: getValueFromActivity(locals.change, 'attachment.Amount.value'),
@@ -4158,9 +4164,11 @@ const reimburseDailyAllowance = async locals => {
         .assign({}, employeeDocData, {
           uid,
           timestamp,
+          officeId,
           date: momentNow.date(),
           month: momentNow.month(),
           year: momentNow.year(),
+          office: locals.change.after.get('office'),
           reimbursementType: daActivity.get('template'),
           checkInTimestamp: locals.change.after.get('timestamp'),
           reimbursementName: daActivity.get('attachment.Name.value'),
@@ -4181,6 +4189,7 @@ const reimburseDailyAllowance = async locals => {
           amount: daActivity.get('attachment.Amount.value'),
           relevantActivityId: locals.change.after.id,
           dailyAllowanceActivityId: daActivity.id,
+          geopoint: locals.addendumDocData.location,
         });
 
       const ref = rootCollections
