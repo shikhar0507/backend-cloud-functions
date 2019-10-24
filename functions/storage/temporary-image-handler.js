@@ -106,7 +106,7 @@ module.exports = async object => {
       Object
         .keys(canEditMap)
         .forEach(phoneNumber => {
-          const canEdit = canEditMap[phoneNumber];
+          const canEdit = canEditMap[phoneNumber] || null;
 
           batch.set(activityRef.collection('Assignees').doc(phoneNumber), {
             canEdit,
