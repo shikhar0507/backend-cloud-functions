@@ -126,6 +126,8 @@ const createDocsWithBatch = async (conn, locals) => {
       let addToInclude = true;
       const isRequester = phoneNumber === conn.requester.phoneNumber;
 
+      canEditMap[phoneNumber] = null;
+
       if (conn.req.body.template === 'subscription' && isRequester) {
         addToInclude = false;
       }

@@ -186,9 +186,6 @@ const getAttendanceValueForDay = async (officeId, phoneNumber, momentInstance) =
 
   const firstCheckInTimestamp = addendumDocs.docs[0].timestamp;
   const lastCheckInTimestamp = addendumDocs.docs[addendumDocs.size - 1].timestamp;
-  const numberOfCheckIns = addendumDocs.size;
-  const minimumDailyActivityCount = '';
-  const minimumWorkingHours = employeeDoc.get('attachment.Minimum Working Hours.value');
   const hoursWorked = momentTz(lastCheckInTimestamp)
     .diff(
       momentTz(firstCheckInTimestamp),
@@ -197,10 +194,12 @@ const getAttendanceValueForDay = async (officeId, phoneNumber, momentInstance) =
     );
 
   return getStatusForDay({
-    numberOfCheckIns, // number of actions done in the day by the user
-    minimumDailyActivityCount,
-    minimumWorkingHours,
-    hoursWorked // difference between first and last action in hours,
+    // difference between first and last action in hours
+    hoursWorked,
+    // number of actions done in the day by the user
+    numberOfCheckIns: addendumDocs.size,
+    minimumDailyActivityCount: employeeDoc.get('attachment.Minimum Daily Activity Count.value'),
+    minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
   });
 };
 
@@ -301,8 +300,8 @@ const getCustomerObject = async (name, officeId, template) => {
   const [customerDoc] = customerActivityResult.docs;
   const { attachment } = customerDoc.data();
   const [venue] = customerDoc.get('venue');
-  const { geopoint } = venue;
-  const { address, location } = geopoint;
+  const { address, geopoint } = venue;
+  const { location } = geopoint;
 
   const object = Object.assign({}, {
     address,
@@ -1205,7 +1204,7 @@ const handleEmployee = async locals => {
   const { office, officeId } = locals.change.after.data();
   const {
     value: oldEmployeeContact,
-  } = locals.change.before.get('attachment.Employee Contact');
+  } = locals.change.before.get('attachment.Employee Contact') || {};
   const {
     value: newEmployeeContact,
   } = locals.change.after.get('attachment.Employee Contact');
@@ -3550,67 +3549,125 @@ const handleClaim = async locals => {
 
 const getDistanceTravelled = async params => {
   const {
+    startPointLatitude,
+    startPointLongitude,
+    baseLocation,
     officeId,
-    phoneNumber,
-    isLocal,
-    startPoint,
-    previousAddendumDoc,
-    addendumDocData,
+    timezone,
+    currentAddendumDoc,
   } = params;
+  const {
+    user: phoneNumber,
+    timestamp,
+  } = currentAddendumDoc;
 
-  // if this check-in is user's first check-in for the day
-  // distance travelled is distanceMatrix(baseLocation to currentLocation);
-  // else
-  const isFirstCheckInForDate = !previousAddendumDoc
-    || (previousAddendumDoc.get('date') !== addendumDocData.date);
+  console.log('getDistanceTravelledParams', params);
 
-  if (!isFirstCheckInForDate) {
-    return addendumDocData.distanceTravelled;
+  const momentNow = momentTz(timestamp)
+    .tz(timezone);
+
+  const addendumQuery = rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ADDENDUM)
+    .where('user', '==', phoneNumber)
+    .where('date', '==', momentNow.date())
+    .where('month', '==', momentNow.month())
+    .where('year', '==', momentNow.year())
+    .where('action', '==', httpsActions.checkIn);
+
+  const addendumQueryResult = await addendumQuery
+    .get();
+
+  console.log('addendumQueryResult:', addendumQueryResult.size);
+
+  /** Sorted by ascending */
+  const sortedAddendumDocs = addendumQueryResult
+    .docs
+    .sort((first, second) => first.get('timestamp') - second.get('timestamp'));
+
+  const lastDoc = sortedAddendumDocs[sortedAddendumDocs.length - 1];
+  let branchDoc;
+
+  console.log('lastDoc', lastDoc);
+
+  // if action is create, checkin - then look
+  // for scheduled only false in
+  // employee object and make km allowance if available
+  // basis same logic of previous checkin is same
+  // date then km allowance
+  // between the two else km allowance from
+  // startpoint / base location to both
+
+  // if action is checkin - then look for scheduled
+  // only true in employee and make km allowance
+  // if available basis same logic of previous
+  // action == checkin, same date then km
+  // allowance between the two else km allowance
+  // from start point / base location from both
+
+  /**
+   * First check-in of the day means that the previous
+   *
+   *
+   * If the user is creating the first check-in of the day
+   * distanceTravelled is calculated between startpoint to
+   * current location.
+   *
+   * If employee doc doesn't contain start point,
+   * distance is calculated between branch geopoint
+   * and current location.
+   *
+   *
+   */
+
+  if (!startPointLongitude
+    || !startPointLongitude) {
+    const branchQuery = await rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('attachment.Name.value', '==', baseLocation)
+      .where('status', '==', 'CONFIRMED')
+      .where('template', '==', 'branch')
+      .limit(1)
+      .get();
+
+    branchDoc = branchQuery.docs[0];
   }
 
-  const currentGeopoint = addendumDocData.location;
+  if (!branchDoc && (!startPointLatitude || !startPointLongitude)) {
+    /**
+     * KM Allowance should not be created for users with no start point
+     * and no branch allocated.
+     *
+     * Setting distance `travelled` to 0 allows skipping km allowance
+     * reimbursement creation.
+     */
+    console.log('in 0');
 
-  if (startPoint && isLocal) {
+    return 0;
+  }
+
+  if (!lastDoc || lastDoc.get('date') !== currentAddendumDoc.date) {
+    const geopoint = branchDoc.get('venue')[0].geopoint;
+
+    const startPoint = {
+      _latitude: startPointLatitude || geopoint.latitude || geopoint._latitude,
+      _longitude: startPointLongitude || geopoint.longitude || geopoint._longitude,
+    };
+
+    console.log('getDistanceFromDistanceMatrix', startPoint, currentAddendumDoc.location);
+
     return getDistanceFromDistanceMatrix(
       startPoint,
-      currentGeopoint
+      currentAddendumDoc.location
     );
   }
 
-  const employeeData = await getEmployeeReportData(
-    officeId,
-    phoneNumber
-  );
 
-  if (!employeeData
-    || !employeeData.baseLocation) {
-    return addendumDocData
-      .distanceTravelled;
-  }
-
-  const baseLocationQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.REIMBURSEMENTS)
-    .where('template', '==', 'branch')
-    .where('attachment.Name.value', '==', employeeData.baseLocation)
-    .where('status', '==', 'CONFIRMED')
-    .get();
-
-  if (baseLocationQueryResult.empty) {
-    return addendumDocData.distanceTravelled;
-  }
-
-  const baseLocationGeopoint = baseLocationQueryResult.docs[0].get('venue')[0].geopoint;
-
-  if (!Number.isInteger(baseLocationGeopoint.latitude)) {
-    return addendumDocData.distanceTravelled;
-  }
-
-  return getDistanceFromDistanceMatrix(
-    baseLocationGeopoint,
-    currentGeopoint
-  );
+  console.log('LAST', currentAddendumDoc.distanceTravelled);
+  return currentAddendumDoc.distanceTravelled;
 };
 
 
@@ -3735,16 +3792,6 @@ const handleCheckInActionForkmAllowance = async locals => {
     .collection('Activities')
     .where('template', '==', 'km allowance')
     .where('isCancelled', '==', false);
-
-  if (isLocal) {
-    kmActivitiesQueryBase = kmActivitiesQueryBase
-      .where('attachment.Local.value', '==', true);
-  }
-
-  if (isTravel) {
-    kmActivitiesQueryBase = kmActivitiesQueryBase
-      .where('attachment.Travel.value', '==', true);
-  }
 
   if (includeBranch) {
     kmActivitiesQueryBase = kmActivitiesQueryBase
@@ -3975,90 +4022,6 @@ const reimburseClaim = async locals => {
     .commit();
 };
 
-const getTravelStatus = async params => {
-  const {
-    phoneNumber,
-    currentCity,
-    officeId,
-    currentGeopoint,
-  } = params;
-
-  const employeeQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('attachment.Employee Contact.value', '==', phoneNumber)
-    .where('status', '==', 'CONFIRMED')
-    .where('template', '==', 'employee')
-    .limit(1)
-    .get();
-
-  if (employeeQueryResult.empty) {
-    return false;
-  }
-
-  const employeeDoc = employeeQueryResult.docs[0];
-  const baseLocation = employeeDoc.get('attachment.Base Location.value');
-
-  if (!baseLocation) {
-    return false;
-  }
-
-  // fetch base location city
-  const baseLocationQuery = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('template', '==', 'branch')
-    .where('attachment.Name.value', '==', baseLocation)
-    .where('status', '==', 'CONFIRMED')
-    .limit(1)
-    .get();
-
-  if (baseLocationQuery.empty) {
-    return false;
-  }
-
-  const baseLocationGeopoint = baseLocationQuery
-    .docs[0]
-    .get('venue')[0]
-    .geopoint;
-
-  if (!baseLocationGeopoint
-    || !Number.isInteger(baseLocationGeopoint.latitude)) {
-    return false;
-  }
-
-  const mapsApiResult = await googleMapsClient
-    .reverseGeocode({
-      latlng: getLatLngString(currentGeopoint),
-    })
-    .asPromise();
-
-  if (mapsApiResult.json.results.length === 0) {
-    return false;
-  }
-
-  const components = mapsApiResult.json.results[0].address_components;
-  const baseLocationCity = getLocalityCityState(components).city;
-
-  return currentCity !== baseLocationCity;
-};
-
-
-const getScheduledOnlyStatus = params => {
-  const {
-    action,
-    template,
-  } = params;
-
-  if (action === httpsActions.create
-    && template === 'check-in') {
-    return false;
-  }
-
-  return action === httpsActions.checkIn;
-};
 
 const reimburseDailyAllowance = async locals => {
   const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
@@ -4127,6 +4090,7 @@ const reimburseDailyAllowance = async locals => {
 
   dailyAllowanceActivities
     .forEach(daActivity => {
+      const attachmentName = daActivity.get('attachment.Name.value');
       const [startHours, startMinutes] = daActivity
         .get('attachment.Start Time.value')
         .split(':');
@@ -4153,8 +4117,6 @@ const reimburseDailyAllowance = async locals => {
         || momentEnd.isAfter(momentEnd)) {
         return;
       }
-
-      const attachmentName = daActivity.get('attachment.Name.value');
 
       if (existingDailyAllowances.has(attachmentName)) {
         return;
@@ -4221,91 +4183,70 @@ const reimburseDailyAllowance = async locals => {
 
 
 const reimburseKmAllowance = async locals => {
-  const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
-  const officeId = getValueFromActivity(locals.change, 'officeId');
-  const timestamp = getReimbursementTimestamp(locals.change.after);
-  const timezone = getValueFromActivity(locals.change, 'timezone');
-  const template = getValueFromActivity(
-    locals.change,
-    'template'
-  );
+  console.log('in reimburseKmAllowance');
 
-  // Change
-  const momentNow = momentTz(timestamp).tz(timezone);
-  const isTravel = await getTravelStatus({
-    phoneNumber,
+  const {
+    timestamp,
+    uid,
+  } = locals.addendumDocData;
+  const {
+    creator: {
+      phoneNumber,
+    },
+    office,
     officeId,
-    currentGeopoint: locals.addendumDocData.location,
-    currentCity: locals.city,
-  });
-  const scheduledOnly = getScheduledOnlyStatus({
-    action: locals.addendumDocData.action,
-    template,
-  });
-  const includeBranch = (() => {
-    if (locals.addendumDocData.venueQuery) {
-      return locals
-        .addendumDocData
-        .venueQuery
-        .location;
-    }
+    timezone,
+  } = locals.change.after.data();
 
-    return locals
-      .addendumDocData
-      .identifier;
-  })()
-    .endsWith('BRANCH');
-
-  let kmAllowanceBaseQuery = rootCollections
+  const employeeDoc = (await rootCollections
     .offices
     .doc(officeId)
     .collection(subcollectionNames.ACTIVITIES)
-    .where('template', '==', 'km allowance')
-    .where('isCancelled', '==', false);
+    .where('template', '==', 'employee')
+    .where('attachment.Employee Contact.value', '==', phoneNumber)
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get()).docs[0];
 
-  if (isTravel) {
-    kmAllowanceBaseQuery = kmAllowanceBaseQuery
-      .where('attachment.Travel.value', '==', true);
+  console.log('employeeDoc', !!employeeDoc);
+
+  // Not an employee, km allowance is skipped
+  if (!employeeDoc) {
+    return;
   }
 
-  if (scheduledOnly) {
-    kmAllowanceBaseQuery = kmAllowanceBaseQuery
-      .where('attachment.Scheduled Only.value', '==', true);
+  const {
+    value: kmRate,
+  } = employeeDoc.get('attachment.KM Rate');
+  const {
+    value: kmDailyLimit,
+  } = employeeDoc.get('attachment.KM Daily Limit');
+  const {
+    value: startPointLatitude,
+  } = employeeDoc.get('attachment.Start Point Latitude');
+  const {
+    value: startPointLongitude,
+  } = employeeDoc.get('attachment.Start Point Longitude');
+  const {
+    value: scheduledOnly,
+  } = employeeDoc.get('attachment.Scheduled Only');
+
+  if (scheduledOnly
+    && (locals.addendumDocData.action !== httpsActions.checkIn)) {
+    return;
   }
 
-  // TOOD: add Include Branch query.
-  if (includeBranch) {
-    kmAllowanceBaseQuery = kmAllowanceBaseQuery
-      .where('attachment.Include Branch.value', '==', true);
+  if (!kmRate) {
+    return;
   }
-
-  const batch = db.batch();
-  const kmAllowanceActivities = await kmAllowanceBaseQuery.get();
-
-  console.log('kmAllowanceActivities', kmAllowanceActivities.size, { isTravel, scheduledOnly });
-
-  const [
-    profileDoc,
-    employeeData,
-  ] = await Promise
-    .all([
-      rootCollections
-        .profiles
-        .doc(phoneNumber)
-        .get(),
-      getEmployeeReportData(
-        officeId,
-        phoneNumber
-      ),
-    ]);
 
   const distanceTravelled = await getDistanceTravelled({
     officeId,
-    isLocal: !isTravel,
-    phoneNumber,
-    startPoint: profileDoc.get('startPoint'),
-    previousAddendumDoc: locals.previousAddendumDoc,
-    addendumDocData: locals.addendumDocData,
+    timezone,
+    startPointLatitude,
+    startPointLongitude,
+    baseLocation: employeeDoc.get('attachment.Base Location.value'),
+    currentAddendumDoc: locals.addendumDocData,
   });
 
   console.log('distanceTravelled', distanceTravelled);
@@ -4314,86 +4255,84 @@ const reimburseKmAllowance = async locals => {
     return;
   }
 
-  // No base Location => no km allowance
-  if (!employeeData || (!employeeData.baseLocation
-    && !profileDoc.get('startPoint'))) {
+  const momentNow = momentTz(timestamp).tz(timezone);
+
+  const kmAllowancesToday = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.REIMBURSEMENTS)
+    .where('phoneNumber', '==', phoneNumber)
+    .where('reimbursementType', '==', 'km allowance')
+    .where('date', '==', momentNow.date())
+    .where('month', '==', momentNow.month())
+    .where('year', '==', momentNow.year())
+    .get();
+
+  console.log('kmAllowancesToday', kmAllowancesToday.size);
+
+  const oldSum = kmAllowancesToday
+    .docs
+    .reduce((prevSum, doc) => {
+      console.log('kmAllowancesTodayReduce', prevSum, doc.get('amount'));
+
+      return prevSum
+        + Number(doc.get('amount') || 0);
+    }, 0);
+
+  console.log('oldSum', oldSum);
+
+  /** Max allowances granted already */
+  if (oldSum > kmDailyLimit) {
     return;
   }
 
-  const previousGeopoint = (() => {
-    if (locals.previousAddendumDoc) {
-      return locals
-        .previousAddendumDoc
-        .get('venueQuery.geopoint')
-        || locals.previousAddendumDoc.get('location') || null;
-    }
+  const batch = db.batch();
+  const reimRef = rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.REIMBURSEMENTS)
+    .doc();
+  const updatesRef = rootCollections
+    .updates
+    .doc(uid)
+    .collection(subcollectionNames.ADDENDUM)
+    .doc(reimRef.id);
 
-    return null;
-  })();
+  const reimData = {
+    uid,
+    office,
+    officeId,
+    timestamp,
+    distanceTravelled,
+    phoneNumber,
+    // previousGeopoint,
+    currentIdentifier: (() => {
+      if (locals.addendumDocData.venueQuery) {
+        return locals.addendumDocData.venueQuery.location;
+      }
 
-  const identifier = (() => {
-    if (locals.addendumDocData.venueQuery) {
-      return locals.addendumDocData.venueQuery.location;
-    }
+      return locals.addendumDocData.identifier;
+    })(),
+    // previousIdentifier,
+    currentGeopoint: locals.addendumDocData.location,
+    rate: kmRate,
+    date: momentNow.date(),
+    month: momentNow.month(),
+    year: momentNow.year(),
+    reimbursementType: 'km allowance',
+    relevantActivityId: locals.change.after.id,
+    amount: (Number(kmRate) * distanceTravelled).toFixed(2),
+  };
 
-    return locals.addendumDocData.identifier;
-  })();
+  console.log('reimData', reimData);
 
-  const previousIdentifier = (() => {
-    if (!locals.previousAddendumDoc) {
-      return '';
-    }
+  batch
+    .set(reimRef, reimData);
 
-    if (locals.previousAddendumDoc.get('venueQuery.location')) {
-      return locals.previousAddendumDoc.get('venueQuery.location');
-    }
-
-    return locals.previousAddendumDoc.get('identifier') || '';
-  })();
-
-  let uid = locals.addendumDocData.uid;
-
-  if (!uid) {
-    const auth = await admin.auth().getUserByPhoneNumber(phoneNumber);
-
-    uid = auth.uid;
-  }
-
-  kmAllowanceActivities
-    .forEach(kmActivity => {
-      const ref = rootCollections
-        .offices
-        .doc(officeId)
-        .collection(subcollectionNames.REIMBURSEMENTS)
-        .doc();
-
-      const update = Object.assign({}, employeeData, {
-        timestamp,
-        distanceTravelled,
-        phoneNumber,
-        previousGeopoint,
-        identifier,
-        uid,
-        previousIdentifier,
-        date: momentNow.date(),
-        month: momentNow.month(),
-        year: momentNow.year(),
-        template: kmActivity.get('template'),
-        rate: kmActivity.get('attachment.Rate.value'),
-        relevantActivityId: locals.change.after.id,
-        kmAllowanceActivityId: kmActivity.id,
-        currentGeopoint: locals.addendumDocData.location,
-        attachmentName: kmActivity.get('attachment.Name.value'),
-        amount: (Number(kmActivity.get('attachment.Rate.value')) * distanceTravelled).toFixed(2),
-      });
-
-      console.log('km allowance', update);
-
-      batch
-        .set(ref, update, {
-          merge: true,
-        });
-    });
+  batch
+    .set(updatesRef, Object.assign({}, reimData, {
+      _type: addendumTypes.REIMBURSEMENT,
+    }));
 
   return batch
     .commit();
@@ -4782,8 +4721,6 @@ const handleWorkday = async locals => {
       employeeData
     );
 
-  console.log('attendanceUpdate', attendanceUpdate[date]);
-
   batch
     .set(ref, attendanceUpdate, { merge: true });
 
@@ -5044,6 +4981,7 @@ const ActivityOnWrite = async (change, context) => {
         const profileActivityObject = Object
           .assign({}, change.after.data(), {
             customerObject,
+            addendumDocRef: null,
             timestamp: Date.now(),
           });
 
