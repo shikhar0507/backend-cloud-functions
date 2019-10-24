@@ -34,19 +34,6 @@ module.exports = async locals => {
   const regionsSheet = workbook
     .addSheet('Regions');
 
-  officeSheet
-    .row(0)
-    .style('bold', true);
-  branchesSheet
-    .row(0)
-    .style('bold', true);
-  employeesSheet
-    .row(0)
-    .style('bold', true);
-  leaveTypeSheet
-    .row(0)
-    .style('bold', true);
-
   workbook
     .deleteSheet('Sheet1');
 

@@ -84,8 +84,6 @@ const generateExcel = async locals => {
   orderedFields
     .push('rejected', 'reason');
 
-  sheet.row(0).style('bold', true);
-
   orderedFields
     .forEach((value, index) => {
       sheet
