@@ -35,43 +35,13 @@ const {
 const {
   reportNames,
   httpsActions,
-  // addendumTypes,
+  addendumTypes,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
 
-const purgeDocs = (query, resolve, reject, count) =>
-  query
-    .get()
-    .then(docs => {
-      count++;
 
-      // When there are no documents left, we are done
-      if (docs.size === 0) return 0;
-
-      // Delete documents in a batch
-      const batch = db.batch();
-
-      docs.forEach(doc => batch.delete(doc.ref));
-
-      /* eslint-disable */
-      return batch
-        .commit()
-        .then(() => docs.size);
-      /* eslint-enable */
-    })
-    .then(deleteCount => {
-      /** All docs deleted */
-      if (deleteCount === 0) return resolve(count);
-
-      // Recurse on the next process tick, to avoid exploding the stack.
-      return process
-        .nextTick(() => purgeDocs(query, resolve, reject, count));
-    })
-    .catch(reject);
-
-
-const manageOldCheckins = (change) => {
+const manageOldCheckins = async change => {
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
 
@@ -81,30 +51,32 @@ const manageOldCheckins = (change) => {
    * The newer value should be greater than the older
    * value.
    */
-  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
-    return Promise.resolve();
+  if (!oldFromValue
+    || !newFromValue
+    || newFromValue <= oldFromValue) {
+    return;
   }
 
-  const query = change
+  const batch = db.batch();
+  const docs = await change
     .after
     .ref
     .collection('Activities')
     .where('template', '==', 'check-in')
     .where('timestamp', '<', oldFromValue)
-    .limit(500);
+    .limit(500)
+    .get();
 
-  const count = 0;
+  docs
+    .forEach(doc => batch.delete(doc.ref));
 
-  return new
-    Promise(
-      (resolve, reject) => purgeDocs(query, resolve, reject, count)
-    )
-    .catch(console.error);
+  return batch
+    .commit();
 };
 
 
 
-const manageAddendum = change => {
+const manageAddendum = async change => {
   const oldFromValue = change.before.get('lastQueryFrom');
   const newFromValue = change.after.get('lastQueryFrom');
   /**
@@ -119,21 +91,42 @@ const manageAddendum = change => {
     return Promise.resolve();
   }
 
-  const query = rootCollections
+  const docs = await rootCollections
     .updates
     .doc(change.after.get('uid'))
     .collection('Addendum')
     .where('timestamp', '<', oldFromValue)
     .orderBy('timestamp')
-    .limit(500);
+    .limit(500)
+    .get();
 
-  const count = 0;
+  const batch = db.batch();
+  const momentHundredDaysAgo = momentTz()
+    .subtract(100, 'days')
+    .startOf('day');
 
-  return new
-    Promise(
-      (resolve, reject) => purgeDocs(query, resolve, reject, count)
-    )
-    .catch(console.error);
+  docs
+    .forEach(doc => {
+      const {
+        timestamp,
+        _type,
+      } = doc.data();
+      const momentNow = momentTz(timestamp);
+      const isHundredDaysOld = momentNow.isBefore(momentHundredDaysAgo);
+      const isSkippable = _type === addendumTypes.REIMBURSEMENT
+        || _type === addendumTypes.ATTENDANCE
+        || _type === addendumTypes.PAYMENT;
+
+      if (isHundredDaysOld && isSkippable) {
+        return;
+      }
+
+      batch
+        .delete(doc.ref);
+    });
+
+  return batch
+    .commit();
 };
 
 
