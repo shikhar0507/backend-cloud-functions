@@ -7,14 +7,9 @@ const {
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 const {
-  getName,
   alphabetsArray,
   toMapsUrl,
-  getFieldValue,
 } = require('./report-utils');
-const {
-  getNumbersbetween,
-} = require('../../admin/utils');
 const env = require('../../admin/env');
 const sgMail = require('@sendgrid/mail');
 
@@ -22,24 +17,20 @@ sgMail.setApiKey(env.sgMailApiKey);
 
 
 module.exports = async locals => {
-  const timestampFromTimer = locals
-    .change
-    .after
-    .get('timestamp');
-  const timezone = locals
-    .officeDoc
-    .get('attachment.Timezone.value');
-  const momentToday = momentTz(timestampFromTimer)
-    .tz(timezone);
-  const momentYesterday = momentToday
-    .clone()
-    .subtract(1, 'day');
-  const workbook = await xlsxPopulate
-    .fromBlankAsync();
-  const expenseSummarySheet = workbook
-    .addSheet(`Expense Summary`);
+  const timestamp = locals.change.after.get('timestamp');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  // const firstDayOfReimbursementsCycle = locals
+  //   .officeDoc
+  //   .get('attachment.First Day Of Reimbursements Cycle.value') || 1;
+  const momentToday = momentTz(timestamp).tz(timezone);
+  const items = new Map();
+  const workbook = await xlsxPopulate.fromBlankAsync();
+  let allExpenseTypes = new Set();
+  const summarySheet = workbook
+    .addSheet('Expense Summary');
   const expenseSheet = workbook
     .addSheet(`Expense ${momentToday.format(dateFormats.DATE)}`);
+  const claimSummaryObject = {};
 
   workbook
     .deleteSheet('Sheet1');
@@ -52,276 +43,252 @@ module.exports = async locals => {
     'Region',
     'Department',
     'Date',
-    'Local/Travel',
     'Claim Type',
     'Amount',
     'Claim Details',
-    'Approval Details'
-  ].forEach((value, index) => {
+    'Approval Details',
+    'From Location',
+    'To Location',
+  ].forEach((field, index) => {
     expenseSheet
       .cell(`${alphabetsArray[index]}1`)
-      .value(value);
+      .value(field);
   });
 
-  let allExpenseTypes = new Set();
-  const reimbursementDocPromises = [];
-  const momentPrevMonth = momentToday
-    .clone()
-    .subtract(1, 'month');
-  const firstDayOfReimbursementCycle = locals
-    .officeDoc
-    .get('attachment.First Day Of Reimbursement Cycle.value') || 1;
-  const fetchPreviousMonthDocs = firstDayOfReimbursementCycle > momentYesterday.date();
-
-  const firstRange = (() => {
-    if (fetchPreviousMonthDocs) {
-      return getNumbersbetween(
-        firstDayOfReimbursementCycle,
-        momentYesterday.clone().endOf('month').date() + 1,
-      );
-    }
-
-    return [];
-  })();
-  const secondRange = getNumbersbetween(
-    firstDayOfReimbursementCycle,
-    momentYesterday.clone().date() + 1,
-  );
-
-  console.log('r1 fetching');
-  const r1 = await locals
+  const reimbursementDocs = await locals
     .officeDoc
     .ref
     .collection(subcollectionNames.REIMBURSEMENTS)
-    .doc(momentYesterday.format(dateFormats.MONTH_YEAR))
-    .listCollections();
+    .where('timestamp', '>=', momentToday.clone().startOf('month').valueOf())
+    .where('timestamp', '<=', momentToday.valueOf())
+    .orderBy('timestamp', 'asc')
+    .get();
 
-  console.log('r1 fetched');
+  if (reimbursementDocs.empty) {
+    console.log('no docs found');
 
-  r1
-    .forEach(colRef => {
-      secondRange.forEach(date => {
-        const promise = colRef
-          .doc(`${date}`)
-          .get();
-
-        reimbursementDocPromises
-          .push(promise);
-      });
-    });
-
-  if (fetchPreviousMonthDocs) {
-    console.log('r2 fetching');
-    const r2 = await locals
-      .officeDoc
-      .ref
-      .collection(subcollectionNames.REIMBURSEMENTS)
-      .doc(momentPrevMonth.format(dateFormats.MONTH_YEAR))
-      .listCollections();
-
-    console.log('r2 fetched');
-
-    r2
-      .forEach(colRef => {
-        firstRange.forEach(date => {
-          const promise = colRef
-            .orderBy('date')
-            .doc(`${date}`)
-            .get();
-
-          reimbursementDocPromises
-            .push(promise);
-        });
-      });
+    return;
   }
 
-  console.log('fetching reimbursementSnapshots');
-
-  const reimbursementSnapshots = await Promise
-    .all(reimbursementDocPromises);
-
-  console.log('reimbursementSnapshots fetched');
-
-  const expenseMap = new Map();
-  const allPhoneNumbers = new Set();
-  let reSheetIndex = 0;
-
-  reimbursementSnapshots
+  reimbursementDocs
     .forEach(doc => {
       const phoneNumber = doc.get('phoneNumber');
-      const date = doc.get('date');
-      const month = doc.get('month');
-      const year = doc.get('year');
-      const reimbursements = doc.get('reimbursements') || [];
+      const old = items.get(phoneNumber) || [];
 
-      if (phoneNumber) {
-        allPhoneNumbers
-          .add(phoneNumber);
-      }
+      old.push(doc);
 
-      reimbursements.forEach(re => {
-        const old = expenseMap
-          .get(phoneNumber) || {};
-
-        allExpenseTypes
-          .add(re.template);
-
-        old[
-          re.template
-        ] = old[re.template] || 0;
-
-        if (re.status !== 'CANCELLED') {
-          old[
-            re.template
-          ] += Number(re.amount);
-        }
-
-        expenseMap
-          .set(phoneNumber, old);
-
-        expenseSheet
-          .cell(`A${reSheetIndex + 2}`)
-          .value(getFieldValue(locals.employeesData, phoneNumber, 'Name'));
-        expenseSheet
-          .cell(`B${reSheetIndex + 2}`)
-          .value(phoneNumber);
-        expenseSheet
-          .cell(`C${reSheetIndex + 2}`)
-          .value(getFieldValue(locals.employeesData, phoneNumber, 'Employee Code'));
-        expenseSheet
-          .cell(`D${reSheetIndex + 2}`)
-          .value(getFieldValue(locals.employeesData, phoneNumber, 'Base Location'));
-        expenseSheet
-          .cell(`E${reSheetIndex + 2}`)
-          .value(getFieldValue(locals.employeesData, phoneNumber, 'Region'));
-        expenseSheet
-          .cell(`F${reSheetIndex + 2}`)
-          .value(getFieldValue(locals.employeesData, phoneNumber, 'Department'));
-        expenseSheet
-          .cell(`G${reSheetIndex + 2}`)
-          .value(momentTz().date(date).month(month).year(year).format(dateFormats.DATE));
-
-        const localOrTravel = (() => {
-          if (re.isTravel) {
-            return 'Travel';
-          }
-
-          return 'Local';
-        })();
-
-        expenseSheet
-          .cell(`H${reSheetIndex + 2}`)
-          .value(localOrTravel);
-        expenseSheet
-          .cell(`I${reSheetIndex + 2}`)
-          .value(re.name || re.claimType || '');
-        expenseSheet
-          .cell(`J${reSheetIndex + 2}`)
-          .value(re.amount);
-
-        if (re.template === 'km allowance') {
-          expenseSheet
-            .cell(`K${reSheetIndex + 2}`)
-            .value(re.amount); // claim details
-        }
-
-        if (re.template === 'daily allowance'
-          && re.geopoint) {
-          expenseSheet
-            .cell(`K${reSheetIndex + 2}`)
-            .value(momentTz(re.timestamp).tz(timezone).format(dateFormats.DATE_TIME)) // claim details
-            .style({ fontColor: '0563C1', underline: true })
-            .hyperlink(toMapsUrl(re.geopoint));
-        }
-
-        if (re.template === 'claim'
-          && re.photoURL) {
-          expenseSheet
-            .cell(`K${reSheetIndex + 2}`)
-            .value(`${re.amount} ${re.claimType || ''}`)
-            .style({ fontColor: '0563C1', underline: true })
-            .hyperlink(re.photoURL || ''); // claim details
-        } else {
-          expenseSheet
-            .cell(`K${reSheetIndex + 2}`)
-            .value(`${re.claimType || ''}`);
-        }
-
-        const approvalDetails = (() => {
-          if (re.template === 'claim') {
-            if (re.confirmedBy) {
-              return `${re.status},`
-                + ` ${getName(locals.employeesData, re.confirmedBy)},`
-                + ` ${momentTz(re.approvalTimestamp).tz(timezone).format(dateFormats.DATE_TIME)}`;
-            }
-
-            return `${re.status}`;
-          }
-
-          return `NA`;
-        })();
-
-        expenseSheet
-          .cell(`L${reSheetIndex + 2}`)
-          .value(approvalDetails); // approval details
-
-        reSheetIndex++;
-      });
+      items
+        .set(phoneNumber, old);
     });
 
-  allExpenseTypes = [...allExpenseTypes.keys()];
+  const allPhoneNumbers = new Map();
+  let innerIndex = 0;
+  const employeeDataMap = new Map();
 
-  [
+  items.forEach((docs, phoneNumber) => {
+    docs.forEach(doc => {
+      const {
+        date,
+        month,
+        year,
+        amount,
+        employeeName,
+        region,
+        employeeCode,
+        baseLocation,
+        department,
+        confirmedBy,
+        cancelledBy,
+        startIdentifier,
+        endIdentifier,
+        // km allowance, daily allowance or claim name
+        reimbursementType,
+        template,
+        // attachmentName, // renamed to reimbursementType
+        // reimbursementType,
+      } = doc.data();
+
+      const formattedDate = momentTz()
+        .date(date)
+        .month(month)
+        .year(year)
+        .format(dateFormats.DATE);
+
+      const claimKey = `${phoneNumber}-${formattedDate}-${reimbursementType || template}`;
+
+      claimSummaryObject[
+        claimKey
+      ] = claimSummaryObject[claimKey] || {};
+
+      claimSummaryObject[
+        claimKey
+      ][reimbursementType || template] = claimSummaryObject[claimKey][reimbursementType || template] || 0;
+
+      claimSummaryObject[
+        claimKey
+      ][reimbursementType || template] += Number(amount);
+
+      employeeDataMap
+        .set(phoneNumber, {
+          employeeName,
+          employeeCode,
+          baseLocation,
+          region,
+          department,
+        });
+
+      allExpenseTypes
+        .add(reimbursementType || template);
+
+      const key = `${phoneNumber}`
+        + `__${formattedDate}`
+        + `__${reimbursementType}`;
+
+      allPhoneNumbers.set(key, {
+        employeeName,
+        employeeCode,
+        baseLocation,
+        region,
+        department,
+        date: formattedDate,
+      });
+
+      const claimDetails = (() => {
+        if (reimbursementType === 'claim' && confirmedBy) {
+          return `Confirmed by: ${confirmedBy}`;
+        }
+
+        if (reimbursementType === 'claim' && cancelledBy) {
+          return `Cancelled by: ${cancelledBy}`;
+        }
+
+        return reimbursementType;
+      })();
+      const approvalDetails = '';
+      const fromLocation = startIdentifier;
+      const toLocation = endIdentifier;
+
+      expenseSheet
+        .cell(`A${innerIndex + 2}`)
+        .value(employeeName);
+      expenseSheet
+        .cell(`B${innerIndex + 2}`)
+        .value(phoneNumber);
+      expenseSheet
+        .cell(`C${innerIndex + 2}`)
+        .value(employeeCode);
+      expenseSheet
+        .cell(`D${innerIndex + 2}`)
+        .value(baseLocation);
+      expenseSheet
+        .cell(`E${innerIndex + 2}`)
+        .value(region);
+      expenseSheet
+        .cell(`F${innerIndex + 2}`)
+        .value(department);
+      expenseSheet
+        .cell(`G${innerIndex + 2}`)
+        .value(formattedDate);
+      expenseSheet
+        .cell(`H${innerIndex + 2}`)
+        .value(reimbursementType); // claim type
+      expenseSheet
+        .cell(`I${innerIndex + 2}`)
+        .value(amount);
+      expenseSheet
+        .cell(`J${innerIndex + 2}`)
+        .value(claimDetails);
+      expenseSheet
+        .cell(`K${innerIndex + 2}`)
+        .value(approvalDetails);
+
+      if (doc.get('startLocation')) {
+        expenseSheet
+          .cell(`L${innerIndex + 2}`)
+          .value(fromLocation)
+          .style({ fontColor: '0563C1', underline: true })
+          .hyperlink(toMapsUrl(doc.get('startLocation')));
+      } else {
+        expenseSheet
+          .cell(`L${innerIndex + 2}`)
+          .value(fromLocation);
+      }
+
+      if (doc.get('endLocation')) {
+        expenseSheet
+          .cell(`M${innerIndex + 2}`)
+          .value(toLocation)
+          .style({ fontColor: '0563C1', underline: true })
+          .hyperlink(toMapsUrl(doc.get('endLocation')));
+      } else {
+        expenseSheet
+          .cell(`M${innerIndex + 2}`)
+          .value(toLocation);
+      }
+
+      innerIndex++;
+    });
+  });
+
+  allExpenseTypes = [...allExpenseTypes.values()]
+    .filter(Boolean);
+
+  const summarySheetHeaders = [
     'Employee Name',
     'Employee Contact',
     'Employee Code',
     'Base Location',
     'Region',
     'Department',
+    'Date',
     ...allExpenseTypes,
-  ].forEach((value, index) => {
-    expenseSummarySheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(value);
-  });
+  ];
 
-  let summarySheetIndex = 0;
-
-  if (allPhoneNumbers.size === 0) {
-    return;
-  }
-
-  allPhoneNumbers
-    .forEach(phoneNumber => {
-      const values = [
-        getFieldValue(locals.employeesData, phoneNumber, 'Name'),
-        phoneNumber,
-        getFieldValue(locals.employeesData, phoneNumber, 'Employee Code'),
-        getFieldValue(locals.employeesData, phoneNumber, 'Base Location'),
-        getFieldValue(locals.employeesData, phoneNumber, 'Region'),
-        getFieldValue(locals.employeesData, phoneNumber, 'Department')
-      ];
-
-      const expensesForUser = expenseMap
-        .get(phoneNumber) || {};
-
-      allExpenseTypes
-        .forEach(template => {
-          const amount = expensesForUser[template] || 0;
-
-          values
-            .push(amount);
-        });
-
-      values
-        .forEach((value, innerIndex) => {
-          expenseSummarySheet
-            .cell(`${alphabetsArray[innerIndex]}${summarySheetIndex + 2}`)
-            .value(value);
-        });
-
-      summarySheetIndex++;
+  summarySheetHeaders
+    .forEach((field, index) => {
+      summarySheet
+        .cell(`${alphabetsArray[index]}1`)
+        .value(field);
     });
+
+  let summaryIndex = 0;
+
+  allPhoneNumbers.forEach((object, key) => {
+    const [
+      phoneNumber,
+      date,
+      reimbursementType,
+    ] = key.split('__');
+
+    const fields = [
+      object.employeeName,
+      phoneNumber,
+      object.employeeCode,
+      object.baseLocation,
+      object.region,
+      object.department,
+      date,
+    ];
+
+    const claimKey = `${phoneNumber}-${date}-${reimbursementType}`;
+    const reimsForUser = claimSummaryObject[claimKey] || {};
+
+    allExpenseTypes
+      .forEach(expenseType => {
+        const amount = reimsForUser[expenseType] || 0;
+
+        fields.push(amount.toFixed(2));
+      });
+
+    fields
+      .forEach((value, innerIndex) => {
+        summarySheet
+          .cell(`${alphabetsArray[innerIndex]}${summaryIndex + 2}`)
+          .value(value);
+      });
+
+    summaryIndex++;
+  });
 
   locals
     .messageObject
@@ -335,7 +302,7 @@ module.exports = async locals => {
       disposition: 'attachment',
     });
 
-  console.log('mailed', locals.messageObject.to);
+  console.log('locals.messageObject', locals.messageObject.to);
 
   return locals
     .sgMail
