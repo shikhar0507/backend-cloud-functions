@@ -111,6 +111,9 @@ module.exports = (req) => {
     case 'salaryAccount/delete':
       func = require('../salary-accounts/on-delete');
       break;
+    case 'read1':
+      func = require('../firestore/on-read1');
+      break;
     default:
       func = null;
   }

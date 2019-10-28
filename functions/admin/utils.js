@@ -1835,6 +1835,86 @@ const getDatesToMonthsMap = (startDate, endDate) => {
   return map;
 };
 
+const getDefaultAttendanceObject = () => {
+  return {
+    isLate: false,
+    holiday: false,
+    attendance: 0,
+    working: {
+      firstCheckInTimestamp: '',
+      lastCheckInTimestamp: '',
+      numberOfCheckIns: 0,
+    },
+    ar: {
+      reason: '',
+      CONFIRMED: {
+        phoneNumber: '',
+        timestamp: '',
+      },
+      PENDING: {
+        phoneNumber: '',
+        timestamp: '',
+      },
+      CANCELLED: {
+        phoneNumber: '',
+        timestamp: '',
+      },
+    },
+    leave: {
+      reason: '',
+      leaveType: '',
+      CONFIRMED: {
+        phoneNumber: '',
+        timestamp: '',
+      },
+      PENDING: {
+        phoneNumber: '',
+        timestamp: '',
+      },
+      CANCELLED: {
+        phoneNumber: '',
+        timestamp: '',
+      },
+    },
+  };
+};
+
+
+const getEmployeeReportData = async (officeId, phoneNumber) => {
+  const employeeQueryResult = await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ACTIVITIES)
+    .where('attachment.Employee Contact.value', '==', phoneNumber)
+    .where('template', '==', 'employee')
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get();
+
+  if (employeeQueryResult.empty) {
+    return {
+      phoneNumber,
+      id: '',
+      employeeName: '',
+      employeeCode: '',
+      baseLocation: '',
+      region: '',
+      department: '',
+    };
+  }
+
+  const employeeDoc = employeeQueryResult.docs[0];
+
+  return {
+    phoneNumber,
+    id: employeeDoc.id,
+    employeeName: employeeDoc.get('attachment.Name.value'),
+    employeeCode: employeeDoc.get('attachment.Employee Code.value'),
+    baseLocation: employeeDoc.get('attachment.Base Location.value'),
+    region: employeeDoc.get('attachment.Region.value'),
+    department: employeeDoc.get('attachment.Department.value'),
+  };
+};
 
 
 module.exports = {
@@ -1885,12 +1965,14 @@ module.exports = {
   getDatesToMonthsMap,
   getRegistrationToken,
   replaceNonASCIIChars,
+  getEmployeeReportData,
   millitaryToHourMinutes,
   handleDailyStatusReport,
   hasManageTemplateClaims,
   addEmployeeToRealtimeDb,
   getEmployeeFromRealtimeDb,
   enumerateDaysBetweenDates,
+  getDefaultAttendanceObject,
   getAdjustedGeopointsFromVenue,
   getEmployeesMapFromRealtimeDb,
 };

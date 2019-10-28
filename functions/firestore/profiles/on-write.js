@@ -112,7 +112,13 @@ const manageAddendum = async change => {
         _type,
       } = doc.data();
       const momentNow = momentTz(timestamp);
-      const isHundredDaysOld = momentNow.isBefore(momentHundredDaysAgo);
+      const isHundredDaysOld = momentNow
+        .isBefore(momentHundredDaysAgo);
+
+      /**
+       * `Attendance`, `Payments` and `Reimbursements`
+       * are stored for 100 days.
+       */
       const isSkippable = _type === addendumTypes.REIMBURSEMENT
         || _type === addendumTypes.ATTENDANCE
         || _type === addendumTypes.PAYMENT;

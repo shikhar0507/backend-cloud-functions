@@ -874,6 +874,7 @@ const addendumTypes = {
   ATTENDANCE: 'attendance',
   PAYMENT: 'payment',
   COMMENT: 'comment',
+  SUBSCRIPTION: 'subscription',
 };
 
 
