@@ -20,15 +20,12 @@ const Deleter = async snap => {
   const branchData = {};
   const attendancePromises = [];
   const authPromises = [];
-  const mainObjects = [];
   const phoneNumberChangeAddendumPromises = [];
   const authObjects = {};
   const phoneNumberChangeDataSet = {};
   const rangeStart = momentTz().month(8).startOf('month');
   const rangeEnd = rangeStart.clone().endOf('month');
   const oldAttendanceQueries = [];
-  const attendanceDeleterBatch = db.batch();
-  const fromDeleterBatch = db.batch();
 
   const [
     employees,
@@ -47,12 +44,9 @@ const Deleter = async snap => {
         .get(),
     ]);
 
-  branches
-    .forEach(branch => {
-      const name = branch.get('attachment.Name.value');
 
-      branchData[name] = branch;
-    });
+  branches
+    .forEach(branch => { branchData[branch.get('attachment.Name.value')] = branch; });
 
   const officeDoc = (await rootCollections
     .offices
@@ -61,66 +55,88 @@ const Deleter = async snap => {
     .get())
     .docs[0];
 
-  employees.forEach(employee => {
-    const phoneNumber = employee.get('attachment.Employee Contact.value');
+  const numberOfDocs = employees.size * 63;
+  const MAX_DOCS_ALLOWED_IN_A_BATCH = 199;
+  const numberOfBatches = Math
+    .round(
+      Math
+        .ceil(numberOfDocs / MAX_DOCS_ALLOWED_IN_A_BATCH)
+    );
+  const batchArray = Array
+    .from(Array(numberOfBatches)).map(() => db.batch());
+  let batchIndex = 0;
+  let docsCounter = 0;
+  const MAX_UPDATES = 200;
 
-    const addendumOldPhoneNumber = officeDoc
-      .ref
-      .collection('Addendum')
-      .where('action', '==', httpsActions.updatePhoneNumber)
-      .where('oldPhoneNumber', '==', phoneNumber)
-      .get();
-    const addendumNewPhoneNumber = officeDoc
-      .ref
-      .collection('Addendum')
-      .where('action', '==', httpsActions.updatePhoneNumber)
-      .where('newPhoneNumber', '==', phoneNumber)
-      .get();
-
-    phoneNumberChangeAddendumPromises
-      .push(addendumOldPhoneNumber, addendumNewPhoneNumber);
-
-    attendancePromises
-      .push(officeDoc
+  employees
+    .forEach(employee => {
+      const phoneNumber = employee.get('attachment.Employee Contact.value');
+      const addendumOldPhoneNumber = officeDoc
         .ref
-        .collection(subcollectionNames.ATTENDANCES)
-        .where('phoneNumber', '==', phoneNumber)
-        .limit(1)
-        .get()
-      );
-
-    authPromises.push(getAuth(phoneNumber));
-
-    const uid = authObjects[phoneNumber];
-
-    if (uid) {
-      const aq = rootCollections
-        .updates
-        .doc(uid)
-        .collection(subcollectionNames.ADDENDUM)
-        .where('_type', '==', addendumTypes.ATTENDANCE)
+        .collection('Addendum')
+        .where('action', '==', httpsActions.updatePhoneNumber)
+        .where('oldPhoneNumber', '==', phoneNumber)
+        .get();
+      const addendumNewPhoneNumber = officeDoc
+        .ref
+        .collection('Addendum')
+        .where('action', '==', httpsActions.updatePhoneNumber)
+        .where('newPhoneNumber', '==', phoneNumber)
         .get();
 
-      oldAttendanceQueries.push(aq);
-    }
-  });
+      phoneNumberChangeAddendumPromises
+        .push(addendumOldPhoneNumber, addendumNewPhoneNumber);
 
-  const oldAttendanceSnaps = await Promise.all(oldAttendanceQueries);
+      attendancePromises
+        .push(officeDoc
+          .ref
+          .collection(subcollectionNames.ATTENDANCES)
+          .where('phoneNumber', '==', phoneNumber)
+          .limit(1)
+          .get()
+        );
+
+      authPromises
+        .push(getAuth(phoneNumber));
+    });
+
+  const userRecords = await Promise
+    .all(authPromises);
+
+  userRecords
+    .forEach(ur => {
+      const { phoneNumber, uid } = ur;
+
+      authObjects[phoneNumber] = uid;
+
+      if (uid) {
+        const aq = rootCollections
+          .updates
+          .doc(uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .where('_type', '==', addendumTypes.ATTENDANCE)
+          .get();
+
+        oldAttendanceQueries
+          .push(aq);
+      }
+    });
+
+  const oldAttendanceSnaps = await Promise
+    .all(oldAttendanceQueries);
 
   oldAttendanceSnaps.forEach(snap => {
     snap.forEach(doc => {
-      console.log('deleting oldAttendanceSnaps', doc.ref.path);
+      if (docsCounter > MAX_UPDATES) {
+        docsCounter = 0;
+        batchIndex++;
+      }
 
-      attendanceDeleterBatch.delete(doc.ref);
+      docsCounter++;
+
+      batchArray[batchIndex]
+        .delete(doc.ref);
     });
-  });
-
-  const userRecords = await Promise.all(authPromises);
-
-  userRecords.forEach(ur => {
-    const { phoneNumber, uid } = ur;
-
-    authObjects[phoneNumber] = uid;
   });
 
   const attendanceSnaps = await Promise
@@ -130,9 +146,14 @@ const Deleter = async snap => {
     const doc = snap.docs[0];
 
     if (doc) {
-      console.log('attendanceSnaps deleting', doc.ref.path);
+      if (docsCounter > MAX_UPDATES) {
+        docsCounter = 0;
+        batchIndex++;
+      }
 
-      attendanceDeleterBatch
+      docsCounter++;
+
+      batchArray[batchIndex]
         .delete(doc.ref);
     }
   });
@@ -160,37 +181,42 @@ const Deleter = async snap => {
   employees.forEach(emp => {
     const baseLocation = emp.get('attachment.Base Location.value');
     const phoneNumber = emp.get('attachment.Employee Contact.value');
-
-    const o = {
-      uid: authObjects[phoneNumber] || '',
-      employeeData: Object.assign({}, emp.data(), {
-        createTime: emp.createTime.toMillis(),
-        id: emp.id,
-      }),
-      branchData: branchData[baseLocation] ? branchData[baseLocation].data() : {},
-      phoneNumberChanges: phoneNumberChangeDataSet[phoneNumber] || [],
-    };
-
-    mainObjects
-      .push(o);
-
     const ref = db.collection('FromDeleter').doc();
 
-    console.log(phoneNumber, ref.path);
+    if (docsCounter > MAX_UPDATES) {
+      docsCounter = 0;
+      batchIndex++;
+    }
 
-    fromDeleterBatch
-      .set(ref, o);
+    docsCounter++;
+
+    batchArray[batchIndex]
+      .set(ref, {
+        uid: authObjects[phoneNumber] || '',
+        employeeData: Object.assign({}, emp.data(), {
+          createTime: emp.createTime.toMillis(),
+          id: emp.id,
+        }),
+        branchData: branchData[baseLocation] ? branchData[baseLocation].data() : {},
+        phoneNumberChanges: phoneNumberChangeDataSet[phoneNumber] || [],
+      });
   });
 
+  console.log('batchArray', batchArray.length);
+
   return Promise
-    .all([
-      fromDeleterBatch
-        .commit(),
-      attendanceDeleterBatch
-        .commit(),
-    ]);
+    .all(batchArray.map(batch => {
+      console.log('batch._ops', batch._ops.length);
+
+      return batch
+        .commit();
+    }));
 };
 
 module.exports = async snap => {
-  return Deleter(snap);
+  try {
+    return Deleter(snap);
+  } catch (error) {
+    console.error(error);
+  }
 };

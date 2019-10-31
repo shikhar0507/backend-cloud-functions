@@ -20,20 +20,30 @@ const {
 
 module.exports = async locals => {
   if (!locals.addendumDocData) {
-    console.log('IN AR returning');
     return;
   }
 
+  if (locals.addendumDocData.isConflictedComment) {
+    return;
+  }
+
+  const {
+    timezone,
+    status,
+    officeId,
+    creator: {
+      phoneNumber,
+    },
+  } = locals.change.after.data();
+
+  const momentNow = momentTz().tz(timezone);
   const arSchedule = locals.change.after.get('schedule')[0].startTime;
   const momentArDate = momentTz(arSchedule);
   const date = momentArDate.date();
   const month = momentArDate.month();
   const year = momentArDate.year();
-  const timezone = locals.change.after.get('timezone');
-  const status = locals.change.after.get('status');
-  const officeId = locals.change.after.get('officeId');
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
   const batch = db.batch();
+  const arAppliedForFuture = arSchedule >= momentTz().tz(timezone).startOf('day').valueOf();
   const attendanceDoc = (await rootCollections
     .offices
     .doc(officeId)
@@ -76,6 +86,17 @@ module.exports = async locals => {
     .attendance[date]
     .onAr = status !== 'CANCELLED';
 
+  if (status !== 'CANCELLED') {
+    attendanceDocData
+      .attendance[date]
+      .attendance = 1;
+  }
+
+  attendanceDocData
+    .attendance[date]
+    .ar
+    .reason = locals.change.after.get('attachment.Reason.value');
+
   console.log('AR ID', locals.change.after.id);
   console.log('AR for', momentArDate.format(dateFormats.DATE));
 
@@ -86,24 +107,23 @@ module.exports = async locals => {
   console.log('attendanceUpdate', attendanceUpdate.attendance[date]);
 
   batch
-    .set(attendanceDocRef, attendanceUpdate, {
+    .set(attendanceDocRef, Object.assign({
+      month,
+      year,
+    }, attendanceUpdate), {
       merge: true,
     });
 
-  const updatesRef = rootCollections
-    .updates
-    .doc(uid)
-    .collection(uid)
-    .doc(attendanceDocRef.id);
-
-  console.log('updatesId', updatesRef.id);
-
   batch
-    .set(updatesRef, Object.assign({}, attendanceUpdate, {
-      _type: addendumTypes.ATTENDANCE,
-      key: `${date}${month}${year}${officeId}`,
-      id: momentArDate.clone().startOf('day').valueOf(),
-    }), {
+    .set(rootCollections
+      .updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc(), Object.assign({}, attendanceUpdate.attendance[date], {
+        _type: addendumTypes.ATTENDANCE,
+        key: momentArDate.clone().startOf('day').valueOf(),
+        id: `${date}${month}${year}${officeId}`,
+      }), {
       merge: true,
     });
 
@@ -112,7 +132,8 @@ module.exports = async locals => {
 
   // Ar or leave already applied on the date
   if (hasConflictWithLeave
-    || hasConflictWithAr) {
+    || hasConflictWithAr
+    || arAppliedForFuture) {
     const addendumDocRef = rootCollections
       .offices
       .doc(officeId)
@@ -122,25 +143,33 @@ module.exports = async locals => {
     console.log('Cancelling activity');
 
     batch
-      .set(locals.change.after.get(), {
+      .set(locals.change.after.ref, {
         addendumDocRef,
         status: 'CANCELLED',
       }, {
         merge: true,
       });
 
-    const momentNow = momentTz().tz(timezone);
-    const comment = `Attendance Regularization Cancelled:`
-      + ` ${hasConflictWithLeave ? 'Leave' : 'attendance regularization'}`
-      + ` has already been applied for the date:`
-      + ` ${momentArDate.format(dateFormats.DATE)}`;
+    // arAppliedForFuture
+    const comment = (() => {
+      if (arAppliedForFuture) {
+        return `ATTENDANCE REGULARIZATION CANCELLED:`
+          + ` Attendance can only be reglularized for the past`;
+      }
+
+      return `Attendance Regularization Cancelled:`
+        + ` ${hasConflictWithLeave ? 'Leave' : 'attendance regularization'}`
+        + ` has already been applied for the date:`
+        + ` ${momentArDate.format(dateFormats.DATE)}`;
+    })();
 
     batch
       .set(addendumDocRef, {
         comment,
-        date: momentNow.getDate(),
-        month: momentNow.getMonth(),
-        year: momentNow.getFullYear(),
+        isConflictedComment: true,
+        date: momentNow.date(),
+        month: momentNow.month(),
+        year: momentNow.year(),
         user: locals.addendumDocData.user,
         action: httpsActions.comment,
         location: locals.addendumDocData.location,
@@ -151,7 +180,7 @@ module.exports = async locals => {
         activityData: locals.change.after.data(),
         geopointAccuracy: locals.addendumDocData.accuracy || null,
         provider: locals.addendumDocData.provider || null,
-        userDisplayName: locals.addendumDocData.displayName,
+        userDisplayName: locals.addendumDocData.userDisplayName,
       });
   }
 

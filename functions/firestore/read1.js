@@ -33,55 +33,36 @@ const {
   code,
 } = require('../admin/responses');
 const {
-  addendumTypes,
   subcollectionNames,
+  addendumTypes,
 } = require('../admin/constants');
 const {
-  handleError,
-  sendResponse,
   sendJSON,
   isValidDate,
+  handleError,
+  sendResponse,
   isNonEmptyString,
-  findKeyByValue,
-  getAttendancesPath,
 } = require('../admin/utils');
-const admin = require('firebase-admin');
-const momentTz = require('moment-timezone');
 
 
 const validateRequest = conn => {
   if (conn.req.method !== 'GET') {
-    return {
-      isValid: false,
-      message: `'${conn.req.method}' is not allowed for '/read'. Use 'GET'.`,
-    };
+    return `'${conn.req.method}' is not allowed for '/read'. Use 'GET'.`;
   }
 
   if (!conn.req.query.hasOwnProperty('from')) {
-    return {
-      isValid: false,
-      message: `Missing the query param 'from' in the request URL.`,
-    };
+    return `Missing the query param 'from' in the request URL.`;
   }
 
   if (!isNonEmptyString(conn.req.query.from)) {
-    return {
-      isValid: false,
-      message: `The query param 'from' cannot be an empty string.`,
-    };
+    return `The query param 'from' cannot be an empty string.`;
   }
 
   if (!isValidDate(conn.req.query.from)) {
-    return {
-      isValid: false,
-      message: `'${conn.req.query.from}' is not a valid unix timestamp.`,
-    };
+    return `'${conn.req.query.from}' is not a valid unix timestamp.`;
   }
 
-  return {
-    isValid: true,
-    message: null,
-  };
+  return null;
 };
 
 const getAddendumObject = doc => {
@@ -203,137 +184,6 @@ const getSubscriptionObject = doc => ({
 });
 
 
-const getStatusObject = async params => {
-  const result = [];
-  const parentPromises = [];
-  const phoneNumber = params.phoneNumber;
-  const employeeOf = params.employeeOf || {};
-  const momentToday = momentTz();
-  const officeNames = Object.keys(employeeOf);
-  /**
-   * Always sending attendance, reimbursements and transactions objects
-   * whenever sending the statuses.
-   */
-  const fetchPrevMonth = true;
-  const startTime = momentToday.clone().startOf('month').valueOf();
-  const endTime = momentToday.clone().endOf('month').valueOf();
-
-  officeNames
-    .forEach(name => {
-      const officeId = employeeOf[name];
-
-      const attendanceDocs = getAttendancesPath({
-        officeId,
-        phoneNumber,
-        startTime,
-        endTime,
-      });
-
-      const reimbursementDocs = getAttendancesPath({
-        officeId,
-        phoneNumber,
-        startTime,
-        endTime,
-        collectionName: subcollectionNames.REIMBURSEMENTS,
-      });
-
-      const transactionDocs = getAttendancesPath({
-        officeId,
-        phoneNumber,
-        startTime,
-        endTime,
-        collectionName: subcollectionNames.TRANSACTIONS,
-      });
-
-      parentPromises
-        .push(
-          Promise
-            .all(attendanceDocs),
-          Promise
-            .all(reimbursementDocs),
-          Promise
-            .all(transactionDocs),
-        );
-
-      if (fetchPrevMonth) {
-        const momentPrevMonth = momentToday
-          .clone()
-          .subtract(1, 'month');
-        const startTime = momentPrevMonth
-          .startOf('month')
-          .valueOf();
-        const endTime = momentPrevMonth
-          .endOf('month')
-          .valueOf();
-
-        const prevMonthAttendanceDocs = getAttendancesPath({
-          officeId,
-          phoneNumber,
-          startTime,
-          endTime,
-        });
-
-        const prevMonthReimbursementDocs = getAttendancesPath({
-          officeId,
-          phoneNumber,
-          startTime,
-          endTime,
-          collectionName: subcollectionNames.REIMBURSEMENTS,
-        });
-
-        const prevMonthTransactionDocs = getAttendancesPath({
-          officeId,
-          phoneNumber,
-          startTime,
-          endTime,
-          collectionName: subcollectionNames.TRANSACTIONS,
-        });
-
-        parentPromises
-          .push(
-            Promise
-              .all(prevMonthAttendanceDocs),
-            Promise
-              .all(prevMonthReimbursementDocs),
-            Promise
-              .all(prevMonthTransactionDocs),
-          );
-      }
-    });
-
-  const snaps = await Promise
-    .all(parentPromises);
-
-  snaps
-    .forEach(snap => {
-      snap
-        .forEach(doc => {
-          if (!doc.exists) {
-            return;
-          }
-
-          const { path } = doc.ref;
-          const parts = path.split('/');
-          const officeId = parts[1];
-          const office = findKeyByValue(employeeOf, officeId);
-          const data = Object.assign({}, doc.data(), { office, officeId });
-
-          data.date = data.date || Number(doc.id);
-
-          if (data.hasOwnProperty('statusForDay')) {
-            data
-              .attendance = data.statusForDay;
-          }
-
-          result
-            .push(data);
-        });
-    });
-
-  return result;
-};
-
-
 const getCustomerObject = doc => {
   return ({
     activityId: doc.id,
@@ -352,10 +202,10 @@ const getCustomerObject = doc => {
 
 
 module.exports = async conn => {
-  const result = validateRequest(conn);
+  const v = validateRequest(conn);
 
-  if (!result.isValid) {
-    return sendResponse(conn, code.badRequest, result.message);
+  if (v) {
+    return sendResponse(conn, code.badRequest, v);
   }
 
   const batch = db.batch();
@@ -364,7 +214,7 @@ module.exports = async conn => {
   const phoneNumber = conn.requester.phoneNumber;
   const officeList = Object.keys(employeeOf);
   const from = parseInt(conn.req.query.from);
-
+  const locationPromises = [];
   const jsonObject = {
     from,
     upto: from,
@@ -372,17 +222,10 @@ module.exports = async conn => {
     activities: [],
     templates: [],
     locations: [],
-    statusObject: [],
+    payments: [],
+    attendances: [],
+    reimbursements: [],
   };
-
-  if (conn.requester.profileDoc
-    && conn.requester.profileDoc.get('statusObject')) {
-    jsonObject
-      .statusObject = conn
-        .requester
-        .profileDoc
-        .get('statusObject');
-  }
 
   const promises = [
     rootCollections
@@ -391,19 +234,25 @@ module.exports = async conn => {
       .collection(subcollectionNames.ADDENDUM)
       .where('timestamp', '>', from)
       .get(),
-    rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber)
-      .collection(subcollectionNames.ACTIVITIES)
-      .where('timestamp', '>', from)
-      .get(),
-    rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber)
-      .collection(subcollectionNames.SUBSCRIPTIONS)
-      .where('timestamp', '>', from)
-      .get(),
   ];
+
+  if (from === 0) {
+    promises
+      .push(
+        rootCollections
+          .profiles
+          .doc(conn.requester.phoneNumber)
+          .collection(subcollectionNames.ACTIVITIES)
+          .where('timestamp', '>', from)
+          .get(),
+        rootCollections
+          .profiles
+          .doc(conn.requester.phoneNumber)
+          .collection(subcollectionNames.SUBSCRIPTIONS)
+          .where('timestamp', '>', from)
+          .get()
+      );
+  }
 
   const sendLocations = conn
     .requester
@@ -413,46 +262,31 @@ module.exports = async conn => {
       .profileDoc
       .get('lastLocationMapUpdateTimestamp') > from;
 
-  const sendStatusObjects = conn
-    .requester
-    .profileDoc
-    && conn
-      .requester
-      .profileDoc
-      .get('lastStatusDocUpdateTimestamp') > from;
-
   if (sendLocations) {
-    const locationPromises = [];
+    officeList
+      .forEach(name => {
+        const customers = rootCollections
+          .offices
+          .doc(employeeOf[name])
+          .collection(subcollectionNames.ACTIVITIES)
+          .where('status', '==', 'CONFIRMED')
+          .where('template', '==', 'customer')
+          .get();
 
-    officeList.forEach(name => {
-      const customers = rootCollections
-        .offices
-        .doc(employeeOf[name])
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('status', '==', 'CONFIRMED')
-        .where('template', '==', 'customer')
-        .get();
+        const branches = rootCollections
+          .offices
+          .doc(employeeOf[name])
+          .collection(subcollectionNames.ACTIVITIES)
+          .where('status', '==', 'CONFIRMED')
+          .where('template', '==', 'branch')
+          .get();
 
-      const branches = rootCollections
-        .offices
-        .doc(employeeOf[name])
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('status', '==', 'CONFIRMED')
-        .where('template', '==', 'branch')
-        .get();
-
-      locationPromises
-        .push(
-          customers,
-          branches
-        );
-    });
-
-    promises
-      .push(
-        Promise
-          .all(locationPromises)
-      );
+        locationPromises
+          .push(
+            customers,
+            branches
+          );
+      });
   }
 
   try {
@@ -460,48 +294,10 @@ module.exports = async conn => {
       addendum,
       activities,
       subscriptions,
-      locationResults,
     ] = await Promise
       .all(promises);
 
-    if (!addendum.empty) {
-      jsonObject
-        .upto = addendum
-          .docs[addendum.size - 1]
-          .get('timestamp');
-    }
-
-    if (locationResults) {
-      locationResults
-        .forEach(snap => {
-          snap
-            .forEach(doc => {
-              jsonObject
-                .locations
-                .push(getCustomerObject(doc));
-            });
-        });
-    }
-
-    addendum
-      .forEach(doc => {
-        if (doc.get('type') === addendumTypes.COMMENT) {
-          jsonObject
-            .addendum
-            .push(getAddendumObject(doc));
-        }
-      });
-
-    activities
-      .forEach(doc => {
-        jsonObject
-          .activities
-          .push(
-            getActivityObject(doc, customClaims, employeeOf, phoneNumber)
-          );
-      });
-
-    subscriptions
+    (subscriptions || [])
       .forEach(doc => {
         /** Client side APIs don't allow admin templates. */
         if (doc.get('canEditRule') === 'ADMIN') {
@@ -513,15 +309,84 @@ module.exports = async conn => {
           .push(getSubscriptionObject(doc));
       });
 
+    (activities || [])
+      .forEach(doc => {
+        jsonObject
+          .activities
+          .push(
+            getActivityObject(doc, customClaims, employeeOf, phoneNumber)
+          );
+      });
+
+    const locationResults = await Promise
+      .all(locationPromises);
+
+    locationResults
+      .forEach(snapShot => {
+        snapShot
+          .forEach(doc => {
+            jsonObject
+              .locations
+              .push(getCustomerObject(doc));
+          });
+      });
+
+    if (!addendum.empty) {
+      jsonObject
+        .upto = addendum.docs[addendum.size - 1].get('timestamp');
+    }
+
+    addendum
+      .forEach(doc => {
+        const type = doc.get('_type') || doc.get('type');
+
+        if (type === addendumTypes.SUBSCRIPTION) {
+          jsonObject
+            .templates
+            .push(getSubscriptionObject(doc));
+
+          return;
+        }
+
+        if (type === addendumTypes.ACTIVITY) {
+          jsonObject
+            .activities
+            .push(getActivityObject(doc, customClaims, employeeOf, phoneNumber));
+
+          return;
+        }
+
+        if (type === addendumTypes.ATTENDANCE) {
+          jsonObject
+            .attendances.push(doc.data());
+
+          return;
+        }
+
+        if (type === addendumTypes.PAYMENT) {
+          jsonObject
+            .payments
+            .push(Object.assign({}, doc.data()));
+
+          return;
+        }
+
+        if (type === addendumTypes.REIMBURSEMENT) {
+          jsonObject
+            .reimbursements
+            .push(Object.assign({}, doc.data()));
+
+          return;
+        }
+
+        jsonObject
+          .addendum
+          .push(getAddendumObject(doc));
+      });
+
     const profileUpdate = {
       lastQueryFrom: from,
     };
-
-    if (conn.requester.profileDoc
-      && conn.requester.profileDoc.get('statusObject')) {
-      profileUpdate
-        .statusObject = admin.firestore.FieldValue.delete();
-    }
 
     if (sendLocations) {
       profileUpdate
@@ -535,15 +400,6 @@ module.exports = async conn => {
         /** Profile has other stuff too. */
         merge: true,
       });
-
-    if (from === 0
-      || sendStatusObjects) {
-      jsonObject
-        .statusObject = await getStatusObject({
-          employeeOf,
-          phoneNumber: conn.requester.phoneNumber,
-        });
-    }
 
     await batch
       .commit();

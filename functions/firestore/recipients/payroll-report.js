@@ -66,8 +66,8 @@ const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
   return recursiveFetch(baseQuery, [].concat(intermediate, result.docs), result.docs);
 };
 
-const getEmployeeCreationDate = (activationDate, momentInstance) => {
-  const activationDateMoment = momentTz(activationDate);
+const getEmployeeCreationDate = (activationDate, momentInstance, timezone) => {
+  const activationDateMoment = momentTz(activationDate).tz(timezone);
 
   if (activationDate
     && momentInstance.month() === activationDateMoment.month()) {
@@ -78,8 +78,8 @@ const getEmployeeCreationDate = (activationDate, momentInstance) => {
 };
 
 const getLeaveStatus = attendanceDateObject => {
-  if (attendanceDateObject.leaveType) {
-    return `Leave ${attendanceDateObject.leaveType}`;
+  if (attendanceDateObject.leave.leaveType) {
+    return `Leave ${attendanceDateObject.leave.leaveType}`;
   }
 
   return 'Leave';
@@ -115,16 +115,26 @@ const getTypeValue = (attendanceDateObject = {}) => {
 
 const getStatusValue = (attendanceDateObject = {}) => {
   if (attendanceDateObject.hasOwnProperty('attendance')) {
-    return attendanceDateObject.attendance;
+    return (attendanceDateObject.attendance === Infinity ? 1 : attendanceDateObject.attendance);
   }
 
   return '';
 };
 
-const getDetailsValue = (attendanceDateObject = {}, baseLocation) => {
+const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
   if (attendanceDateObject.weeklyOff
     || attendanceDateObject.holiday) {
     return baseLocation;
+  }
+
+  if (attendanceDateObject.onLeave
+    && attendanceDateObject.leave.reason) {
+    return attendanceDateObject.leave.reason;
+  }
+
+  if (attendanceDateObject.onAr
+    && attendanceDateObject.ar.reason) {
+    return attendanceDateObject.ar.reason;
   }
 
   const {
@@ -137,9 +147,9 @@ const getDetailsValue = (attendanceDateObject = {}, baseLocation) => {
     return '';
   }
 
-  return `${momentTz(firstCheckInTimestamp).format(dateFormats.TIME)}`
+  return `${momentTz(firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
     + `, `
-    + `${momentTz(lastCheckInTimestamp).format(dateFormats.TIME)}`
+    + `${momentTz(lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
     + `, `
     + `${numberOfCheckIns}`;
 };
@@ -151,6 +161,7 @@ const getTotalDays = params => {
     firstDayOfMonthlyCycle,
     fetchPreviousMonthDocs,
   } = params;
+
   if (fetchPreviousMonthDocs) {
     const momentPrevMonth = momentYesterday
       .clone()
@@ -167,6 +178,7 @@ const getTotalDays = params => {
 
 const rangeCallback = params => {
   const {
+    timezone,
     payrollSheet,
     rowIndex,
     attendanceDoc,
@@ -178,22 +190,28 @@ const rangeCallback = params => {
     employeeCode,
     employeeName,
     phoneNumber,
-    attendance,
     activationDate,
     department,
     baseLocation,
   } = attendanceDoc.data() || {};
 
-  // console.log('rowIndex', rowIndex);
+  const attendance = attendanceDoc.get('attendance') || {};
 
   allPhoneNumbers
     .add(phoneNumber);
 
   /** Data might not exist for someone for a certain date. */
   attendance[date] = attendance[date] || {};
+  const hasAttendanceProperty = attendance[date].hasOwnProperty('attendance');
+
   attendance[date].leave = attendance[date].leave || {};
 
   if (attendance[date].leave.leaveType) {
+
+    if (typeof allLeaveTypes.add !== 'function') {
+      console.log('add undefined', phoneNumber, typeof allLeaveTypes, Array.isArray(allLeaveTypes));
+    }
+
     allLeaveTypes.add(attendance[date].leave.leaveType);
 
     const oldCount = leaveTypeCountMap.get(phoneNumber) || {};
@@ -239,21 +257,25 @@ const rangeCallback = params => {
       .set(phoneNumber, oldSet + 1);
   }
 
-  if (attendance[date].hasOwnProperty('attendance')) {
+  if (hasAttendanceProperty) {
     const oldCount = attendanceCountMap.get(phoneNumber) || 0;
 
     attendanceCountMap
-      .set(phoneNumber, oldCount + 1);
+      .set(
+        phoneNumber,
+        oldCount + 1
+      );
 
     const oldAttendanceSum = attendanceSumMap.get(phoneNumber) || 0;
+
+    const n = attendance[date].attendance;
 
     attendanceSumMap
       .set(
         phoneNumber,
-        oldAttendanceSum + attendance[date].attendance
+        oldAttendanceSum + (n === Infinity ? 1 : n)
       );
   }
-
 
   [
     employeeName,
@@ -263,10 +285,10 @@ const rangeCallback = params => {
     region,
     department,
     momentInstance.date(date).format(dateFormats.DATE), // actual date
-    getEmployeeCreationDate(activationDate, momentInstance.clone()), // activation date
+    getEmployeeCreationDate(activationDate, momentInstance.clone(), timezone), // activation date
     getTypeValue(attendance[date]),
     getStatusValue(attendance[date]),
-    getDetailsValue(attendance[date], baseLocation),
+    getDetailsValue(attendance[date], baseLocation, timezone),
   ].forEach((value, innerIndex) => {
     payrollSheet
       .cell(`${alphabetsArray[innerIndex]}${rowIndex + 1}`)
@@ -316,7 +338,7 @@ module.exports = async locals => {
 
   /** Dates in current month */
   const secondRange = getNumbersbetween(
-    1, // all months start with date = 1
+    (fetchPreviousMonthDocs ? 1 : firstDayOfMonthlyCycle),
     cycleEndMoment.clone().date() + 1,
   );
 
@@ -373,17 +395,7 @@ module.exports = async locals => {
       const isLaterMonth = attendanceDoc.get('month') === momentYesterday.month();
       const phoneNumber = attendanceDoc.get('phoneNumber');
 
-      console.log('isLaterMonth', isLaterMonth);
-
       if (isLaterMonth) {
-        // console.log(phoneNumber, JSON.stringify({
-        //   employeeName: attendanceDoc.get('employeeName'),
-        //   employeeCode: attendanceDoc.get('employeeCode'),
-        //   baseLocation: attendanceDoc.get('baseLocation'),
-        //   region: attendanceDoc.get('region'),
-        //   department: attendanceDoc.get('department'),
-        // }, ' ', 2));
-
         employeeData
           .set(phoneNumber, {
             employeeName: attendanceDoc.get('employeeName'),
@@ -401,6 +413,7 @@ module.exports = async locals => {
           rowIndex++;
 
           const params = {
+            timezone,
             payrollSheet,
             date,
             rowIndex,
@@ -417,6 +430,7 @@ module.exports = async locals => {
           rowIndex++;
 
           const params = {
+            timezone,
             payrollSheet,
             date,
             rowIndex,
@@ -458,12 +472,10 @@ module.exports = async locals => {
       arCountMap.get(phoneNumber) || 0,
       weeklyOffCountMap.get(phoneNumber) || 0,
       holidayCountMap.get(phoneNumber) || 0,
-      attendanceCountMap.get(phoneNumber) || 0,
+      attendanceCountMap.get(phoneNumber) || 0, // mtd
       totalDays,
       attendanceSumMap.get(phoneNumber) || 0,
     ];
-
-    console.log(phoneNumber, JSON.stringify(employeeData, ' ', 2));
 
     const leaveTypesForUser = leaveTypeCountMap
       .get(phoneNumber) || {};
@@ -539,11 +551,15 @@ module.exports = async locals => {
 
   console.log(JSON.stringify({
     office: locals.officeDoc.get('office'),
-    report: reportNames.FOOTPRINTS,
+    report: reportNames.PAYROLL,
     to: locals.messageObject.to,
   }, ' ', 2));
 
-  return locals
+  await locals
     .sgMail
     .sendMultiple(locals.messageObject);
+
+  console.log('mail sent');
+
+  return;
 };

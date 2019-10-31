@@ -1396,14 +1396,14 @@ const setOnLeaveOrAr = async params => {
   } = params;
 
   if (template === 'attendance regularization') {
-    if (startTime >= momentTz().tz(timezone).startOf('day').valueOf()) {
-      result
-        .success = false;
-      result
-        .message = `Attendance can only be applied for the past`;
+    // if (startTime >= momentTz().tz(timezone).startOf('day').valueOf()) {
+    //   result
+    //     .success = false;
+    //   result
+    //     .message = `Attendance can only be applied for the past`;
 
-      return result;
-    }
+    //   return result;
+    // }
 
     const recipientQueryResult = await rootCollections
       .activities
@@ -1547,7 +1547,8 @@ const setOnLeaveOrAr = async params => {
   /**
    * No conflicts, that means the leave can be created successfully
    */
-  if (conflictsSet.size === 0) {
+  // if (conflictsSet.size === 0) {
+  if (conflictsSet) {
     const updatesQuery = await rootCollections
       .updates
       .where('phoneNumber', '==', creatorsPhoneNumber)

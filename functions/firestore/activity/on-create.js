@@ -39,6 +39,7 @@ const {
 } = require('../../admin/admin');
 const {
   activityName,
+  setOnLeaveOrAr,
   validateVenues,
   filterAttachment,
   validateSchedules,
@@ -340,6 +341,156 @@ const createDocsWithBatch = async (conn, locals) => {
   return sendResponse(conn, code.created);
 };
 
+const handleLeaveOrOnDuty = async (conn, locals) => {
+  const startTime = conn.req.body.schedule[0].startTime;
+  const endTime = conn.req.body.schedule[0].endTime;
+  const startTimeMoment = momentTz(startTime);
+  const endTimeMoment = momentTz(endTime);
+  const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
+
+  if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
+    locals.static.statusOnCreate = 'CANCELLED';
+    locals.cancellationMessage = `LEAVE CANCELLED: Leave limit exceeded by`
+      + ` ${leavesTakenThisTime + locals.leavesTakenThisYear - locals.maxLeavesAllowed} days.`;
+
+    return createDocsWithBatch(conn, locals);
+  }
+
+  const leaveType = (() => {
+    if (conn.req.body.template === 'leave') {
+      return conn.req.body.attachment['Leave Type'].value;
+    }
+
+    return '';
+  })();
+
+  const {
+    success,
+    message
+  } = await setOnLeaveOrAr({
+    startTime,
+    endTime,
+    leaveType,
+    officeId: locals.officeDoc.id,
+    timezone: locals.officeDoc.get('attachment.Timezone.value'),
+    template: conn.req.body.template,
+    status: locals.static.statusOnCreate,
+    leaveReason: conn.req.body.attachment.Reason.value,
+    arReason: conn.req.body.attachment.Reason.value,
+    creatorsPhoneNumber: conn.requester.phoneNumber,
+    requestersPhoneNumber: conn.requester.phoneNumber,
+  });
+
+  if (!success) {
+    locals
+      .static
+      .statusOnCreate = 'CANCELLED';
+
+    locals
+      .cancellationMessage = `${conn.req.body.template.toUpperCase()}`
+      + ` CANCELLED: ${message}`;
+  }
+
+  return createDocsWithBatch(conn, locals);
+};
+
+
+const handlePayroll = async (conn, locals) => {
+  if (!new Set()
+    .add('leave')
+    .add('attendance regularization')
+    .has(conn.req.body.template)) {
+    return createDocsWithBatch(conn, locals);
+  }
+
+  if (!conn.req.body.schedule[0].startTime
+    || !conn.req.body.schedule[0].endTime) {
+    return createDocsWithBatch(conn, locals);
+  }
+
+  if (conn.req.body.template !== 'leave') {
+    return handleLeaveOrOnDuty(conn, locals);
+  }
+
+  // const leaveType = conn.req.body.attachment['Leave Type'].value;
+  const startMoment = momentTz(conn.req.body.schedule[0].endTime);
+  const endMoment = momentTz(conn.req.body.schedule[0].endTime);
+
+  locals
+    .maxLeavesAllowed = Number.POSITIVE_INFINITY;
+  locals
+    .leavesTakenThisYear = 0;
+
+  if (!conn.req.body.attachment['Leave Type'].value) {
+    locals.maxLeavesAllowed = 20;
+  }
+
+  const [
+    leaveTypeQuery,
+    leaveActivityQuery
+  ] = await Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('template', '==', 'leave-type')
+        .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
+        .limit(1)
+        .get(),
+      rootCollections
+        .offices
+        .doc(locals.static.officeId)
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('creator', '==', conn.requester.phoneNumber)
+        .where('template', '==', 'leave')
+        .where('attachment.Leave Type.value', '==', conn.req.body.attachment['Leave Type'].value)
+        .where('startYear', '==', startMoment.year())
+        .where('endYear', '==', endMoment.year())
+        /** Cancelled leaves don't count to the full number */
+        .where('isCancelled', '==', false)
+        .get(),
+    ]);
+
+  if (!leaveTypeQuery.empty) {
+    locals
+      .maxLeavesAllowed = Number(
+        leaveTypeQuery.docs[0].get('attachment.Annual Limit.value') || 0
+      );
+  }
+
+  leaveActivityQuery
+    .forEach(doc => {
+      const {
+        startTime,
+        endTime,
+      } = doc.get('schedule')[0];
+
+      const start = momentTz(startTime).startOf('day').valueOf();
+      const end = momentTz(endTime).endOf('day').valueOf();
+
+      locals
+        .leavesTakenThisYear += momentTz(end).diff(start, 'days');
+    });
+
+  if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
+    locals
+      .cancellationMessage = `LEAVE LIMIT EXCEEDED:`
+      + ` You have exceeded the limit for leave`
+      + ` application under ${conn.req.body.attachment['Leave Type'].value}`
+      + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
+
+    locals
+      .static
+      .statusOnCreate = 'CANCELLED';
+
+    return createDocsWithBatch(conn, locals);
+  }
+
+  return handleLeaveOrOnDuty(conn, locals);
+};
+
+
 
 const handleAssignees = async (conn, locals) => {
   if (locals.objects.allPhoneNumbers.size === 0) {
@@ -441,8 +592,8 @@ const handleAssignees = async (conn, locals) => {
     }
   }
 
-  // return handlePayroll(conn, locals);
-  return createDocsWithBatch(conn, locals);
+  return handlePayroll(conn, locals);
+  // return createDocsWithBatch(conn, locals);
 };
 
 const handleClaims = async (conn, locals) => {

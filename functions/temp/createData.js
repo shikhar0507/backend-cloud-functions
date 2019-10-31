@@ -87,7 +87,6 @@ module.exports = async snap => {
     const checkInAddendumPromises = [];
     const office = employeeData.office;
     const officeId = employeeData.officeId;
-    const timezone = 'Asia/Kolkata';
     const latestPhoneNumber = employeeData.attachment['Employee Contact'].value;
     const locationValidationCheck = employeeData.attachment['Location Validation Check'].value;
     const minimumDailyActivityCount = employeeData.attachment['Minimum Daily Activity Count'].value;
@@ -122,7 +121,7 @@ module.exports = async snap => {
     const attendanceDocDataOct = Object.assign({
       office,
       officeId,
-      month: 8,
+      month: 9,
       year: 2019,
     }, reportEmployeeMeta);
     const allCheckInAddendumsSorted = [];
@@ -238,9 +237,12 @@ module.exports = async snap => {
         obj
           .attendance[date] = obj.attendance[date] || getDefaultAttendanceObject();
         obj
-          .attendance[date].addendum = obj.attendance[date].addendum || [];
+          .attendance[date]
+          .addendum = obj.attendance[date].addendum || [];
         obj
-          .attendance[date].addendum.push({
+          .attendance[date]
+          .addendum
+          .push({
             timestamp,
             addendumId: doc.id,
             latitude: location.latitude || location._latitude,
@@ -254,16 +256,21 @@ module.exports = async snap => {
           .diff(momentTz(firstAddendum.timestamp), 'hours', true);
 
         obj
-          .attendance[date].working = obj.attendance[date].working || {};
+          .attendance[date]
+          .working = obj.attendance[date].working || {};
 
         if (!obj.attendance[date].working.firstCheckInTimestamp) {
-          obj.attendance[date].working.firstCheckInTimestamp = timestamp;
+          obj
+            .attendance[date]
+            .working.firstCheckInTimestamp = timestamp;
         }
 
         obj
-          .attendance[date].working.numberOfCheckIns = numberOfCheckIns;
+          .attendance[date]
+          .working.numberOfCheckIns = numberOfCheckIns;
         obj
-          .attendance[date].working.lastCheckInTimestamp = timestamp;
+          .attendance[date]
+          .working.lastCheckInTimestamp = timestamp;
 
         if (obj.attendance.attendance !== 1) {
           obj
@@ -417,11 +424,6 @@ module.exports = async snap => {
           .keys(att || {})
           .forEach(date => {
             let month;
-            const ref = rootCollections
-              .updates
-              .doc(uid)
-              .collection(subcollectionNames.ADDENDUM)
-              .doc();
 
             if (index === 0) {
               month = 8;
@@ -435,24 +437,29 @@ module.exports = async snap => {
               .date(date)
               .month(month)
               .year(year);
+
             const data = Object
               .assign({}, att[date], {
-                // attendance
                 month,
                 year,
                 office,
                 officeId,
                 date: Number(date),
-                timestamp: momentNow.valueOf(),
+                timestamp: momentNow.clone().startOf('day').valueOf(),
                 id: `${date}${month}${year}${officeId}`,
                 key: momentNow.valueOf(),
                 _type: addendumTypes.ATTENDANCE,
               });
 
-            console.log('Attendance Updates:', ref.path);
-
             batch
-              .set(ref, data);
+              .set(
+                rootCollections
+                  .updates
+                  .doc(uid)
+                  .collection(subcollectionNames.ADDENDUM)
+                  .doc(),
+                data
+              );
           });
       });
     }

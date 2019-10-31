@@ -197,97 +197,98 @@ const generateExcel = async locals => {
 
 const isOnLeave = async params => {
   const {
-    startTime,
-    endTime,
-    timezone,
-    officeId,
+    // startTime,
+    // endTime,
+    // timezone,
+    // officeId,
     phoneNumber,
   } = params;
 
   const leaveDates = [];
-  const allMonthYears = new Set();
-  const startTimeMoment = momentTz(startTime)
-    .tz(timezone)
-    .startOf('day');
-  const endTimeMoment = momentTz(endTime)
-    .tz(timezone)
-    .endOf('day');
+  // const allMonthYears = new Set();
+  // const startTimeMoment = momentTz(startTime)
+  //   .tz(timezone)
+  //   .startOf('day');
+  // const endTimeMoment = momentTz(endTime)
+  //   .tz(timezone)
+  //   .endOf('day');
 
-  allMonthYears
-    .add(startTimeMoment.format(dateFormats.MONTH_YEAR));
+  // allMonthYears
+  //   .add(startTimeMoment.format(dateFormats.MONTH_YEAR));
 
-  while (startTimeMoment.add(1, 'day').diff(endTimeMoment) <= 0) {
-    const formatted = startTimeMoment.format(dateFormats.MONTH_YEAR);
+  // while (startTimeMoment.add(1, 'day').diff(endTimeMoment) <= 0) {
+  //   const formatted = startTimeMoment.format(dateFormats.MONTH_YEAR);
 
-    allMonthYears
-      .add(formatted);
-  }
+  //   allMonthYears
+  //     .add(formatted);
+  // }
 
-  const promises = [];
+  // const promises = [];
 
-  allMonthYears
-    .forEach(monthYearString => {
-      const promise = rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Statuses')
-        .doc(monthYearString)
-        .collection('Employees')
-        .doc(phoneNumber)
-        .get();
+  // allMonthYears
+  //   .forEach(monthYearString => {
+  //     const promise = rootCollections
+  //       .offices
+  //       .doc(officeId)
+  //       .collection('Statuses')
+  //       .doc(monthYearString)
+  //       .collection('Employees')
+  //       .doc(phoneNumber)
+  //       .get();
 
-      promises
-        .push(promise);
-    });
+  //     promises
+  //       .push(promise);
+  //   });
 
-  const docs = await Promise
-    .all(promises);
+  // const docs = await Promise
+  //   .all(promises);
 
-  docs.forEach(doc => {
-    if (!doc.exists) {
-      return;
-    }
+  // docs.forEach(doc => {
+  //   if (!doc.exists) {
+  //     return;
+  //   }
 
-    const statusObject = doc.get('statusObject') || {};
-    const month = doc.get('month');
-    const year = doc.get('year');
+  //   const statusObject = doc.get('statusObject') || {};
+  //   const month = doc.get('month');
+  //   const year = doc.get('year');
 
-    Object
-      .keys(statusObject)
-      .forEach(date => {
-        const item = statusObject[date];
+  //   Object
+  //     .keys(statusObject)
+  //     .forEach(date => {
+  //       const item = statusObject[date];
 
-        if (!item.onLeave) {
-          return;
-        }
+  //       if (!item.onLeave) {
+  //         return;
+  //       }
 
-        const dateMoment = momentTz()
-          .tz(timezone)
-          .date(Number(date))
-          .month(month)
-          .year(year);
-        const start = momentTz(startTime)
-          .tz(timezone)
-          .startOf('day');
-        const end = momentTz(endTime)
-          .tz(timezone)
-          .endOf('day');
-        const isBefore = dateMoment.isSameOrAfter(start);
-        const isAfter = dateMoment.isSameOrBefore(end);
-        const isBetween = isBefore && isAfter;
+  //       const dateMoment = momentTz()
+  //         .tz(timezone)
+  //         .date(Number(date))
+  //         .month(month)
+  //         .year(year);
+  //       const start = momentTz(startTime)
+  //         .tz(timezone)
+  //         .startOf('day');
+  //       const end = momentTz(endTime)
+  //         .tz(timezone)
+  //         .endOf('day');
+  //       const isBefore = dateMoment.isSameOrAfter(start);
+  //       const isAfter = dateMoment.isSameOrBefore(end);
+  //       const isBetween = isBefore && isAfter;
 
-        const formatted = dateMoment
-          .format(dateFormats.DATE);
+  //       const formatted = dateMoment
+  //         .format(dateFormats.DATE);
 
-        if (!isBetween) {
-          return;
-        }
+  //       if (!isBetween) {
+  //         return;
+  //       }
 
-        leaveDates
-          .push(formatted);
-      });
-  });
+  //       leaveDates
+  //         .push(formatted);
+  //     });
+  // });
 
+  // return { phoneNumber, leaveDates };
   return { phoneNumber, leaveDates };
 };
 
@@ -439,6 +440,7 @@ const createObjects = async (locals, trialRun) => {
     })();
 
     const activityRef = rootCollections.activities.doc();
+    console.log('id', activityRef.id);
     const officeRef = (() => {
       if (locals.templateDoc.get('name') === templateNamesObject.OFFICE) {
         return rootCollections.offices.doc(activityRef.id);
