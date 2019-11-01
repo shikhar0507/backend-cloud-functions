@@ -145,7 +145,12 @@ const Deleter = async snap => {
   attendanceSnaps.forEach(snap => {
     const doc = snap.docs[0];
 
+
     if (doc) {
+      if (doc.get('month') > 9) {
+        return;
+      }
+
       if (docsCounter > MAX_UPDATES) {
         docsCounter = 0;
         batchIndex++;
@@ -157,6 +162,9 @@ const Deleter = async snap => {
         .delete(doc.ref);
     }
   });
+
+  // delete batch split
+  // write batch split.
 
   const snaps = await Promise
     .all(phoneNumberChangeAddendumPromises);

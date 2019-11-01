@@ -6,6 +6,7 @@ const {
 const {
   sendResponse,
   handleError,
+  isNonEmptyString,
 } = require('../admin/utils');
 const {
   removeBeneficiary,
@@ -15,7 +16,15 @@ const {
 } = require('../admin/responses');
 const admin = require('firebase-admin');
 
-const validator = body => {
+const validator = req => {
+  if (!req.hasOwnProperty('bankAccount')) {
+    return `Missing query param 'bankAccount'`;
+  }
+
+  if (!isNonEmptyString(req.bankAccount)) {
+    return `Bank account should be a non-empty string`;
+  }
+
   return null;
 };
 
@@ -29,7 +38,7 @@ module.exports = async conn => {
     );
   }
 
-  const v = validator();
+  const v = validator(conn.req);
 
   if (v) {
     return sendResponse(
