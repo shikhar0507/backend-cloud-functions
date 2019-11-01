@@ -1840,6 +1840,7 @@ const getDefaultAttendanceObject = () => {
     isLate: false,
     holiday: false,
     attendance: 0,
+    addendum: [],
     working: {
       firstCheckInTimestamp: '',
       lastCheckInTimestamp: '',
@@ -1900,6 +1901,8 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
       baseLocation: '',
       region: '',
       department: '',
+      minimumDailyActivityCount: '',
+      minimumWorkingHours: '',
     };
   }
 
@@ -1913,6 +1916,8 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
     baseLocation: employeeDoc.get('attachment.Base Location.value'),
     region: employeeDoc.get('attachment.Region.value'),
     department: employeeDoc.get('attachment.Department.value'),
+    minimumDailyActivityCount: employeeDoc.get('attachment.Minimum Daily Activity Count.value'),
+    minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
   };
 };
 
