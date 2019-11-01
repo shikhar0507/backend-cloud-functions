@@ -272,6 +272,7 @@ module.exports = async change => {
     const errorObject = {
       error,
       contextData: {
+        recipientId: change.after.id,
         office: change.after.get('office'),
         officeId: change.after.get('officeId'),
         report: change.after.get('report'),
