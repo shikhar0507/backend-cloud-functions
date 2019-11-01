@@ -16,19 +16,6 @@ const admin = require('firebase-admin');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 
-/**
- * Object which stores employee data for creating excel sheet entries
- * with employee contact, base location, region, department, etc.
- */
-const employeeData = new Map();
-const weeklyOffCountMap = new Map();
-const holidayCountMap = new Map();
-const leaveTypeCountMap = new Map();
-const arCountMap = new Map();
-const allPhoneNumbers = new Set();
-const attendanceCountMap = new Map();
-const attendanceSumMap = new Map();
-let allLeaveTypes = new Set();
 
 const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
   if (previousResult
@@ -38,7 +25,6 @@ const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
     return intermediate;
   }
 
-  console.log('called again');
   console.log('previousResult length:', (() => {
     if (!previousResult) {
       return null;
@@ -115,7 +101,7 @@ const getTypeValue = (attendanceDateObject = {}) => {
 
 const getStatusValue = (attendanceDateObject = {}) => {
   if (attendanceDateObject.hasOwnProperty('attendance')) {
-    return (attendanceDateObject.attendance === Infinity ? 1 : attendanceDateObject.attendance);
+    return attendanceDateObject.attendance;
   }
 
   return '';
@@ -178,12 +164,20 @@ const getTotalDays = params => {
 
 const rangeCallback = params => {
   const {
+    allLeaveTypes,
     timezone,
     payrollSheet,
     rowIndex,
     attendanceDoc,
     momentInstance,
     date,
+    weeklyOffCountMap,
+    holidayCountMap,
+    leaveTypeCountMap,
+    arCountMap,
+    allPhoneNumbers,
+    attendanceCountMap,
+    attendanceSumMap,
   } = params;
   const {
     region,
@@ -207,11 +201,6 @@ const rangeCallback = params => {
   attendance[date].leave = attendance[date].leave || {};
 
   if (attendance[date].leave.leaveType) {
-
-    if (typeof allLeaveTypes.add !== 'function') {
-      console.log('add undefined', phoneNumber, typeof allLeaveTypes, Array.isArray(allLeaveTypes));
-    }
-
     allLeaveTypes.add(attendance[date].leave.leaveType);
 
     const oldCount = leaveTypeCountMap.get(phoneNumber) || {};
@@ -273,7 +262,7 @@ const rangeCallback = params => {
     attendanceSumMap
       .set(
         phoneNumber,
-        oldAttendanceSum + (n === Infinity ? 1 : n)
+        oldAttendanceSum + n
       );
   }
 
@@ -314,6 +303,20 @@ module.exports = async locals => {
   const cycleEndMoment = momentYesterday;
 
   const allAttendanceDocs = [];
+  const allLeaveTypes = new Set();
+  /**
+ * Object which stores employee data for creating excel sheet entries
+ * with employee contact, base location, region, department, etc.
+ */
+  const employeeData = new Map();
+  const weeklyOffCountMap = new Map();
+  const holidayCountMap = new Map();
+  const leaveTypeCountMap = new Map();
+  const arCountMap = new Map();
+  const allPhoneNumbers = new Set();
+  const attendanceCountMap = new Map();
+  const attendanceSumMap = new Map();
+
 
   const workbook = await xlsxPopulate
     .fromBlankAsync();
@@ -342,17 +345,11 @@ module.exports = async locals => {
     cycleEndMoment.clone().date() + 1,
   );
 
-  console.log('firstRange', firstRange);
-  console.log('secondRange', secondRange);
-
   const totalDays = getTotalDays({
     momentYesterday,
     firstDayOfMonthlyCycle,
     fetchPreviousMonthDocs,
   });
-
-  console.log('totalDays', totalDays);
-  console.log('fetchPreviousMonthDocs', fetchPreviousMonthDocs);
 
   if (fetchPreviousMonthDocs) {
     const baseQuery = locals
@@ -363,9 +360,6 @@ module.exports = async locals => {
       .where('year', '==', momentPrevMonth.year());
 
     const prevMonthDocs = await recursiveFetch(baseQuery, []);
-
-    console.log('prevMonthDocs', prevMonthDocs.length);
-
     allAttendanceDocs
       .push(...prevMonthDocs);
   }
@@ -377,15 +371,10 @@ module.exports = async locals => {
     .where('month', '==', momentYesterday.month())
     .where('year', '==', momentYesterday.year());
 
-  console.log('momentYesterday', momentYesterday.month(), momentYesterday.year());
-
   const yesterdayMonthDocs = await recursiveFetch(baseQuery, []);
-  console.log('yesterdayMonthDocs', yesterdayMonthDocs.length);
 
   allAttendanceDocs
     .push(...yesterdayMonthDocs);
-
-  console.log('allAttendanceDocs', allAttendanceDocs.length);
 
   let rowIndex = 0;
 
@@ -413,11 +402,20 @@ module.exports = async locals => {
           rowIndex++;
 
           const params = {
+            allLeaveTypes,
             timezone,
             payrollSheet,
             date,
             rowIndex,
             attendanceDoc,
+            employeeData,
+            weeklyOffCountMap,
+            holidayCountMap,
+            leaveTypeCountMap,
+            arCountMap,
+            allPhoneNumbers,
+            attendanceCountMap,
+            attendanceSumMap,
             momentInstance: momentPrevMonth.clone(),
           };
 
@@ -430,11 +428,20 @@ module.exports = async locals => {
           rowIndex++;
 
           const params = {
+            allLeaveTypes,
             timezone,
             payrollSheet,
             date,
             rowIndex,
             attendanceDoc,
+            employeeData,
+            weeklyOffCountMap,
+            holidayCountMap,
+            leaveTypeCountMap,
+            arCountMap,
+            allPhoneNumbers,
+            attendanceCountMap,
+            attendanceSumMap,
             momentInstance: momentYesterday.clone(),
           };
 
@@ -448,8 +455,7 @@ module.exports = async locals => {
    * The summary sheet will use this order to put the dynamically generated
    * columns and their values.
    */
-  allLeaveTypes = [...allLeaveTypes.values()];
-
+  // allLeaveTypes = [...allLeaveTypes.values()];
 
   let summaryRowIndex = 0;
 
@@ -530,7 +536,7 @@ module.exports = async locals => {
     'MTD',
     'Total Days',
     'Payable Days',
-    ...allLeaveTypes,
+    ...allLeaveTypes.values(),
   ].forEach((value, index) => {
     payrollSummary
       .cell(`${alphabetsArray[index]}1`)
