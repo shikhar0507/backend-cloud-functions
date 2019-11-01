@@ -161,6 +161,7 @@ module.exports = async locals => {
               month,
               year,
               officeId,
+              timestamp: Date.now(),
               office: locals.change.after.get('office'),
               attendance: 1,
               _type: addendumTypes.ATTENDANCE,

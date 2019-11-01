@@ -16,6 +16,9 @@ const {
   getEmployeeReportData,
   getDefaultAttendanceObject,
 } = require('../../../admin/utils');
+const {
+  getStatusForDay,
+} = require('../../recipients/report-utils');
 
 
 module.exports = async locals => {
@@ -43,6 +46,7 @@ module.exports = async locals => {
   const month = momentArDate.month();
   const year = momentArDate.year();
   const batch = db.batch();
+  const action = locals.addendumDocData.action;
   const arAppliedForFuture = arSchedule >= momentTz().tz(timezone).startOf('day').valueOf();
   const attendanceDoc = (await rootCollections
     .offices
@@ -96,6 +100,28 @@ module.exports = async locals => {
     .attendance[date]
     .ar
     .reason = locals.change.after.get('attachment.Reason.value');
+
+  if (action === httpsActions.changeStatus
+    && status === 'CANCELLED') {
+    const numberOfCheckIns = attendanceDocData.attendance[date].addendum.length;
+    const firstAddendum = attendanceDocData.attendance[date].addendum[0];
+    const lastAddendum = attendanceDocData.attendance[date].addendum[numberOfCheckIns - 1];
+    const hoursWorked = momentTz(lastAddendum.timestamp)
+      .diff(momentTz(firstAddendum.timestamp), 'hours', true);
+
+    attendanceDocData
+      .attendance[date]
+      .onAr = false;
+
+    attendanceDocData
+      .attendance[date]
+      .attendance = getStatusForDay({
+        numberOfCheckIns, // number of actions done in the day by the user
+        hoursWorked, // difference between first and last action in hours,
+        minimumWorkingHours: employeeData.minimumWorkingHours,
+        minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
+      });
+  }
 
   console.log('AR ID', locals.change.after.id);
   console.log('AR for', momentArDate.format(dateFormats.DATE));
