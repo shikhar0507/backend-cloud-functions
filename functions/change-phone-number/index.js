@@ -240,73 +240,6 @@ const populateWebapp = async (oldPhoneNumber, newPhoneNumber) => {
 };
 
 
-const populateSubcollections = async (oldPhoneNumber, newPhoneNumber, collection) => {
-  const employeeActivities = await rootCollections
-    .activities
-    .where('template', '==', 'employee')
-    .where('status', '==', 'CONFIRMED')
-    .where('attachment.Employee Contact.value', '==', oldPhoneNumber)
-    .get();
-
-  if (employeeActivities.empty) {
-    return;
-  }
-
-  const officeIds = [];
-
-  employeeActivities
-    .forEach(doc => {
-      officeIds
-        .push(doc.get('officeId'));
-    });
-
-  const queries = [];
-  const today = momentTz();
-
-  officeIds
-    .forEach(officeId => {
-      const ref = rootCollections
-        .offices
-        .doc(officeId)
-        .collection(collection)
-        .where('date', '==', today.date())
-        .where('month', '==', today.month())
-        .where('year', '==', today.year())
-        .where('phoneNumber', '==', oldPhoneNumber)
-        .limit(1)
-        .get();
-
-      queries
-        .push(ref);
-    });
-
-  const snaps = await Promise
-    .all(queries);
-  const batch = db.batch();
-
-  snaps
-    .forEach(snap => {
-      if (snap.empty) {
-        return;
-      }
-
-      const doc = snap.docs[0];
-
-      const { ref } = doc;
-      const update = Object
-        .assign({}, doc.data(), {
-          phoneNumber: newPhoneNumber,
-        });
-
-      batch
-        .set(ref, update, { merge: true });
-    });
-
-  return batch
-    .commit();
-};
-
-
 module.exports = async conn => {
   const v = validator(conn.req.body, conn.requester.phoneNumber);
 
@@ -334,7 +267,7 @@ module.exports = async conn => {
 
     /**
      * Disabling user until all the activity
-     *  onWrite instances have triggered.
+     * onWrite instances have triggered.
      */
     await admin
       .auth()
@@ -355,12 +288,6 @@ module.exports = async conn => {
     await populateWebapp(
       conn.req.body.oldPhoneNumber,
       conn.req.body.newPhoneNumber,
-    );
-
-    await populateSubcollections(
-      conn.req.body.oldPhoneNumber,
-      conn.req.body.newPhoneNumber,
-      subcollectionNames.ATTENDANCES,
     );
 
     const batch = db.batch();

@@ -175,7 +175,6 @@ const rangeCallback = params => {
     holidayCountMap,
     leaveTypeCountMap,
     arCountMap,
-    allPhoneNumbers,
     attendanceCountMap,
     attendanceSumMap,
   } = params;
@@ -191,9 +190,6 @@ const rangeCallback = params => {
 
   const attendance = attendanceDoc.get('attendance') || {};
 
-  allPhoneNumbers
-    .add(phoneNumber);
-
   /** Data might not exist for someone for a certain date. */
   attendance[date] = attendance[date] || {};
   const hasAttendanceProperty = attendance[date].hasOwnProperty('attendance');
@@ -201,7 +197,8 @@ const rangeCallback = params => {
   attendance[date].leave = attendance[date].leave || {};
 
   if (attendance[date].leave.leaveType) {
-    allLeaveTypes.add(attendance[date].leave.leaveType);
+    allLeaveTypes
+      .add(attendance[date].leave.leaveType);
 
     const oldCount = leaveTypeCountMap.get(phoneNumber) || {};
 
@@ -332,7 +329,7 @@ module.exports = async locals => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
         firstDayOfMonthlyCycle,
-        cycleEndMoment.clone().endOf('month').date(),
+        momentPrevMonth.clone().endOf('month').date() + 1,
       );
     }
 
@@ -344,6 +341,9 @@ module.exports = async locals => {
     (fetchPreviousMonthDocs ? 1 : firstDayOfMonthlyCycle),
     cycleEndMoment.clone().date() + 1,
   );
+
+  console.log('firstRange', firstRange);
+  console.log('secondRange', secondRange);
 
   const totalDays = getTotalDays({
     momentYesterday,
@@ -381,8 +381,12 @@ module.exports = async locals => {
   allAttendanceDocs
     .forEach(attendanceDoc => {
       // Latest month among the two months for which the data is being fetched
-      const isLaterMonth = attendanceDoc.get('month') === momentYesterday.month();
+      const monthInDoc = attendanceDoc.get('month');
+      const isLaterMonth = monthInDoc === momentYesterday.month();
       const phoneNumber = attendanceDoc.get('phoneNumber');
+
+      allPhoneNumbers
+        .add(phoneNumber);
 
       if (isLaterMonth) {
         employeeData
@@ -413,7 +417,6 @@ module.exports = async locals => {
             holidayCountMap,
             leaveTypeCountMap,
             arCountMap,
-            allPhoneNumbers,
             attendanceCountMap,
             attendanceSumMap,
             momentInstance: momentPrevMonth.clone(),
@@ -439,7 +442,6 @@ module.exports = async locals => {
             holidayCountMap,
             leaveTypeCountMap,
             arCountMap,
-            allPhoneNumbers,
             attendanceCountMap,
             attendanceSumMap,
             momentInstance: momentYesterday.clone(),
@@ -466,7 +468,7 @@ module.exports = async locals => {
       baseLocation,
       region,
       department,
-    } = employeeData.get(phoneNumber);
+    } = employeeData.get(phoneNumber) || {};
 
     const values = [
       employeeName,

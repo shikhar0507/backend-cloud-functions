@@ -123,9 +123,11 @@ const manageAddendum = async change => {
         || _type === addendumTypes.ATTENDANCE
         || _type === addendumTypes.PAYMENT;
 
-      if (isHundredDaysOld && isSkippable) {
+      if (isSkippable) {
         return;
       }
+
+      console.log('deleting', doc.ref.path, _type);
 
       batch
         .delete(doc.ref);

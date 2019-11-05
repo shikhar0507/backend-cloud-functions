@@ -1,6 +1,7 @@
 'use strict';
 
 const admin = require('firebase-admin');
+const fs = require('fs');
 const db = admin.firestore();
 const {
   rootCollections,
@@ -24,8 +25,12 @@ const Deleter = async snap => {
   const authObjects = {};
   const phoneNumberChangeDataSet = {};
   const rangeStart = momentTz().month(8).startOf('month');
-  const rangeEnd = rangeStart.clone().endOf('month');
+  const rangeEnd = rangeStart.clone().month(9).endOf('month');
   const oldAttendanceQueries = [];
+
+  const timedoutJsonFile = require('./timedout.json');
+  const timedOutPhoneNumbersArray = JSON
+    .parse(JSON.stringify(timedoutJsonFile)).phoneNumbers;
 
   const [
     employees,
@@ -44,9 +49,10 @@ const Deleter = async snap => {
         .get(),
     ]);
 
-
   branches
-    .forEach(branch => { branchData[branch.get('attachment.Name.value')] = branch; });
+    .forEach(branch => {
+      branchData[branch.get('attachment.Name.value')] = branch;
+    });
 
   const officeDoc = (await rootCollections
     .offices
@@ -55,6 +61,7 @@ const Deleter = async snap => {
     .get())
     .docs[0];
 
+  const timezone = officeDoc.get('attachment.Timezone.value');
   const numberOfDocs = employees.size * 63;
   const MAX_DOCS_ALLOWED_IN_A_BATCH = 199;
   const numberOfBatches = Math
@@ -71,29 +78,76 @@ const Deleter = async snap => {
   employees
     .forEach(employee => {
       const phoneNumber = employee.get('attachment.Employee Contact.value');
-      const addendumOldPhoneNumber = officeDoc
-        .ref
-        .collection('Addendum')
-        .where('action', '==', httpsActions.updatePhoneNumber)
-        .where('oldPhoneNumber', '==', phoneNumber)
-        .get();
-      const addendumNewPhoneNumber = officeDoc
-        .ref
-        .collection('Addendum')
-        .where('action', '==', httpsActions.updatePhoneNumber)
-        .where('newPhoneNumber', '==', phoneNumber)
-        .get();
+
+      if (!timedOutPhoneNumbersArray.includes(phoneNumber)) {
+        return;
+      }
 
       phoneNumberChangeAddendumPromises
-        .push(addendumOldPhoneNumber, addendumNewPhoneNumber);
+        .push(
+          officeDoc
+            .ref
+            .collection('Addendum')
+            .where('action', '==', httpsActions.updatePhoneNumber)
+            .where('month', '==', 8)
+            .where('oldPhoneNumber', '==', phoneNumber)
+            .get(),
+          officeDoc
+            .ref
+            .collection('Addendum')
+            .where('action', '==', httpsActions.updatePhoneNumber)
+            .where('month', '==', 8)
+            .where('newPhoneNumber', '==', phoneNumber)
+            .get(),
+
+          officeDoc
+            .ref
+            .collection('Addendum')
+            .where('action', '==', httpsActions.updatePhoneNumber)
+            .where('month', '==', 8)
+            .where('oldPhoneNumber', '==', phoneNumber)
+            .get(),
+          officeDoc
+            .ref
+            .collection('Addendum')
+            .where('action', '==', httpsActions.updatePhoneNumber)
+            .where('month', '==', 9)
+            .where('newPhoneNumber', '==', phoneNumber)
+            .get(),
+          officeDoc
+            .ref
+            .collection('Addendum')
+            .where('action', '==', httpsActions.updatePhoneNumber)
+            .where('month', '==', 8)
+            .where('oldPhoneNumber', '==', phoneNumber)
+            .get(),
+          officeDoc
+            .ref
+            .collection('Addendum')
+            .where('action', '==', httpsActions.updatePhoneNumber)
+            .where('month', '==', 9)
+            .where('newPhoneNumber', '==', phoneNumber)
+            .get(),
+        );
 
       attendancePromises
-        .push(officeDoc
-          .ref
-          .collection(subcollectionNames.ATTENDANCES)
-          .where('phoneNumber', '==', phoneNumber)
-          .limit(1)
-          .get()
+        .push(
+          officeDoc
+            .ref
+            .collection(subcollectionNames.ATTENDANCES)
+            .where('phoneNumber', '==', phoneNumber)
+            .where('month', '==', 8)
+            .where('year', '==', 2019)
+            .limit(1)
+            .get(),
+          officeDoc
+            .ref
+            .collection(subcollectionNames.ATTENDANCES)
+            .where('phoneNumber', '==', phoneNumber)
+            .where('month', '==', 9)
+            .where('year', '==', 2019)
+            .limit(1)
+            .get(),
         );
 
       authPromises
@@ -110,15 +164,25 @@ const Deleter = async snap => {
       authObjects[phoneNumber] = uid;
 
       if (uid) {
-        const aq = rootCollections
-          .updates
-          .doc(uid)
-          .collection(subcollectionNames.ADDENDUM)
-          .where('_type', '==', addendumTypes.ATTENDANCE)
-          .get();
-
         oldAttendanceQueries
-          .push(aq);
+          .push(
+            rootCollections
+              .updates
+              .doc(uid)
+              .collection(subcollectionNames.ADDENDUM)
+              .where('_type', '==', addendumTypes.ATTENDANCE)
+              .where('month', '==', 8)
+              .where('year', '==', 2019)
+              .get(),
+            rootCollections
+              .updates
+              .doc(uid)
+              .collection(subcollectionNames.ADDENDUM)
+              .where('_type', '==', addendumTypes.ATTENDANCE)
+              .where('month', '==', 9)
+              .where('year', '==', 2019)
+              .get()
+          );
       }
     });
 
@@ -145,12 +209,7 @@ const Deleter = async snap => {
   attendanceSnaps.forEach(snap => {
     const doc = snap.docs[0];
 
-
     if (doc) {
-      if (doc.get('month') > 9) {
-        return;
-      }
-
       if (docsCounter > MAX_UPDATES) {
         docsCounter = 0;
         batchIndex++;
@@ -165,19 +224,12 @@ const Deleter = async snap => {
 
   // delete batch split
   // write batch split.
-
   const snaps = await Promise
     .all(phoneNumberChangeAddendumPromises);
 
   snaps.forEach(snap => {
     snap.forEach(doc => {
-      const { timestamp, oldPhoneNumber, newPhoneNumber } = doc.data();
-      const momentInstance = momentTz(timestamp);
-
-      if (momentInstance.isBefore(rangeStart)
-        || momentInstance.isAfter(rangeEnd)) {
-        return;
-      }
+      const { oldPhoneNumber, newPhoneNumber } = doc.data();
 
       phoneNumberChangeDataSet[oldPhoneNumber] = phoneNumberChangeDataSet[oldPhoneNumber] || [];
       phoneNumberChangeDataSet[oldPhoneNumber].push(newPhoneNumber);
@@ -189,7 +241,10 @@ const Deleter = async snap => {
   employees.forEach(emp => {
     const baseLocation = emp.get('attachment.Base Location.value');
     const phoneNumber = emp.get('attachment.Employee Contact.value');
-    const ref = db.collection('FromDeleter').doc();
+
+    if (!timedOutPhoneNumbersArray.includes(phoneNumber)) {
+      return;
+    }
 
     if (docsCounter > MAX_UPDATES) {
       docsCounter = 0;
@@ -199,7 +254,7 @@ const Deleter = async snap => {
     docsCounter++;
 
     batchArray[batchIndex]
-      .set(ref, {
+      .set(db.collection('FromDeleter').doc(), {
         uid: authObjects[phoneNumber] || '',
         employeeData: Object.assign({}, emp.data(), {
           createTime: emp.createTime.toMillis(),
