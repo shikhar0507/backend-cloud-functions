@@ -37,6 +37,7 @@ module.exports = async locals => {
     creator: {
       phoneNumber,
     },
+    office,
   } = locals.change.after.data();
 
   const momentNow = momentTz().tz(timezone);
@@ -136,6 +137,8 @@ module.exports = async locals => {
     .set(attendanceDocRef, Object.assign({
       month,
       year,
+      office,
+      officeId,
     }, attendanceUpdate), {
       merge: true,
     });
@@ -146,6 +149,8 @@ module.exports = async locals => {
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc(), Object.assign({}, attendanceUpdate.attendance[date], {
+        office,
+        officeId,
         _type: addendumTypes.ATTENDANCE,
         key: momentArDate.clone().startOf('day').valueOf(),
         id: `${date}${month}${year}${officeId}`,
@@ -200,13 +205,13 @@ module.exports = async locals => {
         action: httpsActions.comment,
         location: locals.addendumDocData.location,
         timestamp: Date.now(),
-        userDeviceTimestamp: locals.addendumDocData.userDeviceTimestamp,
+        userDeviceTimestamp: locals.addendumDocData.userDeviceTimestamp || '',
         activityId: locals.change.after.id,
         isSupportRequest: locals.addendumDocData.isSupportRequest,
         activityData: locals.change.after.data(),
         geopointAccuracy: locals.addendumDocData.accuracy || null,
         provider: locals.addendumDocData.provider || null,
-        userDisplayName: locals.addendumDocData.userDisplayName,
+        userDisplayName: locals.addendumDocData.userDisplayName || '',
       });
   }
 

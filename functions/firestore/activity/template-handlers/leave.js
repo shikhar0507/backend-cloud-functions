@@ -161,6 +161,7 @@ module.exports = async locals => {
               month,
               year,
               officeId,
+              activityId: locals.change.after.id,
               timestamp: Date.now(),
               office: locals.change.after.get('office'),
               attendance: 1,
