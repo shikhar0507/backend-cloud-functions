@@ -153,7 +153,7 @@ const getActivityObject = (doc, customClaims, employeeOf, phoneNumber) => {
 
   return {
     canEdit,
-    activityId: doc.id,
+    activityId: doc.get('activityId') || doc.id,
     status: doc.get('status'),
     schedule: doc.get('schedule'),
     venue: doc.get('venue'),
