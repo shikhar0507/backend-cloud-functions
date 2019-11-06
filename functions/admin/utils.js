@@ -1896,6 +1896,7 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
     return {
       phoneNumber,
       id: '',
+      activationDate: null,
       employeeName: '',
       employeeCode: '',
       baseLocation: '',
@@ -1911,6 +1912,7 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
   return {
     phoneNumber,
     id: employeeDoc.id,
+    activationDate: employeeDoc.createTime.toMillis(),
     employeeName: employeeDoc.get('attachment.Name.value'),
     employeeCode: employeeDoc.get('attachment.Employee Code.value'),
     baseLocation: employeeDoc.get('attachment.Base Location.value'),
