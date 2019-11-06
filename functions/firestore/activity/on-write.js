@@ -94,20 +94,13 @@ const getDistanceFromDistanceMatrix = async (origin, destination) => {
     .elements[0]
     .distance;
 
-  if (distanceData) {
-    return distanceData
-      .value / 1000;
-  }
-
   /**
-   * Fallback for the case when Google's Distance Matrix API
-   * doesn't return a valid path between the `origin`
-   * and `destination`.
+   * Not all origin => destinations might have a lega
+   * road path
+   * For those cases, distance travelled will be assumed
+   * to be 0. And km allowance will not be created.
    */
-  return haversineDistance(
-    origin,
-    destination
-  );
+  return distanceData ? distanceData.value / 1000 : null;
 };
 
 
@@ -3710,89 +3703,6 @@ const reimburseDailyAllowance = async locals => {
     .commit();
 };
 
-// const getDistanceValue = async params => {
-//   const {
-//     officeId,
-//     currDate,
-//     baseLocation,
-//     currentLocation,
-//     distanceTravelled,
-//     startPointLatitude,
-//     startPointLongitude,
-//     previousAddendumDoc,
-//   } = params;
-
-//   let baseLocationGeopoints;
-
-//   const prevDate = (() => {
-//     if (previousAddendumDoc && previousAddendumDoc.get('date')) {
-//       return previousAddendumDoc.get('date');
-//     }
-
-//     // This instance was triggered with the first
-//     // addendum for this user throughout the life.
-//     return null;
-//   })();
-
-//   if (currDate === prevDate) {
-//     return {
-//       previousIdentifier: previousAddendumDoc
-//         .get('venueQuery.location')
-//         || previousAddendumDoc
-//           .get('identifier') || '',
-//       previousGeopoint: previousAddendumDoc.get('location') || null,
-//       distance: distanceTravelled,
-//     };
-//   }
-
-//   // date is not same => day changed.
-//   // Calculate distance from start point to current location.
-//   // if start point is not present
-//   if (typeof startPointLatitude !== 'number'
-//     || typeof startPointLongitude !== 'number') {
-//     const baseLocationQuery = await rootCollections
-//       .offices
-//       .doc(officeId)
-//       .collection(subcollectionNames.ACTIVITIES)
-//       .where('attachment.Name.value', '==', baseLocation)
-//       .where('template', '==', 'branch')
-//       .where('status', '==', 'CONFIRMED')
-//       .limit(1)
-//       .get();
-
-//     const baseLocationDoc = baseLocationQuery.docs[0];
-
-//     if (!baseLocationDoc) {
-//       // No base location and no start point
-//       return {
-//         distance: 0,
-//         previousIdentifier: null,
-//         previousGeopoint: null,
-//       };
-//     }
-
-//     baseLocationGeopoints = baseLocationDoc
-//       .get('venue')[0]
-//       .location;
-//   }
-
-//   if (!baseLocationGeopoints) {
-//     return {
-//       previousIdentifier: null,
-//       distance: 0,
-//       previousGeopoint: null,
-//     };
-//   }
-
-//   return {
-//     previousIdentifier: baseLocation,
-//     previousGeopoint: baseLocationGeopoints,
-//     distance: await getDistanceFromDistanceMatrix(
-//       baseLocationGeopoints,
-//       currentLocation
-//     ),
-//   };
-// };
 
 const getStartPointObject = async params => {
   let geopoint = {};
@@ -3852,7 +3762,7 @@ const getStartPointObject = async params => {
   return { identifier, geopoint };
 };
 
-const kmAllowance2 = async locals => {
+const reimburseKmAllowance = async locals => {
   console.log('In km allowance');
   // if action is create, checkin - then look
   // for scheduled only false in
@@ -3952,8 +3862,6 @@ const kmAllowance2 = async locals => {
 
   console.log({ date, month, year });
 
-  // console.log({ distance, previousGeopoint, previousIdentifier });
-
   const commonReimObject = Object.assign({}, {
     date,
     month,
@@ -4023,6 +3931,32 @@ const kmAllowance2 = async locals => {
     locals.addendumDocData.location
   );
 
+  /**
+   * Using explicit check for null because we need to
+   * log the case where this happens.
+   */
+  if (distanceBetweenCurrentAndStartPoint === null) {
+    const o = {
+      date,
+      month,
+      year,
+      office,
+      phoneNumber,
+      origin: startPointDetails.geopoint,
+      destination: locals.addendumDocData.location,
+    };
+
+    await rootCollections
+      .instant
+      .doc()
+      .set({
+        subject: '(KM Allowance function) Distance travelled is null',
+        messageBody: JSON.stringify(o, ' ', 2),
+      });
+
+    return;
+  }
+
   if (distanceBetweenCurrentAndStartPoint < 1) {
     console.log('distance between curr and start point is < 1', distanceBetweenCurrentAndStartPoint);
 
@@ -4065,6 +3999,37 @@ const kmAllowance2 = async locals => {
 
     const amountThisTime = kmRate * distanceBetweenCurrentAndStartPoint;
 
+    console.log('amountThisTime', amountThisTime);
+
+    if (typeof amountThisTime !== 'number') {
+      // await rootCollections
+      //   .instant
+      //   .doc()
+      //   .set({
+      //     subject: `KM Allowance amount calculated is 'NaN'`,
+      //     messageBody: JSON
+      //       .stringify(Object.assign({}, employeeData, {
+      //         phoneNumber,
+      //         office,
+      //         startPointLatitude,
+      //         startPointLongitude,
+      //         kmRate,
+      //         distanceBetweenCurrentAndStartPoint,
+      //         distanceBetweenCurrentAndPrevious: locals.addendumDocData.distanceTravelled,
+      //       }), ' ', 2),
+      //   });
+
+      console.log('NaN in kmallowance');
+
+      return;
+    }
+
+    console.log({
+      amountThisTime,
+      kmRate,
+      distanceBetweenCurrentAndStartPoint,
+    });
+
     if (amountThisTime < 1) {
       console.log('Start point to current amount calculated is < 1', amountThisTime);
 
@@ -4074,7 +4039,7 @@ const kmAllowance2 = async locals => {
     // startPoint to current location
     batch
       .set(r1, Object.assign({}, employeeData, commonReimObject, {
-        amount: amountThisTime,
+        amount: amountThisTime.toFixed(0),
         distance: distanceBetweenCurrentAndStartPoint,
         previousIdentifier: startPointDetails.identifier,
         previousGeopoint: startPointDetails.geopoint,
@@ -4116,13 +4081,14 @@ const kmAllowance2 = async locals => {
         currentIdentifier: startPointDetails.identifier,
         currentGeopoint: startPointDetails.geopoint,
         intermediate: true,
-        amount: amountThisTime,
+        amount: amountThisTime.toFixed(0),
+        distance: distanceBetweenCurrentAndStartPoint,
       }));
 
     // start point to current location
     batch
       .set(u1, Object.assign({}, commonReimObject, {
-        amount: amountThisTime.toFixed(2),
+        amount: amountThisTime.toFixed(0),
         _type: addendumTypes.REIMBURSEMENT,
         id: `${date}${month}${year}${r1.id}`,
         key: momentNow.clone().startOf('day').valueOf(),
@@ -4149,7 +4115,7 @@ const kmAllowance2 = async locals => {
     batch
       .set(u2, Object.assign({}, commonReimObject, {
         _type: addendumTypes.REIMBURSEMENT,
-        amount: amountThisTime.toFixed(2),
+        amount: amountThisTime.toFixed(0),
         id: `${date}${month}${year}${r2.id}`,
         key: momentNow.clone().startOf('day').valueOf(),
         // used for attachment.Claim Type.value for 'claim' activities
@@ -4293,7 +4259,7 @@ const kmAllowance2 = async locals => {
     batch
       .set(u1, Object.assign({}, commonReimObject, {
         _type: addendumTypes.REIMBURSEMENT,
-        amount: amountThisTime.toFixed(2),
+        amount: amountThisTime.toFixed(0),
         id: `${date}${month}${year}${r1.id}`,
         key: momentNow.clone().startOf('day').valueOf(),
         // used for attachment.Claim Type.value for 'claim' activities
@@ -4342,8 +4308,7 @@ const handleReimbursement = async locals => {
   if (template === 'check-in'
     || locals.addendumDocData.action === httpsActions.checkIn) {
     await reimburseDailyAllowance(locals);
-    // await reimburseKmAllowance(locals);
-    await kmAllowance2(locals);
+    await reimburseKmAllowance(locals);
   }
 
   return;
@@ -4399,7 +4364,10 @@ const handleWorkday = async locals => {
   const date = momentNow.date();
   const month = momentNow.month();
   const year = momentNow.year();
-  const employeeData = await getEmployeeReportData(officeId, phoneNumber);
+  const employeeData = await getEmployeeReportData(
+    officeId,
+    phoneNumber
+  );
   const location = locals.addendumDocData.location;
   const batch = db.batch();
 
@@ -4476,39 +4444,67 @@ const handleWorkday = async locals => {
   attendanceObject
     .attendance[date].addendum = attendanceObject
       .attendance[date].addendum || [];
-  const currentDate = momentTz(locals.addendumDocData.timestamp);
+  const currentDate = momentTz(
+    locals.addendumDocData.timestamp
+  ).tz(timezone);
+  const empCreationUnix = employeeData.activationDate;
+  const dateStartForCreation = [];
 
-  if (attendanceObject.attendance[date].addendum[0]) {
-    const previousDate = momentTz(
-      attendanceObject.attendance[date].addendum[0].timestamp
-    );
+  if (empCreationUnix) {
+    const empCreationMonth = momentTz(empCreationUnix)
+      .tz(timezone)
+      .month();
 
-    if ((previousDate.date() !== currentDate.date())
-      && (currentDate.diff(previousDate, 'days', true) > 1)) {
-      // create empty objects for the dates which don't exist except
-      // the first and the last date
-      console.log('creating empty objects');
+    console.log('empCreationMonth', empCreationMonth);
+    console.log('currentMonth', month);
 
-      const datesToCreate = getNumbersbetween(
-        previousDate.date(),
-        currentDate.date() + 1
-      );
-
-      console.log('datesToCreate', datesToCreate);
-
-      datesToCreate
-        .forEach(date => {
-          /** Objects will be created only for the dates which don't exist */
-          if (date === previousDate.date()
-            || date === previousDate.date()) {
-            return;
-          }
-
-          attendanceObject
-            .attendance[date] = getDefaultAttendanceObject();
-        });
+    if (empCreationMonth !== month) {
+      dateStartForCreation.push(1);
+    } else {
+      getNumbersbetween(
+        1,
+        date + 1
+      ).forEach(date => dateStartForCreation.push(date));
     }
   }
+
+  console
+    .log('dateStartForCreation:', dateStartForCreation);
+
+  // dateStartForCreation.forEach(date => {
+  //   if (attendanceObject.attendance.hasOwnProperty(date)) {
+  //     return;
+  //   }
+
+  //   attendanceObject
+  //     .attendance[date] = getDefaultAttendanceObject();
+
+  //   const ref = rootCollections
+  //     .updates
+  //     .doc(uid)
+  //     .collection(subcollectionNames.ADDENDUM)
+  //     .doc();
+
+  //   batch
+  //     .set(ref, Object.assign({}, getDefaultAttendanceObject(), {
+  //       uid,
+  //       date,
+  //       month,
+  //       year,
+  //       office,
+  //       officeId,
+  //       phoneNumber,
+  //       timestamp: Date.now(),
+  //       _type: addendumTypes.ATTENDANCE,
+  //       key: momentTz()
+  //         .date(date)
+  //         .month(month)
+  //         .year(year)
+  //         .startOf('day')
+  //         .valueOf(),
+  //       id: `${date}${month}${year}${officeId}`,
+  //     }));
+  // });
 
   attendanceObject
     .attendance[date]
