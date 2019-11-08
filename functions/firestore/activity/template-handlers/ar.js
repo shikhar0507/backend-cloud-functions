@@ -128,7 +128,7 @@ module.exports = async locals => {
   console.log('AR for', momentArDate.format(dateFormats.DATE));
 
   const attendanceUpdate = Object
-    .assign({}, attendanceDocData, employeeData);
+    .assign({}, employeeData, attendanceDocData);
 
   console.log('attendanceDocRef', attendanceDocRef.path);
   console.log('attendanceUpdate', attendanceUpdate.attendance[date]);
@@ -139,6 +139,7 @@ module.exports = async locals => {
       year,
       office,
       officeId,
+      timestamp: Date.now(),
     }, attendanceUpdate), {
       merge: true,
     });
@@ -149,8 +150,13 @@ module.exports = async locals => {
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc(), Object.assign({}, attendanceUpdate.attendance[date], {
+        date,
+        month,
+        year,
         office,
         officeId,
+        timestamp: Date.now(),
+        activityId: locals.change.after.id,
         _type: addendumTypes.ATTENDANCE,
         key: momentArDate.clone().startOf('day').valueOf(),
         id: `${date}${month}${year}${officeId}`,
