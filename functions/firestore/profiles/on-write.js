@@ -101,19 +101,13 @@ const manageAddendum = async change => {
     .get();
 
   const batch = db.batch();
-  const momentHundredDaysAgo = momentTz()
-    .subtract(100, 'days')
-    .startOf('day');
 
   docs
     .forEach(doc => {
       const {
-        timestamp,
+        // timestamp,
         _type,
       } = doc.data();
-      const momentNow = momentTz(timestamp);
-      const isHundredDaysOld = momentNow
-        .isBefore(momentHundredDaysAgo);
 
       /**
        * `Attendance`, `Payments` and `Reimbursements`
