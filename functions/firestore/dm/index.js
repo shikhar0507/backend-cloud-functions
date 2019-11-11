@@ -55,7 +55,7 @@ module.exports = (conn) => {
     return sendResponse(
       conn,
       code.badRequest,
-      `${conn.req.body.assignee} is invalud`
+      `${conn.req.body.assignee} is invalid`
     );
   }
 
