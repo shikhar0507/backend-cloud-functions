@@ -233,6 +233,7 @@ module.exports = async conn => {
       .doc(conn.requester.uid)
       .collection(subcollectionNames.ADDENDUM)
       .where('timestamp', '>', from)
+      .orderBy('timestamp', 'asc')
       .get(),
   ];
 
@@ -244,12 +245,14 @@ module.exports = async conn => {
           .doc(conn.requester.phoneNumber)
           .collection(subcollectionNames.ACTIVITIES)
           .where('timestamp', '>', from)
+          .orderBy('timestamp', 'asc')
           .get(),
         rootCollections
           .profiles
           .doc(conn.requester.phoneNumber)
           .collection(subcollectionNames.SUBSCRIPTIONS)
           .where('timestamp', '>', from)
+          .orderBy('timestamp', 'asc')
           .get()
       );
   }
