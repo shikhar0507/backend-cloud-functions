@@ -239,7 +239,7 @@ module.exports = async conn => {
 
   const timezone = officeDoc.get('attachment.Timezone.value');
   const momentNow = momentTz().tz(timezone);
-  const firstDayOfMonthlyCycle = officeDoc.get('attachment.First Day Of Monthly Cycle.value');
+  const firstDayOfMonthlyCycle = officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
   const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentNow.date();
 
   const cycleStart = (() => {
