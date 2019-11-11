@@ -52,6 +52,7 @@ const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
   return recursiveFetch(baseQuery, [].concat(intermediate, result.docs), result.docs);
 };
 
+
 const getEmployeeCreationDate = (activationDate, momentInstance, timezone) => {
   const activationDateMoment = momentTz(activationDate).tz(timezone);
 
@@ -62,6 +63,7 @@ const getEmployeeCreationDate = (activationDate, momentInstance, timezone) => {
 
   return '';
 };
+
 
 const getLeaveStatus = attendanceDateObject => {
   if (attendanceDateObject.leave.leaveType) {
@@ -99,6 +101,7 @@ const getTypeValue = (attendanceDateObject = {}) => {
   return '';
 };
 
+
 const getStatusValue = (attendanceDateObject = {}) => {
   if (attendanceDateObject.hasOwnProperty('attendance')) {
     return attendanceDateObject.attendance;
@@ -106,6 +109,7 @@ const getStatusValue = (attendanceDateObject = {}) => {
 
   return '';
 };
+
 
 const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
   if (attendanceDateObject.weeklyOff
@@ -177,8 +181,6 @@ const rangeCallback = params => {
     arCountMap,
     attendanceCountMap,
     attendanceSumMap,
-  } = params;
-  const {
     region,
     employeeCode,
     employeeName,
@@ -186,7 +188,7 @@ const rangeCallback = params => {
     activationDate,
     department,
     baseLocation,
-  } = attendanceDoc.data() || {};
+  } = params;
 
   const attendance = attendanceDoc.get('attendance') || {};
 
@@ -194,7 +196,9 @@ const rangeCallback = params => {
   attendance[date] = attendance[date] || {};
   const hasAttendanceProperty = attendance[date].hasOwnProperty('attendance');
 
-  attendance[date].leave = attendance[date].leave || {};
+  attendance[
+    date
+  ].leave = attendance[date].leave || {};
 
   if (attendance[date].leave.leaveType) {
     allLeaveTypes
@@ -219,7 +223,10 @@ const rangeCallback = params => {
       .get(phoneNumber) || 0;
 
     holidayCountMap
-      .set(phoneNumber, oldSet + 1);
+      .set(
+        phoneNumber,
+        oldSet + 1
+      );
   }
 
   if (attendance[date].weeklyOff) {
@@ -227,20 +234,29 @@ const rangeCallback = params => {
       .get(phoneNumber) || 0;
 
     weeklyOffCountMap
-      .set(phoneNumber, oldSet + 1);
+      .set(
+        phoneNumber,
+        oldSet + 1
+      );
   }
 
   if (attendance[date].holiday) {
     const oldSet = holidayCountMap.get(phoneNumber) || 0;
 
     holidayCountMap
-      .set(phoneNumber, oldSet + 1);
+      .set(
+        phoneNumber,
+        oldSet + 1
+      );
   }
 
   if (attendance[date].onAr) {
     const oldSet = arCountMap.get(phoneNumber) || 0;
     arCountMap
-      .set(phoneNumber, oldSet + 1);
+      .set(
+        phoneNumber,
+        oldSet + 1
+      );
   }
 
   if (hasAttendanceProperty) {
@@ -254,12 +270,10 @@ const rangeCallback = params => {
 
     const oldAttendanceSum = attendanceSumMap.get(phoneNumber) || 0;
 
-    const n = attendance[date].attendance;
-
     attendanceSumMap
       .set(
         phoneNumber,
-        oldAttendanceSum + n
+        oldAttendanceSum + attendance[date].attendance
       );
   }
 
@@ -298,9 +312,8 @@ module.exports = async locals => {
   const momentPrevMonth = momentYesterday.clone().subtract(1, 'month');
   /** Just for better readability. */
   const cycleEndMoment = momentYesterday;
-
   const allAttendanceDocs = [];
-  const allLeaveTypes = new Set();
+  let allLeaveTypes = new Set();
   /**
  * Object which stores employee data for creating excel sheet entries
  * with employee contact, base location, region, department, etc.
@@ -313,8 +326,6 @@ module.exports = async locals => {
   const allPhoneNumbers = new Set();
   const attendanceCountMap = new Map();
   const attendanceSumMap = new Map();
-
-
   const workbook = await xlsxPopulate
     .fromBlankAsync();
   const payrollSummary = workbook
@@ -359,9 +370,10 @@ module.exports = async locals => {
       .where('month', '==', momentPrevMonth.month())
       .where('year', '==', momentPrevMonth.year());
 
-    const prevMonthDocs = await recursiveFetch(baseQuery, []);
     allAttendanceDocs
-      .push(...prevMonthDocs);
+      .push(
+        ...await recursiveFetch(baseQuery, [])
+      );
   }
 
   const baseQuery = locals
@@ -371,33 +383,36 @@ module.exports = async locals => {
     .where('month', '==', momentYesterday.month())
     .where('year', '==', momentYesterday.year());
 
-  const yesterdayMonthDocs = await recursiveFetch(baseQuery, []);
-
   allAttendanceDocs
-    .push(...yesterdayMonthDocs);
+    .push(
+      ...await recursiveFetch(baseQuery, [])
+    );
 
   let rowIndex = 0;
 
   allAttendanceDocs
     .forEach(attendanceDoc => {
-      // Latest month among the two months for which the data is being fetched
-      const monthInDoc = attendanceDoc.get('month');
-      const isLaterMonth = monthInDoc === momentYesterday.month();
-      const phoneNumber = attendanceDoc.get('phoneNumber');
+      const {
+        phoneNumber,
+        employeeName,
+        employeeCode,
+        baseLocation,
+        region,
+        department,
+        activationDate,
+      } = attendanceDoc.data();
 
       allPhoneNumbers
         .add(phoneNumber);
 
-      if (isLaterMonth) {
-        employeeData
-          .set(phoneNumber, {
-            employeeName: attendanceDoc.get('employeeName'),
-            employeeCode: attendanceDoc.get('employeeCode'),
-            baseLocation: attendanceDoc.get('baseLocation'),
-            region: attendanceDoc.get('region'),
-            department: attendanceDoc.get('department'),
-          });
-      }
+      employeeData
+        .set(phoneNumber, {
+          employeeName,
+          employeeCode,
+          baseLocation,
+          region,
+          department,
+        });
 
       // Entries for previous month (date = first day of monthly cycle)
       // the end of the month
@@ -419,6 +434,13 @@ module.exports = async locals => {
             arCountMap,
             attendanceCountMap,
             attendanceSumMap,
+            region,
+            employeeCode,
+            employeeName,
+            phoneNumber,
+            department,
+            baseLocation,
+            activationDate,
             momentInstance: momentPrevMonth.clone(),
           };
 
@@ -444,6 +466,13 @@ module.exports = async locals => {
             arCountMap,
             attendanceCountMap,
             attendanceSumMap,
+            region,
+            employeeCode,
+            employeeName,
+            phoneNumber,
+            department,
+            baseLocation,
+            activationDate,
             momentInstance: momentYesterday.clone(),
           };
 
@@ -457,7 +486,7 @@ module.exports = async locals => {
    * The summary sheet will use this order to put the dynamically generated
    * columns and their values.
    */
-  // allLeaveTypes = [...allLeaveTypes.values()];
+  allLeaveTypes = [...allLeaveTypes.values()];
 
   let summaryRowIndex = 0;
 
@@ -538,7 +567,7 @@ module.exports = async locals => {
     'MTD',
     'Total Days',
     'Payable Days',
-    ...allLeaveTypes.values(),
+    ...allLeaveTypes,
   ].forEach((value, index) => {
     payrollSummary
       .cell(`${alphabetsArray[index]}1`)
