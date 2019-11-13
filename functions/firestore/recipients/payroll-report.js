@@ -57,8 +57,10 @@ const getEmployeeCreationDate = (activationDate, momentInstance, timezone) => {
   const activationDateMoment = momentTz(activationDate).tz(timezone);
 
   if (activationDate
+    && momentInstance.year() === activationDateMoment.year()
     && momentInstance.month() === activationDateMoment.month()) {
-    return activationDateMoment.format(dateFormats.DATE);
+    return activationDateMoment
+      .format(dateFormats.DATE);
   }
 
   return '';
@@ -185,12 +187,20 @@ const rangeCallback = params => {
     employeeCode,
     employeeName,
     phoneNumber,
-    activationDate,
     department,
     baseLocation,
+    attendance,
+    month,
   } = params;
 
-  const attendance = attendanceDoc.get('attendance') || {};
+  // const attendance = attendanceDoc.get('attendance') || {};
+  const activationDate = (() => {
+    if (!attendanceDoc) {
+      return '';
+    }
+
+    return attendanceDoc.get('activationDate');
+  })();
 
   /** Data might not exist for someone for a certain date. */
   attendance[date] = attendance[date] || {};
@@ -388,22 +398,19 @@ module.exports = async locals => {
       ...await recursiveFetch(baseQuery, [])
     );
 
-  let rowIndex = 0;
+  const docsMap = {};
 
   allAttendanceDocs
-    .forEach(attendanceDoc => {
+    .forEach(doc => {
       const {
+        month,
         phoneNumber,
         employeeName,
         employeeCode,
         baseLocation,
         region,
         department,
-        activationDate,
-      } = attendanceDoc.data();
-
-      allPhoneNumbers
-        .add(phoneNumber);
+      } = doc.data();
 
       employeeData
         .set(phoneNumber, {
@@ -414,11 +421,35 @@ module.exports = async locals => {
           department,
         });
 
+      const key = `${phoneNumber}__${month}`;
+      docsMap[key] = doc;
+
+      allPhoneNumbers
+        .add(phoneNumber);
+    });
+
+  let rowIndex = 0;
+
+  const prevMonth = momentPrevMonth.month();
+  const currMonth = momentYesterday.month();
+
+  allPhoneNumbers
+    .forEach(phoneNumber => {
+      const {
+        employeeName,
+        employeeCode,
+        baseLocation,
+        region,
+        department,
+      } = employeeData.get(phoneNumber);
+
       // Entries for previous month (date = first day of monthly cycle)
       // the end of the month
       firstRange
         .forEach(date => {
           rowIndex++;
+          const key = `${phoneNumber}__${prevMonth}`;
+          const attDoc = docsMap[key];
 
           const params = {
             allLeaveTypes,
@@ -426,7 +457,6 @@ module.exports = async locals => {
             payrollSheet,
             date,
             rowIndex,
-            attendanceDoc,
             employeeData,
             weeklyOffCountMap,
             holidayCountMap,
@@ -439,26 +469,30 @@ module.exports = async locals => {
             employeeName,
             phoneNumber,
             department,
+            month: prevMonth,
             baseLocation,
-            activationDate,
+            attendanceDoc: attDoc,
+            attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
             momentInstance: momentPrevMonth.clone(),
           };
 
           rangeCallback(params);
         });
 
-      // Entries for yesterday's month
       secondRange
         .forEach(date => {
           rowIndex++;
 
+          const key = `${phoneNumber}__${currMonth}`;
+          const attDoc = docsMap[key];
+
           const params = {
+            month: currMonth,
             allLeaveTypes,
             timezone,
             payrollSheet,
             date,
             rowIndex,
-            attendanceDoc,
             employeeData,
             weeklyOffCountMap,
             holidayCountMap,
@@ -472,7 +506,7 @@ module.exports = async locals => {
             phoneNumber,
             department,
             baseLocation,
-            activationDate,
+            attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
             momentInstance: momentYesterday.clone(),
           };
 
@@ -490,50 +524,52 @@ module.exports = async locals => {
 
   let summaryRowIndex = 0;
 
-  allPhoneNumbers.forEach(phoneNumber => {
-    const {
-      employeeName,
-      employeeCode,
-      baseLocation,
-      region,
-      department,
-    } = employeeData.get(phoneNumber) || {};
+  allPhoneNumbers
+    .forEach(phoneNumber => {
+      const {
+        employeeName,
+        employeeCode,
+        baseLocation,
+        region,
+        department,
+      } = employeeData
+        .get(phoneNumber) || {};
 
-    const values = [
-      employeeName,
-      phoneNumber,
-      employeeCode,
-      baseLocation,
-      region,
-      department,
-      arCountMap.get(phoneNumber) || 0,
-      weeklyOffCountMap.get(phoneNumber) || 0,
-      holidayCountMap.get(phoneNumber) || 0,
-      attendanceCountMap.get(phoneNumber) || 0, // mtd
-      totalDays,
-      attendanceSumMap.get(phoneNumber) || 0,
-    ];
+      const values = [
+        employeeName,
+        phoneNumber,
+        employeeCode,
+        baseLocation,
+        region,
+        department,
+        arCountMap.get(phoneNumber) || 0,
+        weeklyOffCountMap.get(phoneNumber) || 0,
+        holidayCountMap.get(phoneNumber) || 0,
+        attendanceCountMap.get(phoneNumber) || 0, // mtd
+        totalDays,
+        attendanceSumMap.get(phoneNumber) || 0,
+      ];
 
-    const leaveTypesForUser = leaveTypeCountMap
-      .get(phoneNumber) || {};
+      const leaveTypesForUser = leaveTypeCountMap
+        .get(phoneNumber) || {};
 
-    allLeaveTypes
-      .forEach(leaveType => {
-        const count = leaveTypesForUser[leaveType] || 0;
+      allLeaveTypes
+        .forEach(leaveType => {
+          const count = leaveTypesForUser[leaveType] || 0;
 
-        values
-          .push(count);
-      });
+          values
+            .push(count);
+        });
 
-    values
-      .forEach((value, innerIndex) => {
-        payrollSummary
-          .cell(`${alphabetsArray[innerIndex]}${summaryRowIndex + 2}`)
-          .value(value);
-      });
+      values
+        .forEach((value, innerIndex) => {
+          payrollSummary
+            .cell(`${alphabetsArray[innerIndex]}${summaryRowIndex + 2}`)
+            .value(value);
+        });
 
-    summaryRowIndex++;
-  });
+      summaryRowIndex++;
+    });
 
   [
     'Employee Name',
@@ -592,9 +628,9 @@ module.exports = async locals => {
     to: locals.messageObject.to,
   }, ' ', 2));
 
-  await locals
-    .sgMail
-    .sendMultiple(locals.messageObject);
+  // await locals
+  //   .sgMail
+  //   .sendMultiple(locals.messageObject);
 
   console.log('mail sent');
 
