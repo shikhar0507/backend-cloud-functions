@@ -272,15 +272,20 @@ const checkAuthorizationToken = async conn => {
   const result = headerValid(conn.req.headers);
 
   if (!result.isValid) {
-    return sendResponse(conn, code.forbidden, result.message);
+    return sendResponse(
+      conn,
+      code.forbidden,
+      result.message
+    );
   }
 
   try {
-    const decodedIdToken = await auth.verifyIdToken(
-      result.authToken,
-      true // checkRevoked is true in order to block all requests
-      // from revoked sessions by a user.
-    );
+    const decodedIdToken = await auth
+      .verifyIdToken(
+        result.authToken,
+        true // checkRevoked is true in order to block all requests
+        // from revoked sessions by a user.
+      );
 
     return getUserAuthFromIdToken(conn, decodedIdToken);
   } catch (error) {
@@ -361,8 +366,7 @@ module.exports = async (req, res) => {
   }
 
   if (env.isProduction
-    && conn.req.query.cashFreeToken
-    === env.cashFreeToken) {
+    && conn.req.query.cashFreeToken === env.cashFreeToken) {
     await rootCollections
       .errors
       .doc()
@@ -383,6 +387,15 @@ module.exports = async (req, res) => {
       code.forbidden,
       `Missing 'X-CF-Secret' header in the request headers`
     );
+  }
+
+  if (conn.req.path === '/webhook/sendgrid'
+    // && env.isProduction
+    && conn.req.method === 'POST'
+    && conn.req.query.token === env.sgMailParseToken) {
+    await require('../webhooks/sendgrid')(conn);
+
+    return sendResponse(conn, code.ok);
   }
 
   return checkAuthorizationToken(conn);
