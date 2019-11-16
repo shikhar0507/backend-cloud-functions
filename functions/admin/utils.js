@@ -27,10 +27,12 @@
 
 const { code } = require('./responses');
 const {
+  db,
   auth,
   rootCollections,
 } = require('./admin');
 const {
+  addendumTypes,
   dateFormats,
   httpsActions,
   sendGridTemplateIds,
@@ -99,14 +101,6 @@ const sendResponse = (conn, statusCode = code.ok, message = '') => {
 
   /** 2xx codes denote success. */
   const success = statusCode <= 226;
-
-  /**
-   * Requests from sendGrid are retried whenever the status
-   * code is 4xx or 5xx. We are explicitly avoiding this.
-   */
-  if (conn.req.query.token === env.sgMailParseToken) {
-    conn.res.writeHead(code.ok, conn.headers);
-  }
 
   if (!success) {
     console.log(JSON.stringify({
@@ -1904,6 +1898,7 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
       department: '',
       minimumDailyActivityCount: '',
       minimumWorkingHours: '',
+      locationValidationCheck: '',
     };
   }
 
@@ -1912,6 +1907,7 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
   return {
     phoneNumber,
     id: employeeDoc.id,
+    locationValidationCheck: employeeDoc.get('attachment.Location Validation Check.value'),
     activationDate: employeeDoc.createTime.toMillis(),
     employeeName: employeeDoc.get('attachment.Name.value'),
     employeeCode: employeeDoc.get('attachment.Employee Code.value'),
@@ -1924,7 +1920,231 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
 };
 
 
+const populateWeeklyOffInAttendance = async params => {
+  const {
+    month,
+    year,
+    employeeDoc,
+    uid,
+  } = params;
+
+  if (!employeeDoc) {
+    return;
+  }
+
+  const {
+    office,
+    officeId,
+    attachment: {
+      'Employee Contact': {
+        value: phoneNumber,
+      },
+      'Base Location': {
+        value: baseLocation,
+      },
+    },
+  } = employeeDoc.data();
+
+  const attendanceDoc = (
+    await rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Attendances')
+      .where('phoneNumber', '==', phoneNumber)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .limit(1)
+      .get()
+  ).docs[0];
+
+  console.log('baseLocation', baseLocation);
+
+  const attendanceData = attendanceDoc ? attendanceDoc.data() : {};
+  const attendanceRef = attendanceDoc ? attendanceDoc.ref : rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Attendances')
+    .doc();
+  const branchDoc = (
+    await rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Activities')
+      .where('template', '==', 'branch')
+      .where('attachment.Name.value', '==', baseLocation)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
+  ).docs[0];
+
+  /**
+   * Redundant because branch should exist
+   * if assigned to an employee
+   */
+  if (!branchDoc) {
+    console.log('no branch set');
+    return;
+  }
+
+  attendanceData
+    .attachment = attendanceData
+      .attachment || {};
+
+  const batch = db.batch();
+  const weeklyOff = branchDoc.get('attachment.Weekly Off.value');
+  const datesInMonth = getNumbersbetween(
+    1,
+    momentTz().month(month).year(year).daysInMonth() + 1
+  );
+
+  datesInMonth.forEach(date => {
+    attendanceData
+      .attendance[
+      date
+    ] = attendanceData.attendance[date] || getDefaultAttendanceObject();
+
+    if (!weeklyOff) {
+      return;
+    }
+
+    const weekdayName = momentTz()
+      .month(month)
+      .year(year)
+      .date(date)
+      .format('dddd')
+      .toLowerCase();
+
+    if (weekdayName !== weeklyOff) {
+      return;
+    }
+
+    attendanceData
+      .attendance[
+      date
+    ].weeklyOff = true;
+    attendanceData
+      .attendance[
+      date
+    ] = 1;
+
+    const updatesRef = rootCollections
+      .updates
+      .doc(uid)
+      .collection('Addendum')
+      .doc();
+
+    batch
+      .set(updatesRef, {
+        uid,
+        date,
+        month,
+        year,
+        office,
+        officeId,
+        phoneNumber,
+        key: momentTz()
+          .date(date)
+          .month(month)
+          .year(year)
+          .startOf('date')
+          .valueOf(),
+        id: `${date}${month}${year}${officeId}`,
+        _type: addendumTypes.ATTENDANCE,
+        timestamp: Date.now(),
+      });
+  });
+
+  const holidays = branchDoc.get('schedule');
+
+  holidays
+    .forEach(holiday => {
+      const { startTime } = holiday;
+
+      if (!Number.isInteger(startTime)) {
+        return;
+      }
+
+      // Not adjusting timezone
+      const momentStartTime = momentTz(startTime);
+      // .tz(timezone);
+      const startTimeDate = momentStartTime.date();
+
+      if (momentStartTime.month() !== month) {
+        return;
+      }
+
+      if (momentStartTime.year() !== year) {
+        return;
+      }
+
+      attendanceData
+        .attendance[
+        startTimeDate
+      ] = attendanceData.attendance[startTimeDate] || getDefaultAttendanceObject();
+
+      attendanceData
+        .attendance[
+        startTimeDate
+      ].holiday = true;
+
+      attendanceData
+        .attendance[
+        startTimeDate
+      ].attendance = 1;
+
+      const updatesRef = rootCollections
+        .updates
+        .doc(uid)
+        .collection('Addendum')
+        .doc();
+
+      batch
+        .set(updatesRef, {
+          uid,
+          month,
+          year,
+          office,
+          officeId,
+          phoneNumber,
+          date: startTimeDate,
+          key: momentTz()
+            .date(startTimeDate)
+            .month(month)
+            .year(year)
+            .startOf('date')
+            .valueOf(),
+          id: `${startTimeDate}${month}${year}${officeId}`,
+          _type: addendumTypes.ATTENDANCE,
+          timestamp: Date.now(),
+        });
+    });
+
+  const employeeData = {
+    phoneNumber,
+    id: employeeDoc.id,
+    activationDate: employeeDoc.createTime.toMillis(),
+    employeeName: employeeDoc.get('attachment.Name.value'),
+    employeeCode: employeeDoc.get('attachment.Employee Code.value'),
+    baseLocation: employeeDoc.get('attachment.Base Location.value'),
+    region: employeeDoc.get('attachment.Region.value'),
+    department: employeeDoc.get('attachment.Department.value'),
+    minimumDailyActivityCount: employeeDoc.get('attachment.Minimum Daily Activity Count.value'),
+    minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
+  };
+
+  batch
+    .set(attendanceRef,
+      Object.assign({}, employeeData, attendanceData), {
+      merge: true,
+    });
+
+  return batch
+    .commit();
+};
+
+
 module.exports = {
+  populateWeeklyOffInAttendance,
   getAuth,
   slugify,
   sendSMS,
