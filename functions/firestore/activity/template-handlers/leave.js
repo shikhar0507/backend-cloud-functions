@@ -94,8 +94,6 @@ module.exports = async locals => {
     .all(attendanceDocPromises);
   const conflictingDates = [];
 
-  console.log('attendanceSnaps', attendanceSnaps.length);
-
   attendanceSnaps
     .forEach(snap => {
       const doc = snap.docs[0];
@@ -147,9 +145,9 @@ module.exports = async locals => {
           docData
             .attendance[date]
             .leave[status] = {
-              phoneNumber: locals.addendumDocData.user,
-              timestamp: Date.now(),
-            };
+            phoneNumber: locals.addendumDocData.user,
+            timestamp: Date.now(),
+          };
 
           batch
             .set(rootCollections
@@ -179,16 +177,14 @@ module.exports = async locals => {
             });
         });
 
-      const reimbursementsDocRef = doc ? doc.ref : rootCollections
+      const attendanceDocRef = doc ? doc.ref : rootCollections
         .offices
         .doc(officeId)
         .collection(subcollectionNames.ATTENDANCES)
         .doc();
 
-      console.log('reimbursements Path', reimbursementsDocRef.path);
-
       batch
-        .set(reimbursementsDocRef,
+        .set(attendanceDocRef,
           Object.assign({}, docData, employeeData), {
           merge: true,
         });

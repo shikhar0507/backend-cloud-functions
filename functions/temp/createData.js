@@ -5,10 +5,8 @@ const {
   rootCollections,
 } = require('../admin/admin');
 const {
-  subcollectionNames,
-  httpsActions,
-  addendumTypes,
-} = require('../admin/constants');
+  getNumbersbetween,
+} = require('../admin/utils');
 const momentTz = require('moment-timezone');
 const {
   getStatusForDay,
@@ -62,449 +60,374 @@ const getDefaultAttendanceObject = () => {
   };
 };
 
-const getReportEmployeeMeta = employeeData => {
-  return {
-    id: employeeData.id,
-    activationDate: employeeData.createTime,
-    phoneNumber: employeeData.attachment['Employee Contact'].value,
-    employeeName: employeeData.attachment.Name.value,
-    employeeCode: employeeData.attachment['Employee Code'].value,
-    baseLocation: employeeData.attachment['Base Location'].value,
-    region: employeeData.attachment.Region.value,
-    department: employeeData.attachment.Department.value,
-  };
-};
 
 const Creator = async snap => {
+  const batch = db.batch();
+  const year = 2019;
   const {
     uid,
-    employeeData,
-    branchData,
-    phoneNumberChanges,
+    branchDoc,
+    employeeDoc,
   } = snap.data();
-  const year = 2019;
-  const batch = db.batch();
-  const allDocsWrittenPaths = [];
-  const checkInAddendumPromises = [];
-  const office = employeeData.office;
-  const officeId = employeeData.officeId;
-  const latestPhoneNumber = employeeData.attachment['Employee Contact'].value;
-  const locationValidationCheck = employeeData.attachment['Location Validation Check'].value;
-  const minimumDailyActivityCount = employeeData.attachment['Minimum Daily Activity Count'].value;
-  const minimumWorkingHours = employeeData.attachment['Minimum Working Hours'].value;
-  const reportEmployeeMeta = getReportEmployeeMeta(employeeData);
-  const attendanceDocDataSept = Object.assign({
-    month: 8,
-    year: 2019,
-  }, reportEmployeeMeta);
-  const attendanceDocDataOct = Object.assign({
-    office,
-    officeId,
-    month: 9,
-    year: 2019,
-  }, reportEmployeeMeta);
 
-  if (branchData && branchData.attachment) {
-    const weeklyOffFromBranch = branchData.attachment['Weekly Off'].value;
-    const rangeStart = momentTz().month(8).startOf('month');
-    const rangeEnd = momentTz().month(9).endOf('month');
-    const tempMoment = rangeStart.clone();
+  const phoneNumber = employeeDoc
+    .attachment['Employee Contact']
+    .value;
 
-    while (tempMoment.isSameOrBefore(rangeEnd)) {
-      const month = tempMoment.month();
-      const date = tempMoment.date();
-      const weekdayName = tempMoment.format('dddd').toLowerCase();
-      const obj = (() => {
-        if (month === 8) {
-          return attendanceDocDataSept;
-        }
+  if (!uid) {
+    console.log('Skipping. No uid', phoneNumber);
 
-        return attendanceDocDataOct;
-      })();
-
-      if (weeklyOffFromBranch === weekdayName) {
-        obj
-          .attendance = obj.attendance || {};
-        obj
-          .attendance[date] = obj.attendance[date] || getDefaultAttendanceObject();
-
-        obj
-          .attendance[date].weeklyOff = true;
-        obj
-          .attendance[date].attendance = 1;
-      }
-
-      tempMoment
-        .add(1, 'days');
-    }
+    return;
   }
 
-  if (branchData && branchData.schedule) {
-    const branchHolidays = branchData.schedule;
-
-    branchHolidays.forEach(schedule => {
-      const { startTime } = schedule;
-
-      if (!startTime) {
-        return;
-      }
-
-      const momentNow = momentTz(startTime);
-      const date = momentNow.date();
-      const month = momentNow.month();
-
-      if (month !== 8 && month !== 9) {
-        return;
-      }
-
-      const obj = (() => {
-        if (month === 8) {
-          return attendanceDocDataSept;
-        }
-
-        return attendanceDocDataOct;
-      })();
-
-      obj
-        .attendance = obj.attendance || {};
-      obj
-        .attendance[date] = obj.attendance[date] || getDefaultAttendanceObject();
-      obj
-        .attendance[date].holiday = true;
-      obj
-        .attendance[date].attendance = 1;
-    });
-  }
-
-  [
-    latestPhoneNumber,
-    ...phoneNumberChanges,
-  ].forEach(phoneNumber => {
-    const checkInAddendumPromise = rootCollections
-      .offices
-      .doc(officeId)
-      .collection(subcollectionNames.ADDENDUM)
-      .where('activityData.template', '==', 'check-in')
-      .where('action', '==', httpsActions.create)
-      .where('year', '==', 2019)
-      .where('user', '==', phoneNumber);
-
-    checkInAddendumPromises
-      .push(checkInAddendumPromise.where('month', '==', 8).get());
-    checkInAddendumPromises
-      .push(checkInAddendumPromise.where('month', '==', 9).get());
-  });
-
-  const checkInSnaps = await Promise
-    .all(checkInAddendumPromises);
-  const allCheckInAddendumsSorted = [];
-
-  checkInSnaps.forEach(snap => {
-    snap.forEach(doc => {
-      allCheckInAddendumsSorted.push(doc);
-    });
-  });
-
-  allCheckInAddendumsSorted.sort((a, b) => {
-    return a.get('timestamp') - b.get('timestamp');
-  });
-
-  // 1. weekly off, holiday true and attendance 1
-  // 2.
-
-  allCheckInAddendumsSorted
-    .forEach(doc => {
-      const { timestamp } = doc.data();
-      const momentNow = momentTz(timestamp);
-      const date = momentNow.date();
-      const month = momentNow.month();
-      const { location, distanceAccurate } = doc.data();
-
-      if (locationValidationCheck === true
-        && distanceAccurate === false) {
-        return;
-      }
-
-      const obj = (() => {
-        if (month === 8) {
-          return attendanceDocDataSept;
-        }
-
-        return attendanceDocDataOct;
-      })();
-
-      obj
-        .attendance = obj.attendance || {};
-      obj
-        .attendance[date] = obj.attendance[date] || getDefaultAttendanceObject();
-      obj
-        .attendance[date]
-        .addendum = obj.attendance[date].addendum || [];
-      obj
-        .attendance[date]
-        .addendum
-        .push({
-          timestamp,
-          addendumId: doc.id,
-          latitude: location.latitude || location._latitude,
-          longitude: location.longitude || location._longitude,
-        });
-
-      const numberOfCheckIns = obj.attendance[date].addendum.length;
-      const firstAddendum = obj.attendance[date].addendum[0];
-      const lastAddendum = obj.attendance[date].addendum[numberOfCheckIns - 1];
-      const hoursWorked = momentTz(lastAddendum.timestamp)
-        .diff(momentTz(firstAddendum.timestamp), 'hours', true);
-
-      obj
-        .attendance[date]
-        .working = obj.attendance[date].working || {};
-
-      if (!obj.attendance[date].working.firstCheckInTimestamp) {
-        obj
-          .attendance[date]
-          .working.firstCheckInTimestamp = timestamp;
-      }
-
-      obj
-        .attendance[date]
-        .working
-        .numberOfCheckIns = numberOfCheckIns;
-      obj
-        .attendance[date]
-        .working
-        .lastCheckInTimestamp = timestamp;
-
-      if (obj.attendance.attendance !== 1) {
-        obj
-          .attendance[date]
-          .attendance = getStatusForDay({
-            numberOfCheckIns,
-            minimumDailyActivityCount,
-            minimumWorkingHours,
-            hoursWorked,
-          });
-      }
-
-      if (obj.attendance[date].onLeave
-        || obj.attendance[date].onAr
-        || obj.attendance[date].weeklyOff
-        || obj.attendance[date].holiday) {
-        obj.attendance[date].attendance = 1;
-      }
-    });
-
-  const leavesThisYear = await rootCollections
+  const docPaths = [];
+  const office = employeeDoc.office;
+  const officeId = employeeDoc.officeId;
+  const attendanceDoc9 = (await rootCollections
     .offices
     .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('creator.phoneNumber', '==', latestPhoneNumber)
-    .where('creationYear', '==', year)
-    .where('template', '==', 'leave')
-    .where('isCancelled', '==', false)
-    .get();
-
-  // leave and ar sort by relevntTime descrindg order
-  // sept 1 start.
-
-  leavesThisYear
-    .forEach(leaveDoc => {
-      const schedule = leaveDoc.get('schedule')[0];
-      const momentStartTime = momentTz(schedule.startTime);
-      const momentEndTime = momentTz(schedule.endTime);
-      const leaveReason = leaveDoc.get('attachment.Reason.value');
-      const leaveType = leaveDoc.get('attachment.Leave Type.value');
-      const now = momentStartTime.clone();
-
-      while (now.isSameOrBefore(momentEndTime)) {
-        const leaveMonth = now.month();
-        const leaveYear = now.year();
-        const leaveDate = now.date();
-
-        const obj = (() => {
-          if (leaveMonth === 8) {
-            return attendanceDocDataSept;
-          }
-
-          if (leaveMonth === 9) {
-            return attendanceDocDataOct;
-          }
-        })();
-
-        if (leaveYear === 2019 && obj) {
-          obj
-            .attendance = obj.attendance || {};
-          obj
-            .attendance[leaveDate] = obj.attendance[leaveDate] || getDefaultAttendanceObject();
-          obj
-            .attendance[leaveDate]
-            .attendance = 1;
-          obj
-            .attendance[leaveDate]
-            .onLeave = true;
-          obj
-            .attendance[leaveDate]
-            .leave
-            .leaveType = leaveType;
-          obj
-            .attendance[leaveDate]
-            .leave
-            .reason = leaveReason || '';
-        }
-
-        now
-          .add(1, 'day');
-      }
-    });
-
-  const arThisYear = await rootCollections
+    .collection('Attendances')
+    .where('month', '==', 9)
+    .where('phoneNumber', '==', phoneNumber)
+    .limit(1)
+    .get())
+    .docs[0];
+  const attendanceDoc10 = (await rootCollections
     .offices
     .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('creator.phoneNumber', '==', latestPhoneNumber)
-    .where('creationYear', '==', year)
-    .where('template', '==', 'attendance regularization')
-    .where('isCancelled', '==', false)
-    .get();
+    .collection('Attendances')
+    .where('month', '==', 10)
+    .where('phoneNumber', '==', phoneNumber)
+    .limit(1)
+    .get())
+    .docs[0];
 
-  arThisYear
-    .forEach(arDoc => {
-      const arReason = arDoc.get('attachment.Reason.value');
-      const schedule = arDoc.get('schedule')[0];
-      const momentNow = momentTz(schedule.startTime);
-      const arMonth = momentNow.month();
-      const arYear = momentNow.year();
-      const arDate = momentNow.date();
-
-      if (arYear !== 2019) {
-        return;
-      }
-
-      const obj = (() => {
-        if (arMonth === 8) {
-          return attendanceDocDataSept;
-        }
-
-        if (arMonth === 9) {
-          return attendanceDocDataOct;
-        }
-      })();
-
-      if (obj) {
-        obj
-          .attendance = obj.attendance || {};
-        obj
-          .attendance[arDate] = obj.attendance[arDate] || getDefaultAttendanceObject();
-        obj
-          .attendance[arDate]
-          .attendance = 1;
-        obj
-          .attendance[arDate]
-          .onAr = true;
-        obj
-          .attendance[arDate]
-          .ar
-          .reason = arReason;
-      }
-    });
-
-  const septRef = rootCollections
+  const ref9th = attendanceDoc9 ? attendanceDoc9.ref : rootCollections
     .offices
     .doc(officeId)
-    .collection(subcollectionNames.ATTENDANCES)
+    .collection('Attendances')
+    .doc();
+  const ref10th = attendanceDoc10 ? attendanceDoc10.ref : rootCollections
+    .offices
+    .doc(officeId)
+    .collection('Attendances')
     .doc();
 
-  allDocsWrittenPaths
-    .push(septRef.path);
+  const attendanceDoc9Data = attendanceDoc9 ? attendanceDoc9.data() : {};
+  const attendanceDoc10Data = attendanceDoc10 ? attendanceDoc10.data() : {};
+  const datesIn9thMonth = getNumbersbetween(
+    1,
+    momentTz().month(9).year(year).daysInMonth() + 1
+  );
+  const datesIn10thMonth = getNumbersbetween(
+    1,
+    momentTz().month(10).year(year).daysInMonth() + 1
+  );
 
-  batch
-    .set(septRef,
-      attendanceDocDataSept
-    );
+  if (Object.keys(branchDoc).length > 0) {
+    console.log('in branch holiday/weekday logic');
 
-  const octRef = rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ATTENDANCES)
-    .doc();
+    const holidays = (branchDoc.schedule || []);
+    const weeklyOffWeekday = branchDoc.attachment['Weekly Off'].value;
 
-  allDocsWrittenPaths
-    .push(octRef.path);
+    datesIn9thMonth.forEach(date => {
+      const month = 9;
 
-  batch
-    .set(octRef,
-      attendanceDocDataOct
-    );
+      if (!weeklyOffWeekday) {
+        return;
+      }
 
-  if (uid) {
-    [
-      (attendanceDocDataSept.attendance || {}),
-      (attendanceDocDataOct.attendance || {}),
-    ].forEach((att, index) => {
-      Object
-        .keys(att)
-        .forEach(date => {
-          let month;
+      attendanceDoc9Data
+        .attendance = attendanceDoc9Data.attendance || {};
 
-          if (index === 0) {
-            month = 8;
-          }
+      attendanceDoc9Data
+        .attendance[
+        date
+      ] = attendanceDoc9Data.attendance[date] || getDefaultAttendanceObject();
 
-          if (index === 1) {
-            month = 9;
-          }
+      const weekdayName = momentTz()
+        .date(date)
+        .month(month)
+        .year(2019)
+        .format('dddd')
+        .toLowerCase();
 
-          const momentNow = momentTz()
+      if (weeklyOffWeekday === weekdayName) {
+        attendanceDoc9Data
+          .attendance[
+          date
+        ].weeklyOff = true;
+
+        attendanceDoc9Data
+          .attendance[
+          date
+        ].attendance = 1;
+      }
+    });
+
+    datesIn10thMonth
+      .forEach(date => {
+        const month = 10;
+
+        if (!weeklyOffWeekday) {
+          return;
+        }
+
+        attendanceDoc10Data
+          .attendance = attendanceDoc10Data.attendance || {};
+
+        attendanceDoc10Data
+          .attendance[
+          date
+        ] = attendanceDoc10Data.attendance[date] || getDefaultAttendanceObject();
+
+        const weekdayName = momentTz()
+          .date(date)
+          .month(month)
+          .year(2019)
+          .format('dddd')
+          .toLowerCase();
+
+        if (weeklyOffWeekday === weekdayName) {
+          attendanceDoc10Data
+            .attendance[
+            date
+          ].weeklyOff = true;
+
+          console.log(month, 'wo', weekdayName, momentTz()
             .date(date)
             .month(month)
-            .year(year);
+            .year(2019)
+            .format('LLL'));
 
-          const data = Object
-            .assign({}, att[date], {
-              month,
-              year,
-              office,
-              officeId,
-              date: Number(date),
-              timestamp: Date.now(),
-              id: `${date}${month}${year}${officeId}`,
-              key: momentNow.clone().startOf('day').valueOf(),
-              _type: addendumTypes.ATTENDANCE,
-            });
+          attendanceDoc10Data
+            .attendance[
+            date
+          ].attendance = 1;
+        }
+      });
 
-          const updatesRef = rootCollections
-            .updates
-            .doc(uid)
-            .collection(subcollectionNames.ADDENDUM)
-            .doc();
+    holidays
+      .forEach(holiday => {
+        const { startTime } = holiday;
 
-          allDocsWrittenPaths
-            .push(updatesRef.path);
+        if (!Number.isInteger(startTime)) {
+          return;
+        }
 
-          batch
-            .set(updatesRef, data);
-        });
-    });
+        const momentInstance = momentTz(startTime);
+        const holidayDate = momentInstance.date();
+        const holidayMonth = momentInstance.month();
+        const holidayYear = momentInstance.year();
+
+        if (holidayMonth === 9
+          && holidayYear === 2019) {
+          // update attendance doc with attendance 1 and holiday = true
+          // create doc in updates
+
+          attendanceDoc9Data
+            .attendance = attendanceDoc9Data.attendance || {};
+
+          attendanceDoc9Data
+            .attendance[
+            holidayDate
+          ] = attendanceDoc9Data.attendance[holidayDate] || getDefaultAttendanceObject();
+
+          attendanceDoc9Data
+            .attendance[
+            holidayDate
+          ].holiday = true;
+
+          attendanceDoc9Data
+            .attendance[
+            holidayDate
+          ].attendance = 1;
+        }
+
+        if (holidayMonth === 10
+          && holidayYear === 2019) {
+          // update attendance doc with attendance 1 and holiday = true
+          // create doc in updates
+
+          attendanceDoc10Data
+            .attendance = attendanceDoc10Data.attendance || {};
+
+          attendanceDoc10Data
+            .attendance[holidayDate] = attendanceDoc10Data
+              .attendance[holidayDate] || getDefaultAttendanceObject();
+
+          attendanceDoc10Data
+            .attendance[
+            holidayDate
+          ].holiday = true;
+
+          attendanceDoc10Data
+            .attendance[
+            holidayDate
+          ].attendance = 1;
+        }
+      });
   }
+
+  datesIn9thMonth
+    .forEach(date => {
+      attendanceDoc9Data
+        .attendance = attendanceDoc9Data.attendance || {};
+
+      attendanceDoc9Data
+        .attendance[date] = attendanceDoc9Data
+          .attendance[date] || getDefaultAttendanceObject();
+      const addendumArr = attendanceDoc9Data.attendance[date].addendum || [];
+
+      if (attendanceDoc9Data.attendance[date].attendance === 1) {
+        return;
+      }
+
+      if (addendumArr.length > 0) {
+        // console.log('writing attendance', date, 9);
+        const first = addendumArr[0];
+        const last = addendumArr[addendumArr.length - 1];
+        const hoursWorked = momentTz(last).diff(momentTz(first), 'hours', true);
+
+        attendanceDoc9Data
+          .attendance[date]
+          .attendance = getStatusForDay({
+            hoursWorked,
+            numberOfCheckIns: addendumArr.length,
+            minimumDailyActivityCount: employeeDoc.attachment['Minimum Daily Activity Count'].value,
+            minimumWorkingHours: employeeDoc.attachment['Minimum Working Hours'].value,
+          });
+      }
+    });
+
+  datesIn10thMonth.forEach(date => {
+    attendanceDoc10Data
+      .attendance = attendanceDoc10Data.attendance || {};
+
+    attendanceDoc10Data
+      .attendance[date] = attendanceDoc10Data
+        .attendance[date] || getDefaultAttendanceObject();
+    const addendumArr = attendanceDoc10Data.attendance[date].addendum || [];
+
+    if (attendanceDoc10Data.attendance[date].attendance === 1) {
+      return;
+    }
+
+    if (addendumArr.length > 0) {
+      const first = addendumArr[0];
+      const last = addendumArr[addendumArr.length - 1];
+      const hoursWorked = momentTz(last).diff(momentTz(first), 'hours', true);
+
+      attendanceDoc10Data
+        .attendance[date]
+        .attendance = getStatusForDay({
+          hoursWorked,
+          numberOfCheckIns: addendumArr.length,
+          minimumDailyActivityCount: employeeDoc.attachment['Minimum Daily Activity Count'].value,
+          minimumWorkingHours: employeeDoc.attachment['Minimum Working Hours'].value,
+        });
+    }
+  });
+
+  docPaths
+    .push(ref9th.path);
+  docPaths
+    .push(ref10th.path);
+
+  batch
+    .set(ref9th, attendanceDoc9Data, { merge: true });
+  batch
+    .set(ref10th, attendanceDoc10Data, { merge: true });
+
+  datesIn9thMonth.forEach(date => {
+    const month = 9;
+    const u = rootCollections
+      .updates
+      .doc(uid)
+      .collection('Addendum')
+      .doc();
+
+    docPaths
+      .push(u.path);
+
+    batch
+      .set(u, Object.assign({}, {
+        date,
+        month,
+        year,
+        office,
+        officeId,
+        timestamp: Date.now(),
+        _type: 'attendance',
+        id: `${date}${month}${year}${officeId}`,
+        key: momentTz().date(date).month(month).year(year).startOf('day').valueOf(),
+      }, attendanceDoc9Data.attendance[date]), {
+        merge: true,
+      });
+  });
+
+  datesIn10thMonth.forEach(date => {
+    const month = 10;
+    const u = rootCollections
+      .updates
+      .doc(uid)
+      .collection('Addendum')
+      .doc();
+
+    docPaths
+      .push(u.path);
+
+    const o = Object.assign({}, {
+      date,
+      month,
+      year,
+      office,
+      officeId,
+      _type: 'attendance',
+      timestamp: Date.now(),
+      id: `${date}${month}${year}${officeId}`,
+      key: momentTz().date(date).month(month).year(year).startOf('day').valueOf(),
+    }, attendanceDoc10Data.attendance[date]);
+
+    docPaths
+      .push(u.path);
+
+    batch
+      .set(u, o, {
+        merge: true,
+      });
+  });
 
   batch
     .set(snap.ref, {
-      allDocsWrittenPaths,
-      success: true,
-      docsWritten: batch._ops.length,
-      updatedAt: Date.now(),
+      docPaths,
+      numberOfDocsTouched: docPaths.length + 1,
+      timestamp: Date.now(),
+      successful: true,
     }, {
       merge: true,
     });
 
-  return batch
+  console.log('batch =>', batch._ops.length);
+
+  await batch
     .commit();
+
+  return;
 };
 
 module.exports = async snap => {
   try {
     return Creator(snap);
   } catch (error) {
+    await snap
+      .ref
+      .set({
+        failed: true,
+      }, {
+        merge: true,
+      });
+
     console.error({
       error,
       context: snap.ref.path,

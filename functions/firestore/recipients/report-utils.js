@@ -324,48 +324,59 @@ const getIdentifier = doc => {
 
 const getStatusForDay = options => {
   const {
-    numberOfCheckIns, // number of actions done in the day by the user
-    minimumDailyActivityCount,
+    hoursWorked,
+    numberOfCheckIns,
     minimumWorkingHours,
-    hoursWorked // difference between first and last action in hours,
+    minimumDailyActivityCount,
   } = options;
 
-  if (numberOfCheckIns === 0) {
-    return 0;
-  }
-
-  if (minimumDailyActivityCount === 1
-    && numberOfCheckIns !== 0) {
+  if (minimumDailyActivityCount) {
     return 1;
   }
 
-  let activityRatio = numberOfCheckIns / minimumDailyActivityCount;
-
-  if (activityRatio > 1) {
-    activityRatio = 1;
-  }
-
-  const workHoursRatio = (() => {
-    if (!minimumWorkingHours) {
-      return 1;
+  const activityRatio = (() => {
+    if (Number.isInteger(minimumDailyActivityCount)
+      && minimumDailyActivityCount > 0) {
+      return numberOfCheckIns / minimumDailyActivityCount;
     }
 
-    return hoursWorked / minimumWorkingHours;
+    return 1;
   })();
 
-  const minOfRatios = Math.min(activityRatio, workHoursRatio);
+  const rev = (() => {
+    if (Number.isInteger(minimumDailyActivityCount)
+      && minimumDailyActivityCount > 0) {
+      return 1 / minimumDailyActivityCount;
+    }
 
-  if (minOfRatios >= 1) {
+    return 1;
+  })();
+
+  const timeRatio = (() => {
+    if (typeof minimumWorkingHours === 'number'
+      && minimumWorkingHours > 0) {
+      return hoursWorked / minimumWorkingHours;
+    }
+
+    return 1;
+  })();
+
+  const min = Math.min(activityRatio, timeRatio);
+
+  console.log(
+    JSON
+      .stringify({
+        activityRatio,
+        timeRatio,
+        min,
+      }, ' ', 2)
+  );
+
+  if (min >= 1) {
     return 1;
   }
 
-  const rev = 1 / minimumDailyActivityCount;
-
-  if (minOfRatios <= rev) {
-    return rev || 0;
-  }
-
-  return (Math.floor(minOfRatios / rev) * rev) || 0;
+  return Math.floor(min / rev) * rev;
 };
 
 const getName = (employeesData, phoneNumber) => {

@@ -13,6 +13,7 @@ const {
 } = require('../../../admin/constants');
 const {
   getAuth,
+  populateWeeklyOffInAttendance,
   getEmployeeReportData,
   getDefaultAttendanceObject,
 } = require('../../../admin/utils');
@@ -62,7 +63,6 @@ module.exports = async locals => {
 
   const { uid } = await getAuth(phoneNumber);
   const employeeData = await getEmployeeReportData(officeId, phoneNumber);
-
   const attendanceDocData = attendanceDoc ? attendanceDoc.data() : {};
   const attendanceDocRef = attendanceDoc ? attendanceDoc.ref : rootCollections
     .offices
@@ -83,9 +83,9 @@ module.exports = async locals => {
   attendanceDocData
     .attendance[date]
     .ar[status] = {
-      phoneNumber: locals.addendumDocData.user,
-      timestamp: Date.now(),
-    };
+    phoneNumber: locals.addendumDocData.user,
+    timestamp: Date.now(),
+  };
 
   attendanceDocData
     .attendance[date]
@@ -122,6 +122,8 @@ module.exports = async locals => {
         minimumWorkingHours: employeeData.minimumWorkingHours,
         minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
       });
+
+    console.log('New Attendance:', attendanceDocData.attendance[date].attendance);
   }
 
   console.log('AR ID', locals.change.after.id);
@@ -221,6 +223,31 @@ module.exports = async locals => {
       });
   }
 
-  return batch
+  await batch
     .commit();
+
+  /**
+   * Doc will be created
+   */
+  if (!attendanceDoc) {
+    const employeeDoc = (await rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'employee')
+      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get())
+      .docs[0];
+
+    return populateWeeklyOffInAttendance({
+      uid,
+      employeeDoc,
+      month: momentNow.month(),
+      year: momentNow.year(),
+    });
+  }
+
+  return;
 };

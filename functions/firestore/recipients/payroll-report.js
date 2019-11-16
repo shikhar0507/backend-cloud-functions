@@ -113,7 +113,7 @@ const getStatusValue = (attendanceDateObject = {}) => {
 };
 
 
-const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
+const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone, officeId, phoneNumber, office) => {
   if (attendanceDateObject.weeklyOff
     || attendanceDateObject.holiday) {
     return baseLocation;
@@ -190,10 +190,8 @@ const rangeCallback = params => {
     department,
     baseLocation,
     attendance,
-    month,
   } = params;
 
-  // const attendance = attendanceDoc.get('attendance') || {};
   const activationDate = (() => {
     if (!attendanceDoc) {
       return '';
@@ -203,8 +201,15 @@ const rangeCallback = params => {
   })();
 
   /** Data might not exist for someone for a certain date. */
-  attendance[date] = attendance[date] || {};
-  const hasAttendanceProperty = attendance[date].hasOwnProperty('attendance');
+  attendance[
+    date
+  ] = attendance[date] || {};
+
+  const hasAttendanceProperty = attendance[
+    date
+  ].hasOwnProperty('attendance');
+
+  // console.log(phoneNumber, JSON.stringify(attendance[date], ' ', 2));
 
   attendance[
     date
@@ -225,7 +230,10 @@ const rangeCallback = params => {
     ]++;
 
     leaveTypeCountMap
-      .set(phoneNumber, oldCount);
+      .set(
+        phoneNumber,
+        oldCount
+      );
   }
 
   if (attendance[date].holiday) {
@@ -443,6 +451,7 @@ module.exports = async locals => {
         department,
       } = employeeData.get(phoneNumber);
 
+      // TODO: key and attDoc an be moved here
       // Entries for previous month (date = first day of monthly cycle)
       // the end of the month
       firstRange
@@ -469,7 +478,6 @@ module.exports = async locals => {
             employeeName,
             phoneNumber,
             department,
-            month: prevMonth,
             baseLocation,
             attendanceDoc: attDoc,
             attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
@@ -628,9 +636,9 @@ module.exports = async locals => {
     to: locals.messageObject.to,
   }, ' ', 2));
 
-  // await locals
-  //   .sgMail
-  //   .sendMultiple(locals.messageObject);
+  await locals
+    .sgMail
+    .sendMultiple(locals.messageObject);
 
   console.log('mail sent');
 
