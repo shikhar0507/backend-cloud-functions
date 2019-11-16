@@ -4,11 +4,18 @@ const {
   db,
   rootCollections,
 } = require('../admin/admin');
+const env = require('../admin/env');
 const momentTz = require('moment-timezone');
 
 
 module.exports = async conn => {
+  console.log('in sgmail webhook', conn.req.method);
+
   try {
+    if (conn.req.query.token !== env.sgMailParseToken) {
+      return;
+    }
+
     const batch = db.batch();
     const promises = [];
     const recipientIdArray = [];

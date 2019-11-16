@@ -379,6 +379,14 @@ module.exports = async (req, res) => {
     return sendResponse(conn, code.ok);
   }
 
+  console.log('conn.req.path', conn.req.path);
+
+  if (conn.req.path === '/webhook/sendgrid') {
+    await require('../webhooks/sendgrid')(conn);
+
+    return sendResponse(conn, code.ok);
+  }
+
   if (env.isProduction
     && (!conn.req.headers['x-cf-secret']
       || conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
@@ -387,15 +395,6 @@ module.exports = async (req, res) => {
       code.forbidden,
       `Missing 'X-CF-Secret' header in the request headers`
     );
-  }
-
-  if (conn.req.path === '/webhook/sendgrid'
-    // && env.isProduction
-    && conn.req.method === 'POST'
-    && conn.req.query.token === env.sgMailParseToken) {
-    await require('../webhooks/sendgrid')(conn);
-
-    return sendResponse(conn, code.ok);
   }
 
   return checkAuthorizationToken(conn);
