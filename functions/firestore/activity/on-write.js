@@ -3030,8 +3030,6 @@ const handleRelevantTimeActivities = async locals => {
 
       const hd = haversineDistance(gp1, gp2);
 
-      console.log('haversineDistance', hd);
-
       if (hd > 1) {
         return;
       }
@@ -3184,8 +3182,6 @@ const getReimbursementTimestamp = activityDoc => {
 
 
 const reimburseClaim = async locals => {
-  console.log('In reimburse claim');
-
   const {
     creator: {
       phoneNumber,
@@ -3201,10 +3197,6 @@ const reimburseClaim = async locals => {
   const month = momentNow.month();
   const year = momentNow.year();
   let uid = locals.addendumDocData.uid;
-
-  console.log('timestamp', timestamp);
-  console.log('momentNow timestamp', momentNow.valueOf());
-  console.log('momentNow', momentNow.format('LLL'));
 
   if (!uid) {
     uid = (await getAuth(locals.addendumDocData.user)).uid;
@@ -3371,8 +3363,6 @@ const reimburseDailyAllowance = async locals => {
         .add(doc.get('reimbursementName'));
     });
 
-  console.log({ scheduledOnly });
-
   let dailyAllowanceBaseQuery = rootCollections
     .offices
     .doc(officeId)
@@ -3388,13 +3378,9 @@ const reimburseDailyAllowance = async locals => {
   const dailyAllowanceActivities = await dailyAllowanceBaseQuery
     .get();
 
-  console.log('daActSize:', dailyAllowanceActivities.size);
-
   if (dailyAllowanceActivities.empty) {
     return;
   }
-
-  console.log('existingDailyAllowances', [...existingDailyAllowances.keys()]);
 
   const employeeDocData = await getEmployeeReportData(
     officeId,
@@ -3421,8 +3407,6 @@ const reimburseDailyAllowance = async locals => {
         || startMinutes === ''
         || endHours === ''
         || endMinutes === '') {
-        console.log('Time unset', { startHours, startMinutes, endHours, endMinutes });
-
         return;
       }
 
@@ -3433,17 +3417,9 @@ const reimburseDailyAllowance = async locals => {
         .hours(endHours)
         .minutes(endMinutes);
 
-      console.log('momentNow', momentNow.format('LLL'));
-      console.log('momentStart', momentStart.format('LLL'));
-      console.log('momentEnd', momentEnd.format('LLL'));
-
       /** Is not in the time range */
       if (momentNow.isBefore(momentStart)
         || momentEnd.isAfter(momentEnd)) {
-        console.log('Not in time range', {
-          isBefore: momentNow.isBefore(momentStart),
-          isAfter: momentEnd.isAfter(momentEnd),
-        });
         return;
       }
 
@@ -3509,8 +3485,6 @@ const reimburseDailyAllowance = async locals => {
         .collection(subcollectionNames.REIMBURSEMENTS)
         .doc();
 
-      console.log('Reim path', ref.path);
-
       batch
         .set(ref, update, {
           merge: true,
@@ -3521,8 +3495,6 @@ const reimburseDailyAllowance = async locals => {
         .doc(uid)
         .collection(subcollectionNames.ADDENDUM)
         .doc();
-
-      console.log('Updates path:', u.path);
 
       batch
         .set(u, Object.assign({}, {
@@ -3582,7 +3554,6 @@ const getStartPointObject = async params => {
 };
 
 const reimburseKmAllowance = async locals => {
-  console.log('In km allowance');
   // if action is create, checkin - then look
   // for scheduled only false in
   // employee object and make km allowance if available
@@ -3688,8 +3659,6 @@ const reimburseKmAllowance = async locals => {
     relevantActivityId: locals.change.after.id,
   });
 
-  console.log('commonReimObject', commonReimObject);
-
   const [
     previousKmReimbursementQuery,
     previousReimbursementUpdateQuery,
@@ -3728,17 +3697,11 @@ const reimburseKmAllowance = async locals => {
     baseLocation: employeeData.baseLocation,
   });
 
-  console.log('startPointDetails', startPointDetails);
-
   if (!startPointDetails) {
-    console.log('No start point or no base location set for this employee. Skipping km allowance');
-
     return;
   }
 
   if (locals.addendumDocData.distanceTravelled < 1) {
-    console.log('Distance < 1', locals.addendumDocData.distanceTravelled);
-
     return;
   }
 
@@ -3748,14 +3711,10 @@ const reimburseKmAllowance = async locals => {
   );
 
   if (distanceBetweenCurrentAndStartPoint < 1) {
-    console.log('distance between curr and start point is < 1', distanceBetweenCurrentAndStartPoint);
-
     return;
   }
 
   if (kmRate * distanceBetweenCurrentAndStartPoint < 1) {
-    console.log('Start point to current amount calculated is < 1', kmRate * distanceBetweenCurrentAndStartPoint);
-
     return;
   }
 
@@ -3766,7 +3725,6 @@ const reimburseKmAllowance = async locals => {
    * Also don't want to touch it since it might break stuff.
    */
   if (previousKmReimbursementQuery.empty) {
-    console.log('In If');
     // create km allowance for start point to current location
     // create km allowance for current location to start point.
     const r1 = rootCollections
@@ -3789,19 +3747,6 @@ const reimburseKmAllowance = async locals => {
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc();
-
-    console.log('r1 ref', r1.path);
-    console.log('r2 ref', r2.path);
-    console.log('Update path u2', u2.path);
-    console.log('Update path u1', u1.path);
-
-    console.log('amountThisTime', kmRate * distanceBetweenCurrentAndStartPoint);
-
-    console.log({
-      amountThisTime: kmRate * distanceBetweenCurrentAndStartPoint,
-      kmRate,
-      distanceBetweenCurrentAndStartPoint,
-    });
 
     // startPoint (previous) to current location(current)
     batch
@@ -3905,7 +3850,6 @@ const reimburseKmAllowance = async locals => {
         },
       }));
   } else {
-    console.log('In else');
     const oldReimbursementDoc = previousKmReimbursementQuery.docs[0];
     const oldUpdatesDoc = previousReimbursementUpdateQuery.docs[0];
     const r1 = rootCollections
@@ -3918,11 +3862,6 @@ const reimburseKmAllowance = async locals => {
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc();
-
-    console.log('New r1', r1.path);
-    console.log('oldReimbursementDoc', oldReimbursementDoc.ref.path);
-    console.log('oldUpdatesDoc', oldUpdatesDoc.ref.path);
-    // console.log('oldAmount', oldAmount);
 
     /**
      * User has been reimbursed their max amount for the day
@@ -4034,8 +3973,6 @@ const reimburseKmAllowance = async locals => {
       }));
   }
 
-  console.log('Number of updates', batch._ops.length);
-
   return batch.commit();
 };
 
@@ -4099,8 +4036,6 @@ const getLateStatus = params => {
 
 
 const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
-  console.log('in populateMissingAttendances');
-
   if (!employeeDoc) {
     return;
   }
@@ -4109,7 +4044,6 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
 
   const {
     office,
-    // timezone,
     officeId,
     lastAttendanceTimestamp,
     attachment: {
@@ -4183,10 +4117,6 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
     .clone();
   const allDates = {};
 
-  console.log('diff', momentEnd.diff(momentStart, 'months'));
-  console.log('start', tempMoment.format('LLL'));
-  console.log('end', momentEnd.format('LLL'));
-
   while (tempMoment.isSameOrBefore(momentEnd)) {
     const month = tempMoment.month();
     const year = tempMoment.year();
@@ -4227,9 +4157,6 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
       attendanceDocPromises
         .push(promise);
     });
-
-  console.log('allDates', JSON.stringify(allDates, ' ', 2));
-  console.log('attendanceDocPromises', attendanceDocPromises.length);
 
   const snaps = await Promise
     .all(attendanceDocPromises);
@@ -4309,8 +4236,6 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
         minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
       };
 
-      console.log('ref', ref.path);
-
       batch
         .set(ref, Object.assign({}, employeeData, data), {
           merge: true,
@@ -4360,7 +4285,6 @@ const handleWorkday = async locals => {
   // values can be empty strings.
   if (employeeData.locationValidationCheck === true
     && locals.addendumDocData.distanceAccurate === false) {
-    console.log('Skipping :=> distance accurate false');
     return;
   }
 
@@ -4494,8 +4418,6 @@ const handleWorkday = async locals => {
     attendanceObject
       .attendance[date]
       .attendance = getStatusForDay(attendanceParams);
-
-    console.log('Calculated attendance:', attendanceObject.attendance[date].attendance);
   }
 
   attendanceObject
@@ -4871,8 +4793,6 @@ const ActivityOnWrite = async (change, context) => {
       locals.change.after.get('officeId'),
       activityId,
     );
-
-    console.log(template, copyToRef.path);
 
     batch
       .set(copyToRef, activityData, {
