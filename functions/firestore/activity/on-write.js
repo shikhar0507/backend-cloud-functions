@@ -50,6 +50,7 @@ const {
   addEmployeeToRealtimeDb,
   getDefaultAttendanceObject,
   getEmployeesMapFromRealtimeDb,
+  populateWeeklyOffInAttendance,
 } = require('../../admin/utils');
 const {
   toMapsUrl,
@@ -2229,157 +2230,6 @@ const getLocalityCityState = components => {
 };
 
 
-const addCheckInTimestamps = async locals => {
-  if (locals.addendumDocData
-    && (locals.addendumDocData.action !== httpsActions.create)) {
-    return;
-  }
-
-  const timezone = locals
-    .change
-    .after
-    .get('timezone');
-  const createTime = locals
-    .change
-    .after
-    .createTime
-    .toDate()
-    .getTime();
-  const momentNow = momentTz(createTime)
-    .tz(timezone);
-  const date = momentNow.date();
-  const monthYearString = momentNow
-    .format(dateFormats.MONTH_YEAR);
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const phoneNumber = locals
-    .change
-    .after
-    .get('creator.phoneNumber');
-
-  const [
-    attendanceDoc,
-    employeeDocQueryResult,
-  ] = await Promise
-    .all([
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Attendances')
-        .doc(monthYearString)
-        .collection(phoneNumber)
-        /** Path values are strings */
-        .doc(`${date}`)
-        .get(),
-      rootCollections
-        .activities
-        .where('officeId', '==', officeId)
-        .where('status', '==', 'CONFIRMED')
-        .where('template', '==', 'employee')
-        .where('attachment.Employee Contact.value', '==', phoneNumber)
-        .limit(1)
-        .get(),
-    ]);
-
-  const employeeDoc = employeeDocQueryResult.docs[0];
-
-  /**
-   * If person creating a check-in is an employee,
-   * and the `Location Validation Check` is `true`
-   * and the distanceAccurate is not true, the count
-   * of check-in will not be counted.
-   */
-  if (employeeDoc
-    /**
-     * `Location Validation Check` could be an empty string,
-     * or something else but we need an explicit check for
-     * `distanceAccurate`.
-     */
-    && employeeDoc.get('attachment.Location Validation Check.value') === true
-    && locals.addendumDocData.distanceAccurate === false) {
-    return;
-  }
-
-  let attendanceDocData = attendanceDoc.data() || {};
-
-  if (!attendanceDocData.firstCheckInTimestamp) {
-    attendanceDocData = Object
-      .assign({}, attendanceDocData, {
-        date,
-        phoneNumber,
-        firstCheckInTimestamp: locals.addendumDocData.timestamp,
-        firstCheckIn: momentTz(locals.addendumDocData.timestamp)
-          .tz(timezone)
-          .format(dateFormats.TIME),
-        month: momentNow.month(),
-        year: momentNow.year(),
-      });
-
-    // if (employeeDoc) {
-    //   const startTime = employeeDoc.get('attachment.Daily Start Time.value');
-
-    //   if (startTime) {
-    //     const [
-    //       startHours,
-    //       startMinutes,
-    //     ] = startTime
-    //       .split(':');
-
-    //     attendanceDocData
-    //       .isLate = momentNow
-    //         .clone()
-    //         .hours(startHours)
-    //         .minutes(startMinutes)
-    //         .diff(momentNow, 'minutes') > 15;
-    //   }
-    // }
-  }
-
-  attendanceDocData
-    .lastCheckInTimestamp = locals.addendumDocData.timestamp;
-  attendanceDocData
-    .lastCheckIn = momentTz(locals.addendumDocData.timestamp)
-      .tz(timezone)
-      .format(dateFormats.TIME);
-  attendanceDocData
-    .numberOfCheckIns = attendanceDocData.numberOfCheckIns || 0;
-
-  // Activity has actually been created.
-  if (!locals.change.before.data()
-    && locals.change.after.data()) {
-    attendanceDocData
-      .numberOfCheckIns++;
-  }
-
-  const batch = db.batch();
-  const uid = locals.assigneesMap.get(phoneNumber).uid;
-
-
-  if (uid) {
-    batch
-      .set(rootCollections
-        .updates
-        .doc(uid), {
-        lastStatusDocUpdateTimestamp: Date.now(),
-      }, {
-        merge: true,
-      });
-  }
-
-  batch
-    .set(
-      attendanceDoc.ref,
-      attendanceDocData, {
-      merge: true,
-    });
-
-  return batch
-    .commit();
-};
-
-
 const handleAddendum = async locals => {
   const addendumDoc = locals.addendumDoc;
 
@@ -2607,10 +2457,6 @@ const handleAddendum = async locals => {
     .commit();
 
   await handleComments(addendumDoc, locals);
-
-  if (addendumDoc.get('activityData.template') === 'check-in') {
-    await addCheckInTimestamps(locals);
-  }
 
   return handleDailyStatusReport(addendumDoc);
 };
@@ -4255,7 +4101,12 @@ const getLateStatus = params => {
 const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
   console.log('in populateMissingAttendances');
 
+  if (!employeeDoc) {
+    return;
+  }
+
   const batch = db.batch();
+
   const {
     office,
     // timezone,
@@ -4267,6 +4118,7 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
       }
     }
   } = employeeDoc.data();
+
 
   const timezone = employeeDoc.get('timezone') || 'Asia/Kolkata';
 
@@ -4471,6 +4323,9 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
 
 
 const handleWorkday = async locals => {
+  /**
+   * Template === check-in and action === 'create'
+   */
   if (!locals.addendumDocData) {
     return;
   }
@@ -4497,6 +4352,18 @@ const handleWorkday = async locals => {
     officeId,
     phoneNumber
   );
+
+  // If employee Location Validation Check => true
+  // AND distanceAccurate => false
+  // skip
+  // Using explicit check for this case because
+  // values can be empty strings.
+  if (employeeData.locationValidationCheck === true
+    && locals.addendumDocData.distanceAccurate === false) {
+    console.log('Skipping :=> distance accurate false');
+    return;
+  }
+
   const location = locals.addendumDocData.location;
   const batch = db.batch();
 
@@ -4506,6 +4373,10 @@ const handleWorkday = async locals => {
     uid = (await getAuth(phoneNumber)).uid;
   }
 
+  /**
+   * This query might return 0 docs if the date = 1 in the month
+   * or the user hasn't done anything since the start of the month
+   */
   const attendanceDoc = (await rootCollections
     .offices
     .doc(officeId)
@@ -4555,14 +4426,6 @@ const handleWorkday = async locals => {
 
   attendanceObject
     .attendance[date]
-    .working
-    .numberOfCheckIns = attendanceObject
-      .attendance[date]
-      .working
-      .numberOfCheckIns || 0;
-
-  attendanceObject
-    .attendance[date]
     .isLate = getLateStatus({
       timezone,
       firstCheckInTimestamp: attendanceObject
@@ -4575,9 +4438,6 @@ const handleWorkday = async locals => {
   attendanceObject
     .attendance[date].addendum = attendanceObject
       .attendance[date].addendum || [];
-  const currentDate = momentTz(
-    locals.addendumDocData.timestamp
-  ).tz(timezone);
 
   attendanceObject
     .attendance[date]
@@ -4606,7 +4466,7 @@ const handleWorkday = async locals => {
     || attendanceObject.attendance[date].holiday
     || attendanceObject.attendance[date].weeklyOff) {
     attendanceObject
-      .attendance
+      .attendance[date]
       .attendance = 1;
   }
 
@@ -4614,21 +4474,28 @@ const handleWorkday = async locals => {
   const firstAddendum = attendanceObject.attendance[date].addendum[0];
   const lastAddendum = attendanceObject.attendance[date].addendum[numberOfCheckIns - 1];
 
-  if (attendanceObject.attendance.attendance !== 1
-    && firstAddendum) {
+  if (attendanceObject.attendance[date].attendance !== 1) {
     const hoursWorked = momentTz(lastAddendum.timestamp)
-      .diff(momentTz(firstAddendum.timestamp), 'hours', true);
+      .diff(
+        momentTz(firstAddendum.timestamp),
+        'hours',
+        true
+      );
+
+    const attendanceParams = {
+      // difference between first and last action in hours
+      hoursWorked,
+      // number of actions done in the day by the user
+      numberOfCheckIns,
+      minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
+      minimumWorkingHours: employeeData.minimumWorkingHours,
+    };
 
     attendanceObject
       .attendance[date]
-      .attendance = getStatusForDay({
-        // difference between first and last action in hours
-        hoursWorked,
-        // number of actions done in the day by the user
-        numberOfCheckIns,
-        minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
-        minimumWorkingHours: employeeData.minimumWorkingHours,
-      });
+      .attendance = getStatusForDay(attendanceParams);
+
+    console.log('Calculated attendance:', attendanceObject.attendance[date].attendance);
   }
 
   attendanceObject
@@ -4666,7 +4533,7 @@ const handleWorkday = async locals => {
           timestamp: Date.now(),
           _type: addendumTypes.ATTENDANCE,
           id: `${date}${month}${year}${officeId}`,
-          key: currentDate.clone().startOf('date').valueOf(),
+          key: momentNow.clone().startOf('date').valueOf(),
         }), {
       merge: true,
     });
@@ -4684,6 +4551,26 @@ const handleWorkday = async locals => {
 
   await batch
     .commit();
+
+  if (!attendanceDoc) {
+    const employeeDoc = (await rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'employee')
+      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get())
+      .docs[0];
+
+    await populateWeeklyOffInAttendance({
+      uid,
+      employeeDoc,
+      month: momentNow.month(),
+      year: momentNow.year(),
+    });
+  }
 
   if (!attendanceDoc
     || !employeeData) {
@@ -5027,7 +4914,6 @@ const ActivityOnWrite = async (change, context) => {
 
     if (template === 'leave') {
       await handleLeaveAndDutyConflict(locals);
-
       await require('./template-handlers/leave')(locals);
     }
 
