@@ -1345,7 +1345,7 @@ const handleBranchWeeklyOffUpdate = async locals => {
         value: weeklyOffNew,
       },
     },
-  } = locals.change.after.get('attachment');
+  } = locals.change.after.data();
 
   const {
     attachment: {
@@ -1626,7 +1626,6 @@ const getCopyPath = (template, officeId, activityId) => {
 * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
 */
 const isComment = action => {
-  // Making this a closure since this function is not going to be used anywhere else.
   if (action === httpsActions.comment) {
     return 1;
   }
@@ -1869,9 +1868,25 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.updatePhoneNumber) {
+    const oldPhoneNumber = locals.addendumDoc.get('oldPhoneNumber');
+    const newPhoneNumber = locals.addendumDoc.get('newPhoneNumber');
+
+    // Employee changed their number themselves
+    if (locals.addendumDocRef.get('user') === oldPhoneNumber) {
+      // <person name> changed their phone number
+      // from < old phone number > to < new phone number >
+      const employeeName = locals
+        .addendumDoc
+        .get('activityData.attachment.Name.value');
+
+      return `${employeeName} changed their phone number`
+        + ` from ${oldPhoneNumber}`
+        + ` to ${newPhoneNumber}`;
+    }
+
     return `Phone number`
-      + ` '${locals.addendumDoc.get('oldPhoneNumber')} was`
-      + ` changed to ${locals.addendumDoc.get('newPhoneNumber')}`;
+      + ` '${oldPhoneNumber} was`
+      + ` changed to ${newPhoneNumber}`;
   }
 
   /** Action is `comment` */
@@ -1894,6 +1909,8 @@ const handleComments = async (addendumDoc, locals) => {
         return;
       }
 
+      const comment = getCommentString(locals, phoneNumber);
+
       batch
         .set(rootCollections
           .updates
@@ -1901,7 +1918,7 @@ const handleComments = async (addendumDoc, locals) => {
           // Addendum
           .collection(subcollectionNames.ADDENDUM)
           .doc(addendumDoc.id), {
-          comment: getCommentString(locals, phoneNumber),
+          comment,
           _type: addendumTypes.COMMENT,
           activityId: locals.change.after.id,
           isComment: isComment(addendumDoc.get('action')),
@@ -2248,8 +2265,8 @@ const handleAddendum = async locals => {
     || action === httpsActions.signup
     || action === httpsActions.branchView
     || action === httpsActions.productView
-    || action === httpsActions.videoPlay
-    || action === httpsActions.updatePhoneNumber;
+    || action === httpsActions.videoPlay;
+  // || action === httpsActions.updatePhoneNumber;
 
   if (isSkippableEvent) {
     return addendumDoc
@@ -2265,6 +2282,11 @@ const handleAddendum = async locals => {
 
   const geopoint = addendumDoc
     .get('location');
+
+  if (!geopoint) {
+    return handleComments(addendumDoc, locals);
+  }
+
   const gp = adjustedGeopoint(geopoint);
   const batch = db
     .batch();
@@ -3598,6 +3620,8 @@ const reimburseKmAllowance = async locals => {
 
   // Not an employee, km allowance is skipped
   if (!employeeDoc) {
+    console.log('Skip km allowance => no employee doc');
+
     return;
   }
 
@@ -3620,10 +3644,14 @@ const reimburseKmAllowance = async locals => {
   // Scheduled Only means action === check-in. Exit otherwise
   if (scheduledOnly
     && (locals.addendumDocData.action !== httpsActions.checkIn)) {
+    console.log('Skip km allowance => scheduled Only');
+
     return;
   }
 
   if (!kmRate) {
+    console.log('Skip km allowance => no km rate', kmRate);
+
     return;
   }
 
@@ -3698,10 +3726,13 @@ const reimburseKmAllowance = async locals => {
   });
 
   if (!startPointDetails) {
+    console.log('Skip km allowance => no startPointDetails');
+
     return;
   }
 
   if (locals.addendumDocData.distanceTravelled < 1) {
+    console.log('Skip km allowance => distanceTravelled < 1');
     return;
   }
 
@@ -3711,10 +3742,12 @@ const reimburseKmAllowance = async locals => {
   );
 
   if (distanceBetweenCurrentAndStartPoint < 1) {
+    console.log('Skip km allowance => distanceBetweenCurrentAndStartPoint < 1', distanceBetweenCurrentAndStartPoint);
     return;
   }
 
   if (kmRate * distanceBetweenCurrentAndStartPoint < 1) {
+    console.log('Skip km allowance amt < 1', kmRate * distanceBetweenCurrentAndStartPoint);
     return;
   }
 
@@ -3725,6 +3758,7 @@ const reimburseKmAllowance = async locals => {
    * Also don't want to touch it since it might break stuff.
    */
   if (previousKmReimbursementQuery.empty) {
+    console.log('In km allowance if');
     // create km allowance for start point to current location
     // create km allowance for current location to start point.
     const r1 = rootCollections
@@ -3850,6 +3884,8 @@ const reimburseKmAllowance = async locals => {
         },
       }));
   } else {
+    console.log('In km allowance else');
+
     const oldReimbursementDoc = previousKmReimbursementQuery.docs[0];
     const oldUpdatesDoc = previousReimbursementUpdateQuery.docs[0];
     const r1 = rootCollections

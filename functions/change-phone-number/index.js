@@ -11,12 +11,12 @@ const {
   isE164PhoneNumber,
 } = require('../admin/utils');
 const {
+  httpsActions,
   subcollectionNames,
 } = require('../admin/constants');
 const {
   code,
 } = require('../admin/responses');
-const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 
 
@@ -42,8 +42,9 @@ const validator = (body, oldPhoneNumber) => {
 
 const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
   const updateActivities = async (query, resolve, reject) => {
-    const snap = await query
-      .get();
+    const snap = await query.get();
+
+    console.log('docs', snap.size);
 
     if (snap.empty) {
       return resolve();
@@ -53,24 +54,25 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
 
     snap
       .forEach(doc => {
+        const activityOld = doc.data();
         // replace old phone number in activities
         // creator, creator.phoneNumber
-
         if (doc.get('template') === 'check-in') {
           batch
             .delete(doc.ref);
+
+          return;
         }
 
-        const data = Object.assign({}, doc.data(), {
-          addendumDocRef: null,
-          timestamp: Date.now(),
-        });
+        const data = Object
+          .assign({}, doc.data(), {
+            addendumDocRef: null,
+            timestamp: Date.now(),
+          });
+
         const attachment = doc.get('attachment');
 
         console.log('Activity:', doc.ref.path);
-
-        data
-          .addendumDocRef = null;
 
         const creator = (() => {
           if (typeof doc.get('creator') === 'string') {
@@ -98,7 +100,7 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
           .forEach(field => {
             const { value, type } = attachment[field];
 
-            if (type === 'phoneNumber') {
+            if (type !== 'phoneNumber') {
               return;
             }
 
@@ -112,6 +114,45 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
         const ref = rootCollections
           .activities
           .doc(doc.id);
+
+        if (data.template === 'employee'
+          && data.attachment['Employee Contact'].value === oldPhoneNumber) {
+          const officeId = data.officeId;
+
+          const ref = rootCollections
+            .offices
+            .doc(officeId)
+            .collection(subcollectionNames.ADDENDUM)
+            .doc();
+
+          data
+            .addendumDocRef = ref;
+
+          batch
+            .set(ref, {
+              activityOld,
+              oldPhoneNumber,
+              newPhoneNumber,
+              activityData: data,
+              timestamp: Date.now(),
+              action: httpsActions.update,
+              user: newPhoneNumber,
+              activityId: data.activityId,
+              userDeviceTimestamp: Date.now(),
+              template: data.template,
+              isSupportRequest: false,
+              isAdminRequest: false,
+              geopointAccuracy: null,
+              provider: null,
+              userDisplayName: '',
+              location: null,
+            });
+        }
+
+        delete data.customerObject;
+        delete data.canEdit;
+        delete data.activityId;
+        delete data.assignees;
 
         batch
           .set(ref,
@@ -241,7 +282,10 @@ const populateWebapp = async (oldPhoneNumber, newPhoneNumber) => {
 
 
 module.exports = async conn => {
-  const v = validator(conn.req.body, conn.requester.phoneNumber);
+  const v = validator(
+    conn.req.body,
+    conn.requester.phoneNumber
+  );
 
   if (v) {
     return sendResponse(
@@ -275,13 +319,8 @@ module.exports = async conn => {
         disabled: true,
       });
 
-    conn
-      .req
-      .body
-      .oldPhoneNumber = conn.requester.phoneNumber;
-
     await populateActivities(
-      conn.req.body.oldPhoneNumber,
+      (conn.req.body.oldPhoneNumber || conn.requester.phoneNumber),
       conn.req.body.newPhoneNumber,
     );
 
@@ -302,7 +341,9 @@ module.exports = async conn => {
     batch
       .set(rootCollections
         .profiles
-        .doc(conn.req.body.newPhoneNumber), profileData, {
+        .doc(conn.req.body.newPhoneNumber), Object.assign({}, profileData, {
+          uid: conn.requester.uid,
+        }), {
         merge: true,
       });
 
