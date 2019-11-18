@@ -112,21 +112,8 @@ const bulkCreateHandler = functions
   .object()
   .onFinalize(require('./storage/bulk'));
 
-const deleter = functions
-  .firestore
-  .document('Deleter/{docId}')
-  .onCreate(require('./temp/deleteOldData'));
-
-
-const creator = functions
-  .firestore
-  .document(`FromDeleter/{docId}`)
-  .onCreate(require('./temp/createData'));
-
 
 module.exports = {
-  deleter,
-  creator,
   api,
   timer,
   webapp,
