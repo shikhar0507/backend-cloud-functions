@@ -152,6 +152,7 @@ module.exports = async change => {
           office: change.after.get('office'),
           recipientId: change.after.id,
           reportName: change.after.get('report'),
+          emailSentAt: Date.now(),
         },
         templateId: getTemplateId(report),
         from: {
@@ -249,8 +250,8 @@ module.exports = async change => {
 
     data
       .unverifiedRecipients = {
-        [office]: unverifiedRecipients,
-      };
+      [office]: unverifiedRecipients,
+    };
     data
       .recipientsTriggeredToday = recipientsTriggeredToday + 1;
 
