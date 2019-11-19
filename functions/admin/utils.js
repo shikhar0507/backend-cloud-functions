@@ -1041,11 +1041,12 @@ const getEmailStatusMap = () => {
     });
 };
 
-const handleDailyStatusReport = toEmail => {
+const handleDailyStatusReport = async toEmail => {
   const momentYesterday = momentTz().subtract(1, 'day');
   const date = momentYesterday.format(dateFormats.DATE);
   const fileName = `Daily Status Report ${date}.xlsx`;
   const messageObject = {
+    to: toEmail || env.dailyStatusReportRecipients,
     from: {
       name: 'Growthfile',
       email: env.systemEmail,
@@ -1058,74 +1059,73 @@ const handleDailyStatusReport = toEmail => {
     attachments: [],
   };
 
-  let worksheet;
-  let counterDoc;
-  let yesterdayInitDoc;
+  try {
+    const [
+      worksheet,
+      counterInitQuery,
+      yesterdayInitQuery,
+      emailStatusMap,
+    ] = await Promise
+      .all([
+        xlsxPopulate
+          .fromBlankAsync(),
+        rootCollections
+          .inits
+          .where('report', '==', reportNames.COUNTER)
+          .limit(1)
+          .get(),
+        rootCollections
+          .inits
+          .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+          .where('date', '==', momentYesterday.date())
+          .where('month', '==', momentYesterday.month())
+          .where('year', '==', momentYesterday.year())
+          .limit(1)
+          .get(),
+        getEmailStatusMap()
+      ]);
 
-  return Promise
-    .all([
-      xlsxPopulate
-        .fromBlankAsync(),
-      rootCollections
-        .inits
-        .where('report', '==', reportNames.COUNTER)
-        .limit(1)
-        .get(),
-      rootCollections
-        .inits
-        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-        .where('date', '==', momentYesterday.date())
-        .where('month', '==', momentYesterday.month())
-        .where('year', '==', momentYesterday.year())
-        .limit(1)
-        .get(),
-      getEmailStatusMap()
-    ])
-    .then(async result => {
-      const [
-        workbook,
-        counterInitQuery,
-        yesterdayInitQuery,
-        emailStatusMap,
-      ] = result;
+    const [counterDoc] = counterInitQuery.docs;
+    const [yesterdayInitDoc] = yesterdayInitQuery.docs;
 
-      worksheet = workbook;
-      counterDoc = counterInitQuery.docs[0];
-      yesterdayInitDoc = yesterdayInitQuery.docs[0];
+    const activeYesterday = handleOfficeActivityReport(
+      worksheet,
+      yesterdayInitDoc,
+      emailStatusMap
+    );
 
-      const activeYesterday = handleOfficeActivityReport(
-        worksheet,
-        yesterdayInitDoc,
-        emailStatusMap
-      );
-      await handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
-      handleUserStatusReport(
-        worksheet,
-        counterDoc,
-        yesterdayInitDoc,
-        activeYesterday
-      );
+    await handleActivityStatusReport(
+      worksheet,
+      counterDoc,
+      yesterdayInitDoc
+    );
 
-      worksheet.deleteSheet('Sheet1');
+    handleUserStatusReport(
+      worksheet,
+      counterDoc,
+      yesterdayInitDoc,
+      activeYesterday
+    );
 
-      return worksheet.outputAsync('base64');
-    })
-    .then(content => {
-      messageObject.to = toEmail || env.dailyStatusReportRecipients;
-      messageObject
-        .attachments
-        .push({
-          fileName,
-          content,
-          type: 'text/csv',
-          disposition: 'attachment',
-        });
+    worksheet.deleteSheet('Sheet1');
 
-      console.log('mail sent to', messageObject.to);
+    messageObject
+      .attachments
+      .push({
+        fileName,
+        type: 'text/csv',
+        disposition: 'attachment',
+        content: await worksheet.outputAsync('base64'),
+      });
 
-      return sgMail.sendMultiple(messageObject);
-    })
-    .catch(console.error);
+    console.log('mail sent to', messageObject.to);
+
+    return sgMail.sendMultiple(messageObject);
+  } catch (error) {
+    console.error(error);
+
+    return;
+  }
 };
 
 
