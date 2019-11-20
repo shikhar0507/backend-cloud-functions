@@ -5,8 +5,6 @@ const {
   rootCollections,
 } = require('../admin/admin');
 const env = require('../admin/env');
-const momentTz = require('moment-timezone');
-
 
 module.exports = async conn => {
   console.log('in sgmail webhook', conn.req.body);

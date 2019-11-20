@@ -113,7 +113,7 @@ const getStatusValue = (attendanceDateObject = {}) => {
 };
 
 
-const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone, officeId, phoneNumber, office) => {
+const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
   if (attendanceDateObject.weeklyOff
     || attendanceDateObject.holiday) {
     return baseLocation;

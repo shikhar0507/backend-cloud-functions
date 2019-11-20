@@ -29,7 +29,6 @@ const {
   db,
   rootCollections,
 } = require('../admin/admin');
-const { getRelevantTime } = require('../admin/utils');
 const {
   reportNames,
   dateFormats,
