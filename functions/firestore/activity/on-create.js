@@ -31,6 +31,7 @@ const {
 const {
   httpsActions,
   subcollectionNames,
+  dateFormats,
 } = require('../../admin/constants');
 const {
   db,
@@ -39,17 +40,19 @@ const {
 } = require('../../admin/admin');
 const {
   activityName,
-  setOnLeaveOrAr,
+  // setOnLeaveOrAr,
   validateVenues,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
+  attendanceConflictHandler,
 } = require('./helper');
 const {
   handleError,
   sendResponse,
   getRelevantTime,
   getCustomerObject,
+  getScheduleDates,
   getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
@@ -157,11 +160,14 @@ const createDocsWithBatch = async (conn, locals) => {
     attachment: conn.req.body.attachment,
   };
 
-  const relevantTime = getRelevantTime(activityData.schedule);
-
   if (activityData.schedule.length > 0) {
     activityData
-      .relevantTime = relevantTime;
+      .relevantTime = getRelevantTime(activityData.schedule);
+
+    activityData
+      .scheduleDates = getScheduleDates(activityData.schedule);
+
+    console.log('scheduleDates:', activityData.scheduleDates);
   }
 
   if (activityData.attachment.Location
@@ -237,10 +243,10 @@ const createDocsWithBatch = async (conn, locals) => {
     .hidden = locals.static.hidden;
   activityData
     .creator = {
-      phoneNumber: conn.requester.phoneNumber,
-      displayName: conn.requester.displayName,
-      photoURL: conn.requester.photoURL,
-    };
+    phoneNumber: conn.requester.phoneNumber,
+    displayName: conn.requester.displayName,
+    photoURL: conn.requester.photoURL,
+  };
   activityData
     .createTimestamp = Date.now();
 
@@ -356,39 +362,58 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
     return createDocsWithBatch(conn, locals);
   }
 
-  const leaveType = (() => {
-    if (conn.req.body.template === 'leave') {
-      return conn.req.body.attachment['Leave Type'].value;
-    }
+  // const leaveType = (() => {
+  //   if (conn.req.body.template === 'leave') {
+  //     return conn.req.body.attachment['Leave Type'].value;
+  //   }
 
-    return '';
-  })();
+  //   return '';
+  // })();
+
+  // const {
+  //   success,
+  //   message
+  // } = await setOnLeaveOrAr({
+  //   startTime,
+  //   endTime,
+  //   leaveType,
+  //   officeId: locals.officeDoc.id,
+  //   timezone: locals.officeDoc.get('attachment.Timezone.value'),
+  //   template: conn.req.body.template,
+  //   status: locals.static.statusOnCreate,
+  //   leaveReason: conn.req.body.attachment.Reason.value,
+  //   arReason: conn.req.body.attachment.Reason.value,
+  //   creatorsPhoneNumber: conn.requester.phoneNumber,
+  //   requestersPhoneNumber: conn.requester.phoneNumber,
+  // });
+
+  // if (!success) {
+  //   locals
+  //     .static
+  //     .statusOnCreate = 'CANCELLED';
+
+  //   locals
+  //     .cancellationMessage = `${conn.req.body.template.toUpperCase()}`
+  //     + ` CANCELLED: ${message}`;
+  // }
 
   const {
-    success,
-    message
-  } = await setOnLeaveOrAr({
-    startTime,
-    endTime,
-    leaveType,
-    officeId: locals.officeDoc.id,
-    timezone: locals.officeDoc.get('attachment.Timezone.value'),
-    template: conn.req.body.template,
-    status: locals.static.statusOnCreate,
-    leaveReason: conn.req.body.attachment.Reason.value,
-    arReason: conn.req.body.attachment.Reason.value,
-    creatorsPhoneNumber: conn.requester.phoneNumber,
-    requestersPhoneNumber: conn.requester.phoneNumber,
+    conflictingDate,
+    conflictingTemplate,
+  } = await attendanceConflictHandler({
+    schedule: conn.req.body.schedule,
+    phoneNumber: conn.requester.phoneNumber,
+    office: conn.req.body.office,
   });
 
-  if (!success) {
-    locals
-      .static
-      .statusOnCreate = 'CANCELLED';
+  if (conflictingDate) {
+    const article = conn.req.body.template.startsWith('a') ? 'an' : 'a';
+    const article2 = conflictingTemplate.startsWith('a') ? 'an' : 'a';
+    const message = `Cannot apply for ${article} ${conn.req.body.template}.`
+      + ` You are already on ${article2} ${conflictingTemplate} on the date`
+      + ` ${conflictingDate}`;
 
-    locals
-      .cancellationMessage = `${conn.req.body.template.toUpperCase()}`
-      + ` CANCELLED: ${message}`;
+    return sendResponse(conn, code.badRequest, message);
   }
 
   return createDocsWithBatch(conn, locals);
@@ -517,10 +542,10 @@ const handleAssignees = async (conn, locals) => {
         .permissions[
         phoneNumber
       ] = {
-          isAdmin: false,
-          isEmployee: false,
-          isCreator: isRequester,
-        };
+        isAdmin: false,
+        isEmployee: false,
+        isCreator: isRequester,
+      };
 
       if (locals.static.canEditRule === 'EMPLOYEE') {
         promises

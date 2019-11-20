@@ -29,6 +29,7 @@ const {
   db,
   rootCollections,
 } = require('../admin/admin');
+const { getRelevantTime } = require('../admin/utils');
 const {
   reportNames,
   dateFormats,
@@ -41,7 +42,6 @@ const rpn = require('request-promise-native');
 const url = require('url');
 
 sgMail.setApiKey(env.sgMailApiKey);
-
 
 const sendErrorReport = async () => {
   const today = momentTz().subtract(1, 'days');
@@ -142,7 +142,9 @@ const deleteInstantDocs = async () => {
     .where('timestamp', '<=', hundredDaysBeforeMoment.valueOf())
     .get();
 
-  docs.forEach(doc => batch.delete(doc.ref));
+  const instantCallback = doc => batch.delete(doc.ref);
+
+  docs.forEach(instantCallback);
 
   return batch.commit();
 };
@@ -219,27 +221,31 @@ module.exports = async timerDoc => {
 
     const batch = db.batch();
 
-    recipientsQuery
-      .forEach(doc => {
-        batch
-          .set(doc.ref, { timestamp: Date.now() }, { merge: true });
-      });
-
-    if (env.isProduction) {
-      batch.set(counterDocsQuery.docs[0].ref, {
-        /**
-         * Storing this value in the daily status report counts doc in order
-         * to check if all reports have finished their work.
-         */
-        expectedRecipientTriggersCount: recipientsQuery.size,
-        recipientsTriggeredToday: 0,
+    const recipientCallback = doc => batch
+      .set(doc.ref, {
+        timestamp: Date.now(),
       }, {
         merge: true,
       });
+
+    recipientsQuery
+      .forEach(recipientCallback);
+
+    if (env.isProduction) {
+      batch
+        .set(counterDocsQuery.docs[0].ref, {
+          /**
+           * Storing this value in the daily status report counts doc in order
+           * to check if all reports have finished their work.
+           */
+          expectedRecipientTriggersCount: recipientsQuery.size,
+          recipientsTriggeredToday: 0,
+        }, {
+          merge: true,
+        });
     }
 
     await batch.commit();
-
     return deleteInstantDocs();
   } catch (error) {
     console.error(error);

@@ -7,7 +7,6 @@ const {
 } = require('../../../admin/admin');
 const {
   addendumTypes,
-  dateFormats,
   httpsActions,
   subcollectionNames,
 } = require('../../../admin/constants');
@@ -48,8 +47,7 @@ module.exports = async locals => {
   const month = momentArDate.month();
   const year = momentArDate.year();
   const batch = db.batch();
-  const action = locals.addendumDocData.action;
-  const arAppliedForFuture = arSchedule >= momentTz().tz(timezone).startOf('day').valueOf();
+  const { action } = locals.addendumDocData;
   const attendanceDoc = (await rootCollections
     .offices
     .doc(officeId)
@@ -61,7 +59,12 @@ module.exports = async locals => {
     .get())
     .docs[0];
 
-  const { uid } = await getAuth(phoneNumber);
+  let uid = locals.addendumDocData.uid;
+
+  if (!uid) {
+    uid = (await getAuth(phoneNumber)).uid;
+  }
+
   const employeeData = await getEmployeeReportData(officeId, phoneNumber);
   const attendanceDocData = attendanceDoc ? attendanceDoc.data() : {};
   const attendanceDocRef = attendanceDoc ? attendanceDoc.ref : rootCollections
@@ -76,9 +79,6 @@ module.exports = async locals => {
   attendanceDocData
     .attendance[date] = attendanceDocData
       .attendance[date] || getDefaultAttendanceObject();
-
-  const hasConflictWithAr = attendanceDocData.attendance[date].onAr === true;
-  const hasConflictWithLeave = attendanceDocData.attendance[date].onLeave === true;
 
   attendanceDocData
     .attendance[date]
@@ -122,18 +122,10 @@ module.exports = async locals => {
         minimumWorkingHours: employeeData.minimumWorkingHours,
         minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
       });
-
-    console.log('New Attendance:', attendanceDocData.attendance[date].attendance);
   }
-
-  console.log('AR ID', locals.change.after.id);
-  console.log('AR for', momentArDate.format(dateFormats.DATE));
 
   const attendanceUpdate = Object
     .assign({}, employeeData, attendanceDocData);
-
-  console.log('attendanceDocRef', attendanceDocRef.path);
-  console.log('attendanceUpdate', attendanceUpdate.attendance[date]);
 
   batch
     .set(attendanceDocRef, Object.assign({
@@ -165,63 +157,6 @@ module.exports = async locals => {
       }), {
       merge: true,
     });
-
-  console.log('hasConflictWithLeave', hasConflictWithLeave);
-  console.log('hasConflictWithAr', hasConflictWithAr);
-
-  // Ar or leave already applied on the date
-  if (hasConflictWithLeave
-    || hasConflictWithAr
-    || arAppliedForFuture) {
-    const addendumDocRef = rootCollections
-      .offices
-      .doc(officeId)
-      .collection(subcollectionNames.ADDENDUM)
-      .doc();
-
-    console.log('Cancelling activity');
-
-    batch
-      .set(locals.change.after.ref, {
-        addendumDocRef,
-        status: 'CANCELLED',
-      }, {
-        merge: true,
-      });
-
-    // arAppliedForFuture
-    const comment = (() => {
-      if (arAppliedForFuture) {
-        return `ATTENDANCE REGULARIZATION CANCELLED:`
-          + ` Attendance can only be reglularized for the past`;
-      }
-
-      return `Attendance Regularization Cancelled:`
-        + ` ${hasConflictWithLeave ? 'Leave' : 'attendance regularization'}`
-        + ` has already been applied for the date:`
-        + ` ${momentArDate.format(dateFormats.DATE)}`;
-    })();
-
-    batch
-      .set(addendumDocRef, {
-        comment,
-        isConflictedComment: true,
-        date: momentNow.date(),
-        month: momentNow.month(),
-        year: momentNow.year(),
-        user: locals.addendumDocData.user,
-        action: httpsActions.comment,
-        location: locals.addendumDocData.location,
-        timestamp: Date.now(),
-        userDeviceTimestamp: locals.addendumDocData.userDeviceTimestamp || '',
-        activityId: locals.change.after.id,
-        isSupportRequest: locals.addendumDocData.isSupportRequest,
-        activityData: locals.change.after.data(),
-        geopointAccuracy: locals.addendumDocData.accuracy || null,
-        provider: locals.addendumDocData.provider || null,
-        userDisplayName: locals.addendumDocData.userDisplayName || '',
-      });
-  }
 
   await batch
     .commit();

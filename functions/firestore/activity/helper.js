@@ -40,6 +40,7 @@ const {
   isNonEmptyString,
   isE164PhoneNumber,
   getAttendancesPath,
+  enumerateDaysBetweenDates,
 } = require('../../admin/utils');
 const {
   allMonths,
@@ -1724,7 +1725,84 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 };
 
 
+const attendanceConflictHandler = async params => {
+  // Called for templates {leave and attendance regularization}
+  const { schedule, phoneNumber, office } = params;
+  const allDateStrings = [];
+  const queries = [];
+  let conflictingDate = null;
+  let conflictingTemplate = null;
+
+  // runs for leave/ar
+  // generate all date strings from start time to end time
+  // create queries for leave and ar for each date
+  // where(scheduleDates, array_contains, '1 Jan 2019')
+  // isCancelled == false
+  schedule.forEach(scheduleObject => {
+    const { startTime, endTime } = scheduleObject;
+
+    allDateStrings.push(
+      ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE)
+    );
+  });
+
+  // console.log('allDateStrings', JSON.stringify(allDateStrings));
+
+  allDateStrings.forEach(dateString => {
+    console.log('Query =>', dateString);
+    queries
+      .push(
+        rootCollections
+          .profiles
+          .doc(phoneNumber)
+          .collection(subcollectionNames.ACTIVITIES)
+          .where('office', '==', office)
+          .where('scheduleDates', 'array-contains', dateString)
+          .limit(1)
+          .get()
+      );
+  });
+
+  const snapShots = await Promise.all(queries);
+
+  console.log('snapShots', snapShots.length);
+
+  for (const snap of snapShots) {
+    const { empty } = snap;
+
+    if (empty) {
+      continue;
+    }
+
+    const [doc] = snap.docs;
+    const { schedule, template, status } = doc.data();
+    console.log('id => ', doc.id);
+
+    if (template !== 'leave'
+      && template !== 'attendance regularization') {
+      continue;
+    }
+
+    if (status === 'CANCELLED') {
+      continue;
+    }
+
+    const [firstSchedule] = schedule;
+    const { startTime } = firstSchedule;
+
+    conflictingDate = momentTz(startTime).format(dateFormats.DATE);
+    conflictingTemplate = template;
+  }
+
+  return {
+    conflictingDate,
+    conflictingTemplate,
+  };
+};
+
+
 module.exports = {
+  attendanceConflictHandler,
   activityName,
   validateVenues,
   getCanEditValue,

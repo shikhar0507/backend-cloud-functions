@@ -435,7 +435,8 @@ const createBranches = async locals => {
         branches,
         templateQuery
       ] = result;
-      const templateDoc = templateQuery.docs[0];
+
+      const [templateDoc] = templateQuery.docs;
       const promises = [];
 
       branches
@@ -765,7 +766,6 @@ const createOfficeVirtualAccount = async locals => {
       getAuth(secondContact)
     ]);
 
-
   const {
     displayName: firstDisplayName,
     email: firstEmail,
@@ -808,10 +808,10 @@ const createOfficeVirtualAccount = async locals => {
   }
 
   return createVirtualAccount({
-    vAccountId: await getVid(),
     name,
     phone,
     email,
+    vAccountId: await getVid(),
   });
 };
 

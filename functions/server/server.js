@@ -379,8 +379,6 @@ module.exports = async (req, res) => {
     return sendResponse(conn, code.ok);
   }
 
-  console.log('conn.req.path', conn.req.path);
-
   if (conn.req.path === '/webhook/sendgrid') {
     await require('../webhooks/sendgrid')(conn);
 

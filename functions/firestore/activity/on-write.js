@@ -3731,11 +3731,6 @@ const reimburseKmAllowance = async locals => {
     return;
   }
 
-  if (locals.addendumDocData.distanceTravelled < 1) {
-    console.log('Skip km allowance => distanceTravelled < 1');
-    return;
-  }
-
   const distanceBetweenCurrentAndStartPoint = await getDistanceFromDistanceMatrix(
     startPointDetails.geopoint,
     locals.addendumDocData.location
@@ -3885,6 +3880,11 @@ const reimburseKmAllowance = async locals => {
       }));
   } else {
     console.log('In km allowance else');
+
+    if (locals.addendumDocData.distanceTravelled < 1) {
+      console.log('Skip km allowance => distanceTravelled < 1');
+      return;
+    }
 
     const oldReimbursementDoc = previousKmReimbursementQuery.docs[0];
     const oldUpdatesDoc = previousReimbursementUpdateQuery.docs[0];
@@ -4324,7 +4324,7 @@ const handleWorkday = async locals => {
     return;
   }
 
-  const location = locals.addendumDocData.location;
+  const { location } = locals.addendumDocData;
   const batch = db.batch();
 
   let uid = locals.addendumDocData.uid;
@@ -4337,16 +4337,19 @@ const handleWorkday = async locals => {
    * This query might return 0 docs if the date = 1 in the month
    * or the user hasn't done anything since the start of the month
    */
-  const attendanceDoc = (await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ATTENDANCES)
-    .where('phoneNumber', '==', phoneNumber)
-    .where('month', '==', month)
-    .where('year', '==', year)
-    .limit(1)
-    .get())
-    .docs[0];
+  const [attendanceDoc] = (
+    await rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ATTENDANCES)
+      .where('phoneNumber', '==', phoneNumber)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .limit(1)
+      .get()
+  )
+    .docs;
+
   const attendanceDocRef = attendanceDoc ? attendanceDoc.ref : rootCollections
     .offices
     .doc(officeId)
@@ -4421,6 +4424,27 @@ const handleWorkday = async locals => {
     .addendum
     .sort((a, b) => a.timestamp - b.timestamp);
 
+  const numberOfCheckIns = attendanceObject.attendance[date].addendum.length;
+  const firstAddendum = attendanceObject.attendance[date].addendum[0];
+  const lastAddendum = attendanceObject.attendance[date].addendum[numberOfCheckIns - 1];
+  const hoursWorked = momentTz(lastAddendum.timestamp)
+    .diff(
+      momentTz(firstAddendum.timestamp),
+      'hours',
+      true
+    );
+
+  attendanceObject
+    .attendance[date]
+    .attendance = getStatusForDay({
+      // difference between first and last action in hours
+      hoursWorked,
+      // number of actions done in the day by the user
+      numberOfCheckIns,
+      minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
+      minimumWorkingHours: employeeData.minimumWorkingHours,
+    });
+
   if (attendanceObject.attendance[date].onAr
     || attendanceObject.attendance[date].onLeave
     || attendanceObject.attendance[date].holiday
@@ -4430,31 +4454,7 @@ const handleWorkday = async locals => {
       .attendance = 1;
   }
 
-  const numberOfCheckIns = attendanceObject.attendance[date].addendum.length;
-  const firstAddendum = attendanceObject.attendance[date].addendum[0];
-  const lastAddendum = attendanceObject.attendance[date].addendum[numberOfCheckIns - 1];
-
-  if (attendanceObject.attendance[date].attendance !== 1) {
-    const hoursWorked = momentTz(lastAddendum.timestamp)
-      .diff(
-        momentTz(firstAddendum.timestamp),
-        'hours',
-        true
-      );
-
-    const attendanceParams = {
-      // difference between first and last action in hours
-      hoursWorked,
-      // number of actions done in the day by the user
-      numberOfCheckIns,
-      minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
-      minimumWorkingHours: employeeData.minimumWorkingHours,
-    };
-
-    attendanceObject
-      .attendance[date]
-      .attendance = getStatusForDay(attendanceParams);
-  }
+  console.log('Attendance =>', attendanceObject.attendance[date].attendance);
 
   attendanceObject
     .attendance[date]
@@ -4465,11 +4465,11 @@ const handleWorkday = async locals => {
     .set(
       attendanceDocRef, Object
         .assign({}, employeeData, attendanceObject, {
-          month,
           year,
-          phoneNumber,
-          officeId,
+          month,
           office,
+          officeId,
+          phoneNumber,
           timestamp: Date.now(),
         }), {
       merge: true,
@@ -4485,8 +4485,8 @@ const handleWorkday = async locals => {
           date,
           month,
           year,
-          officeId,
           office,
+          officeId,
           phoneNumber,
           timestamp: Date.now(),
           _type: addendumTypes.ATTENDANCE,

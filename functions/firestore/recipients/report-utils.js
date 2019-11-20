@@ -322,15 +322,8 @@ const getIdentifier = doc => {
   return doc.get('identifier');
 };
 
-const getStatusForDay = options => {
-  const {
-    hoursWorked,
-    numberOfCheckIns,
-    minimumWorkingHours,
-    minimumDailyActivityCount,
-  } = options;
-
-  if (minimumDailyActivityCount) {
+const getStatusForDay = ({ hoursWorked, numberOfCheckIns, minimumWorkingHours, minimumDailyActivityCount }) => {
+  if (minimumDailyActivityCount === 1) {
     return 1;
   }
 
@@ -362,15 +355,6 @@ const getStatusForDay = options => {
   })();
 
   const min = Math.min(activityRatio, timeRatio);
-
-  console.log(
-    JSON
-      .stringify({
-        activityRatio,
-        timeRatio,
-        min,
-      }, ' ', 2)
-  );
 
   if (min >= 1) {
     return 1;
