@@ -2422,9 +2422,9 @@ module.exports = async (object, context) => {
 
     locals
       .geopoint = {
-        latitude: Number(metadataResponse.metadata.latitude),
-        longitude: Number(metadataResponse.metadata.longitude),
-      };
+      latitude: Number(metadataResponse.metadata.latitude),
+      longitude: Number(metadataResponse.metadata.longitude),
+    };
     locals
       .userDeviceTimestamp = Number(metadataResponse.metadata.timestamp);
     locals
