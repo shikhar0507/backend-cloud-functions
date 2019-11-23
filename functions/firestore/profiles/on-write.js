@@ -35,7 +35,6 @@ const {
 const {
   reportNames,
   httpsActions,
-  addendumTypes,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
@@ -104,25 +103,6 @@ const manageAddendum = async change => {
 
   docs
     .forEach(doc => {
-      const {
-        // timestamp,
-        _type,
-      } = doc.data();
-
-      /**
-       * `Attendance`, `Payments` and `Reimbursements`
-       * are stored for 100 days.
-       */
-      const isSkippable = _type === addendumTypes.REIMBURSEMENT
-        || _type === addendumTypes.ATTENDANCE
-        || _type === addendumTypes.PAYMENT;
-
-      if (isSkippable) {
-        return;
-      }
-
-      console.log('deleting', doc.ref.path, _type);
-
       batch
         .delete(doc.ref);
     });
