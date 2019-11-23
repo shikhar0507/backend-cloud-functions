@@ -319,8 +319,10 @@ module.exports = async conn => {
         disabled: true,
       });
 
+    conn.req.body.oldPhoneNumber = conn.req.body.oldPhoneNumber || conn.requester.phoneNumber;
+
     await populateActivities(
-      (conn.req.body.oldPhoneNumber || conn.requester.phoneNumber),
+      conn.req.body.oldPhoneNumber,
       conn.req.body.newPhoneNumber,
     );
 
