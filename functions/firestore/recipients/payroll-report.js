@@ -1,6 +1,7 @@
 'use strict';
 
 
+const { rootCollections } = require('../../admin/admin');
 const {
   getNumbersbetween,
 } = require('../../admin/utils');
@@ -353,6 +354,18 @@ module.exports = async locals => {
   workbook
     .deleteSheet('Sheet1');
 
+  const allCountsData = {
+    report: reportNames.PAYROLL,
+    rowsCount: 0,
+    totalUsers: 0,
+    office: locals.officeDoc.get('office'),
+    timestamp: Date.now(),
+    officeId: locals.officeDoc.id,
+    date: momentYesterday.date(),
+    month: momentYesterday.month(),
+    year: momentYesterday.year(),
+  };
+
   // Dates in previous month.
   const firstRange = (() => {
     if (fetchPreviousMonthDocs) {
@@ -451,9 +464,6 @@ module.exports = async locals => {
         department,
       } = employeeData.get(phoneNumber);
 
-      // TODO: key and attDoc an be moved here
-      // Entries for previous month (date = first day of monthly cycle)
-      // the end of the month
       firstRange
         .forEach(date => {
           rowIndex++;
@@ -483,6 +493,8 @@ module.exports = async locals => {
             attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
             momentInstance: momentPrevMonth.clone(),
           };
+
+          allCountsData.rowsCount++;
 
           rangeCallback(params);
         });
@@ -518,6 +530,8 @@ module.exports = async locals => {
             momentInstance: momentYesterday.clone(),
           };
 
+          allCountsData.rowsCount++;
+
           rangeCallback(params);
         });
     });
@@ -531,6 +545,8 @@ module.exports = async locals => {
   allLeaveTypes = [...allLeaveTypes.values()];
 
   let summaryRowIndex = 0;
+
+  allCountsData.totalUsers = allPhoneNumbers.size;
 
   allPhoneNumbers
     .forEach(phoneNumber => {
@@ -641,6 +657,13 @@ module.exports = async locals => {
     .sendMultiple(locals.messageObject);
 
   console.log('mail sent');
+
+  console.log(JSON.stringify(allCountsData, ' ', 2));
+
+  await rootCollections
+    .inits
+    .doc()
+    .set(allCountsData);
 
   return;
 };

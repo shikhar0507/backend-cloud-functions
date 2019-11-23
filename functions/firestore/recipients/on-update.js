@@ -241,7 +241,7 @@ module.exports = async change => {
       .limit(1)
       .get();
 
-    const dailyStatusDoc = dailyStatusDocQueryResult.docs[0];
+    const [dailyStatusDoc] = dailyStatusDocQueryResult.docs;
     const data = dailyStatusDoc.data();
     const expectedRecipientTriggersCount = dailyStatusDoc
       .get('expectedRecipientTriggersCount');

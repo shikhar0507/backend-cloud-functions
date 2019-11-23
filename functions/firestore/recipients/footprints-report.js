@@ -289,6 +289,26 @@ module.exports = async locals => {
     onLeaveWeeklyOffHoliday: 0,
   };
 
+  const allCountsData = {
+    /** Count of addendum */
+    totalActions: 0,
+    /** Count of phone numbers */
+    totalUsers: 0,
+    /** docs with isSupportRequest === true */
+    totalSupport: 0,
+    /** {[httpsAction]: [count]} */
+    apiActions: {},
+    /** {[template]: [count]} */
+    templates: {},
+    office,
+    report: reportNames.FOOTPRINTS,
+    timestamp: Date.now(),
+    officeId: locals.officeDoc.id,
+    date: momentYesterday.date(),
+    month: momentYesterday.month(),
+    year: momentYesterday.year(),
+  };
+
   try {
     const [
       workbook,
@@ -342,15 +362,34 @@ module.exports = async locals => {
 
     let count = 0;
 
+    allCountsData.totalActions = addendumDocsQueryResult.size;
+
     addendumDocsQueryResult
       .forEach(doc => {
         const action = doc.get('action');
+
+        allCountsData.apiActions[action] = allCountsData.apiActions[action] || 0;
+        allCountsData.apiActions[action]++;
+
+        const template = doc.get('activityData.template');
+        if (template) {
+          allCountsData.templates[template] = allCountsData.templates[template] || 0;
+          allCountsData.templates[template]++;
+        }
+
+
         const columnIndex = count + 2;
         const phoneNumber = doc.get('user');
         const employeeObject = employeeInfo(locals.employeesData, phoneNumber);
 
+        const isSupportRequest = doc.get('isSupportRequest');
+
+        if (isSupportRequest) {
+          allCountsData.totalSupport++;
+        }
+
         const name = (() => {
-          if (doc.get('isSupportRequest')) {
+          if (isSupportRequest) {
             return 'Growthfile Support';
           }
 
@@ -388,7 +427,6 @@ module.exports = async locals => {
             .toFixed(2);
         })();
 
-        const template = doc.get('activityData.template');
         const prevTemplateForPerson = prevTemplateForPersonMap.get(phoneNumber);
         const prevDocTimestamp = prevDocTimestampMap
           .get(phoneNumber);
@@ -490,6 +528,8 @@ module.exports = async locals => {
           .value(baseLocation);
       });
 
+    allCountsData.totalUsers = distanceMap.size;
+
     counterObject
       .active = distanceMap.size;
     counterObject
@@ -550,14 +590,21 @@ module.exports = async locals => {
       .limit(1)
       .get();
 
-    const doc = dailyStatusDocsQueryResult
-      .docs[0];
+    const [doc] = dailyStatusDocsQueryResult
+      .docs;
     const oldCountsObject = doc
       .get('countsObject') || {};
 
     oldCountsObject[
       office
     ] = counterObject;
+
+    console.log(JSON.stringify(allCountsData, ' ', 2));
+
+    await rootCollections
+      .inits
+      .doc()
+      .set(allCountsData);
 
     return doc
       .ref
