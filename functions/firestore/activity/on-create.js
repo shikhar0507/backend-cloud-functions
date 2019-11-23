@@ -165,8 +165,6 @@ const createDocsWithBatch = async (conn, locals) => {
 
     activityData
       .scheduleDates = getScheduleDates(activityData.schedule);
-
-    console.log('scheduleDates:', activityData.scheduleDates);
   }
 
   if (activityData.attachment.Location
@@ -361,41 +359,6 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
     return createDocsWithBatch(conn, locals);
   }
 
-  // const leaveType = (() => {
-  //   if (conn.req.body.template === 'leave') {
-  //     return conn.req.body.attachment['Leave Type'].value;
-  //   }
-
-  //   return '';
-  // })();
-
-  // const {
-  //   success,
-  //   message
-  // } = await setOnLeaveOrAr({
-  //   startTime,
-  //   endTime,
-  //   leaveType,
-  //   officeId: locals.officeDoc.id,
-  //   timezone: locals.officeDoc.get('attachment.Timezone.value'),
-  //   template: conn.req.body.template,
-  //   status: locals.static.statusOnCreate,
-  //   leaveReason: conn.req.body.attachment.Reason.value,
-  //   arReason: conn.req.body.attachment.Reason.value,
-  //   creatorsPhoneNumber: conn.requester.phoneNumber,
-  //   requestersPhoneNumber: conn.requester.phoneNumber,
-  // });
-
-  // if (!success) {
-  //   locals
-  //     .static
-  //     .statusOnCreate = 'CANCELLED';
-
-  //   locals
-  //     .cancellationMessage = `${conn.req.body.template.toUpperCase()}`
-  //     + ` CANCELLED: ${message}`;
-  // }
-
   const {
     conflictingDate,
     conflictingTemplate,
@@ -436,7 +399,6 @@ const handlePayroll = async (conn, locals) => {
     return handleLeaveOrOnDuty(conn, locals);
   }
 
-  // const leaveType = conn.req.body.attachment['Leave Type'].value;
   const startMoment = momentTz(conn.req.body.schedule[0].endTime);
   const endMoment = momentTz(conn.req.body.schedule[0].endTime);
 
@@ -530,7 +492,7 @@ const handleAssignees = async (conn, locals) => {
   locals
     .objects
     .allPhoneNumbers
-    .forEach((phoneNumber) => {
+    .forEach(phoneNumber => {
       const isRequester = phoneNumber === conn.requester.phoneNumber;
       /**
        * Defaults are `false`, since we don't know right now what
@@ -617,7 +579,6 @@ const handleAssignees = async (conn, locals) => {
   }
 
   return handlePayroll(conn, locals);
-  // return createDocsWithBatch(conn, locals);
 };
 
 const handleClaims = async (conn, locals) => {
