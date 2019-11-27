@@ -51,6 +51,8 @@ const {
   getDefaultAttendanceObject,
   getEmployeesMapFromRealtimeDb,
   populateWeeklyOffInAttendance,
+  getLatLngString,
+  getDistanceFromDistanceMatrix,
 } = require('../../admin/utils');
 const {
   toMapsUrl,
@@ -69,41 +71,68 @@ const googleMapsClient = require('@google/maps')
     Promise: Promise,
   });
 
-const getLatLngString = location =>
-  `${location._latitude || location.latitude}`
-  + `,`
-  + `${location._longitude || location.longitude}`;
 
+const getLocationUrl = plusCode =>
+  `https://plus.codes/${plusCode}`;
 
-const getDistanceFromDistanceMatrix = async (origin, destination) => {
-  const result = await googleMapsClient
-    .distanceMatrix({
-      /**
-       * Ordering is important here. The `legal` distance
-       * between A to B might not be the same as the legal
-       * distance between B to A. So, do not mix the ordering.
-       */
-      origins: getLatLngString(origin),
-      destinations: getLatLngString(destination),
-      units: 'metric',
-    })
-    .asPromise();
+const getLocalityCityState = mapsApiResult => {
+  let locality = '';
+  let city = '';
+  let state = '';
 
-  const distanceData = result
-    .json
-    .rows[0]
-    .elements[0]
-    .distance;
+  if (mapsApiResult.json.results.length === 0) {
+    return { locality, city, state };
+  }
 
-  /**
-   * Not all origin => destinations might have a lega
-   * road path
-   * For those cases, distance travelled will be assumed
-   * to be 0. And km allowance will not be created.
-   */
-  return distanceData ? distanceData.value / 1000 : null;
+  const {
+    address_components: components,
+  } = mapsApiResult.json.results[0];
+
+  components.forEach(component => {
+    if (component.types.includes('locality')) {
+      locality = component.long_name;
+    }
+
+    if (component.types.includes('administrative_area_level_2')) {
+      city = component.long_name;
+    }
+
+    if (component.types.includes('administrative_area_level_1')) {
+      state = component.long_name;
+    }
+  });
+
+  return { locality, city, state };
 };
 
+
+
+const getPlaceInformation = (mapsApiResult, geopoint) => {
+  const value = toMapsUrl(geopoint);
+
+  if (!mapsApiResult) {
+    return {
+      url: value,
+      identifier: value,
+    };
+  }
+
+  const firstResult = mapsApiResult.json.results[0];
+
+  if (!firstResult) {
+    return {
+      url: value,
+      identifier: value,
+    };
+  }
+
+  const plusCode = mapsApiResult.json['plus_code']['global_code'];
+
+  return {
+    identifier: firstResult['formatted_address'],
+    url: getLocationUrl(plusCode),
+  };
+};
 
 const getValueFromActivity = (change, field, fromOldState = false) => {
   if (typeof fromOldState === 'boolean'
@@ -149,7 +178,11 @@ const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   return updatedFields;
 };
 
-const getCustomerObject = async (name, officeId, template) => {
+const getCustomerObject = async ({ name, officeId, template }) => {
+  if (!name) {
+    return null;
+  }
+
   const customerActivityResult = await rootCollections
     .activities
     .where('template', '==', template)
@@ -159,6 +192,11 @@ const getCustomerObject = async (name, officeId, template) => {
     .get();
 
   const [customerDoc] = customerActivityResult.docs;
+
+  if (!customerDoc) {
+    return null;
+  }
+
   const { attachment } = customerDoc.data();
   const [venue] = customerDoc.get('venue');
   const { location, address, geopoint } = venue;
@@ -1438,14 +1476,16 @@ const handleRecipient = async locals => {
     return;
   }
 
+  const { status } = locals.change.after.data();
+
   batch
     .set(recipientsDocRef, {
+      status,
       include: locals.assigneePhoneNumbersArray,
       cc: locals.change.after.get('attachment.cc.value'),
       office: locals.change.after.get('office'),
       report: locals.change.after.get('attachment.Name.value'),
       officeId: locals.change.after.get('officeId'),
-      status: locals.change.after.get('status'),
     }, {
       /**
        * Required since anyone updating the this activity will cause
@@ -1454,7 +1494,7 @@ const handleRecipient = async locals => {
       merge: true,
     });
 
-  if (locals.change.after.get('status') === 'CANCELLED') {
+  if (status === 'CANCELLED') {
     batch
       .delete(recipientsDocRef);
   }
@@ -1473,10 +1513,7 @@ const handleRecipient = async locals => {
    * all employees of the office should get
    * the subscription of attendance regularization
    */
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
+  const { officeId } = locals.change.after.data();
   const employees = await getEmployeesMapFromRealtimeDb(officeId);
   const promises = [];
   const phoneNumbers = Object.keys(employees);
@@ -1498,46 +1535,42 @@ const handleRecipient = async locals => {
 };
 
 
-const createNewProfiles = async newProfilesMap => {
+const createNewProfiles = async ({ newPhoneNumbersSet, smsContext }) => {
   const profileBatch = db.batch();
   const profilePromises = [];
 
-  newProfilesMap
-    .forEach((_, phoneNumber) => {
-      const promise = rootCollections
-        .profiles
-        .doc(phoneNumber)
-        .get();
+  const promiseCreator = phoneNumber => {
+    const promise = rootCollections
+      .profiles
+      .doc(phoneNumber)
+      .get();
 
-      profilePromises
-        .push(promise);
-    });
+    profilePromises
+      .push(promise);
+  };
+
+  newPhoneNumbersSet
+    .forEach(promiseCreator);
 
   const snap = await Promise
     .all(profilePromises);
+  const batchCreator = doc => {
+    /** Profile already exists */
+    if (doc.exists) {
+      return;
+    }
 
-  snap
-    .forEach(doc => {
-      /** Profile already exists */
-      if (doc.exists) {
-        return;
-      }
+    // doc.id => phoneNumber
+    profileBatch.set(doc.ref, { smsContext }, { merge: true });
+  };
 
-      profileBatch
-        .set(doc.ref, {
-          // doc.id => phoneNumber
-          smsContext: newProfilesMap.get(doc.id),
-        }, {
-          merge: true,
-        });
-    });
+  snap.forEach(batchCreator);
 
-  return profileBatch
-    .commit();
+  return profileBatch.commit();
 };
 
 
-const getCopyPath = (template, officeId, activityId) => {
+const getCopyPath = ({ template, officeId, activityId }) => {
   if (template === 'office') {
     return rootCollections
       .offices
@@ -1547,7 +1580,7 @@ const getCopyPath = (template, officeId, activityId) => {
   return rootCollections
     .offices
     .doc(officeId)
-    .collection('Activities')
+    .collection(subcollectionNames.ACTIVITIES)
     .doc(activityId);
 };
 
@@ -1706,15 +1739,9 @@ const getChangeStatusComment = (status, activityName, pronoun) => {
 
 
 const getCommentString = (locals, recipient) => {
-  const action = locals.addendumDoc.get('action');
+  const { action } = locals.addendumDoc.data();
   const pronoun = getPronoun(locals, recipient);
   const template = locals.addendumDoc.get('activityData.template');
-
-  if (locals.addendumDoc.get('cancellationMessage')) {
-    return locals
-      .addendumDoc
-      .get('cancellationMessage');
-  }
 
   if (action === httpsActions.create) {
     const locationFromVenue = (() => {
@@ -1757,7 +1784,7 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.share) {
-    const share = locals.addendumDoc.get('share');
+    const { share } = locals.addendumDoc.data();
     let str = `${pronoun} added`;
 
     if (share.length === 1) {
@@ -1827,6 +1854,10 @@ const getCommentString = (locals, recipient) => {
 
 
 const handleComments = async (addendumDoc, locals) => {
+  if (!addendumDoc) {
+    return;
+  }
+
   const batch = db.batch();
 
   locals
@@ -1865,7 +1896,7 @@ const handleComments = async (addendumDoc, locals) => {
 };
 
 
-const handleDailyStatusReport = async addendumDoc => {
+const createActivityStats = async addendumDoc => {
   if (!env.isProduction) return;
 
   const batch = db.batch();
@@ -1906,12 +1937,9 @@ const handleDailyStatusReport = async addendumDoc => {
         .get(),
     ]);
 
-  const initDocRef = (snapShot) => {
-    if (snapShot.empty) {
-      return rootCollections.inits.doc();
-    }
-
-    return snapShot.docs[0].ref;
+  const initDocRef = snapShot => {
+    return snapShot
+      .empty ? rootCollections.inits.doc() : snapShot.docs[0].ref;
   };
 
   const initDoc = initDocRef(todayInitQuery);
@@ -2014,11 +2042,8 @@ const handleDailyStatusReport = async addendumDoc => {
     }
   }
 
-  const dataObject = (() => {
-    if (todayInitQuery.empty) return {};
-
-    return todayInitQuery.docs[0].data() || {};
-  })();
+  const dataObject = todayInitQuery
+    .empty ? {} : todayInitQuery.docs[0].data();
 
   dataObject.totalActivities = totalActivities;
   dataObject.activitiesAddedToday = activitiesAddedToday;
@@ -2084,171 +2109,259 @@ const getAccuracyTolerance = accuracy => {
   return 1;
 };
 
+const getVenueFromActivity = activityData => {
+  const [venue] = activityData.venue;
 
-const checkDistanceAccurate = (addendumDoc, activityDoc) => {
+  /**
+   * Some activities might have empty venue object
+   * based on template.
+   */
+  return venue ? venue : null;
+};
+
+const handlePopulatedVenue = ({ addendumDoc }) => {
   /** User's current location */
-  const geopointOne = {
+  const deviceLocation = {
     _latitude: addendumDoc.get('location')._latitude,
     _longitude: addendumDoc.get('location')._longitude,
-    accuracy: addendumDoc.get('geopointAccuracy'),
-  };
-  const venue = addendumDoc.get('activityData.venue')[0];
-  const distanceTolerance = getAccuracyTolerance(geopointOne.accuracy);
-
-  if (venue && venue.location) {
-    /** Location that the user selected */
-    const geopointTwo = {
-      _latitude: venue.geopoint._latitude,
-      _longitude: venue.geopoint._longitude,
-    };
-
-    const distanceBetween = haversineDistance(geopointOne, geopointTwo);
-
-    return distanceBetween < distanceTolerance;
-  }
-
-  // Activity created from an unknown location
-  if (!activityDoc) {
-    return false;
-  }
-
-  const venueFromActivity = activityDoc.get('venue')[0];
-  const geopointTwo = {
-    _latitude: venueFromActivity.geopoint._latitude,
-    _longitude: venueFromActivity.geopoint._longitude,
   };
 
-  const distanceBetween = haversineDistance(geopointOne, geopointTwo);
+  const { activityData, geopointAccuracy } = addendumDoc.data();
+  const activityVenue = getVenueFromActivity(activityData);
+  const distanceTolerance = getAccuracyTolerance(geopointAccuracy);
 
-  return distanceBetween < distanceTolerance;
+  // venue is populated => calculate distabce btw actual and venue location.
+  // haversineDistance(geopointOne, geopointTwo)
+  return {
+    distanceAccurate: haversineDistance(deviceLocation, activityVenue.geopoint) < distanceTolerance,
+    venueQuery: activityVenue,
+  };
 };
 
+const handleUnpopulatedVenue = async ({ addendumDoc }) => {
+  // venue is not populated.
+  // query db with adjusted geopoint.
+  const {
+    activityData,
+    geopointAccuracy,
+    location: currentGeopoint,
+  } = addendumDoc.data();
+  const { officeId } = activityData;
+  const distanceTolerance = getAccuracyTolerance(geopointAccuracy);
+  const adjGP = adjustedGeopoint(currentGeopoint);
 
-const getLocationUrl = plusCode =>
-  `https://plus.codes/${plusCode}`;
+  const [queriedActivity] = (
+    await rootCollections
+      .activities
+      .where('officeId', '==', officeId)
+      // Branch, and customer
+      .where('adjustedGeopoints', '==', `${adjGP.latitude},${adjGP.longitude}`)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
+  )
+    .docs;
 
+  // { isAccurate: false, venueQuery: null };
+  if (!queriedActivity) {
+    const mapsApiResult = await googleMapsClient.reverseGeocode({
+      latlng: getLatLngString(currentGeopoint),
+    })
+      .asPromise();
 
-const getPlaceInformation = (mapsApiResult, geopoint) => {
-  const value = toMapsUrl(geopoint);
+    const csl = getLocalityCityState(mapsApiResult);
+    const ui = getPlaceInformation(mapsApiResult, currentGeopoint);
 
-  if (!mapsApiResult) {
-    return {
-      url: value,
-      identifier: value,
-    };
+    return Object.assign({}, csl, ui, {
+      distanceAccurate: false,
+      venueQuery: null,
+    });
   }
 
-  const firstResult = mapsApiResult.json.results[0];
+  const [activityVenue] = queriedActivity.get('venue');
+  const { geopoint: activityGeopoint } = activityVenue;
 
-  if (!firstResult) {
-    return {
-      url: value,
-      identifier: value,
-    };
-  }
-
-  const plusCode = mapsApiResult.json['plus_code']['global_code'];
+  const distanceBetween = haversineDistance(currentGeopoint, activityGeopoint);
 
   return {
-    identifier: firstResult['formatted_address'],
-    url: getLocationUrl(plusCode),
+    distanceAccurate: distanceBetween < distanceTolerance,
+    venueQuery: activityVenue,
   };
 };
 
+const checkDistanceAccurate = async ({ addendumDoc }) => {
+  //   if activity.venue is NOT populated => use adjustedGeopoint and query / Activities collection;
+  //   if a doc is found:
+  //   check haversine distance between queried activity geopoint and current geopoint
+  //   if distance < 1km:
+  //     distance accurate = true
+  //   else:
+  //     distance accurate = false
 
-const getLocalityCityState = components => {
-  let locality = '';
-  let city = '';
-  let state = '';
+  const { activityData, location: currentGeopoint } = addendumDoc.data();
+  const activityVenue = getVenueFromActivity(activityData);
 
-  components.forEach(component => {
-    if (component.types.includes('locality')) {
-      locality = component.long_name;
-    }
+  /** Activity doesn't have a venue field */
+  if (!activityVenue) {
+    const mapsApiResult = await googleMapsClient.reverseGeocode({
+      latlng: getLatLngString(currentGeopoint),
+    })
+      .asPromise();
 
-    if (component.types.includes('administrative_area_level_2')) {
-      city = component.long_name;
-    }
+    /** city, state, locality */
+    const csl = getLocalityCityState(mapsApiResult);
+    /** url, identifier */
+    const ui = getPlaceInformation(mapsApiResult, currentGeopoint);
 
-    if (component.types.includes('administrative_area_level_1')) {
-      state = component.long_name;
-    }
-  });
+    return Object.assign({}, csl, ui, {
+      isAccurate: false,
+      venueQuery: null,
+    });
+  }
 
-  return { locality, city, state };
+  if (activityVenue.location) {
+    return handlePopulatedVenue({ addendumDoc });
+  }
+
+  return handleUnpopulatedVenue({ addendumDoc });
+};
+
+const setGeopointAndTimestampInCheckInSubscription = async ({ addendumDoc }) => {
+  const {
+    activityData: {
+      office,
+    },
+    user: phoneNumber,
+    location: lastGeopoint,
+    timestamp: lastTimestamp,
+  } = addendumDoc.data();
+
+  const [checkInSubscriptionDoc] = (
+    await rootCollections
+      .profiles
+      .doc(phoneNumber)
+      .collection(subcollectionNames.SUBSCRIPTIONS)
+      .where('office', '==', office)
+      .where('template', '==', 'check-in')
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
+  )
+    .docs;
+
+  if (!checkInSubscriptionDoc) {
+    return;
+  }
+
+  return checkInSubscriptionDoc.ref.set({
+    lastGeopoint,
+    lastTimestamp,
+    lastAddendumRef: addendumDoc.ref
+  }, { merge: true });
+};
+
+const getDistanceTravelled = ({ previousAddendumDoc, distanceMatrixApiResult }) => {
+  if (!previousAddendumDoc) {
+    return 0;
+  }
+
+  const [firstRow] = distanceMatrixApiResult.json.rows;
+  const [firstElement] = firstRow.elements;
+  const { distance: distanceData } = firstElement;
+
+  return distanceData ? (distanceData.value / 1000) : 0;
 };
 
 
 const handleAddendum = async locals => {
-  const addendumDoc = locals.addendumDoc;
+  const { addendumDoc } = locals;
 
   if (!addendumDoc) {
     return;
   }
 
-  const action = addendumDoc.get('action');
-  const phoneNumber = addendumDoc.get('user');
-  const momentWithOffset = momentTz(addendumDoc.get('timestamp'))
-    .tz(addendumDoc.get('activityData.timezone') || 'Asia/Kolkata');
-
   let previousGeopoint;
+
+  const {
+    action,
+    timestamp,
+    location: currentGeopoint,
+    user: phoneNumber,
+  } = addendumDoc.data();
+
+  const momentWithOffset = momentTz(timestamp)
+    .tz(addendumDoc.get('activityData.timezone') || 'Asia/Kolkata');
 
   const isSkippableEvent = action === httpsActions.install
     || action === httpsActions.signup
     || action === httpsActions.branchView
     || action === httpsActions.productView
     || action === httpsActions.videoPlay;
-  // || action === httpsActions.updatePhoneNumber;
+
+  const date = momentWithOffset.date();
+  const month = momentWithOffset.month();
+  const year = momentWithOffset.year();
 
   if (isSkippableEvent) {
-    return addendumDoc
-      .ref
-      .set({
-        date: momentWithOffset.date(),
-        month: momentWithOffset.month(),
-        year: momentWithOffset.year(),
-      }, {
-        merge: true,
-      });
+    return addendumDoc.ref.set({ date, month, year }, { merge: true });
   }
 
-  const geopoint = addendumDoc
-    .get('location');
-
-  if (!geopoint) {
+  /** Phone Number change addendum does not have geopoint */
+  if (typeof currentGeopoint === 'undefined') {
     return handleComments(addendumDoc, locals);
   }
 
-  const gp = adjustedGeopoint(geopoint);
-  const batch = db
-    .batch();
+  const batch = db.batch();
 
-  const [
-    addendumQuery,
-    adjustedGeopointQueryResult
-  ] = await Promise
-    .all([
-      rootCollections
-        .offices
-        .doc(addendumDoc.get('activityData.officeId'))
-        .collection('Addendum')
-        .where('user', '==', phoneNumber)
-        .where('timestamp', '<', addendumDoc.get('timestamp'))
-        .orderBy('timestamp', 'desc')
-        .limit(2)
-        .get(),
-      rootCollections
-        .activities
-        // Branch, and customer
-        .where('office', '==', addendumDoc.get('activityData.office'))
-        .where('status', '==', 'CONFIRMED')
-        .where('adjustedGeopoints', '==', `${gp.latitude},${gp.longitude}`)
-        .limit(1)
-        .get()
-    ]);
+  // venue populated => fetch branch/customer activity with adjustedGeopoints {lat,lng}
+  // if doc is found:
+  // distanceAccurate => diff CURR and resulting activity < 1
+  // if doc is not found:
+  // distance accurate = false.
 
-  const activityDoc = adjustedGeopointQueryResult
-    .docs[0];
+  //   if activity.venue is NOT populated => use adjustedGeopoint and query / Activities collection;
+  //   if a doc is found:
+  //   check haversine distance between queried activity geopoint and current geopoint
+  //   if distance < 1km:
+  //     distance accurate = true
+  //   else:
+  //     distance accurate = false
+
+  // const [
+  //   addendumQuery,
+  //   adjustedGeopointQueryResult,
+  // ] = await Promise
+  //   .all([
+  //     rootCollections
+  //       .offices
+  //       .doc(locals.change.after.get('officeId'))
+  //       .collection(subcollectionNames.ADDENDUM)
+  //       .where('user', '==', phoneNumber)
+  //       .where('timestamp', '<', timestamp)
+  //       .orderBy('timestamp', 'desc')
+  //       .limit(2)
+  //       .get(),
+  //     rootCollections
+  //       .activities
+  //       // Branch, and customer
+  //       .where('office', '==', locals.change.after.get('office'))
+  //       .where('status', '==', 'CONFIRMED')
+  //       .where('adjustedGeopoints', '==', `${gp.latitude},${gp.longitude}`)
+  //       .limit(1)
+  //       .get()
+  //   ]);
+
+  const addendumQuery = await rootCollections
+    .offices
+    .doc(locals.change.after.get('officeId'))
+    .collection(subcollectionNames.ADDENDUM)
+    .where('user', '==', phoneNumber)
+    .where('timestamp', '<', timestamp)
+    .orderBy('timestamp', 'desc')
+    .limit(2)
+    .get();
+
+  // const [activityDoc] = adjustedGeopointQueryResult.docs;
 
   const previousAddendumDoc = (() => {
     if (addendumQuery.docs[0]
@@ -2259,16 +2372,7 @@ const handleAddendum = async locals => {
     return addendumQuery.docs[1];
   })();
 
-  const currentGeopoint = addendumDoc
-    .get('location');
-
-  const promises = [
-    googleMapsClient
-      .reverseGeocode({
-        latlng: getLatLngString(currentGeopoint),
-      })
-      .asPromise(),
-  ];
+  const promises = [];
 
   if (previousAddendumDoc) {
     /** Could be undefined for install or signup events in the previous addendum */
@@ -2291,107 +2395,35 @@ const handleAddendum = async locals => {
         .asPromise());
   }
 
-  const [
-    mapsApiResult,
-    distanceMatrixApiResult,
-  ] = await Promise
-    .all(promises);
+  const [distanceMatrixApiResult] = await Promise.all(promises);
 
-  const placeInformation = getPlaceInformation(
-    mapsApiResult,
-    currentGeopoint
-  );
+  const daR = await checkDistanceAccurate({ addendumDoc });
+  const updateObject = Object
+    .assign(
+      {},
+      daR,
+      {
+        date,
+        month,
+        year,
+        customerObject: locals.customerObject,
+        // [{ displayName, phoneNumber, photoURL }]
+        assigneesMap: [...locals.assigneesMap.values()],
+        adjustedGeopoint: adjustedGeopoint(addendumDoc.get('location')),
+        distanceTravelled: getDistanceTravelled({
+          previousAddendumDoc,
+          distanceMatrixApiResult,
+        }),
+      });
 
-  if (mapsApiResult.json.results.length > 0) {
-    const components = mapsApiResult.json.results[0].address_components;
-    const {
-      city,
-      state,
-      locality,
-    } = getLocalityCityState(components);
-
-    // eslint-disable-next-line require-atomic-updates
-    locals
-      .city = city;
-    // eslint-disable-next-line require-atomic-updates
-    locals
-      .state = state;
-    // eslint-disable-next-line require-atomic-updates
-    locals
-      .locality = locality;
-  }
-
-  const distanceData = (() => {
-    if (!previousAddendumDoc) {
-      return {
-        accumulatedDistance: 0,
-        distanceTravelled: 0,
-      };
-    }
-
-    const value = (() => {
-      const distanceData = distanceMatrixApiResult
-        .json
-        .rows[0]
-        .elements[0]
-        .distance;
-
-      // maps api result in meters
-      if (distanceData) {
-        return distanceData.value / 1000;
-      }
-
-      const result = haversineDistance(previousGeopoint, currentGeopoint);
-
-      // in KM
-      return result;
-    })();
-
-    const accumulatedDistance = Number(
-      previousAddendumDoc.get('accumulatedDistance') || 0
-    )
-      // value is in meters
-      + value;
-
-    return {
-      accumulatedDistance: accumulatedDistance.toFixed(2),
-      distanceTravelled: value,
-    };
-  })();
-
-  const updateObject = {
-    city: locals.city,
-    state: locals.state,
-    locality: locals.locality,
-    url: placeInformation.url,
-    identifier: placeInformation.identifier,
-    distanceTravelled: distanceData.distanceTravelled,
-    date: momentWithOffset.date(),
-    month: momentWithOffset.month(),
-    year: momentWithOffset.year(),
-    adjustedGeopoint: adjustedGeopoint(addendumDoc.get('location')),
-    distanceAccurate: checkDistanceAccurate(
-      addendumDoc,
-      activityDoc
-    ),
-  };
-
-  if (activityDoc
-    && activityDoc.get('venue')[0]
-    && activityDoc.get('venue')[0].location) {
-    updateObject
-      .venueQuery = activityDoc.get('venue')[0];
-  }
+  console.log('updateObject =>', updateObject);
 
   // Required for comment creation since the addendumDoc.data() won't contain
   // the updates made during this function instance
-  // eslint-disable-next-line require-atomic-updates
-  locals
-    .addendumDocData = Object.assign(
-      {},
-      addendumDoc.data(),
-      updateObject
-    );
+  locals.addendumDocData = Object.assign({},
+    addendumDoc.data(),
+    updateObject
+  );
 
   // eslint-disable-next-line require-atomic-updates
   locals
@@ -2402,17 +2434,14 @@ const handleAddendum = async locals => {
    * with `addendumOnCreate` cloud function messes up whole data for the user
    * after the time of the crash.
    */
-  batch
-    .set(addendumDoc.ref, updateObject, {
-      merge: true,
-    });
+  batch.set(addendumDoc.ref, updateObject, { merge: true });
 
-  await batch
-    .commit();
+  await batch.commit();
 
-  await handleComments(addendumDoc, locals);
+  await setGeopointAndTimestampInCheckInSubscription({ addendumDoc: locals.addendumDoc });
+  await createActivityStats(locals.addendumDoc);
 
-  return handleDailyStatusReport(addendumDoc);
+  return handleComments(addendumDoc, locals);
 };
 
 const handleActivityUpdates = async locals => {
@@ -2439,10 +2468,7 @@ const handleActivityUpdates = async locals => {
     return;
   }
 
-  const template = locals
-    .change
-    .after
-    .get('template');
+  const { template } = locals.change.after.data();
 
   const baseQuery = rootCollections
     .activities
@@ -2512,14 +2538,8 @@ const handleActivityUpdates = async locals => {
       batchIndex
     ].set(doc.ref, {
       addendumDocRef: null,
-      attachment: {
-        [field]: {
-          value,
-        },
-      },
-    }, {
-      merge: true,
-    });
+      attachment: { [field]: { value } },
+    }, { merge: true });
   });
 
   return Promise
@@ -2592,7 +2612,7 @@ const handleLeaveUpdates = async locals => {
       const promise = rootCollections
         .profiles
         .doc(phoneNumber)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .doc(activityId)
         .get();
 
@@ -2657,7 +2677,7 @@ const handleLeaveUpdates = async locals => {
       month: dateObject.getMonth(),
       year: dateObject.getFullYear(),
       user: phoneNumber,
-      action: httpsActions.comment,
+      action: httpsActions.changeStatus,
       location: locals.addendumDoc.get('location'),
       timestamp: Date.now(),
       userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
@@ -2676,7 +2696,7 @@ const handleLeaveUpdates = async locals => {
       const addendumDocRef = rootCollections
         .offices
         .doc(officeId)
-        .collection('Addendum')
+        .collection(subcollectionNames.ADDENDUM)
         .doc();
 
       batch
@@ -3523,7 +3543,7 @@ const reimburseKmAllowance = async locals => {
   // allowance between the two else km allowance
   // from start point / base location from both
 
-  const timestamp = locals.addendumDocData.timestamp;
+  const { timestamp } = locals.addendumDocData;
   let uid = locals.addendumDocData.uid;
 
   const {
@@ -3539,16 +3559,18 @@ const reimburseKmAllowance = async locals => {
     uid = (await getAuth(phoneNumber)).uid;
   }
 
-  const employeeDoc = (await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('template', '==', 'employee')
-    .where('attachment.Employee Contact.value', '==', phoneNumber)
-    .where('status', '==', 'CONFIRMED')
-    .limit(1)
-    .get())
-    .docs[0];
+  const [employeeDoc] = (
+    await rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'employee')
+      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
+  )
+    .docs;
 
   // Not an employee, km allowance is skipped
   if (!employeeDoc) {
@@ -3560,9 +3582,6 @@ const reimburseKmAllowance = async locals => {
   const {
     value: kmRate,
   } = employeeDoc.get('attachment.KM Rate');
-  // const {
-  //   value: kmDailyLimit,
-  // } = employeeDoc.get('attachment.KM Daily Limit');
   const {
     value: startPointLatitude,
   } = employeeDoc.get('attachment.Start Point Latitude');
@@ -3811,15 +3830,12 @@ const reimburseKmAllowance = async locals => {
         },
       }));
   } else {
-    console.log('In km allowance else');
-
     if (locals.addendumDocData.distanceTravelled < 1) {
-      console.log('Skip km allowance => distanceTravelled < 1');
       return;
     }
 
-    const oldReimbursementDoc = previousKmReimbursementQuery.docs[0];
-    const oldUpdatesDoc = previousReimbursementUpdateQuery.docs[0];
+    const [oldReimbursementDoc] = previousKmReimbursementQuery.docs;
+    const [oldUpdatesDoc] = previousReimbursementUpdateQuery.docs;
     const r1 = rootCollections
       .offices
       .doc(officeId)
@@ -3830,19 +3846,6 @@ const reimburseKmAllowance = async locals => {
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc();
-
-    /**
-     * User has been reimbursed their max amount for the day
-     * already
-     */
-    // if ((oldAmount + amountThisTime) > kmDailyLimit) {
-    //   console.log('Amount limit reached', {
-    //     oldAmount,
-    //     kmDailyLimit
-    //   });
-
-    //   return;
-    // }
 
     // r2
     batch
@@ -3867,14 +3870,37 @@ const reimburseKmAllowance = async locals => {
         merge: true,
       });
 
+    const oldUpdatesRef = (() => {
+      if (oldUpdatesDoc) {
+        return oldUpdatesDoc.ref;
+      }
+
+      return rootCollections
+        .updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc();
+    })();
+
     batch
-      .set(oldUpdatesDoc.ref, Object.assign({}, commonReimObject, {
+      .set(oldUpdatesRef, Object.assign({}, commonReimObject, {
         // cumulativeAmount,
+        date,
+        month,
+        year,
+        id: `${date}${month}${year}${oldReimbursementDoc.id}`,
+        key: momentTz().date(date).month(month).year(year).startOf('date').valueOf(),
         amount: amountThisTime.toFixed(0),
         _type: addendumTypes.REIMBURSEMENT,
         reimbursementName: null,
         intermediate: false,
         details: {
+          rate: kmRate,
+          startLocation: oldReimbursementDoc.get('previousGeopoint'),
+          distanceTravelled: oldReimbursementDoc.get('distance'),
+          photoURL: null,
+          status: null,
+          claimId: null,
           checkInTimestamp: locals.change.after.get('timestamp'),
           endLocation: {
             latitude: locals.addendumDocData.location.latitude
@@ -4386,8 +4412,6 @@ const handleWorkday = async locals => {
       .attendance = 1;
   }
 
-  console.log('Attendance =>', attendanceObject.attendance[todaysDate].attendance);
-
   attendanceObject
     .attendance[todaysDate]
     .working
@@ -4437,12 +4461,6 @@ const handleWorkday = async locals => {
         numberOfCheckIns,
       });
     })();
-
-    console.log('Recalculating =>', {
-      date,
-      oldVal: attendanceObject.attendance[date].attendance,
-      newVal: newCalculatedAttendance,
-    });
 
     attendanceObject.attendance[date].attendance = newCalculatedAttendance;
 
@@ -4554,6 +4572,119 @@ const handleWorkday = async locals => {
   );
 };
 
+const getSubcollectionActivityObject = ({ activityObject, customerObject }) => {
+  const { status, template } = activityObject.data();
+
+  const creationTimestamp = activityObject.createTime.toDate().getTime();
+  const momentOfCreation = momentTz(creationTimestamp).tz(activityObject.get('timezone'));
+
+  const intermediate = Object.assign({}, activityObject.data(), {
+    creationTimestamp,
+    timestamp: Date.now(),
+    addendumDocRef: null,
+    isCancelled: status === 'CANCELLED',
+    creationDate: momentOfCreation.date(),
+    creationMonth: momentOfCreation.month(),
+    creationYear: momentOfCreation.year(),
+  });
+
+  if (template === 'office') {
+    intermediate.slug = slugify(activityObject.get('attachment.Name.value'));
+  }
+
+  if (customerObject) {
+    intermediate.customerObject = customerObject;
+  }
+
+  return intermediate;
+};
+
+const getProfileActivityObject = ({ activityDoc, assigneesMap, assigneePhoneNumbersArray, customerObject }) => {
+  const { id: activityId } = activityDoc;
+
+  const assigneeCallback = phoneNumber => {
+    const { displayName, photoURL } = assigneesMap.get(phoneNumber) || {};
+
+    return {
+      phoneNumber,
+      displayName: displayName || '',
+      photoURL: photoURL || '',
+    };
+  };
+
+  const intermediate = Object.assign({}, activityDoc.data(), {
+    activityId,
+    addendumDocRef: null,
+    timestamp: Date.now(),
+    assignees: assigneePhoneNumbersArray.map(assigneeCallback),
+  });
+
+  if (customerObject) {
+    intermediate.customerObject = customerObject;
+  }
+
+  return intermediate;
+};
+
+const templateHandler = async locals => {
+  const { template } = locals.change.after.data();
+
+  if (template === 'employee') {
+    await handleEmployee(locals);
+  }
+
+  if (template === 'office') {
+    await require('./template-handlers/office')(locals);
+  }
+
+  if (template === 'recipient') {
+    await handleRecipient(locals);
+  }
+
+  if (template === 'subscription') {
+    await handleSubscription(locals);
+  }
+
+  if (template === 'branch') {
+    await handleBranch(locals);
+  }
+
+  if (template === 'admin') {
+    await require('./template-handlers/admin')(locals);
+  }
+
+  if (template === 'attendance regularization') {
+    await require('./template-handlers/ar')(locals);
+  }
+
+  if (template === 'branch'
+    || template === 'customer') {
+    await setLocationsReadEvent(locals);
+  }
+
+  if (template === 'leave') {
+    await handleLeaveAndDutyConflict(locals);
+    await require('./template-handlers/leave')(locals);
+  }
+
+  if (template === 'check-in') {
+    await handleRelevantTimeActivities(locals);
+    await handleWorkday(locals);
+  }
+
+  if (template.endsWith('-type')) {
+    await handleTypeActivityCreation(locals);
+  }
+
+  // branch, region, department
+  if (template === 'branch'
+    || template === 'region'
+    || template === 'department') {
+    await handleActivityUpdates(locals);
+  }
+
+  return;
+};
 
 const ActivityOnWrite = async (change, context) => {
   /** Activity was deleted. For debugging only. */
@@ -4578,15 +4709,15 @@ const ActivityOnWrite = async (change, context) => {
   // admin -> custom claim
   // profile and activities
   const batch = db.batch();
-  const newProfilesMap = new Map();
+  const newPhoneNumbersSet = new Set();
   const authFetchPromises = [];
   const {
     template,
-    status,
     addendumDocRef,
   } = change.after.data();
   const locals = {
     change,
+    addendumDoc: null,
     assigneesMap: new Map(),
     assigneePhoneNumbersArray: [],
     addendumCreator: {},
@@ -4607,299 +4738,174 @@ const ActivityOnWrite = async (change, context) => {
       .push(addendumDocRef.get());
   }
 
-  try {
-    const [
-      assigneesSnapShot,
-      addendumDoc,
-    ] = await Promise
-      .all(promises);
+  const [
+    assigneesSnapShot,
+    addendumDoc,
+  ] = await Promise
+    .all(promises);
 
-    if (addendumDoc) {
-      locals
-        .addendumDoc = addendumDoc;
-    }
+  if (addendumDoc) {
+    locals
+      .addendumDoc = addendumDoc;
+  }
 
-    assigneesSnapShot
-      .forEach(doc => {
-        if (addendumDoc
-          && doc.id === addendumDoc.get('user')) {
-          locals
-            .addendumCreatorInAssignees = true;
-        }
+  assigneesSnapShot
+    .forEach(doc => {
+      const { id: phoneNumber } = doc;
+      const { addToInclude } = doc.data();
 
-        authFetchPromises
-          .push(getAuth(doc.id));
-
-        locals
-          .assigneesMap
-          .set(doc.id, {
-            addToInclude: doc.get('addToInclude'),
-          });
-
-        locals
-          .assigneePhoneNumbersArray
-          .push(doc.id);
-      });
-
-    if (addendumDoc
-      && !locals.addendumCreatorInAssignees) {
-      authFetchPromises
-        .push(
-          getAuth(addendumDoc.get('user'))
-        );
-    }
-
-    let customerObject = null;
-
-    if (template === 'duty'
-      || template === 'branch duty') {
-      let type = 'customer';
-
-      if (template === 'branch duty') {
-        type = 'branch';
+      if (addendumDoc && phoneNumber === addendumDoc.get('user')) {
+        locals.addendumCreatorInAssignees = true;
       }
 
-      // name, officeId, template
-      customerObject = await getCustomerObject(
-        locals.change.after.get('attachment.Location.value'),
-        locals.change.after.get('officeId'),
-        type
-      );
-    }
+      authFetchPromises
+        .push(getAuth(phoneNumber));
 
-    const userRecords = await Promise
-      .all(authFetchPromises);
+      /** Storing phoneNumber in the object because we are storing assigneesMap in addendum doc */
+      locals.assigneesMap.set(phoneNumber, { phoneNumber, addToInclude: addToInclude || false });
 
-    userRecords
-      .forEach(userRecord => {
-        const { phoneNumber } = userRecord;
-
-        if (addendumDoc
-          && !locals.addendumCreatorInAssignees
-          && phoneNumber === addendumDoc.get('user')) {
-          locals
-            .addendumCreator
-            .displayName = userRecord.displayName;
-
-          /**
-           * Since addendum creator was not in the assignees list,
-           * returning from the iteration since we don't want to
-           * add them to the activity unnecessarily.
-           */
-          return;
-        }
-
-        locals
-          .assigneesMap
-          .get(phoneNumber)
-          .displayName = userRecord.displayName;
-        locals
-          .assigneesMap
-          .get(phoneNumber)
-          .uid = userRecord.uid;
-        locals
-          .assigneesMap
-          .get(phoneNumber)
-          .photoURL = userRecord.photoURL;
-        locals
-          .assigneesMap
-          .get(phoneNumber)
-          .customClaims = userRecord.customClaims;
-
-        /** New user introduced to the system. Saving their phone number. */
-        if (!userRecord.uid) {
-          const creator = change
-            .after
-            .get('creator.phoneNumber')
-            || change
-              .after
-              .get('creator');
-
-          newProfilesMap
-            .set(phoneNumber, {
-              creator,
-              activityName: change.after.get('activityName'),
-              office: change.after.get('office'),
-            });
-        }
-
-        /** Document below the user profile. */
-        const profileActivityObject = Object
-          .assign({}, change.after.data(), {
-            activityId,
-            customerObject,
-            addendumDocRef: null,
-            timestamp: Date.now(),
-          });
-
-        profileActivityObject
-          .assignees = (() => {
-            const result = [];
-
-            locals
-              .assigneePhoneNumbersArray
-              .forEach(phoneNumber => {
-                let displayName = '';
-                let photoURL = '';
-
-                if (locals.assigneesMap.has(phoneNumber)) {
-                  displayName = locals
-                    .assigneesMap
-                    .get(phoneNumber)
-                    .displayName || '';
-                  photoURL = locals
-                    .assigneesMap
-                    .get(phoneNumber)
-                    .photoURL || '';
-                }
-
-                result
-                  .push({ phoneNumber, displayName, photoURL });
-              });
-
-            return result;
-          })();
-
-        /**
-         * Check-ins clutter the `Activities` collection and
-         * make the `/read` resource slow. If the user doesn't have
-         * auth, there's no point in putting a check-in their
-         * profile
-         */
-        if (template === 'check-in'
-          && (!locals.assigneesMap.has(phoneNumber)
-            || !locals.assigneesMap.get(phoneNumber).uid)) {
-          return;
-        }
-
-        if (userRecord.uid) {
-          // in updates only if auth exists
-          batch
-            .set(rootCollections
-              .updates
-              .doc(userRecord.uid)
-              .collection(subcollectionNames.ADDENDUM)
-              .doc(), Object.assign({}, profileActivityObject, {
-                _type: addendumTypes.ACTIVITY,
-              }), {
-              merge: true,
-            });
-        }
-
-        // in profile
-        batch
-          .set(rootCollections
-            .profiles
-            .doc(phoneNumber)
-            .collection(subcollectionNames.ACTIVITIES)
-            .doc(activityId), profileActivityObject, {
-            merge: true
-          });
-      });
-
-    console.log({
-      template,
-      activityId,
-      action: locals
-        .addendumDoc ? locals.addendumDoc.get('action') : 'manual update',
+      locals
+        .assigneePhoneNumbersArray
+        .push(phoneNumber);
     });
 
-    const activityData = Object
-      .assign({}, change.after.data(), {
-        timestamp: Date.now(),
-        isCancelled: status === 'CANCELLED',
-        addendumDocRef: null,
-        creationTimestamp: change.after.createTime.toDate().getTime(),
-      });
+  if (addendumDoc
+    && !locals.addendumCreatorInAssignees) {
+    authFetchPromises.push(getAuth(addendumDoc.get('user')));
+  }
+
+  const customerObject = await getCustomerObject({
+    name: change.after.get('attachment.Location.value'),
+    officeId: change.after.get('officeId'),
+    template: template === 'duty' ? 'customer' : 'branch',
+  });
+
+  locals.customerObject = customerObject;
+
+  const userRecords = await Promise
+    .all(authFetchPromises);
+
+  userRecords.forEach(userRecord => {
+    const { phoneNumber, uid } = userRecord;
 
     if (addendumDoc
-      && addendumDoc.get('action') === httpsActions.create) {
-      const momentToday = momentTz().tz(change.after.get('timezone'));
+      && !locals.addendumCreatorInAssignees
+      && phoneNumber === addendumDoc.get('user')) {
+      locals
+        .addendumCreator
+        .displayName = userRecord.displayName;
 
-      activityData
-        .creationDate = momentToday.date();
-      activityData
-        .creationMonth = momentToday.month();
-      activityData
-        .creationYear = momentToday.year();
+      /**
+       * Since addendum creator was not in the assignees list,
+       * returning from the iteration since we don't want to
+       * add them to the activity unnecessarily.
+       */
+      return;
     }
 
-    if (customerObject) {
-      activityData
-        .customerObject = customerObject;
+    const oldMap = locals.assigneesMap.get(phoneNumber);
+
+    locals.assigneesMap.set(phoneNumber, Object.assign({}, oldMap, {
+      uid: uid || '',
+      displayName: userRecord.displayName || '',
+      photoURL: userRecord.photoURL || '',
+      customClaims: userRecord.customClaims || {},
+    }));
+
+    /** New user introduced to the system. Saving their phone number. */
+    if (!uid) {
+      newPhoneNumbersSet.add(phoneNumber);
+    }
+  });
+
+  const profileActivityObject = getProfileActivityObject({
+    customerObject,
+    activityDoc: change.after,
+    assigneePhoneNumbersArray: locals.assigneePhoneNumbersArray,
+    assigneesMap: locals.assigneesMap,
+  });
+
+  userRecords.forEach(userRecord => {
+    const { uid, phoneNumber } = userRecord;
+
+    /**
+     * Check-ins clutter the `Activities` collection and
+     * make the `/read` resource slow. If the user doesn't have
+     * auth, there's no point in putting a check-in their
+     * profile
+     */
+    if (template === 'check-in' && !uid) {
+      return;
     }
 
-    if (template === 'office') {
-      activityData
-        .slug = slugify(activityData.attachment.Name.value);
+    if (uid) {
+      // in updates only if auth exists
+      batch
+        .set(rootCollections
+          .updates
+          .doc(uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(), Object.assign({}, profileActivityObject, {
+            _type: addendumTypes.ACTIVITY,
+          }), {
+          merge: true,
+        });
     }
 
-    const copyToRef = getCopyPath(
-      template,
-      locals.change.after.get('officeId'),
-      activityId,
-    );
-
+    // in profile
     batch
-      .set(copyToRef, activityData, {
-        merge: true,
+      .set(rootCollections
+        .profiles
+        .doc(phoneNumber)
+        .collection(subcollectionNames.ACTIVITIES)
+        .doc(activityId), profileActivityObject, {
+        merge: true
       });
+  });
 
-    await batch.commit();
-    await handleAddendum(locals);
-    await createNewProfiles(newProfilesMap);
+  console.log({
+    template,
+    activityId,
+    action: locals
+      .addendumDoc ? locals.addendumDoc.get('action') : 'manual update',
+  });
 
-    if (template === 'employee') {
-      await handleEmployee(locals);
+  const copyToRef = getCopyPath({
+    template,
+    activityId,
+    officeId: locals.change.after.get('officeId'),
+  });
+
+  batch.set(copyToRef,
+    getSubcollectionActivityObject({ activityObject: change.after, customerObject }),
+    { merge: true }
+  );
+
+  await batch.commit();
+
+  /**
+   * The sequence of handleAddendum and handleProfile matters for
+   * correct execution flow. All other functions can be called in
+   * any order.
+   */
+  await handleAddendum(locals);
+  await templateHandler(locals);
+  await handleReimbursement(locals);
+
+  return createNewProfiles({
+    newPhoneNumbersSet,
+    smsContext: {
+      activityName: change.after.get('activityName'),
+      office: change.after.get('office'),
+      creator: change.after.get('creator.phoneNumber') || change.after.get('creator'),
     }
+  });
+};
 
-    if (template === 'office') {
-      await require('./template-handlers/office')(locals);
-    }
 
-    if (template === 'recipient') {
-      await handleRecipient(locals);
-    }
-
-    if (template === 'subscription') {
-      await handleSubscription(locals);
-    }
-
-    if (template === 'branch') {
-      await handleBranch(locals);
-    }
-
-    if (template === 'branch'
-      || template === 'customer') {
-      await setLocationsReadEvent(locals);
-    }
-
-    if (template === 'admin') {
-      await require('./template-handlers/admin')(locals);
-    }
-
-    if (template === 'leave') {
-      await handleLeaveAndDutyConflict(locals);
-      await require('./template-handlers/leave')(locals);
-    }
-
-    if (template === 'check-in') {
-      await handleRelevantTimeActivities(locals);
-      await handleWorkday(locals);
-    }
-
-    if (template.endsWith('-type')) {
-      await handleTypeActivityCreation(locals);
-    }
-
-    if (template === 'attendance regularization') {
-      await require('./template-handlers/ar')(locals);
-    }
-
-    await handleActivityUpdates(locals);
-    await handleReimbursement(locals);
-
-    return;
+module.exports = (change, context) => {
+  try {
+    return ActivityOnWrite(change, context);
   } catch (error) {
     console.error({
       error,
@@ -4908,6 +4914,3 @@ const ActivityOnWrite = async (change, context) => {
     });
   }
 };
-
-
-module.exports = ActivityOnWrite;

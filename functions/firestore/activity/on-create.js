@@ -39,7 +39,7 @@ const {
 } = require('../../admin/admin');
 const {
   activityName,
-  // setOnLeaveOrAr,
+  haversineDistance,
   validateVenues,
   filterAttachment,
   validateSchedules,
@@ -97,7 +97,7 @@ const getClaimStatus = async params => {
         .get()
     ]);
 
-  const claimTypeDoc = claimTypeActivity.docs[0];
+  const [claimTypeDoc] = claimTypeActivity.docs;
   const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
 
   let claimsThisMonth = dinero({ amount: 0 });
@@ -109,12 +109,10 @@ const getClaimStatus = async params => {
       .add(dinero({ amount }));
   });
 
-  const o = {
+  return {
     monthlyLimit,
     claimsThisMonth: claimsThisMonth.getAmount(),
   };
-
-  return o;
 };
 
 
@@ -294,8 +292,15 @@ const createDocsWithBatch = async (conn, locals) => {
     provider: conn.req.body.geopoint.provider || null,
   };
 
-  if (locals.cancellationMessage) {
-    addendumDocObject.cancellationMessage = locals.cancellationMessage;
+  if (conn.req.body.template === 'check-in'
+    && locals.subscriptionDoc
+    && locals.subscriptionDoc.get('lastGeopoint')) {
+    addendumDocObject
+      .subscriptionDocId = locals.subscriptionDoc.id;
+    addendumDocObject
+      .lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');
+    addendumDocObject
+      .lastTimestamp = locals.subscriptionDoc.get('lastTimestamp');
   }
 
   locals
@@ -352,11 +357,12 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
 
   if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
-    locals.static.statusOnCreate = 'CANCELLED';
-    locals.cancellationMessage = `LEAVE CANCELLED: Leave limit exceeded by`
-      + ` ${leavesTakenThisTime + locals.leavesTakenThisYear - locals.maxLeavesAllowed} days.`;
-
-    return createDocsWithBatch(conn, locals);
+    return sendResponse(
+      conn,
+      code.conflict,
+      `Cannot create a leave. Leave limit exceeded by`
+      + ` ${leavesTakenThisTime + locals.leavesTakenThisYear - locals.maxLeavesAllowed} days.`
+    );
   }
 
   const {
@@ -460,17 +466,14 @@ const handlePayroll = async (conn, locals) => {
     });
 
   if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
-    locals
-      .cancellationMessage = `LEAVE LIMIT EXCEEDED:`
+    return sendResponse(
+      conn,
+      code.conflict,
+      `Cannot create leave`
       + ` You have exceeded the limit for leave`
       + ` application under ${conn.req.body.attachment['Leave Type'].value}`
-      + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
-
-    locals
-      .static
-      .statusOnCreate = 'CANCELLED';
-
-    return createDocsWithBatch(conn, locals);
+      + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`
+    );
   }
 
   return handleLeaveOrOnDuty(conn, locals);
@@ -612,13 +615,11 @@ const handleClaims = async (conn, locals) => {
   });
 
   if (claimsThisMonth + amount > monthlyLimit) {
-    locals
-      .static
-      .statusOnCreate = 'CANCELLED';
-
-    locals
-      .cancellationMessage = `CLAIM CANCELLED: Exceeded`
-      + ` Max Claims (${monthlyLimit}) amount this month.`;
+    return sendResponse(
+      conn,
+      code.conflict,
+      `Cannot create a claim. Max Claims (${monthlyLimit}) amount this month.`
+    );
   }
 
   return handleAssignees(conn, locals);
@@ -740,6 +741,76 @@ const handleAttachment = (conn, locals) => {
   return resolveProfileCheckPromises(conn, locals, result);
 };
 
+const isInvalidCheckIn = ({ subscriptionDoc, currentGeopoint }) => {
+  if (!subscriptionDoc) {
+    return false;
+  }
+
+  const {
+    template,
+    lastGeopoint,
+    lastTimestamp,
+  } = subscriptionDoc.data();
+
+  console.log(template, lastGeopoint, lastTimestamp);
+
+  if (template !== 'check-in') {
+    return false;
+  }
+
+  if (typeof lastGeopoint !== 'object') {
+    return false;
+  }
+
+  if (typeof lastTimestamp !== 'number') {
+    return false;
+  }
+
+  const momentNow = momentTz();
+  const momentPreviousCheckIn = momentTz(lastTimestamp);
+  const checkInTimestampDifferenceInMinutes = momentNow.diff(
+    momentPreviousCheckIn,
+    'minutes',
+    true
+  );
+  const checkInTimestampDifferenceInHours = momentNow.diff(
+    momentPreviousCheckIn,
+    'hours',
+    true
+  );
+
+  console.log('checkInTimestampDifferenceInMinutes', checkInTimestampDifferenceInMinutes);
+
+  if (checkInTimestampDifferenceInMinutes < 5) {
+    return false;
+  }
+
+  const currentLatLng = `${currentGeopoint.latitude}`
+    + `,${currentGeopoint.longitude}`;
+  const previousLatLng = `${lastGeopoint.latitude || lastGeopoint._latitude}`
+    + `,${lastGeopoint.longitude || lastGeopoint._longiture}`;
+
+  console.log('currentLatLng', currentLatLng);
+  console.log('previousLatLng', previousLatLng);
+
+  const distance = haversineDistance(
+    {
+      _latitude: lastGeopoint.latitude || lastGeopoint._latitude,
+      _longitude: lastGeopoint.longitude || lastGeopoint._longiture
+    },
+    {
+      _latitude: currentGeopoint.latitude,
+      _longitude: currentGeopoint.longitude
+    }
+  );
+
+  console.log('distance', distance);
+
+  const speed = distance / checkInTimestampDifferenceInHours;
+  console.log('speed', speed);
+
+  return currentLatLng === previousLatLng || speed > 40;
+};
 
 const handleScheduleAndVenue = (conn, locals) => {
   const scheduleValidationResult = validateSchedules(
@@ -778,7 +849,8 @@ const handleScheduleAndVenue = (conn, locals) => {
   return handleAttachment(conn, locals);
 };
 
-const createLocals = (conn, result) => {
+
+const createLocals = async (conn, result) => {
   const activityRef = rootCollections.activities.doc();
 
   /**
@@ -946,6 +1018,8 @@ const createLocals = (conn, result) => {
     locals.static.canEditRule = subscriptionQueryResult.docs[0].get('canEditRule');
     locals.static.statusOnCreate = subscriptionQueryResult.docs[0].get('statusOnCreate');
     locals.static.hidden = subscriptionQueryResult.docs[0].get('hidden');
+
+    locals.subscriptionDoc = subscriptionQueryResult.docs[0];
   } else {
     if (templateQueryResult.empty) {
       return sendResponse(
@@ -965,6 +1039,21 @@ const createLocals = (conn, result) => {
 
   if (!conn.requester.isSupportRequest) {
     locals.objects.allPhoneNumbers.add(conn.requester.phoneNumber);
+  }
+
+  const checkInResult = isInvalidCheckIn({
+    subscriptionDoc: subscriptionQueryResult.docs[0] || null,
+    currentGeopoint: conn.req.body.geopoint
+  });
+
+  console.log('Invalid checkin', checkInResult);
+
+  if (checkInResult) {
+    return sendResponse(
+      conn,
+      code.badRequest,
+      `Invalid check-in`
+    );
   }
 
   return handleScheduleAndVenue(conn, locals);

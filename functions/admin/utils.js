@@ -2254,8 +2254,44 @@ const getScheduleDates = scheduleObjects => {
   return allDateStrings;
 };
 
+const getLatLngString = location =>
+  `${location._latitude || location.latitude}`
+  + `,`
+  + `${location._longitude || location.longitude}`;
+
+const getDistanceFromDistanceMatrix = async (origin, destination) => {
+  const result = await googleMapsClient
+    .distanceMatrix({
+      /**
+       * Ordering is important here. The `legal` distance
+       * between A to B might not be the same as the legal
+       * distance between B to A. So, do not mix the ordering.
+       */
+      origins: getLatLngString(origin),
+      destinations: getLatLngString(destination),
+      units: 'metric',
+    })
+    .asPromise();
+
+  const distanceData = result
+    .json
+    .rows[0]
+    .elements[0]
+    .distance;
+
+  /**
+   * Not all origin => destinations might have a legal
+   * road path
+   * For those cases, distance travelled will be assumed
+   * to be 0. And km allowance will not be created.
+   */
+  return distanceData ? distanceData.value / 1000 : 0;
+};
+
 
 module.exports = {
+  getLatLngString,
+  getDistanceFromDistanceMatrix,
   populateWeeklyOffInAttendance,
   getScheduleDates,
   getAuth,
