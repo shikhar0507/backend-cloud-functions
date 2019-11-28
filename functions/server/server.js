@@ -310,11 +310,20 @@ const checkAuthorizationToken = async conn => {
   const result = headerValid(conn.req.headers);
 
   if (!result.isValid) {
-    return sendResponse(conn, code.forbidden, result.message);
+    return sendResponse(
+      conn,
+      code.forbidden,
+      result.message
+    );
   }
 
   try {
-    const decodedIdToken = await auth.verifyIdToken(result.authToken);
+    const decodedIdToken = await auth
+      .verifyIdToken(
+        result.authToken,
+        true // checkRevoked is true in order to block all requests
+        // from revoked sessions by a user.
+      );
 
     return getUserAuthFromIdToken(conn, decodedIdToken);
   } catch (error) {
@@ -323,7 +332,7 @@ const checkAuthorizationToken = async conn => {
       return sendResponse(
         conn,
         code.unauthorized,
-        'Please login again'
+        'Please restart the Growthfile app'
       );
     }
 
@@ -355,7 +364,8 @@ module.exports = async (req, res) => {
     'POST',
     'GET',
     'PATCH',
-    'PUT'
+    'PUT',
+    'DELETE',
   ];
 
   const conn = {
@@ -394,8 +404,7 @@ module.exports = async (req, res) => {
   }
 
   if (env.isProduction
-    && conn.req.query.cashFreeToken
-    === env.cashFreeToken) {
+    && conn.req.query.cashFreeToken === env.cashFreeToken) {
     await rootCollections
       .errors
       .doc()
@@ -404,6 +413,12 @@ module.exports = async (req, res) => {
         body: conn.req.body || {},
         timestamp: Date.now(),
       });
+
+    return sendResponse(conn, code.ok);
+  }
+
+  if (conn.req.path === '/webhook/sendgrid') {
+    await require('../webhooks/sendgrid')(conn);
 
     return sendResponse(conn, code.ok);
   }

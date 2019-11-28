@@ -40,12 +40,14 @@ const {
   isNonEmptyString,
   isE164PhoneNumber,
   getAttendancesPath,
+  enumerateDaysBetweenDates,
 } = require('../../admin/utils');
 const {
   allMonths,
   validTypes,
   timezonesSet,
   dateFormats,
+  httpsActions,
   subcollectionNames,
   templatesWithNumber,
 } = require('../../admin/constants');
@@ -55,8 +57,6 @@ const {
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
 
-const forSalesReport = (template) =>
-  new Set(['dsr', 'customer']).has(template);
 
 /**
  * Validates the schedules where the there is a name field present,
@@ -1064,13 +1064,6 @@ const checkActivityAndAssignee = (docs, isSupportRequest) => {
         message,
       };
     }
-
-    if (!requester.get('canEdit')) {
-      return {
-        isValid: false,
-        message,
-      };
-    }
   }
 
   return { isValid: true, message: null };
@@ -1404,14 +1397,14 @@ const setOnLeaveOrAr = async params => {
   } = params;
 
   if (template === 'attendance regularization') {
-    if (startTime >= momentTz().tz(timezone).startOf('day').valueOf()) {
-      result
-        .success = false;
-      result
-        .message = `Attendance can only be applied for the past`;
+    // if (startTime >= momentTz().tz(timezone).startOf('day').valueOf()) {
+    //   result
+    //     .success = false;
+    //   result
+    //     .message = `Attendance can only be applied for the past`;
 
-      return result;
-    }
+    //   return result;
+    // }
 
     const recipientQueryResult = await rootCollections
       .activities
@@ -1555,7 +1548,8 @@ const setOnLeaveOrAr = async params => {
   /**
    * No conflicts, that means the leave can be created successfully
    */
-  if (conflictsSet.size === 0) {
+  // if (conflictsSet.size === 0) {
+  if (conflictsSet) {
     const updatesQuery = await rootCollections
       .updates
       .where('phoneNumber', '==', creatorsPhoneNumber)
@@ -1587,8 +1581,228 @@ const setOnLeaveOrAr = async params => {
 };
 
 
+const createAutoSubscription = async (locals, templateName, subscriber) => {
+  if (!subscriber
+    || !locals.addendumDoc) {
+    return;
+  }
+
+  const {
+    office,
+    officeId,
+  } = locals.change.after.data();
+  const batch = db.batch();
+  const isArSubscription = templateName === 'attendance regularization';
+
+  const promises = [
+    rootCollections
+      .activityTemplates
+      .where('name', '==', 'subscription')
+      .limit(1)
+      .get(),
+    rootCollections
+      .activities
+      .where('attachment.Subscriber.value', '==', subscriber)
+      .where('attachment.Template.value', '==', templateName)
+      .where('office', '==', office)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
+  ];
+
+  if (isArSubscription) {
+    promises
+      .push(rootCollections
+        .activities
+        .where('office', '==', office)
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'recipient')
+        .where('attachment.Name.value', '==', 'payroll')
+        .limit(1)
+        .get()
+      );
+  }
+
+  const [
+    subscriptionTemplateQuery,
+    userSubscriptionQuery,
+    payrollRecipientQuery,
+  ] = await Promise
+    .all(promises);
+
+  /** Already has the subscription to whatever template that was passed */
+  if (!userSubscriptionQuery.empty) {
+    return;
+  }
+
+  /**
+   * AR subscription is automatically given to the employees with office which
+   *  has the recipient of payroll
+   */
+  if (isArSubscription
+    && payrollRecipientQuery.empty) {
+    return;
+  }
+
+  const subscriptionTemplateDoc = subscriptionTemplateQuery
+    .docs[0];
+  const activityRef = rootCollections
+    .activities
+    .doc();
+  const addendumDocRef = rootCollections
+    .offices
+    .doc(officeId)
+    // Addendum
+    .collection(subcollectionNames.ADDENDUM)
+    .doc();
+  const attachment = Object
+    .assign({}, subscriptionTemplateDoc.get('attachment'), {
+      Subscriber: {
+        value: subscriber,
+        type: subscriptionTemplateDoc.get('attachment.Subscriber.type'),
+      },
+      Template: {
+        value: templateName,
+        type: subscriptionTemplateDoc.get('attachment.Template.type')
+      }
+    });
+
+  const activityData = {
+    addendumDocRef,
+    attachment,
+    timestamp: Date.now(),
+    timezone: locals.change.after.get('timezone'),
+    venue: subscriptionTemplateDoc.get('venue'),
+    office: locals.change.after.get('office'),
+    template: 'subscription',
+    schedule: subscriptionTemplateDoc.get('schedule'),
+    status: subscriptionTemplateDoc.get('statusOnCreate'),
+    canEditRule: subscriptionTemplateDoc.get('canEditRule'),
+    activityName: `SUBSCRIPTION: ${subscriber}`,
+    officeId: locals.change.after.get('officeId'),
+    hidden: subscriptionTemplateDoc.get('hidden'),
+    creator: locals.change.after.get('creator'),
+    createTimestamp: Date.now(),
+  };
+
+  const addendumDocData = {
+    activityData,
+    user: locals.change.after.get('creator.phoneNumber'),
+    userDisplayName: locals.change.after.get('creator.displayName'),
+    share: locals.assigneePhoneNumbersArray,
+    action: httpsActions.create,
+    template: 'subscription',
+    location: locals.addendumDoc.get('location'),
+    timestamp: Date.now(),
+    userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
+    activityId: activityRef.id,
+    isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
+    isAdminRequest: locals.addendumDoc.get('isAdminRequest') || false,
+    isAutoGenerated: true,
+    geopointAccuracy: null,
+    provider: null,
+  };
+
+  batch
+    .set(activityRef, activityData);
+  batch
+    .set(addendumDocRef, addendumDocData);
+
+  locals
+    .assigneePhoneNumbersArray
+    .forEach(phoneNumber => {
+      batch
+        .set(activityRef
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(phoneNumber), {
+          /** Subscription's canEditRule is ADMIN */
+          addToInclude: phoneNumber !== subscriber,
+        });
+    });
+
+  return batch
+    .commit();
+};
+
+
+const attendanceConflictHandler = async params => {
+  // Called for templates {leave and attendance regularization}
+  const { schedule, phoneNumber, office } = params;
+  const allDateStrings = [];
+  const queries = [];
+  let conflictingDate = null;
+  let conflictingTemplate = null;
+
+  // runs for leave/ar
+  // generate all date strings from start time to end time
+  // create queries for leave and ar for each date
+  // where(scheduleDates, array_contains, '1 Jan 2019')
+  // isCancelled == false
+  schedule.forEach(scheduleObject => {
+    const { startTime, endTime } = scheduleObject;
+
+    allDateStrings.push(
+      ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE)
+    );
+  });
+
+  // console.log('allDateStrings', JSON.stringify(allDateStrings));
+
+  allDateStrings.forEach(dateString => {
+    console.log('Query =>', dateString);
+    queries
+      .push(
+        rootCollections
+          .profiles
+          .doc(phoneNumber)
+          .collection(subcollectionNames.ACTIVITIES)
+          .where('office', '==', office)
+          .where('scheduleDates', 'array-contains', dateString)
+          .limit(1)
+          .get()
+      );
+  });
+
+  const snapShots = await Promise.all(queries);
+
+  console.log('snapShots', snapShots.length);
+
+  for (const snap of snapShots) {
+    const { empty } = snap;
+
+    if (empty) {
+      continue;
+    }
+
+    const [doc] = snap.docs;
+    const { schedule, template, status } = doc.data();
+    console.log('id => ', doc.id);
+
+    if (template !== 'leave'
+      && template !== 'attendance regularization') {
+      continue;
+    }
+
+    if (status === 'CANCELLED') {
+      continue;
+    }
+
+    const [firstSchedule] = schedule;
+    const { startTime } = firstSchedule;
+
+    conflictingDate = momentTz(startTime).format(dateFormats.DATE);
+    conflictingTemplate = template;
+  }
+
+  return {
+    conflictingDate,
+    conflictingTemplate,
+  };
+};
+
+
 module.exports = {
-  forSalesReport,
+  attendanceConflictHandler,
   activityName,
   validateVenues,
   getCanEditValue,
@@ -1603,6 +1817,7 @@ module.exports = {
   toAttachmentValues,
   setOnLeaveOrAr,
   getAttendancesPath,
+  createAutoSubscription,
   checkActivityAndAssignee,
   getPhoneNumbersFromAttachment,
 };

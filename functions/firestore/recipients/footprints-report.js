@@ -3,7 +3,6 @@
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 const {
-  db,
   rootCollections,
 } = require('../../admin/admin');
 const env = require('../../admin/env');
@@ -11,7 +10,6 @@ const {
   reportNames,
   httpsActions,
   dateFormats,
-  subcollectionNames,
 } = require('../../admin/constants');
 const {
   getName,
@@ -280,8 +278,6 @@ module.exports = async locals => {
   const distanceMap = new Map();
   const prevTemplateForPersonMap = new Map();
   const prevDocTimestampMap = new Map();
-  const monthYearString = momentYesterday
-    .format(dateFormats.MONTH_YEAR);
   const employeePhoneNumbersArray = Object.keys(locals.employeesData);
   const counterObject = {
     totalUsers: employeePhoneNumbersArray.length,
@@ -291,6 +287,26 @@ module.exports = async locals => {
     activitiesCreated: 0,
     /** People on Leave, Weekly Off or Holiday (from branch) */
     onLeaveWeeklyOffHoliday: 0,
+  };
+
+  const allCountsData = {
+    /** Count of addendum */
+    totalActions: 0,
+    /** Count of phone numbers */
+    totalUsers: 0,
+    /** docs with isSupportRequest === true */
+    totalSupport: 0,
+    /** {[httpsAction]: [count]} */
+    apiActions: {},
+    /** {[template]: [count]} */
+    templates: {},
+    office,
+    report: reportNames.FOOTPRINTS,
+    timestamp: Date.now(),
+    officeId: locals.officeDoc.id,
+    date: momentYesterday.date(),
+    month: momentYesterday.month(),
+    year: momentYesterday.year(),
   };
 
   try {
@@ -346,15 +362,34 @@ module.exports = async locals => {
 
     let count = 0;
 
+    allCountsData.totalActions = addendumDocsQueryResult.size;
+
     addendumDocsQueryResult
       .forEach(doc => {
         const action = doc.get('action');
+
+        allCountsData.apiActions[action] = allCountsData.apiActions[action] || 0;
+        allCountsData.apiActions[action]++;
+
+        const template = doc.get('activityData.template');
+        if (template) {
+          allCountsData.templates[template] = allCountsData.templates[template] || 0;
+          allCountsData.templates[template]++;
+        }
+
+
         const columnIndex = count + 2;
         const phoneNumber = doc.get('user');
         const employeeObject = employeeInfo(locals.employeesData, phoneNumber);
 
+        const isSupportRequest = doc.get('isSupportRequest');
+
+        if (isSupportRequest) {
+          allCountsData.totalSupport++;
+        }
+
         const name = (() => {
-          if (doc.get('isSupportRequest')) {
+          if (isSupportRequest) {
             return 'Growthfile Support';
           }
 
@@ -392,7 +427,6 @@ module.exports = async locals => {
             .toFixed(2);
         })();
 
-        const template = doc.get('activityData.template');
         const prevTemplateForPerson = prevTemplateForPersonMap.get(phoneNumber);
         const prevDocTimestamp = prevDocTimestampMap
           .get(phoneNumber);
@@ -494,66 +528,17 @@ module.exports = async locals => {
           .value(baseLocation);
       });
 
+    allCountsData.totalUsers = distanceMap.size;
+
     counterObject
       .active = distanceMap.size;
     counterObject
       .notActive = counterObject.totalUsers - counterObject.active;
 
-    const numberOfDocs = distanceMap.size;
-    const MAX_DOCS_ALLOWED_IN_A_BATCH = 500;
-    const numberOfBatches = Math
-      .round(
-        Math
-          .ceil(numberOfDocs / MAX_DOCS_ALLOWED_IN_A_BATCH)
-      );
-    const batchArray = Array
-      .from(Array(numberOfBatches)).map(() => db.batch());
-
-    console.log('numberOfBatches', numberOfBatches);
-    console.log('batchArray', batchArray.length);
-
-    let batchIndex = 0;
-    let docsCounter = 0;
-
-    distanceMap
-      .forEach((distanceTravelled, phoneNumber) => {
-        const {
-          hasInstalled
-        } = locals
-          .employeesData[phoneNumber] || {};
-
-        if (!hasInstalled) {
-          counterObject
-            .notInstalled++;
-        }
-
-        const ref = locals
-          .officeDoc
-          .ref
-          .collection(subcollectionNames.ATTENDANCES)
-          .doc(monthYearString)
-          .collection(phoneNumber)
-          // Path requires a string
-          .doc(`${momentYesterday.date()}`);
-
-        if (docsCounter > 499) {
-          docsCounter = 0;
-          batchIndex++;
-        }
-
-        docsCounter++;
-
-        const update = { phoneNumber, distanceTravelled };
-
-        batchArray[
-          batchIndex
-        ].set(ref, update, { merge: true });
-      });
-
-    await Promise
-      .all(batchArray.map(batch => batch.commit()));
-
-    await handleScheduleReport(locals, workbook);
+    await handleScheduleReport(
+      locals,
+      workbook
+    );
 
     locals
       .messageObject
@@ -605,14 +590,21 @@ module.exports = async locals => {
       .limit(1)
       .get();
 
-    const doc = dailyStatusDocsQueryResult
-      .docs[0];
+    const [doc] = dailyStatusDocsQueryResult
+      .docs;
     const oldCountsObject = doc
       .get('countsObject') || {};
 
     oldCountsObject[
       office
     ] = counterObject;
+
+    console.log(JSON.stringify(allCountsData, ' ', 2));
+
+    await rootCollections
+      .inits
+      .doc()
+      .set(allCountsData);
 
     return doc
       .ref

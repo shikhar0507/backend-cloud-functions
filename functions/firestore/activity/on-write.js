@@ -31,108 +31,112 @@ const {
   rootCollections,
 } = require('../../admin/admin');
 const {
+  vowels,
   httpsActions,
   dateFormats,
-  vowels,
   reportNames,
+  addendumTypes,
   subcollectionNames,
 } = require('../../admin/constants');
 const {
   slugify,
-  getBranchName,
+  getAuth,
+  getNumbersbetween,
   getRelevantTime,
   adjustedGeopoint,
+  isNonEmptyString,
   getUsersWithCheckIn,
-  millitaryToHourMinutes,
+  getEmployeeReportData,
   addEmployeeToRealtimeDb,
+  getDefaultAttendanceObject,
   getEmployeesMapFromRealtimeDb,
+  populateWeeklyOffInAttendance,
+  getLatLngString,
+  getDistanceFromDistanceMatrix,
 } = require('../../admin/utils');
 const {
   toMapsUrl,
+  getStatusForDay,
 } = require('../recipients/report-utils');
 const {
-  activityName,
-  forSalesReport,
   haversineDistance,
+  createAutoSubscription,
 } = require('../activity/helper');
 const env = require('../../admin/env');
 const admin = require('firebase-admin');
-const crypto = require('crypto');
 const momentTz = require('moment-timezone');
-const dinero = require('dinero.js');
-const {
-  google
-} = require('googleapis');
 const googleMapsClient = require('@google/maps')
   .createClient({
     key: env.mapsApiKey,
     Promise: Promise,
   });
 
-const getEmployeeReportData = async (officeId, phoneNumber) => {
-  const employeeQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('attachment.Employee Contact.value', '==', phoneNumber)
-    .where('template', '==', 'employee')
-    .where('status', '==', 'CONFIRMED')
-    .limit(1)
-    .get();
 
-  if (employeeQueryResult.empty) {
-    return null;
+const getLocationUrl = plusCode =>
+  `https://plus.codes/${plusCode}`;
+
+const getLocalityCityState = mapsApiResult => {
+  let locality = '';
+  let city = '';
+  let state = '';
+
+  if (mapsApiResult.json.results.length === 0) {
+    return { locality, city, state };
   }
 
+  const {
+    address_components: components,
+  } = mapsApiResult.json.results[0];
+
+  components.forEach(component => {
+    if (component.types.includes('locality')) {
+      locality = component.long_name;
+    }
+
+    if (component.types.includes('administrative_area_level_2')) {
+      city = component.long_name;
+    }
+
+    if (component.types.includes('administrative_area_level_1')) {
+      state = component.long_name;
+    }
+  });
+
+  return { locality, city, state };
+};
+
+
+
+const getPlaceInformation = (mapsApiResult, geopoint) => {
+  const value = toMapsUrl(geopoint);
+
+  if (!mapsApiResult) {
+    return {
+      url: value,
+      identifier: value,
+    };
+  }
+
+  const firstResult = mapsApiResult.json.results[0];
+
+  if (!firstResult) {
+    return {
+      url: value,
+      identifier: value,
+    };
+  }
+
+  const plusCode = mapsApiResult.json['plus_code']['global_code'];
+
   return {
-    id: employeeQueryResult.docs[0].id,
-    employeeName: employeeQueryResult.docs[0].get('attachment.Name.value'),
-    employeeCode: employeeQueryResult.docs[0].get('attachment.Employee Code.value'),
-    baseLocation: employeeQueryResult.docs[0].get('attachment.Base Location.value'),
-    region: employeeQueryResult.docs[0].get('attachment.Region.value'),
-    department: employeeQueryResult.docs[0].get('attachment.Department.value'),
+    identifier: firstResult['formatted_address'],
+    url: getLocationUrl(plusCode),
   };
 };
 
-
-const getLatLngString = location =>
-  `${location._latitude},${location._longitude}`;
-
-
-const getDistanceFromDistanceMatrix = async (origin, destination) => {
-  const result = await googleMapsClient
-    .distanceMatrix({
-      /**
-       * Ordering is important here. The `legal` distance
-       * between A to B might not be the same as the legal
-       * distance between B to A. So, do not mix the ordering.
-       */
-      origins: getLatLngString(origin),
-      destinations: getLatLngString(destination),
-      units: 'metric',
-    })
-    .asPromise();
-
-  const distanceData = result
-    .json
-    .rows[0]
-    .elements[0]
-    .distance;
-
-  if (distanceData) {
-    return distanceData
-      .value / 1000;
-  }
-
-  return haversineDistance(
-    origin,
-    destination
-  );
-};
-
-
 const getValueFromActivity = (change, field, fromOldState = false) => {
-  if (typeof fromOldState === 'boolean' && fromOldState) {
+  if (typeof fromOldState === 'boolean'
+    && fromOldState) {
     return change.before.get(field);
   }
 
@@ -140,64 +144,69 @@ const getValueFromActivity = (change, field, fromOldState = false) => {
 };
 
 
-const getAuth = phoneNumber => {
-  return auth
-    .getUserByPhoneNumber(phoneNumber)
-    .catch(() => ({
-      phoneNumber,
-      uid: null,
-      email: '',
-      emailVerified: false,
-      displayName: '',
-    }));
-};
-
-
-const deleteAuth = async phoneNumber => {
-  return auth
-    .getUserByPhoneNumber(phoneNumber)
-    .then(userRecord => auth.deleteUser(userRecord.uid))
-    .catch(() => Promise.resolve());
-};
-
-
 const getUpdatedVenueDescriptors = (newVenue, oldVenue) => {
   const updatedFields = [];
 
-  oldVenue.forEach((venue, index) => {
-    const venueDescriptor = venue.venueDescriptor;
-    const oldLocation = venue.location;
-    const oldAddress = venue.address;
-    const oldGeopoint = venue.geopoint;
-    const oldLongitude = oldGeopoint._longitude;
-    const oldLatitude = oldGeopoint._latitude;
-    const newLocation = newVenue[index].location;
-    const newAddress = newVenue[index].address;
-    const newGeopoint = newVenue[index].geopoint;
-    const newLatitude = newGeopoint.latitude;
-    const newLongitude = newGeopoint.longitude;
+  oldVenue
+    .forEach((venue, index) => {
+      const {
+        venueDescriptor,
+        location: oldLocation,
+        address: oldAddress,
+        geopoint: oldGeopoint,
+      } = venue;
 
-    if (oldLocation === newLocation
-      && oldAddress === newAddress
-      && oldLatitude === newLatitude
-      && oldLongitude === newLongitude) return;
+      const oldLongitude = oldGeopoint._longitude;
+      const oldLatitude = oldGeopoint._latitude;
+      const newLocation = newVenue[index].location;
+      const newAddress = newVenue[index].address;
+      const newGeopoint = newVenue[index].geopoint;
+      const newLatitude = newGeopoint.latitude;
+      const newLongitude = newGeopoint.longitude;
 
-    updatedFields.push(venueDescriptor);
-  });
+      if (oldLocation === newLocation
+        && oldAddress === newAddress
+        && oldLatitude === newLatitude
+        && oldLongitude === newLongitude) {
+        return;
+      }
+
+      updatedFields
+        .push(venueDescriptor);
+    });
 
   return updatedFields;
 };
 
-const getCustomerObject = async (customer, officeId) => {
+const getCustomerObject = async ({ name, officeId, template }) => {
+  if (!name) {
+    return null;
+  }
+
   const customerActivityResult = await rootCollections
     .activities
-    .where('attachment.Name.value', '==', customer)
+    .where('template', '==', template)
+    .where('attachment.Name.value', '==', name)
     .where('officeId', '==', officeId)
     .where('status', '==', 'CONFIRMED')
     .get();
-  const customerDoc = customerActivityResult.docs[0];
-  const attachment = customerDoc.get('attachment');
-  const object = {};
+
+  const [customerDoc] = customerActivityResult.docs;
+
+  if (!customerDoc) {
+    return null;
+  }
+
+  const { attachment } = customerDoc.data();
+  const [venue] = customerDoc.get('venue');
+  const { location, address, geopoint } = venue;
+
+  const object = Object.assign({}, {
+    address,
+    location,
+    latitude: geopoint.latitude || geopoint._latitude,
+    longitude: geopoint.longitude || geopoint._longitude,
+  });
 
   Object
     .keys(attachment)
@@ -205,68 +214,21 @@ const getCustomerObject = async (customer, officeId) => {
       object[field] = attachment[field].value;
     });
 
-  const venue = customerDoc.get('venue')[0];
-  const geopoint = venue.geopoint;
-
-  object.latitude = geopoint.latitude || geopoint._latitude;
-  object.longitude = geopoint.longitude || geopoint._longitude;
-  object.address = venue.address;
-  object.location = venue.location;
-
   return object;
-};
-
-const handleAdmin = async locals => {
-  const phoneNumber = locals
-    .change
-    .after
-    .get('attachment.Admin.value');
-  const status = locals
-    .change
-    .after
-    .get('status');
-  const office = locals
-    .change
-    .after
-    .get('office');
-
-  const userRecord = await getAuth(phoneNumber);
-
-  if (!userRecord.uid) {
-    return;
-  }
-
-  const customClaims = userRecord.customClaims || {};
-
-  customClaims
-    .admin = customClaims.admin || [];
-  customClaims
-    .admin.push(office);
-  customClaims
-    .admin = Array.from(new Set(customClaims.admin));
-
-  if (status === 'CANCELLED') {
-    const index = customClaims.admin.indexOf(office);
-
-    customClaims
-      .admin = customClaims.admin.splice(index, 1);
-  }
-
-  return auth
-    .setCustomUserClaims(userRecord.uid, customClaims);
 };
 
 
 const createAdmin = async (locals, adminContact) => {
-  if (!adminContact || !locals.addendumDoc) {
+  if (!adminContact
+    || !locals.addendumDoc) {
     return;
   }
 
+  const {
+    officeId,
+  } = locals.change.after.data();
+
   const batch = db.batch();
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
   const activityRef = rootCollections
     .activities
     .doc();
@@ -276,7 +238,10 @@ const createAdmin = async (locals, adminContact) => {
     .collection(subcollectionNames.ADDENDUM)
     .doc();
 
-  return Promise
+  const [
+    adminTemplateQuery,
+    adminQuery,
+  ] = await Promise
     .all([
       rootCollections
         .activityTemplates
@@ -286,217 +251,57 @@ const createAdmin = async (locals, adminContact) => {
       rootCollections
         .activities
         .where('attachment.Admin.value', '==', adminContact)
-        .where('office', '==', locals.change.after.get('officeId'))
+        .where('office', '==', officeId)
         .where('status', '==', 'CONFIRMED')
         .limit(1)
         .get(),
-    ])
-    .then(result => {
-      const [adminTemplateQuery, adminQuery] = result;
+    ]);
 
-      /** Is already an admin */
-      if (!adminQuery.empty) {
-        return Promise.resolve();
-      }
-
-      const adminTemplateDoc = adminTemplateQuery.docs[0];
-      const activityData = {
-        office: locals.change.after.get('office'),
-        timezone: locals.change.after.get('timezone'),
-        officeId: locals.change.after.get('officeId'),
-        timestamp: Date.now(),
-        addendumDocRef,
-        schedule: [],
-        venue: [],
-        attachment: {
-          Admin: {
-            value: adminContact,
-            type: 'phoneNumber',
-          },
-        },
-        canEditRule: adminTemplateDoc.get('canEditRule'),
-        creator: locals.change.after.get('creator'),
-        hidden: adminTemplateDoc.get('hidden'),
-        status: adminTemplateDoc.get('statusOnCreate'),
-        template: 'admin',
-        activityName: `ADMIN: ${adminContact}`,
-        createTimestamp: Date.now(),
-        forSalesReport: false,
-      };
-
-      const addendumDocData = {
-        timestamp: Date.now(),
-        activityData,
-        user: locals.change.after.get('creator').phoneNumber,
-        userDisplayName: locals.change.after.get('creator').displayName,
-        action: httpsActions.create,
-        template: 'admin',
-        location: locals.addendumDoc.get('location'),
-        userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-        activityId: activityRef.id,
-        activityName: `ADMIN: ${adminContact}`,
-        isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-        isAdminRequest: locals.addendumDoc.get('isAdminRequest'),
-        geopointAccuracy: null,
-        provider: null,
-        isAutoGenerated: true,
-      };
-
-      batch.set(activityRef, activityData);
-      batch.set(addendumDocRef, addendumDocData);
-
-      const getCanEditValueForAdminActivity = (phoneNumber, adminContact) => {
-        if (phoneNumber === adminContact) return true;
-
-        if (locals.change.after.get('template') === 'office') {
-          const firstContact = locals.change.after.get('attachment.First Contact.value');
-          const secondContact = locals.change.after.get('attachment.Second Contact.value');
-
-          if (phoneNumber === firstContact) return true;
-          if (phoneNumber === secondContact) return true;
-        }
-
-        return false;
-      };
-
-      locals
-        .assigneePhoneNumbersArray
-        .forEach(phoneNumber => {
-          const ref = activityRef
-            .collection(subcollectionNames.ASSIGNEES)
-            .doc(phoneNumber);
-
-          batch
-            .set(ref, {
-              canEdit: getCanEditValueForAdminActivity(phoneNumber, adminContact),
-              addToInclude: false,
-            });
-        });
-
-      return batch
-        .commit();
-    });
-};
-
-
-const createAutoSubscription = async (locals, templateName, subscriber) => {
-  if (!subscriber
-    || !locals.addendumDoc) {
+  /** Is already an admin */
+  if (!adminQuery.empty) {
     return;
   }
 
-  const office = locals
-    .change
-    .after
-    .get('office');
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const batch = db.batch();
-  const isArSubscription = templateName === 'attendance regularization';
-
-  const promises = [
-    rootCollections
-      .activityTemplates
-      .where('name', '==', 'subscription')
-      .limit(1)
-      .get(),
-    rootCollections
-      .activities
-      .where('attachment.Subscriber.value', '==', subscriber)
-      .where('attachment.Template.value', '==', templateName)
-      .where('office', '==', office)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get()
-  ];
-
-  if (isArSubscription) {
-    promises.push(rootCollections
-      .activities
-      .where('office', '==', office)
-      .where('status', '==', 'CONFIRMED')
-      .where('template', '==', 'recipient')
-      .where('attachment.Name.value', '==', 'payroll')
-      .limit(1)
-      .get());
-  }
-
-  const [
-    subscriptionTemplateQuery,
-    userSubscriptionQuery,
-    payrollRecipientQuery,
-  ] = await Promise.all(promises);
-
-  /** Already has the subscription to whatever template that was passed */
-  if (!userSubscriptionQuery.empty) {
-    return;
-  }
-
-  /**
-   * AR subscription is automatically given to the employees with office which
-   *  has the recipient of payroll
-   */
-  if (isArSubscription
-    && payrollRecipientQuery.empty) {
-    return;
-  }
-
-  const subscriptionTemplateDoc = subscriptionTemplateQuery
-    .docs[0];
-  const activityRef = rootCollections
-    .activities
-    .doc();
-  const addendumDocRef = rootCollections
-    .offices
-    .doc(officeId)
-    // Addendum
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-  const attachment = subscriptionTemplateDoc
-    .get('attachment');
-  attachment
-    .Subscriber.value = subscriber;
-  attachment
-    .Template
-    .value = templateName;
-
+  const adminTemplateDoc = adminTemplateQuery.docs[0];
   const activityData = {
+    officeId,
     addendumDocRef,
-    attachment,
-    timezone: locals.change.after.get('timezone'),
-    venue: subscriptionTemplateDoc.get('venue'),
-    timestamp: Date.now(),
     office: locals.change.after.get('office'),
-    template: 'subscription',
-    schedule: subscriptionTemplateDoc.get('schedule'),
-    status: subscriptionTemplateDoc.get('statusOnCreate'),
-    canEditRule: subscriptionTemplateDoc.get('canEditRule'),
-    activityName: `SUBSCRIPTION: ${subscriber}`,
-    officeId: locals.change.after.get('officeId'),
-    hidden: subscriptionTemplateDoc.get('hidden'),
+    timezone: locals.change.after.get('timezone'),
+    timestamp: locals.addendumDocData.timestamp,
+    schedule: [],
+    venue: [],
+    attachment: {
+      Admin: {
+        value: adminContact,
+        type: 'phoneNumber',
+      },
+    },
+    canEditRule: adminTemplateDoc.get('canEditRule'),
     creator: locals.change.after.get('creator'),
+    hidden: adminTemplateDoc.get('hidden'),
+    status: adminTemplateDoc.get('statusOnCreate'),
+    template: 'admin',
+    activityName: `ADMIN: ${adminContact}`,
     createTimestamp: Date.now(),
-    forSalesReport: false,
   };
 
   const addendumDocData = {
-    activityData,
-    user: locals.change.after.get('creator.phoneNumber'),
-    userDisplayName: locals.change.after.get('creator.displayName'),
-    share: locals.assigneePhoneNumbersArray,
-    action: httpsActions.create,
-    template: 'subscription',
-    location: locals.addendumDoc.get('location'),
     timestamp: Date.now(),
+    activityData,
+    user: locals.change.after.get('creator').phoneNumber,
+    userDisplayName: locals.change.after.get('creator').displayName,
+    action: httpsActions.create,
+    template: 'admin',
+    location: locals.addendumDoc.get('location'),
     userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
     activityId: activityRef.id,
+    activityName: `ADMIN: ${adminContact}`,
     isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-    isAdminRequest: locals.addendumDoc.get('isAdminRequest') || false,
-    isAutoGenerated: true,
+    isAdminRequest: locals.addendumDoc.get('isAdminRequest'),
     geopointAccuracy: null,
     provider: null,
+    isAutoGenerated: true,
   };
 
   batch
@@ -507,14 +312,12 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
   locals
     .assigneePhoneNumbersArray
     .forEach(phoneNumber => {
+      const ref = activityRef
+        .collection(subcollectionNames.ASSIGNEES)
+        .doc(phoneNumber);
+
       batch
-        .set(activityRef
-          .collection(subcollectionNames.ASSIGNEES)
-          .doc(phoneNumber), {
-          /** Subscription's canEditRule is ADMIN */
-          canEdit: locals.adminsCanEdit.includes(phoneNumber),
-          addToInclude: phoneNumber !== subscriber,
-        });
+        .set(ref, { addToInclude: false });
     });
 
   return batch
@@ -538,16 +341,14 @@ const handleXTypeActivities = async locals => {
     return;
   }
 
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const templateName = `${template}-type`;
+  const {
+    officeId,
+  } = locals.change.after.data();
   const typeActivities = await rootCollections
     .activities
     .where('officeId', '==', officeId)
     .where('status', '==', 'CONFIRMED')
-    .where('template', '==', templateName)
+    .where('template', '==', `${template}-type`)
     .get();
   const subscriber = locals
     .change
@@ -568,11 +369,6 @@ const handleXTypeActivities = async locals => {
 
       delete activityData
         .addendumDocRef;
-
-      activityData
-        .canEdit = locals
-          .adminsCanEdit
-          .includes(subscriber);
 
       const ref = rootCollections
         .profiles
@@ -597,22 +393,15 @@ const handleCanEditRule = async (locals, templateDoc) => {
     return;
   }
 
-  const office = locals
-    .change
-    .after
-    .get('office');
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const status = locals
-    .change
-    .after
-    .get('status');
-  const subscriberPhoneNumber = locals
-    .change
-    .after
-    .get('attachment.Subscriber.value');
+  const {
+    office,
+    officeId,
+    status,
+    attachment,
+  } = locals.change.after.data();
+  const {
+    value: subscriberPhoneNumber
+  } = attachment.Subscriber;
 
   if (status === 'CANCELLED') {
     const userSubscriptions = await rootCollections
@@ -624,7 +413,9 @@ const handleCanEditRule = async (locals, templateDoc) => {
       .where('office', '==', office)
       .get();
 
-    if (!userSubscriptions.empty) return;
+    if (!userSubscriptions.empty) {
+      return;
+    }
 
     // cancel admin activity for this user
     const adminActivityQueryResult = await rootCollections
@@ -651,86 +442,13 @@ const handleCanEditRule = async (locals, templateDoc) => {
       });
   }
 
-  const isAlreadyAdmin = locals
-    .adminsCanEdit
-    .includes(subscriberPhoneNumber);
-
-  if (isAlreadyAdmin) {
-    return;
-  }
-
   return createAdmin(locals, subscriberPhoneNumber);
-};
-
-
-const handleAttendances = async locals => {
-  // If subscription has been created, create doc for the employee
-  const isCreated = !locals.change.before.data()
-    && locals.change.after.data();
-
-  if (!isCreated) {
-    return;
-  }
-
-  const phoneNumber = locals
-    .change
-    .after
-    .get('attachment.Subscriber.value');
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const momentToday = momentTz();
-  const baseQuery = rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ATTENDANCES)
-    .doc(momentToday.format(dateFormats.MONTH_YEAR))
-    .collection(phoneNumber);
-
-  const [
-    attendanceDoc,
-    summaryDoc,
-  ] = await Promise
-    .all([
-      baseQuery
-        .doc(`${momentToday.date()}`)
-        .get(),
-      baseQuery
-        .doc('summary')
-        .get(),
-    ]);
-
-  const batch = db.batch();
-
-  if (!attendanceDoc.exists) {
-    batch
-      .set(attendanceDoc.ref, {
-        phoneNumber,
-        month: momentToday.month(),
-        year: momentToday.year(),
-      }, {
-        merge: true,
-      });
-  }
-
-  if (!summaryDoc.exists) {
-    batch
-      .set(summaryDoc.ref, {
-        phoneNumber,
-        month: momentToday.month(),
-        year: momentToday.year(),
-      });
-  }
-
-  return batch
-    .commit();
 };
 
 
 const handleSubscription = async locals => {
   const batch = db.batch();
-  const activityId = locals.change.after.id;
+  const { id: activityId } = locals.change.after;
   const templateName = locals
     .change
     .after
@@ -767,8 +485,7 @@ const handleSubscription = async locals => {
         .get()
     ]);
 
-  const templateDoc = templateDocsQueryResult
-    .docs[0];
+  const [templateDoc] = templateDocsQueryResult.docs;
   const include = (() => {
     if (!profileSubscriptionDoc.exists) {
       return [];
@@ -801,21 +518,40 @@ const handleSubscription = async locals => {
         .push(phoneNumber);
     });
 
+  const subscriptionDocData = {
+    include: Array.from(new Set(include)),
+    schedule: templateDoc.get('schedule'),
+    venue: templateDoc.get('venue'),
+    template: templateDoc.get('name'),
+    attachment: templateDoc.get('attachment'),
+    timestamp: locals.change.after.get('timestamp'),
+    office: locals.change.after.get('office'),
+    status: locals.change.after.get('status'),
+    canEditRule: templateDoc.get('canEditRule'),
+    hidden: templateDoc.get('hidden'),
+    statusOnCreate: templateDoc.get('statusOnCreate'),
+    report: templateDoc.get('report') || null,
+  };
+
   batch
-    .set(subscriptionDocRef, {
-      include: Array.from(new Set(include)),
-      schedule: templateDoc.get('schedule'),
-      venue: templateDoc.get('venue'),
-      template: templateDoc.get('name'),
-      attachment: templateDoc.get('attachment'),
-      timestamp: locals.change.after.get('timestamp'),
-      office: locals.change.after.get('office'),
-      status: locals.change.after.get('status'),
-      canEditRule: templateDoc.get('canEditRule'),
-      hidden: templateDoc.get('hidden'),
-      statusOnCreate: templateDoc.get('statusOnCreate'),
-      report: templateDoc.get('report') || null,
-    });
+    .set(subscriptionDocRef, subscriptionDocData);
+
+  const newSubscriberAuth = await getAuth(newSubscriber);
+
+
+  if (newSubscriberAuth.uid) {
+    batch
+      .set(rootCollections
+        .updates
+        .doc(newSubscriberAuth.uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc(), Object.assign({}, subscriptionDocData, {
+          _type: subcollectionNames.SUBSCRIPTIONS,
+          activityId: locals.change.after.id,
+        }), {
+        merge: true,
+      });
+  }
 
   /**
    * Delete subscription doc from old profile
@@ -827,6 +563,19 @@ const handleSubscription = async locals => {
     .before
     .data()
     && oldSubscriber !== newSubscriber;
+
+  /** Subscriber changed, so, deleting old doc in old `Updates` */
+  if (newSubscriberAuth.uid
+    && subscriberChanged) {
+    batch
+      .delete(
+        rootCollections
+          .updates
+          .doc(newSubscriberAuth.uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(locals.change.after.id)
+      );
+  }
 
   if (subscriberChanged) {
     batch
@@ -845,10 +594,7 @@ const handleSubscription = async locals => {
       handleCanEditRule(
         locals,
         templateDoc
-      ),
-      handleAttendances(
-        locals
-      ),
+      )
     ]);
 
   return handleXTypeActivities(locals);
@@ -856,11 +602,11 @@ const handleSubscription = async locals => {
 
 
 const removeFromOfficeActivities = async locals => {
-  const activityDoc = locals.change.after;
+  // const activityDoc = locals.change.after;
   const {
     status,
     office,
-  } = activityDoc.data();
+  } = locals.change.after.data();
 
   /** Only remove when the status is `CANCELLED` */
   if (status !== 'CANCELLED') {
@@ -882,8 +628,7 @@ const removeFromOfficeActivities = async locals => {
     return;
   }
 
-  const phoneNumber = activityDoc
-    .get('attachment.Employee Contact.value');
+  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
 
   const runQuery = (query, resolve, reject) =>
     query
@@ -906,7 +651,7 @@ const removeFromOfficeActivities = async locals => {
              * to an infinite spiral.
              */
             if (template === 'employee'
-              && doc.id === activityDoc.id) {
+              && doc.id === locals.change.after.id) {
               return;
             }
 
@@ -963,8 +708,10 @@ const removeFromOfficeActivities = async locals => {
           .then(() => docs.docs[docs.size - 1]);
         /* eslint-enable */
       })
-      .then((lastDoc) => {
-        if (!lastDoc) return resolve();
+      .then(lastDoc => {
+        if (!lastDoc) {
+          return resolve();
+        }
 
         return process
           .nextTick(() => {
@@ -996,10 +743,7 @@ const removeFromOfficeActivities = async locals => {
 
 
 const handleEmployeeSupervisors = async locals => {
-  const status = locals
-    .change
-    .after
-    .get('status');
+  const { status } = locals.change.after.data();
 
   if (status === 'CANCELLED') {
     return;
@@ -1055,64 +799,66 @@ const handleEmployeeSupervisors = async locals => {
   const thirdSupervisorChanged = thirdSupervisorOld
     && thirdSupervisorOld !== thirdSupervisorNew;
 
-  subscriptions.forEach(doc => {
-    batch.set(doc.ref, {
-      addendumDocRef: null,
-      timestamp: Date.now(),
-    }, {
-      merge: true,
-    });
-
-    if (firstSupervisorChanged) {
+  subscriptions
+    .forEach(doc => {
       batch
-        .delete(
-          doc
-            .ref
-            .collection(subcollectionNames.ASSIGNEES)
-            .doc(firstSupervisorOld)
-        );
-    }
+        .set(doc.ref, {
+          addendumDocRef: null,
+          timestamp: Date.now(),
+        }, {
+          merge: true,
+        });
 
-    if (secondSupervisorChanged) {
-      batch
-        .delete(
-          doc
-            .ref
-            .collection(subcollectionNames.ASSIGNEES)
-            .doc(secondSupervisorOld)
-        );
-    }
-
-    if (thirdSupervisorChanged) {
-      batch
-        .delete(
-          doc
-            .ref
-            .collection(subcollectionNames.ASSIGNEES)
-            .doc(thirdSupervisorOld)
-        );
-    }
-
-    const allSvs = [
-      firstSupervisorNew,
-      secondSupervisorNew,
-      thirdSupervisorNew
-    ];
-
-    allSvs.filter(Boolean) // Any or all of these values could be empty strings...
-      .forEach(phoneNumber => {
-        const ref = doc
-          .ref
-          .collection(subcollectionNames.ASSIGNEES)
-          .doc(phoneNumber);
-
+      if (firstSupervisorChanged) {
         batch
-          .set(ref, {
-            canEdit: locals.adminsCanEdit.includes(phoneNumber),
-            addToInclude: true,
-          });
-      });
-  });
+          .delete(
+            doc
+              .ref
+              .collection(subcollectionNames.ASSIGNEES)
+              .doc(firstSupervisorOld)
+          );
+      }
+
+      if (secondSupervisorChanged) {
+        batch
+          .delete(
+            doc
+              .ref
+              .collection(subcollectionNames.ASSIGNEES)
+              .doc(secondSupervisorOld)
+          );
+      }
+
+      if (thirdSupervisorChanged) {
+        batch
+          .delete(
+            doc
+              .ref
+              .collection(subcollectionNames.ASSIGNEES)
+              .doc(thirdSupervisorOld)
+          );
+      }
+
+      const employeeSupervisorsList = [
+        firstSupervisorNew,
+        secondSupervisorNew,
+        thirdSupervisorNew
+      ];
+
+      employeeSupervisorsList
+        .filter(Boolean) // Any or all of these values could be empty strings...
+        .forEach(phoneNumber => {
+          const ref = doc
+            .ref
+            .collection(subcollectionNames.ASSIGNEES)
+            .doc(phoneNumber);
+
+          batch
+            .set(ref, {
+              addToInclude: true,
+            });
+        });
+    });
 
   return batch
     .commit();
@@ -1126,28 +872,30 @@ const createDefaultSubscriptionsForEmployee = locals => {
       .addendumDoc
       .get('action') === httpsActions.create;
 
-  if (!hasBeenCreated) return;
+  if (!hasBeenCreated) {
+    return;
+  }
 
-  const phoneNumber = locals
-    .change
-    .after
-    .get('attachment.Employee Contact.value');
+  const {
+    value: employeeContact
+  } = locals.change.after.get('attachment.Employee Contact');
 
   return Promise
     .all([
-      createAutoSubscription(locals, 'check-in', phoneNumber),
-      createAutoSubscription(locals, 'leave', phoneNumber),
-      createAutoSubscription(locals, 'attendance regularization', phoneNumber),
+      createAutoSubscription(locals, 'check-in', employeeContact),
+      createAutoSubscription(locals, 'leave', employeeContact),
+      createAutoSubscription(locals, 'attendance regularization', employeeContact),
     ]);
 };
 
 
 const updatePhoneNumberFields = (doc, oldPhoneNumber, newPhoneNumber, newPhoneNumberAuth) => {
-  const result = doc.data();
-  const attachment = doc.get('attachment');
-  const creator = doc.get('creator');
-  result.timestamp = Date.now();
-  result.addendumDocRef = null;
+  const result = Object.assign({}, doc.data(), {
+    timestamp: Date.now(),
+    addendumDocRef: null,
+  });
+  const { attachment, creator } = doc.data();
+
   delete result.assignees;
 
   if (creator === oldPhoneNumber
@@ -1162,9 +910,7 @@ const updatePhoneNumberFields = (doc, oldPhoneNumber, newPhoneNumber, newPhoneNu
   Object
     .keys(attachment)
     .forEach(field => {
-      const item = attachment[field];
-
-      if (item.value === oldPhoneNumber) {
+      if (attachment[field].value === oldPhoneNumber) {
         result
           .attachment[field]
           .value = newPhoneNumber;
@@ -1196,51 +942,51 @@ const replaceNumberInActivities = async locals => {
 
         const batch = db.batch();
 
-        docs.forEach(doc => {
-          const template = doc.get('template');
+        docs
+          .forEach(doc => {
+            const { template } = doc.data();
 
-          /**
-           * Not touching the same activity which causes this flow
-           * to run. Allowing that will send the activityOnWrite
-           * to an infinite spiral.
-           */
-          if (template === 'employee'
-            && doc.id === activityDoc.id) {
-            return;
-          }
+            /**
+             * Not touching the same activity which causes this flow
+             * to run. Allowing that will send the activityOnWrite
+             * to an infinite spiral.
+             */
+            if (template === 'employee'
+              && doc.id === activityDoc.id) {
+              return;
+            }
 
-          const activityRef = rootCollections.activities.doc(doc.id);
+            const activityRef = rootCollections.activities.doc(doc.id);
 
-          batch
-            .set(activityRef
-              .collection(subcollectionNames.ASSIGNEES)
-              .doc(newPhoneNumber), {
-              canEdit: doc.get('canEdit'),
-              addToInclude: template !== 'subscription',
-            }, {
-              merge: true,
-            });
+            batch
+              .set(activityRef
+                .collection(subcollectionNames.ASSIGNEES)
+                .doc(newPhoneNumber), {
+                addToInclude: template !== 'subscription',
+              }, {
+                merge: true,
+              });
 
-          // Remove old assignee
-          batch
-            .delete(activityRef
-              .collection(subcollectionNames.ASSIGNEES)
-              .doc(oldPhoneNumber)
+            // Remove old assignee
+            batch
+              .delete(activityRef
+                .collection(subcollectionNames.ASSIGNEES)
+                .doc(oldPhoneNumber)
+              );
+
+            const activityData = updatePhoneNumberFields(
+              doc,
+              oldPhoneNumber,
+              newPhoneNumber,
+              newPhoneNumberAuth
             );
 
-          const activityData = updatePhoneNumberFields(
-            doc,
-            oldPhoneNumber,
-            newPhoneNumber,
-            newPhoneNumberAuth
-          );
-
-          // Update the main activity in root `Activities` collection
-          batch
-            .set(activityRef, activityData, {
-              merge: true,
-            });
-        });
+            // Update the main activity in root `Activities` collection
+            batch
+              .set(activityRef, activityData, {
+                merge: true,
+              });
+          });
 
         return Promise
           .all([
@@ -1252,7 +998,9 @@ const replaceNumberInActivities = async locals => {
       .then(result => {
         const [lastDoc] = result;
 
-        if (!lastDoc) return resolve();
+        if (!lastDoc) {
+          return resolve();
+        }
 
         return process
           .nextTick(() => {
@@ -1284,25 +1032,72 @@ const replaceNumberInActivities = async locals => {
   });
 };
 
+const handleAttendanceDocsForPayroll = async locals => {
+  const {
+    officeId,
+  } = locals.change.after.data();
+
+  const batch = db.batch();
+  const { after: employeeDoc } = locals.change;
+  const phoneNumber = employeeDoc.get('attachment.Employee Contact.value');
+  const momentNow = momentTz();
+  const month = momentNow.month();
+  const year = momentNow.year();
+
+  const attendanceDoc = (await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ATTENDANCES)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .where('phoneNumber', '==', phoneNumber)
+    .limit(1)
+    .get())
+    .docs[0];
+  const ref = attendanceDoc ? attendanceDoc.ref : rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ATTENDANCES)
+    .doc();
+  const attendanceUpdate = attendanceDoc ? attendanceDoc.data() : {};
+
+  attendanceUpdate
+    .attendance = attendanceUpdate.attendance || {};
+
+  batch
+    .set(ref, Object.assign({}, attendanceUpdate, {
+      month,
+      year,
+      phoneNumber,
+      employeeName: employeeDoc.get('attachment.Name.value'),
+      employeeCode: employeeDoc.get('attachment.Employee Code.value'),
+      baseLocation: employeeDoc.get('attachment.Base Location.value'),
+      region: employeeDoc.get('attachment.Region.value'),
+      department: employeeDoc.get('attachment.Department.value'),
+    }), {
+      merge: true,
+    });
+
+  return batch
+    .commit();
+};
+
 
 const handleEmployee = async locals => {
-  const activityDoc = locals.change.after.data();
-  activityDoc.id = locals.change.after.id;
-
-  const office = activityDoc.office;
-  const officeId = activityDoc.officeId;
-  const oldEmployeeContact = locals
-    .change
-    .before
-    .get('attachment.Employee Contact.value');
-  const newEmployeeContact = locals
-    .change
-    .after
-    .get('attachment.Employee Contact.value');
+  const { office, officeId } = locals.change.after.data();
+  const {
+    value: oldEmployeeContact,
+  } = locals.change.before.get('attachment.Employee Contact') || {};
+  const {
+    value: newEmployeeContact,
+  } = locals.change.after.get('attachment.Employee Contact');
   const hasBeenCancelled = locals
     .change
-    .before
-    .get('status') !== 'CANCELLED'
+    .before.data()
+    && locals
+      .change
+      .before
+      .get('status') !== 'CANCELLED'
     && locals
       .change
       .after
@@ -1334,20 +1129,16 @@ const handleEmployee = async locals => {
   // Phone number changed
   if (oldEmployeeContact
     && oldEmployeeContact !== newEmployeeContact) {
-    const ref = rootCollections
-      .profiles
-      .doc(oldEmployeeContact);
-
     batch
-      .set(ref, {
+      .set(rootCollections
+        .profiles
+        .doc(oldEmployeeContact), {
         employeeOf: {
           [office]: admin.firestore.FieldValue.delete(),
         },
       }, {
         merge: true,
       });
-
-    await deleteAuth(oldEmployeeContact);
 
     await admin
       .database()
@@ -1383,6 +1174,25 @@ const handleEmployee = async locals => {
         });
     }
 
+    // Old Employee Contact
+    const userRecord = await getAuth(oldEmployeeContact);
+
+    if (userRecord.uid) {
+      await auth
+        .updateUser(userRecord.uid, {
+          phoneNumber: newEmployeeContact,
+        });
+
+      await rootCollections
+        .updates
+        .doc(userRecord.uid)
+        .set({
+          phoneNumber: newEmployeeContact,
+        }, {
+          merge: true,
+        });
+    }
+
     await replaceNumberInActivities(locals);
   }
 
@@ -1395,6 +1205,7 @@ const handleEmployee = async locals => {
 
   await batch
     .commit();
+
   await addEmployeeToRealtimeDb(locals.change.after);
 
   if (hasBeenCancelled) {
@@ -1406,757 +1217,9 @@ const handleEmployee = async locals => {
     hasBeenCancelled
   );
 
+  await handleAttendanceDocsForPayroll(locals);
+
   return handleEmployeeSupervisors(locals);
-};
-
-
-const createFootprintsRecipient = async locals => {
-  const template = locals
-    .change
-    .after
-    .get('template');
-
-  if (template !== 'office') {
-    return;
-  }
-
-  const activityRef = rootCollections.activities.doc();
-  const officeId = locals.change.after.id;
-  const addendumDocRef = rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-  const batch = db.batch();
-
-  const [
-    recipientTemplateQueryResult,
-    recipientActivityQueryResult,
-  ] = await Promise
-    .all([
-      rootCollections
-        .activityTemplates
-        .where('name', '==', 'recipient')
-        .get(),
-      rootCollections
-        .activities
-        .where('template', '==', 'recipient')
-        .where('attachment.Name.value', '==', reportNames.FOOTPRINTS)
-        .limit(1)
-        .get()
-    ]);
-
-  if (!recipientActivityQueryResult.empty) return;
-
-  const attachment = recipientTemplateQueryResult
-    .docs[0]
-    .get('attachment');
-  attachment
-    .Name
-    .value = 'footprints';
-
-  const activityData = {
-    addendumDocRef,
-    attachment,
-    timezone: locals.change.after.get('attachment.Timezone.value'),
-    venue: [],
-    schedule: [],
-    timestamp: Date.now(),
-    status: recipientTemplateQueryResult.docs[0].get('statusOnCreate'),
-    office: locals.change.after.get('office'),
-    activityName: 'RECIPIENT: FOOTPRINTS REPORT',
-    canEditRule: recipientTemplateQueryResult.docs[0].get('canEditRule'),
-    template: 'recipient',
-    officeId: locals.change.after.id,
-    creator: locals.change.after.get('creator'),
-    createTimestamp: Date.now(),
-    forSalesReport: false,
-  };
-
-  const addendumDocData = {
-    activityData,
-    user: locals
-      .change
-      .after
-      .get('creator')
-      .phoneNumber,
-    userDisplayName: locals
-      .change
-      .after
-      .get('creator')
-      .displayName,
-    action: httpsActions.create,
-    template: 'recipient',
-    isAutoGenerated: true,
-    timestamp: Date.now(),
-    userDeviceTimestamp: locals
-      .addendumDoc
-      .get('userDeviceTimestamp'),
-    activityId: activityRef.id,
-    location: locals
-      .addendumDoc
-      .get('location'),
-    isSupportRequest: locals
-      .addendumDoc
-      .get('isSupportRequest') || false,
-    isAdminRequest: locals
-      .addendumDoc
-      .get('isAdminRequest') || false,
-    geopointAccuracy: null,
-    provider: null,
-  };
-
-  const firstContact = locals
-    .change
-    .after
-    .get('attachment.First Contact.value');
-  const secondContact = locals
-    .change
-    .after
-    .get('attachment.Second Contact.value');
-
-  locals
-    .assigneePhoneNumbersArray
-    .forEach(phoneNumber => {
-      const ref = activityRef
-        .collection(subcollectionNames.ASSIGNEES)
-        .doc(phoneNumber);
-
-      batch
-        .set(ref, {
-          /** canEditRule is admin */
-          canEdit: phoneNumber === firstContact
-            || phoneNumber === secondContact,
-          addToInclude: false,
-        });
-    });
-
-  batch
-    .set(activityRef, activityData);
-  batch
-    .set(addendumDocRef, addendumDocData);
-
-  return batch
-    .commit();
-};
-
-
-const replaceInvalidCharsInOfficeName = office => {
-  let result = office
-    .toLowerCase();
-  const mostCommonTlds = new Set([
-    'com',
-    'in',
-    'co.in',
-    'net',
-    'org',
-    'gov',
-    'uk',
-  ]);
-
-  mostCommonTlds.forEach(tld => {
-    if (!result.endsWith(`.${tld}`)) {
-      return;
-    }
-
-    result = result
-      .replace(`.${tld}`, '');
-  });
-
-  return result
-    .replace('.', '')
-    .replace(',', '')
-    .replace('(', '')
-    .replace(')', '')
-    .replace('ltd', '')
-    .replace('limited', '')
-    .replace('pvt', '')
-    .replace('private', '')
-    .trim();
-};
-
-
-/** Uses autocomplete api for predictions */
-const getPlaceIds = async office => {
-  const result = await googleMapsClient
-    .placesAutoComplete({
-      input: office,
-      sessiontoken: crypto.randomBytes(64).toString('hex'),
-      components: { country: 'in' },
-    })
-    .asPromise();
-
-  return result
-    .json
-    .predictions
-    .map(prediction => prediction.place_id);
-};
-
-
-const getPlaceName = async placeid => {
-  const result = await googleMapsClient
-    .place({
-      placeid,
-      fields: [
-        "address_component",
-        "adr_address",
-        "formatted_address",
-        "geometry",
-        "name",
-        "permanently_closed",
-        "place_id",
-        "type",
-        "vicinity",
-        "international_phone_number",
-        "opening_hours",
-        "website"
-      ]
-    })
-    .asPromise();
-
-  const {
-    address_components: addressComponents
-  } = result.json.result;
-
-  const branchName = getBranchName(addressComponents);
-  const branchOffice = {
-    placeId: result.json.result['place_id'],
-    venueDescriptor: 'Branch Office',
-    address: result.json.result['formatted_address'],
-    location: branchName,
-    geopoint: new admin.firestore.GeoPoint(
-      result.json.result.geometry.location.lat,
-      result.json.result.geometry.location.lng
-    ),
-  };
-
-  const weekdayStartTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
-
-    if (!openingHours) {
-      return '';
-    }
-
-    const periods = openingHours.periods;
-
-    const relevantObject = periods.filter(item => {
-      return item.close && item.close.day === 1;
-    });
-
-    if (!relevantObject[0]) {
-      return '';
-    }
-
-    return relevantObject[0].open.time;
-  })();
-
-  const weekdayEndTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
-
-    if (!openingHours) {
-      return '';
-    }
-
-    const periods = openingHours.periods;
-
-    const relevantObject = periods.filter(item => {
-      return item.close
-        && item.close.day === 1;
-    });
-
-    if (!relevantObject[0]) {
-      return '';
-    }
-
-    return relevantObject[0].close.time;
-  })();
-
-  const saturdayStartTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
-
-    if (!openingHours) {
-      return '';
-    }
-
-    const relevantObject = openingHours
-      .periods
-      .filter(item => item.open && item.open.day === 6);
-
-    if (!relevantObject[0]) {
-      return '';
-    }
-
-    return relevantObject[0].open.time;
-  })();
-
-  const saturdayEndTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
-
-    if (!openingHours) {
-      return '';
-    }
-
-    const relevantObject = openingHours
-      .periods
-      .filter(item => item.open && item.open.day === 6);
-
-    if (!relevantObject[0]) {
-      return '';
-    }
-
-    return relevantObject[0].close.time;
-  })();
-
-  const weeklyOff = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
-
-    if (!openingHours) {
-      return '';
-    }
-
-    const weekdayText = openingHours['weekday_text'];
-
-    if (!weekdayText) {
-      return '';
-    }
-
-    const closedWeekday = weekdayText
-      // ['Sunday: Closed']
-      .filter(str => str.includes('Closed'))[0];
-
-    if (!closedWeekday) {
-      return '';
-    }
-
-    const parts = closedWeekday
-      .split(':');
-
-    if (!parts[0]) {
-      return '';
-    }
-
-    // ['Sunday' 'Closed']
-    return parts[0].toLowerCase();
-  })();
-
-  const schedulesArray = Array
-    .from(Array(15))
-    .map((_, index) => {
-      return {
-        name: `Holiday ${index + 1}`,
-        startTime: '',
-        endTime: '',
-      };
-    });
-
-  const activityObject = {
-    // All assignees from office creation instance
-    venue: [branchOffice],
-    schedule: schedulesArray,
-    attachment: {
-      Name: {
-        value: branchName,
-        type: 'string',
-      },
-      'First Contact': {
-        value: '',
-        type: 'phoneNumber',
-      },
-      'Second Contact': {
-        value: '',
-        type: 'phoneNumber',
-      },
-      'Branch Code': {
-        value: '',
-        type: 'string',
-      },
-      'Weekday Start Time': {
-        value: millitaryToHourMinutes(weekdayStartTime),
-        type: 'HH:MM',
-      },
-      'Weekday End Time': {
-        value: millitaryToHourMinutes(weekdayEndTime),
-        type: 'HH:MM',
-      },
-      'Saturday Start Time': {
-        value: millitaryToHourMinutes(saturdayStartTime),
-        type: 'HH:MM',
-      },
-      'Saturday End Time': {
-        value: millitaryToHourMinutes(saturdayEndTime),
-        type: 'HH:MM',
-      },
-      'Weekly Off': {
-        value: weeklyOff,
-        type: 'weekday',
-      },
-    },
-  };
-
-  return activityObject;
-};
-
-
-const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
-  const batch = db.batch();
-  const activityRef = rootCollections
-    .activities
-    .doc();
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const addendumDocRef = rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-
-  const gp = adjustedGeopoint(branchData.venue[0].geopoint);
-
-  const activityData = {
-    officeId,
-    addendumDocRef,
-    template: 'branch',
-    status: branchTemplateDoc.get('statusOnCreate'),
-    hidden: branchTemplateDoc.get('hidden'),
-    createTimestamp: Date.now(),
-    forSalesReport: forSalesReport('branch'),
-    schedule: branchData.schedule,
-    venue: branchData.venue,
-    attachment: branchData.attachment,
-    canEditRule: branchTemplateDoc.get('canEditRule'),
-    timezone: locals.change.after.get('timezone'),
-    timestamp: Date.now(),
-    office: locals.change.after.get('office'),
-    activityName: activityName({
-      attachmentObject: branchData.attachment,
-      templateName: 'branch',
-      requester: locals.change.after.get('creator'),
-    }),
-    adjustedGeopoints: `${gp.latitude},${gp.longitude}`,
-    creator: locals.change.after.get('creator'),
-  };
-
-  const addendumDocData = {
-    activityData,
-    timezone: locals.change.after.get('timezone'),
-    user: locals.change.after.get('creator.phoneNumber'),
-    userDisplayName: locals.change.after.get('creator.displayName'),
-    action: httpsActions.create,
-    template: activityData.template,
-    userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-    activityId: activityRef.id,
-    activityName: activityData.activityName,
-    isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-    geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-    provider: locals.addendumDoc.get('provider'),
-    location: locals.addendumDoc.get('location'),
-  };
-
-  locals
-    .assigneePhoneNumbersArray
-    .forEach(phoneNumber => {
-      batch
-        .set(activityRef
-          .collection(subcollectionNames.ASSIGNEES)
-          .doc(phoneNumber), {
-          canEdit: true,
-          addToInclude: false,
-        });
-    });
-
-  batch
-    .set(activityRef, activityData);
-  batch
-    .set(addendumDocRef, addendumDocData);
-
-  return batch
-    .commit();
-};
-
-
-const createBranches = async locals => {
-  const template = locals.change.after.get('template');
-  const hasBeenCreated = locals.addendumDoc
-    && locals.addendumDoc.get('action') === httpsActions.create;
-
-  if (template !== 'office'
-    || !hasBeenCreated) {
-    return;
-  }
-
-  let failureCount = 0;
-
-  const getBranchBodies = async office => {
-    return getPlaceIds(office)
-      .then(ids => {
-        const promises = [];
-
-        if (ids.length === 0) {
-          failureCount++;
-
-          if (failureCount > 1) {
-            // Has failed once with the actual office name
-            // and 2nd time even by replacing invalid chars
-            // Give up.
-
-            return Promise
-              .all(promises);
-          }
-
-          const filteredOfficeName = replaceInvalidCharsInOfficeName(office);
-
-          return getBranchBodies(filteredOfficeName);
-        }
-
-        ids
-          .forEach(id => {
-            promises
-              .push(getPlaceName(id));
-          });
-
-        return Promise
-          .all(promises);
-      })
-      .catch(console.error);
-  };
-
-  const office = locals
-    .change
-    .after
-    .get('office');
-
-  return Promise
-    .all([
-      getBranchBodies(office),
-      rootCollections
-        .activityTemplates
-        .where('name', '==', 'branch')
-        .limit(1)
-        .get()
-    ])
-    .then(result => {
-      const [
-        branches,
-        templateQuery
-      ] = result;
-      const templateDoc = templateQuery.docs[0];
-      const promises = [];
-
-      branches
-        .forEach(branch => {
-          promises
-            .push(
-              createAutoBranch(branch, locals, templateDoc)
-            );
-        });
-
-      return Promise.all(promises);
-    })
-    .catch(console.error);
-};
-
-
-const mangeYouTubeDataApi = async locals => {
-  const template = locals.change.after.get('template');
-
-  if (template !== 'office'
-    || !env.isProduction) {
-    return;
-  }
-
-  const youtube = google.youtube('v3');
-  const auth = await google.auth.getClient({
-    credentials: require('../../admin/cert.json'),
-    scopes: [
-      'https://www.googleapis.com/auth/youtube.force-ssl',
-      'https://www.googleapis.com/auth/youtube'
-    ],
-  });
-
-  const youtubeVideoId = locals
-    .change
-    .after
-    .get('attachment.Youtube ID.value');
-
-  if (!youtubeVideoId) {
-    return;
-  }
-
-  const oldTitle = locals
-    .change
-    .before
-    .get('office');
-  const newTitle = locals
-    .change
-    .after
-    .get('office');
-  const oldDescription = locals
-    .change
-    .before
-    .get('attachment.Description.value');
-  const newDescription = locals
-    .change
-    .after
-    .get('attachment.Description.value');
-
-  if (oldTitle === newTitle
-    && oldDescription === newDescription) {
-    return;
-  }
-
-  const opt = {
-    auth,
-    part: 'snippet',
-    requestBody: {
-      id: youtubeVideoId,
-      snippet: {
-        categoryId: 22, // People & Blogs
-        title: newTitle,
-        description: newDescription,
-      },
-    },
-  };
-
-  return youtube
-    .videos
-    .update(opt);
-};
-
-
-const handleSitemap = async locals => {
-  const path = 'sitemap';
-  const sitemapObject = await admin
-    .database()
-    .ref(path)
-    .once('value');
-  const sitemap = sitemapObject
-    .val() || {};
-  const office = locals
-    .change
-    .after
-    .get('office');
-  const slug = slugify(office);
-
-  sitemap[slug] = {
-    office,
-    lastMod: locals.change.after.updateTime.toDate().toJSON(),
-    createTime: locals.change.after.createTime.toDate().toJSON(),
-  };
-
-  return admin
-    .database()
-    .ref(path)
-    .set(sitemap);
-};
-
-const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
-  const docs = await rootCollections
-    .activities
-    .where('officeId', '==', officeId)
-    .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', 'subscription')
-    .where('attachment.Subscriber.value', '==', phoneNumber)
-    .limit(1)
-    .get();
-
-  if (docs.empty) return;
-
-  const doc = docs.docs[0];
-
-  if (doc.get('status') === 'CANCELLED') return;
-
-  return doc
-    .ref
-    .set({
-      timestamp: Date.now(),
-      addendumDocRef: null,
-      status: 'CANCELLED',
-    }, {
-      merge: true,
-    });
-};
-
-const cancelAdmin = async (officeId, phoneNumber) => {
-  const docs = await rootCollections
-    .activities
-    .where('officeId', '==', officeId)
-    .where('template', '==', 'admin')
-    .where('attachment.Admin.value', '==', phoneNumber)
-    .get();
-
-  if (docs.empty) return;
-
-  const doc = docs.docs[0];
-
-  if (doc.get('status') === 'CANCELLED') return;
-
-  return doc
-    .ref
-    .set({
-      timestamp: Date.now(),
-      addendumDocRef: null,
-      status: 'CANCELLED',
-    }, {
-      merge: true,
-    });
-};
-
-const handleOffice = async locals => {
-  const firstContactNew = locals
-    .change
-    .after
-    .get('attachment.First Contact.value');
-  const firstContactOld = locals
-    .change
-    .before
-    .get('attachment.First Contact.value');
-  const secondContactNew = locals
-    .change
-    .after
-    .get('attachment.Second Contact.value');
-  const secondContactOld = locals
-    .change
-    .before
-    .get('attachment.Second Contact.value');
-  const officeId = locals.change.after.id;
-
-  if (firstContactOld
-    && firstContactOld !== firstContactNew) {
-    await Promise
-      .all([
-        cancelSubscriptionOfSubscription(officeId, firstContactOld),
-        cancelAdmin(officeId, firstContactOld)
-      ]);
-  }
-
-  if (secondContactOld
-    && secondContactOld !== secondContactNew) {
-    await Promise
-      .all([
-        cancelSubscriptionOfSubscription(officeId, secondContactOld),
-        cancelAdmin(officeId, secondContactOld),
-      ]);
-  }
-
-  await createFootprintsRecipient(locals);
-  await createAutoSubscription(locals, 'subscription', firstContactNew);
-  await createAutoSubscription(locals, 'subscription', secondContactNew);
-  await createBranches(locals);
-  await handleSitemap(locals);
-
-  return mangeYouTubeDataApi(locals);
 };
 
 
@@ -2189,7 +1252,9 @@ const setLocationsReadEvent = async locals => {
     .all(updatesPromises);
 
   updateDocs.forEach(doc => {
-    if (!doc.exists) return;
+    if (!doc.exists) {
+      return;
+    }
 
     docsCounter++;
 
@@ -2222,18 +1287,166 @@ const setLocationsReadEvent = async locals => {
     }, Promise.resolve());
 };
 
+// const handleBranchScheduleUpdate = async locals => {
+//   const schedulesNew = locals.change.after.get('schedule');
+//   const schedulesOld = locals.change.before.get('schedule') || [];
+
+//   schedulesNew.forEach((schedule, index) => {
+//     const {
+//       startTime: startTimeNew,
+//       endTime: endTimeNew,
+//     } = schedule;
+
+//     const {
+//       startTime: startTimeOld,
+//       endTime: endTimeOld,
+//     } = schedulesOld[index] || {};
+//   });
+// };
+
+const handleBranchWeeklyOffUpdate = async locals => {
+  const {
+    officeId,
+    attachment: {
+      Name: {
+        value: branchName,
+      },
+      'Weekly Off': {
+        value: weeklyOffNew,
+      },
+    },
+  } = locals.change.after.data();
+
+  const {
+    attachment: {
+      'Weekly Off': {
+        value: weeklyOffOld,
+      },
+    },
+  } = locals.change.before.get('attachment');
+
+  // Nothing changed
+  if (weeklyOffOld && (weeklyOffOld === weeklyOffNew)) {
+    return;
+  }
+
+  const [
+    employeesWithThisBranch,
+    officeDoc,
+  ] = await Promise
+    .all([
+      rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('template', '==', 'employee')
+        .where('attachment.Base Location.value', '==', branchName)
+        .where('status', '==', 'CONFIRMED')
+        .get(),
+      rootCollections
+        .offices
+        .doc(officeId)
+        .get(),
+    ]);
+
+  const firstDayOfMonthlyCycle = officeDoc
+    .get('attachment.First Day Of Monthly Cycle.value') || 1;
+
+  const momentToday = momentTz().month();
+  const prevMonth = (() => {
+    if (firstDayOfMonthlyCycle > momentToday.date()) {
+      return null;
+    }
+
+    return momentTz().clone().subtract(1, 'month').month();
+  })();
+
+  const attendanceQueries = [];
+
+  employeesWithThisBranch
+    .forEach(doc => {
+      const employeeContact = doc.get('attachment.Employee Contact.value');
+      const base = rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.ATTENDANCES)
+        .where('phoneNumber', '==', employeeContact);
+
+      attendanceQueries
+        .push(base
+          .where('month', '==', momentToday.month())
+          .where('year', '==', momentToday.year())
+          .limit(1)
+          .get());
+
+      if (prevMonth) {
+        attendanceQueries
+          .push(base
+            .where('month', '==', prevMonth.month())
+            .where('year', '==', prevMonth.year())
+            .limit(1)
+            .get());
+      }
+    });
+
+  const attendanceSnaps = await Promise.all(attendanceQueries);
+  const batch = db.batch();
+
+  attendanceSnaps.forEach(snap => {
+    const doc = snap.docs[0];
+    const month = doc.get('month');
+    const year = doc.get('year');
+    const momentThisMonth = momentTz().month(month).year(year);
+    const daysInMonth = momentThisMonth.daysInMonth();
+    const dataUpdate = doc.data() || {};
+
+    dataUpdate.attendance = dataUpdate.attendance || {};
+
+    const dates = getNumbersbetween(1, daysInMonth + 1);
+
+    dates.forEach(date => {
+      const weekdayOnDate = momentTz().date(date).month(month).year(year).format('dddd').toLowerCase();
+
+      if (weeklyOffOld !== weekdayOnDate) {
+        return;
+      }
+
+      dataUpdate
+        .attendance[date] = dataUpdate.attendance[date] || getDefaultAttendanceObject();
+      dataUpdate
+        .attendance[date].weeklyOff = true;
+      dataUpdate
+        .attendance[date].attendance = 1;
+    });
+
+    batch
+      .set(doc.ref, dataUpdate, { merge: true });
+  });
+
+  return batch
+    .commit();
+};
+
 
 const handleBranch = async locals => {
-  const office = locals
-    .change
-    .after
-    .get('office');
+  const {
+    office,
+    attachment: {
+      Name: {
+        value: baseLocation,
+      },
+    },
+  } = locals.change.after.data();
+
+  // await handleBranchScheduleUpdate(locals);
+  await handleBranchWeeklyOffUpdate(locals);
+
   const employees = await rootCollections
     .activities
     .where('template', '==', 'employee')
     .where('status', '==', 'CONFIRMED')
     .where('office', '==', office)
-    .where('attachment.Base Location.value', '==', locals.change.after.get('attachment.Name.value'))
+    .where('attachment.Base Location.value', '==', baseLocation)
     .get();
 
   const promises = [];
@@ -2263,14 +1476,16 @@ const handleRecipient = async locals => {
     return;
   }
 
+  const { status } = locals.change.after.data();
+
   batch
     .set(recipientsDocRef, {
+      status,
       include: locals.assigneePhoneNumbersArray,
       cc: locals.change.after.get('attachment.cc.value'),
       office: locals.change.after.get('office'),
       report: locals.change.after.get('attachment.Name.value'),
       officeId: locals.change.after.get('officeId'),
-      status: locals.change.after.get('status'),
     }, {
       /**
        * Required since anyone updating the this activity will cause
@@ -2279,7 +1494,7 @@ const handleRecipient = async locals => {
       merge: true,
     });
 
-  if (locals.change.after.get('status') === 'CANCELLED') {
+  if (status === 'CANCELLED') {
     batch
       .delete(recipientsDocRef);
   }
@@ -2298,10 +1513,7 @@ const handleRecipient = async locals => {
    * all employees of the office should get
    * the subscription of attendance regularization
    */
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
+  const { officeId } = locals.change.after.data();
   const employees = await getEmployeesMapFromRealtimeDb(officeId);
   const promises = [];
   const phoneNumbers = Object.keys(employees);
@@ -2323,43 +1535,42 @@ const handleRecipient = async locals => {
 };
 
 
-const createNewProfiles = async newProfilesMap => {
+const createNewProfiles = async ({ newPhoneNumbersSet, smsContext }) => {
   const profileBatch = db.batch();
   const profilePromises = [];
 
-  newProfilesMap
-    .forEach((_, phoneNumber) => {
-      const promise = rootCollections
-        .profiles
-        .doc(phoneNumber)
-        .get();
+  const promiseCreator = phoneNumber => {
+    const promise = rootCollections
+      .profiles
+      .doc(phoneNumber)
+      .get();
 
-      profilePromises
-        .push(promise);
-    });
+    profilePromises
+      .push(promise);
+  };
+
+  newPhoneNumbersSet
+    .forEach(promiseCreator);
 
   const snap = await Promise
     .all(profilePromises);
+  const batchCreator = doc => {
+    /** Profile already exists */
+    if (doc.exists) {
+      return;
+    }
 
-  snap
-    .forEach(doc => {
-      /** Profile already exists */
-      if (doc.exists) return;
+    // doc.id => phoneNumber
+    profileBatch.set(doc.ref, { smsContext }, { merge: true });
+  };
 
-      profileBatch.set(doc.ref, {
-        // doc.id => phoneNumber
-        smsContext: newProfilesMap.get(doc.id),
-      }, {
-        merge: true,
-      });
-    });
+  snap.forEach(batchCreator);
 
-  return profileBatch
-    .commit();
+  return profileBatch.commit();
 };
 
 
-const getCopyPath = (template, officeId, activityId) => {
+const getCopyPath = ({ template, officeId, activityId }) => {
   if (template === 'office') {
     return rootCollections
       .offices
@@ -2369,7 +1580,7 @@ const getCopyPath = (template, officeId, activityId) => {
   return rootCollections
     .offices
     .doc(officeId)
-    .collection('Activities')
+    .collection(subcollectionNames.ACTIVITIES)
     .doc(activityId);
 };
 
@@ -2380,7 +1591,6 @@ const getCopyPath = (template, officeId, activityId) => {
 * @returns {number} 0 || 1 depending on whether the action was a comment or anything else.
 */
 const isComment = action => {
-  // Making this a closure since this function is not going to be used anywhere else.
   if (action === httpsActions.comment) {
     return 1;
   }
@@ -2529,19 +1739,15 @@ const getChangeStatusComment = (status, activityName, pronoun) => {
 
 
 const getCommentString = (locals, recipient) => {
-  const action = locals.addendumDoc.get('action');
+  const { action } = locals.addendumDoc.data();
   const pronoun = getPronoun(locals, recipient);
   const template = locals.addendumDoc.get('activityData.template');
 
-  if (locals.addendumDoc.get('cancellationMessage')) {
-    return locals
-      .addendumDoc
-      .get('cancellationMessage');
-  }
-
   if (action === httpsActions.create) {
     const locationFromVenue = (() => {
-      if (template !== 'check-in') return null;
+      if (template !== 'check-in') {
+        return null;
+      }
 
       if (locals.addendumDocData.activityData
         && locals.addendumDocData.activityData.venue
@@ -2578,7 +1784,7 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.share) {
-    const share = locals.addendumDoc.get('share');
+    const { share } = locals.addendumDoc.data();
     let str = `${pronoun} added`;
 
     if (share.length === 1) {
@@ -2621,9 +1827,25 @@ const getCommentString = (locals, recipient) => {
   }
 
   if (action === httpsActions.updatePhoneNumber) {
+    const oldPhoneNumber = locals.addendumDoc.get('oldPhoneNumber');
+    const newPhoneNumber = locals.addendumDoc.get('newPhoneNumber');
+
+    // Employee changed their number themselves
+    if (locals.addendumDocRef.get('user') === oldPhoneNumber) {
+      // <person name> changed their phone number
+      // from < old phone number > to < new phone number >
+      const employeeName = locals
+        .addendumDoc
+        .get('activityData.attachment.Name.value');
+
+      return `${employeeName} changed their phone number`
+        + ` from ${oldPhoneNumber}`
+        + ` to ${newPhoneNumber}`;
+    }
+
     return `Phone number`
-      + ` '${locals.addendumDoc.get('oldPhoneNumber')} was`
-      + ` changed to ${locals.addendumDoc.get('newPhoneNumber')}`;
+      + ` '${oldPhoneNumber} was`
+      + ` changed to ${newPhoneNumber}`;
   }
 
   /** Action is `comment` */
@@ -2632,25 +1854,11 @@ const getCommentString = (locals, recipient) => {
 
 
 const handleComments = async (addendumDoc, locals) => {
+  if (!addendumDoc) {
+    return;
+  }
+
   const batch = db.batch();
-
-  // const activityDoc = locals.change.after;
-  // const activityCreatedAt = momentTz(activityDoc.createTime.toDate().getTime());
-  // console.log({
-  //   activityCreatedAt: activityCreatedAt.format(dateFormats.DATE_TIME),
-  //   momentTz: momentTz().format(dateFormats.DATE_TIME),
-  //   diff: momentTz().diff(activityCreatedAt, 'minutes'),
-  // });
-
-  // if (momentTz().diff(activityCreatedAt, 'minutes') > 10) {
-  //   console.log('returning for old activity update');
-
-  //   return;
-  // }
-
-  // if (!addendumDoc) {
-  //   return;
-  // }
 
   locals
     .activityNew = locals.change.after;
@@ -2666,18 +1874,21 @@ const handleComments = async (addendumDoc, locals) => {
 
       const comment = getCommentString(locals, phoneNumber);
 
-      batch.set(rootCollections
-        .updates
-        .doc(userRecord.uid)
-        .collection('Addendum')
-        .doc(addendumDoc.id), {
-        comment,
-        activityId: locals.change.after.id,
-        isComment: isComment(addendumDoc.get('action')),
-        timestamp: addendumDoc.get('userDeviceTimestamp'),
-        location: addendumDoc.get('location'),
-        user: addendumDoc.get('user'),
-      });
+      batch
+        .set(rootCollections
+          .updates
+          .doc(userRecord.uid)
+          // Addendum
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(addendumDoc.id), {
+          comment,
+          _type: addendumTypes.COMMENT,
+          activityId: locals.change.after.id,
+          isComment: isComment(addendumDoc.get('action')),
+          timestamp: addendumDoc.get('userDeviceTimestamp'),
+          location: addendumDoc.get('location'),
+          user: addendumDoc.get('user'),
+        });
     });
 
   return batch
@@ -2685,7 +1896,7 @@ const handleComments = async (addendumDoc, locals) => {
 };
 
 
-const handleDailyStatusReport = async addendumDoc => {
+const createActivityStats = async addendumDoc => {
   if (!env.isProduction) return;
 
   const batch = db.batch();
@@ -2726,12 +1937,9 @@ const handleDailyStatusReport = async addendumDoc => {
         .get(),
     ]);
 
-  const initDocRef = (snapShot) => {
-    if (snapShot.empty) {
-      return rootCollections.inits.doc();
-    }
-
-    return snapShot.docs[0].ref;
+  const initDocRef = snapShot => {
+    return snapShot
+      .empty ? rootCollections.inits.doc() : snapShot.docs[0].ref;
   };
 
   const initDoc = initDocRef(todayInitQuery);
@@ -2834,11 +2042,8 @@ const handleDailyStatusReport = async addendumDoc => {
     }
   }
 
-  const dataObject = (() => {
-    if (todayInitQuery.empty) return {};
-
-    return todayInitQuery.docs[0].data() || {};
-  })();
+  const dataObject = todayInitQuery
+    .empty ? {} : todayInitQuery.docs[0].data();
 
   dataObject.totalActivities = totalActivities;
   dataObject.activitiesAddedToday = activitiesAddedToday;
@@ -2904,462 +2109,259 @@ const getAccuracyTolerance = accuracy => {
   return 1;
 };
 
-
-const checkDistanceAccurate = (addendumDoc, activityDoc) => {
-  /** User's current location */
-  const geopointOne = {
-    _latitude: addendumDoc.get('location')._latitude,
-    _longitude: addendumDoc.get('location')._longitude,
-    accuracy: addendumDoc.get('geopointAccuracy'),
-  };
-  const venue = addendumDoc.get('activityData.venue')[0];
-  const distanceTolerance = getAccuracyTolerance(geopointOne.accuracy);
-
-  if (venue && venue.location) {
-    /** Location that the user selected */
-    const geopointTwo = {
-      _latitude: venue.geopoint._latitude,
-      _longitude: venue.geopoint._longitude,
-    };
-
-    const distanceBetween = haversineDistance(geopointOne, geopointTwo);
-
-    return distanceBetween < distanceTolerance;
-  }
-
-  // Activity created from an unknown location
-  if (!activityDoc) {
-    return false;
-  }
-
-  const venueFromActivity = activityDoc.get('venue')[0];
-  const geopointTwo = {
-    _latitude: venueFromActivity.geopoint._latitude,
-    _longitude: venueFromActivity.geopoint._longitude,
-  };
-
-  const distanceBetween = haversineDistance(geopointOne, geopointTwo);
-
-  return distanceBetween < distanceTolerance;
-};
-
-
-const getLocationUrl = plusCode =>
-  `https://plus.codes/${plusCode}`;
-
-
-const getPlaceInformation = (mapsApiResult, geopoint) => {
-  const value = toMapsUrl(geopoint);
-
-  if (!mapsApiResult) {
-    return {
-      url: value,
-      identifier: value,
-    };
-  }
-
-  const firstResult = mapsApiResult.json.results[0];
-
-  if (!firstResult) {
-    return {
-      url: value,
-      identifier: value,
-    };
-  }
-
-  const plusCode = mapsApiResult.json['plus_code']['global_code'];
-
-  return {
-    identifier: firstResult['formatted_address'],
-    url: getLocationUrl(plusCode),
-  };
-};
-
-
-const getLocalityCityState = components => {
-  let locality = '';
-  let city = '';
-  let state = '';
-
-  components.forEach(component => {
-    if (component.types.includes('locality')) {
-      locality = component.long_name;
-    }
-
-    if (component.types.includes('administrative_area_level_2')) {
-      city = component.long_name;
-    }
-
-    if (component.types.includes('administrative_area_level_1')) {
-      state = component.long_name;
-    }
-  });
-
-  return { locality, city, state };
-};
-
-
-const handleCheckInActionForDailyAllowance = async locals => {
-  const phoneNumber = locals
-    .change
-    .after
-    .get('creator.phoneNumber')
-    || locals
-      .change
-      .after
-      .get('phoneNumber');
-  const officeId = locals.change.after.get('officeId');
-  const timezone = locals.change.after.get('timezone');
-  const docs = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Activities')
-    .where('template', '==', 'daily allowance')
-    .where('isCancelled', '==', false)
-    .get();
-
-  const batch = db.batch();
-  const momentNow = momentTz()
-    .tz(timezone);
-  let count = 0;
-  const monthYearString = momentNow
-    .format(dateFormats.MONTH_YEAR);
-  const reimbursementsDoc = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.REIMBURSEMENTS)
-    .doc(monthYearString)
-    .collection(phoneNumber)
-    .doc(`${momentNow.date()}`)
-    .get();
-
-  const reimbursementsDocData = (() => {
-    if (reimbursementsDoc.exists) {
-      return reimbursementsDoc.data();
-    }
-
-    return {
-      phoneNumber,
-      date: momentNow.date(),
-      month: momentNow.month(),
-      year: momentNow.year(),
-    };
-  })();
-
-  reimbursementsDocData
-    .reimbursements = reimbursementsDocData.reimbursements || [];
-
-  docs
-    .forEach(doc => {
-      const start = doc.get('attachment.Start Time.value');
-      const end = doc.get('attachment.End Time.value');
-
-      if (!start || !end) {
-        return;
-      }
-
-      const [
-        startHours,
-        startMinutes,
-      ] = start
-        .split(':');
-      const [
-        endHours,
-        endMinutes,
-      ] = end
-        .split(':');
-
-      const momentStart = momentNow
-        .clone()
-        .hour(startHours)
-        .minute(startMinutes);
-      const momentEnd = momentNow
-        .clone()
-        .hour(endHours)
-        .minute(endMinutes);
-
-      if (momentNow.isBefore(momentStart)
-        || momentNow.isAfter(momentEnd)) {
-        return;
-      }
-
-      count++;
-
-      const newObject = {
-        template: doc.get('template'),
-        name: doc.get('attachment.Name.value'),
-        amount: doc.get('attachment.Amount.value'),
-        timestamp: doc.createTime.toDate().getTime(),
-        status: doc.get('status'),
-        activityId: locals.change.after.id,
-      };
-
-      // One type of claim can only be claimed once during the
-      // time range (startTime to endTime)
-      const index = reimbursementsDocData
-        .reimbursements
-        .indexOf(el => {
-          return el.name === doc.get('attachment.Name.value');
-        });
-
-      if (index === -1) {
-        reimbursementsDocData
-          .reimbursements
-          .push(newObject);
-      } else {
-        reimbursementsDocData
-          .reimbursements[
-          index
-        ] = newObject;
-      }
-    });
-
-  if (count === 0) {
-    return;
-  }
-
-  const addendumDocRef = rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-
-  batch
-    .set(addendumDocRef, {
-      date: momentNow.date(),
-      month: momentNow.month(),
-      year: momentNow.year(),
-      user: phoneNumber,
-      action: httpsActions.checkIn,
-      location: locals.addendumDoc.get('location'),
-      timestamp: Date.now(),
-      userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
-      isSupportRequest: locals.addendumDoc.get('isSupportRequest'),
-      geopointAccuracy: locals.addendumDoc.get('geopointAccuracy'),
-      provider: locals.addendumDoc.get('provider'),
-      userDisplayName: locals.change.after.get('creator.displayName'),
-      isAutoGenerated: true,
-      comment: ``,
-      activityData: locals.change.after.data(),
-      activityId: locals.change.after.id,
-    });
-
-  batch
-    .set(reimbursementsDoc.ref, reimbursementsDocData, {
-      merge: true,
-    });
-
-  return batch
-    .commit();
-};
-
-
-const addCheckInTimestamps = async locals => {
-  if (locals.addendumDocData
-    && (locals.addendumDocData.action !== httpsActions.create)) {
-    return;
-  }
-
-  const timezone = locals
-    .change
-    .after
-    .get('timezone');
-  const createTime = locals
-    .change
-    .after
-    .createTime
-    .toDate()
-    .getTime();
-  const momentNow = momentTz(createTime)
-    .tz(timezone);
-  const date = momentNow.date();
-  const monthYearString = momentNow
-    .format(dateFormats.MONTH_YEAR);
-  const officeId = locals
-    .change
-    .after
-    .get('officeId');
-  const phoneNumber = locals
-    .change
-    .after
-    .get('creator.phoneNumber');
-
-  const [
-    attendanceDoc,
-    employeeDocQueryResult,
-  ] = await Promise
-    .all([
-      rootCollections
-        .offices
-        .doc(officeId)
-        .collection('Attendances')
-        .doc(monthYearString)
-        .collection(phoneNumber)
-        /** Path values are strings */
-        .doc(`${date}`)
-        .get(),
-      rootCollections
-        .activities
-        .where('officeId', '==', officeId)
-        .where('status', '==', 'CONFIRMED')
-        .where('template', '==', 'employee')
-        .where('attachment.Employee Contact.value', '==', phoneNumber)
-        .limit(1)
-        .get(),
-    ]);
-
-  const employeeDoc = employeeDocQueryResult.docs[0];
+const getVenueFromActivity = activityData => {
+  const [venue] = activityData.venue;
 
   /**
-   * If person creating a check-in is an employee,
-   * and the `Location Validation Check` is `true`
-   * and the distanceAccurate is not true, the count
-   * of check-in will not be counted.
+   * Some activities might have empty venue object
+   * based on template.
    */
-  if (employeeDoc
-    /**
-     * `Location Validation Check` could be an empty string,
-     * or something else but we need an explicit check for
-     * `distanceAccurate`.
-     */
-    && employeeDoc.get('attachment.Location Validation Check.value') === true
-    && locals.addendumDocData.distanceAccurate === false) {
+  return venue ? venue : null;
+};
+
+const handlePopulatedVenue = ({ addendumDoc }) => {
+  /** User's current location */
+  const deviceLocation = {
+    _latitude: addendumDoc.get('location')._latitude,
+    _longitude: addendumDoc.get('location')._longitude,
+  };
+
+  const { activityData, geopointAccuracy } = addendumDoc.data();
+  const activityVenue = getVenueFromActivity(activityData);
+  const distanceTolerance = getAccuracyTolerance(geopointAccuracy);
+
+  // venue is populated => calculate distabce btw actual and venue location.
+  // haversineDistance(geopointOne, geopointTwo)
+  return {
+    distanceAccurate: haversineDistance(deviceLocation, activityVenue.geopoint) < distanceTolerance,
+    venueQuery: activityVenue,
+  };
+};
+
+const handleUnpopulatedVenue = async ({ addendumDoc }) => {
+  // venue is not populated.
+  // query db with adjusted geopoint.
+  const {
+    activityData,
+    geopointAccuracy,
+    location: currentGeopoint,
+  } = addendumDoc.data();
+  const { officeId } = activityData;
+  const distanceTolerance = getAccuracyTolerance(geopointAccuracy);
+  const adjGP = adjustedGeopoint(currentGeopoint);
+
+  const [queriedActivity] = (
+    await rootCollections
+      .activities
+      .where('officeId', '==', officeId)
+      // Branch, and customer
+      .where('adjustedGeopoints', '==', `${adjGP.latitude},${adjGP.longitude}`)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
+  )
+    .docs;
+
+  // { isAccurate: false, venueQuery: null };
+  if (!queriedActivity) {
+    const mapsApiResult = await googleMapsClient.reverseGeocode({
+      latlng: getLatLngString(currentGeopoint),
+    })
+      .asPromise();
+
+    const csl = getLocalityCityState(mapsApiResult);
+    const ui = getPlaceInformation(mapsApiResult, currentGeopoint);
+
+    return Object.assign({}, csl, ui, {
+      distanceAccurate: false,
+      venueQuery: null,
+    });
+  }
+
+  const [activityVenue] = queriedActivity.get('venue');
+  const { geopoint: activityGeopoint } = activityVenue;
+
+  const distanceBetween = haversineDistance(currentGeopoint, activityGeopoint);
+
+  return {
+    distanceAccurate: distanceBetween < distanceTolerance,
+    venueQuery: activityVenue,
+  };
+};
+
+const checkDistanceAccurate = async ({ addendumDoc }) => {
+  //   if activity.venue is NOT populated => use adjustedGeopoint and query / Activities collection;
+  //   if a doc is found:
+  //   check haversine distance between queried activity geopoint and current geopoint
+  //   if distance < 1km:
+  //     distance accurate = true
+  //   else:
+  //     distance accurate = false
+
+  const { activityData, location: currentGeopoint } = addendumDoc.data();
+  const activityVenue = getVenueFromActivity(activityData);
+
+  /** Activity doesn't have a venue field */
+  if (!activityVenue) {
+    const mapsApiResult = await googleMapsClient.reverseGeocode({
+      latlng: getLatLngString(currentGeopoint),
+    })
+      .asPromise();
+
+    /** city, state, locality */
+    const csl = getLocalityCityState(mapsApiResult);
+    /** url, identifier */
+    const ui = getPlaceInformation(mapsApiResult, currentGeopoint);
+
+    return Object.assign({}, csl, ui, {
+      isAccurate: false,
+      venueQuery: null,
+    });
+  }
+
+  if (activityVenue.location) {
+    return handlePopulatedVenue({ addendumDoc });
+  }
+
+  return handleUnpopulatedVenue({ addendumDoc });
+};
+
+const setGeopointAndTimestampInCheckInSubscription = async ({ addendumDoc }) => {
+  const {
+    activityData: {
+      office,
+    },
+    user: phoneNumber,
+    location: lastGeopoint,
+    timestamp: lastTimestamp,
+  } = addendumDoc.data();
+
+  const [checkInSubscriptionDoc] = (
+    await rootCollections
+      .profiles
+      .doc(phoneNumber)
+      .collection(subcollectionNames.SUBSCRIPTIONS)
+      .where('office', '==', office)
+      .where('template', '==', 'check-in')
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
+  )
+    .docs;
+
+  if (!checkInSubscriptionDoc) {
     return;
   }
 
-  let attendanceDocData = attendanceDoc.data() || {};
+  return checkInSubscriptionDoc.ref.set({
+    lastGeopoint,
+    lastTimestamp,
+    lastAddendumRef: addendumDoc.ref
+  }, { merge: true });
+};
 
-  if (!attendanceDocData.firstCheckInTimestamp) {
-    attendanceDocData = Object
-      .assign({}, attendanceDocData, {
-        date,
-        phoneNumber,
-        firstCheckInTimestamp: locals.addendumDocData.timestamp,
-        firstCheckIn: momentTz(locals.addendumDocData.timestamp)
-          .tz(timezone)
-          .format(dateFormats.TIME),
-        month: momentNow.month(),
-        year: momentNow.year(),
-      });
-
-    // if (employeeDoc) {
-    //   const startTime = employeeDoc.get('attachment.Daily Start Time.value');
-
-    //   if (startTime) {
-    //     const [
-    //       startHours,
-    //       startMinutes,
-    //     ] = startTime
-    //       .split(':');
-
-    //     attendanceDocData
-    //       .isLate = momentNow
-    //         .clone()
-    //         .hours(startHours)
-    //         .minutes(startMinutes)
-    //         .diff(momentNow, 'minutes') > 15;
-    //   }
-    // }
+const getDistanceTravelled = ({ previousAddendumDoc, distanceMatrixApiResult }) => {
+  if (!previousAddendumDoc) {
+    return 0;
   }
 
-  attendanceDocData
-    .lastCheckInTimestamp = locals.addendumDocData.timestamp;
-  attendanceDocData
-    .lastCheckIn = momentTz(locals.addendumDocData.timestamp)
-      .tz(timezone)
-      .format(dateFormats.TIME);
-  attendanceDocData
-    .numberOfCheckIns = attendanceDocData.numberOfCheckIns || 0;
+  const [firstRow] = distanceMatrixApiResult.json.rows;
+  const [firstElement] = firstRow.elements;
+  const { distance: distanceData } = firstElement;
 
-  // Activity has actually been created.
-  if (!locals.change.before.data()
-    && locals.change.after.data()) {
-    attendanceDocData
-      .numberOfCheckIns++;
-  }
-
-  const batch = db.batch();
-  const uid = locals.assigneesMap.get(phoneNumber).uid;
-
-  batch
-    .set(rootCollections.updates.doc(uid), {
-      lastStatusDocUpdateTimestamp: Date.now(),
-    }, {
-      merge: true,
-    });
-
-  batch
-    .set(attendanceDoc.ref, attendanceDocData, { merge: true });
-
-  return batch
-    .commit();
+  return distanceData ? (distanceData.value / 1000) : 0;
 };
 
 
 const handleAddendum = async locals => {
-  const addendumDoc = locals.addendumDoc;
+  const { addendumDoc } = locals;
 
   if (!addendumDoc) {
     return;
   }
 
-  const action = addendumDoc.get('action');
-  const phoneNumber = addendumDoc.get('user');
-  const momentWithOffset = momentTz()
-    .tz(addendumDoc.get('activityData.timezone') || 'Asia/Kolkata');
-
   let previousGeopoint;
+
+  const {
+    action,
+    timestamp,
+    location: currentGeopoint,
+    user: phoneNumber,
+  } = addendumDoc.data();
+
+  const momentWithOffset = momentTz(timestamp)
+    .tz(addendumDoc.get('activityData.timezone') || 'Asia/Kolkata');
 
   const isSkippableEvent = action === httpsActions.install
     || action === httpsActions.signup
     || action === httpsActions.branchView
     || action === httpsActions.productView
-    || action === httpsActions.videoPlay
-    || action === httpsActions.updatePhoneNumber;
+    || action === httpsActions.videoPlay;
+
+  const date = momentWithOffset.date();
+  const month = momentWithOffset.month();
+  const year = momentWithOffset.year();
 
   if (isSkippableEvent) {
-    return addendumDoc
-      .ref
-      .set({
-        date: momentWithOffset.date(),
-        month: momentWithOffset.month(),
-        year: momentWithOffset.year(),
-      }, {
-        merge: true,
-      });
+    return addendumDoc.ref.set({ date, month, year }, { merge: true });
   }
 
-  const geopoint = addendumDoc
-    .get('location');
-  const gp = adjustedGeopoint(geopoint);
-  const batch = db
-    .batch();
+  /** Phone Number change addendum does not have geopoint */
+  if (typeof currentGeopoint === 'undefined') {
+    return handleComments(addendumDoc, locals);
+  }
 
-  const [
-    addendumQuery,
-    adjustedGeopointQueryResult
-  ] = await Promise
-    .all([
-      rootCollections
-        .offices
-        .doc(addendumDoc.get('activityData.officeId'))
-        .collection('Addendum')
-        .where('user', '==', phoneNumber)
-        .orderBy('timestamp', 'desc')
-        .limit(2)
-        .get(),
-      rootCollections
-        .activities
-        // Branch, and customer
-        .where('office', '==', addendumDoc.get('activityData.office'))
-        .where('status', '==', 'CONFIRMED')
-        .where('adjustedGeopoints', '==', `${gp.latitude},${gp.longitude}`)
-        .limit(1)
-        .get()
-    ]);
+  const batch = db.batch();
 
-  const activityDoc = adjustedGeopointQueryResult
-    .docs[0];
+  // venue populated => fetch branch/customer activity with adjustedGeopoints {lat,lng}
+  // if doc is found:
+  // distanceAccurate => diff CURR and resulting activity < 1
+  // if doc is not found:
+  // distance accurate = false.
+
+  //   if activity.venue is NOT populated => use adjustedGeopoint and query / Activities collection;
+  //   if a doc is found:
+  //   check haversine distance between queried activity geopoint and current geopoint
+  //   if distance < 1km:
+  //     distance accurate = true
+  //   else:
+  //     distance accurate = false
+
+  // const [
+  //   addendumQuery,
+  //   adjustedGeopointQueryResult,
+  // ] = await Promise
+  //   .all([
+  //     rootCollections
+  //       .offices
+  //       .doc(locals.change.after.get('officeId'))
+  //       .collection(subcollectionNames.ADDENDUM)
+  //       .where('user', '==', phoneNumber)
+  //       .where('timestamp', '<', timestamp)
+  //       .orderBy('timestamp', 'desc')
+  //       .limit(2)
+  //       .get(),
+  //     rootCollections
+  //       .activities
+  //       // Branch, and customer
+  //       .where('office', '==', locals.change.after.get('office'))
+  //       .where('status', '==', 'CONFIRMED')
+  //       .where('adjustedGeopoints', '==', `${gp.latitude},${gp.longitude}`)
+  //       .limit(1)
+  //       .get()
+  //   ]);
+
+  const addendumQuery = await rootCollections
+    .offices
+    .doc(locals.change.after.get('officeId'))
+    .collection(subcollectionNames.ADDENDUM)
+    .where('user', '==', phoneNumber)
+    .where('timestamp', '<', timestamp)
+    .orderBy('timestamp', 'desc')
+    .limit(2)
+    .get();
+
+  // const [activityDoc] = adjustedGeopointQueryResult.docs;
 
   const previousAddendumDoc = (() => {
     if (addendumQuery.docs[0]
@@ -3370,16 +2372,7 @@ const handleAddendum = async locals => {
     return addendumQuery.docs[1];
   })();
 
-  const currentGeopoint = addendumDoc
-    .get('location');
-
-  const promises = [
-    googleMapsClient
-      .reverseGeocode({
-        latlng: getLatLngString(currentGeopoint),
-      })
-      .asPromise(),
-  ];
+  const promises = [];
 
   if (previousAddendumDoc) {
     /** Could be undefined for install or signup events in the previous addendum */
@@ -3402,107 +2395,35 @@ const handleAddendum = async locals => {
         .asPromise());
   }
 
-  const [
-    mapsApiResult,
-    distanceMatrixApiResult,
-  ] = await Promise
-    .all(promises);
+  const [distanceMatrixApiResult] = await Promise.all(promises);
 
-  const placeInformation = getPlaceInformation(
-    mapsApiResult,
-    currentGeopoint
-  );
+  const daR = await checkDistanceAccurate({ addendumDoc });
+  const updateObject = Object
+    .assign(
+      {},
+      daR,
+      {
+        date,
+        month,
+        year,
+        customerObject: locals.customerObject,
+        // [{ displayName, phoneNumber, photoURL }]
+        assigneesMap: [...locals.assigneesMap.values()],
+        adjustedGeopoint: adjustedGeopoint(addendumDoc.get('location')),
+        distanceTravelled: getDistanceTravelled({
+          previousAddendumDoc,
+          distanceMatrixApiResult,
+        }),
+      });
 
-  if (mapsApiResult.json.results.length > 0) {
-    const components = mapsApiResult.json.results[0].address_components;
-    const {
-      city,
-      state,
-      locality,
-    } = getLocalityCityState(components);
-
-    // eslint-disable-next-line require-atomic-updates
-    locals
-      .city = city;
-    // eslint-disable-next-line require-atomic-updates
-    locals
-      .state = state;
-    // eslint-disable-next-line require-atomic-updates
-    locals
-      .locality = locality;
-  }
-
-  const distanceData = (() => {
-    if (!previousAddendumDoc) {
-      return {
-        accumulatedDistance: 0,
-        distanceTravelled: 0,
-      };
-    }
-
-    const value = (() => {
-      const distanceData = distanceMatrixApiResult
-        .json
-        .rows[0]
-        .elements[0]
-        .distance;
-
-      // maps api result in meters
-      if (distanceData) {
-        return distanceData.value / 1000;
-      }
-
-      const result = haversineDistance(previousGeopoint, currentGeopoint);
-
-      // in KM
-      return result;
-    })();
-
-    const accumulatedDistance = Number(
-      previousAddendumDoc.get('accumulatedDistance') || 0
-    )
-      // value is in meters
-      + value;
-
-    return {
-      accumulatedDistance: accumulatedDistance.toFixed(2),
-      distanceTravelled: value,
-    };
-  })();
-
-  const updateObject = {
-    city: locals.city,
-    state: locals.state,
-    locality: locals.locality,
-    url: placeInformation.url,
-    identifier: placeInformation.identifier,
-    distanceTravelled: distanceData.distanceTravelled,
-    date: momentWithOffset.date(),
-    month: momentWithOffset.month(),
-    year: momentWithOffset.year(),
-    adjustedGeopoint: adjustedGeopoint(addendumDoc.get('location')),
-    distanceAccurate: checkDistanceAccurate(
-      addendumDoc,
-      activityDoc
-    ),
-  };
-
-  if (activityDoc
-    && activityDoc.get('venue')[0]
-    && activityDoc.get('venue')[0].location) {
-    updateObject
-      .venueQuery = activityDoc.get('venue')[0];
-  }
+  console.log('updateObject =>', updateObject);
 
   // Required for comment creation since the addendumDoc.data() won't contain
   // the updates made during this function instance
-  // eslint-disable-next-line require-atomic-updates
-  locals
-    .addendumDocData = Object.assign(
-      {},
-      addendumDoc.data(),
-      updateObject
-    );
+  locals.addendumDocData = Object.assign({},
+    addendumDoc.data(),
+    updateObject
+  );
 
   // eslint-disable-next-line require-atomic-updates
   locals
@@ -3513,21 +2434,14 @@ const handleAddendum = async locals => {
    * with `addendumOnCreate` cloud function messes up whole data for the user
    * after the time of the crash.
    */
-  batch
-    .set(addendumDoc.ref, updateObject, {
-      merge: true,
-    });
+  batch.set(addendumDoc.ref, updateObject, { merge: true });
 
-  await batch
-    .commit();
+  await batch.commit();
 
-  await handleComments(addendumDoc, locals);
+  await setGeopointAndTimestampInCheckInSubscription({ addendumDoc: locals.addendumDoc });
+  await createActivityStats(locals.addendumDoc);
 
-  if (addendumDoc.get('activityData.template') === 'check-in') {
-    await addCheckInTimestamps(locals);
-  }
-
-  return handleDailyStatusReport(addendumDoc);
+  return handleComments(addendumDoc, locals);
 };
 
 const handleActivityUpdates = async locals => {
@@ -3554,10 +2468,7 @@ const handleActivityUpdates = async locals => {
     return;
   }
 
-  const template = locals
-    .change
-    .after
-    .get('template');
+  const { template } = locals.change.after.data();
 
   const baseQuery = rootCollections
     .activities
@@ -3627,14 +2538,8 @@ const handleActivityUpdates = async locals => {
       batchIndex
     ].set(doc.ref, {
       addendumDocRef: null,
-      attachment: {
-        [field]: {
-          value,
-        },
-      },
-    }, {
-      merge: true,
-    });
+      attachment: { [field]: { value } },
+    }, { merge: true });
   });
 
   return Promise
@@ -3707,7 +2612,7 @@ const handleLeaveUpdates = async locals => {
       const promise = rootCollections
         .profiles
         .doc(phoneNumber)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .doc(activityId)
         .get();
 
@@ -3772,7 +2677,7 @@ const handleLeaveUpdates = async locals => {
       month: dateObject.getMonth(),
       year: dateObject.getFullYear(),
       user: phoneNumber,
-      action: httpsActions.comment,
+      action: httpsActions.changeStatus,
       location: locals.addendumDoc.get('location'),
       timestamp: Date.now(),
       userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
@@ -3783,7 +2688,7 @@ const handleLeaveUpdates = async locals => {
       isAutoGenerated: true,
       comment: automaticComment,
       activityData: locals.change.after.data(),
-      activityId: locals.change.after.ref.id,
+      activityId: locals.change.after.id,
     });
 
   resolvedConflictDocs
@@ -3791,7 +2696,7 @@ const handleLeaveUpdates = async locals => {
       const addendumDocRef = rootCollections
         .offices
         .doc(officeId)
-        .collection('Addendum')
+        .collection(subcollectionNames.ADDENDUM)
         .doc();
 
       batch
@@ -3833,9 +2738,9 @@ const handleLeaveAndDutyConflict = async locals => {
   const phoneNumber = locals.change.after.get('creator.phoneNumber');
 
   if (locals.addendumDoc
-    && locals.addendumDoc.get('action') === httpsActions.create
-    || locals.addendumDoc.get('action') === httpsActions.update
-    || locals.addendumDoc.get('action') === httpsActions.changeStatus) {
+    && (locals.addendumDoc.get('action') === httpsActions.create
+      || locals.addendumDoc.get('action') === httpsActions.update
+      || locals.addendumDoc.get('action') === httpsActions.changeStatus)) {
 
     const docs = await rootCollections
       .offices
@@ -4234,458 +3139,6 @@ const handleTypeActivityCreation = async locals => {
 };
 
 
-const handleClaim = async locals => {
-  const batch = db.batch();
-  const timezone = locals.change.after.get('timezone');
-  const officeId = locals.change.after.get('officeId');
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
-  const activityId = locals.change.after.id;
-  const momentNow = (() => {
-    const schedule = locals.change.after.get('schedule')[0];
-
-    if (schedule.startTime) {
-      // Do not adjust timestamp because this timestamp is
-      // straight from user's device
-      return momentTz(schedule.startTime);
-    }
-
-    return momentTz(locals.change.after.createTime.toDate())
-      .tz(timezone);
-  })();
-
-  const dateToday = momentNow.date();
-  const monthYearString = momentNow
-    .format(dateFormats.MONTH_YEAR);
-  const reimbursementsDoc = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.REIMBURSEMENTS)
-    .doc(monthYearString)
-    .collection(phoneNumber)
-    .doc(`${dateToday}`)
-    .get();
-
-  const newObject = {
-    phoneNumber,
-    activityId,
-    timestamp: Date.now(),
-    template: locals.change.after.get('template'),
-    details: locals.change.after.get('attachment.Details.value') || '',
-    activityName: locals.change.after.get('activityName') || '',
-    createTimestamp: locals.change.after.createTime.toDate().getTime(),
-    amount: locals.change.after.get('attachment.Amount.value'),
-    status: locals.change.after.get('status'),
-    photoURL: locals.change.after.get('attachment.Photo URL.value') || '',
-    claimType: locals.change.after.get('attachment.Claim Type.value'),
-  };
-
-  if (locals.addendumDocData
-    && locals.addendumDocData.action === httpsActions.changeStatus
-    && newObject.status === 'CONFIRMED') {
-    newObject
-      .claimConfirmedBy = locals.addendumDocData.user;
-    newObject
-      .claimConfirmedAt = Date.now();
-  }
-
-  if (locals.addendumDocData
-    && locals.addendumDocData.venueQuery) {
-    newObject
-      .identifier = locals.addendumDocData.venueQuery.location;
-  }
-
-  const reimbursementsData = reimbursementsDoc.data()
-    || Object.assign({}, {
-      phoneNumber,
-      date: dateToday,
-      month: momentNow.month(),
-      year: momentNow.year(),
-    });
-
-  reimbursementsData
-    .reimbursements = reimbursementsData.reimbursements || [];
-
-  const index = reimbursementsData
-    .reimbursements
-    .findIndex(el => el.activityId === activityId);
-
-  if (index > -1) {
-    reimbursementsData
-      .reimbursements[
-      index
-    ] = newObject;
-  } else {
-    reimbursementsData
-      .reimbursements
-      .push(newObject);
-  }
-
-  batch
-    .set(reimbursementsDoc.ref, reimbursementsData, { merge: true });
-
-  // claim updated
-  if (locals.change.before.data()) {
-    const oldSchedule = locals.change.before.get('schedule')[0];
-    const oldMoment = momentTz(oldSchedule.startTime);
-
-    if (oldSchedule.startTime
-      && !momentNow.isSame(oldSchedule.startTime, 'day')) {
-      const oldDoc = await rootCollections
-        .offices
-        .doc(officeId)
-        .collection(subcollectionNames.REIMBURSEMENTS)
-        .doc(oldMoment.format(dateFormats.MONTH_YEAR))
-        .collection(phoneNumber)
-        .doc(`${oldMoment.date()}`)
-        .get();
-
-      const oldData = oldDoc
-        .data() || {};
-
-      oldData
-        .reimbursements = oldData.reimbursements || [];
-
-      if (oldDoc.exists) {
-        const index = oldData
-          .reimbursements
-          .findIndex(el => el.activityId === activityId);
-
-        if (index > -1) {
-          oldData
-            .reimbursements
-            .splice(index, 1);
-
-          batch
-            .set(oldDoc.ref, oldData, { merge: true });
-        }
-      }
-    }
-  }
-
-  return batch
-    .commit();
-};
-
-const getDistanceTravelled = async params => {
-  const {
-    officeId,
-    phoneNumber,
-    isLocal,
-    startPoint,
-    previousAddendumDoc,
-    addendumDocData,
-  } = params;
-
-  // if this check-in is user's first check-in for the day
-  // distance travelled is distanceMatrix(baseLocation to currentLocation);
-  // else
-  // return locals.addendumDocData.get('distanceTravelled);
-  const isFirstCheckInForDate = !previousAddendumDoc
-    || (previousAddendumDoc.get('date') !== addendumDocData.date);
-
-  if (!isFirstCheckInForDate) {
-    return addendumDocData.distanceTravelled;
-  }
-
-  const currentGeopoint = addendumDocData.location;
-
-  if (startPoint && isLocal) {
-    return getDistanceFromDistanceMatrix(
-      startPoint,
-      currentGeopoint
-    );
-  }
-
-  const employeeData = await getEmployeeReportData(
-    officeId,
-    phoneNumber
-  );
-
-  if (!employeeData
-    || !employeeData.baseLocation) {
-    return addendumDocData
-      .distanceTravelled;
-  }
-
-  const baseLocationQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.REIMBURSEMENTS)
-    .where('template', '==', 'branch')
-    .where('attachment.Name.value', '==', employeeData.baseLocation)
-    .where('status', '==', 'CONFIRMED')
-    .get();
-
-  if (baseLocationQueryResult.empty) {
-    return addendumDocData.distanceTravelled;
-  }
-
-  const baseLocationGeopoint = baseLocationQueryResult.docs[0].get('venue')[0].geopoint;
-
-  if (!Number.isInteger(baseLocationGeopoint.latitude)) {
-    return addendumDocData.distanceTravelled;
-  }
-
-  return getDistanceFromDistanceMatrix(
-    baseLocationGeopoint,
-    currentGeopoint
-  );
-};
-
-
-
-const handleCheckInActionForkmAllowance = async locals => {
-  if (!locals.addendumDoc
-    || !locals.previousAddendumDoc) {
-    return;
-  }
-
-  const phoneNumber = locals.change.after.get('creator.phoneNumber');
-  const officeId = locals.change.after.get('officeId');
-  const timezone = locals.change.after.get('timezone');
-  const batch = db.batch();
-  const momentNow = momentTz()
-    .tz(timezone);
-  const currentCity = locals.city;
-  const prevCity = locals.previousAddendumDoc.get('city');
-  const monthYearString = momentNow.format(dateFormats.MONTH_YEAR);
-  const prevCheckInDate = locals.previousAddendumDoc.get('date');
-  const currentCheckInDate = locals.addendumDocData.date;
-  const currentGeopoint = locals.addendumDocData.location;
-  const isSameDate = prevCheckInDate === currentCheckInDate;
-  let previousGeopoint = locals.previousAddendumDoc.get('location');
-
-  if (!isSameDate) {
-    const employeeDocQr = await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
-      .where('template', '==', 'employee')
-      .where('status', '==', 'CONFIRMED')
-      .where('attachment.Employee Contact.value', '==', phoneNumber)
-      .limit(1)
-      .get();
-
-    const baseLocation = (() => {
-      if (employeeDocQr.empty) return '';
-
-      return employeeDocQr.docs[0].get('attachment.Base Location.value');
-    })();
-
-    const branchQr = await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
-      .where('status', '==', 'CONFIRMED')
-      .where('template', '==', 'branch')
-      .where('attachment.Name.value', '==', baseLocation)
-      .limit(1)
-      .get();
-
-    if (!branchQr.empty) {
-      previousGeopoint = branchQr.docs[0].get('venue')[0].geopoint;
-    }
-  }
-
-  const distanceTravelled = (async () => {
-    if (isSameDate) {
-      return locals
-        .addendumDocData
-        .distanceTravelled;
-    }
-
-    const distanceMatrixApiResult = await googleMapsClient
-      .distanceMatrix({
-        /**
-         * Ordering is important here. The `legal` distance
-         * between A to B might not be the same as the legal
-         * distance between B to A. So, do not mix the ordering.
-         */
-        origins: getLatLngString(previousGeopoint),
-        destinations: getLatLngString(currentGeopoint),
-        units: 'metric',
-      })
-      .asPromise();
-
-    const distanceResult = distanceMatrixApiResult
-      .json
-      .rows[0]
-      .elements[0]
-      .distance;
-
-    if (!distanceResult) {
-      return haversineDistance(currentGeopoint, previousGeopoint);
-    }
-
-    return distanceResult
-      .value / 1000;
-  })();
-
-  // local => user's current city is the city of the user's base location
-
-  const isLocal = currentCity === prevCity && distanceTravelled > 0;
-  const isTravel = currentCity !== prevCity && distanceTravelled > 0;
-
-  const includeBranch = (() => {
-    if (!locals.addendumDocData.venueQuery) {
-      return false;
-    }
-
-    return locals
-      .addendumDocData
-      .venueQuery
-      .location
-      .endsWith('BRANCH');
-  })();
-
-  const office = locals.change.after.get('office');
-
-  // Previous or current action is 'check-in';
-  const scheduledOnly = locals
-    .addendumDocData
-    .action === httpsActions.checkIn
-    || locals
-      .previousAddendumDoc
-      .get('action') === httpsActions.checkIn;
-
-  let kmActivitiesQueryBase = rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Activities')
-    .where('template', '==', 'km allowance')
-    .where('isCancelled', '==', false);
-
-  if (isLocal) {
-    kmActivitiesQueryBase = kmActivitiesQueryBase
-      .where('attachment.Local.value', '==', true);
-  }
-
-  if (isTravel) {
-    kmActivitiesQueryBase = kmActivitiesQueryBase
-      .where('attachment.Travel.value', '==', true);
-  }
-
-  if (includeBranch) {
-    kmActivitiesQueryBase = kmActivitiesQueryBase
-      .where('attachment.Include Branch.value', '==', true);
-  }
-
-  if (scheduledOnly) {
-    kmActivitiesQueryBase = kmActivitiesQueryBase
-      .where('attachment.Scheduled Only.value', '==', true);
-  }
-
-  const kmAllowanceActivities = await kmActivitiesQueryBase
-    .get();
-
-  if (kmAllowanceActivities.empty) {
-    return;
-  }
-
-  if (kmAllowanceActivities.size > 1) {
-    const o = {
-      phoneNumber,
-      isLocal,
-      isTravel,
-      includeBranch,
-      scheduledOnly,
-      office,
-      ids: `${kmAllowanceActivities.docs.map(doc => doc.id)}`,
-    };
-
-    batch
-      .set(rootCollections
-        .instant
-        .doc(), {
-        subject: `${process.env.GCLOUD_PROJECT}:`
-          + ` KM Allowances found > 2. Office: ${office}`,
-        messageBody: `<pre>
-          ${JSON.stringify(o, ' ', 2)}
-        </pre>`,
-      });
-  }
-
-  const reimbursementsDoc = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.REIMBURSEMENTS)
-    .doc(monthYearString)
-    .collection(phoneNumber)
-    .doc(`${momentNow.date()}`)
-    .get();
-
-  const reimbursementsDocData = (() => {
-    if (reimbursementsDoc.exists) {
-      return reimbursementsDoc.data();
-    }
-
-    return {
-      phoneNumber,
-      date: momentNow.date(),
-      month: momentNow.month(),
-      year: momentNow.year(),
-    };
-  })();
-
-  reimbursementsDocData
-    .reimbursements = reimbursementsDocData.reimbursements || [];
-
-  const kmAllowanceActivity = kmAllowanceActivities
-    .docs[0];
-  const amount = dinero({
-    amount: Number(kmAllowanceActivity.get('attachment.Rate.value') || 0),
-  })
-    .multiply(Number(await distanceTravelled || 0))
-    .getAmount();
-
-  const newObject = {
-    amount,
-    distanceTravelled: await distanceTravelled,
-    name: kmAllowanceActivity.get('attachment.Name.value'),
-    activityId: kmAllowanceActivity.id,
-    template: kmAllowanceActivity.get('template'),
-    rate: kmAllowanceActivity.get('attachment.Rate.value'),
-    geopoint: locals.addendumDocData.location,
-  };
-
-  const indexOfObject = reimbursementsDocData
-    .reimbursements
-    .findIndex(el => {
-      return el.activityId === kmAllowanceActivity.id;
-    });
-
-  const claimedToday = reimbursementsDocData
-    .reimbursements
-    .reduce((acc, el) => Number(acc) + Number(el.amount), 0);
-
-  const dailyLimit = kmAllowanceActivity
-    .get('attachment.Daily Limit.value');
-
-  if (dailyLimit
-    && (claimedToday > dailyLimit)) {
-    return;
-  }
-
-  if (indexOfObject === -1) {
-    reimbursementsDocData
-      .reimbursements
-      .push(newObject);
-  } else {
-    reimbursementsDocData
-      .reimbursements[
-      indexOfObject
-    ] = newObject;
-  }
-
-  batch
-    .set(reimbursementsDoc.ref, reimbursementsDocData, {
-      merge: true,
-    });
-
-  return batch
-    .commit();
-};
-
 const getReimbursementTimestamp = activityDoc => {
   const template = activityDoc.get('template');
 
@@ -4703,37 +3156,44 @@ const getReimbursementTimestamp = activityDoc => {
 
 
 const reimburseClaim = async locals => {
-  const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
+  const {
+    creator: {
+      phoneNumber,
+    },
+    office,
+    officeId,
+    status,
+    timezone,
+  } = locals.change.after.data();
   const timestamp = getReimbursementTimestamp(locals.change.after);
-  const officeId = getValueFromActivity(locals.change, 'officeId');
-  const timezone = getValueFromActivity(locals.change, 'timezone');
   const momentNow = momentTz(timestamp).tz(timezone);
-  const attachmentName = getValueFromActivity(locals.change, 'attachment.Name.value');
-  const template = getValueFromActivity(locals.change, 'template');
-  const status = getValueFromActivity(locals.change, 'status');
+  const date = momentNow.date();
+  const month = momentNow.month();
+  const year = momentNow.year();
+  let uid = locals.addendumDocData.uid;
+
+  if (!uid) {
+    uid = (await getAuth(locals.addendumDocData.user)).uid;
+  }
+
   const claimsToday = await rootCollections
     .offices
     .doc(officeId)
     .collection(subcollectionNames.REIMBURSEMENTS)
-    .where('date', '==', momentNow.date())
-    .where('month', '==', momentNow.month())
-    .where('year', '==', momentNow.year())
-    .where('template', '==', template)
-    .where('attachmentName', '==', attachmentName)
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .where('phoneNumber', '==', phoneNumber)
+    .where('claimId', '==', locals.change.after.id)
     .limit(1)
     .get();
 
-  const claimsDoc = (() => {
-    if (claimsToday.empty) {
-      return rootCollections
-        .offices
-        .doc(officeId)
-        .collection(subcollectionNames.REIMBURSEMENTS)
-        .doc();
-    }
-
-    return claimsToday.docs[0].ref;
-  })();
+  const claimsDocRef = !claimsToday
+    .empty ? claimsToday.docs[0].ref : rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .doc();
 
   const employeeData = await getEmployeeReportData(
     officeId,
@@ -4741,12 +3201,18 @@ const reimburseClaim = async locals => {
   );
 
   const claimUpdate = Object.assign({}, employeeData, {
-    timestamp,
     status,
-    template: 'claim',
-    date: momentNow.date(),
-    month: momentNow.month(),
-    year: momentNow.year(),
+    date,
+    month,
+    year,
+    office,
+    officeId,
+    timestamp: Date.now(),
+    currency: 'INR',
+    reimbursementType: 'claim',
+    relevantActivityId: locals.change.after.id,
+    claimId: locals.change.after.id,
+    reimbursementName: locals.change.after.get('attachment.Claim Type.value'),
     photoURL: getValueFromActivity(locals.change, 'attachment.Photo URL.value'),
     amount: getValueFromActivity(locals.change, 'attachment.Amount.value'),
     claimType: getValueFromActivity(locals.change, 'attachment.Claim Type.value'),
@@ -4771,7 +3237,53 @@ const reimburseClaim = async locals => {
   }
 
   batch
-    .set(claimsDoc, claimUpdate, {
+    .set(claimsDocRef, claimUpdate, {
+      merge: true,
+    });
+
+  const claimUpdatesDoc = (await rootCollections
+    .updates
+    .doc(uid)
+    .collection(subcollectionNames.ADDENDUM)
+    .where('details.claimId', '==', locals.change.after.id)
+    .limit(1)
+    .get())
+    .docs[0];
+
+  const claimRef = claimUpdatesDoc ? claimUpdatesDoc.ref : rootCollections
+    .updates
+    .doc(uid)
+    .collection(subcollectionNames.ADDENDUM)
+    .doc();
+
+  batch
+    .set(claimRef, {
+      officeId,
+      phoneNumber,
+      date,
+      month,
+      year,
+      timestamp: Date.now(),
+      activityId: locals.change.after.id,
+      _type: addendumTypes.REIMBURSEMENT,
+      office: locals.change.after.get('office'),
+      amount: locals.change.after.get('attachment.Amount.value'),
+      id: `${date}${month}${year}${claimsDocRef.id}`,
+      key: momentNow.clone().startOf('day').valueOf(),
+      currency: 'INR',
+      reimbursementType: 'claim',
+      reimbursementName: locals.change.after.get('attachment.Claim Type.value') || '',
+      details: {
+        status,
+        rate: null,
+        checkInTimestamp: null,
+        startLocation: null,
+        endLocation: null,
+        distanceTravelled: locals.addendumDocData.distanceTravelled,
+        photoURL: locals.change.after.get('attachment.Photo URL.value') || '',
+        claimId: locals.change.after.id,
+      },
+    }, {
       merge: true,
     });
 
@@ -4779,160 +3291,66 @@ const reimburseClaim = async locals => {
     .commit();
 };
 
-const getTravelStatus = async params => {
-  const {
-    phoneNumber,
-    currentCity,
-    officeId,
-    currentGeopoint,
-  } = params;
-
-  const employeeQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('attachment.Employee Contact.value', '==', phoneNumber)
-    .where('status', '==', 'CONFIRMED')
-    .where('template', '==', 'employee')
-    .limit(1)
-    .get();
-
-  if (employeeQueryResult.empty) {
-    return false;
-  }
-
-  const employeeDoc = employeeQueryResult.docs[0];
-  const baseLocation = employeeDoc.get('attachment.Base Location.value');
-
-  if (!baseLocation) {
-    return false;
-  }
-
-  // fetch base location city
-  const baseLocationQuery = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('template', '==', 'branch')
-    .where('attachment.Name.value', '==', baseLocation)
-    .where('status', '==', 'CONFIRMED')
-    .limit(1)
-    .get();
-
-  if (baseLocationQuery.empty) {
-    return false;
-  }
-
-  const baseLocationGeopoint = baseLocationQuery
-    .docs[0]
-    .get('venue')[0]
-    .geopoint;
-
-  if (!baseLocationGeopoint
-    || !Number.isInteger(baseLocationGeopoint.latitude)) {
-    return false;
-  }
-
-  const mapsApiResult = await googleMapsClient
-    .reverseGeocode({
-      latlng: getLatLngString(currentGeopoint),
-    })
-    .asPromise();
-
-  if (mapsApiResult.json.results.length === 0) {
-    return false;
-  }
-
-  const components = mapsApiResult.json.results[0].address_components;
-  const baseLocationCity = getLocalityCityState(components).city;
-
-  return currentCity !== baseLocationCity;
-};
-
-
-const getScheduledOnlyStatus = params => {
-  const {
-    action,
-    template,
-  } = params;
-
-  if (action === httpsActions.create
-    && template === 'check-in') {
-    return false;
-  }
-
-  return action === httpsActions.checkIn;
-};
-
 const reimburseDailyAllowance = async locals => {
-  const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
-  const officeId = getValueFromActivity(locals.change, 'officeId');
-  const timestamp = getReimbursementTimestamp(locals.change.after);
-  const momentNow = momentTz(timestamp);
-  const isTravel = await getTravelStatus({
-    phoneNumber,
+  const reimbursementType = 'daily allowance';
+  const {
+    creator: {
+      phoneNumber,
+    },
     officeId,
-    currentGeopoint: locals.addendumDocData.location,
-    currentCity: locals.city,
-  });
-
-  const scheduledOnly = getScheduledOnlyStatus({
-    action: locals.addendumDocData.action,
-    template: getValueFromActivity(locals.change, 'template'),
-  });
-
+    office,
+    timezone,
+  } = locals.change.after.data();
+  const timestamp = locals.addendumDocData.timestamp;
+  const momentNow = momentTz(timestamp).tz(timezone);
+  const action = locals.addendumDocData.action;
+  const scheduledOnly = action === httpsActions.checkIn;
+  const existingDailyAllowances = new Set();
+  const batch = db.batch();
+  const date = momentNow.date();
+  const month = momentNow.month();
+  const year = momentNow.year();
   let uid = locals.addendumDocData.uid;
 
   if (!uid) {
-    const auth = await admin.auth().getUserByPhoneNumber(phoneNumber);
-
-    uid = auth.uid;
+    uid = (await getAuth(phoneNumber)).uid;
   }
 
   const claimsToday = await rootCollections
     .offices
     .doc(officeId)
     .collection(subcollectionNames.REIMBURSEMENTS)
-    .where('date', '==', momentNow.date())
-    .where('month', '==', momentNow.month())
-    .where('year', '==', momentNow.year())
-    .where('template', '==', 'daily allowance')
-    .where('uid', '==', uid)
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .where('reimbursementType', '==', reimbursementType)
+    .where('phoneNumber', '==', phoneNumber)
     .get();
 
-  console.log('claimsToday', claimsToday.size);
-
-  const existingDas = new Set();
-
+  /**
+   * one type of reimbursement in a single day will
+   * be given to a user only once.
+   */
   claimsToday
     .forEach(doc => {
-      const attachmentName = doc.get('attachmentName');
-
-      existingDas.add(attachmentName);
+      existingDailyAllowances
+        .add(doc.get('reimbursementName'));
     });
-
-  console.log('existingDas', existingDas.size);
 
   let dailyAllowanceBaseQuery = rootCollections
     .offices
     .doc(officeId)
     .collection(subcollectionNames.ACTIVITIES)
-    .where('template', '==', 'daily allowance')
+    .where('template', '==', reimbursementType)
     .where('isCancelled', '==', false);
-
-  if (isTravel) {
-    dailyAllowanceBaseQuery = dailyAllowanceBaseQuery
-      .where('attachment.Travel.value', '==', true);
-  }
 
   if (scheduledOnly) {
     dailyAllowanceBaseQuery = dailyAllowanceBaseQuery
       .where('attachment.Scheduled Only.value', '==', true);
   }
 
-  const dailyAllowanceActivities = await dailyAllowanceBaseQuery.get();
-
-  console.log('dailyAllowanceActivities', dailyAllowanceActivities.size);
+  const dailyAllowanceActivities = await dailyAllowanceBaseQuery
+    .get();
 
   if (dailyAllowanceActivities.empty) {
     return;
@@ -4943,23 +3361,21 @@ const reimburseDailyAllowance = async locals => {
     phoneNumber
   );
 
-  const batch = db.batch();
-
   dailyAllowanceActivities
     .forEach(daActivity => {
-      const attachmentStartTime = daActivity.get('attachment.Start Time.value');
-      const attachmentEndTime = daActivity.get('attachment.End Time.value');
-
+      const attachmentName = daActivity.get('attachment.Name.value');
       const [
         startHours,
-        startMinutes
-      ] = attachmentStartTime.split(':');
+        startMinutes,
+      ] = daActivity
+        .get('attachment.Start Time.value')
+        .split(':');
       const [
         endHours,
-        endMinutes
-      ] = attachmentEndTime.split(':');
-
-      console.log('da:', { startHours, startMinutes, endHours, endMinutes });
+        endMinutes,
+      ] = daActivity
+        .get('attachment.End Time.value')
+        .split(':');
 
       if (startHours === ''
         || startMinutes === ''
@@ -4968,20 +3384,74 @@ const reimburseDailyAllowance = async locals => {
         return;
       }
 
-      const momentStart = momentTz().hours(startHours).minutes(startMinutes);
-      const momentEnd = momentTz().hours(endHours).minutes(endMinutes);
+      const momentStart = momentTz()
+        .hours(startHours)
+        .minutes(startMinutes);
+      const momentEnd = momentTz()
+        .hours(endHours)
+        .minutes(endMinutes);
 
+      /** Is not in the time range */
       if (momentNow.isBefore(momentStart)
         || momentEnd.isAfter(momentEnd)) {
         return;
       }
 
-      const attachmentName = daActivity
-        .get('attachment.Name.value');
-
-      if (existingDas.has(attachmentName)) {
+      if (existingDailyAllowances.has(attachmentName)) {
         return;
       }
+
+      const update = Object
+        .assign({}, employeeDocData, {
+          uid,
+          date,
+          month,
+          year,
+          officeId,
+          phoneNumber,
+          currency: 'INR',
+          reimbursementType,
+          timestamp: Date.now(),
+          office: locals.change.after.get('office'),
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          reimbursementName: daActivity.get('attachment.Name.value'),
+          amount: daActivity.get('attachment.Amount.value'),
+          relevantActivityId: locals.change.after.id,
+          dailyAllowanceActivityId: daActivity.id,
+          currentGeopoint: locals.addendumDocData.location,
+          previousGeopoint: (() => {
+            if (locals.previousAddendumDoc
+              && locals.previousAddendumDoc.get('location')) {
+              return locals.previousAddendumDoc.get('location');
+            }
+
+            return null;
+          })(),
+          currentIdentifier: (() => {
+            if (locals.addendumDocData.venueQuery) {
+              return locals.addendumDocData.venueQuery.location;
+            }
+
+            return locals.addendumDocData.identifier;
+          })(),
+          previousIdentifier: (() => {
+            if (locals.previousAddendumDoc
+              && locals.previousAddendumDoc.get('venueQuery.location')) {
+              return locals
+                .previousAddendumDoc
+                .get('venueQuery.location');
+            }
+
+            if (locals.previousAddendumDoc
+              && locals.previousAddendumDoc.get('identifier')) {
+              return locals
+                .previousAddendumDoc
+                .get('identifier');
+            }
+
+            return null;
+          })(),
+        });
 
       const ref = rootCollections
         .offices
@@ -4989,29 +3459,45 @@ const reimburseDailyAllowance = async locals => {
         .collection(subcollectionNames.REIMBURSEMENTS)
         .doc();
 
-      const update = Object
-        .assign({}, employeeDocData, {
-          uid,
-          timestamp,
-          isTravel,
-          date: momentNow.date(),
-          month: momentNow.month(),
-          year: momentNow.year(),
-          template: 'daily allowance',
-          identifier: locals.addendumDocData.identifier,
-          geopoint: locals.addendumDocData.location,
-          phoneNumber: getValueFromActivity(locals.change, 'creator.phoneNumber'),
-          claimType: 'daily allowance',
-          attachmentName: daActivity.get('attachment.Name.value'),
-          amount: daActivity.get('attachment.Amount.value'),
-          relevantActivityId: locals.change.after.id,
-          dailyAllowanceActivityId: daActivity.id,
-        });
-
-      console.log('da', update);
-
       batch
         .set(ref, update, {
+          merge: true,
+        });
+
+      const u = rootCollections
+        .updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc();
+
+      batch
+        .set(u, Object.assign({}, {
+          date,
+          month,
+          year,
+          officeId,
+          office,
+          currency: 'INR',
+          timestamp: Date.now(),
+          amount: daActivity.get('attachment.Amount.value'),
+          _type: addendumTypes.REIMBURSEMENT,
+          key: momentNow.clone().startOf('day').valueOf(),
+          id: `${date}${month}${year}${ref.id}`,
+          reimbursementType: daActivity.get('template'),
+          reimbursementName: daActivity.get('attachment.Name.value'),
+          details: {
+            rate: null,
+            checkInTimestamp: momentNow
+              .tz(timezone)
+              .valueOf(), // unix
+            startLocation: null, // start
+            endLocation: null, // end
+            distanceTravelled: null,
+            photoURL: null,
+            status: null,
+            claimId: null,
+          },
+        }), {
           merge: true,
         });
     });
@@ -5020,188 +3506,478 @@ const reimburseDailyAllowance = async locals => {
     .commit();
 };
 
-const reimburseKmAllowance = async locals => {
-  const phoneNumber = getValueFromActivity(locals.change, 'creator.phoneNumber');
-  const officeId = getValueFromActivity(locals.change, 'officeId');
-  const timestamp = getReimbursementTimestamp(locals.change.after);
-  const timezone = getValueFromActivity(locals.change, 'timezone');
-  const template = getValueFromActivity(
-    locals.change,
-    'template'
-  );
 
-  // Change
-  const momentNow = momentTz(timestamp).tz(timezone);
-  const isTravel = await getTravelStatus({
-    phoneNumber,
-    officeId,
-    currentGeopoint: locals.addendumDocData.location,
-    currentCity: locals.city,
-  });
-  const scheduledOnly = getScheduledOnlyStatus({
-    action: locals.addendumDocData.action,
-    template,
-  });
-  const includeBranch = (() => {
-    if (locals.addendumDocData.venueQuery) {
-      return locals
-        .addendumDocData
-        .venueQuery
-        .location;
+const getStartPointObject = async params => {
+  const {
+    startPointLatitude,
+    startPointLongitude,
+  } = params;
+
+  if (typeof startPointLatitude !== 'number'
+    || typeof startPointLongitude !== 'number') {
+    return null;
+  }
+
+  return {
+    identifier: 'Start Point',
+    geopoint: {
+      latitude: startPointLatitude,
+      longitude: startPointLongitude,
     }
+  };
+};
 
-    return locals
-      .addendumDocData
-      .identifier;
-  })()
-    .endsWith('BRANCH');
+const reimburseKmAllowance = async locals => {
+  // if action is create, checkin - then look
+  // for scheduled only false in
+  // employee object and make km allowance if available
+  // basis same logic of previous checkin is same
+  // date then km allowance
+  // between the two else km allowance from
+  // startpoint / base location to both
 
-  let kmAllowanceBaseQuery = rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('template', '==', 'km allowance')
-    .where('isCancelled', '==', false);
+  // if action is checkin - then look for scheduled
+  // only true in employee and make km allowance
+  // if available basis same logic of previous
+  // action == checkin, same date then km
+  // allowance between the two else km allowance
+  // from start point / base location from both
 
-  if (isTravel) {
-    kmAllowanceBaseQuery = kmAllowanceBaseQuery
-      .where('attachment.Travel.value', '==', true);
+  const { timestamp } = locals.addendumDocData;
+  let uid = locals.addendumDocData.uid;
+
+  const {
+    creator: {
+      phoneNumber,
+    },
+    office,
+    officeId,
+    timezone,
+  } = locals.change.after.data();
+
+  if (!uid) {
+    uid = (await getAuth(phoneNumber)).uid;
   }
 
-  if (scheduledOnly) {
-    kmAllowanceBaseQuery = kmAllowanceBaseQuery
-      .where('attachment.Scheduled Only.value', '==', true);
+  const [employeeDoc] = (
+    await rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'employee')
+      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
+  )
+    .docs;
+
+  // Not an employee, km allowance is skipped
+  if (!employeeDoc) {
+    console.log('Skip km allowance => no employee doc');
+
+    return;
   }
 
-  // TOOD: add Include Branch query.
-  if (includeBranch) {
-    kmAllowanceBaseQuery = kmAllowanceBaseQuery
-      .where('attachment.Include Branch.value', '==', true);
+  const {
+    value: kmRate,
+  } = employeeDoc.get('attachment.KM Rate');
+  const {
+    value: startPointLatitude,
+  } = employeeDoc.get('attachment.Start Point Latitude');
+  const {
+    value: startPointLongitude,
+  } = employeeDoc.get('attachment.Start Point Longitude');
+  const {
+    value: scheduledOnly,
+  } = employeeDoc.get('attachment.Scheduled Only');
+
+  // Scheduled Only means action === check-in. Exit otherwise
+  if (scheduledOnly
+    && (locals.addendumDocData.action !== httpsActions.checkIn)) {
+    console.log('Skip km allowance => scheduled Only');
+
+    return;
   }
 
+  if (!kmRate) {
+    console.log('Skip km allowance => no km rate', kmRate);
+
+    return;
+  }
+
+  const employeeData = {
+    phoneNumber,
+    employeeName: employeeDoc.get('attachment.Name.value'),
+    employeeCode: employeeDoc.get('attachment.Employee Code.value'),
+    baseLocation: employeeDoc.get('attachment.Base Location.value'),
+    region: employeeDoc.get('attachment.Region.value'),
+    department: employeeDoc.get('attachment.Department.value'),
+    minimumDailyActivityCount: employeeDoc.get('attachment.Minimum Daily Activity Count.value'),
+    minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
+  };
+
+  const reimbursementType = 'km allowance';
+  const momentNow = momentTz(timestamp).tz(timezone);
+  const date = momentNow.date();
+  const month = momentNow.month();
+  const year = momentNow.year();
   const batch = db.batch();
-  const kmAllowanceActivities = await kmAllowanceBaseQuery.get();
 
-  console.log('kmAllowanceActivities', kmAllowanceActivities.size, { isTravel, scheduledOnly });
+  const commonReimObject = Object.assign({}, {
+    date,
+    month,
+    year,
+    office,
+    officeId,
+    uid,
+    phoneNumber,
+    reimbursementType,
+    currency: 'INR',
+    timestamp: Date.now(),
+    relevantActivityId: locals.change.after.id,
+  });
 
   const [
-    profileDoc,
-    employeeData,
+    previousKmReimbursementQuery,
+    previousReimbursementUpdateQuery,
   ] = await Promise
     .all([
       rootCollections
-        .profiles
-        .doc(phoneNumber)
-        .get(),
-      getEmployeeReportData(
-        officeId,
-        phoneNumber
-      ),
-    ]);
-
-  const distanceTravelled = await getDistanceTravelled({
-    officeId,
-    isLocal: !isTravel,
-    phoneNumber,
-    startPoint: profileDoc.get('startPoint'),
-    previousAddendumDoc: locals.previousAddendumDoc,
-    addendumDocData: locals.addendumDocData,
-  });
-
-  console.log('distanceTravelled', distanceTravelled);
-
-  if (distanceTravelled === 0) {
-    return;
-  }
-
-  // No base Location => no km allowance
-  if (!employeeData || (!employeeData.baseLocation
-    && !profileDoc.get('startPoint'))) {
-    return;
-  }
-
-  const previousGeopoint = (() => {
-    if (locals.previousAddendumDoc) {
-      return locals
-        .previousAddendumDoc
-        .get('venueQuery.geopoint')
-        || locals.previousAddendumDoc.get('location');
-    }
-
-    return null;
-  })();
-
-  const identifier = (() => {
-    if (locals.addendumDocData.venueQuery) {
-      return locals.addendumDocData.venueQuery.location;
-    }
-
-    return locals.addendumDocData.identifier;
-  })();
-
-  const previousIdentifier = (() => {
-    if (!locals.previousAddendumDoc) {
-      return '';
-    }
-
-    if (locals.previousAddendumDoc.get('venueQuery.location')) {
-      return locals.previousAddendumDoc.get('venueQuery.location');
-    }
-
-    return locals.previousAddendumDoc.get('identifier') || '';
-  })();
-
-  let uid = locals.addendumDocData.uid;
-
-  if (!uid) {
-    const auth = await admin.auth().getUserByPhoneNumber(phoneNumber);
-
-    uid = auth.uid;
-  }
-
-  kmAllowanceActivities
-    .forEach(kmActivity => {
-      const ref = rootCollections
         .offices
         .doc(officeId)
         .collection(subcollectionNames.REIMBURSEMENTS)
-        .doc();
+        .where('intermediate', '==', true)
+        .where('date', '==', date)
+        .where('month', '==', month)
+        .where('year', '==', year)
+        .where('reimbursementType', '==', reimbursementType)
+        .where('phoneNumber', '==', phoneNumber)
+        .limit(1)
+        .get(),
+      rootCollections
+        .updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .where('_type', '==', addendumTypes.REIMBURSEMENT)
+        .where('intermediate', '==', true)
+        .where('date', '==', date)
+        .where('month', '==', month)
+        .where('year', '==', year)
+        .where('reimbursementType', '==', reimbursementType)
+        .limit(1)
+        .get(),
+    ]);
 
-      const update = Object.assign({}, employeeData, {
-        timestamp,
-        distanceTravelled,
-        phoneNumber,
-        previousGeopoint,
-        identifier,
-        uid,
-        previousIdentifier,
-        date: momentNow.date(),
-        month: momentNow.month(),
-        year: momentNow.year(),
-        template: kmActivity.get('template'),
-        rate: kmActivity.get('attachment.Rate.value'),
-        relevantActivityId: locals.change.after.id,
-        kmAllowanceActivityId: kmActivity.id,
-        currentGeopoint: locals.addendumDocData.location,
-        attachmentName: kmActivity.get('attachment.Name.value'),
-        amount: (Number(kmActivity.get('attachment.Rate.value')) * distanceTravelled).toFixed(2),
+  const startPointDetails = await getStartPointObject({
+    officeId,
+    startPointLatitude,
+    startPointLongitude,
+    baseLocation: employeeData.baseLocation,
+  });
+
+  if (!startPointDetails) {
+    console.log('Skip km allowance => no startPointDetails');
+
+    return;
+  }
+
+  const distanceBetweenCurrentAndStartPoint = await getDistanceFromDistanceMatrix(
+    startPointDetails.geopoint,
+    locals.addendumDocData.location
+  );
+
+  if (distanceBetweenCurrentAndStartPoint < 1) {
+    console.log('Skip km allowance => distanceBetweenCurrentAndStartPoint < 1', distanceBetweenCurrentAndStartPoint);
+    return;
+  }
+
+  if (kmRate * distanceBetweenCurrentAndStartPoint < 1) {
+    console.log('Skip km allowance amt < 1', kmRate * distanceBetweenCurrentAndStartPoint);
+    return;
+  }
+
+  const amountThisTime = Number(kmRate) * locals.addendumDocData.distanceTravelled;
+
+  /**
+   * This function should be refactored. But I'm short on time.
+   * Also don't want to touch it since it might break stuff.
+   */
+  if (previousKmReimbursementQuery.empty) {
+    console.log('In km allowance if');
+    // create km allowance for start point to current location
+    // create km allowance for current location to start point.
+    const r1 = rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .doc();
+    const r2 = rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .doc();
+    const u1 = rootCollections
+      .updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
+    const u2 = rootCollections
+      .updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
+
+    // startPoint (previous) to current location(current)
+    batch
+      .set(r1, Object.assign({}, employeeData, commonReimObject, {
+        amount: (kmRate * distanceBetweenCurrentAndStartPoint).toFixed(0),
+        distance: distanceBetweenCurrentAndStartPoint,
+        previousIdentifier: startPointDetails.identifier,
+        previousGeopoint: startPointDetails.geopoint,
+        currentIdentifier: (() => {
+          if (locals.addendumDocData.venueQuery) {
+            return locals.addendumDocData.venueQuery.location;
+          }
+
+          return locals.addendumDocData.identifier;
+        })(),
+        currentGeopoint: {
+          latitude: locals.addendumDocData.location.latitude
+            || locals.addendumDocData.location._latitude,
+          longitude: locals.addendumDocData.location.longitude
+            || locals.addendumDocData.location._latitude,
+        },
+        intermediate: false,
+      }), {
+        merge: true,
       });
 
-      console.log('km allowance', update);
+    // current location to start point
+    batch
+      .set(r2, Object.assign({}, commonReimObject, {
+        rate: kmRate,
+        previousIdentifier: (() => {
+          if (locals.addendumDocData.venueQuery) {
+            return locals.addendumDocData.venueQuery.location;
+          }
 
-      batch
-        .set(ref, update, {
-          merge: true,
-        });
-    });
+          return locals.addendumDocData.identifier;
+        })(),
+        previousGeopoint: {
+          latitude: locals.addendumDocData.location.latitude
+            || locals.addendumDocData.location._latitude,
+          longitude: locals.addendumDocData.location.longitude
+            || locals.addendumDocData.location._latitude,
+        },
+        currentIdentifier: startPointDetails.identifier,
+        currentGeopoint: startPointDetails.geopoint,
+        intermediate: true,
+        amount: (kmRate * distanceBetweenCurrentAndStartPoint).toFixed(0),
+        distance: distanceBetweenCurrentAndStartPoint,
+      }));
 
-  return batch
-    .commit();
+    // start point to current location
+    batch
+      .set(u1, Object.assign({}, commonReimObject, {
+        amount: (kmRate * distanceBetweenCurrentAndStartPoint).toFixed(0),
+        _type: addendumTypes.REIMBURSEMENT,
+        id: `${date}${month}${year}${r1.id}`,
+        key: momentNow.clone().startOf('day').valueOf(),
+        // used for attachment.Claim Type.value for 'claim' activities
+        reimbursementName: null,
+        details: {
+          rate: kmRate,
+          startLocation: startPointDetails.geopoint,
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          endLocation: {
+            latitude: locals.addendumDocData.location.latitude
+              || locals.addendumDocData.location._latitude,
+            longitude: locals.addendumDocData.location.longitude
+              || locals.addendumDocData.location._latitude,
+          },
+          distanceTravelled: distanceBetweenCurrentAndStartPoint,
+          photoURL: null,
+          status: null,
+          claimId: null,
+        },
+      }));
+
+    // curr to start point
+    batch
+      .set(u2, Object.assign({}, commonReimObject, {
+        _type: addendumTypes.REIMBURSEMENT,
+        amount: (kmRate * distanceBetweenCurrentAndStartPoint).toFixed(0),
+        id: `${date}${month}${year}${r2.id}`,
+        key: momentNow.clone().startOf('day').valueOf(),
+        // used for attachment.Claim Type.value for 'claim' activities
+        reimbursementName: null,
+        intermediate: true,
+        details: {
+          rate: kmRate,
+          startLocation: {
+            latitude: locals.addendumDocData.location.latitude
+              || locals.addendumDocData.location._latitude,
+            longitude: locals.addendumDocData.location.longitude
+              || locals.addendumDocData.location._latitude,
+          },
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          endLocation: startPointDetails.geopoint,
+          distanceTravelled: distanceBetweenCurrentAndStartPoint,
+          photoURL: null,
+          status: null,
+          claimId: null,
+        },
+      }));
+  } else {
+    if (locals.addendumDocData.distanceTravelled < 1) {
+      return;
+    }
+
+    const [oldReimbursementDoc] = previousKmReimbursementQuery.docs;
+    const [oldUpdatesDoc] = previousReimbursementUpdateQuery.docs;
+    const r1 = rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .doc();
+    const u1 = rootCollections
+      .updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
+
+    // r2
+    batch
+      .set(oldReimbursementDoc.ref, Object.assign({}, employeeData, commonReimObject, {
+        rate: kmRate,
+        amount: amountThisTime.toFixed(0),
+        intermediate: false,
+        currentIdentifier: (() => {
+          if (locals.addendumDocData.venueQuery) {
+            return locals.addendumDocData.venueQuery.location;
+          }
+
+          return locals.addendumDocData.identifier;
+        })(),
+        currentGeopoint: {
+          latitude: locals.addendumDocData.location.latitude
+            || locals.addendumDocData.location._latitude,
+          longitude: locals.addendumDocData.location.longitude
+            || locals.addendumDocData.location._latitude,
+        },
+      }), {
+        merge: true,
+      });
+
+    const oldUpdatesRef = (() => {
+      if (oldUpdatesDoc) {
+        return oldUpdatesDoc.ref;
+      }
+
+      return rootCollections
+        .updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc();
+    })();
+
+    batch
+      .set(oldUpdatesRef, Object.assign({}, commonReimObject, {
+        // cumulativeAmount,
+        date,
+        month,
+        year,
+        id: `${date}${month}${year}${oldReimbursementDoc.id}`,
+        key: momentTz().date(date).month(month).year(year).startOf('date').valueOf(),
+        amount: amountThisTime.toFixed(0),
+        _type: addendumTypes.REIMBURSEMENT,
+        reimbursementName: null,
+        intermediate: false,
+        details: {
+          rate: kmRate,
+          startLocation: oldReimbursementDoc.get('previousGeopoint'),
+          distanceTravelled: oldReimbursementDoc.get('distance'),
+          photoURL: null,
+          status: null,
+          claimId: null,
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          endLocation: {
+            latitude: locals.addendumDocData.location.latitude
+              || locals.addendumDocData.location._latitude,
+            longitude: locals.addendumDocData.location.longitude
+              || locals.addendumDocData.location._latitude,
+          },
+        },
+      }), {
+        merge: true,
+      });
+
+    // currentLocation (start) to startPoint (end)
+    batch
+      .set(r1, Object.assign({}, employeeData, commonReimObject, {
+        // cumulativeAmount,
+        rate: kmRate,
+        amount: amountThisTime.toFixed(0),
+        currentIdentifier: startPointDetails.identifier,
+        currentGeopoint: startPointDetails.geopoint,
+        previousIdentifier: (() => {
+          if (locals.addendumDocData.venueQuery) {
+            return locals.addendumDocData.venueQuery.location;
+          }
+
+          return locals.addendumDocData.identifier;
+        })(),
+        previousGeopoint: {
+          latitude: locals.addendumDocData.location.latitude
+            || locals.addendumDocData.location._latitude,
+          longitude: locals.addendumDocData.location.longitude
+            || locals.addendumDocData.location._latitude,
+        },
+        intermediate: true,
+      }), {
+        merge: true,
+      });
+
+    // currentLocation (start) to startPoint (end)
+    batch
+      .set(u1, Object.assign({}, commonReimObject, {
+        _type: addendumTypes.REIMBURSEMENT,
+        amount: amountThisTime.toFixed(0),
+        id: `${date}${month}${year}${r1.id}`,
+        key: momentNow.clone().startOf('day').valueOf(),
+        // used for attachment.Claim Type.value for 'claim' activities
+        reimbursementName: null,
+        intermediate: true,
+        details: {
+          rate: kmRate,
+          startLocation: {
+            latitude: locals.addendumDocData.location.latitude
+              || locals.addendumDocData.location._latitude,
+            longitude: locals.addendumDocData.location.longitude
+              || locals.addendumDocData.location._latitude,
+          },
+          checkInTimestamp: locals.change.after.get('timestamp'),
+          endLocation: startPointDetails.geopoint,
+          distanceTravelled: distanceBetweenCurrentAndStartPoint,
+          photoURL: null,
+          status: null,
+          claimId: null,
+        },
+      }));
+  }
+
+  return batch.commit();
 };
 
 
 const handleReimbursement = async locals => {
   if (!locals.addendumDocData) {
+    return;
+  }
+
+  /** Support creates/updates stuff */
+  if (locals.addendumDocData.isSupportRequest) {
     return;
   }
 
@@ -5211,18 +3987,714 @@ const handleReimbursement = async locals => {
     return reimburseClaim(locals);
   }
 
-  await reimburseDailyAllowance(locals);
-  await reimburseKmAllowance(locals);
+  if (template === 'check-in'
+    || locals.addendumDocData.action === httpsActions.checkIn) {
+    await reimburseDailyAllowance(locals);
+    await reimburseKmAllowance(locals);
+  }
 
   return;
 };
 
 
-module.exports = async (change, context) => {
+const getLateStatus = params => {
+  const {
+    firstCheckInTimestamp,
+    dailyStartTime,
+    timezone,
+  } = params;
+
+  if (Number.isInteger(firstCheckInTimestamp)) {
+    return false;
+  }
+
+  if (!isNonEmptyString(dailyStartTime)) {
+    return false;
+  }
+
+  const [
+    startHours,
+    startMinutes,
+  ] = dailyStartTime
+    .split(':');
+
+  const momentStartTime = momentTz()
+    .hour(startHours)
+    .minutes(startMinutes);
+  const momentNow = momentTz(firstCheckInTimestamp)
+    .tz(timezone);
+
+  return momentNow
+    .diff(momentStartTime, 'minutes', true) > 15;
+};
+
+
+const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
+  if (!employeeDoc) {
+    return;
+  }
+
+  const batch = db.batch();
+
+  const {
+    office,
+    officeId,
+    lastAttendanceTimestamp,
+    attachment: {
+      'Employee Contact': {
+        value: phoneNumber,
+      }
+    }
+  } = employeeDoc.data();
+
+
+  const timezone = employeeDoc.get('timezone') || 'Asia/Kolkata';
+
+  const momentToday = momentTz().tz(timezone);
+  const momentPrevMonth = momentToday
+    .clone()
+    .subtract(1, 'months');
+  const monthYearCombinations = new Set();
+  const attendanceDocPromises = [];
+  const empCt = momentTz(
+    employeeDoc.createTime.toMillis()
+  );
+
+  batch
+    .set(employeeDoc.ref, {
+      lastAttendanceTimestamp: dateRangeEnd.valueOf(),
+    }, {
+      merge: true,
+    });
+
+  const dateRangeStart = (() => {
+    /**
+     * Employee created in the previous month
+     * The Loop will run from creation date to today
+     */
+    if (empCt.month() === momentPrevMonth.month()
+      && empCt.year() && momentPrevMonth.year()) {
+      return empCt;
+    }
+
+    /**
+     * Employee created more than 1 month ago.
+     * Loop will run from start of previous month
+     * to today.
+     */
+    if (momentToday.diff(empCt, 'months') > 1) {
+      return momentToday
+        .clone()
+        .subtract(1, 'month')
+        .startOf('month');
+    }
+
+    if (lastAttendanceTimestamp) {
+      return momentTz(lastAttendanceTimestamp)
+        .tz(timezone);
+    }
+
+    return null;
+  })();
+
+  if (!dateRangeStart) {
+    return;
+  }
+
+  const momentStart = momentTz(dateRangeStart)
+    .tz(timezone)
+    .startOf('day');
+  const momentEnd = momentTz(dateRangeEnd)
+    .tz(timezone)
+    .endOf('day');
+  const tempMoment = momentStart
+    .clone();
+  const allDates = {};
+
+  while (tempMoment.isSameOrBefore(momentEnd)) {
+    const month = tempMoment.month();
+    const year = tempMoment.year();
+    const date = tempMoment.date();
+
+    allDates[
+      `${month}-${year}`
+    ] = allDates[`${month}-${year}`] || [];
+
+    allDates[
+      `${month}-${year}`
+    ].push(date);
+
+    monthYearCombinations
+      .add(`${month}-${year}`);
+    tempMoment
+      .add(1, 'days');
+  }
+
+  monthYearCombinations
+    .forEach(monthYear => {
+      const [
+        monthString,
+        yearString,
+      ] = monthYear.split('-');
+      const month = Number(monthString);
+      const year = Number(yearString);
+      const promise = rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.ATTENDANCES)
+        .where('month', '==', month)
+        .where('year', '==', year)
+        .where('phoneNumber', '==', phoneNumber)
+        .limit(1)
+        .get();
+
+      attendanceDocPromises
+        .push(promise);
+    });
+
+  const snaps = await Promise
+    .all(attendanceDocPromises);
+
+  snaps
+    .forEach(snap => {
+      const doc = snap.docs[0];
+      const filters = snap.query._queryOptions.fieldFilters;
+      const month = filters[0].value;
+      const year = filters[1].value;
+      const ref = doc ? doc.ref : rootCollections
+        .offices
+        .doc(officeId)
+        .collection(subcollectionNames.ATTENDANCES)
+        .doc();
+      const data = Object.assign(doc ? doc.data() : {}, {
+        month,
+        year,
+        office,
+        officeId,
+        phoneNumber,
+      });
+
+      const dates = allDates[
+        `${month}-${year}`
+      ];
+
+      dates
+        .forEach(date => {
+          data
+            .attendance = data.attendance || {};
+
+          if (data.attendance.hasOwnProperty(date)) {
+            return;
+          }
+
+          data
+            .attendance[date] = data.attendance[date]
+            || getDefaultAttendanceObject();
+
+          batch
+            .set(rootCollections
+              .updates
+              .doc(uid)
+              .collection(subcollectionNames.ADDENDUM)
+              .doc(), Object.assign({}, data.attendance[date], {
+                date,
+                month,
+                year,
+                office,
+                officeId,
+                timestamp: Date.now(),
+                key: momentTz()
+                  .tz(timezone)
+                  .date(date)
+                  .month(month)
+                  .year(year)
+                  .startOf('day')
+                  .valueOf(),
+                id: `${date}${month}${year}${officeId}`,
+                _type: addendumTypes.ATTENDANCE,
+              }), {
+              merge: true,
+            });
+        });
+
+      const employeeData = {
+        phoneNumber,
+        id: employeeDoc.id,
+        activationDate: empCt.valueOf(),
+        employeeName: employeeDoc.get('attachment.Name.value'),
+        employeeCode: employeeDoc.get('attachment.Employee Code.value'),
+        baseLocation: employeeDoc.get('attachment.Base Location.value'),
+        region: employeeDoc.get('attachment.Region.value'),
+        department: employeeDoc.get('attachment.Department.value'),
+        minimumDailyActivityCount: employeeDoc.get('attachment.Minimum Daily Activity Count.value'),
+        minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
+      };
+
+      batch
+        .set(ref, Object.assign({}, employeeData, data), {
+          merge: true,
+        });
+    });
+
+  return batch
+    .commit();
+};
+
+
+const handleWorkday = async locals => {
+  /**
+   * Template === check-in and action === 'create'
+   */
+  if (!locals.addendumDocData) {
+    return;
+  }
+
+  if (locals.addendumDocData.action
+    !== httpsActions.create) {
+    return;
+  }
+
+  const {
+    officeId,
+    timezone,
+    creator: {
+      phoneNumber,
+    },
+    office,
+  } = locals.change.after.data();
+  const momentNow = momentTz(locals.addendumDocData.timestamp)
+    .tz(timezone);
+  const todaysDate = momentNow.date();
+  const month = momentNow.month();
+  const year = momentNow.year();
+  const employeeData = await getEmployeeReportData(
+    officeId,
+    phoneNumber
+  );
+
+  // If employee Location Validation Check => true
+  // AND distanceAccurate => false
+  // skip
+  // Using explicit check for this case because
+  // values can be empty strings.
+  if (employeeData.locationValidationCheck === true
+    && locals.addendumDocData.distanceAccurate === false) {
+    return;
+  }
+
+  const { location } = locals.addendumDocData;
+  const batch = db.batch();
+
+  let uid = locals.addendumDocData.uid;
+
+  if (!uid) {
+    uid = (await getAuth(phoneNumber)).uid;
+  }
+
+  /**
+   * This query might return 0 docs if the date = 1 in the month
+   * or the user hasn't done anything since the start of the month
+   */
+  const [attendanceDoc] = (
+    await rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ATTENDANCES)
+      .where('phoneNumber', '==', phoneNumber)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .limit(1)
+      .get()
+  )
+    .docs;
+
+  const attendanceDocRef = attendanceDoc ? attendanceDoc.ref : rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ATTENDANCES)
+    .doc();
+
+  const attendanceObject = attendanceDoc ? attendanceDoc.data() : {};
+
+  attendanceObject
+    .attendance = attendanceObject.attendance || {};
+  attendanceObject
+    .attendance[todaysDate] = attendanceObject.attendance[todaysDate]
+    || getDefaultAttendanceObject();
+  attendanceObject
+    .attendance[todaysDate]
+    .working = attendanceObject
+      .attendance[todaysDate]
+      .working || {};
+
+  /**
+   * If the first check-in has already been set for this user
+   * we don't need to update it again for the day
+   */
+  attendanceObject
+    .attendance[todaysDate]
+    .working
+    .firstCheckInTimestamp = attendanceObject
+      .attendance[todaysDate]
+      .working
+      .firstCheckInTimestamp
+    || locals.addendumDocData.timestamp;
+
+  attendanceObject
+    .attendance[todaysDate]
+    .working
+    .lastCheckInTimestamp = locals.addendumDocData.timestamp;
+
+  attendanceObject
+    .attendance[todaysDate]
+    .isLate = getLateStatus({
+      timezone,
+      firstCheckInTimestamp: attendanceObject
+        .attendance[todaysDate]
+        .working
+        .firstCheckInTimestamp,
+      dailyStartTime: employeeData.dailyStartTime,
+    });
+
+  attendanceObject
+    .attendance[todaysDate].addendum = attendanceObject
+      .attendance[todaysDate].addendum || [];
+
+  attendanceObject
+    .attendance[todaysDate]
+    .addendum
+    .push({
+      timestamp: locals.addendumDocData.timestamp,
+      latitude: location._latitude || location.latitude,
+      longitude: location._longitude || location.longitude,
+      addendumId: locals.addendumDoc.id,
+    });
+
+  /**
+   * Sometimes when the code crashes or when an event is missed
+   * we trigger activityOnWrite by updating the timestamp.
+   * In that case, the sorting of the timestamps in this array
+   * might get messed up. Sorting regardless helps us migitate
+   * this case.
+   */
+  attendanceObject
+    .attendance[todaysDate]
+    .addendum
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const numberOfCheckIns = attendanceObject.attendance[todaysDate].addendum.length;
+  const firstAddendum = attendanceObject.attendance[todaysDate].addendum[0];
+  const lastAddendum = attendanceObject.attendance[todaysDate].addendum[numberOfCheckIns - 1];
+  const hoursWorked = momentTz(lastAddendum.timestamp)
+    .diff(
+      momentTz(firstAddendum.timestamp),
+      'hours',
+      true
+    );
+
+  attendanceObject
+    .attendance[todaysDate]
+    .attendance = getStatusForDay({
+      // difference between first and last action in hours
+      hoursWorked,
+      // number of actions done in the day by the user
+      numberOfCheckIns,
+      minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
+      minimumWorkingHours: employeeData.minimumWorkingHours,
+    });
+
+  if (attendanceObject.attendance[todaysDate].onAr
+    || attendanceObject.attendance[todaysDate].onLeave
+    || attendanceObject.attendance[todaysDate].holiday
+    || attendanceObject.attendance[todaysDate].weeklyOff) {
+    attendanceObject
+      .attendance[todaysDate]
+      .attendance = 1;
+  }
+
+  attendanceObject
+    .attendance[todaysDate]
+    .working
+    .numberOfCheckIns = attendanceObject.attendance[todaysDate].addendum.length;
+
+
+  // Will iterate over 1 to (todays date - 1)
+  // Eg. if today is 18 => range {1, 17}
+  const tempDates = getNumbersbetween(1, todaysDate);
+
+  tempDates.forEach(date => {
+    // TODO: Dates in this loop should only be the ones where the user
+    // was an employee
+    attendanceObject.attendance[
+      date
+    ] = attendanceObject.attendance[date] || getDefaultAttendanceObject();
+
+    const checkInsArray = attendanceObject.attendance[date].addendum || [];
+    const { length: numberOfCheckIns } = checkInsArray || [];
+
+    const hoursWorked = (() => {
+      if (checkInsArray.length === 0) {
+        return 0;
+      }
+
+      const [firstCheckInAddendum] = checkInsArray;
+      const lastCheckInAddendum = checkInsArray[checkInsArray.length - 1];
+      const { timestamp: firstCheckInTimestamp } = firstCheckInAddendum;
+      const { timestamp: lastCheckInTimestamp } = lastCheckInAddendum;
+      const firstMoment = momentTz(firstCheckInTimestamp).tz(timezone);
+      const lastMoment = momentTz(lastCheckInTimestamp).tz(timezone);
+
+      return lastMoment.diff(firstMoment, 'hours', true);
+    })();
+
+    const newCalculatedAttendance = (() => {
+      const { onAr, onLeave, holiday, weeklyOff } = attendanceObject.attendance[date];
+
+      if (onAr || onLeave || holiday || weeklyOff) {
+        return 1;
+      }
+
+      return getStatusForDay({
+        hoursWorked,
+        minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
+        minimumWorkingHours: employeeData.minimumWorkingHours,
+        numberOfCheckIns,
+      });
+    })();
+
+    attendanceObject.attendance[date].attendance = newCalculatedAttendance;
+
+    const updateRef = rootCollections
+      .updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
+
+    batch.set(updateRef, Object.assign({}, attendanceObject.attendance[date], {
+      date,
+      month,
+      year,
+      office,
+      officeId,
+      phoneNumber,
+      timestamp: Date.now(),
+      _type: addendumTypes.ATTENDANCE,
+      id: `${date}${month}${year}${officeId}`,
+      key: momentTz()
+        .date(date)
+        .month(month)
+        .year(year)
+        .startOf('date')
+        .valueOf(),
+    }));
+  });
+
+  batch
+    .set(
+      attendanceDocRef, Object
+        .assign({}, employeeData, attendanceObject, {
+          year,
+          month,
+          office,
+          officeId,
+          phoneNumber,
+          timestamp: Date.now(),
+        }), {
+      merge: true,
+    });
+
+  batch
+    .set(rootCollections
+      .updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc(), Object
+        .assign({}, attendanceObject.attendance[todaysDate], {
+          date: todaysDate,
+          month,
+          year,
+          office,
+          officeId,
+          phoneNumber,
+          timestamp: Date.now(),
+          _type: addendumTypes.ATTENDANCE,
+          id: `${todaysDate}${month}${year}${officeId}`,
+          key: momentNow.clone().startOf('date').valueOf(),
+        }), {
+      merge: true,
+    });
+
+  const employeeDoc = (await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ACTIVITIES)
+    .where('template', '==', 'employee')
+    .where('attachment.Employee Contact.value', '==', phoneNumber)
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get())
+    .docs[0];
+
+  await batch
+    .commit();
+
+  /** Only populate the missing attendances when the attendance doc was created */
+  if (!attendanceDoc) {
+    const employeeDoc = (await rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'employee')
+      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get())
+      .docs[0];
+
+    await populateWeeklyOffInAttendance({
+      uid,
+      employeeDoc,
+      month: momentNow.month(),
+      year: momentNow.year(),
+    });
+  }
+
+  if (!attendanceDoc
+    || !employeeData) {
+    return;
+  }
+
+  // backfill
+  return populateMissingAttendances(
+    employeeDoc,
+    momentNow.clone(),
+    uid
+  );
+};
+
+const getSubcollectionActivityObject = ({ activityObject, customerObject }) => {
+  const { status, template } = activityObject.data();
+
+  const creationTimestamp = activityObject.createTime.toDate().getTime();
+  const momentOfCreation = momentTz(creationTimestamp).tz(activityObject.get('timezone'));
+
+  const intermediate = Object.assign({}, activityObject.data(), {
+    creationTimestamp,
+    timestamp: Date.now(),
+    addendumDocRef: null,
+    isCancelled: status === 'CANCELLED',
+    creationDate: momentOfCreation.date(),
+    creationMonth: momentOfCreation.month(),
+    creationYear: momentOfCreation.year(),
+  });
+
+  if (template === 'office') {
+    intermediate.slug = slugify(activityObject.get('attachment.Name.value'));
+  }
+
+  if (customerObject) {
+    intermediate.customerObject = customerObject;
+  }
+
+  return intermediate;
+};
+
+const getProfileActivityObject = ({ activityDoc, assigneesMap, assigneePhoneNumbersArray, customerObject }) => {
+  const { id: activityId } = activityDoc;
+
+  const assigneeCallback = phoneNumber => {
+    const { displayName, photoURL } = assigneesMap.get(phoneNumber) || {};
+
+    return {
+      phoneNumber,
+      displayName: displayName || '',
+      photoURL: photoURL || '',
+    };
+  };
+
+  const intermediate = Object.assign({}, activityDoc.data(), {
+    activityId,
+    addendumDocRef: null,
+    timestamp: Date.now(),
+    assignees: assigneePhoneNumbersArray.map(assigneeCallback),
+  });
+
+  if (customerObject) {
+    intermediate.customerObject = customerObject;
+  }
+
+  return intermediate;
+};
+
+const templateHandler = async locals => {
+  const { template } = locals.change.after.data();
+
+  if (template === 'employee') {
+    await handleEmployee(locals);
+  }
+
+  if (template === 'office') {
+    await require('./template-handlers/office')(locals);
+  }
+
+  if (template === 'recipient') {
+    await handleRecipient(locals);
+  }
+
+  if (template === 'subscription') {
+    await handleSubscription(locals);
+  }
+
+  if (template === 'branch') {
+    await handleBranch(locals);
+  }
+
+  if (template === 'admin') {
+    await require('./template-handlers/admin')(locals);
+  }
+
+  if (template === 'attendance regularization') {
+    await require('./template-handlers/ar')(locals);
+  }
+
+  if (template === 'branch'
+    || template === 'customer') {
+    await setLocationsReadEvent(locals);
+  }
+
+  if (template === 'leave') {
+    await handleLeaveAndDutyConflict(locals);
+    await require('./template-handlers/leave')(locals);
+  }
+
+  if (template === 'check-in') {
+    await handleRelevantTimeActivities(locals);
+    await handleWorkday(locals);
+  }
+
+  if (template.endsWith('-type')) {
+    await handleTypeActivityCreation(locals);
+  }
+
+  // branch, region, department
+  if (template === 'branch'
+    || template === 'region'
+    || template === 'department') {
+    await handleActivityUpdates(locals);
+  }
+
+  return;
+};
+
+const ActivityOnWrite = async (change, context) => {
   /** Activity was deleted. For debugging only. */
   if (!change.after.data()) {
     return;
   }
+
+  const {
+    activityId,
+  } = context.params;
 
   // employee
   // status change
@@ -5236,338 +4708,204 @@ module.exports = async (change, context) => {
   // branch and customer in rtdb
   // admin -> custom claim
   // profile and activities
-  // const activityId = context.params.activityId;
   const batch = db.batch();
-  const template = change.after.get('template');
-  const status = change.after.get('status');
+  const newPhoneNumbersSet = new Set();
+  const authFetchPromises = [];
+  const {
+    template,
+    addendumDocRef,
+  } = change.after.data();
   const locals = {
     change,
+    addendumDoc: null,
     assigneesMap: new Map(),
     assigneePhoneNumbersArray: [],
     addendumCreator: {},
     addendumCreatorInAssignees: false,
-    adminsCanEdit: [],
   };
 
-  const newProfilesMap = new Map();
   const promises = [
     rootCollections
       .activities
-      .doc(context.params.activityId)
+      .doc(activityId)
       .collection(subcollectionNames.ASSIGNEES)
-      .get(),
-    rootCollections
-      .offices
-      .doc(change.after.get('officeId'))
-      .collection('Activities')
-      .where('template', '==', 'admin')
-      .where('status', '==', 'CONFIRMED')
       .get(),
   ];
 
   /** Could be `null` when we update the activity without user intervention */
-  if (change.after.get('addendumDocRef')) {
-    promises.push(db
-      .doc(change.after.get('addendumDocRef').path)
-      .get());
+  if (addendumDocRef) {
+    promises
+      .push(addendumDocRef.get());
   }
 
-  try {
-    const [
-      assigneesSnapShot,
-      adminsSnapShot,
-      addendumDoc,
-    ] = await Promise
-      .all(promises);
+  const [
+    assigneesSnapShot,
+    addendumDoc,
+  ] = await Promise
+    .all(promises);
 
-    const allAdminPhoneNumbersSet = new Set(
-      adminsSnapShot
-        .docs
-        .map(doc => doc.get('attachment.Admin.value'))
-    );
+  if (addendumDoc) {
+    locals
+      .addendumDoc = addendumDoc;
+  }
 
-    if (addendumDoc) {
-      locals
-        .addendumDoc = addendumDoc;
-    }
+  assigneesSnapShot
+    .forEach(doc => {
+      const { id: phoneNumber } = doc;
+      const { addToInclude } = doc.data();
 
-    const authFetch = [];
-
-    assigneesSnapShot.forEach(doc => {
-      if (addendumDoc
-        && doc.id === addendumDoc.get('user')) {
-        locals
-          .addendumCreatorInAssignees = true;
+      if (addendumDoc && phoneNumber === addendumDoc.get('user')) {
+        locals.addendumCreatorInAssignees = true;
       }
 
-      if (allAdminPhoneNumbersSet.has(doc.id)) {
-        locals
-          .adminsCanEdit
-          .push(doc.id);
-      }
+      authFetchPromises
+        .push(getAuth(phoneNumber));
 
-      authFetch
-        .push(getAuth(doc.id));
-
-      locals
-        .assigneesMap
-        .set(doc.id, {
-          canEdit: doc.get('canEdit'),
-          addToInclude: doc.get('addToInclude'),
-        });
+      /** Storing phoneNumber in the object because we are storing assigneesMap in addendum doc */
+      locals.assigneesMap.set(phoneNumber, { phoneNumber, addToInclude: addToInclude || false });
 
       locals
         .assigneePhoneNumbersArray
-        .push(doc.id);
+        .push(phoneNumber);
     });
 
+  if (addendumDoc
+    && !locals.addendumCreatorInAssignees) {
+    authFetchPromises.push(getAuth(addendumDoc.get('user')));
+  }
+
+  const customerObject = await getCustomerObject({
+    name: change.after.get('attachment.Location.value'),
+    officeId: change.after.get('officeId'),
+    template: template === 'duty' ? 'customer' : 'branch',
+  });
+
+  locals.customerObject = customerObject;
+
+  const userRecords = await Promise
+    .all(authFetchPromises);
+
+  userRecords.forEach(userRecord => {
+    const { phoneNumber, uid } = userRecord;
+
     if (addendumDoc
-      && !locals.addendumCreatorInAssignees) {
-      authFetch
-        .push(
-          getAuth(addendumDoc.get('user'))
-        );
+      && !locals.addendumCreatorInAssignees
+      && phoneNumber === addendumDoc.get('user')) {
+      locals
+        .addendumCreator
+        .displayName = userRecord.displayName;
+
+      /**
+       * Since addendum creator was not in the assignees list,
+       * returning from the iteration since we don't want to
+       * add them to the activity unnecessarily.
+       */
+      return;
     }
 
-    const userRecords = await Promise
-      .all(authFetch);
+    const oldMap = locals.assigneesMap.get(phoneNumber);
 
-    let customerObject = null;
+    locals.assigneesMap.set(phoneNumber, Object.assign({}, oldMap, {
+      uid: uid || '',
+      displayName: userRecord.displayName || '',
+      photoURL: userRecord.photoURL || '',
+      customClaims: userRecord.customClaims || {},
+    }));
 
-    if (locals.addendumDoc
-      && locals.addendumDoc.get('action') === httpsActions.create
-      && locals.change.after.get('attachment.Location.value')) {
-      customerObject = await getCustomerObject(
-        locals.change.after.get('attachment.Location.value'),
-        locals.change.after.get('officeId')
-      );
+    /** New user introduced to the system. Saving their phone number. */
+    if (!uid) {
+      newPhoneNumbersSet.add(phoneNumber);
+    }
+  });
+
+  const profileActivityObject = getProfileActivityObject({
+    customerObject,
+    activityDoc: change.after,
+    assigneePhoneNumbersArray: locals.assigneePhoneNumbersArray,
+    assigneesMap: locals.assigneesMap,
+  });
+
+  userRecords.forEach(userRecord => {
+    const { uid, phoneNumber } = userRecord;
+
+    /**
+     * Check-ins clutter the `Activities` collection and
+     * make the `/read` resource slow. If the user doesn't have
+     * auth, there's no point in putting a check-in their
+     * profile
+     */
+    if (template === 'check-in' && !uid) {
+      return;
     }
 
-    userRecords
-      .forEach(userRecord => {
-        const { phoneNumber } = userRecord;
-
-        if (addendumDoc
-          && !locals.addendumCreatorInAssignees
-          && phoneNumber === addendumDoc.get('user')) {
-          locals
-            .addendumCreator
-            .displayName = userRecord.displayName;
-
-          /**
-           * Since addendum creator was not in the assignees list,
-           * returning from the iteration since we don't want to
-           * add them to the activity unnecessarily.
-           */
-          return;
-        }
-
-        locals
-          .assigneesMap
-          .get(phoneNumber)
-          .displayName = userRecord.displayName;
-        locals
-          .assigneesMap
-          .get(phoneNumber)
-          .uid = userRecord.uid;
-        locals
-          .assigneesMap
-          .get(phoneNumber)
-          .photoURL = userRecord.photoURL;
-        locals
-          .assigneesMap
-          .get(phoneNumber)
-          .customClaims = userRecord.customClaims;
-
-        /** New user introduced to the system. Saving their phone number. */
-        if (!userRecord.uid) {
-          const creator = change
-            .after
-            .get('creator.phoneNumber')
-            || change
-              .after
-              .get('creator');
-
-          newProfilesMap
-            .set(phoneNumber, {
-              creator,
-              activityName: change.after.get('activityName'),
-              office: change.after.get('office'),
-            });
-        }
-
-        /** Document below the user profile. */
-        const profileActivityObject = Object
-          .assign({}, change.after.data(), {
-            canEdit: locals.assigneesMap.get(phoneNumber).canEdit,
-            timestamp: Date.now(),
-          });
-
-        if (customerObject) {
-          profileActivityObject
-            .customerObject = customerObject;
-        }
-
-        profileActivityObject
-          .assignees = (() => {
-            const result = [];
-
-            locals
-              .assigneePhoneNumbersArray
-              .forEach(phoneNumber => {
-                let displayName = '';
-                let photoURL = '';
-
-                if (locals.assigneesMap.has(phoneNumber)) {
-                  displayName = locals
-                    .assigneesMap
-                    .get(phoneNumber)
-                    .displayName || '';
-                  photoURL = locals
-                    .assigneesMap
-                    .get(phoneNumber)
-                    .photoURL || '';
-                }
-
-                result
-                  .push({
-                    phoneNumber,
-                    displayName,
-                    photoURL,
-                  });
-              });
-
-            return result;
-          })();
-
-        /**
-         * Check-ins clutter the Activities collection and
-         * make the /read resource slow.
-         */
-        if (template === 'check-in'
-          && (!locals.assigneesMap.has(phoneNumber)
-            || !locals.assigneesMap.get(phoneNumber).uid)) {
-          return;
-        }
-
-        const ref = rootCollections
-          .profiles
-          .doc(phoneNumber)
-          .collection(subcollectionNames.ACTIVITIES)
-          .doc(context.params.activityId);
-
-        batch.set(ref, profileActivityObject, {
-          merge: true
+    if (uid) {
+      // in updates only if auth exists
+      batch
+        .set(rootCollections
+          .updates
+          .doc(uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(), Object.assign({}, profileActivityObject, {
+            _type: addendumTypes.ACTIVITY,
+          }), {
+          merge: true,
         });
-      });
-
-    console.log({
-      template,
-      activityId: context.params.activityId,
-      action: locals.addendumDoc ? locals.addendumDoc.get('action') : 'manual update',
-    });
-
-    const activityData = Object.assign({}, change.after.data(), {
-      timestamp: Date.now(),
-      adminsCanEdit: locals.adminsCanEdit,
-      isCancelled: status === 'CANCELLED',
-      addendumDocRef: null,
-      creationTimestamp: change.after.createTime.toDate().getTime(),
-    });
-
-    if (addendumDoc
-      && addendumDoc.get('action') === httpsActions.create) {
-      const momentToday = momentTz().tz(change.after.get('timezone'));
-
-      activityData
-        .creationDate = momentToday.date();
-      activityData
-        .creationMonth = momentToday.month();
-      activityData
-        .creationYear = momentToday.year();
-
-      if (customerObject) {
-        activityData
-          .customerObject = customerObject;
-      }
     }
 
-    if (template === 'office') {
-      activityData
-        .slug = slugify(activityData.attachment.Name.value);
-      delete activityData.adminsCanEdit;
-    }
-
-    const copyToRef = getCopyPath(
-      template,
-      locals.change.after.get('officeId'),
-      locals.change.after.id,
-    );
-
+    // in profile
     batch
-      .set(copyToRef, activityData, {
-        merge: true,
+      .set(rootCollections
+        .profiles
+        .doc(phoneNumber)
+        .collection(subcollectionNames.ACTIVITIES)
+        .doc(activityId), profileActivityObject, {
+        merge: true
       });
+  });
 
-    await batch.commit();
-    await handleAddendum(locals);
-    await createNewProfiles(newProfilesMap);
+  console.log({
+    template,
+    activityId,
+    action: locals
+      .addendumDoc ? locals.addendumDoc.get('action') : 'manual update',
+  });
 
-    if (template === 'employee') {
-      await handleEmployee(locals);
+  const copyToRef = getCopyPath({
+    template,
+    activityId,
+    officeId: locals.change.after.get('officeId'),
+  });
+
+  batch.set(copyToRef,
+    getSubcollectionActivityObject({ activityObject: change.after, customerObject }),
+    { merge: true }
+  );
+
+  await batch.commit();
+
+  /**
+   * The sequence of handleAddendum and handleProfile matters for
+   * correct execution flow. All other functions can be called in
+   * any order.
+   */
+  await handleAddendum(locals);
+  await templateHandler(locals);
+  await handleReimbursement(locals);
+
+  return createNewProfiles({
+    newPhoneNumbersSet,
+    smsContext: {
+      activityName: change.after.get('activityName'),
+      office: change.after.get('office'),
+      creator: change.after.get('creator.phoneNumber') || change.after.get('creator'),
     }
+  });
+};
 
-    if (template === 'office') {
-      await handleOffice(locals);
-    }
 
-    if (template === 'recipient') {
-      await handleRecipient(locals);
-    }
-
-    if (template === 'subscription') {
-      await handleSubscription(locals);
-    }
-
-    if (template === 'branch') {
-      await handleBranch(locals);
-    }
-
-    if (template === 'branch'
-      || template === 'customer') {
-      await setLocationsReadEvent(locals);
-    }
-
-    if (template === 'admin') {
-      await handleAdmin(locals);
-    }
-
-    if (template === 'leave') {
-      await handleLeaveAndDutyConflict(locals);
-    }
-
-    if (template === 'check-in') {
-      await handleRelevantTimeActivities(locals);
-    }
-
-    if (template.endsWith('-type')) {
-      await handleTypeActivityCreation(locals);
-    }
-
-    if (template === 'claim') {
-      await handleClaim(locals);
-    }
-
-    if (locals.addendumDocData
-      && locals.addendumDocData.action === httpsActions.checkIn) {
-      await handleCheckInActionForkmAllowance(locals);
-      await handleCheckInActionForDailyAllowance(locals);
-    }
-
-    await handleActivityUpdates(locals);
-    await handleReimbursement(locals);
-
-    return;
+module.exports = (change, context) => {
+  try {
+    return ActivityOnWrite(change, context);
   } catch (error) {
     console.error({
       error,

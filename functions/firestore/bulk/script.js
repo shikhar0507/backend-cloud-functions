@@ -202,8 +202,8 @@ module.exports = async conn => {
             trialRun: conn.req.query.trailRun === 'true',
             isAdminRequest: !conn.requester.isSupportRequest,
             isSupportRequest: conn.requester.isSupportRequest,
-            latitude: conn.req.body.geopoint.latitude,
-            longitude: conn.req.body.geopoint.longitude,
+            latitude: `${conn.req.body.geopoint.latitude}`,
+            longitude: `${conn.req.body.geopoint.longitude}`,
           },
         },
       });

@@ -37,16 +37,19 @@ const {
 const {
   activityName,
   validateVenues,
-  getCanEditValue,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
   checkActivityAndAssignee,
+  attendanceConflictHandler,
 } = require('./helper');
 const {
+  getRelevantTime,
   handleError,
   sendResponse,
+  getScheduleDates,
   getAdjustedGeopointsFromVenue,
+  getCanEditValue,
 } = require('../../admin/utils');
 
 
@@ -67,6 +70,15 @@ const updateDocsWithBatch = (conn, locals) => {
     timestamp: Date.now(),
     attachment: conn.req.body.attachment,
   };
+
+  if (locals.docs.activity.get('schedule').length > 0) {
+    activityUpdateObject
+      .relevantTime = getRelevantTime(conn.req.body.schedule);
+    activityUpdateObject
+      .scheduleDates = getScheduleDates(conn.req.body.schedule);
+
+    console.log('scheduleDates', activityUpdateObject.scheduleDates);
+  }
 
   if (locals.docs.activity.get('adjustedGeopoints')) {
     activityUpdateObject
@@ -135,7 +147,6 @@ const updateDocsWithBatch = (conn, locals) => {
       locals.batch.set(activityRef
         .collection('Assignees')
         .doc(phoneNumber), {
-        canEdit: getCanEditValue(locals, phoneNumber),
         /**
          * These people are not from the `share` array of the request body.
          * The update api doesn't accept the `share` array.
@@ -581,7 +592,7 @@ const handleAttachment = (conn, locals) => {
 };
 
 
-const handleResult = (conn, docs) => {
+const handleResult = async (conn, docs) => {
   const result = checkActivityAndAssignee(
     docs,
     conn.requester.isSupportRequest
@@ -592,6 +603,14 @@ const handleResult = (conn, docs) => {
   }
 
   const [activityDoc] = docs;
+
+  if (!getCanEditValue(activityDoc, conn.requester)) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `You cannot edit this activity`
+    );
+  }
 
   if (activityDoc.get('template') === 'subscription') {
     return sendResponse(
@@ -620,6 +639,27 @@ const handleResult = (conn, docs) => {
       office: activityDoc.get('office'),
     },
   };
+
+  const { template } = activityDoc.data();
+
+  if (template === 'leave'
+    || template === 'attendance regularization') {
+    const {
+      conflictingDate,
+      conflictingTemplate,
+    } = await attendanceConflictHandler({
+      schedule: conn.req.body.schedule,
+      phoneNumber: conn.requester.phoneNumber,
+      office: conn.req.body.office,
+    });
+
+    if (conflictingDate) {
+      const message = `Cannot update the ${template}`
+        + ` ${conflictingTemplate} is already set for the date: ${conflictingDate}`;
+
+      return sendResponse(conn, code.badRequest, message);
+    }
+  }
 
   return handleAttachment(conn, locals);
 };

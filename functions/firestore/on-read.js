@@ -33,6 +33,7 @@ const {
   code,
 } = require('../admin/responses');
 const {
+  addendumTypes,
   subcollectionNames,
 } = require('../admin/constants');
 const {
@@ -139,25 +140,56 @@ const getCreator = phoneNumberOrObject => {
   return phoneNumberOrObject;
 };
 
-const getActivityObject = doc => ({
-  activityId: doc.id,
-  status: doc.get('status'),
-  canEdit: doc.get('canEdit'),
-  schedule: doc.get('schedule'),
-  venue: doc.get('venue'),
-  timestamp: doc.get('timestamp'),
-  template: doc.get('template'),
-  activityName: doc.get('activityName'),
-  office: doc.get('office'),
-  attachment: doc.get('attachment'),
-  creator: getCreator(doc.get('creator')),
-  hidden: doc.get('hidden'),
-  /**
-   * Activity with template -type or customer/branch might
-   * not have an assignee, so this array could be undefined
-   */
-  assignees: getAssigneesArray(doc.get('assignees') || []),
-});
+const getActivityObject = (doc, customClaims, employeeOf, phoneNumber) => {
+  const canEditRule = doc.get('canEditRule');
+  const office = doc.get('office');
+  const creator = doc.get('creator.phoneNumber')
+    || doc.get('creator');
+
+  const canEdit = (() => {
+    if (canEditRule === 'ALL') {
+      return true;
+    }
+
+    if (canEditRule === 'CREATOR') {
+      return creator === phoneNumber;
+    }
+
+    if (canEditRule === 'ADMIN') {
+      return customClaims
+        && Array.isArray(customClaims.admin)
+        && customClaims.admin.includes(office);
+    }
+
+    if (canEditRule === 'EMPLOYEE') {
+      return employeeOf
+        && employeeOf.hasOwnProperty(office);
+    }
+
+    // canEditRule => NONE
+    return false;
+  })();
+
+  return {
+    canEdit,
+    activityId: doc.id,
+    status: doc.get('status'),
+    schedule: doc.get('schedule'),
+    venue: doc.get('venue'),
+    timestamp: doc.get('timestamp'),
+    template: doc.get('template'),
+    activityName: doc.get('activityName'),
+    office: doc.get('office'),
+    attachment: doc.get('attachment'),
+    creator: getCreator(doc.get('creator')),
+    hidden: doc.get('hidden'),
+    /**
+     * Activity with template -type or customer/branch might
+     * not have an assignee, so this array could be undefined
+     */
+    assignees: getAssigneesArray(doc.get('assignees') || []),
+  };
+};
 
 
 const getSubscriptionObject = doc => ({
@@ -328,8 +360,11 @@ module.exports = async conn => {
 
   const batch = db.batch();
   const employeeOf = conn.requester.employeeOf || {};
+  const customClaims = conn.requester.customClaims || {};
+  const phoneNumber = conn.requester.phoneNumber;
   const officeList = Object.keys(employeeOf);
   const from = parseInt(conn.req.query.from);
+
   const jsonObject = {
     from,
     upto: from,
@@ -450,16 +485,20 @@ module.exports = async conn => {
 
     addendum
       .forEach(doc => {
-        jsonObject
-          .addendum
-          .push(getAddendumObject(doc));
+        if (doc.get('type') === addendumTypes.COMMENT) {
+          jsonObject
+            .addendum
+            .push(getAddendumObject(doc));
+        }
       });
 
     activities
       .forEach(doc => {
         jsonObject
           .activities
-          .push(getActivityObject(doc));
+          .push(
+            getActivityObject(doc, customClaims, employeeOf, phoneNumber)
+          );
       });
 
     subscriptions

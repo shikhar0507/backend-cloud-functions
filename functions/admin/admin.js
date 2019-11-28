@@ -260,6 +260,8 @@ const rootCollections = {
   errors: db.collection('Errors'),
   anonymous: db.collection('Anonymous'),
   inboundPayments: db.collection('InboundPayments'),
+  deposits: db.collection('Deposits'),
+  mailEvents: db.collection('MailEvents'),
 };
 
 

@@ -152,6 +152,7 @@ module.exports = async change => {
           office: change.after.get('office'),
           recipientId: change.after.id,
           reportName: change.after.get('report'),
+          emailSentAt: Date.now(),
         },
         templateId: getTemplateId(report),
         from: {
@@ -218,9 +219,9 @@ module.exports = async change => {
       await require('./payroll-report')(locals);
     }
 
-    // if (report === reportNames.REIMBURSEMENT) {
-    //   await require('./reimbursements-report')(locals);
-    // }
+    if (report === reportNames.REIMBURSEMENT) {
+      await require('./reimbursements-report')(locals);
+    }
 
     if (report === reportNames.PAYROLL_MASTER) {
       await require('./payroll-master-report')(locals);
@@ -240,7 +241,7 @@ module.exports = async change => {
       .limit(1)
       .get();
 
-    const dailyStatusDoc = dailyStatusDocQueryResult.docs[0];
+    const [dailyStatusDoc] = dailyStatusDocQueryResult.docs;
     const data = dailyStatusDoc.data();
     const expectedRecipientTriggersCount = dailyStatusDoc
       .get('expectedRecipientTriggersCount');
@@ -249,8 +250,8 @@ module.exports = async change => {
 
     data
       .unverifiedRecipients = {
-        [office]: unverifiedRecipients,
-      };
+      [office]: unverifiedRecipients,
+    };
     data
       .recipientsTriggeredToday = recipientsTriggeredToday + 1;
 
@@ -272,6 +273,7 @@ module.exports = async change => {
     const errorObject = {
       error,
       contextData: {
+        recipientId: change.after.id,
         office: change.after.get('office'),
         officeId: change.after.get('officeId'),
         report: change.after.get('report'),

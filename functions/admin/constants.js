@@ -868,6 +868,16 @@ const allMonths = {
   'December': 11,
 };
 
+const addendumTypes = {
+  ACTIVITY: 'activity',
+  REIMBURSEMENT: 'reimbursement',
+  ATTENDANCE: 'attendance',
+  PAYMENT: 'payment',
+  COMMENT: 'comment',
+  SUBSCRIPTION: 'subscription',
+};
+
+
 module.exports = {
   vowels,
   weekdays,
@@ -880,6 +890,7 @@ module.exports = {
   timezonesSet,
   httpsActions,
   canEditRules,
+  addendumTypes,
   templateFields,
   customMessages,
   shareBodyFields,

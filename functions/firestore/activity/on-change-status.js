@@ -28,8 +28,6 @@
 const {
   isValidRequestBody,
   checkActivityAndAssignee,
-  setOnLeaveOrAr,
-  cancelLeaveOrAr,
 } = require('./helper');
 const { code } = require('../../admin/responses');
 const {
@@ -41,60 +39,10 @@ const {
   getGeopointObject,
 } = require('../../admin/admin');
 const {
+  getCanEditValue,
   handleError,
   sendResponse,
 } = require('../../admin/utils');
-
-const handleLeaveAndOnDuty = (conn, activityDoc) => {
-  const hasBeenCancelled = activityDoc.get('status') !== 'CANCELLED'
-    && conn.req.body.status === 'CANCELLED';
-  const isLeaveOrAr = new Set(['leave', 'attendance regularization'])
-    .has(activityDoc.get('template'));
-
-  if (!isLeaveOrAr) {
-    return Promise.resolve({});
-  }
-
-  const schedule = activityDoc.get('schedule')[0];
-  const startTime = schedule.startTime;
-  const endTime = schedule.endTime;
-  const template = activityDoc.get('template');
-  const officeId = activityDoc.get('officeId');
-
-  const leaveType = (() => {
-    if (activityDoc.get('template') !== 'leave') {
-      return '';
-    }
-
-    return activityDoc.get('attachment.Leave Type.value');
-  })();
-
-  if (hasBeenCancelled) {
-    return cancelLeaveOrAr({
-      officeId,
-      startTime,
-      endTime,
-      template,
-      creatorsPhoneNumber: activityDoc.get('creator.phoneNumber')
-        || activityDoc.get('creator'),
-    });
-  } else {
-    return setOnLeaveOrAr({
-      officeId,
-      startTime,
-      endTime,
-      template,
-      leaveType,
-      timezone: activityDoc.get('timezone'),
-      status: conn.req.body.status,
-      leaveReason: activityDoc.get('attachment.Reason.value'),
-      arReason: activityDoc.get('attachment.Reason.value'),
-      creatorsPhoneNumber: activityDoc.get('creator.phoneNumber')
-        || activityDoc.get('creator'),
-      requestersPhoneNumber: conn.requester.phoneNumber,
-    });
-  }
-};
 
 
 const createDocs = async (conn, activityDoc) => {
@@ -141,15 +89,6 @@ const createDocs = async (conn, activityDoc) => {
     userDisplayName: conn.requester.displayName,
   };
 
-  const hasBeenCancelled = activityDoc.get('status') !== 'CANCELLED'
-    && conn.req.body.status === 'CANCELLED';
-
-  const result = await handleLeaveAndOnDuty(conn, activityDoc);
-
-  if (result.message && hasBeenCancelled) {
-    addendumData.cancellationMessage = result.message;
-  }
-
   batch
     .set(addendumDocRef, addendumData);
 
@@ -177,6 +116,14 @@ const handleResult = async (conn, docs) => {
   const [
     activityDoc,
   ] = docs;
+
+  if (!getCanEditValue(activityDoc, conn.requester)) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `You cannot edit this activity`
+    );
+  }
 
   if (activityDoc.get('status')
     === conn.req.body.status) {

@@ -30,6 +30,7 @@ const {
 } = require('../../admin/responses');
 const {
   httpsActions,
+  subcollectionNames,
 } = require('../../admin/constants');
 const {
   db,
@@ -38,20 +39,19 @@ const {
 } = require('../../admin/admin');
 const {
   activityName,
-  validateVenues,
-  forSalesReport,
-  getCanEditValue,
   haversineDistance,
+  validateVenues,
   filterAttachment,
   validateSchedules,
   isValidRequestBody,
-  setOnLeaveOrAr,
+  attendanceConflictHandler,
 } = require('./helper');
 const {
   handleError,
   sendResponse,
   getRelevantTime,
   getCustomerObject,
+  getScheduleDates,
   getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 const env = require('../../admin/env');
@@ -79,7 +79,7 @@ const getClaimStatus = async params => {
       rootCollections
         .offices
         .doc(officeId)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('template', '==', 'claim')
         .where('creator.phoneNumber', '==', phoneNumber)
         .where('attachment.Claim Type.value', '==', claimType)
@@ -90,14 +90,14 @@ const getClaimStatus = async params => {
       rootCollections
         .offices
         .doc(officeId)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('template', '==', 'claim-type')
         .where('attachment.Name.value', '==', claimType)
         .limit(1)
         .get()
     ]);
 
-  const claimTypeDoc = claimTypeActivity.docs[0];
+  const [claimTypeDoc] = claimTypeActivity.docs;
   const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
 
   let claimsThisMonth = dinero({ amount: 0 });
@@ -109,12 +109,10 @@ const getClaimStatus = async params => {
       .add(dinero({ amount }));
   });
 
-  const o = {
+  return {
     monthlyLimit,
     claimsThisMonth: claimsThisMonth.getAmount(),
   };
-
-  return o;
 };
 
 
@@ -126,31 +124,27 @@ const createDocsWithBatch = async (conn, locals) => {
     .allPhoneNumbers
     .forEach(phoneNumber => {
       let addToInclude = true;
-
       const isRequester = phoneNumber === conn.requester.phoneNumber;
+
+      canEditMap[phoneNumber] = null;
 
       if (conn.req.body.template === 'subscription' && isRequester) {
         addToInclude = false;
       }
 
-      const canEdit = getCanEditValue(locals, phoneNumber);
-
-      canEditMap[phoneNumber] = canEdit;
-
       locals
         .batch
         .set(locals.docs.activityRef
-          .collection('Assignees')
+          .collection(subcollectionNames.ASSIGNEES)
           .doc(phoneNumber), {
           addToInclude,
-          canEdit,
         });
     });
 
   const addendumDocRef = rootCollections
     .offices
     .doc(locals.static.officeId)
-    .collection('Addendum')
+    .collection(subcollectionNames.ADDENDUM)
     .doc();
 
   const timezone = locals
@@ -163,11 +157,12 @@ const createDocsWithBatch = async (conn, locals) => {
     attachment: conn.req.body.attachment,
   };
 
-  const relevantTime = getRelevantTime(activityData.schedule);
-
   if (activityData.schedule.length > 0) {
     activityData
-      .relevantTime = relevantTime;
+      .relevantTime = getRelevantTime(activityData.schedule);
+
+    activityData
+      .scheduleDates = getScheduleDates(activityData.schedule);
   }
 
   if (activityData.attachment.Location
@@ -230,8 +225,6 @@ const createDocsWithBatch = async (conn, locals) => {
   activityData
     .status = locals.static.statusOnCreate;
   activityData
-    .status = locals.static.statusOnCreate;
-  activityData
     .canEditRule = locals.static.canEditRule;
   activityData
     .activityName = activityName({
@@ -245,14 +238,12 @@ const createDocsWithBatch = async (conn, locals) => {
     .hidden = locals.static.hidden;
   activityData
     .creator = {
-      phoneNumber: conn.requester.phoneNumber,
-      displayName: conn.requester.displayName,
-      photoURL: conn.requester.photoURL,
-    };
+    phoneNumber: conn.requester.phoneNumber,
+    displayName: conn.requester.displayName,
+    photoURL: conn.requester.photoURL,
+  };
   activityData
     .createTimestamp = Date.now();
-  activityData
-    .forSalesReport = forSalesReport(conn.req.body.template);
 
   const adjustedGeopoints = getAdjustedGeopointsFromVenue(
     conn.req.body.venue
@@ -301,8 +292,15 @@ const createDocsWithBatch = async (conn, locals) => {
     provider: conn.req.body.geopoint.provider || null,
   };
 
-  if (locals.cancellationMessage) {
-    addendumDocObject.cancellationMessage = locals.cancellationMessage;
+  if (conn.req.body.template === 'check-in'
+    && locals.subscriptionDoc
+    && locals.subscriptionDoc.get('lastGeopoint')) {
+    addendumDocObject
+      .subscriptionDocId = locals.subscriptionDoc.id;
+    addendumDocObject
+      .lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');
+    addendumDocObject
+      .lastTimestamp = locals.subscriptionDoc.get('lastTimestamp');
   }
 
   locals
@@ -359,46 +357,31 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
 
   if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
-    locals.static.statusOnCreate = 'CANCELLED';
-    locals.cancellationMessage = `LEAVE CANCELLED: Leave limit exceeded by`
-      + ` ${leavesTakenThisTime + locals.leavesTakenThisYear - locals.maxLeavesAllowed} days.`;
-
-    return createDocsWithBatch(conn, locals);
+    return sendResponse(
+      conn,
+      code.conflict,
+      `Cannot create a leave. Leave limit exceeded by`
+      + ` ${leavesTakenThisTime + locals.leavesTakenThisYear - locals.maxLeavesAllowed} days.`
+    );
   }
 
-  const leaveType = (() => {
-    if (conn.req.body.template === 'leave') {
-      return conn.req.body.attachment['Leave Type'].value;
-    }
-
-    return '';
-  })();
-
   const {
-    success,
-    message
-  } = await setOnLeaveOrAr({
-    startTime,
-    endTime,
-    leaveType,
-    officeId: locals.officeDoc.id,
-    timezone: locals.officeDoc.get('attachment.Timezone.value'),
-    template: conn.req.body.template,
-    status: locals.static.statusOnCreate,
-    leaveReason: conn.req.body.attachment.Reason.value,
-    arReason: conn.req.body.attachment.Reason.value,
-    creatorsPhoneNumber: conn.requester.phoneNumber,
-    requestersPhoneNumber: conn.requester.phoneNumber,
+    conflictingDate,
+    conflictingTemplate,
+  } = await attendanceConflictHandler({
+    schedule: conn.req.body.schedule,
+    phoneNumber: conn.requester.phoneNumber,
+    office: conn.req.body.office,
   });
 
-  if (!success) {
-    locals
-      .static
-      .statusOnCreate = 'CANCELLED';
+  if (conflictingDate) {
+    const article = conn.req.body.template.startsWith('a') ? 'an' : 'a';
+    const article2 = conflictingTemplate.startsWith('a') ? 'an' : 'a';
+    const message = `Cannot apply for ${article} ${conn.req.body.template}.`
+      + ` You are already on ${article2} ${conflictingTemplate} on the date`
+      + ` ${conflictingDate}`;
 
-    locals
-      .cancellationMessage = `${conn.req.body.template.toUpperCase()}`
-      + ` CANCELLED: ${message}`;
+    return sendResponse(conn, code.badRequest, message);
   }
 
   return createDocsWithBatch(conn, locals);
@@ -422,7 +405,6 @@ const handlePayroll = async (conn, locals) => {
     return handleLeaveOrOnDuty(conn, locals);
   }
 
-  // const leaveType = conn.req.body.attachment['Leave Type'].value;
   const startMoment = momentTz(conn.req.body.schedule[0].endTime);
   const endMoment = momentTz(conn.req.body.schedule[0].endTime);
 
@@ -443,7 +425,7 @@ const handlePayroll = async (conn, locals) => {
       rootCollections
         .offices
         .doc(locals.static.officeId)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('template', '==', 'leave-type')
         .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
         .limit(1)
@@ -451,7 +433,7 @@ const handlePayroll = async (conn, locals) => {
       rootCollections
         .offices
         .doc(locals.static.officeId)
-        .collection('Activities')
+        .collection(subcollectionNames.ACTIVITIES)
         .where('creator', '==', conn.requester.phoneNumber)
         .where('template', '==', 'leave')
         .where('attachment.Leave Type.value', '==', conn.req.body.attachment['Leave Type'].value)
@@ -484,21 +466,19 @@ const handlePayroll = async (conn, locals) => {
     });
 
   if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
-    locals
-      .cancellationMessage = `LEAVE LIMIT EXCEEDED:`
+    return sendResponse(
+      conn,
+      code.conflict,
+      `Cannot create leave`
       + ` You have exceeded the limit for leave`
       + ` application under ${conn.req.body.attachment['Leave Type'].value}`
-      + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`;
-
-    locals
-      .static
-      .statusOnCreate = 'CANCELLED';
-
-    return createDocsWithBatch(conn, locals);
+      + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`
+    );
   }
 
   return handleLeaveOrOnDuty(conn, locals);
 };
+
 
 
 const handleAssignees = async (conn, locals) => {
@@ -515,7 +495,7 @@ const handleAssignees = async (conn, locals) => {
   locals
     .objects
     .allPhoneNumbers
-    .forEach((phoneNumber) => {
+    .forEach(phoneNumber => {
       const isRequester = phoneNumber === conn.requester.phoneNumber;
       /**
        * Defaults are `false`, since we don't know right now what
@@ -526,17 +506,17 @@ const handleAssignees = async (conn, locals) => {
         .permissions[
         phoneNumber
       ] = {
-          isAdmin: false,
-          isEmployee: false,
-          isCreator: isRequester,
-        };
+        isAdmin: false,
+        isEmployee: false,
+        isCreator: isRequester,
+      };
 
       if (locals.static.canEditRule === 'EMPLOYEE') {
         promises
           .push(rootCollections
             .offices
             .doc(locals.static.officeId)
-            .collection('Activities')
+            .collection(subcollectionNames.ACTIVITIES)
             .where('attachment.Employee Contact.value', '==', phoneNumber)
             .where('template', '==', 'employee')
             .limit(1)
@@ -560,16 +540,10 @@ const handleAssignees = async (conn, locals) => {
     }
   });
 
-  // 'customer',
-  // 'leave',
-  // 'claim',
-  // 'duty',
-
   const typeActivity = new Set([
     'customer',
     'leave',
     'claim',
-    // 'duty'
   ]);
 
   const key = (() => {
@@ -641,13 +615,11 @@ const handleClaims = async (conn, locals) => {
   });
 
   if (claimsThisMonth + amount > monthlyLimit) {
-    locals
-      .static
-      .statusOnCreate = 'CANCELLED';
-
-    locals
-      .cancellationMessage = `CLAIM CANCELLED: Exceeded`
-      + ` Max Claims (${monthlyLimit}) amount this month.`;
+    return sendResponse(
+      conn,
+      code.conflict,
+      `Cannot create a claim. Max Claims (${monthlyLimit}) amount this month.`
+    );
   }
 
   return handleAssignees(conn, locals);
@@ -769,6 +741,76 @@ const handleAttachment = (conn, locals) => {
   return resolveProfileCheckPromises(conn, locals, result);
 };
 
+const isInvalidCheckIn = ({ subscriptionDoc, currentGeopoint }) => {
+  if (!subscriptionDoc) {
+    return false;
+  }
+
+  const {
+    template,
+    lastGeopoint,
+    lastTimestamp,
+  } = subscriptionDoc.data();
+
+  console.log(template, lastGeopoint, lastTimestamp);
+
+  if (template !== 'check-in') {
+    return false;
+  }
+
+  if (typeof lastGeopoint !== 'object') {
+    return false;
+  }
+
+  if (typeof lastTimestamp !== 'number') {
+    return false;
+  }
+
+  const momentNow = momentTz();
+  const momentPreviousCheckIn = momentTz(lastTimestamp);
+  const checkInTimestampDifferenceInMinutes = momentNow.diff(
+    momentPreviousCheckIn,
+    'minutes',
+    true
+  );
+  const checkInTimestampDifferenceInHours = momentNow.diff(
+    momentPreviousCheckIn,
+    'hours',
+    true
+  );
+
+  console.log('checkInTimestampDifferenceInMinutes', checkInTimestampDifferenceInMinutes);
+
+  if (checkInTimestampDifferenceInMinutes < 5) {
+    return false;
+  }
+
+  const currentLatLng = `${currentGeopoint.latitude}`
+    + `,${currentGeopoint.longitude}`;
+  const previousLatLng = `${lastGeopoint.latitude || lastGeopoint._latitude}`
+    + `,${lastGeopoint.longitude || lastGeopoint._longiture}`;
+
+  console.log('currentLatLng', currentLatLng);
+  console.log('previousLatLng', previousLatLng);
+
+  const distance = haversineDistance(
+    {
+      _latitude: lastGeopoint.latitude || lastGeopoint._latitude,
+      _longitude: lastGeopoint.longitude || lastGeopoint._longiture
+    },
+    {
+      _latitude: currentGeopoint.latitude,
+      _longitude: currentGeopoint.longitude
+    }
+  );
+
+  console.log('distance', distance);
+
+  const speed = distance / checkInTimestampDifferenceInHours;
+  console.log('speed', speed);
+
+  return currentLatLng === previousLatLng || speed > 40;
+};
 
 const handleScheduleAndVenue = (conn, locals) => {
   const scheduleValidationResult = validateSchedules(
@@ -807,7 +849,8 @@ const handleScheduleAndVenue = (conn, locals) => {
   return handleAttachment(conn, locals);
 };
 
-const createLocals = (conn, result) => {
+
+const createLocals = async (conn, result) => {
   const activityRef = rootCollections.activities.doc();
 
   /**
@@ -975,6 +1018,8 @@ const createLocals = (conn, result) => {
     locals.static.canEditRule = subscriptionQueryResult.docs[0].get('canEditRule');
     locals.static.statusOnCreate = subscriptionQueryResult.docs[0].get('statusOnCreate');
     locals.static.hidden = subscriptionQueryResult.docs[0].get('hidden');
+
+    locals.subscriptionDoc = subscriptionQueryResult.docs[0];
   } else {
     if (templateQueryResult.empty) {
       return sendResponse(
@@ -994,6 +1039,21 @@ const createLocals = (conn, result) => {
 
   if (!conn.requester.isSupportRequest) {
     locals.objects.allPhoneNumbers.add(conn.requester.phoneNumber);
+  }
+
+  const checkInResult = isInvalidCheckIn({
+    subscriptionDoc: subscriptionQueryResult.docs[0] || null,
+    currentGeopoint: conn.req.body.geopoint
+  });
+
+  console.log('Invalid checkin', checkInResult);
+
+  if (checkInResult) {
+    return sendResponse(
+      conn,
+      code.badRequest,
+      `Invalid check-in`
+    );
   }
 
   return handleScheduleAndVenue(conn, locals);
@@ -1027,7 +1087,7 @@ module.exports = async conn => {
     rootCollections
       .profiles
       .doc(conn.requester.phoneNumber)
-      .collection('Subscriptions')
+      .collection(subcollectionNames.SUBSCRIPTIONS)
       .where('office', '==', conn.req.body.office)
       .where('template', '==', conn.req.body.template)
       .where('status', '==', 'CONFIRMED')

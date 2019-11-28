@@ -97,6 +97,26 @@ module.exports = (req) => {
     case 'myGrowthfile':
       func = require('../firestore/my-growthfile/index');
       break;
+    case 'search':
+      checkAdmin = true;
+      checkSupport = true;
+      func = require('../firestore/search');
+      break;
+    case 'changePhoneNumber':
+      func = require('../change-phone-number');
+      break;
+    case 'salaryAccount/create':
+      func = require('../salary-accounts/on-create');
+      break;
+    case 'salaryAccount/delete':
+      func = require('../salary-accounts/on-delete');
+      break;
+    case 'read1':
+      func = require('../firestore/on-read1');
+      break;
+    case `trackMail`:
+      func = require('../webhooks/sendgrid');
+      break;
     default:
       func = null;
   }
