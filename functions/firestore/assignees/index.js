@@ -25,7 +25,8 @@
 'use strict';
 
 
-const { rootCollections } = require('../../admin/admin');
+const { subcollectionNames } = require('../../admin/constants');
+const { rootCollections, db } = require('../../admin/admin');
 
 /**
  * Removes the doc from the `Profile/(phoneNumber)/Activities/(activityId)`
@@ -42,11 +43,8 @@ const { rootCollections } = require('../../admin/admin');
  * @param {Object} context Data related to the `onDelete` event.
  * @returns {Promise <Object>} Firestore `Batch` object.
  */
-module.exports = async (doc, context) => {
-  const {
-    phoneNumber,
-    activityId,
-  } = context.params;
+module.exports = async (_, context) => {
+  const { phoneNumber, activityId } = context.params;
 
   const profileRef = rootCollections
     .profiles
@@ -59,42 +57,60 @@ module.exports = async (doc, context) => {
       .doc(activityId)
       .get(),
     profileRef
-      .collection('Activities')
+      .collection(subcollectionNames.ACTIVITIES)
       .doc(activityId)
       .delete(),
   ];
 
   try {
+    const batch = db.batch();
     const [profileDoc, activityDoc] = await Promise.all(promises);
-
     const timestamp = Date.now();
-    const uid = profileDoc.get('uid');
+    const { uid } = profileDoc.data();
+    const {
+      hidden,
+      // template,
+      // attachment
+    } = activityDoc.data();
 
-    if (!uid
-      || activityDoc.get('hidden') === 1) {
-      return Promise.resolve();
+    // if (template === 'subscription') {
+    //   const {
+    //     Subscriber: {
+    //       value: subscriberPhoneNumber
+    //     },
+    //     Template: {
+    //       value: subscribedTemplate,
+    //     }
+    //   } = attachment;
+
+    //   // const subscriptionDoc = await rootCollections
+    //   //   .profiles
+    //   //   .doc(subscriberPhoneNumber)
+    //   // .
+    // }
+
+    if (uid && hidden !== 1) {
+      batch
+        .set(rootCollections
+          .updates
+          .doc(uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(), {
+          timestamp,
+          activityId,
+          isComment: 0,
+          location: {
+            _latitude: '',
+            _longitude: '',
+          },
+          userDeviceTimestamp: timestamp,
+          user: phoneNumber,
+          unassign: true,
+          comment: '',
+        });
     }
 
-    const addendumRef = rootCollections
-      .updates
-      .doc(uid)
-      .collection('Addendum')
-      .doc();
-
-    return addendumRef
-      .set({
-        timestamp,
-        activityId,
-        isComment: 0,
-        location: {
-          _latitude: '',
-          _longitude: '',
-        },
-        userDeviceTimestamp: timestamp,
-        user: phoneNumber,
-        unassign: true,
-        comment: '',
-      });
+    return batch.commit();
   } catch (error) {
     console.error(error);
   }

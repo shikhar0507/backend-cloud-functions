@@ -57,8 +57,8 @@ module.exports = (conn, requester) => {
         timestamp: Date.now(),
         addendumDocRef: null,
       }, {
-          merge: true,
-        });
+        merge: true,
+      });
 
       return doc
         .ref

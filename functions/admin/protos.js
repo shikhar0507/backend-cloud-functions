@@ -63,10 +63,17 @@ const validateVenues = venue => {
 
 class Activity {
   constructor(template) {
+    if (!(this instanceof Activity)) {
+      throw new Error('You need to call Activity constructor with "new"');
+    }
+
     this.template = template;
     this.timestamp = Date.now();
   }
 
+  /**
+   * @param {string} timezone
+   */
   set setTimezone(timezone) {
     if (!isValidTimezone(timezone)) {
       throw new Error(`Invalid timezone: '${timezone}'`);
@@ -75,10 +82,16 @@ class Activity {
     this.timezone = timezone;
   }
 
+  /**
+   * @param {string} displayName
+   */
   set setActivityName(displayName) {
     this.activityName = `${this.template}: ${displayName}`;
   }
 
+  /**
+   * @param {string} status
+   */
   set setStatus(status) {
     if (!isValidStatus(status)) {
       throw new Error(`Invalid status: ${status}`);
@@ -87,6 +100,9 @@ class Activity {
     this.status = status;
   }
 
+  /**
+   * @param {string} canEditRule
+   */
   set setCanEditRule(canEditRule) {
     if (!isValidCanEditRule(canEditRule)) {
       throw new Error('Invalid canEditRule');
@@ -95,6 +111,9 @@ class Activity {
     this.canEditRule = canEditRule;
   }
 
+  /**
+   * @param {string} office
+   */
   set setOffice(office) {
     if (!isNonEmptyString(office)) {
       throw new Error('Office name cannot be empty string');
@@ -103,6 +122,9 @@ class Activity {
     this.office = office;
   }
 
+  /**
+   * @param {string} officeId
+   */
   set setOfficeId(officeId) {
     if (!isNonEmptyString(officeId)) {
       throw new Error('OfficeId should be a non-empty string');
@@ -111,6 +133,9 @@ class Activity {
     this.officeId = officeId;
   }
 
+  /**
+   * @param {number} number
+   */
   set setHidden(number) {
     if (typeof number !== 'number' || ![0, 1].includes(number)) {
       throw new Error(
@@ -121,6 +146,9 @@ class Activity {
     this.hidden = number;
   }
 
+  /**
+   * @param {{ displayName: string; phoneNumber: string; photoURL: string; }} creator
+   */
   set setCreator(creator) {
     if (typeof creator !== 'object') {
       throw new Error(
@@ -144,13 +172,12 @@ class Activity {
       throw new Error('The photoURL should be a valid URL');
     }
 
-    this.creator = {
-      phoneNumber,
-      displayName,
-      photoURL,
-    };
+    this.creator = { phoneNumber, displayName, photoURL };
   }
 
+  /**
+   * @param {Array} schedule
+   */
   set setSchedule(schedule) {
     const result = validateSchedules(schedule);
     if (!result.success) {
@@ -160,6 +187,9 @@ class Activity {
     this.schedule = schedule;
   }
 
+  /**
+   * @param {Array} venue
+   */
   set setVenue(venue) {
     const result = validateVenues(venue);
 

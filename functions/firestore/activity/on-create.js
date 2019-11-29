@@ -525,6 +525,7 @@ const handleAssignees = async (conn, locals) => {
       }
     });
 
+  // TODO: Remove this. canEdit is calculated dynamically now.
   const snapShots = await Promise.all(promises);
 
   snapShots.forEach(snapShot => {
@@ -741,7 +742,66 @@ const handleAttachment = (conn, locals) => {
   return resolveProfileCheckPromises(conn, locals, result);
 };
 
-const isInvalidCheckIn = ({ subscriptionDoc, currentGeopoint }) => {
+const logInvaliCheckIn = async ({
+  lastTimestamp,
+  lastGeopoint,
+  currentGeopoint,
+  checkInTimestampDifferenceInMinutes,
+  checkInTimestampDifferenceInHours,
+  distance,
+  speed,
+  phoneNumber,
+}) => {
+  const {
+    date,
+    months: month,
+    years: year,
+  } = momentTz().toObject();
+
+  const message = 'Invalid CheckIn';
+
+  const [errorDoc] = (
+    await rootCollections
+      .errors
+      .where('date', '==', date)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .where('message', '==', message)
+      .limit(1)
+      .get()
+  ).docs;
+
+  const data = errorDoc ? errorDoc.data() : {};
+  const newUpdate = Object.assign({}, data, { date, month, year, message });
+
+  newUpdate.affectedUsers = newUpdate.affectedUsers || {};
+  newUpdate.affectedUsers[phoneNumber] = newUpdate.affectedUsers[phoneNumber] || 0;
+  newUpdate.affectedUsers[phoneNumber]++;
+
+  newUpdate.deviceObject = newUpdate.deviceObject || {};
+  newUpdate.deviceObject[phoneNumber] = newUpdate.deviceObject[phoneNumber] || {};
+
+  newUpdate.bodyObject = newUpdate.bodyObject || {};
+  newUpdate.bodyObject[phoneNumber] = newUpdate.bodyObject[phoneNumber] || [];
+
+  newUpdate
+    .bodyObject[phoneNumber]
+    .push({
+      lastTimestamp,
+      lastGeopoint,
+      currentGeopoint,
+      checkInTimestampDifferenceInMinutes,
+      checkInTimestampDifferenceInHours,
+      distance,
+      speed,
+    });
+
+  const ref = errorDoc ? errorDoc.ref : rootCollections.errors.doc();
+
+  return ref.set(newUpdate, { merge: true });
+};
+
+const isInvalidCheckIn = async ({ subscriptionDoc, currentGeopoint, provider, phoneNumber }) => {
   if (!subscriptionDoc) {
     return false;
   }
@@ -752,8 +812,6 @@ const isInvalidCheckIn = ({ subscriptionDoc, currentGeopoint }) => {
     lastTimestamp,
   } = subscriptionDoc.data();
 
-  console.log(template, lastGeopoint, lastTimestamp);
-
   if (template !== 'check-in') {
     return false;
   }
@@ -763,6 +821,10 @@ const isInvalidCheckIn = ({ subscriptionDoc, currentGeopoint }) => {
   }
 
   if (typeof lastTimestamp !== 'number') {
+    return false;
+  }
+
+  if (provider !== 'HTML5') {
     return false;
   }
 
@@ -779,8 +841,6 @@ const isInvalidCheckIn = ({ subscriptionDoc, currentGeopoint }) => {
     true
   );
 
-  console.log('checkInTimestampDifferenceInMinutes', checkInTimestampDifferenceInMinutes);
-
   if (checkInTimestampDifferenceInMinutes < 5) {
     return false;
   }
@@ -789,9 +849,6 @@ const isInvalidCheckIn = ({ subscriptionDoc, currentGeopoint }) => {
     + `,${currentGeopoint.longitude}`;
   const previousLatLng = `${lastGeopoint.latitude || lastGeopoint._latitude}`
     + `,${lastGeopoint.longitude || lastGeopoint._longiture}`;
-
-  console.log('currentLatLng', currentLatLng);
-  console.log('previousLatLng', previousLatLng);
 
   const distance = haversineDistance(
     {
@@ -804,12 +861,23 @@ const isInvalidCheckIn = ({ subscriptionDoc, currentGeopoint }) => {
     }
   );
 
-  console.log('distance', distance);
-
   const speed = distance / checkInTimestampDifferenceInHours;
-  console.log('speed', speed);
+  const result = currentLatLng === previousLatLng || speed > 40;
 
-  return currentLatLng === previousLatLng || speed > 40;
+  if (result) {
+    await logInvaliCheckIn({
+      lastTimestamp,
+      lastGeopoint,
+      currentGeopoint,
+      checkInTimestampDifferenceInMinutes,
+      checkInTimestampDifferenceInHours,
+      distance,
+      speed,
+      phoneNumber,
+    });
+  }
+
+  return result;
 };
 
 const handleScheduleAndVenue = (conn, locals) => {
@@ -1041,12 +1109,12 @@ const createLocals = async (conn, result) => {
     locals.objects.allPhoneNumbers.add(conn.requester.phoneNumber);
   }
 
-  const checkInResult = isInvalidCheckIn({
+  const checkInResult = await isInvalidCheckIn({
     subscriptionDoc: subscriptionQueryResult.docs[0] || null,
-    currentGeopoint: conn.req.body.geopoint
+    currentGeopoint: conn.req.body.geopoint,
+    provider: conn.req.body.geopoint.provider,
+    phoneNumber: conn.requester.phoneNumber,
   });
-
-  console.log('Invalid checkin', checkInResult);
 
   if (checkInResult) {
     return sendResponse(

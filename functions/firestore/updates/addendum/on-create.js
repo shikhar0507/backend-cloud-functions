@@ -12,10 +12,13 @@ module.exports = async (snapShot, context) => {
   // or removed as an assignee from an activity for some reason
   // Not sending in the case of unassign because this will trigger multiple
   // notifications to the user
-  if (snapShot.get('unassign')
-    || !snapShot.get('comment')) {
+  const { unassign, comment } = snapShot.data();
+
+  if (unassign || !comment) {
     return;
   }
+
+  // remove form include here too.
 
   try {
     const updatesDoc = await rootCollections
@@ -23,8 +26,7 @@ module.exports = async (snapShot, context) => {
       .doc(context.params.uid)
       .get();
 
-    const registrationToken = updatesDoc
-      .get('registrationToken');
+    const { registrationToken } = updatesDoc.data();
 
     if (!registrationToken) {
       return;

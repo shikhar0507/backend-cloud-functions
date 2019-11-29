@@ -1644,8 +1644,8 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
     return;
   }
 
-  const subscriptionTemplateDoc = subscriptionTemplateQuery
-    .docs[0];
+  const [subscriptionTemplateDoc] = subscriptionTemplateQuery
+    .docs;
   const activityRef = rootCollections
     .activities
     .doc();
@@ -1671,7 +1671,7 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
     addendumDocRef,
     attachment,
     timestamp: Date.now(),
-    timezone: locals.change.after.get('timezone'),
+    timezone: locals.change.after.get('timezone') || 'Asia/Kolkata',
     venue: subscriptionTemplateDoc.get('venue'),
     office: locals.change.after.get('office'),
     template: 'subscription',

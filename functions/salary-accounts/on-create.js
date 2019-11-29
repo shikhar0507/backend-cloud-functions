@@ -107,7 +107,7 @@ module.exports = async conn => {
 
     return sendResponse(
       conn,
-      code.ok,
+      code.created,
       `Account added successfully`
     );
   } catch (error) {

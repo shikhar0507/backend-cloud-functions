@@ -628,9 +628,11 @@ const removeFromOfficeActivities = async locals => {
     return;
   }
 
-  const phoneNumber = locals.change.after.get('attachment.Employee Contact.value');
+  const {
+    value: employeeContact
+  } = locals.change.after.get('attachment.Employee Contact');
 
-  const runQuery = (query, resolve, reject) =>
+  const runQuery = (query, resolve, reject) => {
     query
       .get()
       .then(docs => {
@@ -642,7 +644,7 @@ const removeFromOfficeActivities = async locals => {
 
         docs
           .forEach(doc => {
-            const template = doc.get('template');
+            const template = doc.get('template'); // leave/ar etc
             const activityStatus = doc.get('status');
 
             /**
@@ -672,7 +674,7 @@ const removeFromOfficeActivities = async locals => {
               .add('admin')
               .add('subscription')
               .has(template)
-              && phoneNumber === phoneNumberInAttachment) {
+              && employeeContact === phoneNumberInAttachment) {
               batch
                 .set(rootCollections.activities.doc(doc.id), {
                   status: 'CANCELLED',
@@ -684,6 +686,9 @@ const removeFromOfficeActivities = async locals => {
               return;
             }
 
+
+            // TODO: Check if this is required since AssigneOnDelete
+            // does this stuff automatically.
             batch
               .set(rootCollections
                 .activities
@@ -695,11 +700,13 @@ const removeFromOfficeActivities = async locals => {
               });
 
             batch
-              .delete(rootCollections
-                .activities
-                .doc(doc.id)
-                .collection(subcollectionNames.ASSIGNEES)
-                .doc(phoneNumber));
+              .delete(
+                rootCollections
+                  .activities
+                  .doc(doc.id)
+                  .collection(subcollectionNames.ASSIGNEES)
+                  .doc(employeeContact)
+              );
           });
 
         /* eslint-disable */
@@ -726,13 +733,14 @@ const removeFromOfficeActivities = async locals => {
           });
       })
       .catch(new Error(reject));
+  };
 
   const query = rootCollections
     .profiles
-    .doc(phoneNumber)
+    .doc(employeeContact)
     .collection(subcollectionNames.ACTIVITIES)
     .where('office', '==', office)
-    .orderBy(admin.firestore.FieldPath.documentId())
+    .orderBy('__name__')
     .limit(250);
 
   return new Promise((resolve, reject) => {
@@ -930,7 +938,7 @@ const replaceNumberInActivities = async locals => {
     .change
     .after
     .get('attachment.Employee Contact.value');
-  const activityDoc = locals.change.after;
+  const { after: activityDoc } = locals.change;
 
   const runQuery = async (query, newPhoneNumberAuth, resolve, reject) => {
     return query
@@ -969,9 +977,10 @@ const replaceNumberInActivities = async locals => {
 
             // Remove old assignee
             batch
-              .delete(activityRef
-                .collection(subcollectionNames.ASSIGNEES)
-                .doc(oldPhoneNumber)
+              .delete(
+                activityRef
+                  .collection(subcollectionNames.ASSIGNEES)
+                  .doc(oldPhoneNumber)
               );
 
             const activityData = updatePhoneNumberFields(
@@ -1039,7 +1048,7 @@ const handleAttendanceDocsForPayroll = async locals => {
 
   const batch = db.batch();
   const { after: employeeDoc } = locals.change;
-  const phoneNumber = employeeDoc.get('attachment.Employee Contact.value');
+  const { value: phoneNumber } = employeeDoc.get('attachment.Employee Contact');
   const momentNow = momentTz();
   const month = momentNow.month();
   const year = momentNow.year();
@@ -1287,26 +1296,15 @@ const setLocationsReadEvent = async locals => {
     }, Promise.resolve());
 };
 
-// const handleBranchScheduleUpdate = async locals => {
-//   const schedulesNew = locals.change.after.get('schedule');
-//   const schedulesOld = locals.change.before.get('schedule') || [];
-
-//   schedulesNew.forEach((schedule, index) => {
-//     const {
-//       startTime: startTimeNew,
-//       endTime: endTimeNew,
-//     } = schedule;
-
-//     const {
-//       startTime: startTimeOld,
-//       endTime: endTimeOld,
-//     } = schedulesOld[index] || {};
-//   });
-// };
-
 const handleBranchWeeklyOffUpdate = async locals => {
+  if (!locals.change.before.data()) {
+    // Activity has been created. Nothing is updated in this instance.
+    return;
+  }
+
   const {
     officeId,
+    timezone,
     attachment: {
       Name: {
         value: branchName,
@@ -1326,7 +1324,7 @@ const handleBranchWeeklyOffUpdate = async locals => {
   } = locals.change.before.get('attachment');
 
   // Nothing changed
-  if (weeklyOffOld && (weeklyOffOld === weeklyOffNew)) {
+  if (!isNonEmptyString(weeklyOffOld) && (weeklyOffOld === weeklyOffNew)) {
     return;
   }
 
@@ -1352,7 +1350,7 @@ const handleBranchWeeklyOffUpdate = async locals => {
   const firstDayOfMonthlyCycle = officeDoc
     .get('attachment.First Day Of Monthly Cycle.value') || 1;
 
-  const momentToday = momentTz().month();
+  const momentToday = momentTz().tz(timezone || 'Asia/Kolkata');
   const prevMonth = (() => {
     if (firstDayOfMonthlyCycle > momentToday.date()) {
       return null;
@@ -1372,20 +1370,22 @@ const handleBranchWeeklyOffUpdate = async locals => {
         .collection(subcollectionNames.ATTENDANCES)
         .where('phoneNumber', '==', employeeContact);
 
-      attendanceQueries
-        .push(base
+      attendanceQueries.push(
+        base
           .where('month', '==', momentToday.month())
           .where('year', '==', momentToday.year())
           .limit(1)
-          .get());
+          .get()
+      );
 
       if (prevMonth) {
-        attendanceQueries
-          .push(base
+        attendanceQueries.push(
+          base
             .where('month', '==', prevMonth.month())
             .where('year', '==', prevMonth.year())
             .limit(1)
-            .get());
+            .get()
+        );
       }
     });
 
@@ -1394,8 +1394,7 @@ const handleBranchWeeklyOffUpdate = async locals => {
 
   attendanceSnaps.forEach(snap => {
     const doc = snap.docs[0];
-    const month = doc.get('month');
-    const year = doc.get('year');
+    const { year, month } = doc.data();
     const momentThisMonth = momentTz().month(month).year(year);
     const daysInMonth = momentThisMonth.daysInMonth();
     const dataUpdate = doc.data() || {};
@@ -1438,7 +1437,6 @@ const handleBranch = async locals => {
     },
   } = locals.change.after.data();
 
-  // await handleBranchScheduleUpdate(locals);
   await handleBranchWeeklyOffUpdate(locals);
 
   const employees = await rootCollections
@@ -1476,7 +1474,7 @@ const handleRecipient = async locals => {
     return;
   }
 
-  const { status } = locals.change.after.data();
+  const { status, officeId } = locals.change.after.data();
 
   batch
     .set(recipientsDocRef, {
@@ -1513,7 +1511,6 @@ const handleRecipient = async locals => {
    * all employees of the office should get
    * the subscription of attendance regularization
    */
-  const { officeId } = locals.change.after.data();
   const employees = await getEmployeesMapFromRealtimeDb(officeId);
   const promises = [];
   const phoneNumbers = Object.keys(employees);
@@ -1852,47 +1849,121 @@ const getCommentString = (locals, recipient) => {
   return locals.addendumDoc.get('comment');
 };
 
+const getRegTokenMap = async assigneesMap => {
+  const regTokenMap = new Map();
+  const updateDocRefs = [];
+
+  assigneesMap
+    .forEach(userRecord => {
+      const { uid } = userRecord;
+
+      if (!uid) {
+        return;
+      }
+
+      const ref = rootCollections
+        .updates
+        .doc(uid);
+
+      updateDocRefs.push(ref);
+    });
+
+  const updateDocs = await db.getAll(...updateDocRefs);
+
+  updateDocs.forEach(doc => {
+    const { phoneNumber, registrationToken } = doc.data();
+
+    // registrationToken can be null or undefined or a
+    // non-empty string.
+    if (!registrationToken) {
+      return;
+    }
+
+    regTokenMap.set(phoneNumber, registrationToken);
+  });
+
+  return regTokenMap;
+};
+
+
+const getNotificationObject = comment => ({
+  data: {
+    // Ask the client to send a request to the /read endpoint
+    read: '1',
+  },
+  notification: {
+    body: comment,
+    tile: `Growthfile`,
+  },
+});
+
+const getCommentObject = ({ addendumDoc, activityId, comment }) => {
+  return {
+    comment,
+    activityId,
+    _type: addendumTypes.COMMENT,
+    isComment: isComment(addendumDoc.get('action')),
+    timestamp: addendumDoc.get('userDeviceTimestamp'),
+    location: addendumDoc.get('location'),
+    user: addendumDoc.get('user'),
+  };
+};
+
 
 const handleComments = async (addendumDoc, locals) => {
   if (!addendumDoc) {
     return;
   }
 
+  const regTokenMap = await getRegTokenMap(locals.assigneesMap);
   const batch = db.batch();
+  const notificationPromises = [];
 
-  locals
-    .activityNew = locals.change.after;
-
-  locals
-    .assigneePhoneNumbersArray
+  locals.assigneePhoneNumbersArray
     .forEach(phoneNumber => {
-      const userRecord = locals.assigneesMap.get(phoneNumber);
+      const { uid } = locals.assigneesMap.get(phoneNumber);
+      const registrationToken = regTokenMap.get(phoneNumber);
 
-      if (!userRecord.uid) {
+      if (!uid || !registrationToken) {
         return;
       }
 
       const comment = getCommentString(locals, phoneNumber);
 
+      console.log(phoneNumber, comment);
+
       batch
-        .set(rootCollections
-          .updates
-          .doc(userRecord.uid)
-          // Addendum
-          .collection(subcollectionNames.ADDENDUM)
-          .doc(addendumDoc.id), {
-          comment,
-          _type: addendumTypes.COMMENT,
-          activityId: locals.change.after.id,
-          isComment: isComment(addendumDoc.get('action')),
-          timestamp: addendumDoc.get('userDeviceTimestamp'),
-          location: addendumDoc.get('location'),
-          user: addendumDoc.get('user'),
-        });
+        .set(
+          rootCollections
+            .updates
+            .doc(uid)
+            .collection(subcollectionNames.ADDENDUM)
+            .doc(), getCommentObject({
+              comment,
+              addendumDoc,
+              activityId: locals.change.after.id,
+            })
+        );
+
+      notificationPromises.push(
+        admin
+          .messaging()
+          .sendToDevice(
+            registrationToken,
+            getNotificationObject(comment),
+            {
+              priority: 'high',
+              timeToLive: 60,
+            }
+          )
+      );
     });
 
-  return batch
+  await batch
     .commit();
+
+  return Promise
+    .all(notificationPromises);
 };
 
 
@@ -2189,6 +2260,23 @@ const handleUnpopulatedVenue = async ({ addendumDoc }) => {
   };
 };
 
+const handleNoVenue = async ({ currentGeopoint }) => {
+  const mapsApiResult = await googleMapsClient.reverseGeocode({
+    latlng: getLatLngString(currentGeopoint),
+  })
+    .asPromise();
+
+  /** city, state, locality */
+  const csl = getLocalityCityState(mapsApiResult);
+  /** url, identifier */
+  const ui = getPlaceInformation(mapsApiResult, currentGeopoint);
+
+  return Object.assign({}, csl, ui, {
+    isAccurate: false,
+    venueQuery: null,
+  });
+};
+
 const checkDistanceAccurate = async ({ addendumDoc }) => {
   //   if activity.venue is NOT populated => use adjustedGeopoint and query / Activities collection;
   //   if a doc is found:
@@ -2203,20 +2291,7 @@ const checkDistanceAccurate = async ({ addendumDoc }) => {
 
   /** Activity doesn't have a venue field */
   if (!activityVenue) {
-    const mapsApiResult = await googleMapsClient.reverseGeocode({
-      latlng: getLatLngString(currentGeopoint),
-    })
-      .asPromise();
-
-    /** city, state, locality */
-    const csl = getLocalityCityState(mapsApiResult);
-    /** url, identifier */
-    const ui = getPlaceInformation(mapsApiResult, currentGeopoint);
-
-    return Object.assign({}, csl, ui, {
-      isAccurate: false,
-      venueQuery: null,
-    });
+    return handleNoVenue({ currentGeopoint });
   }
 
   if (activityVenue.location) {
@@ -2280,8 +2355,6 @@ const handleAddendum = async locals => {
     return;
   }
 
-  let previousGeopoint;
-
   const {
     action,
     timestamp,
@@ -2312,6 +2385,8 @@ const handleAddendum = async locals => {
   }
 
   const batch = db.batch();
+  const promises = [];
+  let previousGeopoint;
 
   // venue populated => fetch branch/customer activity with adjustedGeopoints {lat,lng}
   // if doc is found:
@@ -2327,30 +2402,6 @@ const handleAddendum = async locals => {
   //   else:
   //     distance accurate = false
 
-  // const [
-  //   addendumQuery,
-  //   adjustedGeopointQueryResult,
-  // ] = await Promise
-  //   .all([
-  //     rootCollections
-  //       .offices
-  //       .doc(locals.change.after.get('officeId'))
-  //       .collection(subcollectionNames.ADDENDUM)
-  //       .where('user', '==', phoneNumber)
-  //       .where('timestamp', '<', timestamp)
-  //       .orderBy('timestamp', 'desc')
-  //       .limit(2)
-  //       .get(),
-  //     rootCollections
-  //       .activities
-  //       // Branch, and customer
-  //       .where('office', '==', locals.change.after.get('office'))
-  //       .where('status', '==', 'CONFIRMED')
-  //       .where('adjustedGeopoints', '==', `${gp.latitude},${gp.longitude}`)
-  //       .limit(1)
-  //       .get()
-  //   ]);
-
   const addendumQuery = await rootCollections
     .offices
     .doc(locals.change.after.get('officeId'))
@@ -2361,8 +2412,6 @@ const handleAddendum = async locals => {
     .limit(2)
     .get();
 
-  // const [activityDoc] = adjustedGeopointQueryResult.docs;
-
   const previousAddendumDoc = (() => {
     if (addendumQuery.docs[0]
       && addendumQuery.docs[0].id !== addendumDoc.id) {
@@ -2372,16 +2421,17 @@ const handleAddendum = async locals => {
     return addendumQuery.docs[1];
   })();
 
-  const promises = [];
-
   if (previousAddendumDoc) {
-    /** Could be undefined for install or signup events in the previous addendum */
+    /**
+     * The field `location` could be undefined for install or
+     * signup events in the previous addendum
+     */
     previousGeopoint = previousAddendumDoc
       .get('location')
       || currentGeopoint;
 
-    promises
-      .push(googleMapsClient
+    promises.push(
+      googleMapsClient
         .distanceMatrix({
           /**
            * Ordering is important here. The `legal` distance
@@ -2392,7 +2442,8 @@ const handleAddendum = async locals => {
           destinations: getLatLngString(currentGeopoint),
           units: 'metric',
         })
-        .asPromise());
+        .asPromise()
+    );
   }
 
   const [distanceMatrixApiResult] = await Promise.all(promises);
@@ -2425,7 +2476,6 @@ const handleAddendum = async locals => {
     updateObject
   );
 
-  // eslint-disable-next-line require-atomic-updates
   locals
     .previousAddendumDoc = previousAddendumDoc;
 
@@ -2438,8 +2488,8 @@ const handleAddendum = async locals => {
 
   await batch.commit();
 
-  await setGeopointAndTimestampInCheckInSubscription({ addendumDoc: locals.addendumDoc });
-  await createActivityStats(locals.addendumDoc);
+  await setGeopointAndTimestampInCheckInSubscription({ addendumDoc });
+  await createActivityStats(addendumDoc);
 
   return handleComments(addendumDoc, locals);
 };
@@ -3897,7 +3947,7 @@ const reimburseKmAllowance = async locals => {
         details: {
           rate: kmRate,
           startLocation: oldReimbursementDoc.get('previousGeopoint'),
-          distanceTravelled: oldReimbursementDoc.get('distance'),
+          distanceTravelled: locals.addendumDocData.distanceTravelled,
           photoURL: null,
           status: null,
           claimId: null,
@@ -3997,13 +4047,7 @@ const handleReimbursement = async locals => {
 };
 
 
-const getLateStatus = params => {
-  const {
-    firstCheckInTimestamp,
-    dailyStartTime,
-    timezone,
-  } = params;
-
+const getLateStatus = ({ firstCheckInTimestamp, dailyStartTime, timezone }) => {
   if (Number.isInteger(firstCheckInTimestamp)) {
     return false;
   }
@@ -4576,7 +4620,7 @@ const getSubcollectionActivityObject = ({ activityObject, customerObject }) => {
   const { status, template } = activityObject.data();
 
   const creationTimestamp = activityObject.createTime.toDate().getTime();
-  const momentOfCreation = momentTz(creationTimestamp).tz(activityObject.get('timezone'));
+  const momentOfCreation = momentTz(creationTimestamp).tz(activityObject.get('timezone') || 'Asia/Kolkata');
 
   const intermediate = Object.assign({}, activityObject.data(), {
     creationTimestamp,
@@ -4717,6 +4761,8 @@ const ActivityOnWrite = async (change, context) => {
   } = change.after.data();
   const locals = {
     change,
+    /** Used while creating comment */
+    activityNew: change.after,
     addendumDoc: null,
     assigneesMap: new Map(),
     assigneePhoneNumbersArray: [],
@@ -4873,7 +4919,7 @@ const ActivityOnWrite = async (change, context) => {
   const copyToRef = getCopyPath({
     template,
     activityId,
-    officeId: locals.change.after.get('officeId'),
+    officeId: change.after.get('officeId'),
   });
 
   batch.set(copyToRef,

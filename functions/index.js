@@ -82,10 +82,10 @@ const recipientsOnUpdate = functions
   .onUpdate(require('./firestore/recipients/on-update'));
 
 /** For sending notifications to the client app */
-const sendPushNotification = functions
-  .firestore
-  .document('Updates/{uid}/Addendum/{docId}')
-  .onCreate(require('./firestore/updates/addendum/on-create'));
+// const sendPushNotification = functions
+//   .firestore
+//   .document('Updates/{uid}/Addendum/{docId}')
+//   .onCreate(require('./firestore/updates/addendum/on-create'));
 
 const webapp = functions
   .https
@@ -126,7 +126,7 @@ module.exports = {
   assigneeOnDelete,
   bulkCreateHandler,
   recipientsOnUpdate,
-  sendPushNotification,
+  // sendPushNotification,
   temporaryImageHandler,
   activityTemplatesOnUpdate,
   generateOfficeNamePermutations,
