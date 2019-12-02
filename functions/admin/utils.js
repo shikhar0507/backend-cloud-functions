@@ -53,12 +53,11 @@ const admin = require('firebase-admin');
 const url = require('url');
 const rpn = require('request-promise-native');
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
-const googleMapsClient =
-  require('@google/maps')
-    .createClient({
-      key: env.mapsApiKey,
-      Promise: Promise,
-    });
+const googleMapsClient = require('@google/maps')
+  .createClient({
+    key: env.mapsApiKey,
+    Promise: Promise,
+  });
 
 
 sgMail.setApiKey(env.sgMailApiKey);
@@ -1429,11 +1428,7 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
   let locationName = '';
 
   addressComponents.forEach(component => {
-    const {
-      types,
-      short_name,
-      long_name,
-    } = component;
+    const { types, short_name, long_name } = component;
 
     if (types.includes('sublocality_level_1')) {
       locationName += ` ${long_name} `;
@@ -1454,161 +1449,6 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
       // Replace double spaces and other non-printable chars
       .replace(/\s\s+/g, ' ');
 };
-
-const getCustomerObject = async queryObject => {
-  try {
-    const templateQueryResult = await rootCollections
-      .activityTemplates
-      .where('name', '==', 'customer')
-      .limit(1)
-      .get();
-
-    const templateDoc = templateQueryResult.docs[0];
-    const activityObject = {
-      attachment: templateDoc.get('attachment'),
-      schedule: templateDoc.get('schedule').map(name => {
-        return ({ name, startTime: '', endTime: '' });
-      }),
-      venue: templateDoc.get('venue').map(venueDescriptor => {
-        return ({
-          venueDescriptor,
-          location: '',
-          address: '',
-          geopoint: {
-            latitude: '',
-            longitude: '',
-          },
-        });
-      }),
-    };
-
-    const placesApiResponse = await googleMapsClient
-      .places({
-        query: queryObject.address,
-      })
-      .asPromise();
-    let success = true;
-
-    const firstResult = placesApiResponse
-      .json
-      .results[0];
-    success = Boolean(firstResult);
-
-    if (!success) {
-      return Object.assign({}, queryObject, { failed: !success });
-    }
-
-    activityObject
-      .venue[0]
-      .geopoint
-      .latitude = firstResult.geometry.location.lat;
-    activityObject
-      .venue[0]
-      .geopoint
-      .longitude = firstResult.geometry.location.lng;
-    activityObject
-      .venue[0]
-      .placeId = firstResult['place_id'];
-
-    const placeApiResult = await googleMapsClient
-      .place({
-        placeid: firstResult['place_id'],
-      })
-      .asPromise();
-
-    activityObject
-      .attachment
-      .Name
-      .value = getCustomerName(
-        placeApiResult.json.result.address_components,
-        queryObject.location,
-      );
-
-    activityObject
-      .venue[0]
-      .address = placeApiResult.json.result.formatted_address;
-
-    activityObject
-      .venue[0]
-      .location = activityObject.attachment.Name.value;
-
-    const dailyStartTime = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const periods = openingHours.periods;
-      const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 1;
-      });
-
-      if (!relevantObject[0]) return '';
-
-      return relevantObject[0].open.time;
-    })();
-
-    const dailyEndTime = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const periods = openingHours.periods;
-      const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 1;
-      });
-
-      if (!relevantObject[0]) return '';
-
-      return relevantObject[0].close.time;
-    })();
-
-    const weeklyOff = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const weekdayText = openingHours['weekday_text'];
-
-      if (!weekdayText) return '';
-
-      const closedWeekday = weekdayText
-        // ['Sunday: Closed']
-        .filter(str => str.includes('Closed'))[0];
-
-      if (!closedWeekday) return '';
-
-      const parts = closedWeekday.split(':');
-
-      if (!parts[0]) return '';
-
-      // ['Sunday' 'Closed']
-      return parts[0].toLowerCase();
-    })();
-
-    activityObject
-      .attachment['Daily Start Time']
-      .value = millitaryToHourMinutes(dailyStartTime);
-    activityObject
-      .attachment['Daily End Time']
-      .value = millitaryToHourMinutes(dailyEndTime);
-    activityObject
-      .attachment['Weekly Off']
-      .value = weeklyOff;
-
-    return activityObject;
-  } catch (error) {
-    console.error(error);
-
-    return Object.assign({}, queryObject, { failed: true });
-  }
-};
-
 
 const addressToCustomer = async queryObject => {
   const activityObject = {
@@ -2293,6 +2133,7 @@ module.exports = {
   getLatLngString,
   getDistanceFromDistanceMatrix,
   populateWeeklyOffInAttendance,
+  getCustomerName,
   getScheduleDates,
   getAuth,
   slugify,
@@ -2326,7 +2167,6 @@ module.exports = {
   cloudflareCdnUrl,
   adjustedGeopoint,
   filterPhoneNumber,
-  getCustomerObject,
   isE164PhoneNumber,
   addressToCustomer,
   getNumbersbetween,

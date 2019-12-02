@@ -131,9 +131,7 @@ const validateSchedules = (body, scheduleNames) => {
       break;
     }
 
-    const name = scheduleObject.name;
-    const startTime = scheduleObject.startTime;
-    const endTime = scheduleObject.endTime;
+    const { name, startTime, endTime } = scheduleObject;
 
     if (seenNamesSet.has(name)) {
       messageObject.isValid = false;

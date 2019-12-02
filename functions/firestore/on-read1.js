@@ -83,9 +83,9 @@ const getAddendumObject = doc => {
   return singleDoc;
 };
 
-const getAssigneesArray = arrayOfPhoneNumbers => {
+const getAssigneesArray = (arrayOfPhoneNumbers = []) => {
   // Could be a string (phoneNumber) or an object
-  const firstItem = arrayOfPhoneNumbers[0];
+  const [firstItem] = arrayOfPhoneNumbers;
 
   if (typeof firstItem !== 'string') {
     // Items are objects with properties
@@ -121,67 +121,84 @@ const getCreator = phoneNumberOrObject => {
   return phoneNumberOrObject;
 };
 
+const getCanEditValue = ({ canEditRule, creator, phoneNumber, office, customClaims, employeeOf }) => {
+  if (canEditRule === 'ALL') {
+    return true;
+  }
+
+  if (canEditRule === 'CREATOR') {
+    return creator === phoneNumber;
+  }
+
+  if (canEditRule === 'ADMIN') {
+    return customClaims
+      && Array.isArray(customClaims.admin)
+      && customClaims.admin.includes(office);
+  }
+
+  if (canEditRule === 'EMPLOYEE') {
+    return employeeOf
+      && employeeOf.hasOwnProperty(office);
+  }
+
+  // canEditRule => NONE
+  return false;
+};
+
 const getActivityObject = (doc, customClaims, employeeOf, phoneNumber) => {
-  const canEditRule = doc.get('canEditRule');
-  const office = doc.get('office');
-  const creator = doc.get('creator.phoneNumber')
-    || doc.get('creator');
+  // const canEditRule = doc.get('canEditRule');
 
-  const canEdit = (() => {
-    if (canEditRule === 'ALL') {
-      return true;
-    }
-
-    if (canEditRule === 'CREATOR') {
-      return creator === phoneNumber;
-    }
-
-    if (canEditRule === 'ADMIN') {
-      return customClaims
-        && Array.isArray(customClaims.admin)
-        && customClaims.admin.includes(office);
-    }
-
-    if (canEditRule === 'EMPLOYEE') {
-      return employeeOf
-        && employeeOf.hasOwnProperty(office);
-    }
-
-    // canEditRule => NONE
-    return false;
-  })();
-
-  return {
-    canEdit,
-    activityId: doc.get('activityId') || doc.id,
-    status: doc.get('status'),
-    schedule: doc.get('schedule'),
-    venue: doc.get('venue'),
-    timestamp: doc.get('timestamp'),
-    template: doc.get('template'),
-    activityName: doc.get('activityName'),
-    office: doc.get('office'),
-    attachment: doc.get('attachment'),
-    creator: getCreator(doc.get('creator')),
-    hidden: doc.get('hidden'),
+  const result = {
     /**
      * Activity with template -type or customer/branch might
      * not have an assignee, so this array could be undefined
      */
-    assignees: getAssigneesArray(doc.get('assignees') || []),
+    assignees: getAssigneesArray(doc.get('assignees')),
+    activityId: doc.get('activityId') || doc.id,
+    creator: getCreator(doc.get('creator')),
+    canEdit: getCanEditValue({
+      customClaims,
+      employeeOf,
+      phoneNumber,
+      office: doc.get('office'),
+      canEditRule: doc.get('canEditRule'),
+      creator: doc.get('creator.phoneNumber') || doc.get('creator'),
+    }),
   };
+
+  return [
+    'status',
+    'schedule',
+    'venue',
+    'timestamp',
+    'template',
+    'activityName',
+    'office',
+    'attachment',
+    'hidden'
+  ].reduce((prev, curr) => {
+    prev[curr] = doc.get(curr);
+
+    return prev;
+  }, result);
 };
 
 
-const getSubscriptionObject = doc => ({
-  template: doc.get('template'),
-  schedule: doc.get('schedule'),
-  venue: doc.get('venue'),
-  attachment: doc.get('attachment'),
-  office: doc.get('office'),
-  status: doc.get('status'),
-  report: doc.get('report') || null,
-});
+const getSubscriptionObject = doc => {
+  return [
+    'template',
+    'schedule',
+    'venue',
+    'attachment',
+    'office',
+    'status',
+    'report'
+  ].reduce((prevObject, currentField) => {
+    prevObject[currentField] = doc.get(currentField) || null;
+
+    return prevObject;
+  }, {});
+};
 
 
 const getCustomerObject = doc => {
@@ -214,6 +231,7 @@ module.exports = async conn => {
   const phoneNumber = conn.requester.phoneNumber;
   const officeList = Object.keys(employeeOf);
   const from = parseInt(conn.req.query.from);
+  const isInitRequest = from === 0;
   const locationPromises = [];
   const jsonObject = {
     from,
@@ -237,7 +255,7 @@ module.exports = async conn => {
       .get(),
   ];
 
-  if (from === 0) {
+  if (isInitRequest) {
     promises
       .push(
         rootCollections
@@ -292,99 +310,85 @@ module.exports = async conn => {
       });
   }
 
+  promises.push(Promise.all(locationPromises));
+
   try {
-    const [
-      addendum,
-      activities,
-      subscriptions,
-    ] = await Promise
-      .all(promises);
-
-    (subscriptions || [])
-      .forEach(doc => {
-        /** Client side APIs don't allow admin templates. */
-        if (doc.get('canEditRule') === 'ADMIN') {
-          return;
-        }
-
-        jsonObject
-          .templates
-          .push(getSubscriptionObject(doc));
-      });
-
-    (activities || [])
-      .forEach(doc => {
-        jsonObject
-          .activities
-          .push(
-            getActivityObject(doc, customClaims, employeeOf, phoneNumber)
-          );
-      });
-
-    const locationResults = await Promise
-      .all(locationPromises);
-
-    locationResults
-      .forEach(snapShot => {
-        snapShot
-          .forEach(doc => {
-            jsonObject
-              .locations
-              .push(getCustomerObject(doc));
-          });
-      });
+    const [addendum, activities, subscriptions] = await Promise.all(promises);
+    const locationResults = await Promise.all(locationPromises);
 
     if (!addendum.empty) {
-      jsonObject
-        .upto = addendum.docs[addendum.size - 1].get('timestamp');
+      jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
     }
+
+    (subscriptions || []).forEach(doc => {
+      /** Client side APIs don't allow admin templates. */
+      if (doc.get('canEditRule') === 'ADMIN') {
+        return;
+      }
+
+      jsonObject.templates.push(getSubscriptionObject(doc));
+    });
+
+    (activities || []).forEach(doc => {
+      jsonObject.activities.push(
+        getActivityObject(doc, customClaims, employeeOf, phoneNumber)
+      );
+    });
+
+    locationResults.forEach(snapShot => {
+      snapShot.forEach(doc => {
+        jsonObject.locations.push(getCustomerObject(doc));
+      });
+    });
 
     addendum
       .forEach(doc => {
         const type = doc.get('_type') || doc.get('type');
+        const isPotentialDuplicate = type === addendumTypes.ACTIVITY
+          || type === addendumTypes.SUBSCRIPTION;
+
+        /**
+         * Sending duplicate docs in response is redundant since
+         * the client is only going to use one. And both times, the
+         * object for activity/subscription will be identical.
+         */
+        if (isInitRequest && isPotentialDuplicate) {
+          return;
+        }
 
         if (type === addendumTypes.SUBSCRIPTION) {
-          jsonObject
-            .templates
-            .push(getSubscriptionObject(doc));
+          jsonObject.templates.push(getSubscriptionObject(doc));
 
           return;
         }
 
         if (type === addendumTypes.ACTIVITY) {
-          jsonObject
-            .activities
-            .push(getActivityObject(doc, customClaims, employeeOf, phoneNumber));
+          jsonObject.activities.push(
+            getActivityObject(doc, customClaims, employeeOf, phoneNumber)
+          );
 
           return;
         }
 
         if (type === addendumTypes.ATTENDANCE) {
-          jsonObject
-            .attendances.push(doc.data());
+          jsonObject.attendances.push(doc.data());
 
           return;
         }
 
         if (type === addendumTypes.PAYMENT) {
-          jsonObject
-            .payments
-            .push(Object.assign({}, doc.data()));
+          jsonObject.payments.push(doc.data());
 
           return;
         }
 
         if (type === addendumTypes.REIMBURSEMENT) {
-          jsonObject
-            .reimbursements
-            .push(Object.assign({}, doc.data()));
+          jsonObject.reimbursements.push(doc.data());
 
           return;
         }
 
-        jsonObject
-          .addendum
-          .push(getAddendumObject(doc));
+        jsonObject.addendum.push(getAddendumObject(doc));
       });
 
     const profileUpdate = {

@@ -229,19 +229,12 @@ const createAdmin = async (locals, adminContact) => {
   } = locals.change.after.data();
 
   const batch = db.batch();
-  const activityRef = rootCollections
-    .activities
-    .doc();
+  const activityRef = rootCollections.activities.doc();
   const addendumDocRef = rootCollections
     .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
+    .doc(officeId).collection(subcollectionNames.ADDENDUM).doc();
 
-  const [
-    adminTemplateQuery,
-    adminQuery,
-  ] = await Promise
+  const [adminTemplateQuery, adminQuery] = await Promise
     .all([
       rootCollections
         .activityTemplates
@@ -262,7 +255,7 @@ const createAdmin = async (locals, adminContact) => {
     return;
   }
 
-  const adminTemplateDoc = adminTemplateQuery.docs[0];
+  const [adminTemplateDoc] = adminTemplateQuery.docs;
   const activityData = {
     officeId,
     addendumDocRef,
@@ -364,8 +357,7 @@ const handleXTypeActivities = async locals => {
 
   typeActivities
     .forEach(activity => {
-      const activityData = activity
-        .data();
+      const activityData = activity.data();
 
       delete activityData
         .addendumDocRef;
@@ -465,7 +457,7 @@ const handleSubscription = async locals => {
     .profiles
     .doc(newSubscriber)
     .collection(subcollectionNames.SUBSCRIPTIONS)
-    .doc(locals.change.after.id);
+    .doc(activityId);
 
   const [
     templateDocsQueryResult,
@@ -520,16 +512,16 @@ const handleSubscription = async locals => {
 
   const subscriptionDocData = {
     include: Array.from(new Set(include)),
-    schedule: templateDoc.get('schedule'),
-    venue: templateDoc.get('venue'),
     template: templateDoc.get('name'),
-    attachment: templateDoc.get('attachment'),
-    timestamp: locals.change.after.get('timestamp'),
     office: locals.change.after.get('office'),
     status: locals.change.after.get('status'),
-    canEditRule: templateDoc.get('canEditRule'),
-    hidden: templateDoc.get('hidden'),
-    statusOnCreate: templateDoc.get('statusOnCreate'),
+    // schedule: templateDoc.get('schedule'),
+    // venue: templateDoc.get('venue'),
+    // attachment: templateDoc.get('attachment'),
+    // timestamp: locals.change.after.get('timestamp'),
+    // canEditRule: templateDoc.get('canEditRule'),
+    // hidden: templateDoc.get('hidden'),
+    // statusOnCreate: templateDoc.get('statusOnCreate'),
     report: templateDoc.get('report') || null,
   };
 
@@ -1868,8 +1860,11 @@ const getRegTokenMap = async assigneesMap => {
       updateDocRefs.push(ref);
     });
 
-  const updateDocs = await db.getAll(...updateDocRefs);
+  if (updateDocRefs.length === 0) {
+    return regTokenMap;
+  }
 
+  const updateDocs = await db.getAll(...updateDocRefs);
   updateDocs.forEach(doc => {
     const { phoneNumber, registrationToken } = doc.data();
 
@@ -2874,13 +2869,11 @@ const handleLeaveAndDutyConflict = async locals => {
   duties
     .forEach(doc => {
       // activity should be for the same office
-      if (doc.get('officeId')
-        !== officeId) {
+      if (doc.get('officeId') !== officeId) {
         return;
       }
 
-      if (doc.get('template')
-        !== 'duty') {
+      if (doc.get('template') !== 'duty') {
         return;
       }
 
