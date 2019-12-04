@@ -458,7 +458,7 @@ const cancelAdmin = async (officeId, phoneNumber) => {
     .activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'admin')
-    .where('attachment.Admin.value', '==', phoneNumber)
+    .where('attachment.Phone Number.value', '==', phoneNumber)
     .get();
 
   const doc = docs.docs[0];
@@ -601,7 +601,7 @@ const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
     .where('officeId', '==', officeId)
     .where('template', '==', 'subscription')
     .where('attachment.Template.value', '==', 'subscription')
-    .where('attachment.Subscriber.value', '==', phoneNumber)
+    .where('attachment.Phone Number.value', '==', phoneNumber)
     .limit(1)
     .get();
 
@@ -835,8 +835,7 @@ const handleOffice = async locals => {
     .get('attachment.Second Contact.value');
   const officeId = locals.change.after.id;
 
-  if (firstContactOld
-    && firstContactOld !== firstContactNew) {
+  if (firstContactOld && firstContactOld !== firstContactNew) {
     await Promise
       .all([
         cancelSubscriptionOfSubscription(officeId, firstContactOld),
@@ -844,8 +843,7 @@ const handleOffice = async locals => {
       ]);
   }
 
-  if (secondContactOld
-    && secondContactOld !== secondContactNew) {
+  if (secondContactOld && secondContactOld !== secondContactNew) {
     await Promise
       .all([
         cancelSubscriptionOfSubscription(officeId, secondContactOld),

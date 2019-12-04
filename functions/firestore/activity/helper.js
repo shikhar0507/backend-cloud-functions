@@ -496,7 +496,7 @@ const filterAttachment = (options) => {
         break;
       }
 
-      if (field === 'Subscriber'
+      if (type === 'phoneNumber'
         && !isE164PhoneNumber(value)) {
         messageObject.isValid = false;
         messageObject.message = `${field} should be a valid phone number`;
@@ -516,7 +516,7 @@ const filterAttachment = (options) => {
     }
 
     if (template === 'admin') {
-      if (!isE164PhoneNumber(bodyAttachment.Admin.value)) {
+      if (!isE164PhoneNumber(bodyAttachment['Phone Number'].value)) {
         messageObject.isValid = false;
         messageObject.message = `${field} should be a valid phone number`;
         break;
@@ -526,7 +526,7 @@ const filterAttachment = (options) => {
         .profileDocShouldExist
         .push(rootCollections
           .profiles
-          .doc(bodyAttachment.Admin.value)
+          .doc(bodyAttachment['Phone Number'].value)
           .get()
         );
     }
@@ -1126,12 +1126,12 @@ const activityName = (options) => {
   }
 
   if (templateName === 'admin') {
-    return `${templateName.toUpperCase()}: ${attachmentObject.Admin.value}`;
+    return `${templateName.toUpperCase()}: ${attachmentObject['Phone Number'].value}`;
   }
 
   if (templateName === 'subscription') {
     return `${templateName.toUpperCase()}:`
-      + ` ${attachmentObject.Subscriber.value}`;
+      + ` ${attachmentObject['Phone Number'].value}`;
   }
 
   return `${templateName.toUpperCase()}: ${displayName || phoneNumber}`;
@@ -1210,7 +1210,7 @@ const toEmployeesData = (activity) => {
   return {
     createTime: activity.createTime.toDate().getTime(),
     Name: activity.get('attachment.Name.value'),
-    phoneNumber: activity.get('attachment.Employee Contact.value'),
+    phoneNumber: activity.get('attachment.Phone Number.value'),
     firstSupervisor: activity.get('attachment.First Supervisor.value'),
     secondSupervisor: activity.get('attachment.Second Supervisor.value'),
     department: activity.get('attachment.Department.value'),
@@ -1247,7 +1247,7 @@ const cancelLeaveOrAr = async params => {
         .where('officeId', '==', officeId)
         .where('status', '==', 'CONFIRMED')
         .where('template', '==', 'employee')
-        .where('attachment.Employee Contact.value', '==', creatorsPhoneNumber)
+        .where('attachment.Phone Number.value', '==', creatorsPhoneNumber)
         .limit(1)
         .get(),
     ]);
@@ -1590,7 +1590,6 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
     officeId,
   } = locals.change.after.data();
   const batch = db.batch();
-  const isArSubscription = templateName === 'attendance regularization';
 
   const promises = [
     rootCollections
@@ -1600,7 +1599,7 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
       .get(),
     rootCollections
       .activities
-      .where('attachment.Subscriber.value', '==', subscriber)
+      .where('attachment.Phone Number.value', '==', subscriber)
       .where('attachment.Template.value', '==', templateName)
       .where('office', '==', office)
       .where('status', '==', 'CONFIRMED')
@@ -1608,62 +1607,30 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
       .get()
   ];
 
-  if (isArSubscription) {
-    promises
-      .push(rootCollections
-        .activities
-        .where('office', '==', office)
-        .where('status', '==', 'CONFIRMED')
-        .where('template', '==', 'recipient')
-        .where('attachment.Name.value', '==', 'payroll')
-        .limit(1)
-        .get()
-      );
-  }
-
   const [
     subscriptionTemplateQuery,
     userSubscriptionQuery,
-    payrollRecipientQuery,
-  ] = await Promise
-    .all(promises);
+  ] = await Promise.all(promises);
 
   /** Already has the subscription to whatever template that was passed */
   if (!userSubscriptionQuery.empty) {
     return;
   }
 
-  /**
-   * AR subscription is automatically given to the employees with office which
-   *  has the recipient of payroll
-   */
-  if (isArSubscription
-    && payrollRecipientQuery.empty) {
-    return;
-  }
-
-  const [subscriptionTemplateDoc] = subscriptionTemplateQuery
-    .docs;
-  const activityRef = rootCollections
-    .activities
-    .doc();
-  const addendumDocRef = rootCollections
-    .offices
-    .doc(officeId)
-    // Addendum
-    .collection(subcollectionNames.ADDENDUM)
-    .doc();
-  const attachment = Object
-    .assign({}, subscriptionTemplateDoc.get('attachment'), {
-      Subscriber: {
-        value: subscriber,
-        type: subscriptionTemplateDoc.get('attachment.Subscriber.type'),
-      },
-      Template: {
-        value: templateName,
-        type: subscriptionTemplateDoc.get('attachment.Template.type')
-      }
-    });
+  const [subscriptionTemplateDoc] = subscriptionTemplateQuery.docs;
+  const activityRef = rootCollections.activities.doc();
+  const addendumDocRef = rootCollections.offices.doc(officeId)
+    .collection(subcollectionNames.ADDENDUM).doc();
+  const attachment = Object.assign({}, subscriptionTemplateDoc.get('attachment'), {
+    'Phone Number': {
+      value: subscriber,
+      type: subscriptionTemplateDoc.get('attachment.Phone Number.type'),
+    },
+    Template: {
+      value: templateName,
+      type: subscriptionTemplateDoc.get('attachment.Template.type')
+    }
+  });
 
   const activityData = {
     addendumDocRef,
@@ -1735,7 +1702,6 @@ const attendanceConflictHandler = async params => {
   // generate all date strings from start time to end time
   // create queries for leave and ar for each date
   // where(scheduleDates, array_contains, '1 Jan 2019')
-  // isCancelled == false
   schedule.forEach(scheduleObject => {
     const { startTime, endTime } = scheduleObject;
 
@@ -1747,7 +1713,6 @@ const attendanceConflictHandler = async params => {
   // console.log('allDateStrings', JSON.stringify(allDateStrings));
 
   allDateStrings.forEach(dateString => {
-    console.log('Query =>', dateString);
     queries
       .push(
         rootCollections
@@ -1763,8 +1728,6 @@ const attendanceConflictHandler = async params => {
 
   const snapShots = await Promise.all(queries);
 
-  console.log('snapShots', snapShots.length);
-
   for (const snap of snapShots) {
     const { empty } = snap;
 
@@ -1774,10 +1737,8 @@ const attendanceConflictHandler = async params => {
 
     const [doc] = snap.docs;
     const { schedule, template, status } = doc.data();
-    console.log('id => ', doc.id);
 
-    if (template !== 'leave'
-      && template !== 'attendance regularization') {
+    if (template !== 'leave' && template !== 'attendance regularization') {
       continue;
     }
 

@@ -174,7 +174,7 @@ module.exports = async conn => {
       .ref
       .collection('Activities')
       .where('template', '==', 'employee')
-      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .where('attachment.Phone Number.value', '==', phoneNumber)
       .where('status', '==', 'CONFIRMED')
       .limit(1)
       .get();
@@ -193,7 +193,7 @@ module.exports = async conn => {
     }
 
     employeeSet
-      .add(doc.get('attachment.Employee Contact.value'));
+      .add(doc.get('attachment.Phone Number.value'));
   });
 
   allPhoneNumbers

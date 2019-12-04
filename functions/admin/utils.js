@@ -1296,7 +1296,7 @@ const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
 const addEmployeeToRealtimeDb = async doc => {
   const admin = require('firebase-admin');
   const realtimeDb = admin.database();
-  const phoneNumber = doc.get('attachment.Employee Contact.value');
+  const phoneNumber = doc.get('attachment.Phone Number.value');
   const officeId = doc.get('officeId');
   const ref = realtimeDb.ref(`${officeId}/employee/${phoneNumber}`);
   const status = doc.get('status');
@@ -1450,140 +1450,6 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
       .replace(/\s\s+/g, ' ');
 };
 
-const addressToCustomer = async queryObject => {
-  const activityObject = {
-    placeId: '',
-    venueDescriptor: 'Customer Office',
-    location: queryObject.location,
-    address: queryObject.address,
-    latitude: '',
-    longitude: '',
-    Name: '',
-    'First Contact': '',
-    'Second Contact': '',
-    'Customer Type': '',
-    'Customer Code': '',
-    'Daily Start Time': '',
-    'Daily End Time': '',
-    'Weekly Off': '',
-  };
-
-  let success = false;
-
-  try {
-    const placesApiResponse = await googleMapsClient
-      .places({
-        query: queryObject.address,
-      })
-      .asPromise();
-
-    const firstResult = placesApiResponse
-      .json
-      .results[0];
-    success = Boolean(firstResult);
-
-    if (!success) {
-      return Object.assign({}, queryObject, { success });
-    }
-
-    activityObject
-      .latitude = firstResult.geometry.location.lat;
-    activityObject
-      .longitude = firstResult.geometry.location.lng;
-    activityObject
-      .placeId = firstResult['place_id'];
-
-    const placeApiResult = await googleMapsClient
-      .place({
-        placeid: firstResult['place_id'],
-      })
-      .asPromise();
-
-    activityObject
-      .Name = getCustomerName(
-        placeApiResult.json.result.address_components,
-        queryObject.location,
-      );
-    activityObject
-      .location = activityObject.Name;
-
-    const weekdayStartTime = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const periods = openingHours.periods;
-      const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 0;
-      });
-
-      if (!relevantObject[0]) return '';
-
-      return relevantObject[0].open.time;
-    })();
-
-    const weekdayEndTime = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const periods = openingHours.periods;
-      const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 0;
-      });
-
-      if (!relevantObject[0]) return '';
-
-      return relevantObject[0].close.time;
-    })();
-
-    const weeklyOff = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const weekdayText = openingHours['weekday_text'];
-
-      if (!weekdayText) return '';
-
-      const closedWeekday = weekdayText
-        // ['Sunday: Closed']
-        .filter(str => str.includes('Closed'))[0];
-
-      if (!closedWeekday) return '';
-
-      const parts = closedWeekday.split(':');
-
-      if (!parts[0]) return '';
-
-      // ['Sunday' 'Closed']
-      return parts[0].toLowerCase();
-    })();
-
-    activityObject[
-      'Daily Start Time'
-    ] = millitaryToHourMinutes(weekdayStartTime);
-    activityObject[
-      'Daily End Time'
-    ] = millitaryToHourMinutes(weekdayEndTime);
-
-    activityObject[
-      'Weekly Off'
-    ] = weeklyOff;
-
-    return activityObject;
-  } catch (error) {
-    console.error(error);
-
-    return queryObject;
-  }
-};
 
 const filterPhoneNumber = phoneNumber =>
   phoneNumber
@@ -1624,9 +1490,8 @@ const getBranchName = addressComponents => {
 
 const getUsersWithCheckIn = async officeId => {
   const checkInSubscriptions = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Activities')
+    .activities
+    .where('officeId', '==', officeId)
     .where('template', '==', 'subscription')
     .where('attachment.Template.value', '==', 'check-in')
     .where('status', '==', 'CONFIRMED')
@@ -1634,7 +1499,7 @@ const getUsersWithCheckIn = async officeId => {
 
   return checkInSubscriptions
     .docs
-    .map(doc => doc.get('attachment.Subscriber.value'));
+    .map(doc => doc.get('attachment.Phone Number.value'));
 };
 
 const getAuth = async phoneNumber => {
@@ -1817,7 +1682,7 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
     .offices
     .doc(officeId)
     .collection(subcollectionNames.ACTIVITIES)
-    .where('attachment.Employee Contact.value', '==', phoneNumber)
+    .where('attachment.Phone Number.value', '==', phoneNumber)
     .where('template', '==', 'employee')
     .where('status', '==', 'CONFIRMED')
     .limit(1)
@@ -1839,7 +1704,7 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
     };
   }
 
-  const employeeDoc = employeeQueryResult.docs[0];
+  const [employeeDoc] = employeeQueryResult.docs;
 
   return {
     phoneNumber,
@@ -1873,7 +1738,7 @@ const populateWeeklyOffInAttendance = async params => {
     office,
     officeId,
     attachment: {
-      'Employee Contact': {
+      'Phone Number': {
         value: phoneNumber,
       },
       'Base Location': {
@@ -1882,7 +1747,7 @@ const populateWeeklyOffInAttendance = async params => {
     },
   } = employeeDoc.data();
 
-  const attendanceDoc = (
+  const [attendanceDoc] = (
     await rootCollections
       .offices
       .doc(officeId)
@@ -1892,7 +1757,7 @@ const populateWeeklyOffInAttendance = async params => {
       .where('year', '==', year)
       .limit(1)
       .get()
-  ).docs[0];
+  ).docs;
 
   console.log('baseLocation', baseLocation);
 
@@ -1900,9 +1765,10 @@ const populateWeeklyOffInAttendance = async params => {
   const attendanceRef = attendanceDoc ? attendanceDoc.ref : rootCollections
     .offices
     .doc(officeId)
-    .collection('Attendances')
+    // Attendances
+    .collection(subcollectionNames.ATTENDANCES)
     .doc();
-  const branchDoc = (
+  const [branchDoc] = (
     await rootCollections
       .offices
       .doc(officeId)
@@ -1912,7 +1778,7 @@ const populateWeeklyOffInAttendance = async params => {
       .where('status', '==', 'CONFIRMED')
       .limit(1)
       .get()
-  ).docs[0];
+  ).docs;
 
   /**
    * Redundant because branch should exist
@@ -1923,9 +1789,8 @@ const populateWeeklyOffInAttendance = async params => {
     return;
   }
 
-  attendanceData
-    .attachment = attendanceData
-      .attachment || {};
+  // Populate weekly off, holiday and leave
+  attendanceData.attachment = attendanceData.attachment || {};
 
   const batch = db.batch();
   const weeklyOff = branchDoc.get('attachment.Weekly Off.value');
@@ -1933,12 +1798,8 @@ const populateWeeklyOffInAttendance = async params => {
     1,
     momentTz().month(month).year(year).daysInMonth() + 1
   );
-
   datesInMonth.forEach(date => {
-    attendanceData
-      .attendance[
-      date
-    ] = attendanceData.attendance[date] || getDefaultAttendanceObject();
+    attendanceData.attendance[date] = attendanceData.attendance[date] || getDefaultAttendanceObject();
 
     if (!weeklyOff) {
       return;
@@ -1955,19 +1816,13 @@ const populateWeeklyOffInAttendance = async params => {
       return;
     }
 
-    attendanceData
-      .attendance[
-      date
-    ].weeklyOff = true;
-    attendanceData
-      .attendance[
-      date
-    ] = 1;
+    attendanceData.attendance[date].weeklyOff = true;
+    attendanceData.attendance[date].attendance = 1;
 
     const updatesRef = rootCollections
       .updates
       .doc(uid)
-      .collection('Addendum')
+      .collection(subcollectionNames.ADDENDUM)
       .doc();
 
     batch
@@ -1991,9 +1846,7 @@ const populateWeeklyOffInAttendance = async params => {
       });
   });
 
-  const holidays = branchDoc.get('schedule');
-
-  holidays
+  branchDoc.get('schedule')
     .forEach(holiday => {
       const { startTime } = holiday;
 
@@ -2032,7 +1885,7 @@ const populateWeeklyOffInAttendance = async params => {
       const updatesRef = rootCollections
         .updates
         .doc(uid)
-        .collection('Addendum')
+        .collection(subcollectionNames.ADDENDUM)
         .doc();
 
       batch
@@ -2168,7 +2021,6 @@ module.exports = {
   adjustedGeopoint,
   filterPhoneNumber,
   isE164PhoneNumber,
-  addressToCustomer,
   getNumbersbetween,
   getObjectFromSnap,
   hasSuperUserClaims,

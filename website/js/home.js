@@ -442,7 +442,7 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
     if (doc.template === 'employee') {
       return {
         office: document.body.dataset.office,
-        phoneNumber: doc.attachment['Employee Contact'].value,
+        phoneNumber: doc.attachment['Phone Number'].value,
       };
     }
 
@@ -1244,7 +1244,7 @@ function getBulkCreateResultLi(item, originalJson, index) {
   const firstRow = document.createElement('span');
   const secondRow = document.createElement('span');
   const thirdRow = document.createElement('span');
-  firstRow.textContent = item.Name || item.Admin || item.Subscriber;
+  firstRow.textContent = item.Name || item['Phone Number'];
 
   if (item.rejected) {
     container.classList.add('failure')

@@ -161,10 +161,10 @@ const handleResult = async (conn, docs) => {
     locals
       .objects
       .permissions[phoneNumber] = {
-        isAdmin: false,
-        isEmployee: false,
-        isCreator: isRequester,
-      };
+      isAdmin: false,
+      isEmployee: false,
+      isCreator: isRequester,
+    };
 
     if (activity.get('template') === 'duty'
       && !checkIns.hasOwnProperty(phoneNumber)) {
@@ -180,7 +180,7 @@ const handleResult = async (conn, docs) => {
           .offices
           .doc(activity.get('officeId'))
           .collection('Activities')
-          .where('attachment.Employee Contact.value', '==', phoneNumber)
+          .where('attachment.Phone Number.value', '==', phoneNumber)
           .where('template', '==', 'employee')
           .limit(1)
           .get()
@@ -193,7 +193,7 @@ const handleResult = async (conn, docs) => {
           .offices
           .doc(activity.get('officeId'))
           .collection('Activities')
-          .where('attachment.Admin.value', '==', phoneNumber)
+          .where('attachment.Phone Number.value', '==', phoneNumber)
           .where('template', '==', 'admin')
           .limit(1)
           .get()
@@ -235,12 +235,12 @@ const handleResult = async (conn, docs) => {
       const isEmployee = template === 'employee';
 
       if (isAdmin) {
-        phoneNumber = doc.get('attachment.Admin.value');
+        phoneNumber = doc.get('attachment.Phone Number.value');
         locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
       }
 
       if (isEmployee) {
-        phoneNumber = doc.get('attachment.Employee Contact.value');
+        phoneNumber = doc.get('attachment.Phone Number.value');
         locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
       }
     });

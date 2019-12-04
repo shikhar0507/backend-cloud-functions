@@ -13,7 +13,6 @@ const {
 const {
   code,
 } = require('../../admin/responses');
-const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 
 const validateRequestBody = (requestBody) => {
@@ -46,35 +45,25 @@ const validateRequestBody = (requestBody) => {
 };
 
 
-module.exports = conn => {
-  /**
-   * If is admin, the user can only trigger reports for the offices for which
-   * they are an admin of.
-   */
-  if (conn.requester.customClaims.admin
-    && !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
-    return sendResponse(conn, code.forbidden, 'Operation not allowed');
-  }
+module.exports = async conn => {
+  try {
+    if (conn.requester.customClaims.admin
+      && !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
+      return sendResponse(conn, code.forbidden, 'Operation not allowed');
+    }
 
-  if (conn.req.body.startTime
-    && !conn.req.body.endTime) {
-    conn.req.body.endTime = conn.req.body.startTime;
-  }
+    if (conn.req.body.startTime && !conn.req.body.endTime) {
+      conn.req.body.endTime = conn.req.body.startTime;
+    }
 
-  const result = validateRequestBody(conn.req.body);
+    const result = validateRequestBody(conn.req.body);
 
-  if (!result.isValid) {
-    return sendResponse(conn, code.badRequest, result.message);
-  }
+    if (!result.isValid) {
+      return sendResponse(conn, code.badRequest, result.message);
+    }
 
-  if (!env.isProduction) {
-    return sendResponse(conn, code.ok);
-  }
-
-  const batch = db.batch();
-
-  return Promise
-    .all([
+    const batch = db.batch();
+    const [officeDocQuery, recipientDocsQuery] = await Promise.all([
       rootCollections
         .offices
         .where('attachment.Name.value', '==', conn.req.body.office)
@@ -86,60 +75,43 @@ module.exports = conn => {
         .where('office', '==', conn.req.body.office)
         .limit(1)
         .get()
-    ])
-    .then(result => {
-      const [
-        officeDocQuery,
-        recipientDocsQuery,
-      ] = result;
+    ]);
 
-      if (officeDocQuery.empty) {
-        return sendResponse(
-          conn,
-          code.badRequest,
-          `Office: '${conn.req.body.office}' not found`
-        );
-      }
+    const [officeDoc] = officeDocQuery.docs;
+    const [recipientDoc] = recipientDocsQuery.docs;
+    const {
+      attachment: {
+        Timezone: {
+          value: timezone,
+        },
+      },
+    } = officeDoc.data();
 
-      if (recipientDocsQuery.empty) {
-        return sendResponse(
-          conn,
-          code.badRequest,
-          `No recipient found for ${conn.req.body.office} for the report: ${conn.req.body.report}`
-        );
-      }
+    if (!officeDoc) {
+      return sendResponse(
+        conn,
+        code.badRequest,
+        `Office: '${conn.req.body.office}' not found`
+      );
+    }
 
-      const timezone = officeDocQuery.docs[0].get('attachment.Timezone.value');
-      const startDay = momentTz().tz(timezone);
-      const endDay = momentTz().tz(timezone);
-      const numberOfDays = Math.abs(endDay.diff(startDay, 'day'));
+    if (!recipientDoc) {
+      return sendResponse(
+        conn,
+        code.badRequest,
+        `No recipient found for ${conn.req.body.office}`
+        + ` for the report: ${conn.req.body.report}`
+      );
+    }
 
-      const timestampsArray = [
-        startDay.valueOf(),
-      ];
+    batch.set(recipientDoc.ref, {
+      timestamp: momentTz(conn.req.body.startTime).tz(timezone).valueOf(),
+    }, { merge: true });
 
-      for (let iter = 0; iter < numberOfDays; iter++) {
-        const newMoment = startDay.clone().add(1, 'day');
+    await batch.commit();
 
-        timestampsArray.push(newMoment.valueOf());
-      }
-
-      console.log(JSON.stringify(timestampsArray, ' ', 2));
-
-      timestampsArray.forEach((timestamp) => {
-        batch.set(recipientDocsQuery.docs[0].ref, {
-          timestamp,
-        }, {
-          merge: true,
-        });
-      });
-
-      return Promise
-        .all([
-          batch
-            .commit(),
-          sendResponse(conn, code.ok),
-        ]);
-    })
-    .catch(error => handleError(conn, error));
+    return sendResponse(conn, code.ok);
+  } catch (error) {
+    return handleError(conn, error);
+  }
 };

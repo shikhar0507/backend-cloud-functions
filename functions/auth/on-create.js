@@ -97,13 +97,13 @@ module.exports = async userRecord => {
       .doc(userRecord.phoneNumber)
       .collection('Activities')
       .where('template', '==', 'admin')
-      .where('attachment.Admin.value', '==', userRecord.phoneNumber)
+      .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
       .get(),
     rootCollections
       .activities
       .where('template', '==', 'employee')
       .where('status', '==', 'CONFIRMED')
-      .where('attachment.Employee Contact.value', '==', userRecord.phoneNumber)
+      .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
       .get(),
   ];
 
@@ -202,7 +202,7 @@ module.exports = async userRecord => {
       employeesQuery
         .forEach(async doc => {
           const officeId = doc.get('officeId');
-          const phoneNumber = doc.get('attachment.Employee Contact.value');
+          const phoneNumber = doc.get('attachment.Phone Number.value');
           const ref = admin
             .database()
             .ref(`${officeId}/employee/${phoneNumber}`);

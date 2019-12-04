@@ -140,26 +140,6 @@ module.exports = async conn => {
       employeesSet: new Set(),
     };
 
-    // const subQuery = await locals
-    //   .officeDoc
-    //   .ref
-    //   .collection('Activities')
-    //   .where('template', '==', 'subscription')
-    //   .where('status', '==', 'CONFIRMED')
-    //   .where('attachment.Subscriber.value', '==', conn.requester.phoneNumber)
-    //   .where('attachment.Template.value', '==', 'subscription')
-    //   .limit(1)
-    //   .get();
-
-    // if (!conn.requester.isSupportRequest
-    //   && subQuery.empty) {
-    //   return sendResponse(
-    //     conn,
-    //     code.unauthorized,
-    //     `You are not allowed to access this resource`
-    //   );
-    // }
-
     const fileName = `${conn.req.body.template}.xlsx`;
     const filePath = `/tmp/${fileName}`;
 

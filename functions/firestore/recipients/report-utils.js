@@ -284,7 +284,7 @@ const getEmployeeDetailsString = (employeesData, phoneNumber) => {
 
   return `Name: ${employeesData[phoneNumber].Name}`
     + ` | Employee Code: ${employeesData[phoneNumber]['Employee Code']}`
-    + ` | Contact Number: ${employeesData[phoneNumber]['Employee Contact']}`
+    + ` | Contact Number: ${employeesData[phoneNumber]['Phone Number']}`
     + `${supervisorsString}`;
 };
 

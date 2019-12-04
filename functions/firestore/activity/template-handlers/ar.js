@@ -170,7 +170,7 @@ module.exports = async locals => {
       .doc(officeId)
       .collection(subcollectionNames.ACTIVITIES)
       .where('template', '==', 'employee')
-      .where('attachment.Employee Contact.value', '==', phoneNumber)
+      .where('attachment.Phone Number.value', '==', phoneNumber)
       .where('status', '==', 'CONFIRMED')
       .limit(1)
       .get())

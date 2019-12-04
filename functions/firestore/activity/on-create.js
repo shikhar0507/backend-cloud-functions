@@ -495,6 +495,22 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
   const endTimeMoment = momentTz(endTime);
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
 
+  // leave is for a date which is 2 months back => don't allow
+
+  const differenceInMonths = momentTz().diff(
+    momentTz(startTime),
+    'months',
+    true
+  );
+
+  if (differenceInMonths > 2) {
+    return sendResponse(
+      conn,
+      code.badRequest,
+      `Leave cannot be applied for more than two months in the past`
+    );
+  }
+
   if (leavesTakenThisTime + locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
     return sendResponse(
       conn,
@@ -528,10 +544,7 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
 
 
 const handlePayroll = async (conn, locals) => {
-  if (!new Set()
-    .add('leave')
-    .add('attendance regularization')
-    .has(conn.req.body.template)) {
+  if (!new Set(['leave', 'attendance regularization']).has(conn.req.body.template)) {
     return createDocsWithBatch(conn, locals);
   }
 

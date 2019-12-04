@@ -131,11 +131,11 @@ module.exports = async conn => {
 
   const promises = [
     baseQuery
-      .where('attachment.Employee Contact.value', '==', conn.req.body.oldPhoneNumber)
+      .where('attachment.Phone Number.value', '==', conn.req.body.oldPhoneNumber)
       .limit(1)
       .get(),
     baseQuery
-      .where('attachment.Employee Contact.value', '==', conn.req.body.newPhoneNumber)
+      .where('attachment.Phone Number.value', '==', conn.req.body.newPhoneNumber)
       .limit(1)
       .get(),
   ];
@@ -162,14 +162,14 @@ module.exports = async conn => {
       );
     }
 
-    const employeeActivity = oldEmployeeQueryResult.docs[0];
+    const [employeeActivity] = oldEmployeeQueryResult.docs;
     const batch = db.batch();
     batch.set(employeeActivity
       .ref, {
       addendumDocRef: null,
       timestamp: Date.now(),
       attachment: {
-        'Employee Contact': {
+        'Phone Number': {
           value: conn.req.body.newPhoneNumber,
         },
       },
@@ -179,9 +179,8 @@ module.exports = async conn => {
 
     const timezone = employeeActivity.get('timezone') || 'Asia/Kolkata';
     const momentToday = momentTz().tz(timezone);
-    const officeId = oldEmployeeQueryResult
-      .docs[0]
-      .get('officeId');
+    const officeId = employeeActivity.get('officeId');
+
     batch.set(rootCollections
       .offices
       .doc(officeId)
@@ -202,8 +201,8 @@ module.exports = async conn => {
 
     return sendResponse(
       conn,
-      code.ok,
-      'Phone number updated successfully'
+      code.accepted,
+      'Phone number change is in progress'
     );
   } catch (error) {
     return handleError(conn, error);

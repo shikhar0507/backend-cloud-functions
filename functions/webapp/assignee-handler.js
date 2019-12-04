@@ -77,7 +77,7 @@ module.exports = (conn, requester) => {
           .activities
           .where('office', '==', conn.req.body.office)
           .where('template', '==', 'admin')
-          .where('attachment.Admin.value', '==', phoneNumber)
+          .where('attachment.Phone Number.value', '==', phoneNumber)
           .where('status', '==', 'CONFIRMED')
           .limit(1)
           .get();
@@ -92,7 +92,7 @@ module.exports = (conn, requester) => {
         if (snapShot.empty) return;
 
         const doc = snapShot.docs[0];
-        const phoneNumber = doc.get('attachment.Admin.value');
+        const phoneNumber = doc.get('attachment.Phone Number.value');
 
         adminsSet.add(phoneNumber);
       });

@@ -17,8 +17,8 @@ const {
   adjustedGeopoint,
   isNonEmptyString,
   isE164PhoneNumber,
-  addressToCustomer,
   getBranchName,
+  getCustomerName,
   getRelevantTime,
   millitaryToHourMinutes,
   getEmployeesMapFromRealtimeDb,
@@ -37,12 +37,11 @@ const {
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
-const googleMapsClient =
-  require('@google/maps')
-    .createClient({
-      key: env.mapsApiKey,
-      Promise: Promise,
-    });
+const googleMapsClient = require('@google/maps')
+  .createClient({
+    key: env.mapsApiKey,
+    Promise: Promise,
+  });
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 
@@ -59,24 +58,157 @@ const templateNamesObject = {
 };
 
 const getOrderedFields = templateDoc => {
-  const venue = templateDoc.get('venue');
-  const schedule = templateDoc.get('schedule');
-  const attachment = Object.keys(templateDoc.get('attachment'));
+  const { venue, schedule, attachment } = templateDoc.data();
 
   return []
-    .concat(venue, schedule, attachment)
+    .concat(venue, schedule, Object.keys(attachment))
     .sort();
+};
+
+const addressToCustomer = async queryObject => {
+  const activityObject = {
+    placeId: '',
+    venueDescriptor: 'Customer Office',
+    location: queryObject.location,
+    address: queryObject.address,
+    latitude: '',
+    longitude: '',
+    Name: '',
+    'First Contact': '',
+    'Second Contact': '',
+    'Customer Type': '',
+    'Customer Code': '',
+    'Daily Start Time': '',
+    'Daily End Time': '',
+    'Weekly Off': '',
+  };
+
+  let success = false;
+
+  try {
+    const placesApiResponse = await googleMapsClient
+      .places({
+        query: queryObject.address,
+      })
+      .asPromise();
+
+    const [firstResult] = placesApiResponse
+      .json
+      .results;
+    success = Boolean(firstResult);
+
+    if (!success) {
+      return Object.assign({}, queryObject, { success });
+    }
+
+    activityObject
+      .latitude = firstResult.geometry.location.lat;
+    activityObject
+      .longitude = firstResult.geometry.location.lng;
+    activityObject
+      .placeId = firstResult['place_id'];
+
+    const placeApiResult = await googleMapsClient
+      .place({
+        placeid: firstResult['place_id'],
+      })
+      .asPromise();
+
+    activityObject
+      .Name = getCustomerName(
+        placeApiResult.json.result.address_components,
+        queryObject.location,
+      );
+    activityObject
+      .location = activityObject.Name;
+
+    const weekdayStartTime = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const periods = openingHours.periods;
+      const relevantObject = periods.filter(item => {
+        return item.close && item.close.day === 0;
+      });
+
+      if (!relevantObject[0]) return '';
+
+      return relevantObject[0].open.time;
+    })();
+
+    const weekdayEndTime = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const periods = openingHours.periods;
+      const relevantObject = periods.filter(item => {
+        return item.close && item.close.day === 0;
+      });
+
+      if (!relevantObject[0]) return '';
+
+      return relevantObject[0].close.time;
+    })();
+
+    const weeklyOff = (() => {
+      const openingHours = placeApiResult
+        .json
+        .result['opening_hours'];
+
+      if (!openingHours) return '';
+
+      const weekdayText = openingHours['weekday_text'];
+
+      if (!weekdayText) return '';
+
+      const [closedWeekday] = weekdayText
+        // ['Sunday: Closed']
+        .filter(str => str.includes('Closed'));
+
+      if (!closedWeekday) return '';
+
+      const parts = closedWeekday.split(':');
+
+      if (!parts[0]) return '';
+
+      // ['Sunday' 'Closed']
+      return parts[0].toLowerCase();
+    })();
+
+    activityObject[
+      'Daily Start Time'
+    ] = millitaryToHourMinutes(weekdayStartTime);
+    activityObject[
+      'Daily End Time'
+    ] = millitaryToHourMinutes(weekdayEndTime);
+
+    activityObject[
+      'Weekly Off'
+    ] = weeklyOff;
+
+    return activityObject;
+  } catch (error) {
+    console.error(error);
+
+    return queryObject;
+  }
 };
 
 
 const generateExcel = async locals => {
-  const wb = await xlsxPopulate.fromBlankAsync();
-  const template = locals.templateDoc.get('name');
-  const office = locals.officeDoc.get('office');
-  const sheet = wb.addSheet(`${template}`);
+  const workbook = await xlsxPopulate.fromBlankAsync();
+  const { name: template } = locals.templateDoc.data();
+  const { office } = locals.officeDoc.data();
+  const sheet = workbook.addSheet(`${template}`);
 
   /** Default sheet */
-  wb
+  workbook
     .deleteSheet('Sheet1');
 
   const orderedFields = getOrderedFields(locals.templateDoc);
@@ -91,34 +223,30 @@ const generateExcel = async locals => {
         .value(value);
     });
 
-  locals
-    .inputObjects
-    .forEach((object, outerIndex) => {
-      orderedFields
-        .forEach((field, innerIndex) => {
-          const cell = `${alphabetsArray[innerIndex]}`
-            + `${outerIndex + 2}`;
-          let value = object[field] || '';
+  locals.inputObjects.forEach((object, outerIndex) => {
+    orderedFields
+      .forEach((field, innerIndex) => {
+        const cell = `${alphabetsArray[innerIndex]}`
+          + `${outerIndex + 2}`;
+        let value = object[field] || '';
 
-          if (field === 'rejected' && !value) {
-            value = 'false';
-          }
+        if (field === 'rejected' && !value) {
+          value = 'false';
+        }
 
-          sheet
-            .cell(cell)
-            .value(`${value}`);
-        });
-    });
+        sheet
+          .cell(cell)
+          .value(`${value}`);
+      });
+  });
 
-  const excelFileBase64 = await wb.outputAsync('base64');
+  const excelFileBase64 = await workbook.outputAsync('base64');
   const storageFilePathParts = locals.object.name.split('/');
   const fileName = storageFilePathParts[storageFilePathParts.length - 1];
-  const bucket = admin
-    .storage()
-    .bucket(locals.object.bucket);
+  const bucket = admin.storage().bucket(locals.object.bucket);
   const filePath = `/tmp/${fileName}`;
 
-  await wb.toFileAsync(filePath);
+  await workbook.toFileAsync(filePath);
 
   await bucket
     .upload(filePath, {
@@ -450,7 +578,7 @@ const createObjects = async (locals, trialRun) => {
     })();
     const addendumDocRef = officeRef.collection('Addendum').doc();
     const params = {
-      subscriber: item.Subscriber,
+      subscriber: item['Phone Number'],
       admin: item.Admin,
       name: item.Name,
       number: item.Number,
@@ -702,7 +830,7 @@ const createObjects = async (locals, trialRun) => {
         const addToInclude = locals.templateDoc.get('name')
           === templateNamesObject.SUBSCRIPTION
           && phoneNumber
-          !== activityObject.attachment.Subscriber.value;
+          !== activityObject.attachment['Phone Number'].value;
 
         const canEdit = getCanEditValue(
           locals,
@@ -771,7 +899,7 @@ const fetchDataForCanEditRule = async locals => {
 
   docs.forEach(doc => {
     const phoneNumber = doc.get('attachment.Employee Contact.value') ||
-      doc.get('attachment.Admin.value');
+      doc.get('attachment.Phone Number.value');
     set
       .add(phoneNumber);
   });
@@ -825,14 +953,14 @@ const handleEmployees = async locals => {
 
       /** Doc exists, employee already exists */
       const doc = snapShot.docs[0];
-      const phoneNumber = doc.get('attachment.Employee Contact.value');
+      const phoneNumber = doc.get('attachment.Phone Number.value');
 
       phoneNumbersToRejectSet
         .add(phoneNumber);
     });
 
   locals.inputObjects.forEach((item, index) => {
-    const phoneNumber = item['Employee Contact'];
+    const phoneNumber = item['Phone Number'];
 
     if (phoneNumbersToRejectSet.has(phoneNumber)) {
       locals.inputObjects[index].rejected = true;
@@ -956,7 +1084,7 @@ const handleSubscriptions = async locals => {
         .activities
         .where('officeId', '==', locals.officeDoc.id)
         .where('template', '==', templateNamesObject.SUBSCRIPTION)
-        .where('attachment.Subscriber.value', '==', phoneNumber)
+        .where('attachment.Phone Number.value', '==', phoneNumber)
         .where('attachment.Template.value', '==', template)
         .limit(1)
         .get();
@@ -979,7 +1107,7 @@ const handleSubscriptions = async locals => {
       }
 
       const doc = snapShot.docs[0];
-      const phoneNumber = doc.get('attachment.Subscriber.value');
+      const phoneNumber = doc.get('attachment.Phone Number.value');
       const template = doc.get('attachment.Template.value');
       const status = doc.get('status');
 
@@ -1032,7 +1160,7 @@ const handleAdmins = async locals => {
         .activities
         .where('officeId', '==', locals.officeDoc.id)
         .where('template', '==', templateNamesObject.ADMIN)
-        .where('attachment.Admin.value', '==', phoneNumber)
+        .where('attachment.Phone Number.value', '==', phoneNumber)
         .where('status', '==', 'CONFIRMED')
         .limit(1)
         .get();
@@ -1056,7 +1184,7 @@ const handleAdmins = async locals => {
   });
 
   locals.inputObjects.forEach((object, index) => {
-    const phoneNumber = object.Admin;
+    const phoneNumber = object['Phone Number'];
 
     if (!phoneNumber) {
       locals.inputObjects[index].rejected = true;
@@ -1170,13 +1298,8 @@ const validateDataArray = async locals => {
   locals.inputObjects.forEach((dataObject, index) => {
     const uniqueValue = (() => {
       if (locals.templateDoc.get('name')
-        === templateNamesObject.EMPLOYEE) {
-        return dataObject['Employee Contact'];
-      }
-
-      if (locals.templateDoc.get('name')
         === templateNamesObject.ADMIN) {
-        return dataObject.Admin;
+        return dataObject['Phone Number'];
       }
 
       /**
@@ -1185,7 +1308,7 @@ const validateDataArray = async locals => {
        */
       if (locals.templateDoc.get('name')
         === templateNamesObject.SUBSCRIPTION) {
-        return `${dataObject.Subscriber}-${dataObject.Template}`;
+        return `${dataObject['Phone Number']}-${dataObject.Template}`;
       }
 
       return dataObject.Name
@@ -1193,12 +1316,11 @@ const validateDataArray = async locals => {
     })();
 
     if (uniqueValue) {
-      const indexSet = uniqueMap.get(uniqueValue)
-        || new Set();
-      indexSet
-        .add(index);
-      uniqueMap
-        .set(uniqueValue, indexSet);
+      const indexSet = uniqueMap.get(uniqueValue) || new Set();
+
+      indexSet.add(index);
+
+      uniqueMap.set(uniqueValue, indexSet);
     }
 
     const objectProperties = Object.keys(dataObject);
@@ -1227,7 +1349,8 @@ const validateDataArray = async locals => {
       }
 
       if (locals.templateDoc.get('venue').length > 0) {
-        const msg = `All location fields are required`;
+        const locationErrorMessage = `All location fields are required`;
+
         const allVenueFields = [
           locals.inputObjects[index].latitude,
           locals.inputObjects[index].longitude,
@@ -1241,7 +1364,7 @@ const validateDataArray = async locals => {
           || locals.inputObjects[index].location)
           && allVenueFields.filter(Boolean).length !== allVenueFields.length) {
           locals.inputObjects[index].rejected = true;
-          locals.inputObjects[index].reason = msg;
+          locals.inputObjects[index].reason = locationErrorMessage;
         }
 
         if (locals.inputObjects[index].latitude
@@ -1251,7 +1374,7 @@ const validateDataArray = async locals => {
             longitude: locals.inputObjects[index].longitude,
           }, false)) {
           locals.inputObjects[index].rejected = true;
-          locals.inputObjects[index].reason = msg;
+          locals.inputObjects[index].reason = locationErrorMessage;
         }
       }
 
@@ -1270,23 +1393,21 @@ const validateDataArray = async locals => {
       }
     });
 
-    if (locals.templateDoc.get('name')
-      !== templateNamesObject.OFFICE) {
-      const firstContact = locals.officeDoc.get('attachment.First Contact.value');
-      const secondContact = locals.officeDoc.get('attachment.Second Contact.value');
+    if (locals.templateDoc.get('name') !== templateNamesObject.OFFICE) {
+      // const firstContact = locals.officeDoc.get('attachment.First Contact.value');
+      // const secondContact = locals.officeDoc.get('attachment.Second Contact.value');
 
-      if (firstContact) {
-        locals.inputObjects[index].share.push(firstContact);
-      }
+      locals.inputObjects[index].share.push(
+        locals.officeDoc.get('attachment.First Contact.value'),
+        locals.officeDoc.get('attachment.Second Contact.value')
+      );
 
-      if (secondContact) {
-        locals.inputObjects[index].share.push(secondContact);
-      }
+      /** Remove empty strings */
+      locals.inputObjects[index].share = locals.inputObjects[index].share.filter(Boolean);
     }
 
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.RECIPIENT) {
-      const reportName = locals.inputObjects[index].Name;
+    if (locals.templateDoc.get('name') === templateNamesObject.RECIPIENT) {
+      const { Name: reportName } = locals.inputObjects[index];
       const validReports = new Set([
         reportNames.FOOTPRINTS,
         reportNames.PAYROLL,
@@ -1302,8 +1423,7 @@ const validateDataArray = async locals => {
       }
     }
 
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.OFFICE) {
+    if (locals.templateDoc.get('name') === templateNamesObject.OFFICE) {
       const firstContact = locals.inputObjects[index]['First Contact'];
       const secondContact = locals.inputObjects[index]['Second Contact'];
       const timezone = locals.inputObjects[index].Timezone;
@@ -1339,14 +1459,13 @@ const validateDataArray = async locals => {
       officeContacts.set(index, contacts);
     }
 
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.SUBSCRIPTION) {
-      const phoneNumber = locals.inputObjects[index].Subscriber;
+    if (locals.templateDoc.get('name') === templateNamesObject.SUBSCRIPTION) {
+      const phoneNumber = locals.inputObjects[index]['Phone Number'];
       const template = locals.inputObjects[index].Template;
 
       if (!phoneNumber) {
         locals.inputObjects[index].rejected = true;
-        locals.inputObjects[index].reason = `Invalid Subscriber`;
+        locals.inputObjects[index].reason = `Invalid Phone Number`;
       }
 
       if (!template) {
@@ -1391,28 +1510,24 @@ const validateDataArray = async locals => {
 
       subscriptionsToCheck
         .push({
-          phoneNumber: locals.inputObjects[index].Subscriber,
+          phoneNumber: locals.inputObjects[index]['Phone Number'],
           template: locals.inputObjects[index].Template,
         });
     }
 
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.ADMIN) {
-      const phoneNumber = locals.inputObjects[index].Admin;
+    if (locals.templateDoc.get('name') === templateNamesObject.ADMIN) {
+      const phoneNumber = locals.inputObjects[index]['Phone Number'];
 
       adminsSet.add(phoneNumber);
       adminToCheck.push(phoneNumber);
     }
 
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.EMPLOYEE) {
+    if (locals.templateDoc.get('name') === templateNamesObject.EMPLOYEE) {
       const firstSupervisor = locals.inputObjects[index]['First Supervisor'];
       const secondSupervisor = locals.inputObjects[index]['Second Supervisor'];
       const thirdSupervisor = locals.inputObjects[index]['Third Supervisor'];
 
-      if (!firstSupervisor
-        && !secondSupervisor
-        && !thirdSupervisor) {
+      if (!firstSupervisor && !secondSupervisor && !thirdSupervisor) {
         locals.inputObjects[index].rejected = true;
         locals.inputObjects[index].reason = `Please add at least one supervisor`;
       }
@@ -1440,10 +1555,9 @@ const validateDataArray = async locals => {
       }
 
       if (attachmentFieldsSet.has(property)) {
-        const type = locals.templateDoc.get('attachment')[property].type;
+        const { type } = locals.templateDoc.get('attachment')[property];
 
-        if (!validTypes.has(type)
-          && value) {
+        if (!validTypes.has(type) && value) {
           // Used for querying activities which should exist on the
           // basis of name
           verifyValidTypes.set(index, {
@@ -1455,7 +1569,7 @@ const validateDataArray = async locals => {
 
         if (locals.templateDoc.get('name')
           === templateNamesObject.EMPLOYEE
-          && property === 'Employee Contact'
+          && property === 'Phone Number'
           && !isE164PhoneNumber(value)) {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Employee ${property}` +
@@ -1464,8 +1578,7 @@ const validateDataArray = async locals => {
           return;
         }
 
-        if (value
-          && type === 'phoneNumber') {
+        if (value && type === 'phoneNumber') {
           if (assigneesFromAttachment.has(index)) {
             const set = assigneesFromAttachment.get(index);
 
@@ -1577,15 +1690,13 @@ const validateDataArray = async locals => {
     });
 
     if (locals.templateDoc.get('attachment').hasOwnProperty('Name')) {
-      namesToCheck
-        .push(locals.inputObjects[index].Name);
+      namesToCheck.push(locals.inputObjects[index].Name);
     }
 
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.EMPLOYEE) {
+    if (locals.templateDoc.get('name') === templateNamesObject.EMPLOYEE) {
       employeesToCheck.push({
         name: locals.inputObjects[index].Name,
-        phoneNumber: locals.inputObjects[index]['Employee Contact'],
+        phoneNumber: locals.inputObjects[index]['Phone Number'],
       });
     }
   });
@@ -1618,7 +1729,6 @@ const validateDataArray = async locals => {
       && !locals.inputObjects[index].rejected
       && locals.templateDoc.get('name') !== templateNamesObject.CUSTOMER
       && locals.templateDoc.get('name') !== templateNamesObject.BRANCH
-      && locals.templateDoc.get('name') !== templateNamesObject.KM_ALLOWANCE
       /**
        * Templates like `leave-type`, `claim-type` and `customer-type`
        * are auto assigned to their respective recipients via
@@ -1654,8 +1764,7 @@ const validateDataArray = async locals => {
 };
 
 const handleCustomer = async locals => {
-  if (locals.templateDoc.get('name')
-    !== templateNamesObject.CUSTOMER) {
+  if (locals.templateDoc.get('name') !== templateNamesObject.CUSTOMER) {
     return;
   }
 
@@ -1672,10 +1781,9 @@ const handleCustomer = async locals => {
       return;
     }
 
-    placesApiPromises.push(addressToCustomer({
-      location: item.location,
-      address: item.address,
-    }));
+    placesApiPromises.push(
+      addressToCustomer({ location: item.location, address: item.address })
+    );
   });
 
   const customers = await Promise.all(placesApiPromises);
@@ -1882,56 +1990,13 @@ const handleBranch = async locals => {
   return;
 };
 
-const handleKmAllowance = async locals => {
-  if (locals.templateDoc.get('name')
-    !== templateNamesObject.KM_ALLOWANCE) {
-    return;
-  }
-
-  locals.inputObjects.forEach((item, index) => {
-    if (item.Local === 'TRUE'
-      && item.Travel === 'TRUE') {
-      locals
-        .inputObjects[
-        index
-      ].rejected = true;
-      locals
-        .inputObjects[
-        index
-      ].reason = `Only one among`
-      + ` (Local and Up Country)`
-        + ` can be true`;
-
-      return;
-    }
-
-    if (item.Local === 'TRUE') {
-      locals.inputObjects[index].Local = true;
-    }
-
-    if (item.Local === 'FALSE') {
-      locals.inputObjects[index].Local = false;
-    }
-
-    if (item.Travel === 'TRUE') {
-      locals.inputObjects[index].Travel = true;
-    }
-
-    if (item.Travel === 'FALSE') {
-      locals.inputObjects[index].Travel = false;
-    }
-  });
-
-  return;
-};
-
 const handleDuty = async locals => {
   if (locals.templateDoc.get('name')
     !== templateNamesObject.DUTY) {
     return;
   }
 
-  const schedule = locals.templateDoc.get('schedule')[0];
+  const [schedule] = locals.templateDoc.get('schedule');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const customerPromises = [];
   const dutyTypePromises = [];
@@ -2032,17 +2097,17 @@ const handleDuty = async locals => {
       return;
     }
 
-    const customerPromise = rootCollections
-      .activities
-      .where('template', '==', 'customer')
-      .where('status', '==', 'CONFIRMED')
-      .where('officeId', '==', locals.officeDoc.id)
-      .where('attachment.Name.value', '==', item.Location)
-      .limit(1)
-      .get();
-
     customerPromises
-      .push(customerPromise);
+      .push(
+        rootCollections
+          .activities
+          .where('template', '==', 'customer')
+          .where('status', '==', 'CONFIRMED')
+          .where('officeId', '==', locals.officeDoc.id)
+          .where('attachment.Name.value', '==', item.Location)
+          .limit(1)
+          .get()
+      );
 
     const phoneNumbers = (() => {
       if (Array.isArray(item.Include)) {
@@ -2063,36 +2128,30 @@ const handleDuty = async locals => {
       return;
     }
 
-    includeArrayMap
-      .set(index, phoneNumbers);
-
+    includeArrayMap.set(index, phoneNumbers);
     locals.inputObjects[index].Include = phoneNumbers;
+    locals.inputObjects[index].Include = [...new Set(phoneNumbers)];
 
-    locals.inputObjects[index].Include = [
-      ...new Set(phoneNumbers)
-    ];
-
-    phoneNumbers
-      .push(item.Supervisor.trim());
+    phoneNumbers.push(item.Supervisor.trim());
 
     if (!locals.isSupportRequest) {
-      phoneNumbers
-        .push(locals.phoneNumber);
+      phoneNumbers.push(locals.phoneNumber);
     }
 
     phoneNumbers
       .forEach(phoneNumber => {
         const authPromise = getAuth(phoneNumber);
-        const leavePromise = isOnLeave({
-          timezone,
-          phoneNumber,
-          startTime: momentStartTimeFromSchedule.valueOf(),
-          endTime: momentEndTimeFromSchedule.valueOf(),
-          officeId: locals.officeDoc.id,
-        });
 
         leavePromises
-          .push(leavePromise);
+          .push(
+            isOnLeave({
+              timezone,
+              phoneNumber,
+              startTime: momentStartTimeFromSchedule.valueOf(),
+              endTime: momentEndTimeFromSchedule.valueOf(),
+              officeId: locals.officeDoc.id,
+            })
+          );
 
         authPromises
           .push(authPromise);
@@ -2186,20 +2245,15 @@ const handleDuty = async locals => {
 
   customerSnapshots
     .forEach(snap => {
-      if (snap.empty) {
+      const [doc] = snap.docs;
+      if (!doc) {
         return;
       }
 
-      const name = snap
-        .docs[0]
-        .get('attachment.Name.value');
-
-      existingCustomersSet
-        .add(name);
+      existingCustomersSet.add(doc.get('attachment.Name.value'));
     });
 
-  const leavePromisesResult = await Promise
-    .all(leavePromises);
+  const leavePromisesResult = await Promise.all(leavePromises);
 
   leavePromisesResult
     .forEach(item => {
@@ -2253,9 +2307,7 @@ const handleDuty = async locals => {
       return;
     }
 
-    const phoneNumbers = includeArrayMap
-      .get(index)
-      || [];
+    const phoneNumbers = includeArrayMap.get(index) || [];
 
     phoneNumbers
       .forEach(phoneNumber => {
@@ -2270,8 +2322,7 @@ const handleDuty = async locals => {
           return;
         }
 
-        const indexSet = phoneNumberIndexMap
-          .get(phoneNumber);
+        const indexSet = phoneNumberIndexMap.get(phoneNumber);
 
         if (indexSet.has(index)) {
           locals.inputObjects[index].rejected = true;
@@ -2284,180 +2335,146 @@ const handleDuty = async locals => {
   return;
 };
 
+const bulkCreateOnFinalize = async object => {
+  const [officeId, template] = object.name.split('/');
+  const bucket = admin.storage().bucket(object.bucket);
+  const [buffer] = await bucket.file(object.name).download();
+  const [metadataResponse] = await bucket.file(object.name).getMetadata();
 
-module.exports = async (object, context) => {
-  try {
-    const [
-      officeId,
-      template,
-    ] = object.name.split('/');
-    const bucket = admin
-      .storage()
-      .bucket(object.bucket);
+  /**
+   * This function's trigger => onFinalize.
+   * When we update the same excel file at the end of this
+   * function with the final result, the function will
+   * trigger again.
+   * To avoid infinite loops, we need to exit after
+   * the first successful invocation.
+   */
+  if (metadataResponse.metadata.updateEvent === '1') {
+    console.log('returning after update');
 
-    const [
-      buffer
-    ] = await bucket.file(object.name).download();
-    const [
-      metadataResponse
-    ] = await bucket.file(object.name).getMetadata();
+    return;
+  }
 
-    if (metadataResponse.metadata.updateEvent === '1') {
-      console.log('returning after update');
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const [sheet1] = workbook.SheetNames;
+  const theSheet = workbook.Sheets[sheet1];
+  const inputObjects = XLSX
+    .utils
+    .sheet_to_json(theSheet, {
+      // empty rows are redundant
+      blankrows: false,
+      defval: '',
+      raw: false,
+    });
+
+  const promises = [
+    rootCollections
+      .activityTemplates
+      .where('name', '==', template)
+      .limit(1)
+      .get(),
+    rootCollections
+      .offices
+      /** Office field can be skipped while creating `offices` in bulk */
+      .doc(officeId || null)
+      .get(),
+  ];
+
+  if (template === templateNamesObject.SUBSCRIPTION) {
+    promises.push(rootCollections.activityTemplates.get());
+  }
+
+  const [
+    templateDocsQuery,
+    officeDoc,
+    templatesCollectionQuery,
+  ] = await Promise
+    .all(promises);
+
+  const locals = {
+    object,
+    inputObjects,
+    officeDoc,
+    templateDoc: templateDocsQuery.docs[0],
+    adminsSet: new Set(),
+    employeesSet: new Set(),
+    templateNamesSet: new Set(),
+    geopoint: {
+      latitude: Number(metadataResponse.metadata.latitude),
+      longitude: Number(metadataResponse.metadata.longitude),
+    },
+    userDeviceTimestamp: Number(metadataResponse.metadata.timestamp),
+    phoneNumber: metadataResponse.metadata.phoneNumber,
+    displayName: metadataResponse.metadata.displayName || '',
+    isSupportRequest: metadataResponse.metadata.isSupportRequest === 'true',
+    isAdminRequest: metadataResponse.metadata.isAdminRequest === 'true',
+    trialRun: metadataResponse.metadata.trialRun === 'true',
+    metadata: metadataResponse.metadata,
+    storageFilePath: object.name,
+    photoURL: metadataResponse.metadata.photoURL,
+  };
+
+  locals.inputObjects.forEach((object, index) => {
+    /**
+     * Ignoring objects where all fields have empty
+     * strings as the value.
+     */
+    if (isEmptyObject(object)) {
+      delete locals.inputObjects[index];
 
       return;
     }
 
-    const workbook = XLSX.read(buffer, {
-      type: 'buffer'
-    });
-
-    const sheet1 = workbook.SheetNames[0];
-    const theSheet = workbook.Sheets[sheet1];
-    const inputObjects = XLSX
-      .utils
-      .sheet_to_json(theSheet, {
-        blankrows: false, // empty rows are redundant
-        defval: '',
-        raw: false,
-      });
-
-    const promises = [
-      rootCollections
-        .activityTemplates
-        .where('name', '==', template)
-        .limit(1)
-        .get(),
-      rootCollections
-        .offices
-        /** Office field can be skipped while creating `offices` in bulk */
-        .doc(officeId || null)
-        .get(),
-    ];
-
-    if (template
-      === templateNamesObject.SUBSCRIPTION) {
-      const promise = rootCollections
-        .activityTemplates
-        .get();
-
-      promises
-        .push(promise);
+    if (!Array.isArray(locals.inputObjects[index].share)) {
+      locals.inputObjects[index].share = [];
     }
 
-    const [
-      templateDocsQuery,
-      officeDoc,
-      templatesCollectionQuery,
-    ] = await Promise
-      .all(promises);
+    const [venueDescriptor] = locals.templateDoc.get('venue');
 
-    const locals = {
-      inputObjects,
-      officeDoc,
-      templateDoc: templateDocsQuery.docs[0],
-      adminsSet: new Set(),
-      employeesSet: new Set(),
-    };
+    if (venueDescriptor && locals.inputObjects[index].venueDescriptor !== venueDescriptor) {
+      locals.inputObjects[index].venueDescriptor = venueDescriptor;
+    }
 
-    locals.inputObjects.forEach((object, index) => {
-      /**
-       * Ignoring objects where all fields have empty
-       * strings as the value.
-       */
-      if (isEmptyObject(object)) {
-        delete locals.inputObjects[index];
+    const attachmentFieldsSet = new Set(
+      Object.keys(locals.templateDoc.get('attachment'))
+    );
 
-        return;
-      }
+    if (template === templateNamesObject.SUBSCRIPTION) {
+      templatesCollectionQuery.forEach(doc => locals.templateNamesSet.add(doc.get('name')));
+    }
 
-      if (!Array.isArray(locals.inputObjects[index].share)) {
-        locals.inputObjects[index].share = [];
-      }
-
-      const venueDescriptor = locals.templateDoc.get('venue')[0];
-
-      if (venueDescriptor
-        && locals
-          .inputObjects[index].venueDescriptor !== venueDescriptor) {
-        locals
-          .inputObjects[index].venueDescriptor = venueDescriptor;
-      }
-
-      const attachmentFieldsSet = new Set(
-        Object.keys(locals.templateDoc.get('attachment'))
-      );
-
-      if (template
-        === templateNamesObject.SUBSCRIPTION) {
-        const templateNamesSet = new Set();
-
-        templatesCollectionQuery
-          .forEach(doc => {
-            templateNamesSet
-              .add(doc.get('name'));
-          });
-
-        locals
-          .templateNamesSet = templateNamesSet;
-      }
-
-      attachmentFieldsSet
-        .forEach(fieldName => {
-          if (locals.inputObjects[index].hasOwnProperty(fieldName)) {
-            if (typeof locals.inputObjects[index][fieldName] === 'string') {
-              locals.inputObjects[index][fieldName] =
-                // Replacing tab and newline chars from input
-                locals.inputObjects[index][fieldName]
-                  .replace(/\s\s+/g, ' ')
-                  .trim();
-            }
-
-            return;
+    attachmentFieldsSet
+      .forEach(fieldName => {
+        if (locals.inputObjects[index].hasOwnProperty(fieldName)) {
+          if (typeof locals.inputObjects[index][fieldName] === 'string') {
+            // Replacing tab and newline chars from input
+            locals
+              .inputObjects[index][fieldName] = locals.inputObjects[index][fieldName].replace(/\s\s+/g, ' ').trim();
           }
 
-          locals.inputObjects[index][fieldName] = '';
-        });
-    });
+          return;
+        }
 
-    locals
-      .geopoint = {
-      latitude: Number(metadataResponse.metadata.latitude),
-      longitude: Number(metadataResponse.metadata.longitude),
-    };
-    locals
-      .userDeviceTimestamp = Number(metadataResponse.metadata.timestamp);
-    locals
-      .phoneNumber = metadataResponse.metadata.phoneNumber;
-    locals
-      .displayName = metadataResponse.metadata.displayName || '';
-    locals
-      .photoURL = metadataResponse.metadata.photoURL || '';
-    locals
-      .isSupportRequest = metadataResponse.metadata.isSupportRequest === 'true';
-    locals
-      .isAdminRequest = metadataResponse.metadata.isAdminRequest === 'true';
-    locals
-      .phoneNumber = metadataResponse.metadata.phoneNumber;
-    locals
-      .trialRun = metadataResponse.metadata.trialRun === 'true';
-    locals
-      .metadata = metadataResponse.metadata;
-    locals
-      .storageFilePath = object.name;
-    locals
-      .object = object;
+        /**
+         * Field doesn't exist in the object, create one because
+         * the client side excel file might not contain all the fields
+         */
+        locals.inputObjects[index][fieldName] = '';
+      });
+  });
 
-    await handleCustomer(locals);
-    await handleBranch(locals);
-    await handleDuty(locals);
-    await handleKmAllowance(locals);
+  await handleCustomer(locals);
+  await handleBranch(locals);
+  await handleDuty(locals);
 
-    return validateDataArray(locals);
+  return validateDataArray(locals);
+};
+
+
+module.exports = async (object, context) => {
+  try {
+    return bulkCreateOnFinalize(object, context);
   } catch (error) {
-    console.error({
-      error,
-      context,
-    });
+    console.error({ error, context });
   }
 };

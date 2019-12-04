@@ -182,7 +182,7 @@ const handleAdminRequest = (conn, requester) => {
         .activities
         .where('office', '==', officeName)
         .where('template', '==', 'employee')
-        .where('attachment.Employee Contact.value', '==', conn.req.body.phoneNumber)
+        .where('attachment.Phone Number.value', '==', conn.req.body.phoneNumber)
         .limit(1)
         .get();
 

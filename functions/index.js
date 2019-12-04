@@ -81,12 +81,6 @@ const recipientsOnUpdate = functions
   .document('Recipients/{docId}')
   .onUpdate(require('./firestore/recipients/on-update'));
 
-/** For sending notifications to the client app */
-// const sendPushNotification = functions
-//   .firestore
-//   .document('Updates/{uid}/Addendum/{docId}')
-//   .onCreate(require('./firestore/updates/addendum/on-create'));
-
 const webapp = functions
   .https
   .onRequest(require('./webapp'));
@@ -94,11 +88,6 @@ const webapp = functions
 const getUser = functions
   .https
   .onRequest(require('./get-user'));
-
-const monthlyOnWrite = functions
-  .firestore
-  .document('Offices/{officeId}/Statuses/{monthYear}/Employees/{phoneNumber}')
-  .onWrite(require('./firestore/monthly'));
 
 const temporaryImageHandler = functions
   .storage
@@ -119,14 +108,12 @@ module.exports = {
   webapp,
   getUser,
   authOnCreate,
-  monthlyOnWrite,
   profileOnWrite,
   instantOnCreate,
   activityOnWrite,
   assigneeOnDelete,
   bulkCreateHandler,
   recipientsOnUpdate,
-  // sendPushNotification,
   temporaryImageHandler,
   activityTemplatesOnUpdate,
   generateOfficeNamePermutations,

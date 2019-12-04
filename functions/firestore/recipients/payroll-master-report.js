@@ -89,7 +89,7 @@ module.exports = async locals => {
     .forEach((phoneNumber, outerIndex) => {
       [
         locals.employeesData[phoneNumber].Name,
-        locals.employeesData[phoneNumber]['Employee Contact'],
+        locals.employeesData[phoneNumber]['Phone Number'],
         locals.employeesData[phoneNumber].Designation,
         locals.employeesData[phoneNumber].Department,
         locals.employeesData[phoneNumber]['Base Location'],

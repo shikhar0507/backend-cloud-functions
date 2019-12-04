@@ -60,8 +60,7 @@ module.exports = async locals => {
     }
 
     monthToDate[tempMoment.month()] = monthToDate[tempMoment.month()] || [];
-    monthToDate[tempMoment.month()]
-      .push(tempMoment.date());
+    monthToDate[tempMoment.month()].push(tempMoment.date());
 
     const promise = rootCollections
       .offices
@@ -97,8 +96,8 @@ module.exports = async locals => {
       const year = filters[1].value;
       const datesArray = monthToDate[month] || [];
       const docData = doc ? doc.data() : {};
-      docData
-        .attendance = docData.attendance || {};
+
+      docData.attendance = docData.attendance || {};
 
       datesArray
         .forEach(date => {
@@ -110,7 +109,6 @@ module.exports = async locals => {
 
           docData
             .attendance[date] = docData.attendance[date] || getDefaultAttendanceObject();
-
           docData
             .attendance[date]
             .leave
