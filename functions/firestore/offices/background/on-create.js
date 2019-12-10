@@ -24,32 +24,37 @@
 
 'use strict';
 
-const { db } = require('../../../admin/admin');
-const { slugify, getSearchables, } = require('../../../admin/utils');
+const {
+  db
+} = require('../../../admin/admin');
+const {
+  slugify,
+  getSearchables,
+} = require('../../../admin/utils');
 
 
 const getPermutations = (officeName) => {
   const nameCombinations = new Set();
 
   [' ', '.', ',', '-', '&', '(', ')']
-    .forEach((character) => {
-      const parts = officeName.split(character);
+  .forEach((character) => {
+    const parts = officeName.split(character);
 
-      parts.forEach((part) => {
-        nameCombinations.add(part);
-        nameCombinations.add(part.toLowerCase());
-        nameCombinations.add(part.toUpperCase());
-      });
+    parts.forEach((part) => {
+      nameCombinations.add(part);
+      nameCombinations.add(part.toLowerCase());
+      nameCombinations.add(part.toUpperCase());
     });
+  });
 
   officeName
     .split(' ')
     .forEach((part) => {
       const withFirstLetterCaps =
         part
-          .charAt(0)
-          .toUpperCase()
-        + part.substr(1);
+        .charAt(0)
+        .toUpperCase() +
+        part.substr(1);
 
       nameCombinations.add(withFirstLetterCaps);
     });
@@ -70,8 +75,8 @@ module.exports = (officeDoc) => {
     slug,
     searchables,
   }, {
-      merge: true,
-    });
+    merge: true,
+  });
 
   return batch
     .commit()

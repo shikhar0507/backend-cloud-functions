@@ -54,7 +54,10 @@ const momentOffsetObject = (timezone) => {
     YEAR: momentYesterday.year(),
   };
 
-  return { today, yesterday };
+  return {
+    today,
+    yesterday
+  };
 };
 
 
@@ -282,10 +285,10 @@ const getEmployeeDetailsString = (employeesData, phoneNumber) => {
     return ` | Supervisors: ${result}`;
   })();
 
-  return `Name: ${employeesData[phoneNumber].Name}`
-    + ` | Employee Code: ${employeesData[phoneNumber]['Employee Code']}`
-    + ` | Contact Number: ${employeesData[phoneNumber]['Phone Number']}`
-    + `${supervisorsString}`;
+  return `Name: ${employeesData[phoneNumber].Name}` +
+    ` | Employee Code: ${employeesData[phoneNumber]['Employee Code']}` +
+    ` | Contact Number: ${employeesData[phoneNumber]['Phone Number']}` +
+    `${supervisorsString}`;
 };
 
 const getUrl = doc => {
@@ -296,8 +299,8 @@ const getUrl = doc => {
     return toMapsUrl(venue[0].geopoint);
   }
 
-  if (doc.get('venueQuery')
-    && doc.get('venueQuery').location) {
+  if (doc.get('venueQuery') &&
+    doc.get('venueQuery').location) {
     return toMapsUrl(doc.get('venueQuery').geopoint);
   }
 
@@ -312,8 +315,8 @@ const getIdentifier = doc => {
     return venue[0].location;
   }
 
-  if (doc.get('venueQuery')
-    && doc.get('venueQuery').location) {
+  if (doc.get('venueQuery') &&
+    doc.get('venueQuery').location) {
     return doc
       .get('venueQuery')
       .location;
@@ -322,14 +325,23 @@ const getIdentifier = doc => {
   return doc.get('identifier');
 };
 
-const getStatusForDay = ({ hoursWorked, numberOfCheckIns, minimumWorkingHours, minimumDailyActivityCount }) => {
+const getStatusForDay = ({
+  hoursWorked,
+  numberOfCheckIns,
+  minimumWorkingHours,
+  minimumDailyActivityCount
+}) => {
+  if (!numberOfCheckIns) {
+    return 0;
+  }
+
   if (minimumDailyActivityCount === 1) {
     return 1;
   }
 
   const activityRatio = (() => {
-    if (Number.isInteger(minimumDailyActivityCount)
-      && minimumDailyActivityCount > 0) {
+    if (Number.isInteger(minimumDailyActivityCount) &&
+      minimumDailyActivityCount > 0) {
       return numberOfCheckIns / minimumDailyActivityCount;
     }
 
@@ -337,8 +349,8 @@ const getStatusForDay = ({ hoursWorked, numberOfCheckIns, minimumWorkingHours, m
   })();
 
   const rev = (() => {
-    if (Number.isInteger(minimumDailyActivityCount)
-      && minimumDailyActivityCount > 0) {
+    if (Number.isInteger(minimumDailyActivityCount) &&
+      minimumDailyActivityCount > 0) {
       return 1 / minimumDailyActivityCount;
     }
 
@@ -346,8 +358,8 @@ const getStatusForDay = ({ hoursWorked, numberOfCheckIns, minimumWorkingHours, m
   })();
 
   const timeRatio = (() => {
-    if (typeof minimumWorkingHours === 'number'
-      && minimumWorkingHours > 0) {
+    if (typeof minimumWorkingHours === 'number' &&
+      minimumWorkingHours > 0) {
       return hoursWorked / minimumWorkingHours;
     }
 

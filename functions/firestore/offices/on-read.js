@@ -41,18 +41,18 @@ const getTemplateObject = (doc) => doc.data();
 
 const getTemplates = (conn, locals) =>
   rootCollections
-    .activityTemplates
-    .where('timestamp', '>', locals.jsonObject.from)
-    .get()
-    .then((docs) => {
-      docs.forEach((doc) =>
-        locals.jsonObject.templates.push(getTemplateObject(doc)));
+  .activityTemplates
+  .where('timestamp', '>', locals.jsonObject.from)
+  .get()
+  .then((docs) => {
+    docs.forEach((doc) =>
+      locals.jsonObject.templates.push(getTemplateObject(doc)));
 
-      sendJSON(conn, locals.jsonObject);
+    sendJSON(conn, locals.jsonObject);
 
-      return;
-    })
-    .catch((error) => handleError(conn, error));
+    return;
+  })
+  .catch((error) => handleError(conn, error));
 
 
 const fetchActivities = (conn, locals) => {
@@ -94,8 +94,8 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!hasAdminClaims(conn.requester.customClaims)
-    && !hasSupportClaims(conn.requester.customClaims)) {
+  if (!hasAdminClaims(conn.requester.customClaims) &&
+    !hasSupportClaims(conn.requester.customClaims)) {
     sendResponse(
       conn,
       code.forbidden,

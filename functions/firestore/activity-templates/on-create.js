@@ -28,7 +28,9 @@
 const {
   rootCollections,
 } = require('../../admin/admin');
-const { code } = require('../../admin/responses');
+const {
+  code
+} = require('../../admin/responses');
 const {
   canEditRules,
   templateFields,
@@ -50,8 +52,8 @@ const validateTemplate = (body) => {
 
   for (const field of fields) {
     if (!templateFields.has(field)) {
-      message.message = `The field '${field}' is not allowed.`
-        + ` Use only: ${[...templateFields.keys()]}.`;
+      message.message = `The field '${field}' is not allowed.` +
+        ` Use only: ${[...templateFields.keys()]}.`;
       message.isValid = false;
       break;
     }
@@ -59,45 +61,45 @@ const validateTemplate = (body) => {
     const value = body[field];
 
     if (['name', 'statusOnCreate', 'canEditRule', 'comment']
-      .indexOf(field) > -1
-      && !isNonEmptyString(value)) {
-      message.message = `The field '${field}' should have a non-empty`
-        + ` string as its value.`;
+      .indexOf(field) > -1 &&
+      !isNonEmptyString(value)) {
+      message.message = `The field '${field}' should have a non-empty` +
+        ` string as its value.`;
       message.isValid = false;
       break;
     }
 
     if (!body.hasOwnProperty('name')) {
-      message.message = `The 'name' field is missing from`
-        + ` the request body.`;
+      message.message = `The 'name' field is missing from` +
+        ` the request body.`;
       message.isValid = false;
       break;
     }
 
     if (body.name && body.name.toLowerCase() !== body.name) {
-      message.message = `The value of the field 'name' should be`
-        + ` non-empty string with all lowercase alphabetic characters.`;
+      message.message = `The value of the field 'name' should be` +
+        ` non-empty string with all lowercase alphabetic characters.`;
       message.isValid = false;
       break;
     }
 
     if (!body.hasOwnProperty('comment')) {
-      message.message = `The 'comment' field is missing from`
-        + ` the request body.`;
+      message.message = `The 'comment' field is missing from` +
+        ` the request body.`;
       message.isValid = false;
       break;
     }
 
     if (!body.hasOwnProperty('canEditRule')) {
-      message.message = `The 'canEditRule' field is missing from`
-        + ` the request body.`;
+      message.message = `The 'canEditRule' field is missing from` +
+        ` the request body.`;
       message.isValid = false;
       break;
     }
 
     if (!body.hasOwnProperty('statusOnCreate')) {
-      message.message = `The 'statusOnCreate' field is missing from`
-        + ` the request body.`;
+      message.message = `The 'statusOnCreate' field is missing from` +
+        ` the request body.`;
       message.isValid = false;
       break;
     }
@@ -116,25 +118,26 @@ const validateTemplate = (body) => {
     }
 
     if (!body.hasOwnProperty('schedule')) {
-      message.message = `The 'schedule' field is missing from`
-        + ` the request body.`;
+      message.message = `The 'schedule' field is missing from` +
+        ` the request body.`;
       message.isValid = false;
       break;
     }
 
     if (!body.hasOwnProperty('venue')) {
-      message.message = `The 'venue' field is missing from`
-        + ` the request body.`;
+      message.message = `The 'venue' field is missing from` +
+        ` the request body.`;
       message.isValid = false;
       break;
     }
 
     if (field === 'statusOnCreate') {
       if (!activityStatuses.has(value)) {
-        message.message = `The value in the field 'statusOnCreate': '${value}'`
-          + ` is not a valid activity status. Use one of the following:`
+        message.message = `The value in the field 'statusOnCreate': '${value}'` +
+          ` is not a valid activity status. Use one of the following:`
           /** Map to string conversion */
-          + ` ${[...activityStatuses.keys()]}`;
+          +
+          ` ${[...activityStatuses.keys()]}`;
         message.isValid = false;
         break;
       }
@@ -142,17 +145,17 @@ const validateTemplate = (body) => {
 
     if (field === 'canEditRule') {
       if (!canEditRules.has(value)) {
-        message.message = `The value in the field 'canEditRule': '${value}'`
-          + ` is not a valid 'canEditRule'. Use one of the following:`
-          + ` ${[...canEditRules.keys()]}`;
+        message.message = `The value in the field 'canEditRule': '${value}'` +
+          ` is not a valid 'canEditRule'. Use one of the following:` +
+          ` ${[...canEditRules.keys()]}`;
         message.isValid = false;
         break;
       }
     }
 
     if (field === 'venue') {
-      const invalidVenueMessage = `The value of the field 'venue'`
-        + ` can either be an empty array, or an array of non-empty strings.`;
+      const invalidVenueMessage = `The value of the field 'venue'` +
+        ` can either be an empty array, or an array of non-empty strings.`;
 
       if (!Array.isArray(value)) {
         message.message = invalidVenueMessage;
@@ -176,8 +179,8 @@ const validateTemplate = (body) => {
     }
 
     if (field === 'schedule') {
-      const invalidScheduleMessage = `The value of the field 'schedule'`
-        + ` can either be an empty array, or an array of non-empty strings.`;
+      const invalidScheduleMessage = `The value of the field 'schedule'` +
+        ` can either be an empty array, or an array of non-empty strings.`;
 
       if (!Array.isArray(value)) {
         message.message = invalidScheduleMessage;
@@ -207,17 +210,25 @@ const validateTemplate = (body) => {
 const createDocs = (conn, locals) => {
   const templateBody = conn.req.body;
   templateBody.timestamp = Date.now();
-  const { messageBody, subject, action } = locals;
+  const {
+    messageBody,
+    subject,
+    action
+  } = locals;
 
   return Promise
     .all([
       locals
-        .templateDocRef
-        .set(templateBody),
+      .templateDocRef
+      .set(templateBody),
       rootCollections
-        .instant
-        .doc()
-        .set({ messageBody, subject, action }),
+      .instant
+      .doc()
+      .set({
+        messageBody,
+        subject,
+        action
+      }),
     ])
     .then(() => ({
       success: true,
@@ -258,8 +269,8 @@ module.exports = (conn) => {
   if (Object.prototype.toString.call(attachment) !== '[object Object]') {
     return {
       code: code.badRequest,
-      message: `Expected the value of the 'attachment' field to`
-        + ` be of type Object. Found: '${typeof attachment}'.`,
+      message: `Expected the value of the 'attachment' field to` +
+        ` be of type Object. Found: '${typeof attachment}'.`,
       success: false,
     };
   }
@@ -269,13 +280,13 @@ module.exports = (conn) => {
     message: null,
   };
 
-  if (attachment.hasOwnProperty('Name')
-    && attachment.hasOwnProperty('Number')) {
+  if (attachment.hasOwnProperty('Name') &&
+    attachment.hasOwnProperty('Number')) {
     return {
       success: false,
       code: code.badRequest,
-      message: `The fields 'Name' and 'Number cannot exist`
-        + ` simultaneously in attachment object.'`
+      message: `The fields 'Name' and 'Number cannot exist` +
+        ` simultaneously in attachment object.'`
     };
   }
 
@@ -285,15 +296,15 @@ module.exports = (conn) => {
     const item = attachment[field];
 
     if (!item.hasOwnProperty('type')) {
-      messageObject.message = `In attachment, the object '${field}'`
-        + ` is missing the field 'type'.`;
+      messageObject.message = `In attachment, the object '${field}'` +
+        ` is missing the field 'type'.`;
       messageObject.isValid = false;
       break;
     }
 
     if (!item.hasOwnProperty('value')) {
-      messageObject.message = `In attachment, the object '${field}'`
-        + ` is missing the field 'value'.`;
+      messageObject.message = `In attachment, the object '${field}'` +
+        ` is missing the field 'value'.`;
       messageObject.isValid = false;
       break;
     }
@@ -301,8 +312,8 @@ module.exports = (conn) => {
     const value = item.value;
 
     if (value !== '') {
-      messageObject.message = `All objects in the 'attachment' should`
-        + ` have value equal to an empty string.`;
+      messageObject.message = `All objects in the 'attachment' should` +
+        ` have value equal to an empty string.`;
       messageObject.isValid = false;
       break;
     }
@@ -331,8 +342,8 @@ module.exports = (conn) => {
       }
 
       const templateDocRef = rootCollections.activityTemplates.doc();
-      const subject = `A new template has been created`
-        + ` (${process.env.GCLOUD_PROJECT})`;
+      const subject = `A new template has been created` +
+        ` (${process.env.GCLOUD_PROJECT})`;
       const messageBody = `
         <p>
           The template manager: <strong>${conn.requester.phoneNumber}</strong>

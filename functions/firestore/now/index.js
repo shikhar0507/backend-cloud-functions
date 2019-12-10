@@ -30,14 +30,14 @@ module.exports = async conn => {
     );
   }
 
-  if (conn.req.query.hasOwnProperty('registrationToken')
-    && typeof conn.req.query.registrationToken !== 'string'
-    && conn.req.query.registrationToken !== null) {
+  if (conn.req.query.hasOwnProperty('registrationToken') &&
+    typeof conn.req.query.registrationToken !== 'string' &&
+    conn.req.query.registrationToken !== null) {
     return sendResponse(
       conn,
       code.badRequest,
-      `The query param 'registrationToken' can either be a non-empty`
-      + ` string or 'null'`
+      `The query param 'registrationToken' can either be a non-empty` +
+      ` string or 'null'`
     );
   }
 
@@ -50,17 +50,17 @@ module.exports = async conn => {
   ] = await Promise
     .all([
       rootCollections
-        .updates
-        .doc(conn.requester.uid)
-        .get(),
+      .updates
+      .doc(conn.requester.uid)
+      .get(),
       rootCollections
-        .timers
-        .doc(getISO8601Date())
-        .get(),
+      .timers
+      .doc(getISO8601Date())
+      .get(),
       rootCollections
-        .versions
-        .doc('version')
-        .get(),
+      .versions
+      .doc('version')
+      .get(),
     ]);
 
   /**
@@ -142,9 +142,9 @@ module.exports = async conn => {
     .deviceIdsArray = [...new Set(oldDeviceIdsArray)];
 
   /** Only logging when changed */
-  if (conn.req.query.hasOwnProperty('deviceId')
-    && conn.req.query.deviceId
-    && conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
+  if (conn.req.query.hasOwnProperty('deviceId') &&
+    conn.req.query.deviceId &&
+    conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
 
     if (!updatesDocData.deviceIdsObject) {
       updatesDocData
@@ -158,8 +158,8 @@ module.exports = async conn => {
 
     const oldCount =
       updatesDocData
-        .deviceIdsObject[conn.req.query.deviceId]
-        .count || 0;
+      .deviceIdsObject[conn.req.query.deviceId]
+      .count || 0;
 
     updatesDocData.deviceIdsObject = {
       [conn.req.query.deviceId]: {
@@ -169,8 +169,8 @@ module.exports = async conn => {
     };
   }
 
-  if (conn.req.query.hasOwnProperty('registrationToken')
-    && typeof conn.req.query.registrationToken === 'string') {
+  if (conn.req.query.hasOwnProperty('registrationToken') &&
+    typeof conn.req.query.registrationToken === 'string') {
     updatesDocData
       .registrationToken = conn.req.query.registrationToken;
   }
@@ -186,8 +186,8 @@ module.exports = async conn => {
     if (typeof conn.req.query.removeFromOffice === 'string') {
       const index =
         updatesDocData
-          .removeFromOffice
-          .indexOf(conn.req.query.removeFromOffice);
+        .removeFromOffice
+        .indexOf(conn.req.query.removeFromOffice);
 
       if (index > -1) {
         updatesDocData
@@ -218,15 +218,15 @@ module.exports = async conn => {
   }
 
   // Delete venues on acknowledgement
-  if (updatesDocData.venues
-    && conn.req.query.venues === 'true') {
+  if (updatesDocData.venues &&
+    conn.req.query.venues === 'true') {
     const admin = require('firebase-admin');
 
     updatesDocData.venues = admin.firestore.FieldValue.delete();
   }
 
-  if (updatesDoc.get('lastStatusDocUpdateTimestamp')
-    > updatesDoc.get('lastNowRequestTimestamp')) {
+  if (updatesDoc.get('lastStatusDocUpdateTimestamp') >
+    updatesDoc.get('lastNowRequestTimestamp')) {
     const ref = rootCollections
       .profiles
       .doc(conn.requester.phoneNumber);
@@ -240,8 +240,8 @@ module.exports = async conn => {
       });
   }
 
-  if (updatesDoc.get('lastLocationMapUpdateTimestamp')
-    > updatesDoc.get('lastNowRequestTimestamp')) {
+  if (updatesDoc.get('lastLocationMapUpdateTimestamp') >
+    updatesDoc.get('lastNowRequestTimestamp')) {
     const ref = rootCollections
       .profiles
       .doc(conn.requester.phoneNumber);
@@ -271,8 +271,8 @@ module.exports = async conn => {
     code: code.ok,
   };
 
-  if (removeFromOffice
-    && removeFromOffice.length > 0) {
+  if (removeFromOffice &&
+    removeFromOffice.length > 0) {
     responseObject.removeFromOffice = removeFromOffice;
   }
 

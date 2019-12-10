@@ -17,9 +17,11 @@ function showPhoneNumberInput() {
 function showOtpInput() {
   document.getElementById('otp-container').classList.remove('hidden');
 }
+
 function hideOtpInput() {
   document.getElementById('otp-container').classList.add('hidden');
 }
+
 function showNameEmailContainer() {
   document.getElementById('name-email-container').classList.remove('hidden');
 }
@@ -148,16 +150,18 @@ function sendOtpToPhoneNumber() {
 function fetchAuth() {
   const phoneNumber = getPhoneNumber('phone');
 
-  console.log({ phoneNumber });
+  console.log({
+    phoneNumber
+  });
 
   if (!isValidPhoneNumber(phoneNumber)) {
     setMessage('Invalid phone number');
     return;
   }
-  const phoneNumberField =  document
-  .getElementById('phone');
-  phoneNumberField.setAttribute("disabled",true)
- 
+  const phoneNumberField = document
+    .getElementById('phone');
+  phoneNumberField.setAttribute("disabled", true)
+
 
 
   let rejectionMessage = '';
@@ -171,9 +175,9 @@ function fetchAuth() {
   };
 
   return fetch(
-    `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`,
-    init
-  )
+      `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`,
+      init
+    )
     .then(function (response) {
       console.log('URL:', `${getUserBaseUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}`);
 
@@ -218,7 +222,7 @@ function fetchAuth() {
         sendOtpToPhoneNumber().then(function (confirmResult) {
           setMessage(`Otp sent to ${phoneNumber}`);
           cancelAuthFlowButton.classList.remove('hidden')
-          cancelAuthFlowButton.onclick = function(){
+          cancelAuthFlowButton.onclick = function () {
             window.location.reload()
           };
 
@@ -240,7 +244,7 @@ function fetchAuth() {
       console.error(error);
       window.recaptchaResolved = false
       setMessage(rejectionMessage || 'Something went wrong');
-     
+
     });
 }
 

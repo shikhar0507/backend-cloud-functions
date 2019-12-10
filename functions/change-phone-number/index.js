@@ -22,18 +22,18 @@ const admin = require('firebase-admin');
 
 const validator = (body, oldPhoneNumber) => {
   if (!body.hasOwnProperty('newPhoneNumber')) {
-    return `Field 'newPhoneNumber' is missing`
-      + ` from the request body`;
+    return `Field 'newPhoneNumber' is missing` +
+      ` from the request body`;
   }
 
   if (!isE164PhoneNumber(body.newPhoneNumber)) {
-    return `Invalid phone number:`
-      + ` '${body.newPhoneNumber}' in the request body`;
+    return `Invalid phone number:` +
+      ` '${body.newPhoneNumber}' in the request body`;
   }
 
   if (body.newPhoneNumber === oldPhoneNumber) {
-    return `Old Phone Number cannot be the same as`
-      + ` the New Phone Number`;
+    return `Old Phone Number cannot be the same as` +
+      ` the New Phone Number`;
   }
 
   return null;
@@ -89,16 +89,19 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
         if (creator.phoneNumber === oldPhoneNumber) {
           data
             .creator = Object
-              .assign({}, creator, {
-                phoneNumber: newPhoneNumber,
-              });
+            .assign({}, creator, {
+              phoneNumber: newPhoneNumber,
+            });
         }
 
         const fields = Object.keys(attachment);
 
         fields
           .forEach(field => {
-            const { value, type } = attachment[field];
+            const {
+              value,
+              type
+            } = attachment[field];
 
             if (type !== 'phoneNumber') {
               return;
@@ -115,8 +118,8 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
           .activities
           .doc(doc.id);
 
-        if (data.template === 'employee'
-          && data.attachment['Phone Number'].value === oldPhoneNumber) {
+        if (data.template === 'employee' &&
+          data.attachment['Phone Number'].value === oldPhoneNumber) {
           const officeId = data.officeId;
 
           const ref = rootCollections
@@ -157,23 +160,23 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
         batch
           .set(ref,
             Object.assign({}, data), {
-            merge: true,
-          });
+              merge: true,
+            });
 
         batch
           .delete(
             ref
-              .collection(subcollectionNames.ASSIGNEES)
-              .doc(oldPhoneNumber)
+            .collection(subcollectionNames.ASSIGNEES)
+            .doc(oldPhoneNumber)
           );
 
         batch
           .set(
             ref
-              .collection(subcollectionNames.ASSIGNEES)
-              .doc(newPhoneNumber), {
-            addToInclude: data.template === 'subscription',
-          });
+            .collection(subcollectionNames.ASSIGNEES)
+            .doc(newPhoneNumber), {
+              addToInclude: data.template === 'subscription',
+            });
       });
 
     await batch
@@ -238,7 +241,9 @@ const populateWebapp = async (oldPhoneNumber, newPhoneNumber) => {
           }
 
           batch
-            .set(ref, data, { merge: true });
+            .set(ref, data, {
+              merge: true
+            });
         });
 
       await batch
@@ -304,8 +309,8 @@ module.exports = async conn => {
       return sendResponse(
         conn,
         code.badRequest,
-        `The phone number: '${conn.req.body.newPhoneNumber}'`
-        + ` is already in use`
+        `The phone number: '${conn.req.body.newPhoneNumber}'` +
+        ` is already in use`
       );
     }
 
@@ -335,9 +340,9 @@ module.exports = async conn => {
 
     const profileData = (
       await rootCollections
-        .profiles
-        .doc(conn.req.body.oldPhoneNumber)
-        .get()
+      .profiles
+      .doc(conn.req.body.oldPhoneNumber)
+      .get()
     ).data() || {};
 
     batch
@@ -346,31 +351,31 @@ module.exports = async conn => {
         .doc(conn.req.body.newPhoneNumber), Object.assign({}, profileData, {
           uid: conn.requester.uid,
         }), {
-        merge: true,
-      });
+          merge: true,
+        });
 
     batch
       .set(rootCollections
         .updates
         .doc(conn.requester.uid), {
-        phoneNumber: conn.req.body.newPhoneNumber,
-      }, {
-        merge: true,
-      });
+          phoneNumber: conn.req.body.newPhoneNumber,
+        }, {
+          merge: true,
+        });
 
     await Promise
       .all([
         batch
-          .commit(),
+        .commit(),
         admin
-          .auth()
-          .updateUser(conn.requester.uid, {
-            disabled: false,
-            phoneNumber: conn.req.body.newPhoneNumber,
-          }),
+        .auth()
+        .updateUser(conn.requester.uid, {
+          disabled: false,
+          phoneNumber: conn.req.body.newPhoneNumber,
+        }),
         admin
-          .auth()
-          .revokeRefreshTokens(conn.requester.uid)
+        .auth()
+        .revokeRefreshTokens(conn.requester.uid)
       ]);
 
     return sendResponse(

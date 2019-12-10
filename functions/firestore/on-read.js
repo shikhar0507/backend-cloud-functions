@@ -143,8 +143,8 @@ const getCreator = phoneNumberOrObject => {
 const getActivityObject = (doc, customClaims, employeeOf, phoneNumber) => {
   const canEditRule = doc.get('canEditRule');
   const office = doc.get('office');
-  const creator = doc.get('creator.phoneNumber')
-    || doc.get('creator');
+  const creator = doc.get('creator.phoneNumber') ||
+    doc.get('creator');
 
   const canEdit = (() => {
     if (canEditRule === 'ALL') {
@@ -156,14 +156,14 @@ const getActivityObject = (doc, customClaims, employeeOf, phoneNumber) => {
     }
 
     if (canEditRule === 'ADMIN') {
-      return customClaims
-        && Array.isArray(customClaims.admin)
-        && customClaims.admin.includes(office);
+      return customClaims &&
+        Array.isArray(customClaims.admin) &&
+        customClaims.admin.includes(office);
     }
 
     if (canEditRule === 'EMPLOYEE') {
-      return employeeOf
-        && employeeOf.hasOwnProperty(office);
+      return employeeOf &&
+        employeeOf.hasOwnProperty(office);
     }
 
     // canEditRule => NONE
@@ -248,11 +248,11 @@ const getStatusObject = async params => {
       parentPromises
         .push(
           Promise
-            .all(attendanceDocs),
+          .all(attendanceDocs),
           Promise
-            .all(reimbursementDocs),
+          .all(reimbursementDocs),
           Promise
-            .all(transactionDocs),
+          .all(transactionDocs),
         );
 
       if (fetchPrevMonth) {
@@ -292,11 +292,11 @@ const getStatusObject = async params => {
         parentPromises
           .push(
             Promise
-              .all(prevMonthAttendanceDocs),
+            .all(prevMonthAttendanceDocs),
             Promise
-              .all(prevMonthReimbursementDocs),
+            .all(prevMonthReimbursementDocs),
             Promise
-              .all(prevMonthTransactionDocs),
+            .all(prevMonthTransactionDocs),
           );
       }
     });
@@ -312,11 +312,16 @@ const getStatusObject = async params => {
             return;
           }
 
-          const { path } = doc.ref;
+          const {
+            path
+          } = doc.ref;
           const parts = path.split('/');
           const officeId = parts[1];
           const office = findKeyByValue(employeeOf, officeId);
-          const data = Object.assign({}, doc.data(), { office, officeId });
+          const data = Object.assign({}, doc.data(), {
+            office,
+            officeId
+          });
 
           data.date = data.date || Number(doc.id);
 
@@ -375,51 +380,51 @@ module.exports = async conn => {
     statusObject: [],
   };
 
-  if (conn.requester.profileDoc
-    && conn.requester.profileDoc.get('statusObject')) {
+  if (conn.requester.profileDoc &&
+    conn.requester.profileDoc.get('statusObject')) {
     jsonObject
       .statusObject = conn
-        .requester
-        .profileDoc
-        .get('statusObject');
+      .requester
+      .profileDoc
+      .get('statusObject');
   }
 
   const promises = [
     rootCollections
-      .updates
-      .doc(conn.requester.uid)
-      .collection(subcollectionNames.ADDENDUM)
-      .where('timestamp', '>', from)
-      .get(),
+    .updates
+    .doc(conn.requester.uid)
+    .collection(subcollectionNames.ADDENDUM)
+    .where('timestamp', '>', from)
+    .get(),
     rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber)
-      .collection(subcollectionNames.ACTIVITIES)
-      .where('timestamp', '>', from)
-      .get(),
+    .profiles
+    .doc(conn.requester.phoneNumber)
+    .collection(subcollectionNames.ACTIVITIES)
+    .where('timestamp', '>', from)
+    .get(),
     rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber)
-      .collection(subcollectionNames.SUBSCRIPTIONS)
-      .where('timestamp', '>', from)
-      .get(),
+    .profiles
+    .doc(conn.requester.phoneNumber)
+    .collection(subcollectionNames.SUBSCRIPTIONS)
+    .where('timestamp', '>', from)
+    .get(),
   ];
 
   const sendLocations = conn
     .requester
+    .profileDoc &&
+    conn
+    .requester
     .profileDoc
-    && conn
-      .requester
-      .profileDoc
-      .get('lastLocationMapUpdateTimestamp') > from;
+    .get('lastLocationMapUpdateTimestamp') > from;
 
   const sendStatusObjects = conn
     .requester
+    .profileDoc &&
+    conn
+    .requester
     .profileDoc
-    && conn
-      .requester
-      .profileDoc
-      .get('lastStatusDocUpdateTimestamp') > from;
+    .get('lastStatusDocUpdateTimestamp') > from;
 
   if (sendLocations) {
     const locationPromises = [];
@@ -451,7 +456,7 @@ module.exports = async conn => {
     promises
       .push(
         Promise
-          .all(locationPromises)
+        .all(locationPromises)
       );
   }
 
@@ -467,8 +472,8 @@ module.exports = async conn => {
     if (!addendum.empty) {
       jsonObject
         .upto = addendum
-          .docs[addendum.size - 1]
-          .get('timestamp');
+        .docs[addendum.size - 1]
+        .get('timestamp');
     }
 
     if (locationResults) {
@@ -517,8 +522,8 @@ module.exports = async conn => {
       lastQueryFrom: from,
     };
 
-    if (conn.requester.profileDoc
-      && conn.requester.profileDoc.get('statusObject')) {
+    if (conn.requester.profileDoc &&
+      conn.requester.profileDoc.get('statusObject')) {
       profileUpdate
         .statusObject = admin.firestore.FieldValue.delete();
     }
@@ -532,12 +537,12 @@ module.exports = async conn => {
       .set(rootCollections
         .profiles
         .doc(conn.requester.phoneNumber), profileUpdate, {
-        /** Profile has other stuff too. */
-        merge: true,
-      });
+          /** Profile has other stuff too. */
+          merge: true,
+        });
 
-    if (from === 0
-      || sendStatusObjects) {
+    if (from === 0 ||
+      sendStatusObjects) {
       jsonObject
         .statusObject = await getStatusObject({
           employeeOf,

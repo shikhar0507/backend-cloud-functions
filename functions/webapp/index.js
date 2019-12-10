@@ -63,11 +63,13 @@ const sendXML = (conn, xml) => {
 
 
 const getStaticMapsUrl = (branchObjectsArray) => {
-  let url = `https://maps.googleapis.com/maps/api/`
-    + `staticmap?center=New+Delhi&zoom=13&maptype=roadmap`;
+  let url = `https://maps.googleapis.com/maps/api/` +
+    `staticmap?center=New+Delhi&zoom=13&maptype=roadmap`;
 
   branchObjectsArray.forEach(branch => {
-    const { gp } = branch;
+    const {
+      gp
+    } = branch;
 
     if (!gp || !gp.latitude || !gp.longitude) return;
 
@@ -109,9 +111,9 @@ const parseCookies = headers => {
 
   if (idToken) return idToken;
 
-  if (!headers.authorization
-    || typeof headers.authorization !== 'string'
-    || !headers.authorization.startsWith('Bearer ')) {
+  if (!headers.authorization ||
+    typeof headers.authorization !== 'string' ||
+    !headers.authorization.startsWith('Bearer ')) {
     return '';
   }
 
@@ -160,11 +162,11 @@ const getBranchOpenStatus = doc => {
   const weeklyOff = doc.get('attachment.Weekly Off.value');
 
   // Nothing is set
-  if (!weekdayStartTime
-    && !weekdayEndTime
-    && !saturdayStartTime
-    && !saturdayEndTime
-    && !weeklyOff) {
+  if (!weekdayStartTime &&
+    !weekdayEndTime &&
+    !saturdayStartTime &&
+    !saturdayEndTime &&
+    !weeklyOff) {
     return result;
   }
 
@@ -189,21 +191,21 @@ const getBranchOpenStatus = doc => {
     if (isNextDaySaturday) {
       result
         .openingTime = momentTz(saturdayStartTime)
-          .format(dateFormats.TIME);
+        .format(dateFormats.TIME);
 
       return result;
     }
 
     result
       .openingTime = momentTz(weekdayStartTime)
-        .format(dateFormats.DATE);
+      .format(dateFormats.DATE);
 
     return result;
   }
 
   if (isSaturday) {
-    if (currentMoment < saturdayStartTime
-      || currentMoment > saturdayEndTime) {
+    if (currentMoment < saturdayStartTime ||
+      currentMoment > saturdayEndTime) {
       result.isClosed = true;
       result.openingTime = momentTz(saturdayStartTime)
         .format(dateFormats.TIME);
@@ -211,8 +213,8 @@ const getBranchOpenStatus = doc => {
       return result;
     }
 
-    if (currentMoment >= saturdayStartTime
-      && currentMoment <= saturdayEndTime) {
+    if (currentMoment >= saturdayStartTime &&
+      currentMoment <= saturdayEndTime) {
       result.isOpen = true;
 
       return result;
@@ -223,8 +225,8 @@ const getBranchOpenStatus = doc => {
     return result;
   }
 
-  if (weekdayStartTime >= currentTimestamp
-    && weekdayEndTime <= currentTimestamp) {
+  if (weekdayStartTime >= currentTimestamp &&
+    weekdayEndTime <= currentTimestamp) {
     const diff = weekdayEndTime - currentTimestamp;
 
     if (diff <= MILLS_IN_1_HOUR) {
@@ -245,7 +247,9 @@ const getBranchOpenStatus = doc => {
 
 const handleOfficePage = async (locals, requester) => {
   const source = require('./views/office.hbs')();
-  const template = handlebars.compile(source, { strict: true });
+  const template = handlebars.compile(source, {
+    strict: true
+  });
   const description = (() => {
     if (env.isProduction) {
       return locals
@@ -253,8 +257,8 @@ const handleOfficePage = async (locals, requester) => {
         .get('attachment.Description.value') || '';
     }
 
-    return `Contrary to popular belief, Lorem`
-      + ` Ipsum is not simply random text.`;
+    return `Contrary to popular belief, Lorem` +
+      ` Ipsum is not simply random text.`;
   })();
 
   const logoURL = (() => {
@@ -281,8 +285,8 @@ const handleOfficePage = async (locals, requester) => {
       return locals.officeDoc.get('attachment.Short Description.value') || '';
     }
 
-    return `Lorem Ipsum is simply dummy text of the`
-      + ` printing and typesetting industry.`;
+    return `Lorem Ipsum is simply dummy text of the` +
+      ` printing and typesetting industry.`;
   })();
 
   const employeesData = await getEmployeesMapFromRealtimeDb(
@@ -331,19 +335,19 @@ const fetchOfficeData = async (locals, requester) => {
   const [branchQuery, productQuery] = await Promise
     .all([
       locals
-        .officeDoc
-        .ref
-        .collection('Activities')
-        .where('template', '==', 'branch')
-        .where('status', '==', 'CONFIRMED')
-        .get(),
+      .officeDoc
+      .ref
+      .collection('Activities')
+      .where('template', '==', 'branch')
+      .where('status', '==', 'CONFIRMED')
+      .get(),
       locals
-        .officeDoc
-        .ref
-        .collection('Activities')
-        .where('template', '==', 'product')
-        .where('status', '==', 'CONFIRMED')
-        .get(),
+      .officeDoc
+      .ref
+      .collection('Activities')
+      .where('template', '==', 'product')
+      .where('status', '==', 'CONFIRMED')
+      .get(),
     ]);
 
   branchQuery
@@ -351,8 +355,8 @@ const fetchOfficeData = async (locals, requester) => {
       /** Currently branch has only 1 venue */
       const venue = doc.get('venue')[0];
 
-      if (!venue.geopoint.latitude
-        || !venue.geopoint._latitude) {
+      if (!venue.geopoint.latitude ||
+        !venue.geopoint._latitude) {
         return;
       }
 
@@ -364,9 +368,9 @@ const fetchOfficeData = async (locals, requester) => {
       // const isClosingSoon = openStatusResult.isClosingSoon;
 
       // Dates are not set
-      if (isClosed
-        && closingTime === 'Invalid date'
-        || openingTime === 'Invalid date') {
+      if (isClosed &&
+        closingTime === 'Invalid date' ||
+        openingTime === 'Invalid date') {
         isClosed = false;
         isOpen = true;
         openingTime = '';
@@ -375,8 +379,8 @@ const fetchOfficeData = async (locals, requester) => {
 
       const branchContact = (() => {
         if (env.isProduction) {
-          return doc.get('attachment.First Contact.value')
-            || doc.get('attachment.Second Contact.value') || '';
+          return doc.get('attachment.First Contact.value') ||
+            doc.get('attachment.Second Contact.value') || '';
         }
 
         /** Some random number for testing environments*/
@@ -385,12 +389,12 @@ const fetchOfficeData = async (locals, requester) => {
 
       const latitude = venue
         .geopoint
-        ._latitude
-        || venue.geopoint.latitude;
+        ._latitude ||
+        venue.geopoint.latitude;
       const longitude = venue
         .geopoint
-        ._longitude
-        || venue.geopoint.longitude;
+        ._longitude ||
+        venue.geopoint.longitude;
 
       locals
         .branchObjectsArray
@@ -406,8 +410,14 @@ const fetchOfficeData = async (locals, requester) => {
           isClosingSoon: openStatusResult.isClosingSoon,
           name: doc.get('attachment.Name.value'),
           weeklyOff: doc.get('attachment.Weekly Off.value'),
-          mapsUrl: toMapsUrl({ latitude, longitude }),
-          gp: { latitude, longitude },
+          mapsUrl: toMapsUrl({
+            latitude,
+            longitude
+          }),
+          gp: {
+            latitude,
+            longitude
+          },
         });
     });
 
@@ -415,29 +425,31 @@ const fetchOfficeData = async (locals, requester) => {
 
   locals
     .productObjectsArray = productQuery
-      .docs
-      .map(doc => {
-        const name = doc.get('attachment.Name.value');
-        const imageUrl = `img/${name}-${office}.png`.replace(/\s+/g, '-');
+    .docs
+    .map(doc => {
+      const name = doc.get('attachment.Name.value');
+      const imageUrl = `img/${name}-${office}.png`.replace(/\s+/g, '-');
 
-        return {
-          imageUrl,
-          name,
-          nameFirstChar: name.charAt(0),
-          productType: doc.get('attachment.Product Type.value'),
-          brand: doc.get('attachment.Brand.value'),
-          model: doc.get('attachment.Model.value'),
-          size: doc.get('attachment.Size.value'),
-          productDescription: doc.get('attachment.Product Description.value')
-        };
-      });
+      return {
+        imageUrl,
+        name,
+        nameFirstChar: name.charAt(0),
+        productType: doc.get('attachment.Product Type.value'),
+        brand: doc.get('attachment.Brand.value'),
+        model: doc.get('attachment.Model.value'),
+        size: doc.get('attachment.Size.value'),
+        productDescription: doc.get('attachment.Product Description.value')
+      };
+    });
 
   return handleOfficePage(locals, requester);
 };
 
 const handleJoinPage = (locals, requester) => {
   const source = require('./views/join.hbs')();
-  const template = handlebars.compile(source, { strict: true });
+  const template = handlebars.compile(source, {
+    strict: true
+  });
 
   return template({
     pageTitle: 'Join Growthfile',
@@ -458,7 +470,9 @@ const handleJoinPage = (locals, requester) => {
 
 const handleHomePage = (locals, requester) => {
   const source = require('./views/index.hbs')();
-  const template = handlebars.compile(source, { strict: true });
+  const template = handlebars.compile(source, {
+    strict: true
+  });
 
   return template({
     user: JSON.stringify({
@@ -488,7 +502,9 @@ const handleHomePage = (locals, requester) => {
 
 const handleAuthPage = (locals, requester) => {
   const source = require('./views/auth.hbs')();
-  const template = handlebars.compile(source, { strict: true });
+  const template = handlebars.compile(source, {
+    strict: true
+  });
 
   return template({
     pageTitle: 'Login to Growthfile',
@@ -509,7 +525,9 @@ const handleAuthPage = (locals, requester) => {
 
 const handleDownloadPage = (locals, requester) => {
   const source = require('./views/download.hbs')();
-  const template = handlebars.compile(source, { strict: true });
+  const template = handlebars.compile(source, {
+    strict: true
+  });
   return template({
     pageTitle: 'Download Growthfile App for your Android and iOS Phones',
     pageDescription: 'Download growthfile app for your android and iOS devices',
@@ -529,7 +547,9 @@ const handleDownloadPage = (locals, requester) => {
 
 const handleContactPage = (locals, requester) => {
   const source = require('./views/contact.hbs')();
-  const template = handlebars.compile(source, { strict: true });
+  const template = handlebars.compile(source, {
+    strict: true
+  });
 
   return template({
     pageTitle: 'Contact Us | Growthfile',
@@ -549,7 +569,9 @@ const handleContactPage = (locals, requester) => {
 
 const handleTermsAndConditionsPage = (locals, requester) => {
   const source = require('./views/terms-and-conditions.hbs')();
-  const template = handlebars.compile(source, { strict: true });
+  const template = handlebars.compile(source, {
+    strict: true
+  });
 
   return template({
     pageTitle: 'Terms and Conditions | Growthfile',
@@ -583,7 +605,9 @@ const handleServerError = conn => {
 
 const handlePrivacyPolicyPage = (locals, requester) => {
   const source = require('./views/privacy-policy.hbs')();
-  const template = handlebars.compile(source, { strict: true });
+  const template = handlebars.compile(source, {
+    strict: true
+  });
 
   return template({
     pageTitle: 'Privacy Policy | Growthfile',
@@ -638,8 +662,8 @@ const handleJsonGetRequest = (conn, requester) => {
     return Promise.resolve({});
   }
 
-  if (conn.req.query.action === 'office-list'
-    && requester.isSupport) {
+  if (conn.req.query.action === 'office-list' &&
+    requester.isSupport) {
     return rootCollections
       .offices
       .get()
@@ -648,13 +672,13 @@ const handleJsonGetRequest = (conn, requester) => {
       });
   }
 
-  if ((requester.isAdmin || requester.isSupport)
-    && conn.req.query.action === 'view-templates') {
+  if ((requester.isAdmin || requester.isSupport) &&
+    conn.req.query.action === 'view-templates') {
     return getTemplatesListJSON(conn.req.query.name);
   }
 
-  if ((requester.isAdmin || requester.isSupport)
-    && conn.req.query.action === 'get-template-names') {
+  if ((requester.isAdmin || requester.isSupport) &&
+    conn.req.query.action === 'get-template-names') {
     return rootCollections
       .activityTemplates
       .get()
@@ -672,8 +696,8 @@ const handleJsonGetRequest = (conn, requester) => {
   }
 
   /** Not allowed to read stuff unless the user is admin or support */
-  if (!hasAdminClaims(requester.customClaims)
-    && !hasSupportClaims(requester.customClaims)) {
+  if (!hasAdminClaims(requester.customClaims) &&
+    !hasSupportClaims(requester.customClaims)) {
     return Promise.resolve(json);
   }
 
@@ -681,8 +705,8 @@ const handleJsonGetRequest = (conn, requester) => {
    * Admin claims are found, but the claims.admin array doesn't contain
    * the office which which was sent in the request body.
    */
-  if (hasAdminClaims(requester.customClaims)
-    && !requester.customClaims.admin.includes(conn.req.query.office)) {
+  if (hasAdminClaims(requester.customClaims) &&
+    !requester.customClaims.admin.includes(conn.req.query.office)) {
 
     return Promise.resolve(json);
   }
@@ -714,7 +738,9 @@ const handleAnonymousView = async (conn, requester) => {
       action: httpsActions.webapp,
     });
 
-  return ({ success: true, });
+  return ({
+    success: true,
+  });
 };
 
 const handleKnownUserView = async (conn, requester) => {
@@ -739,7 +765,9 @@ const handleKnownUserView = async (conn, requester) => {
     await batch
       .commit();
 
-    return ({ success: true });
+    return ({
+      success: true
+    });
   }
 
   const officeDocQueryResult = await rootCollections
@@ -772,7 +800,9 @@ const handleKnownUserView = async (conn, requester) => {
   await batch
     .commit();
 
-  return ({ success: true });
+  return ({
+    success: true
+  });
 };
 
 const handleTrackViews = (conn, requester) => {
@@ -798,8 +828,8 @@ const handleJsonPostRequest = (conn, requester) => {
     return handleTrackViews(conn, requester);
   }
 
-  if (conn.req.query.action === 'parse-mail'
-    && conn.req.query.token === env.sgMailParseToken) {
+  if (conn.req.query.action === 'parse-mail' &&
+    conn.req.query.token === env.sgMailParseToken) {
     conn.requester = {
       phoneNumber: requester.phoneNumber,
       uid: requester.uid,
@@ -849,13 +879,14 @@ const handleEmailVerificationFlow = async conn => {
   const verificationRequestsCount = updatesDoc
     .get('verificationRequestsCount') || 0;
 
-  if (!updatesDoc.exists
-    || !updatesDoc.get('emailVerificationRequestPending')
+  if (!updatesDoc.exists ||
+    !updatesDoc.get('emailVerificationRequestPending')
     /**
      * This user has already requested 3 verification
      * emails. This will prevent abuse of the system
      */
-    || verificationRequestsCount >= 3) {
+    ||
+    verificationRequestsCount >= 3) {
     return conn
       .res
       .status(code.temporaryRedirect)
@@ -882,17 +913,17 @@ const handleEmailVerificationFlow = async conn => {
 
   const promises = [
     auth
-      .updateUser(conn.req.query.uid, {
-        emailVerified: true,
-      }),
+    .updateUser(conn.req.query.uid, {
+      emailVerified: true,
+    }),
     updatesDoc
-      .ref
-      .set({
-        emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
-        verificationRequestsCount: verificationRequestsCount + 1,
-      }, {
-        merge: true,
-      })
+    .ref
+    .set({
+      emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
+      verificationRequestsCount: verificationRequestsCount + 1,
+    }, {
+      merge: true,
+    })
   ];
 
   await Promise
@@ -950,7 +981,9 @@ const handleSitemap = async () => {
     'privacy-policy',
     'contact',
     'terms-and-conditions'
-  ].forEach(slug => xmlString += getUrlItem(slug, { lastMod }));
+  ].forEach(slug => xmlString += getUrlItem(slug, {
+    lastMod
+  }));
 
   xmlString += `</urlset>`;
 
@@ -1001,14 +1034,16 @@ module.exports = async (req, res) => {
   };
 
   // For CORS
-  if (conn.req.method === 'OPTIONS'
-    || conn.req.method === 'HEAD') {
+  if (conn.req.method === 'OPTIONS' ||
+    conn.req.method === 'HEAD') {
     conn
       .res
       .status(code.ok)
       .set(conn.headers);
 
-    return sendJSON(conn, { success: true });
+    return sendJSON(conn, {
+      success: true
+    });
   }
 
   // Only GET and POST are allowed
@@ -1028,8 +1063,8 @@ module.exports = async (req, res) => {
    * Avoids duplicate content issues since there is no native way
    * currently to set up a redirect in the firebase hosting settings.
    */
-  if (req.headers['x-forwarded-host']
-    === env.firebaseDomain) {
+  if (req.headers['x-forwarded-host'] ===
+    env.firebaseDomain) {
     return res
       .status(code.permanentRedirect)
       .redirect(env.mainDomain);

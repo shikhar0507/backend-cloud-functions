@@ -19,7 +19,7 @@ module.exports = async locals => {
   ] = await Promise
     .all([
       xlsxPopulate
-        .fromBlankAsync(),
+      .fromBlankAsync(),
     ]);
 
   // office(first day of monthly cycle 33), branch, leave-types, employee
@@ -144,8 +144,8 @@ module.exports = async locals => {
 
         locals
           .employeesData[
-          phoneNumber
-        ].branchHolidays = locals.employeesData[phoneNumber].branchHolidays || [];
+            phoneNumber
+          ].branchHolidays = locals.employeesData[phoneNumber].branchHolidays || [];
 
         branchMap[
           branch
@@ -315,9 +315,9 @@ module.exports = async locals => {
     .messageObject
     .attachments
     .push({
-      fileName: `Payroll Master Report_`
-        + `${locals.officeDoc.get('office')}`
-        + `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+      fileName: `Payroll Master Report_` +
+        `${locals.officeDoc.get('office')}` +
+        `_${momentToday.format(dateFormats.DATE)}.xlsx`,
       content: await workbook.outputAsync('base64'),
       type: 'text/csv',
       disposition: 'attachment',

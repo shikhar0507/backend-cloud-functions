@@ -58,7 +58,11 @@ const templateNamesObject = {
 };
 
 const getOrderedFields = templateDoc => {
-  const { venue, schedule, attachment } = templateDoc.data();
+  const {
+    venue,
+    schedule,
+    attachment
+  } = templateDoc.data();
 
   return []
     .concat(venue, schedule, Object.keys(attachment))
@@ -98,7 +102,9 @@ const addressToCustomer = async queryObject => {
     success = Boolean(firstResult);
 
     if (!success) {
-      return Object.assign({}, queryObject, { success });
+      return Object.assign({}, queryObject, {
+        success
+      });
     }
 
     activityObject
@@ -203,8 +209,12 @@ const addressToCustomer = async queryObject => {
 
 const generateExcel = async locals => {
   const workbook = await xlsxPopulate.fromBlankAsync();
-  const { name: template } = locals.templateDoc.data();
-  const { office } = locals.officeDoc.data();
+  const {
+    name: template
+  } = locals.templateDoc.data();
+  const {
+    office
+  } = locals.officeDoc.data();
   const sheet = workbook.addSheet(`${template}`);
 
   /** Default sheet */
@@ -226,8 +236,8 @@ const generateExcel = async locals => {
   locals.inputObjects.forEach((object, outerIndex) => {
     orderedFields
       .forEach((field, innerIndex) => {
-        const cell = `${alphabetsArray[innerIndex]}`
-          + `${outerIndex + 2}`;
+        const cell = `${alphabetsArray[innerIndex]}` +
+          `${outerIndex + 2}`;
         let value = object[field] || '';
 
         if (field === 'rejected' && !value) {
@@ -287,8 +297,8 @@ const generateExcel = async locals => {
     html: `<p>Please find attached bulk creation results:</p>
     <p>for ${template} by ${locals.phoneNumber} (${locals.displayName})</p>`,
     attachments: [{
-      fileName: `Bulk Create Report_`
-        + `${locals.officeDoc.get('office') || ''}.xlsx`,
+      fileName: `Bulk Create Report_` +
+        `${locals.officeDoc.get('office') || ''}.xlsx`,
       content: excelFileBase64,
       type: 'text/csv',
       disposition: 'attachment',
@@ -302,10 +312,10 @@ const generateExcel = async locals => {
 
   userRecords
     .forEach(userRecord => {
-      if (!userRecord.uid
-        || !userRecord.email
-        || !userRecord.emailVerified
-        || userRecord.disabled) {
+      if (!userRecord.uid ||
+        !userRecord.email ||
+        !userRecord.emailVerified ||
+        userRecord.disabled) {
         return;
       }
 
@@ -417,7 +427,10 @@ const isOnLeave = async params => {
   // });
 
   // return { phoneNumber, leaveDates };
-  return { phoneNumber, leaveDates };
+  return {
+    phoneNumber,
+    leaveDates
+  };
 };
 
 const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
@@ -540,8 +553,8 @@ const createObjects = async (locals, trialRun) => {
      * Items are rejected/skipped if a conflict with the state of DB and
      * the request body exists,
      */
-    if (item.rejected
-      || item.skipped) {
+    if (item.rejected ||
+      item.skipped) {
 
       return;
     }
@@ -587,8 +600,8 @@ const createObjects = async (locals, trialRun) => {
       phoneNumber: locals.phoneNumber,
     };
 
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.DUTY) {
+    if (locals.templateDoc.get('name') ===
+      templateNamesObject.DUTY) {
       params
         .customerName = item.Location;
     }
@@ -612,8 +625,8 @@ const createObjects = async (locals, trialRun) => {
         .get('attachment.Name.value');
     })();
     const timezone = (() => {
-      if (locals.templateDoc.get('name')
-        === templateNamesObject.OFFICE) {
+      if (locals.templateDoc.get('name') ===
+        templateNamesObject.OFFICE) {
         return item
           .Timezone;
       }
@@ -650,10 +663,10 @@ const createObjects = async (locals, trialRun) => {
      * small. This **WILL NOT** matter for a few hundred entries. But, for a
      * large excel file, this needs to be optimimzed.
      */
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.DUTY) {
+    if (locals.templateDoc.get('name') ===
+      templateNamesObject.DUTY) {
       []
-        .concat(locals.inputObjects[index].Include)
+      .concat(locals.inputObjects[index].Include)
         .concat(locals.inputObjects[index].Supervisor)
         .forEach(phoneNumber => {
           activityObject
@@ -696,8 +709,8 @@ const createObjects = async (locals, trialRun) => {
           if (startTime) {
             scheduleObject
               .startTime = momentTz(new Date(startTime))
-                .subtract(5.5, 'hours')
-                .valueOf();
+              .subtract(5.5, 'hours')
+              .valueOf();
             scheduleObject
               .endTime = scheduleObject.startTime;
           }
@@ -705,8 +718,8 @@ const createObjects = async (locals, trialRun) => {
           if (endTime) {
             scheduleObject
               .endTime = momentTz(new Date(endTime || startTime))
-                .subtract(5.5, 'hours')
-                .valueOf();
+              .subtract(5.5, 'hours')
+              .valueOf();
           }
 
           activityObject
@@ -759,9 +772,9 @@ const createObjects = async (locals, trialRun) => {
         }
       });
 
-    if (activityObject.venue[0]
-      && activityObject.venue[0].geopoint.latitude
-      && activityObject.venue[0].geopoint.longitude) {
+    if (activityObject.venue[0] &&
+      activityObject.venue[0].geopoint.latitude &&
+      activityObject.venue[0].geopoint.longitude) {
       activityObject.venue[0].geopoint = new admin.firestore.GeoPoint(
         activityObject.venue[0].geopoint.latitude,
         activityObject.venue[0].geopoint.longitude
@@ -769,7 +782,7 @@ const createObjects = async (locals, trialRun) => {
 
       const adjusted = adjustedGeopoint(
         activityObject
-          .venue[0].geopoint
+        .venue[0].geopoint
       );
 
       activityObject
@@ -783,12 +796,12 @@ const createObjects = async (locals, trialRun) => {
         .relevantTime = relevantTime;
     }
 
-    if (activityObject.attachment.Location
-      && activityObject.attachment.Location.value
-      && activityObject.relevantTime) {
+    if (activityObject.attachment.Location &&
+      activityObject.attachment.Location.value &&
+      activityObject.relevantTime) {
       activityObject
-        .relevantTimeAndVenue = `${activityObject.attachment.Location.value}`
-        + ` ${activityObject.relevantTime}`;
+        .relevantTimeAndVenue = `${activityObject.attachment.Location.value}` +
+        ` ${activityObject.relevantTime}`;
     }
 
     const addendumObject = {
@@ -827,10 +840,10 @@ const createObjects = async (locals, trialRun) => {
         const ref = activityRef
           .collection('Assignees')
           .doc(phoneNumber.trim());
-        const addToInclude = locals.templateDoc.get('name')
-          === templateNamesObject.SUBSCRIPTION
-          && phoneNumber
-          !== activityObject.attachment['Phone Number'].value;
+        const addToInclude = locals.templateDoc.get('name') ===
+          templateNamesObject.SUBSCRIPTION &&
+          phoneNumber !==
+          activityObject.attachment['Phone Number'].value;
 
         const canEdit = getCanEditValue(
           locals,
@@ -882,8 +895,8 @@ const createObjects = async (locals, trialRun) => {
 const fetchDataForCanEditRule = async locals => {
   const rule = locals.templateDoc.get('canEditRule');
 
-  if (rule !== 'ADMIN'
-    && rule !== 'EMPLOYEE') {
+  if (rule !== 'ADMIN' &&
+    rule !== 'EMPLOYEE') {
     return;
   }
 
@@ -910,8 +923,8 @@ const fetchDataForCanEditRule = async locals => {
 const handleEmployees = async locals => {
   const promises = [];
 
-  if (locals.templateDoc.get('name')
-    !== templateNamesObject.EMPLOYEE) {
+  if (locals.templateDoc.get('name') !==
+    templateNamesObject.EMPLOYEE) {
     return;
   }
 
@@ -942,7 +955,7 @@ const handleEmployees = async locals => {
     .all([
       getEmployeesMapFromRealtimeDb(locals.officeDoc.id),
       Promise
-        .all(promises)
+      .all(promises)
     ]);
 
   snapShots
@@ -964,17 +977,17 @@ const handleEmployees = async locals => {
 
     if (phoneNumbersToRejectSet.has(phoneNumber)) {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Phone number`
-        + ` ${phoneNumber} is already an employee`;
+      locals.inputObjects[index].reason = `Phone number` +
+        ` ${phoneNumber} is already an employee`;
 
       return;
     }
 
     if (employeesData[phoneNumber]) {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Phone number:`
-        + ` ${phoneNumber} is already`
-        + ` in use by ${employeesData[phoneNumber].Name}`;
+      locals.inputObjects[index].reason = `Phone number:` +
+        ` ${phoneNumber} is already` +
+        ` in use by ${employeesData[phoneNumber].Name}`;
     }
   });
 
@@ -991,8 +1004,8 @@ const handleUniqueness = async locals => {
     .get('attachment')
     .hasOwnProperty('Number');
 
-  if (!hasName
-    && !hasNumber) {
+  if (!hasName &&
+    !hasNumber) {
     return;
   }
 
@@ -1000,8 +1013,8 @@ const handleUniqueness = async locals => {
   let index = 0;
   const indexMap = new Map();
   const baseQuery = (() => {
-    if (locals.templateDoc.get('name')
-      === templateNamesObject.OFFICE) {
+    if (locals.templateDoc.get('name') ===
+      templateNamesObject.OFFICE) {
       return rootCollections.offices;
     }
 
@@ -1048,17 +1061,17 @@ const handleUniqueness = async locals => {
     }
 
     const doc = snapShot.docs[0];
-    const nameOrNumber = doc.get('attachment.Name.value')
-      || doc.get('attachment.Number.value');
+    const nameOrNumber = doc.get('attachment.Name.value') ||
+      doc.get('attachment.Number.value');
     const index_1 = indexMap.get(nameOrNumber);
-    const value = locals.inputObjects[index_1].Name
-      || locals.inputObjects[index_1].Number;
+    const value = locals.inputObjects[index_1].Name ||
+      locals.inputObjects[index_1].Number;
     locals.inputObjects[index_1].rejected = true;
     locals.inputObjects[index_1].reason =
       `${param} '${value}' is already in use`;
 
-    if (locals.templateDoc.get('office')
-      === templateNamesObject.OFFICE) {
+    if (locals.templateDoc.get('office') ===
+      templateNamesObject.OFFICE) {
       locals.inputObjects[index_1].reason =
         `Office: '${value} already exists'`;
     }
@@ -1068,8 +1081,8 @@ const handleUniqueness = async locals => {
 };
 
 const handleSubscriptions = async locals => {
-  if (locals.templateDoc.get('name')
-    !== templateNamesObject.SUBSCRIPTION) {
+  if (locals.templateDoc.get('name') !==
+    templateNamesObject.SUBSCRIPTION) {
     return;
   }
 
@@ -1078,7 +1091,10 @@ const handleSubscriptions = async locals => {
   locals
     .subscriptionsToCheck
     .forEach(item => {
-      const { phoneNumber, template } = item;
+      const {
+        phoneNumber,
+        template
+      } = item;
 
       const promise = rootCollections
         .activities
@@ -1148,8 +1164,8 @@ const handleSubscriptions = async locals => {
 const handleAdmins = async locals => {
   const promises = [];
 
-  if (locals.templateDoc.get('admin')
-    !== templateNamesObject.ADMIN) {
+  if (locals.templateDoc.get('admin') !==
+    templateNamesObject.ADMIN) {
     return;
   }
 
@@ -1202,8 +1218,8 @@ const handleAdmins = async locals => {
 };
 
 const fetchValidTypes = async locals => {
-  if (locals.templateDoc.get('name')
-    === templateNamesObject.OFFICE) {
+  if (locals.templateDoc.get('name') ===
+    templateNamesObject.OFFICE) {
     return;
   }
 
@@ -1297,8 +1313,8 @@ const validateDataArray = async locals => {
 
   locals.inputObjects.forEach((dataObject, index) => {
     const uniqueValue = (() => {
-      if (locals.templateDoc.get('name')
-        === templateNamesObject.ADMIN) {
+      if (locals.templateDoc.get('name') ===
+        templateNamesObject.ADMIN) {
         return dataObject['Phone Number'];
       }
 
@@ -1306,13 +1322,13 @@ const validateDataArray = async locals => {
        * For template subscription, the combination of Subscriber
        * and Template is unique
        */
-      if (locals.templateDoc.get('name')
-        === templateNamesObject.SUBSCRIPTION) {
+      if (locals.templateDoc.get('name') ===
+        templateNamesObject.SUBSCRIPTION) {
         return `${dataObject['Phone Number']}-${dataObject.Template}`;
       }
 
-      return dataObject.Name
-        || dataObject.Number;
+      return dataObject.Name ||
+        dataObject.Number;
     })();
 
     if (uniqueValue) {
@@ -1334,9 +1350,9 @@ const validateDataArray = async locals => {
        * Convert fields with type 'number' to an actual number
        * if value has been provided
        */
-      if (attachmentFieldsSet.has(field)
-        && locals.templateDoc.get('attachment')[field].type === 'number'
-        && locals.inputObjects[index][field]) {
+      if (attachmentFieldsSet.has(field) &&
+        locals.templateDoc.get('attachment')[field].type === 'number' &&
+        locals.inputObjects[index][field]) {
         locals.inputObjects[index][field] = Number(
           locals.inputObjects[index][field]
         );
@@ -1358,18 +1374,18 @@ const validateDataArray = async locals => {
           locals.inputObjects[index].location
         ];
 
-        if ((locals.inputObjects[index].latitude
-          || locals.inputObjects[index].longitude
-          || locals.inputObjects[index].address
-          || locals.inputObjects[index].location)
-          && allVenueFields.filter(Boolean).length !== allVenueFields.length) {
+        if ((locals.inputObjects[index].latitude ||
+            locals.inputObjects[index].longitude ||
+            locals.inputObjects[index].address ||
+            locals.inputObjects[index].location) &&
+          allVenueFields.filter(Boolean).length !== allVenueFields.length) {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = locationErrorMessage;
         }
 
-        if (locals.inputObjects[index].latitude
-          && locals.inputObjects[index].longitude
-          && !isValidGeopoint({
+        if (locals.inputObjects[index].latitude &&
+          locals.inputObjects[index].longitude &&
+          !isValidGeopoint({
             latitude: locals.inputObjects[index].latitude,
             longitude: locals.inputObjects[index].longitude,
           }, false)) {
@@ -1378,16 +1394,16 @@ const validateDataArray = async locals => {
         }
       }
 
-      if (locals.templateDoc.get('attachment').hasOwnProperty('Name')
-        && !locals.inputObjects[index].rejected
-        && !isNonEmptyString(locals.inputObjects[index].Name)) {
+      if (locals.templateDoc.get('attachment').hasOwnProperty('Name') &&
+        !locals.inputObjects[index].rejected &&
+        !isNonEmptyString(locals.inputObjects[index].Name)) {
         locals.inputObjects[index].rejected = true;
         locals.inputObjects[index].reason = `Missing the field 'Name'`;
       }
 
-      if (locals.templateDoc.get('attachment').hasOwnProperty('Number')
-        && !locals.inputObjects[index].rejected
-        && typeof locals.inputObjects[index].Number !== 'number') {
+      if (locals.templateDoc.get('attachment').hasOwnProperty('Number') &&
+        !locals.inputObjects[index].rejected &&
+        typeof locals.inputObjects[index].Number !== 'number') {
         locals.inputObjects[index].rejected = true;
         locals.inputObjects[index].reason = `Missing the field 'Number'`;
       }
@@ -1407,7 +1423,9 @@ const validateDataArray = async locals => {
     }
 
     if (locals.templateDoc.get('name') === templateNamesObject.RECIPIENT) {
-      const { Name: reportName } = locals.inputObjects[index];
+      const {
+        Name: reportName
+      } = locals.inputObjects[index];
       const validReports = new Set([
         reportNames.FOOTPRINTS,
         reportNames.PAYROLL,
@@ -1417,9 +1435,9 @@ const validateDataArray = async locals => {
 
       if (!validReports.has(reportName)) {
         locals.inputObjects[index].rejected = true;
-        locals.inputObjects[index].reason = `${reportName}`
-          + ` is not a valid report.`
-          + ` Use ${Array.from(validReports.keys())}`;
+        locals.inputObjects[index].reason = `${reportName}` +
+          ` is not a valid report.` +
+          ` Use ${Array.from(validReports.keys())}`;
       }
     }
 
@@ -1428,20 +1446,20 @@ const validateDataArray = async locals => {
       const secondContact = locals.inputObjects[index]['Second Contact'];
       const timezone = locals.inputObjects[index].Timezone;
 
-      if (firstContact
-        === secondContact) {
+      if (firstContact ===
+        secondContact) {
         locals.inputObjects[index].rejected = true;
         locals.inputObjects[index].reason = `Both contacts cannot be the same or empty`;
       }
 
-      if (!firstContact
-        && !secondContact) {
+      if (!firstContact &&
+        !secondContact) {
         locals.inputObjects[index].rejected = true;
         locals.inputObjects[index].reason = `At least one contact is required`;
       }
 
-      if (!timezone
-        || !timezonesSet.has(timezone)) {
+      if (!timezone ||
+        !timezonesSet.has(timezone)) {
         locals.inputObjects[index].rejected = true;
         locals.inputObjects[index].reason = `Invalid/Missing timezone`;
       }
@@ -1476,8 +1494,8 @@ const validateDataArray = async locals => {
       /** Subscription of template office and subscription
        * is not allowed for everyone
        */
-      if (template === templateNamesObject.OFFICE
-        || template === templateNamesObject.SUBSCRIPTION) {
+      if (template === templateNamesObject.OFFICE ||
+        template === templateNamesObject.SUBSCRIPTION) {
         locals.inputObjects[index].rejected = true;
         locals.inputObjects[index].reason =
           `Subscription of template: '${template}' is not allowed`;
@@ -1534,8 +1552,8 @@ const validateDataArray = async locals => {
 
       if (firstSupervisor === secondSupervisor && secondSupervisor === thirdSupervisor) {
         locals.inputObjects[index].rejected = true;
-        locals.inputObjects[index].reason = `Employee supervisors should be distinct`
-          + ` phone numbers`;
+        locals.inputObjects[index].reason = `Employee supervisors should be distinct` +
+          ` phone numbers`;
       }
     }
 
@@ -1544,9 +1562,10 @@ const validateDataArray = async locals => {
 
       if (value
         // Handling duty schedule in a special function
-        && locals.templateDoc.get('name') !== templateNamesObject.DUTY
-        && scheduleFieldsSet.has(property)
-        && !isValidDate(value)) {
+        &&
+        locals.templateDoc.get('name') !== templateNamesObject.DUTY &&
+        scheduleFieldsSet.has(property) &&
+        !isValidDate(value)) {
         locals.inputObjects[index].rejected = true;
         locals.inputObjects[index].reason = `The field ${property}` +
           ` should be a valid unix timestamp`;
@@ -1555,7 +1574,9 @@ const validateDataArray = async locals => {
       }
 
       if (attachmentFieldsSet.has(property)) {
-        const { type } = locals.templateDoc.get('attachment')[property];
+        const {
+          type
+        } = locals.templateDoc.get('attachment')[property];
 
         if (!validTypes.has(type) && value) {
           // Used for querying activities which should exist on the
@@ -1567,10 +1588,10 @@ const validateDataArray = async locals => {
           });
         }
 
-        if (locals.templateDoc.get('name')
-          === templateNamesObject.EMPLOYEE
-          && property === 'Phone Number'
-          && !isE164PhoneNumber(value)) {
+        if (locals.templateDoc.get('name') ===
+          templateNamesObject.EMPLOYEE &&
+          property === 'Phone Number' &&
+          !isE164PhoneNumber(value)) {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Employee ${property}` +
             ` should be a valid phone number`;
@@ -1596,29 +1617,30 @@ const validateDataArray = async locals => {
           }
         }
 
-        if (value
-          && type === 'number'
+        if (value &&
+          type === 'number'
           /** Handled stringified numbers */
-          && typeof Number(value) !== 'number') {
+          &&
+          typeof Number(value) !== 'number') {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'string'
-          && typeof value !== 'string'
-          && locals.templateDoc.get('name')
-          !== templateNamesObject.DUTY) {
+        if (type === 'string' &&
+          typeof value !== 'string' &&
+          locals.templateDoc.get('name') !==
+          templateNamesObject.DUTY) {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (property === 'Number'
-          && !isNonEmptyString(value)
-          && typeof value !== 'number') {
+        if (property === 'Number' &&
+          !isNonEmptyString(value) &&
+          typeof value !== 'number') {
           duplicatesSet
             .add(value);
 
@@ -1628,8 +1650,8 @@ const validateDataArray = async locals => {
           return;
         }
 
-        if (property === 'Name'
-          && !isNonEmptyString(value)) {
+        if (property === 'Name' &&
+          !isNonEmptyString(value)) {
           duplicatesSet.add(value);
 
           locals.inputObjects[index].rejected = true;
@@ -1647,40 +1669,40 @@ const validateDataArray = async locals => {
           return;
         }
 
-        if (type === 'email'
-          && !isValidEmail(value)) {
+        if (type === 'email' &&
+          !isValidEmail(value)) {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'weekday'
-          && !weekdays.has(value)) {
+        if (type === 'weekday' &&
+          !weekdays.has(value)) {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'phoneNumber'
-          && !isE164PhoneNumber(value)) {
+        if (type === 'phoneNumber' &&
+          !isE164PhoneNumber(value)) {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'HH:MM'
-          && !isHHMMFormat(value)) {
+        if (type === 'HH:MM' &&
+          !isHHMMFormat(value)) {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Invalid ${property} '${value}'`;
 
           return;
         }
 
-        if (type === 'base64'
-          && typeof value !== 'string') {
+        if (type === 'base64' &&
+          typeof value !== 'string') {
           locals.inputObjects[index].rejected = true;
           locals.inputObjects[index].reason = `Invalid ${property} '${value}'`;
 
@@ -1717,8 +1739,8 @@ const validateDataArray = async locals => {
     });
 
   locals.inputObjects.forEach((_, index) => {
-    if (!assigneesFromAttachment.has(index)
-      && locals.inputObjects[index].share.length === 0
+    if (!assigneesFromAttachment.has(index) &&
+      locals.inputObjects[index].share.length === 0
       /**
        * If the object has already been rejected for some reason,
        * it's assigneesFromAttachment map will most probably be empty.
@@ -1726,16 +1748,18 @@ const validateDataArray = async locals => {
        * even if the rejection was because of some other issue in
        * the object.
        */
-      && !locals.inputObjects[index].rejected
-      && locals.templateDoc.get('name') !== templateNamesObject.CUSTOMER
-      && locals.templateDoc.get('name') !== templateNamesObject.BRANCH
+      &&
+      !locals.inputObjects[index].rejected &&
+      locals.templateDoc.get('name') !== templateNamesObject.CUSTOMER &&
+      locals.templateDoc.get('name') !== templateNamesObject.BRANCH
       /**
        * Templates like `leave-type`, `claim-type` and `customer-type`
        * are auto assigned to their respective recipients via
        * `activityOnWrite` on creation of subscription of leave, expense
        * and customer activities.
        */
-      && !locals.templateDoc.get('name').endsWith('-type')) {
+      &&
+      !locals.templateDoc.get('name').endsWith('-type')) {
       locals.inputObjects[index].rejected = true;
       locals.inputObjects[index].reason = `No assignees found`;
     }
@@ -1782,7 +1806,10 @@ const handleCustomer = async locals => {
     }
 
     placesApiPromises.push(
-      addressToCustomer({ location: item.location, address: item.address })
+      addressToCustomer({
+        location: item.location,
+        address: item.address
+      })
     );
   });
 
@@ -1887,8 +1914,8 @@ const getBranchActivity = async address => {
     const periods = openingHours.periods;
 
     const relevantObject = periods.filter(item => {
-      return item.close
-        && item.close.day === 1;
+      return item.close &&
+        item.close.day === 1;
     });
 
     if (!relevantObject[0]) return '';
@@ -1956,8 +1983,8 @@ const getBranchActivity = async address => {
 };
 
 const handleBranch = async locals => {
-  if (locals.templateDoc.get('name')
-    !== templateNamesObject.BRANCH) {
+  if (locals.templateDoc.get('name') !==
+    templateNamesObject.BRANCH) {
     return;
   }
 
@@ -1980,7 +2007,9 @@ const handleBranch = async locals => {
   const branches = await Promise.all(promises);
 
   branches.forEach(branch => {
-    const { address } = branch;
+    const {
+      address
+    } = branch;
     const index = addressMap.get(address);
 
     locals.inputObjects[index] = branch;
@@ -1991,8 +2020,8 @@ const handleBranch = async locals => {
 };
 
 const handleDuty = async locals => {
-  if (locals.templateDoc.get('name')
-    !== templateNamesObject.DUTY) {
+  if (locals.templateDoc.get('name') !==
+    templateNamesObject.DUTY) {
     return;
   }
 
@@ -2017,10 +2046,10 @@ const handleDuty = async locals => {
 
     if (typeof singleSchedule !== 'string') {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Schedule`
-        + ` '${schedule}' is invalid/missing`
-        + ` Use the format `
-        + `'${momentTz().format(dateFormats.EXCEL_INPUT)}'`;
+      locals.inputObjects[index].reason = `Schedule` +
+        ` '${schedule}' is invalid/missing` +
+        ` Use the format ` +
+        `'${momentTz().format(dateFormats.EXCEL_INPUT)}'`;
 
       return;
     }
@@ -2043,9 +2072,9 @@ const handleDuty = async locals => {
 
     if (!stValid.isValid() || !etValid.isValid()) {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Invalid Duty.`
-        + ` Use the format `
-        + ` '${momentTz().format(dateFormats.EXCEL_INPUT)}'`;
+      locals.inputObjects[index].reason = `Invalid Duty.` +
+        ` Use the format ` +
+        ` '${momentTz().format(dateFormats.EXCEL_INPUT)}'`;
 
       return;
     }
@@ -2067,32 +2096,32 @@ const handleDuty = async locals => {
     // Duty can't be for the past
     if (momentStartTimeFromSchedule.isBefore(momentTz().tz(timezone))) {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Duty start`
-        + ` time '${startTime}' is from the past`;
+      locals.inputObjects[index].reason = `Duty start` +
+        ` time '${startTime}' is from the past`;
 
       return;
     }
 
     if (momentStartTimeFromSchedule.isAfter(momentEndTimeFromSchedule, 'minute')) {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Duty end`
-        + ` time should be after the duty start time`;
+      locals.inputObjects[index].reason = `Duty end` +
+        ` time should be after the duty start time`;
 
       return;
     }
 
     if (!isE164PhoneNumber(item.Supervisor)) {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Invalid/missing`
-        + ` 'Supervisor' phone number`;
+      locals.inputObjects[index].reason = `Invalid/missing` +
+        ` 'Supervisor' phone number`;
 
       return;
     }
 
     if (!isNonEmptyString(item.Location)) {
       locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Customer`
-        + ` cannot be left blank`;
+      locals.inputObjects[index].reason = `Customer` +
+        ` cannot be left blank`;
 
       return;
     }
@@ -2100,13 +2129,13 @@ const handleDuty = async locals => {
     customerPromises
       .push(
         rootCollections
-          .activities
-          .where('template', '==', 'customer')
-          .where('status', '==', 'CONFIRMED')
-          .where('officeId', '==', locals.officeDoc.id)
-          .where('attachment.Name.value', '==', item.Location)
-          .limit(1)
-          .get()
+        .activities
+        .where('template', '==', 'customer')
+        .where('status', '==', 'CONFIRMED')
+        .where('officeId', '==', locals.officeDoc.id)
+        .where('attachment.Name.value', '==', item.Location)
+        .limit(1)
+        .get()
       );
 
     const phoneNumbers = (() => {
@@ -2171,8 +2200,8 @@ const handleDuty = async locals => {
           .push(statusObjectPromise);
 
         const oldIndexArray = phoneNumberIndexMap
-          .get(phoneNumber.trim())
-          || new Set().add(index);
+          .get(phoneNumber.trim()) ||
+          new Set().add(index);
 
         oldIndexArray
           .add(index);
@@ -2257,7 +2286,10 @@ const handleDuty = async locals => {
 
   leavePromisesResult
     .forEach(item => {
-      const { leaveDates, phoneNumber } = item;
+      const {
+        leaveDates,
+        phoneNumber
+      } = item;
 
       const indexes = phoneNumberIndexMap
         .get(phoneNumber) || [];
@@ -2269,9 +2301,9 @@ const handleDuty = async locals => {
       indexes
         .forEach(index => {
           locals.inputObjects[index].rejected = true;
-          locals.inputObjects[index].reason = `Duty cannot be assigned to`
-            + ` ${phoneNumber}. Employee has applied for a`
-            + ` leave on ${leaveDates}`;
+          locals.inputObjects[index].reason = `Duty cannot be assigned to` +
+            ` ${phoneNumber}. Employee has applied for a` +
+            ` leave on ${leaveDates}`;
         });
     });
 
@@ -2295,7 +2327,10 @@ const handleDuty = async locals => {
 
   userRecords
     .forEach(userRecord => {
-      const { uid, phoneNumber } = userRecord;
+      const {
+        uid,
+        phoneNumber
+      } = userRecord;
 
       if (uid) {
         usersWithAuth.add(phoneNumber);
@@ -2326,8 +2361,8 @@ const handleDuty = async locals => {
 
         if (indexSet.has(index)) {
           locals.inputObjects[index].rejected = true;
-          locals.inputObjects[index].reason = `${phoneNumber}`
-            + ` is not an active user`;
+          locals.inputObjects[index].reason = `${phoneNumber}` +
+            ` is not an active user`;
         }
       });
   });
@@ -2355,7 +2390,9 @@ const bulkCreateOnFinalize = async object => {
     return;
   }
 
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const workbook = XLSX.read(buffer, {
+    type: 'buffer'
+  });
   const [sheet1] = workbook.SheetNames;
   const theSheet = workbook.Sheets[sheet1];
   const inputObjects = XLSX
@@ -2369,15 +2406,15 @@ const bulkCreateOnFinalize = async object => {
 
   const promises = [
     rootCollections
-      .activityTemplates
-      .where('name', '==', template)
-      .limit(1)
-      .get(),
+    .activityTemplates
+    .where('name', '==', template)
+    .limit(1)
+    .get(),
     rootCollections
-      .offices
-      /** Office field can be skipped while creating `offices` in bulk */
-      .doc(officeId || null)
-      .get(),
+    .offices
+    /** Office field can be skipped while creating `offices` in bulk */
+    .doc(officeId || null)
+    .get(),
   ];
 
   if (template === templateNamesObject.SUBSCRIPTION) {
@@ -2475,6 +2512,9 @@ module.exports = async (object, context) => {
   try {
     return bulkCreateOnFinalize(object, context);
   } catch (error) {
-    console.error({ error, context });
+    console.error({
+      error,
+      context
+    });
   }
 };

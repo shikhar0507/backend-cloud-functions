@@ -140,9 +140,9 @@ module.exports = async locals => {
       allExpenseTypes
         .add(reimbursementType || template);
 
-      const key = `${phoneNumber}`
-        + `__${formattedDate}`
-        + `__${reimbursementType}`;
+      const key = `${phoneNumber}` +
+        `__${formattedDate}` +
+        `__${reimbursementType}`;
 
       allPhoneNumbers.set(key, {
         employeeName,
@@ -206,7 +206,10 @@ module.exports = async locals => {
         expenseSheet
           .cell(`L${innerIndex + 2}`)
           .value(fromLocation)
-          .style({ fontColor: '0563C1', underline: true })
+          .style({
+            fontColor: '0563C1',
+            underline: true
+          })
           .hyperlink(toMapsUrl(doc.get('startLocation')));
       } else {
         expenseSheet
@@ -218,7 +221,10 @@ module.exports = async locals => {
         expenseSheet
           .cell(`M${innerIndex + 2}`)
           .value(toLocation)
-          .style({ fontColor: '0563C1', underline: true })
+          .style({
+            fontColor: '0563C1',
+            underline: true
+          })
           .hyperlink(toMapsUrl(doc.get('endLocation')));
       } else {
         expenseSheet
@@ -294,9 +300,9 @@ module.exports = async locals => {
     .messageObject
     .attachments
     .push({
-      fileName: `Reimbursements Report_`
-        + `${locals.officeDoc.get('office')}`
-        + `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+      fileName: `Reimbursements Report_` +
+        `${locals.officeDoc.get('office')}` +
+        `_${momentToday.format(dateFormats.DATE)}.xlsx`,
       content: await workbook.outputAsync('base64'),
       type: 'text/csv',
       disposition: 'attachment',

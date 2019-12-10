@@ -50,9 +50,9 @@ const manageOldCheckins = async change => {
    * The newer value should be greater than the older
    * value.
    */
-  if (!oldFromValue
-    || !newFromValue
-    || newFromValue <= oldFromValue) {
+  if (!oldFromValue ||
+    !newFromValue ||
+    newFromValue <= oldFromValue) {
     return;
   }
 
@@ -84,9 +84,9 @@ const manageAddendum = async change => {
    * The newer value should be greater than the older
    * value.
    */
-  if (!oldFromValue
-    || !newFromValue
-    || (newFromValue <= oldFromValue)) {
+  if (!oldFromValue ||
+    !newFromValue ||
+    (newFromValue <= oldFromValue)) {
     return Promise.resolve();
   }
 
@@ -115,8 +115,8 @@ const manageAddendum = async change => {
 const handleSignUpAndInstall = (options) => {
   const promises = [];
 
-  if (!options.hasSignedUp
-    && !options.hasInstalled) {
+  if (!options.hasSignedUp &&
+    !options.hasInstalled) {
     return Promise.resolve();
   }
 
@@ -290,9 +290,9 @@ module.exports = async change => {
    * for all the offices this person belongs to.
    */
   const hasInstalled = Boolean(
-    before.get('lastQueryFrom')
-    && before.get('lastQueryFrom') !== 0
-    && after.get('lastQueryFrom') === 0
+    before.get('lastQueryFrom') &&
+    before.get('lastQueryFrom') !== 0 &&
+    after.get('lastQueryFrom') === 0
   );
 
   const options = {
@@ -323,9 +323,9 @@ module.exports = async change => {
    * Delete addendum if new `lastFromQuery` > old `lastFromQuery`.
    */
 
-  const toSendSMS = !change.before.data()
-    && change.after.data()
-    && !change.after.get('uid');
+  const toSendSMS = !change.before.data() &&
+    change.after.data() &&
+    !change.after.get('uid');
 
   try {
     await handleSignUpAndInstall(options);
@@ -336,9 +336,9 @@ module.exports = async change => {
     const office = change.after.get('smsContext.office');
     if (!toSendSMS || !office) return;
 
-    const smsText = `${office.substring(0, 20)} will use`
-      + ` Growthfile for attendance and leave.`
-      + ` Download now to CHECK-IN ${env.downloadUrl}`;
+    const smsText = `${office.substring(0, 20)} will use` +
+      ` Growthfile for attendance and leave.` +
+      ` Download now to CHECK-IN ${env.downloadUrl}`;
 
     return sendSMS(phoneNumber, smsText);
   } catch (error) {

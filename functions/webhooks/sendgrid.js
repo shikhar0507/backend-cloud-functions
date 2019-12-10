@@ -10,8 +10,7 @@ module.exports = async conn => {
   console.log('in sgmail webhook', conn.req.body);
 
   try {
-    if (conn.req.query.token
-      !== env.sgMailParseToken) {
+    if (conn.req.query.token !== env.sgMailParseToken) {
       return;
     }
 

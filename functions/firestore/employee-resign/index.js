@@ -54,18 +54,18 @@ const cancelEmployee = (conn, officeDoc) => {
   return Promise
     .all([
       officeDoc
-        .ref
-        .collection('Activities')
-        .where('template', '==', 'employee')
-        .where('office', '==', conn.req.body.office)
-        .where('attachment.Phone Number.value', '==', conn.req.body.phoneNumber)
-        .limit(1)
-        .get(),
+      .ref
+      .collection('Activities')
+      .where('template', '==', 'employee')
+      .where('office', '==', conn.req.body.office)
+      .where('attachment.Phone Number.value', '==', conn.req.body.phoneNumber)
+      .limit(1)
+      .get(),
       rootCollections
-        .updates
-        .where('phoneNumber', '==', conn.req.body.phoneNumber)
-        .limit(1)
-        .get(),
+      .updates
+      .where('phoneNumber', '==', conn.req.body.phoneNumber)
+      .limit(1)
+      .get(),
     ])
     .then((result) => {
       const [
@@ -97,12 +97,12 @@ const cancelEmployee = (conn, officeDoc) => {
       batch.set(rootCollections
         .activities
         .doc(activityId), {
-        addendumDocRef: null,
-        timestamp: Date.now(),
-        status: 'CANCELLED',
-      }, {
-        merge: true,
-      });
+          addendumDocRef: null,
+          timestamp: Date.now(),
+          status: 'CANCELLED',
+        }, {
+          merge: true,
+        });
 
       if (!updatesDocQuery.empty) {
         const doc = updatesDocQuery.docs[0];
@@ -119,7 +119,7 @@ const cancelEmployee = (conn, officeDoc) => {
       return Promise
         .all([
           batch
-            .commit(),
+          .commit(),
           sendResponse(
             conn,
             code.ok,

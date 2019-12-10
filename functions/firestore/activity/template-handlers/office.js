@@ -1,7 +1,9 @@
 'use strict';
 
 const crypto = require('crypto');
-const { google } = require('googleapis');
+const {
+  google
+} = require('googleapis');
 const {
   db,
   rootCollections,
@@ -12,7 +14,7 @@ const {
 } = require('../helper');
 const {
   slugify,
-  getAuth,
+  // getAuth,
   getBranchName,
   adjustedGeopoint,
   millitaryToHourMinutes,
@@ -22,9 +24,9 @@ const {
   httpsActions,
   subcollectionNames,
 } = require('../../../admin/constants');
-const {
-  createVirtualAccount,
-} = require('../../../cash-free/autocollect');
+// const {
+//   createVirtualAccount,
+// } = require('../../../cash-free/autocollect');
 const env = require('../../../admin/env');
 const admin = require('firebase-admin');
 const googleMapsClient = require('@google/maps')
@@ -75,7 +77,9 @@ const getPlaceIds = async office => {
     .placesAutoComplete({
       input: office,
       sessiontoken: crypto.randomBytes(64).toString('hex'),
-      components: { country: 'in' },
+      components: {
+        country: 'in'
+      },
     })
     .asPromise();
 
@@ -157,8 +161,8 @@ const getPlaceName = async placeid => {
     const periods = openingHours.periods;
 
     const relevantObject = periods.filter(item => {
-      return item.close
-        && item.close.day === 1;
+      return item.close &&
+        item.close.day === 1;
     });
 
     if (!relevantObject[0]) {
@@ -302,7 +306,9 @@ const getPlaceName = async placeid => {
 
 const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
   const batch = db.batch();
-  const { officeId } = locals.change.after.data();
+  const {
+    officeId
+  } = locals.change.after.data();
   const addendumDocRef = rootCollections
     .offices
     .doc(officeId)
@@ -361,8 +367,8 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
         .set(activityRef
           .collection(subcollectionNames.ASSIGNEES)
           .doc(phoneNumber), {
-          addToInclude: false,
-        });
+            addToInclude: false,
+          });
     });
 
   batch
@@ -376,12 +382,15 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
 
 
 const createBranches = async locals => {
-  const { template, office } = locals.change.after.data();
-  const hasBeenCreated = locals.addendumDoc
-    && locals.addendumDoc.get('action') === httpsActions.create;
+  const {
+    template,
+    office
+  } = locals.change.after.data();
+  const hasBeenCreated = locals.addendumDoc &&
+    locals.addendumDoc.get('action') === httpsActions.create;
 
-  if (template !== 'office'
-    || !hasBeenCreated) {
+  if (template !== 'office' ||
+    !hasBeenCreated) {
     return;
   }
 
@@ -425,10 +434,10 @@ const createBranches = async locals => {
     .all([
       getBranchBodies(office),
       rootCollections
-        .activityTemplates
-        .where('name', '==', 'branch')
-        .limit(1)
-        .get()
+      .activityTemplates
+      .where('name', '==', 'branch')
+      .limit(1)
+      .get()
     ])
     .then(result => {
       const [
@@ -463,8 +472,8 @@ const cancelAdmin = async (officeId, phoneNumber) => {
 
   const doc = docs.docs[0];
 
-  if (!doc
-    || doc.get('status') === 'CANCELLED') {
+  if (!doc ||
+    doc.get('status') === 'CANCELLED') {
     return;
   }
 
@@ -481,7 +490,9 @@ const cancelAdmin = async (officeId, phoneNumber) => {
 
 
 const createFootprintsRecipient = async locals => {
-  const { template } = locals.change.after.data();
+  const {
+    template
+  } = locals.change.after.data();
 
   if (template !== 'office') {
     return;
@@ -502,15 +513,15 @@ const createFootprintsRecipient = async locals => {
   ] = await Promise
     .all([
       rootCollections
-        .activityTemplates
-        .where('name', '==', 'recipient')
-        .get(),
+      .activityTemplates
+      .where('name', '==', 'recipient')
+      .get(),
       rootCollections
-        .activities
-        .where('template', '==', 'recipient')
-        .where('attachment.Name.value', '==', reportNames.FOOTPRINTS)
-        .limit(1)
-        .get()
+      .activities
+      .where('template', '==', 'recipient')
+      .where('attachment.Name.value', '==', reportNames.FOOTPRINTS)
+      .limit(1)
+      .get()
     ]);
 
   if (!recipientActivityQueryResult.empty) {
@@ -607,8 +618,8 @@ const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
 
   const doc = docs.docs[0];
 
-  if (!doc
-    || doc.get('status') === 'CANCELLED') {
+  if (!doc ||
+    doc.get('status') === 'CANCELLED') {
     return;
   }
 
@@ -633,8 +644,8 @@ const mangeYouTubeDataApi = async locals => {
     'Youtube ID': youtubeVideoId,
   } = attachment;
 
-  if (template !== 'office'
-    || !env.isProduction) {
+  if (template !== 'office' ||
+    !env.isProduction) {
     return;
   }
 
@@ -668,8 +679,8 @@ const mangeYouTubeDataApi = async locals => {
     .after
     .get('attachment.Description.value');
 
-  if (oldTitle === newTitle
-    && oldDescription === newDescription) {
+  if (oldTitle === newTitle &&
+    oldDescription === newDescription) {
     return;
   }
 
@@ -718,30 +729,30 @@ const handleSitemap = async locals => {
     .set(sitemap);
 };
 
-const isActivityCreated = change => !change.before.data()
-  && change.after.data();
+// const isActivityCreated = change => !change.before.data() &&
+//   change.after.data();
 
 
-const getVid = async () => {
-  const vAccountId = crypto
-    .randomBytes(16)
-    .toString('hex')
-    .substring(0, 9);
+// const getVid = async () => {
+//   const vAccountId = crypto
+//     .randomBytes(16)
+//     .toString('hex')
+//     .substring(0, 9);
 
-  const existsAlready = (
-    await rootCollections
-      .offices
-      .where('vAccountId', '==', vAccountId)
-      .limit(1)
-      .get()
-  ).size > 0;
+//   const existsAlready = (
+//     await rootCollections
+//     .offices
+//     .where('vAccountId', '==', vAccountId)
+//     .limit(1)
+//     .get()
+//   ).size > 0;
 
-  if (existsAlready) {
-    return getVid();
-  }
+//   if (existsAlready) {
+//     return getVid();
+//   }
 
-  return vAccountId;
-};
+//   return vAccountId;
+// };
 
 // const createOfficeVirtualAccount = async locals => {
 //   const hasBeenCreated = isActivityCreated(locals.change);

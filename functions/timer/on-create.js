@@ -85,14 +85,17 @@ const sendErrorReport = async () => {
   // No loggable errors for the day
   if (!messageBody) return;
 
-  const subject = `${process.env.GCLOUD_PROJECT}`
-    + ` Frontend Errors ${today.format(dateFormats.DATE)}`;
+  const subject = `${process.env.GCLOUD_PROJECT}` +
+    ` Frontend Errors ${today.format(dateFormats.DATE)}`;
 
   return sgMail
     .send({
       subject,
       to: env.instantEmailRecipientEmails,
-      from: { name: 'Growthile', email: env.systemEmail },
+      from: {
+        name: 'Growthile',
+        email: env.systemEmail
+      },
       html: messageBody,
     });
 };
@@ -170,10 +173,10 @@ module.exports = async timerDoc => {
     env
       .instantEmailRecipientEmails
       .forEach(email => {
-        const html = `<p>Date (DD-MM-YYYY): `
-          + `${timerDoc.id}</p>
-            <p>Timestamp:`
-          + ` ${new Date(timerDoc.get('timestamp')).toJSON()}</p>`;
+        const html = `<p>Date (DD-MM-YYYY): ` +
+          `${timerDoc.id}</p>
+            <p>Timestamp:` +
+          ` ${new Date(timerDoc.get('timestamp')).toJSON()}</p>`;
         const message = {
           html,
           cc: '',
@@ -191,7 +194,7 @@ module.exports = async timerDoc => {
     await Promise
       .all([
         sgMail
-          .sendMultiple(messages),
+        .sendMultiple(messages),
         sendErrorReport(),
         fetchExternalTokens(timerDoc)
       ]);
@@ -206,16 +209,16 @@ module.exports = async timerDoc => {
     ] = await Promise
       .all([
         rootCollections
-          .recipients
-          .get(),
+        .recipients
+        .get(),
         rootCollections
-          .inits
-          .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-          .where('date', '==', momentYesterday.date())
-          .where('month', '==', momentYesterday.month())
-          .where('year', '==', momentYesterday.year())
-          .limit(1)
-          .get(),
+        .inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', momentYesterday.date())
+        .where('month', '==', momentYesterday.month())
+        .where('year', '==', momentYesterday.year())
+        .limit(1)
+        .get(),
       ]);
 
     const batch = db.batch();

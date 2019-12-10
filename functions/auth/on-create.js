@@ -80,31 +80,31 @@ module.exports = async userRecord => {
 
   const promises = [
     rootCollections
-      .inits
-      .where('report', '==', 'counter')
-      .limit(1)
-      .get(),
+    .inits
+    .where('report', '==', 'counter')
+    .limit(1)
+    .get(),
     rootCollections
-      .inits
-      .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-      .where('date', '==', momentToday.date)
-      .where('month', '==', momentToday.months)
-      .where('year', '==', momentToday.years)
-      .limit(1)
-      .get(),
+    .inits
+    .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+    .where('date', '==', momentToday.date)
+    .where('month', '==', momentToday.months)
+    .where('year', '==', momentToday.years)
+    .limit(1)
+    .get(),
     rootCollections
-      .profiles
-      .doc(userRecord.phoneNumber)
-      .collection('Activities')
-      .where('template', '==', 'admin')
-      .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
-      .get(),
+    .profiles
+    .doc(userRecord.phoneNumber)
+    .collection('Activities')
+    .where('template', '==', 'admin')
+    .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
+    .get(),
     rootCollections
-      .activities
-      .where('template', '==', 'employee')
-      .where('status', '==', 'CONFIRMED')
-      .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
-      .get(),
+    .activities
+    .where('template', '==', 'employee')
+    .where('status', '==', 'CONFIRMED')
+    .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
+    .get(),
   ];
 
   try {
@@ -169,10 +169,10 @@ module.exports = async userRecord => {
       .set(rootCollections
         .updates
         .doc(uid), {
-        phoneNumber,
-      }, {
-        merge: true,
-      });
+          phoneNumber,
+        }, {
+          merge: true,
+        });
 
     /**
      * Profile *may* exist already, if the user signed
@@ -184,18 +184,21 @@ module.exports = async userRecord => {
       .set(rootCollections
         .profiles
         .doc(phoneNumber), {
-        uid,
-      }, {
-        merge: true,
-      });
+          uid,
+        }, {
+          merge: true,
+        });
 
-    console.log({ phoneNumber, uid });
+    console.log({
+      phoneNumber,
+      uid
+    });
 
     const final = [
       auth
-        .setCustomUserClaims(uid, customClaimsObject),
+      .setCustomUserClaims(uid, customClaimsObject),
       batch
-        .commit(),
+      .commit(),
     ];
 
     if (!employeesQuery.empty) {

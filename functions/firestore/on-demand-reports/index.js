@@ -16,10 +16,13 @@ const {
 const momentTz = require('moment-timezone');
 
 const validateRequestBody = (requestBody) => {
-  const result = { isValid: true, message: null };
+  const result = {
+    isValid: true,
+    message: null
+  };
 
-  if (!isValidDate(requestBody.startTime)
-    || !isValidDate(requestBody.endTime)) {
+  if (!isValidDate(requestBody.startTime) ||
+    !isValidDate(requestBody.endTime)) {
     result.isValid = false;
     result.message = `Fields 'startTime' and 'endTime' should be valid unix timestamps`;
   }
@@ -47,8 +50,8 @@ const validateRequestBody = (requestBody) => {
 
 module.exports = async conn => {
   try {
-    if (conn.requester.customClaims.admin
-      && !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
+    if (conn.requester.customClaims.admin &&
+      !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
       return sendResponse(conn, code.forbidden, 'Operation not allowed');
     }
 
@@ -65,16 +68,16 @@ module.exports = async conn => {
     const batch = db.batch();
     const [officeDocQuery, recipientDocsQuery] = await Promise.all([
       rootCollections
-        .offices
-        .where('attachment.Name.value', '==', conn.req.body.office)
-        .limit(1)
-        .get(),
+      .offices
+      .where('attachment.Name.value', '==', conn.req.body.office)
+      .limit(1)
+      .get(),
       rootCollections
-        .recipients
-        .where('report', '==', conn.req.body.report)
-        .where('office', '==', conn.req.body.office)
-        .limit(1)
-        .get()
+      .recipients
+      .where('report', '==', conn.req.body.report)
+      .where('office', '==', conn.req.body.office)
+      .limit(1)
+      .get()
     ]);
 
     const [officeDoc] = officeDocQuery.docs;
@@ -99,14 +102,16 @@ module.exports = async conn => {
       return sendResponse(
         conn,
         code.badRequest,
-        `No recipient found for ${conn.req.body.office}`
-        + ` for the report: ${conn.req.body.report}`
+        `No recipient found for ${conn.req.body.office}` +
+        ` for the report: ${conn.req.body.report}`
       );
     }
 
     batch.set(recipientDoc.ref, {
       timestamp: momentTz(conn.req.body.startTime).tz(timezone).valueOf(),
-    }, { merge: true });
+    }, {
+      merge: true
+    });
 
     await batch.commit();
 

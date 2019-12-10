@@ -11,17 +11,24 @@ const {
 } = require('../admin/utils');
 
 const validateSchedules = scheduleArray => {
-  const result = { success: true, message: [] };
+  const result = {
+    success: true,
+    message: []
+  };
 
   scheduleArray.forEach((schedule, index) => {
-    const { startTime, endTime, name } = schedule;
+    const {
+      startTime,
+      endTime,
+      name
+    } = schedule;
 
-    if (!startTime
-      || !endTime
-      || !name
-      || typeof startTime !== 'number'
-      || typeof endTime !== 'number'
-      || !isNonEmptyString(name)) {
+    if (!startTime ||
+      !endTime ||
+      !name ||
+      typeof startTime !== 'number' ||
+      typeof endTime !== 'number' ||
+      !isNonEmptyString(name)) {
       result.success = false;
       result
         .message
@@ -42,15 +49,23 @@ const validateSchedules = scheduleArray => {
 };
 
 const validateVenues = venue => {
-  const result = { success: true, message: [] };
+  const result = {
+    success: true,
+    message: []
+  };
 
   venue.forEach((object, index) => {
-    const { venueDescriptor, address, location, geopoint } = object;
+    const {
+      venueDescriptor,
+      address,
+      location,
+      geopoint
+    } = object;
 
-    if (!isNonEmptyString(venueDescriptor)
-      || !isNonEmptyString(address)
-      || !isNonEmptyString(location)
-      || !isValidGeopoint(geopoint)) {
+    if (!isNonEmptyString(venueDescriptor) ||
+      !isNonEmptyString(address) ||
+      !isNonEmptyString(location) ||
+      !isValidGeopoint(geopoint)) {
       result.success = false;
       result
         .message
@@ -153,10 +168,14 @@ class Activity {
     if (typeof creator !== 'object') {
       throw new Error(
         `The 'creator' should be an object with the following
-        `+ ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
+        ` + ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
       );
     }
-    const { displayName, phoneNumber, photoURL } = creator;
+    const {
+      displayName,
+      phoneNumber,
+      photoURL
+    } = creator;
 
     if (typeof displayName !== 'string') {
       throw new Error(
@@ -172,7 +191,11 @@ class Activity {
       throw new Error('The photoURL should be a valid URL');
     }
 
-    this.creator = { phoneNumber, displayName, photoURL };
+    this.creator = {
+      phoneNumber,
+      displayName,
+      photoURL
+    };
   }
 
   /**
@@ -268,8 +291,8 @@ class Subscription {
    * @param {Array<String>} phoneNumbers Array of phone numbers
    */
   setIncludeArray(phoneNumbers) {
-    if (!Array.isArray(phoneNumbers)
-      || phoneNumbers.length === 0) {
+    if (!Array.isArray(phoneNumbers) ||
+      phoneNumbers.length === 0) {
       throw new Error(`Field 'include' should be a non-empty array of phone numbers`);
     }
 

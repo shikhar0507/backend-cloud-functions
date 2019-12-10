@@ -45,7 +45,9 @@ admin.initializeApp(appInitOptions);
 const auth = admin.auth();
 const db = admin.firestore();
 
-db.settings({ timestampsInSnapshots: true });
+db.settings({
+  timestampsInSnapshots: true
+});
 
 /** For the worst cases where there is an omission of a `catch()` block. */
 process
@@ -64,8 +66,8 @@ process
  * on writing to the Firestore.
  */
 const getGeopointObject = geopoint => {
-  if (geopoint.latitude === ''
-    && geopoint.longitude === '') {
+  if (geopoint.latitude === '' &&
+    geopoint.longitude === '') {
     return geopoint;
   }
 
@@ -93,69 +95,69 @@ const getGeopointObject = geopoint => {
  */
 const getUserByPhoneNumber = (phoneNumber) =>
   auth.getUserByPhoneNumber(phoneNumber)
-    .then((userRecord) => {
-      return {
-        [phoneNumber]: userRecord,
-      };
-    })
-    .catch((error) => {
-      /** @see https://firebase.google.com/docs/auth/admin/errors */
-      if (error.code === 'auth/user-not-found'
-        || error.code === 'auth/invalid-phone-number'
-        || error.code === 'auth/internal-error') {
-        return {
-          [phoneNumber]: {},
-        };
-      }
-
-      /**
-       * Any other cases except the ones handled above should be
-       * noted by the developers.
-       */
-      console.error(error);
-
-      /** This function relies on the user input, so chances are
-       * that all three conditions checked above may not cover
-       * all the cases. Returning a usable object regardless,
-       * so the clients can work correctly.
-       */
+  .then((userRecord) => {
+    return {
+      [phoneNumber]: userRecord,
+    };
+  })
+  .catch((error) => {
+    /** @see https://firebase.google.com/docs/auth/admin/errors */
+    if (error.code === 'auth/user-not-found' ||
+      error.code === 'auth/invalid-phone-number' ||
+      error.code === 'auth/internal-error') {
       return {
         [phoneNumber]: {},
       };
-    });
+    }
+
+    /**
+     * Any other cases except the ones handled above should be
+     * noted by the developers.
+     */
+    console.error(error);
+
+    /** This function relies on the user input, so chances are
+     * that all three conditions checked above may not cover
+     * all the cases. Returning a usable object regardless,
+     * so the clients can work correctly.
+     */
+    return {
+      [phoneNumber]: {},
+    };
+  });
 
 
 const getUserByEmail = (email) =>
   auth.getUserByEmail(email)
-    .then((userRecord) => {
-      return {
-        [email]: userRecord,
-      };
-    })
-    .catch((error) => {
-      /** @see https://firebase.google.com/docs/auth/admin/errors */
-      if (error.code === 'auth/user-not-found'
-        || error.code === 'auth/internal-error') {
-        return {
-          [email]: {},
-        };
-      }
-
-      /**
-       * Any other cases except the ones handled above should be
-       * noted by the developers.
-       */
-      console.error(error);
-
-      /** This function relies on the user input, so chances are
-       * that all three conditions checked above may not cover
-       * all the cases. Returning a usable object regardless,
-       * so the clients can work correctly.
-       */
+  .then((userRecord) => {
+    return {
+      [email]: userRecord,
+    };
+  })
+  .catch((error) => {
+    /** @see https://firebase.google.com/docs/auth/admin/errors */
+    if (error.code === 'auth/user-not-found' ||
+      error.code === 'auth/internal-error') {
       return {
         [email]: {},
       };
-    });
+    }
+
+    /**
+     * Any other cases except the ones handled above should be
+     * noted by the developers.
+     */
+    console.error(error);
+
+    /** This function relies on the user input, so chances are
+     * that all three conditions checked above may not cover
+     * all the cases. Returning a usable object regardless,
+     * so the clients can work correctly.
+     */
+    return {
+      [email]: {},
+    };
+  });
 
 
 /**

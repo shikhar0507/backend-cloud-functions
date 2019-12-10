@@ -34,14 +34,14 @@ const getEmail = from => {
 const toAllowRequest = (customClaims, officeName) => {
   if (customClaims) {
     /** Not admin and not support */
-    if (!customClaims.admin
-      && !customClaims.support) {
+    if (!customClaims.admin &&
+      !customClaims.support) {
       return false;
     }
 
     /** Is admin but not an admin of the specified office */
-    if (customClaims.admin
-      && !customClaims.admin.includes(officeName)) {
+    if (customClaims.admin &&
+      !customClaims.admin.includes(officeName)) {
       return false;
     }
 
@@ -63,8 +63,8 @@ const getAuth = async phoneNumber => {
 
 
 module.exports = async conn => {
-  if (conn.req.query.token
-    !== env.sgMailParseToken) {
+  if (conn.req.query.token !==
+    env.sgMailParseToken) {
     return {
       success: false,
       code: code.unauthorized,

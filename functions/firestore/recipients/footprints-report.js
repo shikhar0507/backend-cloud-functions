@@ -52,8 +52,8 @@ const getComment = doc => {
 
   if (action === httpsActions.create) {
     if (doc.get('activityData.template') === 'enquiry') {
-      return `${doc.get('activityData.attachment.Product.value')}`
-        + ` ${doc.get('activityData.attachment.Enquiry.value')}`;
+      return `${doc.get('activityData.attachment.Product.value')}` +
+        ` ${doc.get('activityData.attachment.Enquiry.value')}`;
     }
 
     return `Created ${doc.get('activityData.template')}`;
@@ -74,8 +74,8 @@ const getComment = doc => {
       return newStatus;
     })();
 
-    return `${numbersString.toUpperCase()}`
-      + ` ${doc.get('activityData.template')}`;
+    return `${numbersString.toUpperCase()}` +
+      ` ${doc.get('activityData.template')}`;
   }
 
   if (action === httpsActions.share) {
@@ -184,8 +184,8 @@ const handleScheduleReport = async (locals, workbook) => {
       const endTime = momentTz(schedule.endTime)
         .tz(timezone)
         .format(dateFormats.DATE_TIME);
-      const createdBy = doc.get('creator.displayName')
-        || doc.get('creator.phoneNumber');
+      const createdBy = doc.get('creator.displayName') ||
+        doc.get('creator.phoneNumber');
       const lastUpdatedOn = momentTz(doc.get('timestamp'))
         .tz(timezone)
         .format(dateFormats.DATE_TIME);
@@ -211,8 +211,8 @@ const handleScheduleReport = async (locals, workbook) => {
             .tz(timezone)
             .format(dateFormats.DATE_TIME);
 
-          checkInTimes += `${name} (${firstCheckInFormatted}`
-            + ` to ${lastCheckInFormatted}, ${timestamps.length})`;
+          checkInTimes += `${name} (${firstCheckInFormatted}` +
+            ` to ${lastCheckInFormatted}, ${timestamps.length})`;
 
           checkInTimes += '\n';
         });
@@ -316,17 +316,17 @@ module.exports = async locals => {
     ] = await Promise
       .all([
         xlsxPopulate
-          .fromBlankAsync(),
+        .fromBlankAsync(),
         locals
-          .officeDoc
-          .ref
-          .collection('Addendum')
-          .where('date', '==', momentYesterday.date())
-          .where('month', '==', momentYesterday.month())
-          .where('year', '==', momentYesterday.year())
-          .orderBy('user')
-          .orderBy('timestamp')
-          .get()
+        .officeDoc
+        .ref
+        .collection('Addendum')
+        .where('date', '==', momentYesterday.date())
+        .where('month', '==', momentYesterday.month())
+        .where('year', '==', momentYesterday.year())
+        .orderBy('user')
+        .orderBy('timestamp')
+        .get()
       ]);
 
     if (addendumDocsQueryResult.empty) {
@@ -393,12 +393,16 @@ module.exports = async locals => {
             return 'Growthfile Support';
           }
 
-          return employeeObject.name
-            || doc.get('userDisplayName')
-            || '';
+          return employeeObject.name ||
+            doc.get('userDisplayName') ||
+            '';
         })();
 
-        const { department, baseLocation, employeeCode } = employeeObject;
+        const {
+          department,
+          baseLocation,
+          employeeCode
+        } = employeeObject;
         const identifier = getIdentifier(doc);
         const url = getUrl(doc);
         const time = momentTz(doc.get('timestamp'))
@@ -449,15 +453,15 @@ module.exports = async locals => {
          * a single line. Only the first occurrence of the event is logged
          * in the excel file. All subsequent items are glossed over.
          */
-        if (template === 'check-in'
-          && prevTemplateForPerson === 'check-in'
-          && timestampDiffLessThanFiveMinutes
-          && distanceFromPrevious === 0) {
+        if (template === 'check-in' &&
+          prevTemplateForPerson === 'check-in' &&
+          timestampDiffLessThanFiveMinutes &&
+          distanceFromPrevious === 0) {
           return;
         }
 
-        if (doc.get('action')
-          === httpsActions.checkIn) {
+        if (doc.get('action') ===
+          httpsActions.checkIn) {
           return;
         }
 
@@ -497,7 +501,10 @@ module.exports = async locals => {
           footprintsSheet
             .cell(`G${columnIndex}`)
             .value(identifier)
-            .style({ fontColor: '0563C1', underline: true })
+            .style({
+              fontColor: '0563C1',
+              underline: true
+            })
             .hyperlink(url);
         } else {
           footprintsSheet
@@ -507,12 +514,15 @@ module.exports = async locals => {
 
         const comment = getComment(doc);
 
-        if (template === 'check-in'
-          && doc.get('activityData.attachment.Photo.value').startsWith('http')) {
+        if (template === 'check-in' &&
+          doc.get('activityData.attachment.Photo.value').startsWith('http')) {
           footprintsSheet
             .cell(`H${columnIndex}`)
             .value(comment)
-            .style({ fontColor: '0563C1', underline: true })
+            .style({
+              fontColor: '0563C1',
+              underline: true
+            })
             .hyperlink(doc.get('activityData.attachment.Photo.value'));
         } else {
           footprintsSheet
@@ -544,9 +554,9 @@ module.exports = async locals => {
       .messageObject
       .attachments
       .push({
-        fileName: `Footprints Report_`
-          + `${locals.officeDoc.get('office')}`
-          + `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+        fileName: `Footprints Report_` +
+          `${locals.officeDoc.get('office')}` +
+          `_${momentToday.format(dateFormats.DATE)}.xlsx`,
         content: await workbook.outputAsync('base64'),
         type: 'text/csv',
         disposition: 'attachment',
@@ -560,7 +570,8 @@ module.exports = async locals => {
 
     if (!env.isProduction
       /** No activities yesterday */
-      || addendumDocsQueryResult.empty) {
+      ||
+      addendumDocsQueryResult.empty) {
       return;
     }
 
@@ -574,8 +585,8 @@ module.exports = async locals => {
     const isDateToday = momentToday
       .startOf('day')
       .valueOf() === momentFromTimer
-        .startOf('day')
-        .valueOf();
+      .startOf('day')
+      .valueOf();
 
     if (!isDateToday) {
       return;

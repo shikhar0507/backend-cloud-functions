@@ -58,8 +58,8 @@ const validateRequest = body => {
 
   if (!isE164PhoneNumber(body.oldPhoneNumber)) {
     messageObject.isValid = false;
-    messageObject.message = `The field 'oldPhoneNumber' should be`
-      + ` a valid E.164 phone number`;
+    messageObject.message = `The field 'oldPhoneNumber' should be` +
+      ` a valid E.164 phone number`;
 
     return messageObject;
   }
@@ -67,8 +67,8 @@ const validateRequest = body => {
   if (!isE164PhoneNumber(body.newPhoneNumber)) {
     messageObject.isValid = false;
     messageObject.message =
-      `The field 'newPhoneNumber' should be`
-      + ` a valid E.164 phone number`;
+      `The field 'newPhoneNumber' should be` +
+      ` a valid E.164 phone number`;
 
     return messageObject;
   }
@@ -86,8 +86,8 @@ module.exports = async conn => {
     );
   }
 
-  if (!conn.requester.isSupportRequest
-    && !hasAdminClaims(conn.requester.customClaims)) {
+  if (!conn.requester.isSupportRequest &&
+    !hasAdminClaims(conn.requester.customClaims)) {
     return sendResponse(
       conn,
       code.unauthorized,
@@ -105,8 +105,8 @@ module.exports = async conn => {
     );
   }
 
-  if (conn.requester.phoneNumber
-    === conn.req.body.oldPhoneNumber) {
+  if (conn.requester.phoneNumber ===
+    conn.req.body.oldPhoneNumber) {
     return sendResponse(
       conn,
       code.forbidden,
@@ -114,8 +114,8 @@ module.exports = async conn => {
     );
   }
 
-  if (conn.req.body.oldPhoneNumber
-    === conn.req.body.newPhoneNumber) {
+  if (conn.req.body.oldPhoneNumber ===
+    conn.req.body.newPhoneNumber) {
     return sendResponse(
       conn,
       code.badRequest,
@@ -131,13 +131,13 @@ module.exports = async conn => {
 
   const promises = [
     baseQuery
-      .where('attachment.Phone Number.value', '==', conn.req.body.oldPhoneNumber)
-      .limit(1)
-      .get(),
+    .where('attachment.Phone Number.value', '==', conn.req.body.oldPhoneNumber)
+    .limit(1)
+    .get(),
     baseQuery
-      .where('attachment.Phone Number.value', '==', conn.req.body.newPhoneNumber)
-      .limit(1)
-      .get(),
+    .where('attachment.Phone Number.value', '==', conn.req.body.newPhoneNumber)
+    .limit(1)
+    .get(),
   ];
 
   try {
@@ -166,16 +166,16 @@ module.exports = async conn => {
     const batch = db.batch();
     batch.set(employeeActivity
       .ref, {
-      addendumDocRef: null,
-      timestamp: Date.now(),
-      attachment: {
-        'Phone Number': {
-          value: conn.req.body.newPhoneNumber,
+        addendumDocRef: null,
+        timestamp: Date.now(),
+        attachment: {
+          'Phone Number': {
+            value: conn.req.body.newPhoneNumber,
+          },
         },
-      },
-    }, {
-      merge: true,
-    });
+      }, {
+        merge: true,
+      });
 
     const timezone = employeeActivity.get('timezone') || 'Asia/Kolkata';
     const momentToday = momentTz().tz(timezone);
@@ -186,16 +186,16 @@ module.exports = async conn => {
       .doc(officeId)
       .collection('Addendum')
       .doc(), {
-      date: momentToday.date(),
-      month: momentToday.month(),
-      year: momentToday.year(),
-      timestamp: Date.now(),
-      user: conn.requester.phoneNumber,
-      action: httpsActions.updatePhoneNumber,
-      oldPhoneNumber: conn.req.body.oldPhoneNumber,
-      newPhoneNumber: conn.req.body.newPhoneNumber,
-      isSupportRequest: conn.requester.isSupportRequest || false,
-    });
+        date: momentToday.date(),
+        month: momentToday.month(),
+        year: momentToday.year(),
+        timestamp: Date.now(),
+        user: conn.requester.phoneNumber,
+        action: httpsActions.updatePhoneNumber,
+        oldPhoneNumber: conn.req.body.oldPhoneNumber,
+        newPhoneNumber: conn.req.body.newPhoneNumber,
+        isSupportRequest: conn.requester.isSupportRequest || false,
+      });
 
     await batch.commit();
 

@@ -6,15 +6,15 @@ const {
 
 module.exports = (req, requester) => {
   console.log('requester', requester.customClaims.admin);
-  if (requester.isAdmin
-    && !requester.customClaims.admin.includes(req.query.office)) {
+  if (requester.isAdmin &&
+    !requester.customClaims.admin.includes(req.query.office)) {
     return ({});
   }
 
   // TODO: Handle normal users who are not admins
   // For viewing their own activities like enquiries etc
-  if (!requester.isAdmin
-    && !requester.isSupport) {
+  if (!requester.isAdmin &&
+    !requester.isSupport) {
     return ({});
   }
 
@@ -38,8 +38,8 @@ module.exports = (req, requester) => {
       .where('template', '==', req.query.template);
   }
 
-  if (!req.query.query
-    && !req.query.template) {
+  if (!req.query.query &&
+    !req.query.template) {
     return ({});
   }
 

@@ -43,4 +43,6 @@ const code = {
   notImplemented: 501,
 };
 
-module.exports = { code };
+module.exports = {
+  code
+};

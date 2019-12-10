@@ -22,8 +22,8 @@ function validateForm() {
     insertAfterNode(secondContactElement, element);
   }
 
-  if (secondContactPhoneNumber
-    && !isValidPhoneNumber(secondContactPhoneNumber)) {
+  if (secondContactPhoneNumber &&
+    !isValidPhoneNumber(secondContactPhoneNumber)) {
     valid = false;
     const element = getWarningNode('Invalid phone number');
 
@@ -44,8 +44,8 @@ function validateForm() {
     insertAfterNode(secondContactEmailElement, element);
   }
 
-  if (secondContactEmailElement.value
-    && !isValidEmail(secondContactEmailElement.value)) {
+  if (secondContactEmailElement.value &&
+    !isValidEmail(secondContactEmailElement.value)) {
     valid = false;
     const element = getWarningNode('Invalid email');
 
@@ -102,14 +102,14 @@ function sendOfficeCreationRequest(values) {
       const requestUrl = `${apiBaseUrl}/bulk`;
 
       return fetch(requestUrl, {
-        mode: 'cors',
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-      })
+          mode: 'cors',
+          method: 'POST',
+          body: JSON.stringify(requestBody),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+        })
         .then(function (result) {
           if (!result.ok && sessionStorage.getItem('prefill-form')) {
             sessionStorage.removeItem('prefill-form');
@@ -238,7 +238,10 @@ window.intlTelInput(document.querySelector('#second-contact-phone-number'), {
   autoHideDialCode: true,
   customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
     window.countryCode = selectedCountryData.dialCode;
-    console.log({ selectedCountryPlaceholder, selectedCountryData });
+    console.log({
+      selectedCountryPlaceholder,
+      selectedCountryData
+    });
     return "e.g. " + selectedCountryPlaceholder;
   }
 });

@@ -67,6 +67,29 @@ const googleMapsClient = require('@google/maps')
     Promise: Promise,
   });
 
+const getActivityReportName = async ({
+  activityDoc
+}) => {
+  const {
+    report,
+    template,
+  } = activityDoc.data();
+
+  if (report) {
+    return report;
+  }
+
+  const [templateDoc] = (
+    await rootCollections
+    .activityTemplates
+    .where('name', '==', template)
+    .limit(1)
+    .get()
+  ).docs;
+
+  return templateDoc.get('report');
+};
+
 const getAttendanceHoursWorked = ({
   attendanceData,
   date
@@ -833,8 +856,6 @@ const createDefaultSubscriptionsForUser = locals => {
     return;
   }
 
-  console.log('in createDefaultSubscriptionsForUser');
-
   return Promise
     .all([
       createAutoSubscription(locals, 'check-in', activityPhoneNumber),
@@ -886,12 +907,8 @@ const replaceNumberInActivities = async locals => {
     after: activityDoc
   } = locals.change;
 
-  console.log('in replaceNumberInActivities');
-
   const runQuery = async (query, newPhoneNumberAuth, resolve, reject) => {
     return query.get().then(docs => {
-        console.log('replaceNumberInActivities docs =>', docs.size);
-
         if (docs.empty) {
           return [0];
         }
@@ -913,8 +930,6 @@ const replaceNumberInActivities = async locals => {
           }
 
           const activityRef = rootCollections.activities.doc(doc.id);
-
-          console.log('change phone number', activityRef.id);
 
           // add new assignee
           batch.set(
@@ -1043,6 +1058,7 @@ const handleConfig = async locals => {
   const {
     value: newActivityPhoneNumber,
   } = locals.change.after.get('attachment.Phone Number') || {};
+  const [venue] = locals.change.after.get('venue');
   const phoneNumberChanged = oldActivityPhoneNumber && oldActivityPhoneNumber !== newActivityPhoneNumber;
 
   /**
@@ -1053,16 +1069,17 @@ const handleConfig = async locals => {
     return;
   }
 
-  if (!newActivityPhoneNumber) {
+  /**
+   * Skip for check-in,
+   * Probably reduntant
+   */
+  if (venue) {
     return;
   }
 
-  console.log('handleConfig');
-  console.log('phoneNumberChanged =>', phoneNumberChanged);
-  console.log({
-    oldActivityPhoneNumber,
-    newActivityPhoneNumber
-  });
+  if (!newActivityPhoneNumber) {
+    return;
+  }
 
   const batch = db.batch();
   const hasBeenCancelled = locals
@@ -1083,8 +1100,6 @@ const handleConfig = async locals => {
 
   const hasBeenCreated = locals.addendumDoc &&
     locals.addendumDoc.get('action') === httpsActions.create;
-
-  console.log('hasBeenCreated', hasBeenCreated);
 
   // Change of status from `CONFIRMED` to `CANCELLED`
   if (hasBeenCancelled) {
@@ -1156,8 +1171,6 @@ const handleConfig = async locals => {
       });
 
   await batch.commit();
-
-  console.log('hasBeenCancelled', hasBeenCancelled);
 
   if (hasBeenCancelled) {
     await removeFromOfficeActivities(locals);
@@ -2600,8 +2613,6 @@ const handleTypeActivityCreation = async locals => {
     return;
   }
 
-  console.log('handleTypeActivityCreation');
-
   const docs = await rootCollections
     .activities
     .where('template', '==', 'subscription')
@@ -3042,8 +3053,6 @@ const reimburseKmAllowance = async locals => {
 
   // Not an employee, km allowance is skipped
   if (!roleDoc) {
-    console.log('Skip km allowance => no employee doc');
-
     return;
   }
 
@@ -3063,14 +3072,10 @@ const reimburseKmAllowance = async locals => {
   // Scheduled Only means action === check-in. Exit otherwise
   if (scheduledOnly &&
     (locals.addendumDocData.action !== httpsActions.checkIn)) {
-    console.log('Skip km allowance => scheduled Only');
-
     return;
   }
 
   if (!kmRate) {
-    console.log('Skip km allowance => no km rate', kmRate);
-
     return;
   }
 
@@ -3143,8 +3148,6 @@ const reimburseKmAllowance = async locals => {
   });
 
   if (!startPointDetails) {
-    console.log('Skip km allowance => no startPointDetails');
-
     return;
   }
 
@@ -3154,12 +3157,10 @@ const reimburseKmAllowance = async locals => {
   );
 
   if (distanceBetweenCurrentAndStartPoint < 1) {
-    console.log('Skip km allowance => distanceBetweenCurrentAndStartPoint < 1', distanceBetweenCurrentAndStartPoint);
     return;
   }
 
   if (kmRate * distanceBetweenCurrentAndStartPoint < 1) {
-    console.log('Skip km allowance amt < 1', kmRate * distanceBetweenCurrentAndStartPoint);
     return;
   }
 
@@ -3170,7 +3171,6 @@ const reimburseKmAllowance = async locals => {
    * Also don't want to touch it since it might break stuff.
    */
   if (previousKmReimbursementQuery.empty) {
-    console.log('In km allowance if');
     // create km allowance for start point to current location
     // create km allowance for current location to start point.
     const r1 = rootCollections
@@ -3480,8 +3480,8 @@ const getLateStatus = ({
 };
 
 
-const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
-  if (!employeeDoc) {
+const populateMissingAttendances = async (roleDoc, dateRangeEnd, uid) => {
+  if (!roleDoc) {
     return;
   }
 
@@ -3496,16 +3496,16 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
         value: phoneNumber,
       }
     }
-  } = employeeDoc.data();
+  } = roleDoc.data();
 
-  const timezone = employeeDoc.get('timezone') || 'Asia/Kolkata';
+  const timezone = roleDoc.get('timezone') || 'Asia/Kolkata';
   const momentToday = momentTz().tz(timezone);
   const momentPrevMonth = momentToday.clone().subtract(1, 'months');
   const monthYearCombinations = new Set();
   const attendanceDocPromises = [];
-  const empCt = momentTz(employeeDoc.createTime.toMillis());
+  const empCt = momentTz(roleDoc.createTime.toMillis());
 
-  batch.set(employeeDoc.ref, {
+  batch.set(roleDoc.ref, {
     lastAttendanceTimestamp: dateRangeEnd.valueOf(),
   }, {
     merge: true,
@@ -3592,11 +3592,6 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
     const filters = snap.query._queryOptions.fieldFilters;
     const month = filters[0].value;
     const year = filters[1].value;
-    const ref = doc ? doc.ref : rootCollections
-      .offices
-      .doc(officeId)
-      .collection(subcollectionNames.ATTENDANCES)
-      .doc();
     const data = Object.assign(doc ? doc.data() : {}, {
       month,
       year,
@@ -3617,49 +3612,54 @@ const populateMissingAttendances = async (employeeDoc, dateRangeEnd, uid) => {
       data.attendance[date] = data.attendance[date] ||
         getDefaultAttendanceObject();
 
-      batch
-        .set(rootCollections
-          .updates
-          .doc(uid)
-          .collection(subcollectionNames.ADDENDUM)
-          .doc(), Object.assign({}, data.attendance[date], {
-            date,
-            month,
-            year,
-            office,
-            officeId,
-            timestamp: Date.now(),
-            key: momentTz()
-              .tz(timezone)
-              .date(date)
-              .month(month)
-              .year(year)
-              .startOf('day')
-              .valueOf(),
-            id: `${date}${month}${year}${officeId}`,
-            _type: addendumTypes.ATTENDANCE,
-          }), {
-            merge: true,
-          });
+      batch.set(
+        rootCollections
+        .updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc(), Object.assign({}, data.attendance[date], {
+          date,
+          month,
+          year,
+          office,
+          officeId,
+          timestamp: Date.now(),
+          key: momentTz()
+            .tz(timezone)
+            .date(date)
+            .month(month)
+            .year(year)
+            .startOf('day')
+            .valueOf(),
+          id: `${date}${month}${year}${officeId}`,
+          _type: addendumTypes.ATTENDANCE,
+        }), {
+          merge: true,
+        });
     });
 
-    const employeeData = {
+    const roleData = {
       phoneNumber,
-      id: employeeDoc.id,
+      id: roleDoc.id,
       activationDate: empCt.valueOf(),
-      employeeName: employeeDoc.get('attachment.Name.value'),
-      employeeCode: employeeDoc.get('attachment.Employee Code.value'),
-      baseLocation: employeeDoc.get('attachment.Base Location.value'),
-      region: employeeDoc.get('attachment.Region.value'),
-      department: employeeDoc.get('attachment.Department.value'),
-      minimumDailyActivityCount: employeeDoc.get('attachment.Minimum Daily Activity Count.value'),
-      minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
+      employeeName: roleDoc.get('attachment.Name.value'),
+      employeeCode: roleDoc.get('attachment.Employee Code.value'),
+      baseLocation: roleDoc.get('attachment.Base Location.value'),
+      region: roleDoc.get('attachment.Region.value'),
+      department: roleDoc.get('attachment.Department.value'),
+      minimumDailyActivityCount: roleDoc.get('attachment.Minimum Daily Activity Count.value'),
+      minimumWorkingHours: roleDoc.get('attachment.Minimum Working Hours.value'),
     };
 
-    batch
-      .set(ref, Object.assign({}, employeeData, data), {
-        merge: true,
-      });
+    const ref = doc ? doc.ref : rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ATTENDANCES)
+      .doc();
+
+    batch.set(ref, Object.assign({}, roleData, data), {
+      merge: true,
+    });
   });
 
   return batch.commit();
@@ -3748,9 +3748,11 @@ const handleWorkday = async locals => {
    * If the first check-in has already been set for this user
    * we don't need to update it again for the day
    */
-  attendanceObject.attendance[todaysDate].working.firstCheckInTimestamp = attendanceObject
+  attendanceObject
     .attendance[todaysDate]
-    .working.firstCheckInTimestamp || locals.addendumDocData.timestamp;
+    .working
+    .firstCheckInTimestamp = attendanceObject
+    .attendance[todaysDate].working.firstCheckInTimestamp || locals.addendumDocData.timestamp;
 
   attendanceObject
     .attendance[todaysDate]
@@ -3799,14 +3801,16 @@ const handleWorkday = async locals => {
     true
   );
 
-  attendanceObject.attendance[todaysDate].attendance = getStatusForDay({
+  const p = {
     // difference between first and last action in hours
     hoursWorked,
     // number of actions done in the day by the user
     numberOfCheckIns,
     minimumDailyActivityCount: roleData.minimumDailyActivityCount,
     minimumWorkingHours: roleData.minimumWorkingHours,
-  });
+  };
+
+  attendanceObject.attendance[todaysDate].attendance = getStatusForDay(p);
 
   if (attendanceObject.attendance[todaysDate].onAr ||
     attendanceObject.attendance[todaysDate].onLeave ||
@@ -3826,17 +3830,32 @@ const handleWorkday = async locals => {
   tempDates.forEach(date => {
     // TODO: Dates in this loop should only be the ones where the user
     // was an employee
-    attendanceObject.attendance[date] = attendanceObject.attendance[date] || getDefaultAttendanceObject();
+    attendanceObject.attendance[date] = attendanceObject
+      .attendance[date] || getDefaultAttendanceObject();
 
     const checkInsArray = attendanceObject.attendance[date].addendum || [];
     const {
       length: numberOfCheckIns
     } = checkInsArray || [];
 
-    const hoursWorked = getAttendanceHoursWorked({
-      attendanceData: attendanceObject,
-      date,
-    });
+    const hoursWorked = (() => {
+      if (checkInsArray.length === 0) {
+        return 0;
+      }
+
+      const [firstCheckInAddendum] = checkInsArray;
+      const lastCheckInAddendum = checkInsArray[checkInsArray.length - 1];
+      const {
+        timestamp: firstCheckInTimestamp
+      } = firstCheckInAddendum;
+      const {
+        timestamp: lastCheckInTimestamp
+      } = lastCheckInAddendum;
+      const firstMoment = momentTz(firstCheckInTimestamp).tz(timezone);
+      const lastMoment = momentTz(lastCheckInTimestamp).tz(timezone);
+
+      return lastMoment.diff(firstMoment, 'hours', true);
+    })();
 
     attendanceObject.attendance[date].attendance = (() => {
       const {
@@ -3858,29 +3877,29 @@ const handleWorkday = async locals => {
       });
     })();
 
-    const updateRef = rootCollections
+    batch.set(
+      rootCollections
       .updates
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
-      .doc();
-
-    batch.set(updateRef, Object.assign({}, attendanceObject.attendance[date], {
-      date,
-      month,
-      year,
-      office,
-      officeId,
-      phoneNumber,
-      timestamp: Date.now(),
-      _type: addendumTypes.ATTENDANCE,
-      id: `${date}${month}${year}${officeId}`,
-      key: momentTz()
-        .date(date)
-        .month(month)
-        .year(year)
-        .startOf('date')
-        .valueOf(),
-    }));
+      .doc(),
+      Object.assign({}, attendanceObject.attendance[date], {
+        date,
+        month,
+        year,
+        office,
+        officeId,
+        phoneNumber,
+        timestamp: Date.now(),
+        _type: addendumTypes.ATTENDANCE,
+        id: `${date}${month}${year}${officeId}`,
+        key: momentTz()
+          .date(date)
+          .month(month)
+          .year(year)
+          .startOf('date')
+          .valueOf(),
+      }));
   });
 
   batch.set(
@@ -3896,7 +3915,8 @@ const handleWorkday = async locals => {
       merge: true,
     });
 
-  batch.set(rootCollections
+  batch.set(
+    rootCollections
     .updates
     .doc(uid)
     .collection(subcollectionNames.ADDENDUM)
@@ -4010,6 +4030,183 @@ const getProfileActivityObject = ({
   return intermediate;
 };
 
+const attendanceHandler = async locals => {
+  if (!locals.addendumDocData) {
+    return;
+  }
+
+  const {
+    template,
+    status,
+    officeId,
+    office,
+    creator: {
+      phoneNumber,
+    },
+    schedule,
+    attachment: {
+      Reason: {
+        value: reason,
+      },
+    },
+  } = locals.change.after.data();
+  const isCancelled = status === 'CANCELLED';
+  const [firstSchedule] = schedule;
+
+  const roleData = getEmployeeReportData(locals.roleObject, phoneNumber);
+  let uid = locals.addendumDocData.uid;
+  const batch = db.batch();
+
+  if (!uid) {
+    uid = (await getAuth(phoneNumber)).uid;
+  }
+
+  const {
+    startTime,
+    endTime
+  } = firstSchedule;
+
+  const momentStartTime = momentTz(startTime).startOf('date');
+  const copyOfMomentStartTime = momentStartTime.clone();
+  const momentEndTime = momentTz(endTime).endOf('date');
+  const datesToSet = new Set();
+  const startTimeMonth = momentStartTime.month();
+  const {
+    user
+  } = locals.addendumDocData;
+
+  const hasBeenCancelled = locals.change.before.data() &&
+    locals.change.before.get('status') !== 'CANCELLED' &&
+    locals.change.after.get('status') === 'CANCELLED';
+
+  while (copyOfMomentStartTime.isSameOrBefore(momentEndTime)) {
+    if (startTimeMonth === copyOfMomentStartTime.month()) {
+      datesToSet.add(copyOfMomentStartTime.date());
+    }
+
+    copyOfMomentStartTime.add(1, 'days');
+  }
+
+  const [attendanceDoc] = (
+    await rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ATTENDANCES)
+    .where('phoneNumber', '==', phoneNumber)
+    .where('month', '==', momentStartTime.month())
+    .where('year', '==', momentStartTime.year())
+    .limit(1)
+    .get()
+  ).docs;
+
+  const attendanceData = attendanceDoc ? attendanceDoc.data() : {};
+
+  attendanceData.attendance = attendanceData.attendance || {};
+
+  datesToSet.forEach(date => {
+    attendanceData.attendance[date] = attendanceData
+      .attendance[date] || getDefaultAttendanceObject();
+
+    if (!isCancelled) {
+      attendanceData.attendance[date].attendance = 1;
+    }
+
+    if (template === 'leave') {
+      attendanceData.attendance[date].leave.reason = reason;
+      attendanceData.attendance[date].onLeave = !isCancelled;
+      attendanceData.attendance[date].leave[status] = {
+        phoneNumber: user,
+        timestamp: Date.now()
+      };
+    }
+
+    if (template === 'attendance regularization') {
+      attendanceData.attendance[date].ar.reason = reason;
+      attendanceData.attendance[date].onAr = !isCancelled;
+      attendanceData.attendance[date].ar[status] = {
+        phoneNumber: user,
+        timestamp: Date.now()
+      };
+    }
+
+    if (hasBeenCancelled) {
+      // recalculate attendance for these dates
+      const checkInsArray = attendanceData.attendance[date].addendum || [];
+      const {
+        length: numberOfCheckIns
+      } = checkInsArray;
+
+      const hoursWorked = getAttendanceHoursWorked({
+        attendanceData,
+        date
+      });
+
+      attendanceData.attendance[date].attendance = (() => {
+        const {
+          holiday,
+          weeklyOff
+        } = attendanceData.attendance[date];
+
+        if (holiday || weeklyOff) {
+          console.log('attendance from if');
+          return 1;
+        }
+
+        const params = {
+          numberOfCheckIns, // number of actions done in the day by the user
+          // difference between first and last action in hours,
+          hoursWorked,
+          minimumWorkingHours: roleData.minimumWorkingHours,
+          minimumDailyActivityCount: roleData.minimumDailyActivityCount,
+        };
+
+        return getStatusForDay(params);
+      })();
+    }
+
+    const momentInstance = momentStartTime.clone().date(date);
+
+    batch.set(
+      rootCollections
+      .updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc(), Object.assign({}, attendanceData.attendance[date], {
+        date,
+        office,
+        officeId,
+        timestamp: Date.now(),
+        activityId: locals.change.after.id,
+        _type: addendumTypes.ATTENDANCE,
+        month: momentStartTime.month(),
+        year: momentStartTime.year(),
+        key: momentInstance.clone().startOf('day').valueOf(),
+        id: `${date}${momentStartTime.month()}${momentStartTime.year()}${officeId}`,
+      }), {
+        merge: true
+      });
+  });
+
+  const attendanceRef = attendanceDoc ? attendanceDoc.ref : rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ATTENDANCES)
+    .doc();
+
+  batch.set(
+    attendanceRef,
+    Object.assign({}, attendanceData, roleData, {
+      month: momentStartTime.month(),
+      year: momentStartTime.year(),
+      office,
+      officeId,
+    }), {
+      merge: true
+    });
+
+  return batch.commit();
+};
+
 const templateHandler = async locals => {
   const {
     template
@@ -4040,6 +4237,18 @@ const templateHandler = async locals => {
 
   if (template === 'admin') {
     await require('./template-handlers/admin')(locals);
+  }
+
+  const activityReportName = await getActivityReportName({
+    activityDoc: locals.change.after,
+  });
+
+  if (activityReportName === 'attendance') {
+    await attendanceHandler(locals);
+  }
+
+  if (activityReportName === 'reimbursement') {
+    await handleReimbursement(locals);
   }
 
   await handleConfig(locals);
@@ -4245,221 +4454,6 @@ const handleProfile = async change => {
   return locals;
 };
 
-const getActivityReportName = async ({
-  activityDoc
-}) => {
-  const {
-    report,
-    template,
-  } = activityDoc.data();
-
-  if (report) {
-    return report;
-  }
-
-  const [templateDoc] = (
-    await rootCollections
-    .activityTemplates
-    .where('name', '==', template)
-    .limit(1)
-    .get()
-  ).docs;
-
-  return templateDoc.get('report');
-};
-
-
-const attendanceHandler = async locals => {
-  if (!locals.addendumDocData) {
-    return;
-  }
-
-  const {
-    template,
-    status,
-    officeId,
-    office,
-    creator: {
-      phoneNumber,
-    },
-    schedule,
-    attachment: {
-      Reason: {
-        value: reason,
-      },
-    },
-  } = locals.change.after.data();
-  const isCancelled = status === 'CANCELLED';
-  const [firstSchedule] = schedule;
-
-  const roleData = getEmployeeReportData(locals.roleObject, phoneNumber);
-  let uid = locals.addendumDocData.uid;
-  const batch = db.batch();
-
-  if (!uid) {
-    uid = (await getAuth(phoneNumber)).uid;
-  }
-
-  const {
-    startTime,
-    endTime
-  } = firstSchedule;
-
-  const momentStartTime = momentTz(startTime).startOf('date');
-  const copyOfMomentStartTime = momentStartTime.clone();
-  const momentEndTime = momentTz(endTime).endOf('date');
-  const datesToSet = new Set();
-  const startTimeMonth = momentStartTime.month();
-  const {
-    user
-  } = locals.addendumDocData;
-
-  const hasBeenCancelled = locals.change.before.data() &&
-    locals.change.before.get('status') !== 'CANCELLED' &&
-    locals.change.after.get('status') === 'CANCELLED';
-
-  console.log('before loop');
-
-  while (copyOfMomentStartTime.isSameOrBefore(momentEndTime)) {
-    if (startTimeMonth === copyOfMomentStartTime.month()) {
-      datesToSet.add(copyOfMomentStartTime.date());
-    }
-
-    copyOfMomentStartTime.add(1, 'days');
-  }
-
-  console.log('datesToSet', datesToSet.values());
-
-  const [attendanceDoc] = (
-    await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ATTENDANCES)
-    .where('phoneNumber', '==', phoneNumber)
-    .where('month', '==', momentStartTime.month())
-    .where('year', '==', momentStartTime.year())
-    .limit(1)
-    .get()
-  ).docs;
-
-  const attendanceData = attendanceDoc ? attendanceDoc.data() : {};
-
-  attendanceData.attendance = attendanceData.attendance || {};
-
-  datesToSet.forEach(date => {
-    attendanceData.attendance[date] = attendanceData
-      .attendance[date] || getDefaultAttendanceObject();
-
-    if (!isCancelled) {
-      attendanceData.attendance[date].attendance = 1;
-    }
-
-    if (template === 'leave') {
-      attendanceData.attendance[date].leave.reason = reason;
-      attendanceData.attendance[date].onLeave = !isCancelled;
-      attendanceData.attendance[date].leave[status] = {
-        phoneNumber: user,
-        timestamp: Date.now()
-      };
-    }
-
-    if (template === 'attendance regularization') {
-      attendanceData.attendance[date].ar.reason = reason;
-      attendanceData.attendance[date].onAr = !isCancelled;
-      attendanceData.attendance[date].ar[status] = {
-        phoneNumber: user,
-        timestamp: Date.now()
-      };
-    }
-
-    console.log(date, hasBeenCancelled);
-
-    if (hasBeenCancelled) {
-      // recalculate attendance for these dates
-      const checkInsArray = attendanceData.attendance[date].addendum || [];
-      const {
-        length: numberOfCheckIns
-      } = checkInsArray;
-
-      const hoursWorked = getAttendanceHoursWorked({
-        attendanceData,
-        date
-      });
-
-      console.log('hoursWorked', hoursWorked);
-      console.log('before calculation', attendanceData.attendance[date].attendance);
-      attendanceData.attendance[date].attendance = (() => {
-        const {
-          holiday,
-          weeklyOff
-        } = attendanceData.attendance[date];
-
-        if (holiday || weeklyOff) {
-          console.log('attendance from if');
-          return 1;
-        }
-
-        const params = {
-          numberOfCheckIns, // number of actions done in the day by the user
-          // difference between first and last action in hours,
-          hoursWorked,
-          minimumWorkingHours: roleData.minimumWorkingHours,
-          minimumDailyActivityCount: roleData.minimumDailyActivityCount,
-        };
-
-        console.log('attendance from getStatusForDay', params);
-
-        return getStatusForDay(params);
-      })();
-
-      console.log('after calculation', attendanceData.attendance[date].attendance);
-    }
-
-    const momentInstance = momentStartTime.clone().date(date);
-
-    batch.set(
-      rootCollections
-      .updates
-      .doc(uid)
-      .collection(subcollectionNames.ADDENDUM)
-      .doc(), Object.assign({}, attendanceData.attendance[date], {
-        date,
-        office,
-        officeId,
-        timestamp: Date.now(),
-        activityId: locals.change.after.id,
-        _type: addendumTypes.ATTENDANCE,
-        month: momentStartTime.month(),
-        year: momentStartTime.year(),
-        key: momentInstance.clone().startOf('day').valueOf(),
-        id: `${date}${momentStartTime.month()}${momentStartTime.year()}${officeId}`,
-      }), {
-        merge: true
-      });
-  });
-
-  const attendanceRef = attendanceDoc ? attendanceDoc.ref : rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ATTENDANCES)
-    .doc();
-
-  console.log(template, attendanceRef.path);
-
-  batch.set(
-    attendanceRef,
-    Object.assign({}, attendanceData, roleData, {
-      month: momentStartTime.month(),
-      year: momentStartTime.year(),
-      office,
-      officeId,
-    }), {
-      merge: true
-    });
-
-  return batch.commit();
-};
-
 
 const ActivityOnWrite = async change => {
   /** Activity was deleted. For debugging only. */
@@ -4475,21 +4469,7 @@ const ActivityOnWrite = async change => {
    * any order.
    */
   await handleAddendum(locals);
-  await templateHandler(locals);
-
-  const activityReportName = await getActivityReportName({
-    activityDoc: locals.change.after,
-  });
-
-  if (activityReportName === 'attendance') {
-    await attendanceHandler(locals);
-  }
-
-  if (activityReportName === 'reimbursement') {
-    await handleReimbursement(locals);
-  }
-
-  return;
+  return templateHandler(locals);
 };
 
 

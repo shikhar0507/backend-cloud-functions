@@ -29,8 +29,12 @@ const {
   isValidRequestBody,
   checkActivityAndAssignee,
 } = require('./helper');
-const { code } = require('../../admin/responses');
-const { httpsActions } = require('../../admin/constants');
+const {
+  code
+} = require('../../admin/responses');
+const {
+  httpsActions
+} = require('../../admin/constants');
 const {
   db,
   rootCollections,
@@ -111,8 +115,8 @@ const handleResult = async (conn, docs) => {
       }
     });
 
-  if (!allAreNew
-    && !isSpecialTemplate) {
+  if (!allAreNew &&
+    !isSpecialTemplate) {
     return sendResponse(
       conn,
       code.badRequest,
@@ -161,13 +165,13 @@ const handleResult = async (conn, docs) => {
     locals
       .objects
       .permissions[phoneNumber] = {
-      isAdmin: false,
-      isEmployee: false,
-      isCreator: isRequester,
-    };
+        isAdmin: false,
+        isEmployee: false,
+        isCreator: isRequester,
+      };
 
-    if (activity.get('template') === 'duty'
-      && !checkIns.hasOwnProperty(phoneNumber)) {
+    if (activity.get('template') === 'duty' &&
+      !checkIns.hasOwnProperty(phoneNumber)) {
       activityUpdate
         .checkIns[phoneNumber] = [];
 
@@ -250,8 +254,8 @@ const handleResult = async (conn, docs) => {
   conn.req.body.share.forEach(phoneNumber => {
     const isRequester = conn.requester.phoneNumber === phoneNumber;
 
-    if (activity.get('template') === 'subscription'
-      && isRequester) {
+    if (activity.get('template') === 'subscription' &&
+      isRequester) {
       addToInclude = false;
     }
 
@@ -260,15 +264,17 @@ const handleResult = async (conn, docs) => {
         .activities
         .doc(conn.req.body.activityId)
         .collection('Assignees')
-        .doc(phoneNumber), { addToInclude });
+        .doc(phoneNumber), {
+          addToInclude
+        });
   });
 
   batch
     .set(rootCollections
       .activities
       .doc(conn.req.body.activityId), activityUpdate, {
-      merge: true,
-    });
+        merge: true,
+      });
 
   const now = new Date();
 
@@ -331,10 +337,10 @@ module.exports = conn => {
 
   const promises = [
     activityRef
-      .get(),
+    .get(),
     assigneesCollectionRef
-      .doc(conn.requester.phoneNumber)
-      .get(),
+    .doc(conn.requester.phoneNumber)
+    .get(),
   ];
 
   // TODO: Handle large number of phone number of phone numbers in the field

@@ -116,19 +116,21 @@ function isElementVisible(el) {
   var rect = el.getBoundingClientRect(),
     vWidth = window.innerWidth || doc.documentElement.clientWidth,
     vHeight = window.innerHeight || doc.documentElement.clientHeight,
-    efp = function (x, y) { return document.elementFromPoint(x, y) };
+    efp = function (x, y) {
+      return document.elementFromPoint(x, y)
+    };
 
   // Return false if it's not in the viewport
-  if (rect.right < 0 || rect.bottom < 0
-    || rect.left > vWidth || rect.top > vHeight)
+  if (rect.right < 0 || rect.bottom < 0 ||
+    rect.left > vWidth || rect.top > vHeight)
     return false;
 
   // Return true if any of its four corners are visible
   return (
-    el.contains(efp(rect.left, rect.top))
-    || el.contains(efp(rect.right, rect.top))
-    || el.contains(efp(rect.right, rect.bottom))
-    || el.contains(efp(rect.left, rect.bottom))
+    el.contains(efp(rect.left, rect.top)) ||
+    el.contains(efp(rect.right, rect.top)) ||
+    el.contains(efp(rect.right, rect.bottom)) ||
+    el.contains(efp(rect.left, rect.bottom))
   );
 }
 
@@ -146,7 +148,10 @@ function initPhoneNumberLibrary() {
       customContainer: 'height-fix-intl-phone',
       customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
         window.countryCode = selectedCountryData.dialCode;
-        console.log({ selectedCountryPlaceholder, selectedCountryData });
+        console.log({
+          selectedCountryPlaceholder,
+          selectedCountryData
+        });
         return "e.g. " + selectedCountryPlaceholder;
       }
     };
@@ -169,15 +174,19 @@ function handleScrollEvent() {
   /** Not all offices have branches */
   if (!initMapTrigger
     /** Only when branch section is in the viewport */
-    || !isElementVisible(initMapTrigger)
+    ||
+    !isElementVisible(initMapTrigger)
     /** No not bug the user for permission repetedly. */
-    || window.askedForLocationAlready) {
+    ||
+    window.askedForLocationAlready) {
     return;
   }
 
   return navigator
     .permissions
-    .query({ name: 'geolocation' })
+    .query({
+      name: 'geolocation'
+    })
     .then(function (status) {
       window.askedForLocationAlready = true;
 
@@ -226,9 +235,11 @@ function onPlayerStateChange(event) {
   function handleVideoPaused() {
     console.log('Video paused')
   }
+
   function handleVideoPlaying() {
     console.log('Video started playing');
   }
+
   function handleVideoUnstarted() {
     console.log('Video unstarted');
   }
@@ -636,7 +647,9 @@ window.onload = function () {
   initPhoneNumberLibrary();
 
   const youtube = document.querySelector('.youtube');
-  console.log({ youtube });
+  console.log({
+    youtube
+  });
 
   if (!youtube) {
     console.log('setting ');

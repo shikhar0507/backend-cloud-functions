@@ -24,7 +24,10 @@ module.exports = async conn => {
     );
   }
 
-  const { paymentIds, officeId } = conn.req.body;
+  const {
+    paymentIds,
+    officeId
+  } = conn.req.body;
   const paymentRefs = [];
 
   paymentIds.forEach(docId => {

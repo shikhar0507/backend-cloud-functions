@@ -162,6 +162,7 @@ function createModal(actionContent) {
   div.appendChild(content)
   return div;
 }
+
 function addOptionToSelect(data, el, defaultValue) {
 
   data.forEach(function (name) {
@@ -172,6 +173,7 @@ function addOptionToSelect(data, el, defaultValue) {
   });
   if (defaultValue) el.value = defaultValue
 }
+
 function isDomElementString(el) {
   return typeof el == 'string';
 }
@@ -193,20 +195,20 @@ function setMessage(message) {
 
 function getLocation() {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      return reject('Geolocation is Not Supported')
-    }
+      if (!navigator.geolocation) {
+        return reject('Geolocation is Not Supported')
+      }
 
-    navigator
-      .geolocation
-      .getCurrentPosition(function (position) {
-        return resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        })
-      });
-  })
+      navigator
+        .geolocation
+        .getCurrentPosition(function (position) {
+          return resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          })
+        });
+    })
     .catch(function (error) {
       let message;
       switch (error.code) {
@@ -300,7 +302,9 @@ function setGlobals() {
   function attachKeysToWindow(result) {
     Object
       .keys(result)
-      .forEach(function (key) { window[key] = result[key]; });
+      .forEach(function (key) {
+        window[key] = result[key];
+      });
   }
 
   if (result) {
@@ -310,7 +314,9 @@ function setGlobals() {
   }
 
   return fetch('/config')
-    .then(function (response) { return response.json() })
+    .then(function (response) {
+      return response.json()
+    })
     .then(function (result) {
       sessionStorage.setItem('__url_config', JSON.stringify(result));
 
@@ -322,7 +328,9 @@ function setGlobals() {
 function checkDnt() {
   const dntEnabled = navigator.doNotTrack === 1;
 
-  console.log({ dntEnabled });
+  console.log({
+    dntEnabled
+  });
 }
 
 function addUnderlineToElement(elem) {
@@ -350,7 +358,9 @@ function storeEvent() {
   }
 
   return sendApiRequest('/json?action=track-view', requestBody, 'POST')
-    .then(function (result) { return result.json(); })
+    .then(function (result) {
+      return result.json();
+    })
     .then(function (result) {
       console.log('track-view:', result);
 
@@ -533,8 +543,8 @@ firebase
     }
 
     const EXPIRY = 3600000 * 24 * 14; // 14 days
-    document.cookie = `__session=${idToken};`
-      + `max-age=${idToken ? EXPIRY : 0};`;
+    document.cookie = `__session=${idToken};` +
+      `max-age=${idToken ? EXPIRY : 0};`;
 
     console.log('new cookie set');
   });
@@ -579,13 +589,13 @@ const createSnackbar = (function () {
 
     snackbar
       .addEventListener('transitionend', function (event, elapsed) {
-        if (event.propertyName === 'opacity' && this.style.opacity == 0) {
-          this.parentElement.removeChild(this);
-          if (previous === this) {
-            previous = null;
+          if (event.propertyName === 'opacity' && this.style.opacity == 0) {
+            this.parentElement.removeChild(this);
+            if (previous === this) {
+              previous = null;
+            }
           }
         }
-      }
         .bind(snackbar));
 
     previous = snackbar;

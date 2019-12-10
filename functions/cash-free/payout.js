@@ -79,7 +79,9 @@ const getBearerToken = async () => {
     .doc(getISO8601Date())
     .get();
 
-  const { cashFree } = timerDoc.data() || {};
+  const {
+    cashFree
+  } = timerDoc.data() || {};
 
   // Token is already present
   if (cashFree && cashFree.payout) {
@@ -147,7 +149,10 @@ const requestTransfer = async options => {
 
 const getTransferStatus = async options => {
   const uri = url.resolve(endpoint, '/payout/v1/getTransferStatus');
-  const { referenceId, transferId } = options;
+  const {
+    referenceId,
+    transferId
+  } = options;
 
   return rpn(uri, {
     json: true,

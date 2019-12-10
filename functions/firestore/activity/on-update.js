@@ -25,7 +25,9 @@
 'use strict';
 
 
-const { code } = require('../../admin/responses');
+const {
+  code
+} = require('../../admin/responses');
 const {
   httpsActions,
 } = require('../../admin/constants');
@@ -55,7 +57,9 @@ const {
 
 const updateDocsWithBatch = async (conn, locals) => {
   const activityRef = rootCollections.activities.doc(conn.req.body.activityId);
-  const { activityUpdateObject } = locals;
+  const {
+    activityUpdateObject
+  } = locals;
 
   if (locals.activityDoc.get('schedule').length > 0) {
     activityUpdateObject
@@ -74,12 +78,12 @@ const updateDocsWithBatch = async (conn, locals) => {
   /**
    * Checking if field with the name `Name` exists
    */
-  const nameFieldUpdated = locals.activityDoc.get('attachment.Name')
-    && locals.activityDoc.get('attachment.Name.value')
-    !== conn.req.body.attachment.Name.value;
-  const numberFieldUpdated = locals.activityDoc.get('attachment.Number')
-    && locals.activityDoc.get('attachment.Number.value')
-    !== conn.req.body.attachment.Number.value;
+  const nameFieldUpdated = locals.activityDoc.get('attachment.Name') &&
+    locals.activityDoc.get('attachment.Name.value') !==
+    conn.req.body.attachment.Name.value;
+  const numberFieldUpdated = locals.activityDoc.get('attachment.Number') &&
+    locals.activityDoc.get('attachment.Number.value') !==
+    conn.req.body.attachment.Number.value;
 
   if (nameFieldUpdated || numberFieldUpdated) {
     activityUpdateObject.activityName = activityName({
@@ -128,14 +132,14 @@ const updateDocsWithBatch = async (conn, locals) => {
 
       locals.batch.set(
         activityRef
-          .collection('Assignees')
-          .doc(phoneNumber), {
-        /**
-         * These people are not from the `share` array of the request body.
-         * The update api doesn't accept the `share` array.
-         */
-        addToInclude,
-      });
+        .collection('Assignees')
+        .doc(phoneNumber), {
+          /**
+           * These people are not from the `share` array of the request body.
+           * The update api doesn't accept the `share` array.
+           */
+          addToInclude,
+        });
     });
 
   locals
@@ -159,23 +163,23 @@ const updateDocsWithBatch = async (conn, locals) => {
   }
 
   if (locals.activityDoc.get('template') === 'office') {
-    if (!activityUpdateObject.attachment['First Contact'].value
-      && !activityUpdateObject.attachment['Second Contact'].value) {
+    if (!activityUpdateObject.attachment['First Contact'].value &&
+      !activityUpdateObject.attachment['Second Contact'].value) {
       return sendResponse(
         conn,
         code.conflict,
-        `Office's First and Second Contacts cannot be empty`
-        + ` at the same time.`
+        `Office's First and Second Contacts cannot be empty` +
+        ` at the same time.`
       );
     }
 
-    if (activityUpdateObject.attachment['First Contact'].value
-      === activityUpdateObject.attachment['Second Contact'].value) {
+    if (activityUpdateObject.attachment['First Contact'].value ===
+      activityUpdateObject.attachment['Second Contact'].value) {
       return sendResponse(
         conn,
         code.conflict,
-        `Office's First and Second Contacts should be distinct`
-        + ` phone numbers`
+        `Office's First and Second Contacts should be distinct` +
+        ` phone numbers`
       );
     }
   }
@@ -204,8 +208,7 @@ const getUpdatedFields = (conn, locals) => {
 
   activityVenue.forEach(venue => venueDescriptors.push(venue.venueDescriptor));
 
-  const venueValidationResult
-    = validateVenues(conn.req.body, venueDescriptors);
+  const venueValidationResult = validateVenues(conn.req.body, venueDescriptors);
 
   if (!venueValidationResult.isValid) {
     return sendResponse(conn, code.badRequest, venueValidationResult.message);
@@ -219,7 +222,10 @@ const getUpdatedFields = (conn, locals) => {
 
 const handleAssignees = (conn, locals) => {
   const bodyAttachmentFields = Object.keys(conn.req.body.attachment);
-  const { attachment: activityAttachment, template } = locals.activityDoc.data();
+  const {
+    attachment: activityAttachment,
+    template
+  } = locals.activityDoc.data();
   bodyAttachmentFields.forEach((field) => {
     const item = conn.req.body.attachment[field];
     const type = item.type;
@@ -228,8 +234,12 @@ const handleAssignees = (conn, locals) => {
       return;
     }
 
-    const { value: newPhoneNumber } = item;
-    const { value: oldPhoneNumber } = activityAttachment[field];
+    const {
+      value: newPhoneNumber
+    } = item;
+    const {
+      value: oldPhoneNumber
+    } = activityAttachment[field];
 
     /** Nothing has changed, so no point in creating promises. */
     if (oldPhoneNumber === newPhoneNumber) {
@@ -245,10 +255,10 @@ const handleAssignees = (conn, locals) => {
     if (oldPhoneNumber !== '' && newPhoneNumber === '') {
       locals.batch.delete(
         rootCollections
-          .activities
-          .doc(conn.req.body.activityId)
-          .collection('Assignees')
-          .doc(oldPhoneNumber)
+        .activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(oldPhoneNumber)
       );
 
       /**
@@ -265,17 +275,17 @@ const handleAssignees = (conn, locals) => {
     if (oldPhoneNumber !== '' && newPhoneNumber !== '') {
       locals.batch.delete(
         rootCollections
-          .activities
-          .doc(conn.req.body.activityId)
-          .collection('Assignees')
-          .doc(oldPhoneNumber)
+        .activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(oldPhoneNumber)
       );
     }
   });
 
-  if (new Set(['branch', 'department']).has(template)
-    && conn.req.body.attachment.Name.value
-    !== locals.activityDoc.get('attachment.Name.value')) {
+  if (new Set(['branch', 'department']).has(template) &&
+    conn.req.body.attachment.Name.value !==
+    locals.activityDoc.get('attachment.Name.value')) {
     return sendResponse(
       conn,
       code.conflict,
@@ -283,9 +293,9 @@ const handleAssignees = (conn, locals) => {
     );
   }
 
-  if (template === 'employee'
-    && locals.activityDoc.get('attachment.Phone Number.value')
-    !== conn.req.body.attachment['Phone Number'].value) {
+  if (template === 'employee' &&
+    locals.activityDoc.get('attachment.Phone Number.value') !==
+    conn.req.body.attachment['Phone Number'].value) {
     return sendResponse(
       conn,
       code.conflict,
@@ -317,15 +327,15 @@ const resolveQuerySnapshotShouldNotExistPromises = async (conn, locals, result) 
    * has already been performed while creating an activity. Of course,
    * only when the Name.value hasn't changed.
    */
-  if (locals.activityDoc.get('attachment.Name')
-    && locals.activityDoc.get('attachment.Name.value')
-    === conn.req.body.attachment.Name.value) {
+  if (locals.activityDoc.get('attachment.Name') &&
+    locals.activityDoc.get('attachment.Name.value') ===
+    conn.req.body.attachment.Name.value) {
     return handleAssignees(conn, locals);
   }
 
-  if (locals.activityDoc.get('attachment.Number')
-    && locals.activityDoc.get('attachment.Number.value')
-    === conn.req.body.attachment.Number.value) {
+  if (locals.activityDoc.get('attachment.Number') &&
+    locals.activityDoc.get('attachment.Number.value') ===
+    conn.req.body.attachment.Number.value) {
     return handleAssignees(conn, locals);
   }
 
@@ -361,8 +371,8 @@ const resolveQuerySnapshotShouldExistPromises = async (conn, locals, result) => 
     const filters = snapShot.query._queryOptions.fieldFilters;
     const argOne = filters[0].value;
 
-    message = `No template found with the name: ${argOne} from`
-      + ` the attachment.`;
+    message = `No template found with the name: ${argOne} from` +
+      ` the attachment.`;
 
     if (snapShot.empty) {
       return sendResponse(conn, code.badRequest, message);
@@ -380,8 +390,8 @@ const resolveProfileCheckPromises = async (conn, locals, result) => {
   let message = null;
 
   for (const doc of docs) {
-    message = `No user found with the phone number:`
-      + ` ${doc.id} from the attachment.`;
+    message = `No user found with the phone number:` +
+      ` ${doc.id} from the attachment.`;
 
     if (!doc.exists) {
       successful = false;
@@ -431,8 +441,8 @@ const handleAttachment = (conn, locals) => {
    * of that office useless since we are currently not updating
    * the office name in the respective activities.
    */
-  if (locals.activityDoc.get('template') === 'office'
-    && conn.req.body.attachment.Name.value !== locals.activityDoc.get('office')) {
+  if (locals.activityDoc.get('template') === 'office' &&
+    conn.req.body.attachment.Name.value !== locals.activityDoc.get('office')) {
     return sendResponse(
       conn,
       code.conflict,
@@ -440,9 +450,9 @@ const handleAttachment = (conn, locals) => {
     );
   }
 
-  if (result.querySnapshotShouldExist.length === 0
-    && result.querySnapshotShouldNotExist.length === 0
-    && result.profileDocShouldExist.length === 0) {
+  if (result.querySnapshotShouldExist.length === 0 &&
+    result.querySnapshotShouldNotExist.length === 0 &&
+    result.profileDocShouldExist.length === 0) {
     return handleAssignees(conn, locals);
   }
 
@@ -461,14 +471,16 @@ const handleResult = async (conn, docs) => {
   }
 
   const [activityDoc] = docs;
-  const { template } = activityDoc.data();
+  const {
+    template
+  } = activityDoc.data();
 
   const [templateDoc] = (
     await rootCollections
-      .activityTemplates
-      .where('name', '==', template)
-      .limit(1)
-      .get()
+    .activityTemplates
+    .where('name', '==', template)
+    .limit(1)
+    .get()
   ).docs;
 
   if (!getCanEditValue(activityDoc, conn.requester)) {
@@ -519,8 +531,8 @@ const handleResult = async (conn, docs) => {
     });
 
     if (conflictingDate) {
-      const message = `Cannot update the ${template}`
-        + ` ${conflictingTemplate} is already set for the date: ${conflictingDate}`;
+      const message = `Cannot update the ${template}` +
+        ` ${conflictingTemplate} is already set for the date: ${conflictingDate}`;
 
       return sendResponse(conn, code.badRequest, message);
     }
@@ -535,8 +547,8 @@ module.exports = (conn) => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for the /update endpoint.`
-      + ` Use PATCH.`
+      `${conn.req.method} is not allowed for the /update endpoint.` +
+      ` Use PATCH.`
     );
   }
 
@@ -553,15 +565,15 @@ module.exports = (conn) => {
   return Promise
     .all([
       rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .get(),
+      .activities
+      .doc(conn.req.body.activityId)
+      .get(),
       rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .doc(conn.requester.phoneNumber)
-        .get(),
+      .activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .doc(conn.requester.phoneNumber)
+      .get(),
     ])
     .then(result => handleResult(conn, result))
     .catch(error => handleError(conn, error));

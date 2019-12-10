@@ -60,14 +60,14 @@ module.exports = async conn => {
       .auth()
       .getUser(conn.requester.uid);
 
-    if (!userRecord.email
-      || !userRecord.emailVerified
-      || !userRecord.displayName) {
+    if (!userRecord.email ||
+      !userRecord.emailVerified ||
+      !userRecord.displayName) {
       return sendResponse(
         conn,
         code.conflict,
-        `Email/Display Name is missing`
-        + ` Please complete your profile`
+        `Email/Display Name is missing` +
+        ` Please complete your profile`
       );
     }
 
@@ -87,8 +87,8 @@ module.exports = async conn => {
       return sendResponse(
         conn,
         code.conflict,
-        `Account cannot be added right now.`
-        + ` ${response.message}`
+        `Account cannot be added right now.` +
+        ` ${response.message}`
       );
     }
 

@@ -50,8 +50,8 @@ module.exports = async conn => {
   // then their employee activity
   const adminOffices = ((conn.requester.customClaims || {}).admin) || [];
 
-  if (adminOffices.length === 0
-    || (conn.req.query.hasOwnProperty('office') && !adminOffices.includes(conn.req.query.office))) {
+  if (adminOffices.length === 0 ||
+    (conn.req.query.hasOwnProperty('office') && !adminOffices.includes(conn.req.query.office))) {
     return sendResponse(
       conn,
       code.unauthorized,
@@ -59,8 +59,8 @@ module.exports = async conn => {
     );
   }
 
-  if (adminOffices.length > 1
-    && !conn.req.query.hasOwnProperty('office')) {
+  if (adminOffices.length > 1 &&
+    !conn.req.query.hasOwnProperty('office')) {
     return sendResponse(
       conn,
       code.badRequest,
@@ -68,30 +68,30 @@ module.exports = async conn => {
     );
   }
 
-  const office = conn.req.query.office
-    || adminOffices[0];
+  const office = conn.req.query.office ||
+    adminOffices[0];
 
   console.log('office', JSON.stringify(office));
 
   const queries = await Promise
     .all([
       rootCollections
-        .offices
-        .where('attachment.Name.value', '==', office)
-        .limit(1)
-        .get(),
+      .offices
+      .where('attachment.Name.value', '==', office)
+      .limit(1)
+      .get(),
       rootCollections
-        .recipients
-        .where('office', '==', office)
-        .where('report', '==', 'payroll')
-        .limit(1)
-        .get(),
+      .recipients
+      .where('office', '==', office)
+      .where('report', '==', 'payroll')
+      .limit(1)
+      .get(),
       rootCollections
-        .recipients
-        .where('office', '==', office)
-        .where('report', '==', 'reimbursements')
-        .limit(1)
-        .get(),
+      .recipients
+      .where('office', '==', office)
+      .where('report', '==', 'reimbursements')
+      .limit(1)
+      .get(),
     ]);
 
   console.log('after queries');
@@ -274,12 +274,12 @@ module.exports = async conn => {
 
   jsonResponse
     .pendingPayments = pendingPaymentsQueryResult
-      .docs
-      .map(doc => {
-        return Object.assign({}, doc.data(), {
-          paymentId: doc.id,
-        });
+    .docs
+    .map(doc => {
+      return Object.assign({}, doc.data(), {
+        paymentId: doc.id,
       });
+    });
 
   jsonResponse
     .pendingDeposits = (await rootCollections

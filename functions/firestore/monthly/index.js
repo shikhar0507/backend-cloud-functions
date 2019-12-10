@@ -13,7 +13,10 @@ const {
 
 module.exports = async (change, context) => {
   const statusObject = change.after.get('statusObject') || {};
-  const { phoneNumber, officeId } = context.params;
+  const {
+    phoneNumber,
+    officeId
+  } = context.params;
 
   try {
     const profileDoc = await rootCollections.profiles.doc(phoneNumber).get();
@@ -24,7 +27,9 @@ module.exports = async (change, context) => {
       return Promise.resolve();
     }
 
-    const { path } = change.after.ref;
+    const {
+      path
+    } = change.after.ref;
     const parts = path.split('/');
     const monthYearString = parts[3];
     const [month, year] = monthYearString.split(' ');

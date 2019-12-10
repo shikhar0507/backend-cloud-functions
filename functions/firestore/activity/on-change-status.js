@@ -29,7 +29,9 @@ const {
   isValidRequestBody,
   checkActivityAndAssignee,
 } = require('./helper');
-const { code } = require('../../admin/responses');
+const {
+  code
+} = require('../../admin/responses');
 const {
   httpsActions,
 } = require('../../admin/constants');
@@ -57,12 +59,12 @@ const createDocs = async (conn, activityDoc) => {
     .set(rootCollections
       .activities
       .doc(conn.req.body.activityId), {
-      addendumDocRef,
-      status: conn.req.body.status,
-      timestamp: Date.now(),
-    }, {
-      merge: true,
-    });
+        addendumDocRef,
+        status: conn.req.body.status,
+        timestamp: Date.now(),
+      }, {
+        merge: true,
+      });
 
   const now = new Date();
   const addendumData = {
@@ -125,8 +127,8 @@ const handleResult = async (conn, docs) => {
     );
   }
 
-  if (activityDoc.get('status')
-    === conn.req.body.status) {
+  if (activityDoc.get('status') ===
+    conn.req.body.status) {
     return sendResponse(
       conn,
       code.conflict,
@@ -137,8 +139,8 @@ const handleResult = async (conn, docs) => {
   const attachment = activityDoc
     .get('attachment');
 
-  if (!attachment.hasOwnProperty('Name')
-    || conn.req.body.status !== 'CANCELLED') {
+  if (!attachment.hasOwnProperty('Name') ||
+    conn.req.body.status !== 'CANCELLED') {
     return createDocs(
       conn,
       activityDoc
@@ -175,8 +177,8 @@ module.exports = async conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for /change-status`
-      + ' endpoint. Use PATCH'
+      `${conn.req.method} is not allowed for /change-status` +
+      ' endpoint. Use PATCH'
     );
   }
 
@@ -195,15 +197,15 @@ module.exports = async conn => {
 
   const promises = [
     rootCollections
-      .activities
-      .doc(conn.req.body.activityId)
-      .get(),
+    .activities
+    .doc(conn.req.body.activityId)
+    .get(),
     rootCollections
-      .activities
-      .doc(conn.req.body.activityId)
-      .collection('Assignees')
-      .doc(conn.requester.phoneNumber)
-      .get(),
+    .activities
+    .doc(conn.req.body.activityId)
+    .collection('Assignees')
+    .doc(conn.requester.phoneNumber)
+    .get(),
   ];
 
   try {

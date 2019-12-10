@@ -12,7 +12,10 @@ module.exports = async (snapShot, context) => {
   // or removed as an assignee from an activity for some reason
   // Not sending in the case of unassign because this will trigger multiple
   // notifications to the user
-  const { unassign, comment } = snapShot.data();
+  const {
+    unassign,
+    comment
+  } = snapShot.data();
 
   if (unassign || !comment) {
     return;
@@ -26,7 +29,9 @@ module.exports = async (snapShot, context) => {
       .doc(context.params.uid)
       .get();
 
-    const { registrationToken } = updatesDoc.data();
+    const {
+      registrationToken
+    } = updatesDoc.data();
 
     if (!registrationToken) {
       return;

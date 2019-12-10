@@ -25,9 +25,15 @@
 'use strict';
 
 
-const { isValidRequestBody } = require('./helper');
-const { code } = require('../../admin/responses');
-const { httpsActions } = require('../../admin/constants');
+const {
+  isValidRequestBody
+} = require('./helper');
+const {
+  code
+} = require('../../admin/responses');
+const {
+  httpsActions
+} = require('../../admin/constants');
 const {
   db,
   rootCollections,
@@ -50,11 +56,11 @@ const createDocs = (conn, activity) => {
   batch.set(rootCollections
     .activities
     .doc(conn.req.body.activityId), {
-    addendumDocRef,
-    timestamp: Date.now(),
-  }, {
-    merge: true,
-  });
+      addendumDocRef,
+      timestamp: Date.now(),
+    }, {
+      merge: true,
+    });
 
   const now = new Date();
 
@@ -88,8 +94,8 @@ module.exports = (conn) => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for '${conn.req.url}'`
-      + ' endpoint. Use POST.'
+      `${conn.req.method} is not allowed for '${conn.req.url}'` +
+      ' endpoint. Use POST.'
     );
   }
 
@@ -106,15 +112,15 @@ module.exports = (conn) => {
   return Promise
     .all([
       rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .get(),
+      .activities
+      .doc(conn.req.body.activityId)
+      .get(),
       rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .doc(conn.requester.phoneNumber)
-        .get(),
+      .activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .doc(conn.requester.phoneNumber)
+      .get(),
     ])
     .then(result => {
       const [activity, assignee] = result;

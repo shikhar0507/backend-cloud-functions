@@ -237,7 +237,7 @@ module.exports = async conn => {
     customClaims,
     phoneNumber
   } = conn.requester;
-  const officeList = Object.keys(employeeOf);
+  const officeList = Object.keys(employeeOf || {});
   const from = parseInt(conn.req.query.from);
   const isInitRequest = from === 0;
   const locationPromises = [];
@@ -455,13 +455,13 @@ module.exports = async conn => {
       profileUpdate.locationsSentForTimestamp = from;
     }
 
-    batch
-      .set(rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber), profileUpdate, {
-          /** Profile has other stuff too. */
-          merge: true,
-        });
+    batch.set(
+      rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber), profileUpdate, {
+        /** Profile has other stuff too. */
+        merge: true,
+      });
 
     await batch.commit();
 

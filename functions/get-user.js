@@ -62,9 +62,9 @@ module.exports = (req, res) => {
       console.log('userRecord', userRecord.toJSON());
 
       return sendJSON(res, code.ok, {
-        showFullLogin: !userRecord.email
-          || !userRecord.emailVerified
-          || !userRecord.displayName,
+        showFullLogin: !userRecord.email ||
+          !userRecord.emailVerified ||
+          !userRecord.displayName,
         success: true,
         message: '',
       });

@@ -71,25 +71,25 @@ module.exports = (conn) => {
   return Promise
     .all([
       rootCollections
-        .offices
-        .where('slug', '==', conn.req.body.office)
-        .limit(1)
-        .get(),
+      .offices
+      .where('slug', '==', conn.req.body.office)
+      .limit(1)
+      .get(),
       rootCollections
-        .recipients
-        .where('office', '==', conn.req.body.office)
-        .where('report', '==', reportNames.ENQUIRY)
-        .limit(1)
-        .get(),
+      .recipients
+      .where('office', '==', conn.req.body.office)
+      .where('report', '==', reportNames.ENQUIRY)
+      .limit(1)
+      .get(),
       rootCollections
-        .inits
-        .where('report', '==', reportNames.ENQUIRY)
-        .where('office', '==', conn.req.body.office)
-        .where('date', '==', date)
-        .where('month', '==', month)
-        .where('year', '==', year)
-        .limit(1)
-        .get(),
+      .inits
+      .where('report', '==', reportNames.ENQUIRY)
+      .where('office', '==', conn.req.body.office)
+      .where('date', '==', date)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .limit(1)
+      .get(),
     ])
     .then((result) => {
       const [
@@ -173,18 +173,18 @@ module.exports = (conn) => {
       return Promise
         .all([
           ref
-            .set({
-              date,
-              month,
-              year,
-              enquiryArray,
-              office: conn.req.body.office,
-              report: reportNames.ENQUIRY,
-            }, {
-                merge: true,
-              }),
+          .set({
+            date,
+            month,
+            year,
+            enquiryArray,
+            office: conn.req.body.office,
+            report: reportNames.ENQUIRY,
+          }, {
+            merge: true,
+          }),
           Promise
-            .resolve(sendResponse(conn, code.noContent)),
+          .resolve(sendResponse(conn, code.noContent)),
         ]);
     })
     .catch((error) => handleError(conn, error));

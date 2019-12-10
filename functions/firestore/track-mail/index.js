@@ -71,11 +71,13 @@ module.exports = conn => {
             }
           },
         }, {
-            merge: true,
-          });
+          merge: true,
+        });
       });
 
       return batch.commit();
     })
-    .then(() => ({ success: true }));
+    .then(() => ({
+      success: true
+    }));
 };

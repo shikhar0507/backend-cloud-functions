@@ -114,8 +114,8 @@ module.exports = async change => {
 
   const todaysPlus1DayEnd = momentTz().add(1, 'day').endOf('day');
 
-  if (momentTz(timestamp).isAfter(todaysPlus1DayEnd)
-    || include.length === 0) {
+  if (momentTz(timestamp).isAfter(todaysPlus1DayEnd) ||
+    include.length === 0) {
     console.log('is after +1 day');
 
     return;
@@ -250,8 +250,8 @@ module.exports = async change => {
 
     data
       .unverifiedRecipients = {
-      [office]: unverifiedRecipients,
-    };
+        [office]: unverifiedRecipients,
+      };
     data
       .recipientsTriggeredToday = recipientsTriggeredToday + 1;
 
@@ -260,11 +260,11 @@ module.exports = async change => {
     });
 
     /**
-    * When all recipient function instances have completed their work,
-    * we trigger the daily status report.
-    */
-    if (expectedRecipientTriggersCount
-      === recipientsTriggeredToday) {
+     * When all recipient function instances have completed their work,
+     * we trigger the daily status report.
+     */
+    if (expectedRecipientTriggersCount ===
+      recipientsTriggeredToday) {
       await handleDailyStatusReport();
     }
 

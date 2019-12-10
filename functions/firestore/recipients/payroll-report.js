@@ -1,7 +1,9 @@
 'use strict';
 
 
-const { rootCollections } = require('../../admin/admin');
+const {
+  rootCollections
+} = require('../../admin/admin');
 const {
   getNumbersbetween,
 } = require('../../admin/utils');
@@ -19,8 +21,8 @@ const momentTz = require('moment-timezone');
 
 
 const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
-  if (previousResult
-    && previousResult.length === 0) {
+  if (previousResult &&
+    previousResult.length === 0) {
     console.log('exiting', intermediate.length);
 
     return intermediate;
@@ -57,9 +59,9 @@ const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
 const getEmployeeCreationDate = (activationDate, momentInstance, timezone) => {
   const activationDateMoment = momentTz(activationDate).tz(timezone);
 
-  if (activationDate
-    && momentInstance.year() === activationDateMoment.year()
-    && momentInstance.month() === activationDateMoment.month()) {
+  if (activationDate &&
+    momentInstance.year() === activationDateMoment.year() &&
+    momentInstance.month() === activationDateMoment.month()) {
     return activationDateMoment
       .format(dateFormats.DATE);
   }
@@ -115,18 +117,18 @@ const getStatusValue = (attendanceDateObject = {}) => {
 
 
 const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
-  if (attendanceDateObject.weeklyOff
-    || attendanceDateObject.holiday) {
+  if (attendanceDateObject.weeklyOff ||
+    attendanceDateObject.holiday) {
     return baseLocation;
   }
 
-  if (attendanceDateObject.onLeave
-    && attendanceDateObject.leave.reason) {
+  if (attendanceDateObject.onLeave &&
+    attendanceDateObject.leave.reason) {
     return attendanceDateObject.leave.reason;
   }
 
-  if (attendanceDateObject.onAr
-    && attendanceDateObject.ar.reason) {
+  if (attendanceDateObject.onAr &&
+    attendanceDateObject.ar.reason) {
     return attendanceDateObject.ar.reason;
   }
 
@@ -140,11 +142,11 @@ const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
     return '';
   }
 
-  return `${momentTz(firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
-    + `, `
-    + `${momentTz(lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
-    + `, `
-    + `${numberOfCheckIns}`;
+  return `${momentTz(firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}` +
+    `, ` +
+    `${momentTz(lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}` +
+    `, ` +
+    `${numberOfCheckIns}`;
 };
 
 
@@ -334,9 +336,9 @@ module.exports = async locals => {
   const allAttendanceDocs = [];
   let allLeaveTypes = new Set();
   /**
- * Object which stores employee data for creating excel sheet entries
- * with employee contact, base location, region, department, etc.
- */
+   * Object which stores employee data for creating excel sheet entries
+   * with employee contact, base location, region, department, etc.
+   */
   const employeeData = new Map();
   const weeklyOffCountMap = new Map();
   const holidayCountMap = new Map();
@@ -611,7 +613,10 @@ module.exports = async locals => {
     payrollSheet
       .cell(`${alphabetsArray[index]}1`)
       .value(value)
-      .style({ fontColor: 'FFFFF', bold: true });
+      .style({
+        fontColor: 'FFFFF',
+        bold: true
+      });
   });
 
   [
@@ -638,9 +643,9 @@ module.exports = async locals => {
     .messageObject
     .attachments
     .push({
-      fileName: `Payroll Report_`
-        + `${locals.officeDoc.get('office')}`
-        + `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+      fileName: `Payroll Report_` +
+        `${locals.officeDoc.get('office')}` +
+        `_${momentToday.format(dateFormats.DATE)}.xlsx`,
       content: await workbook.outputAsync('base64'),
       type: 'text/csv',
       disposition: 'attachment',

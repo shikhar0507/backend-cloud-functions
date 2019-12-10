@@ -11,8 +11,8 @@ const {
 
 module.exports = (conn, requester) => {
   const isSupport = requester.isSupport;
-  const isAdmin = !requester.isAdmin
-    && requester.adminOffices.includes(conn.req.body.office);
+  const isAdmin = !requester.isAdmin &&
+    requester.adminOffices.includes(conn.req.body.office);
 
   if (!isSupport && !isAdmin) {
     return {
@@ -22,8 +22,8 @@ module.exports = (conn, requester) => {
     };
   }
 
-  if (conn.req.body.template !== 'recipient'
-    && conn.req.body.template !== 'subscription') {
+  if (conn.req.body.template !== 'recipient' &&
+    conn.req.body.template !== 'subscription') {
     return {
       success: false,
       code: code.unauthorized,
@@ -114,6 +114,8 @@ module.exports = (conn, requester) => {
     .then(() => {
       if (failed) return;
 
-      return ({ success: true });
+      return ({
+        success: true
+      });
     });
 };

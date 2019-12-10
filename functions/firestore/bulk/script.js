@@ -29,32 +29,32 @@ const handleValidation = body => {
     `Invalid/Missing field '${field}' found in the request body`;
 
   /** Field 'office' can be skipped. */
-  if (body.template !== 'office'
-    && !isNonEmptyString(body.office)) {
+  if (body.template !== 'office' &&
+    !isNonEmptyString(body.office)) {
     return {
       success: false,
       message: messageString('office'),
     };
   }
 
-  if (!isNonEmptyString(body.template)
-    || !body.hasOwnProperty('template')) {
+  if (!isNonEmptyString(body.template) ||
+    !body.hasOwnProperty('template')) {
     return {
       success: false,
       message: messageString('template'),
     };
   }
 
-  if (!isValidDate(body.timestamp)
-    || !body.hasOwnProperty('timestamp')) {
+  if (!isValidDate(body.timestamp) ||
+    !body.hasOwnProperty('timestamp')) {
     return {
       success: false,
       message: messageString('timestamp'),
     };
   }
 
-  if (!isValidGeopoint(body.geopoint, false)
-    || !body.hasOwnProperty('geopoint')) {
+  if (!isValidGeopoint(body.geopoint, false) ||
+    !body.hasOwnProperty('geopoint')) {
     return {
       success: false,
       message: messageString('geopoint'),
@@ -75,8 +75,8 @@ module.exports = async conn => {
    * location: `object(latitude, longitude)`
    */
   if (!conn.requester.isSupportRequest) {
-    if (!conn.requester.customClaims.admin
-      || !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
+    if (!conn.requester.customClaims.admin ||
+      !conn.requester.customClaims.admin.includes(conn.req.body.office)) {
       return sendResponse(
         conn,
         code.unauthorized,
@@ -97,16 +97,16 @@ module.exports = async conn => {
 
   const promises = [
     rootCollections
-      .offices
-      /** Office field can be skipped while creating `offices` in bulk */
-      .where('office', '==', conn.req.body.office || '')
-      .limit(1)
-      .get(),
+    .offices
+    /** Office field can be skipped while creating `offices` in bulk */
+    .where('office', '==', conn.req.body.office || '')
+    .limit(1)
+    .get(),
     rootCollections
-      .activityTemplates
-      .where('name', '==', conn.req.body.template)
-      .limit(1)
-      .get(),
+    .activityTemplates
+    .where('name', '==', conn.req.body.template)
+    .limit(1)
+    .get(),
   ];
 
   try {
@@ -116,8 +116,8 @@ module.exports = async conn => {
     ] = await Promise
       .all(promises);
 
-    if (conn.req.body.template !== 'office'
-      && officeDocsQuery.empty) {
+    if (conn.req.body.template !== 'office' &&
+      officeDocsQuery.empty) {
       return sendResponse(
         conn,
         code.badRequest,
@@ -159,8 +159,8 @@ module.exports = async conn => {
     const ts = new Date().toISOString();
     const bucketName = env.bulkStorageBucketName;
     const bucket = storage.bucket(bucketName);
-    const destination = `${officeId}/${template}/`
-      + `${ts}__${fileName}`;
+    const destination = `${officeId}/${template}/` +
+      `${ts}__${fileName}`;
 
     await bucket
       .upload(filePath, {

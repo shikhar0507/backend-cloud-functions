@@ -45,8 +45,8 @@ module.exports = async conn => {
     conn.requester.customClaims.admin || [];
 
   conn.req.query.office =
-    conn.req.query.office
-    || conn.requester.customClaims.admin[0];
+    conn.req.query.office ||
+    conn.requester.customClaims.admin[0];
 
   if (!conn.requester.customClaims.admin.includes(conn.req.query.office)) {
     return sendResponse(
@@ -56,9 +56,9 @@ module.exports = async conn => {
     );
   }
 
-  if (!isNonEmptyString(conn.req.query.template)
-    && !isNonEmptyString(conn.req.query.attachmentName)
-    && !isNonEmptyString(conn.req.query.attachmentField)) {
+  if (!isNonEmptyString(conn.req.query.template) &&
+    !isNonEmptyString(conn.req.query.attachmentName) &&
+    !isNonEmptyString(conn.req.query.attachmentField)) {
     return sendResponse(
       conn,
       code.badRequest,
@@ -66,14 +66,14 @@ module.exports = async conn => {
     );
   }
 
-  if (!conn.req.query.hasOwnProperty('template')
-    && (!isNonEmptyString(conn.req.query.attachmentName)
-      && !isNonEmptyString(conn.req.query.attachmentField))) {
+  if (!conn.req.query.hasOwnProperty('template') &&
+    (!isNonEmptyString(conn.req.query.attachmentName) &&
+      !isNonEmptyString(conn.req.query.attachmentField))) {
     return sendResponse(
       conn,
       code.badRequest,
-      `The fields 'attachmentName' and attachmentField should be`
-      + ` present at the same time.`
+      `The fields 'attachmentName' and attachmentField should be` +
+      ` present at the same time.`
     );
   }
 
@@ -114,10 +114,10 @@ module.exports = async conn => {
       assigneePromises
         .push(
           rootCollections
-            .activities
-            .doc(doc.id)
-            .collection('Assignees')
-            .get()
+          .activities
+          .doc(doc.id)
+          .collection('Assignees')
+          .get()
         );
 
       json[doc.id] = {

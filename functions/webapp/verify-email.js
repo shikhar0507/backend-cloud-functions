@@ -28,8 +28,8 @@ module.exports = async conn => {
       .doc(conn.req.query.uid)
       .get();
 
-    if (!updatesDoc.exists
-      || !updatesDoc.get('emailVerificationRequestPending')) {
+    if (!updatesDoc.exists ||
+      !updatesDoc.get('emailVerificationRequestPending')) {
       return conn
         .res
         .status(code.temporaryRedirect)
@@ -39,17 +39,17 @@ module.exports = async conn => {
     await Promise
       .all([
         auth
-          .updateUser(conn.req.query.uid, {
-            emailVerified: true,
-          }),
+        .updateUser(conn.req.query.uid, {
+          emailVerified: true,
+        }),
         updatesDoc
-          .ref
-          .set({
-            emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
-            verificationRequestsCount: (updatesDoc.get('verificationRequestsCount') || 0) + 1,
-          }, {
-              merge: true,
-            })
+        .ref
+        .set({
+          emailVerificationRequestPending: admin.firestore.FieldValue.delete(),
+          verificationRequestsCount: (updatesDoc.get('verificationRequestsCount') || 0) + 1,
+        }, {
+          merge: true,
+        })
       ]);
 
     return conn

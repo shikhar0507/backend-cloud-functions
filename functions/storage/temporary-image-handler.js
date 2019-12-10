@@ -40,13 +40,13 @@ module.exports = async object => {
   return Promise
     .all([
       rootCollections
-        .timers
-        .orderBy('timestamp', 'desc')
-        .limit(1)
-        .get(),
+      .timers
+      .orderBy('timestamp', 'desc')
+      .limit(1)
+      .get(),
       bucket
-        .file(filePath)
-        .download()
+      .file(filePath)
+      .download()
     ])
     .then(result => {
       const [timerDocQuery, bucketResult] = result;
@@ -74,8 +74,8 @@ module.exports = async object => {
       fileName = `${activityId}.jpg`;
 
       activityData.venue.forEach((_, index) => {
-        if (!activityData.venue[index].geopoint
-          || !activityData.venue[index].geopoint.latitude) {
+        if (!activityData.venue[index].geopoint ||
+          !activityData.venue[index].geopoint.latitude) {
           return;
         }
 
@@ -88,8 +88,9 @@ module.exports = async object => {
 
       fs.writeFileSync(
         originalFilePath,
-        base64ImageString,
-        { encoding: 'base64' }
+        base64ImageString, {
+          encoding: 'base64'
+        }
       );
 
       activityRef = rootCollections

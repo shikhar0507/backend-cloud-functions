@@ -30,7 +30,9 @@ const {
   rootCollections,
   db,
 } = require('../../admin/admin');
-const { code } = require('../../admin/responses');
+const {
+  code
+} = require('../../admin/responses');
 const {
   isNonEmptyString,
 } = require('../../admin/utils');
@@ -51,8 +53,8 @@ const validateAttachment = (attachment) => {
   if (Object
     .prototype
     .toString
-    .call(attachment)
-    !== '[object Object]') {
+    .call(attachment) !==
+    '[object Object]') {
     messageObject.isValid = false;
     messageObject.message = `The attachment can only be of type 'Object'.`;
 
@@ -66,11 +68,11 @@ const validateAttachment = (attachment) => {
     return messageObject;
   }
 
-  if (attachment.hasOwnProperty('Name')
-    && attachment.hasOwnProperty('Number')) {
+  if (attachment.hasOwnProperty('Name') &&
+    attachment.hasOwnProperty('Number')) {
     messageObject.isValid = false;
-    messageObject.message = `The fields 'Name' and`
-      + ` 'Number cannot exist simultaneously in attachment object.'`;
+    messageObject.message = `The fields 'Name' and` +
+      ` 'Number cannot exist simultaneously in attachment object.'`;
 
     return messageObject;
   }
@@ -82,15 +84,15 @@ const validateAttachment = (attachment) => {
 
     if (!item.hasOwnProperty('value')) {
       messageObject.isValid = false;
-      messageObject.message = `In attachment, the object '${field}' is`
-        + ` missing the field 'value'.`;
+      messageObject.message = `In attachment, the object '${field}' is` +
+        ` missing the field 'value'.`;
       break;
     }
 
     if (!item.hasOwnProperty('type')) {
       messageObject.isValid = false;
-      messageObject.message = `In attachment, the object '${field}' is`
-        + ` missing the field 'type'.`;
+      messageObject.message = `In attachment, the object '${field}' is` +
+        ` missing the field 'type'.`;
       break;
     }
 
@@ -99,15 +101,15 @@ const validateAttachment = (attachment) => {
 
     if (!isNonEmptyString(type)) {
       messageObject.isValid = false;
-      messageObject.message = `The type in all objects in the attachment`
-        + ` should be a non-empty string.`;
+      messageObject.message = `The type in all objects in the attachment` +
+        ` should be a non-empty string.`;
       break;
     }
 
     if (value !== '') {
       messageObject.isValid = false;
-      messageObject.message = `The value in all objects in the attachment`
-        + ` should be an empty string.`;
+      messageObject.message = `The value in all objects in the attachment` +
+        ` should be an empty string.`;
       break;
     }
   }
@@ -127,8 +129,8 @@ const checkBody = (body) => {
   for (const field of fields) {
     if (!templateFields.has(field)) {
       messageObject.isValid = false;
-      messageObject.message = `The field '${field}' is not allowed.`
-        + ` Use ${[...templateFields.keys()]}.`;
+      messageObject.message = `The field '${field}' is not allowed.` +
+        ` Use ${[...templateFields.keys()]}.`;
       break;
     }
 
@@ -136,38 +138,38 @@ const checkBody = (body) => {
 
     if (field === 'statusOnCreate' && !activityStatuses.has(value)) {
       messageObject.isValid = false;
-      messageObject.message = `${value} is not a valid value for `
-        + ` 'statusOnCreate'. Use ${[...activityStatuses.keys()]}`;
+      messageObject.message = `${value} is not a valid value for ` +
+        ` 'statusOnCreate'. Use ${[...activityStatuses.keys()]}`;
       break;
     }
 
-    if (field === 'hidden'
-      && !new Set()
-        .add(0)
-        .add(1)
-        .has(value)) {
+    if (field === 'hidden' &&
+      !new Set()
+      .add(0)
+      .add(1)
+      .has(value)) {
       messageObject.isValid = false;
-      messageObject.message = `The field ${field} can only have the values`
-        + ` '0' or '1'`;
+      messageObject.message = `The field ${field} can only have the values` +
+        ` '0' or '1'`;
       break;
     }
 
     if (field === 'canEditRule' && !canEditRules.has(value)) {
       messageObject.isValid = false;
-      messageObject.message = `${value} is not a valid value for`
-        + ` the field 'canEditRule'. Use ${[...canEditRules.keys()]}`;
+      messageObject.message = `${value} is not a valid value for` +
+        ` the field 'canEditRule'. Use ${[...canEditRules.keys()]}`;
       break;
     }
 
     if (new Set()
       .add('venue')
       .add('schedule')
-      .has(field)
-      && value.length > 0
-      && !value.every(isNonEmptyString)) {
+      .has(field) &&
+      value.length > 0 &&
+      !value.every(isNonEmptyString)) {
       messageObject.isValid = false;
-      messageObject.message = `The field ${field} can either be an empty array.`
-        + ` Or an array of non-empty strings.`;
+      messageObject.message = `The field ${field} can either be an empty array.` +
+        ` Or an array of non-empty strings.`;
       break;
     }
   }

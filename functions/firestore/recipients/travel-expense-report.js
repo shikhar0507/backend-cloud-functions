@@ -31,15 +31,15 @@ module.exports = locals => {
   return Promise
     .all([
       locals
-        .officeDoc
-        .ref
-        .collection('Addendum')
-        .where('timestamp', '>=', tsStart.valueOf())
-        .where('timestamp', '<=', tsEnd.valueOf())
-        .orderBy('timestamp')
-        .get(),
+      .officeDoc
+      .ref
+      .collection('Addendum')
+      .where('timestamp', '>=', tsStart.valueOf())
+      .where('timestamp', '<=', tsEnd.valueOf())
+      .orderBy('timestamp')
+      .get(),
       xlsxPopulate
-        .fromBlankAsync()
+      .fromBlankAsync()
     ])
     .then((result) => {
       const [addendumDocsQuery, workbook] = result;
@@ -108,7 +108,10 @@ module.exports = locals => {
               employeeSheet
                 .cell(`C${rowIndex}`)
                 .value(identifier)
-                .style({ fontColor: '0563C1', underline: true })
+                .style({
+                  fontColor: '0563C1',
+                  underline: true
+                })
                 .hyperlink(url);
             } else {
               employeeSheet
@@ -160,7 +163,10 @@ module.exports = locals => {
                 employeeSheet
                   .cell(`C${rowIndex}`)
                   .value(identifier)
-                  .style({ fontColor: '0563C1', underline: true })
+                  .style({
+                    fontColor: '0563C1',
+                    underline: true
+                  })
                   .hyperlink(url);
               } else {
                 employeeSheet
@@ -199,11 +205,11 @@ module.exports = locals => {
             'Distance From Previous Location (in KM)',
             'Employee Details'
           ]
-            .forEach((header, index) => {
-              employeeSheet
-                .cell(`${alphabetsArray[index]}1`)
-                .value(header);
-            });
+          .forEach((header, index) => {
+            employeeSheet
+              .cell(`${alphabetsArray[index]}1`)
+              .value(header);
+          });
 
           employeeSheet
             .cell(`A${rowIndex}`)
@@ -216,7 +222,10 @@ module.exports = locals => {
             employeeSheet
               .cell(`C${rowIndex}`)
               .value(identifier)
-              .style({ fontColor: '0563C1', underline: true })
+              .style({
+                fontColor: '0563C1',
+                underline: true
+              })
               .hyperlink(url);
           } else {
             employeeSheet
@@ -248,8 +257,8 @@ module.exports = locals => {
       });
 
       worksheet.deleteSheet('Sheet1');
-      const dateString = `${tsStart.format(dateFormats.DATE)}`
-        + `-${tsEnd.format(dateFormats.DATE)}`;
+      const dateString = `${tsStart.format(dateFormats.DATE)}` +
+        `-${tsEnd.format(dateFormats.DATE)}`;
 
       // return worksheet.outputAsync('base64');
       return worksheet.toFileAsync(`/tmp/Travel Expense Report_${office}_${dateString}.xlsx`);
@@ -259,8 +268,8 @@ module.exports = locals => {
         return Promise.resolve();
       }
 
-      const dateString = `${tsStart.format(dateFormats.DATE)}`
-        + `-${tsEnd.format(dateFormats.DATE)}`;
+      const dateString = `${tsStart.format(dateFormats.DATE)}` +
+        `-${tsEnd.format(dateFormats.DATE)}`;
 
       locals
         .messageObject['dynamic_template_data'] = {

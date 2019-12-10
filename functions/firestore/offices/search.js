@@ -24,8 +24,8 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!conn.requester.isSupportRequest
-    && !conn.req.query.office) {
+  if (!conn.requester.isSupportRequest &&
+    !conn.req.query.office) {
     sendResponse(
       conn,
       code.badRequest,

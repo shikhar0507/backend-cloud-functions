@@ -44,8 +44,8 @@ const validateRequestBody = requestBody => {
     result.success = false;
   }
 
-  if (requestBody.displayName
-    && !isNonEmptyString(requestBody.displayName)) {
+  if (requestBody.displayName &&
+    !isNonEmptyString(requestBody.displayName)) {
     result.message = `Invald value in the field: 'displayName'`;
     result.success = false;
   }
@@ -55,7 +55,12 @@ const validateRequestBody = requestBody => {
 
 
 const sendCustomVerificationEmail = options => {
-  const { displayName, email, phoneNumber, uid } = options;
+  const {
+    displayName,
+    email,
+    phoneNumber,
+    uid
+  } = options;
 
   console.log('Email Sent', options);
 
@@ -87,7 +92,11 @@ const getAuth = (phoneNumber, displayName, email) => {
     .getUserByPhoneNumber(phoneNumber)
     .catch(error => {
       if (error.code === 'auth/user-not-found') {
-        return auth.createUser({ phoneNumber, displayName, email });
+        return auth.createUser({
+          phoneNumber,
+          displayName,
+          email
+        });
       }
 
       if (error.code === 'auth/email-already-exists') {
@@ -144,23 +153,23 @@ const createVerificationFlow = options => {
             uid,
           }),
           auth
-            .updateUser(uid, {
-              displayName,
-              email,
-              photoURL,
-              emailVerified: false,
-            }),
+          .updateUser(uid, {
+            displayName,
+            email,
+            photoURL,
+            emailVerified: false,
+          }),
           updatesDocRef
-            .set({
-              // When the user visits the verification link sent
-              // to them in the email, this link will allow
-              // the backend to verify if their email verification
-              // was initiated
-              verificationRequestsCount: verificationRequestsCount + 1,
-              emailVerificationRequestPending: true,
-            }, {
-              merge: true,
-            })
+          .set({
+            // When the user visits the verification link sent
+            // to them in the email, this link will allow
+            // the backend to verify if their email verification
+            // was initiated
+            verificationRequestsCount: verificationRequestsCount + 1,
+            emailVerificationRequestPending: true,
+          }, {
+            merge: true,
+          })
         ]);
     })
     .then(() => ({
@@ -201,8 +210,8 @@ const handleAdminRequest = (conn, requester) => {
       if (!employeeFound) {
         return ({
           code: code.forbidden,
-          message: `No employee found with the phone number: `
-            + `${conn.req.body.phoneNumber}`,
+          message: `No employee found with the phone number: ` +
+            `${conn.req.body.phoneNumber}`,
           success: false,
         });
       }
@@ -240,11 +249,12 @@ module.exports = (conn, requester) => {
     .body
     .phoneNumber === requester.phoneNumber;
 
-  if (!hasAdminClaims(requester.customClaims)
-    && !hasSupportClaims(requester.customClaims)
+  if (!hasAdminClaims(requester.customClaims) &&
+    !hasSupportClaims(requester.customClaims)
     // Only support and admin can send requests for modifying
     // someone else's phone number
-    && !isSelfUpdateRequest) {
+    &&
+    !isSelfUpdateRequest) {
     return Promise.resolve({
       success: false,
       message: 'You cannot perform this operation',
@@ -252,9 +262,9 @@ module.exports = (conn, requester) => {
     });
   }
 
-  if (!isSelfUpdateRequest
-    && requester.isAdmin
-    && !requester.adminOffices.includes(conn.req.body.office)) {
+  if (!isSelfUpdateRequest &&
+    requester.isAdmin &&
+    !requester.adminOffices.includes(conn.req.body.office)) {
     return ({
       success: false,
       message: 'You cannot perform this operation',
@@ -263,10 +273,10 @@ module.exports = (conn, requester) => {
   }
 
   const isPrivilidgedUser = Boolean(
-    requester.customClaims
-    && (
-      requester.customClaims.admin
-      || requester.customClaims.support
+    requester.customClaims &&
+    (
+      requester.customClaims.admin ||
+      requester.customClaims.support
     )
   );
 

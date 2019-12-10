@@ -1962,8 +1962,6 @@ const populateWeeklyOffInAttendance = async params => {
       return;
     }
 
-
-
     // Not adjusting timezone
     const momentStartTime = momentTz(startTime);
     const startTimeDate = momentStartTime.date();

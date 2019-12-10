@@ -6,4 +6,3 @@ module.exports = {
   PUT: 'PUT',
   PATCH: 'PATCH',
 };
-

@@ -243,13 +243,13 @@ function handleUpdateAuthRequest() {
     return;
   }
   sendApiRequest(
-    `${apiBaseUrl}/update-auth`, {
-    phoneNumber,
-    displayName,
-    email,
-  },
-    'POST'
-  )
+      `${apiBaseUrl}/update-auth`, {
+        phoneNumber,
+        displayName,
+        email,
+      },
+      'POST'
+    )
     .then(function (response) {
       return response.json();
     })
@@ -1038,14 +1038,14 @@ function searchUpdateTemplateSelectOnChange(url) {
           if (index === 0) {
             window
               .searchTemplateAttachmentFields = Object
-                .keys(doc.attachment)
-                .map(function (field) {
-                  return ({
-                    field,
-                    value: doc.attachment[field].value,
-                    type: doc.attachment[field].type,
-                  });
+              .keys(doc.attachment)
+              .map(function (field) {
+                return ({
+                  field,
+                  value: doc.attachment[field].value,
+                  type: doc.attachment[field].type,
                 });
+              });
           }
 
           const li = getActivityListItem(doc);
@@ -1197,8 +1197,8 @@ function createExcelSheet(rawTemplate) {
 
   const data = [];
 
-  if (rawTemplate.name === 'customer'
-    || rawTemplate.name === 'branch') {
+  if (rawTemplate.name === 'customer' ||
+    rawTemplate.name === 'branch') {
     data.push(['address', 'location'])
   } else {
     const allKeys = Object.keys(rawTemplate.attachment);
@@ -1295,8 +1295,7 @@ function populateBulkCreationResult(response, originalJson) {
   response.data.forEach(function (item, index) {
     if (item.rejected) {
       totalRejected += 1;
-    }
-    else {
+    } else {
       totalCreated += 1;
     }
 
@@ -1785,8 +1784,8 @@ function updateAuth() {
 function recipientSubmitOnClick() {
   const form = document.querySelector('.forms-parent');
   const startTime = new Date(
-    form.querySelector('input[type="date"]').value
-  )
+      form.querySelector('input[type="date"]').value
+    )
     .getTime();
   const triggerResult = form.querySelector('p');
 
@@ -1802,8 +1801,8 @@ function recipientSubmitOnClick() {
   console.log('Request sent', requestBody);
 
   sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, requestBody,
-    'POST'
-  )
+      'POST'
+    )
     .then(function (response) {
       return response.json();
     })

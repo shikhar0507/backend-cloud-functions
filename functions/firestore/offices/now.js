@@ -50,8 +50,8 @@ module.exports = (conn) => {
     return;
   }
 
-  if (!conn.req.query.hasOwnProperty('deviceId')
-    || !isNonEmptyString(conn.req.query.deviceId)) {
+  if (!conn.req.query.hasOwnProperty('deviceId') ||
+    !isNonEmptyString(conn.req.query.deviceId)) {
     sendResponse(
       conn,
       code.badRequest,

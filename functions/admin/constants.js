@@ -201,10 +201,10 @@ const templatesSet = new Set()
 
 /**
  *  Creating a Set and not using Moment's `moment.tz.names()`
-  * because for iterating the array each time to find
-  * if a timezone exists or not is `O(n^2)`.
-  * Fetching the value from a Set is `O(1)`
-  */
+ * because for iterating the array each time to find
+ * if a timezone exists or not is `O(n^2)`.
+ * Fetching the value from a Set is `O(1)`
+ */
 const timezonesSet = new Set()
   .add('Africa/Abidjan')
   .add('Africa/Accra')
