@@ -24,9 +24,9 @@ module.exports = async locals => {
     return;
   }
 
-  if (locals.addendumDocData.action !== httpsActions.create
-    && locals.addendumDocData.action !== httpsActions.update
-    && locals.addendumDocData.action !== httpsActions.changeStatus) {
+  if (locals.addendumDocData.action !== httpsActions.create &&
+    locals.addendumDocData.action !== httpsActions.update &&
+    locals.addendumDocData.action !== httpsActions.changeStatus) {
     return;
   }
 
@@ -49,8 +49,12 @@ module.exports = async locals => {
   const attendanceDocPromises = [];
   const monthsSet = new Set();
   const monthToDate = {};
+  const roleData = getEmployeeReportData(locals.roleObject, phoneNumber);
+  let uid = locals.addendumDocData.uid;
 
-  const employeeData = await getEmployeeReportData(officeId, phoneNumber);
+  if (!uid) {
+    uid = (await getAuth(phoneNumber)).uid;
+  }
 
   while (tempMoment.isSameOrBefore(rangeEnd)) {
     if (monthsSet.has(tempMoment.month())) {
@@ -83,97 +87,91 @@ module.exports = async locals => {
 
   console.log('monthToDate', monthToDate);
 
-  const { uid } = await getAuth(phoneNumber);
+  const attendanceSnaps = await Promise.all(attendanceDocPromises);
 
-  const attendanceSnaps = await Promise
-    .all(attendanceDocPromises);
+  attendanceSnaps.forEach(snap => {
+    const [doc] = snap.docs;
+    const filters = snap.query._queryOptions.fieldFilters;
+    const month = filters[0].value;
+    const year = filters[1].value;
+    const datesArray = monthToDate[month] || [];
+    const docData = doc ? doc.data() : {};
 
-  attendanceSnaps
-    .forEach(snap => {
-      const [doc] = snap.docs;
-      const filters = snap.query._queryOptions.fieldFilters;
-      const month = filters[0].value;
-      const year = filters[1].value;
-      const datesArray = monthToDate[month] || [];
-      const docData = doc ? doc.data() : {};
+    docData.attendance = docData.attendance || {};
 
-      docData.attendance = docData.attendance || {};
+    datesArray.forEach(date => {
+      const momentForDate = momentTz()
+        .tz(timezone)
+        .date(date)
+        .month(month)
+        .year(year);
 
-      datesArray
-        .forEach(date => {
-          const momentForDate = momentTz()
-            .tz(timezone)
-            .date(date)
-            .month(month)
-            .year(year);
-
-          docData
-            .attendance[date] = docData.attendance[date] || getDefaultAttendanceObject();
-          docData
-            .attendance[date]
-            .leave
-            .reason = locals.change.after.get('attachment.Reason.value') || '';
-          docData
-            .attendance[date]
-            .leave
-            .leaveType = locals.change.after.get('attachment.Leave Type.value') || '';
-          docData
-            .attendance[date]
-            .attendance = 1;
-          docData
-            .attendance[date]
-            .onLeave = true;
-          docData
-            .attendance[date]
-            .leave = docData.attendance[date].leave || {};
-          docData
-            .attendance[date]
-            .leave[status] = {
-            phoneNumber: locals.addendumDocData.user,
-            timestamp: Date.now(),
-          };
-
-          batch
-            .set(rootCollections
-              .updates
-              .doc(uid)
-              .collection(subcollectionNames.ADDENDUM)
-              .doc(), {
-              date,
-              month,
-              year,
-              officeId,
-              activityId: locals.change.after.id,
-              timestamp: Date.now(),
-              office: locals.change.after.get('office'),
-              attendance: 1,
-              _type: addendumTypes.ATTENDANCE,
-              id: `${date}${month}${year}${officeId}`,
-              key: momentForDate.clone().startOf('date').valueOf(),
-              onAr: docData.attendance[date].onAr || false,
-              onLeave: docData.attendance[date].onLeave || false,
-              weeklyOff: docData.attendance[date].weeklyOff || false,
-              holiday: docData.attendance[date].holiday || false,
-              isLate: docData.attendance[date].isLate || false,
-              addendum: docData.attendance[date].addendum || [],
-            }, {
-              merge: true,
-            });
-        });
-
-      const attendanceDocRef = doc ? doc.ref : rootCollections
-        .offices
-        .doc(officeId)
-        .collection(subcollectionNames.ATTENDANCES)
-        .doc();
+      docData
+        .attendance[date] = docData.attendance[date] || getDefaultAttendanceObject();
+      docData
+        .attendance[date]
+        .leave
+        .reason = locals.change.after.get('attachment.Reason.value') || '';
+      docData
+        .attendance[date]
+        .leave
+        .leaveType = locals.change.after.get('attachment.Leave Type.value') || '';
+      docData
+        .attendance[date]
+        .attendance = 1;
+      docData
+        .attendance[date]
+        .onLeave = true;
+      docData
+        .attendance[date]
+        .leave = docData.attendance[date].leave || {};
+      docData
+        .attendance[date]
+        .leave[status] = {
+          phoneNumber: locals.addendumDocData.user,
+          timestamp: Date.now(),
+        };
 
       batch
-        .set(attendanceDocRef,
-          Object.assign({}, docData, employeeData), {
-          merge: true,
-        });
+        .set(rootCollections
+          .updates
+          .doc(uid)
+          .collection(subcollectionNames.ADDENDUM)
+          .doc(), {
+            date,
+            month,
+            year,
+            officeId,
+            activityId: locals.change.after.id,
+            timestamp: Date.now(),
+            office: locals.change.after.get('office'),
+            attendance: 1,
+            _type: addendumTypes.ATTENDANCE,
+            id: `${date}${month}${year}${officeId}`,
+            key: momentForDate.clone().startOf('date').valueOf(),
+            onAr: docData.attendance[date].onAr || false,
+            onLeave: docData.attendance[date].onLeave || false,
+            weeklyOff: docData.attendance[date].weeklyOff || false,
+            holiday: docData.attendance[date].holiday || false,
+            isLate: docData.attendance[date].isLate || false,
+            addendum: docData.attendance[date].addendum || [],
+          }, {
+            merge: true,
+          });
     });
 
-  return batch
-    .commit();
+    const attendanceDocRef = doc ? doc.ref : rootCollections
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ATTENDANCES)
+      .doc();
+
+    batch
+      .set(attendanceDocRef,
+        Object.assign({}, docData, roleData), {
+          merge: true,
+        });
+  });
+
+  return batch.commit();
 };

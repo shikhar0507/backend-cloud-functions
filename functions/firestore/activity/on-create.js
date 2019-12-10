@@ -83,36 +83,40 @@ const getClaimStatus = async params => {
   ] = await Promise
     .all([
       rootCollections
-        .offices
-        .doc(officeId)
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('template', '==', 'claim')
-        .where('creator.phoneNumber', '==', phoneNumber)
-        .where('attachment.Claim Type.value', '==', claimType)
-        .where('creationMonth', '==', momentToday.month())
-        .where('creationYear', '==', momentToday.year())
-        .where('isCancelled', '==', false)
-        .get(),
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'claim')
+      .where('creator.phoneNumber', '==', phoneNumber)
+      .where('attachment.Claim Type.value', '==', claimType)
+      .where('creationMonth', '==', momentToday.month())
+      .where('creationYear', '==', momentToday.year())
+      .where('isCancelled', '==', false)
+      .get(),
       rootCollections
-        .offices
-        .doc(officeId)
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('template', '==', 'claim-type')
-        .where('attachment.Name.value', '==', claimType)
-        .limit(1)
-        .get()
+      .offices
+      .doc(officeId)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'claim-type')
+      .where('attachment.Name.value', '==', claimType)
+      .limit(1)
+      .get()
     ]);
 
   const [claimTypeDoc] = claimTypeActivity.docs;
   const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
 
-  let claimsThisMonth = dinero({ amount: 0 });
+  let claimsThisMonth = dinero({
+    amount: 0
+  });
 
   claimActivities.forEach(doc => {
     const amount = parseInt(doc.get('attachment.Amount.value') || 0);
 
     claimsThisMonth = claimsThisMonth
-      .add(dinero({ amount }));
+      .add(dinero({
+        amount
+      }));
   });
 
   return {
@@ -121,7 +125,11 @@ const getClaimStatus = async params => {
   };
 };
 
-const getCustomerVenue = ({ templateDoc, firstResult, placeApiResult }) => {
+const getCustomerVenue = ({
+  templateDoc,
+  firstResult,
+  placeApiResult
+}) => {
   return templateDoc.get('venue').map((venueDescriptor, index) => {
     const result = {
       venueDescriptor,
@@ -144,14 +152,20 @@ const getCustomerVenue = ({ templateDoc, firstResult, placeApiResult }) => {
   });
 };
 
-const getDailyStartTimeFromPlaces = ({ placeApiResult }) => {
-  const { opening_hours: openingHours } = placeApiResult.json.result;
+const getDailyStartTimeFromPlaces = ({
+  placeApiResult
+}) => {
+  const {
+    opening_hours: openingHours
+  } = placeApiResult.json.result;
 
   if (!openingHours) {
     return '';
   }
 
-  const { periods } = openingHours;
+  const {
+    periods
+  } = openingHours;
 
   const [relevantObject] = periods.filter(item => {
     return item.open && item.open.day === 1;
@@ -160,8 +174,12 @@ const getDailyStartTimeFromPlaces = ({ placeApiResult }) => {
   return relevantObject ? relevantObject.open.time : '';
 };
 
-const getDailyEndTimeFormPlaces = ({ placeApiResult }) => {
-  const { opening_hours: openingHours } = placeApiResult
+const getDailyEndTimeFormPlaces = ({
+  placeApiResult
+}) => {
+  const {
+    opening_hours: openingHours
+  } = placeApiResult
     .json
     .result;
 
@@ -169,7 +187,9 @@ const getDailyEndTimeFormPlaces = ({ placeApiResult }) => {
     return '';
   }
 
-  const { periods } = openingHours;
+  const {
+    periods
+  } = openingHours;
   const [relevantObject] = periods.filter(item => {
     return item.close && item.close.day === 1;
   });
@@ -177,8 +197,12 @@ const getDailyEndTimeFormPlaces = ({ placeApiResult }) => {
   return relevantObject ? relevantObject.close.time : '';
 };
 
-const getWeeklyOffFromPlaces = ({ placeApiResult }) => {
-  const { opening_hours: openingHours } = placeApiResult
+const getWeeklyOffFromPlaces = ({
+  placeApiResult
+}) => {
+  const {
+    opening_hours: openingHours
+  } = placeApiResult
     .json
     .result;
 
@@ -210,23 +234,41 @@ const getWeeklyOffFromPlaces = ({ placeApiResult }) => {
   return parts[0].toLowerCase();
 };
 
-const getCustomerSchedule = ({ templateDoc }) => {
+const getCustomerSchedule = ({
+  templateDoc
+}) => {
   return templateDoc.get('schedule').map(name => {
-    return ({ name, startTime: '', endTime: '' });
+    return ({
+      name,
+      startTime: '',
+      endTime: ''
+    });
   });
 };
 
-const getCustomerAttachment = ({ templateDoc, placeApiResult, location }) => {
-  const { attachment } = templateDoc.data();
+const getCustomerAttachment = ({
+  templateDoc,
+  placeApiResult,
+  location
+}) => {
+  const {
+    attachment
+  } = templateDoc.data();
 
   attachment.Name.value = getCustomerName(
     placeApiResult.json.result.address_components,
     location,
   );
 
-  const dailyStartTime = getDailyStartTimeFromPlaces({ placeApiResult });
-  const dailyEndTime = getDailyEndTimeFormPlaces({ placeApiResult });
-  const weeklyOff = getWeeklyOffFromPlaces({ placeApiResult });
+  const dailyStartTime = getDailyStartTimeFromPlaces({
+    placeApiResult
+  });
+  const dailyEndTime = getDailyEndTimeFormPlaces({
+    placeApiResult
+  });
+  const weeklyOff = getWeeklyOffFromPlaces({
+    placeApiResult
+  });
 
   attachment['Daily Start Time'].value = millitaryToHourMinutes(dailyStartTime);
   attachment['Daily End Time'].value = millitaryToHourMinutes(dailyEndTime);
@@ -236,32 +278,48 @@ const getCustomerAttachment = ({ templateDoc, placeApiResult, location }) => {
   return attachment;
 };
 
-const getCustomerObject = async ({ address, location }) => {
+const getCustomerObject = async ({
+  address,
+  location
+}) => {
   try {
     const placesApiResponse = await googleMapsClient
-      .places({ query: address })
+      .places({
+        query: address
+      })
       .asPromise();
 
     const [firstResult] = placesApiResponse.json.results;
 
     if (!firstResult) {
-      return { failed: true };
+      return {
+        failed: true
+      };
     }
 
     const placeApiResult = await googleMapsClient
-      .place({ placeid: firstResult['place_id'] })
+      .place({
+        placeid: firstResult['place_id']
+      })
       .asPromise();
     const [templateDoc] = (
       await rootCollections
-        .activityTemplates
-        .where('name', '==', 'customer')
-        .limit(1)
-        .get()
+      .activityTemplates
+      .where('name', '==', 'customer')
+      .limit(1)
+      .get()
     ).docs;
 
     const activityObject = {
-      schedule: getCustomerSchedule({ templateDoc, firstResult }),
-      venue: getCustomerVenue({ templateDoc, firstResult, placeApiResult }),
+      schedule: getCustomerSchedule({
+        templateDoc,
+        firstResult
+      }),
+      venue: getCustomerVenue({
+        templateDoc,
+        firstResult,
+        placeApiResult
+      }),
       attachment: getCustomerAttachment({
         templateDoc,
         placeApiResult,
@@ -277,18 +335,35 @@ const getCustomerObject = async ({ address, location }) => {
   } catch (error) {
     console.error(error);
 
-    return { failed: true };
+    return {
+      failed: true
+    };
   }
 };
 
+const getRoleObject = subscriptionDoc => {
+  if (subscriptionDoc) {
+    return subscriptionDoc.get('roleObject');
+  }
+
+  return null;
+};
 
 const createDocsWithBatch = async (conn, locals) => {
   const batch = db.batch();
   const canEditMap = {};
   const activityRef = rootCollections.activities.doc();
-  const { value: timezone } = locals.officeDoc.get('attachment.Timezone');
-  const { id: activityId } = activityRef;
-  const { date, months: month, years: year } = momentTz().tz(timezone).toObject();
+  const {
+    value: timezone
+  } = locals.officeDoc.get('attachment.Timezone');
+  const {
+    id: activityId
+  } = activityRef;
+  const {
+    date,
+    months: month,
+    years: year
+  } = momentTz().tz(timezone).toObject();
 
   conn.req.body.share.forEach(phoneNumber => {
     let addToInclude = true;
@@ -304,7 +379,9 @@ const createDocsWithBatch = async (conn, locals) => {
       .collection(subcollectionNames.ASSIGNEES)
       .doc(phoneNumber);
 
-    batch.set(ref, { addToInclude });
+    batch.set(ref, {
+      addToInclude
+    });
   });
 
   const addendumDocRef = rootCollections
@@ -318,10 +395,13 @@ const createDocsWithBatch = async (conn, locals) => {
     venue: conn.req.body.venue,
     schedule: conn.req.body.schedule,
     attachment: conn.req.body.attachment,
+    report: locals.templateDoc.get('report') || null,
   };
 
   if (conn.req.body.template === 'customer') {
-    const { address } = conn.req.body.venue[0];
+    const {
+      address
+    } = conn.req.body.venue[0];
 
     const placesQueryResult = await getCustomerObject({
       address,
@@ -340,22 +420,22 @@ const createDocsWithBatch = async (conn, locals) => {
 
     const [probablyExistingCustomer] = (
       await rootCollections
-        .activities
-        .where('office', '==', conn.req.body.office)
-        .where('template', '==', 'customer')
-        .where('status', '==', 'CONFIRMED')
-        .where('attachment.Name.value', '==', activityData.attachment.Name.value)
-        .limit(1)
-        .get()
+      .activities
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', 'customer')
+      .where('status', '==', 'CONFIRMED')
+      .where('attachment.Name.value', '==', activityData.attachment.Name.value)
+      .limit(1)
+      .get()
     )
-      .docs;
+    .docs;
 
     if (probablyExistingCustomer) {
       return sendResponse(
         conn,
         code.conflict,
-        `Customer with the name`
-        + ` '${activityData.attachment.Name.value} already exists'`
+        `Customer with the name` +
+        ` '${activityData.attachment.Name.value} already exists'`
       );
     }
   }
@@ -368,11 +448,11 @@ const createDocsWithBatch = async (conn, locals) => {
   }
 
   // The field `Location` should exist.
-  if (activityData.attachment.Location
-    && activityData.attachment.Location.value
-    && activityData.relevantTime) {
-    activityData.relevantTimeAndVenue = `${activityData.attachment.Location.value}`
-      + ` ${activityData.relevantTime}`;
+  if (activityData.attachment.Location &&
+    activityData.attachment.Location.value &&
+    activityData.relevantTime) {
+    activityData.relevantTimeAndVenue = `${activityData.attachment.Location.value}` +
+      ` ${activityData.relevantTime}`;
   }
 
   activityData.createTimestamp = Date.now();
@@ -436,23 +516,19 @@ const createDocsWithBatch = async (conn, locals) => {
     isSupportRequest: conn.requester.isSupportRequest,
     geopointAccuracy: conn.req.body.geopoint.accuracy || null,
     provider: conn.req.body.geopoint.provider || null,
+    userRole: getRoleObject(locals.subscriptionDoc) || null,
   };
 
-  if (conn.req.body.template === 'check-in'
-    && locals.subscriptionDoc
-    && locals.subscriptionDoc.get('lastGeopoint')) {
-    addendumDocObject
-      .subscriptionDocId = locals.subscriptionDoc.id;
-    addendumDocObject
-      .lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');
-    addendumDocObject
-      .lastTimestamp = locals.subscriptionDoc.get('lastTimestamp');
+  if (conn.req.body.template === 'check-in' &&
+    locals.subscriptionDoc &&
+    locals.subscriptionDoc.get('lastGeopoint')) {
+    addendumDocObject.subscriptionDocId = locals.subscriptionDoc.id;
+    addendumDocObject.lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');
+    addendumDocObject.lastTimestamp = locals.subscriptionDoc.get('lastTimestamp');
   }
 
-  batch
-    .set(addendumDocRef, addendumDocObject);
-  batch
-    .set(activityRef, activityData);
+  batch.set(addendumDocRef, addendumDocObject);
+  batch.set(activityRef, activityData);
 
   /** For base64 images, upload the json file to bucket */
   if (conn.isBase64 && conn.base64Field) {
@@ -473,12 +549,14 @@ const createDocsWithBatch = async (conn, locals) => {
     const bucket = storage.bucket(env.tempBucketName);
     const fileName = `${activityId}.json`;
     const filePath = `/tmp/${fileName}`;
-
-    fs
-      .writeFileSync(filePath, JSON.stringify(json));
+    fs.writeFileSync(filePath, JSON.stringify(json));
 
     await bucket.upload(filePath);
 
+    /**
+     * Returning here since we want to skip activity
+     * creation via the batch.
+     */
     return sendResponse(conn, code.created);
   }
 
@@ -515,8 +593,8 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
     return sendResponse(
       conn,
       code.conflict,
-      `Cannot create a leave. Leave limit exceeded by`
-      + ` ${leavesTakenThisTime + locals.leavesTakenThisYear - locals.maxLeavesAllowed} days.`
+      `Cannot create a leave. Leave limit exceeded by` +
+      ` ${leavesTakenThisTime + locals.leavesTakenThisYear - locals.maxLeavesAllowed} days.`
     );
   }
 
@@ -532,9 +610,9 @@ const handleLeaveOrOnDuty = async (conn, locals) => {
   if (conflictingDate) {
     const article = conn.req.body.template.startsWith('a') ? 'an' : 'a';
     const article2 = conflictingTemplate.startsWith('a') ? 'an' : 'a';
-    const message = `Cannot apply for ${article} ${conn.req.body.template}.`
-      + ` You are already on ${article2} ${conflictingTemplate} on the date`
-      + ` ${conflictingDate}`;
+    const message = `Cannot apply for ${article} ${conn.req.body.template}.` +
+      ` You are already on ${article2} ${conflictingTemplate} on the date` +
+      ` ${conflictingDate}`;
 
     return sendResponse(conn, code.badRequest, message);
   }
@@ -548,8 +626,8 @@ const handlePayroll = async (conn, locals) => {
     return createDocsWithBatch(conn, locals);
   }
 
-  if (!conn.req.body.schedule[0].startTime
-    || !conn.req.body.schedule[0].endTime) {
+  if (!conn.req.body.schedule[0].startTime ||
+    !conn.req.body.schedule[0].endTime) {
     return createDocsWithBatch(conn, locals);
   }
 
@@ -573,25 +651,25 @@ const handlePayroll = async (conn, locals) => {
   ] = await Promise
     .all([
       locals
-        .officeDoc
-        .ref
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('template', '==', 'leave-type')
-        .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
-        .limit(1)
-        .get(),
+      .officeDoc
+      .ref
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'leave-type')
+      .where('attachment.Name.value', '==', conn.req.body.attachment['Leave Type'].value)
+      .limit(1)
+      .get(),
       locals
-        .officeDoc
-        .ref
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('creator', '==', conn.requester.phoneNumber)
-        .where('template', '==', 'leave')
-        .where('attachment.Leave Type.value', '==', conn.req.body.attachment['Leave Type'].value)
-        .where('startYear', '==', startMoment.year())
-        .where('endYear', '==', endMoment.year())
-        /** Cancelled leaves don't count to the full number */
-        .where('isCancelled', '==', false)
-        .get(),
+      .officeDoc
+      .ref
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('creator', '==', conn.requester.phoneNumber)
+      .where('template', '==', 'leave')
+      .where('attachment.Leave Type.value', '==', conn.req.body.attachment['Leave Type'].value)
+      .where('startYear', '==', startMoment.year())
+      .where('endYear', '==', endMoment.year())
+      /** Cancelled leaves don't count to the full number */
+      .where('isCancelled', '==', false)
+      .get(),
     ]);
 
   if (!leaveTypeQuery.empty) {
@@ -616,10 +694,10 @@ const handlePayroll = async (conn, locals) => {
     return sendResponse(
       conn,
       code.conflict,
-      `Cannot create leave`
-      + ` You have exceeded the limit for leave`
-      + ` application under ${conn.req.body.attachment['Leave Type'].value}`
-      + ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`
+      `Cannot create leave` +
+      ` You have exceeded the limit for leave` +
+      ` application under ${conn.req.body.attachment['Leave Type'].value}` +
+      ` by ${locals.maxLeavesAllowed - locals.leavesTakenThisYear}`
     );
   }
 
@@ -645,7 +723,10 @@ const handleAssignees = async (conn, locals) => {
 
   const key = (() => {
     for (const key of Object.keys(conn.req.body.attachment)) {
-      const { value, type } = conn.req.body.attachment[key];
+      const {
+        value,
+        type
+      } = conn.req.body.attachment[key];
 
       if (type.endsWith('-type') && value === '') {
         return key;
@@ -658,17 +739,17 @@ const handleAssignees = async (conn, locals) => {
    * user hasn't selected the `x-type` while creating `x` activity,
    * then don't allow activity creation.
    */
-  if (key
-    && typeActivity.has(conn.req.body.template)
-    && conn.req.body.attachment[key].value === '') {
+  if (key &&
+    typeActivity.has(conn.req.body.template) &&
+    conn.req.body.attachment[key].value === '') {
     const [typeActivityDoc] = (
       await rootCollections
-        .activities
-        .where('office', '==', conn.req.body.office)
-        .where('template', '==', `${conn.req.body.template}-type`)
-        .where('status', '==', 'CONFIRMED')
-        .limit(1)
-        .get()
+      .activities
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', `${conn.req.body.template}-type`)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get()
     ).docs;
 
     if (typeActivityDoc) {
@@ -703,7 +784,10 @@ const handleClaims = async (conn, locals) => {
     );
   }
 
-  const { claimsThisMonth, monthlyLimit } = await getClaimStatus({
+  const {
+    claimsThisMonth,
+    monthlyLimit
+  } = await getClaimStatus({
     claimType,
     officeId: locals.officeDoc.id,
     phoneNumber: conn.requester.phoneNumber,
@@ -846,53 +930,60 @@ const logInvaliCheckIn = async ({
   const {
     date,
     months: month,
-    years: year,
+    years: year
   } = momentTz().toObject();
-
   const message = 'Invalid CheckIn';
-
   const [errorDoc] = (
     await rootCollections
-      .errors
-      .where('date', '==', date)
-      .where('month', '==', month)
-      .where('year', '==', year)
-      .where('message', '==', message)
-      .limit(1)
-      .get()
+    .errors
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .where('message', '==', message)
+    .limit(1)
+    .get()
   ).docs;
 
   const data = errorDoc ? errorDoc.data() : {};
-  const newUpdate = Object.assign({}, data, { date, month, year, message });
+  const newUpdate = Object.assign({}, data, {
+    date,
+    month,
+    year,
+    message
+  });
 
   newUpdate.affectedUsers = newUpdate.affectedUsers || {};
   newUpdate.affectedUsers[phoneNumber] = newUpdate.affectedUsers[phoneNumber] || 0;
   newUpdate.affectedUsers[phoneNumber]++;
-
   newUpdate.deviceObject = newUpdate.deviceObject || {};
   newUpdate.deviceObject[phoneNumber] = newUpdate.deviceObject[phoneNumber] || {};
-
   newUpdate.bodyObject = newUpdate.bodyObject || {};
   newUpdate.bodyObject[phoneNumber] = newUpdate.bodyObject[phoneNumber] || [];
-
-  newUpdate
-    .bodyObject[phoneNumber]
-    .push({
-      lastTimestamp,
-      lastGeopoint,
-      currentGeopoint,
-      checkInTimestampDifferenceInMinutes,
-      checkInTimestampDifferenceInHours,
-      distance,
-      speed,
-    });
+  newUpdate.bodyObject[phoneNumber].push({
+    lastTimestamp,
+    lastGeopoint,
+    currentGeopoint,
+    checkInTimestampDifferenceInMinutes,
+    checkInTimestampDifferenceInHours,
+    distance,
+    speed,
+  });
 
   const ref = errorDoc ? errorDoc.ref : rootCollections.errors.doc();
 
-  return ref.set(newUpdate, { merge: true });
+  return ref.set(Object.assign({}, newUpdate, {
+    timestamp: Date.now()
+  }), {
+    merge: true
+  });
 };
 
-const isInvalidCheckIn = async ({ subscriptionDoc, currentGeopoint, provider, phoneNumber }) => {
+const isInvalidCheckIn = async ({
+  subscriptionDoc,
+  currentGeopoint,
+  provider,
+  phoneNumber
+}) => {
   if (!subscriptionDoc) {
     return false;
   }
@@ -936,21 +1027,18 @@ const isInvalidCheckIn = async ({ subscriptionDoc, currentGeopoint, provider, ph
     return false;
   }
 
-  const currentLatLng = `${currentGeopoint.latitude}`
-    + `,${currentGeopoint.longitude}`;
-  const previousLatLng = `${lastGeopoint.latitude || lastGeopoint._latitude}`
-    + `,${lastGeopoint.longitude || lastGeopoint._longiture}`;
+  const currentLatLng = `${currentGeopoint.latitude}` +
+    `,${currentGeopoint.longitude}`;
+  const previousLatLng = `${lastGeopoint.latitude || lastGeopoint._latitude}` +
+    `,${lastGeopoint.longitude || lastGeopoint._longiture}`;
 
-  const distance = haversineDistance(
-    {
-      _latitude: lastGeopoint.latitude || lastGeopoint._latitude,
-      _longitude: lastGeopoint.longitude || lastGeopoint._longiture
-    },
-    {
-      _latitude: currentGeopoint.latitude,
-      _longitude: currentGeopoint.longitude
-    }
-  );
+  const distance = haversineDistance({
+    _latitude: lastGeopoint.latitude || lastGeopoint._latitude,
+    _longitude: lastGeopoint.longitude || lastGeopoint._longiture
+  }, {
+    _latitude: currentGeopoint.latitude,
+    _longitude: currentGeopoint.longitude
+  });
 
   const speed = distance / checkInTimestampDifferenceInHours;
   const result = currentLatLng === previousLatLng || speed > 40;
@@ -971,7 +1059,13 @@ const isInvalidCheckIn = async ({ subscriptionDoc, currentGeopoint, provider, ph
   return result;
 };
 
-const validatePermissions = ({ officeDoc, subscriptionDoc, isSupportRequest, office, template }) => {
+const validatePermissions = ({
+  officeDoc,
+  subscriptionDoc,
+  isSupportRequest,
+  office,
+  template
+}) => {
   if (!officeDoc) {
     return `No office found with the name: '${office}'`;
   }
@@ -980,11 +1074,13 @@ const validatePermissions = ({ officeDoc, subscriptionDoc, isSupportRequest, off
    * For support requests, subscription is not required
    */
   if (!subscriptionDoc && !isSupportRequest) {
-    return `No subscription found for the template: '${template}'`
-      + ` with the office '${office}'`;
+    return `No subscription found for the template: '${template}'` +
+      ` with the office '${office}'`;
   }
 
-  const { status } = officeDoc.data();
+  const {
+    status
+  } = officeDoc.data();
 
   if (status === 'CANCELLED') {
     return `The office status is 'CANCELLED'. Cannot create an activity`;
@@ -1015,7 +1111,11 @@ const createLocals = async (conn, [subscriptionQueryResult, templateQueryResult,
     conn.req.body.share.push(...subscriptionDoc.get('include'));
   }
 
-  const locals = { templateDoc, officeDoc, subscriptionDoc };
+  const locals = {
+    templateDoc,
+    officeDoc,
+    subscriptionDoc
+  };
 
   if (conn.req.body.template === 'enquiry') {
     [
@@ -1068,8 +1168,8 @@ module.exports = async conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for the /create`
-      + ' endpoint. Use POST'
+      `${conn.req.method} is not allowed for the /create` +
+      ' endpoint. Use POST'
     );
   }
 
@@ -1089,24 +1189,24 @@ module.exports = async conn => {
   try {
     const promises = [
       rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .collection(subcollectionNames.SUBSCRIPTIONS)
-        .where('office', '==', conn.req.body.office)
-        .where('template', '==', conn.req.body.template)
-        .where('status', '==', 'CONFIRMED')
-        .limit(1)
-        .get(),
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .collection(subcollectionNames.SUBSCRIPTIONS)
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', conn.req.body.template)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get(),
       rootCollections
-        .activityTemplates
-        .where('name', '==', conn.req.body.template)
-        .limit(1)
-        .get(),
+      .activityTemplates
+      .where('name', '==', conn.req.body.template)
+      .limit(1)
+      .get(),
       rootCollections
-        .offices
-        .where('attachment.Name.value', '==', conn.req.body.office)
-        .limit(1)
-        .get(),
+      .offices
+      .where('attachment.Name.value', '==', conn.req.body.office)
+      .limit(1)
+      .get(),
     ];
 
     return createLocals(conn, await Promise.all(promises));

@@ -77,36 +77,6 @@ const getGeopointObject = geopoint => {
 
 
 /**
- * Updates the phone number of a user in the auth for Firebase.
- *
- * @param {string} uid A 30 character alpha-numeric string.
- * @param {string} phoneNumber A E.164 phone number.
- * @returns {Promise <Object>} Resolving to an updated `userRecord`.
- * @see https://en.wikipedia.org/wiki/E.164
- */
-const updateUserPhoneNumberInAuth = (uid, phoneNumber) =>
-  auth.updateUser(uid, { phoneNumber });
-
-
-/**
- * Creates a new user in Auth with the given userRecord.
- *
- * @param {Object} userRecord Contains the fields with user data.
- * @returns {Promise <Object>} New `userRecord` for the created user.
- */
-const createUserInAuth = (userRecord) => auth.createUser(userRecord);
-
-/**
- * Revokes the token of the a user in order to end their login session.
- *
- * @param {string} uid A 30 character alpha-numeric string.
- * @returns {Promise} The `userRecord` of user who's `idToken` was revoked.
- * @see https://firebase.google.com/docs/auth/admin/manage-sessions#revoke_refresh_token
- */
-const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
-
-
-/**
  * Returns the user record object using the phone number.
  *
  * @param {string} phoneNumber Firebase user's phone number.
@@ -189,24 +159,6 @@ const getUserByEmail = (email) =>
 
 
 /**
- * Disables the user account in auth.
- *
- * @param {string} uid A 30 character alpha-numeric string.
- * @returns {Promise <Object>} Resolving to a userRecord object.
- */
-const disableUser = (uid) => auth.updateUser(uid, { disabled: true });
-
-
-/**
- * Returns the `userRecord` by using the `uid`.
- *
- * @param {string} uid Firebase uid string.
- * @returns {Promise <Object>} Resolving to a `userRecord` object.
- */
-const getUserByUid = (uid) => auth.getUser(uid);
-
-
-/**
  * Contains the references to all the collections which are in the
  * root of the Firestore.
  *
@@ -266,13 +218,8 @@ const rootCollections = {
 
 
 const users = {
-  disableUser,
-  getUserByUid,
   getUserByEmail,
-  createUserInAuth,
-  revokeRefreshTokens,
   getUserByPhoneNumber,
-  updateUserPhoneNumberInAuth,
 };
 
 

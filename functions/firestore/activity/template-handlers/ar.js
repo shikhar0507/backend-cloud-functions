@@ -26,10 +26,6 @@ module.exports = async locals => {
     return;
   }
 
-  if (locals.addendumDocData.isConflictedComment) {
-    return;
-  }
-
   const {
     timezone,
     status,
@@ -47,8 +43,11 @@ module.exports = async locals => {
   const month = momentArDate.month();
   const year = momentArDate.year();
   const batch = db.batch();
-  const { action } = locals.addendumDocData;
-  const attendanceDoc = (await rootCollections
+  const {
+    action
+  } = locals.addendumDocData;
+  const [attendanceDoc] = (
+    await rootCollections
     .offices
     .doc(officeId)
     .collection(subcollectionNames.ATTENDANCES)
@@ -56,8 +55,8 @@ module.exports = async locals => {
     .where('month', '==', month)
     .where('year', '==', year)
     .limit(1)
-    .get())
-    .docs[0];
+    .get()
+  ).docs;
 
   let uid = locals.addendumDocData.uid;
 
@@ -65,7 +64,7 @@ module.exports = async locals => {
     uid = (await getAuth(phoneNumber)).uid;
   }
 
-  const employeeData = await getEmployeeReportData(officeId, phoneNumber);
+  const roleData = getEmployeeReportData(locals.roleObject, phoneNumber);
   const attendanceDocData = attendanceDoc ? attendanceDoc.data() : {};
   const attendanceDocRef = attendanceDoc ? attendanceDoc.ref : rootCollections
     .offices
@@ -73,19 +72,17 @@ module.exports = async locals => {
     .collection(subcollectionNames.ATTENDANCES)
     .doc();
 
-  attendanceDocData
-    .attendance = attendanceDocData.attendance || {};
+  attendanceDocData.attendance = attendanceDocData.attendance || {};
 
-  attendanceDocData
-    .attendance[date] = attendanceDocData
-      .attendance[date] || getDefaultAttendanceObject();
+  attendanceDocData.attendance[date] = attendanceDocData
+    .attendance[date] || getDefaultAttendanceObject();
 
   attendanceDocData
     .attendance[date]
     .ar[status] = {
-    phoneNumber: locals.addendumDocData.user,
-    timestamp: Date.now(),
-  };
+      phoneNumber: locals.addendumDocData.user,
+      timestamp: Date.now(),
+    };
 
   attendanceDocData
     .attendance[date]
@@ -102,30 +99,31 @@ module.exports = async locals => {
     .ar
     .reason = locals.change.after.get('attachment.Reason.value');
 
-  if (action === httpsActions.changeStatus
-    && status === 'CANCELLED') {
+  if (action === httpsActions.changeStatus && status === 'CANCELLED') {
     const numberOfCheckIns = attendanceDocData.attendance[date].addendum.length;
-    const firstAddendum = attendanceDocData.attendance[date].addendum[0];
+    const [firstAddendum] = attendanceDocData.attendance[date].addendum;
     const lastAddendum = attendanceDocData.attendance[date].addendum[numberOfCheckIns - 1];
-    const hoursWorked = momentTz(lastAddendum.timestamp)
-      .diff(momentTz(firstAddendum.timestamp), 'hours', true);
 
-    attendanceDocData
-      .attendance[date]
-      .onAr = false;
+    if (lastAddendum) {
+      const hoursWorked = momentTz(lastAddendum.timestamp)
+        .diff(momentTz(firstAddendum.timestamp), 'hours', true);
 
-    attendanceDocData
-      .attendance[date]
-      .attendance = getStatusForDay({
-        numberOfCheckIns, // number of actions done in the day by the user
-        hoursWorked, // difference between first and last action in hours,
-        minimumWorkingHours: employeeData.minimumWorkingHours,
-        minimumDailyActivityCount: employeeData.minimumDailyActivityCount,
-      });
+      attendanceDocData
+        .attendance[date]
+        .onAr = false;
+
+      attendanceDocData
+        .attendance[date]
+        .attendance = getStatusForDay({
+          numberOfCheckIns, // number of actions done in the day by the user
+          hoursWorked, // difference between first and last action in hours,
+          minimumWorkingHours: roleData.minimumWorkingHours,
+          minimumDailyActivityCount: roleData.minimumDailyActivityCount,
+        });
+    }
   }
 
-  const attendanceUpdate = Object
-    .assign({}, employeeData, attendanceDocData);
+  const attendanceUpdate = Object.assign({}, roleData, attendanceDocData);
 
   batch
     .set(attendanceDocRef, Object.assign({
@@ -155,30 +153,18 @@ module.exports = async locals => {
         key: momentArDate.clone().startOf('day').valueOf(),
         id: `${date}${month}${year}${officeId}`,
       }), {
-      merge: true,
-    });
+        merge: true,
+      });
 
-  await batch
-    .commit();
+  await batch.commit();
 
   /**
    * Doc will be created
    */
   if (!attendanceDoc) {
-    const employeeDoc = (await rootCollections
-      .offices
-      .doc(officeId)
-      .collection(subcollectionNames.ACTIVITIES)
-      .where('template', '==', 'employee')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get())
-      .docs[0];
-
     return populateWeeklyOffInAttendance({
       uid,
-      employeeDoc,
+      employeeDoc: locals.roleObject,
       month: momentNow.month(),
       year: momentNow.year(),
     });

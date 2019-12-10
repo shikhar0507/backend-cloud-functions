@@ -29,14 +29,20 @@ const {
   rootCollections,
   db,
 } = require('../../admin/admin');
-const { subcollectionNames, addendumTypes } = require('../../admin/constants');
+const {
+  subcollectionNames,
+  addendumTypes
+} = require('../../admin/constants');
 
 const pushUpdatedTemplates = async (query, templateDoc) => {
-  const { name: template } = templateDoc.data();
+  const {
+    name: template
+  } = templateDoc.data();
   const authPromises = [];
   const uidMap = new Map();
   const templateUpdate = {
     template,
+    _type: addendumTypes.SUBSCRIPTION,
     schedule: templateDoc.get('schedule'),
     venue: templateDoc.get('venue'),
     attachment: templateDoc.get('attachment'),
@@ -48,22 +54,24 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
     timestamp: Date.now(),
   };
 
+  const MAX_DOCS_TO_FETCH = 500;
+
   const subscriptionActivitiesQuery = query || rootCollections
     .activities
     .where('template', '==', 'subscription')
     .where('attachment.Template.value', '==', template)
     .orderBy('__name__')
-    .limit(500);
+    .limit(MAX_DOCS_TO_FETCH);
 
   const docs = await subscriptionActivitiesQuery.get();
 
   docs.forEach(subscription => {
     authPromises.push(
       rootCollections
-        .updates
-        .where('phoneNumber', '==', subscription.get('attachment.Phone Number.value'))
-        .limit(1)
-        .get()
+      .updates
+      .where('phoneNumber', '==', subscription.get('attachment.Phone Number.value'))
+      .limit(1)
+      .get()
     );
   });
 
@@ -75,8 +83,12 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
       return;
     }
 
-    const { id: uid } = doc;
-    const { phoneNumber } = doc.data();
+    const {
+      id: uid
+    } = doc;
+    const {
+      phoneNumber
+    } = doc.data();
 
     uidMap.set(phoneNumber, uid);
   });
@@ -84,12 +96,14 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
   const batch = db.batch();
 
   docs.forEach(subscription => {
-    const { office, status } = subscription.data();
+    const {
+      office,
+      status
+    } = subscription.data();
 
     const data = Object.assign({}, templateUpdate, {
       office,
-      status,
-      _type: addendumTypes.SUBSCRIPTION,
+      status
     });
 
     const uid = uidMap.get(subscription.get('attachment.Phone Number.value'));
@@ -117,6 +131,7 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
 
   if (!lastDoc) {
     console.log('no last doc');
+
     return;
   }
 
@@ -146,9 +161,13 @@ module.exports = change => {
   /** The template name never changes. */
   const templateName = change.after.get('name');
 
-  console.log({ templateName });
+  console.log({
+    templateName
+  });
 
-  const { after: templateDoc } = change;
+  const {
+    after: templateDoc
+  } = change;
 
   try {
     return pushUpdatedTemplates(null, templateDoc);

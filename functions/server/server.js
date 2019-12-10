@@ -26,9 +26,9 @@
 
 
 const {
-  rootCollections,
-  auth,
   db,
+  auth,
+  rootCollections,
 } = require('../admin/admin');
 const {
   code,
@@ -43,7 +43,9 @@ const {
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
-const { Logging } = require('@google-cloud/logging');
+const {
+  Logging
+} = require('@google-cloud/logging');
 
 
 const handleResource = conn => {
@@ -59,16 +61,15 @@ const handleResource = conn => {
   }
 
   const rejectAdminRequest = resource
-    .checkAdmin
-    && !hasAdminClaims(conn.requester.customClaims)
-    && !conn.requester.isSupportRequest;
+    .checkAdmin &&
+    !hasAdminClaims(conn.requester.customClaims) &&
+    !conn.requester.isSupportRequest;
   const rejectSupportRequest = resource
-    .checkSupport
-    && conn.requester.isSupportRequest
-    && !hasSupportClaims(conn.requester.customClaims);
+    .checkSupport &&
+    conn.requester.isSupportRequest &&
+    !hasSupportClaims(conn.requester.customClaims);
 
-  if (rejectAdminRequest
-    || rejectSupportRequest) {
+  if (rejectAdminRequest || rejectSupportRequest) {
     return sendResponse(
       conn,
       code.forbidden,
@@ -83,33 +84,33 @@ const handleResource = conn => {
 const getProfile = conn => {
   const batch = db.batch();
   /**
-    * When a user signs up for the first time, the `authOnCreate`
-    * cloud function creates two docs in the Firestore.
-    *
-    * `Profiles/(phoneNumber)`, & `Updates/(uid)`.
-    *
-    * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
-    * It has one field `uid` = the uid from the auth.
-    *
-    * The `Updates` doc has the `doc-id` as the `uid` from the auth
-    * and one field `phoneNumber` = phoneNumber from auth.
-    *
-    * When a user signs up via the user facing app, they instantly hit
-    * the `/api` endpoint. In normal flow, the
-    * `getProfile` is called.
-    *
-    * It compares the `uid` from profile doc and the `uid` from auth.
-    * If the `authOnCreate` hasn't completed execution in this time,
-    * chances are that this doc won't be found and getting the uid
-    * from this non-existing doc will result in `disableAccount` function
-    * being called.
-    *
-    * To counter this, we allow a grace period of `60` seconds between
-    * the `auth` creation and the hit time on the `api`.
-    */
+   * When a user signs up for the first time, the `authOnCreate`
+   * cloud function creates two docs in the Firestore.
+   *
+   * `Profiles/(phoneNumber)`, & `Updates/(uid)`.
+   *
+   * The `Profiles` doc has `phoneNumber` of the user as the `doc-id`.
+   * It has one field `uid` = the uid from the auth.
+   *
+   * The `Updates` doc has the `doc-id` as the `uid` from the auth
+   * and one field `phoneNumber` = phoneNumber from auth.
+   *
+   * When a user signs up via the user facing app, they instantly hit
+   * the `/api` endpoint. In normal flow, the
+   * `getProfile` is called.
+   *
+   * It compares the `uid` from profile doc and the `uid` from auth.
+   * If the `authOnCreate` hasn't completed execution in this time,
+   * chances are that this doc won't be found and getting the uid
+   * from this non-existing doc will result in `disableAccount` function
+   * being called.
+   *
+   * To counter this, we allow a grace period of `60` seconds between
+   * the `auth` creation and the hit time on the `api`.
+   */
   const AUTH_CREATION_TIMESTAMP = new Date(
-    conn.requester.creationTime
-  )
+      conn.requester.creationTime
+    )
     .getTime();
   const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
@@ -122,22 +123,15 @@ const getProfile = conn => {
     .doc(conn.requester.phoneNumber)
     .get()
     .then(profileDoc => {
-      conn
-        .requester
-        .profileDoc = profileDoc;
-      conn
-        .requester
-        .lastQueryFrom = profileDoc.get('lastQueryFrom');
-      conn
-        .requester
-        .employeeOf = profileDoc.get('employeeOf') || {};
+      conn.requester.profileDoc = profileDoc;
+      conn.requester.lastQueryFrom = profileDoc.get('lastQueryFrom');
+      conn.requester.employeeOf = profileDoc.get('employeeOf') || {};
 
       /**
        * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
        *   run `authOnCreate` logic again.
        */
-      if (profileDoc.get('uid')
-        && profileDoc.get('uid') !== conn.requester.uid) {
+      if (profileDoc.get('uid') && profileDoc.get('uid') !== conn.requester.uid) {
         console.log({
           authCreationTime: AUTH_CREATION_TIMESTAMP,
           now: Date.now(),
@@ -162,72 +156,64 @@ const getProfile = conn => {
 
       /** AuthOnCreate probably failed. This is the fallback */
       if (!profileDoc.get('uid')) {
-        batch
-          .set(profileDoc.ref, {
-            uid: conn.requester.uid,
+        batch.set(
+          profileDoc.ref, {
+            uid: conn.requester.uid
           }, {
-            merge: true,
-          });
+            merge: true
+          }
+        );
 
-        batch
-          .set(rootCollections
-            .updates
-            .doc(conn.requester.uid), {
-            phoneNumber: conn.requester.phoneNumber,
+        batch.set(
+          rootCollections.updates.doc(conn.requester.uid), {
+            phoneNumber: conn.requester.phoneNumber
           }, {
-            merge: true,
-          });
+            merge: true
+          }
+        );
       }
 
-      return Promise
-        .all([
-          batch
-            .commit(),
-          handleResource(conn)
-        ]);
+      return Promise.all([batch.commit(), handleResource(conn)]);
     })
     .catch(error => handleError(conn, error));
 };
 
-const getUserAuthFromIdToken = (conn, decodedIdToken) => {
-  return auth
-    .getUser(decodedIdToken.uid)
-    .then((userRecord) => {
-      if (userRecord.disabled) {
-        /** Users with disabled accounts cannot request any operation **/
-        return sendResponse(
-          conn,
-          code.forbidden,
-          `This account has been temporarily disabled. Please contact`
-          + ` your admin`
-        );
-      }
+const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
+  const userRecord = await auth.getUser(decodedIdToken.uid);
 
-      conn.requester = {
-        uid: decodedIdToken.uid,
-        emailVerified: userRecord.emailVerified,
-        email: userRecord.email || '',
-        phoneNumber: userRecord.phoneNumber,
-        displayName: userRecord.displayName || '',
-        photoURL: userRecord.photoURL || '',
-        customClaims: userRecord.customClaims || null,
-        creationTime: userRecord.metadata.creationTime,
-        /**
-         * Can be used to verify in the activity flow to see if the request
-         * is of type support.
-         *
-         * URL query params are of type `string`
-         */
-        isSupportRequest: conn.req.query.support === 'true',
-      };
+  if (userRecord.disabled) {
+    /** Users with disabled accounts cannot request any operation **/
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `This account has been temporarily disabled. Please contact` +
+      ` your admin`
+    );
+  }
 
-      if (routes(conn.req).func === '/now') {
-        return require('../firestore/now')(conn);
-      }
+  conn.requester = {
+    uid: decodedIdToken.uid,
+    emailVerified: userRecord.emailVerified,
+    email: userRecord.email || '',
+    phoneNumber: userRecord.phoneNumber,
+    displayName: userRecord.displayName || '',
+    photoURL: userRecord.photoURL || '',
+    customClaims: userRecord.customClaims || null,
+    creationTime: userRecord.metadata.creationTime,
+    /**
+     * Can be used to verify in the activity flow to see if the request
+     * is of type support.
+     *
+     * URL query params are of type `string`
+     */
+    isSupportRequest: conn.req.query.support === 'true',
+  };
 
-      return getProfile(conn);
-    })
-    .catch(error => handleError(conn, error));
+  if (routes(conn.req).func === '/now') {
+    return require('../firestore/now')(conn);
+  }
+
+  return getProfile(conn);
 };
 
 
@@ -289,8 +275,8 @@ const checkAuthorizationToken = async conn => {
 
     return getUserAuthFromIdToken(conn, decodedIdToken);
   } catch (error) {
-    if (error.code === 'auth/id-token-expired'
-      || error.code === 'auth/id-token-revoked') {
+    if (error.code === 'auth/id-token-expired' ||
+      error.code === 'auth/id-token-revoked') {
       return sendResponse(
         conn,
         code.unauthorized,
@@ -347,8 +333,9 @@ module.exports = async (req, res) => {
   };
 
   /** For handling CORS */
-  if (req.method === 'HEAD'
-    || req.method === 'OPTIONS') {
+  if (req.method === 'HEAD' ||
+    req.method === 'OPTIONS') {
+    //TODO: HEAD is probably not required here. Test and remove
     return sendResponse(
       conn,
       code.noContent
@@ -359,14 +346,14 @@ module.exports = async (req, res) => {
     return sendResponse(
       conn,
       code.notImplemented,
-      `${req.method} is not supported for any request.`
-      + ' Please use `GET`, `POST`, `PATCH`, or `PUT`'
-      + ' to make your requests'
+      `${req.method} is not supported for any request.` +
+      ' Please use `GET`, `POST`, `PATCH`, or `PUT`' +
+      ' to make your requests'
     );
   }
 
-  if (env.isProduction
-    && conn.req.query.cashFreeToken === env.cashFreeToken) {
+  if (env.isProduction &&
+    conn.req.query.cashFreeToken === env.cashFreeToken) {
     await rootCollections
       .errors
       .doc()
@@ -385,9 +372,9 @@ module.exports = async (req, res) => {
     return sendResponse(conn, code.ok);
   }
 
-  if (env.isProduction
-    && (!conn.req.headers['x-cf-secret']
-      || conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
+  if (env.isProduction &&
+    (!conn.req.headers['x-cf-secret'] ||
+      conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
     return sendResponse(
       conn,
       code.forbidden,

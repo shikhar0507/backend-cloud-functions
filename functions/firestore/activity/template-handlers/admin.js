@@ -1,11 +1,29 @@
-const { rootCollections, db } = require('../../../admin/admin');
-const { getAuth } = require('../../../admin/utils');
-const { auth } = require('firebase-admin');
+const {
+  rootCollections,
+  db
+} = require('../../../admin/admin');
+const {
+  getAuth
+} = require('../../../admin/utils');
+const {
+  auth
+} = require('firebase-admin');
 
+/**
+ * Cancels all the subscription activities where template's
+ * canEditRule is ADMIN.
+ *
+ * @param {*} activityNew The activity document.
+ */
 const handleAdminCancellation = async activityNew => {
   // cancel subscriptions where templates' canEditRule is ADMIN
-  const { officeId, attachment } = activityNew.data();
-  const { value: phoneNumber } = attachment['Phone Number'];
+  const {
+    officeId,
+    attachment
+  } = activityNew.data();
+  const {
+    value: phoneNumber
+  } = attachment['Phone Number'];
 
   const usersSubscriptionDocs = await rootCollections
     .activities
@@ -20,8 +38,12 @@ const handleAdminCancellation = async activityNew => {
   const activityIdMap = new Map();
 
   usersSubscriptionDocs.forEach(subscriptionActivity => {
-    const { status } = subscriptionActivity.data();
-    const { value: template } = subscriptionActivity.get('attachment.Template');
+    const {
+      status
+    } = subscriptionActivity.data();
+    const {
+      value: template
+    } = subscriptionActivity.get('attachment.Template');
 
     /**
      * Activity is already cancelled, so no need to set the
@@ -33,10 +55,10 @@ const handleAdminCancellation = async activityNew => {
 
     templateDocQueries.push(
       rootCollections
-        .activityTemplates
-        .where('name', '==', template)
-        .limit(1)
-        .get()
+      .activityTemplates
+      .where('name', '==', template)
+      .limit(1)
+      .get()
     );
 
     activityIdMap.set(template, subscriptionActivity);
@@ -46,23 +68,30 @@ const handleAdminCancellation = async activityNew => {
 
   templateSnaps.forEach(snap => {
     const [doc] = snap.docs;
-    const { canEditRule, name } = doc.data();
+    const {
+      canEditRule,
+      name: templateName
+    } = doc.data();
 
     if (canEditRule !== 'ADMIN') {
       return;
     }
 
-    const activityToCancel = activityIdMap.get(name);
+    const activityToCancel = activityIdMap.get(templateName);
 
-    batch.set(activityToCancel.ref, {}, { merge: true });
+    batch.set(activityToCancel.ref, {}, {
+      merge: true
+    });
   });
 
   return batch.commit();
 };
 
-const Admin = async locals => {
-  const { before: activityOld, after: activityNew } = locals.change;
-
+const adminHandler = async locals => {
+  const {
+    before: activityOld,
+    after: activityNew
+  } = locals.change;
   const {
     attachment,
     office,
@@ -70,9 +99,9 @@ const Admin = async locals => {
   const {
     value: adminContact,
   } = attachment['Phone Number'];
-  const hasBeenCancelled = activityOld.data()
-    && activityOld.get('status') !== 'CANCELLED'
-    && activityNew.get('status') === 'CANCELLED';
+  const hasBeenCancelled = activityOld.data() &&
+    activityOld.get('status') !== 'CANCELLED' &&
+    activityNew.get('status') === 'CANCELLED';
 
   const userRecord = await getAuth(adminContact);
 
@@ -80,27 +109,21 @@ const Admin = async locals => {
     return;
   }
 
-  const customClaims = Object
-    .assign({}, userRecord.customClaims);
+  const customClaims = Object.assign({}, userRecord.customClaims);
 
-  customClaims
-    .admin = customClaims.admin || [];
-  customClaims
-    .admin.push(office);
-  customClaims
-    .admin = Array.from(new Set(customClaims.admin));
+  customClaims.admin = customClaims.admin || [];
+  customClaims.admin.push(office);
+  customClaims.admin = Array.from(new Set(customClaims.admin));
 
   if (hasBeenCancelled) {
     const index = customClaims.admin.indexOf(office);
 
-    customClaims
-      .admin = customClaims.admin.splice(index, 1);
+    customClaims.admin = customClaims.admin.splice(index, 1);
 
     await handleAdminCancellation(activityNew);
   }
 
-  return auth()
-    .setCustomUserClaims(userRecord.uid, customClaims);
+  return auth().setCustomUserClaims(userRecord.uid, customClaims);
 };
 
-module.exports = Admin;
+module.exports = adminHandler;

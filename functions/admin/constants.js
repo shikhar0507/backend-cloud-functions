@@ -811,6 +811,7 @@ const dateFormats = {
 };
 
 const reportNames = {
+  CASHFREE: 'cashfree',
   PAYROLL_MASTER: 'payroll master',
   REIMBURSEMENT: 'reimbursement',
   SCHEDULE: 'schedule',

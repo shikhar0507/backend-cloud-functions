@@ -25,7 +25,9 @@
 'use strict';
 
 
-const { code } = require('./responses');
+const {
+  code
+} = require('./responses');
 const {
   db,
   auth,
@@ -48,7 +50,9 @@ const env = require('./env');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
-const { execFile } = require('child_process');
+const {
+  execFile
+} = require('child_process');
 const admin = require('firebase-admin');
 const url = require('url');
 const rpn = require('request-promise-native');
@@ -66,11 +70,11 @@ const isValidTimezone = timezone => timezonesSet.has(timezone);
 
 const isValidStatus = status =>
   new Set(['CANCELLED', 'CONFIRMED', 'PENDING'])
-    .has(status);
+  .has(status);
 
 const isValidCanEditRule = canEditRule =>
   new Set(['NONE', 'ALL', 'EMPLOYEE', 'ADMIN', 'CREATOR'])
-    .has(canEditRule);
+  .has(canEditRule);
 
 /**
  * Ends the response by sending the `JSON` to the client with `200 OK` response.
@@ -208,11 +212,11 @@ const hasAdminClaims = (customClaims) => {
  */
 const getISO8601Date = (date = new Date()) =>
   date
-    .toJSON()
-    .slice(0, 10)
-    .split('-')
-    .reverse()
-    .join('-');
+  .toJSON()
+  .slice(0, 10)
+  .split('-')
+  .reverse()
+  .join('-');
 
 
 /**
@@ -231,7 +235,7 @@ const getISO8601Date = (date = new Date()) =>
  */
 const isHHMMFormat = (string) =>
   /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/
-    .test(string);
+  .test(string);
 
 
 /**
@@ -258,26 +262,26 @@ const disableAccount = (conn, reason) => {
   return Promise
     .all([
       rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .set({
-          disabledFor: reason,
-          disabledTimestamp: Date.now(),
-        }, {
-          /** This doc may have other fields too. */
-          merge: true,
-        }),
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .set({
+        disabledFor: reason,
+        disabledTimestamp: Date.now(),
+      }, {
+        /** This doc may have other fields too. */
+        merge: true,
+      }),
       rootCollections
-        .instant
-        .doc()
-        .set({
-          messageBody,
-          subject: `User Disabled: '${conn.requester.phoneNumber}'`,
-        }),
+      .instant
+      .doc()
+      .set({
+        messageBody,
+        subject: `User Disabled: '${conn.requester.phoneNumber}'`,
+      }),
       auth
-        .updateUser(conn.requester.uid, {
-          disabled: true,
-        }),
+      .updateUser(conn.requester.uid, {
+        disabled: true,
+      }),
     ])
     .then(() => sendResponse(
       conn,
@@ -328,18 +332,18 @@ const isValidGeopoint = (geopoint, allowEmptyStrings = true) => {
   if (!geopoint.hasOwnProperty('latitude')) return false;
   if (!geopoint.hasOwnProperty('longitude')) return false;
 
-  if (geopoint.latitude === ''
-    && geopoint.longitude === ''
-    && allowEmptyStrings) return true;
+  if (geopoint.latitude === '' &&
+    geopoint.longitude === '' &&
+    allowEmptyStrings) return true;
 
   if (typeof geopoint.latitude !== 'number') return false;
   if (typeof geopoint.longitude !== 'number') return false;
 
   /** @see https://msdn.microsoft.com/en-in/library/aa578799.aspx */
-  return geopoint.latitude >= -90
-    && geopoint.latitude <= 90
-    && geopoint.longitude >= -180
-    && geopoint.longitude <= 180;
+  return geopoint.latitude >= -90 &&
+    geopoint.latitude <= 90 &&
+    geopoint.longitude >= -180 &&
+    geopoint.longitude <= 180;
 };
 
 
@@ -350,8 +354,8 @@ const isValidGeopoint = (geopoint, allowEmptyStrings = true) => {
  * @returns {boolean} If `str` is a non-empty string.
  */
 const isNonEmptyString = (str) =>
-  typeof str === 'string'
-  && str.trim() !== '';
+  typeof str === 'string' &&
+  str.trim() !== '';
 
 
 /**
@@ -372,10 +376,10 @@ const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
  * @see https://en.wikipedia.org/wiki/E.164
  */
 const isE164PhoneNumber = (phoneNumber) => {
-  if (typeof phoneNumber !== 'string'
-    || phoneNumber.trim() !== phoneNumber
-    || phoneNumber.length < 5
-    || phoneNumber.replace(/ +/g, '') !== phoneNumber) {
+  if (typeof phoneNumber !== 'string' ||
+    phoneNumber.trim() !== phoneNumber ||
+    phoneNumber.length < 5 ||
+    phoneNumber.replace(/ +/g, '') !== phoneNumber) {
     return false;
   }
 
@@ -414,31 +418,31 @@ const promisifiedRequest = (options) => {
 
     const request =
       lib
-        .request(options, (response) => {
-          let body = '';
+      .request(options, (response) => {
+        let body = '';
 
-          response
-            .on('data', (chunk) => {
-              body += chunk;
-            })
-            .on('end', () => {
-              let responseData = {};
+        response
+          .on('data', (chunk) => {
+            body += chunk;
+          })
+          .on('end', () => {
+            let responseData = {};
 
-              try {
-                responseData = JSON.parse(body);
-              } catch (error) {
-                return reject(new Error('Error:', error));
-              }
+            try {
+              responseData = JSON.parse(body);
+            } catch (error) {
+              return reject(new Error('Error:', error));
+            }
 
-              if (!response.statusCode.toString().startsWith('2')) {
-                console.log('response', response);
+            if (!response.statusCode.toString().startsWith('2')) {
+              console.log('response', response);
 
-                return reject(new Error(response));
-              }
+              return reject(new Error(response));
+            }
 
-              return resolve(responseData);
-            });
-        });
+            return resolve(responseData);
+          });
+      });
 
     if (options.postData) {
       request.write(options.postData);
@@ -482,25 +486,25 @@ const cloudflareCdnUrl = (mainDownloadUrlStart, fileId, fileName) => {
     return `${env.imageCdnUrl}/${fileName}`;
   }
 
-  return `https://${mainDownloadUrlStart}`
-    + `/b2api/v2/b2_download_file_by_id`
-    + `?fileId=${fileId}`;
+  return `https://${mainDownloadUrlStart}` +
+    `/b2api/v2/b2_download_file_by_id` +
+    `?fileId=${fileId}`;
 };
 
 const getFileHash = (fileBuffer) =>
   crypto
-    .createHash('sha1')
-    .update(fileBuffer)
-    .digest('hex');
+  .createHash('sha1')
+  .update(fileBuffer)
+  .digest('hex');
 
 
 const isValidUrl = (suspectedUrl) =>
   /^(ftp|http|https):\/\/[^ "]+$/
-    .test(suspectedUrl);
+  .test(suspectedUrl);
 
 const isValidBase64 = (suspectBase64String) =>
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
-    .test(suspectBase64String);
+  .test(suspectBase64String);
 
 const slugify = (string) => {
   return string
@@ -584,9 +588,9 @@ const getRelevantTime = schedule => {
    *
    * If the schedule is empty, returning `null`
    */
-  return result
-    || allSchedules[allSchedules.length - 1]
-    || null;
+  return result ||
+    allSchedules[allSchedules.length - 1] ||
+    null;
 };
 
 // https://github.com/freesoftwarefactory/parse-multipart
@@ -714,15 +718,15 @@ const sendSMS = async (phoneNumber, smsText) => {
   const encodedMessage = `${encodeURI(smsText)}`;
 
   const host = `https://enterprise.smsgupshup.com`;
-  const path = `/GatewayAPI/rest?method=SendMessage`
-    + `&send_to=${sendTo}`
-    + `&msg=${encodedMessage}`
-    + `&msg_type=TEXT`
-    + `&userid=${env.smsgupshup.userId}`
-    + `&auth_scheme=plain`
-    + `&password=${env.smsgupshup.password}`
-    + `&v=1.1`
-    + `&format=text`;
+  const path = `/GatewayAPI/rest?method=SendMessage` +
+    `&send_to=${sendTo}` +
+    `&msg=${encodedMessage}` +
+    `&msg_type=TEXT` +
+    `&userid=${env.smsgupshup.userId}` +
+    `&auth_scheme=plain` +
+    `&password=${env.smsgupshup.password}` +
+    `&v=1.1` +
+    `&format=text`;
 
   try {
     return rpn(url.resolve(host, path));
@@ -733,14 +737,14 @@ const sendSMS = async (phoneNumber, smsText) => {
 
 const isEmptyObject = (object) =>
   Object
-    .keys(object)
-    .every((field) => {
-      if (typeof object[field] === 'string' && object[field].trim() === '') {
-        return true;
-      }
+  .keys(object)
+  .every((field) => {
+    if (typeof object[field] === 'string' && object[field].trim() === '') {
+      return true;
+    }
 
-      return object[field] === '';
-    });
+    return object[field] === '';
+  });
 
 
 const getAdjustedGeopointsFromVenue = venue => {
@@ -924,9 +928,9 @@ const handleActivityStatusReport = async (worksheet, counterDoc, yesterdayInitDo
       .cell(`D${position}`)
       .value(supportMap[name] || 0);
 
-    const createdByApp = getValueFromMap(totalByTemplateMap, name)
-      - getValueFromMap(adminApiMap, name)
-      - getValueFromMap(supportMap, name);
+    const createdByApp = getValueFromMap(totalByTemplateMap, name) -
+      getValueFromMap(adminApiMap, name) -
+      getValueFromMap(supportMap, name);
 
     activityStatusSheet
       .cell(`E${position}`)
@@ -1061,7 +1065,10 @@ const handleMailEventsReport = async worksheet => {
   console.log('docs', docs.size);
 
   docs.forEach(doc => {
-    const { office, report } = doc.data();
+    const {
+      office,
+      report
+    } = doc.data();
     const key = `${office}-${report}`;
     const oldArr = dataMap.get(key) || [];
     oldArr.push(doc);
@@ -1160,20 +1167,20 @@ const handleDailyStatusReport = async toEmail => {
     ] = await Promise
       .all([
         xlsxPopulate
-          .fromBlankAsync(),
+        .fromBlankAsync(),
         rootCollections
-          .inits
-          .where('report', '==', reportNames.COUNTER)
-          .limit(1)
-          .get(),
+        .inits
+        .where('report', '==', reportNames.COUNTER)
+        .limit(1)
+        .get(),
         rootCollections
-          .inits
-          .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-          .where('date', '==', momentYesterday.date())
-          .where('month', '==', momentYesterday.month())
-          .where('year', '==', momentYesterday.year())
-          .limit(1)
-          .get(),
+        .inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', momentYesterday.date())
+        .where('month', '==', momentYesterday.month())
+        .where('year', '==', momentYesterday.year())
+        .limit(1)
+        .get(),
         getEmailStatusMap()
       ]);
 
@@ -1315,7 +1322,9 @@ const addEmployeeToRealtimeDb = async doc => {
     Object
       .keys(attachment)
       .forEach(item => {
-        const { value } = attachment[item];
+        const {
+          value
+        } = attachment[item];
 
         result[item] = value;
       });
@@ -1352,7 +1361,9 @@ const addEmployeeToRealtimeDb = async doc => {
         const branchHolidays = {};
 
         schedule.forEach(object => {
-          const { startTime } = object;
+          const {
+            startTime
+          } = object;
 
           if (!startTime) return;
 
@@ -1428,7 +1439,11 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
   let locationName = '';
 
   addressComponents.forEach(component => {
-    const { types, short_name, long_name } = component;
+    const {
+      types,
+      short_name,
+      long_name
+    } = component;
 
     if (types.includes('sublocality_level_1')) {
       locationName += ` ${long_name} `;
@@ -1443,26 +1458,26 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
     }
   });
 
-  return `${nameFromUser.substring(0, 10)}`
-    + ` ${locationName}`
-      .trim()
-      // Replace double spaces and other non-printable chars
-      .replace(/\s\s+/g, ' ');
+  return `${nameFromUser.substring(0, 10)}` +
+    ` ${locationName}`
+    .trim()
+    // Replace double spaces and other non-printable chars
+    .replace(/\s\s+/g, ' ');
 };
 
 
 const filterPhoneNumber = phoneNumber =>
   phoneNumber
-    .replace(/[()']+/g, '')
-    .replace(/[-]/g, '')
-    .replace(/ +/g, '')
-    .trim();
+  .replace(/[()']+/g, '')
+  .replace(/[-]/g, '')
+  .replace(/ +/g, '')
+  .trim();
 
 const replaceNonASCIIChars = str =>
   // https://www.w3resource.com/javascript-exercises/javascript-string-exercise-32.php
   str
-    .replace(/[^\x20-\x7E]/g, '')
-    .trim();
+  .replace(/[^\x20-\x7E]/g, '')
+  .trim();
 
 const getBranchName = addressComponents => {
   // (sublocaliy1 + sublocality2 + locality)
@@ -1470,7 +1485,10 @@ const getBranchName = addressComponents => {
   let locationName = '';
 
   addressComponents.forEach(component => {
-    const { types, short_name } = component;
+    const {
+      types,
+      short_name
+    } = component;
 
     if (types.includes('sublocality_level_1')) {
       locationName += ` ${short_name}`;
@@ -1486,20 +1504,6 @@ const getBranchName = addressComponents => {
   });
 
   return `${locationName} BRANCH`.trim();
-};
-
-const getUsersWithCheckIn = async officeId => {
-  const checkInSubscriptions = await rootCollections
-    .activities
-    .where('officeId', '==', officeId)
-    .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', 'check-in')
-    .where('status', '==', 'CONFIRMED')
-    .get();
-
-  return checkInSubscriptions
-    .docs
-    .map(doc => doc.get('attachment.Phone Number.value'));
 };
 
 const getAuth = async phoneNumber => {
@@ -1568,25 +1572,26 @@ const getCanEditValue = (doc, requester) => {
     /**
      * Support can edit all activities
      */
-    || (requester.customClaims && requester.customClaims.support)) {
+    ||
+    (requester.customClaims && requester.customClaims.support)) {
     return true;
   }
 
   if (canEditRule === 'EMPLOYEE') {
-    return requester.employeeOf
-      && requester.employeeOf.hasOwnProperty(doc.get('office'));
+    return requester.employeeOf &&
+      requester.employeeOf.hasOwnProperty(doc.get('office'));
   }
 
   if (canEditRule === 'ADMIN') {
-    return requester.customClaims
-      && Array.isArray(requester.customClaims.admin)
-      && requester.customClaims.admin.includes(doc.get('office'));
+    return requester.customClaims &&
+      Array.isArray(requester.customClaims.admin) &&
+      requester.customClaims.admin.includes(doc.get('office'));
   }
 
   if (canEditRule === 'CREATOR') {
     return (
-      doc.get('creator')
-      || doc.get('creator.phoneNumber')
+      doc.get('creator') ||
+      doc.get('creator.phoneNumber')
     ) === requester.phoneNumber;
   }
 
@@ -1677,18 +1682,8 @@ const getDefaultAttendanceObject = () => {
 };
 
 
-const getEmployeeReportData = async (officeId, phoneNumber) => {
-  const employeeQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('attachment.Phone Number.value', '==', phoneNumber)
-    .where('template', '==', 'employee')
-    .where('status', '==', 'CONFIRMED')
-    .limit(1)
-    .get();
-
-  if (employeeQueryResult.empty) {
+const getEmployeeReportData = (employeeDoc, phoneNumber) => {
+  if (!employeeDoc) {
     return {
       phoneNumber,
       id: '',
@@ -1703,8 +1698,6 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
       locationValidationCheck: '',
     };
   }
-
-  const [employeeDoc] = employeeQueryResult.docs;
 
   return {
     phoneNumber,
@@ -1721,7 +1714,101 @@ const getEmployeeReportData = async (officeId, phoneNumber) => {
   };
 };
 
+/**
+ * Populates leave, weeklyOff and holidays for the user
+ * @param {} params
+ */
+// const newBackfill = async params => {
+//   /**
+//    * if prev checkin timestamp is of current month
+//    * exit
+//    *
+//    * fetch prev month attendance doc
+//    * if doc found
+//    *   prev check in date to today
+//    *     populate leave, weekly off, holiday
+//    *
+//    * if doc doesn't exist
+//    *   start => greatestUnix(1st of last month, employee creation, lastCheckIn timestamp)
+//    *   end => last date of prev month
+//    */
 
+//   // prev checkin timestamp is in check-in subscription doc.
+//   const {
+//     officeId,
+//     lastCheckInTimestamp,
+//     phoneNumber,
+//     roleObject,
+//   } = params;
+
+//   const lastCheckInMonth = momentTz(lastCheckInTimestamp).month();
+//   const monthToday = momentTz().month();
+
+//   if (lastCheckInMonth === monthToday) {
+//     return;
+//   }
+
+//   const previousMonthMoment = momentTz().subtract(1, 'month');
+
+//   const [prevMonthAttendanceDoc] = (
+//     await rootCollections
+//     .offices
+//     .doc(officeId)
+//     .collection(subcollectionNames.ATTENDANCES)
+//     .where('phoneNumber', '==', phoneNumber)
+//     .where('month', '==', previousMonthMoment.month())
+//     .where('year', '==', previousMonthMoment.year())
+//     .limit(1)
+//     .get()
+//   ).docs;
+
+//   const getStartEndObject = (prevMonthAttendanceDoc) => {
+//     // if doc doesn 't exist
+//     // start => greatestUnix(1 st of last month, employee creation, lastCheckIn timestamp) *
+//     // end => last date of prev month
+//     if (!prevMonthAttendanceDoc) {
+//       const startUnix = Math.max([
+//         previousMonthMoment.startOf('month').valueOf(),
+//         roleObject.createTime.toMillis(),
+//         lastCheckInTimestamp
+//       ]);
+
+//       const endUnix = previousMonthMoment.endOf('month').valueOf();
+
+//       return {
+//         startUnix,
+//         endUnix
+//       };
+//     }
+
+//     // if doc found
+//     // prev check in date to today
+//     //   populate leave, weekly off, holiday
+//     const startUnix = lastCheckInTimestamp;
+//     const endUnix = momentTz().valueOf();
+
+//     return {
+//       startUnix,
+//       endUnix
+//     };
+//   };
+
+//   const {
+//     startUnix,
+//     endUnix
+//   } = getStartEndObject(prevMonthAttendanceDoc);
+
+//   const momentStart = momentTz(startUnix);
+//   const momentEnd = momentTz(endUnix);
+
+
+// };
+
+
+/**
+ *
+ * @param {*} params
+ */
 const populateWeeklyOffInAttendance = async params => {
   const {
     month,
@@ -1729,6 +1816,20 @@ const populateWeeklyOffInAttendance = async params => {
     employeeDoc,
     uid,
   } = params;
+
+  /**
+   * if prev checkin timestamp is of current month
+   * exit
+   *
+   * fetch prev month attendance doc
+   * if doc found
+   *   prev check in date to today
+   *     populate leave, weekly off, holiday
+   *
+   * if doc doesn't exist
+   *   start => greatestUnix(1st of last month, employee creation, lastCheckIn timestamp)
+   *   end => last date of prev month
+   */
 
   if (!employeeDoc) {
     return;
@@ -1749,17 +1850,22 @@ const populateWeeklyOffInAttendance = async params => {
 
   const [attendanceDoc] = (
     await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Attendances')
-      .where('phoneNumber', '==', phoneNumber)
-      .where('month', '==', month)
-      .where('year', '==', year)
-      .limit(1)
-      .get()
+    .offices
+    .doc(officeId)
+    .collection('Attendances')
+    .where('phoneNumber', '==', phoneNumber)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .limit(1)
+    .get()
   ).docs;
 
-  console.log('baseLocation', baseLocation);
+  /**
+   * Doc exists and is of current month
+   */
+  if (attendanceDoc && month === momentTz().month()) {
+    return;
+  }
 
   const attendanceData = attendanceDoc ? attendanceDoc.data() : {};
   const attendanceRef = attendanceDoc ? attendanceDoc.ref : rootCollections
@@ -1770,14 +1876,14 @@ const populateWeeklyOffInAttendance = async params => {
     .doc();
   const [branchDoc] = (
     await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
-      .where('template', '==', 'branch')
-      .where('attachment.Name.value', '==', baseLocation)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get()
+    .offices
+    .doc(officeId)
+    .collection('Activities')
+    .where('template', '==', 'branch')
+    .where('attachment.Name.value', '==', baseLocation)
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get()
   ).docs;
 
   /**
@@ -1799,7 +1905,8 @@ const populateWeeklyOffInAttendance = async params => {
     momentTz().month(month).year(year).daysInMonth() + 1
   );
   datesInMonth.forEach(date => {
-    attendanceData.attendance[date] = attendanceData.attendance[date] || getDefaultAttendanceObject();
+    attendanceData.attendance[date] = attendanceData
+      .attendance[date] || getDefaultAttendanceObject();
 
     if (!weeklyOff) {
       return;
@@ -1846,68 +1953,68 @@ const populateWeeklyOffInAttendance = async params => {
       });
   });
 
-  branchDoc.get('schedule')
-    .forEach(holiday => {
-      const { startTime } = holiday;
+  branchDoc.get('schedule').forEach(holiday => {
+    const {
+      startTime,
+    } = holiday;
 
-      if (!Number.isInteger(startTime)) {
-        return;
-      }
+    if (!Number.isInteger(startTime)) {
+      return;
+    }
 
-      // Not adjusting timezone
-      const momentStartTime = momentTz(startTime);
-      // .tz(timezone);
-      const startTimeDate = momentStartTime.date();
 
-      if (momentStartTime.month() !== month) {
-        return;
-      }
 
-      if (momentStartTime.year() !== year) {
-        return;
-      }
+    // Not adjusting timezone
+    const momentStartTime = momentTz(startTime);
+    const startTimeDate = momentStartTime.date();
 
-      attendanceData
-        .attendance[
-        startTimeDate
-      ] = attendanceData.attendance[startTimeDate] || getDefaultAttendanceObject();
+    if (momentStartTime.month() !== month) {
+      return;
+    }
 
-      attendanceData
-        .attendance[
+    if (momentStartTime.year() !== year) {
+      return;
+    }
+
+    attendanceData.attendance[startTimeDate] = attendanceData
+      .attendance[startTimeDate] || getDefaultAttendanceObject();
+
+    attendanceData
+      .attendance[
         startTimeDate
       ].holiday = true;
 
-      attendanceData
-        .attendance[
+    attendanceData
+      .attendance[
         startTimeDate
       ].attendance = 1;
 
-      const updatesRef = rootCollections
-        .updates
-        .doc(uid)
-        .collection(subcollectionNames.ADDENDUM)
-        .doc();
+    const updatesRef = rootCollections
+      .updates
+      .doc(uid)
+      .collection(subcollectionNames.ADDENDUM)
+      .doc();
 
-      batch
-        .set(updatesRef, {
-          uid,
-          month,
-          year,
-          office,
-          officeId,
-          phoneNumber,
-          date: startTimeDate,
-          key: momentTz()
-            .date(startTimeDate)
-            .month(month)
-            .year(year)
-            .startOf('date')
-            .valueOf(),
-          id: `${startTimeDate}${month}${year}${officeId}`,
-          _type: addendumTypes.ATTENDANCE,
-          timestamp: Date.now(),
-        });
-    });
+    batch
+      .set(updatesRef, {
+        uid,
+        month,
+        year,
+        office,
+        officeId,
+        phoneNumber,
+        date: startTimeDate,
+        key: momentTz()
+          .date(startTimeDate)
+          .month(month)
+          .year(year)
+          .startOf('date')
+          .valueOf(),
+        id: `${startTimeDate}${month}${year}${officeId}`,
+        _type: addendumTypes.ATTENDANCE,
+        timestamp: Date.now(),
+      });
+  });
 
   const employeeData = {
     phoneNumber,
@@ -1925,8 +2032,8 @@ const populateWeeklyOffInAttendance = async params => {
   batch
     .set(attendanceRef,
       Object.assign({}, employeeData, attendanceData), {
-      merge: true,
-    });
+        merge: true,
+      });
 
   return batch
     .commit();
@@ -1937,7 +2044,10 @@ const getScheduleDates = scheduleObjects => {
   const allDateStrings = [];
 
   scheduleObjects.forEach(o => {
-    const { startTime: startDate, endTime: endDate } = o;
+    const {
+      startTime: startDate,
+      endTime: endDate
+    } = o;
     const items = enumerateDaysBetweenDates(startDate, endDate, dateFormats.DATE);
 
     items
@@ -1948,29 +2058,25 @@ const getScheduleDates = scheduleObjects => {
 };
 
 const getLatLngString = location =>
-  `${location._latitude || location.latitude}`
-  + `,`
-  + `${location._longitude || location.longitude}`;
+  `${location._latitude || location.latitude}` +
+  `,` +
+  `${location._longitude || location.longitude}`;
 
 const getDistanceFromDistanceMatrix = async (origin, destination) => {
-  const result = await googleMapsClient
-    .distanceMatrix({
-      /**
-       * Ordering is important here. The `legal` distance
-       * between A to B might not be the same as the legal
-       * distance between B to A. So, do not mix the ordering.
-       */
-      origins: getLatLngString(origin),
-      destinations: getLatLngString(destination),
-      units: 'metric',
-    })
-    .asPromise();
+  const result = await googleMapsClient.distanceMatrix({
+    /**
+     * Ordering is important here. The `legal` distance
+     * between A to B might not be the same as the legal
+     * distance between B to A. So, do not mix the ordering.
+     */
+    origins: getLatLngString(origin),
+    destinations: getLatLngString(destination),
+    units: 'metric',
+  }).asPromise();
 
-  const distanceData = result
-    .json
-    .rows[0]
-    .elements[0]
-    .distance;
+  const {
+    distance: distanceData
+  } = result.json.rows[0].elements[0];
 
   /**
    * Not all origin => destinations might have a legal
@@ -1983,11 +2089,6 @@ const getDistanceFromDistanceMatrix = async (origin, destination) => {
 
 
 module.exports = {
-  getLatLngString,
-  getDistanceFromDistanceMatrix,
-  populateWeeklyOffInAttendance,
-  getCustomerName,
-  getScheduleDates,
   getAuth,
   slugify,
   sendSMS,
@@ -2014,6 +2115,9 @@ module.exports = {
   getRelevantTime,
   getCanEditValue,
   isValidGeopoint,
+  getLatLngString,
+  getCustomerName,
+  getScheduleDates,
   multipartParser,
   hasSupportClaims,
   isNonEmptyString,
@@ -2027,9 +2131,8 @@ module.exports = {
   getAttendancesPath,
   isValidCanEditRule,
   promisifiedRequest,
-  getUsersWithCheckIn,
-  getSitemapXmlString,
   promisifiedExecFile,
+  getSitemapXmlString,
   getDatesToMonthsMap,
   getRegistrationToken,
   replaceNonASCIIChars,
@@ -2041,6 +2144,8 @@ module.exports = {
   getEmployeeFromRealtimeDb,
   enumerateDaysBetweenDates,
   getDefaultAttendanceObject,
+  getDistanceFromDistanceMatrix,
+  populateWeeklyOffInAttendance,
   getAdjustedGeopointsFromVenue,
   getEmployeesMapFromRealtimeDb,
 };

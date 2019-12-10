@@ -121,7 +121,14 @@ const getCreator = phoneNumberOrObject => {
   return phoneNumberOrObject;
 };
 
-const getCanEditValue = ({ canEditRule, creator, phoneNumber, office, customClaims, employeeOf }) => {
+const getCanEditValue = ({
+  canEditRule,
+  creator,
+  phoneNumber,
+  office,
+  customClaims,
+  employeeOf
+}) => {
   if (canEditRule === 'ALL') {
     return true;
   }
@@ -131,14 +138,13 @@ const getCanEditValue = ({ canEditRule, creator, phoneNumber, office, customClai
   }
 
   if (canEditRule === 'ADMIN') {
-    return customClaims
-      && Array.isArray(customClaims.admin)
-      && customClaims.admin.includes(office);
+    return customClaims &&
+      Array.isArray(customClaims.admin) &&
+      customClaims.admin.includes(office);
   }
 
   if (canEditRule === 'EMPLOYEE') {
-    return employeeOf
-      && employeeOf.hasOwnProperty(office);
+    return employeeOf && employeeOf.hasOwnProperty(office);
   }
 
   // canEditRule => NONE
@@ -226,9 +232,11 @@ module.exports = async conn => {
   }
 
   const batch = db.batch();
-  const employeeOf = conn.requester.employeeOf || {};
-  const customClaims = conn.requester.customClaims || {};
-  const phoneNumber = conn.requester.phoneNumber;
+  const {
+    employeeOf,
+    customClaims,
+    phoneNumber
+  } = conn.requester;
   const officeList = Object.keys(employeeOf);
   const from = parseInt(conn.req.query.from);
   const isInitRequest = from === 0;
@@ -247,67 +255,58 @@ module.exports = async conn => {
 
   const promises = [
     rootCollections
-      .updates
-      .doc(conn.requester.uid)
-      .collection(subcollectionNames.ADDENDUM)
-      .where('timestamp', '>', from)
-      .orderBy('timestamp', 'asc')
-      .get(),
+    .updates
+    .doc(conn.requester.uid)
+    .collection(subcollectionNames.ADDENDUM)
+    .where('timestamp', '>', from)
+    .orderBy('timestamp', 'asc')
+    .get(),
   ];
 
   if (isInitRequest) {
-    promises
-      .push(
-        rootCollections
-          .profiles
-          .doc(conn.requester.phoneNumber)
-          .collection(subcollectionNames.ACTIVITIES)
-          .where('timestamp', '>', from)
-          .orderBy('timestamp', 'asc')
-          .get(),
-        rootCollections
-          .profiles
-          .doc(conn.requester.phoneNumber)
-          .collection(subcollectionNames.SUBSCRIPTIONS)
-          .where('timestamp', '>', from)
-          .orderBy('timestamp', 'asc')
-          .get()
-      );
+    promises.push(
+      rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('timestamp', '>', from)
+      .orderBy('timestamp', 'asc')
+      .get(),
+      rootCollections
+      .profiles
+      .doc(conn.requester.phoneNumber)
+      .collection(subcollectionNames.SUBSCRIPTIONS)
+      .where('timestamp', '>', from)
+      .orderBy('timestamp', 'asc')
+      .get()
+    );
   }
 
   const sendLocations = conn
     .requester
+    .profileDoc &&
+    conn
+    .requester
     .profileDoc
-    && conn
-      .requester
-      .profileDoc
-      .get('lastLocationMapUpdateTimestamp') > from;
+    .get('lastLocationMapUpdateTimestamp') > from;
 
   if (sendLocations) {
-    officeList
-      .forEach(name => {
-        const customers = rootCollections
-          .offices
-          .doc(employeeOf[name])
-          .collection(subcollectionNames.ACTIVITIES)
-          .where('status', '==', 'CONFIRMED')
-          .where('template', '==', 'customer')
-          .get();
-
-        const branches = rootCollections
-          .offices
-          .doc(employeeOf[name])
-          .collection(subcollectionNames.ACTIVITIES)
-          .where('status', '==', 'CONFIRMED')
-          .where('template', '==', 'branch')
-          .get();
-
-        locationPromises
-          .push(
-            customers,
-            branches
-          );
-      });
+    officeList.forEach(name => {
+      locationPromises.push(
+        rootCollections
+        .activities
+        .where('officeId', '==', employeeOf[name])
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'customer')
+        .get(),
+        rootCollections
+        .activities
+        .where('officeId', '==', employeeOf[name])
+        .where('status', '==', 'CONFIRMED')
+        .where('template', '==', 'branch')
+        .get()
+      );
+    });
   }
 
   promises.push(Promise.all(locationPromises));
@@ -320,13 +319,71 @@ module.exports = async conn => {
       jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
     }
 
+    const templatePromises = [];
+    const templatesMap = new Map();
+
     (subscriptions || []).forEach(doc => {
-      /** Client side APIs don't allow admin templates. */
-      if (doc.get('canEditRule') === 'ADMIN') {
+      const {
+        template
+      } = doc.data();
+
+      templatePromises.push(
+        rootCollections
+        .activityTemplates
+        .where('name', '==', template)
+        .limit(1)
+        .get()
+      );
+    });
+
+    const templateSnaps = await Promise.all(templatePromises);
+
+    templateSnaps.forEach(templateSnap => {
+      const [doc] = templateSnap.docs;
+
+      if (!doc) {
         return;
       }
 
-      jsonObject.templates.push(getSubscriptionObject(doc));
+      templatesMap.set(doc.get('name'), doc);
+    });
+
+    (subscriptions || []).forEach(doc => {
+      const {
+        template,
+        canEditRule
+      } = doc.data();
+
+      templatePromises.push(
+        rootCollections
+        .activityTemplates
+        .where('name', '==', template)
+        .limit(1)
+        .get()
+      );
+
+      /** Client side APIs don't allow admin templates. */
+      if (canEditRule === 'ADMIN') {
+        return;
+      }
+
+      const templateDoc = templatesMap.get(template);
+
+      if (!templateDoc) {
+        return;
+      }
+
+      jsonObject.templates.push(
+        Object.assign({}, getSubscriptionObject(doc), {
+          report: templateDoc.get('report') || null,
+          schedule: templateDoc.get('schedule'),
+          venue: templateDoc.get('venue'),
+          attachment: templateDoc.get('attachment'),
+          canEditRule: templateDoc.get('canEditRule'),
+          hidden: templateDoc.get('hidden'),
+          statusOnCreate: templateDoc.get('statusOnCreate'),
+        })
+      );
     });
 
     (activities || []).forEach(doc => {
@@ -341,75 +398,72 @@ module.exports = async conn => {
       });
     });
 
-    addendum
-      .forEach(doc => {
-        const type = doc.get('_type') || doc.get('type');
-        const isPotentialDuplicate = type === addendumTypes.ACTIVITY
-          || type === addendumTypes.SUBSCRIPTION;
+    addendum.forEach(doc => {
+      const type = doc.get('_type') || doc.get('type');
+      const isPotentialDuplicate = type === addendumTypes.ACTIVITY ||
+        type === addendumTypes.SUBSCRIPTION;
 
-        /**
-         * Sending duplicate docs in response is redundant since
-         * the client is only going to use one. And both times, the
-         * object for activity/subscription will be identical.
-         */
-        if (isInitRequest && isPotentialDuplicate) {
-          return;
-        }
+      /**
+       * Sending duplicate docs in response is redundant since
+       * the client is only going to use one. And both times, the
+       * object for activity/subscription will be identical.
+       */
+      if (isInitRequest && isPotentialDuplicate) {
+        return;
+      }
 
-        if (type === addendumTypes.SUBSCRIPTION) {
-          jsonObject.templates.push(getSubscriptionObject(doc));
+      if (type === addendumTypes.SUBSCRIPTION) {
+        jsonObject.templates.push(getSubscriptionObject(doc));
 
-          return;
-        }
+        return;
+      }
 
-        if (type === addendumTypes.ACTIVITY) {
-          jsonObject.activities.push(
-            getActivityObject(doc, customClaims, employeeOf, phoneNumber)
-          );
+      if (type === addendumTypes.ACTIVITY) {
+        jsonObject.activities.push(
+          getActivityObject(doc, customClaims, employeeOf, phoneNumber)
+        );
 
-          return;
-        }
+        return;
+      }
 
-        if (type === addendumTypes.ATTENDANCE) {
-          jsonObject.attendances.push(doc.data());
+      if (type === addendumTypes.ATTENDANCE) {
+        jsonObject.attendances.push(doc.data());
 
-          return;
-        }
+        return;
+      }
 
-        if (type === addendumTypes.PAYMENT) {
-          jsonObject.payments.push(doc.data());
+      if (type === addendumTypes.PAYMENT) {
+        jsonObject.payments.push(doc.data());
 
-          return;
-        }
+        return;
+      }
 
-        if (type === addendumTypes.REIMBURSEMENT) {
-          jsonObject.reimbursements.push(doc.data());
+      if (type === addendumTypes.REIMBURSEMENT) {
+        jsonObject.reimbursements.push(doc.data());
 
-          return;
-        }
+        return;
+      }
 
-        jsonObject.addendum.push(getAddendumObject(doc));
-      });
+      jsonObject.addendum.push(getAddendumObject(doc));
+    });
 
     const profileUpdate = {
       lastQueryFrom: from,
     };
 
     if (sendLocations) {
-      profileUpdate
-        .locationsSentForTimestamp = from;
+      profileUpdate.locationsSentForTimestamp = from;
     }
 
     batch
       .set(rootCollections
         .profiles
         .doc(conn.requester.phoneNumber), profileUpdate, {
-        /** Profile has other stuff too. */
-        merge: true,
-      });
+          /** Profile has other stuff too. */
+          merge: true,
+        });
 
-    await batch
-      .commit();
+    await batch.commit();
 
     return sendJSON(conn, jsonObject);
   } catch (error) {

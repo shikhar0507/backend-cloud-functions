@@ -743,77 +743,77 @@ const getVid = async () => {
   return vAccountId;
 };
 
-const createOfficeVirtualAccount = async locals => {
-  const hasBeenCreated = isActivityCreated(locals.change);
+// const createOfficeVirtualAccount = async locals => {
+//   const hasBeenCreated = isActivityCreated(locals.change);
 
-  if (!hasBeenCreated) {
-    return;
-  }
+//   if (!hasBeenCreated) {
+//     return;
+//   }
 
-  const {
-    value: firstContact,
-  } = locals.change.after.get('attachment.First Contact');
-  const {
-    value: secondContact,
-  } = locals.change.after.get('attachment.Second Contact');
+//   const {
+//     value: firstContact,
+//   } = locals.change.after.get('attachment.First Contact');
+//   const {
+//     value: secondContact,
+//   } = locals.change.after.get('attachment.Second Contact');
 
-  const [
-    firstUserRecord,
-    secondUserRecord
-  ] = await Promise
-    .all([
-      getAuth(firstContact),
-      getAuth(secondContact)
-    ]);
+//   const [
+//     firstUserRecord,
+//     secondUserRecord
+//   ] = await Promise
+//     .all([
+//       getAuth(firstContact),
+//       getAuth(secondContact)
+//     ]);
 
-  const {
-    displayName: firstDisplayName,
-    email: firstEmail,
-    emailVerified: firstEmailVerified,
-  } = firstUserRecord;
+//   const {
+//     displayName: firstDisplayName,
+//     email: firstEmail,
+//     emailVerified: firstEmailVerified,
+//   } = firstUserRecord;
 
-  let name, email, phone, emailVerified;
+//   let name, email, phone, emailVerified;
 
-  const {
-    displayName: secondDisplayName,
-    email: secondEmail,
-    emailVerified: secondEmailVerified,
-  } = secondUserRecord;
+//   const {
+//     displayName: secondDisplayName,
+//     email: secondEmail,
+//     emailVerified: secondEmailVerified,
+//   } = secondUserRecord;
 
-  const firstContactRejected = !firstDisplayName
-    || !firstEmail
-    || !firstEmailVerified;
-  const secondContactRejected = !secondDisplayName
-    || !secondEmail
-    || !secondEmailVerified;
+//   const firstContactRejected = !firstDisplayName
+//     || !firstEmail
+//     || !firstEmailVerified;
+//   const secondContactRejected = !secondDisplayName
+//     || !secondEmail
+//     || !secondEmailVerified;
 
-  if (!firstContactRejected) {
-    name = firstDisplayName;
-    email = firstDisplayName;
-    phone = firstContact;
-    emailVerified = firstEmailVerified;
-  }
+//   if (!firstContactRejected) {
+//     name = firstDisplayName;
+//     email = firstDisplayName;
+//     phone = firstContact;
+//     emailVerified = firstEmailVerified;
+//   }
 
-  if (!secondContactRejected) {
-    name = secondDisplayName;
-    email = secondEmail;
-    phone = secondContact;
-    emailVerified = secondEmailVerified;
-  }
+//   if (!secondContactRejected) {
+//     name = secondDisplayName;
+//     email = secondEmail;
+//     phone = secondContact;
+//     emailVerified = secondEmailVerified;
+//   }
 
-  if (!name
-    || !email
-    || !emailVerified) {
-    return;
-  }
+//   if (!name
+//     || !email
+//     || !emailVerified) {
+//     return;
+//   }
 
-  return createVirtualAccount({
-    name,
-    phone,
-    email,
-    vAccountId: await getVid(),
-  });
-};
+//   return createVirtualAccount({
+//     name,
+//     phone,
+//     email,
+//     vAccountId: await getVid(),
+//   });
+// };
 
 
 const handleOffice = async locals => {
