@@ -212,26 +212,42 @@ const generateExcel = async locals => {
   const {
     name: template
   } = locals.templateDoc.data();
-  const {
-    office
-  } = locals.officeDoc.data();
+
+  const office = (() => {
+    if (locals.officeDoc) {
+      return locals.officeDoc.get('office');
+    }
+
+    return '';
+  })();
+
+  const recipients = (() => {
+    if (locals.officeDoc) {
+      return [
+        locals.officeDoc.get('attachment.First Contact.value'),
+        locals.officeDoc.get('attachment.Second Contact.value'),
+        locals.phoneNumber,
+      ].filter(Boolean);
+
+    }
+
+    return [locals.phoneNumber];
+  })();
+
   const sheet = workbook.addSheet(`${template}`);
 
   /** Default sheet */
-  workbook
-    .deleteSheet('Sheet1');
+  workbook.deleteSheet('Sheet1');
 
   const orderedFields = getOrderedFields(locals.templateDoc);
 
-  orderedFields
-    .push('rejected', 'reason');
+  orderedFields.push('rejected', 'reason');
 
-  orderedFields
-    .forEach((value, index) => {
-      sheet
-        .cell(`${alphabetsArray[index]}1`)
-        .value(value);
-    });
+  orderedFields.forEach((value, index) => {
+    sheet
+      .cell(`${alphabetsArray[index]}1`)
+      .value(value);
+  });
 
   locals.inputObjects.forEach((object, outerIndex) => {
     orderedFields
@@ -258,22 +274,15 @@ const generateExcel = async locals => {
 
   await workbook.toFileAsync(filePath);
 
-  await bucket
-    .upload(filePath, {
-      destination: locals.storageFilePath,
-      metadata: {
-        cacheControl: 'no-cache',
-        metadata: Object.assign({}, locals.metadata, {
-          updateEvent: '1',
-        }),
-      },
-    });
-
-  const recipients = [
-    locals.officeDoc.get('attachment.First Contact.value'),
-    locals.officeDoc.get('attachment.Second Contact.value'),
-    locals.phoneNumber,
-  ].filter(Boolean);
+  await bucket.upload(filePath, {
+    destination: locals.storageFilePath,
+    metadata: {
+      cacheControl: 'no-cache',
+      metadata: Object.assign({}, locals.metadata, {
+        updateEvent: '1',
+      }),
+    },
+  });
 
   const authFetch = [];
 
@@ -2425,8 +2434,7 @@ const bulkCreateOnFinalize = async object => {
     templateDocsQuery,
     officeDoc,
     templatesCollectionQuery,
-  ] = await Promise
-    .all(promises);
+  ] = await Promise.all(promises);
 
   const locals = {
     object,

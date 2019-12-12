@@ -1637,8 +1637,11 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 
   const [subscriptionTemplateDoc] = subscriptionTemplateQuery.docs;
   const activityRef = rootCollections.activities.doc();
-  const addendumDocRef = rootCollections.offices.doc(officeId)
-    .collection(subcollectionNames.ADDENDUM).doc();
+  const addendumDocRef = rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.ADDENDUM)
+    .doc();
   const attachment = Object.assign({}, subscriptionTemplateDoc.get('attachment'), {
     'Phone Number': {
       value: subscriber,

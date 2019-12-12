@@ -372,15 +372,64 @@ module.exports = async (req, res) => {
     return sendResponse(conn, code.ok);
   }
 
-  if (env.isProduction &&
-    (!conn.req.headers['x-cf-secret'] ||
-      conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
-    return sendResponse(
-      conn,
-      code.forbidden,
-      `Missing 'X-CF-Secret' header in the request headers`
-    );
+  // if (env.isProduction &&
+  //   (!conn.req.headers['x-cf-secret'] ||
+  //     conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
+  //   return sendResponse(
+  //     conn,
+  //     code.forbidden,
+  //     `Missing 'X-CF-Secret' header in the request headers`
+  //   );
+  // }
+
+  // return checkAuthorizationToken(conn);
+
+  const {
+    dateFormats
+  } = require('../admin/constants');
+  const momentTz = require('moment-timezone');
+  const iterationStart = momentTz().startOf('month');
+  const iterationEnd = momentTz().endOf('month');
+  const iterator = iterationStart.clone();
+  const scheduleDates = [];
+
+  while (iterator.isSameOrBefore(iterationEnd)) {
+    scheduleDates.push(iterator.format(dateFormats.DATE));
+
+    iterator.add(1, 'day');
   }
 
-  return checkAuthorizationToken(conn);
+  console.log(JSON.stringify(scheduleDates, ' ', 2));
+
+  const leavePromises = [];
+  const phoneNumber = '+918929033994';
+
+  scheduleDates.forEach(scheduleDate => {
+    leavePromises.push(
+      rootCollections
+      .activities
+      .where('template', '==', 'leave')
+      .where('scheduleDates', 'array-contains', scheduleDate)
+      .where('office', '==', 'Weddingz.in')
+      .where('creator.phoneNumber', '==', phoneNumber)
+      .get()
+    );
+  });
+
+  const snap = await Promise.all(leavePromises);
+  const leaveIds = new Set();
+
+  snap.forEach(snap => {
+    snap.forEach(doc => {
+      console.log(doc.ref.path);
+
+      if (leaveIds.has(doc.id)) {
+        return;
+      }
+
+      leaveIds.add(doc.id);
+    });
+  });
+
+  sendResponse(conn, 200);
 };

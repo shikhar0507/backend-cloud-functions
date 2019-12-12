@@ -1,9 +1,9 @@
 'use strict';
 
 const crypto = require('crypto');
-const {
-  google
-} = require('googleapis');
+// const {
+//   google
+// } = require('googleapis');
 const {
   db,
   rootCollections,
@@ -635,72 +635,72 @@ const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
 };
 
 
-const mangeYouTubeDataApi = async locals => {
-  const {
-    template,
-    attachment,
-  } = locals.change.after.data();
-  const {
-    'Youtube ID': youtubeVideoId,
-  } = attachment;
+// const mangeYouTubeDataApi = async locals => {
+//   const {
+//     template,
+//     attachment,
+//   } = locals.change.after.data();
+//   const {
+//     'Youtube ID': youtubeVideoId,
+//   } = attachment;
 
-  if (template !== 'office' ||
-    !env.isProduction) {
-    return;
-  }
+//   if (template !== 'office' ||
+//     !env.isProduction) {
+//     return;
+//   }
 
-  const youtube = google.youtube('v3');
-  const auth = await google.auth.getClient({
-    credentials: require('../../admin/cert.json'),
-    scopes: [
-      'https://www.googleapis.com/auth/youtube.force-ssl',
-      'https://www.googleapis.com/auth/youtube'
-    ],
-  });
+//   const youtube = google.youtube('v3');
+//   const auth = await google.auth.getClient({
+//     credentials: require('../../admin/cert.json'),
+//     scopes: [
+//       'https://www.googleapis.com/auth/youtube.force-ssl',
+//       'https://www.googleapis.com/auth/youtube'
+//     ],
+//   });
 
-  if (!youtubeVideoId) {
-    return;
-  }
+//   if (!youtubeVideoId) {
+//     return;
+//   }
 
-  const oldTitle = locals
-    .change
-    .before
-    .get('office');
-  const newTitle = locals
-    .change
-    .after
-    .get('office');
-  const oldDescription = locals
-    .change
-    .before
-    .get('attachment.Description.value');
-  const newDescription = locals
-    .change
-    .after
-    .get('attachment.Description.value');
+//   const oldTitle = locals
+//     .change
+//     .before
+//     .get('office');
+//   const newTitle = locals
+//     .change
+//     .after
+//     .get('office');
+//   const oldDescription = locals
+//     .change
+//     .before
+//     .get('attachment.Description.value');
+//   const newDescription = locals
+//     .change
+//     .after
+//     .get('attachment.Description.value');
 
-  if (oldTitle === newTitle &&
-    oldDescription === newDescription) {
-    return;
-  }
+//   if (oldTitle === newTitle &&
+//     oldDescription === newDescription) {
+//     return;
+//   }
 
-  const opt = {
-    auth,
-    part: 'snippet',
-    requestBody: {
-      id: youtubeVideoId,
-      snippet: {
-        categoryId: 22, // People & Blogs
-        title: newTitle,
-        description: newDescription,
-      },
-    },
-  };
+//   const opt = {
+//     auth,
+//     part: 'snippet',
+//     requestBody: {
+//       id: youtubeVideoId,
+//       snippet: {
+//         categoryId: 22, // People & Blogs
+//         title: newTitle,
+//         description: newDescription,
+//       },
+//     },
+//   };
 
-  return youtube
-    .videos
-    .update(opt);
-};
+//   return youtube
+//     .videos
+//     .update(opt);
+// };
 
 
 const handleSitemap = async locals => {
@@ -869,7 +869,8 @@ const handleOffice = async locals => {
   await handleSitemap(locals);
   // await createOfficeVirtualAccount(locals);
 
-  return mangeYouTubeDataApi(locals);
+  // return mangeYouTubeDataApi(locals);
+  return;
 };
 
 

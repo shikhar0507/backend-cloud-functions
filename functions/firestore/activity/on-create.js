@@ -521,6 +521,12 @@ const createDocsWithBatch = async (conn, locals) => {
 
   if (conn.req.body.template === 'check-in' &&
     locals.subscriptionDoc &&
+    locals.subscriptionDoc.get('roleDoc')) {
+    addendumDocObject.roleDoc = locals.subscriptionDoc.get('roleDoc');
+  }
+
+  if (conn.req.body.template === 'check-in' &&
+    locals.subscriptionDoc &&
     locals.subscriptionDoc.get('lastGeopoint')) {
     addendumDocObject.subscriptionDocId = locals.subscriptionDoc.id;
     addendumDocObject.lastGeopoint = locals.subscriptionDoc.get('lastGeopoint');

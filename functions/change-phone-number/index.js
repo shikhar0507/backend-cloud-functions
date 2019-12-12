@@ -87,32 +87,27 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
         })();
 
         if (creator.phoneNumber === oldPhoneNumber) {
-          data
-            .creator = Object
-            .assign({}, creator, {
-              phoneNumber: newPhoneNumber,
-            });
+          data.creator = Object.assign({}, creator, {
+            phoneNumber: newPhoneNumber,
+          });
         }
 
         const fields = Object.keys(attachment);
 
-        fields
-          .forEach(field => {
-            const {
-              value,
-              type
-            } = attachment[field];
+        fields.forEach(field => {
+          const {
+            value,
+            type
+          } = attachment[field];
 
-            if (type !== 'phoneNumber') {
-              return;
-            }
+          if (type !== 'phoneNumber') {
+            return;
+          }
 
-            if (value === oldPhoneNumber) {
-              data
-                .attachment[field]
-                .value = newPhoneNumber;
-            }
-          });
+          if (value === oldPhoneNumber) {
+            data.attachment[field].value = newPhoneNumber;
+          }
+        });
 
         const ref = rootCollections
           .activities
@@ -120,7 +115,9 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
 
         if (data.template === 'employee' &&
           data.attachment['Phone Number'].value === oldPhoneNumber) {
-          const officeId = data.officeId;
+          const {
+            officeId
+          } = data;
 
           const ref = rootCollections
             .offices
@@ -128,11 +125,10 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
             .collection(subcollectionNames.ADDENDUM)
             .doc();
 
-          data
-            .addendumDocRef = ref;
+          data.addendumDocRef = ref;
 
-          batch
-            .set(ref, {
+          batch.set(
+            ref, {
               activityOld,
               oldPhoneNumber,
               newPhoneNumber,
@@ -157,30 +153,27 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
         delete data.activityId;
         delete data.assignees;
 
-        batch
-          .set(ref,
-            Object.assign({}, data), {
-              merge: true,
-            });
+        batch.set(
+          ref,
+          Object.assign({}, data), {
+            merge: true,
+          });
 
-        batch
-          .delete(
-            ref
-            .collection(subcollectionNames.ASSIGNEES)
-            .doc(oldPhoneNumber)
-          );
+        batch.delete(
+          ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(oldPhoneNumber)
+        );
 
-        batch
-          .set(
-            ref
-            .collection(subcollectionNames.ASSIGNEES)
-            .doc(newPhoneNumber), {
-              addToInclude: data.template === 'subscription',
-            });
+        batch.set(
+          ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(newPhoneNumber), {
+            addToInclude: data.template === 'subscription',
+          });
       });
 
-    await batch
-      .commit();
+    await batch.commit();
 
     const lastDoc = snap.docs[snap.size - 1];
 
@@ -188,17 +181,15 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
       return resolve();
     }
 
-    process
-      .nextTick(() => {
-        const newQuery = query
-          .startAfter(lastDoc.id);
+    process.nextTick(() => {
+      const newQuery = query.startAfter(lastDoc.id);
 
-        return updateActivities(
-          newQuery,
-          resolve,
-          reject
-        );
-      });
+      return updateActivities(
+        newQuery,
+        resolve,
+        reject
+      );
+    });
   };
 
   const promiseExecutor = (resolve, reject) => {
@@ -226,28 +217,26 @@ const populateWebapp = async (oldPhoneNumber, newPhoneNumber) => {
       const snap = await query.get();
       const batch = db.batch();
 
-      snap
-        .forEach(doc => {
-          const ref = rootCollections
-            .profiles
-            .doc(newPhoneNumber)
-            .collection(subcollectionNames.WEBAPP)
-            .doc(doc.id);
-          const data = doc.data();
+      snap.forEach(doc => {
+        const ref = rootCollections
+          .profiles
+          .doc(newPhoneNumber)
+          .collection(subcollectionNames.WEBAPP)
+          .doc(doc.id);
+        const data = doc.data();
 
-          if (data.phoneNumber === oldPhoneNumber) {
-            data
-              .phoneNumber = newPhoneNumber;
-          }
+        if (data.phoneNumber === oldPhoneNumber) {
+          data.phoneNumber = newPhoneNumber;
+        }
 
-          batch
-            .set(ref, data, {
-              merge: true
-            });
-        });
+        batch.set(
+          ref,
+          data, {
+            merge: true
+          });
+      });
 
-      await batch
-        .commit();
+      await batch.commit();
 
       const lastDoc = snap.docs[snap.size - 1];
 
@@ -255,17 +244,15 @@ const populateWebapp = async (oldPhoneNumber, newPhoneNumber) => {
         return resolve();
       }
 
-      return process
-        .nextTick(() => {
-          const newQuery = query
-            .startAfter(lastDoc.id);
+      return process.nextTick(() => {
+        const newQuery = query.startAfter(lastDoc.id);
 
-          return moveWebapp(
-            newQuery,
-            resolve,
-            reject
-          );
-        });
+        return moveWebapp(
+          newQuery,
+          resolve,
+          reject
+        );
+      });
     };
 
     const query = rootCollections
@@ -318,11 +305,9 @@ module.exports = async conn => {
      * Disabling user until all the activity
      * onWrite instances have triggered.
      */
-    await admin
-      .auth()
-      .updateUser(conn.requester.uid, {
-        disabled: true,
-      });
+    await admin.auth().updateUser(conn.requester.uid, {
+      disabled: true,
+    });
 
     conn.req.body.oldPhoneNumber = conn.req.body.oldPhoneNumber || conn.requester.phoneNumber;
 
@@ -345,45 +330,40 @@ module.exports = async conn => {
       .get()
     ).data() || {};
 
-    batch
-      .set(rootCollections
-        .profiles
-        .doc(conn.req.body.newPhoneNumber), Object.assign({}, profileData, {
-          uid: conn.requester.uid,
-        }), {
-          merge: true,
-        });
+    batch.set(
+      rootCollections
+      .profiles
+      .doc(conn.req.body.newPhoneNumber), Object.assign({}, profileData, {
+        uid: conn.requester.uid,
+      }), {
+        merge: true,
+      });
 
-    batch
-      .set(rootCollections
-        .updates
-        .doc(conn.requester.uid), {
-          phoneNumber: conn.req.body.newPhoneNumber,
-        }, {
-          merge: true,
-        });
+    batch.set(
+      rootCollections
+      .updates
+      .doc(conn.requester.uid), {
+        phoneNumber: conn.req.body.newPhoneNumber,
+      }, {
+        merge: true,
+      });
 
-    await Promise
-      .all([
-        batch
-        .commit(),
-        admin
-        .auth()
-        .updateUser(conn.requester.uid, {
-          disabled: false,
-          phoneNumber: conn.req.body.newPhoneNumber,
-        }),
-        admin
-        .auth()
-        .revokeRefreshTokens(conn.requester.uid)
-      ]);
+    return batch.commit();
+  } catch (error) {
+    return handleError(conn, error);
+  } finally {
+    await Promise.all([
+      admin.auth().updateUser(conn.requester.uid, {
+        disabled: false,
+        phoneNumber: conn.req.body.newPhoneNumber,
+      }),
+      admin.auth().revokeRefreshTokens(conn.requester.uid)
+    ]);
 
-    return sendResponse(
+    sendResponse(
       conn,
       code.accepted,
       'Phone Number change is in progress.'
     );
-  } catch (error) {
-    return handleError(conn, error);
   }
 };
