@@ -49,35 +49,33 @@ const {
 
 const createDocs = async (conn, activityDoc) => {
   const batch = db.batch();
+  const now = new Date();
   const addendumDocRef = rootCollections
     .offices
     .doc(activityDoc.get('officeId'))
     .collection('Addendum')
     .doc();
 
-  batch
-    .set(rootCollections
-      .activities
-      .doc(conn.req.body.activityId), {
-        addendumDocRef,
-        status: conn.req.body.status,
-        timestamp: Date.now(),
-      }, {
-        merge: true,
-      });
+  const activityUpdate = {
+    addendumDocRef,
+    status: conn.req.body.status,
+    timestamp: Date.now(),
+    isCancelled: conn.req.body.status === 'CANCELLED',
+  };
 
-  const now = new Date();
+  batch.set(
+    rootCollections
+    .activities
+    .doc(conn.req.body.activityId), activityUpdate, {
+      merge: true,
+    });
+
   const addendumData = {
     timestamp: Date.now(),
     date: now.getDate(),
     month: now.getMonth(),
     year: now.getFullYear(),
-    dateString: now.toDateString(),
-    activityData: Object.assign({}, activityDoc.data(), {
-      addendumDocRef,
-      status: conn.req.body.status,
-      timestamp: Date.now(),
-    }),
+    activityData: Object.assign({}, activityDoc.data(), activityUpdate),
     user: conn.requester.phoneNumber,
     action: httpsActions.changeStatus,
     status: conn.req.body.status,
@@ -91,11 +89,9 @@ const createDocs = async (conn, activityDoc) => {
     userDisplayName: conn.requester.displayName,
   };
 
-  batch
-    .set(addendumDocRef, addendumData);
+  batch.set(addendumDocRef, addendumData);
 
-  await batch
-    .commit();
+  await batch.commit();
 
   return sendResponse(conn, code.ok);
 };
@@ -115,9 +111,7 @@ const handleResult = async (conn, docs) => {
     );
   }
 
-  const [
-    activityDoc,
-  ] = docs;
+  const [activityDoc] = docs;
 
   if (!getCanEditValue(activityDoc, conn.requester)) {
     return sendResponse(
@@ -127,8 +121,7 @@ const handleResult = async (conn, docs) => {
     );
   }
 
-  if (activityDoc.get('status') ===
-    conn.req.body.status) {
+  if (activityDoc.get('status') === conn.req.body.status) {
     return sendResponse(
       conn,
       code.conflict,
@@ -136,11 +129,9 @@ const handleResult = async (conn, docs) => {
     );
   }
 
-  const attachment = activityDoc
-    .get('attachment');
+  const attachment = activityDoc.get('attachment');
 
-  if (!attachment.hasOwnProperty('Name') ||
-    conn.req.body.status !== 'CANCELLED') {
+  if (!attachment.hasOwnProperty('Name') || conn.req.body.status !== 'CANCELLED') {
     return createDocs(
       conn,
       activityDoc
@@ -195,24 +186,21 @@ module.exports = async conn => {
     );
   }
 
-  const promises = [
-    rootCollections
-    .activities
-    .doc(conn.req.body.activityId)
-    .get(),
-    rootCollections
-    .activities
-    .doc(conn.req.body.activityId)
-    .collection('Assignees')
-    .doc(conn.requester.phoneNumber)
-    .get(),
-  ];
-
   try {
-    const docs = await Promise
-      .all(promises);
-
-    return handleResult(conn, docs);
+    return handleResult(
+      conn,
+      await Promise.all([
+        rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .get(),
+        rootCollections
+        .activities
+        .doc(conn.req.body.activityId)
+        .collection('Assignees')
+        .doc(conn.requester.phoneNumber)
+        .get(),
+      ]));
   } catch (error) {
     return handleError(conn, error);
   }

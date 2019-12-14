@@ -1711,12 +1711,14 @@ const attendanceConflictHandler = async params => {
   const {
     schedule,
     phoneNumber,
-    office
+    office,
+    // officeId,
   } = params;
   const allDateStrings = [];
   const queries = [];
   let conflictingDate = null;
   let conflictingTemplate = null;
+  // const attendancePromises = [];
 
   // runs for leave/ar
   // generate all date strings from start time to end time
@@ -1725,7 +1727,7 @@ const attendanceConflictHandler = async params => {
   schedule.forEach(scheduleObject => {
     const {
       startTime,
-      endTime
+      endTime,
     } = scheduleObject;
 
     allDateStrings.push(
@@ -1733,27 +1735,24 @@ const attendanceConflictHandler = async params => {
     );
   });
 
-  // console.log('allDateStrings', JSON.stringify(allDateStrings));
-
   allDateStrings.forEach(dateString => {
-    queries
-      .push(
-        rootCollections
-        .profiles
-        .doc(phoneNumber)
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('office', '==', office)
-        .where('scheduleDates', 'array-contains', dateString)
-        .limit(1)
-        .get()
-      );
+    queries.push(
+      rootCollections
+      .profiles
+      .doc(phoneNumber)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('office', '==', office)
+      .where('scheduleDates', 'array-contains', dateString)
+      .limit(1)
+      .get()
+    );
   });
 
   const snapShots = await Promise.all(queries);
 
   for (const snap of snapShots) {
     const {
-      empty
+      empty,
     } = snap;
 
     if (empty) {
@@ -1764,7 +1763,7 @@ const attendanceConflictHandler = async params => {
     const {
       schedule,
       template,
-      status
+      status,
     } = doc.data();
 
     if (template !== 'leave' && template !== 'attendance regularization') {
@@ -1777,7 +1776,7 @@ const attendanceConflictHandler = async params => {
 
     const [firstSchedule] = schedule;
     const {
-      startTime
+      startTime,
     } = firstSchedule;
 
     conflictingDate = momentTz(startTime).format(dateFormats.DATE);

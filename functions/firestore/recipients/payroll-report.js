@@ -317,6 +317,49 @@ const rangeCallback = params => {
   });
 };
 
+const getWorkbook = async formattedDate => {
+  const workbookRef = await xlsxPopulate.fromBlankAsync();
+  const payrollSummary = workbookRef.addSheet(`Payroll Summary`);
+  const payrollSheet = workbookRef.addSheet(`Payroll ${formattedDate}`);
+
+  workbookRef.deleteSheet('Sheet1');
+
+  return {
+    workbookRef,
+    payrollSheet,
+    payrollSummary,
+  };
+};
+
+const getRoleDetails = doc => {
+  const {
+    roleDoc,
+    employeeName,
+    employeeCode,
+    baseLocation,
+    region,
+    department,
+  } = doc.data();
+
+  if (roleDoc) {
+    return {
+      employeeName: roleDoc.attachment.Name.value,
+      employeeCode: roleDoc.attachment['Employee Code'].value,
+      baseLocation: roleDoc.attachment['Base Location'].value,
+      region: roleDoc.attachment.Region.value,
+      department: roleDoc.attachment.Department.value,
+    };
+  }
+
+  return {
+    employeeName,
+    employeeCode,
+    baseLocation,
+    region,
+    department,
+  };
+};
+
 
 module.exports = async locals => {
   const timestampFromTimer = locals.change.after.get('timestamp');
@@ -347,14 +390,11 @@ module.exports = async locals => {
   const allPhoneNumbers = new Set();
   const attendanceCountMap = new Map();
   const attendanceSumMap = new Map();
-  const workbook = await xlsxPopulate
-    .fromBlankAsync();
-  const payrollSummary = workbook
-    .addSheet(`Payroll Summary`);
-  const payrollSheet = workbook
-    .addSheet(`Payroll ${momentToday.format(dateFormats.DATE)}`);
-  workbook
-    .deleteSheet('Sheet1');
+  const {
+    workbookRef,
+    payrollSummary,
+    payrollSheet
+  } = await getWorkbook(momentToday.format(dateFormats.DATE));
 
   const allCountsData = {
     report: reportNames.PAYROLL,
@@ -403,10 +443,9 @@ module.exports = async locals => {
       .where('month', '==', momentPrevMonth.month())
       .where('year', '==', momentPrevMonth.year());
 
-    allAttendanceDocs
-      .push(
-        ...await recursiveFetch(baseQuery, [])
-      );
+    allAttendanceDocs.push(
+      ...await recursiveFetch(baseQuery, [])
+    );
   }
 
   const baseQuery = locals
@@ -423,120 +462,102 @@ module.exports = async locals => {
 
   const docsMap = {};
 
-  allAttendanceDocs
-    .forEach(doc => {
-      const {
-        month,
-        phoneNumber,
-        employeeName,
-        employeeCode,
-        baseLocation,
-        region,
-        department,
-      } = doc.data();
+  allAttendanceDocs.forEach(doc => {
+    const {
+      month,
+      phoneNumber,
+    } = doc.data();
 
-      employeeData
-        .set(phoneNumber, {
-          employeeName,
-          employeeCode,
-          baseLocation,
-          region,
-          department,
-        });
+    employeeData.set(phoneNumber, getRoleDetails(doc));
 
-      const key = `${phoneNumber}__${month}`;
-      docsMap[key] = doc;
+    docsMap[`${phoneNumber}__${month}`] = doc;
 
-      allPhoneNumbers
-        .add(phoneNumber);
-    });
+    allPhoneNumbers.add(phoneNumber);
+  });
 
   let rowIndex = 0;
 
   const prevMonth = momentPrevMonth.month();
   const currMonth = momentYesterday.month();
 
-  allPhoneNumbers
-    .forEach(phoneNumber => {
-      const {
-        employeeName,
-        employeeCode,
-        baseLocation,
+  allPhoneNumbers.forEach(phoneNumber => {
+    const {
+      employeeName,
+      employeeCode,
+      baseLocation,
+      region,
+      department,
+    } = employeeData.get(phoneNumber);
+
+    firstRange.forEach(date => {
+      rowIndex++;
+      const key = `${phoneNumber}__${prevMonth}`;
+      const attDoc = docsMap[key];
+
+      const params = {
+        allLeaveTypes,
+        timezone,
+        payrollSheet,
+        date,
+        rowIndex,
+        employeeData,
+        weeklyOffCountMap,
+        holidayCountMap,
+        leaveTypeCountMap,
+        arCountMap,
+        attendanceCountMap,
+        attendanceSumMap,
         region,
+        employeeCode,
+        employeeName,
+        phoneNumber,
         department,
-      } = employeeData.get(phoneNumber);
+        baseLocation,
+        attendanceDoc: attDoc,
+        attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
+        momentInstance: momentPrevMonth.clone(),
+      };
 
-      firstRange
-        .forEach(date => {
-          rowIndex++;
-          const key = `${phoneNumber}__${prevMonth}`;
-          const attDoc = docsMap[key];
+      allCountsData.rowsCount++;
 
-          const params = {
-            allLeaveTypes,
-            timezone,
-            payrollSheet,
-            date,
-            rowIndex,
-            employeeData,
-            weeklyOffCountMap,
-            holidayCountMap,
-            leaveTypeCountMap,
-            arCountMap,
-            attendanceCountMap,
-            attendanceSumMap,
-            region,
-            employeeCode,
-            employeeName,
-            phoneNumber,
-            department,
-            baseLocation,
-            attendanceDoc: attDoc,
-            attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
-            momentInstance: momentPrevMonth.clone(),
-          };
-
-          allCountsData.rowsCount++;
-
-          rangeCallback(params);
-        });
-
-      secondRange
-        .forEach(date => {
-          rowIndex++;
-
-          const key = `${phoneNumber}__${currMonth}`;
-          const attDoc = docsMap[key];
-
-          const params = {
-            month: currMonth,
-            allLeaveTypes,
-            timezone,
-            payrollSheet,
-            date,
-            rowIndex,
-            employeeData,
-            weeklyOffCountMap,
-            holidayCountMap,
-            leaveTypeCountMap,
-            arCountMap,
-            attendanceCountMap,
-            attendanceSumMap,
-            region,
-            employeeCode,
-            employeeName,
-            phoneNumber,
-            department,
-            baseLocation,
-            attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
-            momentInstance: momentYesterday.clone(),
-          };
-
-          allCountsData.rowsCount++;
-
-          rangeCallback(params);
-        });
+      rangeCallback(params);
     });
+
+    secondRange.forEach(date => {
+      rowIndex++;
+
+      const key = `${phoneNumber}__${currMonth}`;
+      const attDoc = docsMap[key];
+
+      const params = {
+        allLeaveTypes,
+        timezone,
+        payrollSheet,
+        date,
+        rowIndex,
+        employeeData,
+        weeklyOffCountMap,
+        holidayCountMap,
+        leaveTypeCountMap,
+        arCountMap,
+        attendanceCountMap,
+        attendanceSumMap,
+        region,
+        employeeCode,
+        employeeName,
+        phoneNumber,
+        department,
+        baseLocation,
+        month: currMonth,
+        attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
+        momentInstance: momentYesterday.clone(),
+      };
+
+      allCountsData.rowsCount++;
+
+      rangeCallback(params);
+    });
+  });
 
   /**
    * Converting this set to an array in order to preserve
@@ -550,52 +571,46 @@ module.exports = async locals => {
 
   allCountsData.totalUsers = allPhoneNumbers.size;
 
-  allPhoneNumbers
-    .forEach(phoneNumber => {
-      const {
-        employeeName,
-        employeeCode,
-        baseLocation,
-        region,
-        department,
-      } = employeeData
-        .get(phoneNumber) || {};
+  allPhoneNumbers.forEach(phoneNumber => {
+    const {
+      employeeName,
+      employeeCode,
+      baseLocation,
+      region,
+      department,
+    } = employeeData.get(phoneNumber) || {}; // the user might not be an employee
 
-      const values = [
-        employeeName,
-        phoneNumber,
-        employeeCode,
-        baseLocation,
-        region,
-        department,
-        arCountMap.get(phoneNumber) || 0,
-        weeklyOffCountMap.get(phoneNumber) || 0,
-        holidayCountMap.get(phoneNumber) || 0,
-        attendanceCountMap.get(phoneNumber) || 0, // mtd
-        totalDays,
-        attendanceSumMap.get(phoneNumber) || 0,
-      ];
+    const values = [
+      employeeName,
+      phoneNumber,
+      employeeCode,
+      baseLocation,
+      region,
+      department,
+      arCountMap.get(phoneNumber) || 0,
+      weeklyOffCountMap.get(phoneNumber) || 0,
+      holidayCountMap.get(phoneNumber) || 0,
+      attendanceCountMap.get(phoneNumber) || 0, // mtd
+      totalDays,
+      attendanceSumMap.get(phoneNumber) || 0,
+    ];
 
-      const leaveTypesForUser = leaveTypeCountMap
-        .get(phoneNumber) || {};
+    const leaveTypesForUser = leaveTypeCountMap.get(phoneNumber) || {};
 
-      allLeaveTypes
-        .forEach(leaveType => {
-          const count = leaveTypesForUser[leaveType] || 0;
+    allLeaveTypes.forEach(leaveType => {
+      const count = leaveTypesForUser[leaveType] || 0;
 
-          values
-            .push(count);
-        });
-
-      values
-        .forEach((value, innerIndex) => {
-          payrollSummary
-            .cell(`${alphabetsArray[innerIndex]}${summaryRowIndex + 2}`)
-            .value(value);
-        });
-
-      summaryRowIndex++;
+      values.push(count);
     });
+
+    values.forEach((value, innerIndex) => {
+      payrollSummary
+        .cell(`${alphabetsArray[innerIndex]}${summaryRowIndex + 2}`)
+        .value(value);
+    });
+
+    summaryRowIndex++;
+  });
 
   [
     'Employee Name',
@@ -639,17 +654,14 @@ module.exports = async locals => {
       .value(value);
   });
 
-  locals
-    .messageObject
-    .attachments
-    .push({
-      fileName: `Payroll Report_` +
-        `${locals.officeDoc.get('office')}` +
-        `_${momentToday.format(dateFormats.DATE)}.xlsx`,
-      content: await workbook.outputAsync('base64'),
-      type: 'text/csv',
-      disposition: 'attachment',
-    });
+  locals.messageObject.attachments.push({
+    fileName: `Payroll Report_` +
+      `${locals.officeDoc.get('office')}` +
+      `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+    content: await workbookRef.outputAsync('base64'),
+    type: 'text/csv',
+    disposition: 'attachment',
+  });
 
   console.log(JSON.stringify({
     office: locals.officeDoc.get('office'),
@@ -657,18 +669,10 @@ module.exports = async locals => {
     to: locals.messageObject.to,
   }, ' ', 2));
 
-  await locals
-    .sgMail
-    .sendMultiple(locals.messageObject);
-
   console.log('mail sent');
 
-  console.log(JSON.stringify(allCountsData, ' ', 2));
-
-  await rootCollections
-    .inits
-    .doc()
-    .set(allCountsData);
-
-  return;
+  return Promise.all([
+    locals.sgMail.sendMultiple(locals.messageObject),
+    rootCollections.inits.doc().set(allCountsData),
+  ]);
 };

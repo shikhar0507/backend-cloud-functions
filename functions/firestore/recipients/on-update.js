@@ -220,7 +220,7 @@ module.exports = async change => {
     }
 
     if (report === reportNames.REIMBURSEMENT) {
-      await require('./reimbursements-report')(locals);
+      await require('./reimbursements')(locals);
     }
 
     if (report === reportNames.PAYROLL_MASTER) {

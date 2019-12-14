@@ -166,88 +166,85 @@ const handleScheduleReport = async (locals, workbook) => {
 
   let index = 0;
 
-  activities
-    .forEach(doc => {
-      if (doc.get('template') !== 'duty') {
+  activities.forEach(doc => {
+    if (doc.get('template') !== 'duty') {
+      return;
+    }
+
+    const columnIndex = index + 2;
+    const activityName = doc.get('activityName');
+    // This is duty type
+    const activityType = doc.get('attachment.Duty Type.value');
+    const [schedule] = doc.get('schedule');
+    const status = doc.get('status');
+    const startTime = momentTz(schedule.startTime)
+      .tz(timezone)
+      .format(dateFormats.DATE_TIME);
+    const endTime = momentTz(schedule.endTime)
+      .tz(timezone)
+      .format(dateFormats.DATE_TIME);
+    const createdBy = doc.get('creator.displayName') ||
+      doc.get('creator.phoneNumber');
+    const lastUpdatedOn = momentTz(doc.get('timestamp'))
+      .tz(timezone)
+      .format(dateFormats.DATE_TIME);
+    const checkIns = doc.get('checkIns') || {};
+    let checkInTimes = '';
+
+    Object.keys(checkIns).forEach(phoneNumber => {
+      const timestamps = checkIns[phoneNumber]; // Array of ts
+      const name = getName(locals.employeesData, phoneNumber);
+
+      if (timestamps.length === 0) {
+        checkInTimes += `${name} (-- to --, 0) \n`;
+
         return;
       }
 
-      const columnIndex = index + 2;
-      const activityName = doc.get('activityName');
-      // This is duty type
-      const activityType = doc.get('attachment.Duty Type.value');
-      const schedule = doc.get('schedule')[0];
-      const status = doc.get('status');
-      const startTime = momentTz(schedule.startTime)
+      const firstCheckInFormatted = momentTz(timestamps[0])
         .tz(timezone)
         .format(dateFormats.DATE_TIME);
-      const endTime = momentTz(schedule.endTime)
+      const lastCheckInFormatted = momentTz(timestamps[timestamps.length - 1])
         .tz(timezone)
         .format(dateFormats.DATE_TIME);
-      const createdBy = doc.get('creator.displayName') ||
-        doc.get('creator.phoneNumber');
-      const lastUpdatedOn = momentTz(doc.get('timestamp'))
-        .tz(timezone)
-        .format(dateFormats.DATE_TIME);
-      const checkIns = doc.get('checkIns') || {};
-      let checkInTimes = '';
 
-      Object
-        .keys(checkIns)
-        .forEach(phoneNumber => {
-          const timestamps = checkIns[phoneNumber]; // Array of ts
-          const name = getName(locals.employeesData, phoneNumber);
+      checkInTimes += `${name} (${firstCheckInFormatted}` +
+        ` to ${lastCheckInFormatted}, ${timestamps.length})`;
 
-          if (timestamps.length === 0) {
-            checkInTimes += `${name} (-- to --, 0) \n`;
-
-            return;
-          }
-
-          const firstCheckInFormatted = momentTz(timestamps[0])
-            .tz(timezone)
-            .format(dateFormats.DATE_TIME);
-          const lastCheckInFormatted = momentTz(timestamps[timestamps.length - 1])
-            .tz(timezone)
-            .format(dateFormats.DATE_TIME);
-
-          checkInTimes += `${name} (${firstCheckInFormatted}` +
-            ` to ${lastCheckInFormatted}, ${timestamps.length})`;
-
-          checkInTimes += '\n';
-        });
-
-      const customerName = doc
-        .get('customerObject.Name');
-      const customerCode = doc
-        .get('customerObject.Customer Code');
-      const customerAddress = doc
-        .get('customerObject.address');
-      const supervisor = getName(
-        locals.employeesData,
-        doc.get('attachment.Supervisor.value')
-      );
-
-      [
-        activityName,
-        activityType,
-        customerName,
-        customerCode,
-        customerAddress,
-        `${startTime} - ${endTime}`,
-        createdBy,
-        supervisor,
-        status,
-        lastUpdatedOn,
-        checkInTimes,
-      ].forEach((value, i) => {
-        worksheet
-          .cell(`${alphabetsArray[i]}${columnIndex}`)
-          .value(value);
-      });
-
-      index++;
+      checkInTimes += '\n';
     });
+
+    const customerName = doc
+      .get('customerObject.Name');
+    const customerCode = doc
+      .get('customerObject.Customer Code');
+    const customerAddress = doc
+      .get('customerObject.address');
+    const supervisor = getName(
+      locals.employeesData,
+      doc.get('attachment.Supervisor.value')
+    );
+
+    [
+      activityName,
+      activityType,
+      customerName,
+      customerCode,
+      customerAddress,
+      `${startTime} - ${endTime}`,
+      createdBy,
+      supervisor,
+      status,
+      lastUpdatedOn,
+      checkInTimes,
+    ].forEach((value, i) => {
+      worksheet
+        .cell(`${alphabetsArray[i]}${columnIndex}`)
+        .value(value);
+    });
+
+    index++;
+  });
 
   if (index === 0) {
     workbook

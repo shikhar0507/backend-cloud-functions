@@ -15,7 +15,7 @@ const {
 } = require('../../admin/responses');
 const momentTz = require('moment-timezone');
 
-const validateRequestBody = (requestBody) => {
+const validateRequestBody = requestBody => {
   const result = {
     isValid: true,
     message: null
@@ -32,12 +32,12 @@ const validateRequestBody = (requestBody) => {
     result.message = `Field: 'office' should be a non-empty string`;
   }
 
-  const names = new Set(['footprints', 'payroll', 'payroll master']);
+  // const names = new Set(['footprints', 'payroll', 'payroll master']);
 
-  if (!names.has(requestBody.report)) {
-    result.isValid = false;
-    result.message = `Report: '${requestBody.report}' is not a valid report name`;
-  }
+  // if (!names.has(requestBody.report)) {
+  //   result.isValid = false;
+  //   result.message = `Report: '${requestBody.report}' is not a valid report name`;
+  // }
 
   if (!isNonEmptyString(requestBody.report)) {
     result.isValid = false;

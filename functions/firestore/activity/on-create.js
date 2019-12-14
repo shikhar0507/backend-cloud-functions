@@ -343,11 +343,12 @@ const getCustomerObject = async ({
 
 const getRoleObject = subscriptionDoc => {
   if (subscriptionDoc) {
-    return subscriptionDoc.get('roleObject');
+    return subscriptionDoc.get('roleObject') || null;
   }
 
   return null;
 };
+
 
 const createDocsWithBatch = async (conn, locals) => {
   const batch = db.batch();
@@ -366,22 +367,15 @@ const createDocsWithBatch = async (conn, locals) => {
   } = momentTz().tz(timezone).toObject();
 
   conn.req.body.share.forEach(phoneNumber => {
-    let addToInclude = true;
-    const isRequester = phoneNumber === conn.requester.phoneNumber;
-
+    const addToInclude = true;
     canEditMap[phoneNumber] = null;
 
-    if (conn.req.body.template === 'subscription' && isRequester) {
-      addToInclude = false;
-    }
-
-    const ref = activityRef
+    batch.set(
+      activityRef
       .collection(subcollectionNames.ASSIGNEES)
-      .doc(phoneNumber);
-
-    batch.set(ref, {
-      addToInclude
-    });
+      .doc(phoneNumber), {
+        addToInclude
+      });
   });
 
   const addendumDocRef = rootCollections
@@ -396,6 +390,8 @@ const createDocsWithBatch = async (conn, locals) => {
     schedule: conn.req.body.schedule,
     attachment: conn.req.body.attachment,
     report: locals.templateDoc.get('report') || null,
+    /** Activities are not created with CANCELLED status */
+    isCancelled: false,
   };
 
   if (conn.req.body.template === 'customer') {
@@ -405,7 +401,7 @@ const createDocsWithBatch = async (conn, locals) => {
 
     const placesQueryResult = await getCustomerObject({
       address,
-      location: conn.req.body.attachment.Name.value
+      location: conn.req.body.attachment.Name.value,
     });
 
     activityData = placesQueryResult;
@@ -427,8 +423,7 @@ const createDocsWithBatch = async (conn, locals) => {
       .where('attachment.Name.value', '==', activityData.attachment.Name.value)
       .limit(1)
       .get()
-    )
-    .docs;
+    ).docs;
 
     if (probablyExistingCustomer) {
       return sendResponse(
@@ -441,10 +436,8 @@ const createDocsWithBatch = async (conn, locals) => {
   }
 
   if (activityData.schedule.length > 0) {
-    activityData
-      .relevantTime = getRelevantTime(activityData.schedule);
-    activityData
-      .scheduleDates = getScheduleDates(activityData.schedule);
+    activityData.relevantTime = getRelevantTime(activityData.schedule);
+    activityData.scheduleDates = getScheduleDates(activityData.schedule);
   }
 
   // The field `Location` should exist.
@@ -516,7 +509,7 @@ const createDocsWithBatch = async (conn, locals) => {
     isSupportRequest: conn.requester.isSupportRequest,
     geopointAccuracy: conn.req.body.geopoint.accuracy || null,
     provider: conn.req.body.geopoint.provider || null,
-    userRole: getRoleObject(locals.subscriptionDoc) || null,
+    roleDoc: getRoleObject(locals.subscriptionDoc),
   };
 
   if (conn.req.body.template === 'check-in' &&
@@ -533,8 +526,15 @@ const createDocsWithBatch = async (conn, locals) => {
     addendumDocObject.lastTimestamp = locals.subscriptionDoc.get('lastTimestamp');
   }
 
-  batch.set(addendumDocRef, addendumDocObject);
-  batch.set(activityRef, activityData);
+  batch.set(
+    addendumDocRef,
+    addendumDocObject
+  );
+
+  batch.set(
+    activityRef,
+    activityData
+  );
 
   /** For base64 images, upload the json file to bucket */
   if (conn.isBase64 && conn.base64Field) {
@@ -566,15 +566,18 @@ const createDocsWithBatch = async (conn, locals) => {
     return sendResponse(conn, code.created);
   }
 
-  /** ENDS the response. */
   await batch.commit();
 
+  /** ENDS the response. */
   return sendResponse(conn, code.created);
 };
 
 const handleLeaveOrOnDuty = async (conn, locals) => {
-  const startTime = conn.req.body.schedule[0].startTime;
-  const endTime = conn.req.body.schedule[0].endTime;
+  const [firstSchedule] = conn.req.body.schedule;
+  const {
+    startTime,
+    endTime
+  } = firstSchedule;
   const startTimeMoment = momentTz(startTime);
   const endTimeMoment = momentTz(endTime);
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
@@ -691,9 +694,12 @@ const handlePayroll = async (conn, locals) => {
         endTime,
       } = doc.get('schedule')[0];
 
-      const start = momentTz(startTime).startOf('day').valueOf();
-      const end = momentTz(endTime).endOf('day').valueOf();
-      locals.leavesTakenThisYear += momentTz(end).diff(start, 'days');
+      locals.leavesTakenThisYear += momentTz(
+        momentTz(endTime).endOf('day').valueOf()
+      ).diff(
+        momentTz(startTime).startOf('day').valueOf(),
+        'days'
+      );
     });
 
   if (locals.leavesTakenThisYear > locals.maxLeavesAllowed) {
@@ -745,9 +751,7 @@ const handleAssignees = async (conn, locals) => {
    * user hasn't selected the `x-type` while creating `x` activity,
    * then don't allow activity creation.
    */
-  if (key &&
-    typeActivity.has(conn.req.body.template) &&
-    conn.req.body.attachment[key].value === '') {
+  if (key && typeActivity.has(conn.req.body.template) && conn.req.body.attachment[key].value === '') {
     const [typeActivityDoc] = (
       await rootCollections
       .activities
@@ -1100,6 +1104,18 @@ const createLocals = async (conn, [subscriptionQueryResult, templateQueryResult,
   const [subscriptionDoc] = subscriptionQueryResult.docs;
   const [templateDoc] = templateQueryResult.docs;
   const [officeDoc] = officeQueryResult.docs;
+
+  /**
+   * Office doc should not exist if the template is office
+   * because if that office with a name should exist uniquely.
+   */
+  if (officeDoc && conn.req.body.template === 'office') {
+    return sendResponse(
+      conn,
+      code.conflict,
+      `Office name '${conn.req.body.office}' is already in use`
+    );
+  }
 
   const v = validatePermissions({
     officeDoc,

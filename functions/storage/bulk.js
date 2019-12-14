@@ -228,7 +228,6 @@ const generateExcel = async locals => {
         locals.officeDoc.get('attachment.Second Contact.value'),
         locals.phoneNumber,
       ].filter(Boolean);
-
     }
 
     return [locals.phoneNumber];
@@ -239,31 +238,23 @@ const generateExcel = async locals => {
   /** Default sheet */
   workbook.deleteSheet('Sheet1');
 
-  const orderedFields = getOrderedFields(locals.templateDoc);
-
-  orderedFields.push('rejected', 'reason');
+  const orderedFields = ['rejected', 'reason'].push(...getOrderedFields(locals.templateDoc));
 
   orderedFields.forEach((value, index) => {
-    sheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(value);
+    sheet.cell(`${alphabetsArray[index]}1`).value(value);
   });
 
   locals.inputObjects.forEach((object, outerIndex) => {
-    orderedFields
-      .forEach((field, innerIndex) => {
-        const cell = `${alphabetsArray[innerIndex]}` +
-          `${outerIndex + 2}`;
-        let value = object[field] || '';
+    orderedFields.forEach((field, innerIndex) => {
+      const cell = `${alphabetsArray[innerIndex]} ${outerIndex + 2}`;
+      let value = object[field] || '';
 
-        if (field === 'rejected' && !value) {
-          value = 'false';
-        }
+      if (field === 'rejected' && !value) {
+        value = 'false';
+      }
 
-        sheet
-          .cell(cell)
-          .value(`${value}`);
-      });
+      sheet.cell(cell).value(`${value}`);
+    });
   });
 
   const excelFileBase64 = await workbook.outputAsync('base64');
@@ -292,8 +283,7 @@ const generateExcel = async locals => {
     authFetch.push(p);
   });
 
-  const userRecords = await Promise
-    .all(authFetch);
+  const userRecords = await Promise.all(authFetch);
 
   const messageObject = {
     to: [],
@@ -301,13 +291,11 @@ const generateExcel = async locals => {
       name: 'Growthfile',
       email: env.systemEmail,
     },
-    // While creating an office, 'office' will be undefined
-    subject: `Bulk Creation Results: ${template}-${office || ''}`,
+    subject: `Bulk Creation Results: ${template}-${office}`,
     html: `<p>Please find attached bulk creation results:</p>
     <p>for ${template} by ${locals.phoneNumber} (${locals.displayName})</p>`,
     attachments: [{
-      fileName: `Bulk Create Report_` +
-        `${locals.officeDoc.get('office') || ''}.xlsx`,
+      fileName: `Bulk Create Report_${office}.xlsx`,
       content: excelFileBase64,
       type: 'text/csv',
       disposition: 'attachment',
@@ -315,130 +303,77 @@ const generateExcel = async locals => {
   };
 
   if (locals.trialRun === 'true') {
-    messageObject
-      .subject = `[trial run] ${messageObject.subject}`;
+    messageObject.subject = `[trial run] ${messageObject.subject}`;
   }
 
-  userRecords
-    .forEach(userRecord => {
-      if (!userRecord.uid ||
-        !userRecord.email ||
-        !userRecord.emailVerified ||
-        userRecord.disabled) {
-        return;
-      }
+  userRecords.forEach(userRecord => {
+    if (!userRecord.uid ||
+      !userRecord.email ||
+      !userRecord.emailVerified ||
+      userRecord.disabled) {
+      return;
+    }
 
-      messageObject
-        .to
-        .push({
-          email: userRecord.email,
-          name: userRecord.displayName,
-        });
+    messageObject.to.push({
+      email: userRecord.email,
+      name: userRecord.displayName,
     });
+  });
 
   console.log('Mail sent to:', messageObject.to);
 
-  return sgMail
-    .sendMultiple(messageObject);
+  return sgMail.sendMultiple(messageObject);
 };
 
-const isOnLeave = async params => {
-  const {
-    // startTime,
-    // endTime,
-    // timezone,
-    // officeId,
-    phoneNumber,
-  } = params;
-
+const isOnLeave = async ({
+  startTime,
+  endTime,
+  officeId,
+  phoneNumber,
+}) => {
   const leaveDates = [];
-  // const allMonthYears = new Set();
-  // const startTimeMoment = momentTz(startTime)
-  //   .tz(timezone)
-  //   .startOf('day');
-  // const endTimeMoment = momentTz(endTime)
-  //   .tz(timezone)
-  //   .endOf('day');
+  const rangeStart = momentTz(startTime).startOf('date');
+  const rangeEnd = momentTz(endTime).endOf('date');
+  const iterator = rangeStart.clone();
+  const attendancePromises = [];
 
-  // allMonthYears
-  //   .add(startTimeMoment.format(dateFormats.MONTH_YEAR));
+  while (iterator.isSameOrBefore(rangeEnd)) {
+    attendancePromises.push(
+      rootCollections
+      .profiles
+      .doc(phoneNumber)
+      .collection('Activities')
+      .where('officeId', '==', officeId)
+      .where('scheduleDates', '==', iterator.format(dateFormats.DATE))
+      .where('template', '==', 'leave')
+      .where('creator.phoneNumber', '==', phoneNumber)
+      .get()
+    );
 
-  // while (startTimeMoment.add(1, 'day').diff(endTimeMoment) <= 0) {
-  //   const formatted = startTimeMoment.format(dateFormats.MONTH_YEAR);
+    iterator.add(1, 'day');
+  }
 
-  //   allMonthYears
-  //     .add(formatted);
-  // }
+  const attendanceActivitySnaps = await Promise.all(attendancePromises);
 
-  // const promises = [];
+  attendanceActivitySnaps.forEach(snap => {
+    // could be leave/ar
+    snap.forEach(attendanceActivity => {
+      const {
+        status,
+        scheduleDates,
+      } = attendanceActivity.data();
 
-  // allMonthYears
-  //   .forEach(monthYearString => {
-  //     const promise = rootCollections
-  //       .offices
-  //       .doc(officeId)
-  //       .collection('Statuses')
-  //       .doc(monthYearString)
-  //       .collection('Employees')
-  //       .doc(phoneNumber)
-  //       .get();
+      if (status === 'CANCELLED') {
+        return;
+      }
 
-  //     promises
-  //       .push(promise);
-  //   });
+      leaveDates.push(...scheduleDates);
+    });
+  });
 
-  // const docs = await Promise
-  //   .all(promises);
-
-  // docs.forEach(doc => {
-  //   if (!doc.exists) {
-  //     return;
-  //   }
-
-  //   const statusObject = doc.get('statusObject') || {};
-  //   const month = doc.get('month');
-  //   const year = doc.get('year');
-
-  //   Object
-  //     .keys(statusObject)
-  //     .forEach(date => {
-  //       const item = statusObject[date];
-
-  //       if (!item.onLeave) {
-  //         return;
-  //       }
-
-  //       const dateMoment = momentTz()
-  //         .tz(timezone)
-  //         .date(Number(date))
-  //         .month(month)
-  //         .year(year);
-  //       const start = momentTz(startTime)
-  //         .tz(timezone)
-  //         .startOf('day');
-  //       const end = momentTz(endTime)
-  //         .tz(timezone)
-  //         .endOf('day');
-  //       const isBefore = dateMoment.isSameOrAfter(start);
-  //       const isAfter = dateMoment.isSameOrBefore(end);
-  //       const isBetween = isBefore && isAfter;
-
-  //       const formatted = dateMoment
-  //         .format(dateFormats.DATE);
-
-  //       if (!isBetween) {
-  //         return;
-  //       }
-
-  //       leaveDates
-  //         .push(formatted);
-  //     });
-  // });
-
-  // return { phoneNumber, leaveDates };
   return {
     phoneNumber,
-    leaveDates
+    leaveDates: Array.from(new Set(leaveDates)),
   };
 };
 
@@ -469,14 +404,13 @@ const getCanEditValue = (locals, phoneNumber, requestersPhoneNumber) => {
 const executeSequentially = batchFactories => {
   let result = Promise.resolve();
 
-  batchFactories
-    .forEach((promiseFactory, index) => {
-      result = result
-        .then(promiseFactory)
-        .then(() => console.log(
-          `Commited ${index + 1} of ${batchFactories.length}`
-        ));
-    });
+  batchFactories.forEach((promiseFactory, index) => {
+    result = result
+      .then(promiseFactory)
+      .then(() => console.log(
+        `Commited ${index + 1} of ${batchFactories.length}`
+      ));
+  });
 
   return result;
 };
@@ -498,12 +432,7 @@ const getVenueFieldsSet = templateDoc => {
     return new Set();
   }
 
-  return new Set()
-    .add('venueDescriptor')
-    .add('location')
-    .add('address')
-    .add('latitude')
-    .add('longitude');
+  return new Set(['venueDescriptor', 'location', 'address', 'latitude', 'longitude']);
 };
 
 
@@ -554,16 +483,14 @@ const createObjects = async (locals, trialRun) => {
   const isOfficeTemplate = locals.templateDoc.get('name') === templateNamesObject.OFFICE;
   const attachmentFieldsSet = new Set(Object.keys(locals.templateDoc.get('attachment')));
   const scheduleFieldsSet = new Set(locals.templateDoc.get('schedule'));
-  const venueFieldsSet = getVenueFieldsSet(locals.templateDoc)
-    .add('placeId');
+  const venueFieldsSet = getVenueFieldsSet(locals.templateDoc).add('placeId');
 
   locals.inputObjects.forEach((item, index) => {
     /**
      * Items are rejected/skipped if a conflict with the state of DB and
      * the request body exists,
      */
-    if (item.rejected ||
-      item.skipped) {
+    if (item.rejected || item.skipped) {
 
       return;
     }
@@ -572,8 +499,7 @@ const createObjects = async (locals, trialRun) => {
       const batchPart = db.batch();
 
       if (batchesArray.length === 0) {
-        batchesArray
-          .push(batchPart);
+        batchesArray.push(batchPart);
       }
 
       if (batchDocsCount > 450) {
@@ -582,15 +508,14 @@ const createObjects = async (locals, trialRun) => {
         batchesArray.push(batchPart);
 
         currentBatchIndex++;
-        batchFactories
-          .push(() => batchPart.commit());
+        batchFactories.push(() => batchPart.commit());
       }
 
       return batchesArray[currentBatchIndex];
     })();
 
     const activityRef = rootCollections.activities.doc();
-    console.log('id', activityRef.id);
+
     const officeRef = (() => {
       if (locals.templateDoc.get('name') === templateNamesObject.OFFICE) {
         return rootCollections.offices.doc(activityRef.id);
@@ -609,10 +534,8 @@ const createObjects = async (locals, trialRun) => {
       phoneNumber: locals.phoneNumber,
     };
 
-    if (locals.templateDoc.get('name') ===
-      templateNamesObject.DUTY) {
-      params
-        .customerName = item.Location;
+    if (locals.templateDoc.get('name') === templateNamesObject.DUTY) {
+      params.customerName = item.Location;
     }
 
     const officeId = (() => {
@@ -620,29 +543,21 @@ const createObjects = async (locals, trialRun) => {
         return officeRef.id;
       }
 
-      return locals
-        .officeDoc
-        .id;
+      return locals.officeDoc.id;
     })();
     const office = (() => {
       if (isOfficeTemplate) {
         return item.Name;
       }
 
-      return locals
-        .officeDoc
-        .get('attachment.Name.value');
+      return locals.officeDoc.get('attachment.Name.value');
     })();
     const timezone = (() => {
-      if (locals.templateDoc.get('name') ===
-        templateNamesObject.OFFICE) {
-        return item
-          .Timezone;
+      if (locals.templateDoc.get('name') === templateNamesObject.OFFICE) {
+        return item.Timezone;
       }
 
-      return locals
-        .officeDoc
-        .get('attachment.Timezone.value');
+      return locals.officeDoc.get('attachment.Timezone.value');
     })();
 
     const activityObject = {
@@ -672,114 +587,109 @@ const createObjects = async (locals, trialRun) => {
      * small. This **WILL NOT** matter for a few hundred entries. But, for a
      * large excel file, this needs to be optimimzed.
      */
-    if (locals.templateDoc.get('name') ===
-      templateNamesObject.DUTY) {
-      []
-      .concat(locals.inputObjects[index].Include)
+    if (locals.templateDoc.get('name') === templateNamesObject.DUTY) {
+      [].concat(locals.inputObjects[index].Include)
         .concat(locals.inputObjects[index].Supervisor)
         .forEach(phoneNumber => {
-          activityObject
-            .checkIns = activityObject.checkIns || {};
-          activityObject
-            .checkIns[phoneNumber] = [];
+          activityObject.checkIns = activityObject.checkIns || {};
+          activityObject.checkIns[phoneNumber] = [];
         });
     }
 
     const objectFields = Object.keys(item);
     let scheduleCount = 0;
 
-    objectFields
-      .forEach(field => {
-        const value = item[field];
-        const isFromAttachment = attachmentFieldsSet.has(field);
-        const isFromSchedule = scheduleFieldsSet.has(field);
-        const isFromVenue = venueFieldsSet.has(field);
+    objectFields.forEach(field => {
+      const value = item[field];
+      const isFromAttachment = attachmentFieldsSet.has(field);
+      const isFromSchedule = scheduleFieldsSet.has(field);
+      const isFromVenue = venueFieldsSet.has(field);
 
-        if (isFromAttachment) {
-          activityObject.attachment[field] = {
-            value,
-            type: locals.templateDoc.get(`attachment.${field}.type`),
+      if (isFromAttachment) {
+        activityObject.attachment[field] = {
+          value,
+          type: locals.templateDoc.get(`attachment.${field}.type`),
+        };
+
+        return;
+      }
+
+      if (isFromSchedule) {
+        const [startTime, endTime] = (value || '').split(',');
+
+        const scheduleObject = {
+          name: locals
+            .templateDoc
+            .get('schedule')[scheduleCount],
+          startTime: '',
+          endTime: '',
+        };
+
+        if (startTime) {
+          scheduleObject
+            .startTime = momentTz(new Date(startTime))
+            .subtract(5.5, 'hours')
+            .valueOf();
+          scheduleObject
+            .endTime = scheduleObject.startTime;
+        }
+
+        if (endTime) {
+          scheduleObject
+            .endTime = momentTz(new Date(endTime || startTime))
+            .subtract(5.5, 'hours')
+            .valueOf();
+        }
+
+        activityObject
+          .schedule
+          .push(scheduleObject);
+
+        scheduleCount++;
+
+        return;
+      }
+
+      if (isFromVenue) {
+        activityObject
+          .venue[0] = activityObject.venue[0] || {
+            venueDescriptor: locals.templateDoc.get('venue')[0],
+            geopoint: {},
           };
 
-          return;
-        }
-
-        if (isFromSchedule) {
-          const [startTime, endTime] = (value || '').split(',');
-
-          const scheduleObject = {
-            name: locals
-              .templateDoc
-              .get('schedule')[scheduleCount],
-            startTime: '',
-            endTime: '',
-          };
-
-          if (startTime) {
-            scheduleObject
-              .startTime = momentTz(new Date(startTime))
-              .subtract(5.5, 'hours')
-              .valueOf();
-            scheduleObject
-              .endTime = scheduleObject.startTime;
-          }
-
-          if (endTime) {
-            scheduleObject
-              .endTime = momentTz(new Date(endTime || startTime))
-              .subtract(5.5, 'hours')
-              .valueOf();
-          }
-
+        if (field === 'placeId') {
           activityObject
-            .schedule
-            .push(scheduleObject);
-
-          scheduleCount++;
-
-          return;
+            .venue[0]
+            .placeId = value;
         }
 
-        if (isFromVenue) {
+        if (field === 'location') {
           activityObject
-            .venue[0] = activityObject.venue[0] || {
-              venueDescriptor: locals.templateDoc.get('venue')[0],
-              geopoint: {},
-            };
-
-          if (field === 'placeId') {
-            activityObject
-              .venue[0]
-              .placeId = value;
-          }
-
-          if (field === 'location') {
-            activityObject
-              .venue[0]
-              .location = value;
-          }
-
-          if (field === 'latitude') {
-            activityObject
-              .venue[0]
-              .geopoint
-              .latitude = value;
-          }
-
-          if (field === 'longitude') {
-            activityObject
-              .venue[0]
-              .geopoint
-              .longitude = value;
-          }
-
-          if (field === 'address') {
-            activityObject
-              .venue[0]
-              .address = value;
-          }
+            .venue[0]
+            .location = value;
         }
-      });
+
+        if (field === 'latitude') {
+          activityObject
+            .venue[0]
+            .geopoint
+            .latitude = value;
+        }
+
+        if (field === 'longitude') {
+          activityObject
+            .venue[0]
+            .geopoint
+            .longitude = value;
+        }
+
+        if (field === 'address') {
+          activityObject
+            .venue[0]
+            .address = value;
+        }
+      }
+    });
 
     if (activityObject.venue[0] &&
       activityObject.venue[0].geopoint.latitude &&
@@ -794,23 +704,7 @@ const createObjects = async (locals, trialRun) => {
         .venue[0].geopoint
       );
 
-      activityObject
-        .adjustedGeopoints = `${adjusted.latitude},${adjusted.longitude}`;
-    }
-
-    const relevantTime = getRelevantTime(activityObject.schedule);
-
-    if (activityObject.schedule.length > 0) {
-      activityObject
-        .relevantTime = relevantTime;
-    }
-
-    if (activityObject.attachment.Location &&
-      activityObject.attachment.Location.value &&
-      activityObject.relevantTime) {
-      activityObject
-        .relevantTimeAndVenue = `${activityObject.attachment.Location.value}` +
-        ` ${activityObject.relevantTime}`;
+      activityObject.adjustedGeopoints = `${adjusted.latitude},${adjusted.longitude}`;
     }
 
     const addendumObject = {
@@ -832,46 +726,35 @@ const createObjects = async (locals, trialRun) => {
 
     // Not all templates will have type phoneNumber in attachment.
     if (locals.assigneesFromAttachment.has(index)) {
-      locals
-        .assigneesFromAttachment
-        .get(index)
-        .forEach(phoneNumber => {
-          locals
-            .inputObjects[index]
-            .share
-            .push(phoneNumber);
-        });
+      locals.assigneesFromAttachment.get(index).forEach(phoneNumber => {
+        locals.inputObjects[index].share.push(phoneNumber);
+      });
     }
 
-    locals.inputObjects[index]
-      .share
-      .forEach(phoneNumber => {
-        const ref = activityRef
-          .collection('Assignees')
-          .doc(phoneNumber.trim());
-        const addToInclude = locals.templateDoc.get('name') ===
-          templateNamesObject.SUBSCRIPTION &&
-          phoneNumber !==
-          activityObject.attachment['Phone Number'].value;
+    locals.inputObjects[index].share.forEach(phoneNumber => {
+      const addToInclude = locals.templateDoc.get('name') ===
+        templateNamesObject.SUBSCRIPTION &&
+        phoneNumber !==
+        activityObject.attachment['Phone Number'].value;
 
-        const canEdit = getCanEditValue(
-          locals,
-          phoneNumber,
-          locals.phoneNumber
-        );
+      const canEdit = getCanEditValue(
+        locals,
+        phoneNumber,
+        locals.phoneNumber
+      );
 
-        batch
-          .set(ref, {
-            canEdit,
-            addToInclude,
-          });
-      });
+      batch.set(
+        activityRef
+        .collection('Assignees')
+        .doc(phoneNumber), {
+          canEdit,
+          addToInclude,
+        });
+    });
 
     // 1 activity doc, and 2 addendum object
-    batch
-      .set(activityRef, activityObject);
-    batch
-      .set(addendumDocRef, addendumObject);
+    batch.set(activityRef, activityObject);
+    batch.set(addendumDocRef, addendumObject);
 
     // One doc for activity
     // Second for addendum
@@ -887,8 +770,6 @@ const createObjects = async (locals, trialRun) => {
     data: locals.inputObjects,
   };
 
-  await generateExcel(locals);
-
   /** For testing out code */
   if (trialRun === 'true') {
     console.log('skipping create. trial run enabled');
@@ -897,6 +778,7 @@ const createObjects = async (locals, trialRun) => {
   }
 
   await commitData(batchesArray, batchFactories);
+  await generateExcel(locals);
 
   return responseObject;
 };
@@ -904,8 +786,7 @@ const createObjects = async (locals, trialRun) => {
 const fetchDataForCanEditRule = async locals => {
   const rule = locals.templateDoc.get('canEditRule');
 
-  if (rule !== 'ADMIN' &&
-    rule !== 'EMPLOYEE') {
+  if (rule !== 'ADMIN' && rule !== 'EMPLOYEE') {
     return;
   }
 
@@ -922,64 +803,47 @@ const fetchDataForCanEditRule = async locals => {
   docs.forEach(doc => {
     const phoneNumber = doc.get('attachment.Employee Contact.value') ||
       doc.get('attachment.Phone Number.value');
-    set
-      .add(phoneNumber);
+    set.add(phoneNumber);
   });
 
   return;
 };
 
-const handleEmployees = async locals => {
+const handleRole = async locals => {
   const promises = [];
 
-  if (locals.templateDoc.get('name') !==
-    templateNamesObject.EMPLOYEE) {
+  if (locals.templateDoc.get('name') !== templateNamesObject.EMPLOYEE) {
     return;
   }
 
-  locals
-    .employeesToCheck
-    .forEach(item => {
-      const promise = rootCollections
-        .activities
-        .where('officeId', '==', locals.officeDoc.id)
-        .where('template', '==', templateNamesObject.EMPLOYEE)
-        .where('attachment.Employee Contact.value', '==', item.phoneNumber)
-        .where('attachment.Name.value', '==', item.name)
-        // The `statusOnCreate` is most probably `CONFIRMED` in most cases.
-        .where('status', '==', locals.templateDoc.get('statusOnCreate'))
-        .limit(1)
-        .get();
-
-      promises
-        .push(promise);
-    });
+  locals.employeesToCheck.forEach(item => {
+    promises.push(
+      rootCollections
+      .activities
+      .where('officeId', '==', locals.officeDoc.id)
+      .where('template', '==', templateNamesObject.EMPLOYEE)
+      .where('attachment.Phone Number.value', '==', item.phoneNumber)
+      // .where('attachment.Name.value', '==', item.name)
+      // The `statusOnCreate` is most probably `CONFIRMED` in most cases.
+      .where('status', '==', locals.templateDoc.get('statusOnCreate'))
+      .limit(1)
+      .get()
+    );
+  });
 
   const phoneNumbersToRejectSet = new Set();
 
-  const [
-    employeesData,
-    snapShots,
-  ] = await Promise
-    .all([
-      getEmployeesMapFromRealtimeDb(locals.officeDoc.id),
-      Promise
-      .all(promises)
-    ]);
+  const snapShots = await Promise.all(promises);
 
-  snapShots
-    .forEach(snapShot => {
-      if (snapShot.empty) {
-        return;
-      }
+  snapShots.forEach(snapShot => {
+    if (snapShot.empty) {
+      return;
+    }
 
-      /** Doc exists, employee already exists */
-      const doc = snapShot.docs[0];
-      const phoneNumber = doc.get('attachment.Phone Number.value');
-
-      phoneNumbersToRejectSet
-        .add(phoneNumber);
-    });
+    /** Doc exists, employee already exists */
+    const [doc] = snapShot.docs;
+    phoneNumbersToRejectSet.add(doc.get('attachment.Phone Number.value'));
+  });
 
   locals.inputObjects.forEach((item, index) => {
     const phoneNumber = item['Phone Number'];
@@ -991,39 +855,25 @@ const handleEmployees = async locals => {
 
       return;
     }
-
-    if (employeesData[phoneNumber]) {
-      locals.inputObjects[index].rejected = true;
-      locals.inputObjects[index].reason = `Phone number:` +
-        ` ${phoneNumber} is already` +
-        ` in use by ${employeesData[phoneNumber].Name}`;
-    }
   });
 
   return;
 };
 
 const handleUniqueness = async locals => {
-  const hasName = locals
-    .templateDoc
-    .get('attachment')
-    .hasOwnProperty('Name');
-  const hasNumber = locals
-    .templateDoc
-    .get('attachment')
-    .hasOwnProperty('Number');
+  const hasName = !!locals.templateDoc.get('attachment.Name');
+  const hasNumber = !!locals.templateDoc.get('attachment.Number');
 
-  if (!hasName &&
-    !hasNumber) {
+  if (!hasName && !hasNumber) {
     return;
   }
 
   const promises = [];
   let index = 0;
   const indexMap = new Map();
+
   const baseQuery = (() => {
-    if (locals.templateDoc.get('name') ===
-      templateNamesObject.OFFICE) {
+    if (locals.templateDoc.get('name') === templateNamesObject.OFFICE) {
       return rootCollections.offices;
     }
 
@@ -1044,24 +894,23 @@ const handleUniqueness = async locals => {
 
   locals.inputObjects.forEach(item => {
     // Not querying anything for already rejected objects
-    if (item.rejected) return;
+    if (item.rejected) {
+      return;
+    }
 
-    indexMap
-      .set(item.Name || item.Number, index);
+    indexMap.set(item.Name || item.Number, index);
 
     index++;
 
-    const promise = baseQuery
+    promises.push(
+      baseQuery
       .where(`attachment.${param}.value`, '==', item.Name || item.Number)
       .limit(1)
-      .get();
-
-    promises
-      .push(promise);
+      .get()
+    );
   });
 
-  const snapShots = await Promise
-    .all(promises);
+  const snapShots = await Promise.all(promises);
 
   snapShots.forEach(snapShot => {
     // Empty means that the entity with the name/number doesn't exist.
@@ -1069,20 +918,15 @@ const handleUniqueness = async locals => {
       return;
     }
 
-    const doc = snapShot.docs[0];
-    const nameOrNumber = doc.get('attachment.Name.value') ||
-      doc.get('attachment.Number.value');
+    const [doc] = snapShot.docs;
+    const nameOrNumber = doc.get('attachment.Name.value') || doc.get('attachment.Number.value');
     const index_1 = indexMap.get(nameOrNumber);
-    const value = locals.inputObjects[index_1].Name ||
-      locals.inputObjects[index_1].Number;
+    const value = locals.inputObjects[index_1].Name || locals.inputObjects[index_1].Number;
     locals.inputObjects[index_1].rejected = true;
-    locals.inputObjects[index_1].reason =
-      `${param} '${value}' is already in use`;
+    locals.inputObjects[index_1].reason = `${param} '${value}' is already in use`;
 
-    if (locals.templateDoc.get('office') ===
-      templateNamesObject.OFFICE) {
-      locals.inputObjects[index_1].reason =
-        `Office: '${value} already exists'`;
+    if (locals.templateDoc.get('office') === templateNamesObject.OFFICE) {
+      locals.inputObjects[index_1].reason = `Office: '${value} already exists'`;
     }
   });
 
@@ -1090,84 +934,76 @@ const handleUniqueness = async locals => {
 };
 
 const handleSubscriptions = async locals => {
-  if (locals.templateDoc.get('name') !==
-    templateNamesObject.SUBSCRIPTION) {
+  if (locals.templateDoc.get('name') !== templateNamesObject.SUBSCRIPTION) {
     return;
   }
 
   const promises = [];
 
-  locals
-    .subscriptionsToCheck
-    .forEach(item => {
-      const {
-        phoneNumber,
-        template
-      } = item;
+  locals.subscriptionsToCheck.forEach(item => {
+    const {
+      phoneNumber,
+      template
+    } = item;
 
-      const promise = rootCollections
-        .activities
-        .where('officeId', '==', locals.officeDoc.id)
-        .where('template', '==', templateNamesObject.SUBSCRIPTION)
-        .where('attachment.Phone Number.value', '==', phoneNumber)
-        .where('attachment.Template.value', '==', template)
-        .limit(1)
-        .get();
-
-      promises
-        .push(promise);
-    });
+    promises.push(
+      rootCollections
+      .activities
+      .where('officeId', '==', locals.officeDoc.id)
+      .where('template', '==', templateNamesObject.SUBSCRIPTION)
+      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('attachment.Template.value', '==', template)
+      .limit(1)
+      .get()
+    );
+  });
 
   const batch = db.batch();
 
-  const snapShots = await Promise
-    .all(promises);
+  const snapShots = await Promise.all(promises);
 
-  snapShots
-    .forEach((snapShot, index) => {
-      if (snapShot.empty) {
-        // The user doesn't have the subscription
-        // Creation is allowed.
-        return;
-      }
+  snapShots.forEach((snapShot, index) => {
+    if (snapShot.empty) {
+      // The user doesn't have the subscription
+      // Creation is allowed.
+      return;
+    }
 
-      const doc = snapShot.docs[0];
-      const phoneNumber = doc.get('attachment.Phone Number.value');
-      const template = doc.get('attachment.Template.value');
-      const status = doc.get('status');
+    const [doc] = snapShot.docs;
+    const phoneNumber = doc.get('attachment.Phone Number.value');
+    const template = doc.get('attachment.Template.value');
+    const status = doc.get('status');
 
-      if (status === 'CONFIRMED') {
-        locals.inputObjects[index].rejected = true;
-        locals.inputObjects[index].reason =
-          `${phoneNumber} already has subscription of '${template}'`;
+    if (status === 'CONFIRMED') {
+      locals.inputObjects[index].rejected = true;
+      locals.inputObjects[index].reason =
+        `${phoneNumber} already has subscription of '${template}'`;
 
-        return;
-      }
+      return;
+    }
 
-      /**
-       * This user has a `CANCELLED` subscription of the
-       * template. Instead of creating another subcription
-       * with the same template, we are simply `CONFIRMI`-ing
-       * the old doc to avoid unnecessary duplicates
-       */
-      locals.inputObjects[index].skipped = true;
+    /**
+     * This user has a `CANCELLED` subscription of the
+     * template. Instead of creating another subcription
+     * with the same template, we are simply `CONFIRM`-ing
+     * the old doc to avoid unnecessary duplicates
+     */
+    locals.inputObjects[index].skipped = true;
 
-      batch
-        .set(doc.ref, {
-          addendumDocRef: null,
-          status: 'CONFIRMED',
-          timestamp: Date.now(),
-        }, {
-          merge: true,
-        });
+    batch.set(doc.ref, {
+      addendumDocRef: null,
+      status: 'CONFIRMED',
+      timestamp: Date.now(),
+    }, {
+      merge: true,
     });
+  });
 
   if (locals.trialRun === 'true') {
     return;
   }
 
-  return batch
-    .commit();
+  return batch.commit();
 };
 
 const handleAdmins = async locals => {
@@ -1791,7 +1627,7 @@ const validateDataArray = async locals => {
   await handleSubscriptions(locals);
   await handleUniqueness(locals);
   await fetchDataForCanEditRule(locals);
-  await handleEmployees(locals);
+  await handleRole(locals);
 
   return createObjects(locals, trialRun);
 };
@@ -2183,7 +2019,6 @@ const handleDuty = async locals => {
         leavePromises
           .push(
             isOnLeave({
-              timezone,
               phoneNumber,
               startTime: momentStartTimeFromSchedule.valueOf(),
               endTime: momentEndTimeFromSchedule.valueOf(),
@@ -2379,6 +2214,27 @@ const handleDuty = async locals => {
   return;
 };
 
+const getWorkbook = buffer => {
+  const workbook = XLSX.read(buffer, {
+    type: 'buffer'
+  });
+
+  const [sheet1] = workbook.SheetNames;
+  const theSheet = workbook.Sheets[sheet1];
+
+  const inputObjects = XLSX.utils.sheet_to_json(theSheet, {
+    // empty rows are redundant
+    blankrows: false,
+    defval: '',
+    raw: false,
+  });
+
+  return inputObjects;
+};
+
+const removeNonPrintChars = str => str.replace(/\s\s+/g, ' ').trim();
+
+
 const bulkCreateOnFinalize = async object => {
   const [officeId, template] = object.name.split('/');
   const bucket = admin.storage().bucket(object.bucket);
@@ -2399,19 +2255,7 @@ const bulkCreateOnFinalize = async object => {
     return;
   }
 
-  const workbook = XLSX.read(buffer, {
-    type: 'buffer'
-  });
-  const [sheet1] = workbook.SheetNames;
-  const theSheet = workbook.Sheets[sheet1];
-  const inputObjects = XLSX
-    .utils
-    .sheet_to_json(theSheet, {
-      // empty rows are redundant
-      blankrows: false,
-      defval: '',
-      raw: false,
-    });
+  const inputObjects = getWorkbook(buffer);
 
   const promises = [
     rootCollections
@@ -2488,24 +2332,33 @@ const bulkCreateOnFinalize = async object => {
       templatesCollectionQuery.forEach(doc => locals.templateNamesSet.add(doc.get('name')));
     }
 
-    attachmentFieldsSet
-      .forEach(fieldName => {
-        if (locals.inputObjects[index].hasOwnProperty(fieldName)) {
-          if (typeof locals.inputObjects[index][fieldName] === 'string') {
-            // Replacing tab and newline chars from input
-            locals
-              .inputObjects[index][fieldName] = locals.inputObjects[index][fieldName].replace(/\s\s+/g, ' ').trim();
-          }
-
-          return;
+    attachmentFieldsSet.forEach(fieldName => {
+      if (locals.inputObjects[index].hasOwnProperty(fieldName)) {
+        if (typeof locals.inputObjects[index][fieldName] === 'string') {
+          // Replacing tab and newline chars from input
+          locals.inputObjects[index][fieldName] = removeNonPrintChars(
+            locals.inputObjects[index][fieldName]
+          );
         }
 
-        /**
-         * Field doesn't exist in the object, create one because
-         * the client side excel file might not contain all the fields
-         */
-        locals.inputObjects[index][fieldName] = '';
-      });
+        return;
+      }
+
+      const {
+        type
+      } = locals.templateDoc.get(`attachment.${fieldName}.type`) || {};
+
+      // for type boolean, if not set => set default as false;
+      if (type === 'boolean' && !locals.inputObjects[index][fieldName]) {
+        locals.inputObjects[index][fieldName] = false;
+      }
+
+      /**
+       * Field doesn't exist in the object, create one because
+       * the client side excel file might not contain all the fields
+       */
+      locals.inputObjects[index][fieldName] = '';
+    });
   });
 
   await handleCustomer(locals);

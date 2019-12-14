@@ -362,9 +362,9 @@ const isNonEmptyString = (str) =>
  * @param {Object} date Javascript Date object.
  * @returns {boolean} Whether the number is a *valid* Unix timestamp.
  */
-const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
+const isValidDate = date => !isNaN(new Date(parseInt(date)));
 
-const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
+const isValidEmail = email => /\S+@\S+\.\S+/.test(email);
 
 /**
  * Verifies a phone number based on the E.164 standard.
@@ -373,7 +373,7 @@ const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
  * @returns {boolean} If the string is a *valid* __E.164__ phone number.
  * @see https://en.wikipedia.org/wiki/E.164
  */
-const isE164PhoneNumber = (phoneNumber) => {
+const isE164PhoneNumber = phoneNumber => {
   if (typeof phoneNumber !== 'string' ||
     phoneNumber.trim() !== phoneNumber ||
     phoneNumber.length < 5 ||
@@ -1298,110 +1298,6 @@ const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
   });
 };
 
-const addEmployeeToRealtimeDb = async doc => {
-  const admin = require('firebase-admin');
-  const realtimeDb = admin.database();
-  const phoneNumber = doc.get('attachment.Phone Number.value');
-  const officeId = doc.get('officeId');
-  const ref = realtimeDb.ref(`${officeId}/employee/${phoneNumber}`);
-  const status = doc.get('status');
-
-  const getEmployeeDataObject = (options = {}) => {
-    if (status === 'CANCELLED') {
-      return null;
-    }
-
-    const attachment = doc.get('attachment');
-    const result = Object.assign({}, options, {
-      createTime: doc.createTime.toDate().getTime(),
-      updateTime: doc.updateTime.toDate().getTime(),
-    });
-
-    Object
-      .keys(attachment)
-      .forEach(item => {
-        const {
-          value
-        } = attachment[item];
-
-        result[item] = value;
-      });
-
-    return result;
-  };
-
-  try {
-    const updatesQueryResult = await rootCollections
-      .updates
-      .where('phoneNumber', '==', phoneNumber)
-      .limit(1)
-      .get();
-
-    const options = {
-      hasInstalled: !updatesQueryResult.empty,
-    };
-
-    const baseLocation = doc.get('attachment.Base Location.value');
-    const timezone = doc.get('timezone') || 'Asia/Kolkata';
-
-    if (baseLocation) {
-      const baseLocationQueryResult = await rootCollections
-        .activities
-        .where('office', '==', doc.get('office'))
-        .where('template', '==', 'branch')
-        .where('attachment.Name.value', '==', baseLocation)
-        .limit(1)
-        .get();
-
-      if (!baseLocationQueryResult.empty) {
-        const baseLocationDoc = baseLocationQueryResult.docs[0];
-        const schedule = baseLocationDoc.get('schedule');
-        const branchHolidays = {};
-
-        schedule.forEach(object => {
-          const {
-            startTime
-          } = object;
-
-          if (!startTime) return;
-
-          const formattedDate = momentTz(startTime)
-            .tz(timezone)
-            .format(dateFormats.DATE);
-
-          branchHolidays[formattedDate] = true;
-        });
-
-        options['Weekly Off'] = baseLocationDoc.get('attachment.Weekly Off.value');
-
-        options.branchHolidays = branchHolidays;
-      }
-    }
-
-    const leaves = await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
-      .where('template', '==', 'leave')
-      .where('isCancelled', '==', false)
-      .where('creator.phoneNumber', '==', phoneNumber)
-      .where('creationYear', '==', momentTz().tz(timezone).year())
-      .get();
-
-    leaves.forEach(doc => {
-      const leaveType = doc.get('attachment.Leave Type.value') || 'unset';
-
-      options.leaves = options.leaves || {};
-      options.leaves[leaveType] = options.leaves[leaveType] || 0;
-      options.leaves[leaveType]++;
-    });
-
-    return ref.set(getEmployeeDataObject(options));
-  } catch (error) {
-    console.error(error);
-  }
-};
-
 const getEmployeesMapFromRealtimeDb = officeId => {
   const realtimeDb = admin.database();
   const path = `${officeId}/employee`;
@@ -1870,7 +1766,6 @@ module.exports = {
   millitaryToHourMinutes,
   handleDailyStatusReport,
   hasManageTemplateClaims,
-  addEmployeeToRealtimeDb,
   getEmployeeFromRealtimeDb,
   enumerateDaysBetweenDates,
   getDefaultAttendanceObject,
