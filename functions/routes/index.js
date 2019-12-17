@@ -117,6 +117,12 @@ module.exports = (req) => {
     case `trackMail`:
       func = require('../webhooks/sendgrid');
       break;
+    case `services/office`:
+      func = require('../services/office');
+      break;
+    case 'services/search':
+      func = require('../services/search');
+      break;
     default:
       func = null;
   }

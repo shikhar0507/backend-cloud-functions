@@ -208,37 +208,16 @@ const addressToCustomer = async queryObject => {
 
 
 const generateExcel = async locals => {
-  const workbook = await xlsxPopulate.fromBlankAsync();
-  const {
-    name: template
-  } = locals.templateDoc.data();
-
-  const office = (() => {
-    if (locals.officeDoc) {
-      return locals.officeDoc.get('office');
-    }
-
-    return '';
-  })();
-
-  const recipients = (() => {
-    if (locals.officeDoc) {
-      return [
-        locals.officeDoc.get('attachment.First Contact.value'),
-        locals.officeDoc.get('attachment.Second Contact.value'),
-        locals.phoneNumber,
-      ].filter(Boolean);
-    }
-
-    return [locals.phoneNumber];
-  })();
-
-  const sheet = workbook.addSheet(`${template}`);
+  const wb = await xlsxPopulate.fromBlankAsync();
+  const template = locals.templateDoc.get('name');
+  const office = locals.officeDoc.get('office');
+  const sheet = wb.addSheet(`${template}`);
 
   /** Default sheet */
-  workbook.deleteSheet('Sheet1');
+  wb.deleteSheet('Sheet1');
 
-  const orderedFields = ['rejected', 'reason'].push(...getOrderedFields(locals.templateDoc));
+  const orderedFields = getOrderedFields(locals.templateDoc);
+  orderedFields.push('rejected', 'reason');
 
   orderedFields.forEach((value, index) => {
     sheet.cell(`${alphabetsArray[index]}1`).value(value);
@@ -246,7 +225,8 @@ const generateExcel = async locals => {
 
   locals.inputObjects.forEach((object, outerIndex) => {
     orderedFields.forEach((field, innerIndex) => {
-      const cell = `${alphabetsArray[innerIndex]} ${outerIndex + 2}`;
+      const cell = `${alphabetsArray[innerIndex]}` +
+        `${outerIndex + 2}`;
       let value = object[field] || '';
 
       if (field === 'rejected' && !value) {
@@ -257,14 +237,15 @@ const generateExcel = async locals => {
     });
   });
 
-  const excelFileBase64 = await workbook.outputAsync('base64');
+  const excelFileBase64 = await wb.outputAsync('base64');
   const storageFilePathParts = locals.object.name.split('/');
   const fileName = storageFilePathParts[storageFilePathParts.length - 1];
-  const bucket = admin.storage().bucket(locals.object.bucket);
+  const bucket = admin
+    .storage()
+    .bucket(locals.object.bucket);
   const filePath = `/tmp/${fileName}`;
 
-  await workbook.toFileAsync(filePath);
-
+  await wb.toFileAsync(filePath);
   await bucket.upload(filePath, {
     destination: locals.storageFilePath,
     metadata: {
@@ -275,12 +256,16 @@ const generateExcel = async locals => {
     },
   });
 
+  const recipients = [
+    locals.officeDoc.get('attachment.First Contact.value'),
+    locals.officeDoc.get('attachment.Second Contact.value'),
+    locals.phoneNumber,
+  ].filter(Boolean);
+
   const authFetch = [];
 
   new Set(recipients).forEach(phoneNumber => {
-    const p = getAuth(phoneNumber);
-
-    authFetch.push(p);
+    authFetch.push(getAuth(phoneNumber));
   });
 
   const userRecords = await Promise.all(authFetch);
@@ -291,11 +276,13 @@ const generateExcel = async locals => {
       name: 'Growthfile',
       email: env.systemEmail,
     },
-    subject: `Bulk Creation Results: ${template}-${office}`,
+    // While creating an office, 'office' will be undefined
+    subject: `Bulk Creation Results: ${template}-${office || ''}`,
     html: `<p>Please find attached bulk creation results:</p>
     <p>for ${template} by ${locals.phoneNumber} (${locals.displayName})</p>`,
     attachments: [{
-      fileName: `Bulk Create Report_${office}.xlsx`,
+      fileName: `Bulk Create Report_` +
+        `${locals.officeDoc.get('office') || ''}.xlsx`,
       content: excelFileBase64,
       type: 'text/csv',
       disposition: 'attachment',

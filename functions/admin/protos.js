@@ -23,16 +23,26 @@ const validateSchedules = scheduleArray => {
       name
     } = schedule;
 
-    if (!startTime ||
-      !endTime ||
-      !name ||
-      typeof startTime !== 'number' ||
-      typeof endTime !== 'number' ||
-      !isNonEmptyString(name)) {
-      result.success = false;
+    if (typeof startTime === 'undefined' ||
+      typeof endTime === 'undefined') {
       result
         .message
         .push(`Invalid Schedule at index: ${index}`);
+
+      return;
+    }
+
+    if ((startTime && typeof startTime !== 'number') ||
+      (endTime && typeof endTime !== 'number')) {
+      result
+        .message
+        .push(`Invalid Schedule at index: ${index}`);
+    }
+
+    if (!isNonEmptyString(name)) {
+      result
+        .message
+        .push(`Invalid Schedule name at index: ${index}`);
     }
 
     if (startTime > endTime) {
@@ -89,7 +99,7 @@ class Activity {
   /**
    * @param {string} timezone
    */
-  set setTimezone(timezone) {
+  set timezone(timezone) {
     if (!isValidTimezone(timezone)) {
       throw new Error(`Invalid timezone: '${timezone}'`);
     }
@@ -100,14 +110,14 @@ class Activity {
   /**
    * @param {string} displayName
    */
-  set setActivityName(displayName) {
+  set activityName(displayName) {
     this.activityName = `${this.template}: ${displayName}`;
   }
 
   /**
    * @param {string} status
    */
-  set setStatus(status) {
+  set status(status) {
     if (!isValidStatus(status)) {
       throw new Error(`Invalid status: ${status}`);
     }
@@ -118,7 +128,7 @@ class Activity {
   /**
    * @param {string} canEditRule
    */
-  set setCanEditRule(canEditRule) {
+  set canEditRule(canEditRule) {
     if (!isValidCanEditRule(canEditRule)) {
       throw new Error('Invalid canEditRule');
     }
@@ -129,7 +139,7 @@ class Activity {
   /**
    * @param {string} office
    */
-  set setOffice(office) {
+  set office(office) {
     if (!isNonEmptyString(office)) {
       throw new Error('Office name cannot be empty string');
     }
@@ -140,7 +150,7 @@ class Activity {
   /**
    * @param {string} officeId
    */
-  set setOfficeId(officeId) {
+  set officeId(officeId) {
     if (!isNonEmptyString(officeId)) {
       throw new Error('OfficeId should be a non-empty string');
     }
@@ -151,7 +161,7 @@ class Activity {
   /**
    * @param {number} number
    */
-  set setHidden(number) {
+  set hidden(number) {
     if (typeof number !== 'number' || ![0, 1].includes(number)) {
       throw new Error(
         'The value should be a number and can only have the values 0 or 1'
@@ -164,13 +174,14 @@ class Activity {
   /**
    * @param {{ displayName: string; phoneNumber: string; photoURL: string; }} creator
    */
-  set setCreator(creator) {
+  set creator(creator) {
     if (typeof creator !== 'object') {
       throw new Error(
         `The 'creator' should be an object with the following
         ` + ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
       );
     }
+
     const {
       displayName,
       phoneNumber,
@@ -201,7 +212,7 @@ class Activity {
   /**
    * @param {Array} schedule
    */
-  set setSchedule(schedule) {
+  set schedule(schedule) {
     const result = validateSchedules(schedule);
     if (!result.success) {
       throw new Error(result.message);
@@ -213,7 +224,7 @@ class Activity {
   /**
    * @param {Array} venue
    */
-  set setVenue(venue) {
+  set venue(venue) {
     const result = validateVenues(venue);
 
     if (!result.success) {
@@ -224,7 +235,7 @@ class Activity {
   }
 
   toObject() {
-    return this;
+    return Object.assign({}, this);
   }
 }
 
@@ -240,32 +251,49 @@ class Creator {
   }
 
   toObject() {
-    return {
-      phoneNumber: this.phoneNumber,
-      displayName: this.displayName,
-      photoURL: this.photoURL,
-    };
+    return Object.assign({}, this);
   }
 }
 
 class Attachment {
   constructor(object, attachmentTemplate) {
-    Object
-      .entries(attachmentTemplate)
-      .forEach(value => {
-        const [field, child] = value;
+    let countOfPhoneNumberFields = 0;
+    let countOfPhoneNumbersFound = 0;
 
-        object[field] = object[field] || {};
+    Object.entries(attachmentTemplate).forEach(value => {
+      const [field, child] = value;
+      object[field] = object[field] || '';
 
-        this[field] = {
-          value: object[field].value || '',
-          type: child.type,
-        };
-      });
+      // Name or Number cannot be empty
+      if ((field === 'Name' || field === 'Number') && !value) {
+        throw new Error('Name cannot be empty');
+      }
+
+      if (child.type === 'phoneNumber') {
+        countOfPhoneNumberFields++;
+
+        if (object[field]) {
+          countOfPhoneNumbersFound++;
+        }
+      }
+
+      this[field] = {
+        value: object[field],
+        type: child.type,
+      };
+    });
+
+    /**
+     * If activity attachment has type `phoneNumber`, all of the fields
+     * with phoneNumber cannot be empty strings
+     */
+    if (countOfPhoneNumberFields > 0 && countOfPhoneNumbersFound === 0) {
+      throw new Error(`All fields with type 'phoneNumber' cannot be empty`);
+    }
   }
 
   toObject() {
-    return this;
+    return Object.assign({}, this);
   }
 }
 
