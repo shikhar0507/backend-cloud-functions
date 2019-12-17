@@ -52,11 +52,6 @@ const instantOnCreate = functions
   .document('Instant/{docId}')
   .onCreate(require('./firestore/instant/index'));
 
-const generateOfficeNamePermutations = functions
-  .firestore
-  .document('Offices/{officeId}')
-  .onCreate(require('./firestore/offices/background/on-create'));
-
 const profileOnWrite = functions
   .firestore
   .document('Profiles/{phoneNumber}')
@@ -116,5 +111,4 @@ module.exports = {
   recipientsOnUpdate,
   temporaryImageHandler,
   activityTemplatesOnUpdate,
-  generateOfficeNamePermutations,
 };

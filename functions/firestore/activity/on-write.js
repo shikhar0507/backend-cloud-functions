@@ -2466,8 +2466,6 @@ const handleAddendum = async locals => {
     addendumDoc
   });
 
-  console.log('locals.roleObject', locals.roleObject);
-
   return handleComments(addendumDoc, locals);
 };
 
@@ -2618,37 +2616,68 @@ const handleScheduledActivities = async locals => {
     timezone
   } = locals.change.after.data();
   const momentNow = momentTz().tz(timezone);
-  const dateStringToday = momentNow.format(dateFormats.DATE);
   const {
     phoneNumber,
     displayName
   } = locals.change.after.get('creator');
+
+  // const [
+  //   todaysActivities,
+  //   yesterdayActivities,
+  //   tomorrowActivities,
+  // ] = await Promise.all([
+  //   rootCollections
+  //   .profiles
+  //   .doc(phoneNumber)
+  //   .collection(subcollectionNames.ACTIVITIES)
+  //   .where('officeId', '==', officeId)
+  //   .where('scheduleDates', 'array-contains', dateStringToday)
+  //   .get(),
+  //   rootCollections
+  //   .profiles
+  //   .doc(phoneNumber)
+  //   .collection(subcollectionNames.ACTIVITIES)
+  //   .where('officeId', '==', officeId)
+  //   .where('scheduleDates', 'array-contains', momentNow.clone().subtract(1, 'day').format(dateFormats.DATE))
+  //   .get(),
+  //   rootCollections
+  //   .profiles
+  //   .doc(phoneNumber)
+  //   .collection(subcollectionNames.ACTIVITIES)
+  //   .where('officeId', '==', officeId)
+  //   .where('scheduleDates', 'array-contains', momentNow.clone().add(1, 'day').format(dateFormats.DATE))
+  //   .get(),
+  // ]);
+
+  // const scheduledActivities = [].concat(
+  //   ...todaysActivities.docs,
+  //   ...yesterdayActivities.docs,
+  //   ...tomorrowActivities.docs
+  // );
 
   const scheduledActivities = await rootCollections
     .profiles
     .doc(phoneNumber)
     .collection(subcollectionNames.ACTIVITIES)
     .where('officeId', '==', officeId)
-    .where('scheduleDates', 'array-contains', dateStringToday)
+    .where('scheduleDates', 'array-contains', momentNow.format(dateFormats.DATE))
     .get();
+
+  console.log('in handleScheduledActivities', phoneNumber, scheduledActivities.size);
 
   const activityIds = new Set();
 
   scheduledActivities.forEach(doc => {
     const {
-      id: activityId
+      id: activityId,
     } = doc;
-    const location = doc.get('attachment.Location.value');
+    const {
+      value: location
+    } = doc.get('attachment.Location');
 
     if (!location) {
       return;
     }
-
-    // const gp2 = locals.addendumDocData.location;
-    // const gp1 = {
-    //   _latitude: doc.get('customerObject.latitude'),
-    //   _longitude: doc.get('customerObject.longitude'),
-    // };
 
     const hd = haversineDistance({
         _latitude: doc.get('customerObject.latitude'),
@@ -2656,6 +2685,8 @@ const handleScheduledActivities = async locals => {
       },
       locals.addendumDocData.location
     );
+
+    console.log('haversineDistance', hd);
 
     if (hd > 1) {
       return;
@@ -2830,7 +2861,8 @@ const reimburseClaim = async locals => {
     uid = (await getAuth(locals.addendumDocData.user)).uid;
   }
 
-  const [reimsToday] = await rootCollections
+  const [reimsToday] = (
+    await rootCollections
     .offices
     .doc(officeId)
     .collection(subcollectionNames.REIMBURSEMENTS)
@@ -2840,7 +2872,8 @@ const reimburseClaim = async locals => {
     .where('phoneNumber', '==', phoneNumber)
     .where('claimId', '==', activityId)
     .limit(1)
-    .get();
+    .get()
+  ).docs;
 
   const roleData = getRoleReportData(
     locals.roleObject,
@@ -3025,18 +3058,27 @@ const reimburseDailyAllowance = async locals => {
       return;
     }
 
-    const momentStart = momentTz().hours(startHours).minutes(startMinutes);
-    const momentEnd = momentTz().hours(endHours).minutes(endMinutes);
+    const momentStart = momentNow.clone().hours(startHours).minutes(startMinutes);
+    const momentEnd = momentNow.clone().hours(endHours).minutes(endMinutes);
+    const includeStartAndEndTime = '[]';
+    const isInRange = momentNow.isBetween(momentStart, momentEnd, 'minutes', includeStartAndEndTime);
+
+    console.log({
+      isInRange,
+      attachmentName,
+      startHours,
+      startMinutes,
+      endHours,
+      endMinutes,
+      momentStart: momentStart.format(dateFormats.DATE_TIME),
+      momentEnd: momentEnd.format(dateFormats.DATE_TIME),
+      momentNow: momentNow.format(dateFormats.DATE_TIME),
+    });
 
     /** Is not in the time range */
-    if (momentNow.isBefore(momentStart) ||
-      momentNow.isAfter(momentEnd)) {
+    if (!isInRange) {
       return;
     }
-
-    // if (!momentNow.isBetween(momentStart, momentEnd)) {
-    //   return;
-    // }
 
     if (existingDailyAllowances.has(attachmentName)) {
       return;
@@ -4156,6 +4198,17 @@ const handleWorkday = async locals => {
   return newBackfill(locals);
 };
 
+const getPermutations = officeName => {
+  const nameCombinations = new Set();
+  const lowerCaseName = officeName.toLowerCase();
+
+  [' ', '.', ',', '-', '&', '(', ')'].forEach(character => {
+    lowerCaseName.split(character).forEach(part => nameCombinations.add(part));
+  });
+
+  return [...nameCombinations].filter(Boolean);
+};
+
 const getSubcollectionActivityObject = ({
   activityObject,
   customerObject
@@ -4166,7 +4219,9 @@ const getSubcollectionActivityObject = ({
   } = activityObject.data();
 
   const creationTimestamp = activityObject.createTime.toDate().getTime();
-  const momentOfCreation = momentTz(creationTimestamp).tz(activityObject.get('timezone') || 'Asia/Kolkata');
+  const momentOfCreation = momentTz(creationTimestamp).tz(
+    activityObject.get('timezone') || 'Asia/Kolkata'
+  );
 
   const intermediate = Object.assign({}, activityObject.data(), {
     creationTimestamp,
@@ -4180,6 +4235,7 @@ const getSubcollectionActivityObject = ({
 
   if (template === 'office') {
     intermediate.slug = slugify(activityObject.get('attachment.Name.value'));
+    intermediate.searchables = getPermutations(activityObject.get('attachment.Name.value'));
   }
 
   if (customerObject) {
