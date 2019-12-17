@@ -2,7 +2,7 @@
 
 
 const {
-  rootCollections
+  rootCollections,
 } = require('../../admin/admin');
 const {
   getNumbersbetween,
@@ -173,6 +173,7 @@ const getTotalDays = params => {
 
 const rangeCallback = params => {
   const {
+    designation,
     allLeaveTypes,
     timezone,
     payrollSheet,
@@ -211,8 +212,6 @@ const rangeCallback = params => {
   const hasAttendanceProperty = attendance[
     date
   ].hasOwnProperty('attendance');
-
-  // console.log(phoneNumber, JSON.stringify(attendance[date], ' ', 2));
 
   attendance[
     date
@@ -305,6 +304,7 @@ const rangeCallback = params => {
     baseLocation,
     region,
     department,
+    designation,
     momentInstance.date(date).format(dateFormats.DATE), // actual date
     getEmployeeCreationDate(activationDate, momentInstance.clone(), timezone), // activation date
     getTypeValue(attendance[date]),
@@ -339,6 +339,7 @@ const getRoleDetails = doc => {
     baseLocation,
     region,
     department,
+    designation,
   } = doc.data();
 
   if (roleDoc) {
@@ -348,6 +349,7 @@ const getRoleDetails = doc => {
       baseLocation: roleDoc.attachment['Base Location'].value,
       region: roleDoc.attachment.Region.value,
       department: roleDoc.attachment.Department.value,
+      designation: roleDoc.attachment.Designation.value,
     };
   }
 
@@ -357,6 +359,7 @@ const getRoleDetails = doc => {
     baseLocation,
     region,
     department,
+    designation,
   };
 };
 
@@ -393,7 +396,7 @@ module.exports = async locals => {
   const {
     workbookRef,
     payrollSummary,
-    payrollSheet
+    payrollSheet,
   } = await getWorkbook(momentToday.format(dateFormats.DATE));
 
   const allCountsData = {
@@ -469,9 +472,7 @@ module.exports = async locals => {
     } = doc.data();
 
     employeeData.set(phoneNumber, getRoleDetails(doc));
-
     docsMap[`${phoneNumber}__${month}`] = doc;
-
     allPhoneNumbers.add(phoneNumber);
   });
 
@@ -487,14 +488,17 @@ module.exports = async locals => {
       baseLocation,
       region,
       department,
+      designation,
     } = employeeData.get(phoneNumber);
 
     firstRange.forEach(date => {
       rowIndex++;
+
       const key = `${phoneNumber}__${prevMonth}`;
       const attDoc = docsMap[key];
 
       const params = {
+        designation,
         allLeaveTypes,
         timezone,
         payrollSheet,
@@ -530,6 +534,7 @@ module.exports = async locals => {
       const attDoc = docsMap[key];
 
       const params = {
+        designation,
         allLeaveTypes,
         timezone,
         payrollSheet,
@@ -578,6 +583,7 @@ module.exports = async locals => {
       baseLocation,
       region,
       department,
+      designation,
     } = employeeData.get(phoneNumber) || {}; // the user might not be an employee
 
     const values = [
@@ -587,6 +593,7 @@ module.exports = async locals => {
       baseLocation,
       region,
       department,
+      designation,
       arCountMap.get(phoneNumber) || 0,
       weeklyOffCountMap.get(phoneNumber) || 0,
       holidayCountMap.get(phoneNumber) || 0,
@@ -619,6 +626,7 @@ module.exports = async locals => {
     'Base Location',
     'Region',
     'Department',
+    'Designation',
     'Date',
     'Activation Date',
     'Type',
@@ -641,6 +649,7 @@ module.exports = async locals => {
     'Base Location',
     'Region',
     'Department',
+    'Designation',
     'AR',
     'Weekly Off',
     'Holiday',
