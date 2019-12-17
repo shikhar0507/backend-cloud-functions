@@ -1712,13 +1712,11 @@ const attendanceConflictHandler = async params => {
     schedule,
     phoneNumber,
     office,
-    // officeId,
   } = params;
   const allDateStrings = [];
   const queries = [];
   let conflictingDate = null;
   let conflictingTemplate = null;
-  // const attendancePromises = [];
 
   // runs for leave/ar
   // generate all date strings from start time to end time
@@ -1743,6 +1741,8 @@ const attendanceConflictHandler = async params => {
       .collection(subcollectionNames.ACTIVITIES)
       .where('office', '==', office)
       .where('scheduleDates', 'array-contains', dateString)
+      /** Leave creator is the person for whom the leave should be checked */
+      .where('creator.phoneNumber', '==', phoneNumber)
       .limit(1)
       .get()
     );
