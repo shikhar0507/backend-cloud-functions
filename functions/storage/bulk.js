@@ -19,9 +19,8 @@ const {
   isE164PhoneNumber,
   getBranchName,
   getCustomerName,
-  getRelevantTime,
+  getScheduleDates,
   millitaryToHourMinutes,
-  getEmployeesMapFromRealtimeDb,
 } = require('../admin/utils');
 const {
   weekdays,
@@ -693,6 +692,8 @@ const createObjects = async (locals, trialRun) => {
 
       activityObject.adjustedGeopoints = `${adjusted.latitude},${adjusted.longitude}`;
     }
+
+    activityObject.scheduleDates = getScheduleDates(activityObject.schedule);
 
     const addendumObject = {
       timestamp,

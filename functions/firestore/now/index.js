@@ -14,6 +14,12 @@ const {
   code,
 } = require('../../admin/responses');
 
+const mask = str => {
+  return new Array(str.length - 4 + 1).join('x') +
+    str.slice(-4);
+};
+
+
 
 /**
  * Returns the server timestamp on a `GET` request.
@@ -42,6 +48,7 @@ module.exports = async conn => {
   }
 
   let removeFromOffice = [];
+  const batch = db.batch();
 
   const [
     updatesDoc,
@@ -110,11 +117,9 @@ module.exports = async conn => {
     return Number(usersAppVersion) < Number(latestVersionFromDb);
   })();
 
-  const batch = db.batch();
-
   if (!timerDoc.exists) {
-    batch
-      .set(timerDoc.ref, {
+    batch.set(
+      timerDoc.ref, {
         timestamp: Date.now(),
         // Prevents multiple trigger events for reports.
         sent: false,
@@ -123,23 +128,19 @@ module.exports = async conn => {
       });
   }
 
-  const updatesDocData = updatesDoc.data();
-
-  updatesDocData
-    .lastNowRequestTimestamp = Date.now();
+  const updatesDocData = Object.assign({}, updatesDoc.data(), {
+    lastNowRequestTimestamp: Date.now(),
+    latestDeviceOs: conn.req.query.os || '',
+    latestAppVersion: conn.req.query.appVersion || '',
+    latestDeviceBrand: conn.req.query.deviceBrand || '',
+    latestOsVersion: conn.req.query.osVersion || '',
+    latestDeviceModel: conn.req.query.deviceModel || '',
+    latestDeviceId: conn.req.query.deviceId || '',
+  });
 
   const oldDeviceIdsArray = updatesDoc.get('deviceIdsArray') || [];
-
-  if (conn.req.query.deviceId) {
-    oldDeviceIdsArray
-      .push(conn.req.query.deviceId);
-
-    updatesDocData
-      .latestDeviceId = conn.req.query.deviceId;
-  }
-
-  updatesDocData
-    .deviceIdsArray = [...new Set(oldDeviceIdsArray)];
+  oldDeviceIdsArray.push(conn.req.query.deviceId);
+  updatesDocData.deviceIdsArray = [...new Set(oldDeviceIdsArray)].filter(Boolean);
 
   /** Only logging when changed */
   if (conn.req.query.hasOwnProperty('deviceId') &&
@@ -147,8 +148,7 @@ module.exports = async conn => {
     conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
 
     if (!updatesDocData.deviceIdsObject) {
-      updatesDocData
-        .deviceIdsObject = {};
+      updatesDocData.deviceIdsObject = {};
     }
 
     if (!updatesDocData.deviceIdsObject[conn.req.query.deviceId]) {
@@ -156,8 +156,7 @@ module.exports = async conn => {
         .deviceIdsObject[conn.req.query.deviceId] = {};
     }
 
-    const oldCount =
-      updatesDocData
+    const oldCount = updatesDocData
       .deviceIdsObject[conn.req.query.deviceId]
       .count || 0;
 
@@ -175,23 +174,16 @@ module.exports = async conn => {
       .registrationToken = conn.req.query.registrationToken;
   }
 
-  updatesDocData
-    .latestDeviceOs = conn.req.query.os || '';
-  updatesDocData
-    .latestAppVersion = conn.req.query.appVersion || '';
-
   if (updatesDocData.removeFromOffice) {
     removeFromOffice = updatesDocData.removeFromOffice;
 
     if (typeof conn.req.query.removeFromOffice === 'string') {
-      const index =
-        updatesDocData
+      const index = updatesDocData
         .removeFromOffice
         .indexOf(conn.req.query.removeFromOffice);
 
       if (index > -1) {
-        updatesDocData
-          .removeFromOffice.splice(index, 1);
+        updatesDocData.removeFromOffice.splice(index, 1);
       }
     }
 
@@ -200,39 +192,18 @@ module.exports = async conn => {
         const index = updatesDocData.removeFromOffice.indexOf(name);
 
         if (index > -1) {
-          updatesDocData
-            .removeFromOffice.splice(index, 1);
+          updatesDocData.removeFromOffice.splice(index, 1);
         }
       });
     }
   }
 
-  if (conn.req.query.hasOwnProperty('deviceBrand')) {
-    updatesDocData
-      .latestDeviceBrand = conn.req.query.deviceBrand;
-  }
-
-  if (conn.req.query.hasOwnProperty('deviceModel')) {
-    updatesDocData
-      .latestDeviceModel = conn.req.query.deviceModel;
-  }
-
-  // Delete venues on acknowledgement
-  if (updatesDocData.venues &&
-    conn.req.query.venues === 'true') {
-    const admin = require('firebase-admin');
-
-    updatesDocData.venues = admin.firestore.FieldValue.delete();
-  }
-
   if (updatesDoc.get('lastStatusDocUpdateTimestamp') >
     updatesDoc.get('lastNowRequestTimestamp')) {
-    const ref = rootCollections
+    batch.set(
+      rootCollections
       .profiles
-      .doc(conn.requester.phoneNumber);
-
-    batch
-      .set(ref, {
+      .doc(conn.requester.phoneNumber), {
         // lastStatuseUpdateTimestamp: Date.now(),
         lastStatusDocUpdateTimestamp: Date.now(),
       }, {
@@ -242,22 +213,19 @@ module.exports = async conn => {
 
   if (updatesDoc.get('lastLocationMapUpdateTimestamp') >
     updatesDoc.get('lastNowRequestTimestamp')) {
-    const ref = rootCollections
+    batch.set(
+      rootCollections
       .profiles
-      .doc(conn.requester.phoneNumber);
-
-    console.log('/now lastLocationMapUpdateTimestamp');
-
-    batch
-      .set(ref, {
+      .doc(conn.requester.phoneNumber), {
         lastLocationMapUpdateTimestamp: Date.now(),
       }, {
         merge: true,
       });
   }
 
-  batch
-    .set(updatesDoc.ref, updatesDocData, {
+  batch.set(
+    updatesDoc.ref,
+    updatesDocData, {
       merge: true,
     });
 
@@ -271,8 +239,13 @@ module.exports = async conn => {
     code: code.ok,
   };
 
-  if (removeFromOffice &&
-    removeFromOffice.length > 0) {
+  responseObject.linkedAccounts = (updatesDoc.get('linkedAccounts') || []).map(account => {
+    return Object.assign(account, {
+      bankAccount: mask(account.bankAccount),
+    });
+  });
+
+  if (removeFromOffice && removeFromOffice.length > 0) {
     responseObject.removeFromOffice = removeFromOffice;
   }
 

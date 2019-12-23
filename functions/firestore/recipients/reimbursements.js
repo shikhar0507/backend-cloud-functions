@@ -73,22 +73,15 @@ const getReimbursementPromises = ({
   year,
   officeId
 }) => {
-  const result = [];
-
-  dates.forEach(date => {
-    result.push(
-      rootCollections
-      .offices
-      .doc(officeId)
-      .collection(subcollectionNames.REIMBURSEMENTS)
-      .where('date', '==', date)
-      .where('month', '==', month)
-      .where('year', '==', year)
-      .get()
-    );
-  });
-
-  return result;
+  return dates.map(date => rootCollections
+    .offices
+    .doc(officeId)
+    .collection(subcollectionNames.REIMBURSEMENTS)
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .get()
+  );
 };
 
 const getApprovalDetails = ({
@@ -121,7 +114,11 @@ const reimbursementsReport = async locals => {
   const momentPrevMonth = momentYesterday.clone().subtract(1, 'month');
   const firstDayOfReimbursementsCycle = locals.officeDoc.get('attachment.First Day Of Reimbursement Cycle.value') || 1;
   const fetchPreviousMonthDocs = firstDayOfReimbursementsCycle > momentYesterday.date();
+  const detailsMap = new Map();
+  const totalAmountByDate = new Map();
+  let rowCounter = 2;
 
+  // dates in previous month
   const firstRange = (() => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
@@ -132,14 +129,12 @@ const reimbursementsReport = async locals => {
 
     return [];
   })();
+
+  // dates in yesterdays month
   const secondRange = getNumbersbetween(
     (fetchPreviousMonthDocs ? 1 : firstDayOfReimbursementsCycle),
     momentYesterday.clone().date() + 1,
   );
-
-  console.log('firstDayOfReimbursementsCycle', firstDayOfReimbursementsCycle);
-  console.log('firstRange', firstRange);
-  console.log('secondRange', secondRange);
 
   const p1 = getReimbursementPromises({
     dates: firstRange,
@@ -165,11 +160,6 @@ const reimbursementsReport = async locals => {
     summarySheet,
     worksheetRef,
   } = sheetsResult;
-
-  let rowCounter = 2;
-
-  const detailsMap = new Map();
-  const totalAmountByDate = new Map();
 
   reimbursementSnaps.forEach(snap => {
     snap.forEach(doc => {
@@ -226,19 +216,6 @@ const reimbursementsReport = async locals => {
         department,
       });
 
-      // 'Name',
-      // 'Phone Number',
-      // 'Employee Code',
-      // 'Base Location',
-      // 'Region',
-      // 'Department',
-      // 'Date',
-      // 'Reimbursement Type', // claim, daily allowance or km allowance
-      // 'Reimbursement Name', // daily allowance name
-      // 'Approval Details', // claim's status change log
-      // 'Start Location',
-      // 'End Location',
-
       dataSheet.cell(`A${rowCounter}`).value(employeeName);
       dataSheet.cell(`B${rowCounter}`).value(phoneNumber);
       dataSheet.cell(`C${rowCounter}`).value(employeeCode);
@@ -289,14 +266,6 @@ const reimbursementsReport = async locals => {
       region,
       department,
     } = detailsMap.get(phoneNumber) || {};
-    // 'Name',
-    // 'Phone Number',
-    // 'Employee Code',
-    // 'Base Location',
-    // 'Region',
-    // 'Department',
-    // 'Date',
-    // 'Amount'
 
     summarySheet.cell(`A${summarySheetCounter}`).value(employeeName);
     summarySheet.cell(`B${summarySheetCounter}`).value(phoneNumber);
@@ -320,6 +289,8 @@ const reimbursementsReport = async locals => {
     type: 'text/csv',
     disposition: 'attachment',
   });
+
+  console.log('mail sent to', locals.messageObject.to);
 
   return locals.sgMail.sendMultiple(locals.messageObject);
 };

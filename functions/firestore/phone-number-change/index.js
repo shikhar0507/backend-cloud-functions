@@ -129,22 +129,20 @@ module.exports = async conn => {
     .where('status', '==', 'CONFIRMED')
     .where('template', '==', 'employee');
 
-  const promises = [
-    baseQuery
-    .where('attachment.Phone Number.value', '==', conn.req.body.oldPhoneNumber)
-    .limit(1)
-    .get(),
-    baseQuery
-    .where('attachment.Phone Number.value', '==', conn.req.body.newPhoneNumber)
-    .limit(1)
-    .get(),
-  ];
-
   try {
     const [
       oldEmployeeQueryResult,
       newEmployeeQueryResult,
-    ] = await Promise.all(promises);
+    ] = await Promise.all([
+      baseQuery
+      .where('attachment.Phone Number.value', '==', conn.req.body.oldPhoneNumber)
+      .limit(1)
+      .get(),
+      baseQuery
+      .where('attachment.Phone Number.value', '==', conn.req.body.newPhoneNumber)
+      .limit(1)
+      .get(),
+    ]);
 
     if (oldEmployeeQueryResult.empty) {
       return sendResponse(
@@ -164,9 +162,16 @@ module.exports = async conn => {
 
     const [employeeActivity] = oldEmployeeQueryResult.docs;
     const batch = db.batch();
-    batch.set(employeeActivity
-      .ref, {
-        addendumDocRef: null,
+    const officeId = employeeActivity.get('officeId');
+    const addendumDocRef = rootCollections
+      .offices
+      .doc(officeId)
+      .collection('Addendum')
+      .doc();
+
+    batch.set(
+      employeeActivity.ref, {
+        addendumDocRef,
         timestamp: Date.now(),
         attachment: {
           'Phone Number': {
@@ -179,13 +184,9 @@ module.exports = async conn => {
 
     const timezone = employeeActivity.get('timezone') || 'Asia/Kolkata';
     const momentToday = momentTz().tz(timezone);
-    const officeId = employeeActivity.get('officeId');
 
-    batch.set(rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Addendum')
-      .doc(), {
+    batch.set(
+      addendumDocRef, {
         date: momentToday.date(),
         month: momentToday.month(),
         year: momentToday.year(),

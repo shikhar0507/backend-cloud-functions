@@ -98,7 +98,10 @@ const getBearerToken = async () => {
     }
   }
 
+
   const authTokenResponse = await getAutocollectToken();
+
+  console.log('authTokenResponse', authTokenResponse);
 
   await timerDoc
     .ref

@@ -14,23 +14,29 @@ module.exports = async conn => {
       return;
     }
 
-    const batch = db
-      .batch();
+    const batch = db.batch();
 
-    conn
-      .req
-      .body
-      .forEach(object => {
-        batch
-          .set(rootCollections
-            .mailEvents
-            .doc(), Object.assign({}, object, {
-              webhookReceivedAt: Date.now(),
-            }));
-      });
+    conn.req.body.forEach(object => {
+      const {
+        testMail
+      } = object;
 
-    await batch
-      .commit();
+      // Ignore test emails
+      if (testMail) {
+        return;
+      }
+
+      batch.set(
+        rootCollections
+        .mailEvents
+        .doc(),
+        Object.assign({}, object, {
+          webhookReceivedAt: Date.now(),
+        })
+      );
+    });
+
+    await batch.commit();
 
     return {};
   } catch (error) {

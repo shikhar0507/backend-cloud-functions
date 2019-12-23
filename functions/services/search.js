@@ -21,10 +21,10 @@ const searchOffice = async conn => {
   }
 
   const {
-    q,
+    q: placeId,
   } = conn.req.query;
 
-  if (!isNonEmptyString(q)) {
+  if (!isNonEmptyString(placeId)) {
     return sendResponse(
       conn,
       code.badRequest,
@@ -32,19 +32,55 @@ const searchOffice = async conn => {
     );
   }
 
-  const docs = await rootCollections
-    .offices
-    .where('searchables', 'array-contains', q.toLowerCase())
+  const branches = await rootCollections
+    .activities
+    .where('placeId', '==', placeId)
+    .where('template', '==', 'branch')
+    .where('status', '==', 'CONFIRMED')
     .get();
 
-  return sendJSON(conn, docs.docs.map(doc => {
-    return {
-      firstContact: doc.get('attachment.First Contact.value'),
-      secondContact: doc.get('attachment.Second Contact.value'),
-      name: doc.get('attachment.Name.value'),
+  const officeNames = new Set();
+  const officePromises = [];
+
+  branches.forEach(branch => {
+    const {
+      office
+    } = branch.data();
+
+    if (officeNames.has(office)) {
+      return;
+    }
+
+    officePromises.push(
+      rootCollections
+      .offices
+      .where('office', '==', office)
+      .select('status', 'office', 'attachment.Registered Office Address.value')
+      .limit(1)
+      .get()
+    );
+
+    officeNames.add(office);
+  });
+
+  const officeSnaps = await Promise.all(officePromises);
+
+  const results = [];
+  officeSnaps.forEach(snap => {
+    const [doc] = snap.docs;
+
+    if (doc.get('status') === 'CANCELLED') {
+      return;
+    }
+
+    results.push({
       status: doc.get('status'),
-    };
-  }));
+      name: doc.get('office'),
+      registeredOfficeAddress: doc.get('attachment.Registered Office Address.value')
+    });
+  });
+
+  return sendJSON(conn, results);
 };
 
 module.exports = async conn => {

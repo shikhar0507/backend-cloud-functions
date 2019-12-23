@@ -51,8 +51,8 @@ const sgMail = require('@sendgrid/mail');
 const {
   execFile
 } = require('child_process');
-const admin = require('firebase-admin');
 const url = require('url');
+const admin = require('firebase-admin');
 const rpn = require('request-promise-native');
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 const googleMapsClient = require('@google/maps')
@@ -87,6 +87,53 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
   conn.res.end(JSON.stringify(json));
 };
 
+const logApiRejection = async context => {
+  const {
+    phoneNumber,
+    message: responseMessage,
+  } = context;
+  const {
+    date,
+    months: month,
+    years: year
+  } = momentTz().toObject();
+  const message = `API Rejections: ${responseMessage}`;
+
+  const [errorDocToday] = (
+    await rootCollections
+    .errors
+    .where('date', '==', date)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .where('message', '==', message)
+    .limit(1)
+    .get()
+  ).docs;
+
+  const ref = errorDocToday ? errorDocToday.ref : rootCollections
+    .errors
+    .doc();
+  const data = errorDocToday ? errorDocToday.data() : {};
+
+  data.affectedUsers = data.affectedUsers || {};
+  data.affectedUsers[phoneNumber] = data.affectedUsers[phoneNumber] || 0;
+  data.affectedUsers[phoneNumber]++;
+
+  data.bodyObject = data.bodyObject || {};
+  data.bodyObject[phoneNumber] = data.bodyObject[phoneNumber] || [];
+  data.bodyObject[phoneNumber].push(JSON.stringify(context, ' ', 2));
+
+  return ref.set(
+    Object.assign({}, data, {
+      date,
+      month,
+      year,
+      message,
+      timestamp: Date.now(),
+    }), {
+      merge: true
+    });
+};
 
 /**
  * Ends the response of the request after successful completion of the task
@@ -97,23 +144,24 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
  * @param {string} [message] Response message for the request.
  * @returns {void}
  */
-const sendResponse = (conn, statusCode = code.ok, message = '') => {
+const sendResponse = async (conn, statusCode = code.ok, message = '') => {
   conn.res.writeHead(statusCode, conn.headers);
 
   /** 2xx codes denote success. */
   const success = statusCode <= 226;
 
-  if (!success) {
-    console.log(JSON.stringify({
-      ip: conn.req.ip,
-      header: conn.req.headers,
+  if (!success && conn.requester) {
+    await logApiRejection({
+      message,
+      statusCode,
       url: conn.req.url,
       body: conn.req.body,
-      requester: conn.requester,
-    }));
+      ip: conn.req.ip || '',
+      phoneNumber: conn.requester.phoneNumber,
+    });
   }
 
-  conn.res.end(JSON.stringify({
+  return conn.res.end(JSON.stringify({
     message,
     success,
     code: statusCode,
@@ -1043,6 +1091,24 @@ const getEmailStatusMap = () => {
     });
 };
 
+const getEmployeesMapFromRealtimeDb = officeId => {
+  const realtimeDb = admin.database();
+  const path = `${officeId}/employee`;
+  const ref = realtimeDb.ref(path);
+  const employeesData = {};
+
+  return new Promise(resolve => {
+    ref.on('value', (snapShot) => {
+      snapShot.forEach((doc) => {
+        employeesData[doc.key] = doc.toJSON();
+      });
+
+      resolve(employeesData);
+    });
+  });
+};
+
+
 const handleMailEventsReport = async worksheet => {
   const sheet = worksheet.addSheet('Mail Events');
   const momentYesterday = momentTz().subtract(0, 'day');
@@ -1280,39 +1346,6 @@ const getSitemapXmlString = () => {
       return result;
     })
     .catch(console.error);
-};
-
-const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
-  const realtimeDb = admin.database();
-
-  if (!isNonEmptyString(officeId)) {
-    throw new Error(`Invalid 'officeId'. Should be a non-emtpy string:`, officeId);
-  }
-
-  return new Promise((resolve, reject) => {
-    const path = `${officeId}/employee/${phoneNumber}`;
-    const ref = realtimeDb
-      .ref(path);
-
-    ref.on('value', data => resolve(data), error => reject(error));
-  });
-};
-
-const getEmployeesMapFromRealtimeDb = officeId => {
-  const realtimeDb = admin.database();
-  const path = `${officeId}/employee`;
-  const ref = realtimeDb.ref(path);
-  const employeesData = {};
-
-  return new Promise(resolve => {
-    ref.on('value', (snapShot) => {
-      snapShot.forEach((doc) => {
-        employeesData[doc.key] = doc.toJSON();
-      });
-
-      resolve(employeesData);
-    });
-  });
 };
 
 const millitaryToHourMinutes = fourDigitTime => {
@@ -1714,11 +1747,21 @@ const getDistanceFromDistanceMatrix = async (origin, destination) => {
   return distanceData ? distanceData.value / 1000 : 0;
 };
 
+const latLngToTimezone = async geopoint => {
+  return (
+    await googleMapsClient
+    .timezone({
+      location: getLatLngString(geopoint),
+    }).asPromise()
+  ).json.timeZoneId;
+};
+
 
 module.exports = {
   getAuth,
   slugify,
   sendSMS,
+  latLngToTimezone,
   sendJSON,
   isValidUrl,
   getFileHash,
@@ -1766,7 +1809,6 @@ module.exports = {
   millitaryToHourMinutes,
   handleDailyStatusReport,
   hasManageTemplateClaims,
-  getEmployeeFromRealtimeDb,
   enumerateDaysBetweenDates,
   getDefaultAttendanceObject,
   getDistanceFromDistanceMatrix,

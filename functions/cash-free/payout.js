@@ -224,6 +224,7 @@ const removeBeneficiary = async beneId => {
     body: {
       beneId,
     },
+    method: 'POST',
     headers: await getHeaders(),
     json: true,
   });

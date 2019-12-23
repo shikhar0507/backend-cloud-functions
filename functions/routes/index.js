@@ -3,17 +3,17 @@
 const url = require('url');
 
 
-module.exports = (req) => {
+module.exports = req => {
   const parsedUrl = url.parse(req.url);
   let checkSupport = req.query.support === 'true';
   let checkAdmin = false;
-  let checkSuperuser = false;
+  // let checkSuperuser = false;
   let func;
 
   switch (parsedUrl.pathname.replace(/^\/|\/$/g, '')) {
-    case 'read':
-      func = require('../firestore/on-read');
-      break;
+    // case 'read':
+    //   func = require('../firestore/on-read');
+    //   break;
     case 'now':
       func = require('../firestore/now');
       break;
@@ -35,11 +35,6 @@ module.exports = (req) => {
     case 'activities/share':
       func = require('../firestore/activity/on-share');
       break;
-    case 'admin/search':
-      checkAdmin = true;
-      checkSupport = true;
-      func = require('../firestore/offices/search');
-      break;
     case 'admin/bulk':
       checkAdmin = true;
       checkSupport = true;
@@ -54,16 +49,6 @@ module.exports = (req) => {
       checkAdmin = true;
       checkSupport = true;
       func = require('../firestore/employee-resign');
-      break;
-    case 'services/permissions':
-      checkSuperuser = true;
-      func = require('../services/on-permissions');
-      break;
-    case 'services/templates/create':
-      func = require('../firestore/activity-templates/on-create');
-      break;
-    case 'services/templates/update':
-      func = require('../firestore/activity-templates/on-update');
       break;
     case 'services/templates/read':
       func = require('../firestore/activity-templates/on-read');
@@ -105,11 +90,8 @@ module.exports = (req) => {
     case 'changePhoneNumber':
       func = require('../change-phone-number');
       break;
-    case 'salaryAccount/create':
-      func = require('../salary-accounts/on-create');
-      break;
-    case 'salaryAccount/delete':
-      func = require('../salary-accounts/on-delete');
+    case 'services/accounts':
+      func = require('../services/accounts');
       break;
     case 'read1':
       func = require('../firestore/on-read1');
@@ -123,6 +105,12 @@ module.exports = (req) => {
     case 'services/search':
       func = require('../services/search');
       break;
+    case 'services/subscription':
+      func = require('../services/subscription');
+      break;
+    case 'services/checkIns':
+      func = require('../services/checkIns');
+      break;
     default:
       func = null;
   }
@@ -131,6 +119,5 @@ module.exports = (req) => {
     func,
     checkAdmin,
     checkSupport,
-    checkSuperuser,
   };
 };

@@ -37,9 +37,9 @@ const {
   code,
 } = require('../admin/responses');
 
-const getSubject = message => `Error count`
-  + ` >= 10: '${message}':`
-  + ` ${process.env.GCLOUD_PROJECT}`;
+const getSubject = message => `Error count` +
+  ` >= 10: '${message}':` +
+  ` ${process.env.GCLOUD_PROJECT}`;
 
 
 const getValue = (snap, field) => {
@@ -49,8 +49,8 @@ const getValue = (snap, field) => {
 
   return snap
     .docs[0]
-    .get(field)
-    || {};
+    .get(field) ||
+    {};
 };
 
 
@@ -59,8 +59,8 @@ module.exports = async conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed`
-      + ` for ${conn.req.url}. Use 'POST'.`
+      `${conn.req.method} is not allowed` +
+      ` for ${conn.req.url}. Use 'POST'.`
     );
   }
 
@@ -114,9 +114,7 @@ module.exports = async conn => {
         return JSON.stringify(conn.req.body.body);
       })();
 
-      bodyObject[
-        phoneNumber
-      ] = `${data || ''}`;
+      bodyObject[phoneNumber] = `${data || ''}`;
     }
 
     if (!deviceObject[phoneNumber]) {
@@ -146,22 +144,22 @@ module.exports = async conn => {
       timestamp: Date.now(),
     };
 
-    if (conn.req.body.hasOwnProperty('locationError')
-      && typeof conn.req.body.locationError === 'boolean') {
+    if (conn.req.body.hasOwnProperty('locationError') &&
+      typeof conn.req.body.locationError === 'boolean') {
       docData
         .locationError = conn.req.body.locationError;
     }
 
-    if (!errorDocsQueryResult.empty
-      && !errorDocsQueryResult.docs[0].get('emailSent')
-      && Object.keys(affectedUsers).length >= THRESHOLD) {
+    if (!errorDocsQueryResult.empty &&
+      !errorDocsQueryResult.docs[0].get('emailSent') &&
+      Object.keys(affectedUsers).length >= THRESHOLD) {
       batch
         .set(rootCollections
           .instant
           .doc(), {
-          subject: getSubject(message),
-          messageBody: JSON.stringify(docData, ' ', 2),
-        });
+            subject: getSubject(message),
+            messageBody: JSON.stringify(docData, ' ', 2),
+          });
 
       docData
         .emailSent = true;
@@ -194,8 +192,8 @@ module.exports = async conn => {
         .loggedData = docData.loggedData || {};
       docData
         .loggedData[
-        phoneNumber
-      ] = docData.loggedData[phoneNumber] || [];
+          phoneNumber
+        ] = docData.loggedData[phoneNumber] || [];
 
       const object = {
         lastQueryFrom: lastQueryFrom || null,
@@ -210,8 +208,8 @@ module.exports = async conn => {
       if (!latestActivityQuery.empty) {
         object
           .latestActivity = latestActivityQuery
-            .docs[0]
-            .data();
+          .docs[0]
+          .data();
       }
 
       const employeeOf = conn
@@ -233,8 +231,8 @@ module.exports = async conn => {
         if (!latestAddendumQueryResult.empty) {
           object
             .latestAddendumDoc = latestAddendumQueryResult
-              .docs[0]
-              .data();
+            .docs[0]
+            .data();
         }
       }
 
@@ -245,8 +243,8 @@ module.exports = async conn => {
 
     const errorDocRef = !errorDocsQueryResult
       .empty ? errorDocsQueryResult.docs[0].ref : rootCollections
-        .errors
-        .doc();
+      .errors
+      .doc();
 
     console.log('errorDocRef:', errorDocRef);
 

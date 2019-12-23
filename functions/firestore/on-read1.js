@@ -96,15 +96,13 @@ const getAssigneesArray = (arrayOfPhoneNumbers = []) => {
   const result = [];
 
   // For compatilility with older activities
-  arrayOfPhoneNumbers
-    .forEach((phoneNumber) => {
-      result
-        .push({
-          phoneNumber,
-          displayName: '',
-          photoURL: '',
-        });
+  arrayOfPhoneNumbers.forEach(phoneNumber => {
+    result.push({
+      phoneNumber,
+      displayName: '',
+      photoURL: '',
     });
+  });
 
   return result;
 };
@@ -152,8 +150,6 @@ const getCanEditValue = ({
 };
 
 const getActivityObject = (doc, customClaims, employeeOf, phoneNumber) => {
-  // const canEditRule = doc.get('canEditRule');
-
   const result = {
     /**
      * Activity with template -type or customer/branch might
@@ -413,7 +409,24 @@ module.exports = async conn => {
       }
 
       if (type === addendumTypes.SUBSCRIPTION) {
-        jsonObject.templates.push(getSubscriptionObject(doc));
+        const template = doc.get('template');
+        const templateDoc = templatesMap.get(template);
+
+        if (!templateDoc) {
+          return;
+        }
+
+        jsonObject.templates.push(
+          Object.assign({}, getSubscriptionObject(doc), {
+            report: templateDoc.get('report') || null,
+            schedule: templateDoc.get('schedule'),
+            venue: templateDoc.get('venue'),
+            attachment: templateDoc.get('attachment'),
+            canEditRule: templateDoc.get('canEditRule'),
+            hidden: templateDoc.get('hidden'),
+            statusOnCreate: templateDoc.get('statusOnCreate'),
+          })
+        );
 
         return;
       }

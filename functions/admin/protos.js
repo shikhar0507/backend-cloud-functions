@@ -240,6 +240,11 @@ class Activity {
 }
 
 class Creator {
+  /**
+   * @param {String} phoneNumber
+   * @param {String} displayName
+   * @param {String} photoURL
+   */
   constructor(phoneNumber, displayName = '', photoURL = '') {
     if (!isE164PhoneNumber(phoneNumber)) {
       throw new Error(`Invalid phoneNumber ${phoneNumber}`);
@@ -266,7 +271,7 @@ class Attachment {
 
       // Name or Number cannot be empty
       if ((field === 'Name' || field === 'Number') && !value) {
-        throw new Error('Name cannot be empty');
+        throw new Error(`${field} cannot be empty`);
       }
 
       if (child.type === 'phoneNumber') {

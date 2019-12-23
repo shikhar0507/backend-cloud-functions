@@ -89,7 +89,7 @@ const getPlaceIds = async office => {
 };
 
 
-const getPlaceName = async placeid => {
+const getFullBranchActivity = async placeid => {
   const result = await googleMapsClient.place({
       placeid,
       fields: [
@@ -140,7 +140,7 @@ const getPlaceName = async placeid => {
       return item.close && item.close.day === 1;
     });
 
-    if (relevantObject) {
+    if (!relevantObject) {
       return '';
     }
 
@@ -156,14 +156,12 @@ const getPlaceName = async placeid => {
       return '';
     }
 
-    const periods = openingHours.periods;
-
-    const [relevantObject] = periods.filter(item => {
+    const [relevantObject] = openingHours.periods.filter(item => {
       return item.close &&
         item.close.day === 1;
     });
 
-    if (relevantObject) {
+    if (!relevantObject) {
       return '';
     }
 
@@ -183,7 +181,7 @@ const getPlaceName = async placeid => {
       .periods
       .filter(item => item.open && item.open.day === 6);
 
-    if (relevantObject) {
+    if (!relevantObject) {
       return '';
     }
 
@@ -199,11 +197,11 @@ const getPlaceName = async placeid => {
       return '';
     }
 
-    const relevantObject = openingHours
+    const [relevantObject] = openingHours
       .periods
       .filter(item => item.open && item.open.day === 6);
 
-    if (relevantObject) {
+    if (!relevantObject) {
       return '';
     }
 
@@ -254,6 +252,7 @@ const getPlaceName = async placeid => {
   const activityObject = {
     // All assignees from office creation instance
     venue: [branchOffice],
+    placeId: placeid,
     schedule: schedulesArray,
     attachment: {
       Name: {
@@ -315,6 +314,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
 
   const activityData = {
     officeId,
+    placeId: branchData.placeId,
     addendumDocRef,
     template: 'branch',
     status: branchTemplateDoc.get('statusOnCreate'),
@@ -338,6 +338,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
 
   const addendumDocData = {
     activityData,
+    timestamp: Date.now(),
     timezone: locals.change.after.get('timezone'),
     user: locals.change.after.get('creator.phoneNumber'),
     userDisplayName: locals.change.after.get('creator.displayName'),
@@ -407,7 +408,7 @@ const createBranches = async locals => {
       }
 
       ids.forEach(id => {
-        promises.push(getPlaceName(id));
+        promises.push(getFullBranchActivity(id));
       });
 
       return Promise.all(promises);
@@ -753,17 +754,18 @@ const createOfficeVirtualAccount = async locals => {
     emailVerified = secondEmailVerified;
   }
 
-  if (!name ||
-    !email ||
-    !emailVerified) {
+  if (!name || !email || !emailVerified) {
     return;
   }
+
+  const vAccountId = await getVid();
+  console.log('vAccountId', vAccountId);
 
   return createVirtualAccount({
     name,
     phone,
     email,
-    vAccountId: await getVid(),
+    vAccountId,
   });
 };
 

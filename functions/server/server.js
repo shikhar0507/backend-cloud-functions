@@ -217,7 +217,7 @@ const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
 };
 
 
-const reportBackgroundError = (error, logName) => {
+const reportBackgroundError = async (error, logName) => {
   // DOCS: https://firebase.google.com/docs/functions/reporting-errors
   const logging = new Logging();
   const log = logging.log(logName);
@@ -240,7 +240,9 @@ const reportBackgroundError = (error, logName) => {
 
   return new Promise((resolve, reject) => {
     return log.write(log.entry(metadata, errorEvent), error => {
-      if (error) return reject(new Error(error));
+      if (error) {
+        return reject(new Error(error));
+      }
 
       return resolve();
     });
@@ -347,7 +349,7 @@ module.exports = async (req, res) => {
       conn,
       code.notImplemented,
       `${req.method} is not supported for any request.` +
-      ' Please use `GET`, `POST`, `PATCH`, or `PUT`' +
+      `Please use '${allowedMethods}'` +
       ' to make your requests'
     );
   }

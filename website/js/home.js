@@ -442,7 +442,13 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
     if (doc.template === 'employee') {
       return {
         office: document.body.dataset.office,
-        phoneNumber: doc.attachment['Phone Number'].value,
+        phoneNumber: (() => {
+          if (doc.attachment['Phone Number']) {
+            return doc.attachment['Phone Number'].value;
+          }
+
+          return doc.attachment['Employee Contact'].value;
+        })(),
       };
     }
 

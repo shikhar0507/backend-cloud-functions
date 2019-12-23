@@ -1107,9 +1107,6 @@ const haversineDistance = (geopointOne, geopointTwo) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = RADIUS_OF_EARTH * c;
 
-  // We do not care about small values in KM
-  if (distance < 0.5) return 0;
-
   return distance;
 };
 

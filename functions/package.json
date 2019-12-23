@@ -56,7 +56,8 @@
     "request": "^2.88.0",
     "request-promise-native": "^1.0.7",
     "xlsx": "^0.14.3",
-    "xlsx-populate": "^1.19.1"
+    "xlsx-populate": "^1.19.1",
+    "xml2js": "^0.4.23"
   },
   "devDependencies": {
     "eslint": "^5.0.0",
