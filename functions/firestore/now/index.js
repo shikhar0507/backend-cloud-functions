@@ -14,9 +14,39 @@ const {
   code,
 } = require('../../admin/responses');
 
-const mask = str => {
-  return new Array(str.length - 4 + 1).join('x') +
-    str.slice(-4);
+const maskLastDigits = (input, digitsToReplace = 4, charToReplaceWith = 'X') => {
+  return `${new Array(input.length - digitsToReplace + 1).join(charToReplaceWith)}`
+    + `${input.slice(-digitsToReplace)}`;
+};
+
+
+const getUsersWithProbablySameDevice = async (deviceId, phoneNumber) => {
+  if (typeof deviceId !== 'string') {
+    return [];
+  }
+
+  const reducer = (prev, doc) => {
+    const { phoneNumber } = doc.data();
+    prev.push(phoneNumber);
+
+    return prev;
+  };
+
+  const potentialNumbers = (
+    await rootCollections
+      .updates
+      .where('deviceIdsArray', 'array-contains', deviceId)
+      .select('phoneNumber')
+      .get()
+  ).docs.reduce(reducer, []);
+
+  const usersCurrentNumberIndex = potentialNumbers.indexOf(phoneNumber);
+
+  if (usersCurrentNumberIndex > -1) {
+    potentialNumbers.splice(usersCurrentNumberIndex, 1);
+  }
+
+  return potentialNumbers;
 };
 
 
@@ -146,7 +176,6 @@ module.exports = async conn => {
   if (conn.req.query.hasOwnProperty('deviceId') &&
     conn.req.query.deviceId &&
     conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
-
     if (!updatesDocData.deviceIdsObject) {
       updatesDocData.deviceIdsObject = {};
     }
@@ -204,7 +233,6 @@ module.exports = async conn => {
       rootCollections
       .profiles
       .doc(conn.requester.phoneNumber), {
-        // lastStatuseUpdateTimestamp: Date.now(),
         lastStatusDocUpdateTimestamp: Date.now(),
       }, {
         merge: true,
@@ -229,25 +257,29 @@ module.exports = async conn => {
       merge: true,
     });
 
-  await batch.commit();
-
   const responseObject = {
     revokeSession: false,
     updateClient,
     success: true,
     timestamp: Date.now(),
     code: code.ok,
+    idProof: updatesDoc.get('idProof') || null,
+    potentialAlternatePhoneNumbers: await getUsersWithProbablySameDevice(
+      conn.req.query.deviceId,
+      conn.requester.phoneNumber
+    ),
+    linkedAccounts: (updatesDoc.get('linkedAccounts') || []).map(account => {
+      return Object.assign(account, {
+        bankAccount: maskLastDigits(account.bankAccount),
+      });
+    }),
   };
-
-  responseObject.linkedAccounts = (updatesDoc.get('linkedAccounts') || []).map(account => {
-    return Object.assign(account, {
-      bankAccount: mask(account.bankAccount),
-    });
-  });
 
   if (removeFromOffice && removeFromOffice.length > 0) {
     responseObject.removeFromOffice = removeFromOffice;
   }
+
+  await batch.commit();
 
   return sendJSON(conn, responseObject);
 };
