@@ -59,7 +59,7 @@ const validator = body => {
   }
 
   // The placeId is optional. But, if present, should be a non-empty string
-  if (placeId && !isNonEmptyString(placeId)) {
+  if (!isNonEmptyString(placeId)) {
     return `Field 'placeId' should be a non-empty string`;
   }
 
@@ -270,35 +270,60 @@ const createOffice = async conn => {
     );
   }
 
-  const [templateDoc] = (
-    await rootCollections
-    .activityTemplates
-    .where('name', '==', 'office')
-    .limit(1)
-    .get()
-  ).docs;
-
-  const batch = db.batch();
-  const activityRef = rootCollections.activities.doc();
-  const {
-    id: activityId,
-  } = activityRef;
-  const officeId = activityId;
-  const activityInstance = {
-    placeId: placeId || '',
-    template: 'office',
-    timestamp: Date.now(),
-    addendumDocRef: getAddendumRef(activityId),
-    activityName: `OFFICE: ${office}`,
-  };
   const {
     phoneNumber,
     displayName,
     photoURL
   } = conn.requester;
+  const batch = db.batch();
+  const template = 'office';
+  const [
+    templateSubcriptionQuery,
+    checkInSubscriptionQuery,
+  ] = await Promise.all([
+    rootCollections
+      .activityTemplates
+      .where('name', '==', template)
+      .limit(1)
+      .get(),
+    rootCollections
+      .activities
+      .where('template', '==', 'subscription')
+      .where('status', '==', 'CONFIRMED')
+      .where('attachment.Template.value', '==', 'check-in')
+      .where('attachment.Phone Number.value', '==', 'phoneNumber')
+      .limit(1)
+    .get()
+  ]);
+
+  const [templateDoc] = templateSubcriptionQuery.docs;
+  const [checkInSubscriptionDoc] = checkInSubscriptionQuery.docs;
+
+  // user already has subscription of check-in
+  if (checkInSubscriptionDoc) {
+    return sendResponse(
+      conn,
+      code.conflict,
+      'You already have subscription of check-in'
+    );
+  }
+
+  const activityRef = rootCollections.activities.doc();
+  const {
+    id: activityId,
+  } = activityRef;
+
+  // This api only creates the office activity.
+  const officeId = activityId;
+  const activityInstance = {
+    template,
+    placeId: placeId || '',
+    timestamp: Date.now(),
+    addendumDocRef: getAddendumRef(activityId),
+    activityName: `OFFICE: ${office}`,
+  };
 
   const creator = new Creator(phoneNumber, displayName, photoURL).toObject();
-  const branchActivity = await placeIdToBranch(placeId, creator);
 
   if (!registeredOfficeAddress) {
     return sendResponse(
@@ -308,6 +333,7 @@ const createOffice = async conn => {
     );
   }
 
+  const branchActivity = await placeIdToBranch(placeId, creator);
   const timezone = await latLngToTimezone(branchActivity.venue[0].geopoint);
 
   activityInstance.officeId = officeId;
@@ -355,7 +381,11 @@ const createOffice = async conn => {
   } = momentTz().toObject();
 
   const assignees = Array.from(
-    new Set([firstContact.phoneNumber, secondContact.phoneNumber, conn.requester.phoneNumber])
+    new Set([
+      firstContact.phoneNumber,
+      secondContact.phoneNumber,
+      conn.requester.phoneNumber
+    ])
   );
 
   const addendumData = {

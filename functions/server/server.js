@@ -40,6 +40,7 @@ const {
   disableAccount,
   hasSupportClaims,
   hasAdminClaims,
+  sendJSON,
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
@@ -366,6 +367,12 @@ module.exports = async (req, res) => {
       });
 
     return sendResponse(conn, code.ok);
+  }
+
+  if (conn.req.path === '/webhook/facebook') {
+    const result = await require('../webhooks/facebook')(conn);
+
+    return sendJSON(conn, result);
   }
 
   if (conn.req.path === '/webhook/sendgrid') {

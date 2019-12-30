@@ -109,39 +109,44 @@ const grantSubscription = async conn => {
   }
 
   const [
-    officeDocQuery,
     subcriptionDocQuery,
+    officeDocQuery,
     templateDocQuery,
     employeeQuery,
   ] = await Promise.all([
     rootCollections
-    .offices
-    .where('office', '==', office)
-    .limit(1)
-    .get(),
+      .activities
+      .where('template', '==', 'subscription')
+      .where('attachment.Phone Number.value', '==', phoneNumber)
+      .where('attachment.Template.value', '==', 'check-in')
+      .get(),
     rootCollections
-    .activities
-    .where('template', '==', 'subscription')
-    .where('attachment.Phone Number.value', '==', phoneNumber)
-    .where('attachment.Template.value', '==', 'check-in')
-    .where('office', '==', office)
-    .limit(1)
-    .get(),
+      .offices
+      .where('office', '==', office)
+      .limit(1)
+      .get(),
     rootCollections
-    .activityTemplates
-    .where('name', '==', 'subscription')
-    .limit(1)
-    .get(),
+      .activityTemplates
+      .where('name', '==', 'subscription')
+      .limit(1)
+      .get(),
     rootCollections
-    .activities
-    .where('office', '==', office)
-    .where('attachment.Phone Number.value', '==', phoneNumber)
+      .activities
+      .where('office', '==', office)
+      .where('attachment.Phone Number.value', '==', phoneNumber)
     .get(),
   ]);
 
   const [officeDoc] = officeDocQuery.docs;
-  const [subscriptionDoc] = subcriptionDocQuery.docs;
   const [templateDoc] = templateDocQuery.docs;
+  // const [subscriptionDoc] = subcriptionDocQuery.docs;
+
+  const checkInSubscriptionsMap = new Map();
+
+  subcriptionDocQuery.forEach(doc => {
+    checkInSubscriptionsMap.set(office, doc.id);
+  });
+
   const [roleDoc] = employeeQuery.docs.filter(doc => {
     const {
       template,
@@ -152,8 +157,6 @@ const grantSubscription = async conn => {
       template !== 'admin' &&
       status !== 'CANCELLED';
   });
-
-  console.log('subscriptionDoc exists', !!subscriptionDoc);
 
   if (!officeDoc) {
     return sendResponse(
@@ -171,8 +174,20 @@ const grantSubscription = async conn => {
     );
   }
 
-  if (subscriptionDoc) {
-    await subscriptionDoc.ref.set({
+  if (checkInSubscriptionsMap.size > 1) {
+    // user already has subscription of check-in
+    return sendResponse(
+      conn,
+      code.conflict,
+      `You already have check-in subscription`,
+    );
+  }
+
+  if (checkInSubscriptionsMap.has(office)) {
+    const activityId = checkInSubscriptionsMap.get(office);
+    const ref = rootCollections.activities.doc(activityId);
+
+    await ref.set({
       timestamp: Date.now(),
       status: 'CONFIRMED',
       addendumDocRef: null,
