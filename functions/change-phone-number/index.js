@@ -114,6 +114,7 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
           .doc(doc.id);
 
         if (data.template === 'employee' &&
+          data.attachment['Phone Number'] &&
           data.attachment['Phone Number'].value === oldPhoneNumber) {
           const {
             officeId
