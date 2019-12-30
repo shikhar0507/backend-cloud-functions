@@ -464,6 +464,7 @@ module.exports = async conn => {
       lastQueryFrom: from,
     };
 
+    // This is only for keeping the log.
     if (sendLocations) {
       profileUpdate.locationsSentForTimestamp = from;
     }

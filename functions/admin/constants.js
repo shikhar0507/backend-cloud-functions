@@ -876,6 +876,7 @@ const addendumTypes = {
   PAYMENT: 'payment',
   COMMENT: 'comment',
   SUBSCRIPTION: 'subscription',
+  LOCATION: 'location',
 };
 
 /**

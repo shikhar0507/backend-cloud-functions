@@ -20,7 +20,7 @@ module.exports = async conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-
+      `${conn.req.method} is not allowed. Use 'POST'`
     );
   }
 
