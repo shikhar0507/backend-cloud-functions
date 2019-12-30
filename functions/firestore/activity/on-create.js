@@ -311,6 +311,7 @@ const getCustomerObject = async ({
     ).docs;
 
     const activityObject = {
+      placeId: firstResult['place_id'],
       schedule: getCustomerSchedule({
         templateDoc,
         firstResult

@@ -418,7 +418,7 @@ const getVenueFieldsSet = templateDoc => {
     return new Set();
   }
 
-  return new Set(['venueDescriptor', 'location', 'address', 'latitude', 'longitude']);
+  return new Set(['venueDescriptor', 'location', 'address', 'latitude', 'longitude', 'placeId']);
 };
 
 
@@ -647,6 +647,8 @@ const createObjects = async (locals, trialRun) => {
           activityObject
             .venue[0]
             .placeId = value;
+
+          activityObject.placeId = value;
         }
 
         if (field === 'location') {
