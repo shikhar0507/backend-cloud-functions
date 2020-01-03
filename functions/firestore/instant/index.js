@@ -21,8 +21,6 @@
  *
  */
 
-
-
 'use strict';
 
 const env = require('../../admin/env');
@@ -30,36 +28,27 @@ const sgMail = require('@sendgrid/mail');
 
 sgMail.setApiKey(env.sgMailApiKey);
 
-
-
-module.exports = (instantDoc) => {
+module.exports = instantDoc => {
   const messages = [];
-  const {
-    subject,
-    messageBody
-  } = instantDoc.data();
+  const {subject, messageBody} = instantDoc.data();
 
-  env
-    .instantEmailRecipientEmails
-    .forEach((recipientObject) => {
-      messages.push({
-        subject,
-        html: `<pre>${messageBody}</pre>`,
-        to: {
-          name: recipientObject.name,
-          email: recipientObject.email,
-        },
-        from: env.systemEmail,
-      });
+  env.instantEmailRecipientEmails.forEach(recipientObject => {
+    messages.push({
+      subject,
+      html: `<pre>${messageBody}</pre>`,
+      to: {
+        name: recipientObject.name,
+        email: recipientObject.email,
+      },
+      from: env.systemEmail,
     });
+  });
 
-  return sgMail
-    .sendMultiple(messages)
-    .catch((error) => {
-      if (error.response) {
-        console.error(error.response.body.errors);
-      } else {
-        console.error(error);
-      }
-    });
+  return sgMail.sendMultiple(messages).catch(error => {
+    if (error.response) {
+      console.error(error.response.body.errors);
+    } else {
+      console.error(error);
+    }
+  });
 };

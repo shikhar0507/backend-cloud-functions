@@ -9,42 +9,35 @@ const {
   getFileHash,
   promisifiedExecFile,
 } = require('../admin/utils');
-const {
-  rootCollections,
-} = require('../admin/admin');
-const {
-  auth,
-} = require('../admin/admin');
-const { code } = require('../admin/responses');
+const {rootCollections} = require('../admin/admin');
+const {auth} = require('../admin/admin');
+const {code} = require('../admin/responses');
 const fs = require('fs');
 const url = require('url');
 const mozjpeg = require('mozjpeg');
 const env = require('../admin/env');
 
-
-const validateRequest = (requestBody) => {
+const validateRequest = requestBody => {
   const validationResult = {
     isValid: true,
     message: null,
   };
 
   if (!requestBody.hasOwnProperty('imageBase64')) {
-    validationResult.message =
-      `The field 'imageBase64' is missing from the request body.`;
+    validationResult.message = `The field 'imageBase64' is missing from the request body.`;
     validationResult.isValid = false;
   }
 
   if (!isNonEmptyString(requestBody.imageBase64)) {
-    validationResult.message = `The field 'imageBase64'`
-      + ` should be a non-empty 'string'.`;
+    validationResult.message =
+      `The field 'imageBase64'` + ` should be a non-empty 'string'.`;
     validationResult.isValid = false;
   }
 
   return validationResult;
 };
 
-
-module.exports = (conn) => {
+module.exports = conn => {
   const result = validateRequest(conn.req.body);
   if (!result.isValid) {
     sendResponse(conn, code.badRequest, result.message);
@@ -76,10 +69,13 @@ module.exports = (conn) => {
     encoding: 'base64',
   });
 
-  promisifiedExecFile(mozjpeg, ['-outfile', compressedFilePath, originalFilePath])
+  promisifiedExecFile(mozjpeg, [
+    '-outfile',
+    compressedFilePath,
+    originalFilePath,
+  ])
     .then(() => {
-      return rootCollections
-        .timers
+      return rootCollections.timers
         .orderBy('timestamp', 'desc')
         .limit(1)
         .get();
@@ -95,7 +91,7 @@ module.exports = (conn) => {
         path: `/b2api/v2/b2_get_upload_url?bucketId=${bucketId}`,
         method: 'GET',
         headers: {
-          'Authorization': authorizationToken,
+          Authorization: authorizationToken,
         },
       });
     })
@@ -110,7 +106,7 @@ module.exports = (conn) => {
         method: 'POST',
         postData: fileBuffer,
         headers: {
-          'Authorization': authorizationToken,
+          Authorization: authorizationToken,
           'X-Bz-File-Name': encodeURI(`${conn.requester.uid}.jpg`),
           'Content-Type': 'b2/x-auto',
           'Content-Length': Buffer.byteLength(fileBuffer),
@@ -122,12 +118,11 @@ module.exports = (conn) => {
       return promisifiedRequest(options);
     })
     .then(response => {
-      const photoURL =
-        cloudflareCdnUrl(
-          mainDownloadUrlStart,
-          response.fileId,
-          `${conn.requester.uid}.jpg`
-        );
+      const photoURL = cloudflareCdnUrl(
+        mainDownloadUrlStart,
+        response.fileId,
+        `${conn.requester.uid}.jpg`,
+      );
 
       try {
         if (fs.existsSync(compressedFilePath)) {
@@ -138,16 +133,15 @@ module.exports = (conn) => {
           fs.unlinkSync(originalFilePath);
         }
 
-        return auth
-          .updateUser(conn.requester.uid, { photoURL });
-
+        return auth.updateUser(conn.requester.uid, {photoURL});
       } catch (error) {
         console.warn('Error:', error);
 
-        return auth
-          .updateUser(conn.requester.uid, { photoURL });
+        return auth.updateUser(conn.requester.uid, {photoURL});
       }
     })
     .then(() => sendResponse(conn, code.ok))
-    .catch(error => handleError(conn, error, 'Image upload unavailable at the moment...'));
+    .catch(error =>
+      handleError(conn, error, 'Image upload unavailable at the moment...'),
+    );
 };

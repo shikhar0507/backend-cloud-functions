@@ -1,21 +1,20 @@
 'use strict';
 
-const {
-  rootCollections,
-} = require('../admin/admin');
+const {rootCollections} = require('../admin/admin');
 
 module.exports = (req, requester) => {
   console.log('requester', requester.customClaims.admin);
-  if (requester.isAdmin &&
-    !requester.customClaims.admin.includes(req.query.office)) {
-    return ({});
+  if (
+    requester.isAdmin &&
+    !requester.customClaims.admin.includes(req.query.office)
+  ) {
+    return {};
   }
 
   // TODO: Handle normal users who are not admins
   // For viewing their own activities like enquiries etc
-  if (!requester.isAdmin &&
-    !requester.isSupport) {
-    return ({});
+  if (!requester.isAdmin && !requester.isSupport) {
+    return {};
   }
 
   const assigneePromises = [];
@@ -24,23 +23,26 @@ module.exports = (req, requester) => {
 
   console.log('query', req.query);
 
-  let query = rootCollections
-    .activities
-    .where('office', '==', req.query.office);
+  let query = rootCollections.activities.where(
+    'office',
+    '==',
+    req.query.office,
+  );
 
   if (req.query.query) {
-    query = query
-      .where(`attachment.${req.query.attachmentField}.value`, '==', req.query.query);
+    query = query.where(
+      `attachment.${req.query.attachmentField}.value`,
+      '==',
+      req.query.query,
+    );
   }
 
   if (req.query.template) {
-    query = query
-      .where('template', '==', req.query.template);
+    query = query.where('template', '==', req.query.template);
   }
 
-  if (!req.query.query &&
-    !req.query.template) {
-    return ({});
+  if (!req.query.query && !req.query.template) {
+    return {};
   }
 
   return query

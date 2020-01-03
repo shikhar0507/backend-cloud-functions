@@ -21,17 +21,10 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  subcollectionNames
-} = require('../../admin/constants');
-const {
-  rootCollections,
-  db
-} = require('../../admin/admin');
+const {subcollectionNames} = require('../../admin/constants');
+const {rootCollections, db} = require('../../admin/admin');
 const admin = require('firebase-admin');
 
 const getChildDoc = async ({
@@ -39,11 +32,10 @@ const getChildDoc = async ({
   phoneNumber,
   report,
   officeId,
-  activityId
+  activityId,
 }) => {
   if (template === 'subscription') {
-    return rootCollections
-      .profiles
+    return rootCollections.profiles
       .doc(phoneNumber)
       .collection(subcollectionNames.SUBSCRIPTIONS)
       .doc(activityId)
@@ -52,12 +44,11 @@ const getChildDoc = async ({
 
   if (template === 'recipient') {
     const [recipientDoc] = (
-      await rootCollections
-      .recipients
-      .where('report', '==', report)
-      .where('officeId', '==', officeId)
-      .limit(1)
-      .get()
+      await rootCollections.recipients
+        .where('report', '==', report)
+        .where('officeId', '==', officeId)
+        .limit(1)
+        .get()
     ).docs;
 
     return recipientDoc;
@@ -66,13 +57,8 @@ const getChildDoc = async ({
   return null;
 };
 
-const getSubcriptionActivityQuery = ({
-  officeId,
-  phoneNumber,
-  template
-}) => {
-  return rootCollections
-    .activities
+const getSubcriptionActivityQuery = ({officeId, phoneNumber, template}) => {
+  return rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'subscription')
     .where('attachment.Phone Number.value', '==', phoneNumber)
@@ -80,7 +66,6 @@ const getSubcriptionActivityQuery = ({
     .limit(1)
     .get();
 };
-
 
 /**
  * Removes the doc from the `Profile/(phoneNumber)/Activities/(activityId)`
@@ -97,24 +82,17 @@ const getSubcriptionActivityQuery = ({
  * @param {Object} context Data related to the `onDelete` event.
  * @returns {Promise <Object>} Firestore `Batch` object.
  */
-const assigneeOnDelete = async ({
-  phoneNumber,
-  activityId
-}) => {
+const assigneeOnDelete = async ({phoneNumber, activityId}) => {
   const profileRef = rootCollections.profiles.doc(phoneNumber);
   const timestamp = Date.now();
   const batch = db.batch();
 
-  const [profileDoc, activityDoc] = await db
-    .getAll(profileRef, rootCollections.activities.doc(activityId));
-  const {
-    uid
-  } = profileDoc.data();
-  const {
-    hidden,
-    template,
-    officeId
-  } = activityDoc.data();
+  const [profileDoc, activityDoc] = await db.getAll(
+    profileRef,
+    rootCollections.activities.doc(activityId),
+  );
+  const {uid} = profileDoc.data();
+  const {hidden, template, officeId} = activityDoc.data();
 
   console.log({
     phoneNumber,
@@ -127,15 +105,17 @@ const assigneeOnDelete = async ({
   /**
    * Delete Activity from profile
    */
-  batch.delete(profileRef.collection(subcollectionNames.ACTIVITIES).doc(activityId));
+  batch.delete(
+    profileRef.collection(subcollectionNames.ACTIVITIES).doc(activityId),
+  );
 
   if (uid && hidden !== 1) {
     batch.set(
-      rootCollections
-      .updates
-      .doc(uid)
-      .collection(subcollectionNames.ADDENDUM)
-      .doc(), {
+      rootCollections.updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc(),
+      {
         timestamp,
         activityId,
         isComment: 0,
@@ -147,7 +127,8 @@ const assigneeOnDelete = async ({
         user: phoneNumber,
         unassign: true,
         comment: '',
-      });
+      },
+    );
   }
 
   /**
@@ -170,20 +151,24 @@ const assigneeOnDelete = async ({
   if (doc) {
     console.log('childDoc', doc);
 
-    batch.set(doc.ref, Object.assign({}, doc.data(), {
-      include: admin.firestore.FieldValue.arrayRemove(phoneNumber),
-    }), {
-      merge: true,
-    });
+    batch.set(
+      doc.ref,
+      Object.assign({}, doc.data(), {
+        include: admin.firestore.FieldValue.arrayRemove(phoneNumber),
+      }),
+      {
+        merge: true,
+      },
+    );
   }
 
   if (template === 'subscription') {
     // fetch leave, check-in, attendance regularization subscription
     // of the user (attachment.Phone Number.value)
     // unassign the number phoneNumber from those activities
-    const {
-      value: subscribersPhoneNumber,
-    } = activityDoc.get('attachment.Phone Number');
+    const {value: subscribersPhoneNumber} = activityDoc.get(
+      'attachment.Phone Number',
+    );
 
     const [checkInSub, leaveSub, arSub] = await Promise.all([
       getSubcriptionActivityQuery({
@@ -212,7 +197,7 @@ const assigneeOnDelete = async ({
       timestamp: Date.now(),
     };
     const merge = {
-      merge: true
+      merge: true,
     };
 
     if (checkInSubActivity) {
@@ -221,7 +206,9 @@ const assigneeOnDelete = async ({
       batch.set(checkInSubActivity.ref, update, merge);
 
       batch.delete(
-        checkInSubActivity.ref.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber)
+        checkInSubActivity.ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(phoneNumber),
       );
     }
 
@@ -230,7 +217,9 @@ const assigneeOnDelete = async ({
       batch.set(leaveSubActivity.ref, update, merge);
 
       batch.delete(
-        leaveSubActivity.ref.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber)
+        leaveSubActivity.ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(phoneNumber),
       );
     }
 
@@ -239,7 +228,9 @@ const assigneeOnDelete = async ({
       batch.set(arSubActivity.ref, update, merge);
 
       batch.delete(
-        arSubActivity.ref.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber)
+        arSubActivity.ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(phoneNumber),
       );
     }
   }

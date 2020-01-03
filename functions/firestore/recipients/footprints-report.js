@@ -2,9 +2,7 @@
 
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
-const {
-  rootCollections,
-} = require('../../admin/admin');
+const {rootCollections} = require('../../admin/admin');
 const env = require('../../admin/env');
 const {
   reportNames,
@@ -19,7 +17,6 @@ const {
   getIdentifier,
 } = require('./report-utils');
 
-
 const isDiffLessThanFiveMinutes = (first, second) => {
   if (!first || !second) {
     return false;
@@ -27,7 +24,6 @@ const isDiffLessThanFiveMinutes = (first, second) => {
 
   return Math.abs(momentTz(second).diff(first, 'minute')) < 5;
 };
-
 
 const getComment = doc => {
   if (doc.get('activityData.attachment.Comment.value')) {
@@ -52,8 +48,10 @@ const getComment = doc => {
 
   if (action === httpsActions.create) {
     if (doc.get('activityData.template') === 'enquiry') {
-      return `${doc.get('activityData.attachment.Product.value')}` +
-        ` ${doc.get('activityData.attachment.Enquiry.value')}`;
+      return (
+        `${doc.get('activityData.attachment.Product.value')}` +
+        ` ${doc.get('activityData.attachment.Enquiry.value')}`
+      );
     }
 
     return `Created ${doc.get('activityData.template')}`;
@@ -74,8 +72,9 @@ const getComment = doc => {
       return newStatus;
     })();
 
-    return `${numbersString.toUpperCase()}` +
-      ` ${doc.get('activityData.template')}`;
+    return (
+      `${numbersString.toUpperCase()}` + ` ${doc.get('activityData.template')}`
+    );
   }
 
   if (action === httpsActions.share) {
@@ -108,17 +107,10 @@ const getComment = doc => {
   return doc.get('comment');
 };
 
-
 const handleScheduleReport = async (locals, workbook) => {
-  const timestampFromTimer = locals
-    .change
-    .after
-    .get('timestamp');
-  const timezone = locals
-    .officeDoc
-    .get('attachment.Timezone.value');
-  const momentFromTimer = momentTz(timestampFromTimer)
-    .tz(timezone);
+  const timestampFromTimer = locals.change.after.get('timestamp');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const momentFromTimer = momentTz(timestampFromTimer).tz(timezone);
   const timestampMinus24Hours = momentFromTimer
     .clone()
     .startOf('day')
@@ -127,12 +119,9 @@ const handleScheduleReport = async (locals, workbook) => {
     .clone()
     .endOf('day')
     .add(24, 'hours');
-  const monthYearString = momentFromTimer
-    .format(dateFormats.MONTH_YEAR);
+  const monthYearString = momentFromTimer.format(dateFormats.MONTH_YEAR);
 
-  const activities = await locals
-    .officeDoc
-    .ref
+  const activities = await locals.officeDoc.ref
     .collection('Activities')
     .where('relevantTime', '>=', timestampMinus24Hours.valueOf())
     .where('relevantTime', '<=', timestampPlus24Hours.valueOf())
@@ -143,8 +132,7 @@ const handleScheduleReport = async (locals, workbook) => {
     return;
   }
 
-  const worksheet = workbook
-    .addSheet(`Schedule ${monthYearString}`);
+  const worksheet = workbook.addSheet(`Schedule ${monthYearString}`);
 
   [
     'Activity Name',
@@ -157,11 +145,9 @@ const handleScheduleReport = async (locals, workbook) => {
     'Supervisor',
     'Status',
     'Last Updated On',
-    'Check-In Times'
+    'Check-In Times',
   ].forEach((field, index) => {
-    worksheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(field);
+    worksheet.cell(`${alphabetsArray[index]}1`).value(field);
   });
 
   let index = 0;
@@ -183,8 +169,8 @@ const handleScheduleReport = async (locals, workbook) => {
     const endTime = momentTz(schedule.endTime)
       .tz(timezone)
       .format(dateFormats.DATE_TIME);
-    const createdBy = doc.get('creator.displayName') ||
-      doc.get('creator.phoneNumber');
+    const createdBy =
+      doc.get('creator.displayName') || doc.get('creator.phoneNumber');
     const lastUpdatedOn = momentTz(doc.get('timestamp'))
       .tz(timezone)
       .format(dateFormats.DATE_TIME);
@@ -208,21 +194,19 @@ const handleScheduleReport = async (locals, workbook) => {
         .tz(timezone)
         .format(dateFormats.DATE_TIME);
 
-      checkInTimes += `${name} (${firstCheckInFormatted}` +
+      checkInTimes +=
+        `${name} (${firstCheckInFormatted}` +
         ` to ${lastCheckInFormatted}, ${timestamps.length})`;
 
       checkInTimes += '\n';
     });
 
-    const customerName = doc
-      .get('customerObject.Name');
-    const customerCode = doc
-      .get('customerObject.Customer Code');
-    const customerAddress = doc
-      .get('customerObject.address');
+    const customerName = doc.get('customerObject.Name');
+    const customerCode = doc.get('customerObject.Customer Code');
+    const customerAddress = doc.get('customerObject.address');
     const supervisor = getName(
       locals.employeesData,
-      doc.get('attachment.Supervisor.value')
+      doc.get('attachment.Supervisor.value'),
     );
 
     [
@@ -238,39 +222,27 @@ const handleScheduleReport = async (locals, workbook) => {
       lastUpdatedOn,
       checkInTimes,
     ].forEach((value, i) => {
-      worksheet
-        .cell(`${alphabetsArray[i]}${columnIndex}`)
-        .value(value);
+      worksheet.cell(`${alphabetsArray[i]}${columnIndex}`).value(value);
     });
 
     index++;
   });
 
   if (index === 0) {
-    workbook
-      .deleteSheet(`Schedule ${monthYearString}`);
+    workbook.deleteSheet(`Schedule ${monthYearString}`);
   }
 
   return;
 };
 
-
 module.exports = async locals => {
-  const timezone = locals
-    .officeDoc
-    .get('attachment.Timezone.value');
-  const timestampFromTimer = locals
-    .change
-    .after
-    .get('timestamp');
+  const timezone = locals.officeDoc.get('attachment.Timezone.value');
+  const timestampFromTimer = locals.change.after.get('timestamp');
   const momentToday = momentTz(timestampFromTimer)
     .tz(timezone)
     .startOf('day');
-  const momentYesterday = momentToday
-    .clone()
-    .subtract(1, 'day');
-  const dated = momentYesterday
-    .format(dateFormats.DATE);
+  const momentYesterday = momentToday.clone().subtract(1, 'day');
+  const dated = momentYesterday.format(dateFormats.DATE);
   const office = locals.officeDoc.get('office');
   const distanceMap = new Map();
   const prevTemplateForPersonMap = new Map();
@@ -307,38 +279,27 @@ module.exports = async locals => {
   };
 
   try {
-    const [
-      workbook,
-      addendumDocsQueryResult
-    ] = await Promise
-      .all([
-        xlsxPopulate
-        .fromBlankAsync(),
-        locals
-        .officeDoc
-        .ref
+    const [workbook, addendumDocsQueryResult] = await Promise.all([
+      xlsxPopulate.fromBlankAsync(),
+      locals.officeDoc.ref
         .collection('Addendum')
         .where('date', '==', momentYesterday.date())
         .where('month', '==', momentYesterday.month())
         .where('year', '==', momentYesterday.year())
         .orderBy('user')
         .orderBy('timestamp')
-        .get()
-      ]);
+        .get(),
+    ]);
 
     if (addendumDocsQueryResult.empty) {
       return;
     }
 
-    const footprintsSheet = workbook
-      .addSheet('Footprints');
+    const footprintsSheet = workbook.addSheet('Footprints');
     /** Default sheet */
-    workbook
-      .deleteSheet('Sheet1');
+    workbook.deleteSheet('Sheet1');
 
-    footprintsSheet
-      .row(1)
-      .style('bold', true);
+    footprintsSheet.row(1).style('bold', true);
 
     [
       'Dated',
@@ -350,247 +311,199 @@ module.exports = async locals => {
       'Address',
       'Comment',
       'Department',
-      'Base Location'
+      'Base Location',
     ].forEach((field, index) => {
-      footprintsSheet
-        .cell(`${alphabetsArray[index]}1`)
-        .value(field);
+      footprintsSheet.cell(`${alphabetsArray[index]}1`).value(field);
     });
 
     let count = 0;
 
     allCountsData.totalActions = addendumDocsQueryResult.size;
 
-    addendumDocsQueryResult
-      .forEach(doc => {
-        const action = doc.get('action');
+    addendumDocsQueryResult.forEach(doc => {
+      const action = doc.get('action');
 
-        allCountsData.apiActions[action] = allCountsData.apiActions[action] || 0;
-        allCountsData.apiActions[action]++;
+      allCountsData.apiActions[action] = allCountsData.apiActions[action] || 0;
+      allCountsData.apiActions[action]++;
 
-        const template = doc.get('activityData.template');
-        if (template) {
-          allCountsData.templates[template] = allCountsData.templates[template] || 0;
-          allCountsData.templates[template]++;
-        }
+      const template = doc.get('activityData.template');
+      if (template) {
+        allCountsData.templates[template] =
+          allCountsData.templates[template] || 0;
+        allCountsData.templates[template]++;
+      }
 
+      const columnIndex = count + 2;
+      const phoneNumber = doc.get('user');
+      const employeeObject = employeeInfo(locals.employeesData, phoneNumber);
 
-        const columnIndex = count + 2;
-        const phoneNumber = doc.get('user');
-        const employeeObject = employeeInfo(locals.employeesData, phoneNumber);
+      const isSupportRequest = doc.get('isSupportRequest');
 
-        const isSupportRequest = doc.get('isSupportRequest');
+      if (isSupportRequest) {
+        allCountsData.totalSupport++;
+      }
 
+      const name = (() => {
         if (isSupportRequest) {
-          allCountsData.totalSupport++;
+          return 'Growthfile Support';
         }
 
-        const name = (() => {
-          if (isSupportRequest) {
-            return 'Growthfile Support';
-          }
+        return employeeObject.name || doc.get('userDisplayName') || '';
+      })();
 
-          return employeeObject.name ||
-            doc.get('userDisplayName') ||
-            '';
-        })();
+      const {department, baseLocation, employeeCode} = employeeObject;
+      const identifier = getIdentifier(doc);
+      const url = getUrl(doc);
+      const time = momentTz(doc.get('timestamp'))
+        .tz(timezone)
+        .format(dateFormats.TIME);
+      const distanceTravelled = (() => {
+        let value = Number(doc.get('distanceTravelled') || 0);
 
-        const {
-          department,
-          baseLocation,
-          employeeCode
-        } = employeeObject;
-        const identifier = getIdentifier(doc);
-        const url = getUrl(doc);
-        const time = momentTz(doc.get('timestamp'))
-          .tz(timezone)
-          .format(dateFormats.TIME);
-        const distanceTravelled = (() => {
-          let value = Number(doc.get('distanceTravelled') || 0);
-
-          if (distanceMap.has(phoneNumber)) {
-            value += distanceMap
-              .get(phoneNumber);
-          } else {
-            // Distance starts with 0 for every person each day
-            value = 0;
-          }
-
-          // Value in the map also needs to be updated otherwise
-          // it will always add only the last updated value on each iteration.
-          distanceMap
-            .set(
-              phoneNumber,
-              value
-            );
-
-          return value
-            .toFixed(2);
-        })();
-
-        const prevTemplateForPerson = prevTemplateForPersonMap.get(phoneNumber);
-        const prevDocTimestamp = prevDocTimestampMap
-          .get(phoneNumber);
-        const timestampDiffLessThanFiveMinutes = isDiffLessThanFiveMinutes(
-          prevDocTimestamp,
-          doc.get('timestamp')
-        );
-        const distanceFromPrevious = Math
-          .floor(
-            Number(doc.get('distanceTravelled') || 0)
-          );
-
-        if (action == httpsActions.create) {
-          counterObject
-            .activitiesCreated++;
-        }
-
-        /**
-         * Checkins from the same location within 5 minutes are merged into
-         * a single line. Only the first occurrence of the event is logged
-         * in the excel file. All subsequent items are glossed over.
-         */
-        if (template === 'check-in' &&
-          prevTemplateForPerson === 'check-in' &&
-          timestampDiffLessThanFiveMinutes &&
-          distanceFromPrevious === 0) {
-          return;
-        }
-
-        if (doc.get('action') ===
-          httpsActions.checkIn) {
-          return;
-        }
-
-        count++;
-
-        prevTemplateForPersonMap
-          .set(
-            phoneNumber,
-            template
-          );
-        prevDocTimestampMap
-          .set(
-            phoneNumber,
-            doc.get('timestamp')
-          );
-
-        footprintsSheet
-          .cell(`A${columnIndex}`)
-          .value(dated);
-        footprintsSheet
-          .cell(`B${columnIndex}`)
-          .value(name);
-        footprintsSheet
-          .cell(`C${columnIndex}`)
-          .value(phoneNumber);
-        footprintsSheet
-          .cell(`D${columnIndex}`)
-          .value(employeeCode);
-        footprintsSheet
-          .cell(`E${columnIndex}`)
-          .value(time);
-        footprintsSheet
-          .cell(`F${columnIndex}`)
-          .value(distanceTravelled);
-
-        if (identifier && url) {
-          footprintsSheet
-            .cell(`G${columnIndex}`)
-            .value(identifier)
-            .style({
-              fontColor: '0563C1',
-              underline: true
-            })
-            .hyperlink(url);
+        if (distanceMap.has(phoneNumber)) {
+          value += distanceMap.get(phoneNumber);
         } else {
-          footprintsSheet
-            .cell(`G${columnIndex}`)
-            .value('');
+          // Distance starts with 0 for every person each day
+          value = 0;
         }
 
-        const comment = getComment(doc);
+        // Value in the map also needs to be updated otherwise
+        // it will always add only the last updated value on each iteration.
+        distanceMap.set(phoneNumber, value);
 
-        if (template === 'check-in' &&
-          doc.get('activityData.attachment.Photo.value').startsWith('http')) {
-          footprintsSheet
-            .cell(`H${columnIndex}`)
-            .value(comment)
-            .style({
-              fontColor: '0563C1',
-              underline: true
-            })
-            .hyperlink(doc.get('activityData.attachment.Photo.value'));
-        } else {
-          footprintsSheet
-            .cell(`H${columnIndex}`)
-            .value(comment);
-        }
+        return value.toFixed(2);
+      })();
 
+      const prevTemplateForPerson = prevTemplateForPersonMap.get(phoneNumber);
+      const prevDocTimestamp = prevDocTimestampMap.get(phoneNumber);
+      const timestampDiffLessThanFiveMinutes = isDiffLessThanFiveMinutes(
+        prevDocTimestamp,
+        doc.get('timestamp'),
+      );
+      const distanceFromPrevious = Math.floor(
+        Number(doc.get('distanceTravelled') || 0),
+      );
+
+      if (action == httpsActions.create) {
+        counterObject.activitiesCreated++;
+      }
+
+      /**
+       * Checkins from the same location within 5 minutes are merged into
+       * a single line. Only the first occurrence of the event is logged
+       * in the excel file. All subsequent items are glossed over.
+       */
+      if (
+        template === 'check-in' &&
+        prevTemplateForPerson === 'check-in' &&
+        timestampDiffLessThanFiveMinutes &&
+        distanceFromPrevious === 0
+      ) {
+        return;
+      }
+
+      if (doc.get('action') === httpsActions.checkIn) {
+        return;
+      }
+
+      count++;
+
+      prevTemplateForPersonMap.set(phoneNumber, template);
+      prevDocTimestampMap.set(phoneNumber, doc.get('timestamp'));
+
+      footprintsSheet.cell(`A${columnIndex}`).value(dated);
+      footprintsSheet.cell(`B${columnIndex}`).value(name);
+      footprintsSheet.cell(`C${columnIndex}`).value(phoneNumber);
+      footprintsSheet.cell(`D${columnIndex}`).value(employeeCode);
+      footprintsSheet.cell(`E${columnIndex}`).value(time);
+      footprintsSheet.cell(`F${columnIndex}`).value(distanceTravelled);
+
+      if (identifier && url) {
         footprintsSheet
-          .cell(`I${columnIndex}`)
-          .value(department);
+          .cell(`G${columnIndex}`)
+          .value(identifier)
+          .style({
+            fontColor: '0563C1',
+            underline: true,
+          })
+          .hyperlink(url);
+      } else {
+        footprintsSheet.cell(`G${columnIndex}`).value('');
+      }
+
+      const comment = getComment(doc);
+
+      if (
+        template === 'check-in' &&
+        doc.get('activityData.attachment.Photo.value').startsWith('http')
+      ) {
         footprintsSheet
-          .cell(`J${columnIndex}`)
-          .value(baseLocation);
-      });
+          .cell(`H${columnIndex}`)
+          .value(comment)
+          .style({
+            fontColor: '0563C1',
+            underline: true,
+          })
+          .hyperlink(doc.get('activityData.attachment.Photo.value'));
+      } else {
+        footprintsSheet.cell(`H${columnIndex}`).value(comment);
+      }
+
+      footprintsSheet.cell(`I${columnIndex}`).value(department);
+      footprintsSheet.cell(`J${columnIndex}`).value(baseLocation);
+    });
 
     allCountsData.totalUsers = distanceMap.size;
 
-    counterObject
-      .active = distanceMap.size;
-    counterObject
-      .notActive = counterObject.totalUsers - counterObject.active;
+    counterObject.active = distanceMap.size;
+    counterObject.notActive = counterObject.totalUsers - counterObject.active;
 
-    await handleScheduleReport(
-      locals,
-      workbook
+    await handleScheduleReport(locals, workbook);
+
+    locals.messageObject.attachments.push({
+      fileName:
+        `Footprints Report_` +
+        `${locals.officeDoc.get('office')}` +
+        `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+      content: await workbook.outputAsync('base64'),
+      type: 'text/csv',
+      disposition: 'attachment',
+    });
+
+    console.log(
+      JSON.stringify(
+        {
+          office,
+          report: reportNames.FOOTPRINTS,
+          to: locals.messageObject.to,
+        },
+        ' ',
+        2,
+      ),
     );
 
-    locals
-      .messageObject
-      .attachments
-      .push({
-        fileName: `Footprints Report_` +
-          `${locals.officeDoc.get('office')}` +
-          `_${momentToday.format(dateFormats.DATE)}.xlsx`,
-        content: await workbook.outputAsync('base64'),
-        type: 'text/csv',
-        disposition: 'attachment',
-      });
-
-    console.log(JSON.stringify({
-      office,
-      report: reportNames.FOOTPRINTS,
-      to: locals.messageObject.to,
-    }, ' ', 2));
-
-    if (!env.isProduction
+    if (
+      !env.isProduction ||
       /** No activities yesterday */
-      ||
-      addendumDocsQueryResult.empty) {
+      addendumDocsQueryResult.empty
+    ) {
       return;
     }
 
-    await locals
-      .sgMail
-      .sendMultiple(locals.messageObject);
+    await locals.sgMail.sendMultiple(locals.messageObject);
 
     const momentFromTimer = momentTz(timestampFromTimer)
       .tz(timezone)
       .startOf('day');
-    const isDateToday = momentToday
-      .startOf('day')
-      .valueOf() === momentFromTimer
-      .startOf('day')
-      .valueOf();
+    const isDateToday =
+      momentToday.startOf('day').valueOf() ===
+      momentFromTimer.startOf('day').valueOf();
 
     if (!isDateToday) {
       return;
     }
 
-    const dailyStatusDocsQueryResult = await rootCollections
-      .inits
+    const dailyStatusDocsQueryResult = await rootCollections.inits
       .where('report', '==', reportNames.DAILY_STATUS_REPORT)
       .where('date', '==', momentYesterday.date())
       .where('month', '==', momentYesterday.month())
@@ -598,29 +511,23 @@ module.exports = async locals => {
       .limit(1)
       .get();
 
-    const [doc] = dailyStatusDocsQueryResult
-      .docs;
-    const oldCountsObject = doc
-      .get('countsObject') || {};
+    const [doc] = dailyStatusDocsQueryResult.docs;
+    const oldCountsObject = doc.get('countsObject') || {};
 
-    oldCountsObject[
-      office
-    ] = counterObject;
+    oldCountsObject[office] = counterObject;
 
     console.log(JSON.stringify(allCountsData, ' ', 2));
 
-    await rootCollections
-      .inits
-      .doc()
-      .set(allCountsData);
+    await rootCollections.inits.doc().set(allCountsData);
 
-    return doc
-      .ref
-      .set({
+    return doc.ref.set(
+      {
         countsObject: oldCountsObject,
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
   } catch (error) {
     console.error(error);
   }

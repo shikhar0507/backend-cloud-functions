@@ -1,14 +1,8 @@
 'use strict';
 
-const {
-  auth,
-} = require('./admin/admin');
-const {
-  isE164PhoneNumber,
-} = require('./admin/utils');
-const {
-  code,
-} = require('./admin/responses');
+const {auth} = require('./admin/admin');
+const {isE164PhoneNumber} = require('./admin/utils');
+const {code} = require('./admin/responses');
 const env = require('./admin/env');
 
 const sendJSON = (res, statusCode, data = {}) =>
@@ -58,18 +52,19 @@ module.exports = (req, res) => {
 
   return auth
     .getUserByPhoneNumber(req.query.phoneNumber)
-    .then((userRecord) => {
+    .then(userRecord => {
       console.log('userRecord', userRecord.toJSON());
 
       return sendJSON(res, code.ok, {
-        showFullLogin: !userRecord.email ||
+        showFullLogin:
+          !userRecord.email ||
           !userRecord.emailVerified ||
           !userRecord.displayName,
         success: true,
         message: '',
       });
     })
-    .catch((error) => {
+    .catch(error => {
       console.log('AuthError', error.code, JSON.stringify(req.query));
 
       if (error.code === 'auth/invalid-phone-number') {

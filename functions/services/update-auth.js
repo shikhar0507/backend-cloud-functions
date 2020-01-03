@@ -21,18 +21,10 @@
  *
  */
 
-
 'use strict';
 
-
-
-const {
-  auth,
-  rootCollections,
-} = require('../admin/admin');
-const {
-  code,
-} = require('../admin/responses');
+const {auth, rootCollections} = require('../admin/admin');
+const {code} = require('../admin/responses');
 const {
   sendResponse,
   handleError,
@@ -40,36 +32,32 @@ const {
   hasSupportClaims,
   isE164PhoneNumber,
 } = require('../admin/utils');
-const {
-  sendGridTemplateIds,
-} = require('../admin/constants');
+const {sendGridTemplateIds} = require('../admin/constants');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 
 sgMail.setApiKey(env.sgMailApiKey);
 
 const sendVerificationEmail = (userRecord, body) => {
-  return sgMail
-    .send({
-      templateId: sendGridTemplateIds.verificationEmail,
-      to: {
-        name: userRecord.displayName || body.displayName || '',
-        email: userRecord.email || body.email,
-      },
-      from: {
-        name: 'Growthfile Help',
-        email: env.systemEmail,
-      },
-      dynamicTemplateData: {
-        phoneNumber: body.phoneNumber,
-        verificationUrl: `${env.mainDomain}/verify-email?uid=${userRecord.uid}`,
-      },
-      subject: 'Verify your email on Growthfile',
-    });
+  return sgMail.send({
+    templateId: sendGridTemplateIds.verificationEmail,
+    to: {
+      name: userRecord.displayName || body.displayName || '',
+      email: userRecord.email || body.email,
+    },
+    from: {
+      name: 'Growthfile Help',
+      email: env.systemEmail,
+    },
+    dynamicTemplateData: {
+      phoneNumber: body.phoneNumber,
+      verificationUrl: `${env.mainDomain}/verify-email?uid=${userRecord.uid}`,
+    },
+    subject: 'Verify your email on Growthfile',
+  });
 };
 
-
-const getUserFromAuth = (phoneNumber) => {
+const getUserFromAuth = phoneNumber => {
   const result = {
     phoneNumber,
     found: false,
@@ -78,8 +66,8 @@ const getUserFromAuth = (phoneNumber) => {
     photoURL: null,
   };
 
-  const valuesPolyfill = (object) => {
-    return Object.keys(object).map((key) => object[key]);
+  const valuesPolyfill = object => {
+    return Object.keys(object).map(key => object[key]);
   };
 
   /**
@@ -95,14 +83,8 @@ const getUserFromAuth = (phoneNumber) => {
 
   return auth
     .getUserByPhoneNumber(phoneNumber)
-    .then((userRecord) => {
-      const {
-        uid,
-        displayName,
-        disabled,
-        email,
-        emailVerified,
-      } = userRecord;
+    .then(userRecord => {
+      const {uid, displayName, disabled, email, emailVerified} = userRecord;
 
       result.uid = uid;
       result.email = email;
@@ -112,7 +94,7 @@ const getUserFromAuth = (phoneNumber) => {
 
       return result;
     })
-    .catch((error) => {
+    .catch(error => {
       return {
         uid: null,
         errorCode: error.code,
@@ -125,7 +107,8 @@ module.exports = conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed. Use 'POST'`);
+      `${conn.req.method} is not allowed. Use 'POST'`,
+    );
   }
 
   // Handling country code automatically.
@@ -137,17 +120,16 @@ module.exports = conn => {
     return sendResponse(
       conn,
       code.unauthorized,
-      `You cannot access this resource`
+      `You cannot access this resource`,
     );
   }
 
   /** Email can be null also */
-  if (conn.req.body.email
-    && !isValidEmail(conn.req.body.email)) {
+  if (conn.req.body.email && !isValidEmail(conn.req.body.email)) {
     return sendResponse(
       conn,
       code.badRequest,
-      `Invalid/Missing email from the request body`
+      `Invalid/Missing email from the request body`,
     );
   }
 
@@ -155,16 +137,12 @@ module.exports = conn => {
     return sendResponse(
       conn,
       code.badRequest,
-      `Invalid phone number: ${conn.req.body.phoneNumber}`
+      `Invalid phone number: ${conn.req.body.phoneNumber}`,
     );
   }
 
   if (!env.isProduction) {
-    return sendResponse(
-      conn,
-      code.ok,
-      'User successfully created/updated.'
-    );
+    return sendResponse(conn, code.ok, 'User successfully created/updated.');
   }
 
   let sendEmail = false;
@@ -178,12 +156,11 @@ module.exports = conn => {
           sendEmail = true;
           console.log('Creating user:', conn.req.body);
 
-          return auth
-            .createUser({
-              phoneNumber: conn.req.body.phoneNumber,
-              email: conn.req.body.email,
-              displayName: conn.req.body.displayName,
-            });
+          return auth.createUser({
+            phoneNumber: conn.req.body.phoneNumber,
+            email: conn.req.body.email,
+            displayName: conn.req.body.displayName,
+          });
         }
 
         throw new Error(authFetchResult.errorCode);
@@ -212,25 +189,23 @@ module.exports = conn => {
 
       const promises = [];
 
-      if (sendEmail
-        && env.isProduction) {
-        promises
-          .push(sendVerificationEmail(userRecord, conn.req.body));
+      if (sendEmail && env.isProduction) {
+        promises.push(sendVerificationEmail(userRecord, conn.req.body));
       }
 
       if (userRecord.uid) {
-        const promise = rootCollections
-          .updates
-          .doc(userRecord.uid)
-          .set({
+        const promise = rootCollections.updates.doc(userRecord.uid).set(
+          {
             // When the user visits the verification link sent
             // to them in the email, this link will allow
             // the backend to verify if their email verification
             // was initiated
             emailVerificationRequestPending: true,
-          }, {
-              merge: true,
-            });
+          },
+          {
+            merge: true,
+          },
+        );
 
         promises.push(promise);
       }
@@ -238,21 +213,19 @@ module.exports = conn => {
       return Promise.all(promises);
     })
     .then(() => {
-      return sendResponse(
-        conn,
-        code.ok,
-        'User successfully created/updated.'
-      );
+      return sendResponse(conn, code.ok, 'User successfully created/updated.');
     })
     .catch(error => {
       if (error.code === 'auth/email-already-exists') {
         return auth
           .getUserByEmail(conn.req.body.email)
-          .then(userRecord => sendResponse(
-            conn,
-            code.conflict,
-            `'${conn.req.body.email}' is already in use by '${userRecord.phoneNumber}'`
-          ));
+          .then(userRecord =>
+            sendResponse(
+              conn,
+              code.conflict,
+              `'${conn.req.body.email}' is already in use by '${userRecord.phoneNumber}'`,
+            ),
+          );
       }
 
       return handleError(conn, error);

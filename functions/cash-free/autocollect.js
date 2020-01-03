@@ -10,15 +10,9 @@ const crypto = require('crypto');
 const CLIENT_ID = env.cashFree.autocollect.clientId;
 const CLIENT_SECRET = env.cashFree.autocollect.clientSecret;
 
-const {
-  promisify
-} = require('util');
-const {
-  rootCollections,
-} = require('../admin/admin');
-const {
-  getISO8601Date,
-} = require('../admin/utils');
+const {promisify} = require('util');
+const {rootCollections} = require('../admin/admin');
+const {getISO8601Date} = require('../admin/utils');
 
 const endpoint = (() => {
   if (env.isProduction) {
@@ -28,16 +22,18 @@ const endpoint = (() => {
   return 'https://cac-gamma.cashfree.com';
 })();
 
-
 const encryptWithPublicKey = async keyPath => {
   const message = `${CLIENT_ID}.${momentTz().unix()}`;
   const readFile = promisify(fs.readFile);
 
   return crypto
-    .publicEncrypt({
-      key: await readFile(keyPath),
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-    }, Buffer.from(message))
+    .publicEncrypt(
+      {
+        key: await readFile(keyPath),
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      },
+      Buffer.from(message),
+    )
     .toString('base64');
 };
 
@@ -70,50 +66,47 @@ const verifyAuthToken = async authToken => {
   return rpn(uri, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${authToken}`
+      Authorization: `Bearer ${authToken}`,
     },
     json: true,
   });
 };
 
 const getBearerToken = async () => {
-  const timerDoc = await rootCollections
-    .timers
-    .doc(getISO8601Date())
-    .get();
+  const timerDoc = await rootCollections.timers.doc(getISO8601Date()).get();
 
-  const {
-    cashFree
-  } = timerDoc.data() || {};
+  const {cashFree} = timerDoc.data() || {};
 
   console.log('Timer', timerDoc.ref.path);
 
   // Token is already present
   if (cashFree && cashFree.autocollect) {
     // Just verify if it hasn't expired
-    const tokenValidResponse = await verifyAuthToken(cashFree.autocollect.token);
+    const tokenValidResponse = await verifyAuthToken(
+      cashFree.autocollect.token,
+    );
 
     if (tokenValidResponse.subCode === '200') {
       return `Bearer ${cashFree.autocollect.token}`;
     }
   }
 
-
   const authTokenResponse = await getAutocollectToken();
 
   console.log('authTokenResponse', authTokenResponse);
 
-  await timerDoc
-    .ref
-    .set({
+  await timerDoc.ref.set(
+    {
       cashFree: {
         autocollect: {
           token: authTokenResponse.data.token,
         },
       },
-    }, {
+    },
+    {
       merge: true,
-    });
+    },
+  );
 
   return `Bearer ${authTokenResponse.data.token}`;
 };
@@ -126,12 +119,7 @@ const getHeaders = async () => {
 
 const createVirtualAccount = async options => {
   const uri = url.resolve(endpoint, '/cac/v1/createVA');
-  const {
-    vAccountId,
-    name,
-    phone,
-    email
-  } = options;
+  const {vAccountId, name, phone, email} = options;
 
   return rpn(uri, {
     method: 'POST',

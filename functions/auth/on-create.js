@@ -21,25 +21,12 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  db,
-  auth,
-  rootCollections,
-} = require('../admin/admin');
-const {
-  getObjectFromSnap,
-  filterPhoneNumber,
-} = require('../admin/utils');
-const {
-  reportNames,
-  subcollectionNames,
-} = require('../admin/constants');
+const {db, auth, rootCollections} = require('../admin/admin');
+const {getObjectFromSnap, filterPhoneNumber} = require('../admin/utils');
+const {reportNames, subcollectionNames} = require('../admin/constants');
 const moment = require('moment');
-
 
 /**
  * Creates new docs inside `Profile` and `Updates` collection in Firestore for
@@ -67,15 +54,15 @@ module.exports = async userRecord => {
    * and Updates/<uid>
    */
   if (userRecord.isAnonymous) {
-    return rootCollections
-      .anonymous
-      .doc(userRecord.uid)
-      .set({
+    return rootCollections.anonymous.doc(userRecord.uid).set(
+      {
         timestamp: Date.now(),
-      }, {
+      },
+      {
         /** Probably isn't required. Not sure why I'm doing this */
         merge: true,
-      });
+      },
+    );
   }
 
   try {
@@ -84,27 +71,24 @@ module.exports = async userRecord => {
       initDocsQuery,
       adminActivitiesQuery,
     ] = await Promise.all([
-    rootCollections
-      .inits
-      .where('report', '==', 'counter')
-      .limit(1)
-      .get(),
-    rootCollections
-      .inits
-      .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-      .where('date', '==', momentToday.date)
-      .where('month', '==', momentToday.months)
-      .where('year', '==', momentToday.years)
-      .limit(1)
-      .get(),
-    rootCollections
-      .profiles
-      .doc(userRecord.phoneNumber)
-      .collection(subcollectionNames.ACTIVITIES)
-      .where('template', '==', 'admin')
-      .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
-      .get(),
-  ]);
+      rootCollections.inits
+        .where('report', '==', 'counter')
+        .limit(1)
+        .get(),
+      rootCollections.inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', momentToday.date)
+        .where('month', '==', momentToday.months)
+        .where('year', '==', momentToday.years)
+        .limit(1)
+        .get(),
+      rootCollections.profiles
+        .doc(userRecord.phoneNumber)
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('template', '==', 'admin')
+        .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
+        .get(),
+    ]);
 
     const initDoc = getObjectFromSnap(initDocsQuery);
 
@@ -113,25 +97,31 @@ module.exports = async userRecord => {
         return 1;
       }
 
-      return initDocsQuery
-        .docs[0]
-        .get('usersAdded') || 0;
+      return initDocsQuery.docs[0].get('usersAdded') || 0;
     })();
 
-    batch.set(initDoc.ref, {
-      usersAdded: usersAdded + 1,
-    }, {
-      merge: true,
-    });
+    batch.set(
+      initDoc.ref,
+      {
+        usersAdded: usersAdded + 1,
+      },
+      {
+        merge: true,
+      },
+    );
 
     if (!counterDocsQuery.empty) {
       const counterDoc = getObjectFromSnap(counterDocsQuery);
 
-      batch.set(counterDoc.ref, {
-        totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
-      }, {
-        merge: true,
-      });
+      batch.set(
+        counterDoc.ref,
+        {
+          totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
+        },
+        {
+          merge: true,
+        },
+      );
     }
 
     const customClaimsObject = {};
@@ -148,13 +138,14 @@ module.exports = async userRecord => {
     const phoneNumber = filterPhoneNumber(userRecord.phoneNumber);
 
     batch.set(
-      rootCollections
-        .updates
-        .doc(uid), {
-          phoneNumber,
-        }, {
-          merge: true,
-        });
+      rootCollections.updates.doc(uid),
+      {
+        phoneNumber,
+      },
+      {
+        merge: true,
+      },
+    );
 
     /**
      * Profile *may* exist already, if the user signed
@@ -163,23 +154,23 @@ module.exports = async userRecord => {
      * in the past via an activity
      */
     batch.set(
-      rootCollections
-        .profiles
-        .doc(phoneNumber), {
-          uid,
-        }, {
-          merge: true,
-        });
+      rootCollections.profiles.doc(phoneNumber),
+      {
+        uid,
+      },
+      {
+        merge: true,
+      },
+    );
 
     console.log({
       phoneNumber,
-      uid
+      uid,
     });
 
     const final = [
-      auth
-        .setCustomUserClaims(uid, customClaimsObject),
-      batch.commit()
+      auth.setCustomUserClaims(uid, customClaimsObject),
+      batch.commit(),
     ];
 
     return Promise.all(final);

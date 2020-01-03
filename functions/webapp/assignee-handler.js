@@ -1,18 +1,12 @@
 'use strict';
 
-const {
-  db,
-  rootCollections,
-} = require('../admin/admin');
-const {
-  code,
-} = require('../admin/responses');
-
+const {db, rootCollections} = require('../admin/admin');
+const {code} = require('../admin/responses');
 
 module.exports = (conn, requester) => {
   const isSupport = requester.isSupport;
-  const isAdmin = !requester.isAdmin &&
-    requester.adminOffices.includes(conn.req.body.office);
+  const isAdmin =
+    !requester.isAdmin && requester.adminOffices.includes(conn.req.body.office);
 
   if (!isSupport && !isAdmin) {
     return {
@@ -22,8 +16,10 @@ module.exports = (conn, requester) => {
     };
   }
 
-  if (conn.req.body.template !== 'recipient' &&
-    conn.req.body.template !== 'subscription') {
+  if (
+    conn.req.body.template !== 'recipient' &&
+    conn.req.body.template !== 'subscription'
+  ) {
     return {
       success: false,
       code: code.unauthorized,
@@ -38,32 +34,32 @@ module.exports = (conn, requester) => {
   const adminsSet = new Set();
   let failed;
 
-  return rootCollections
-    .activities
+  return rootCollections.activities
     .doc(conn.req.body.activityId)
     .get()
     .then(doc => {
       failed = doc.exists;
 
       if (doc.empty) {
-        return ({
+        return {
           success: false,
           message: `Activity doesn't exist`,
           code: code.badRequest,
-        });
+        };
       }
 
-      batch.set(doc.ref, {
-        timestamp: Date.now(),
-        addendumDocRef: null,
-      }, {
-        merge: true,
-      });
+      batch.set(
+        doc.ref,
+        {
+          timestamp: Date.now(),
+          addendumDocRef: null,
+        },
+        {
+          merge: true,
+        },
+      );
 
-      return doc
-        .ref
-        .collection('Assignees')
-        .get();
+      return doc.ref.collection('Assignees').get();
     })
     .then(snapShot => {
       snapShot.forEach(doc => {
@@ -73,8 +69,7 @@ module.exports = (conn, requester) => {
       });
 
       conn.req.body.share.forEach(phoneNumber => {
-        const promise = rootCollections
-          .activities
+        const promise = rootCollections.activities
           .where('office', '==', conn.req.body.office)
           .where('template', '==', 'admin')
           .where('attachment.Phone Number.value', '==', phoneNumber)
@@ -98,8 +93,7 @@ module.exports = (conn, requester) => {
       });
 
       conn.req.body.share.forEach(phoneNumber => {
-        const assigneeRef = activityDoc
-          .ref
+        const assigneeRef = activityDoc.ref
           .collection('Assigness')
           .doc(phoneNumber);
 
@@ -114,8 +108,8 @@ module.exports = (conn, requester) => {
     .then(() => {
       if (failed) return;
 
-      return ({
-        success: true
-      });
+      return {
+        success: true,
+      };
     });
 };

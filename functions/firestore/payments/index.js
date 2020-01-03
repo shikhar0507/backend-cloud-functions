@@ -1,44 +1,29 @@
 'use strict';
 
-const {
-  db,
-  rootCollections,
-} = require('../../admin/admin');
-const {
-  sendJSON,
-  sendResponse,
-  handleError,
-} = require('../../admin/utils');
-const {
-  code,
-} = require('../../admin/responses');
+const {db, rootCollections} = require('../../admin/admin');
+const {sendJSON, sendResponse, handleError} = require('../../admin/utils');
+const {code} = require('../../admin/responses');
 const dinero = require('dinero.js');
-
 
 module.exports = async conn => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed. Use 'POST'`
+      `${conn.req.method} is not allowed. Use 'POST'`,
     );
   }
 
-  const {
-    paymentIds,
-    officeId
-  } = conn.req.body;
+  const {paymentIds, officeId} = conn.req.body;
   const paymentRefs = [];
 
   paymentIds.forEach(docId => {
-    const ref = rootCollections
-      .offices
+    const ref = rootCollections.offices
       .doc(officeId)
       .collection('PendingPayments')
       .doc(docId);
 
-    paymentRefs
-      .push(ref);
+    paymentRefs.push(ref);
   });
 
   try {
@@ -63,22 +48,20 @@ module.exports = async conn => {
         amount: doc.get('amount'),
       });
 
-      total
-        .add(amount);
+      total.add(amount);
 
       numberOfPayments++;
     });
 
-    const autocollectRef = rootCollections
-      .inboundPayments
-      .doc();
+    const autocollectRef = rootCollections.inboundPayments.doc();
 
     // TODO: ADD 0.59% to
     const batch = db.batch();
     const amountWithCharges = total.getAmount() + (0.59 % total.getAmount());
 
-    batch
-      .set(autocollectRef, {
+    batch.set(
+      autocollectRef,
+      {
         officeId,
         numberOfPayments,
         paymentMethod: '',
@@ -89,12 +72,13 @@ module.exports = async conn => {
         uid: conn.requester.uid,
         provider: 'cashfree',
         createTimestamp: Date.now(),
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
 
-    await batch
-      .commit();
+    await batch.commit();
 
     return sendJSON(conn, {
       numberOfPayments,

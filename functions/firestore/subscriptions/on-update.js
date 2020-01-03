@@ -21,23 +21,13 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  rootCollections,
-  db,
-} = require('../../admin/admin');
-const {
-  subcollectionNames,
-  addendumTypes
-} = require('../../admin/constants');
+const {rootCollections, db} = require('../../admin/admin');
+const {subcollectionNames, addendumTypes} = require('../../admin/constants');
 
 const pushUpdatedTemplates = async (query, templateDoc) => {
-  const {
-    name: template
-  } = templateDoc.data();
+  const {name: template} = templateDoc.data();
   const authPromises = [];
   const uidMap = new Map();
   const templateUpdate = {
@@ -56,22 +46,26 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
 
   const MAX_DOCS_TO_FETCH = 500;
 
-  const subscriptionActivitiesQuery = query || rootCollections
-    .activities
-    .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', template)
-    .orderBy('__name__')
-    .limit(MAX_DOCS_TO_FETCH);
+  const subscriptionActivitiesQuery =
+    query ||
+    rootCollections.activities
+      .where('template', '==', 'subscription')
+      .where('attachment.Template.value', '==', template)
+      .orderBy('__name__')
+      .limit(MAX_DOCS_TO_FETCH);
 
   const docs = await subscriptionActivitiesQuery.get();
 
   docs.forEach(subscription => {
     authPromises.push(
-      rootCollections
-      .updates
-      .where('phoneNumber', '==', subscription.get('attachment.Phone Number.value'))
-      .limit(1)
-      .get()
+      rootCollections.updates
+        .where(
+          'phoneNumber',
+          '==',
+          subscription.get('attachment.Phone Number.value'),
+        )
+        .limit(1)
+        .get(),
     );
   });
 
@@ -83,12 +77,8 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
       return;
     }
 
-    const {
-      id: uid
-    } = doc;
-    const {
-      phoneNumber
-    } = doc.data();
+    const {id: uid} = doc;
+    const {phoneNumber} = doc.data();
 
     uidMap.set(phoneNumber, uid);
   });
@@ -96,14 +86,11 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
   const batch = db.batch();
 
   docs.forEach(subscription => {
-    const {
-      office,
-      status
-    } = subscription.data();
+    const {office, status} = subscription.data();
 
     const data = Object.assign({}, templateUpdate, {
       office,
-      status
+      status,
     });
 
     const uid = uidMap.get(subscription.get('attachment.Phone Number.value'));
@@ -112,8 +99,7 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
       return;
     }
 
-    const ref = rootCollections
-      .updates
+    const ref = rootCollections.updates
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc();
@@ -142,7 +128,6 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
   return pushUpdatedTemplates(newQuery, templateDoc);
 };
 
-
 /**
  * Whenever a `Template Manager` updates a document in ActivityTemplates
  * collection, this function queries the `Activities` collection, gets
@@ -162,12 +147,10 @@ module.exports = change => {
   const templateName = change.after.get('name');
 
   console.log({
-    templateName
+    templateName,
   });
 
-  const {
-    after: templateDoc
-  } = change;
+  const {after: templateDoc} = change;
 
   try {
     return pushUpdatedTemplates(null, templateDoc);

@@ -1,9 +1,6 @@
 'use strict';
 
-const {
-  db,
-  rootCollections,
-} = require('../admin/admin');
+const {db, rootCollections} = require('../admin/admin');
 const env = require('../admin/env');
 
 module.exports = async conn => {
@@ -17,9 +14,7 @@ module.exports = async conn => {
     const batch = db.batch();
 
     conn.req.body.forEach(object => {
-      const {
-        testMail
-      } = object;
+      const {testMail} = object;
 
       // Ignore test emails
       if (testMail) {
@@ -27,12 +22,10 @@ module.exports = async conn => {
       }
 
       batch.set(
-        rootCollections
-        .mailEvents
-        .doc(),
+        rootCollections.mailEvents.doc(),
         Object.assign({}, object, {
           webhookReceivedAt: Date.now(),
-        })
+        }),
       );
     });
 

@@ -1,12 +1,8 @@
 'use strict';
 
 const xlsxPopulate = require('xlsx-populate');
-const {
-  dateFormats,
-} = require('../../admin/constants');
-const {
-  alphabetsArray,
-} = require('./report-utils');
+const {dateFormats} = require('../../admin/constants');
+const {alphabetsArray} = require('./report-utils');
 const momentTz = require('moment-timezone');
 
 module.exports = async locals => {
@@ -14,44 +10,27 @@ module.exports = async locals => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const momentToday = momentTz(timestampFromTimer).tz(timezone);
 
-  const [
-    workbook,
-  ] = await Promise
-    .all([
-      xlsxPopulate
-      .fromBlankAsync(),
-    ]);
+  const [workbook] = await Promise.all([xlsxPopulate.fromBlankAsync()]);
 
   // office(first day of monthly cycle 33), branch, leave-types, employee
-  const officeSheet = workbook
-    .addSheet('Offices');
-  const branchesSheet = workbook
-    .addSheet('Branches');
-  const employeesSheet = workbook
-    .addSheet('Employees');
-  const leaveTypeSheet = workbook
-    .addSheet('Leave Types');
-  const regionsSheet = workbook
-    .addSheet('Regions');
+  const officeSheet = workbook.addSheet('Offices');
+  const branchesSheet = workbook.addSheet('Branches');
+  const employeesSheet = workbook.addSheet('Employees');
+  const leaveTypeSheet = workbook.addSheet('Leave Types');
+  const regionsSheet = workbook.addSheet('Regions');
 
-  workbook
-    .deleteSheet('Sheet1');
+  workbook.deleteSheet('Sheet1');
 
-  [
-    'First Day Of Monthly Cycle',
-    'Status',
-  ].forEach((field, index) => {
-    officeSheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(field);
+  ['First Day Of Monthly Cycle', 'Status'].forEach((field, index) => {
+    officeSheet.cell(`${alphabetsArray[index]}1`).value(field);
   });
 
   officeSheet
     .cell(`A2`)
-    .value(locals.officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1);
-  officeSheet
-    .cell(`B2`)
-    .value(locals.officeDoc.get('status'));
+    .value(
+      locals.officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1,
+    );
+  officeSheet.cell(`B2`).value(locals.officeDoc.get('status'));
 
   [
     'Name',
@@ -75,9 +54,7 @@ module.exports = async locals => {
     'Employee Code',
     'Region',
   ].forEach((field, index) => {
-    employeesSheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(field);
+    employeesSheet.cell(`${alphabetsArray[index]}1`).value(field);
   });
 
   const employeePhoneNumbers = Object.keys(locals.employeesData);
@@ -85,129 +62,105 @@ module.exports = async locals => {
   const branchMap = {};
   const leaveTypesSet = new Set();
 
-  employeePhoneNumbers
-    .forEach((phoneNumber, outerIndex) => {
-      [
-        locals.employeesData[phoneNumber].Name,
-        locals.employeesData[phoneNumber]['Phone Number'],
-        locals.employeesData[phoneNumber].Designation,
-        locals.employeesData[phoneNumber].Department,
-        locals.employeesData[phoneNumber]['Base Location'],
-        locals.employeesData[phoneNumber]['First Supervisor'],
-        locals.employeesData[phoneNumber]['Second Supervisor'],
-        locals.employeesData[phoneNumber]['Third Supervisor'],
-        locals.employeesData[phoneNumber]['Daily Start Time'],
-        locals.employeesData[phoneNumber]['Daily End Time'],
-        locals.employeesData[phoneNumber]['Minimum Working Hours'],
-        locals.employeesData[phoneNumber]['Minimum Daily Activity Count'],
-        locals.employeesData[phoneNumber]['Monthly Off Days'],
-        locals.employeesData[phoneNumber]['Employee Based In Customer Location'],
-        locals.employeesData[phoneNumber]['Location Validation Check'],
-        locals.employeesData[phoneNumber]['Task Specialization'],
-        locals.employeesData[phoneNumber]['Product Specialization'],
-        locals.employeesData[phoneNumber]['Maximum Advance Amount Given'],
-        locals.employeesData[phoneNumber]['Employee Code'],
-        locals.employeesData[phoneNumber].Region,
-      ].forEach((value, innerIndex) => {
-        employeesSheet
-          .cell(`${alphabetsArray[innerIndex]}${outerIndex + 2}`)
-          .value(value);
-      });
-
-      const region = locals.employeesData[phoneNumber].Region;
-
-      if (region) {
-        regionsSet.add(region);
-      }
-
-      const leaves = locals.employeesData[phoneNumber].leaves;
-
-      if (leaves) {
-        Object
-          .keys(leaves)
-          .forEach(leave => {
-            leaveTypesSet
-              .add(leave);
-          });
-      }
-
-      const branch = locals.employeesData[phoneNumber]['Base Location'];
-
-      if (branch) {
-        branchMap[
-          branch
-        ] = branchMap[branch] || {};
-
-        branchMap[
-          branch
-        ]['Weekly Off'] = locals.employeesData[phoneNumber]['Weekly Off'];
-
-        locals
-          .employeesData[
-            phoneNumber
-          ].branchHolidays = locals.employeesData[phoneNumber].branchHolidays || [];
-
-        branchMap[
-          branch
-        ]['Holiday 1'] = locals.employeesData[phoneNumber].branchHolidays[0];
-
-        branchMap[
-          branch
-        ]['Holiday 2'] = locals.employeesData[phoneNumber].branchHolidays[1];
-
-        branchMap[
-          branch
-        ]['Holiday 3'] = locals.employeesData[phoneNumber].branchHolidays[2];
-
-        branchMap[
-          branch
-        ]['Holiday 4'] = locals.employeesData[phoneNumber].branchHolidays[3];
-
-        branchMap[
-          branch
-        ]['Holiday 5'] = locals.employeesData[phoneNumber].branchHolidays[4];
-
-        branchMap[
-          branch
-        ]['Holiday 6'] = locals.employeesData[phoneNumber].branchHolidays[5];
-
-        branchMap[
-          branch
-        ]['Holiday 7'] = locals.employeesData[phoneNumber].branchHolidays[6];
-
-        branchMap[
-          branch
-        ]['Holiday 8'] = locals.employeesData[phoneNumber].branchHolidays[7];
-
-        branchMap[
-          branch
-        ]['Holiday 9'] = locals.employeesData[phoneNumber].branchHolidays[8];
-
-        branchMap[
-          branch
-        ]['Holiday 10'] = locals.employeesData[phoneNumber].branchHolidays[9];
-
-        branchMap[
-          branch
-        ]['Holiday 11'] = locals.employeesData[phoneNumber].branchHolidays[10];
-
-        branchMap[
-          branch
-        ]['Holiday 12'] = locals.employeesData[phoneNumber].branchHolidays[11];
-
-        branchMap[
-          branch
-        ]['Holiday 13'] = locals.employeesData[phoneNumber].branchHolidays[12];
-
-        branchMap[
-          branch
-        ]['Holiday 14'] = locals.employeesData[phoneNumber].branchHolidays[13];
-
-        branchMap[
-          branch
-        ]['Holiday 15'] = locals.employeesData[phoneNumber].branchHolidays[14];
-      }
+  employeePhoneNumbers.forEach((phoneNumber, outerIndex) => {
+    [
+      locals.employeesData[phoneNumber].Name,
+      locals.employeesData[phoneNumber]['Phone Number'],
+      locals.employeesData[phoneNumber].Designation,
+      locals.employeesData[phoneNumber].Department,
+      locals.employeesData[phoneNumber]['Base Location'],
+      locals.employeesData[phoneNumber]['First Supervisor'],
+      locals.employeesData[phoneNumber]['Second Supervisor'],
+      locals.employeesData[phoneNumber]['Third Supervisor'],
+      locals.employeesData[phoneNumber]['Daily Start Time'],
+      locals.employeesData[phoneNumber]['Daily End Time'],
+      locals.employeesData[phoneNumber]['Minimum Working Hours'],
+      locals.employeesData[phoneNumber]['Minimum Daily Activity Count'],
+      locals.employeesData[phoneNumber]['Monthly Off Days'],
+      locals.employeesData[phoneNumber]['Employee Based In Customer Location'],
+      locals.employeesData[phoneNumber]['Location Validation Check'],
+      locals.employeesData[phoneNumber]['Task Specialization'],
+      locals.employeesData[phoneNumber]['Product Specialization'],
+      locals.employeesData[phoneNumber]['Maximum Advance Amount Given'],
+      locals.employeesData[phoneNumber]['Employee Code'],
+      locals.employeesData[phoneNumber].Region,
+    ].forEach((value, innerIndex) => {
+      employeesSheet
+        .cell(`${alphabetsArray[innerIndex]}${outerIndex + 2}`)
+        .value(value);
     });
+
+    const region = locals.employeesData[phoneNumber].Region;
+
+    if (region) {
+      regionsSet.add(region);
+    }
+
+    const leaves = locals.employeesData[phoneNumber].leaves;
+
+    if (leaves) {
+      Object.keys(leaves).forEach(leave => {
+        leaveTypesSet.add(leave);
+      });
+    }
+
+    const branch = locals.employeesData[phoneNumber]['Base Location'];
+
+    if (branch) {
+      branchMap[branch] = branchMap[branch] || {};
+
+      branchMap[branch]['Weekly Off'] =
+        locals.employeesData[phoneNumber]['Weekly Off'];
+
+      locals.employeesData[phoneNumber].branchHolidays =
+        locals.employeesData[phoneNumber].branchHolidays || [];
+
+      branchMap[branch]['Holiday 1'] =
+        locals.employeesData[phoneNumber].branchHolidays[0];
+
+      branchMap[branch]['Holiday 2'] =
+        locals.employeesData[phoneNumber].branchHolidays[1];
+
+      branchMap[branch]['Holiday 3'] =
+        locals.employeesData[phoneNumber].branchHolidays[2];
+
+      branchMap[branch]['Holiday 4'] =
+        locals.employeesData[phoneNumber].branchHolidays[3];
+
+      branchMap[branch]['Holiday 5'] =
+        locals.employeesData[phoneNumber].branchHolidays[4];
+
+      branchMap[branch]['Holiday 6'] =
+        locals.employeesData[phoneNumber].branchHolidays[5];
+
+      branchMap[branch]['Holiday 7'] =
+        locals.employeesData[phoneNumber].branchHolidays[6];
+
+      branchMap[branch]['Holiday 8'] =
+        locals.employeesData[phoneNumber].branchHolidays[7];
+
+      branchMap[branch]['Holiday 9'] =
+        locals.employeesData[phoneNumber].branchHolidays[8];
+
+      branchMap[branch]['Holiday 10'] =
+        locals.employeesData[phoneNumber].branchHolidays[9];
+
+      branchMap[branch]['Holiday 11'] =
+        locals.employeesData[phoneNumber].branchHolidays[10];
+
+      branchMap[branch]['Holiday 12'] =
+        locals.employeesData[phoneNumber].branchHolidays[11];
+
+      branchMap[branch]['Holiday 13'] =
+        locals.employeesData[phoneNumber].branchHolidays[12];
+
+      branchMap[branch]['Holiday 14'] =
+        locals.employeesData[phoneNumber].branchHolidays[13];
+
+      branchMap[branch]['Holiday 15'] =
+        locals.employeesData[phoneNumber].branchHolidays[14];
+    }
+  });
 
   [
     'Name',
@@ -236,94 +189,70 @@ module.exports = async locals => {
     'Saturday End Time',
     'Weekly Off',
   ].forEach((field, index) => {
-    branchesSheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(field);
+    branchesSheet.cell(`${alphabetsArray[index]}1`).value(field);
   });
 
-  [
-    'Name',
-  ].forEach((field, index) => {
-    regionsSheet
-      .cell(`A${index + 1}`)
-      .value(field);
+  ['Name'].forEach((field, index) => {
+    regionsSheet.cell(`A${index + 1}`).value(field);
   });
 
-  [
-    ...regionsSet.keys(),
-  ].forEach((region, index) => {
-    regionsSheet
-      .cell(`A${index + 2}`)
-      .value(region);
+  [...regionsSet.keys()].forEach((region, index) => {
+    regionsSheet.cell(`A${index + 2}`).value(region);
   });
 
-  Object
-    .keys(branchMap)
-    .forEach((name, outerIndex) => {
-      const branchObject = branchMap[name];
+  Object.keys(branchMap).forEach((name, outerIndex) => {
+    const branchObject = branchMap[name];
 
-      [
-        name,
-        branchObject['Branch Office'],
-        branchObject['Holiday 1'],
-        branchObject['Holiday 2'],
-        branchObject['Holiday 3'],
-        branchObject['Holiday 4'],
-        branchObject['Holiday 5'],
-        branchObject['Holiday 6'],
-        branchObject['Holiday 7'],
-        branchObject['Holiday 8'],
-        branchObject['Holiday 9'],
-        branchObject['Holiday 10'],
-        branchObject['Holiday 11'],
-        branchObject['Holiday 12'],
-        branchObject['Holiday 13'],
-        branchObject['Holiday 14'],
-        branchObject['Holiday 15'],
-        branchObject['First Contact'],
-        branchObject['Second Contact'],
-        branchObject['Branch Code'],
-        branchObject['Weekday Start Time'],
-        branchObject['Weekday End Time'],
-        branchObject['Saturday Start Time'],
-        branchObject['Saturday End Time'],
-        branchObject['Weekly Off'],
-      ].forEach((field, innerIndex) => {
-        branchesSheet
-          .cell(`${alphabetsArray[innerIndex]}${outerIndex + 2}`)
-          .value(field);
-      });
+    [
+      name,
+      branchObject['Branch Office'],
+      branchObject['Holiday 1'],
+      branchObject['Holiday 2'],
+      branchObject['Holiday 3'],
+      branchObject['Holiday 4'],
+      branchObject['Holiday 5'],
+      branchObject['Holiday 6'],
+      branchObject['Holiday 7'],
+      branchObject['Holiday 8'],
+      branchObject['Holiday 9'],
+      branchObject['Holiday 10'],
+      branchObject['Holiday 11'],
+      branchObject['Holiday 12'],
+      branchObject['Holiday 13'],
+      branchObject['Holiday 14'],
+      branchObject['Holiday 15'],
+      branchObject['First Contact'],
+      branchObject['Second Contact'],
+      branchObject['Branch Code'],
+      branchObject['Weekday Start Time'],
+      branchObject['Weekday End Time'],
+      branchObject['Saturday Start Time'],
+      branchObject['Saturday End Time'],
+      branchObject['Weekly Off'],
+    ].forEach((field, innerIndex) => {
+      branchesSheet
+        .cell(`${alphabetsArray[innerIndex]}${outerIndex + 2}`)
+        .value(field);
     });
-
-  [
-    'Name',
-  ].forEach((field, index) => {
-    leaveTypeSheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(field);
   });
 
-  [
-    ...leaveTypesSet.keys(),
-  ].forEach((name, index) => {
-    leaveTypeSheet
-      .cell(`A${index + 2}`)
-      .value(name);
+  ['Name'].forEach((field, index) => {
+    leaveTypeSheet.cell(`${alphabetsArray[index]}1`).value(field);
   });
 
-  locals
-    .messageObject
-    .attachments
-    .push({
-      fileName: `Payroll Master Report_` +
-        `${locals.officeDoc.get('office')}` +
-        `_${momentToday.format(dateFormats.DATE)}.xlsx`,
-      content: await workbook.outputAsync('base64'),
-      type: 'text/csv',
-      disposition: 'attachment',
-    });
+  [...leaveTypesSet.keys()].forEach((name, index) => {
+    leaveTypeSheet.cell(`A${index + 2}`).value(name);
+  });
 
-  return locals
-    .sgMail
-    .sendMultiple(locals.messageObject);
+  locals.messageObject.attachments.push({
+    fileName:
+      `Payroll Master Report_` +
+      `${locals.officeDoc.get('office')}` +
+      `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+    content: await workbook.outputAsync('base64'),
+    type: 'text/csv',
+    disposition: 'attachment',
+  });
+
+  return locals.sgMail.sendMultiple(locals.messageObject);
 };

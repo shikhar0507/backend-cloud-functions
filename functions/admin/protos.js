@@ -13,45 +13,34 @@ const {
 const validateSchedules = scheduleArray => {
   const result = {
     success: true,
-    message: []
+    message: [],
   };
 
   scheduleArray.forEach((schedule, index) => {
-    const {
-      startTime,
-      endTime,
-      name
-    } = schedule;
+    const {startTime, endTime, name} = schedule;
 
-    if (typeof startTime === 'undefined' ||
-      typeof endTime === 'undefined') {
-      result
-        .message
-        .push(`Invalid Schedule at index: ${index}`);
+    if (typeof startTime === 'undefined' || typeof endTime === 'undefined') {
+      result.message.push(`Invalid Schedule at index: ${index}`);
 
       return;
     }
 
-    if ((startTime && typeof startTime !== 'number') ||
-      (endTime && typeof endTime !== 'number')) {
-      result
-        .message
-        .push(`Invalid Schedule at index: ${index}`);
+    if (
+      (startTime && typeof startTime !== 'number') ||
+      (endTime && typeof endTime !== 'number')
+    ) {
+      result.message.push(`Invalid Schedule at index: ${index}`);
     }
 
     if (!isNonEmptyString(name)) {
-      result
-        .message
-        .push(`Invalid Schedule name at index: ${index}`);
+      result.message.push(`Invalid Schedule name at index: ${index}`);
     }
 
     if (startTime > endTime) {
       result.success = false;
-      result
-        .message
-        .push(
-          `The startTime cannot be greater than endTime at index: ${index}`
-        );
+      result.message.push(
+        `The startTime cannot be greater than endTime at index: ${index}`,
+      );
     }
   });
 
@@ -61,25 +50,20 @@ const validateSchedules = scheduleArray => {
 const validateVenues = venue => {
   const result = {
     success: true,
-    message: []
+    message: [],
   };
 
   venue.forEach((object, index) => {
-    const {
-      venueDescriptor,
-      address,
-      location,
-      geopoint
-    } = object;
+    const {venueDescriptor, address, location, geopoint} = object;
 
-    if (!isNonEmptyString(venueDescriptor) ||
+    if (
+      !isNonEmptyString(venueDescriptor) ||
       !isNonEmptyString(address) ||
       !isNonEmptyString(location) ||
-      !isValidGeopoint(geopoint)) {
+      !isValidGeopoint(geopoint)
+    ) {
       result.success = false;
-      result
-        .message
-        .push(`Invalid venue at index: ${index}`);
+      result.message.push(`Invalid venue at index: ${index}`);
     }
   });
 
@@ -164,7 +148,7 @@ class Activity {
   set hidden(number) {
     if (typeof number !== 'number' || ![0, 1].includes(number)) {
       throw new Error(
-        'The value should be a number and can only have the values 0 or 1'
+        'The value should be a number and can only have the values 0 or 1',
       );
     }
 
@@ -178,20 +162,14 @@ class Activity {
     if (typeof creator !== 'object') {
       throw new Error(
         `The 'creator' should be an object with the following
-        ` + ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
+        ` + ` properties: 'displayName', 'phoneNumber', and 'photoURL'`,
       );
     }
 
-    const {
-      displayName,
-      phoneNumber,
-      photoURL
-    } = creator;
+    const {displayName, phoneNumber, photoURL} = creator;
 
     if (typeof displayName !== 'string') {
-      throw new Error(
-        'The displayName should be a string',
-      );
+      throw new Error('The displayName should be a string');
     }
 
     if (!isE164PhoneNumber(phoneNumber)) {
@@ -205,7 +183,7 @@ class Activity {
     this.creator = {
       phoneNumber,
       displayName,
-      photoURL
+      photoURL,
     };
   }
 
@@ -302,7 +280,6 @@ class Attachment {
   }
 }
 
-
 class Subscription {
   constructor(templateDoc, activityDoc) {
     this.name = templateDoc.get('name');
@@ -324,9 +301,10 @@ class Subscription {
    * @param {Array<String>} phoneNumbers Array of phone numbers
    */
   setIncludeArray(phoneNumbers) {
-    if (!Array.isArray(phoneNumbers) ||
-      phoneNumbers.length === 0) {
-      throw new Error(`Field 'include' should be a non-empty array of phone numbers`);
+    if (!Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
+      throw new Error(
+        `Field 'include' should be a non-empty array of phone numbers`,
+      );
     }
 
     /** Duplication is reduntant while */

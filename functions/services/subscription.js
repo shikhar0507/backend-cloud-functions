@@ -1,16 +1,6 @@
-const {
-  Attachment,
-  Creator,
-} = require('../admin/protos');
-const {
-  rootCollections,
-  getGeopointObject,
-  db,
-} = require('../admin/admin');
-const {
-  httpsActions,
-  subcollectionNames,
-} = require('../admin/constants');
+const {Attachment, Creator} = require('../admin/protos');
+const {rootCollections, getGeopointObject, db} = require('../admin/admin');
+const {httpsActions, subcollectionNames} = require('../admin/constants');
 const {
   isValidEmail,
   isValidDate,
@@ -19,9 +9,7 @@ const {
   isValidGeopoint,
   handleError,
 } = require('../admin/utils');
-const {
-  code,
-} = require('../admin/responses');
+const {code} = require('../admin/responses');
 const momentTz = require('moment-timezone');
 
 const grantSubscription = async conn => {
@@ -29,61 +17,35 @@ const grantSubscription = async conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed. use 'POST'`
+      `${conn.req.method} is not allowed. use 'POST'`,
     );
   }
 
-  const {
-    phoneNumber,
-    displayName,
-    photoURL,
-    uid,
-  } = conn.requester;
-  const {
-    office,
-    geopoint,
-    timestamp,
-    share,
-  } = conn.req.body;
+  const {phoneNumber, displayName, photoURL, uid} = conn.requester;
+  const {office, geopoint, timestamp, share} = conn.req.body;
 
   if (!isValidDate(timestamp)) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      `Invalid/missing 'timestamp'`
-    );
+    return sendResponse(conn, code.badRequest, `Invalid/missing 'timestamp'`);
   }
 
   if (!isNonEmptyString(office)) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      `Field 'office' is required`
-    );
+    return sendResponse(conn, code.badRequest, `Field 'office' is required`);
   }
 
   if (!isValidGeopoint(geopoint, false)) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      `Invalid/missing geopoint`
-    );
+    return sendResponse(conn, code.badRequest, `Invalid/missing geopoint`);
   }
 
   if (!Array.isArray(share)) {
     return sendResponse(
       conn,
       code.badRequest,
-      `Field share should be an array of objects ({phoneNumber, displayName, email})`
+      `Field share should be an array of objects ({phoneNumber, displayName, email})`,
     );
   }
 
   const validItems = share.filter(item => {
-    const {
-      phoneNumber,
-      displayName,
-      email
-    } = item;
+    const {phoneNumber, displayName, email} = item;
 
     if (!isNonEmptyString(phoneNumber)) {
       return false;
@@ -104,7 +66,7 @@ const grantSubscription = async conn => {
     return sendResponse(
       conn,
       code.badRequest,
-      `Field share should be an array of objects ({phoneNumber, displayName, email})`
+      `Field share should be an array of objects ({phoneNumber, displayName, email})`,
     );
   }
 
@@ -114,27 +76,23 @@ const grantSubscription = async conn => {
     templateDocQuery,
     employeeQuery,
   ] = await Promise.all([
-    rootCollections
-      .activities
+    rootCollections.activities
       .where('template', '==', 'subscription')
       .where('attachment.Phone Number.value', '==', phoneNumber)
       .where('attachment.Template.value', '==', 'check-in')
       .get(),
-    rootCollections
-      .offices
+    rootCollections.offices
       .where('office', '==', office)
       .limit(1)
       .get(),
-    rootCollections
-      .activityTemplates
+    rootCollections.activityTemplates
       .where('name', '==', 'subscription')
       .limit(1)
       .get(),
-    rootCollections
-      .activities
+    rootCollections.activities
       .where('office', '==', office)
       .where('attachment.Phone Number.value', '==', phoneNumber)
-    .get(),
+      .get(),
   ]);
 
   const [officeDoc] = officeDocQuery.docs;
@@ -148,30 +106,25 @@ const grantSubscription = async conn => {
   });
 
   const [roleDoc] = employeeQuery.docs.filter(doc => {
-    const {
-      template,
-      status,
-    } = doc.data();
+    const {template, status} = doc.data();
 
-    return template !== 'subscription' &&
+    return (
+      template !== 'subscription' &&
       template !== 'admin' &&
-      status !== 'CANCELLED';
+      status !== 'CANCELLED'
+    );
   });
 
   if (!officeDoc) {
     return sendResponse(
       conn,
       code.conflict,
-      `Office '${office} does not exist'`
+      `Office '${office} does not exist'`,
     );
   }
 
   if (officeDoc.get('status') === 'CANCELLED') {
-    return sendResponse(
-      conn,
-      code.conflict,
-      `Office: '${office}' is inactive`
-    );
+    return sendResponse(conn, code.conflict, `Office: '${office}' is inactive`);
   }
 
   if (checkInSubscriptionsMap.size > 1) {
@@ -187,36 +140,27 @@ const grantSubscription = async conn => {
     const activityId = checkInSubscriptionsMap.get(office);
     const ref = rootCollections.activities.doc(activityId);
 
-    await ref.set({
-      timestamp: Date.now(),
-      status: 'CONFIRMED',
-      addendumDocRef: null,
-    }, {
-      merge: true
-    });
-
-    return sendResponse(
-      conn,
-      code.created,
-      'Check-in subscription created.'
+    await ref.set(
+      {
+        timestamp: Date.now(),
+        status: 'CONFIRMED',
+        addendumDocRef: null,
+      },
+      {
+        merge: true,
+      },
     );
+
+    return sendResponse(conn, code.created, 'Check-in subscription created.');
   }
 
-  const oldShare = [
-    phoneNumber,
-    ...share.map(item => item.phoneNumber)
-  ];
+  const oldShare = [phoneNumber, ...share.map(item => item.phoneNumber)];
 
   if (roleDoc) {
-    const {
-      attachment
-    } = roleDoc.data();
+    const {attachment} = roleDoc.data();
 
     Object.keys(attachment).forEach(field => {
-      const {
-        value,
-        type
-      } = attachment[field];
+      const {value, type} = attachment[field];
 
       if (type === 'phoneNumber') {
         share.push(value);
@@ -226,17 +170,12 @@ const grantSubscription = async conn => {
 
   const timezone = officeDoc.get('attachment.Timezone.value');
   const activityRef = rootCollections.activities.doc();
-  const addendumDocRef = officeDoc
-    .ref
+  const addendumDocRef = officeDoc.ref
     .collection(subcollectionNames.ADDENDUM)
     .doc();
   const batch = db.batch();
   const momentNow = momentTz().tz(timezone);
-  const {
-    date,
-    months: month,
-    years: year,
-  } = momentNow.toObject();
+  const {date, months: month, years: year} = momentNow.toObject();
 
   const allAssignees = Array.from(oldShare.filter(Boolean));
 
@@ -244,11 +183,11 @@ const grantSubscription = async conn => {
 
   allAssignees.forEach(phoneNumber => {
     batch.set(
-      activityRef
-      .collection(subcollectionNames.ASSIGNEES)
-      .doc(phoneNumber), {
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+      {
         addToInclude: true,
-      });
+      },
+    );
   });
 
   const activityData = {
@@ -257,11 +196,7 @@ const grantSubscription = async conn => {
     addendumDocRef,
     officeId: officeDoc.id,
     timestamp: Date.now(),
-    creator: new Creator(
-      phoneNumber,
-      displayName,
-      photoURL
-    ).toObject(),
+    creator: new Creator(phoneNumber, displayName, photoURL).toObject(),
     template: templateDoc.get('name'),
     status: templateDoc.get('statusOnCreate'),
     canEditRule: templateDoc.get('canEditRule'),
@@ -272,50 +207,43 @@ const grantSubscription = async conn => {
     schedule: templateDoc.get('schedule'),
     report: templateDoc.get('report') || null,
     isCancelled: false,
-    attachment: new Attachment({
+    attachment: new Attachment(
+      {
         'Phone Number': phoneNumber,
         Template: 'check-in',
       },
-      templateDoc.get('attachment')
+      templateDoc.get('attachment'),
     ).toObject(),
   };
 
-  batch.set(
-    activityRef,
-    activityData
-  );
+  batch.set(activityRef, activityData);
 
-  batch.set(
-    addendumDocRef, {
-      date,
-      month,
-      year,
-      uid,
-      activityData,
-      user: phoneNumber,
-      timestamp: Date.now(),
-      userDeviceTimestamp: timestamp,
-      userDisplayName: displayName,
-      share: allAssignees,
-      action: httpsActions.create,
-      location: getGeopointObject(geopoint),
-      isSupportRequest: false,
-      activityId: activityRef.id,
-      activityName: activityData.activityName,
-      geopointAccuracy: geopoint.accuracy || null,
-      provider: geopoint.provider || null,
-    });
+  batch.set(addendumDocRef, {
+    date,
+    month,
+    year,
+    uid,
+    activityData,
+    user: phoneNumber,
+    timestamp: Date.now(),
+    userDeviceTimestamp: timestamp,
+    userDisplayName: displayName,
+    share: allAssignees,
+    action: httpsActions.create,
+    location: getGeopointObject(geopoint),
+    isSupportRequest: false,
+    activityId: activityRef.id,
+    activityName: activityData.activityName,
+    geopointAccuracy: geopoint.accuracy || null,
+    provider: geopoint.provider || null,
+  });
 
   console.log(activityData);
   console.log('batch', batch._ops.length);
 
   await batch.commit();
 
-  return sendResponse(
-    conn,
-    code.created,
-    'Check-in subscription created'
-  );
+  return sendResponse(conn, code.created, 'Check-in subscription created');
 };
 
 module.exports = async conn => {

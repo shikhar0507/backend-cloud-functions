@@ -1,20 +1,13 @@
 'use strict';
 
-
-const {
-  rootCollections,
-} = require('../../admin/admin');
-const {
-  getNumbersbetween,
-} = require('../../admin/utils');
+const {rootCollections} = require('../../admin/admin');
+const {getNumbersbetween} = require('../../admin/utils');
 const {
   subcollectionNames,
   dateFormats,
   reportNames,
 } = require('../../admin/constants');
-const {
-  alphabetsArray,
-} = require('./report-utils');
+const {alphabetsArray} = require('./report-utils');
 const admin = require('firebase-admin');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
@@ -34,13 +27,16 @@ const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
     return intermediate;
   }
 
-  console.log('previousResult length:', (() => {
-    if (!previousResult) {
-      return null;
-    }
+  console.log(
+    'previousResult length:',
+    (() => {
+      if (!previousResult) {
+        return null;
+      }
 
-    return previousResult.length;
-  })());
+      return previousResult.length;
+    })(),
+  );
 
   let query = baseQuery.orderBy(admin.firestore.FieldPath.documentId());
 
@@ -56,22 +52,26 @@ const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
 
   console.log('result', result.size);
 
-  return recursiveFetch(baseQuery, [].concat(intermediate, result.docs), result.docs);
+  return recursiveFetch(
+    baseQuery,
+    [].concat(intermediate, result.docs),
+    result.docs,
+  );
 };
-
 
 const getEmployeeCreationDate = (activationDate, momentInstance, timezone) => {
   const activationDateMoment = momentTz(activationDate).tz(timezone);
 
-  if (activationDate &&
+  if (
+    activationDate &&
     momentInstance.year() === activationDateMoment.year() &&
-    momentInstance.month() === activationDateMoment.month()) {
+    momentInstance.month() === activationDateMoment.month()
+  ) {
     return activationDateMoment.format(dateFormats.DATE);
   }
 
   return '';
 };
-
 
 const getLeaveStatus = attendanceDateObject => {
   if (attendanceDateObject.leave.leaveType) {
@@ -80,7 +80,6 @@ const getLeaveStatus = attendanceDateObject => {
 
   return 'Leave';
 };
-
 
 const getTypeValue = (attendanceDateObject = {}) => {
   if (attendanceDateObject.onLeave) {
@@ -108,7 +107,6 @@ const getTypeValue = (attendanceDateObject = {}) => {
   return '';
 };
 
-
 const getAttendanceValue = (attendanceDateObject = {}) => {
   if (attendanceDateObject.hasOwnProperty('attendance')) {
     return attendanceDateObject.attendance;
@@ -117,40 +115,38 @@ const getAttendanceValue = (attendanceDateObject = {}) => {
   return '';
 };
 
-
 const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
-  if (attendanceDateObject.weeklyOff ||
-    attendanceDateObject.holiday) {
+  if (attendanceDateObject.weeklyOff || attendanceDateObject.holiday) {
     return baseLocation;
   }
 
-  if (attendanceDateObject.onLeave &&
-    attendanceDateObject.leave.reason) {
+  if (attendanceDateObject.onLeave && attendanceDateObject.leave.reason) {
     return attendanceDateObject.leave.reason;
   }
 
-  if (attendanceDateObject.onAr &&
-    attendanceDateObject.ar.reason) {
+  if (attendanceDateObject.onAr && attendanceDateObject.ar.reason) {
     return attendanceDateObject.ar.reason;
   }
 
-  const {
-    firstCheckInTimestamp,
-    lastCheckInTimestamp,
-    numberOfCheckIns,
-  } = attendanceDateObject.working || {};
+  const {firstCheckInTimestamp, lastCheckInTimestamp, numberOfCheckIns} =
+    attendanceDateObject.working || {};
 
   if (!firstCheckInTimestamp) {
     return '';
   }
 
-  return `${momentTz(firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}` +
+  return (
+    `${momentTz(firstCheckInTimestamp)
+      .tz(timezone)
+      .format(dateFormats.TIME)}` +
     `, ` +
-    `${momentTz(lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}` +
+    `${momentTz(lastCheckInTimestamp)
+      .tz(timezone)
+      .format(dateFormats.TIME)}` +
     `, ` +
-    `${numberOfCheckIns}`;
+    `${numberOfCheckIns}`
+  );
 };
-
 
 const getTotalDays = params => {
   const {
@@ -161,14 +157,17 @@ const getTotalDays = params => {
 
   if (fetchPreviousMonthDocs) {
     return momentYesterday.diff(
-      momentYesterday.clone().subtract(1, 'month').date(firstDayOfMonthlyCycle),
-      'days'
+      momentYesterday
+        .clone()
+        .subtract(1, 'month')
+        .date(firstDayOfMonthlyCycle),
+      'days',
     );
   }
 
   return momentYesterday.diff(
     momentYesterday.clone().date(firstDayOfMonthlyCycle),
-    'days'
+    'days',
   );
 };
 
@@ -203,8 +202,8 @@ const rangeCallback = params => {
     baseLocation,
   } = employeeData.get(phoneNumber) || {};
 
-  const supervisorName = employeeData.get(supervisor) &&
-      employeeData.get(supervisor).employeeName;
+  const supervisorName =
+    employeeData.get(supervisor) && employeeData.get(supervisor).employeeName;
 
   const activationDate = (() => {
     if (!attendanceDoc) {
@@ -220,70 +219,52 @@ const rangeCallback = params => {
   attendance[date].leave = attendance[date].leave || {};
 
   if (attendance[date].leave.leaveType) {
-    allLeaveTypes.add(
-      attendance[date].leave.leaveType
-    );
+    allLeaveTypes.add(attendance[date].leave.leaveType);
 
     const oldCount = leaveTypeCountMap.get(phoneNumber) || {};
 
-    oldCount[
-      attendance[date].leave.leaveType
-    ] = oldCount[attendance[date].leave.leaveType] || 0;
+    oldCount[attendance[date].leave.leaveType] =
+      oldCount[attendance[date].leave.leaveType] || 0;
     oldCount[attendance[date].leave.leaveType]++;
 
-    leaveTypeCountMap.set(
-      phoneNumber,
-      oldCount
-    );
+    leaveTypeCountMap.set(phoneNumber, oldCount);
   }
 
   if (attendance[date].holiday) {
     const oldSet = holidayCountMap.get(phoneNumber) || 0;
 
-    holidayCountMap.set(
-      phoneNumber,
-      oldSet + 1
-    );
+    holidayCountMap.set(phoneNumber, oldSet + 1);
   }
 
   if (attendance[date].weeklyOff) {
     const oldSet = weeklyOffCountMap.get(phoneNumber) || 0;
 
-    weeklyOffCountMap.set(
-      phoneNumber,
-      oldSet + 1
-    );
+    weeklyOffCountMap.set(phoneNumber, oldSet + 1);
   }
 
   if (attendance[date].holiday) {
     const oldSet = holidayCountMap.get(phoneNumber) || 0;
 
-    holidayCountMap.set(
-      phoneNumber,
-      oldSet + 1
-    );
+    holidayCountMap.set(phoneNumber, oldSet + 1);
   }
 
   if (attendance[date].onAr) {
     const oldSet = arCountMap.get(phoneNumber) || 0;
 
-    arCountMap.set(
-      phoneNumber,
-      oldSet + 1
-    );
+    arCountMap.set(phoneNumber, oldSet + 1);
   }
 
   if (hasAttendanceProperty) {
     attendanceCountMap.set(
       phoneNumber,
-      (attendanceCountMap.get(phoneNumber) || 0) + 1
+      (attendanceCountMap.get(phoneNumber) || 0) + 1,
     );
 
     const oldAttendanceSum = attendanceSumMap.get(phoneNumber) || 0;
 
     attendanceSumMap.set(
       phoneNumber,
-      oldAttendanceSum + attendance[date].attendance
+      oldAttendanceSum + attendance[date].attendance,
     );
   }
 
@@ -302,7 +283,7 @@ const rangeCallback = params => {
     region,
     department,
     designation,
-    (supervisorName || supervisor),
+    supervisorName || supervisor,
     momentInstance.date(date).format(dateFormats.DATE), // actual date
     getEmployeeCreationDate(activationDate, momentInstance.clone(), timezone), // activation date
     getTypeValue(attendance[date]),
@@ -375,29 +356,35 @@ const getHeaderDates = (firstRange, secondRange, momentYesterday) => {
   const momentPrevMonth = momentYesterday.clone().subtract(1, 'month');
 
   firstRange.forEach(date => {
-    result.push(momentPrevMonth.clone().date(date).format(dateFormats.DATE));
+    result.push(
+      momentPrevMonth
+        .clone()
+        .date(date)
+        .format(dateFormats.DATE),
+    );
   });
 
   secondRange.forEach(date => {
-    result.push(momentYesterday.clone().date(date).format(dateFormats.DATE));
+    result.push(
+      momentYesterday
+        .clone()
+        .date(date)
+        .format(dateFormats.DATE),
+    );
   });
 
   return result;
 };
 
-
 module.exports = async locals => {
   const timestampFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentToday = momentTz(timestampFromTimer)
-    .tz(timezone);
-  const momentYesterday = momentToday
-    .clone()
-    .subtract(1, 'day');
-  const firstDayOfMonthlyCycle = locals
-    .officeDoc
-    .get('attachment.First Day Of Monthly Cycle.value') || 1;
-  const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentYesterday.date();
+  const momentToday = momentTz(timestampFromTimer).tz(timezone);
+  const momentYesterday = momentToday.clone().subtract(1, 'day');
+  const firstDayOfMonthlyCycle =
+    locals.officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
+  const fetchPreviousMonthDocs =
+    firstDayOfMonthlyCycle > momentYesterday.date();
   const momentPrevMonth = momentYesterday.clone().subtract(1, 'month');
   /** Just for better readability. */
   const cycleEndMoment = momentYesterday;
@@ -416,11 +403,9 @@ module.exports = async locals => {
   const attendanceSumMap = new Map();
   const sortedAttendanceMap = new Map();
   const docsMap = {};
-  const {
-    workbookRef,
-    payrollSummary,
-    payrollSheet,
-  } = await getWorkbook(momentToday.format(dateFormats.DATE));
+  const {workbookRef, payrollSummary, payrollSheet} = await getWorkbook(
+    momentToday.format(dateFormats.DATE),
+  );
 
   const allCountsData = {
     report: reportNames.PAYROLL,
@@ -439,7 +424,10 @@ module.exports = async locals => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
         firstDayOfMonthlyCycle,
-        momentPrevMonth.clone().endOf('month').date() + 1,
+        momentPrevMonth
+          .clone()
+          .endOf('month')
+          .date() + 1,
       );
     }
 
@@ -448,46 +436,35 @@ module.exports = async locals => {
 
   /** Dates in current month */
   const secondRange = getNumbersbetween(
-    (fetchPreviousMonthDocs ? 1 : firstDayOfMonthlyCycle),
+    fetchPreviousMonthDocs ? 1 : firstDayOfMonthlyCycle,
     cycleEndMoment.clone().date() + 1,
   );
 
-  const totalDays = getTotalDays({
-    momentYesterday,
-    firstDayOfMonthlyCycle,
-    fetchPreviousMonthDocs,
-  }) + 1;
+  const totalDays =
+    getTotalDays({
+      momentYesterday,
+      firstDayOfMonthlyCycle,
+      fetchPreviousMonthDocs,
+    }) + 1;
 
   if (fetchPreviousMonthDocs) {
-    const baseQuery = locals
-      .officeDoc
-      .ref
+    const baseQuery = locals.officeDoc.ref
       .collection(subcollectionNames.ATTENDANCES)
       .where('month', '==', momentPrevMonth.month())
       .where('year', '==', momentPrevMonth.year());
 
-    allAttendanceDocs.push(
-      ...await recursiveFetch(baseQuery, [])
-    );
+    allAttendanceDocs.push(...(await recursiveFetch(baseQuery, [])));
   }
 
-  const baseQuery = locals
-    .officeDoc
-    .ref
+  const baseQuery = locals.officeDoc.ref
     .collection(subcollectionNames.ATTENDANCES)
     .where('month', '==', momentYesterday.month())
     .where('year', '==', momentYesterday.year());
 
-  allAttendanceDocs
-    .push(
-      ...await recursiveFetch(baseQuery, [])
-    );
+  allAttendanceDocs.push(...(await recursiveFetch(baseQuery, [])));
 
   allAttendanceDocs.forEach(doc => {
-    const {
-      month,
-      phoneNumber,
-    } = doc.data();
+    const {month, phoneNumber} = doc.data();
 
     employeeData.set(phoneNumber, getRoleDetails(doc));
     docsMap[`${phoneNumber}__${month}`] = doc;
@@ -576,8 +553,8 @@ module.exports = async locals => {
       supervisor,
     } = val || {}; // the user might not be an employee
 
-    const supervisorName = employeeData.get(supervisor) &&
-      employeeData.get(supervisor).employeeName;
+    const supervisorName =
+      employeeData.get(supervisor) && employeeData.get(supervisor).employeeName;
 
     console.log(supervisor, supervisorName);
 
@@ -589,7 +566,7 @@ module.exports = async locals => {
       region,
       department,
       designation,
-      (supervisorName || supervisor),
+      supervisorName || supervisor,
       arCountMap.get(phoneNumber) || 0,
       weeklyOffCountMap.get(phoneNumber) || 0,
       holidayCountMap.get(phoneNumber) || 0,
@@ -637,7 +614,7 @@ module.exports = async locals => {
       .value(value)
       .style({
         fontColor: 'FFFFF',
-        bold: true
+        bold: true,
       });
   });
 
@@ -659,15 +636,14 @@ module.exports = async locals => {
     ...allLeaveTypes,
     ...getHeaderDates(firstRange, secondRange, momentYesterday),
   ].forEach((value, index) => {
-    payrollSummary
-      .cell(`${alphabetsArray[index]}1`)
-      .value(value);
+    payrollSummary.cell(`${alphabetsArray[index]}1`).value(value);
   });
 
   await workbookRef.toFileAsync('/tmp/m.xlsx');
 
   locals.messageObject.attachments.push({
-    fileName: `Payroll Report_` +
+    fileName:
+      `Payroll Report_` +
       `${locals.officeDoc.get('office')}` +
       `_${momentToday.format(dateFormats.DATE)}.xlsx`,
     content: await workbookRef.outputAsync('base64'),
@@ -675,11 +651,17 @@ module.exports = async locals => {
     disposition: 'attachment',
   });
 
-  console.log(JSON.stringify({
-    office: locals.officeDoc.get('office'),
-    report: reportNames.PAYROLL,
-    to: locals.messageObject.to,
-  }, ' ', 2));
+  console.log(
+    JSON.stringify(
+      {
+        office: locals.officeDoc.get('office'),
+        report: reportNames.PAYROLL,
+        to: locals.messageObject.to,
+      },
+      ' ',
+      2,
+    ),
+  );
 
   console.log('mail sent');
 

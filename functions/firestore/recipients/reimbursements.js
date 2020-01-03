@@ -1,19 +1,9 @@
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
-const {
-  rootCollections,
-} = require('../../admin/admin');
-const {
-  dateFormats,
-  subcollectionNames
-} = require('../../admin/constants');
-const {
-  getNumbersbetween,
-} = require('../../admin/utils');
-const {
-  toMapsUrl,
-  alphabetsArray,
-} = require('./report-utils');
+const {rootCollections} = require('../../admin/admin');
+const {dateFormats, subcollectionNames} = require('../../admin/constants');
+const {getNumbersbetween} = require('../../admin/utils');
+const {toMapsUrl, alphabetsArray} = require('./report-utils');
 
 const getSheets = async (date = '') => {
   const worksheetRef = await xlsxPopulate.fromBlankAsync();
@@ -32,11 +22,9 @@ const getSheets = async (date = '') => {
     'Region',
     'Department',
     'Date',
-    'Amount'
+    'Amount',
   ].forEach((value, index) => {
-    summarySheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(value);
+    summarySheet.cell(`${alphabetsArray[index]}1`).value(value);
   });
 
   [
@@ -55,9 +43,7 @@ const getSheets = async (date = '') => {
     'Amount',
     'Distance Travelled',
   ].forEach((value, index) => {
-    dataSheet
-      .cell(`${alphabetsArray[index]}1`)
-      .value(value);
+    dataSheet.cell(`${alphabetsArray[index]}1`).value(value);
   });
 
   return {
@@ -67,20 +53,15 @@ const getSheets = async (date = '') => {
   };
 };
 
-const getReimbursementPromises = ({
-  dates,
-  month,
-  year,
-  officeId
-}) => {
-  return dates.map(date => rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.REIMBURSEMENTS)
-    .where('date', '==', date)
-    .where('month', '==', month)
-    .where('year', '==', year)
-    .get()
+const getReimbursementPromises = ({dates, month, year, officeId}) => {
+  return dates.map(date =>
+    rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .where('date', '==', date)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .get(),
   );
 };
 
@@ -94,13 +75,19 @@ const getApprovalDetails = ({
   let result = '';
 
   if (cancelledBy) {
-    result += `${cancelledBy} cancelled claim at` +
-      ` ${momentTz(cancellationTimestamp).tz(timezone).format(dateFormats.DATE_TIME)}. `;
+    result +=
+      `${cancelledBy} cancelled claim at` +
+      ` ${momentTz(cancellationTimestamp)
+        .tz(timezone)
+        .format(dateFormats.DATE_TIME)}. `;
   }
 
   if (confirmedBy) {
-    result += `${confirmedBy} confirmed claim at` +
-      ` ${momentTz(confirmationTimestamp).tz(timezone).format(dateFormats.DATE_TIME)}. `;
+    result +=
+      `${confirmedBy} confirmed claim at` +
+      ` ${momentTz(confirmationTimestamp)
+        .tz(timezone)
+        .format(dateFormats.DATE_TIME)}. `;
   }
 
   return result.trim();
@@ -112,8 +99,11 @@ const reimbursementsReport = async locals => {
   const momentToday = momentTz(timestampFromTimer).tz(timezone);
   const momentYesterday = momentToday.clone().subtract(1, 'day');
   const momentPrevMonth = momentYesterday.clone().subtract(1, 'month');
-  const firstDayOfReimbursementsCycle = locals.officeDoc.get('attachment.First Day Of Reimbursement Cycle.value') || 1;
-  const fetchPreviousMonthDocs = firstDayOfReimbursementsCycle > momentYesterday.date();
+  const firstDayOfReimbursementsCycle =
+    locals.officeDoc.get('attachment.First Day Of Reimbursement Cycle.value') ||
+    1;
+  const fetchPreviousMonthDocs =
+    firstDayOfReimbursementsCycle > momentYesterday.date();
   const detailsMap = new Map();
   const totalAmountByDate = new Map();
   let rowCounter = 2;
@@ -123,7 +113,10 @@ const reimbursementsReport = async locals => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
         firstDayOfReimbursementsCycle,
-        momentPrevMonth.clone().endOf('month').date() + 1,
+        momentPrevMonth
+          .clone()
+          .endOf('month')
+          .date() + 1,
       );
     }
 
@@ -132,7 +125,7 @@ const reimbursementsReport = async locals => {
 
   // dates in yesterdays month
   const secondRange = getNumbersbetween(
-    (fetchPreviousMonthDocs ? 1 : firstDayOfReimbursementsCycle),
+    fetchPreviousMonthDocs ? 1 : firstDayOfReimbursementsCycle,
     momentYesterday.clone().date() + 1,
   );
 
@@ -152,14 +145,10 @@ const reimbursementsReport = async locals => {
 
   const [sheetsResult, reimbursementSnaps] = await Promise.all([
     getSheets(momentToday.format(dateFormats.DATE)),
-    Promise.all([...p1, ...p2])
+    Promise.all([...p1, ...p2]),
   ]);
 
-  const {
-    dataSheet,
-    summarySheet,
-    worksheetRef,
-  } = sheetsResult;
+  const {dataSheet, summarySheet, worksheetRef} = sheetsResult;
 
   reimbursementSnaps.forEach(snap => {
     snap.forEach(doc => {
@@ -190,7 +179,11 @@ const reimbursementsReport = async locals => {
         distance,
       } = doc.data();
       const isKmAllowance = reimbursementType === 'km allowance';
-      const formattedDate = momentTz().date(date).month(month).year(year).format(dateFormats.DATE);
+      const formattedDate = momentTz()
+        .date(date)
+        .month(month)
+        .year(year)
+        .format(dateFormats.DATE);
       const approvalDetails = getApprovalDetails({
         cancelledBy,
         cancellationTimestamp,
@@ -204,7 +197,7 @@ const reimbursementsReport = async locals => {
 
       totalAmountByDate.set(
         `${phoneNumber}__${formattedDate}`,
-        oldAmount + Number(amount)
+        oldAmount + Number(amount),
       );
 
       detailsMap.set(phoneNumber, {
@@ -229,9 +222,12 @@ const reimbursementsReport = async locals => {
 
       if (previousIdentifier && isKmAllowance) {
         const url = toMapsUrl(previousGeopoint);
-        dataSheet.cell(`K${rowCounter}`).value(previousIdentifier).style({
+        dataSheet
+          .cell(`K${rowCounter}`)
+          .value(previousIdentifier)
+          .style({
             fontColor: '0563C1',
-            underline: true
+            underline: true,
           })
           .hyperlink(url);
       } else {
@@ -240,9 +236,12 @@ const reimbursementsReport = async locals => {
 
       if (currentIdentifier && isKmAllowance) {
         const url = toMapsUrl(currentGeopoint);
-        dataSheet.cell(`L${rowCounter}`).value(currentIdentifier).style({
+        dataSheet
+          .cell(`L${rowCounter}`)
+          .value(currentIdentifier)
+          .style({
             fontColor: '0563C1',
-            underline: true
+            underline: true,
           })
           .hyperlink(url);
       } else {
@@ -259,13 +258,8 @@ const reimbursementsReport = async locals => {
   let summarySheetCounter = 2;
   totalAmountByDate.forEach((amount, key) => {
     const [phoneNumber, dateString] = key.split('__');
-    const {
-      employeeName,
-      employeeCode,
-      baseLocation,
-      region,
-      department,
-    } = detailsMap.get(phoneNumber) || {};
+    const {employeeName, employeeCode, baseLocation, region, department} =
+      detailsMap.get(phoneNumber) || {};
 
     summarySheet.cell(`A${summarySheetCounter}`).value(employeeName);
     summarySheet.cell(`B${summarySheetCounter}`).value(phoneNumber);
@@ -282,7 +276,8 @@ const reimbursementsReport = async locals => {
   await worksheetRef.toFileAsync('/tmp/stuff.xlsx');
 
   locals.messageObject.attachments.push({
-    fileName: `Reimbursements Report_` +
+    fileName:
+      `Reimbursements Report_` +
       `${locals.officeDoc.get('office')}` +
       `_${momentToday.format(dateFormats.DATE)}.xlsx`,
     content: await worksheetRef.outputAsync('base64'),

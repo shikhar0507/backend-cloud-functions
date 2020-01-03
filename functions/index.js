@@ -21,81 +21,62 @@
  *
  */
 
-
 'use strict';
-
 
 const functions = require('firebase-functions');
 const env = require('./admin/env');
 
-const authOnCreate = functions
-  .auth
+const authOnCreate = functions.auth
   .user()
   .onCreate(require('./auth/on-create'));
 
-const api = functions
-  .https
-  .onRequest(require('./server/server'));
+const api = functions.https.onRequest(require('./server/server'));
 
-const assigneeOnDelete = functions
-  .firestore
+const assigneeOnDelete = functions.firestore
   .document('Activities/{activityId}/Assignees/{phoneNumber}')
   .onDelete(require('./firestore/assignees/index'));
 
-const activityOnWrite = functions
-  .firestore
+const activityOnWrite = functions.firestore
   .document('/Activities/{activityId}')
   .onWrite(require('./firestore/activity/on-write'));
 
-const instantOnCreate = functions
-  .firestore
+const instantOnCreate = functions.firestore
   .document('Instant/{docId}')
   .onCreate(require('./firestore/instant/index'));
 
-const profileOnWrite = functions
-  .firestore
+const profileOnWrite = functions.firestore
   .document('Profiles/{phoneNumber}')
   .onWrite(require('./firestore/profiles/on-write'));
 
 const activityTemplatesOnUpdate = functions
   .runWith({
     memory: '1GB',
-    timeoutSeconds: '120'
+    timeoutSeconds: '120',
   })
-  .firestore
-  .document('ActivityTemplates/{docId}')
+  .firestore.document('ActivityTemplates/{docId}')
   .onUpdate(require('./firestore/subscriptions/on-update'));
 
-const timer = functions
-  .firestore
+const timer = functions.firestore
   .document('Timers/{docId}')
   .onCreate(require('./timer/on-create'));
 
-const recipientsOnUpdate = functions
-  .firestore
+const recipientsOnUpdate = functions.firestore
   .document('Recipients/{docId}')
   .onUpdate(require('./firestore/recipients/on-update'));
 
-const webapp = functions
-  .https
-  .onRequest(require('./webapp'));
+const webapp = functions.https.onRequest(require('./webapp'));
 
-const getUser = functions
-  .https
-  .onRequest(require('./get-user'));
+const getUser = functions.https.onRequest(require('./get-user'));
 
-const temporaryImageHandler = functions
-  .storage
+const temporaryImageHandler = functions.storage
   .bucket(env.tempBucketName)
   .object()
   .onFinalize(require('./storage/temporary-image-handler'));
 
-const bulkCreateHandler = functions
-  .storage
+const bulkCreateHandler = functions.storage
   .bucket(env.bulkStorageBucketName)
   .object()
   .onFinalize(require('./storage/bulk'));
-
 
 module.exports = {
   api,

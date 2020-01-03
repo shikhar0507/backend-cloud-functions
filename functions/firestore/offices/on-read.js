@@ -1,6 +1,5 @@
 'use strict';
 
-
 const {
   sendJSON,
   handleError,
@@ -8,13 +7,8 @@ const {
   hasAdminClaims,
   hasSupportClaims,
 } = require('../../admin/utils');
-const {
-  rootCollections,
-} = require('../../admin/admin');
-const {
-  code,
-} = require('../../admin/responses');
-
+const {rootCollections} = require('../../admin/admin');
+const {code} = require('../../admin/responses');
 
 // const getActivityObject = (doc) => {
 //   return {
@@ -35,25 +29,22 @@ const {
 //   };
 // };
 
-
-const getTemplateObject = (doc) => doc.data();
-
+const getTemplateObject = doc => doc.data();
 
 const getTemplates = (conn, locals) =>
-  rootCollections
-  .activityTemplates
-  .where('timestamp', '>', locals.jsonObject.from)
-  .get()
-  .then((docs) => {
-    docs.forEach((doc) =>
-      locals.jsonObject.templates.push(getTemplateObject(doc)));
+  rootCollections.activityTemplates
+    .where('timestamp', '>', locals.jsonObject.from)
+    .get()
+    .then(docs => {
+      docs.forEach(doc =>
+        locals.jsonObject.templates.push(getTemplateObject(doc)),
+      );
 
-    sendJSON(conn, locals.jsonObject);
+      sendJSON(conn, locals.jsonObject);
 
-    return;
-  })
-  .catch((error) => handleError(conn, error));
-
+      return;
+    })
+    .catch(error => handleError(conn, error));
 
 const fetchActivities = (conn, locals) => {
   // locals
@@ -82,24 +73,25 @@ const fetchActivities = (conn, locals) => {
   //   .catch((error) => handleError(conn, error));
 };
 
-
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.method !== 'GET') {
     sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed. Use 'GET' for /read`
+      `${conn.req.method} is not allowed. Use 'GET' for /read`,
     );
 
     return;
   }
 
-  if (!hasAdminClaims(conn.requester.customClaims) &&
-    !hasSupportClaims(conn.requester.customClaims)) {
+  if (
+    !hasAdminClaims(conn.requester.customClaims) &&
+    !hasSupportClaims(conn.requester.customClaims)
+  ) {
     sendResponse(
       conn,
       code.forbidden,
-      'You are not allowed to access this resource'
+      'You are not allowed to access this resource',
     );
 
     return;
@@ -109,7 +101,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `Invalid or missing query param 'from' in the request url`
+      `Invalid or missing query param 'from' in the request url`,
     );
 
     return;
@@ -119,7 +111,7 @@ module.exports = (conn) => {
     sendResponse(
       conn,
       code.badRequest,
-      `The request URL is missing the 'office' query parameter`
+      `The request URL is missing the 'office' query parameter`,
     );
 
     return;
@@ -136,17 +128,16 @@ module.exports = (conn) => {
     },
   };
 
-  rootCollections
-    .offices
+  rootCollections.offices
     .where('attachment.Name.value', '==', conn.req.query.office)
     .limit(1)
     .get()
-    .then((snapShot) => {
+    .then(snapShot => {
       if (snapShot.empty) {
         sendResponse(
           conn,
           code.badRequest,
-          `No office found with the name: ${conn.req.query.office}`
+          `No office found with the name: ${conn.req.query.office}`,
         );
 
         return;
@@ -164,5 +155,5 @@ module.exports = (conn) => {
 
       return;
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };

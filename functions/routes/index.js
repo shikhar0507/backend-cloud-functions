@@ -2,7 +2,6 @@
 
 const url = require('url');
 
-
 module.exports = req => {
   const parsedUrl = url.parse(req.url);
   let checkSupport = req.query.support === 'true';

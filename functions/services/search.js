@@ -1,39 +1,28 @@
-const {
-  rootCollections,
-} = require('../admin/admin');
+const {rootCollections} = require('../admin/admin');
 const {
   isNonEmptyString,
   sendResponse,
   sendJSON,
   handleError,
 } = require('../admin/utils');
-const {
-  code,
-} = require('../admin/responses');
+const {code} = require('../admin/responses');
 
 const searchOffice = async conn => {
   if (conn.req.method !== 'GET') {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `Method '${conn.req.method}' is not allowed. Use 'GET'`
+      `Method '${conn.req.method}' is not allowed. Use 'GET'`,
     );
   }
 
-  const {
-    q: placeId,
-  } = conn.req.query;
+  const {q: placeId} = conn.req.query;
 
   if (!isNonEmptyString(placeId)) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      `Query param 'q' is missing`
-    );
+    return sendResponse(conn, code.badRequest, `Query param 'q' is missing`);
   }
 
-  const branches = await rootCollections
-    .activities
+  const branches = await rootCollections.activities
     .where('placeId', '==', placeId)
     .where('status', '==', 'CONFIRMED')
     .get();
@@ -42,21 +31,22 @@ const searchOffice = async conn => {
   const officePromises = [];
 
   branches.forEach(branch => {
-    const {
-      office
-    } = branch.data();
+    const {office} = branch.data();
 
     if (officeNames.has(office)) {
       return;
     }
 
     officePromises.push(
-      rootCollections
-      .offices
-      .where('office', '==', office)
-      .select('status', 'office', 'attachment.Registered Office Address.value')
-      .limit(1)
-      .get()
+      rootCollections.offices
+        .where('office', '==', office)
+        .select(
+          'status',
+          'office',
+          'attachment.Registered Office Address.value',
+        )
+        .limit(1)
+        .get(),
     );
 
     officeNames.add(office);
@@ -75,7 +65,9 @@ const searchOffice = async conn => {
     results.push({
       status: doc.get('status'),
       name: doc.get('office'),
-      registeredOfficeAddress: doc.get('attachment.Registered Office Address.value')
+      registeredOfficeAddress: doc.get(
+        'attachment.Registered Office Address.value',
+      ),
     });
   });
 

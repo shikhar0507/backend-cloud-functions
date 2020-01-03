@@ -1,7 +1,7 @@
 function hideElement(element) {
   if (!element) return;
 
-  element.style.display = 'none';
+  element.style.display = "none";
 }
 
 function getMobileOperatingSystem() {
@@ -9,38 +9,39 @@ function getMobileOperatingSystem() {
 
   // Windows Phone must come first because its UA also contains "Android"
   if (/windows phone/i.test(userAgent)) {
-    return 'Windows Phone';
+    return "Windows Phone";
   }
 
   if (/android/i.test(userAgent)) {
-    return 'Android';
+    return "Android";
   }
 
   // iOS detection from: http://stackoverflow.com/a/9039885/177710
   if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
-    return 'iOS';
+    return "iOS";
   }
 
-  return 'unknown';
-};
+  return "unknown";
+}
 
-(function () {
+(function() {
   const ua = getMobileOperatingSystem();
-  let elem = '';
-  let url = '';
+  let elem = "";
+  let url = "";
 
-  if (ua === 'unknown') return;
+  if (ua === "unknown") return;
 
-  if (ua === 'Android') {
-    elem = document.getElementById('android-link');
-    url = 'https://play.google.com/store/apps/details?id=com.growthfile.growthfileNew';
+  if (ua === "Android") {
+    elem = document.getElementById("android-link");
+    url =
+      "https://play.google.com/store/apps/details?id=com.growthfile.growthfileNew";
   }
 
-  if (ua === 'iOS') {
+  if (ua === "iOS") {
     // hide Android link
 
-    elem = document.getElementById('ios-link');
-    url = 'https://itunes.apple.com/in/app/growthfile/id1441388774?mt=8';
+    elem = document.getElementById("ios-link");
+    url = "https://itunes.apple.com/in/app/growthfile/id1441388774?mt=8";
   }
 
   if (url) {

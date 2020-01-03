@@ -21,18 +21,10 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  db,
-  getGeopointObject,
-  rootCollections,
-} = require('./../../admin/admin');
-const {
-  getStatusForDay,
-} = require('../recipients/report-utils');
+const {db, getGeopointObject, rootCollections} = require('./../../admin/admin');
+const {getStatusForDay} = require('../recipients/report-utils');
 const {
   isValidDate,
   isValidEmail,
@@ -51,12 +43,9 @@ const {
   subcollectionNames,
   templatesWithNumber,
 } = require('../../admin/constants');
-const {
-  toMapsUrl,
-} = require('../../firestore/recipients/report-utils');
+const {toMapsUrl} = require('../../firestore/recipients/report-utils');
 const momentTz = require('moment-timezone');
 const admin = require('firebase-admin');
-
 
 /**
  * Validates the schedules where the there is a name field present,
@@ -76,8 +65,8 @@ const validateSchedules = (body, scheduleNames) => {
 
   if (!body.hasOwnProperty('schedule')) {
     messageObject.isValid = false;
-    messageObject.message = `The 'schedule' field is missing` +
-      ` from the request body.`;
+    messageObject.message =
+      `The 'schedule' field is missing` + ` from the request body.`;
 
     return messageObject;
   }
@@ -91,7 +80,8 @@ const validateSchedules = (body, scheduleNames) => {
 
   if (scheduleNames.length !== body.schedule.length) {
     messageObject.isValid = false;
-    messageObject.message = `Expected ${scheduleNames.length}` +
+    messageObject.message =
+      `Expected ${scheduleNames.length}` +
       ` venues. Found ${body.schedule.length}`;
 
     return messageObject;
@@ -105,37 +95,34 @@ const validateSchedules = (body, scheduleNames) => {
 
     if (typeof scheduleObject !== 'object') {
       messageObject.isValid = false;
-      messageObject.message = `The schedule array should be an object.` +
+      messageObject.message =
+        `The schedule array should be an object.` +
         ` Found ${typeof scheduleObject}`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('name')) {
       messageObject.isValid = false;
-      messageObject.message = `Missing the field 'name' in schedule at` +
-        ` position ${i}`;
+      messageObject.message =
+        `Missing the field 'name' in schedule at` + ` position ${i}`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('startTime')) {
       messageObject.isValid = false;
-      messageObject.message = `Missing the field 'startTime' in schedule at` +
-        ` position ${i}`;
+      messageObject.message =
+        `Missing the field 'startTime' in schedule at` + ` position ${i}`;
       break;
     }
 
     if (!scheduleObject.hasOwnProperty('endTime')) {
       messageObject.isValid = false;
-      messageObject.message = `Missing the field 'endTime' in schedule at` +
-        ` position ${i}`;
+      messageObject.message =
+        `Missing the field 'endTime' in schedule at` + ` position ${i}`;
       break;
     }
 
-    const {
-      name,
-      startTime,
-      endTime
-    } = scheduleObject;
+    const {name, startTime, endTime} = scheduleObject;
 
     if (seenNamesSet.has(name)) {
       messageObject.isValid = false;
@@ -155,36 +142,38 @@ const validateSchedules = (body, scheduleNames) => {
     if (startTime !== '' && endTime !== '') {
       if (typeof startTime !== 'number') {
         messageObject.isValid = false;
-        messageObject.message = `The 'startTime' in the schedule '${name}'` +
-          ` should be a number`;
+        messageObject.message =
+          `The 'startTime' in the schedule '${name}'` + ` should be a number`;
         break;
       }
 
       if (typeof endTime !== 'number') {
         messageObject.isValid = false;
-        messageObject.message = `The 'endTime' in the schedule '${name}'` +
-          ` should be a number`;
+        messageObject.message =
+          `The 'endTime' in the schedule '${name}'` + ` should be a number`;
         break;
       }
 
       if (!isValidDate(startTime)) {
         messageObject.isValid = false;
-        messageObject.message = `The 'startTime' in the schedule '${name}'` +
+        messageObject.message =
+          `The 'startTime' in the schedule '${name}'` +
           ` should be a valid unix timestamp`;
         break;
       }
 
       if (!isValidDate(endTime)) {
         messageObject.isValid = false;
-        messageObject.message = `The 'endTime' in the schedule '${name}' should` +
+        messageObject.message =
+          `The 'endTime' in the schedule '${name}' should` +
           `be a valid unix timestamp`;
         break;
       }
 
       if (startTime > endTime) {
         messageObject.isValid = false;
-        messageObject.message = `Schedule '${name}' has start time after` +
-          ` the end time`;
+        messageObject.message =
+          `Schedule '${name}' has start time after` + ` the end time`;
         break;
       }
     }
@@ -198,13 +187,12 @@ const validateSchedules = (body, scheduleNames) => {
     messageObject.schedules.push({
       name,
       startTime,
-      endTime
+      endTime,
     });
   }
 
   return messageObject;
 };
-
 
 /**
  * Validates the venues based on the `venueDescriptors` and
@@ -238,7 +226,8 @@ const validateVenues = (body, venueDescriptors) => {
 
   if (venueDescriptors.length !== body.venue.length) {
     messageObject.isValid = false;
-    messageObject.message = `Expected ${venueDescriptors.length}` +
+    messageObject.message =
+      `Expected ${venueDescriptors.length}` +
       ` venues. Found ${body.venue.length}`;
 
     return messageObject;
@@ -252,30 +241,31 @@ const validateVenues = (body, venueDescriptors) => {
 
     if (!venueObject.hasOwnProperty('venueDescriptor')) {
       messageObject.isValid = false;
-      messageObject.message = `The venue at position ${i} is missing` +
+      messageObject.message =
+        `The venue at position ${i} is missing` +
         ` the field 'venueDescriptor'`;
       break;
     }
 
     if (!venueObject.hasOwnProperty('address')) {
       messageObject.isValid = false;
-      messageObject.message = `The venue at position ${i} is missing` +
-        ` the field 'address'`;
+      messageObject.message =
+        `The venue at position ${i} is missing` + ` the field 'address'`;
       break;
     }
 
     if (!venueObject.hasOwnProperty('geopoint')) {
       messageObject.isValid = false;
-      messageObject.message = `The venue at position ${i} is missing` +
-        ` the field 'geopoint'`;
+      messageObject.message =
+        `The venue at position ${i} is missing` + ` the field 'geopoint'`;
       break;
     }
 
     if (!venueObject.hasOwnProperty('location')) {
       messageObject.isValid = false;
 
-      messageObject.message = `The venue at position ${i} is missing` +
-        ` the field 'location'`;
+      messageObject.message =
+        `The venue at position ${i} is missing` + ` the field 'location'`;
       break;
     }
 
@@ -300,7 +290,8 @@ const validateVenues = (body, venueDescriptors) => {
 
     if (!venueDescriptors.includes(venueDescriptor)) {
       messageObject.isValid = false;
-      messageObject.message = `The value '${venueDescriptor}' is an` +
+      messageObject.message =
+        `The value '${venueDescriptor}' is an` +
         ` invalid venueDescriptor. Use: ${venueDescriptors}`;
       break;
     }
@@ -308,8 +299,8 @@ const validateVenues = (body, venueDescriptors) => {
     if (typeof address !== 'string') {
       messageObject.isValid = false;
 
-      messageObject.message = `The venue at position ${i} has an` +
-        ` invalid address`;
+      messageObject.message =
+        `The venue at position ${i} has an` + ` invalid address`;
       break;
     }
 
@@ -347,7 +338,6 @@ const validateVenues = (body, venueDescriptors) => {
   return messageObject;
 };
 
-
 /**
  * Validates the attachment object based on the `template`.
  *
@@ -355,13 +345,8 @@ const validateVenues = (body, venueDescriptors) => {
  * @returns {Object} `messageObject` containing `message` and `isValid` fields
  * denoting if the attachment is a valid object.
  */
-const filterAttachment = (options) => {
-  const {
-    bodyAttachment,
-    templateAttachment,
-    template,
-    office,
-  } = options;
+const filterAttachment = options => {
+  const {bodyAttachment, templateAttachment, template, office} = options;
 
   const messageObject = {
     isValid: true,
@@ -374,7 +359,8 @@ const filterAttachment = (options) => {
     hasBase64Field: false,
   };
 
-  const invalidTypeMessage = `Expected the type of 'attachment' to be` +
+  const invalidTypeMessage =
+    `Expected the type of 'attachment' to be` +
     ` of type 'Object'. Found ${typeof bodyAttachment}`;
 
   if (typeof bodyAttachment !== 'object') {
@@ -394,7 +380,8 @@ const filterAttachment = (options) => {
 
   if (Array.isArray(bodyAttachment)) {
     messageObject.isValid = false;
-    messageObject.message = `Expected the type of 'attachment' to be of type` +
+    messageObject.message =
+      `Expected the type of 'attachment' to be of type` +
       ` 'Object' Found 'Array'.`;
 
     return messageObject;
@@ -442,9 +429,11 @@ const filterAttachment = (options) => {
       break;
     }
 
-    if (typeof value !== 'number' &&
+    if (
+      typeof value !== 'number' &&
       typeof value !== 'string' &&
-      typeof value !== 'boolean') {
+      typeof value !== 'boolean'
+    ) {
       messageObject.isValid = false;
       messageObject.message = `${field} can only be a number or a string`;
       break;
@@ -474,16 +463,13 @@ const filterAttachment = (options) => {
       }
     }
 
-    if (field === 'Timezone' &&
-      !timezonesSet.has(value)) {
+    if (field === 'Timezone' && !timezonesSet.has(value)) {
       messageObject.isValid = false;
       messageObject.message = `${value} is not a valid ${field}`;
       break;
     }
 
-    if (value !== '' &&
-      type === 'number' &&
-      typeof value !== 'number') {
+    if (value !== '' && type === 'number' && typeof value !== 'number') {
       messageObject.isValid = false;
       messageObject.message = `${field} should be a number`;
       break;
@@ -503,22 +489,19 @@ const filterAttachment = (options) => {
         break;
       }
 
-      if (type === 'phoneNumber' &&
-        !isE164PhoneNumber(value)) {
+      if (type === 'phoneNumber' && !isE164PhoneNumber(value)) {
         messageObject.isValid = false;
         messageObject.message = `${field} should be a valid phone number`;
         break;
       }
 
       if (field === 'Template') {
-        messageObject
-          .querySnapshotShouldExist
-          .push(rootCollections
-            .activityTemplates
+        messageObject.querySnapshotShouldExist.push(
+          rootCollections.activityTemplates
             .where('name', '==', value)
             .limit(1)
-            .get()
-          );
+            .get(),
+        );
       }
     }
 
@@ -529,13 +512,11 @@ const filterAttachment = (options) => {
         break;
       }
 
-      messageObject
-        .profileDocShouldExist
-        .push(rootCollections
-          .profiles
+      messageObject.profileDocShouldExist.push(
+        rootCollections.profiles
           .doc(bodyAttachment['Phone Number'].value)
-          .get()
-        );
+          .get(),
+      );
     }
 
     /**
@@ -547,28 +528,24 @@ const filterAttachment = (options) => {
       // Used by admin api
       messageObject.nameChecks.push({
         value,
-        type
+        type,
       });
 
       if (templatesWithNumber.has(type)) {
-        messageObject
-          .querySnapshotShouldExist
-          .push(rootCollections
-            .activities
+        messageObject.querySnapshotShouldExist.push(
+          rootCollections.activities
             .where('attachment.Number.value', '==', value)
             .limit(1)
-            .get()
-          );
+            .get(),
+        );
       } else {
-        messageObject
-          .querySnapshotShouldExist
-          .push(rootCollections
-            .activities
+        messageObject.querySnapshotShouldExist.push(
+          rootCollections.activities
             .where('attachment.Name.value', '==', value)
             .where('template', '==', type)
             .limit(1)
-            .get()
-          );
+            .get(),
+        );
       }
     }
 
@@ -579,25 +556,23 @@ const filterAttachment = (options) => {
         break;
       }
 
-      if (template === 'office' &&
-        bodyAttachment.Name.value !== office) {
+      if (template === 'office' && bodyAttachment.Name.value !== office) {
         messageObject.isValid = false;
-        messageObject.message = `The office name in the` +
+        messageObject.message =
+          `The office name in the` +
           ` 'attachment.Name.value' and the` +
           ` 'office' field in the request body should be the same`;
         break;
       }
 
-      messageObject
-        .querySnapshotShouldNotExist
-        .push(rootCollections
-          .activities
+      messageObject.querySnapshotShouldNotExist.push(
+        rootCollections.activities
           .where('attachment.Name.value', '==', value)
           .where('template', '==', template)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)
-          .get()
-        );
+          .get(),
+      );
     }
 
     // Number and Name can't be left blank
@@ -609,15 +584,13 @@ const filterAttachment = (options) => {
         break;
       }
 
-      messageObject
-        .querySnapshotShouldNotExist
-        .push(rootCollections
-          .activities
+      messageObject.querySnapshotShouldNotExist.push(
+        rootCollections.activities
           .where('attachment.Number.value', '==', value)
           /** Docs exist uniquely based on `Name`, and `template`. */
           .limit(1)
-          .get()
-        );
+          .get(),
+      );
     }
 
     if (type === 'phoneNumber' && value !== '') {
@@ -643,10 +616,10 @@ const filterAttachment = (options) => {
     if (type === 'weekday') {
       const weekdays = require('../../admin/constants').weekdays;
 
-      if (value !== '' &&
-        !weekdays.has(value)) {
+      if (value !== '' && !weekdays.has(value)) {
         messageObject.isValid = false;
-        messageObject.message = `${field} should be a weekday.` +
+        messageObject.message =
+          `${field} should be a weekday.` +
           ` Use: ${Array.from(weekdays.keys())}`;
         break;
       }
@@ -669,7 +642,6 @@ const filterAttachment = (options) => {
   return messageObject;
 };
 
-
 /**
  * Checks the `template` and `office` fields from the request body.
  *
@@ -687,7 +659,8 @@ const validateCreateRequestBody = (body, successMessage) => {
 
   if (!isNonEmptyString(body.template)) {
     return {
-      message: `Expected 'template' field to have a value of type 'string'. ` +
+      message:
+        `Expected 'template' field to have a value of type 'string'. ` +
         `Found ${typeof body.template}.`,
       isValid: false,
     };
@@ -714,7 +687,6 @@ const validateCreateRequestBody = (body, successMessage) => {
     };
   }
 
-
   if (!body.hasOwnProperty('attachment')) {
     return {
       message: `The field 'attachment' is missing from the request body.`,
@@ -737,8 +709,8 @@ const validateCreateRequestBody = (body, successMessage) => {
     const phoneNumber = body.share[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `${phoneNumber} is invalid.` +
-        ` Please contact support`;
+      successMessage.message =
+        `${phoneNumber} is invalid.` + ` Please contact support`;
       successMessage.isValid = false;
       break;
     }
@@ -746,7 +718,6 @@ const validateCreateRequestBody = (body, successMessage) => {
 
   return successMessage;
 };
-
 
 /**
  * Checks if the update body has valid data to make an update request.
@@ -756,12 +727,14 @@ const validateCreateRequestBody = (body, successMessage) => {
  * @returns {Object} Message object.
  */
 const validateUpdateRequestBody = (body, successMessage) => {
-  if (!body.hasOwnProperty('venue') &&
+  if (
+    !body.hasOwnProperty('venue') &&
     !body.hasOwnProperty('schedule') &&
     !body.hasOwnProperty('attachment')
   ) {
     return {
-      message: `The request body has no usable fields.` +
+      message:
+        `The request body has no usable fields.` +
         ` Please add at least any of these: ,` +
         ` 'schedule', 'venue' or 'attachment'` +
         ` in the request body to make a successful request.`,
@@ -771,7 +744,6 @@ const validateUpdateRequestBody = (body, successMessage) => {
 
   return successMessage;
 };
-
 
 /**
  * Checks if the request body has a valid `comment`.
@@ -798,7 +770,6 @@ const validateCommentRequestBody = (body, successMessage) => {
   return successMessage;
 };
 
-
 /**
  * Checks if the request body has a valid `status` field.
  * @param {Object} body Request body from the client's device.
@@ -820,8 +791,7 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
     };
   }
 
-  const activityStatuses = require('../../admin/constants')
-    .activityStatuses;
+  const activityStatuses = require('../../admin/constants').activityStatuses;
 
   if (!activityStatuses.has(body.status)) {
     return {
@@ -832,7 +802,6 @@ const validateChangeStatusRequestBody = (body, successMessage) => {
 
   return successMessage;
 };
-
 
 /**
  * Checks if the request body has the `remove` field as an array
@@ -862,15 +831,14 @@ const validateRemoveRequestBody = (body, successMessage) => {
 
   if (!isE164PhoneNumber(body.remove)) {
     return {
-      message: `The phone number: '${body.remove}' is not a valid` +
-        ` phone number.`,
+      message:
+        `The phone number: '${body.remove}' is not a valid` + ` phone number.`,
       isValid: false,
     };
   }
 
   return successMessage;
 };
-
 
 /**
  * Checks if the request body has the `share` field as an array
@@ -907,7 +875,8 @@ const validateShareRequestBody = (body, successMessage) => {
     const phoneNumber = body.share[i];
 
     if (!isE164PhoneNumber(phoneNumber)) {
-      successMessage.message = `The phone number ${phoneNumber} is invalid.` +
+      successMessage.message =
+        `The phone number ${phoneNumber} is invalid.` +
         ` Please choose a valid phone number.`;
       successMessage.isValid = false;
     }
@@ -917,7 +886,6 @@ const validateShareRequestBody = (body, successMessage) => {
 
   return successMessage;
 };
-
 
 /**
  * Validates the request body for data from the client, and constructs
@@ -1013,7 +981,6 @@ const isValidRequestBody = (body, endpoint) => {
   throw new Error(`Invalid endpoint in the method argument`);
 };
 
-
 const getCanEditValue = (locals, phoneNumber) => {
   const canEditRule = locals.static.canEditRule;
 
@@ -1035,11 +1002,10 @@ const getCanEditValue = (locals, phoneNumber) => {
   return true;
 };
 
-
-const getPhoneNumbersFromAttachment = (attachment) => {
+const getPhoneNumbersFromAttachment = attachment => {
   const phoneNumbersSet = new Set();
 
-  Object.keys(attachment).forEach((key) => {
+  Object.keys(attachment).forEach(key => {
     const field = attachment[key];
     const type = field.type;
     const value = field.value;
@@ -1051,7 +1017,6 @@ const getPhoneNumbersFromAttachment = (attachment) => {
 
   return phoneNumbersSet;
 };
-
 
 const checkActivityAndAssignee = (docs, isSupportRequest) => {
   const [activity, requester] = docs;
@@ -1076,33 +1041,31 @@ const checkActivityAndAssignee = (docs, isSupportRequest) => {
 
   return {
     isValid: true,
-    message: null
+    message: null,
   };
 };
 
 const haversineDistance = (geopointOne, geopointTwo) => {
-  const toRad = value => value * Math.PI / 180;
+  const toRad = value => (value * Math.PI) / 180;
   const RADIUS_OF_EARTH = 6371;
 
-  const distanceBetweenLatitudes =
-    toRad(
-      geopointOne._latitude - geopointTwo._latitude
-    );
-  const distanceBetweenLongitudes =
-    toRad(
-      geopointOne._longitude - geopointTwo._longitude
-    );
+  const distanceBetweenLatitudes = toRad(
+    geopointOne._latitude - geopointTwo._latitude,
+  );
+  const distanceBetweenLongitudes = toRad(
+    geopointOne._longitude - geopointTwo._longitude,
+  );
 
   const lat1 = toRad(geopointOne._latitude);
   const lat2 = toRad(geopointTwo._latitude);
 
   const a =
     Math.sin(distanceBetweenLatitudes / 2) *
-    Math.sin(distanceBetweenLatitudes / 2) +
+      Math.sin(distanceBetweenLatitudes / 2) +
     Math.sin(distanceBetweenLongitudes / 2) *
-    Math.sin(distanceBetweenLongitudes / 2) *
-    Math.cos(lat1) *
-    Math.cos(lat2);
+      Math.sin(distanceBetweenLongitudes / 2) *
+      Math.cos(lat1) *
+      Math.cos(lat2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = RADIUS_OF_EARTH * c;
@@ -1110,21 +1073,16 @@ const haversineDistance = (geopointOne, geopointTwo) => {
   return distance;
 };
 
-const activityName = (options) => {
-  const {
-    attachmentObject,
-    templateName,
-    requester,
-  } = options;
+const activityName = options => {
+  const {attachmentObject, templateName, requester} = options;
 
-  const {
-    displayName,
-    phoneNumber,
-  } = requester;
+  const {displayName, phoneNumber} = requester;
 
   if (templateName === 'recipient') {
-    return `${templateName.toUpperCase()}:` +
-      ` ${attachmentObject.Name.value.toUpperCase()} REPORT`;
+    return (
+      `${templateName.toUpperCase()}:` +
+      ` ${attachmentObject.Name.value.toUpperCase()} REPORT`
+    );
   }
 
   if (attachmentObject.hasOwnProperty('Name')) {
@@ -1136,17 +1094,20 @@ const activityName = (options) => {
   }
 
   if (templateName === 'admin') {
-    return `${templateName.toUpperCase()}: ${attachmentObject['Phone Number'].value}`;
+    return `${templateName.toUpperCase()}: ${
+      attachmentObject['Phone Number'].value
+    }`;
   }
 
   if (templateName === 'subscription') {
-    return `${templateName.toUpperCase()}:` +
-      ` ${attachmentObject['Phone Number'].value}`;
+    return (
+      `${templateName.toUpperCase()}:` +
+      ` ${attachmentObject['Phone Number'].value}`
+    );
   }
 
   return `${templateName.toUpperCase()}: ${displayName || phoneNumber}`;
 };
-
 
 const toAttachmentValues = (conn, locals) => {
   // activityId, createTime, attachment, status
@@ -1161,10 +1122,9 @@ const toAttachmentValues = (conn, locals) => {
 
   const fields = Object.keys(conn.req.body.attachment);
 
-  fields
-    .forEach((field) => {
-      object[field] = conn.req.body.attachment[field].value;
-    });
+  fields.forEach(field => {
+    object[field] = conn.req.body.attachment[field].value;
+  });
 
   return object;
 };
@@ -1216,7 +1176,7 @@ const toCustomerObject = (docData, createTime) => {
   return customerObject;
 };
 
-const toEmployeesData = (activity) => {
+const toEmployeesData = activity => {
   return {
     createTime: activity.createTime.toDate().getTime(),
     Name: activity.get('attachment.Name.value'),
@@ -1229,15 +1189,8 @@ const toEmployeesData = (activity) => {
   };
 };
 
-
 const cancelLeaveOrAr = async params => {
-  const {
-    officeId,
-    startTime,
-    endTime,
-    template,
-    creatorsPhoneNumber,
-  } = params;
+  const {officeId, startTime, endTime, template, creatorsPhoneNumber} = params;
 
   const promises = getAttendancesPath({
     startTime,
@@ -1245,130 +1198,106 @@ const cancelLeaveOrAr = async params => {
     officeId,
     phoneNumber: creatorsPhoneNumber,
   });
-  const [
-    attendanceDocs,
-    employeeQueryResult,
-  ] = await Promise
-    .all([
-      Promise
-      .all(promises),
-      rootCollections
-      .activities
+  const [attendanceDocs, employeeQueryResult] = await Promise.all([
+    Promise.all(promises),
+    rootCollections.activities
       .where('officeId', '==', officeId)
       .where('status', '==', 'CONFIRMED')
       .where('template', '==', 'employee')
       .where('attachment.Phone Number.value', '==', creatorsPhoneNumber)
       .limit(1)
       .get(),
-    ]);
+  ]);
   const batch = db.batch();
   const addendumPromises = [];
   const queryDates = [];
 
-  attendanceDocs
-    .forEach(doc => {
-      const {
-        month,
-        year
-      } = doc.data();
-      const p = rootCollections
-        .offices
-        .doc(officeId)
-        .collection(subcollectionNames.ADDENDUM)
-        .where('date', '==', doc.id)
-        .where('month', '==', month)
-        .where('year', '==', year)
-        .where('user', '==', creatorsPhoneNumber)
-        .get();
+  attendanceDocs.forEach(doc => {
+    const {month, year} = doc.data();
+    const p = rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.ADDENDUM)
+      .where('date', '==', doc.id)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .where('user', '==', creatorsPhoneNumber)
+      .get();
 
-      queryDates
-        .push(`${doc.id} ${month} ${year}`);
-      addendumPromises
-        .push(p);
-    });
+    queryDates.push(`${doc.id} ${month} ${year}`);
+    addendumPromises.push(p);
+  });
 
-  const snapShots = await Promise
-    .all(addendumPromises);
+  const snapShots = await Promise.all(addendumPromises);
 
   const datesMap = new Map();
 
-  snapShots
-    .forEach((snapShot, index) => {
-      const numberOfCheckIns = snapShot.size;
-      const minimumDailyActivityCount = employeeQueryResult
-        .docs[0]
-        .get('attachment.Minimum Daily Activity Count.value');
-      const minimumWorkingHours = employeeQueryResult
-        .docs[0]
-        .get('attachment.Minimum Working Hours.value');
-      const hoursWorked = (() => {
-        if (numberOfCheckIns === 0) {
-          return 0;
-        }
-
-        const firstCheckIn = snapShot.docs[0];
-        const lastCheckIn = snapShot.docs[snapShot.size - 1];
-
-        return momentTz(lastCheckIn.get('timestamp'))
-          .diff(momentTz(firstCheckIn.get('timestamp')), 'hours');
-      })();
-
-      const statusForDay = getStatusForDay({
-        numberOfCheckIns,
-        minimumDailyActivityCount,
-        minimumWorkingHours,
-        hoursWorked,
-      });
-
-      const docUpdate = {
-        statusForDay,
-      };
-
-      if (template === 'leave') {
-        docUpdate
-          .onLeave = false;
+  snapShots.forEach((snapShot, index) => {
+    const numberOfCheckIns = snapShot.size;
+    const minimumDailyActivityCount = employeeQueryResult.docs[0].get(
+      'attachment.Minimum Daily Activity Count.value',
+    );
+    const minimumWorkingHours = employeeQueryResult.docs[0].get(
+      'attachment.Minimum Working Hours.value',
+    );
+    const hoursWorked = (() => {
+      if (numberOfCheckIns === 0) {
+        return 0;
       }
 
-      if (template === 'attendance regularization') {
-        docUpdate
-          .onAr = false;
-      }
+      const firstCheckIn = snapShot.docs[0];
+      const lastCheckIn = snapShot.docs[snapShot.size - 1];
 
-      datesMap
-        .set(queryDates[index], docUpdate);
+      return momentTz(lastCheckIn.get('timestamp')).diff(
+        momentTz(firstCheckIn.get('timestamp')),
+        'hours',
+      );
+    })();
+
+    const statusForDay = getStatusForDay({
+      numberOfCheckIns,
+      minimumDailyActivityCount,
+      minimumWorkingHours,
+      hoursWorked,
     });
 
-  attendanceDocs
-    .forEach(doc => {
-      const date = doc.id;
-      const {
-        month,
-        year
-      } = doc.data();
-      const onLeave = template === 'leave';
-      const onAr = template === 'attendance regularization';
-      const docUpdates = {
-        statusForDay: datesMap.get(`${date} ${month} ${year}`),
-      };
+    const docUpdate = {
+      statusForDay,
+    };
 
-      if (onLeave) {
-        docUpdates
-          .onLeave = false;
-      }
+    if (template === 'leave') {
+      docUpdate.onLeave = false;
+    }
 
-      if (onAr) {
-        docUpdates
-          .onAr = false;
-      }
+    if (template === 'attendance regularization') {
+      docUpdate.onAr = false;
+    }
 
-      batch
-        .set(doc.ref, docUpdates, {
-          merge: true,
-        });
+    datesMap.set(queryDates[index], docUpdate);
+  });
+
+  attendanceDocs.forEach(doc => {
+    const date = doc.id;
+    const {month, year} = doc.data();
+    const onLeave = template === 'leave';
+    const onAr = template === 'attendance regularization';
+    const docUpdates = {
+      statusForDay: datesMap.get(`${date} ${month} ${year}`),
+    };
+
+    if (onLeave) {
+      docUpdates.onLeave = false;
+    }
+
+    if (onAr) {
+      docUpdates.onAr = false;
+    }
+
+    batch.set(doc.ref, docUpdates, {
+      merge: true,
     });
+  });
 
-  const updatesQuery = await rootCollections
-    .updates
+  const updatesQuery = await rootCollections.updates
     .where('phoneNumber', '==', creatorsPhoneNumber)
     .limit(1)
     .get();
@@ -1376,18 +1305,20 @@ const cancelLeaveOrAr = async params => {
   const doc = updatesQuery.docs[0];
 
   if (doc) {
-    batch.set(doc.ref, {
-      lastStatusDocUpdateTimestamp: Date.now()
-    }, {
-      merge: true,
-    });
+    batch.set(
+      doc.ref,
+      {
+        lastStatusDocUpdateTimestamp: Date.now(),
+      },
+      {
+        merge: true,
+      },
+    );
   }
 
-  await batch
-    .commit();
+  await batch.commit();
 
-  return batch
-    .commit();
+  return batch.commit();
 };
 
 const setOnLeaveOrAr = async params => {
@@ -1420,8 +1351,7 @@ const setOnLeaveOrAr = async params => {
     //   return result;
     // }
 
-    const recipientQueryResult = await rootCollections
-      .activities
+    const recipientQueryResult = await rootCollections.activities
       .where('officeId', '==', officeId)
       .where('template', '==', 'recipient')
       .where('status', '==', 'CONFIRMED')
@@ -1430,10 +1360,9 @@ const setOnLeaveOrAr = async params => {
       .get();
 
     if (recipientQueryResult.empty) {
-      result
-        .success = false;
-      result
-        .message = `Your organization has not` +
+      result.success = false;
+      result.message =
+        `Your organization has not` +
         ` subscribed to Growthfile's Payroll Automation`;
 
       return result;
@@ -1446,13 +1375,11 @@ const setOnLeaveOrAr = async params => {
     officeId,
     phoneNumber: creatorsPhoneNumber,
   });
-  const docs = await Promise
-    .all(promises);
+  const docs = await Promise.all(promises);
   const isPending = status === 'PENDING';
   const isCONFIRMED = status === 'CONFIRMED';
   const conflictsSet = new Set();
-  const batch = db
-    .batch();
+  const batch = db.batch();
   const conflictMessage = {
     AR_WITH_AR: `Attendance already regularized for the following dates:`,
     AR_WITH_LEAVE: `Leave already applied for the following dates:`,
@@ -1460,114 +1387,84 @@ const setOnLeaveOrAr = async params => {
     LEAVE_WITH_LEAVE: `Leave already applied for the following dates:`,
   };
 
-  docs
-    .forEach(doc => {
-      const onAr = doc.get('onAr') || false;
-      const onLeave = doc.get('onLeave') || false;
-      const {
-        path
-      } = doc.ref;
-      const parts = path.split('/');
-      const monthYearString = parts[3];
-      const [
-        monthString,
-        year,
-      ] = monthYearString
-        .split(' ');
-      const month = allMonths[monthString];
-      const fmt = momentTz()
-        .date(doc.id)
-        .month(month)
-        .year(year)
+  docs.forEach(doc => {
+    const onAr = doc.get('onAr') || false;
+    const onLeave = doc.get('onLeave') || false;
+    const {path} = doc.ref;
+    const parts = path.split('/');
+    const monthYearString = parts[3];
+    const [monthString, year] = monthYearString.split(' ');
+    const month = allMonths[monthString];
+    const fmt = momentTz()
+      .date(doc.id)
+      .month(month)
+      .year(year)
+      .tz(timezone)
+      .format(dateFormats.DATE);
+    const docUpdate = doc.data() || {
+      officeId,
+      phoneNumber: creatorsPhoneNumber,
+      month: Number(month),
+      year: Number(year),
+    };
+
+    if (template === 'leave' && onLeave && isPending) {
+      conflictsSet.add(fmt);
+      // Leave CANCELLED: Leave already applied for the following dates:
+      result.message = conflictMessage.LEAVE_WITH_LEAVE;
+
+      return;
+    }
+
+    if (template === 'leave' && onAr && isPending) {
+      conflictsSet.add(fmt);
+      // Leave CANCELLED: Attendance already regularized for the following dates:
+      result.message = conflictMessage.LEAVE_WITH_AR;
+
+      return;
+    }
+
+    if (template === 'attendance regularization' && onLeave && isPending) {
+      conflictsSet.add(fmt);
+      // Attendance Regularization CANCELLED: Leave already applied for the following dates:
+      result.message = conflictMessage.AR_WITH_LEAVE;
+
+      return;
+    }
+
+    if (template === 'attendance regularization' && onAr && isPending) {
+      conflictsSet.add(fmt);
+      // Attendance Regularization CANCELLED: Attendance already regularized for the following dates:
+      result.message = conflictMessage.AR_WITH_AR;
+
+      return;
+    }
+
+    docUpdate.statusForDay = 1;
+    docUpdate.onLeave = template === 'leave';
+    docUpdate.onAr = template === 'attendance regularization';
+    (docUpdate.leaveReason = leaveReason || ''),
+      (docUpdate.leaveType = leaveType || '');
+    docUpdate.arReason = arReason || '';
+
+    if (isCONFIRMED) {
+      docUpdate.leaveConfirmedBy = requestersPhoneNumber;
+      docUpdate.leaveConfirmedAt = momentTz()
         .tz(timezone)
-        .format(dateFormats.DATE);
-      const docUpdate = doc.data() || {
-        officeId,
-        phoneNumber: creatorsPhoneNumber,
-        month: Number(month),
-        year: Number(year),
-      };
+        .valueOf();
+    }
 
-      if (template === 'leave' &&
-        onLeave &&
-        isPending) {
-        conflictsSet.add(fmt);
-        // Leave CANCELLED: Leave already applied for the following dates:
-        result
-          .message = conflictMessage.LEAVE_WITH_LEAVE;
-
-        return;
-      }
-
-      if (template === 'leave' &&
-        onAr &&
-        isPending) {
-        conflictsSet
-          .add(fmt);
-        // Leave CANCELLED: Attendance already regularized for the following dates:
-        result
-          .message = conflictMessage.LEAVE_WITH_AR;
-
-        return;
-      }
-
-      if (template === 'attendance regularization' &&
-        onLeave &&
-        isPending) {
-        conflictsSet
-          .add(fmt);
-        // Attendance Regularization CANCELLED: Leave already applied for the following dates:
-        result
-          .message = conflictMessage.AR_WITH_LEAVE;
-
-        return;
-      }
-
-      if (template === 'attendance regularization' &&
-        onAr &&
-        isPending) {
-        conflictsSet
-          .add(fmt);
-        // Attendance Regularization CANCELLED: Attendance already regularized for the following dates:
-        result
-          .message = conflictMessage.AR_WITH_AR;
-
-        return;
-      }
-
-      docUpdate
-        .statusForDay = 1;
-      docUpdate
-        .onLeave = template === 'leave';
-      docUpdate
-        .onAr = template === 'attendance regularization';
-      docUpdate
-        .leaveReason = leaveReason || '',
-        docUpdate
-        .leaveType = leaveType || '';
-      docUpdate
-        .arReason = arReason || '';
-
-      if (isCONFIRMED) {
-        docUpdate
-          .leaveConfirmedBy = requestersPhoneNumber;
-        docUpdate
-          .leaveConfirmedAt = momentTz().tz(timezone).valueOf();
-      }
-
-      batch
-        .set(doc.ref, docUpdate, {
-          merge: true,
-        });
+    batch.set(doc.ref, docUpdate, {
+      merge: true,
     });
+  });
 
   /**
    * No conflicts, that means the leave can be created successfully
    */
   // if (conflictsSet.size === 0) {
   if (conflictsSet) {
-    const updatesQuery = await rootCollections
-      .updates
+    const updatesQuery = await rootCollections.updates
       .where('phoneNumber', '==', creatorsPhoneNumber)
       .limit(1)
       .get();
@@ -1575,56 +1472,48 @@ const setOnLeaveOrAr = async params => {
     const doc = updatesQuery.docs[0];
 
     if (doc) {
-      batch.set(doc.ref, {
-        lastStatusDocUpdateTimestamp: Date.now()
-      }, {
-        merge: true,
-      });
+      batch.set(
+        doc.ref,
+        {
+          lastStatusDocUpdateTimestamp: Date.now(),
+        },
+        {
+          merge: true,
+        },
+      );
     }
 
-    await batch
-      .commit();
+    await batch.commit();
 
     return result;
   }
 
-  result
-    .success = false;
-  result
-    .message = `${result.message} ${[...conflictsSet]}`;
+  result.success = false;
+  result.message = `${result.message} ${[...conflictsSet]}`;
 
   return result;
 };
 
-
 const createAutoSubscription = async (locals, templateName, subscriber) => {
-  if (!subscriber ||
-    !locals.addendumDoc) {
+  if (!subscriber || !locals.addendumDoc) {
     return;
   }
 
-  const {
-    officeId,
-  } = locals.change.after.data();
+  const {officeId} = locals.change.after.data();
   const batch = db.batch();
 
-  const [
-    subscriptionTemplateQuery,
-    userSubscriptionQuery,
-  ] = await Promise.all([
-    rootCollections
-    .activityTemplates
-    .where('name', '==', 'subscription')
-    .limit(1)
-    .get(),
-    rootCollections
-    .activities
-    .where('attachment.Phone Number.value', '==', subscriber)
-    .where('attachment.Template.value', '==', templateName)
-    .where('officeId', '==', officeId)
-    .where('status', '==', 'CONFIRMED')
-    .limit(1)
-    .get()
+  const [subscriptionTemplateQuery, userSubscriptionQuery] = await Promise.all([
+    rootCollections.activityTemplates
+      .where('name', '==', 'subscription')
+      .limit(1)
+      .get(),
+    rootCollections.activities
+      .where('attachment.Phone Number.value', '==', subscriber)
+      .where('attachment.Template.value', '==', templateName)
+      .where('officeId', '==', officeId)
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get(),
   ]);
 
   /** Already has the subscription to whatever template that was passed */
@@ -1634,21 +1523,24 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 
   const [subscriptionTemplateDoc] = subscriptionTemplateQuery.docs;
   const activityRef = rootCollections.activities.doc();
-  const addendumDocRef = rootCollections
-    .offices
+  const addendumDocRef = rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.ADDENDUM)
     .doc();
-  const attachment = Object.assign({}, subscriptionTemplateDoc.get('attachment'), {
-    'Phone Number': {
-      value: subscriber,
-      type: subscriptionTemplateDoc.get('attachment.Phone Number.type'),
+  const attachment = Object.assign(
+    {},
+    subscriptionTemplateDoc.get('attachment'),
+    {
+      'Phone Number': {
+        value: subscriber,
+        type: subscriptionTemplateDoc.get('attachment.Phone Number.type'),
+      },
+      Template: {
+        value: templateName,
+        type: subscriptionTemplateDoc.get('attachment.Template.type'),
+      },
     },
-    Template: {
-      value: templateName,
-      type: subscriptionTemplateDoc.get('attachment.Template.type')
-    }
-  });
+  );
 
   const activityData = {
     addendumDocRef,
@@ -1691,25 +1583,20 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 
   locals.assigneePhoneNumbersArray.forEach(phoneNumber => {
     batch.set(
-      activityRef
-      .collection(subcollectionNames.ASSIGNEES)
-      .doc(phoneNumber), {
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+      {
         /** Subscription's canEditRule is ADMIN */
         addToInclude: phoneNumber !== subscriber,
-      });
+      },
+    );
   });
 
   return batch.commit();
 };
 
-
 const attendanceConflictHandler = async params => {
   // Called for templates {leave and attendance regularization}
-  const {
-    schedule,
-    phoneNumber,
-    office,
-  } = params;
+  const {schedule, phoneNumber, office} = params;
   const allDateStrings = [];
   const queries = [];
   let conflictingDate = null;
@@ -1720,48 +1607,38 @@ const attendanceConflictHandler = async params => {
   // create queries for leave and ar for each date
   // where(scheduleDates, array_contains, '1 Jan 2019')
   schedule.forEach(scheduleObject => {
-    const {
-      startTime,
-      endTime,
-    } = scheduleObject;
+    const {startTime, endTime} = scheduleObject;
 
     allDateStrings.push(
-      ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE)
+      ...enumerateDaysBetweenDates(startTime, endTime, dateFormats.DATE),
     );
   });
 
   allDateStrings.forEach(dateString => {
     queries.push(
-      rootCollections
-      .profiles
-      .doc(phoneNumber)
-      .collection(subcollectionNames.ACTIVITIES)
-      .where('office', '==', office)
-      .where('scheduleDates', 'array-contains', dateString)
-      /** Leave creator is the person for whom the leave should be checked */
-      .where('creator.phoneNumber', '==', phoneNumber)
-      .limit(1)
-      .get()
+      rootCollections.profiles
+        .doc(phoneNumber)
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('office', '==', office)
+        .where('scheduleDates', 'array-contains', dateString)
+        /** Leave creator is the person for whom the leave should be checked */
+        .where('creator.phoneNumber', '==', phoneNumber)
+        .limit(1)
+        .get(),
     );
   });
 
   const snapShots = await Promise.all(queries);
 
   for (const snap of snapShots) {
-    const {
-      empty,
-    } = snap;
+    const {empty} = snap;
 
     if (empty) {
       continue;
     }
 
     const [doc] = snap.docs;
-    const {
-      schedule,
-      template,
-      status,
-    } = doc.data();
+    const {schedule, template, status} = doc.data();
 
     if (template !== 'leave' && template !== 'attendance regularization') {
       continue;
@@ -1772,9 +1649,7 @@ const attendanceConflictHandler = async params => {
     }
 
     const [firstSchedule] = schedule;
-    const {
-      startTime,
-    } = firstSchedule;
+    const {startTime} = firstSchedule;
 
     conflictingDate = momentTz(startTime).format(dateFormats.DATE);
     conflictingTemplate = template;
@@ -1785,7 +1660,6 @@ const attendanceConflictHandler = async params => {
     conflictingTemplate,
   };
 };
-
 
 module.exports = {
   attendanceConflictHandler,

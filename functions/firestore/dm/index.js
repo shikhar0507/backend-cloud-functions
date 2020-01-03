@@ -1,10 +1,6 @@
 'use strict';
 
-
-const {
-  rootCollections,
-  db,
-} = require('../../admin/admin');
+const {rootCollections, db} = require('../../admin/admin');
 const {
   handleError,
   sendResponse,
@@ -13,17 +9,15 @@ const {
   isE164PhoneNumber,
   isValidDate,
 } = require('../../admin/utils');
-const {
-  code,
-} = require('../../admin/responses');
+const {code} = require('../../admin/responses');
 const admin = require('firebase-admin');
 
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed. Use 'POST'`
+      `${conn.req.method} is not allowed. Use 'POST'`,
     );
   }
 
@@ -31,7 +25,7 @@ module.exports = (conn) => {
     return sendResponse(
       conn,
       code.badRequest,
-      `The field 'comment' should be a non-empty string`
+      `The field 'comment' should be a non-empty string`,
     );
   }
 
@@ -39,7 +33,7 @@ module.exports = (conn) => {
     return sendResponse(
       conn,
       code.badRequest,
-      `Invalid/Missing timestamp found in the request body`
+      `Invalid/Missing timestamp found in the request body`,
     );
   }
 
@@ -47,7 +41,7 @@ module.exports = (conn) => {
     return sendResponse(
       conn,
       code.badRequest,
-      `${conn.req.body.geopoint} is invalid`
+      `${conn.req.body.geopoint} is invalid`,
     );
   }
 
@@ -55,14 +49,13 @@ module.exports = (conn) => {
     return sendResponse(
       conn,
       code.badRequest,
-      `${conn.req.body.assignee} is invalid`
+      `${conn.req.body.assignee} is invalid`,
     );
   }
 
   let failed = false;
 
-  return rootCollections
-    .updates
+  return rootCollections.updates
     .where('phoneNumber', '==', conn.req.body.assignee)
     .limit(1)
     .get()
@@ -73,7 +66,7 @@ module.exports = (conn) => {
         return sendResponse(
           conn,
           code.conflict,
-          `User: '${conn.req.body.assignee}' not found`
+          `User: '${conn.req.body.assignee}' not found`,
         );
       }
 
@@ -87,27 +80,19 @@ module.exports = (conn) => {
         comment: conn.req.body.comment,
         geopoint: new admin.firestore.GeoPoint(
           conn.req.body.geopoint.latitude,
-          conn.req.body.geopoint.longitude
+          conn.req.body.geopoint.longitude,
         ),
       };
 
-      batch
-        .set(snapShot
-          .docs[0]
-          .ref
-          .collection('Addendum')
-          .doc(),
-          doc
-        );
+      batch.set(snapShot.docs[0].ref.collection('Addendum').doc(), doc);
 
-      batch
-        .set(rootCollections
-          .updates
+      batch.set(
+        rootCollections.updates
           .doc(conn.requester.uid)
           .collection('Addendum')
           .doc(),
-          doc
-        );
+        doc,
+      );
 
       return batch.commit();
     })

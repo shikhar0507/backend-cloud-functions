@@ -1,8 +1,4 @@
-const {
-  db,
-  rootCollections,
-  getGeopointObject,
-} = require('../admin/admin');
+const {db, rootCollections, getGeopointObject} = require('../admin/admin');
 const {
   sendResponse,
   isNonEmptyString,
@@ -13,21 +9,13 @@ const {
 } = require('../admin/utils');
 const momentTz = require('moment-timezone');
 
-const {
-  code,
-} = require('../admin/responses');
-const {
-  Creator,
-  Attachment,
-} = require('../admin/protos');
-const {
-  httpsActions,
-  subcollectionNames,
-} = require('../admin/constants');
+const {code} = require('../admin/responses');
+const {Creator, Attachment} = require('../admin/protos');
+const {httpsActions, subcollectionNames} = require('../admin/constants');
 
 const validator = req => {
-if (req.method !== 'POST') {
-  return `${req.method} is not allowed. Use 'POST'`;
+  if (req.method !== 'POST') {
+    return `${req.method} is not allowed. Use 'POST'`;
   }
 
   if (!isNonEmptyString(req.body.office)) {
@@ -35,11 +23,13 @@ if (req.method !== 'POST') {
   }
 
   if (!Array.isArray(req.body.phoneNumbers)) {
-    return `Expected array of phoneNumber objects in the`
-      + ` field 'phoneNumbers' ({phoneNumber, displayName, email})`;
+    return (
+      `Expected array of phoneNumber objects in the` +
+      ` field 'phoneNumbers' ({phoneNumber, displayName, email})`
+    );
   }
 
-  if(!req.body.phoneNumbers.length) {
+  if (!req.body.phoneNumbers.length) {
     return `Phone number cannot be empty`;
   }
 
@@ -48,9 +38,9 @@ if (req.method !== 'POST') {
       return false;
     }
 
-    const { phoneNumber, displayName, email } = obj;
+    const {phoneNumber, displayName, email} = obj;
 
-    if(!isE164PhoneNumber(phoneNumber)) {
+    if (!isE164PhoneNumber(phoneNumber)) {
       return false;
     }
 
@@ -83,15 +73,16 @@ if (req.method !== 'POST') {
 };
 
 const checkIsAdmin = (requester, office) => {
-  return requester.customClaims &&
+  return (
+    requester.customClaims &&
     Array.isArray(requester.customClaims.admin) &&
-    requester.customClaims.admin.includes(office);
+    requester.customClaims.admin.includes(office)
+  );
 };
 
 const getSubscriptionConflicts = async (phoneNumbers, officeId) => {
   const promises = phoneNumbers.map(obj => {
-    return rootCollections
-      .activities
+    return rootCollections.activities
       .where('officeId', '==', officeId)
       .where('template', '==', 'subscription')
       .where('attachment.Template.value', '==', 'check-in')
@@ -106,11 +97,11 @@ const getSubscriptionConflicts = async (phoneNumbers, officeId) => {
   snapShots.forEach(snap => {
     const [subscription] = snap.docs;
 
-    if(!subscription) {
+    if (!subscription) {
       return;
     }
 
-    const { value } = subscription.get('attachment.Phone Number');
+    const {value} = subscription.get('attachment.Phone Number');
 
     allSubscriptionActivities.get(value, subscription);
   });
@@ -127,32 +118,32 @@ module.exports = async conn => {
     return sendResponse(conn, code.badRequest, v);
   }
 
-    const {
-      office,
-  } = conn.req.body;
+  const {office} = conn.req.body;
 
   if (!checkIsAdmin(conn.requester, office)) {
     return sendResponse(conn, code.forbidden, `You cannot perform this action`);
   }
 
   const [officeDocQuery, templateDocQuery] = await Promise.all([
-    rootCollections
-      .offices
+    rootCollections.offices
       .where('office', '==', office)
       .limit(1)
       .get(),
-    rootCollections
-      .activityTemplates
+    rootCollections.activityTemplates
       .where('name', '==', 'subscription')
       .limit(1)
-      .get()
+      .get(),
   ]);
 
   const [officeDoc] = officeDocQuery.docs;
   const [templateDoc] = templateDocQuery.docs;
 
   if (!officeDoc) {
-    return sendResponse(conn, code.conflict, `Office '${conn.req.body.office}' not found`);
+    return sendResponse(
+      conn,
+      code.conflict,
+      `Office '${conn.req.body.office}' not found`,
+    );
   }
 
   if (officeDoc.get('status') === 'CANCELLED') {
@@ -167,28 +158,31 @@ module.exports = async conn => {
   ).toObject();
   const timezone = officeDoc.get('attachment.Timezone.value');
   const templateToSubscribe = 'check-in';
-  const { date, months: month, years: year } = momentTz().toObject();
+  const {date, months: month, years: year} = momentTz().toObject();
   // This is a map
   const allSubscriptionActivities = await getSubscriptionConflicts(
     conn.req.body.phoneNumbers,
-    officeDoc.id
+    officeDoc.id,
   );
 
   conn.req.body.phoneNumbers.forEach(object => {
-    const { phoneNumber, displayName } = object;
+    const {phoneNumber, displayName} = object;
     const oldSubscriptionDoc = allSubscriptionActivities.get(phoneNumber);
 
     if (oldSubscriptionDoc) {
       console.log('already exists', phoneNumber);
       // subscription activity already exists
       batch.set(
-        oldSubscriptionDoc.ref, {
+        oldSubscriptionDoc.ref,
+        {
           timestamp: Date.now(),
           addendumDocRef: null,
           status: 'CONFIRMED',
-      }, {
-        merge: true,
-      });
+        },
+        {
+          merge: true,
+        },
+      );
 
       return;
     }
@@ -196,69 +190,66 @@ module.exports = async conn => {
     const activityRef = rootCollections.activities.doc();
     const activityData = {
       creator,
-      status:templateDoc.get('statusOnCreate'),
+      status: templateDoc.get('statusOnCreate'),
       timezone,
       template: templateDoc.get('name'),
-      addendumDocRef: officeDoc.ref.collection(subcollectionNames.ADDENDUM).doc(),
+      addendumDocRef: officeDoc.ref
+        .collection(subcollectionNames.ADDENDUM)
+        .doc(),
       timestamp: Date.now(),
       createTimestamp: Date.now(),
       office,
       officeId: officeDoc.id,
-      attachment: new Attachment({
-        'Template': templateToSubscribe,
-        'Phone Number': phoneNumber,
-      }, templateDoc.get('attachment'))
-        .toObject(),
-      activityName: `${templateDoc.get('name')} ${displayName || phoneNumber}`.toUpperCase(),
+      attachment: new Attachment(
+        {
+          Template: templateToSubscribe,
+          'Phone Number': phoneNumber,
+        },
+        templateDoc.get('attachment'),
+      ).toObject(),
+      activityName: `${templateDoc.get('name')} ${displayName ||
+        phoneNumber}`.toUpperCase(),
       canEditRule: templateDoc.get('canEditRule'),
       hidden: templateDoc.get('hidden'),
       schedule: templateDoc.get('schedule').map(name => {
-        return { name, startTime: '', endTime: '' };
+        return {name, startTime: '', endTime: ''};
       }),
       venue: templateDoc.get('venue').map(venueDescriptor => {
         return {
           venueDescriptor,
           location: '',
           address: '',
-          geopoint:{latitude: '', longitude: ''},
+          geopoint: {latitude: '', longitude: ''},
         };
       }),
     };
 
-    batch.set(
-      activityRef,
-      activityData
-    );
-    batch.set(
-      activityData.addendumDocRef, {
-        date,
-        month,
-        year,
-        activityData: Object.assign({}, activityData, {
-          addendumDocRef: null,
-        }),
-        activityId: activityRef.id,
-        user: conn.requester.phoneNumber,
-        isAdminRequest: true,
-        isSupportRequest: false,
-        userDisplayName: conn.requester.displayName,
-        uid: conn.requester.uid,
-        location:getGeopointObject(conn.req.body.geopoint),
-        action: httpsActions.create,
-        geopointAccuracy: conn.req.body.geopoint.accuracy || null,
-        provider: conn.req.body.geopoint.provider || null,
-        timestamp: Date.now(),
-        userDeviceTimestamp: conn.req.body.timestamp,
+    batch.set(activityRef, activityData);
+    batch.set(activityData.addendumDocRef, {
+      date,
+      month,
+      year,
+      activityData: Object.assign({}, activityData, {
+        addendumDocRef: null,
+      }),
+      activityId: activityRef.id,
+      user: conn.requester.phoneNumber,
+      isAdminRequest: true,
+      isSupportRequest: false,
+      userDisplayName: conn.requester.displayName,
+      uid: conn.requester.uid,
+      location: getGeopointObject(conn.req.body.geopoint),
+      action: httpsActions.create,
+      geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+      provider: conn.req.body.geopoint.provider || null,
+      timestamp: Date.now(),
+      userDeviceTimestamp: conn.req.body.timestamp,
     });
 
-    [conn.requester.phoneNumber, phoneNumber]
-      .forEach(p => {
-      batch.set(
-        activityRef
-          .collection(subcollectionNames.ASSIGNEES)
-          .doc(p), {
-          addToInclude: true,
-        });
+    [conn.requester.phoneNumber, phoneNumber].forEach(p => {
+      batch.set(activityRef.collection(subcollectionNames.ASSIGNEES).doc(p), {
+        addToInclude: true,
+      });
     });
   });
 

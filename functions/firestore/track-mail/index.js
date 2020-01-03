@@ -1,12 +1,8 @@
 'use strict';
 
-const {
-  db,
-  rootCollections,
-} = require('../../admin/admin');
+const {db, rootCollections} = require('../../admin/admin');
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
-
 
 module.exports = conn => {
   if (conn.req.query.token !== env.sgMailParseToken) {
@@ -31,8 +27,7 @@ module.exports = conn => {
     recipientIdArray.push(eventContext.recipientId);
     contextArray.push(eventContext);
 
-    const promise = rootCollections
-      .recipients
+    const promise = rootCollections.recipients
       .doc(eventContext.recipientId)
       .collection('MailEvents')
       .where('timestamp', '>=', dayStart.valueOf())
@@ -43,16 +38,14 @@ module.exports = conn => {
     promises.push(promise);
   });
 
-  return Promise
-    .all(promises)
+  return Promise.all(promises)
     .then(snapShots => {
       snapShots.forEach((snapShot, index) => {
         const recipientId = recipientIdArray[index];
 
         const ref = (() => {
           if (snapShot.empty) {
-            return rootCollections
-              .recipients
+            return rootCollections.recipients
               .doc(recipientId)
               .collection('MailEvents')
               .doc();
@@ -63,21 +56,25 @@ module.exports = conn => {
 
         const eventContext = contextArray[index];
 
-        batch.set(ref, {
-          timestamp: momentToday.valueOf(),
-          [eventContext.email]: {
-            [eventContext.event]: {
-              [eventContext.reportName]: eventContext,
-            }
+        batch.set(
+          ref,
+          {
+            timestamp: momentToday.valueOf(),
+            [eventContext.email]: {
+              [eventContext.event]: {
+                [eventContext.reportName]: eventContext,
+              },
+            },
           },
-        }, {
-          merge: true,
-        });
+          {
+            merge: true,
+          },
+        );
       });
 
       return batch.commit();
     })
     .then(() => ({
-      success: true
+      success: true,
     }));
 };

@@ -4,14 +4,8 @@ const crypto = require('crypto');
 // const {
 //   google
 // } = require('googleapis');
-const {
-  db,
-  rootCollections,
-} = require('../../../admin/admin');
-const {
-  activityName,
-  createAutoSubscription,
-} = require('../helper');
+const {db, rootCollections} = require('../../../admin/admin');
+const {activityName, createAutoSubscription} = require('../helper');
 const {
   slugify,
   getAuth,
@@ -24,24 +18,20 @@ const {
   httpsActions,
   subcollectionNames,
 } = require('../../../admin/constants');
-const {
-  createVirtualAccount,
-} = require('../../../cash-free/autocollect');
+const {createVirtualAccount} = require('../../../cash-free/autocollect');
 const env = require('../../../admin/env');
 const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
-const googleMapsClient = require('@google/maps')
-  .createClient({
-    key: env.mapsApiKey,
-    Promise: Promise,
-  });
+const googleMapsClient = require('@google/maps').createClient({
+  key: env.mapsApiKey,
+  Promise: Promise,
+});
 
-const isActivityCreated = change => !change.before.data() &&
-  change.after.data();
+const isActivityCreated = change =>
+  !change.before.data() && change.after.data();
 
 const replaceInvalidCharsInOfficeName = office => {
-  let result = office
-    .toLowerCase();
+  let result = office.toLowerCase();
 
   const mostCommonTlds = new Set([
     'com',
@@ -80,7 +70,7 @@ const getPlaceIds = async office => {
       input: office,
       sessiontoken: crypto.randomBytes(64).toString('hex'),
       components: {
-        country: 'in'
+        country: 'in',
       },
     })
     .asPromise();
@@ -88,30 +78,28 @@ const getPlaceIds = async office => {
   return result.json.predictions.map(prediction => prediction.place_id);
 };
 
-
 const getFullBranchActivity = async placeid => {
-  const result = await googleMapsClient.place({
+  const result = await googleMapsClient
+    .place({
       placeid,
       fields: [
-        "address_component",
-        "adr_address",
-        "formatted_address",
-        "geometry",
-        "name",
-        "permanently_closed",
-        "place_id",
-        "type",
-        "vicinity",
-        "international_phone_number",
-        "opening_hours",
-        "website"
+        'address_component',
+        'adr_address',
+        'formatted_address',
+        'geometry',
+        'name',
+        'permanently_closed',
+        'place_id',
+        'type',
+        'vicinity',
+        'international_phone_number',
+        'opening_hours',
+        'website',
       ],
     })
     .asPromise();
 
-  const {
-    address_components: addressComponents,
-  } = result.json.result;
+  const {address_components: addressComponents} = result.json.result;
 
   const branchName = getBranchName(addressComponents);
   const branchOffice = {
@@ -121,14 +109,12 @@ const getFullBranchActivity = async placeid => {
     location: branchName,
     geopoint: new admin.firestore.GeoPoint(
       result.json.result.geometry.location.lat,
-      result.json.result.geometry.location.lng
+      result.json.result.geometry.location.lng,
     ),
   };
 
   const weekdayStartTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
@@ -148,17 +134,14 @@ const getFullBranchActivity = async placeid => {
   })();
 
   const weekdayEndTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
     }
 
     const [relevantObject] = openingHours.periods.filter(item => {
-      return item.close &&
-        item.close.day === 1;
+      return item.close && item.close.day === 1;
     });
 
     if (!relevantObject) {
@@ -169,17 +152,15 @@ const getFullBranchActivity = async placeid => {
   })();
 
   const saturdayStartTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
     }
 
-    const [relevantObject] = openingHours
-      .periods
-      .filter(item => item.open && item.open.day === 6);
+    const [relevantObject] = openingHours.periods.filter(
+      item => item.open && item.open.day === 6,
+    );
 
     if (!relevantObject) {
       return '';
@@ -189,17 +170,15 @@ const getFullBranchActivity = async placeid => {
   })();
 
   const saturdayEndTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
     }
 
-    const [relevantObject] = openingHours
-      .periods
-      .filter(item => item.open && item.open.day === 6);
+    const [relevantObject] = openingHours.periods.filter(
+      item => item.open && item.open.day === 6,
+    );
 
     if (!relevantObject) {
       return '';
@@ -209,9 +188,7 @@ const getFullBranchActivity = async placeid => {
   })();
 
   const weeklyOff = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
@@ -297,14 +274,10 @@ const getFullBranchActivity = async placeid => {
   return activityObject;
 };
 
-
 const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
   const batch = db.batch();
-  const {
-    officeId
-  } = locals.change.after.data();
-  const addendumDocRef = rootCollections
-    .offices
+  const {officeId} = locals.change.after.data();
+  const addendumDocRef = rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.ADDENDUM)
     .doc();
@@ -355,31 +328,22 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
 
   locals.assigneePhoneNumbersArray.forEach(phoneNumber => {
     batch.set(
-      activityRef
-      .collection(subcollectionNames.ASSIGNEES)
-      .doc(phoneNumber), {
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+      {
         addToInclude: false,
-      });
+      },
+    );
   });
 
-  batch.set(
-    activityRef,
-    activityData
-  );
+  batch.set(activityRef, activityData);
 
-  batch.set(
-    addendumDocRef,
-    addendumDocData
-  );
+  batch.set(addendumDocRef, addendumDocData);
 
   return batch.commit();
 };
 
-
 const createBranches = async locals => {
-  const {
-    office
-  } = locals.change.after.data();
+  const {office} = locals.change.after.data();
 
   if (!isActivityCreated(locals.change)) {
     return;
@@ -416,36 +380,27 @@ const createBranches = async locals => {
   };
 
   return Promise.all([
-      getBranchBodies(office),
-      rootCollections
-      .activityTemplates
+    getBranchBodies(office),
+    rootCollections.activityTemplates
       .where('name', '==', 'branch')
       .limit(1)
-      .get()
-    ])
-    .then(result => {
-      const [
-        branches,
-        templateQuery
-      ] = result;
+      .get(),
+  ]).then(result => {
+    const [branches, templateQuery] = result;
 
-      const [templateDoc] = templateQuery.docs;
-      const promises = [];
+    const [templateDoc] = templateQuery.docs;
+    const promises = [];
 
-      branches.forEach(branch => {
-        promises
-          .push(
-            createAutoBranch(branch, locals, templateDoc)
-          );
-      });
-
-      return Promise.all(promises);
+    branches.forEach(branch => {
+      promises.push(createAutoBranch(branch, locals, templateDoc));
     });
+
+    return Promise.all(promises);
+  });
 };
 
 const cancelAdmin = async (officeId, phoneNumber) => {
-  const docs = await rootCollections
-    .activities
+  const docs = await rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'admin')
     .where('attachment.Phone Number.value', '==', phoneNumber)
@@ -457,21 +412,22 @@ const cancelAdmin = async (officeId, phoneNumber) => {
     return;
   }
 
-  return doc.ref.set({
-    timestamp: Date.now(),
-    addendumDocRef: null,
-    status: 'CANCELLED',
-  }, {
-    merge: true,
-  });
+  return doc.ref.set(
+    {
+      timestamp: Date.now(),
+      addendumDocRef: null,
+      status: 'CANCELLED',
+    },
+    {
+      merge: true,
+    },
+  );
 };
-
 
 const createFootprintsRecipient = async locals => {
   const activityRef = rootCollections.activities.doc();
   const officeId = locals.change.after.id;
-  const addendumDocRef = rootCollections
-    .offices
+  const addendumDocRef = rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.ADDENDUM)
     .doc();
@@ -480,27 +436,20 @@ const createFootprintsRecipient = async locals => {
   const [
     recipientTemplateQueryResult,
     recipientActivityQueryResult,
-  ] = await Promise
-    .all([
-      rootCollections
-      .activityTemplates
-      .where('name', '==', 'recipient')
-      .get(),
-      rootCollections
-      .activities
+  ] = await Promise.all([
+    rootCollections.activityTemplates.where('name', '==', 'recipient').get(),
+    rootCollections.activities
       .where('template', '==', 'recipient')
       .where('attachment.Name.value', '==', reportNames.FOOTPRINTS)
       .limit(1)
-      .get()
-    ]);
+      .get(),
+  ]);
 
   if (!recipientActivityQueryResult.empty) {
     return;
   }
 
-  const attachment = recipientTemplateQueryResult
-    .docs[0]
-    .get('attachment');
+  const attachment = recipientTemplateQueryResult.docs[0].get('attachment');
   attachment.Name.value = 'footprints';
 
   const activityData = {
@@ -544,30 +493,22 @@ const createFootprintsRecipient = async locals => {
 
   locals.assigneePhoneNumbersArray.forEach(phoneNumber => {
     batch.set(
-      activityRef
-      .collection(subcollectionNames.ASSIGNEES)
-      .doc(phoneNumber), {
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+      {
         addToInclude: false,
-      });
+      },
+    );
   });
 
-  batch.set(
-    activityRef,
-    activityData
-  );
+  batch.set(activityRef, activityData);
 
-  batch.set(
-    addendumDocRef,
-    addendumDocData
-  );
+  batch.set(addendumDocRef, addendumDocData);
 
   return batch.commit();
 };
 
-
 const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
-  const [doc] = await rootCollections
-    .activities
+  const [doc] = await rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'subscription')
     .where('attachment.Template.value', '==', 'subscription')
@@ -579,15 +520,17 @@ const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
     return;
   }
 
-  return doc.ref.set({
-    timestamp: Date.now(),
-    addendumDocRef: null,
-    status: 'CANCELLED',
-  }, {
-    merge: true,
-  });
+  return doc.ref.set(
+    {
+      timestamp: Date.now(),
+      addendumDocRef: null,
+      status: 'CANCELLED',
+    },
+    {
+      merge: true,
+    },
+  );
 };
-
 
 // const mangeYouTubeDataApi = async locals => {
 //   const {
@@ -656,19 +599,14 @@ const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
 //     .update(opt);
 // };
 
-
 const handleSitemap = async locals => {
   const path = 'sitemap';
   const sitemapObject = await admin
     .database()
     .ref(path)
     .once('value');
-  const sitemap = sitemapObject
-    .val() || {};
-  const office = locals
-    .change
-    .after
-    .get('office');
+  const sitemap = sitemapObject.val() || {};
+  const office = locals.change.after.get('office');
   const slug = slugify(office);
 
   sitemap[slug] = {
@@ -677,9 +615,11 @@ const handleSitemap = async locals => {
     createTime: locals.change.after.createTime.toDate().toJSON(),
   };
 
-  return admin.database().ref(path).set(sitemap);
+  return admin
+    .database()
+    .ref(path)
+    .set(sitemap);
 };
-
 
 const getVid = async () => {
   const vAccountId = crypto
@@ -687,13 +627,13 @@ const getVid = async () => {
     .toString('hex')
     .substring(0, 9);
 
-  const existsAlready = (
-    await rootCollections
-    .offices
-    .where('vAccountId', '==', vAccountId)
-    .limit(1)
-    .get()
-  ).size > 0;
+  const existsAlready =
+    (
+      await rootCollections.offices
+        .where('vAccountId', '==', vAccountId)
+        .limit(1)
+        .get()
+    ).size > 0;
 
   if (existsAlready) {
     return getVid();
@@ -707,17 +647,17 @@ const createOfficeVirtualAccount = async locals => {
     return;
   }
 
-  const {
-    value: firstContact,
-  } = locals.change.after.get('attachment.First Contact');
-  const {
-    value: secondContact,
-  } = locals.change.after.get('attachment.Second Contact');
+  const {value: firstContact} = locals.change.after.get(
+    'attachment.First Contact',
+  );
+  const {value: secondContact} = locals.change.after.get(
+    'attachment.Second Contact',
+  );
 
-  const [
-    firstUserRecord,
-    secondUserRecord
-  ] = await Promise.all([getAuth(firstContact), getAuth(secondContact)]);
+  const [firstUserRecord, secondUserRecord] = await Promise.all([
+    getAuth(firstContact),
+    getAuth(secondContact),
+  ]);
 
   const {
     displayName: firstDisplayName,
@@ -733,12 +673,10 @@ const createOfficeVirtualAccount = async locals => {
     emailVerified: secondEmailVerified,
   } = secondUserRecord;
 
-  const firstContactRejected = !firstDisplayName ||
-    !firstEmail ||
-    !firstEmailVerified;
-  const secondContactRejected = !secondDisplayName ||
-    !secondEmail ||
-    !secondEmailVerified;
+  const firstContactRejected =
+    !firstDisplayName || !firstEmail || !firstEmailVerified;
+  const secondContactRejected =
+    !secondDisplayName || !secondEmail || !secondEmailVerified;
 
   if (!firstContactRejected) {
     name = firstDisplayName;
@@ -769,39 +707,33 @@ const createOfficeVirtualAccount = async locals => {
   });
 };
 
-
 const handleOffice = async locals => {
-  const {
-    value: firstContactNew
-  } = locals.change.after.get('attachment.First Contact');
-  const firstContactOld = locals
-    .change
-    .before
-    .get('attachment.First Contact.value');
-  const secondContactNew = locals
-    .change
-    .after
-    .get('attachment.Second Contact.value');
-  const secondContactOld = locals
-    .change
-    .before
-    .get('attachment.Second Contact.value');
+  const {value: firstContactNew} = locals.change.after.get(
+    'attachment.First Contact',
+  );
+  const firstContactOld = locals.change.before.get(
+    'attachment.First Contact.value',
+  );
+  const secondContactNew = locals.change.after.get(
+    'attachment.Second Contact.value',
+  );
+  const secondContactOld = locals.change.before.get(
+    'attachment.Second Contact.value',
+  );
   const officeId = locals.change.after.id;
 
   if (firstContactOld && firstContactOld !== firstContactNew) {
-    await Promise
-      .all([
-        cancelSubscriptionOfSubscription(officeId, firstContactOld),
-        cancelAdmin(officeId, firstContactOld)
-      ]);
+    await Promise.all([
+      cancelSubscriptionOfSubscription(officeId, firstContactOld),
+      cancelAdmin(officeId, firstContactOld),
+    ]);
   }
 
   if (secondContactOld && secondContactOld !== secondContactNew) {
-    await Promise
-      .all([
-        cancelSubscriptionOfSubscription(officeId, secondContactOld),
-        cancelAdmin(officeId, secondContactOld),
-      ]);
+    await Promise.all([
+      cancelSubscriptionOfSubscription(officeId, secondContactOld),
+      cancelAdmin(officeId, secondContactOld),
+    ]);
   }
 
   await createFootprintsRecipient(locals);
@@ -814,6 +746,5 @@ const handleOffice = async locals => {
   // return mangeYouTubeDataApi(locals);
   return;
 };
-
 
 module.exports = handleOffice;
