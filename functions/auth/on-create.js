@@ -36,9 +36,9 @@ const {
 } = require('../admin/utils');
 const {
   reportNames,
+  subcollectionNames,
 } = require('../admin/constants');
 const moment = require('moment');
-const admin = require('firebase-admin');
 
 
 /**
@@ -78,43 +78,33 @@ module.exports = async userRecord => {
       });
   }
 
-  const promises = [
-    rootCollections
-    .inits
-    .where('report', '==', 'counter')
-    .limit(1)
-    .get(),
-    rootCollections
-    .inits
-    .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-    .where('date', '==', momentToday.date)
-    .where('month', '==', momentToday.months)
-    .where('year', '==', momentToday.years)
-    .limit(1)
-    .get(),
-    rootCollections
-    .profiles
-    .doc(userRecord.phoneNumber)
-    .collection('Activities')
-    .where('template', '==', 'admin')
-    .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
-    .get(),
-    rootCollections
-    .activities
-    .where('template', '==', 'employee')
-    .where('status', '==', 'CONFIRMED')
-    .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
-    .get(),
-  ];
-
   try {
     const [
       counterDocsQuery,
       initDocsQuery,
       adminActivitiesQuery,
-      employeesQuery,
-    ] = await Promise
-      .all(promises);
+    ] = await Promise.all([
+    rootCollections
+      .inits
+      .where('report', '==', 'counter')
+      .limit(1)
+      .get(),
+    rootCollections
+      .inits
+      .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+      .where('date', '==', momentToday.date)
+      .where('month', '==', momentToday.months)
+      .where('year', '==', momentToday.years)
+      .limit(1)
+      .get(),
+    rootCollections
+      .profiles
+      .doc(userRecord.phoneNumber)
+      .collection(subcollectionNames.ACTIVITIES)
+      .where('template', '==', 'admin')
+      .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
+      .get(),
+  ]);
 
     const initDoc = getObjectFromSnap(initDocsQuery);
 
@@ -128,45 +118,37 @@ module.exports = async userRecord => {
         .get('usersAdded') || 0;
     })();
 
-    batch
-      .set(initDoc.ref, {
-        usersAdded: usersAdded + 1,
-      }, {
-        merge: true,
-      });
+    batch.set(initDoc.ref, {
+      usersAdded: usersAdded + 1,
+    }, {
+      merge: true,
+    });
 
     if (!counterDocsQuery.empty) {
       const counterDoc = getObjectFromSnap(counterDocsQuery);
 
-      batch
-        .set(counterDoc.ref, {
-          totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
-        }, {
-          merge: true,
-        });
+      batch.set(counterDoc.ref, {
+        totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
+      }, {
+        merge: true,
+      });
     }
 
     const customClaimsObject = {};
 
     if (!adminActivitiesQuery.empty) {
-      customClaimsObject
-        .admin = [];
+      customClaimsObject.admin = [];
     }
 
-    adminActivitiesQuery
-      .forEach(doc => {
-        const office = doc.get('office');
-
-        console.log('Admin Of:', office);
-
-        customClaimsObject.admin.push(office);
-      });
+    adminActivitiesQuery.forEach(doc => {
+      customClaimsObject.admin.push(doc.get('office'));
+    });
 
     const uid = userRecord.uid;
     const phoneNumber = filterPhoneNumber(userRecord.phoneNumber);
 
-    batch
-      .set(rootCollections
+    batch.set(
+      rootCollections
         .updates
         .doc(uid), {
           phoneNumber,
@@ -180,8 +162,8 @@ module.exports = async userRecord => {
      * phone number was introduced to the system sometime
      * in the past via an activity
      */
-    batch
-      .set(rootCollections
+    batch.set(
+      rootCollections
         .profiles
         .doc(phoneNumber), {
           uid,
@@ -196,35 +178,11 @@ module.exports = async userRecord => {
 
     const final = [
       auth
-      .setCustomUserClaims(uid, customClaimsObject),
-      batch
-      .commit(),
+        .setCustomUserClaims(uid, customClaimsObject),
+      batch.commit()
     ];
 
-    if (!employeesQuery.empty) {
-      employeesQuery
-        .forEach(async doc => {
-          const officeId = doc.get('officeId');
-          const phoneNumber = doc.get('attachment.Phone Number.value');
-          const ref = admin
-            .database()
-            .ref(`${officeId}/employee/${phoneNumber}`);
-
-          const data = await ref.once('value');
-          const updated = data.val();
-
-          if (updated) {
-            updated
-              .hasInstalled = true;
-
-            final
-              .push(ref.set(updated));
-          }
-        });
-    }
-
-    return Promise
-      .all(final);
+    return Promise.all(final);
   } catch (error) {
     console.error(error);
   }
