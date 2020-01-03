@@ -285,6 +285,98 @@ const getMonthlyAttendance = async ({officeId, phoneNumber, jsonObject}) => {
   return;
 };
 
+const getSingleReimbursement = doc => {
+  const {date, month, year} = doc.data();
+
+  const geopointFilter = geopoint => {
+    if (!geopoint) {
+      return null;
+    }
+
+    if (!geopoint.latitude && !geopoint._latitude) {
+      return null;
+    }
+
+    return {
+      latitude: geopoint._latitude || geopoint.latitude,
+      longitude: geopoint._longitude || geopoint.longitude,
+    };
+  };
+
+  return {
+    date,
+    month,
+    year,
+    office: doc.get('office'),
+    officeId: doc.get('officeId'),
+    currency: doc.get('currency'),
+    timestamp: Date.now(),
+    amount: doc.get('amount'),
+    _type: addendumTypes.REIMBURSEMENT,
+    key: momentTz()
+      .date(date)
+      .month(month)
+      .year(year)
+      .startOf('day')
+      .valueOf(),
+    id: `${date}${month}${year}${doc.id}`,
+    reimbursementType: doc.get('reimbursementType'),
+    reimbursementName: doc.get('reimbursementName') || null,
+    details: {
+      rate: doc.get('rate') || null,
+      checkInTimestamp: doc.get('timestamp') || Date.now(),
+      startLocation: geopointFilter(doc.get('previousGeopoint')),
+      endLocation: geopointFilter(doc.get('currentGeopoint')),
+      distanceTravelled: doc.get('distance') || null,
+      photoURL: doc.get('photoURL') || null,
+      status: doc.get('status') || null,
+      claimId: doc.get('claimId') || null,
+    },
+  };
+};
+
+const getMonthlyReimbursement = async ({officeId, phoneNumber, jsonObject}) => {
+  const momentToday = momentTz();
+  const momentPrevMonth = momentToday.clone().subtract(1, 'month');
+
+  const getReimbursementRef = (month, year) => {
+    return rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.REIMBURSEMENTS)
+      .where('phoneNumber', '==', phoneNumber)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .get();
+  };
+
+  const [
+    reimbursementsCurrentMonth,
+    reimbursementsPrevMonth,
+  ] = await Promise.all([
+    getReimbursementRef(momentToday.month(), momentToday.year()),
+    getReimbursementRef(momentPrevMonth.month(), momentPrevMonth.year()),
+  ]);
+
+  reimbursementsCurrentMonth.forEach(doc => {
+    jsonObject.reimbursements.push(getSingleReimbursement(doc));
+  });
+
+  reimbursementsPrevMonth.forEach(doc => {
+    jsonObject.reimbursements.push(getSingleReimbursement(doc));
+  });
+
+  return;
+};
+
+const getProfileSubcollectionPromise = ({subcollection, phoneNumber, from}) => {
+  return rootCollections.profiles
+    .doc(phoneNumber)
+    .collection(subcollection)
+    .where('timestamp', '>', from)
+    .orderBy('timestamp', 'asc')
+    .get();
+};
+
 const read = async conn => {
   const v = validateRequest(conn);
 
@@ -306,6 +398,7 @@ const read = async conn => {
   const locationPromises = [];
   const templatePromises = [];
   const attendancePromises = [];
+  const reimbursementPromises = [];
   const templatesMap = new Map();
   const sendLocations =
     profileDoc && profileDoc.get('lastLocationMapUpdateTimestamp') > from;
@@ -331,26 +424,32 @@ const read = async conn => {
 
   if (isInitRequest) {
     promises.push(
-      rootCollections.profiles
-        .doc(phoneNumber)
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('timestamp', '>', from)
-        .orderBy('timestamp', 'asc')
-        .get(),
-      rootCollections.profiles
-        .doc(phoneNumber)
-        .collection(subcollectionNames.SUBSCRIPTIONS)
-        .where('timestamp', '>', from)
-        .orderBy('timestamp', 'asc')
-        .get(),
+      getProfileSubcollectionPromise({
+        from,
+        phoneNumber,
+        subcollection: subcollectionNames.ACTIVITIES,
+      }),
+      getProfileSubcollectionPromise({
+        from,
+        phoneNumber,
+        subcollection: subcollectionNames.SUBSCRIPTIONS,
+      }),
     );
 
     officeList.forEach(office => {
       attendancePromises.push(
         getMonthlyAttendance({
-          officeId: employeeOf[office],
           phoneNumber,
           jsonObject,
+          officeId: employeeOf[office],
+        }),
+      );
+
+      reimbursementPromises.push(
+        getMonthlyReimbursement({
+          jsonObject,
+          phoneNumber,
+          officeId: employeeOf[office],
         }),
       );
     });
@@ -373,9 +472,20 @@ const read = async conn => {
     });
   }
 
-  const [addendum, activities, subscriptions] = await Promise.all(promises);
-  const locationResults = await Promise.all(locationPromises);
-  await Promise.all(attendancePromises);
+  const [
+    [addendum, activities, subscriptions],
+    locationResults,
+    /**
+     * attendancePromises, and reimbursementPromises directly
+     * modify the jsonObject which is why we are not using their
+     * return values to iterate over the objects.
+     **/
+  ] = await Promise.all([
+    Promise.all(promises),
+    Promise.all(locationPromises),
+    Promise.all(attendancePromises),
+    Promise.all(reimbursementPromises),
+  ]);
 
   (subscriptions || []).forEach(doc => {
     const {template} = doc.data();
@@ -513,7 +623,7 @@ const read = async conn => {
     merge: true,
   });
 
-  await batch.commit();
+  // await batch.commit();
 
   if (!addendum.empty) {
     jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
