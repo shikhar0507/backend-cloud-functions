@@ -113,6 +113,9 @@ module.exports = req => {
     case 'services/idProof':
       func = require('../services/id-proof');
       break;
+    case 'services/subscription/checkIn':
+      func = require('../services/check-check-in-subcription');
+      break;
     default:
       func = null;
   }
