@@ -68,8 +68,7 @@ module.exports = async conn => {
     );
   }
 
-  const office = conn.req.query.office ||
-    adminOffices[0];
+  const office = conn.req.query.office || adminOffices[0];
 
   console.log('office', JSON.stringify(office));
 
@@ -102,7 +101,7 @@ module.exports = async conn => {
     reimbursementsQueryResult,
   ] = queries;
 
-  const officeDoc = officeQueryResult.docs[0];
+  const [officeDoc] = officeQueryResult.docs;
   const payrollRecipientDoc = payrollQueryResult.docs[0];
   const reimbursementsDoc = reimbursementsQueryResult.docs[0];
   const authPromises = [];

@@ -1,44 +1,48 @@
 'use strict';
 
+const {sendResponse, getISO8601Date, sendJSON} = require('../../admin/utils');
+const {subcollectionNames} = require('../../admin/constants');
+const {db, rootCollections} = require('../../admin/admin');
+const {code} = require('../../admin/responses');
+const momentTz = require('moment-timezone');
 
-const {
-  sendResponse,
-  getISO8601Date,
-  sendJSON,
-} = require('../../admin/utils');
-const {
-  db,
-  rootCollections,
-} = require('../../admin/admin');
-const {
-  code,
-} = require('../../admin/responses');
-
-const maskLastDigits = (input, digitsToReplace = 4, charToReplaceWith = 'X') => {
-  return `${new Array(input.length - digitsToReplace + 1).join(charToReplaceWith)}`
-    + `${input.slice(-digitsToReplace)}`;
+const maskLastDigits = (
+  input,
+  digitsToReplace = 4,
+  charToReplaceWith = 'X',
+) => {
+  return (
+    `${new Array(input.length - digitsToReplace + 1).join(charToReplaceWith)}` +
+    `${input.slice(-digitsToReplace)}`
+  );
 };
 
+const getUsersWithProbablySameDevice = async (
+  deviceId,
+  phoneNumber,
+  authCreatedAt,
+) => {
+  const result = [];
 
-const getUsersWithProbablySameDevice = async (deviceId, phoneNumber) => {
-  if (typeof deviceId !== 'string') {
-    return [];
+  if (momentTz().diff(momentTz(authCreatedAt), 'minutes') > 5) {
+    return result;
   }
 
-  const reducer = (prev, doc) => {
-    const { phoneNumber } = doc.data();
-    prev.push(phoneNumber);
-
-    return prev;
-  };
+  if (typeof deviceId !== 'string') {
+    return result;
+  }
 
   const potentialNumbers = (
-    await rootCollections
-      .updates
+    await rootCollections.updates
       .where('deviceIdsArray', 'array-contains', deviceId)
       .select('phoneNumber')
       .get()
-  ).docs.reduce(reducer, []);
+  ).docs.reduce((prev, doc) => {
+    const {phoneNumber} = doc.data();
+    prev.push(phoneNumber);
+
+    return prev;
+  }, []);
 
   const usersCurrentNumberIndex = potentialNumbers.indexOf(phoneNumber);
 
@@ -46,10 +50,36 @@ const getUsersWithProbablySameDevice = async (deviceId, phoneNumber) => {
     potentialNumbers.splice(usersCurrentNumberIndex, 1);
   }
 
-  return potentialNumbers;
+  const subscriptionPromises = potentialNumbers
+    .filter(Boolean)
+    .map(phoneNumber =>
+      rootCollections.profiles
+        .doc(phoneNumber)
+        .collection(subcollectionNames.SUBSCRIPTIONS)
+        .get(),
+    );
+
+  const snaps = await Promise.all(subscriptionPromises);
+  const uniqueCombinations = new Set();
+
+  snaps.forEach(snap => {
+    snap.forEach(doc => {
+      const {office, template} = doc.data();
+      const {path} = doc.ref;
+      const phoneNumber = path.split('/')[1];
+      const id = `${office}${template}${phoneNumber}`;
+
+      if (uniqueCombinations.has(id)) {
+        return;
+      }
+
+      result.push({office, phoneNumber});
+      uniqueCombinations.add(id);
+    });
+  });
+
+  return result;
 };
-
-
 
 /**
  * Returns the server timestamp on a `GET` request.
@@ -62,43 +92,30 @@ module.exports = async conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for the /now endpoint.`
+      `${conn.req.method} is not allowed for the /now endpoint.`,
     );
   }
 
-  if (conn.req.query.hasOwnProperty('registrationToken') &&
+  if (
+    conn.req.query.hasOwnProperty('registrationToken') &&
     typeof conn.req.query.registrationToken !== 'string' &&
-    conn.req.query.registrationToken !== null) {
+    conn.req.query.registrationToken !== null
+  ) {
     return sendResponse(
       conn,
       code.badRequest,
       `The query param 'registrationToken' can either be a non-empty` +
-      ` string or 'null'`
+        ` string or 'null'`,
     );
   }
 
   let removeFromOffice = [];
   const batch = db.batch();
-
-  const [
-    updatesDoc,
-    timerDoc,
-    appVersionDoc,
-  ] = await Promise
-    .all([
-      rootCollections
-      .updates
-      .doc(conn.requester.uid)
-      .get(),
-      rootCollections
-      .timers
-      .doc(getISO8601Date())
-      .get(),
-      rootCollections
-      .versions
-      .doc('version')
-      .get(),
-    ]);
+  const [updatesDoc, timerDoc, appVersionDoc] = await Promise.all([
+    rootCollections.updates.doc(conn.requester.uid).get(),
+    rootCollections.timers.doc(getISO8601Date()).get(),
+    rootCollections.versions.doc('version').get(),
+  ]);
 
   /**
    * The `authOnCreate` function executed, when the user signed up, but
@@ -118,10 +135,7 @@ module.exports = async conn => {
 
   // update only if latestVersion >
   const updateClient = (() => {
-    const {
-      iosLatestVersion,
-      androidLatestVersion,
-    } = appVersionDoc.data();
+    const {iosLatestVersion, androidLatestVersion} = appVersionDoc.data();
 
     if (!conn.req.query.hasOwnProperty('os')) {
       return true;
@@ -149,13 +163,16 @@ module.exports = async conn => {
 
   if (!timerDoc.exists) {
     batch.set(
-      timerDoc.ref, {
+      timerDoc.ref,
+      {
         timestamp: Date.now(),
         // Prevents multiple trigger events for reports.
         sent: false,
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
   }
 
   const updatesDocData = Object.assign({}, updatesDoc.data(), {
@@ -170,24 +187,26 @@ module.exports = async conn => {
 
   const oldDeviceIdsArray = updatesDoc.get('deviceIdsArray') || [];
   oldDeviceIdsArray.push(conn.req.query.deviceId);
-  updatesDocData.deviceIdsArray = [...new Set(oldDeviceIdsArray)].filter(Boolean);
+  updatesDocData.deviceIdsArray = [...new Set(oldDeviceIdsArray)].filter(
+    Boolean,
+  );
 
   /** Only logging when changed */
-  if (conn.req.query.hasOwnProperty('deviceId') &&
+  if (
+    conn.req.query.hasOwnProperty('deviceId') &&
     conn.req.query.deviceId &&
-    conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
+    conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')
+  ) {
     if (!updatesDocData.deviceIdsObject) {
       updatesDocData.deviceIdsObject = {};
     }
 
     if (!updatesDocData.deviceIdsObject[conn.req.query.deviceId]) {
-      updatesDocData
-        .deviceIdsObject[conn.req.query.deviceId] = {};
+      updatesDocData.deviceIdsObject[conn.req.query.deviceId] = {};
     }
 
-    const oldCount = updatesDocData
-      .deviceIdsObject[conn.req.query.deviceId]
-      .count || 0;
+    const oldCount =
+      updatesDocData.deviceIdsObject[conn.req.query.deviceId].count || 0;
 
     updatesDocData.deviceIdsObject = {
       [conn.req.query.deviceId]: {
@@ -197,19 +216,20 @@ module.exports = async conn => {
     };
   }
 
-  if (conn.req.query.hasOwnProperty('registrationToken') &&
-    typeof conn.req.query.registrationToken === 'string') {
-    updatesDocData
-      .registrationToken = conn.req.query.registrationToken;
+  if (
+    conn.req.query.hasOwnProperty('registrationToken') &&
+    typeof conn.req.query.registrationToken === 'string'
+  ) {
+    updatesDocData.registrationToken = conn.req.query.registrationToken;
   }
 
   if (updatesDocData.removeFromOffice) {
     removeFromOffice = updatesDocData.removeFromOffice;
 
     if (typeof conn.req.query.removeFromOffice === 'string') {
-      const index = updatesDocData
-        .removeFromOffice
-        .indexOf(conn.req.query.removeFromOffice);
+      const index = updatesDocData.removeFromOffice.indexOf(
+        conn.req.query.removeFromOffice,
+      );
 
       if (index > -1) {
         updatesDocData.removeFromOffice.splice(index, 1);
@@ -227,46 +247,51 @@ module.exports = async conn => {
     }
   }
 
-  if (updatesDoc.get('lastStatusDocUpdateTimestamp') >
-    updatesDoc.get('lastNowRequestTimestamp')) {
+  if (
+    updatesDoc.get('lastStatusDocUpdateTimestamp') >
+    updatesDoc.get('lastNowRequestTimestamp')
+  ) {
     batch.set(
-      rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber), {
+      rootCollections.profiles.doc(conn.requester.phoneNumber),
+      {
         lastStatusDocUpdateTimestamp: Date.now(),
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
   }
 
-  if (updatesDoc.get('lastLocationMapUpdateTimestamp') >
-    updatesDoc.get('lastNowRequestTimestamp')) {
+  if (
+    updatesDoc.get('lastLocationMapUpdateTimestamp') >
+    updatesDoc.get('lastNowRequestTimestamp')
+  ) {
     batch.set(
-      rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber), {
+      rootCollections.profiles.doc(conn.requester.phoneNumber),
+      {
         lastLocationMapUpdateTimestamp: Date.now(),
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
   }
 
-  batch.set(
-    updatesDoc.ref,
-    updatesDocData, {
-      merge: true,
-    });
+  batch.set(updatesDoc.ref, updatesDocData, {
+    merge: true,
+  });
 
   const responseObject = {
-    revokeSession: false,
     updateClient,
+    revokeSession: false,
     success: true,
     timestamp: Date.now(),
     code: code.ok,
     idProof: updatesDoc.get('idProof') || null,
     potentialAlternatePhoneNumbers: await getUsersWithProbablySameDevice(
       conn.req.query.deviceId,
-      conn.requester.phoneNumber
+      conn.requester.phoneNumber,
+      conn.requester.creationTime,
     ),
     linkedAccounts: (updatesDoc.get('linkedAccounts') || []).map(account => {
       return Object.assign(account, {

@@ -21,18 +21,10 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  db,
-  auth,
-  rootCollections,
-} = require('../admin/admin');
-const {
-  code,
-} = require('../admin/responses');
+const {db, auth, rootCollections} = require('../admin/admin');
+const {code} = require('../admin/responses');
 const {
   handleError,
   sendResponse,
@@ -44,10 +36,7 @@ const {
 } = require('../admin/utils');
 const env = require('../admin/env');
 const routes = require('../routes');
-const {
-  Logging
-} = require('@google-cloud/logging');
-
+const {Logging} = require('@google-cloud/logging');
 
 const handleResource = conn => {
   const resource = routes(conn.req);
@@ -57,16 +46,16 @@ const handleResource = conn => {
     return sendResponse(
       conn,
       code.notFound,
-      `The path: '${conn.req.url}' was not found on this server.`
+      `The path: '${conn.req.url}' was not found on this server.`,
     );
   }
 
-  const rejectAdminRequest = resource
-    .checkAdmin &&
+  const rejectAdminRequest =
+    resource.checkAdmin &&
     !hasAdminClaims(conn.requester.customClaims) &&
     !conn.requester.isSupportRequest;
-  const rejectSupportRequest = resource
-    .checkSupport &&
+  const rejectSupportRequest =
+    resource.checkSupport &&
     conn.requester.isSupportRequest &&
     !hasSupportClaims(conn.requester.customClaims);
 
@@ -74,13 +63,12 @@ const handleResource = conn => {
     return sendResponse(
       conn,
       code.forbidden,
-      `You are not allowed to access this resource`
+      `You are not allowed to access this resource`,
     );
   }
 
   return resource.func(conn);
 };
-
 
 const getProfile = conn => {
   const batch = db.batch();
@@ -110,17 +98,15 @@ const getProfile = conn => {
    * the `auth` creation and the hit time on the `api`.
    */
   const AUTH_CREATION_TIMESTAMP = new Date(
-      conn.requester.creationTime
-    )
-    .getTime();
+    conn.requester.creationTime,
+  ).getTime();
   const NUM_MILLI_SECS_IN_MINUTE = 60000;
 
   if (Date.now() - AUTH_CREATION_TIMESTAMP < NUM_MILLI_SECS_IN_MINUTE) {
     return handleResource(conn);
   }
 
-  return rootCollections
-    .profiles
+  return rootCollections.profiles
     .doc(conn.requester.phoneNumber)
     .get()
     .then(profileDoc => {
@@ -132,7 +118,10 @@ const getProfile = conn => {
        * In `/api`, if uid is undefined in /Profiles/{phoneNumber} && authCreateTime and lastSignInTime is same,
        *   run `authOnCreate` logic again.
        */
-      if (profileDoc.get('uid') && profileDoc.get('uid') !== conn.requester.uid) {
+      if (
+        profileDoc.get('uid') &&
+        profileDoc.get('uid') !== conn.requester.uid
+      ) {
         console.log({
           authCreationTime: AUTH_CREATION_TIMESTAMP,
           now: Date.now(),
@@ -151,26 +140,30 @@ const getProfile = conn => {
          */
         return disableAccount(
           conn,
-          `The uid and phone number of the requester does not match.`
+          `The uid and phone number of the requester does not match.`,
         );
       }
 
       /** AuthOnCreate probably failed. This is the fallback */
       if (!profileDoc.get('uid')) {
         batch.set(
-          profileDoc.ref, {
-            uid: conn.requester.uid
-          }, {
-            merge: true
-          }
+          profileDoc.ref,
+          {
+            uid: conn.requester.uid,
+          },
+          {
+            merge: true,
+          },
         );
 
         batch.set(
-          rootCollections.updates.doc(conn.requester.uid), {
-            phoneNumber: conn.requester.phoneNumber
-          }, {
-            merge: true
-          }
+          rootCollections.updates.doc(conn.requester.uid),
+          {
+            phoneNumber: conn.requester.phoneNumber,
+          },
+          {
+            merge: true,
+          },
         );
       }
 
@@ -188,7 +181,7 @@ const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
       conn,
       code.forbidden,
       `This account has been temporarily disabled. Please contact` +
-      ` your admin`
+        ` your admin`,
     );
   }
 
@@ -217,7 +210,6 @@ const getUserAuthFromIdToken = async (conn, decodedIdToken) => {
   return getProfile(conn);
 };
 
-
 const reportBackgroundError = async (error, logName) => {
   // DOCS: https://firebase.google.com/docs/functions/reporting-errors
   const logging = new Logging();
@@ -226,7 +218,7 @@ const reportBackgroundError = async (error, logName) => {
     resource: {
       type: 'cloud_function',
       labels: {
-        'function_name': process.env.FUNCTION_NAME,
+        function_name: process.env.FUNCTION_NAME,
       },
     },
   };
@@ -250,7 +242,6 @@ const reportBackgroundError = async (error, logName) => {
   });
 };
 
-
 /**
  * Verifies the `id-token` form the Authorization header in the request.
  *
@@ -261,29 +252,26 @@ const checkAuthorizationToken = async conn => {
   const result = headerValid(conn.req.headers);
 
   if (!result.isValid) {
-    return sendResponse(
-      conn,
-      code.forbidden,
-      result.message
-    );
+    return sendResponse(conn, code.forbidden, result.message);
   }
 
   try {
-    const decodedIdToken = await auth
-      .verifyIdToken(
-        result.authToken,
-        true // checkRevoked is true in order to block all requests
-        // from revoked sessions by a user.
-      );
+    const decodedIdToken = await auth.verifyIdToken(
+      result.authToken,
+      true, // checkRevoked is true in order to block all requests
+      // from revoked sessions by a user.
+    );
 
     return getUserAuthFromIdToken(conn, decodedIdToken);
   } catch (error) {
-    if (error.code === 'auth/id-token-expired' ||
-      error.code === 'auth/id-token-revoked') {
+    if (
+      error.code === 'auth/id-token-expired' ||
+      error.code === 'auth/id-token-revoked'
+    ) {
       return sendResponse(
         conn,
         code.unauthorized,
-        'Please restart the Growthfile app'
+        'Please restart the Growthfile app',
       );
     }
 
@@ -299,7 +287,6 @@ const checkAuthorizationToken = async conn => {
     return sendResponse(conn, code.unauthorized, 'Unauthorized');
   }
 };
-
 
 /**
  * Handles the routing for the request from the clients.
@@ -326,8 +313,8 @@ module.exports = async (req, res) => {
       /** The pre-flight headers */
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': `${allowedMethods}`,
-      'Access-Control-Allow-Headers': 'X-Requested-With, Authorization,' +
-        'Content-Type, Accept',
+      'Access-Control-Allow-Headers':
+        'X-Requested-With, Authorization,' + 'Content-Type, Accept',
       'Access-Control-Max-Age': 86400,
       'Content-Type': 'application/json',
       'Content-Language': 'en-US',
@@ -336,13 +323,9 @@ module.exports = async (req, res) => {
   };
 
   /** For handling CORS */
-  if (req.method === 'HEAD' ||
-    req.method === 'OPTIONS') {
+  if (req.method === 'HEAD' || req.method === 'OPTIONS') {
     //TODO: HEAD is probably not required here. Test and remove
-    return sendResponse(
-      conn,
-      code.noContent
-    );
+    return sendResponse(conn, code.noContent);
   }
 
   if (!allowedMethods.includes(req.method)) {
@@ -350,21 +333,17 @@ module.exports = async (req, res) => {
       conn,
       code.notImplemented,
       `${req.method} is not supported for any request.` +
-      `Please use '${allowedMethods}'` +
-      ' to make your requests'
+        `Please use '${allowedMethods}'` +
+        ' to make your requests',
     );
   }
 
-  if (env.isProduction &&
-    conn.req.query.cashFreeToken === env.cashFreeToken) {
-    await rootCollections
-      .errors
-      .doc()
-      .set({
-        report: 'cashfree',
-        body: conn.req.body || {},
-        timestamp: Date.now(),
-      });
+  if (env.isProduction && conn.req.query.cashFreeToken === env.cashFreeToken) {
+    await rootCollections.errors.doc().set({
+      report: 'cashfree',
+      body: conn.req.body || {},
+      timestamp: Date.now(),
+    });
 
     return sendResponse(conn, code.ok);
   }
@@ -381,13 +360,15 @@ module.exports = async (req, res) => {
     return sendResponse(conn, code.ok);
   }
 
-  if (env.isProduction &&
+  if (
+    env.isProduction &&
     (!conn.req.headers['x-cf-secret'] ||
-      conn.req.headers['x-cf-secret'] !== env.cfSecret)) {
+      conn.req.headers['x-cf-secret'] !== env.cfSecret)
+  ) {
     return sendResponse(
       conn,
       code.forbidden,
-      `Missing 'X-CF-Secret' header in the request headers`
+      `Missing 'X-CF-Secret' header in the request headers`,
     );
   }
 

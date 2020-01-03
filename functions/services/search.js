@@ -35,7 +35,6 @@ const searchOffice = async conn => {
   const branches = await rootCollections
     .activities
     .where('placeId', '==', placeId)
-    .where('template', '==', 'branch')
     .where('status', '==', 'CONFIRMED')
     .get();
 

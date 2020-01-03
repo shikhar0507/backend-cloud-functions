@@ -171,7 +171,7 @@ const handleDelete = async conn => {
       .set({
         linkedAccounts,
       }, {
-        method: true,
+        merge: true,
       });
 
     return sendResponse(

@@ -246,8 +246,6 @@ module.exports = async conn => {
       .errors
       .doc();
 
-    console.log('errorDocRef:', errorDocRef);
-
     batch
       .set(errorDocRef, Object.assign({}, docData, {
         date,
@@ -257,6 +255,8 @@ module.exports = async conn => {
       }), {
         merge: true,
       });
+
+    console.log('Error Log:', {message, id: errorDocRef.id});
 
     await batch
       .commit();
