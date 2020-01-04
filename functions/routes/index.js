@@ -31,6 +31,8 @@ module.exports = req => {
   let checkAdmin = false;
   let func;
 
+  // TODO: Refacto this switch with
+  // https://medium.com/chrisburgin/rewriting-javascript-replacing-the-switch-statement-cfff707cf045
   switch (pathname.replace(/^\/|\/$/g, '')) {
     /**
      * Runs on each app(Android/iOS) initialization.
