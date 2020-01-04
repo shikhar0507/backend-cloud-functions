@@ -30,8 +30,6 @@ const authOnCreate = functions.auth
   .user()
   .onCreate(require('./auth/on-create'));
 
-const api = functions.https.onRequest(require('./server/server'));
-
 const assigneeOnDelete = functions.firestore
   .document('Activities/{activityId}/Assignees/{phoneNumber}')
   .onDelete(require('./firestore/assignees/index'));
@@ -39,40 +37,36 @@ const assigneeOnDelete = functions.firestore
 const activityOnWrite = functions.firestore
   .document('/Activities/{activityId}')
   .onWrite(require('./firestore/activity/on-write'));
-
-const instantOnCreate = functions.firestore
-  .document('Instant/{docId}')
-  .onCreate(require('./firestore/instant/index'));
-
 const profileOnWrite = functions.firestore
   .document('Profiles/{phoneNumber}')
   .onWrite(require('./firestore/profiles/on-write'));
-
 const activityTemplatesOnUpdate = functions
   .runWith({
-    memory: '1GB',
+    // This function deals with large number of activities at once.
+    memory: '2GB',
     timeoutSeconds: '120',
   })
   .firestore.document('ActivityTemplates/{docId}')
   .onUpdate(require('./firestore/subscriptions/on-update'));
-
-const timer = functions.firestore
-  .document('Timers/{docId}')
-  .onCreate(require('./timer/on-create'));
-
 const recipientsOnUpdate = functions.firestore
   .document('Recipients/{docId}')
   .onUpdate(require('./firestore/recipients/on-update'));
 
-const webapp = functions.https.onRequest(require('./webapp'));
+const timer = functions.firestore
+  .document('Timers/{docId}')
+  .onCreate(require('./timer/on-create'));
+const instantOnCreate = functions.firestore
+  .document('Instant/{docId}')
+  .onCreate(require('./firestore/instant/index'));
 
+const api = functions.https.onRequest(require('./server/server'));
+const webapp = functions.https.onRequest(require('./webapp'));
 const getUser = functions.https.onRequest(require('./get-user'));
 
 const temporaryImageHandler = functions.storage
   .bucket(env.tempBucketName)
   .object()
   .onFinalize(require('./storage/temporary-image-handler'));
-
 const bulkCreateHandler = functions.storage
   .bucket(env.bulkStorageBucketName)
   .object()
