@@ -39,7 +39,7 @@ const assigneeOnDelete = functions.firestore
 //   .onWrite();
 // const reimbursementHandler = functions.firestore
 //   .document('Offices/{officeId}/Reimbursements/{docId}')
-//   .onWrite();
+//   .onWrite(require('./firestore/reimbursements/index'));
 const activityOnWrite = functions.firestore
   .document('/Activities/{activityId}')
   .onWrite(require('./firestore/activity/on-write'));

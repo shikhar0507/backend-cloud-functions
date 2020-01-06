@@ -24,7 +24,12 @@
 'use strict';
 
 const {rootCollections, db} = require('../../admin/admin');
-const {subcollectionNames} = require('../../admin/constants');
+const {
+  subcollectionNames,
+  dateFormats,
+  addendumTypes,
+} = require('../../admin/constants');
+const momentTz = require('moment-timezone');
 
 const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
   if (roleDoc && roleDoc.id) {
@@ -62,19 +67,80 @@ const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
   return checkInSubscription ? checkInSubscription.id : null;
 };
 
-const getDefaultVoucher = () => {};
+const getDefaultVoucher = ({
+  date,
+  month,
+  year,
+  beneficiaryId,
+  office,
+  officeId,
+  amount,
+  cycle,
+  batchId = null,
+}) => ({
+  date,
+  month,
+  year,
+  beneficiaryId,
+  office,
+  officeId,
+  amount,
+  cycle,
+  batchId,
+});
 
-const reimbursementHandler = async (doc, context) => {
+const getCycleDates = ({isBimonthlyReimbursement, date, month, year}) => {
+  const now = momentTz()
+    .date(date)
+    .month(month)
+    .year(year);
+
+  const result = [];
+
+  const iteratorStart = (() => {
+    if (isBimonthlyReimbursement) {
+      return now.clone().date(1);
+    }
+
+    return now.clone().startOf('month');
+  })();
+
+  const iteratorEnd = (() => {
+    if (isBimonthlyReimbursement) {
+      return now.clone().date(15);
+    }
+
+    return iteratorStart.clone().endOf('month');
+  })();
+  const iterator = iteratorStart.clone();
+
+  while (iterator.isSameOrBefore(iteratorEnd)) {
+    result.push(iterator.format(dateFormats.DATE));
+
+    iterator.add(1, 'day');
+  }
+
+  return result;
+};
+
+const reimbursementHandler = async (change, context) => {
+  const {after: doc} = change;
   const batch = db.batch();
-  const {date, month, year, phoneNumber, roleDoc, officeId} = doc.data();
+  const {date, month, year, phoneNumber, roleDoc, office} = doc.data();
+  const {officeId} = context.params;
+
   const [beneficiaryId, officeDoc] = await Promise.all([
     getBeneficiaryId({
-      // There will be docs where roleDoc is null/undefined
-      roleDoc,
-      // Some old docs might not have officeId. Don't wanna
-      // take the risk of crashes.
-      officeId: officeId ? officeId : context.params.officeId,
       phoneNumber,
+      /**
+       * There will be docs where roleDoc is `null`/`undefined`
+       */
+      roleDoc,
+      /**
+       * Some old docs might not have `officeId`.
+       * Don't wanna take the risk of crashes.
+       */
+      officeId,
     }),
     rootCollections.offices.doc(officeId).get(),
   ]);
@@ -82,43 +148,62 @@ const reimbursementHandler = async (doc, context) => {
   console.log('officeDoc', officeDoc);
   console.log('beneficiaryId', beneficiaryId);
 
+  // This case should currently never happen because
+  // user will have at least one role.
   if (!beneficiaryId) {
     return;
   }
 
-  const voucherDocs = await rootCollections.offices
-    .doc(officeId)
-    .collection(subcollectionNames.VOUCHERS)
-    .where('beneficiaryId', '==', beneficiaryId)
-    .get();
+  const isBimonthlyReimbursement =
+    officeDoc.get('attachment.Reimburse Bimonthly.value') || false;
 
-  console.log(voucherDocs);
-  const [firstVoucherDoc] = voucherDocs.docs;
-
-  voucherDocs.docs.forEach((doc, index) => {
-    if (index === 0) {
-      return;
-    }
-
-    batch.delete(doc.ref);
+  const cycleDates = getCycleDates({
+    isBimonthlyReimbursement,
+    date,
+    month,
+    year,
   });
 
+  const [firstVoucherDoc] = (
+    await rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.VOUCHERS)
+      .where('cycle', 'array-contains', cycleDates)
+      .where('beneficiaryId', '==', beneficiaryId)
+      .where('type', '==', addendumTypes.REIMBURSEMENT)
+      .where('batchId', '==', null)
+      .get()
+  ).docs;
   const ref = firstVoucherDoc
     ? firstVoucherDoc.ref
     : rootCollections.offices
         .doc(officeId)
         .collection(subcollectionNames.VOUCHERS)
         .doc();
-  const data = firstVoucherDoc ? firstVoucherDoc.data() : getDefaultVoucher();
+  const data = firstVoucherDoc
+    ? firstVoucherDoc.data()
+    : getDefaultVoucher({
+        date,
+        month,
+        year,
+        office,
+        officeId,
+        beneficiaryId,
+        amount: 0,
+        cycle: cycleDates,
+      });
 
+  console.log('ref', ref.path);
+  console.log('data', data);
   batch.set(ref, data, {merge: true});
 
   return batch.commit();
 };
 
-module.exports = async (doc, context) => {
+module.exports = async (change, context) => {
   try {
-    return reimbursementHandler(doc, context);
+    console.log('doc', change);
+    return reimbursementHandler(change, context);
   } catch (error) {
     console.error(error);
   }
