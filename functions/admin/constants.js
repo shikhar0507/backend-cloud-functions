@@ -852,6 +852,7 @@ const subcollectionNames = {
   ASSIGNEES: 'Assignees',
   TRANSACTIONS: 'Transactions',
   REIMBURSEMENTS: 'Reimbursements',
+  VOUCHERS: 'Vouchers',
 };
 
 const allMonths = {

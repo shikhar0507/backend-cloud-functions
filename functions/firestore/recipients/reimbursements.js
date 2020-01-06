@@ -298,8 +298,6 @@ const reimbursementsReport = async locals => {
     summarySheetCounter++;
   });
 
-  await worksheetRef.toFileAsync('/tmp/stuff.xlsx');
-
   locals.messageObject.attachments.push({
     fileName:
       `Reimbursements Report_` +

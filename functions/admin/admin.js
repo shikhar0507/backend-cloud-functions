@@ -49,7 +49,6 @@ db.settings({
 
 /** For the worst cases where there is an omission of a `catch()` block. */
 process.on('unhandledRejection', console.log);
-
 process.on('uncaughtException', console.log);
 
 /**
@@ -199,6 +198,7 @@ const rootCollections = {
    * @example `/Instant/(auto-id)`
    */
   instant: db.collection('Instant'),
+  // TODO: Remove 'reports'. It's not used anywhere.
   reports: db.collection('Reports'),
   inits: db.collection('Inits'),
   recipients: db.collection('Recipients'),
@@ -207,21 +207,20 @@ const rootCollections = {
   events: db.collection('Events'),
   errors: db.collection('Errors'),
   anonymous: db.collection('Anonymous'),
-  inboundPayments: db.collection('InboundPayments'),
-  deposits: db.collection('Deposits'),
   mailEvents: db.collection('MailEvents'),
   facebookEvents: db.collection('FacebookEvents'),
-};
-
-const users = {
-  getUserByEmail,
-  getUserByPhoneNumber,
+  deposits: db.collection('Deposits'),
+  batches: db.collection('Batches'),
+  payments: db.collection('Payments'),
 };
 
 module.exports = {
   db,
   auth,
-  users,
   rootCollections,
   getGeopointObject,
+  users: {
+    getUserByEmail,
+    getUserByPhoneNumber,
+  },
 };

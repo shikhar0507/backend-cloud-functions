@@ -130,19 +130,16 @@ module.exports = req => {
       func = require('./../firestore/on-demand-reports');
       break;
     case 'admin/now':
-      // Not used
       checkAdmin = true;
       checkSupport = true;
       func = require('./../firestore/offices/now');
       break;
     case 'admin/read':
-      // Not used
       checkAdmin = true;
       checkSupport = true;
       func = require('./../firestore/offices/on-read');
       break;
     case 'update-auth':
-      // Not used
       checkSupport = true;
       func = require('./../services/update-auth');
       break;
