@@ -1,9 +1,10 @@
-const admin = require('firebase-admin');
+const {db} = require('../../admin/admin');
 const momentTz = require('moment-timezone');
 const XlsxPopulate = require('xlsx-populate');
 const {dateFormats} = require('../../admin/constants');
 const {alphabetsArray} = require('./report-utils');
-const db = admin.firestore();
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(env.sgMailApiKey);
 const maileventInitReport = async () => {
   const start = momentTz()
     .subtract(1, 'days')
@@ -226,12 +227,20 @@ const maileventInitReport = async () => {
           column++;
         };
         detailRow(fixedHeaderData, timestampData, mailEvents);
-        await worksheet.toFileAsync('./Report.xlsx');
+        locals.messageObject.attachments.push({
+          fileName:
+            `MaileventInit Report_` +
+            `${locals.officeDoc.get('office')}` +
+            `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+          content: await worksheet.outputAsync('base64'),
+          type: 'text/csv',
+          disposition: 'attachment',
+        });
       };
       reports();
     }
   }
-  return;
+  return Promise.all([locals.sgMail.sendMultiple(locals.messageObject)]);
 };
 
 module.exports = {maileventInitReport};
