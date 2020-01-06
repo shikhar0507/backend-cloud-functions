@@ -21,9 +21,7 @@
  *
  */
 
-
 'use strict';
-
 
 const code = {
   ok: 200,
@@ -44,5 +42,5 @@ const code = {
 };
 
 module.exports = {
-  code
+  code,
 };

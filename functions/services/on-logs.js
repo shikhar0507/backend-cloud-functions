@@ -21,53 +21,33 @@
  *
  */
 
-
 'use strict';
 
+const {rootCollections, db} = require('../admin/admin');
+const {sendResponse, handleError} = require('../admin/utils');
+const {code} = require('../admin/responses');
 
-const {
-  rootCollections,
-  db,
-} = require('../admin/admin');
-const {
-  sendResponse,
-  handleError,
-} = require('../admin/utils');
-const {
-  code,
-} = require('../admin/responses');
-
-const getSubject = message => `Error count` +
-  ` >= 10: '${message}':` +
-  ` ${process.env.GCLOUD_PROJECT}`;
-
+const getSubject = message =>
+  `Error count` + ` >= 10: '${message}':` + ` ${process.env.GCLOUD_PROJECT}`;
 
 const getValue = (snap, field) => {
   if (snap.empty) {
     return {};
   }
 
-  return snap
-    .docs[0]
-    .get(field) ||
-    {};
+  return snap.docs[0].get(field) || {};
 };
-
 
 module.exports = async conn => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed` +
-      ` for ${conn.req.url}. Use 'POST'.`
+      `${conn.req.method} is not allowed` + ` for ${conn.req.url}. Use 'POST'.`,
     );
   }
 
-  const special = [
-    `We have blocked all requests`,
-    `help`,
-  ];
+  const special = [`We have blocked all requests`, `help`];
 
   const THRESHOLD = 10;
   const dateObject = new Date();
@@ -83,8 +63,7 @@ module.exports = async conn => {
   }
 
   try {
-    const errorDocsQueryResult = await rootCollections
-      .errors
+    const errorDocsQueryResult = await rootCollections.errors
       .where('message', '==', message)
       .where('date', '==', date)
       .where('month', '==', month)
@@ -92,18 +71,9 @@ module.exports = async conn => {
       .limit(1)
       .get();
 
-    const affectedUsers = getValue(
-      errorDocsQueryResult,
-      'affectedUsers'
-    );
-    const bodyObject = getValue(
-      errorDocsQueryResult,
-      'bodyObject'
-    );
-    const deviceObject = getValue(
-      errorDocsQueryResult,
-      'deviceObject'
-    );
+    const affectedUsers = getValue(errorDocsQueryResult, 'affectedUsers');
+    const bodyObject = getValue(errorDocsQueryResult, 'bodyObject');
+    const deviceObject = getValue(errorDocsQueryResult, 'deviceObject');
 
     if (!bodyObject[phoneNumber]) {
       const data = (() => {
@@ -123,13 +93,10 @@ module.exports = async conn => {
           return conn.req.body.device;
         }
 
-        return JSON
-          .stringify(conn.req.body.device);
+        return JSON.stringify(conn.req.body.device);
       })();
 
-      deviceObject[
-        phoneNumber
-      ] = `${data || ''}`;
+      deviceObject[phoneNumber] = `${data || ''}`;
     }
 
     affectedUsers[phoneNumber] = affectedUsers[phoneNumber] || 0;
@@ -144,25 +111,24 @@ module.exports = async conn => {
       timestamp: Date.now(),
     };
 
-    if (conn.req.body.hasOwnProperty('locationError') &&
-      typeof conn.req.body.locationError === 'boolean') {
-      docData
-        .locationError = conn.req.body.locationError;
+    if (
+      conn.req.body.hasOwnProperty('locationError') &&
+      typeof conn.req.body.locationError === 'boolean'
+    ) {
+      docData.locationError = conn.req.body.locationError;
     }
 
-    if (!errorDocsQueryResult.empty &&
+    if (
+      !errorDocsQueryResult.empty &&
       !errorDocsQueryResult.docs[0].get('emailSent') &&
-      Object.keys(affectedUsers).length >= THRESHOLD) {
-      batch
-        .set(rootCollections
-          .instant
-          .doc(), {
-            subject: getSubject(message),
-            messageBody: JSON.stringify(docData, ' ', 2),
-          });
+      Object.keys(affectedUsers).length >= THRESHOLD
+    ) {
+      batch.set(rootCollections.instant.doc(), {
+        subject: getSubject(message),
+        messageBody: JSON.stringify(docData, ' ', 2),
+      });
 
-      docData
-        .emailSent = true;
+      docData.emailSent = true;
     }
 
     if (special.includes(conn.req.body.message)) {
@@ -170,30 +136,20 @@ module.exports = async conn => {
       // last now
       // last activity
       // last addendum
-      const lastQueryFrom = conn
-        .requester
-        .profileDoc
-        .get('lastQueryFrom');
-      const updatesDoc = await rootCollections
-        .updates
+      const lastQueryFrom = conn.requester.profileDoc.get('lastQueryFrom');
+      const updatesDoc = await rootCollections.updates
         .doc(conn.requester.uid)
         .get();
-      const lastNowRequestTimestamp = updatesDoc
-        .get('lastNowRequestTimestamp');
-      const latestActivityQuery = await rootCollections
-        .profiles
+      const lastNowRequestTimestamp = updatesDoc.get('lastNowRequestTimestamp');
+      const latestActivityQuery = await rootCollections.profiles
         .doc(phoneNumber)
         .collection('Activities')
         .orderBy('timestamp', 'desc')
         .limit(1)
         .get();
 
-      docData
-        .loggedData = docData.loggedData || {};
-      docData
-        .loggedData[
-          phoneNumber
-        ] = docData.loggedData[phoneNumber] || [];
+      docData.loggedData = docData.loggedData || {};
+      docData.loggedData[phoneNumber] = docData.loggedData[phoneNumber] || [];
 
       const object = {
         lastQueryFrom: lastQueryFrom || null,
@@ -206,21 +162,14 @@ module.exports = async conn => {
       };
 
       if (!latestActivityQuery.empty) {
-        object
-          .latestActivity = latestActivityQuery
-          .docs[0]
-          .data();
+        object.latestActivity = latestActivityQuery.docs[0].data();
       }
 
-      const employeeOf = conn
-        .requester
-        .profileDoc
-        .get('employeeOf') || {};
+      const employeeOf = conn.requester.profileDoc.get('employeeOf') || {};
       const officeId = Object.values(employeeOf)[0];
 
       if (officeId) {
-        const latestAddendumQueryResult = await rootCollections
-          .offices
+        const latestAddendumQueryResult = await rootCollections.offices
           .doc(officeId)
           .collection('Addendum')
           .where('user', '==', phoneNumber)
@@ -229,43 +178,35 @@ module.exports = async conn => {
           .get();
 
         if (!latestAddendumQueryResult.empty) {
-          object
-            .latestAddendumDoc = latestAddendumQueryResult
-            .docs[0]
-            .data();
+          object.latestAddendumDoc = latestAddendumQueryResult.docs[0].data();
         }
       }
 
-      docData
-        .loggedData[phoneNumber]
-        .push(object);
+      docData.loggedData[phoneNumber].push(object);
     }
 
-    const errorDocRef = !errorDocsQueryResult
-      .empty ? errorDocsQueryResult.docs[0].ref : rootCollections
-      .errors
-      .doc();
+    const errorDocRef = !errorDocsQueryResult.empty
+      ? errorDocsQueryResult.docs[0].ref
+      : rootCollections.errors.doc();
 
-    console.log('errorDocRef:', errorDocRef);
-
-    batch
-      .set(errorDocRef, Object.assign({}, docData, {
+    batch.set(
+      errorDocRef,
+      Object.assign({}, docData, {
         date,
         month,
         year,
         message,
-      }), {
+      }),
+      {
         merge: true,
-      });
-
-    await batch
-      .commit();
-
-    return sendResponse(
-      conn,
-      code.ok,
-      'Logged successfully'
+      },
     );
+
+    console.log('Error Log:', {message, id: errorDocRef.id});
+
+    await batch.commit();
+
+    return sendResponse(conn, code.ok, 'Logged successfully');
   } catch (error) {
     return handleError(conn, error);
   }

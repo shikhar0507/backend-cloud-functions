@@ -21,9 +21,7 @@
  *
  */
 
-
 'use strict';
-
 
 const env = require('./env');
 const admin = require('firebase-admin');
@@ -46,16 +44,12 @@ const auth = admin.auth();
 const db = admin.firestore();
 
 db.settings({
-  timestampsInSnapshots: true
+  timestampsInSnapshots: true,
 });
 
 /** For the worst cases where there is an omission of a `catch()` block. */
-process
-  .on('unhandledRejection', console.log);
-
-process
-  .on('uncaughtException', console.log);
-
+process.on('unhandledRejection', console.log);
+process.on('uncaughtException', console.log);
 
 /**
  * Returns a sentinel containing the GeoPoint object for writing a
@@ -66,17 +60,12 @@ process
  * on writing to the Firestore.
  */
 const getGeopointObject = geopoint => {
-  if (geopoint.latitude === '' &&
-    geopoint.longitude === '') {
+  if (geopoint.latitude === '' && geopoint.longitude === '') {
     return geopoint;
   }
 
-  return new admin.firestore.GeoPoint(
-    geopoint.latitude,
-    geopoint.longitude
-  );
+  return new admin.firestore.GeoPoint(geopoint.latitude, geopoint.longitude);
 };
-
 
 /**
  * Returns the user record object using the phone number.
@@ -93,72 +82,76 @@ const getGeopointObject = geopoint => {
  * the input `phoneNumber` is in does not confirm to the E.164 phone number.
  * @see https://en.wikipedia.org/wiki/E.164
  */
-const getUserByPhoneNumber = (phoneNumber) =>
-  auth.getUserByPhoneNumber(phoneNumber)
-  .then((userRecord) => {
-    return {
-      [phoneNumber]: userRecord,
-    };
-  })
-  .catch((error) => {
-    /** @see https://firebase.google.com/docs/auth/admin/errors */
-    if (error.code === 'auth/user-not-found' ||
-      error.code === 'auth/invalid-phone-number' ||
-      error.code === 'auth/internal-error') {
+const getUserByPhoneNumber = phoneNumber =>
+  auth
+    .getUserByPhoneNumber(phoneNumber)
+    .then(userRecord => {
+      return {
+        [phoneNumber]: userRecord,
+      };
+    })
+    .catch(error => {
+      /** @see https://firebase.google.com/docs/auth/admin/errors */
+      if (
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/invalid-phone-number' ||
+        error.code === 'auth/internal-error'
+      ) {
+        return {
+          [phoneNumber]: {},
+        };
+      }
+
+      /**
+       * Any other cases except the ones handled above should be
+       * noted by the developers.
+       */
+      console.error(error);
+
+      /** This function relies on the user input, so chances are
+       * that all three conditions checked above may not cover
+       * all the cases. Returning a usable object regardless,
+       * so the clients can work correctly.
+       */
       return {
         [phoneNumber]: {},
       };
-    }
+    });
 
-    /**
-     * Any other cases except the ones handled above should be
-     * noted by the developers.
-     */
-    console.error(error);
+const getUserByEmail = email =>
+  auth
+    .getUserByEmail(email)
+    .then(userRecord => {
+      return {
+        [email]: userRecord,
+      };
+    })
+    .catch(error => {
+      /** @see https://firebase.google.com/docs/auth/admin/errors */
+      if (
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/internal-error'
+      ) {
+        return {
+          [email]: {},
+        };
+      }
 
-    /** This function relies on the user input, so chances are
-     * that all three conditions checked above may not cover
-     * all the cases. Returning a usable object regardless,
-     * so the clients can work correctly.
-     */
-    return {
-      [phoneNumber]: {},
-    };
-  });
+      /**
+       * Any other cases except the ones handled above should be
+       * noted by the developers.
+       */
+      console.error(error);
 
-
-const getUserByEmail = (email) =>
-  auth.getUserByEmail(email)
-  .then((userRecord) => {
-    return {
-      [email]: userRecord,
-    };
-  })
-  .catch((error) => {
-    /** @see https://firebase.google.com/docs/auth/admin/errors */
-    if (error.code === 'auth/user-not-found' ||
-      error.code === 'auth/internal-error') {
+      /** This function relies on the user input, so chances are
+       * that all three conditions checked above may not cover
+       * all the cases. Returning a usable object regardless,
+       * so the clients can work correctly.
+       */
       return {
         [email]: {},
       };
-    }
-
-    /**
-     * Any other cases except the ones handled above should be
-     * noted by the developers.
-     */
-    console.error(error);
-
-    /** This function relies on the user input, so chances are
-     * that all three conditions checked above may not cover
-     * all the cases. Returning a usable object regardless,
-     * so the clients can work correctly.
-     */
-    return {
-      [email]: {},
-    };
-  });
-
+    });
 
 /**
  * Contains the references to all the collections which are in the
@@ -205,6 +198,7 @@ const rootCollections = {
    * @example `/Instant/(auto-id)`
    */
   instant: db.collection('Instant'),
+  // TODO: Remove 'reports'. It's not used anywhere.
   reports: db.collection('Reports'),
   inits: db.collection('Inits'),
   recipients: db.collection('Recipients'),
@@ -213,22 +207,20 @@ const rootCollections = {
   events: db.collection('Events'),
   errors: db.collection('Errors'),
   anonymous: db.collection('Anonymous'),
-  inboundPayments: db.collection('InboundPayments'),
-  deposits: db.collection('Deposits'),
   mailEvents: db.collection('MailEvents'),
+  facebookEvents: db.collection('FacebookEvents'),
+  deposits: db.collection('Deposits'),
+  batches: db.collection('Batches'),
+  payments: db.collection('Payments'),
 };
-
-
-const users = {
-  getUserByEmail,
-  getUserByPhoneNumber,
-};
-
 
 module.exports = {
   db,
   auth,
-  users,
   rootCollections,
   getGeopointObject,
+  users: {
+    getUserByEmail,
+    getUserByPhoneNumber,
+  },
 };

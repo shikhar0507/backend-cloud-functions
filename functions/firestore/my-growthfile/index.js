@@ -1,19 +1,32 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
-const {
-  rootCollections,
-} = require('../../admin/admin');
-const {
-  getAuth,
-  sendResponse,
-  sendJSON,
-} = require('../../admin/utils');
-const {
-  code,
-} = require('../../admin/responses');
-const {
-  dateFormats,
-} = require('../../admin/constants');
+const {rootCollections} = require('../../admin/admin');
+const {getAuth, sendResponse, sendJSON} = require('../../admin/utils');
+const {code} = require('../../admin/responses');
+const {dateFormats} = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
 module.exports = async conn => {
@@ -21,7 +34,7 @@ module.exports = async conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `Method '${conn.req.method}' is not allowed. Use 'GET'`
+      `Method '${conn.req.method}' is not allowed. Use 'GET'`,
     );
   }
 
@@ -48,51 +61,44 @@ module.exports = async conn => {
   // payroll and reimbursements recipient docs.
   // then their auth
   // then their employee activity
-  const adminOffices = ((conn.requester.customClaims || {}).admin) || [];
+  const adminOffices = (conn.requester.customClaims || {}).admin || [];
 
-  if (adminOffices.length === 0 ||
-    (conn.req.query.hasOwnProperty('office') && !adminOffices.includes(conn.req.query.office))) {
-    return sendResponse(
-      conn,
-      code.unauthorized,
-      `Not an admin account`
-    );
+  if (
+    adminOffices.length === 0 ||
+    (conn.req.query.hasOwnProperty('office') &&
+      !adminOffices.includes(conn.req.query.office))
+  ) {
+    return sendResponse(conn, code.unauthorized, `Not an admin account`);
   }
 
-  if (adminOffices.length > 1 &&
-    !conn.req.query.hasOwnProperty('office')) {
+  if (adminOffices.length > 1 && !conn.req.query.hasOwnProperty('office')) {
     return sendResponse(
       conn,
       code.badRequest,
-      `Missing query param 'office' in the request URL`
+      `Missing query param 'office' in the request URL`,
     );
   }
 
-  const office = conn.req.query.office ||
-    adminOffices[0];
+  const office = conn.req.query.office || adminOffices[0];
 
   console.log('office', JSON.stringify(office));
 
-  const queries = await Promise
-    .all([
-      rootCollections
-      .offices
+  const queries = await Promise.all([
+    rootCollections.offices
       .where('attachment.Name.value', '==', office)
       .limit(1)
       .get(),
-      rootCollections
-      .recipients
+    rootCollections.recipients
       .where('office', '==', office)
       .where('report', '==', 'payroll')
       .limit(1)
       .get(),
-      rootCollections
-      .recipients
+    rootCollections.recipients
       .where('office', '==', office)
       .where('report', '==', 'reimbursements')
       .limit(1)
       .get(),
-    ]);
+  ]);
 
   console.log('after queries');
 
@@ -102,7 +108,7 @@ module.exports = async conn => {
     reimbursementsQueryResult,
   ] = queries;
 
-  const officeDoc = officeQueryResult.docs[0];
+  const [officeDoc] = officeQueryResult.docs;
   const payrollRecipientDoc = payrollQueryResult.docs[0];
   const reimbursementsDoc = reimbursementsQueryResult.docs[0];
   const authPromises = [];
@@ -110,56 +116,31 @@ module.exports = async conn => {
   const payrollRecipients = new Set();
   const reimbursementRecipients = new Set();
 
-  jsonResponse
-    .paymentMethods = officeDoc.get('paymentMethods') || [];
+  jsonResponse.paymentMethods = officeDoc.get('paymentMethods') || [];
 
   if (payrollRecipientDoc) {
-    jsonResponse
-      .payroll
-      .recipient
-      .status = payrollRecipientDoc.get('status');
-    jsonResponse
-      .payroll
-      .recipient
-      .activityId = payrollRecipientDoc.id;
+    jsonResponse.payroll.recipient.status = payrollRecipientDoc.get('status');
+    jsonResponse.payroll.recipient.activityId = payrollRecipientDoc.id;
 
-    payrollRecipientDoc
-      .get('include')
-      .forEach(phoneNumber => {
-        officeAssigneMap
-          .set(
-            phoneNumber,
-            payrollRecipientDoc.get('office')
-          );
+    payrollRecipientDoc.get('include').forEach(phoneNumber => {
+      officeAssigneMap.set(phoneNumber, payrollRecipientDoc.get('office'));
 
-        payrollRecipients
-          .add(phoneNumber);
-      });
+      payrollRecipients.add(phoneNumber);
+    });
   }
 
   if (reimbursementsDoc) {
-    jsonResponse
-      .reimbursement
-      .recipient
-      .status = reimbursementsDoc.get('status');
+    jsonResponse.reimbursement.recipient.status = reimbursementsDoc.get(
+      'status',
+    );
 
-    jsonResponse
-      .reimbursement
-      .recipient
-      .activityId = reimbursementsDoc.id;
+    jsonResponse.reimbursement.recipient.activityId = reimbursementsDoc.id;
 
-    reimbursementsDoc
-      .get('include')
-      .forEach(phoneNumber => {
-        officeAssigneMap
-          .set(
-            phoneNumber,
-            reimbursementsDoc.get('office')
-          );
+    reimbursementsDoc.get('include').forEach(phoneNumber => {
+      officeAssigneMap.set(phoneNumber, reimbursementsDoc.get('office'));
 
-        reimbursementRecipients
-          .add(phoneNumber);
-      });
+      reimbursementRecipients.add(phoneNumber);
+    });
   }
 
   const allPhoneNumbers = new Set([
@@ -170,8 +151,7 @@ module.exports = async conn => {
   const employeeQueries = [];
 
   allPhoneNumbers.forEach(phoneNumber => {
-    const p = officeDoc
-      .ref
+    const p = officeDoc.ref
       .collection('Activities')
       .where('template', '==', 'employee')
       .where('attachment.Phone Number.value', '==', phoneNumber)
@@ -182,8 +162,7 @@ module.exports = async conn => {
     employeeQueries.push(p);
   });
 
-  const employeeResults = await Promise
-    .all(employeeQueries);
+  const employeeResults = await Promise.all(employeeQueries);
 
   const employeeSet = new Set();
 
@@ -192,54 +171,42 @@ module.exports = async conn => {
       return;
     }
 
-    employeeSet
-      .add(doc.get('attachment.Phone Number.value'));
+    employeeSet.add(doc.get('attachment.Phone Number.value'));
   });
 
-  allPhoneNumbers
-    .forEach(phoneNumber => {
-      authPromises
-        .push(getAuth(phoneNumber));
-    });
+  allPhoneNumbers.forEach(phoneNumber => {
+    authPromises.push(getAuth(phoneNumber));
+  });
 
   console.log('before userRecords');
 
-  const userRecords = await Promise
-    .all(authPromises);
+  const userRecords = await Promise.all(authPromises);
 
   console.log('after userRecords');
 
-  userRecords
-    .forEach(userRecord => {
-      const office = officeAssigneMap.get(userRecord.phoneNumber);
-      const authRecord = {
-        office,
-        phoneNumber: userRecord.phoneNumber,
-        isEmployee: employeeSet.has(userRecord.phoneNumber),
-        email: userRecord.email,
-        emailVerified: userRecord.emailVerified,
-      };
+  userRecords.forEach(userRecord => {
+    const office = officeAssigneMap.get(userRecord.phoneNumber);
+    const authRecord = {
+      office,
+      phoneNumber: userRecord.phoneNumber,
+      isEmployee: employeeSet.has(userRecord.phoneNumber),
+      email: userRecord.email,
+      emailVerified: userRecord.emailVerified,
+    };
 
-      if (payrollRecipients.has(userRecord.phoneNumber)) {
-        jsonResponse
-          .payroll
-          .recipient
-          .assignees
-          .push(authRecord);
-      }
+    if (payrollRecipients.has(userRecord.phoneNumber)) {
+      jsonResponse.payroll.recipient.assignees.push(authRecord);
+    }
 
-      if (reimbursementRecipients.has(userRecord.phoneNumber)) {
-        jsonResponse
-          .reimbursement
-          .recipient
-          .assignees
-          .push(authRecord);
-      }
-    });
+    if (reimbursementRecipients.has(userRecord.phoneNumber)) {
+      jsonResponse.reimbursement.recipient.assignees.push(authRecord);
+    }
+  });
 
   const timezone = officeDoc.get('attachment.Timezone.value');
   const momentNow = momentTz().tz(timezone);
-  const firstDayOfMonthlyCycle = officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
+  const firstDayOfMonthlyCycle =
+    officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
   const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentNow.date();
 
   const cycleStart = (() => {
@@ -249,13 +216,10 @@ module.exports = async conn => {
         .subtract(1, 'month')
         .date(firstDayOfMonthlyCycle);
 
-      return momentNow
-        .diff(momentPrevMonth, 'days');
+      return momentNow.diff(momentPrevMonth, 'days');
     }
 
-    return momentNow
-      .clone()
-      .startOf('month');
+    return momentNow.clone().startOf('month');
   })();
 
   const cycleEnd = momentNow;
@@ -263,8 +227,7 @@ module.exports = async conn => {
   console.log('cycleStart', cycleStart.format(dateFormats.DATE));
   console.log('cycleEnd', cycleEnd.format(dateFormats.DATE));
 
-  const pendingPaymentsQueryResult = await officeDoc
-    .ref
+  const pendingPaymentsQueryResult = await officeDoc.ref
     .collection('Payments')
     .where('createdAt', '>=', cycleStart.valueOf())
     .where('createdAt', '<=', cycleEnd.valueOf())
@@ -272,24 +235,18 @@ module.exports = async conn => {
 
   console.log('pendingPaymentsQueryResult', pendingPaymentsQueryResult.size);
 
-  jsonResponse
-    .pendingPayments = pendingPaymentsQueryResult
-    .docs
-    .map(doc => {
-      return Object.assign({}, doc.data(), {
-        paymentId: doc.id,
-      });
+  jsonResponse.pendingPayments = pendingPaymentsQueryResult.docs.map(doc => {
+    return Object.assign({}, doc.data(), {
+      paymentId: doc.id,
     });
+  });
 
-  jsonResponse
-    .pendingDeposits = (await rootCollections
-      .deposits
+  jsonResponse.pendingDeposits = (
+    await rootCollections.deposits
       .where('createdOn', '>=', cycleStart.valueOf())
       .where('createdOn', '<=', cycleEnd.valueOf())
-      .get()).docs.map(doc => doc.data());
+      .get()
+  ).docs.map(doc => doc.data());
 
-  return sendJSON(
-    conn,
-    jsonResponse
-  );
+  return sendJSON(conn, jsonResponse);
 };

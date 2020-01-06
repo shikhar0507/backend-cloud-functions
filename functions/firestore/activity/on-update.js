@@ -21,21 +21,11 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  code
-} = require('../../admin/responses');
-const {
-  httpsActions,
-} = require('../../admin/constants');
-const {
-  db,
-  rootCollections,
-  getGeopointObject,
-} = require('../../admin/admin');
+const {code} = require('../../admin/responses');
+const {httpsActions} = require('../../admin/constants');
+const {db, rootCollections, getGeopointObject} = require('../../admin/admin');
 const {
   activityName,
   validateVenues,
@@ -54,36 +44,34 @@ const {
   getAdjustedGeopointsFromVenue,
 } = require('../../admin/utils');
 
-
 const updateDocsWithBatch = async (conn, locals) => {
   const activityRef = rootCollections.activities.doc(conn.req.body.activityId);
-  const {
-    activityUpdateObject
-  } = locals;
+  const {activityUpdateObject} = locals;
 
   if (locals.activityDoc.get('schedule').length > 0) {
-    activityUpdateObject
-      .relevantTime = getRelevantTime(conn.req.body.schedule);
-    activityUpdateObject
-      .scheduleDates = getScheduleDates(conn.req.body.schedule);
+    activityUpdateObject.relevantTime = getRelevantTime(conn.req.body.schedule);
+    activityUpdateObject.scheduleDates = getScheduleDates(
+      conn.req.body.schedule,
+    );
   }
 
   if (locals.activityDoc.get('adjustedGeopoints')) {
-    activityUpdateObject
-      .adjustedGeopoints = getAdjustedGeopointsFromVenue(
-        activityUpdateObject.venue
-      );
+    activityUpdateObject.adjustedGeopoints = getAdjustedGeopointsFromVenue(
+      activityUpdateObject.venue,
+    );
   }
 
   /**
    * Checking if field with the name `Name` exists
    */
-  const nameFieldUpdated = locals.activityDoc.get('attachment.Name') &&
+  const nameFieldUpdated =
+    locals.activityDoc.get('attachment.Name') &&
     locals.activityDoc.get('attachment.Name.value') !==
-    conn.req.body.attachment.Name.value;
-  const numberFieldUpdated = locals.activityDoc.get('attachment.Number') &&
+      conn.req.body.attachment.Name.value;
+  const numberFieldUpdated =
+    locals.activityDoc.get('attachment.Number') &&
     locals.activityDoc.get('attachment.Number.value') !==
-    conn.req.body.attachment.Number.value;
+      conn.req.body.attachment.Number.value;
 
   if (nameFieldUpdated || numberFieldUpdated) {
     activityUpdateObject.activityName = activityName({
@@ -93,60 +81,54 @@ const updateDocsWithBatch = async (conn, locals) => {
     });
   }
 
-  locals
-    .batch
-    .set(activityUpdateObject.addendumDocRef, {
+  locals.batch.set(activityUpdateObject.addendumDocRef, {
+    /**
+     * Sequence matters here. The `activityUpdateObject` object contains updated values.
+     * Priority is of the `activityUpdateObject`.
+     */
+    activityData: Object.assign(
+      {},
+      locals.activityDoc.data(),
+      activityUpdateObject,
+    ),
+    timestamp: Date.now(),
+    action: httpsActions.update,
+    user: conn.requester.phoneNumber,
+    activityId: conn.req.body.activityId,
+    /**
+     * Required by `addendumOnCreate` function to delete old data from
+     * init docs and update it the case of new ones. e.g., schedule and venue.
+     */
+    activityOld: locals.activityDoc.data(),
+    userDeviceTimestamp: conn.req.body.timestamp,
+    template: locals.templateDoc.get('name'),
+    isSupportRequest: conn.requester.isSupportRequest,
+    location: getGeopointObject(conn.req.body.geopoint),
+    geopointAccuracy: conn.req.body.geopoint.accuracy || null,
+    provider: conn.req.body.geopoint.provider || null,
+    userDisplayName: conn.requester.displayName,
+  });
+
+  locals.newPhoneNumbers.filter(Boolean).forEach(phoneNumber => {
+    const isRequester = conn.requester.phoneNumber === phoneNumber;
+    let addToInclude = true;
+
+    if (locals.templateDoc.get('name') === 'subscription' && isRequester) {
+      addToInclude = false;
+    }
+
+    locals.batch.set(activityRef.collection('Assignees').doc(phoneNumber), {
       /**
-       * Sequence matters here. The `activityUpdateObject` object contains updated values.
-       * Priority is of the `activityUpdateObject`.
+       * These people are not from the `share` array of the request body.
+       * The update api doesn't accept the `share` array.
        */
-      activityData: Object.assign({}, locals.activityDoc.data(), activityUpdateObject),
-      timestamp: Date.now(),
-      action: httpsActions.update,
-      user: conn.requester.phoneNumber,
-      activityId: conn.req.body.activityId,
-      /**
-       * Required by `addendumOnCreate` function to delete old data from
-       * init docs and update it the case of new ones. e.g., schedule and venue.
-       */
-      activityOld: locals.activityDoc.data(),
-      userDeviceTimestamp: conn.req.body.timestamp,
-      template: locals.templateDoc.get('name'),
-      isSupportRequest: conn.requester.isSupportRequest,
-      location: getGeopointObject(conn.req.body.geopoint),
-      geopointAccuracy: conn.req.body.geopoint.accuracy || null,
-      provider: conn.req.body.geopoint.provider || null,
-      userDisplayName: conn.requester.displayName,
+      addToInclude,
     });
+  });
 
-  locals
-    .newPhoneNumbers
-    .filter(Boolean)
-    .forEach(phoneNumber => {
-      const isRequester = conn.requester.phoneNumber === phoneNumber;
-      let addToInclude = true;
-
-      if (locals.templateDoc.get('name') === 'subscription' && isRequester) {
-        addToInclude = false;
-      }
-
-      locals.batch.set(
-        activityRef
-        .collection('Assignees')
-        .doc(phoneNumber), {
-          /**
-           * These people are not from the `share` array of the request body.
-           * The update api doesn't accept the `share` array.
-           */
-          addToInclude,
-        });
-    });
-
-  locals
-    .batch
-    .set(activityRef, activityUpdateObject, {
-      merge: true,
-    });
+  locals.batch.set(activityRef, activityUpdateObject, {
+    merge: true,
+  });
 
   if (locals.activityDoc.get('template') === 'employee') {
     const sv1 = activityUpdateObject.attachment['First Supervisor'].value;
@@ -157,40 +139,41 @@ const updateDocsWithBatch = async (conn, locals) => {
       return sendResponse(
         conn,
         code.conflict,
-        `Employee's First, Second and Third Supervisors cannot be empty at the same time`
+        `Employee's First, Second and Third Supervisors cannot be empty at the same time`,
       );
     }
   }
 
   if (locals.activityDoc.get('template') === 'office') {
-    if (!activityUpdateObject.attachment['First Contact'].value &&
-      !activityUpdateObject.attachment['Second Contact'].value) {
+    if (
+      !activityUpdateObject.attachment['First Contact'].value &&
+      !activityUpdateObject.attachment['Second Contact'].value
+    ) {
       return sendResponse(
         conn,
         code.conflict,
         `Office's First and Second Contacts cannot be empty` +
-        ` at the same time.`
+          ` at the same time.`,
       );
     }
 
-    if (activityUpdateObject.attachment['First Contact'].value ===
-      activityUpdateObject.attachment['Second Contact'].value) {
+    if (
+      activityUpdateObject.attachment['First Contact'].value ===
+      activityUpdateObject.attachment['Second Contact'].value
+    ) {
       return sendResponse(
         conn,
         code.conflict,
         `Office's First and Second Contacts should be distinct` +
-        ` phone numbers`
+          ` phone numbers`,
       );
     }
   }
 
-  await locals
-    .batch
-    .commit();
+  await locals.batch.commit();
 
   return sendResponse(conn, code.ok, 'Success');
 };
-
 
 const getUpdatedFields = (conn, locals) => {
   const activitySchedule = locals.activityDoc.get('schedule');
@@ -200,10 +183,17 @@ const getUpdatedFields = (conn, locals) => {
 
   activitySchedule.forEach(schedule => scheduleNames.push(schedule.name));
 
-  const scheduleValidationResult = validateSchedules(conn.req.body, scheduleNames);
+  const scheduleValidationResult = validateSchedules(
+    conn.req.body,
+    scheduleNames,
+  );
 
   if (!scheduleValidationResult.isValid) {
-    return sendResponse(conn, code.badRequest, scheduleValidationResult.message);
+    return sendResponse(
+      conn,
+      code.badRequest,
+      scheduleValidationResult.message,
+    );
   }
 
   activityVenue.forEach(venue => venueDescriptors.push(venue.venueDescriptor));
@@ -219,14 +209,10 @@ const getUpdatedFields = (conn, locals) => {
   return updateDocsWithBatch(conn, locals);
 };
 
-
 const handleAssignees = (conn, locals) => {
   const bodyAttachmentFields = Object.keys(conn.req.body.attachment);
-  const {
-    attachment: activityAttachment,
-    template
-  } = locals.activityDoc.data();
-  bodyAttachmentFields.forEach((field) => {
+  const {attachment: activityAttachment, template} = locals.activityDoc.data();
+  bodyAttachmentFields.forEach(field => {
     const item = conn.req.body.attachment[field];
     const type = item.type;
 
@@ -234,12 +220,8 @@ const handleAssignees = (conn, locals) => {
       return;
     }
 
-    const {
-      value: newPhoneNumber
-    } = item;
-    const {
-      value: oldPhoneNumber
-    } = activityAttachment[field];
+    const {value: newPhoneNumber} = item;
+    const {value: oldPhoneNumber} = activityAttachment[field];
 
     /** Nothing has changed, so no point in creating promises. */
     if (oldPhoneNumber === newPhoneNumber) {
@@ -254,11 +236,10 @@ const handleAssignees = (conn, locals) => {
      */
     if (oldPhoneNumber !== '' && newPhoneNumber === '') {
       locals.batch.delete(
-        rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .doc(oldPhoneNumber)
+        rootCollections.activities
+          .doc(conn.req.body.activityId)
+          .collection('Assignees')
+          .doc(oldPhoneNumber),
       );
 
       /**
@@ -274,32 +255,35 @@ const handleAssignees = (conn, locals) => {
      */
     if (oldPhoneNumber !== '' && newPhoneNumber !== '') {
       locals.batch.delete(
-        rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .doc(oldPhoneNumber)
+        rootCollections.activities
+          .doc(conn.req.body.activityId)
+          .collection('Assignees')
+          .doc(oldPhoneNumber),
       );
     }
   });
 
-  if (new Set(['branch', 'department']).has(template) &&
+  if (
+    new Set(['branch', 'department']).has(template) &&
     conn.req.body.attachment.Name.value !==
-    locals.activityDoc.get('attachment.Name.value')) {
+      locals.activityDoc.get('attachment.Name.value')
+  ) {
     return sendResponse(
       conn,
       code.conflict,
-      `The ${template} name cannot be edited.`
+      `The ${template} name cannot be edited.`,
     );
   }
 
-  if (template === 'employee' &&
+  if (
+    template === 'employee' &&
     locals.activityDoc.get('attachment.Phone Number.value') !==
-    conn.req.body.attachment['Phone Number'].value) {
+      conn.req.body.attachment['Phone Number'].value
+  ) {
     return sendResponse(
       conn,
       code.conflict,
-      `Phone numbers cannot be updated for the template: ${template}`
+      `Phone numbers cannot be updated for the template: ${template}`,
     );
   }
 
@@ -311,15 +295,18 @@ const handleAssignees = (conn, locals) => {
     return sendResponse(
       conn,
       code.conflict,
-      `Phone numbers cannot be updated for the template: ${template}`
+      `Phone numbers cannot be updated for the template: ${template}`,
     );
   }
 
   return getUpdatedFields(conn, locals);
 };
 
-
-const resolveQuerySnapshotShouldNotExistPromises = async (conn, locals, result) => {
+const resolveQuerySnapshotShouldNotExistPromises = async (
+  conn,
+  locals,
+  result,
+) => {
   // const promises = result.querySnapshotShouldNotExist;
 
   /**
@@ -327,15 +314,19 @@ const resolveQuerySnapshotShouldNotExistPromises = async (conn, locals, result) 
    * has already been performed while creating an activity. Of course,
    * only when the Name.value hasn't changed.
    */
-  if (locals.activityDoc.get('attachment.Name') &&
+  if (
+    locals.activityDoc.get('attachment.Name') &&
     locals.activityDoc.get('attachment.Name.value') ===
-    conn.req.body.attachment.Name.value) {
+      conn.req.body.attachment.Name.value
+  ) {
     return handleAssignees(conn, locals);
   }
 
-  if (locals.activityDoc.get('attachment.Number') &&
+  if (
+    locals.activityDoc.get('attachment.Number') &&
     locals.activityDoc.get('attachment.Number.value') ===
-    conn.req.body.attachment.Number.value) {
+      conn.req.body.attachment.Number.value
+  ) {
     return handleAssignees(conn, locals);
   }
 
@@ -362,8 +353,11 @@ const resolveQuerySnapshotShouldNotExistPromises = async (conn, locals, result) 
   return handleAssignees(conn, locals);
 };
 
-
-const resolveQuerySnapshotShouldExistPromises = async (conn, locals, result) => {
+const resolveQuerySnapshotShouldExistPromises = async (
+  conn,
+  locals,
+  result,
+) => {
   const snapShots = await Promise.all(result.querySnapshotShouldExist);
   let message;
 
@@ -371,8 +365,8 @@ const resolveQuerySnapshotShouldExistPromises = async (conn, locals, result) => 
     const filters = snapShot.query._queryOptions.fieldFilters;
     const argOne = filters[0].value;
 
-    message = `No template found with the name: ${argOne} from` +
-      ` the attachment.`;
+    message =
+      `No template found with the name: ${argOne} from` + ` the attachment.`;
 
     if (snapShot.empty) {
       return sendResponse(conn, code.badRequest, message);
@@ -382,7 +376,6 @@ const resolveQuerySnapshotShouldExistPromises = async (conn, locals, result) => 
   return resolveQuerySnapshotShouldNotExistPromises(conn, locals, result);
 };
 
-
 const resolveProfileCheckPromises = async (conn, locals, result) => {
   const docs = await Promise.all(result.profileDocShouldExist);
 
@@ -390,7 +383,8 @@ const resolveProfileCheckPromises = async (conn, locals, result) => {
   let message = null;
 
   for (const doc of docs) {
-    message = `No user found with the phone number:` +
+    message =
+      `No user found with the phone number:` +
       ` ${doc.id} from the attachment.`;
 
     if (!doc.exists) {
@@ -422,7 +416,6 @@ const resolveProfileCheckPromises = async (conn, locals, result) => {
   return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
 };
 
-
 const handleAttachment = (conn, locals) => {
   const result = filterAttachment({
     bodyAttachment: conn.req.body.attachment,
@@ -441,29 +434,32 @@ const handleAttachment = (conn, locals) => {
    * of that office useless since we are currently not updating
    * the office name in the respective activities.
    */
-  if (locals.activityDoc.get('template') === 'office' &&
-    conn.req.body.attachment.Name.value !== locals.activityDoc.get('office')) {
+  if (
+    locals.activityDoc.get('template') === 'office' &&
+    conn.req.body.attachment.Name.value !== locals.activityDoc.get('office')
+  ) {
     return sendResponse(
       conn,
       code.conflict,
-      `Updating the 'Name' of an 'Office' is not allowed.`
+      `Updating the 'Name' of an 'Office' is not allowed.`,
     );
   }
 
-  if (result.querySnapshotShouldExist.length === 0 &&
+  if (
+    result.querySnapshotShouldExist.length === 0 &&
     result.querySnapshotShouldNotExist.length === 0 &&
-    result.profileDocShouldExist.length === 0) {
+    result.profileDocShouldExist.length === 0
+  ) {
     return handleAssignees(conn, locals);
   }
 
   return resolveProfileCheckPromises(conn, locals, result);
 };
 
-
 const handleResult = async (conn, docs) => {
   const result = checkActivityAndAssignee(
     docs,
-    conn.requester.isSupportRequest
+    conn.requester.isSupportRequest,
   );
 
   if (!result.isValid) {
@@ -471,31 +467,24 @@ const handleResult = async (conn, docs) => {
   }
 
   const [activityDoc] = docs;
-  const {
-    template
-  } = activityDoc.data();
+  const {template} = activityDoc.data();
 
   const [templateDoc] = (
-    await rootCollections
-    .activityTemplates
-    .where('name', '==', template)
-    .limit(1)
-    .get()
+    await rootCollections.activityTemplates
+      .where('name', '==', template)
+      .limit(1)
+      .get()
   ).docs;
 
   if (!getCanEditValue(activityDoc, conn.requester)) {
-    return sendResponse(
-      conn,
-      code.forbidden,
-      `You cannot edit this activity`
-    );
+    return sendResponse(conn, code.forbidden, `You cannot edit this activity`);
   }
 
   if (template === 'subscription') {
     return sendResponse(
       conn,
       code.badRequest,
-      'Subscription activity cannot be updated'
+      'Subscription activity cannot be updated',
     );
   }
 
@@ -506,7 +495,8 @@ const handleResult = async (conn, docs) => {
       attachment: conn.req.body.attachment,
       schedule: conn.req.body.schedule,
       timestamp: Date.now(),
-      addendumDocRef: rootCollections.offices.doc(activityDoc.get('officeId'))
+      addendumDocRef: rootCollections.offices
+        .doc(activityDoc.get('officeId'))
         .collection('Addendum')
         .doc(),
     },
@@ -531,7 +521,8 @@ const handleResult = async (conn, docs) => {
     });
 
     if (conflictingDate) {
-      const message = `Cannot update the ${template}` +
+      const message =
+        `Cannot update the ${template}` +
         ` ${conflictingTemplate} is already set for the date: ${conflictingDate}`;
 
       return sendResponse(conn, code.badRequest, message);
@@ -541,40 +532,30 @@ const handleResult = async (conn, docs) => {
   return handleAttachment(conn, locals);
 };
 
-
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.method !== 'PATCH') {
     return sendResponse(
       conn,
       code.methodNotAllowed,
       `${conn.req.method} is not allowed for the /update endpoint.` +
-      ` Use PATCH.`
+        ` Use PATCH.`,
     );
   }
 
   const result = isValidRequestBody(conn.req.body, httpsActions.update);
 
   if (!result.isValid) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      result.message
-    );
+    return sendResponse(conn, code.badRequest, result.message);
   }
 
-  return Promise
-    .all([
-      rootCollections
-      .activities
-      .doc(conn.req.body.activityId)
-      .get(),
-      rootCollections
-      .activities
+  return Promise.all([
+    rootCollections.activities.doc(conn.req.body.activityId).get(),
+    rootCollections.activities
       .doc(conn.req.body.activityId)
       .collection('Assignees')
       .doc(conn.requester.phoneNumber)
       .get(),
-    ])
+  ])
     .then(result => handleResult(conn, result))
     .catch(error => handleError(conn, error));
 };

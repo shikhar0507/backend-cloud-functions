@@ -1,3 +1,26 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
 const {
@@ -13,45 +36,34 @@ const {
 const validateSchedules = scheduleArray => {
   const result = {
     success: true,
-    message: []
+    message: [],
   };
 
   scheduleArray.forEach((schedule, index) => {
-    const {
-      startTime,
-      endTime,
-      name
-    } = schedule;
+    const {startTime, endTime, name} = schedule;
 
-    if (typeof startTime === 'undefined' ||
-      typeof endTime === 'undefined') {
-      result
-        .message
-        .push(`Invalid Schedule at index: ${index}`);
+    if (typeof startTime === 'undefined' || typeof endTime === 'undefined') {
+      result.message.push(`Invalid Schedule at index: ${index}`);
 
       return;
     }
 
-    if ((startTime && typeof startTime !== 'number') ||
-      (endTime && typeof endTime !== 'number')) {
-      result
-        .message
-        .push(`Invalid Schedule at index: ${index}`);
+    if (
+      (startTime && typeof startTime !== 'number') ||
+      (endTime && typeof endTime !== 'number')
+    ) {
+      result.message.push(`Invalid Schedule at index: ${index}`);
     }
 
     if (!isNonEmptyString(name)) {
-      result
-        .message
-        .push(`Invalid Schedule name at index: ${index}`);
+      result.message.push(`Invalid Schedule name at index: ${index}`);
     }
 
     if (startTime > endTime) {
       result.success = false;
-      result
-        .message
-        .push(
-          `The startTime cannot be greater than endTime at index: ${index}`
-        );
+      result.message.push(
+        `The startTime cannot be greater than endTime at index: ${index}`,
+      );
     }
   });
 
@@ -61,25 +73,20 @@ const validateSchedules = scheduleArray => {
 const validateVenues = venue => {
   const result = {
     success: true,
-    message: []
+    message: [],
   };
 
   venue.forEach((object, index) => {
-    const {
-      venueDescriptor,
-      address,
-      location,
-      geopoint
-    } = object;
+    const {venueDescriptor, address, location, geopoint} = object;
 
-    if (!isNonEmptyString(venueDescriptor) ||
+    if (
+      !isNonEmptyString(venueDescriptor) ||
       !isNonEmptyString(address) ||
       !isNonEmptyString(location) ||
-      !isValidGeopoint(geopoint)) {
+      !isValidGeopoint(geopoint)
+    ) {
       result.success = false;
-      result
-        .message
-        .push(`Invalid venue at index: ${index}`);
+      result.message.push(`Invalid venue at index: ${index}`);
     }
   });
 
@@ -164,7 +171,7 @@ class Activity {
   set hidden(number) {
     if (typeof number !== 'number' || ![0, 1].includes(number)) {
       throw new Error(
-        'The value should be a number and can only have the values 0 or 1'
+        'The value should be a number and can only have the values 0 or 1',
       );
     }
 
@@ -178,20 +185,14 @@ class Activity {
     if (typeof creator !== 'object') {
       throw new Error(
         `The 'creator' should be an object with the following
-        ` + ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
+        ` + ` properties: 'displayName', 'phoneNumber', and 'photoURL'`,
       );
     }
 
-    const {
-      displayName,
-      phoneNumber,
-      photoURL
-    } = creator;
+    const {displayName, phoneNumber, photoURL} = creator;
 
     if (typeof displayName !== 'string') {
-      throw new Error(
-        'The displayName should be a string',
-      );
+      throw new Error('The displayName should be a string');
     }
 
     if (!isE164PhoneNumber(phoneNumber)) {
@@ -205,7 +206,7 @@ class Activity {
     this.creator = {
       phoneNumber,
       displayName,
-      photoURL
+      photoURL,
     };
   }
 
@@ -302,7 +303,6 @@ class Attachment {
   }
 }
 
-
 class Subscription {
   constructor(templateDoc, activityDoc) {
     this.name = templateDoc.get('name');
@@ -324,9 +324,10 @@ class Subscription {
    * @param {Array<String>} phoneNumbers Array of phone numbers
    */
   setIncludeArray(phoneNumbers) {
-    if (!Array.isArray(phoneNumbers) ||
-      phoneNumbers.length === 0) {
-      throw new Error(`Field 'include' should be a non-empty array of phone numbers`);
+    if (!Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
+      throw new Error(
+        `Field 'include' should be a non-empty array of phone numbers`,
+      );
     }
 
     /** Duplication is reduntant while */

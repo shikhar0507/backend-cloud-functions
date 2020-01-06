@@ -1,15 +1,48 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
+"use strict";
+
 function validateForm() {
   const form = document.forms[0];
-  const officeNameElement = form.elements.namedItem('office-name');
-  const secondContactDisplayNameElement = form.elements.namedItem('second-contact-name');
-  const secondContactEmailElement = form.elements.namedItem('second-contact-email');
+  const officeNameElement = form.elements.namedItem("office-name");
+  const secondContactDisplayNameElement = form.elements.namedItem(
+    "second-contact-name"
+  );
+  const secondContactEmailElement = form.elements.namedItem(
+    "second-contact-email"
+  );
 
-  const secondContactElement = form.elements.namedItem('second-contact-phone-number');
-  const secondContactPhoneNumber = getPhoneNumber('second-contact-phone-number');
+  const secondContactElement = form.elements.namedItem(
+    "second-contact-phone-number"
+  );
+  const secondContactPhoneNumber = getPhoneNumber(
+    "second-contact-phone-number"
+  );
   let valid = true;
 
   if (!isNonEmptyString(officeNameElement.value)) {
-    const element = getWarningNode('Office Name is required');
+    const element = getWarningNode("Office Name is required");
     valid = false;
 
     insertAfterNode(officeNameElement, element);
@@ -17,37 +50,41 @@ function validateForm() {
 
   if (!isNonEmptyString(secondContactElement.value)) {
     valid = false;
-    const element = getWarningNode('Second contact is required');
+    const element = getWarningNode("Second contact is required");
 
     insertAfterNode(secondContactElement, element);
   }
 
-  if (secondContactPhoneNumber &&
-    !isValidPhoneNumber(secondContactPhoneNumber)) {
+  if (
+    secondContactPhoneNumber &&
+    !isValidPhoneNumber(secondContactPhoneNumber)
+  ) {
     valid = false;
-    const element = getWarningNode('Invalid phone number');
+    const element = getWarningNode("Invalid phone number");
 
     insertAfterNode(secondContactElement, element);
   }
 
   if (!isNonEmptyString(secondContactDisplayNameElement.value)) {
     valid = false;
-    const element = getWarningNode('Second Contact\'s Name is required');
+    const element = getWarningNode("Second Contact's Name is required");
 
     insertAfterNode(secondContactDisplayNameElement, element);
   }
 
   if (!isNonEmptyString(secondContactEmailElement.value)) {
     valid = false;
-    const element = getWarningNode('Second Contact\'s email is required');
+    const element = getWarningNode("Second Contact's email is required");
 
     insertAfterNode(secondContactEmailElement, element);
   }
 
-  if (secondContactEmailElement.value &&
-    !isValidEmail(secondContactEmailElement.value)) {
+  if (
+    secondContactEmailElement.value &&
+    !isValidEmail(secondContactEmailElement.value)
+  ) {
     valid = false;
-    const element = getWarningNode('Invalid email');
+    const element = getWarningNode("Invalid email");
 
     insertAfterNode(secondContactEmailElement, element);
   }
@@ -58,81 +95,81 @@ function validateForm() {
       officeName: officeNameElement.value,
       secondContactPhoneNumber: secondContactPhoneNumber,
       secondContactDisplayName: secondContactDisplayNameElement.value,
-      secondContactEmail: secondContactElement.value,
-    },
-  }
+      secondContactEmail: secondContactElement.value
+    }
+  };
 }
 
 function sendOfficeCreationRequest(values) {
-  console.log('creating office');
+  console.log("creating office");
 
-  const spinner = getSpinnerElement('join-fetch-spinner').default();
+  const spinner = getSpinnerElement("join-fetch-spinner").default();
   const form = document.forms[0];
-  form.innerText = '';
-  form.classList.add('flexed', 'flexed-jc-center');
+  form.innerText = "";
+  form.classList.add("flexed", "flexed-jc-center");
 
   form.appendChild(spinner);
 
   getLocation()
-    .then(function (location) {
+    .then(function(location) {
       const requestBody = {
         timestamp: Date.now(),
         office: values.officeName,
-        template: 'office',
+        template: "office",
         geopoint: {
           latitude: location.latitude,
-          longitude: location.longitude,
+          longitude: location.longitude
         },
-        data: [{
-          share: [],
-          Name: values.officeName,
-          Description: '',
-          'Youtube ID': '',
-          'GST Number': '',
-          'First Contact': firebase.auth().currentUser.phoneNumber,
-          'Second Contact': values.secondContactPhoneNumber,
-          Timezone: moment.tz.guess(),
-          'Head Office': '',
-          'Date Of Establishment': '',
-          'Trial Period': '',
-        }],
-      }
+        data: [
+          {
+            share: [],
+            Name: values.officeName,
+            Description: "",
+            "Youtube ID": "",
+            "GST Number": "",
+            "First Contact": firebase.auth().currentUser.phoneNumber,
+            "Second Contact": values.secondContactPhoneNumber,
+            Timezone: moment.tz.guess(),
+            "Head Office": "",
+            "Date Of Establishment": "",
+            "Trial Period": ""
+          }
+        ]
+      };
 
       const idToken = getParsedCookies().__session;
       const requestUrl = `${apiBaseUrl}/bulk`;
 
       return fetch(requestUrl, {
-          mode: 'cors',
-          method: 'POST',
-          body: JSON.stringify(requestBody),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`,
-          },
-        })
-        .then(function (result) {
-          if (!result.ok && sessionStorage.getItem('prefill-form')) {
-            sessionStorage.removeItem('prefill-form');
+        mode: "cors",
+        method: "POST",
+        body: JSON.stringify(requestBody),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`
+        }
+      })
+        .then(function(result) {
+          if (!result.ok && sessionStorage.getItem("prefill-form")) {
+            sessionStorage.removeItem("prefill-form");
           }
 
           return result.json();
         })
-        .then(function (response) {
-          console.log('Response', response);
+        .then(function(response) {
+          console.log("Response", response);
 
-          document
-            .getElementById('join-fetch-spinner')
-            .style.display = 'none';
+          document.getElementById("join-fetch-spinner").style.display = "none";
 
-          const span = document.createElement('span');
+          const span = document.createElement("span");
 
-          let spanText = 'Office Created Successfully';
+          let spanText = "Office Created Successfully";
 
           if (!response.success) {
             spanText = response.message;
-            span.classList.add('warning-label');
+            span.classList.add("warning-label");
           } else {
-            span.classList.add('success-label');
+            span.classList.add("success-label");
           }
 
           span.innerHTML = spanText;
@@ -142,23 +179,21 @@ function sendOfficeCreationRequest(values) {
           return;
         });
     })
-    .catch(console.error)
-};
+    .catch(console.error);
+}
 
 function startOfficeCreationFlow(event) {
   event.preventDefault();
 
-  const oldWarningLabels = document.querySelectorAll('p .warning-label');
+  const oldWarningLabels = document.querySelectorAll("p .warning-label");
 
-  Array
-    .from(oldWarningLabels)
-    .forEach((element) => {
-      element.style.display = 'none';
-    });
+  Array.from(oldWarningLabels).forEach(element => {
+    element.style.display = "none";
+  });
 
   const result = validateForm();
 
-  console.log('result', result);
+  console.log("result", result);
 
   if (!result.valid) return;
 
@@ -172,40 +207,51 @@ function startOfficeCreationFlow(event) {
   return sendOfficeCreationRequest(result.values);
 }
 
-document.addEventListener('onbeforeunload', function () {
-  console.log('saving form data to sessionstorage');
+document.addEventListener("onbeforeunload", function() {
+  console.log("saving form data to sessionstorage");
 
   const form = document.forms[0];
-  const officeNameElement = form.elements.namedItem('office-name');
-  const secondContactElement = form.elements.namedItem('second-contact-phone-number');
-  const secondContactDisplayNameElement = form.elements.namedItem('second-contact-name');
-  const secondContactEmailElement = form.elements.namedItem('second-contact-email');
+  const officeNameElement = form.elements.namedItem("office-name");
+  const secondContactElement = form.elements.namedItem(
+    "second-contact-phone-number"
+  );
+  const secondContactDisplayNameElement = form.elements.namedItem(
+    "second-contact-name"
+  );
+  const secondContactEmailElement = form.elements.namedItem(
+    "second-contact-email"
+  );
 
-  sessionStorage
-    .setItem('prefill-form', JSON.stringify({
+  sessionStorage.setItem(
+    "prefill-form",
+    JSON.stringify({
       officeName: officeNameElement.value,
       secondContact: secondContactElement.value,
       secondContactDisplayName: secondContactDisplayNameElement.value,
-      secondContactEmail: secondContactEmailElement.value,
-    }));
+      secondContactEmail: secondContactEmailElement.value
+    })
+  );
 });
 
-window.onload = function () {
-  if (sessionStorage.getItem('prefill-form')) {
-    const formData = JSON.parse(sessionStorage.getItem('prefill-form'));
+window.onload = function() {
+  if (sessionStorage.getItem("prefill-form")) {
+    const formData = JSON.parse(sessionStorage.getItem("prefill-form"));
 
     const form = document.forms[0];
-    form.elements.namedItem('office-name').value = formData.officeName;
-    form.elements.namedItem('second-contact-phone-number').value = formData.secondContact;
-    form.elements.namedItem('second-contact-name').value = formData.secondContactDisplayName;
-    form.elements.namedItem('second-contact-email').value = formData.secondContactEmail;
-    const form2 = document.getElementById('form-2');
+    form.elements.namedItem("office-name").value = formData.officeName;
+    form.elements.namedItem("second-contact-phone-number").value =
+      formData.secondContact;
+    form.elements.namedItem("second-contact-name").value =
+      formData.secondContactDisplayName;
+    form.elements.namedItem("second-contact-email").value =
+      formData.secondContactEmail;
+    const form2 = document.getElementById("form-2");
 
-    form2.classList.remove('hidden');
+    form2.classList.remove("hidden");
 
     return;
   }
-}
+};
 
 // const officeInput = document.getElementById('office-name');
 
@@ -229,14 +275,14 @@ window.onload = function () {
 // }
 
 // second-contact-phone-number
-window.intlTelInput(document.querySelector('#second-contact-phone-number'), {
-  preferredCountries: ['IN', 'NP'],
-  initialCountry: 'IN',
+window.intlTelInput(document.querySelector("#second-contact-phone-number"), {
+  preferredCountries: ["IN", "NP"],
+  initialCountry: "IN",
   // nationalMode: false,
   separateDialCode: true,
   // formatOnDisplay: true,
   autoHideDialCode: true,
-  customPlaceholder: function (selectedCountryPlaceholder, selectedCountryData) {
+  customPlaceholder: function(selectedCountryPlaceholder, selectedCountryData) {
     window.countryCode = selectedCountryData.dialCode;
     console.log({
       selectedCountryPlaceholder,

@@ -21,16 +21,12 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  dateFormats,
-} = require('../../admin/constants');
+const {dateFormats} = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
-const momentOffsetObject = (timezone) => {
+const momentOffsetObject = timezone => {
   const momentToday = momentTz()
     .utc()
     .clone()
@@ -56,10 +52,9 @@ const momentOffsetObject = (timezone) => {
 
   return {
     today,
-    yesterday
+    yesterday,
   };
 };
-
 
 const monthsArray = [
   'Jan',
@@ -169,7 +164,7 @@ const alphabetsArray = [
 ];
 
 const convertToNumberingScheme = number => {
-  const baseChar = ('A').charCodeAt(0);
+  const baseChar = 'A'.charCodeAt(0);
   let letters = '';
 
   do {
@@ -182,17 +177,14 @@ const convertToNumberingScheme = number => {
 };
 
 const getExcelHeader = range => {
-  return [...Array(range).keys()]
-    .map(number => convertToNumberingScheme(number + 1));
+  return [...Array(range).keys()].map(number =>
+    convertToNumberingScheme(number + 1),
+  );
 };
 
 // https://momentjs.com/docs/#/displaying/format/
-const dateStringWithOffset = (options) => {
-  const {
-    timezone,
-    timestampToConvert,
-    format,
-  } = options;
+const dateStringWithOffset = options => {
+  const {timezone, timestampToConvert, format} = options;
 
   if (!timestampToConvert || !timezone) {
     return '';
@@ -200,23 +192,17 @@ const dateStringWithOffset = (options) => {
 
   const targetZonedDate = momentTz.tz(timestampToConvert, timezone);
 
-  return targetZonedDate
-    .format(format || dateFormats.DATE);
+  return targetZonedDate.format(format || dateFormats.DATE);
 };
 
-const timeStringWithOffset = (options) => {
-  const {
-    timezone,
-    timestampToConvert,
-    format,
-  } = options;
+const timeStringWithOffset = options => {
+  const {timezone, timestampToConvert, format} = options;
 
   if (!timestampToConvert || !timezone) return '';
 
   const targetZonedDate = momentTz.tz(timestampToConvert, timezone);
 
-  return targetZonedDate
-    .format(format || dateFormats.TIME);
+  return targetZonedDate.format(format || dateFormats.TIME);
 };
 
 const employeeInfo = (employeesData, phoneNumber) => {
@@ -241,7 +227,7 @@ const employeeInfo = (employeesData, phoneNumber) => {
   };
 };
 
-const toMapsUrl = (geopoint) => {
+const toMapsUrl = geopoint => {
   const latitude = geopoint._latitude || geopoint.latitude;
   const longitude = geopoint._longitude || geopoint.longitude;
 
@@ -285,22 +271,22 @@ const getEmployeeDetailsString = (employeesData, phoneNumber) => {
     return ` | Supervisors: ${result}`;
   })();
 
-  return `Name: ${employeesData[phoneNumber].Name}` +
+  return (
+    `Name: ${employeesData[phoneNumber].Name}` +
     ` | Employee Code: ${employeesData[phoneNumber]['Employee Code']}` +
     ` | Contact Number: ${employeesData[phoneNumber]['Phone Number']}` +
-    `${supervisorsString}`;
+    `${supervisorsString}`
+  );
 };
 
 const getUrl = doc => {
-  const venue = doc
-    .get('activityData.venue');
+  const venue = doc.get('activityData.venue');
 
   if (venue && venue[0] && venue[0].location) {
     return toMapsUrl(venue[0].geopoint);
   }
 
-  if (doc.get('venueQuery') &&
-    doc.get('venueQuery').location) {
+  if (doc.get('venueQuery') && doc.get('venueQuery').location) {
     return toMapsUrl(doc.get('venueQuery').geopoint);
   }
 
@@ -308,18 +294,14 @@ const getUrl = doc => {
 };
 
 const getIdentifier = doc => {
-  const venue = doc
-    .get('activityData.venue');
+  const venue = doc.get('activityData.venue');
 
   if (venue && venue[0] && venue[0].location) {
     return venue[0].location;
   }
 
-  if (doc.get('venueQuery') &&
-    doc.get('venueQuery').location) {
-    return doc
-      .get('venueQuery')
-      .location;
+  if (doc.get('venueQuery') && doc.get('venueQuery').location) {
+    return doc.get('venueQuery').location;
   }
 
   return doc.get('identifier');
@@ -329,7 +311,7 @@ const getStatusForDay = ({
   hoursWorked,
   numberOfCheckIns,
   minimumWorkingHours,
-  minimumDailyActivityCount
+  minimumDailyActivityCount,
 }) => {
   if (!numberOfCheckIns) {
     return 0;
@@ -340,8 +322,10 @@ const getStatusForDay = ({
   }
 
   const activityRatio = (() => {
-    if (Number.isInteger(minimumDailyActivityCount) &&
-      minimumDailyActivityCount > 0) {
+    if (
+      Number.isInteger(minimumDailyActivityCount) &&
+      minimumDailyActivityCount > 0
+    ) {
       return numberOfCheckIns / minimumDailyActivityCount;
     }
 
@@ -349,8 +333,10 @@ const getStatusForDay = ({
   })();
 
   const rev = (() => {
-    if (Number.isInteger(minimumDailyActivityCount) &&
-      minimumDailyActivityCount > 0) {
+    if (
+      Number.isInteger(minimumDailyActivityCount) &&
+      minimumDailyActivityCount > 0
+    ) {
       return 1 / minimumDailyActivityCount;
     }
 
@@ -358,8 +344,7 @@ const getStatusForDay = ({
   })();
 
   const timeRatio = (() => {
-    if (typeof minimumWorkingHours === 'number' &&
-      minimumWorkingHours > 0) {
+    if (typeof minimumWorkingHours === 'number' && minimumWorkingHours > 0) {
       return hoursWorked / minimumWorkingHours;
     }
 
@@ -383,7 +368,6 @@ const getName = (employeesData, phoneNumber) => {
   return phoneNumber;
 };
 
-
 const getSupervisors = (employeesData, phoneNumber) => {
   let str = '';
   const employeeData = employeesData[phoneNumber];
@@ -393,11 +377,9 @@ const getSupervisors = (employeesData, phoneNumber) => {
   const firstSupervisor = employeeData['First Supervisor'];
   const secondSupervisor = employeeData['Second Supervisor'];
   const thirdSupervisor = employeeData['Third Supervisor'];
-  const allSvs = [
-    firstSupervisor,
-    secondSupervisor,
-    thirdSupervisor
-  ].filter(Boolean);
+  const allSvs = [firstSupervisor, secondSupervisor, thirdSupervisor].filter(
+    Boolean,
+  );
 
   if (allSvs.length === 0) return '';
   if (allSvs.length === 1) return getName(employeesData, allSvs[0]);
@@ -423,7 +405,6 @@ const getFieldValue = (employeesData, phoneNumber, field) => {
 
   return '';
 };
-
 
 module.exports = {
   getUrl,

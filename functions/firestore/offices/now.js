@@ -21,41 +21,36 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  rootCollections,
-} = require('../../admin/admin');
+const {rootCollections} = require('../../admin/admin');
 const {
   sendResponse,
   handleError,
   sendJSON,
   isNonEmptyString,
 } = require('../../admin/utils');
-const {
-  code,
-} = require('../../admin/responses');
+const {code} = require('../../admin/responses');
 
-
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.method !== 'GET') {
     sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed. Use 'GET'`
+      `${conn.req.method} is not allowed. Use 'GET'`,
     );
 
     return;
   }
 
-  if (!conn.req.query.hasOwnProperty('deviceId') ||
-    !isNonEmptyString(conn.req.query.deviceId)) {
+  if (
+    !conn.req.query.hasOwnProperty('deviceId') ||
+    !isNonEmptyString(conn.req.query.deviceId)
+  ) {
     sendResponse(
       conn,
       code.badRequest,
-      `Missing or invalid 'deviceId' in the request url`
+      `Missing or invalid 'deviceId' in the request url`,
     );
 
     return;
@@ -76,13 +71,11 @@ module.exports = (conn) => {
   /** Only admin gets the office docs */
   responseObject.activities = [];
 
-  officeNamesArray.forEach((name) => {
-    promises.push(rootCollections
-      .offices.where('office', '==', name)
-      .get());
+  officeNamesArray.forEach(name => {
+    promises.push(rootCollections.offices.where('office', '==', name).get());
   });
 
-  const getActivityObject = (doc) => {
+  const getActivityObject = doc => {
     return {
       activityName: doc.get('activityName'),
       adminsCanEdit: doc.get('adminsCanEdit'),
@@ -100,10 +93,9 @@ module.exports = (conn) => {
     };
   };
 
-  Promise
-    .all(promises)
-    .then((snapShots) => {
-      snapShots.forEach((snapShot) => {
+  Promise.all(promises)
+    .then(snapShots => {
+      snapShots.forEach(snapShot => {
         const doc = snapShot.docs[0];
 
         responseObject.activities.push(getActivityObject(doc));
@@ -114,5 +106,5 @@ module.exports = (conn) => {
 
       return;
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };

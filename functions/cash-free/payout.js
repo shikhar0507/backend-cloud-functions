@@ -1,3 +1,26 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
 const rpn = require('request-promise-native');
@@ -9,15 +32,9 @@ const crypto = require('crypto');
 const env = require('../admin/env');
 const CLIENT_ID = env.cashFree.payout.clientId;
 const CLIENT_SECRET = env.cashFree.payout.clientSecret;
-const {
-  promisify
-} = require('util');
-const {
-  rootCollections,
-} = require('../admin/admin');
-const {
-  getISO8601Date,
-} = require('../admin/utils');
+const {promisify} = require('util');
+const {rootCollections} = require('../admin/admin');
+const {getISO8601Date} = require('../admin/utils');
 
 const endpoint = (() => {
   if (env.isProduction) {
@@ -32,10 +49,13 @@ const encryptWithPublicKey = async keyPath => {
   const readFile = promisify(fs.readFile);
 
   return crypto
-    .publicEncrypt({
-      key: await readFile(keyPath),
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-    }, Buffer.from(message))
+    .publicEncrypt(
+      {
+        key: await readFile(keyPath),
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      },
+      Buffer.from(message),
+    )
     .toString('base64');
 };
 
@@ -66,22 +86,16 @@ const verifyAuthToken = async authToken => {
   return rpn(uri, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${authToken}`
+      Authorization: `Bearer ${authToken}`,
     },
     json: true,
   });
 };
 
-
 const getBearerToken = async () => {
-  const timerDoc = await rootCollections
-    .timers
-    .doc(getISO8601Date())
-    .get();
+  const timerDoc = await rootCollections.timers.doc(getISO8601Date()).get();
 
-  const {
-    cashFree
-  } = timerDoc.data() || {};
+  const {cashFree} = timerDoc.data() || {};
 
   // Token is already present
   if (cashFree && cashFree.payout) {
@@ -95,17 +109,18 @@ const getBearerToken = async () => {
 
   const authTokenResponse = await getPayoutToken();
 
-  await timerDoc
-    .ref
-    .set({
+  await timerDoc.ref.set(
+    {
       cashFree: {
         payout: {
           token: authTokenResponse.data.token,
         },
       },
-    }, {
+    },
+    {
       merge: true,
-    });
+    },
+  );
 
   return `Bearer ${authTokenResponse.data.token}`;
 };
@@ -116,14 +131,9 @@ const getHeaders = async () => {
   };
 };
 
-
 const requestTransfer = async options => {
   const uri = url.resolve(endpoint, '/payout/v1/requestTransfer');
-  const {
-    remarks,
-    beneId,
-    amount,
-  } = options;
+  const {remarks, beneId, amount} = options;
 
   const TRANSFER_MODES = {
     BANK_TRANSFER: 'banktransfer',
@@ -149,10 +159,7 @@ const requestTransfer = async options => {
 
 const getTransferStatus = async options => {
   const uri = url.resolve(endpoint, '/payout/v1/getTransferStatus');
-  const {
-    referenceId,
-    transferId
-  } = options;
+  const {referenceId, transferId} = options;
 
   return rpn(uri, {
     json: true,
@@ -166,12 +173,7 @@ const getTransferStatus = async options => {
 };
 
 const validateBank = async options => {
-  const {
-    name,
-    phone,
-    bankAccount,
-    ifsc,
-  } = options;
+  const {name, phone, bankAccount, ifsc} = options;
 
   const uri = url.resolve(endpoint, '/payout/v1/validation/bankDetails');
 
@@ -184,7 +186,7 @@ const validateBank = async options => {
       phone,
       bankAccount,
       ifsc,
-    }
+    },
   });
 };
 
@@ -203,10 +205,9 @@ const addBeneficiary = async options => {
       bankAccount: options.bankAccount,
       ifsc: options.ifsc,
       address1: options.address1,
-    }
+    },
   });
 };
-
 
 const getBeneficiary = async beneId => {
   const uri = url.resolve(endpoint, `/payout/v1/getBeneficiary/${beneId}`);
@@ -230,14 +231,13 @@ const removeBeneficiary = async beneId => {
   });
 };
 
-
 const verifyWebhookPost = (webhookData, clientSecret) => {
   let concatenatedValues = '';
   const receivedSignature = webhookData.signature;
   delete webhookData.signature;
   const sortedKeys = Object.keys(webhookData).sort();
 
-  sortedKeys.forEach(key => concatenatedValues += `${webhookData[key]}`);
+  sortedKeys.forEach(key => (concatenatedValues += `${webhookData[key]}`));
 
   const calculatedSignature = crypto
     .createHmac('sha256', clientSecret)
@@ -270,7 +270,6 @@ const selfWithdrawal = async options => {
     },
   });
 };
-
 
 module.exports = {
   getBalance,

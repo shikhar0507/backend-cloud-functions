@@ -21,25 +21,12 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  db,
-  auth,
-  rootCollections,
-} = require('../admin/admin');
-const {
-  getObjectFromSnap,
-  filterPhoneNumber,
-} = require('../admin/utils');
-const {
-  reportNames,
-} = require('../admin/constants');
+const {db, auth, rootCollections} = require('../admin/admin');
+const {getObjectFromSnap, filterPhoneNumber} = require('../admin/utils');
+const {reportNames, subcollectionNames} = require('../admin/constants');
 const moment = require('moment');
-const admin = require('firebase-admin');
-
 
 /**
  * Creates new docs inside `Profile` and `Updates` collection in Firestore for
@@ -67,54 +54,41 @@ module.exports = async userRecord => {
    * and Updates/<uid>
    */
   if (userRecord.isAnonymous) {
-    return rootCollections
-      .anonymous
-      .doc(userRecord.uid)
-      .set({
+    return rootCollections.anonymous.doc(userRecord.uid).set(
+      {
         timestamp: Date.now(),
-      }, {
+      },
+      {
         /** Probably isn't required. Not sure why I'm doing this */
         merge: true,
-      });
+      },
+    );
   }
-
-  const promises = [
-    rootCollections
-    .inits
-    .where('report', '==', 'counter')
-    .limit(1)
-    .get(),
-    rootCollections
-    .inits
-    .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-    .where('date', '==', momentToday.date)
-    .where('month', '==', momentToday.months)
-    .where('year', '==', momentToday.years)
-    .limit(1)
-    .get(),
-    rootCollections
-    .profiles
-    .doc(userRecord.phoneNumber)
-    .collection('Activities')
-    .where('template', '==', 'admin')
-    .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
-    .get(),
-    rootCollections
-    .activities
-    .where('template', '==', 'employee')
-    .where('status', '==', 'CONFIRMED')
-    .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
-    .get(),
-  ];
 
   try {
     const [
       counterDocsQuery,
       initDocsQuery,
       adminActivitiesQuery,
-      employeesQuery,
-    ] = await Promise
-      .all(promises);
+    ] = await Promise.all([
+      rootCollections.inits
+        .where('report', '==', 'counter')
+        .limit(1)
+        .get(),
+      rootCollections.inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', momentToday.date)
+        .where('month', '==', momentToday.months)
+        .where('year', '==', momentToday.years)
+        .limit(1)
+        .get(),
+      rootCollections.profiles
+        .doc(userRecord.phoneNumber)
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('template', '==', 'admin')
+        .where('attachment.Phone Number.value', '==', userRecord.phoneNumber)
+        .get(),
+    ]);
 
     const initDoc = getObjectFromSnap(initDocsQuery);
 
@@ -123,56 +97,55 @@ module.exports = async userRecord => {
         return 1;
       }
 
-      return initDocsQuery
-        .docs[0]
-        .get('usersAdded') || 0;
+      return initDocsQuery.docs[0].get('usersAdded') || 0;
     })();
 
-    batch
-      .set(initDoc.ref, {
+    batch.set(
+      initDoc.ref,
+      {
         usersAdded: usersAdded + 1,
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
 
     if (!counterDocsQuery.empty) {
       const counterDoc = getObjectFromSnap(counterDocsQuery);
 
-      batch
-        .set(counterDoc.ref, {
+      batch.set(
+        counterDoc.ref,
+        {
           totalUsers: counterDocsQuery.docs[0].get('totalUsers') + 1,
-        }, {
+        },
+        {
           merge: true,
-        });
+        },
+      );
     }
 
     const customClaimsObject = {};
 
     if (!adminActivitiesQuery.empty) {
-      customClaimsObject
-        .admin = [];
+      customClaimsObject.admin = [];
     }
 
-    adminActivitiesQuery
-      .forEach(doc => {
-        const office = doc.get('office');
-
-        console.log('Admin Of:', office);
-
-        customClaimsObject.admin.push(office);
-      });
+    adminActivitiesQuery.forEach(doc => {
+      customClaimsObject.admin.push(doc.get('office'));
+    });
 
     const uid = userRecord.uid;
     const phoneNumber = filterPhoneNumber(userRecord.phoneNumber);
 
-    batch
-      .set(rootCollections
-        .updates
-        .doc(uid), {
-          phoneNumber,
-        }, {
-          merge: true,
-        });
+    batch.set(
+      rootCollections.updates.doc(uid),
+      {
+        phoneNumber,
+      },
+      {
+        merge: true,
+      },
+    );
 
     /**
      * Profile *may* exist already, if the user signed
@@ -180,51 +153,27 @@ module.exports = async userRecord => {
      * phone number was introduced to the system sometime
      * in the past via an activity
      */
-    batch
-      .set(rootCollections
-        .profiles
-        .doc(phoneNumber), {
-          uid,
-        }, {
-          merge: true,
-        });
+    batch.set(
+      rootCollections.profiles.doc(phoneNumber),
+      {
+        uid,
+      },
+      {
+        merge: true,
+      },
+    );
 
     console.log({
       phoneNumber,
-      uid
+      uid,
     });
 
     const final = [
-      auth
-      .setCustomUserClaims(uid, customClaimsObject),
-      batch
-      .commit(),
+      auth.setCustomUserClaims(uid, customClaimsObject),
+      batch.commit(),
     ];
 
-    if (!employeesQuery.empty) {
-      employeesQuery
-        .forEach(async doc => {
-          const officeId = doc.get('officeId');
-          const phoneNumber = doc.get('attachment.Phone Number.value');
-          const ref = admin
-            .database()
-            .ref(`${officeId}/employee/${phoneNumber}`);
-
-          const data = await ref.once('value');
-          const updated = data.val();
-
-          if (updated) {
-            updated
-              .hasInstalled = true;
-
-            final
-              .push(ref.set(updated));
-          }
-        });
-    }
-
-    return Promise
-      .all(final);
+    return Promise.all(final);
   } catch (error) {
     console.error(error);
   }

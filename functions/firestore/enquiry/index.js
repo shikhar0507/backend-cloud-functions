@@ -1,21 +1,38 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
-const {
-  rootCollections,
-} = require('../../admin/admin');
+const {rootCollections} = require('../../admin/admin');
 const {
   handleError,
   sendResponse,
   isNonEmptyString,
 } = require('../../admin/utils');
-const {
-  code,
-} = require('../../admin/responses');
-const {
-  reportNames,
-} = require('../../admin/constants');
+const {code} = require('../../admin/responses');
+const {reportNames} = require('../../admin/constants');
 
-const validateBody = (body) => {
+const validateBody = body => {
   const result = {
     isValid: true,
     message: null,
@@ -54,8 +71,7 @@ const validateBody = (body) => {
   return result;
 };
 
-
-module.exports = (conn) => {
+module.exports = conn => {
   const validation = validateBody(conn.req.body);
 
   if (!validation.isValid) {
@@ -68,21 +84,17 @@ module.exports = (conn) => {
   const month = dateObject.getMonth();
   const year = dateObject.getFullYear();
 
-  return Promise
-    .all([
-      rootCollections
-      .offices
+  return Promise.all([
+    rootCollections.offices
       .where('slug', '==', conn.req.body.office)
       .limit(1)
       .get(),
-      rootCollections
-      .recipients
+    rootCollections.recipients
       .where('office', '==', conn.req.body.office)
       .where('report', '==', reportNames.ENQUIRY)
       .limit(1)
       .get(),
-      rootCollections
-      .inits
+    rootCollections.inits
       .where('report', '==', reportNames.ENQUIRY)
       .where('office', '==', conn.req.body.office)
       .where('date', '==', date)
@@ -90,20 +102,16 @@ module.exports = (conn) => {
       .where('year', '==', year)
       .limit(1)
       .get(),
-    ])
-    .then((result) => {
-      const [
-        officeDocQuery,
-        recipientsDocQuery,
-        initDocsQuery,
-      ] = result;
+  ])
+    .then(result => {
+      const [officeDocQuery, recipientsDocQuery, initDocsQuery] = result;
 
       if (!initDocsQuery.empty) {
         const enquiryArray = initDocsQuery.docs[0].get('enquiryArray');
 
         let count = 0;
 
-        enquiryArray.forEach((item) => {
+        enquiryArray.forEach(item => {
           if (!item.phoneNumber === conn.requester.phoneNumber) return;
 
           count++;
@@ -126,12 +134,11 @@ module.exports = (conn) => {
         return sendResponse(
           conn,
           code.conflict,
-          `Office doesn't accept enquiry`
+          `Office doesn't accept enquiry`,
         );
       }
 
-      return rootCollections
-        .inits
+      return rootCollections.inits
         .where('report', '==', reportNames.ENQUIRY)
         .where('office', '==', conn.req.body.office)
         .where('date', '==', date)
@@ -140,7 +147,7 @@ module.exports = (conn) => {
         .limit(1)
         .get();
     })
-    .then((snapShot) => {
+    .then(snapShot => {
       if (!createEnquiry) {
         return Promise.resolve();
       }
@@ -162,30 +169,32 @@ module.exports = (conn) => {
       })();
 
       // emailId, and enquiry
-      const enquiryObject = [{
-        phoneNumber: conn.requester.phoneNumber,
-        companyName: conn.req.body.companyName,
-        enquiryText: conn.req.body.enquiryText,
-      }];
+      const enquiryObject = [
+        {
+          phoneNumber: conn.requester.phoneNumber,
+          companyName: conn.req.body.companyName,
+          enquiryText: conn.req.body.enquiryText,
+        },
+      ];
 
       enquiryArray.push(enquiryObject);
 
-      return Promise
-        .all([
-          ref
-          .set({
+      return Promise.all([
+        ref.set(
+          {
             date,
             month,
             year,
             enquiryArray,
             office: conn.req.body.office,
             report: reportNames.ENQUIRY,
-          }, {
+          },
+          {
             merge: true,
-          }),
-          Promise
-          .resolve(sendResponse(conn, code.noContent)),
-        ]);
+          },
+        ),
+        Promise.resolve(sendResponse(conn, code.noContent)),
+      ]);
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
