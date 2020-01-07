@@ -623,7 +623,7 @@ const read = async conn => {
     merge: true,
   });
 
-  // await batch.commit();
+  await batch.commit();
 
   if (!addendum.empty) {
     jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
