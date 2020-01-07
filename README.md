@@ -23,7 +23,7 @@ This is the repository for cloud functions running on Firebase Growthfile back-e
 - `cd` into the functions directory.
 
   ```bash
-  cd backend-cloud-functions
+  cd backend-cloud-functions/functions
   ```
 
 - Install the dependencies
@@ -54,7 +54,7 @@ This is the repository for cloud functions running on Firebase Growthfile back-e
 http://localhost:5001/{project-name}/us-central1/api
 ```
 
-- Use [Postman](https://www.getpostman.com/) to run the api endpoint.
+- Use [Postman](https://www.getpostman.com/) or [curl](https://curl.haxx.se/docs/) to run the api endpoint.
 
 ## Example of running a query
 
@@ -90,11 +90,12 @@ sendResponse(conn, 200);
 
 ## Environment Variables
 
-- Api keys and config is stored in the path [functions](./functions/admin/example.env.js).
+- Api keys and config is stored in the directory [functions/admin/](./functions/admin/example.env.js).
+- In production, create a copy of this file as `env.js`.
 
 ## Cloudflare Workers
 
-| Type                                                                         | Name        |
+| Route                                                                        | Worker      |
 | ---------------------------------------------------------------------------- | ----------- |
 | [https://api2.your-domain.com/api/\*](https://api2.your-domain.com/api/*)    | main_worker |
 | [https://api2.your-domain.com/getUser](https://api2.your-domain.com/getUser) | get_user    |
@@ -201,7 +202,7 @@ async function handleRequest(req) {
     "Access-Control-Allow-Methods": "OPTIONS, GET",
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
     "Content-Type": "application/json",
-    "X-CF-Secret": "6hut0pf8by22m5sxvim1i8"
+    "X-CF-Secret": "" // from env.
   };
 
   const [part1, part2] = getUrlParts(req.url);
