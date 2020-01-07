@@ -132,87 +132,88 @@ const getCycleDates = ({isBimonthlyReimbursement, date, month, year}) => {
   return result;
 };
 
-const reimbursementHandler = async (change, context) => {
-  const {after: doc} = change;
-  const batch = db.batch();
-  const {date, month, year, phoneNumber, roleDoc, office} = doc.data();
-  const {officeId} = context.params;
+// const reimbursementHandler = async (change, context) => {
+//   const {after: doc} = change;
+//   const batch = db.batch();
+//   const {date, month, year, phoneNumber, roleDoc, office} = doc.data();
+//   const {officeId} = context.params;
 
-  const [beneficiaryId, officeDoc] = await Promise.all([
-    getBeneficiaryId({
-      phoneNumber,
-      /**
-       * There will be docs where roleDoc is `null`/`undefined`
-       */
-      roleDoc,
-      /**
-       * Some old docs might not have `officeId`.
-       * Don't wanna take the risk of crashes.
-       */
-      officeId,
-    }),
-    rootCollections.offices.doc(officeId).get(),
-  ]);
+//   const [beneficiaryId, officeDoc] = await Promise.all([
+//     getBeneficiaryId({
+//       phoneNumber,
+//       /**
+//        * There will be docs where roleDoc is `null`/`undefined`
+//        */
+//       roleDoc,
+//       /**
+//        * Some old docs might not have `officeId`.
+//        * Don't wanna take the risk of crashes.
+//        */
+//       officeId,
+//     }),
+//     rootCollections.offices.doc(officeId).get(),
+//   ]);
 
-  console.log('officeDoc', officeDoc);
-  console.log('beneficiaryId', beneficiaryId);
+//   console.log('officeDoc', officeDoc);
+//   console.log('beneficiaryId', beneficiaryId);
 
-  // This case should currently never happen because
-  // user will have at least one role.
-  if (!beneficiaryId) {
-    return;
-  }
+//   // This case should currently never happen because
+//   // user will have at least one role.
+//   if (!beneficiaryId) {
+//     return;
+//   }
 
-  const isBimonthlyReimbursement =
-    officeDoc.get('attachment.Reimburse Bimonthly.value') || false;
+//   const isBimonthlyReimbursement =
+//     officeDoc.get('attachment.Reimburse Bimonthly.value') || false;
 
-  const cycleDates = getCycleDates({
-    isBimonthlyReimbursement,
-    date,
-    month,
-    year,
-  });
+//   const cycleDates = getCycleDates({
+//     isBimonthlyReimbursement,
+//     date,
+//     month,
+//     year,
+//   });
 
-  const {
-    docs: [firstVoucherDoc],
-  } = await rootCollections.offices
-    .doc(officeId)
-    .collection(subcollectionNames.VOUCHERS)
-    .where('cycle', 'array-contains', cycleDates)
-    .where('beneficiaryId', '==', beneficiaryId)
-    .where('type', '==', addendumTypes.REIMBURSEMENT)
-    .where('batchId', '==', null)
-    .get();
-  const ref = firstVoucherDoc
-    ? firstVoucherDoc.ref
-    : rootCollections.offices
-        .doc(officeId)
-        .collection(subcollectionNames.VOUCHERS)
-        .doc();
-  const data = firstVoucherDoc
-    ? firstVoucherDoc.data()
-    : getDefaultVoucher({
-        date,
-        month,
-        year,
-        office,
-        officeId,
-        beneficiaryId,
-        amount: 0,
-        cycle: cycleDates,
-      });
+//   const {
+//     docs: [firstVoucherDoc],
+//   } = await rootCollections.offices
+//     .doc(officeId)
+//     .collection(subcollectionNames.VOUCHERS)
+//     .where('cycle', 'array-contains', cycleDates)
+//     .where('beneficiaryId', '==', beneficiaryId)
+//     .where('type', '==', addendumTypes.REIMBURSEMENT)
+//     .where('batchId', '==', null)
+//     .get();
+//   const ref = firstVoucherDoc
+//     ? firstVoucherDoc.ref
+//     : rootCollections.offices
+//         .doc(officeId)
+//         .collection(subcollectionNames.VOUCHERS)
+//         .doc();
+//   const data = firstVoucherDoc
+//     ? firstVoucherDoc.data()
+//     : getDefaultVoucher({
+//         date,
+//         month,
+//         year,
+//         office,
+//         officeId,
+//         beneficiaryId,
+//         amount: 0,
+//         cycle: cycleDates,
+//       });
 
-  console.log('ref', ref.path);
-  console.log('data', data);
-  batch.set(ref, data, {merge: true});
+//   console.log('ref', ref.path);
+//   console.log('data', data);
+//   batch.set(ref, data, {merge: true});
 
-  return batch.commit();
-};
+//   return batch.commit();
+// };
 
 module.exports = async (change, context) => {
   try {
-    console.log('doc', change);
-    return reimbursementHandler(change, context);
+    console.log('doc', change, context);
+    // return reimbursementHandler(change, context);
+    return;
   } catch (error) {
     console.error(error);
   }
