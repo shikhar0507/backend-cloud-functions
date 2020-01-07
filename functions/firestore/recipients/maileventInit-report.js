@@ -132,9 +132,7 @@ const maileventInitReport = async () => {
       return x[0];
     });
 
-    const emails = Object.values(maileventGroupedData).flatMap(item => [
-      ...new Set(item.map(({email}) => email)),
-    ]);
+    const emails = Object.keys(maileventGroupedData)
     const fixedHeaderData = [];
     for (let i = 0; i < emails.length; i++) {
       fixedHeaderData.push([
