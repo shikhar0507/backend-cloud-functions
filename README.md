@@ -124,7 +124,7 @@ async function handleRequest(req) {
     "Content-Type": "application/json",
     "Content-Language": "en-US",
     "Cache-Control": "no-cache",
-    "X-CF-Secret": "6hut0pf8by22m5sxvim1i8"
+    "X-CF-Secret": "" // from env.
   };
 
   console.log("authorization:", req.headers.get("Authorization"));

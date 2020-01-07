@@ -37,7 +37,7 @@ const vars = {
   firebaseDomain: '',
   supportPhoneNumber: '',
   sgMailParseToken: '',
-  cfSecret: '',
+  cfSecret: '', // X-CF-Secret in request headers via Cloudflare workers
   cfUrl: '',
   downloadUrl: '', // download link to your app.
   devEmail: '',
