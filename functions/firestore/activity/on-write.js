@@ -3871,80 +3871,80 @@ const newBackfill = async locals => {
   });
 };
 
-const populateMissingAttendances = async (
-  locals,
-  attendanceObject,
-  attendanceDocRef,
-  attendanceDocExistsAlready,
-) => {
-  // fetch this user's leaves, branch
-  // populate weekly off, holidays and weeklyOffs
+// const populateMissingAttendances = async (
+//   locals,
+//   attendanceObject,
+//   attendanceDocRef,
+//   attendanceDocExistsAlready,
+// ) => {
+//   // fetch this user's leaves, branch
+//   // populate weekly off, holidays and weeklyOffs
 
-  if (attendanceDocExistsAlready) {
-    return;
-  }
+//   if (attendanceDocExistsAlready) {
+//     return;
+//   }
 
-  const batch = db.batch();
-  const {roleObject, user: phoneNumber, activityData} = locals;
-  const {officeId, timezone} = activityData;
+//   const batch = db.batch();
+//   const {roleObject, user: phoneNumber, activityData} = locals;
+//   const {officeId, timezone} = activityData;
 
-  const baseLocation =
-    roleObject.attachment &&
-    roleObject.attachment['Base Location'] &&
-    roleObject.attachment['Base Location'].value;
-  const momentMonthStart = momentTz()
-    .tz(timezone)
-    .startOf('month');
-  const momentMonthEnd = momentMonthStart.clone().endOf('month');
-  const iterator = momentMonthStart.clone();
-  // const allLeaveDates = [];
-  const leavePromises = [];
+//   const baseLocation =
+//     roleObject.attachment &&
+//     roleObject.attachment['Base Location'] &&
+//     roleObject.attachment['Base Location'].value;
+//   const momentMonthStart = momentTz()
+//     .tz(timezone)
+//     .startOf('month');
+//   const momentMonthEnd = momentMonthStart.clone().endOf('month');
+//   const iterator = momentMonthStart.clone();
+//   // const allLeaveDates = [];
+//   const leavePromises = [];
 
-  while (iterator.isSameOrBefore(momentMonthEnd)) {
-    leavePromises.push(
-      rootCollections.profiles
-        .doc(phoneNumber)
-        .collection(subcollectionNames.ACTIVITIES)
-        .where('template', '==', 'leave')
-        .where('isCancelled', '==', false)
-        .where('officeId', '==', officeId)
-        .where('creator.phoneNumber', '==', phoneNumber)
-        .where(
-          'scheduleDates',
-          'array-contains',
-          iterator.format(dateFormats.DATE),
-        )
-        .get(),
-    );
+//   while (iterator.isSameOrBefore(momentMonthEnd)) {
+//     leavePromises.push(
+//       rootCollections.profiles
+//         .doc(phoneNumber)
+//         .collection(subcollectionNames.ACTIVITIES)
+//         .where('template', '==', 'leave')
+//         .where('isCancelled', '==', false)
+//         .where('officeId', '==', officeId)
+//         .where('creator.phoneNumber', '==', phoneNumber)
+//         .where(
+//           'scheduleDates',
+//           'array-contains',
+//           iterator.format(dateFormats.DATE),
+//         )
+//         .get(),
+//     );
 
-    iterator.add(1, 'day');
-  }
+//     iterator.add(1, 'day');
+//   }
 
-  const actualLeaveDates = new Set();
-  const leaveSnaps = await Promise.all(leavePromises);
+//   const actualLeaveDates = new Set();
+//   const leaveSnaps = await Promise.all(leavePromises);
 
-  // Don't waste time optimizing this.
-  // Iterations are pretty low
-  // this loop runs for at most 31 times
-  leaveSnaps.forEach(leaveSnap => {
-    // This might be large, but no one is taking thousands
-    // of leaves in a single month.
-    // `Annual limit` prevents this number from becomming
-    // to large
-    leaveSnap.forEach(doc => {
-      const {scheduleDates} = doc.data();
+//   // Don't waste time optimizing this.
+//   // Iterations are pretty low
+//   // this loop runs for at most 31 times
+//   leaveSnaps.forEach(leaveSnap => {
+//     // This might be large, but no one is taking thousands
+//     // of leaves in a single month.
+//     // `Annual limit` prevents this number from becomming
+//     // to large
+//     leaveSnap.forEach(doc => {
+//       const {scheduleDates} = doc.data();
 
-      // This will mostly run for 1 time.
-      scheduleDates.forEach(date => {
-        actualLeaveDates.add(date);
-      });
-    });
-  });
+//       // This will mostly run for 1 time.
+//       scheduleDates.forEach(date => {
+//         actualLeaveDates.add(date);
+//       });
+//     });
+//   });
 
-  batch.set(attendanceDocRef, attendanceObject, {merge: true});
+//   batch.set(attendanceDocRef, attendanceObject, {merge: true});
 
-  return batch.commit();
-};
+//   return batch.commit();
+// };
 
 const handleWorkday = async locals => {
   /**

@@ -54,15 +54,15 @@ const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
 
   // query checkIn subscription doc
   // use that activityId as the role
-  const [checkInSubscription] = (
-    await rootCollections.activities
-      .where('template', '==', 'subscription')
-      .where('attachment.Template.value', '==', 'check-in')
-      .where('officeId', '==', officeId)
-      .where('attachment.Phone Number.value', '==', phoneNumber)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [checkInSubscription],
+  } = await rootCollections.activities
+    .where('template', '==', 'subscription')
+    .where('attachment.Template.value', '==', 'check-in')
+    .where('officeId', '==', officeId)
+    .where('attachment.Phone Number.value', '==', phoneNumber)
+    .limit(1)
+    .get();
 
   return checkInSubscription ? checkInSubscription.id : null;
 };
@@ -89,29 +89,38 @@ const getDefaultVoucher = ({
   batchId,
 });
 
-const getCycleDates = ({isBimonthlyReimbursement, date, month, year}) => {
-  const now = momentTz()
+const getIterator = ({isBimonthlyReimbursement, date, month, year}) => {
+  const momentInstance = momentTz()
     .date(date)
     .month(month)
     .year(year);
 
+  return {
+    start: (() => {
+      if (isBimonthlyReimbursement) {
+        return momentInstance.clone().date(1);
+      }
+
+      return momentInstance.clone().startOf('month');
+    })(),
+    end: (() => {
+      if (isBimonthlyReimbursement) {
+        return momentInstance.clone().date(15);
+      }
+
+      return momentInstance.clone().endOf('month');
+    })(),
+  };
+};
+
+const getCycleDates = ({isBimonthlyReimbursement, date, month, year}) => {
   const result = [];
-
-  const iteratorStart = (() => {
-    if (isBimonthlyReimbursement) {
-      return now.clone().date(1);
-    }
-
-    return now.clone().startOf('month');
-  })();
-
-  const iteratorEnd = (() => {
-    if (isBimonthlyReimbursement) {
-      return now.clone().date(15);
-    }
-
-    return iteratorStart.clone().endOf('month');
-  })();
+  const {start: iteratorStart, end: iteratorEnd} = getIterator({
+    isBimonthlyReimbursement,
+    date,
+    month,
+    year,
+  });
   const iterator = iteratorStart.clone();
 
   while (iterator.isSameOrBefore(iteratorEnd)) {
@@ -164,16 +173,16 @@ const reimbursementHandler = async (change, context) => {
     year,
   });
 
-  const [firstVoucherDoc] = (
-    await rootCollections.offices
-      .doc(officeId)
-      .collection(subcollectionNames.VOUCHERS)
-      .where('cycle', 'array-contains', cycleDates)
-      .where('beneficiaryId', '==', beneficiaryId)
-      .where('type', '==', addendumTypes.REIMBURSEMENT)
-      .where('batchId', '==', null)
-      .get()
-  ).docs;
+  const {
+    docs: [firstVoucherDoc],
+  } = await rootCollections.offices
+    .doc(officeId)
+    .collection(subcollectionNames.VOUCHERS)
+    .where('cycle', 'array-contains', cycleDates)
+    .where('beneficiaryId', '==', beneficiaryId)
+    .where('type', '==', addendumTypes.REIMBURSEMENT)
+    .where('batchId', '==', null)
+    .get();
   const ref = firstVoucherDoc
     ? firstVoucherDoc.ref
     : rootCollections.offices

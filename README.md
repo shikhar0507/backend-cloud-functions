@@ -1,151 +1,270 @@
 # Cloud Functions for Growthfile
 
+[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
+
 This is the repository for cloud functions running on Firebase Growthfile back-end
 
 ## Installation
 
-* Download and install [Node 6.11.5](https://nodejs.org/download/release/v6.11.5/) on your device.
+- Download and install [Node 8](https://nodejs.org/dist/latest-v8.x/) on your device.
 
-* Install firebase-tools and firebase-admin.
+- Install firebase-tools and firebase-admin.
 
-    ```bash
-    npm install -g firebase-tools firebase-admin
-    ```
+  ```bash
+  npm install -g firebase-tools firebase-admin
+  ```
 
-* Clone this repository
+- Clone this repository
 
-    ```bash
-    git clone https://github.com/Growthfilev2/backend-cloud-functions
-    ```
+  ```bash
+  git clone https://github.com/Growthfilev2/backend-cloud-functions
+  ```
 
-* `cd` into the functions directory.
+- `cd` into the functions directory.
 
-    ```bash
-    cd backend-cloud-functions
-    ```
+  ```bash
+  cd backend-cloud-functions
+  ```
 
-* Install the dependencies
+- Install the dependencies
 
-    ```bash
-    npm install
-    ```
+  ```bash
+  npm install
+  ```
 
-* Add the service account key from Firebase console to `/functions/admin/`
+- Add the service account key from Firebase console to `/functions/admin/` directory.
 
-* Deploy the functions
+- Deploy the functions
 
-    ```bash
-    firebase deploy --only functions
-    ```
+  ```bash
+  firebase deploy --only functions
+  ```
 
-## Endpoints
+## Api Documentation
 
-There is a single endpoint which you can hit with your client in order to make a request.
+- Refer to the [Routes](/functions/routes/index.js) file for details.
 
-```/api```
+## Running Local Queries
 
-On this endpoint, you have resources which you can target depending on which type of request you want to make.
+- Running local queries requires you to have a [service account key](https://firebase.google.com/support/guides/service-accounts). Put the key.json file in the `functions/admin` directory.
+- Use the `firebase serve` command to run a local http server.
+- The url will look something like this:
 
-Listed below, are the main resources where you can hit your request.
-
-* `/api/activities`: contains action related to creating, updating and adding a comment to an activity.
-
-* `/api/services`: contains helper services like getting a contact from the database for the client.
-
-* `/api/now`: returns the server timestamp in a `GET` request.
-
-## Sending Requests
-
-* Using Javascript XHR
-
-```javascript
-
-var data = JSON.stringify('/* JSON string here */');
-var url = '/* url endpoint here */';
-
-var xhr = new XMLHttpRequest();
-xhr.withCredentials = true;
-
-xhr.addEventListener('readystatechange', () => {
-    if (this.readyState === 4) {
-        /* success */
-        console.log(this.responseText);
-    }
-});
-
-xhr.open('POST', url);
-xhr.setRequestHeader('Content-Type', 'application/json');
-/* https://firebase.google.com/docs/auth/admin/create-custom-tokens */
-xhr.setRequestHeader('Authorization', '/* auth token string */');
-xhr.setRequestHeader('Cache-Control', 'no-cache');
-xhr.send(data);
-
+```curl
+http://localhost:5001/{project-name}/us-central1/api
 ```
 
-* Using Javascript fetch
+- Use [Postman](https://www.getpostman.com/) to run the api endpoint.
 
-```javascript
+## Example of running a query
 
-const url = '/* url endpoint here */';
-const body = {}; // add body data here
+- Example Task: Find all templates with `hidden = 0` in the root collection `ActivityTemplates`.
+- Here's how you would do it.
 
-const postData = (url, body) => {
-    return fetch(url, {
-        body: JSON.stringify(data),
-        cache: 'no-cache',
-        method: 'POST',
-        mode: 'cors',
-        headers: {
-            'Authorization': 'Bearer ' + getBearer(),
-            'Content-Type': 'application/json',
-        },
-    }).then((response) => {
-        return response.json();
-    }).catch(console.log);
+1. Open [server.js](/functions/server/server.js).
+2. Comment out the following code:
+
+```js
+return checkAuthorizationToken(conn);
+```
+
+3 Write the following:
+
+```js
+// Query
+const docs = await rootCollections.activityTemplates
+  .where("hidden", "==", 0)
+  .get();
+
+// Result
+docs.forEach(doc => {
+  console.log(doc.id, doc.get("name"));
+});
+
+// End the response, otherwise the api will timeout
+// after 60 seconds
+sendResponse(conn, 200);
+```
+
+4 Open the terminal and use `curl` to invoke the API function.
+
+## Environment Variables
+
+- Api keys and config is stored in the path [functions](./functions/admin/example.env.js).
+
+## Cloudflare Workers
+
+| Type                                                                         | Name        |
+| ---------------------------------------------------------------------------- | ----------- |
+| [https://api2.your-domain.com/api/\*](https://api2.your-domain.com/api/*)    | main_worker |
+| [https://api2.your-domain.com/getUser](https://api2.your-domain.com/getUser) | get_user    |
+| [https://api2.your-domain.com/webapp](https://api2.your-domain.com/webapp)   | webapp      |
+
+### main_worker
+
+```js
+const getUrlParts = requestUrl => {
+  const mainApiUrl = `{cloud-functions-url}/api`;
+  const parts = requestUrl.split("https://api2.your-domain.com/api");
+
+  return [mainApiUrl, parts[1]];
 };
 
-postData(url, body).then((data) => {
-    /* do something with json data */
-});
+async function handleRequest(req) {
+  const [partOne, partTwo] = getUrlParts(req.url);
 
+  const newHeaders = {
+    /** The pre-flight headers */
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods":
+      "OPTIONS, HEAD, POST, GET, PATCH, PUT, DELETE",
+    "Access-Control-Allow-Headers":
+      "X-Requested-With, Authorization," + "Content-Type, Accept",
+    "Content-Type": "application/json",
+    "Content-Language": "en-US",
+    "Cache-Control": "no-cache",
+    "X-CF-Secret": "6hut0pf8by22m5sxvim1i8"
+  };
+
+  console.log("authorization:", req.headers.get("Authorization"));
+  newHeaders.Authorization = req.headers.get("Authorization");
+
+  if (!partOne || !partTwo) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Bad request",
+        code: 400
+      }),
+      {
+        headers: newHeaders,
+        status: 400
+      }
+    );
+  }
+
+  const mainUrl = `${partOne}${partTwo}`;
+  const options = {
+    method: req.method,
+    headers: newHeaders
+  };
+
+  if (req.method === "OPTIONS" || req.method === "HEAD") {
+    return new Response("{}", {
+      headers: newHeaders,
+      status: 200,
+      statusText: "working"
+    });
+  }
+
+  if (req.method !== "GET") {
+    const body = await req.json();
+    console.log("body", body);
+
+    options.body = JSON.stringify(body);
+  }
+
+  const result = await fetch(mainUrl, options);
+
+  return result;
+}
+
+addEventListener("fetch", event => {
+  console.clear();
+  const result = handleRequest(event.request);
+
+  event.respondWith(result);
+});
 ```
 
-## Getting a Unix Timestamp
+### get_user
 
-* Javascript
+```js
+const getUrlParts = requestUrl => {
+  const mainApiUrl = `{cloud-functions-url}/getUser`;
+  const parts = requestUrl.split("https://api2.your-domain.com/getUser");
 
-    * Current timestamp:
+  return [mainApiUrl, parts[1]];
+};
 
-    ```javascript
-    const ts = Date.now();
-    console.log(ts); // output --> 1527311424251
-    ```
+addEventListener("fetch", event => {
+  event.respondWith(handleRequest(event.request));
+});
 
-    * Date timestamp
+/**
+ * Fetch and log a request
+ * @param {Request} request
+ */
+async function handleRequest(req) {
+  const headers = {
+    "Access-Control-Allow-Origin": "https://your-domain.com",
+    "Access-Control-Allow-Methods": "OPTIONS, GET",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Content-Type": "application/json",
+    "X-CF-Secret": "6hut0pf8by22m5sxvim1i8"
+  };
 
-    ```javascript
-    const ts = Date.parse(new Date('DD MM YYYY'));
-    console.log(ts);
-    ```
+  const [part1, part2] = getUrlParts(req.url);
 
-* Java
+  if (!part1 || !part2) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Bad request",
+        code: 400
+      }),
+      {
+        headers,
+        status: 400
+      }
+    );
+  }
 
-    * Current timestamp
+  if (req.method !== "GET") {
+    return new Response("{}", {
+      headers,
+      status: 405,
+      statusText: `${req.method} is not allowed. Use GET`
+    });
+  }
 
-    ```java
-    final long ts = System.currentTimeMillis() / 1000L;
-    System.out.println(ts);
-    ```
+  if (req.method === "OPTIONS" || req.method === "HEAD") {
+    return new Response("{}", {
+      headers,
+      status: 204,
+      statusText: ""
+    });
+  }
 
-    * Date timestamp
+  const mainUrl = `${partOne}${partTwo}`;
 
-    ```java
-    final String dateString = "Fri, 09 Nov 2012 23:40:18 GMT";
-    final DateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy hh:mm:ss z");
-    final Date date = dateFormat.parse(dateString);
-    final long ts = (long) date.getTime() / 1000;
-    System.out.println(ts); // output --> 1527311424251
-    ```
+  const responseFromApi = await fetch(mainUrl, {
+    method: "GET",
+    headers
+  });
+
+  return responseFromApi;
+}
+```
+
+### webapp
+
+```js
+addEventListener("fetch", event => {
+  event.respondWith(handleRequest(event.request));
+});
+
+/**
+ * Fetch and log a request
+ * @param {Request} request
+ */
+async function handleRequest(request) {
+  console.log("Got request", request);
+  const response = await fetch(request);
+  console.log("Got response", response);
+  return response;
+}
+```
 
 ## License
 

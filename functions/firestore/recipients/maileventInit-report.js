@@ -4,17 +4,35 @@ const XlsxPopulate = require('xlsx-populate');
 const {dateFormats} = require('../../admin/constants');
 const {alphabetsArray} = require('./report-utils');
 const sgMail = require('@sendgrid/mail');
+const env = require('../../admin/env');
 sgMail.setApiKey(env.sgMailApiKey);
+
 const maileventInitReport = async () => {
+  const momentToday = momentTz();
   const start = momentTz()
     .subtract(1, 'days')
     .startOf('day')
     .toString();
-
   const end = momentTz()
     .subtract(1, 'days')
     .endOf('day')
     .toString();
+  const messageObject = {
+    cc: '',
+    to: env.instantEmailRecipientEmails,
+    replyTo: env.mailReplyTo,
+    attachments: [],
+    // templateId: getTemplateId(report),
+    from: {
+      name: 'Growthfile',
+      email: env.systemEmail,
+    },
+    dynamic_template_data: {
+      office: '',
+      subject: `MaileventInit Report ${momentToday.format(dateFormats.DATE)}`,
+      date: momentToday.format(dateFormats.DATE),
+    },
+  };
 
   const header = ['Report', 'Total Users', 'office', 'Timestamp', 'Rows Count'];
   const serverRef = db.collection('MailEvents');
@@ -59,7 +77,6 @@ const maileventInitReport = async () => {
 
       return mainkey;
     }, {});
-    console.log(maileventGroupedData);
     const getTimestamps = maileventGroupedData => {
       const timestamps = [];
       for (const key in maileventGroupedData) {
@@ -206,9 +223,7 @@ const maileventInitReport = async () => {
 
       const reports = async () => {
         const worksheet = await XlsxPopulate.fromBlankAsync();
-
         const initDocs = worksheet.sheet(0).name('init user log');
-
         const mailEvents = worksheet.addSheet('mailEvents user log');
         const initSheet = (initRecord, initDocs) => {
           header.forEach((val, index) => {
@@ -227,11 +242,11 @@ const maileventInitReport = async () => {
           column++;
         };
         detailRow(fixedHeaderData, timestampData, mailEvents);
-        locals.messageObject.attachments.push({
-          fileName:
-            `MaileventInit Report_` +
-            `${locals.officeDoc.get('office')}` +
-            `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+
+        messageObject.attachments.push({
+          fileName: `MaileventInit Report ${momentToday.format(
+            dateFormats.DATE,
+          )}.xlsx`,
           content: await worksheet.outputAsync('base64'),
           type: 'text/csv',
           disposition: 'attachment',
@@ -240,7 +255,8 @@ const maileventInitReport = async () => {
       reports();
     }
   }
-  return Promise.all([locals.sgMail.sendMultiple(locals.messageObject)]);
+
+  return sgMail.sendMultiple(messageObject);
 };
 
 module.exports = {maileventInitReport};
