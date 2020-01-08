@@ -2856,6 +2856,11 @@ const currencies = {
   ]
 };
 
+const reimbursementsFrequencies = {
+  BI_MONTHLY: 'BI_MONTHLY',
+  MONTHLY: 'MONTHLY',
+};
+
 
 module.exports = {
   vowels,
@@ -2884,5 +2889,6 @@ module.exports = {
   sendGridTemplateIds,
   templatesWithNumber,
   changeStatusBodyFields,
+  reimbursementsFrequencies,
   phoneNumberUpdateBodyFields,
 };

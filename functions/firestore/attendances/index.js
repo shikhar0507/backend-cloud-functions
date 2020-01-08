@@ -23,7 +23,8 @@
 
 'use strict';
 
-module.exports = (change, context) => {
-  console.log(change, context);
+module.exports = async (change, context) => {
+  console.log('doc', context);
+
   return;
 };
