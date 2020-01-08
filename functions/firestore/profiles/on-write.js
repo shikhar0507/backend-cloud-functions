@@ -154,6 +154,9 @@ const handleSignUpAndInstall = options => {
         const officeName = doc.get('office');
 
         const data = {
+          date: momentToday.date,
+          month: momentToday.months,
+          year: momentToday.years,
           timestamp: Date.now(),
           activityData: {
             officeId: options.change.after.get('employeeOf')[officeName],
