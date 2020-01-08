@@ -555,27 +555,12 @@ const read = async conn => {
   });
 
   addendum.forEach(doc => {
+    // 'type' is not required most probably. It's just
+    // there for legacy
     const type = doc.get('_type') || doc.get('type');
 
     if (type === addendumTypes.SUBSCRIPTION) {
-      const template = doc.get('template');
-      const templateDoc = templatesMap.get(template);
-
-      if (!templateDoc) {
-        return;
-      }
-
-      jsonObject.templates.push(
-        Object.assign({}, subscriptionFilter(doc), {
-          report: templateDoc.get('report') || null,
-          schedule: templateDoc.get('schedule'),
-          venue: templateDoc.get('venue'),
-          attachment: templateDoc.get('attachment'),
-          canEditRule: templateDoc.get('canEditRule'),
-          hidden: templateDoc.get('hidden'),
-          statusOnCreate: templateDoc.get('statusOnCreate'),
-        }),
-      );
+      jsonObject.templates.push(subscriptionFilter(doc));
 
       return;
     }
