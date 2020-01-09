@@ -267,6 +267,164 @@ async function handleRequest(request) {
 }
 ```
 
+## Schema
+
+This is the schema for main collection/subcollection objects in the database.
+
+### Activity
+
+Path: `Activities/{autoId}`
+
+```jsonc
+{
+  "activityName": <String>,
+  // This object always looks like the
+  // Activitie's parent template
+  "attachment": {
+    [<field>]: {
+      value: <Array | Number | String>,
+      "type": <String>
+    }
+  },
+  // Firestore doc reference
+  // for the path `Offices/{officeId}/Addendum/{autoId}`
+  "addendumDocRef": <Object | null>
+  "canEditRule": <"NONE" | "ALL" | "EMPLOYEE" | "ADMIN" | "CREATOR">,
+  // Unix timestamp in ms of the activity creation event.
+  "createTimestamp"?: <Number>,
+  // Details about the creator of this activity. The string value will be a phone number
+  "creator": <{"displayName": <String>, "phoneNumber": <String>, "photoURL": "String"} | String>,
+  // Hidden is copied straight from the template that this activity belongs to.
+  "hidden": <0 | 1>,
+  // Name of the office
+  "office": <String>,
+  // ActivityId of the office doc.
+  "officeId": <String>,
+  // Array of objects in the form
+  // eg => [{name: "Duty", "startTime": 1578578853986, endTime: 1578578853986}]
+  "schedule": <Array({"name": <String>, "startTime": <String| Number>, "endTime": <String | Number>})>,
+  // Copied straight from the template which this activity belongs to.
+  "status": <"CONFIRMED" | "PENDING" | "CANCELLED">,
+  // Template name
+  "template": <String>,
+  // Timestamp at which this activity was last touched. Equals to the creation timestamp
+  // if activity has been created.
+  "timestamp": <Number>,
+  "timezone": <String>,
+  "venue": <Array({"venueDescriptor": <String>, "location": <String>, "address": <String>, "geopoint": {"latitude": <String | Number>, "longitude": <String | Number>}})>,
+}
+```
+
+### Template
+
+Path: `ActivityTemplates/{autoId}`
+
+```jsonc
+{
+  "attachment": <Object>,
+  "canEditRule": <"NONE" | "ALL" | "EMPLOYEE" | "ADMIN" | "CREATOR">,
+  "comment": <String>,
+  "hidden": <0 | 1>,
+  "name": <String>,
+  "schedule": [
+    {"name": <String>, "startTime": "", "endTime": ""}
+  ],
+  "statusOnCreate": <"CONFIRMED" | "PENDING" | "CANCELLED">,
+  "timestamp"?: <Number>,
+  "venue": [
+    {
+      "venueDescriptor": <String>,
+      "location": "",
+      "address": "",
+        "geopoint": {
+          "latitude": "" ,
+          "longitude": ""
+        }
+    }
+  ],
+  "report"?: <String | undefined>
+}
+```
+
+### Recipient
+
+Path: `Recipients/{recipientActivityId}`
+
+```jsonc
+{
+  "cc": <String>,
+  "include": <Array(String)>,
+  "office": <String>,
+  "officeId": <String>,
+  "report": <String>,
+  "status": <String>,
+  "timestamp": <Number>
+}
+```
+
+### Timer
+
+Path: `Timers/{DD-MM-YYYY}`
+
+```jsonc
+{
+  "apiUrl"?: <String | undefined>,
+  "backblazeAuthorizationToken"?: <String | undefined>,
+  "downloadUrl": <String | undefined>,
+  "timestamp": <Number>,
+  "sent": <Boolean>,
+  "cashfree": {
+    "payout": {
+      "token": <String>
+    },
+    "autocollect": {
+      "token": <String>
+    }
+  }
+}
+```
+
+### Update
+
+Path: `Updates/{uid}`
+
+```jsonc
+{
+  "deviceIdsArray":? Array<String>,
+  "deviceIdsObject":? {
+    [<deviceId>]: {
+      "count": <Number>,
+      "timestamp": <Number>
+    }
+  },
+  "idProof"?: {
+    "aadhar": {
+      "back": <String>,
+      "front": <String>,
+      "number": <Number>
+    },
+    "pan": {
+      "front": <String>,
+      "number": <Number>
+    }
+  },
+  "lastNowRequestTimestamp"?: <Number | undefined>,
+  "latestAppVersion":? <Number | undefined>,
+  "latestDeviceBrand":? <String | undefined>,
+  "latestDeviceId":? <String | undefined>,
+  "latestDeviceModel":? <String | undefined>,
+  "latestDeviceOs":? <String | undefined>,
+  "latestOsVersion":? <String | undefined>,
+  "linkedAccounts":? [{
+    "address1": <String>,
+    "bankAccount": <String>,
+    "ifsc": <String>
+  }],
+  "phoneNumber": <String>,
+  "registrationToken":? <String | undefined>
+}
+```
+
 ## License
 
 All the code and documentation is covered by the [MIT License](./LICENSE).
