@@ -31,6 +31,7 @@ const {
   reimbursementsFrequencies,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
+const Dinero = require('dinero.js');
 
 const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
   if (roleDoc && roleDoc.id) {
@@ -65,29 +66,42 @@ const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
     .limit(1)
     .get();
 
-  return checkInSubscription ? checkInSubscription.id : null;
+  if (checkInSubscription) {
+    return checkInSubscription.id;
+  }
+
+  const {
+    docs: [reimbursementTemplateSubscription],
+  } = await rootCollections.profiles
+    .doc(phoneNumber)
+    .collection(subcollectionNames.SUBSCRIPTIONS)
+    .where('report', '==', 'reimbursement')
+    .where('officeId', '==', officeId)
+    .limit(1)
+    .get();
+
+  if (reimbursementTemplateSubscription) {
+    return reimbursementTemplateSubscription.id;
+  }
+
+  return null;
 };
 
 const getDefaultVoucher = ({
-  date,
-  month,
-  year,
   beneficiaryId,
   office,
   officeId,
-  amount,
-  cycle,
-  batchId = null,
+  cycleStart,
+  cycleEnd,
+  amount = 0,
 }) => ({
-  date,
-  month,
-  year,
   beneficiaryId,
   office,
   officeId,
   amount,
-  cycle,
-  batchId,
+  cycleStart,
+  cycleEnd,
+  batchId: null,
 });
 
 const getIterator = ({reimbursementFrequency, date, month, year}) => {
@@ -116,35 +130,53 @@ const getIterator = ({reimbursementFrequency, date, month, year}) => {
   };
 };
 
-const getCycleDates = ({
-  isBimonthlyReimbursement: reimbursementFrequency,
-  date,
-  month,
-  year,
-}) => {
-  const result = [];
-  const {start: iteratorStart, end: iteratorEnd} = getIterator({
+const getCycleDates = ({reimbursementFrequency, date, month, year}) => {
+  const {end: iteratorEnd, start: iteratorStart} = getIterator({
     reimbursementFrequency,
     date,
     month,
     year,
   });
-  const iterator = iteratorStart.clone();
 
-  while (iterator.isSameOrBefore(iteratorEnd)) {
-    result.push(iterator.format(dateFormats.DATE));
+  // Default is 1st of the month
+  const result = [iteratorStart.format(dateFormats.DATE)];
 
-    iterator.add(1, 'day');
+  if (
+    reimbursementFrequency === reimbursementsFrequencies.BI_MONTHLY &&
+    date > 15
+  ) {
+    result[0] = momentTz()
+      .date(16)
+      .month(month)
+      .year(year)
+      .format(dateFormats.DATE);
   }
+
+  result[1] = iteratorEnd.format(dateFormats.DATE);
 
   return result;
 };
 
 const reimbursementHandler = async (change, context) => {
-  const {after: doc} = change;
-  const batch = db.batch();
-  const {date, month, year, phoneNumber, roleDoc, office} = doc.data();
   const {officeId} = context.params;
+  const {
+    after: reimbursementDocNewState,
+    before: reimbursementDocOldState,
+  } = change;
+  const batch = db.batch();
+  const {
+    date,
+    currency = 'INR',
+    month,
+    year,
+    phoneNumber,
+    roleDoc,
+    office,
+    claimId,
+    status,
+    amount: newAmount,
+  } = reimbursementDocNewState.data();
+  const {amount: oldAmount = 0} = reimbursementDocOldState.data() || {};
 
   const [beneficiaryId, officeDoc] = await Promise.all([
     getBeneficiaryId({
@@ -167,6 +199,7 @@ const reimbursementHandler = async (change, context) => {
 
   // This case should currently never happen because
   // user will have at least one role.
+  // the fallback is check-in subscription activityId
   if (!beneficiaryId) {
     return;
   }
@@ -182,16 +215,22 @@ const reimbursementHandler = async (change, context) => {
     year,
   });
 
+  const [cycleStart] = cycleDates;
+  const cycleEnd = cycleDates[cycleDates.length - 1];
+
   const {
     docs: [firstVoucherDoc],
   } = await rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.VOUCHERS)
-    .where('cycle', '==', cycleDates)
+    .where('cycleStart', '==', cycleStart)
+    .where('cycleEnd', '==', cycleEnd)
     .where('beneficiaryId', '==', beneficiaryId)
     .where('type', '==', addendumTypes.REIMBURSEMENT)
     .where('batchId', '==', null)
+    .limit(1)
     .get();
+
   const ref = firstVoucherDoc
     ? firstVoucherDoc.ref
     : rootCollections.offices
@@ -201,23 +240,76 @@ const reimbursementHandler = async (change, context) => {
   const data = firstVoucherDoc
     ? firstVoucherDoc.data()
     : getDefaultVoucher({
-        date,
-        month,
-        year,
         office,
         officeId,
         beneficiaryId,
-        amount: 0,
-        cycle: cycleDates,
+        cycleStart,
+        cycleEnd,
       });
 
   console.log('ref', ref.path);
-  console.log('data', data);
-  batch.set(ref, data, {merge: true});
 
-  // return batch.commit();
+  data.linkedReimbursements = data.linkedReimbursements || [];
+  data.linkedReimbursements.push(change.after.id);
 
-  return;
+  const amount = (() => {
+    if (!firstVoucherDoc) {
+      // doc will be created in this instance
+      return Dinero({
+        currency,
+        amount: Number(newAmount),
+      }).getAmount();
+    }
+
+    if (claimId && status === 'CANCELLED') {
+      return Dinero({
+        currency,
+        amount: Number(data.amount),
+      })
+        .subtract(
+          Dinero({
+            currency,
+            amount: Number(newAmount),
+          }),
+        )
+        .getAmount();
+    }
+
+    const diff = Dinero({
+      currency,
+      amount: Number(newAmount),
+    }).subtract(
+      Dinero({
+        currency,
+        amount: Number(oldAmount),
+      }),
+    );
+
+    return Dinero({
+      currency,
+      amount: Number(data.amount),
+    })
+      .add(diff)
+      .getAmount();
+  })();
+
+  batch.set(
+    ref,
+    Object.assign({}, data, {
+      office,
+      officeId,
+      beneficiaryId,
+      cycleStart,
+      cycleEnd,
+      amount: `${Number(data.amount) + Number(amount)}`,
+      batchId: data.batchId || null,
+      type: addendumTypes.REIMBURSEMENT,
+      timestamp: Date.now(),
+    }),
+    {merge: true},
+  );
+
+  return batch.commit();
 };
 
 module.exports = async (change, context) => {
