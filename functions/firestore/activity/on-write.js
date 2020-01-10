@@ -55,6 +55,14 @@ const googleMapsClient = require('@google/maps').createClient({
   Promise: Promise,
 });
 
+const getActivityObjectWithMetadata = doc =>
+  Object.assign({}, doc.data(), {
+    id: doc.id,
+    addendumDocRef: null,
+    createTime: doc.createTime.toMillis(),
+    updateTime: doc.updateTime.toMillis(),
+  });
+
 const getProfileActivityObject = ({
   activityDoc,
   assigneesMap,
@@ -98,14 +106,17 @@ const getPhoneNumbersFromAttachment = ({attachment = {}}) => {
 };
 
 const getUserRole = async ({addendumDoc}) => {
-  const {user: phoneNumber, roleObject, activityData} = addendumDoc.data();
+  const {user: phoneNumber, roleDoc, activityData} = addendumDoc.data();
   const {officeId} = activityData;
 
-  if (roleObject) {
-    return roleObject;
+  if (roleDoc && roleDoc.status) {
+    console.log('old role');
+    return roleDoc;
   }
 
-  const [roleDocument] = (
+  console.log('new role');
+
+  const [roleActivity] = (
     await rootCollections.activities
       .where('officeId', '==', officeId)
       .where('status', '==', 'CONFIRMED')
@@ -119,14 +130,43 @@ const getUserRole = async ({addendumDoc}) => {
     return !new Set(['subscription', 'admin']).has(template);
   });
 
-  return !roleDocument
+  const batch = db.batch();
+
+  const role = !roleActivity
     ? null
-    : {
-        id: roleDocument.id,
-        createTime: roleDocument.createTime.toMillis(),
-        updateTime: roleDocument.updateTime.toMillis(),
-        attachment: roleDocument.get('attachment'),
-      };
+    : getActivityObjectWithMetadata(roleActivity);
+
+  // Only the check-in subscription has `roleDoc` value by default.
+  if (role) {
+    batch.set(addendumDoc.ref, {roleDoc: role}, {merge: true});
+
+    const {
+      docs: [checkInSubscriptionDoc],
+    } = await rootCollections.profiles
+      .doc(phoneNumber)
+      .collection(subcollectionNames.SUBSCRIPTIONS)
+      .where('officeId', '==', officeId)
+      .where('template', '==', 'check-in')
+      .where('status', '==', 'CONFIRMED')
+      .limit(1)
+      .get();
+
+    if (checkInSubscriptionDoc) {
+      batch.set(
+        checkInSubscriptionDoc.ref,
+        {
+          roleDoc: role,
+        },
+        {
+          merge: true,
+        },
+      );
+    }
+  }
+
+  await batch.commit();
+
+  return role;
 };
 
 const getRoleReportData = (roleDocData, phoneNumber) => {
@@ -533,17 +573,18 @@ const handleSubscription = async locals => {
   ];
 
   if (subscribedTemplate === 'check-in') {
+    console.log('fetching role in subscription');
+
     promises.push(
       rootCollections.activities
         .where('officeId', '==', locals.change.after.get('officeId'))
         .where('attachment.Phone Number.value', '==', newSubscriber)
         .where('status', '==', 'CONFIRMED')
-        .limit(1)
         .get(),
     );
   }
 
-  const [templateDocsQueryResult, subscriberRoleDoc] = await Promise.all(
+  const [templateDocsQueryResult, subscriberRoleDocs] = await Promise.all(
     promises,
   );
   const [templateDoc] = templateDocsQueryResult.docs;
@@ -563,21 +604,20 @@ const handleSubscription = async locals => {
     status: locals.change.after.get('status'),
   };
 
-  if (subscriberRoleDoc && !subscriberRoleDoc.empty) {
-    const [roleDoc] = subscriberRoleDoc.docs.filter(doc => {
+  if (subscriberRoleDocs && !subscriberRoleDocs.empty) {
+    console.log('subscriberRoleDoc', !!subscriberRoleDocs);
+    const [roleDoc] = subscriberRoleDocs.docs.filter(doc => {
       const {template} = doc.data();
 
       return template !== 'admin' && template !== 'subscription';
     });
 
     if (roleDoc) {
-      // This is just the employee activity.
-      subscriptionDocData.roleObject = {
-        createTime: roleDoc.createTime.toMillis(),
-        updateTime: roleDoc.updateTime.toMillis(),
-        id: roleDoc.id,
-        attachment: roleDoc.get('attachment'),
-      };
+      console.log('setting roleDoc in subscriptionDocData');
+      // subscriptionDocData.roleObject = getActivityObjectWithMetadata(roleDoc);
+      subscriptionDocData.roleDoc = getActivityObjectWithMetadata(roleDoc);
+    } else {
+      console.log('not setting roleDoc in subscriptionDocData');
     }
   }
 
@@ -1077,16 +1117,18 @@ const updateCheckInSubscriptionRoleField = async locals => {
   const {officeId, attachment} = activityDoc.data();
   const {value: phoneNumber} = attachment['Phone Number'];
 
-  const [checkInSubscriptionActivity] = (
-    await rootCollections.activities
-      .where('template', '==', 'subscription')
-      .where('officeId', '==', officeId)
-      .where('attachment.Template.value', '==', 'check-in')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get()
-  ).docs;
+  console.log('in updateCheckInSubscriptionRoleField');
+
+  const {
+    docs: [checkInSubscriptionActivity],
+  } = await rootCollections.activities
+    .where('officeId', '==', officeId)
+    .where('template', '==', 'subscription')
+    .where('attachment.Template.value', '==', 'check-in')
+    .where('attachment.Phone Number.value', '==', phoneNumber)
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get();
 
   if (!checkInSubscriptionActivity) {
     return;
@@ -1096,22 +1138,15 @@ const updateCheckInSubscriptionRoleField = async locals => {
 
   const {id: checkInId} = checkInSubscriptionActivity;
 
-  const ref = rootCollections.profiles
-    .doc(phoneNumber)
-    .collection(subcollectionNames.SUBSCRIPTIONS)
-    .doc(checkInId);
+  console.log('checkInId', checkInId);
 
   // Manage doc below profile. Keeps it in sync with role activity.
   batch.set(
-    ref,
-    {
-      roleDoc: {
-        id: activityDoc.id,
-        createTime: activityDoc.createTime.toMillis(),
-        updateTime: activityDoc.updateTime.toMillis(),
-        attachment: activityDoc.get('attachment'),
-      },
-    },
+    rootCollections.profiles
+      .doc(phoneNumber)
+      .collection(subcollectionNames.SUBSCRIPTIONS)
+      .doc(checkInId),
+    getActivityObjectWithMetadata(activityDoc),
     {
       merge: true,
     },
@@ -4547,7 +4582,9 @@ const handleProfile = async change => {
 
     authFetchPromises.push(getAuth(phoneNumber));
 
-    /** Storing phoneNumber in the object because we are storing assigneesMap in addendum doc */
+    /** Storing phoneNumber in the object because we are
+     * storing assigneesMap in addendum doc
+     **/
     locals.assigneesMap.set(phoneNumber, {
       phoneNumber,
       addToInclude: addToInclude || false,
@@ -4584,8 +4621,6 @@ const handleProfile = async change => {
        */
       return;
     }
-
-    // const oldMap = locals.assigneesMap.get(phoneNumber);
 
     locals.assigneesMap.set(
       phoneNumber,
@@ -4692,7 +4727,7 @@ const handleProfile = async change => {
   return locals;
 };
 
-const ActivityOnWrite = async change => {
+const activityOnWrite = async change => {
   /** Activity was deleted. For debugging only. */
   if (!change.after.data()) {
     return;
@@ -4711,7 +4746,7 @@ const ActivityOnWrite = async change => {
 
 module.exports = (change, context) => {
   try {
-    return ActivityOnWrite(change, context);
+    return activityOnWrite(change, context);
   } catch (error) {
     console.error({
       error,

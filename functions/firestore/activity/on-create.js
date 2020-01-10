@@ -282,7 +282,7 @@ const getCustomerObject = async ({address, location}) => {
 
 const getRoleObject = subscriptionDoc => {
   if (subscriptionDoc) {
-    return subscriptionDoc.get('roleObject') || null;
+    return subscriptionDoc.get('roleDoc') || null;
   }
 
   return null;
@@ -447,6 +447,8 @@ const createDocsWithBatch = async (conn, locals) => {
     provider: conn.req.body.geopoint.provider || null,
     roleDoc: getRoleObject(locals.subscriptionDoc),
   };
+
+  console.log('roleDoc', addendumDocObject.roleDoc);
 
   if (
     conn.req.body.template === 'check-in' &&
