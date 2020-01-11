@@ -1677,7 +1677,24 @@ const latLngToTimezone = async geopoint => {
   ).json.timeZoneId;
 };
 
+const locationFilter = doc => {
+  return {
+    activityId: doc.id,
+    office: doc.get('office'),
+    officeId: doc.get('officeId'),
+    status: doc.get('status'),
+    template: doc.get('template'),
+    timestamp: doc.get('timestamp'),
+    address: doc.get('venue')[0].address,
+    location: doc.get('venue')[0].location,
+    latitude: doc.get('venue')[0].geopoint.latitude,
+    longitude: doc.get('venue')[0].geopoint.longitude,
+    venueDescriptor: doc.get('venue')[0].venueDescriptor,
+  };
+};
+
 module.exports = {
+  locationFilter,
   getAuth,
   slugify,
   sendSMS,
