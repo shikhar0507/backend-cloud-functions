@@ -471,7 +471,6 @@ const createDocsWithBatch = async (conn, locals) => {
   }
 
   batch.set(addendumDocRef, addendumDocObject);
-
   batch.set(activityRef, activityData);
 
   /** For base64 images, upload the json file to bucket */
@@ -826,6 +825,80 @@ const resolveProfileCheckPromises = async (conn, locals, result) => {
   return resolveQuerySnapshotShouldExistPromises(conn, locals, result);
 };
 
+const handleAttachmentArrays = async (conn, locals, result) => {
+  const {attachment} = conn.req.body;
+  const typePromises = [];
+
+  console.log('in handleAttachmentArrays');
+
+  for (const [, {value: values, type}] of Object.entries(attachment)) {
+    if (!Array.isArray(values)) {
+      continue;
+    }
+
+    for (const value of values) {
+      const {name, quantity, rate, date} = value;
+
+      // date is a unix timestamp
+      if (date !== '' && !momentTz.isDate(new Date(date))) {
+        return sendResponse(
+          conn,
+          code.badRequest,
+          `Invalid date found in ${conn.req.body.template}`,
+        );
+      }
+
+      if (quantity && !Number.isInteger(quantity)) {
+        return sendResponse(
+          conn,
+          code.badRequest,
+          `Invalid quantity found in ${conn.req.body.template}`,
+        );
+      }
+
+      if (rate !== '' && typeof rate !== 'number') {
+        return sendResponse(
+          conn,
+          code.badRequest,
+          `Invalid rate found in ${conn.req.body.template}`,
+        );
+      }
+
+      typePromises.push(
+        rootCollections.activities
+          .where('attachment.Name.value', '==', name)
+          .where('template', '==', type)
+          .where('officeId', '==', locals.officeDoc.id)
+          .limit(1)
+          .get(),
+      );
+    }
+  }
+
+  // const snaps = await Promise.all(typePromises);
+
+  for (const snap of await Promise.all(typePromises)) {
+    const {
+      docs: [doc],
+    } = snap;
+
+    if (!doc) {
+      const [
+        {value: name},
+        {value: type},
+      ] = snap.query._queryOptions.fieldFilters;
+
+      return sendResponse(
+        conn,
+        code.badRequest,
+        `${type} ${name} does not exist`,
+      );
+    }
+  }
+
+  return resolveProfileCheckPromises(conn, locals, result);
+};
+
 const handleAttachment = (conn, locals) => {
   const options = {
     bodyAttachment: conn.req.body.attachment,
@@ -852,7 +925,7 @@ const handleAttachment = (conn, locals) => {
   conn.isBase64 = isBase64;
   conn.base64Field = base64Field;
 
-  return resolveProfileCheckPromises(conn, locals, result);
+  return handleAttachmentArrays(conn, locals, result);
 };
 
 const logInvaliCheckIn = async ({
