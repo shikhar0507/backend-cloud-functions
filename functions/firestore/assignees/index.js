@@ -21,11 +21,51 @@
  *
  */
 
-
 'use strict';
 
+const {subcollectionNames} = require('../../admin/constants');
+const {rootCollections, db} = require('../../admin/admin');
+const admin = require('firebase-admin');
 
-const { rootCollections } = require('../../admin/admin');
+const getChildDoc = async ({
+  template,
+  phoneNumber,
+  report,
+  officeId,
+  activityId,
+}) => {
+  if (template === 'subscription') {
+    return rootCollections.profiles
+      .doc(phoneNumber)
+      .collection(subcollectionNames.SUBSCRIPTIONS)
+      .doc(activityId)
+      .get();
+  }
+
+  if (template === 'recipient') {
+    const [recipientDoc] = (
+      await rootCollections.recipients
+        .where('report', '==', report)
+        .where('officeId', '==', officeId)
+        .limit(1)
+        .get()
+    ).docs;
+
+    return recipientDoc;
+  }
+
+  return null;
+};
+
+const getSubcriptionActivityQuery = ({officeId, phoneNumber, template}) => {
+  return rootCollections.activities
+    .where('officeId', '==', officeId)
+    .where('template', '==', 'subscription')
+    .where('attachment.Phone Number.value', '==', phoneNumber)
+    .where('attachment.Template.value', '==', template)
+    .limit(1)
+    .get();
+};
 
 /**
  * Removes the doc from the `Profile/(phoneNumber)/Activities/(activityId)`
@@ -42,47 +82,40 @@ const { rootCollections } = require('../../admin/admin');
  * @param {Object} context Data related to the `onDelete` event.
  * @returns {Promise <Object>} Firestore `Batch` object.
  */
-module.exports = async (doc, context) => {
-  const {
+const assigneeOnDelete = async ({phoneNumber, activityId}) => {
+  const profileRef = rootCollections.profiles.doc(phoneNumber);
+  const timestamp = Date.now();
+  const batch = db.batch();
+
+  const [profileDoc, activityDoc] = await db.getAll(
+    profileRef,
+    rootCollections.activities.doc(activityId),
+  );
+  const {uid} = profileDoc.data();
+  const {hidden, template, officeId} = activityDoc.data();
+
+  console.log({
     phoneNumber,
     activityId,
-  } = context.params;
+    template,
+    uid,
+    hidden,
+  });
 
-  const profileRef = rootCollections
-    .profiles
-    .doc(phoneNumber);
-  const promises = [
-    profileRef
-      .get(),
-    rootCollections
-      .activities
-      .doc(activityId)
-      .get(),
-    profileRef
-      .collection('Activities')
-      .doc(activityId)
-      .delete(),
-  ];
+  /**
+   * Delete Activity from profile
+   */
+  batch.delete(
+    profileRef.collection(subcollectionNames.ACTIVITIES).doc(activityId),
+  );
 
-  try {
-    const [profileDoc, activityDoc] = await Promise.all(promises);
-
-    const timestamp = Date.now();
-    const uid = profileDoc.get('uid');
-
-    if (!uid
-      || activityDoc.get('hidden') === 1) {
-      return Promise.resolve();
-    }
-
-    const addendumRef = rootCollections
-      .updates
-      .doc(uid)
-      .collection('Addendum')
-      .doc();
-
-    return addendumRef
-      .set({
+  if (uid && hidden !== 1) {
+    batch.set(
+      rootCollections.updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc(),
+      {
         timestamp,
         activityId,
         isComment: 0,
@@ -94,7 +127,120 @@ module.exports = async (doc, context) => {
         user: phoneNumber,
         unassign: true,
         comment: '',
-      });
+      },
+    );
+  }
+
+  /**
+   * In case for subscriptino/recipient, we have to remove the phone number from
+   * the `include` array in the respective docs.
+   */
+  const doc = await getChildDoc({
+    activityId,
+    template,
+    phoneNumber,
+    officeId,
+    report: activityDoc.get('attachment.Name.value'),
+  });
+
+  /**
+   * This doc might not exist.
+   * Eg. In case of recipient, if the activity status is CANCELLED
+   * the doc in Recipients/{activityId} will not exist.
+   */
+  if (doc) {
+    console.log('childDoc', doc);
+
+    batch.set(
+      doc.ref,
+      Object.assign({}, doc.data(), {
+        include: admin.firestore.FieldValue.arrayRemove(phoneNumber),
+      }),
+      {
+        merge: true,
+      },
+    );
+  }
+
+  if (template === 'subscription') {
+    // fetch leave, check-in, attendance regularization subscription
+    // of the user (attachment.Phone Number.value)
+    // unassign the number phoneNumber from those activities
+    const {value: subscribersPhoneNumber} = activityDoc.get(
+      'attachment.Phone Number',
+    );
+
+    const [checkInSub, leaveSub, arSub] = await Promise.all([
+      getSubcriptionActivityQuery({
+        officeId,
+        phoneNumber: subscribersPhoneNumber,
+        template: 'check-in',
+      }),
+      getSubcriptionActivityQuery({
+        officeId,
+        phoneNumber: subscribersPhoneNumber,
+        template: 'leave',
+      }),
+      getSubcriptionActivityQuery({
+        officeId,
+        phoneNumber: subscribersPhoneNumber,
+        template: 'attendance regularization',
+      }),
+    ]);
+
+    const [checkInSubActivity] = checkInSub.docs;
+    const [leaveSubActivity] = leaveSub.docs;
+    const [arSubActivity] = arSub.docs;
+
+    const update = {
+      addendumDocRef: null,
+      timestamp: Date.now(),
+    };
+    const merge = {
+      merge: true,
+    };
+
+    if (checkInSubActivity) {
+      console.log('deleting from check-in', checkInSubActivity.id);
+
+      batch.set(checkInSubActivity.ref, update, merge);
+
+      batch.delete(
+        checkInSubActivity.ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(phoneNumber),
+      );
+    }
+
+    if (leaveSubActivity) {
+      console.log('deleting from leave', leaveSubActivity.id);
+      batch.set(leaveSubActivity.ref, update, merge);
+
+      batch.delete(
+        leaveSubActivity.ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(phoneNumber),
+      );
+    }
+
+    if (arSubActivity) {
+      console.log('deleting from ar', arSubActivity.id);
+      batch.set(arSubActivity.ref, update, merge);
+
+      batch.delete(
+        arSubActivity.ref
+          .collection(subcollectionNames.ASSIGNEES)
+          .doc(phoneNumber),
+      );
+    }
+  }
+
+  return batch.commit();
+};
+
+module.exports = async (_, context) => {
+  try {
+    return assigneeOnDelete(context.params);
   } catch (error) {
     console.error(error);
   }

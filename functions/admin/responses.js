@@ -21,9 +21,7 @@
  *
  */
 
-
 'use strict';
-
 
 const code = {
   ok: 200,
@@ -43,4 +41,6 @@ const code = {
   notImplemented: 501,
 };
 
-module.exports = { code };
+module.exports = {
+  code,
+};

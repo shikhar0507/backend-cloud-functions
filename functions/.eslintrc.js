@@ -8,9 +8,7 @@ module.exports = {
       spread: true,
     },
   },
-  extends: [
-    'eslint:recommended',
-  ],
+  extends: ['eslint:recommended', 'prettier'],
   env: {
     // Node.js global variables and Node.js scoping
     node: true,
@@ -19,7 +17,7 @@ module.exports = {
     // enable all ECMAScript 6 features except for modules.
     es6: true,
     // adds all of the Mocha testing global variables
-    mocha: true
+    mocha: true,
   },
   rules: {
     'no-console': 'off', // It's node. How else do you even print?

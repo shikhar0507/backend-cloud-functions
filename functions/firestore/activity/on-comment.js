@@ -21,40 +21,31 @@
  *
  */
 
-
 'use strict';
 
-
-const { isValidRequestBody } = require('./helper');
-const { code } = require('../../admin/responses');
-const { httpsActions } = require('../../admin/constants');
-const {
-  db,
-  rootCollections,
-  getGeopointObject,
-} = require('../../admin/admin');
-const {
-  handleError,
-  sendResponse,
-} = require('../../admin/utils');
-
+const {isValidRequestBody} = require('./helper');
+const {code} = require('../../admin/responses');
+const {httpsActions} = require('../../admin/constants');
+const {db, rootCollections, getGeopointObject} = require('../../admin/admin');
+const {handleError, sendResponse} = require('../../admin/utils');
 
 const createDocs = (conn, activity) => {
   const batch = db.batch();
-  const addendumDocRef = rootCollections
-    .offices
+  const addendumDocRef = rootCollections.offices
     .doc(activity.get('officeId'))
     .collection('Addendum')
     .doc();
 
-  batch.set(rootCollections
-    .activities
-    .doc(conn.req.body.activityId), {
-    addendumDocRef,
-    timestamp: Date.now(),
-  }, {
-    merge: true,
-  });
+  batch.set(
+    rootCollections.activities.doc(conn.req.body.activityId),
+    {
+      addendumDocRef,
+      timestamp: Date.now(),
+    },
+    {
+      merge: true,
+    },
+  );
 
   const now = new Date();
 
@@ -80,42 +71,33 @@ const createDocs = (conn, activity) => {
   batch
     .commit()
     .then(() => sendResponse(conn, code.created))
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
 
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.method !== 'POST') {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for '${conn.req.url}'`
-      + ' endpoint. Use POST.'
+      `${conn.req.method} is not allowed for '${conn.req.url}'` +
+        ' endpoint. Use POST.',
     );
   }
 
   const result = isValidRequestBody(conn.req.body, httpsActions.comment);
 
   if (!result.isValid) {
-    return sendResponse(
-      conn,
-      code.badRequest,
-      result.message
-    );
+    return sendResponse(conn, code.badRequest, result.message);
   }
 
-  return Promise
-    .all([
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .get(),
-      rootCollections
-        .activities
-        .doc(conn.req.body.activityId)
-        .collection('Assignees')
-        .doc(conn.requester.phoneNumber)
-        .get(),
-    ])
+  return Promise.all([
+    rootCollections.activities.doc(conn.req.body.activityId).get(),
+    rootCollections.activities
+      .doc(conn.req.body.activityId)
+      .collection('Assignees')
+      .doc(conn.requester.phoneNumber)
+      .get(),
+  ])
     .then(result => {
       const [activity, assignee] = result;
 
@@ -123,7 +105,7 @@ module.exports = (conn) => {
         return sendResponse(
           conn,
           code.badRequest,
-          `The activity does not exist`
+          `The activity does not exist`,
         );
       }
 
@@ -131,7 +113,7 @@ module.exports = (conn) => {
         return sendResponse(
           conn,
           code.forbidden,
-          `You cannot edit this activity.`
+          `You cannot edit this activity.`,
         );
       }
 

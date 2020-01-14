@@ -21,24 +21,13 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  db,
-  rootCollections,
-} = require('../../admin/admin');
-const {
-  sendSMS,
-} = require('../../admin/utils');
-const {
-  reportNames,
-  httpsActions,
-} = require('../../admin/constants');
+const {db, rootCollections} = require('../../admin/admin');
+const {sendSMS} = require('../../admin/utils');
+const {reportNames, httpsActions} = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
-
 
 const manageOldCheckins = async change => {
   const oldFromValue = change.before.get('lastQueryFrom');
@@ -50,30 +39,22 @@ const manageOldCheckins = async change => {
    * The newer value should be greater than the older
    * value.
    */
-  if (!oldFromValue
-    || !newFromValue
-    || newFromValue <= oldFromValue) {
+  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
     return;
   }
 
   const batch = db.batch();
-  const docs = await change
-    .after
-    .ref
+  const docs = await change.after.ref
     .collection('Activities')
     .where('template', '==', 'check-in')
     .where('timestamp', '<', oldFromValue)
     .limit(500)
     .get();
 
-  docs
-    .forEach(doc => batch.delete(doc.ref));
+  docs.forEach(doc => batch.delete(doc.ref));
 
-  return batch
-    .commit();
+  return batch.commit();
 };
-
-
 
 const manageAddendum = async change => {
   const oldFromValue = change.before.get('lastQueryFrom');
@@ -84,14 +65,11 @@ const manageAddendum = async change => {
    * The newer value should be greater than the older
    * value.
    */
-  if (!oldFromValue
-    || !newFromValue
-    || (newFromValue <= oldFromValue)) {
+  if (!oldFromValue || !newFromValue || newFromValue <= oldFromValue) {
     return Promise.resolve();
   }
 
-  const docs = await rootCollections
-    .updates
+  const docs = await rootCollections.updates
     .doc(change.after.get('uid'))
     .collection('Addendum')
     .where('timestamp', '<', oldFromValue)
@@ -101,41 +79,32 @@ const manageAddendum = async change => {
 
   const batch = db.batch();
 
-  docs
-    .forEach(doc => {
-      batch
-        .delete(doc.ref);
-    });
+  docs.forEach(doc => {
+    batch.delete(doc.ref);
+  });
 
-  return batch
-    .commit();
+  return batch.commit();
 };
 
-
-const handleSignUpAndInstall = (options) => {
+const handleSignUpAndInstall = options => {
   const promises = [];
 
-  if (!options.hasSignedUp
-    && !options.hasInstalled) {
+  if (!options.hasSignedUp && !options.hasInstalled) {
     return Promise.resolve();
   }
 
-  options
-    .currentOfficesList
-    .forEach(office => {
-      const promise = rootCollections
-        .offices
-        .where('office', '==', office)
-        .limit(1)
-        .get();
+  options.currentOfficesList.forEach(office => {
+    const promise = rootCollections.offices
+      .where('office', '==', office)
+      .limit(1)
+      .get();
 
-      promises.push(promise);
-    });
+    promises.push(promise);
+  });
 
   const momentToday = momentTz().toObject();
 
-  return rootCollections
-    .inits
+  return rootCollections.inits
     .where('report', '==', reportNames.DAILY_STATUS_REPORT)
     .where('date', '==', momentToday.date)
     .where('month', '==', momentToday.months)
@@ -163,18 +132,21 @@ const handleSignUpAndInstall = (options) => {
         return snapShot.docs[0].get('installsToday') || 1;
       })();
 
-      options.batch.set(docRef, {
-        installsToday,
-        report: reportNames.DAILY_STATUS_REPORT,
-        date: momentToday.date,
-        month: momentToday.months,
-        year: momentToday.years,
-      }, {
-        merge: true,
-      });
+      options.batch.set(
+        docRef,
+        {
+          installsToday,
+          report: reportNames.DAILY_STATUS_REPORT,
+          date: momentToday.date,
+          month: momentToday.months,
+          year: momentToday.years,
+        },
+        {
+          merge: true,
+        },
+      );
 
-      return Promise
-        .all(promises);
+      return Promise.all(promises);
     })
     .then(snapShots => {
       snapShots.forEach(snapShot => {
@@ -182,6 +154,9 @@ const handleSignUpAndInstall = (options) => {
         const officeName = doc.get('office');
 
         const data = {
+          date: momentToday.date,
+          month: momentToday.months,
+          year: momentToday.years,
           timestamp: Date.now(),
           activityData: {
             officeId: options.change.after.get('employeeOf')[officeName],
@@ -198,12 +173,7 @@ const handleSignUpAndInstall = (options) => {
           data.action = httpsActions.signup;
         }
 
-        options
-          .batch
-          .set(doc
-            .ref
-            .collection('Addendum')
-            .doc(), data);
+        options.batch.set(doc.ref.collection('Addendum').doc(), data);
       });
 
       return options.batch.commit();
@@ -219,29 +189,23 @@ const handleCancelledSubscriptions = async change => {
     return Promise.resolve();
   }
 
-  const profileSubscriptions = await change
-    .after
-    .ref
+  const profileSubscriptions = await change.after.ref
     .collection('Subscriptions')
     .where('timestamp', '<', oldFromValue)
     .get();
 
   const batch = db.batch();
 
-  profileSubscriptions
-    .forEach(doc => {
-      if (doc.get('status') !== 'CANCELLED') {
-        return;
-      }
+  profileSubscriptions.forEach(doc => {
+    if (doc.get('status') !== 'CANCELLED') {
+      return;
+    }
 
-      batch
-        .delete(doc.ref);
-    });
+    batch.delete(doc.ref);
+  });
 
-  return batch
-    .commit();
+  return batch.commit();
 };
-
 
 /**
  * Deletes the addendum docs from the `Updates/(uid)/Addendum` when the
@@ -254,10 +218,7 @@ const handleCancelledSubscriptions = async change => {
  * @returns {Promise<Batch>} Firestore `Batch` object.
  */
 module.exports = async change => {
-  const {
-    before,
-    after,
-  } = change;
+  const {before, after} = change;
 
   /** Only for debugging */
   if (!after.data()) {
@@ -265,14 +226,18 @@ module.exports = async change => {
   }
 
   const batch = db.batch();
-  const profileCreated = Boolean(!before.data() && after.data() && after.get('uid'));
+  const profileCreated = Boolean(
+    !before.data() && after.data() && after.get('uid'),
+  );
   const phoneNumber = after.id;
   const oldOfficesList = Object.keys(before.get('employeeOf') || {});
   const currentOfficesList = Object.keys(after.get('employeeOf') || {});
-  const newOffice = currentOfficesList
-    .filter((officeName) => !oldOfficesList.includes(officeName))[0];
-  const removedOffice = oldOfficesList
-    .filter((officeName) => !currentOfficesList.includes(officeName))[0];
+  const newOffice = currentOfficesList.filter(
+    officeName => !oldOfficesList.includes(officeName),
+  )[0];
+  const removedOffice = oldOfficesList.filter(
+    officeName => !currentOfficesList.includes(officeName),
+  )[0];
   /**
    * The uid was `undefined` or `null` in the old state, but is available
    * after document `onWrite` event.
@@ -290,9 +255,9 @@ module.exports = async change => {
    * for all the offices this person belongs to.
    */
   const hasInstalled = Boolean(
-    before.get('lastQueryFrom')
-    && before.get('lastQueryFrom') !== 0
-    && after.get('lastQueryFrom') === 0
+    before.get('lastQueryFrom') &&
+      before.get('lastQueryFrom') !== 0 &&
+      after.get('lastQueryFrom') === 0,
   );
 
   const options = {
@@ -323,9 +288,8 @@ module.exports = async change => {
    * Delete addendum if new `lastFromQuery` > old `lastFromQuery`.
    */
 
-  const toSendSMS = !change.before.data()
-    && change.after.data()
-    && !change.after.get('uid');
+  const toSendSMS =
+    !change.before.data() && change.after.data() && !change.after.get('uid');
 
   try {
     await handleSignUpAndInstall(options);
@@ -336,9 +300,10 @@ module.exports = async change => {
     const office = change.after.get('smsContext.office');
     if (!toSendSMS || !office) return;
 
-    const smsText = `${office.substring(0, 20)} will use`
-      + ` Growthfile for attendance and leave.`
-      + ` Download now to CHECK-IN ${env.downloadUrl}`;
+    const smsText =
+      `${office.substring(0, 20)} will use` +
+      ` Growthfile for attendance and leave.` +
+      ` Download now to CHECK-IN ${env.downloadUrl}`;
 
     return sendSMS(phoneNumber, smsText);
   } catch (error) {

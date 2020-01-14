@@ -21,12 +21,10 @@
  *
  */
 
-
 'use strict';
 
-
-const { rootCollections } = require('../../admin/admin');
-const { code } = require('../../admin/responses');
+const {rootCollections} = require('../../admin/admin');
+const {code} = require('../../admin/responses');
 const {
   sendJSON,
   handleError,
@@ -34,8 +32,7 @@ const {
   isNonEmptyString,
 } = require('../../admin/utils');
 
-
-const getDocObject = (doc) => {
+const getDocObject = doc => {
   const templateObject = {
     // This is unix timestamp (number)
     timestamp: doc.get('timestamp'),
@@ -43,7 +40,8 @@ const getDocObject = (doc) => {
     updateTime: doc.createTime.toDate(),
   };
 
-  ['name',
+  [
+    'name',
     'venue',
     'hidden',
     'comment',
@@ -51,11 +49,10 @@ const getDocObject = (doc) => {
     'attachment',
     'canEditRule',
     'statusOnCreate',
-  ].forEach((field) => templateObject[field] = doc.get(field));
+  ].forEach(field => (templateObject[field] = doc.get(field)));
 
   return templateObject;
 };
-
 
 /**
  * Fetches all the docs from `/ActivityTemplates` collection and sends
@@ -64,24 +61,22 @@ const getDocObject = (doc) => {
  * @param {Object} conn Contains Express Request and Response objects.
  * @returns {void}
  */
-const fetchAllTemplates = (conn) => {
+const fetchAllTemplates = conn => {
   const jsonObject = {};
 
-  rootCollections
-    .activityTemplates
+  rootCollections.activityTemplates
     .orderBy('timestamp', 'desc')
     .get()
-    .then((snapShot) => {
-      snapShot.forEach((doc) => jsonObject[doc.id] = getDocObject(doc));
+    .then(snapShot => {
+      snapShot.forEach(doc => (jsonObject[doc.id] = getDocObject(doc)));
 
       /** Response ends here... */
       sendJSON(conn, jsonObject);
 
       return;
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
-
 
 /**
  * Fetches the template based on `name` from the query parameter in the
@@ -90,28 +85,27 @@ const fetchAllTemplates = (conn) => {
  * @param {Object} conn Contains Express Request and Response objects.
  * @returns {void}
  */
-const fetchTemplateByName = (conn) => {
+const fetchTemplateByName = conn => {
   if (!isNonEmptyString(conn.req.query.name)) {
     sendResponse(
       conn,
       code.badRequest,
-      'The name should be a non-empty string.'
+      'The name should be a non-empty string.',
     );
 
     return;
   }
 
-  rootCollections
-    .activityTemplates
+  rootCollections.activityTemplates
     .where('name', '==', conn.req.query.name)
     .limit(1)
     .get()
-    .then((snapShot) => {
+    .then(snapShot => {
       if (snapShot.empty) {
         sendResponse(
           conn,
           code.notFound,
-          `No template found with the name: ${conn.req.query.name}`
+          `No template found with the name: ${conn.req.query.name}`,
         );
 
         return;
@@ -121,9 +115,8 @@ const fetchTemplateByName = (conn) => {
 
       return;
     })
-    .catch((error) => handleError(conn, error));
+    .catch(error => handleError(conn, error));
 };
-
 
 /**
  * Checks if the query string is present in the request URL.
@@ -131,7 +124,7 @@ const fetchTemplateByName = (conn) => {
  * @param {Object} conn Contains Express Request and Response objects.
  * @returns {void}
  */
-module.exports = (conn) => {
+module.exports = conn => {
   if (conn.req.query.hasOwnProperty('name')) {
     fetchTemplateByName(conn);
 

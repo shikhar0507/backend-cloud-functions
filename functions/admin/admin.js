@@ -21,9 +21,7 @@
  *
  */
 
-
 'use strict';
-
 
 const env = require('./env');
 const admin = require('firebase-admin');
@@ -45,15 +43,13 @@ admin.initializeApp(appInitOptions);
 const auth = admin.auth();
 const db = admin.firestore();
 
-db.settings({ timestampsInSnapshots: true });
+db.settings({
+  timestampsInSnapshots: true,
+});
 
 /** For the worst cases where there is an omission of a `catch()` block. */
-process
-  .on('unhandledRejection', console.log);
-
-process
-  .on('uncaughtException', console.log);
-
+process.on('unhandledRejection', console.log);
+process.on('uncaughtException', console.log);
 
 /**
  * Returns a sentinel containing the GeoPoint object for writing a
@@ -64,47 +60,12 @@ process
  * on writing to the Firestore.
  */
 const getGeopointObject = geopoint => {
-  if (geopoint.latitude === ''
-    && geopoint.longitude === '') {
+  if (geopoint.latitude === '' && geopoint.longitude === '') {
     return geopoint;
   }
 
-  return new admin.firestore.GeoPoint(
-    geopoint.latitude,
-    geopoint.longitude
-  );
+  return new admin.firestore.GeoPoint(geopoint.latitude, geopoint.longitude);
 };
-
-
-/**
- * Updates the phone number of a user in the auth for Firebase.
- *
- * @param {string} uid A 30 character alpha-numeric string.
- * @param {string} phoneNumber A E.164 phone number.
- * @returns {Promise <Object>} Resolving to an updated `userRecord`.
- * @see https://en.wikipedia.org/wiki/E.164
- */
-const updateUserPhoneNumberInAuth = (uid, phoneNumber) =>
-  auth.updateUser(uid, { phoneNumber });
-
-
-/**
- * Creates a new user in Auth with the given userRecord.
- *
- * @param {Object} userRecord Contains the fields with user data.
- * @returns {Promise <Object>} New `userRecord` for the created user.
- */
-const createUserInAuth = (userRecord) => auth.createUser(userRecord);
-
-/**
- * Revokes the token of the a user in order to end their login session.
- *
- * @param {string} uid A 30 character alpha-numeric string.
- * @returns {Promise} The `userRecord` of user who's `idToken` was revoked.
- * @see https://firebase.google.com/docs/auth/admin/manage-sessions#revoke_refresh_token
- */
-const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
-
 
 /**
  * Returns the user record object using the phone number.
@@ -121,18 +82,21 @@ const revokeRefreshTokens = (uid) => auth.revokeRefreshTokens(uid);
  * the input `phoneNumber` is in does not confirm to the E.164 phone number.
  * @see https://en.wikipedia.org/wiki/E.164
  */
-const getUserByPhoneNumber = (phoneNumber) =>
-  auth.getUserByPhoneNumber(phoneNumber)
-    .then((userRecord) => {
+const getUserByPhoneNumber = phoneNumber =>
+  auth
+    .getUserByPhoneNumber(phoneNumber)
+    .then(userRecord => {
       return {
         [phoneNumber]: userRecord,
       };
     })
-    .catch((error) => {
+    .catch(error => {
       /** @see https://firebase.google.com/docs/auth/admin/errors */
-      if (error.code === 'auth/user-not-found'
-        || error.code === 'auth/invalid-phone-number'
-        || error.code === 'auth/internal-error') {
+      if (
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/invalid-phone-number' ||
+        error.code === 'auth/internal-error'
+      ) {
         return {
           [phoneNumber]: {},
         };
@@ -154,18 +118,20 @@ const getUserByPhoneNumber = (phoneNumber) =>
       };
     });
 
-
-const getUserByEmail = (email) =>
-  auth.getUserByEmail(email)
-    .then((userRecord) => {
+const getUserByEmail = email =>
+  auth
+    .getUserByEmail(email)
+    .then(userRecord => {
       return {
         [email]: userRecord,
       };
     })
-    .catch((error) => {
+    .catch(error => {
       /** @see https://firebase.google.com/docs/auth/admin/errors */
-      if (error.code === 'auth/user-not-found'
-        || error.code === 'auth/internal-error') {
+      if (
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/internal-error'
+      ) {
         return {
           [email]: {},
         };
@@ -186,25 +152,6 @@ const getUserByEmail = (email) =>
         [email]: {},
       };
     });
-
-
-/**
- * Disables the user account in auth.
- *
- * @param {string} uid A 30 character alpha-numeric string.
- * @returns {Promise <Object>} Resolving to a userRecord object.
- */
-const disableUser = (uid) => auth.updateUser(uid, { disabled: true });
-
-
-/**
- * Returns the `userRecord` by using the `uid`.
- *
- * @param {string} uid Firebase uid string.
- * @returns {Promise <Object>} Resolving to a `userRecord` object.
- */
-const getUserByUid = (uid) => auth.getUser(uid);
-
 
 /**
  * Contains the references to all the collections which are in the
@@ -251,6 +198,7 @@ const rootCollections = {
    * @example `/Instant/(auto-id)`
    */
   instant: db.collection('Instant'),
+  // TODO: Remove 'reports'. It's not used anywhere.
   reports: db.collection('Reports'),
   inits: db.collection('Inits'),
   recipients: db.collection('Recipients'),
@@ -259,27 +207,20 @@ const rootCollections = {
   events: db.collection('Events'),
   errors: db.collection('Errors'),
   anonymous: db.collection('Anonymous'),
-  inboundPayments: db.collection('InboundPayments'),
-  deposits: db.collection('Deposits'),
   mailEvents: db.collection('MailEvents'),
+  facebookEvents: db.collection('FacebookEvents'),
+  deposits: db.collection('Deposits'),
+  batches: db.collection('Batches'),
+  payments: db.collection('Payments'),
 };
-
-
-const users = {
-  disableUser,
-  getUserByUid,
-  getUserByEmail,
-  createUserInAuth,
-  revokeRefreshTokens,
-  getUserByPhoneNumber,
-  updateUserPhoneNumberInAuth,
-};
-
 
 module.exports = {
   db,
   auth,
-  users,
   rootCollections,
   getGeopointObject,
+  users: {
+    getUserByEmail,
+    getUserByPhoneNumber,
+  },
 };

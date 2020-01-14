@@ -1,72 +1,100 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
-
-const { rootCollections } = require('../../admin/admin');
-const {
-  getNumbersbetween,
-} = require('../../admin/utils');
+const {rootCollections} = require('../../admin/admin');
+const {getNumbersbetween} = require('../../admin/utils');
 const {
   subcollectionNames,
   dateFormats,
   reportNames,
 } = require('../../admin/constants');
-const {
-  alphabetsArray,
-} = require('./report-utils');
+const {alphabetsArray} = require('./report-utils');
 const admin = require('firebase-admin');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 
+class NumberGenerator {
+  constructor(initialValue = 0) {
+    this.count = initialValue;
+  }
+
+  value() {
+    return this.count++;
+  }
+}
 
 const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
-  if (previousResult
-    && previousResult.length === 0) {
-    console.log('exiting', intermediate.length);
-
+  if (previousResult && previousResult.length === 0) {
     return intermediate;
   }
 
-  console.log('previousResult length:', (() => {
-    if (!previousResult) {
-      return null;
-    }
+  console.log(
+    'previousResult length:',
+    (() => {
+      if (!previousResult) {
+        return null;
+      }
 
-    return previousResult.length;
-  })());
+      return previousResult.length;
+    })(),
+  );
 
-  let query = baseQuery
-    .orderBy(admin.firestore.FieldPath.documentId());
+  let query = baseQuery.orderBy(admin.firestore.FieldPath.documentId());
 
   if (previousResult && previousResult.length > 0) {
     const last = previousResult[previousResult.length - 1];
 
     console.log('last', last.id);
 
-    query = query
-      .startAfter(last.id);
+    query = query.startAfter(last.id);
   }
 
   const result = await query.limit(500).get();
 
   console.log('result', result.size);
 
-  return recursiveFetch(baseQuery, [].concat(intermediate, result.docs), result.docs);
+  return recursiveFetch(
+    baseQuery,
+    [].concat(intermediate, result.docs),
+    result.docs,
+  );
 };
-
 
 const getEmployeeCreationDate = (activationDate, momentInstance, timezone) => {
   const activationDateMoment = momentTz(activationDate).tz(timezone);
 
-  if (activationDate
-    && momentInstance.year() === activationDateMoment.year()
-    && momentInstance.month() === activationDateMoment.month()) {
-    return activationDateMoment
-      .format(dateFormats.DATE);
+  if (
+    activationDate &&
+    momentInstance.year() === activationDateMoment.year() &&
+    momentInstance.month() === activationDateMoment.month()
+  ) {
+    return activationDateMoment.format(dateFormats.DATE);
   }
 
   return '';
 };
-
 
 const getLeaveStatus = attendanceDateObject => {
   if (attendanceDateObject.leave.leaveType) {
@@ -75,7 +103,6 @@ const getLeaveStatus = attendanceDateObject => {
 
   return 'Leave';
 };
-
 
 const getTypeValue = (attendanceDateObject = {}) => {
   if (attendanceDateObject.onLeave) {
@@ -90,8 +117,7 @@ const getTypeValue = (attendanceDateObject = {}) => {
     return 'Attendance Regularization';
   }
 
-  attendanceDateObject
-    .working = attendanceDateObject.working || {};
+  attendanceDateObject.working = attendanceDateObject.working || {};
 
   if (attendanceDateObject.isLate) {
     return 'Late';
@@ -104,8 +130,7 @@ const getTypeValue = (attendanceDateObject = {}) => {
   return '';
 };
 
-
-const getStatusValue = (attendanceDateObject = {}) => {
+const getAttendanceValue = (attendanceDateObject = {}) => {
   if (attendanceDateObject.hasOwnProperty('attendance')) {
     return attendanceDateObject.attendance;
   }
@@ -113,40 +138,38 @@ const getStatusValue = (attendanceDateObject = {}) => {
   return '';
 };
 
-
 const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
-  if (attendanceDateObject.weeklyOff
-    || attendanceDateObject.holiday) {
+  if (attendanceDateObject.weeklyOff || attendanceDateObject.holiday) {
     return baseLocation;
   }
 
-  if (attendanceDateObject.onLeave
-    && attendanceDateObject.leave.reason) {
+  if (attendanceDateObject.onLeave && attendanceDateObject.leave.reason) {
     return attendanceDateObject.leave.reason;
   }
 
-  if (attendanceDateObject.onAr
-    && attendanceDateObject.ar.reason) {
+  if (attendanceDateObject.onAr && attendanceDateObject.ar.reason) {
     return attendanceDateObject.ar.reason;
   }
 
-  const {
-    firstCheckInTimestamp,
-    lastCheckInTimestamp,
-    numberOfCheckIns,
-  } = attendanceDateObject.working || {};
+  const {firstCheckInTimestamp, lastCheckInTimestamp, numberOfCheckIns} =
+    attendanceDateObject.working || {};
 
   if (!firstCheckInTimestamp) {
     return '';
   }
 
-  return `${momentTz(firstCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
-    + `, `
-    + `${momentTz(lastCheckInTimestamp).tz(timezone).format(dateFormats.TIME)}`
-    + `, `
-    + `${numberOfCheckIns}`;
+  return (
+    `${momentTz(firstCheckInTimestamp)
+      .tz(timezone)
+      .format(dateFormats.TIME)}` +
+    `, ` +
+    `${momentTz(lastCheckInTimestamp)
+      .tz(timezone)
+      .format(dateFormats.TIME)}` +
+    `, ` +
+    `${numberOfCheckIns}`
+  );
 };
-
 
 const getTotalDays = params => {
   const {
@@ -156,21 +179,24 @@ const getTotalDays = params => {
   } = params;
 
   if (fetchPreviousMonthDocs) {
-    const momentPrevMonth = momentYesterday
-      .clone()
-      .subtract(1, 'month')
-      .date(firstDayOfMonthlyCycle);
-
-    return momentYesterday
-      .diff(momentPrevMonth, 'days') + 1;
+    return momentYesterday.diff(
+      momentYesterday
+        .clone()
+        .subtract(1, 'month')
+        .date(firstDayOfMonthlyCycle),
+      'days',
+    );
   }
 
-  return momentYesterday
-    .diff(momentYesterday.clone().date(firstDayOfMonthlyCycle), 'days') + 1;
+  return momentYesterday.diff(
+    momentYesterday.clone().date(firstDayOfMonthlyCycle),
+    'days',
+  );
 };
 
 const rangeCallback = params => {
   const {
+    sortedAttendanceMap,
     allLeaveTypes,
     timezone,
     payrollSheet,
@@ -184,14 +210,23 @@ const rangeCallback = params => {
     arCountMap,
     attendanceCountMap,
     attendanceSumMap,
+    phoneNumber,
+    attendance,
+    employeeData,
+  } = params;
+
+  const {
+    supervisor,
+    designation,
     region,
     employeeCode,
     employeeName,
-    phoneNumber,
     department,
     baseLocation,
-    attendance,
-  } = params;
+  } = employeeData.get(phoneNumber) || {};
+
+  const supervisorName =
+    employeeData.get(supervisor) && employeeData.get(supervisor).employeeName;
 
   const activationDate = (() => {
     if (!attendanceDoc) {
@@ -202,99 +237,66 @@ const rangeCallback = params => {
   })();
 
   /** Data might not exist for someone for a certain date. */
-  attendance[
-    date
-  ] = attendance[date] || {};
-
-  const hasAttendanceProperty = attendance[
-    date
-  ].hasOwnProperty('attendance');
-
-  // console.log(phoneNumber, JSON.stringify(attendance[date], ' ', 2));
-
-  attendance[
-    date
-  ].leave = attendance[date].leave || {};
+  attendance[date] = attendance[date] || {};
+  const hasAttendanceProperty = attendance[date].hasOwnProperty('attendance');
+  attendance[date].leave = attendance[date].leave || {};
 
   if (attendance[date].leave.leaveType) {
-    allLeaveTypes
-      .add(attendance[date].leave.leaveType);
+    allLeaveTypes.add(attendance[date].leave.leaveType);
 
     const oldCount = leaveTypeCountMap.get(phoneNumber) || {};
 
-    oldCount[
-      attendance[date].leave.leaveType
-    ] = oldCount[attendance[date].leave.leaveType] || 0;
+    oldCount[attendance[date].leave.leaveType] =
+      oldCount[attendance[date].leave.leaveType] || 0;
+    oldCount[attendance[date].leave.leaveType]++;
 
-    oldCount[
-      attendance[date].leave.leaveType
-    ]++;
-
-    leaveTypeCountMap
-      .set(
-        phoneNumber,
-        oldCount
-      );
-  }
-
-  if (attendance[date].holiday) {
-    const oldSet = holidayCountMap
-      .get(phoneNumber) || 0;
-
-    holidayCountMap
-      .set(
-        phoneNumber,
-        oldSet + 1
-      );
-  }
-
-  if (attendance[date].weeklyOff) {
-    const oldSet = weeklyOffCountMap
-      .get(phoneNumber) || 0;
-
-    weeklyOffCountMap
-      .set(
-        phoneNumber,
-        oldSet + 1
-      );
+    leaveTypeCountMap.set(phoneNumber, oldCount);
   }
 
   if (attendance[date].holiday) {
     const oldSet = holidayCountMap.get(phoneNumber) || 0;
 
-    holidayCountMap
-      .set(
-        phoneNumber,
-        oldSet + 1
-      );
+    holidayCountMap.set(phoneNumber, oldSet + 1);
+  }
+
+  if (attendance[date].weeklyOff) {
+    const oldSet = weeklyOffCountMap.get(phoneNumber) || 0;
+
+    weeklyOffCountMap.set(phoneNumber, oldSet + 1);
+  }
+
+  if (attendance[date].holiday) {
+    const oldSet = holidayCountMap.get(phoneNumber) || 0;
+
+    holidayCountMap.set(phoneNumber, oldSet + 1);
   }
 
   if (attendance[date].onAr) {
     const oldSet = arCountMap.get(phoneNumber) || 0;
-    arCountMap
-      .set(
-        phoneNumber,
-        oldSet + 1
-      );
+
+    arCountMap.set(phoneNumber, oldSet + 1);
   }
 
   if (hasAttendanceProperty) {
-    const oldCount = attendanceCountMap.get(phoneNumber) || 0;
-
-    attendanceCountMap
-      .set(
-        phoneNumber,
-        oldCount + 1
-      );
+    attendanceCountMap.set(
+      phoneNumber,
+      (attendanceCountMap.get(phoneNumber) || 0) + 1,
+    );
 
     const oldAttendanceSum = attendanceSumMap.get(phoneNumber) || 0;
 
-    attendanceSumMap
-      .set(
-        phoneNumber,
-        oldAttendanceSum + attendance[date].attendance
-      );
+    attendanceSumMap.set(
+      phoneNumber,
+      oldAttendanceSum + attendance[date].attendance,
+    );
   }
+
+  const attendanceOnDate = getAttendanceValue(attendance[date]);
+
+  const o = sortedAttendanceMap.get(phoneNumber) || [];
+  o.push(attendanceOnDate || 0);
+
+  sortedAttendanceMap.set(phoneNumber, o);
 
   [
     employeeName,
@@ -303,10 +305,12 @@ const rangeCallback = params => {
     baseLocation,
     region,
     department,
+    designation,
+    supervisorName || supervisor,
     momentInstance.date(date).format(dateFormats.DATE), // actual date
     getEmployeeCreationDate(activationDate, momentInstance.clone(), timezone), // activation date
     getTypeValue(attendance[date]),
-    getStatusValue(attendance[date]),
+    attendanceOnDate,
     getDetailsValue(attendance[date], baseLocation, timezone),
   ].forEach((value, innerIndex) => {
     payrollSheet
@@ -315,44 +319,116 @@ const rangeCallback = params => {
   });
 };
 
+const getWorkbook = async formattedDate => {
+  const workbookRef = await xlsxPopulate.fromBlankAsync();
+  const payrollSummary = workbookRef.addSheet(`Payroll Summary`);
+  const payrollSheet = workbookRef.addSheet(`Payroll ${formattedDate}`);
+
+  workbookRef.deleteSheet('Sheet1');
+
+  return {
+    workbookRef,
+    payrollSheet,
+    payrollSummary,
+  };
+};
+
+const getSupervisor = roleDoc => {
+  return [
+    roleDoc.attachment['First Supervisor'].value,
+    roleDoc.attachment['Second Supervisor'].value,
+    roleDoc.attachment['Third Supervisor'].value,
+  ].filter(Boolean)[0];
+};
+
+const getRoleDetails = doc => {
+  const {
+    roleDoc,
+    employeeName,
+    employeeCode,
+    baseLocation,
+    region,
+    department,
+    designation,
+  } = doc.data();
+
+  if (roleDoc) {
+    return {
+      employeeName: roleDoc.attachment.Name.value,
+      employeeCode: roleDoc.attachment['Employee Code'].value,
+      baseLocation: roleDoc.attachment['Base Location'].value,
+      region: roleDoc.attachment.Region.value,
+      department: roleDoc.attachment.Department.value,
+      designation: roleDoc.attachment.Designation.value,
+      supervisor: getSupervisor(roleDoc),
+    };
+  }
+
+  return {
+    employeeName,
+    employeeCode,
+    baseLocation,
+    region,
+    department,
+    designation,
+  };
+};
+
+const getHeaderDates = (firstRange, secondRange, momentYesterday) => {
+  const result = [];
+  const momentPrevMonth = momentYesterday.clone().subtract(1, 'month');
+
+  firstRange.forEach(date => {
+    result.push(
+      momentPrevMonth
+        .clone()
+        .date(date)
+        .format(dateFormats.DATE),
+    );
+  });
+
+  secondRange.forEach(date => {
+    result.push(
+      momentYesterday
+        .clone()
+        .date(date)
+        .format(dateFormats.DATE),
+    );
+  });
+
+  return result;
+};
 
 module.exports = async locals => {
   const timestampFromTimer = locals.change.after.get('timestamp');
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
-  const momentToday = momentTz(timestampFromTimer)
-    .tz(timezone);
-  const momentYesterday = momentToday
-    .clone()
-    .subtract(1, 'day');
-  const firstDayOfMonthlyCycle = locals
-    .officeDoc
-    .get('attachment.First Day Of Monthly Cycle.value') || 1;
-  const fetchPreviousMonthDocs = firstDayOfMonthlyCycle > momentYesterday.date();
+  const momentToday = momentTz(timestampFromTimer).tz(timezone);
+  const momentYesterday = momentToday.clone().subtract(1, 'day');
+  const firstDayOfMonthlyCycle =
+    locals.officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
+  const fetchPreviousMonthDocs =
+    firstDayOfMonthlyCycle > momentYesterday.date();
   const momentPrevMonth = momentYesterday.clone().subtract(1, 'month');
   /** Just for better readability. */
   const cycleEndMoment = momentYesterday;
   const allAttendanceDocs = [];
   let allLeaveTypes = new Set();
   /**
- * Object which stores employee data for creating excel sheet entries
- * with employee contact, base location, region, department, etc.
- */
+   * Object which stores employee data for creating excel sheet entries
+   * with employee contact, base location, region, department, etc.
+   */
   const employeeData = new Map();
   const weeklyOffCountMap = new Map();
   const holidayCountMap = new Map();
   const leaveTypeCountMap = new Map();
   const arCountMap = new Map();
-  const allPhoneNumbers = new Set();
   const attendanceCountMap = new Map();
   const attendanceSumMap = new Map();
-  const workbook = await xlsxPopulate
-    .fromBlankAsync();
-  const payrollSummary = workbook
-    .addSheet(`Payroll Summary`);
-  const payrollSheet = workbook
-    .addSheet(`Payroll ${momentToday.format(dateFormats.DATE)}`);
-  workbook
-    .deleteSheet('Sheet1');
+  const sortedAttendanceMap = new Map();
+  const docsMap = {};
+  const {workbookRef, payrollSummary, payrollSheet} = await getWorkbook(
+    momentToday.format(dateFormats.DATE),
+  );
 
   const allCountsData = {
     report: reportNames.PAYROLL,
@@ -371,7 +447,10 @@ module.exports = async locals => {
     if (fetchPreviousMonthDocs) {
       return getNumbersbetween(
         firstDayOfMonthlyCycle,
-        momentPrevMonth.clone().endOf('month').date() + 1,
+        momentPrevMonth
+          .clone()
+          .endOf('month')
+          .date() + 1,
       );
     }
 
@@ -380,161 +459,100 @@ module.exports = async locals => {
 
   /** Dates in current month */
   const secondRange = getNumbersbetween(
-    (fetchPreviousMonthDocs ? 1 : firstDayOfMonthlyCycle),
+    fetchPreviousMonthDocs ? 1 : firstDayOfMonthlyCycle,
     cycleEndMoment.clone().date() + 1,
   );
 
-  console.log('firstRange', firstRange);
-  console.log('secondRange', secondRange);
-
-  const totalDays = getTotalDays({
-    momentYesterday,
-    firstDayOfMonthlyCycle,
-    fetchPreviousMonthDocs,
-  });
+  const totalDays =
+    getTotalDays({
+      momentYesterday,
+      firstDayOfMonthlyCycle,
+      fetchPreviousMonthDocs,
+    }) + 1;
 
   if (fetchPreviousMonthDocs) {
-    const baseQuery = locals
-      .officeDoc
-      .ref
+    const baseQuery = locals.officeDoc.ref
       .collection(subcollectionNames.ATTENDANCES)
       .where('month', '==', momentPrevMonth.month())
       .where('year', '==', momentPrevMonth.year());
 
-    allAttendanceDocs
-      .push(
-        ...await recursiveFetch(baseQuery, [])
-      );
+    allAttendanceDocs.push(...(await recursiveFetch(baseQuery, [])));
   }
 
-  const baseQuery = locals
-    .officeDoc
-    .ref
+  const baseQuery = locals.officeDoc.ref
     .collection(subcollectionNames.ATTENDANCES)
     .where('month', '==', momentYesterday.month())
     .where('year', '==', momentYesterday.year());
 
-  allAttendanceDocs
-    .push(
-      ...await recursiveFetch(baseQuery, [])
-    );
+  allAttendanceDocs.push(...(await recursiveFetch(baseQuery, [])));
 
-  const docsMap = {};
+  allAttendanceDocs.forEach(doc => {
+    const {month, phoneNumber} = doc.data();
 
-  allAttendanceDocs
-    .forEach(doc => {
-      const {
-        month,
-        phoneNumber,
-        employeeName,
-        employeeCode,
-        baseLocation,
-        region,
-        department,
-      } = doc.data();
+    employeeData.set(phoneNumber, getRoleDetails(doc));
+    docsMap[`${phoneNumber}__${month}`] = doc;
+  });
 
-      employeeData
-        .set(phoneNumber, {
-          employeeName,
-          employeeCode,
-          baseLocation,
-          region,
-          department,
-        });
-
-      const key = `${phoneNumber}__${month}`;
-      docsMap[key] = doc;
-
-      allPhoneNumbers
-        .add(phoneNumber);
-    });
-
-  let rowIndex = 0;
-
+  const numberInstance = new NumberGenerator(1);
   const prevMonth = momentPrevMonth.month();
   const currMonth = momentYesterday.month();
 
-  allPhoneNumbers
-    .forEach(phoneNumber => {
-      const {
-        employeeName,
-        employeeCode,
-        baseLocation,
-        region,
-        department,
-      } = employeeData.get(phoneNumber);
+  employeeData.forEach((_, phoneNumber) => {
+    firstRange.forEach(date => {
+      const rowIndex = numberInstance.value();
+      const attDoc = docsMap[`${phoneNumber}__${prevMonth}`];
+      const params = {
+        sortedAttendanceMap,
+        allLeaveTypes,
+        timezone,
+        payrollSheet,
+        date,
+        rowIndex,
+        employeeData,
+        weeklyOffCountMap,
+        holidayCountMap,
+        leaveTypeCountMap,
+        arCountMap,
+        attendanceCountMap,
+        attendanceSumMap,
+        phoneNumber,
+        attendanceDoc: attDoc,
+        attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
+        momentInstance: momentPrevMonth.clone(),
+      };
 
-      firstRange
-        .forEach(date => {
-          rowIndex++;
-          const key = `${phoneNumber}__${prevMonth}`;
-          const attDoc = docsMap[key];
+      allCountsData.rowsCount++;
 
-          const params = {
-            allLeaveTypes,
-            timezone,
-            payrollSheet,
-            date,
-            rowIndex,
-            employeeData,
-            weeklyOffCountMap,
-            holidayCountMap,
-            leaveTypeCountMap,
-            arCountMap,
-            attendanceCountMap,
-            attendanceSumMap,
-            region,
-            employeeCode,
-            employeeName,
-            phoneNumber,
-            department,
-            baseLocation,
-            attendanceDoc: attDoc,
-            attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
-            momentInstance: momentPrevMonth.clone(),
-          };
-
-          allCountsData.rowsCount++;
-
-          rangeCallback(params);
-        });
-
-      secondRange
-        .forEach(date => {
-          rowIndex++;
-
-          const key = `${phoneNumber}__${currMonth}`;
-          const attDoc = docsMap[key];
-
-          const params = {
-            month: currMonth,
-            allLeaveTypes,
-            timezone,
-            payrollSheet,
-            date,
-            rowIndex,
-            employeeData,
-            weeklyOffCountMap,
-            holidayCountMap,
-            leaveTypeCountMap,
-            arCountMap,
-            attendanceCountMap,
-            attendanceSumMap,
-            region,
-            employeeCode,
-            employeeName,
-            phoneNumber,
-            department,
-            baseLocation,
-            attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
-            momentInstance: momentYesterday.clone(),
-          };
-
-          allCountsData.rowsCount++;
-
-          rangeCallback(params);
-        });
+      rangeCallback(params);
     });
+
+    secondRange.forEach(date => {
+      const rowIndex = numberInstance.value();
+      const attDoc = docsMap[`${phoneNumber}__${currMonth}`];
+      const params = {
+        sortedAttendanceMap,
+        allLeaveTypes,
+        timezone,
+        payrollSheet,
+        date,
+        rowIndex,
+        employeeData,
+        weeklyOffCountMap,
+        holidayCountMap,
+        leaveTypeCountMap,
+        arCountMap,
+        attendanceCountMap,
+        attendanceSumMap,
+        phoneNumber,
+        attendance: (attDoc ? attDoc.get('attendance') : {}) || {},
+        momentInstance: momentYesterday.clone(),
+      };
+
+      allCountsData.rowsCount++;
+
+      rangeCallback(params);
+    });
+  });
 
   /**
    * Converting this set to an array in order to preserve
@@ -545,55 +563,59 @@ module.exports = async locals => {
   allLeaveTypes = [...allLeaveTypes.values()];
 
   let summaryRowIndex = 0;
+  allCountsData.totalUsers = employeeData.size;
 
-  allCountsData.totalUsers = allPhoneNumbers.size;
+  employeeData.forEach((val, phoneNumber) => {
+    const {
+      employeeName,
+      employeeCode,
+      baseLocation,
+      region,
+      department,
+      designation,
+      supervisor,
+    } = val || {}; // the user might not be an employee
 
-  allPhoneNumbers
-    .forEach(phoneNumber => {
-      const {
-        employeeName,
-        employeeCode,
-        baseLocation,
-        region,
-        department,
-      } = employeeData
-        .get(phoneNumber) || {};
+    const supervisorName =
+      employeeData.get(supervisor) && employeeData.get(supervisor).employeeName;
 
-      const values = [
-        employeeName,
-        phoneNumber,
-        employeeCode,
-        baseLocation,
-        region,
-        department,
-        arCountMap.get(phoneNumber) || 0,
-        weeklyOffCountMap.get(phoneNumber) || 0,
-        holidayCountMap.get(phoneNumber) || 0,
-        attendanceCountMap.get(phoneNumber) || 0, // mtd
-        totalDays,
-        attendanceSumMap.get(phoneNumber) || 0,
-      ];
+    console.log(supervisor, supervisorName);
 
-      const leaveTypesForUser = leaveTypeCountMap
-        .get(phoneNumber) || {};
+    const values = [
+      employeeName,
+      phoneNumber,
+      employeeCode,
+      baseLocation,
+      region,
+      department,
+      designation,
+      supervisorName || supervisor,
+      arCountMap.get(phoneNumber) || 0,
+      weeklyOffCountMap.get(phoneNumber) || 0,
+      holidayCountMap.get(phoneNumber) || 0,
+      attendanceCountMap.get(phoneNumber) || 0, // mtd
+      totalDays,
+      attendanceSumMap.get(phoneNumber) || 0,
+    ];
 
-      allLeaveTypes
-        .forEach(leaveType => {
-          const count = leaveTypesForUser[leaveType] || 0;
+    const leaveTypesForUser = leaveTypeCountMap.get(phoneNumber) || {};
 
-          values
-            .push(count);
-        });
-
-      values
-        .forEach((value, innerIndex) => {
-          payrollSummary
-            .cell(`${alphabetsArray[innerIndex]}${summaryRowIndex + 2}`)
-            .value(value);
-        });
-
-      summaryRowIndex++;
+    allLeaveTypes.forEach(leaveType => {
+      values.push(leaveTypesForUser[leaveType] || 0);
     });
+
+    sortedAttendanceMap.get(phoneNumber).forEach(attendanceValue => {
+      values.push(attendanceValue);
+    });
+
+    values.forEach((value, innerIndex) => {
+      payrollSummary
+        .cell(`${alphabetsArray[innerIndex]}${summaryRowIndex + 2}`)
+        .value(value);
+    });
+
+    summaryRowIndex++;
+  });
 
   [
     'Employee Name',
@@ -602,6 +624,8 @@ module.exports = async locals => {
     'Base Location',
     'Region',
     'Department',
+    'Designation',
+    'Supervisor',
     'Date',
     'Activation Date',
     'Type',
@@ -611,7 +635,10 @@ module.exports = async locals => {
     payrollSheet
       .cell(`${alphabetsArray[index]}1`)
       .value(value)
-      .style({ fontColor: 'FFFFF', bold: true });
+      .style({
+        fontColor: 'FFFFF',
+        bold: true,
+      });
   });
 
   [
@@ -621,6 +648,8 @@ module.exports = async locals => {
     'Base Location',
     'Region',
     'Department',
+    'Designation',
+    'Supervisor',
     'AR',
     'Weekly Off',
     'Holiday',
@@ -628,42 +657,39 @@ module.exports = async locals => {
     'Total Days',
     'Payable Days',
     ...allLeaveTypes,
+    ...getHeaderDates(firstRange, secondRange, momentYesterday),
   ].forEach((value, index) => {
-    payrollSummary
-      .cell(`${alphabetsArray[index]}1`)
-      .value(value);
+    payrollSummary.cell(`${alphabetsArray[index]}1`).value(value);
   });
 
-  locals
-    .messageObject
-    .attachments
-    .push({
-      fileName: `Payroll Report_`
-        + `${locals.officeDoc.get('office')}`
-        + `_${momentToday.format(dateFormats.DATE)}.xlsx`,
-      content: await workbook.outputAsync('base64'),
-      type: 'text/csv',
-      disposition: 'attachment',
-    });
+  await workbookRef.toFileAsync('/tmp/m.xlsx');
 
-  console.log(JSON.stringify({
-    office: locals.officeDoc.get('office'),
-    report: reportNames.PAYROLL,
-    to: locals.messageObject.to,
-  }, ' ', 2));
+  locals.messageObject.attachments.push({
+    fileName:
+      `Payroll Report_` +
+      `${locals.officeDoc.get('office')}` +
+      `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+    content: await workbookRef.outputAsync('base64'),
+    type: 'text/csv',
+    disposition: 'attachment',
+  });
 
-  await locals
-    .sgMail
-    .sendMultiple(locals.messageObject);
+  console.log(
+    JSON.stringify(
+      {
+        office: locals.officeDoc.get('office'),
+        report: reportNames.PAYROLL,
+        to: locals.messageObject.to,
+      },
+      ' ',
+      2,
+    ),
+  );
 
   console.log('mail sent');
 
-  console.log(JSON.stringify(allCountsData, ' ', 2));
-
-  await rootCollections
-    .inits
-    .doc()
-    .set(allCountsData);
-
-  return;
+  return Promise.all([
+    locals.sgMail.sendMultiple(locals.messageObject),
+    rootCollections.inits.doc().set(allCountsData),
+  ]);
 };

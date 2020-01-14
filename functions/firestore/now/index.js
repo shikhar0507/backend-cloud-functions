@@ -1,19 +1,108 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
+const {sendResponse, getISO8601Date, sendJSON} = require('../../admin/utils');
+const {subcollectionNames} = require('../../admin/constants');
+const {db, rootCollections} = require('../../admin/admin');
+const {code} = require('../../admin/responses');
+const momentTz = require('moment-timezone');
 
-const {
-  sendResponse,
-  getISO8601Date,
-  sendJSON,
-} = require('../../admin/utils');
-const {
-  db,
-  rootCollections,
-} = require('../../admin/admin');
-const {
-  code,
-} = require('../../admin/responses');
+const maskLastDigits = (
+  input,
+  digitsToReplace = 4,
+  charToReplaceWith = 'X',
+) => {
+  return (
+    `${new Array(input.length - digitsToReplace + 1).join(charToReplaceWith)}` +
+    `${input.slice(-digitsToReplace)}`
+  );
+};
 
+const getUsersWithProbablySameDevice = async (
+  deviceId,
+  phoneNumber,
+  authCreatedAt,
+) => {
+  const result = [];
+
+  if (momentTz().diff(momentTz(authCreatedAt), 'minutes') > 5) {
+    return result;
+  }
+
+  if (typeof deviceId !== 'string') {
+    return result;
+  }
+
+  const potentialNumbers = (
+    await rootCollections.updates
+      .where('deviceIdsArray', 'array-contains', deviceId)
+      .select('phoneNumber')
+      .get()
+  ).docs.reduce((prev, doc) => {
+    const {phoneNumber} = doc.data();
+    prev.push(phoneNumber);
+
+    return prev;
+  }, []);
+
+  const usersCurrentNumberIndex = potentialNumbers.indexOf(phoneNumber);
+
+  if (usersCurrentNumberIndex > -1) {
+    potentialNumbers.splice(usersCurrentNumberIndex, 1);
+  }
+
+  const subscriptionPromises = potentialNumbers
+    .filter(Boolean)
+    .map(phoneNumber =>
+      rootCollections.profiles
+        .doc(phoneNumber)
+        .collection(subcollectionNames.SUBSCRIPTIONS)
+        .get(),
+    );
+
+  const snaps = await Promise.all(subscriptionPromises);
+  const uniqueCombinations = new Set();
+
+  snaps.forEach(snap => {
+    snap.forEach(doc => {
+      const {office, template} = doc.data();
+      const {path} = doc.ref;
+      const phoneNumber = path.split('/')[1];
+      const id = `${office}${template}${phoneNumber}`;
+
+      if (uniqueCombinations.has(id)) {
+        return;
+      }
+
+      result.push({office, phoneNumber});
+      uniqueCombinations.add(id);
+    });
+  });
+
+  return result;
+};
 
 /**
  * Returns the server timestamp on a `GET` request.
@@ -26,42 +115,30 @@ module.exports = async conn => {
     return sendResponse(
       conn,
       code.methodNotAllowed,
-      `${conn.req.method} is not allowed for the /now endpoint.`
+      `${conn.req.method} is not allowed for the /now endpoint.`,
     );
   }
 
-  if (conn.req.query.hasOwnProperty('registrationToken')
-    && typeof conn.req.query.registrationToken !== 'string'
-    && conn.req.query.registrationToken !== null) {
+  if (
+    conn.req.query.hasOwnProperty('registrationToken') &&
+    typeof conn.req.query.registrationToken !== 'string' &&
+    conn.req.query.registrationToken !== null
+  ) {
     return sendResponse(
       conn,
       code.badRequest,
-      `The query param 'registrationToken' can either be a non-empty`
-      + ` string or 'null'`
+      `The query param 'registrationToken' can either be a non-empty` +
+        ` string or 'null'`,
     );
   }
 
   let removeFromOffice = [];
-
-  const [
-    updatesDoc,
-    timerDoc,
-    appVersionDoc,
-  ] = await Promise
-    .all([
-      rootCollections
-        .updates
-        .doc(conn.requester.uid)
-        .get(),
-      rootCollections
-        .timers
-        .doc(getISO8601Date())
-        .get(),
-      rootCollections
-        .versions
-        .doc('version')
-        .get(),
-    ]);
+  const batch = db.batch();
+  const [updatesDoc, timerDoc, appVersionDoc] = await Promise.all([
+    rootCollections.updates.doc(conn.requester.uid).get(),
+    rootCollections.timers.doc(getISO8601Date()).get(),
+    rootCollections.versions.doc('version').get(),
+  ]);
 
   /**
    * The `authOnCreate` function executed, when the user signed up, but
@@ -81,10 +158,7 @@ module.exports = async conn => {
 
   // update only if latestVersion >
   const updateClient = (() => {
-    const {
-      iosLatestVersion,
-      androidLatestVersion,
-    } = appVersionDoc.data();
+    const {iosLatestVersion, androidLatestVersion} = appVersionDoc.data();
 
     if (!conn.req.query.hasOwnProperty('os')) {
       return true;
@@ -110,56 +184,52 @@ module.exports = async conn => {
     return Number(usersAppVersion) < Number(latestVersionFromDb);
   })();
 
-  const batch = db.batch();
-
   if (!timerDoc.exists) {
-    batch
-      .set(timerDoc.ref, {
+    batch.set(
+      timerDoc.ref,
+      {
         timestamp: Date.now(),
         // Prevents multiple trigger events for reports.
         sent: false,
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
   }
 
-  const updatesDocData = updatesDoc.data();
-
-  updatesDocData
-    .lastNowRequestTimestamp = Date.now();
+  const updatesDocData = Object.assign({}, updatesDoc.data(), {
+    lastNowRequestTimestamp: Date.now(),
+    latestDeviceOs: conn.req.query.os || '',
+    latestAppVersion: conn.req.query.appVersion || '',
+    latestDeviceBrand: conn.req.query.deviceBrand || '',
+    latestOsVersion: conn.req.query.osVersion || '',
+    latestDeviceModel: conn.req.query.deviceModel || '',
+    latestDeviceId: conn.req.query.deviceId || '',
+  });
 
   const oldDeviceIdsArray = updatesDoc.get('deviceIdsArray') || [];
-
-  if (conn.req.query.deviceId) {
-    oldDeviceIdsArray
-      .push(conn.req.query.deviceId);
-
-    updatesDocData
-      .latestDeviceId = conn.req.query.deviceId;
-  }
-
-  updatesDocData
-    .deviceIdsArray = [...new Set(oldDeviceIdsArray)];
+  oldDeviceIdsArray.push(conn.req.query.deviceId);
+  updatesDocData.deviceIdsArray = [...new Set(oldDeviceIdsArray)].filter(
+    Boolean,
+  );
 
   /** Only logging when changed */
-  if (conn.req.query.hasOwnProperty('deviceId')
-    && conn.req.query.deviceId
-    && conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')) {
-
+  if (
+    conn.req.query.hasOwnProperty('deviceId') &&
+    conn.req.query.deviceId &&
+    conn.req.query.deviceId !== updatesDoc.get('latestDeviceId')
+  ) {
     if (!updatesDocData.deviceIdsObject) {
-      updatesDocData
-        .deviceIdsObject = {};
+      updatesDocData.deviceIdsObject = {};
     }
 
     if (!updatesDocData.deviceIdsObject[conn.req.query.deviceId]) {
-      updatesDocData
-        .deviceIdsObject[conn.req.query.deviceId] = {};
+      updatesDocData.deviceIdsObject[conn.req.query.deviceId] = {};
     }
 
     const oldCount =
-      updatesDocData
-        .deviceIdsObject[conn.req.query.deviceId]
-        .count || 0;
+      updatesDocData.deviceIdsObject[conn.req.query.deviceId].count || 0;
 
     updatesDocData.deviceIdsObject = {
       [conn.req.query.deviceId]: {
@@ -169,29 +239,23 @@ module.exports = async conn => {
     };
   }
 
-  if (conn.req.query.hasOwnProperty('registrationToken')
-    && typeof conn.req.query.registrationToken === 'string') {
-    updatesDocData
-      .registrationToken = conn.req.query.registrationToken;
+  if (
+    conn.req.query.hasOwnProperty('registrationToken') &&
+    typeof conn.req.query.registrationToken === 'string'
+  ) {
+    updatesDocData.registrationToken = conn.req.query.registrationToken;
   }
-
-  updatesDocData
-    .latestDeviceOs = conn.req.query.os || '';
-  updatesDocData
-    .latestAppVersion = conn.req.query.appVersion || '';
 
   if (updatesDocData.removeFromOffice) {
     removeFromOffice = updatesDocData.removeFromOffice;
 
     if (typeof conn.req.query.removeFromOffice === 'string') {
-      const index =
-        updatesDocData
-          .removeFromOffice
-          .indexOf(conn.req.query.removeFromOffice);
+      const index = updatesDocData.removeFromOffice.indexOf(
+        conn.req.query.removeFromOffice,
+      );
 
       if (index > -1) {
-        updatesDocData
-          .removeFromOffice.splice(index, 1);
+        updatesDocData.removeFromOffice.splice(index, 1);
       }
     }
 
@@ -200,81 +264,70 @@ module.exports = async conn => {
         const index = updatesDocData.removeFromOffice.indexOf(name);
 
         if (index > -1) {
-          updatesDocData
-            .removeFromOffice.splice(index, 1);
+          updatesDocData.removeFromOffice.splice(index, 1);
         }
       });
     }
   }
 
-  if (conn.req.query.hasOwnProperty('deviceBrand')) {
-    updatesDocData
-      .latestDeviceBrand = conn.req.query.deviceBrand;
-  }
-
-  if (conn.req.query.hasOwnProperty('deviceModel')) {
-    updatesDocData
-      .latestDeviceModel = conn.req.query.deviceModel;
-  }
-
-  // Delete venues on acknowledgement
-  if (updatesDocData.venues
-    && conn.req.query.venues === 'true') {
-    const admin = require('firebase-admin');
-
-    updatesDocData.venues = admin.firestore.FieldValue.delete();
-  }
-
-  if (updatesDoc.get('lastStatusDocUpdateTimestamp')
-    > updatesDoc.get('lastNowRequestTimestamp')) {
-    const ref = rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber);
-
-    batch
-      .set(ref, {
-        // lastStatuseUpdateTimestamp: Date.now(),
+  if (
+    updatesDoc.get('lastStatusDocUpdateTimestamp') >
+    updatesDoc.get('lastNowRequestTimestamp')
+  ) {
+    batch.set(
+      rootCollections.profiles.doc(conn.requester.phoneNumber),
+      {
         lastStatusDocUpdateTimestamp: Date.now(),
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
   }
 
-  if (updatesDoc.get('lastLocationMapUpdateTimestamp')
-    > updatesDoc.get('lastNowRequestTimestamp')) {
-    const ref = rootCollections
-      .profiles
-      .doc(conn.requester.phoneNumber);
-
-    console.log('/now lastLocationMapUpdateTimestamp');
-
-    batch
-      .set(ref, {
+  if (
+    updatesDoc.get('lastLocationMapUpdateTimestamp') >
+    updatesDoc.get('lastNowRequestTimestamp')
+  ) {
+    batch.set(
+      rootCollections.profiles.doc(conn.requester.phoneNumber),
+      {
         lastLocationMapUpdateTimestamp: Date.now(),
-      }, {
+      },
+      {
         merge: true,
-      });
+      },
+    );
   }
 
-  batch
-    .set(updatesDoc.ref, updatesDocData, {
-      merge: true,
-    });
-
-  await batch.commit();
+  batch.set(updatesDoc.ref, updatesDocData, {
+    merge: true,
+  });
 
   const responseObject = {
-    revokeSession: false,
     updateClient,
+    revokeSession: false,
     success: true,
     timestamp: Date.now(),
     code: code.ok,
+    idProof: updatesDoc.get('idProof') || null,
+    potentialAlternatePhoneNumbers: await getUsersWithProbablySameDevice(
+      conn.req.query.deviceId,
+      conn.requester.phoneNumber,
+      conn.requester.creationTime,
+    ),
+    linkedAccounts: (updatesDoc.get('linkedAccounts') || []).map(account => {
+      return Object.assign(account, {
+        bankAccount: maskLastDigits(account.bankAccount),
+      });
+    }),
   };
 
-  if (removeFromOffice
-    && removeFromOffice.length > 0) {
+  if (removeFromOffice && removeFromOffice.length > 0) {
     responseObject.removeFromOffice = removeFromOffice;
   }
+
+  await batch.commit();
 
   return sendJSON(conn, responseObject);
 };

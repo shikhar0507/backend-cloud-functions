@@ -1,3 +1,26 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
 function isValidJSON(json) {
@@ -243,13 +266,13 @@ function handleUpdateAuthRequest() {
     return;
   }
   sendApiRequest(
-    `${apiBaseUrl}/update-auth`, {
-    phoneNumber,
-    displayName,
-    email,
-  },
-    'POST'
-  )
+      `${apiBaseUrl}/update-auth`, {
+        phoneNumber,
+        displayName,
+        email,
+      },
+      'POST'
+    )
     .then(function (response) {
       return response.json();
     })
@@ -442,7 +465,13 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
     if (doc.template === 'employee') {
       return {
         office: document.body.dataset.office,
-        phoneNumber: doc.attachment['Employee Contact'].value,
+        phoneNumber: (() => {
+          if (doc.attachment['Phone Number']) {
+            return doc.attachment['Phone Number'].value;
+          }
+
+          return doc.attachment['Employee Contact'].value;
+        })(),
       };
     }
 
@@ -1038,14 +1067,14 @@ function searchUpdateTemplateSelectOnChange(url) {
           if (index === 0) {
             window
               .searchTemplateAttachmentFields = Object
-                .keys(doc.attachment)
-                .map(function (field) {
-                  return ({
-                    field,
-                    value: doc.attachment[field].value,
-                    type: doc.attachment[field].type,
-                  });
+              .keys(doc.attachment)
+              .map(function (field) {
+                return ({
+                  field,
+                  value: doc.attachment[field].value,
+                  type: doc.attachment[field].type,
                 });
+              });
           }
 
           const li = getActivityListItem(doc);
@@ -1197,8 +1226,8 @@ function createExcelSheet(rawTemplate) {
 
   const data = [];
 
-  if (rawTemplate.name === 'customer'
-    || rawTemplate.name === 'branch') {
+  if (rawTemplate.name === 'customer' ||
+    rawTemplate.name === 'branch') {
     data.push(['address', 'location'])
   } else {
     const allKeys = Object.keys(rawTemplate.attachment);
@@ -1244,7 +1273,7 @@ function getBulkCreateResultLi(item, originalJson, index) {
   const firstRow = document.createElement('span');
   const secondRow = document.createElement('span');
   const thirdRow = document.createElement('span');
-  firstRow.textContent = item.Name || item.Admin || item.Subscriber;
+  firstRow.textContent = item.Name || item['Phone Number'];
 
   if (item.rejected) {
     container.classList.add('failure')
@@ -1295,8 +1324,7 @@ function populateBulkCreationResult(response, originalJson) {
   response.data.forEach(function (item, index) {
     if (item.rejected) {
       totalRejected += 1;
-    }
-    else {
+    } else {
       totalCreated += 1;
     }
 
@@ -1785,8 +1813,8 @@ function updateAuth() {
 function recipientSubmitOnClick() {
   const form = document.querySelector('.forms-parent');
   const startTime = new Date(
-    form.querySelector('input[type="date"]').value
-  )
+      form.querySelector('input[type="date"]').value
+    )
     .getTime();
   const triggerResult = form.querySelector('p');
 
@@ -1802,8 +1830,8 @@ function recipientSubmitOnClick() {
   console.log('Request sent', requestBody);
 
   sendApiRequest(`${apiBaseUrl}/admin/trigger-report`, requestBody,
-    'POST'
-  )
+      'POST'
+    )
     .then(function (response) {
       return response.json();
     })

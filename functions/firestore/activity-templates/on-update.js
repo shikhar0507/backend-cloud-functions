@@ -21,19 +21,11 @@
  *
  */
 
-
-
 'use strict';
 
-
-const {
-  rootCollections,
-  db,
-} = require('../../admin/admin');
-const { code } = require('../../admin/responses');
-const {
-  isNonEmptyString,
-} = require('../../admin/utils');
+const {rootCollections, db} = require('../../admin/admin');
+const {code} = require('../../admin/responses');
+const {isNonEmptyString} = require('../../admin/utils');
 const {
   canEditRules,
   templateFields,
@@ -41,18 +33,13 @@ const {
   reportingActions,
 } = require('../../admin/constants');
 
-
-const validateAttachment = (attachment) => {
+const validateAttachment = attachment => {
   const messageObject = {
     isValid: true,
     message: null,
   };
 
-  if (Object
-    .prototype
-    .toString
-    .call(attachment)
-    !== '[object Object]') {
+  if (Object.prototype.toString.call(attachment) !== '[object Object]') {
     messageObject.isValid = false;
     messageObject.message = `The attachment can only be of type 'Object'.`;
 
@@ -66,11 +53,14 @@ const validateAttachment = (attachment) => {
     return messageObject;
   }
 
-  if (attachment.hasOwnProperty('Name')
-    && attachment.hasOwnProperty('Number')) {
+  if (
+    attachment.hasOwnProperty('Name') &&
+    attachment.hasOwnProperty('Number')
+  ) {
     messageObject.isValid = false;
-    messageObject.message = `The fields 'Name' and`
-      + ` 'Number cannot exist simultaneously in attachment object.'`;
+    messageObject.message =
+      `The fields 'Name' and` +
+      ` 'Number cannot exist simultaneously in attachment object.'`;
 
     return messageObject;
   }
@@ -82,15 +72,17 @@ const validateAttachment = (attachment) => {
 
     if (!item.hasOwnProperty('value')) {
       messageObject.isValid = false;
-      messageObject.message = `In attachment, the object '${field}' is`
-        + ` missing the field 'value'.`;
+      messageObject.message =
+        `In attachment, the object '${field}' is` +
+        ` missing the field 'value'.`;
       break;
     }
 
     if (!item.hasOwnProperty('type')) {
       messageObject.isValid = false;
-      messageObject.message = `In attachment, the object '${field}' is`
-        + ` missing the field 'type'.`;
+      messageObject.message =
+        `In attachment, the object '${field}' is` +
+        ` missing the field 'type'.`;
       break;
     }
 
@@ -99,15 +91,17 @@ const validateAttachment = (attachment) => {
 
     if (!isNonEmptyString(type)) {
       messageObject.isValid = false;
-      messageObject.message = `The type in all objects in the attachment`
-        + ` should be a non-empty string.`;
+      messageObject.message =
+        `The type in all objects in the attachment` +
+        ` should be a non-empty string.`;
       break;
     }
 
     if (value !== '') {
       messageObject.isValid = false;
-      messageObject.message = `The value in all objects in the attachment`
-        + ` should be an empty string.`;
+      messageObject.message =
+        `The value in all objects in the attachment` +
+        ` should be an empty string.`;
       break;
     }
   }
@@ -115,8 +109,7 @@ const validateAttachment = (attachment) => {
   return messageObject;
 };
 
-
-const checkBody = (body) => {
+const checkBody = body => {
   const messageObject = {
     isValid: true,
     message: null,
@@ -127,8 +120,9 @@ const checkBody = (body) => {
   for (const field of fields) {
     if (!templateFields.has(field)) {
       messageObject.isValid = false;
-      messageObject.message = `The field '${field}' is not allowed.`
-        + ` Use ${[...templateFields.keys()]}.`;
+      messageObject.message =
+        `The field '${field}' is not allowed.` +
+        ` Use ${[...templateFields.keys()]}.`;
       break;
     }
 
@@ -136,38 +130,45 @@ const checkBody = (body) => {
 
     if (field === 'statusOnCreate' && !activityStatuses.has(value)) {
       messageObject.isValid = false;
-      messageObject.message = `${value} is not a valid value for `
-        + ` 'statusOnCreate'. Use ${[...activityStatuses.keys()]}`;
+      messageObject.message =
+        `${value} is not a valid value for ` +
+        ` 'statusOnCreate'. Use ${[...activityStatuses.keys()]}`;
       break;
     }
 
-    if (field === 'hidden'
-      && !new Set()
+    if (
+      field === 'hidden' &&
+      !new Set()
         .add(0)
         .add(1)
-        .has(value)) {
+        .has(value)
+    ) {
       messageObject.isValid = false;
-      messageObject.message = `The field ${field} can only have the values`
-        + ` '0' or '1'`;
+      messageObject.message =
+        `The field ${field} can only have the values` + ` '0' or '1'`;
       break;
     }
 
     if (field === 'canEditRule' && !canEditRules.has(value)) {
       messageObject.isValid = false;
-      messageObject.message = `${value} is not a valid value for`
-        + ` the field 'canEditRule'. Use ${[...canEditRules.keys()]}`;
+      messageObject.message =
+        `${value} is not a valid value for` +
+        ` the field 'canEditRule'. Use ${[...canEditRules.keys()]}`;
       break;
     }
 
-    if (new Set()
-      .add('venue')
-      .add('schedule')
-      .has(field)
-      && value.length > 0
-      && !value.every(isNonEmptyString)) {
+    if (
+      new Set()
+        .add('venue')
+        .add('schedule')
+        .has(field) &&
+      value.length > 0 &&
+      !value.every(isNonEmptyString)
+    ) {
       messageObject.isValid = false;
-      messageObject.message = `The field ${field} can either be an empty array.`
-        + ` Or an array of non-empty strings.`;
+      messageObject.message =
+        `The field ${field} can either be an empty array.` +
+        ` Or an array of non-empty strings.`;
       break;
     }
   }
@@ -184,7 +185,6 @@ const checkBody = (body) => {
   return messageObject;
 };
 
-
 const updateTemplateDoc = (conn, templateDoc) => {
   const batch = db.batch();
   const subject = `Template Updated in the Growthfile DB`;
@@ -198,9 +198,9 @@ const updateTemplateDoc = (conn, templateDoc) => {
    * object are not replaced when the template manager tries to
    * update the attachment object.
    */
-  Object
-    .keys(conn.req.body)
-    .forEach((key) => templateObject[key] = conn.req.body[key]);
+  Object.keys(conn.req.body).forEach(
+    key => (templateObject[key] = conn.req.body[key]),
+  );
 
   const messageBody = `
   <p>
@@ -230,21 +230,19 @@ const updateTemplateDoc = (conn, templateDoc) => {
 
   batch.set(templateDoc.ref, templateObject);
 
-  batch.set(rootCollections
-    .instant
-    .doc(), {
-      messageBody,
-      subject,
-      action: reportingActions.usedCustomClaims,
-      substitutions: {
-        templateManagerName: conn.requester.phoneNumber,
-        phoneNumber: conn.requester.phoneNumber,
-        templateName: templateDoc.get('name'),
-        templateId: templateDoc.id,
-        time: new Date().toDateString(),
-        requestBody: conn.req.body,
-      },
-    });
+  batch.set(rootCollections.instant.doc(), {
+    messageBody,
+    subject,
+    action: reportingActions.usedCustomClaims,
+    substitutions: {
+      templateManagerName: conn.requester.phoneNumber,
+      phoneNumber: conn.requester.phoneNumber,
+      templateName: templateDoc.get('name'),
+      templateId: templateDoc.id,
+      time: new Date().toDateString(),
+      requestBody: conn.req.body,
+    },
+  });
 
   return batch
     .commit()
@@ -255,7 +253,7 @@ const updateTemplateDoc = (conn, templateDoc) => {
         message: 'Template Updated successfully',
       };
     })
-    .catch((error) => {
+    .catch(error => {
       console.error(error);
 
       return {
@@ -266,8 +264,7 @@ const updateTemplateDoc = (conn, templateDoc) => {
     });
 };
 
-
-module.exports = (conn) => {
+module.exports = conn => {
   if (!conn.req.body.hasOwnProperty('name')) {
     return {
       success: false,
@@ -286,12 +283,11 @@ module.exports = (conn) => {
     };
   }
 
-  return rootCollections
-    .activityTemplates
+  return rootCollections.activityTemplates
     .where('name', '==', conn.req.body.name)
     .limit(1)
     .get()
-    .then((docs) => {
+    .then(docs => {
       if (docs.empty) {
         return {
           code: code.conflict,
@@ -303,7 +299,7 @@ module.exports = (conn) => {
 
       return updateTemplateDoc(conn, templateDoc);
     })
-    .catch((error) => {
+    .catch(error => {
       console.error(error);
 
       return {

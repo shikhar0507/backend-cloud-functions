@@ -1,3 +1,26 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
 const {
@@ -11,30 +34,36 @@ const {
 } = require('../admin/utils');
 
 const validateSchedules = scheduleArray => {
-  const result = { success: true, message: [] };
+  const result = {
+    success: true,
+    message: [],
+  };
 
   scheduleArray.forEach((schedule, index) => {
-    const { startTime, endTime, name } = schedule;
+    const {startTime, endTime, name} = schedule;
 
-    if (!startTime
-      || !endTime
-      || !name
-      || typeof startTime !== 'number'
-      || typeof endTime !== 'number'
-      || !isNonEmptyString(name)) {
-      result.success = false;
-      result
-        .message
-        .push(`Invalid Schedule at index: ${index}`);
+    if (typeof startTime === 'undefined' || typeof endTime === 'undefined') {
+      result.message.push(`Invalid Schedule at index: ${index}`);
+
+      return;
+    }
+
+    if (
+      (startTime && typeof startTime !== 'number') ||
+      (endTime && typeof endTime !== 'number')
+    ) {
+      result.message.push(`Invalid Schedule at index: ${index}`);
+    }
+
+    if (!isNonEmptyString(name)) {
+      result.message.push(`Invalid Schedule name at index: ${index}`);
     }
 
     if (startTime > endTime) {
       result.success = false;
-      result
-        .message
-        .push(
-          `The startTime cannot be greater than endTime at index: ${index}`
-        );
+      result.message.push(
+        `The startTime cannot be greater than endTime at index: ${index}`,
+      );
     }
   });
 
@@ -42,19 +71,22 @@ const validateSchedules = scheduleArray => {
 };
 
 const validateVenues = venue => {
-  const result = { success: true, message: [] };
+  const result = {
+    success: true,
+    message: [],
+  };
 
   venue.forEach((object, index) => {
-    const { venueDescriptor, address, location, geopoint } = object;
+    const {venueDescriptor, address, location, geopoint} = object;
 
-    if (!isNonEmptyString(venueDescriptor)
-      || !isNonEmptyString(address)
-      || !isNonEmptyString(location)
-      || !isValidGeopoint(geopoint)) {
+    if (
+      !isNonEmptyString(venueDescriptor) ||
+      !isNonEmptyString(address) ||
+      !isNonEmptyString(location) ||
+      !isValidGeopoint(geopoint)
+    ) {
       result.success = false;
-      result
-        .message
-        .push(`Invalid venue at index: ${index}`);
+      result.message.push(`Invalid venue at index: ${index}`);
     }
   });
 
@@ -63,11 +95,18 @@ const validateVenues = venue => {
 
 class Activity {
   constructor(template) {
+    if (!(this instanceof Activity)) {
+      throw new Error('You need to call Activity constructor with "new"');
+    }
+
     this.template = template;
     this.timestamp = Date.now();
   }
 
-  set setTimezone(timezone) {
+  /**
+   * @param {string} timezone
+   */
+  set timezone(timezone) {
     if (!isValidTimezone(timezone)) {
       throw new Error(`Invalid timezone: '${timezone}'`);
     }
@@ -75,11 +114,17 @@ class Activity {
     this.timezone = timezone;
   }
 
-  set setActivityName(displayName) {
+  /**
+   * @param {string} displayName
+   */
+  set activityName(displayName) {
     this.activityName = `${this.template}: ${displayName}`;
   }
 
-  set setStatus(status) {
+  /**
+   * @param {string} status
+   */
+  set status(status) {
     if (!isValidStatus(status)) {
       throw new Error(`Invalid status: ${status}`);
     }
@@ -87,7 +132,10 @@ class Activity {
     this.status = status;
   }
 
-  set setCanEditRule(canEditRule) {
+  /**
+   * @param {string} canEditRule
+   */
+  set canEditRule(canEditRule) {
     if (!isValidCanEditRule(canEditRule)) {
       throw new Error('Invalid canEditRule');
     }
@@ -95,7 +143,10 @@ class Activity {
     this.canEditRule = canEditRule;
   }
 
-  set setOffice(office) {
+  /**
+   * @param {string} office
+   */
+  set office(office) {
     if (!isNonEmptyString(office)) {
       throw new Error('Office name cannot be empty string');
     }
@@ -103,7 +154,10 @@ class Activity {
     this.office = office;
   }
 
-  set setOfficeId(officeId) {
+  /**
+   * @param {string} officeId
+   */
+  set officeId(officeId) {
     if (!isNonEmptyString(officeId)) {
       throw new Error('OfficeId should be a non-empty string');
     }
@@ -111,29 +165,34 @@ class Activity {
     this.officeId = officeId;
   }
 
-  set setHidden(number) {
+  /**
+   * @param {number} number
+   */
+  set hidden(number) {
     if (typeof number !== 'number' || ![0, 1].includes(number)) {
       throw new Error(
-        'The value should be a number and can only have the values 0 or 1'
+        'The value should be a number and can only have the values 0 or 1',
       );
     }
 
     this.hidden = number;
   }
 
-  set setCreator(creator) {
+  /**
+   * @param {{ displayName: string; phoneNumber: string; photoURL: string; }} creator
+   */
+  set creator(creator) {
     if (typeof creator !== 'object') {
       throw new Error(
         `The 'creator' should be an object with the following
-        `+ ` properties: 'displayName', 'phoneNumber', and 'photoURL'`
+        ` + ` properties: 'displayName', 'phoneNumber', and 'photoURL'`,
       );
     }
-    const { displayName, phoneNumber, photoURL } = creator;
+
+    const {displayName, phoneNumber, photoURL} = creator;
 
     if (typeof displayName !== 'string') {
-      throw new Error(
-        'The displayName should be a string',
-      );
+      throw new Error('The displayName should be a string');
     }
 
     if (!isE164PhoneNumber(phoneNumber)) {
@@ -151,7 +210,10 @@ class Activity {
     };
   }
 
-  set setSchedule(schedule) {
+  /**
+   * @param {Array} schedule
+   */
+  set schedule(schedule) {
     const result = validateSchedules(schedule);
     if (!result.success) {
       throw new Error(result.message);
@@ -160,7 +222,10 @@ class Activity {
     this.schedule = schedule;
   }
 
-  set setVenue(venue) {
+  /**
+   * @param {Array} venue
+   */
+  set venue(venue) {
     const result = validateVenues(venue);
 
     if (!result.success) {
@@ -171,11 +236,16 @@ class Activity {
   }
 
   toObject() {
-    return this;
+    return Object.assign({}, this);
   }
 }
 
 class Creator {
+  /**
+   * @param {String} phoneNumber
+   * @param {String} displayName
+   * @param {String} photoURL
+   */
   constructor(phoneNumber, displayName = '', photoURL = '') {
     if (!isE164PhoneNumber(phoneNumber)) {
       throw new Error(`Invalid phoneNumber ${phoneNumber}`);
@@ -187,35 +257,51 @@ class Creator {
   }
 
   toObject() {
-    return {
-      phoneNumber: this.phoneNumber,
-      displayName: this.displayName,
-      photoURL: this.photoURL,
-    };
+    return Object.assign({}, this);
   }
 }
 
 class Attachment {
   constructor(object, attachmentTemplate) {
-    Object
-      .entries(attachmentTemplate)
-      .forEach(value => {
-        const [field, child] = value;
+    let countOfPhoneNumberFields = 0;
+    let countOfPhoneNumbersFound = 0;
 
-        object[field] = object[field] || {};
+    Object.entries(attachmentTemplate).forEach(value => {
+      const [field, child] = value;
+      object[field] = object[field] || '';
 
-        this[field] = {
-          value: object[field].value || '',
-          type: child.type,
-        };
-      });
+      // Name or Number cannot be empty
+      if ((field === 'Name' || field === 'Number') && !value) {
+        throw new Error(`${field} cannot be empty`);
+      }
+
+      if (child.type === 'phoneNumber') {
+        countOfPhoneNumberFields++;
+
+        if (object[field]) {
+          countOfPhoneNumbersFound++;
+        }
+      }
+
+      this[field] = {
+        value: object[field],
+        type: child.type,
+      };
+    });
+
+    /**
+     * If activity attachment has type `phoneNumber`, all of the fields
+     * with phoneNumber cannot be empty strings
+     */
+    if (countOfPhoneNumberFields > 0 && countOfPhoneNumbersFound === 0) {
+      throw new Error(`All fields with type 'phoneNumber' cannot be empty`);
+    }
   }
 
   toObject() {
-    return this;
+    return Object.assign({}, this);
   }
 }
-
 
 class Subscription {
   constructor(templateDoc, activityDoc) {
@@ -238,9 +324,10 @@ class Subscription {
    * @param {Array<String>} phoneNumbers Array of phone numbers
    */
   setIncludeArray(phoneNumbers) {
-    if (!Array.isArray(phoneNumbers)
-      || phoneNumbers.length === 0) {
-      throw new Error(`Field 'include' should be a non-empty array of phone numbers`);
+    if (!Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
+      throw new Error(
+        `Field 'include' should be a non-empty array of phone numbers`,
+      );
     }
 
     /** Duplication is reduntant while */

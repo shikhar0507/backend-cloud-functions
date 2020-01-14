@@ -21,33 +21,32 @@
  *
  */
 
-
 'use strict';
 
+const {sendResponse, hasManageTemplateClaims} = require('../admin/utils');
+const {code} = require('../admin/responses');
 
-const { sendResponse, hasManageTemplateClaims } = require('../admin/utils');
-const { code } = require('../admin/responses');
-
-
-module.exports = (conn) => {
+module.exports = conn => {
   if (!hasManageTemplateClaims(conn.requester.customClaims)) {
     sendResponse(
       conn,
       code.forbidden,
-      'You do not have permission to access /manageTemplates.'
+      'You do not have permission to access /manageTemplates.',
     );
 
     return;
   }
 
-  const action = require('url').parse(conn.req.url).path.split('/')[3];
+  const action = require('url')
+    .parse(conn.req.url)
+    .path.split('/')[3];
 
   if (action === 'create') {
     if (conn.req.method !== 'POST') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for /create. Use POST.`
+        `${conn.req.method} is not allowed for /create. Use POST.`,
       );
 
       return;
@@ -64,7 +63,7 @@ module.exports = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for /update. Use PUT.`
+        `${conn.req.method} is not allowed for /update. Use PUT.`,
       );
 
       return;
@@ -81,7 +80,7 @@ module.exports = (conn) => {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for /read. Use GET.`
+        `${conn.req.method} is not allowed for /read. Use GET.`,
       );
 
       return;
@@ -96,6 +95,6 @@ module.exports = (conn) => {
   sendResponse(
     conn,
     code.notFound,
-    `No resource found at the path: ${(conn.req.url)}.`
+    `No resource found at the path: ${conn.req.url}.`,
   );
 };

@@ -21,18 +21,11 @@
  *
  */
 
-
 'use strict';
 
-
-const { code } = require('./responses');
+const {code} = require('./responses');
+const {auth, rootCollections} = require('./admin');
 const {
-  db,
-  auth,
-  rootCollections,
-} = require('./admin');
-const {
-  addendumTypes,
   dateFormats,
   httpsActions,
   sendGridTemplateIds,
@@ -40,38 +33,31 @@ const {
   timezonesSet,
   subcollectionNames,
 } = require('../admin/constants');
-const {
-  alphabetsArray,
-} = require('../firestore/recipients/report-utils');
+const {alphabetsArray} = require('../firestore/recipients/report-utils');
 const crypto = require('crypto');
 const env = require('./env');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
 const sgMail = require('@sendgrid/mail');
-const { execFile } = require('child_process');
-const admin = require('firebase-admin');
+const {execFile} = require('child_process');
 const url = require('url');
+const admin = require('firebase-admin');
 const rpn = require('request-promise-native');
 const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
-const googleMapsClient =
-  require('@google/maps')
-    .createClient({
-      key: env.mapsApiKey,
-      Promise: Promise,
-    });
-
+const googleMapsClient = require('@google/maps').createClient({
+  key: env.mapsApiKey,
+  Promise: Promise,
+});
 
 sgMail.setApiKey(env.sgMailApiKey);
 
 const isValidTimezone = timezone => timezonesSet.has(timezone);
 
 const isValidStatus = status =>
-  new Set(['CANCELLED', 'CONFIRMED', 'PENDING'])
-    .has(status);
+  new Set(['CANCELLED', 'CONFIRMED', 'PENDING']).has(status);
 
 const isValidCanEditRule = canEditRule =>
-  new Set(['NONE', 'ALL', 'EMPLOYEE', 'ADMIN', 'CREATOR'])
-    .has(canEditRule);
+  new Set(['NONE', 'ALL', 'EMPLOYEE', 'ADMIN', 'CREATOR']).has(canEditRule);
 
 /**
  * Ends the response by sending the `JSON` to the client with `200 OK` response.
@@ -86,6 +72,45 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
   conn.res.end(JSON.stringify(json));
 };
 
+const logApiRejection = async context => {
+  const {phoneNumber, message: responseMessage} = context;
+  const {date, months: month, years: year} = momentTz().toObject();
+  const message = `API Rejections: ${responseMessage}`;
+
+  const [errorDocToday] = (
+    await rootCollections.errors
+      .where('date', '==', date)
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .where('message', '==', message)
+      .limit(1)
+      .get()
+  ).docs;
+
+  const ref = errorDocToday ? errorDocToday.ref : rootCollections.errors.doc();
+  const data = errorDocToday ? errorDocToday.data() : {};
+
+  data.affectedUsers = data.affectedUsers || {};
+  data.affectedUsers[phoneNumber] = data.affectedUsers[phoneNumber] || 0;
+  data.affectedUsers[phoneNumber]++;
+
+  data.bodyObject = data.bodyObject || {};
+  data.bodyObject[phoneNumber] = data.bodyObject[phoneNumber] || [];
+  data.bodyObject[phoneNumber].push(JSON.stringify(context, ' ', 2));
+
+  return ref.set(
+    Object.assign({}, data, {
+      date,
+      month,
+      year,
+      message,
+      timestamp: Date.now(),
+    }),
+    {
+      merge: true,
+    },
+  );
+};
 
 /**
  * Ends the response of the request after successful completion of the task
@@ -96,29 +121,31 @@ const sendJSON = (conn, json, statusCode = code.ok) => {
  * @param {string} [message] Response message for the request.
  * @returns {void}
  */
-const sendResponse = (conn, statusCode = code.ok, message = '') => {
+const sendResponse = async (conn, statusCode = code.ok, message = '') => {
   conn.res.writeHead(statusCode, conn.headers);
 
   /** 2xx codes denote success. */
   const success = statusCode <= 226;
 
-  if (!success) {
-    console.log(JSON.stringify({
-      ip: conn.req.ip,
-      header: conn.req.headers,
+  if (!success && conn.requester) {
+    await logApiRejection({
+      message,
+      statusCode,
       url: conn.req.url,
       body: conn.req.body,
-      requester: conn.requester,
-    }));
+      ip: conn.req.ip || '',
+      phoneNumber: conn.requester.phoneNumber,
+    });
   }
 
-  conn.res.end(JSON.stringify({
-    message,
-    success,
-    code: statusCode,
-  }));
+  return conn.res.end(
+    JSON.stringify({
+      message,
+      success,
+      code: statusCode,
+    }),
+  );
 };
-
 
 /**
  * Ends the response when there is an error while handling the request.
@@ -134,10 +161,9 @@ const handleError = (conn, error, customErrorMessage) => {
   sendResponse(
     conn,
     code.internalServerError,
-    customErrorMessage || 'Please try again later'
+    customErrorMessage || 'Please try again later',
   );
 };
-
 
 /**
  * Helper function to check `support` custom claims.
@@ -145,7 +171,7 @@ const handleError = (conn, error, customErrorMessage) => {
  * @param {Object} customClaims Contains boolean custom claims.
  * @returns {boolean} If the user has `support` claims.
  */
-const hasSupportClaims = (customClaims) => {
+const hasSupportClaims = customClaims => {
   if (!customClaims) return false;
 
   /** A custom claim can be undefined or a boolean, so an explicit
@@ -154,14 +180,13 @@ const hasSupportClaims = (customClaims) => {
   return customClaims.support === true;
 };
 
-
 /**
  * Helper function to check `manageTemplates` custom claims.
  *
  * @param {Object} customClaims Contains boolean custom claims.
  * @returns {boolean} If the user has `ManageTemplate` claims.
  */
-const hasManageTemplateClaims = (customClaims) => {
+const hasManageTemplateClaims = customClaims => {
   if (!customClaims) return false;
 
   /** A custom claim can be undefined or a boolean, so an explicit
@@ -170,14 +195,13 @@ const hasManageTemplateClaims = (customClaims) => {
   return customClaims.manageTemplates === true;
 };
 
-
 /**
  * Helper function to check `superUser` custom claims.
  *
  * @param {Object} customClaims Contains boolean custom claims.
  * @returns {boolean} If the user has `superUser` claims.
  */
-const hasSuperUserClaims = (customClaims) => {
+const hasSuperUserClaims = customClaims => {
   if (!customClaims) return false;
 
   /** A custom claim can be `undefined` or a `boolean`, so an explicit
@@ -186,8 +210,7 @@ const hasSuperUserClaims = (customClaims) => {
   return customClaims.superUser === true;
 };
 
-
-const hasAdminClaims = (customClaims) => {
+const hasAdminClaims = customClaims => {
   if (!customClaims) return false;
 
   if (!customClaims.admin) return false;
@@ -198,7 +221,6 @@ const hasAdminClaims = (customClaims) => {
    */
   return customClaims.admin.length > 0;
 };
-
 
 /**
  * Returns the date in ISO 8601 `(DD-MM-YYYY)` format.
@@ -215,7 +237,6 @@ const getISO8601Date = (date = new Date()) =>
     .reverse()
     .join('-');
 
-
 /**
  * Checks if the input argument to the function satisfies the
  *  following conditions:
@@ -230,10 +251,8 @@ const getISO8601Date = (date = new Date()) =>
  * @param {string} string A string in HH:MM format.
  * @returns {boolean} If the input string is in HH:MM format.
  */
-const isHHMMFormat = (string) =>
-  /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/
-    .test(string);
-
+const isHHMMFormat = string =>
+  /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(string);
 
 /**
  * Disables the user account in auth based on uid and writes the reason to
@@ -256,38 +275,34 @@ const disableAccount = (conn, reason) => {
   </p>
   `;
 
-  return Promise
-    .all([
-      rootCollections
-        .profiles
-        .doc(conn.requester.phoneNumber)
-        .set({
-          disabledFor: reason,
-          disabledTimestamp: Date.now(),
-        }, {
-          /** This doc may have other fields too. */
-          merge: true,
-        }),
-      rootCollections
-        .instant
-        .doc()
-        .set({
-          messageBody,
-          subject: `User Disabled: '${conn.requester.phoneNumber}'`,
-        }),
-      auth
-        .updateUser(conn.requester.uid, {
-          disabled: true,
-        }),
-    ])
-    .then(() => sendResponse(
+  return Promise.all([
+    rootCollections.profiles.doc(conn.requester.phoneNumber).set(
+      {
+        disabledFor: reason,
+        disabledTimestamp: Date.now(),
+      },
+      {
+        /** This doc may have other fields too. */
+        merge: true,
+      },
+    ),
+    rootCollections.instant.doc().set({
+      messageBody,
+      subject: `User Disabled: '${conn.requester.phoneNumber}'`,
+    }),
+    auth.updateUser(conn.requester.uid, {
+      disabled: true,
+    }),
+  ]).then(() =>
+    sendResponse(
       conn,
       code.forbidden,
-      `This account has been temporarily disabled. Please contact your admin.`
-    ));
+      `This account has been temporarily disabled. Please contact your admin.`,
+    ),
+  );
 };
 
-const headerValid = (headers) => {
+const headerValid = headers => {
   if (!headers.hasOwnProperty('authorization')) {
     return {
       isValid: false,
@@ -315,7 +330,6 @@ const headerValid = (headers) => {
   };
 };
 
-
 /**
  * Checks if the location is valid with respect to the standard
  * `lat` and `lng` values.
@@ -329,20 +343,24 @@ const isValidGeopoint = (geopoint, allowEmptyStrings = true) => {
   if (!geopoint.hasOwnProperty('latitude')) return false;
   if (!geopoint.hasOwnProperty('longitude')) return false;
 
-  if (geopoint.latitude === ''
-    && geopoint.longitude === ''
-    && allowEmptyStrings) return true;
+  if (
+    geopoint.latitude === '' &&
+    geopoint.longitude === '' &&
+    allowEmptyStrings
+  )
+    return true;
 
   if (typeof geopoint.latitude !== 'number') return false;
   if (typeof geopoint.longitude !== 'number') return false;
 
   /** @see https://msdn.microsoft.com/en-in/library/aa578799.aspx */
-  return geopoint.latitude >= -90
-    && geopoint.latitude <= 90
-    && geopoint.longitude >= -180
-    && geopoint.longitude <= 180;
+  return (
+    geopoint.latitude >= -90 &&
+    geopoint.latitude <= 90 &&
+    geopoint.longitude >= -180 &&
+    geopoint.longitude <= 180
+  );
 };
-
 
 /**
  * Checks for a `non-null`, `non-empty` string.
@@ -350,10 +368,7 @@ const isValidGeopoint = (geopoint, allowEmptyStrings = true) => {
  * @param {string} str A string.
  * @returns {boolean} If `str` is a non-empty string.
  */
-const isNonEmptyString = (str) =>
-  typeof str === 'string'
-  && str.trim() !== '';
-
+const isNonEmptyString = str => typeof str === 'string' && str.trim() !== '';
 
 /**
  * Checks whether the number is a valid Unix timestamp.
@@ -361,9 +376,9 @@ const isNonEmptyString = (str) =>
  * @param {Object} date Javascript Date object.
  * @returns {boolean} Whether the number is a *valid* Unix timestamp.
  */
-const isValidDate = (date) => !isNaN(new Date(parseInt(date)));
+const isValidDate = date => !isNaN(new Date(parseInt(date)));
 
-const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
+const isValidEmail = email => /\S+@\S+\.\S+/.test(email);
 
 /**
  * Verifies a phone number based on the E.164 standard.
@@ -372,19 +387,20 @@ const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
  * @returns {boolean} If the string is a *valid* __E.164__ phone number.
  * @see https://en.wikipedia.org/wiki/E.164
  */
-const isE164PhoneNumber = (phoneNumber) => {
-  if (typeof phoneNumber !== 'string'
-    || phoneNumber.trim() !== phoneNumber
-    || phoneNumber.length < 5
-    || phoneNumber.replace(/ +/g, '') !== phoneNumber) {
+const isE164PhoneNumber = phoneNumber => {
+  if (
+    typeof phoneNumber !== 'string' ||
+    phoneNumber.trim() !== phoneNumber ||
+    phoneNumber.length < 5 ||
+    phoneNumber.replace(/ +/g, '') !== phoneNumber
+  ) {
     return false;
   }
 
   try {
     const parsedPhoneNumberObject = phoneUtil.parseAndKeepRawInput(phoneNumber);
 
-    return phoneUtil
-      .isPossibleNumber(parsedPhoneNumberObject);
+    return phoneUtil.isPossibleNumber(parsedPhoneNumberObject);
   } catch (error) {
     /**
      * Error was thrown by the library. i.e., the phone number is invalid
@@ -409,53 +425,49 @@ const getObjectFromSnap = snap => {
   };
 };
 
-const promisifiedRequest = (options) => {
+const promisifiedRequest = options => {
   return new Promise((resolve, reject) => {
     const lib = require('https');
 
-    const request =
-      lib
-        .request(options, (response) => {
-          let body = '';
+    const request = lib.request(options, response => {
+      let body = '';
 
-          response
-            .on('data', (chunk) => {
-              body += chunk;
-            })
-            .on('end', () => {
-              let responseData = {};
+      response
+        .on('data', chunk => {
+          body += chunk;
+        })
+        .on('end', () => {
+          let responseData = {};
 
-              try {
-                responseData = JSON.parse(body);
-              } catch (error) {
-                return reject(new Error('Error:', error));
-              }
+          try {
+            responseData = JSON.parse(body);
+          } catch (error) {
+            return reject(new Error('Error:', error));
+          }
 
-              if (!response.statusCode.toString().startsWith('2')) {
-                console.log('response', response);
+          if (!response.statusCode.toString().startsWith('2')) {
+            console.log('response', response);
 
-                return reject(new Error(response));
-              }
+            return reject(new Error(response));
+          }
 
-              return resolve(responseData);
-            });
+          return resolve(responseData);
         });
+    });
 
     if (options.postData) {
       request.write(options.postData);
     }
 
-    request
-      .on('error', (error) => reject(new Error(error)));
+    request.on('error', error => reject(new Error(error)));
 
-    request
-      .end();
+    request.end();
   });
 };
 
 const promisifiedExecFile = (command, args) => {
   return new Promise((resolve, reject) => {
-    return execFile(command, args, (error) => {
+    return execFile(command, args, error => {
       if (error) {
         return reject(new Error(error));
       }
@@ -483,37 +495,48 @@ const cloudflareCdnUrl = (mainDownloadUrlStart, fileId, fileName) => {
     return `${env.imageCdnUrl}/${fileName}`;
   }
 
-  return `https://${mainDownloadUrlStart}`
-    + `/b2api/v2/b2_download_file_by_id`
-    + `?fileId=${fileId}`;
+  return (
+    `https://${mainDownloadUrlStart}` +
+    `/b2api/v2/b2_download_file_by_id` +
+    `?fileId=${fileId}`
+  );
 };
 
-const getFileHash = (fileBuffer) =>
+const getFileHash = fileBuffer =>
   crypto
     .createHash('sha1')
     .update(fileBuffer)
     .digest('hex');
 
+const isValidUrl = suspectedUrl =>
+  /^(ftp|http|https):\/\/[^ "]+$/.test(suspectedUrl);
 
-const isValidUrl = (suspectedUrl) =>
-  /^(ftp|http|https):\/\/[^ "]+$/
-    .test(suspectedUrl);
+const isValidBase64 = suspectBase64String =>
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+    suspectBase64String,
+  );
 
-const isValidBase64 = (suspectBase64String) =>
-  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
-    .test(suspectBase64String);
-
-const slugify = (string) => {
+const slugify = string => {
   return string
     .toLowerCase()
     .replace(/[^\w ]+/g, '')
     .replace(/ +/g, '-');
 };
 
-const getSearchables = (string) => {
+const getSearchables = string => {
   const nameCharactersArray = string.split('');
   const valuesSet = new Set();
-  const charsToIgnoreSet = new Set(['.', ',', '(', ')', '/', '~', '', '[', ']']);
+  const charsToIgnoreSet = new Set([
+    '.',
+    ',',
+    '(',
+    ')',
+    '/',
+    '~',
+    '',
+    '[',
+    ']',
+  ]);
 
   const getTrimmedString = stringValue => stringValue.toLowerCase().trim();
 
@@ -554,14 +577,9 @@ const getRelevantTime = schedule => {
 
   const allSchedules = [];
 
-  schedule
-    .forEach(object => {
-      allSchedules
-        .push(
-          object.startTime.valueOf(),
-          object.endTime.valueOf()
-        );
-    });
+  schedule.forEach(object => {
+    allSchedules.push(object.startTime.valueOf(), object.endTime.valueOf());
+  });
 
   allSchedules.sort();
 
@@ -585,9 +603,7 @@ const getRelevantTime = schedule => {
    *
    * If the schedule is empty, returning `null`
    */
-  return result
-    || allSchedules[allSchedules.length - 1]
-    || null;
+  return result || allSchedules[allSchedules.length - 1] || null;
 };
 
 // https://github.com/freesoftwarefactory/parse-multipart
@@ -605,7 +621,7 @@ const multipartParser = (body, contentType) => {
 
   let boundary = m[1] || m[2];
 
-  const parseHeader = (header) => {
+  const parseHeader = header => {
     const headerFields = {};
     const matchResult = header.match(/^.*name="([^"]*)"$/);
 
@@ -616,13 +632,13 @@ const multipartParser = (body, contentType) => {
     return headerFields;
   };
 
-  const rawStringToBuffer = (str) => {
+  const rawStringToBuffer = str => {
     let idx;
     const len = str.length;
     const arr = new Array(len);
 
     for (idx = 0; idx < len; ++idx) {
-      arr[idx] = str.charCodeAt(idx) & 0xFF;
+      arr[idx] = str.charCodeAt(idx) & 0xff;
     }
 
     return new Uint8Array(arr).buffer;
@@ -659,14 +675,15 @@ const multipartParser = (body, contentType) => {
       }
     }
 
-    partsByName[fieldName] =
-      isRaw ? rawStringToBuffer(subparts[1]) : subparts[1];
+    partsByName[fieldName] = isRaw
+      ? rawStringToBuffer(subparts[1])
+      : subparts[1];
   }
 
   return partsByName;
 };
 
-const toTwoDecimalPlace = (val) => {
+const toTwoDecimalPlace = val => {
   /** Is not float */
   if (parseInt(val) === val) {
     return val;
@@ -698,14 +715,10 @@ const toTwoDecimalPlace = (val) => {
   return result;
 };
 
-const adjustedGeopoint = (geopoint) => {
+const adjustedGeopoint = geopoint => {
   return {
-    latitude: toTwoDecimalPlace(
-      geopoint.latitude || geopoint._latitude
-    ),
-    longitude: toTwoDecimalPlace(
-      geopoint.longitude || geopoint._longitude
-    ),
+    latitude: toTwoDecimalPlace(geopoint.latitude || geopoint._latitude),
+    longitude: toTwoDecimalPlace(geopoint.longitude || geopoint._longitude),
   };
 };
 
@@ -716,15 +729,16 @@ const sendSMS = async (phoneNumber, smsText) => {
   const encodedMessage = `${encodeURI(smsText)}`;
 
   const host = `https://enterprise.smsgupshup.com`;
-  const path = `/GatewayAPI/rest?method=SendMessage`
-    + `&send_to=${sendTo}`
-    + `&msg=${encodedMessage}`
-    + `&msg_type=TEXT`
-    + `&userid=${env.smsgupshup.userId}`
-    + `&auth_scheme=plain`
-    + `&password=${env.smsgupshup.password}`
-    + `&v=1.1`
-    + `&format=text`;
+  const path =
+    `/GatewayAPI/rest?method=SendMessage` +
+    `&send_to=${sendTo}` +
+    `&msg=${encodedMessage}` +
+    `&msg_type=TEXT` +
+    `&userid=${env.smsgupshup.userId}` +
+    `&auth_scheme=plain` +
+    `&password=${env.smsgupshup.password}` +
+    `&v=1.1` +
+    `&format=text`;
 
   try {
     return rpn(url.resolve(host, path));
@@ -733,17 +747,14 @@ const sendSMS = async (phoneNumber, smsText) => {
   }
 };
 
-const isEmptyObject = (object) =>
-  Object
-    .keys(object)
-    .every((field) => {
-      if (typeof object[field] === 'string' && object[field].trim() === '') {
-        return true;
-      }
+const isEmptyObject = object =>
+  Object.keys(object).every(field => {
+    if (typeof object[field] === 'string' && object[field].trim() === '') {
+      return true;
+    }
 
-      return object[field] === '';
-    });
-
+    return object[field] === '';
+  });
 
 const getAdjustedGeopointsFromVenue = venue => {
   const result = [];
@@ -764,26 +775,23 @@ const getAdjustedGeopointsFromVenue = venue => {
   return result;
 };
 
-const getRegistrationToken = (phoneNumber) => {
+const getRegistrationToken = phoneNumber => {
   const result = {
     phoneNumber,
     registrationToken: null,
     updatesDocExists: false,
   };
 
-  return rootCollections
-    .updates
+  return rootCollections.updates
     .where('phoneNumber', '==', phoneNumber)
     .limit(1)
     .get()
-    .then((docs) => {
+    .then(docs => {
       if (docs.empty) {
         return Promise.resolve(result);
       }
 
-      const {
-        registrationToken,
-      } = docs.docs[0].data();
+      const {registrationToken} = docs.docs[0].data();
 
       result.registrationToken = registrationToken;
       result.updatesDocExists = !docs.empty;
@@ -793,7 +801,12 @@ const getRegistrationToken = (phoneNumber) => {
     .catch(console.error);
 };
 
-const handleUserStatusReport = (worksheet, counterDoc, yesterdayInitDoc, activeYesterday) => {
+const handleUserStatusReport = (
+  worksheet,
+  counterDoc,
+  yesterdayInitDoc,
+  activeYesterday,
+) => {
   const userStatusSheet = worksheet.addSheet('User Status');
   userStatusSheet.row(1).style('bold', true);
   userStatusSheet.cell('A1').value('Total Auth');
@@ -809,7 +822,11 @@ const handleUserStatusReport = (worksheet, counterDoc, yesterdayInitDoc, activeY
   userStatusSheet.cell('D2').value(yesterdayInitDoc.get('installsToday'));
 };
 
-const handleOfficeActivityReport = (worksheet, yesterdayInitDoc, emailStatusMap) => {
+const handleOfficeActivityReport = (
+  worksheet,
+  yesterdayInitDoc,
+  emailStatusMap,
+) => {
   let activeYesterday = 0;
   const officeActivitySheet = worksheet.addSheet('Office Activity Report');
 
@@ -818,7 +835,9 @@ const handleOfficeActivityReport = (worksheet, yesterdayInitDoc, emailStatusMap)
   officeActivitySheet.cell('B1').value('Total Users');
   officeActivitySheet.cell('C1').value('Users Active Yesterday');
   officeActivitySheet.cell('D1').value('Inactive');
-  officeActivitySheet.cell('E1').value('Others (users On Leave/On Duty/Holiday/Weekly Off');
+  officeActivitySheet
+    .cell('E1')
+    .value('Others (users On Leave/On Duty/Holiday/Weekly Off');
   officeActivitySheet.cell('F1').value('Pending Signups');
   officeActivitySheet.cell('G1').value('Activities Created Yesterday');
   officeActivitySheet.cell('H1').value('Unverified Recipients');
@@ -828,45 +847,44 @@ const handleOfficeActivityReport = (worksheet, yesterdayInitDoc, emailStatusMap)
   const createCountByOffice = yesterdayInitDoc.get('createCountByOffice');
   const unverifiedRecipients = yesterdayInitDoc.get('unverifiedRecipients');
 
-  Object
-    .keys(countsObject)
-    .forEach((office, index) => {
-      const {
-        notInstalled,
-        totalUsers,
-        onLeaveWeeklyOffHoliday,
-        active,
-        notActive,
-      } = countsObject[office];
+  Object.keys(countsObject).forEach((office, index) => {
+    const {
+      notInstalled,
+      totalUsers,
+      onLeaveWeeklyOffHoliday,
+      active,
+      notActive,
+    } = countsObject[office];
 
-      const mailObject = emailStatusMap[office];
+    const mailObject = emailStatusMap[office];
 
-      const createCount = createCountByOffice[office];
-      const arrayOfUnverifiedRecipients = unverifiedRecipients[office];
-      const rowIndex = index + 2;
+    const createCount = createCountByOffice[office];
+    const arrayOfUnverifiedRecipients = unverifiedRecipients[office];
+    const rowIndex = index + 2;
 
-      activeYesterday += active;
+    activeYesterday += active;
 
-      officeActivitySheet.cell(`A${rowIndex}`).value(office);
-      officeActivitySheet.cell(`B${rowIndex}`).value(totalUsers);
-      officeActivitySheet.cell(`C${rowIndex}`).value(active);
-      officeActivitySheet.cell(`D${rowIndex}`).value(notActive);
-      officeActivitySheet.cell(`E${rowIndex}`).value(onLeaveWeeklyOffHoliday);
-      officeActivitySheet.cell(`F${rowIndex}`).value(notInstalled);
-      officeActivitySheet.cell(`G${rowIndex}`).value(createCount);
-      officeActivitySheet
-        .cell(`H${rowIndex}`)
-        .value(`${arrayOfUnverifiedRecipients || []}`);
-      officeActivitySheet
-        .cell(`I${rowIndex}`)
-        .value(JSON.stringify(mailObject));
-    });
+    officeActivitySheet.cell(`A${rowIndex}`).value(office);
+    officeActivitySheet.cell(`B${rowIndex}`).value(totalUsers);
+    officeActivitySheet.cell(`C${rowIndex}`).value(active);
+    officeActivitySheet.cell(`D${rowIndex}`).value(notActive);
+    officeActivitySheet.cell(`E${rowIndex}`).value(onLeaveWeeklyOffHoliday);
+    officeActivitySheet.cell(`F${rowIndex}`).value(notInstalled);
+    officeActivitySheet.cell(`G${rowIndex}`).value(createCount);
+    officeActivitySheet
+      .cell(`H${rowIndex}`)
+      .value(`${arrayOfUnverifiedRecipients || []}`);
+    officeActivitySheet.cell(`I${rowIndex}`).value(JSON.stringify(mailObject));
+  });
 
   return activeYesterday;
 };
 
-
-const handleActivityStatusReport = async (worksheet, counterDoc, yesterdayInitDoc) => {
+const handleActivityStatusReport = async (
+  worksheet,
+  counterDoc,
+  yesterdayInitDoc,
+) => {
   const activityStatusSheet = worksheet.addSheet('Activity Status Report');
 
   // sort by company, report, timestamp
@@ -893,11 +911,8 @@ const handleActivityStatusReport = async (worksheet, counterDoc, yesterdayInitDo
     autoGeneratedMap,
   } = counterDoc.data();
 
-  const {
-    templateUsageObject,
-  } = yesterdayInitDoc.data();
-  const templateDocs = await rootCollections
-    .activityTemplates
+  const {templateUsageObject} = yesterdayInitDoc.data();
+  const templateDocs = await rootCollections.activityTemplates
     .orderBy('name', 'asc')
     .get();
 
@@ -910,29 +925,22 @@ const handleActivityStatusReport = async (worksheet, counterDoc, yesterdayInitDo
   templateNames.forEach((name, index) => {
     const position = index + 2;
 
-    activityStatusSheet
-      .cell(`A${position}`)
-      .value(name);
+    activityStatusSheet.cell(`A${position}`).value(name);
 
     activityStatusSheet
       .cell(`B${position}`)
       .value(totalByTemplateMap[name] || 0);
 
-    activityStatusSheet
-      .cell(`C${position}`)
-      .value(adminApiMap[name] || 0);
+    activityStatusSheet.cell(`C${position}`).value(adminApiMap[name] || 0);
 
-    activityStatusSheet
-      .cell(`D${position}`)
-      .value(supportMap[name] || 0);
+    activityStatusSheet.cell(`D${position}`).value(supportMap[name] || 0);
 
-    const createdByApp = getValueFromMap(totalByTemplateMap, name)
-      - getValueFromMap(adminApiMap, name)
-      - getValueFromMap(supportMap, name);
+    const createdByApp =
+      getValueFromMap(totalByTemplateMap, name) -
+      getValueFromMap(adminApiMap, name) -
+      getValueFromMap(supportMap, name);
 
-    activityStatusSheet
-      .cell(`E${position}`)
-      .value(createdByApp);
+    activityStatusSheet.cell(`E${position}`).value(createdByApp);
 
     activityStatusSheet
       .cell(`F${position}`)
@@ -978,13 +986,11 @@ const getEmailStatusMap = () => {
   const map = new Map();
   const officeNameIndex = [];
 
-  return rootCollections
-    .recipients
+  return rootCollections.recipients
     .get()
     .then(docs => {
       docs.forEach(doc => {
-        const promise = doc
-          .ref
+        const promise = doc.ref
           .collection('MailEvents')
           .where('timestamp', '>=', dayStartUnix.valueOf())
           .where('timestamp', '<=', dayEndUnix.valueOf())
@@ -1007,34 +1013,33 @@ const getEmailStatusMap = () => {
         const doc = snapShot.docs[0];
         const emailObject = doc.data();
 
-        Object
-          .keys(emailObject)
-          .forEach(email => {
-            if (email === 'timestamp') return;
+        Object.keys(emailObject).forEach(email => {
+          if (email === 'timestamp') return;
 
-            const sgItem = emailObject[email];
-            const openedFootprints = sgItem.open && sgItem.open.footprints;
-            const deliveredFootprints = sgItem.delivered && sgItem.delivered.footprints;
-            const openedPayroll = sgItem.open && sgItem.open.payroll;
-            const deliveredPayroll = sgItem.delivered && sgItem.delivered.payroll;
-            const status = map.get(officeName) || {};
+          const sgItem = emailObject[email];
+          const openedFootprints = sgItem.open && sgItem.open.footprints;
+          const deliveredFootprints =
+            sgItem.delivered && sgItem.delivered.footprints;
+          const openedPayroll = sgItem.open && sgItem.open.payroll;
+          const deliveredPayroll = sgItem.delivered && sgItem.delivered.payroll;
+          const status = map.get(officeName) || {};
 
-            status[email] = status[email] || {};
-            status[email].footprints = status[email].footprints || {};
-            status[email].payroll = status[email].payroll || {};
-            status[email].footprints.opened = Boolean(openedFootprints);
-            status[email].footprints.delivered = Boolean(deliveredFootprints);
-            status[email].payroll.opened = Boolean(openedPayroll);
-            status[email].payroll.delivered = Boolean(deliveredPayroll);
+          status[email] = status[email] || {};
+          status[email].footprints = status[email].footprints || {};
+          status[email].payroll = status[email].payroll || {};
+          status[email].footprints.opened = Boolean(openedFootprints);
+          status[email].footprints.delivered = Boolean(deliveredFootprints);
+          status[email].payroll.opened = Boolean(openedPayroll);
+          status[email].payroll.delivered = Boolean(deliveredPayroll);
 
-            map.set(officeName, status);
-          });
+          map.set(officeName, status);
+        });
       });
 
       const mapToObj = map => {
         const obj = {};
 
-        map.forEach((v, k) => obj[k] = v);
+        map.forEach((v, k) => (obj[k] = v));
 
         return obj;
       };
@@ -1043,15 +1048,37 @@ const getEmailStatusMap = () => {
     });
 };
 
+const getEmployeesMapFromRealtimeDb = officeId => {
+  const realtimeDb = admin.database();
+  const path = `${officeId}/employee`;
+  const ref = realtimeDb.ref(path);
+  const employeesData = {};
+
+  return new Promise(resolve => {
+    ref.on('value', snapShot => {
+      snapShot.forEach(doc => {
+        employeesData[doc.key] = doc.toJSON();
+      });
+
+      resolve(employeesData);
+    });
+  });
+};
+
 const handleMailEventsReport = async worksheet => {
   const sheet = worksheet.addSheet('Mail Events');
   const momentYesterday = momentTz().subtract(0, 'day');
-  const start = momentYesterday.clone().startOf('day').valueOf();
-  const end = momentYesterday.clone().endOf('day').valueOf();
+  const start = momentYesterday
+    .clone()
+    .startOf('day')
+    .valueOf();
+  const end = momentYesterday
+    .clone()
+    .endOf('day')
+    .valueOf();
 
   // emailSentAt
-  const docs = await rootCollections
-    .mailEvents
+  const docs = await rootCollections.mailEvents
     .where('emailSentAt', '>=', start)
     .where('emailSentAt', '<=', end)
     .orderBy('emailSentAt', 'asc')
@@ -1063,7 +1090,7 @@ const handleMailEventsReport = async worksheet => {
   console.log('docs', docs.size);
 
   docs.forEach(doc => {
-    const { office, report } = doc.data();
+    const {office, report} = doc.data();
     const key = `${office}-${report}`;
     const oldArr = dataMap.get(key) || [];
     oldArr.push(doc);
@@ -1080,9 +1107,7 @@ const handleMailEventsReport = async worksheet => {
     'Sendgrid Webhook Timestamp', // timestamp in sendgrid webhook in seconds
     'Webhook Received At',
   ].forEach((value, idx) => {
-    sheet
-      .cell(`${alphabetsArray[idx]}1`)
-      .value(value);
+    sheet.cell(`${alphabetsArray[idx]}1`).value(value);
   });
 
   let outerIndex = 0;
@@ -1107,7 +1132,9 @@ const handleMailEventsReport = async worksheet => {
           return '';
         }
 
-        return momentTz(sendgridWebhookTimestamp * 1000).format(dateFormats.DATE_TIME);
+        return momentTz(sendgridWebhookTimestamp * 1000).format(
+          dateFormats.DATE_TIME,
+        );
       })();
 
       const t2 = (() => {
@@ -1119,7 +1146,9 @@ const handleMailEventsReport = async worksheet => {
       })();
 
       sheet.cell(`A${idx}`).value(email);
-      sheet.cell(`B${idx}`).value(momentTz(emailSentAt).format(dateFormats.DATE_TIME));
+      sheet
+        .cell(`B${idx}`)
+        .value(momentTz(emailSentAt).format(dateFormats.DATE_TIME));
       sheet.cell(`C${idx}`).value(event);
       sheet.cell(`D${idx}`).value(ip);
       sheet.cell(`E${idx}`).value(office);
@@ -1129,7 +1158,6 @@ const handleMailEventsReport = async worksheet => {
 
       outerIndex++;
     });
-
   });
 
   return worksheet;
@@ -1146,7 +1174,7 @@ const handleDailyStatusReport = async toEmail => {
       email: env.systemEmail,
     },
     templateId: sendGridTemplateIds.dailyStatusReport,
-    'dynamic_template_data': {
+    dynamic_template_data: {
       date,
       subject: `Daily Status Report_Growthfile_${date}`,
     },
@@ -1159,25 +1187,21 @@ const handleDailyStatusReport = async toEmail => {
       counterInitQuery,
       yesterdayInitQuery,
       emailStatusMap,
-    ] = await Promise
-      .all([
-        xlsxPopulate
-          .fromBlankAsync(),
-        rootCollections
-          .inits
-          .where('report', '==', reportNames.COUNTER)
-          .limit(1)
-          .get(),
-        rootCollections
-          .inits
-          .where('report', '==', reportNames.DAILY_STATUS_REPORT)
-          .where('date', '==', momentYesterday.date())
-          .where('month', '==', momentYesterday.month())
-          .where('year', '==', momentYesterday.year())
-          .limit(1)
-          .get(),
-        getEmailStatusMap()
-      ]);
+    ] = await Promise.all([
+      xlsxPopulate.fromBlankAsync(),
+      rootCollections.inits
+        .where('report', '==', reportNames.COUNTER)
+        .limit(1)
+        .get(),
+      rootCollections.inits
+        .where('report', '==', reportNames.DAILY_STATUS_REPORT)
+        .where('date', '==', momentYesterday.date())
+        .where('month', '==', momentYesterday.month())
+        .where('year', '==', momentYesterday.year())
+        .limit(1)
+        .get(),
+      getEmailStatusMap(),
+    ]);
 
     const [counterDoc] = counterInitQuery.docs;
     const [yesterdayInitDoc] = yesterdayInitQuery.docs;
@@ -1185,36 +1209,28 @@ const handleDailyStatusReport = async toEmail => {
     const activeYesterday = handleOfficeActivityReport(
       worksheet,
       yesterdayInitDoc,
-      emailStatusMap
+      emailStatusMap,
     );
 
-    await handleActivityStatusReport(
-      worksheet,
-      counterDoc,
-      yesterdayInitDoc
-    );
+    await handleActivityStatusReport(worksheet, counterDoc, yesterdayInitDoc);
 
     handleUserStatusReport(
       worksheet,
       counterDoc,
       yesterdayInitDoc,
-      activeYesterday
+      activeYesterday,
     );
 
-    await handleMailEventsReport(
-      worksheet
-    );
+    await handleMailEventsReport(worksheet);
 
     worksheet.deleteSheet('Sheet1');
 
-    messageObject
-      .attachments
-      .push({
-        fileName,
-        type: 'text/csv',
-        disposition: 'attachment',
-        content: await worksheet.outputAsync('base64'),
-      });
+    messageObject.attachments.push({
+      fileName,
+      type: 'text/csv',
+      disposition: 'attachment',
+      content: await worksheet.outputAsync('base64'),
+    });
 
     console.log('mail sent to', messageObject.to);
 
@@ -1225,7 +1241,6 @@ const handleDailyStatusReport = async toEmail => {
     return;
   }
 };
-
 
 const generateDates = (startTime, endTime) => {
   const momentStart = momentTz(startTime);
@@ -1257,17 +1272,16 @@ const getSitemapXmlString = () => {
   const end = '</urlset>';
   let result = start;
 
-  return rootCollections
-    .offices
+  return rootCollections.offices
     .get()
-    .then((docs) => {
+    .then(docs => {
       // For homepage
       result += `<url>
       <loc>${env.mainDomain}</loc>
         <lastmod>${new Date().toJSON()}</lastmod>
       </url>`;
 
-      docs.forEach((doc) => {
+      docs.forEach(doc => {
         result += getUrlItem(doc.get('slug'), doc.updateTime);
       });
 
@@ -1277,139 +1291,6 @@ const getSitemapXmlString = () => {
       return result;
     })
     .catch(console.error);
-};
-
-const getEmployeeFromRealtimeDb = (officeId, phoneNumber) => {
-  const realtimeDb = admin.database();
-
-  if (!isNonEmptyString(officeId)) {
-    throw new Error(`Invalid 'officeId'. Should be a non-emtpy string:`, officeId);
-  }
-
-  return new Promise((resolve, reject) => {
-    const path = `${officeId}/employee/${phoneNumber}`;
-    const ref = realtimeDb
-      .ref(path);
-
-    ref.on('value', data => resolve(data), error => reject(error));
-  });
-};
-
-const addEmployeeToRealtimeDb = async doc => {
-  const admin = require('firebase-admin');
-  const realtimeDb = admin.database();
-  const phoneNumber = doc.get('attachment.Employee Contact.value');
-  const officeId = doc.get('officeId');
-  const ref = realtimeDb.ref(`${officeId}/employee/${phoneNumber}`);
-  const status = doc.get('status');
-
-  const getEmployeeDataObject = (options = {}) => {
-    if (status === 'CANCELLED') {
-      return null;
-    }
-
-    const attachment = doc.get('attachment');
-    const result = Object.assign({}, options, {
-      createTime: doc.createTime.toDate().getTime(),
-      updateTime: doc.updateTime.toDate().getTime(),
-    });
-
-    Object
-      .keys(attachment)
-      .forEach(item => {
-        const { value } = attachment[item];
-
-        result[item] = value;
-      });
-
-    return result;
-  };
-
-  try {
-    const updatesQueryResult = await rootCollections
-      .updates
-      .where('phoneNumber', '==', phoneNumber)
-      .limit(1)
-      .get();
-
-    const options = {
-      hasInstalled: !updatesQueryResult.empty,
-    };
-
-    const baseLocation = doc.get('attachment.Base Location.value');
-    const timezone = doc.get('timezone') || 'Asia/Kolkata';
-
-    if (baseLocation) {
-      const baseLocationQueryResult = await rootCollections
-        .activities
-        .where('office', '==', doc.get('office'))
-        .where('template', '==', 'branch')
-        .where('attachment.Name.value', '==', baseLocation)
-        .limit(1)
-        .get();
-
-      if (!baseLocationQueryResult.empty) {
-        const baseLocationDoc = baseLocationQueryResult.docs[0];
-        const schedule = baseLocationDoc.get('schedule');
-        const branchHolidays = {};
-
-        schedule.forEach(object => {
-          const { startTime } = object;
-
-          if (!startTime) return;
-
-          const formattedDate = momentTz(startTime)
-            .tz(timezone)
-            .format(dateFormats.DATE);
-
-          branchHolidays[formattedDate] = true;
-        });
-
-        options['Weekly Off'] = baseLocationDoc.get('attachment.Weekly Off.value');
-
-        options.branchHolidays = branchHolidays;
-      }
-    }
-
-    const leaves = await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
-      .where('template', '==', 'leave')
-      .where('isCancelled', '==', false)
-      .where('creator.phoneNumber', '==', phoneNumber)
-      .where('creationYear', '==', momentTz().tz(timezone).year())
-      .get();
-
-    leaves.forEach(doc => {
-      const leaveType = doc.get('attachment.Leave Type.value') || 'unset';
-
-      options.leaves = options.leaves || {};
-      options.leaves[leaveType] = options.leaves[leaveType] || 0;
-      options.leaves[leaveType]++;
-    });
-
-    return ref.set(getEmployeeDataObject(options));
-  } catch (error) {
-    console.error(error);
-  }
-};
-
-const getEmployeesMapFromRealtimeDb = officeId => {
-  const realtimeDb = admin.database();
-  const path = `${officeId}/employee`;
-  const ref = realtimeDb.ref(path);
-  const employeesData = {};
-
-  return new Promise(resolve => {
-    ref.on('value', (snapShot) => {
-      snapShot.forEach((doc) => {
-        employeesData[doc.key] = doc.toJSON();
-      });
-
-      resolve(employeesData);
-    });
-  });
 };
 
 const millitaryToHourMinutes = fourDigitTime => {
@@ -1430,11 +1311,7 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
   let locationName = '';
 
   addressComponents.forEach(component => {
-    const {
-      types,
-      short_name,
-      long_name,
-    } = component;
+    const {types, short_name, long_name} = component;
 
     if (types.includes('sublocality_level_1')) {
       locationName += ` ${long_name} `;
@@ -1449,301 +1326,13 @@ const getCustomerName = (addressComponents, nameFromUser = '') => {
     }
   });
 
-  return `${nameFromUser.substring(0, 10)}`
-    + ` ${locationName}`
+  return (
+    `${nameFromUser.substring(0, 10)}` +
+    ` ${locationName}`
       .trim()
       // Replace double spaces and other non-printable chars
-      .replace(/\s\s+/g, ' ');
-};
-
-const getCustomerObject = async queryObject => {
-  try {
-    const templateQueryResult = await rootCollections
-      .activityTemplates
-      .where('name', '==', 'customer')
-      .limit(1)
-      .get();
-
-    const templateDoc = templateQueryResult.docs[0];
-    const activityObject = {
-      attachment: templateDoc.get('attachment'),
-      schedule: templateDoc.get('schedule').map(name => {
-        return ({ name, startTime: '', endTime: '' });
-      }),
-      venue: templateDoc.get('venue').map(venueDescriptor => {
-        return ({
-          venueDescriptor,
-          location: '',
-          address: '',
-          geopoint: {
-            latitude: '',
-            longitude: '',
-          },
-        });
-      }),
-    };
-
-    const placesApiResponse = await googleMapsClient
-      .places({
-        query: queryObject.address,
-      })
-      .asPromise();
-    let success = true;
-
-    const firstResult = placesApiResponse
-      .json
-      .results[0];
-    success = Boolean(firstResult);
-
-    if (!success) {
-      return Object.assign({}, queryObject, { failed: !success });
-    }
-
-    activityObject
-      .venue[0]
-      .geopoint
-      .latitude = firstResult.geometry.location.lat;
-    activityObject
-      .venue[0]
-      .geopoint
-      .longitude = firstResult.geometry.location.lng;
-    activityObject
-      .venue[0]
-      .placeId = firstResult['place_id'];
-
-    const placeApiResult = await googleMapsClient
-      .place({
-        placeid: firstResult['place_id'],
-      })
-      .asPromise();
-
-    activityObject
-      .attachment
-      .Name
-      .value = getCustomerName(
-        placeApiResult.json.result.address_components,
-        queryObject.location,
-      );
-
-    activityObject
-      .venue[0]
-      .address = placeApiResult.json.result.formatted_address;
-
-    activityObject
-      .venue[0]
-      .location = activityObject.attachment.Name.value;
-
-    const dailyStartTime = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const periods = openingHours.periods;
-      const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 1;
-      });
-
-      if (!relevantObject[0]) return '';
-
-      return relevantObject[0].open.time;
-    })();
-
-    const dailyEndTime = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const periods = openingHours.periods;
-      const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 1;
-      });
-
-      if (!relevantObject[0]) return '';
-
-      return relevantObject[0].close.time;
-    })();
-
-    const weeklyOff = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const weekdayText = openingHours['weekday_text'];
-
-      if (!weekdayText) return '';
-
-      const closedWeekday = weekdayText
-        // ['Sunday: Closed']
-        .filter(str => str.includes('Closed'))[0];
-
-      if (!closedWeekday) return '';
-
-      const parts = closedWeekday.split(':');
-
-      if (!parts[0]) return '';
-
-      // ['Sunday' 'Closed']
-      return parts[0].toLowerCase();
-    })();
-
-    activityObject
-      .attachment['Daily Start Time']
-      .value = millitaryToHourMinutes(dailyStartTime);
-    activityObject
-      .attachment['Daily End Time']
-      .value = millitaryToHourMinutes(dailyEndTime);
-    activityObject
-      .attachment['Weekly Off']
-      .value = weeklyOff;
-
-    return activityObject;
-  } catch (error) {
-    console.error(error);
-
-    return Object.assign({}, queryObject, { failed: true });
-  }
-};
-
-
-const addressToCustomer = async queryObject => {
-  const activityObject = {
-    placeId: '',
-    venueDescriptor: 'Customer Office',
-    location: queryObject.location,
-    address: queryObject.address,
-    latitude: '',
-    longitude: '',
-    Name: '',
-    'First Contact': '',
-    'Second Contact': '',
-    'Customer Type': '',
-    'Customer Code': '',
-    'Daily Start Time': '',
-    'Daily End Time': '',
-    'Weekly Off': '',
-  };
-
-  let success = false;
-
-  try {
-    const placesApiResponse = await googleMapsClient
-      .places({
-        query: queryObject.address,
-      })
-      .asPromise();
-
-    const firstResult = placesApiResponse
-      .json
-      .results[0];
-    success = Boolean(firstResult);
-
-    if (!success) {
-      return Object.assign({}, queryObject, { success });
-    }
-
-    activityObject
-      .latitude = firstResult.geometry.location.lat;
-    activityObject
-      .longitude = firstResult.geometry.location.lng;
-    activityObject
-      .placeId = firstResult['place_id'];
-
-    const placeApiResult = await googleMapsClient
-      .place({
-        placeid: firstResult['place_id'],
-      })
-      .asPromise();
-
-    activityObject
-      .Name = getCustomerName(
-        placeApiResult.json.result.address_components,
-        queryObject.location,
-      );
-    activityObject
-      .location = activityObject.Name;
-
-    const weekdayStartTime = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const periods = openingHours.periods;
-      const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 0;
-      });
-
-      if (!relevantObject[0]) return '';
-
-      return relevantObject[0].open.time;
-    })();
-
-    const weekdayEndTime = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const periods = openingHours.periods;
-      const relevantObject = periods.filter(item => {
-        return item.close && item.close.day === 0;
-      });
-
-      if (!relevantObject[0]) return '';
-
-      return relevantObject[0].close.time;
-    })();
-
-    const weeklyOff = (() => {
-      const openingHours = placeApiResult
-        .json
-        .result['opening_hours'];
-
-      if (!openingHours) return '';
-
-      const weekdayText = openingHours['weekday_text'];
-
-      if (!weekdayText) return '';
-
-      const closedWeekday = weekdayText
-        // ['Sunday: Closed']
-        .filter(str => str.includes('Closed'))[0];
-
-      if (!closedWeekday) return '';
-
-      const parts = closedWeekday.split(':');
-
-      if (!parts[0]) return '';
-
-      // ['Sunday' 'Closed']
-      return parts[0].toLowerCase();
-    })();
-
-    activityObject[
-      'Daily Start Time'
-    ] = millitaryToHourMinutes(weekdayStartTime);
-    activityObject[
-      'Daily End Time'
-    ] = millitaryToHourMinutes(weekdayEndTime);
-
-    activityObject[
-      'Weekly Off'
-    ] = weeklyOff;
-
-    return activityObject;
-  } catch (error) {
-    console.error(error);
-
-    return queryObject;
-  }
+      .replace(/\s\s+/g, ' ')
+  );
 };
 
 const filterPhoneNumber = phoneNumber =>
@@ -1755,9 +1344,7 @@ const filterPhoneNumber = phoneNumber =>
 
 const replaceNonASCIIChars = str =>
   // https://www.w3resource.com/javascript-exercises/javascript-string-exercise-32.php
-  str
-    .replace(/[^\x20-\x7E]/g, '')
-    .trim();
+  str.replace(/[^\x20-\x7E]/g, '').trim();
 
 const getBranchName = addressComponents => {
   // (sublocaliy1 + sublocality2 + locality)
@@ -1765,7 +1352,7 @@ const getBranchName = addressComponents => {
   let locationName = '';
 
   addressComponents.forEach(component => {
-    const { types, short_name } = component;
+    const {types, short_name} = component;
 
     if (types.includes('sublocality_level_1')) {
       locationName += ` ${short_name}`;
@@ -1783,75 +1370,44 @@ const getBranchName = addressComponents => {
   return `${locationName} BRANCH`.trim();
 };
 
-const getUsersWithCheckIn = async officeId => {
-  const checkInSubscriptions = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Activities')
-    .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', 'check-in')
-    .where('status', '==', 'CONFIRMED')
-    .get();
-
-  return checkInSubscriptions
-    .docs
-    .map(doc => doc.get('attachment.Subscriber.value'));
-};
-
 const getAuth = async phoneNumber => {
-  return auth
-    .getUserByPhoneNumber(phoneNumber)
-    .catch(() => {
-      return ({
-        phoneNumber,
-        uid: null,
-        email: '',
-        emailVerified: false,
-        displayName: '',
-      });
-    });
+  return auth.getUserByPhoneNumber(phoneNumber).catch(() => {
+    return {
+      phoneNumber,
+      uid: null,
+      email: '',
+      emailVerified: false,
+      displayName: '',
+    };
+  });
 };
 
 const findKeyByValue = (obj, value) =>
   Object.keys(obj).find(key => obj[key] === value);
 
-
 const getNumbersbetween = (start, end) => {
-  return new Array(end - start)
-    .fill()
-    .map((d, i) => i + start);
+  return new Array(end - start).fill().map((d, i) => i + start);
 };
 
 const getAttendancesPath = params => {
-  const {
-    startTime,
-    endTime,
-    officeId,
-    phoneNumber,
-    collectionName,
-  } = params;
-  const now = momentTz(startTime)
-    .clone();
+  const {startTime, endTime, officeId, phoneNumber, collectionName} = params;
+  const now = momentTz(startTime).clone();
   const end = momentTz(endTime);
   const result = [];
 
   while (now.isSameOrBefore(end)) {
-    const monthYearString = now
-      .format(dateFormats.MONTH_YEAR);
+    const monthYearString = now.format(dateFormats.MONTH_YEAR);
 
-    const ref = rootCollections
-      .offices
+    const ref = rootCollections.offices
       .doc(officeId)
       .collection(collectionName || subcollectionNames.ATTENDANCES)
       .doc(monthYearString)
       .collection(phoneNumber)
       .doc(`${now.date()}`);
 
-    result
-      .push(ref.get());
+    result.push(ref.get());
 
-    now
-      .add(1, 'day');
+    now.add(1, 'day');
   }
 
   return result;
@@ -1860,30 +1416,36 @@ const getAttendancesPath = params => {
 const getCanEditValue = (doc, requester) => {
   const canEditRule = doc.get('canEditRule');
 
-  if (canEditRule === 'ALL'
+  if (
+    canEditRule === 'ALL' ||
     /**
      * Support can edit all activities
      */
-    || (requester.customClaims && requester.customClaims.support)) {
+    (requester.customClaims && requester.customClaims.support)
+  ) {
     return true;
   }
 
   if (canEditRule === 'EMPLOYEE') {
-    return requester.employeeOf
-      && requester.employeeOf.hasOwnProperty(doc.get('office'));
+    return (
+      requester.employeeOf &&
+      requester.employeeOf.hasOwnProperty(doc.get('office'))
+    );
   }
 
   if (canEditRule === 'ADMIN') {
-    return requester.customClaims
-      && Array.isArray(requester.customClaims.admin)
-      && requester.customClaims.admin.includes(doc.get('office'));
+    return (
+      requester.customClaims &&
+      Array.isArray(requester.customClaims.admin) &&
+      requester.customClaims.admin.includes(doc.get('office'))
+    );
   }
 
   if (canEditRule === 'CREATOR') {
     return (
-      doc.get('creator')
-      || doc.get('creator.phoneNumber')
-    ) === requester.phoneNumber;
+      (doc.get('creator') || doc.get('creator.phoneNumber')) ===
+      requester.phoneNumber
+    );
   }
 
   return false;
@@ -1902,10 +1464,8 @@ const enumerateDaysBetweenDates = (start, end, format) => {
       return now.format();
     })();
 
-    dates
-      .add(formattedDate);
-    now
-      .add(1, 'days');
+    dates.add(formattedDate);
+    now.add(1, 'days');
   }
 
   return [...dates.keys()];
@@ -1972,293 +1532,116 @@ const getDefaultAttendanceObject = () => {
   };
 };
 
+/**
+ * Populates leave, weeklyOff and holidays for the user
+ * @param {} params
+ */
+// const newBackfill = async params => {
+//   /**
+//    * if prev checkin timestamp is of current month
+//    * exit
+//    *
+//    * fetch prev month attendance doc
+//    * if doc found
+//    *   prev check in date to today
+//    *     populate leave, weekly off, holiday
+//    *
+//    * if doc doesn't exist
+//    *   start => greatestUnix(1st of last month, employee creation, lastCheckIn timestamp)
+//    *   end => last date of prev month
+//    */
 
-const getEmployeeReportData = async (officeId, phoneNumber) => {
-  const employeeQueryResult = await rootCollections
-    .offices
-    .doc(officeId)
-    .collection(subcollectionNames.ACTIVITIES)
-    .where('attachment.Employee Contact.value', '==', phoneNumber)
-    .where('template', '==', 'employee')
-    .where('status', '==', 'CONFIRMED')
-    .limit(1)
-    .get();
+//   // prev checkin timestamp is in check-in subscription doc.
+//   const {
+//     officeId,
+//     lastCheckInTimestamp,
+//     phoneNumber,
+//     roleObject,
+//   } = params;
 
-  if (employeeQueryResult.empty) {
-    return {
-      phoneNumber,
-      id: '',
-      activationDate: null,
-      employeeName: '',
-      employeeCode: '',
-      baseLocation: '',
-      region: '',
-      department: '',
-      minimumDailyActivityCount: '',
-      minimumWorkingHours: '',
-      locationValidationCheck: '',
-    };
-  }
+//   const lastCheckInMonth = momentTz(lastCheckInTimestamp).month();
+//   const monthToday = momentTz().month();
 
-  const employeeDoc = employeeQueryResult.docs[0];
+//   if (lastCheckInMonth === monthToday) {
+//     return;
+//   }
 
-  return {
-    phoneNumber,
-    id: employeeDoc.id,
-    locationValidationCheck: employeeDoc.get('attachment.Location Validation Check.value'),
-    activationDate: employeeDoc.createTime.toMillis(),
-    employeeName: employeeDoc.get('attachment.Name.value'),
-    employeeCode: employeeDoc.get('attachment.Employee Code.value'),
-    baseLocation: employeeDoc.get('attachment.Base Location.value'),
-    region: employeeDoc.get('attachment.Region.value'),
-    department: employeeDoc.get('attachment.Department.value'),
-    minimumDailyActivityCount: employeeDoc.get('attachment.Minimum Daily Activity Count.value'),
-    minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
-  };
-};
+//   const previousMonthMoment = momentTz().subtract(1, 'month');
 
+//   const [prevMonthAttendanceDoc] = (
+//     await rootCollections
+//     .offices
+//     .doc(officeId)
+//     .collection(subcollectionNames.ATTENDANCES)
+//     .where('phoneNumber', '==', phoneNumber)
+//     .where('month', '==', previousMonthMoment.month())
+//     .where('year', '==', previousMonthMoment.year())
+//     .limit(1)
+//     .get()
+//   ).docs;
 
-const populateWeeklyOffInAttendance = async params => {
-  const {
-    month,
-    year,
-    employeeDoc,
-    uid,
-  } = params;
+//   const getStartEndObject = (prevMonthAttendanceDoc) => {
+//     // if doc doesn 't exist
+//     // start => greatestUnix(1 st of last month, employee creation, lastCheckIn timestamp) *
+//     // end => last date of prev month
+//     if (!prevMonthAttendanceDoc) {
+//       const startUnix = Math.max([
+//         previousMonthMoment.startOf('month').valueOf(),
+//         roleObject.createTime.toMillis(),
+//         lastCheckInTimestamp
+//       ]);
 
-  if (!employeeDoc) {
-    return;
-  }
+//       const endUnix = previousMonthMoment.endOf('month').valueOf();
 
-  const {
-    office,
-    officeId,
-    attachment: {
-      'Employee Contact': {
-        value: phoneNumber,
-      },
-      'Base Location': {
-        value: baseLocation,
-      },
-    },
-  } = employeeDoc.data();
+//       return {
+//         startUnix,
+//         endUnix
+//       };
+//     }
 
-  const attendanceDoc = (
-    await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Attendances')
-      .where('phoneNumber', '==', phoneNumber)
-      .where('month', '==', month)
-      .where('year', '==', year)
-      .limit(1)
-      .get()
-  ).docs[0];
+//     // if doc found
+//     // prev check in date to today
+//     //   populate leave, weekly off, holiday
+//     const startUnix = lastCheckInTimestamp;
+//     const endUnix = momentTz().valueOf();
 
-  console.log('baseLocation', baseLocation);
+//     return {
+//       startUnix,
+//       endUnix
+//     };
+//   };
 
-  const attendanceData = attendanceDoc ? attendanceDoc.data() : {};
-  const attendanceRef = attendanceDoc ? attendanceDoc.ref : rootCollections
-    .offices
-    .doc(officeId)
-    .collection('Attendances')
-    .doc();
-  const branchDoc = (
-    await rootCollections
-      .offices
-      .doc(officeId)
-      .collection('Activities')
-      .where('template', '==', 'branch')
-      .where('attachment.Name.value', '==', baseLocation)
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get()
-  ).docs[0];
+//   const {
+//     startUnix,
+//     endUnix
+//   } = getStartEndObject(prevMonthAttendanceDoc);
 
-  /**
-   * Redundant because branch should exist
-   * if assigned to an employee
-   */
-  if (!branchDoc) {
-    console.log('no branch set');
-    return;
-  }
+//   const momentStart = momentTz(startUnix);
+//   const momentEnd = momentTz(endUnix);
 
-  attendanceData
-    .attachment = attendanceData
-      .attachment || {};
-
-  const batch = db.batch();
-  const weeklyOff = branchDoc.get('attachment.Weekly Off.value');
-  const datesInMonth = getNumbersbetween(
-    1,
-    momentTz().month(month).year(year).daysInMonth() + 1
-  );
-
-  datesInMonth.forEach(date => {
-    attendanceData
-      .attendance[
-      date
-    ] = attendanceData.attendance[date] || getDefaultAttendanceObject();
-
-    if (!weeklyOff) {
-      return;
-    }
-
-    const weekdayName = momentTz()
-      .month(month)
-      .year(year)
-      .date(date)
-      .format('dddd')
-      .toLowerCase();
-
-    if (weekdayName !== weeklyOff) {
-      return;
-    }
-
-    attendanceData
-      .attendance[
-      date
-    ].weeklyOff = true;
-    attendanceData
-      .attendance[
-      date
-    ] = 1;
-
-    const updatesRef = rootCollections
-      .updates
-      .doc(uid)
-      .collection('Addendum')
-      .doc();
-
-    batch
-      .set(updatesRef, {
-        uid,
-        date,
-        month,
-        year,
-        office,
-        officeId,
-        phoneNumber,
-        key: momentTz()
-          .date(date)
-          .month(month)
-          .year(year)
-          .startOf('date')
-          .valueOf(),
-        id: `${date}${month}${year}${officeId}`,
-        _type: addendumTypes.ATTENDANCE,
-        timestamp: Date.now(),
-      });
-  });
-
-  const holidays = branchDoc.get('schedule');
-
-  holidays
-    .forEach(holiday => {
-      const { startTime } = holiday;
-
-      if (!Number.isInteger(startTime)) {
-        return;
-      }
-
-      // Not adjusting timezone
-      const momentStartTime = momentTz(startTime);
-      // .tz(timezone);
-      const startTimeDate = momentStartTime.date();
-
-      if (momentStartTime.month() !== month) {
-        return;
-      }
-
-      if (momentStartTime.year() !== year) {
-        return;
-      }
-
-      attendanceData
-        .attendance[
-        startTimeDate
-      ] = attendanceData.attendance[startTimeDate] || getDefaultAttendanceObject();
-
-      attendanceData
-        .attendance[
-        startTimeDate
-      ].holiday = true;
-
-      attendanceData
-        .attendance[
-        startTimeDate
-      ].attendance = 1;
-
-      const updatesRef = rootCollections
-        .updates
-        .doc(uid)
-        .collection('Addendum')
-        .doc();
-
-      batch
-        .set(updatesRef, {
-          uid,
-          month,
-          year,
-          office,
-          officeId,
-          phoneNumber,
-          date: startTimeDate,
-          key: momentTz()
-            .date(startTimeDate)
-            .month(month)
-            .year(year)
-            .startOf('date')
-            .valueOf(),
-          id: `${startTimeDate}${month}${year}${officeId}`,
-          _type: addendumTypes.ATTENDANCE,
-          timestamp: Date.now(),
-        });
-    });
-
-  const employeeData = {
-    phoneNumber,
-    id: employeeDoc.id,
-    activationDate: employeeDoc.createTime.toMillis(),
-    employeeName: employeeDoc.get('attachment.Name.value'),
-    employeeCode: employeeDoc.get('attachment.Employee Code.value'),
-    baseLocation: employeeDoc.get('attachment.Base Location.value'),
-    region: employeeDoc.get('attachment.Region.value'),
-    department: employeeDoc.get('attachment.Department.value'),
-    minimumDailyActivityCount: employeeDoc.get('attachment.Minimum Daily Activity Count.value'),
-    minimumWorkingHours: employeeDoc.get('attachment.Minimum Working Hours.value'),
-  };
-
-  batch
-    .set(attendanceRef,
-      Object.assign({}, employeeData, attendanceData), {
-      merge: true,
-    });
-
-  return batch
-    .commit();
-};
-
+// };
 
 const getScheduleDates = scheduleObjects => {
   const allDateStrings = [];
 
   scheduleObjects.forEach(o => {
-    const { startTime: startDate, endTime: endDate } = o;
-    const items = enumerateDaysBetweenDates(startDate, endDate, dateFormats.DATE);
+    const {startTime: startDate, endTime: endDate} = o;
+    const items = enumerateDaysBetweenDates(
+      startDate,
+      endDate,
+      dateFormats.DATE,
+    );
 
-    items
-      .forEach(i => allDateStrings.push(i));
+    items.forEach(i => allDateStrings.push(i));
   });
 
   return allDateStrings;
 };
 
 const getLatLngString = location =>
-  `${location._latitude || location.latitude}`
-  + `,`
-  + `${location._longitude || location.longitude}`;
+  `${location._latitude || location.latitude}` +
+  `,` +
+  `${location._longitude || location.longitude}`;
 
 const getDistanceFromDistanceMatrix = async (origin, destination) => {
   const result = await googleMapsClient
@@ -2274,11 +1657,7 @@ const getDistanceFromDistanceMatrix = async (origin, destination) => {
     })
     .asPromise();
 
-  const distanceData = result
-    .json
-    .rows[0]
-    .elements[0]
-    .distance;
+  const {distance: distanceData} = result.json.rows[0].elements[0];
 
   /**
    * Not all origin => destinations might have a legal
@@ -2289,15 +1668,21 @@ const getDistanceFromDistanceMatrix = async (origin, destination) => {
   return distanceData ? distanceData.value / 1000 : 0;
 };
 
+const latLngToTimezone = async geopoint => {
+  return (
+    await googleMapsClient
+      .timezone({
+        location: getLatLngString(geopoint),
+      })
+      .asPromise()
+  ).json.timeZoneId;
+};
 
 module.exports = {
-  getLatLngString,
-  getDistanceFromDistanceMatrix,
-  populateWeeklyOffInAttendance,
-  getScheduleDates,
   getAuth,
   slugify,
   sendSMS,
+  latLngToTimezone,
   sendJSON,
   isValidUrl,
   getFileHash,
@@ -2321,35 +1706,33 @@ module.exports = {
   getRelevantTime,
   getCanEditValue,
   isValidGeopoint,
+  getLatLngString,
+  getCustomerName,
+  getScheduleDates,
   multipartParser,
   hasSupportClaims,
   isNonEmptyString,
   cloudflareCdnUrl,
   adjustedGeopoint,
   filterPhoneNumber,
-  getCustomerObject,
   isE164PhoneNumber,
-  addressToCustomer,
   getNumbersbetween,
   getObjectFromSnap,
   hasSuperUserClaims,
   getAttendancesPath,
   isValidCanEditRule,
   promisifiedRequest,
-  getUsersWithCheckIn,
-  getSitemapXmlString,
   promisifiedExecFile,
+  getSitemapXmlString,
   getDatesToMonthsMap,
   getRegistrationToken,
   replaceNonASCIIChars,
-  getEmployeeReportData,
   millitaryToHourMinutes,
   handleDailyStatusReport,
   hasManageTemplateClaims,
-  addEmployeeToRealtimeDb,
-  getEmployeeFromRealtimeDb,
   enumerateDaysBetweenDates,
   getDefaultAttendanceObject,
+  getDistanceFromDistanceMatrix,
   getAdjustedGeopointsFromVenue,
   getEmployeesMapFromRealtimeDb,
 };

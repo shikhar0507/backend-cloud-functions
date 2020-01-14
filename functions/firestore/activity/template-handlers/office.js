@@ -1,15 +1,31 @@
+/**
+ * Copyright (c) 2018 GrowthFile
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ */
+
 'use strict';
 
 const crypto = require('crypto');
-const { google } = require('googleapis');
-const {
-  db,
-  rootCollections,
-} = require('../../../admin/admin');
-const {
-  activityName,
-  createAutoSubscription,
-} = require('../helper');
+const {db, rootCollections} = require('../../../admin/admin');
+const {activityName, createAutoSubscription} = require('../helper');
 const {
   slugify,
   getAuth,
@@ -22,20 +38,20 @@ const {
   httpsActions,
   subcollectionNames,
 } = require('../../../admin/constants');
-const {
-  createVirtualAccount,
-} = require('../../../cash-free/autocollect');
+const {createVirtualAccount} = require('../../../cash-free/autocollect');
 const env = require('../../../admin/env');
 const admin = require('firebase-admin');
-const googleMapsClient = require('@google/maps')
-  .createClient({
-    key: env.mapsApiKey,
-    Promise: Promise,
-  });
+const momentTz = require('moment-timezone');
+const googleMapsClient = require('@google/maps').createClient({
+  key: env.mapsApiKey,
+  Promise: Promise,
+});
+
+const isActivityCreated = change =>
+  !change.before.data() && change.after.data();
 
 const replaceInvalidCharsInOfficeName = office => {
-  let result = office
-    .toLowerCase();
+  let result = office.toLowerCase();
 
   const mostCommonTlds = new Set([
     'com',
@@ -47,15 +63,13 @@ const replaceInvalidCharsInOfficeName = office => {
     'uk',
   ]);
 
-  mostCommonTlds
-    .forEach(tld => {
-      if (!result.endsWith(`.${tld}`)) {
-        return;
-      }
+  mostCommonTlds.forEach(tld => {
+    if (!result.endsWith(`.${tld}`)) {
+      return;
+    }
 
-      result = result
-        .replace(`.${tld}`, '');
-    });
+    result = result.replace(`.${tld}`, '');
+  });
 
   return result
     .replace('.', '')
@@ -75,41 +89,37 @@ const getPlaceIds = async office => {
     .placesAutoComplete({
       input: office,
       sessiontoken: crypto.randomBytes(64).toString('hex'),
-      components: { country: 'in' },
+      components: {
+        country: 'in',
+      },
     })
     .asPromise();
 
-  return result
-    .json
-    .predictions
-    .map(prediction => prediction.place_id);
+  return result.json.predictions.map(prediction => prediction.place_id);
 };
 
-
-const getPlaceName = async placeid => {
+const getFullBranchActivity = async placeid => {
   const result = await googleMapsClient
     .place({
       placeid,
       fields: [
-        "address_component",
-        "adr_address",
-        "formatted_address",
-        "geometry",
-        "name",
-        "permanently_closed",
-        "place_id",
-        "type",
-        "vicinity",
-        "international_phone_number",
-        "opening_hours",
-        "website"
+        'address_component',
+        'adr_address',
+        'formatted_address',
+        'geometry',
+        'name',
+        'permanently_closed',
+        'place_id',
+        'type',
+        'vicinity',
+        'international_phone_number',
+        'opening_hours',
+        'website',
       ],
     })
     .asPromise();
 
-  const {
-    address_components: addressComponents,
-  } = result.json.result;
+  const {address_components: addressComponents} = result.json.result;
 
   const branchName = getBranchName(addressComponents);
   const branchOffice = {
@@ -119,14 +129,12 @@ const getPlaceName = async placeid => {
     location: branchName,
     geopoint: new admin.firestore.GeoPoint(
       result.json.result.geometry.location.lat,
-      result.json.result.geometry.location.lng
+      result.json.result.geometry.location.lng,
     ),
   };
 
   const weekdayStartTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
@@ -134,84 +142,73 @@ const getPlaceName = async placeid => {
 
     const periods = openingHours.periods;
 
-    const relevantObject = periods.filter(item => {
+    const [relevantObject] = periods.filter(item => {
       return item.close && item.close.day === 1;
     });
 
-    if (!relevantObject[0]) {
+    if (!relevantObject) {
       return '';
     }
 
-    return relevantObject[0].open.time;
+    return relevantObject.open.time;
   })();
 
   const weekdayEndTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
     }
 
-    const periods = openingHours.periods;
-
-    const relevantObject = periods.filter(item => {
-      return item.close
-        && item.close.day === 1;
+    const [relevantObject] = openingHours.periods.filter(item => {
+      return item.close && item.close.day === 1;
     });
 
-    if (!relevantObject[0]) {
+    if (!relevantObject) {
       return '';
     }
 
-    return relevantObject[0].close.time;
+    return relevantObject.close.time;
   })();
 
   const saturdayStartTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
     }
 
-    const relevantObject = openingHours
-      .periods
-      .filter(item => item.open && item.open.day === 6);
+    const [relevantObject] = openingHours.periods.filter(
+      item => item.open && item.open.day === 6,
+    );
 
-    if (!relevantObject[0]) {
+    if (!relevantObject) {
       return '';
     }
 
-    return relevantObject[0].open.time;
+    return relevantObject.open.time;
   })();
 
   const saturdayEndTime = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
     }
 
-    const relevantObject = openingHours
-      .periods
-      .filter(item => item.open && item.open.day === 6);
+    const [relevantObject] = openingHours.periods.filter(
+      item => item.open && item.open.day === 6,
+    );
 
-    if (!relevantObject[0]) {
+    if (!relevantObject) {
       return '';
     }
 
-    return relevantObject[0].close.time;
+    return relevantObject.close.time;
   })();
 
   const weeklyOff = (() => {
-    const openingHours = result
-      .json
-      .result['opening_hours'];
+    const openingHours = result.json.result['opening_hours'];
 
     if (!openingHours) {
       return '';
@@ -223,38 +220,36 @@ const getPlaceName = async placeid => {
       return '';
     }
 
-    const closedWeekday = weekdayText
+    const [closedWeekday] = weekdayText
       // ['Sunday: Closed']
-      .filter(str => str.includes('Closed'))[0];
+      .filter(str => str.includes('Closed'));
 
     if (!closedWeekday) {
       return '';
     }
 
-    const parts = closedWeekday
-      .split(':');
+    const [part] = closedWeekday.split(':');
 
-    if (!parts[0]) {
+    if (!part) {
       return '';
     }
 
     // ['Sunday' 'Closed']
-    return parts[0].toLowerCase();
+    return part.toLowerCase();
   })();
 
-  const schedulesArray = Array
-    .from(Array(15))
-    .map((_, index) => {
-      return {
-        name: `Holiday ${index + 1}`,
-        startTime: '',
-        endTime: '',
-      };
-    });
+  const schedulesArray = Array.from(Array(15)).map((_, index) => {
+    return {
+      name: `Holiday ${index + 1}`,
+      startTime: '',
+      endTime: '',
+    };
+  });
 
   const activityObject = {
     // All assignees from office creation instance
     venue: [branchOffice],
+    placeId: placeid,
     schedule: schedulesArray,
     attachment: {
       Name: {
@@ -299,24 +294,20 @@ const getPlaceName = async placeid => {
   return activityObject;
 };
 
-
 const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
   const batch = db.batch();
-  const { officeId } = locals.change.after.data();
-  const addendumDocRef = rootCollections
-    .offices
+  const {officeId} = locals.change.after.data();
+  const addendumDocRef = rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.ADDENDUM)
     .doc();
 
-  const activityRef = rootCollections
-    .activities
-    .doc();
-
+  const activityRef = rootCollections.activities.doc();
   const gp = adjustedGeopoint(branchData.venue[0].geopoint);
 
   const activityData = {
     officeId,
+    placeId: branchData.placeId,
     addendumDocRef,
     template: 'branch',
     status: branchTemplateDoc.get('statusOnCreate'),
@@ -340,6 +331,7 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
 
   const addendumDocData = {
     activityData,
+    timestamp: Date.now(),
     timezone: locals.change.after.get('timezone'),
     user: locals.change.after.get('creator.phoneNumber'),
     userDisplayName: locals.change.after.get('creator.displayName'),
@@ -354,143 +346,108 @@ const createAutoBranch = (branchData, locals, branchTemplateDoc) => {
     location: locals.addendumDoc.get('location'),
   };
 
-  locals
-    .assigneePhoneNumbersArray
-    .forEach(phoneNumber => {
-      batch
-        .set(activityRef
-          .collection(subcollectionNames.ASSIGNEES)
-          .doc(phoneNumber), {
-          addToInclude: false,
-        });
-    });
+  locals.assigneePhoneNumbersArray.forEach(phoneNumber => {
+    batch.set(
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+      {
+        addToInclude: false,
+      },
+    );
+  });
 
-  batch
-    .set(activityRef, activityData);
-  batch
-    .set(addendumDocRef, addendumDocData);
+  batch.set(activityRef, activityData);
 
-  return batch
-    .commit();
+  batch.set(addendumDocRef, addendumDocData);
+
+  return batch.commit();
 };
 
-
 const createBranches = async locals => {
-  const { template, office } = locals.change.after.data();
-  const hasBeenCreated = locals.addendumDoc
-    && locals.addendumDoc.get('action') === httpsActions.create;
+  const {office} = locals.change.after.data();
 
-  if (template !== 'office'
-    || !hasBeenCreated) {
+  if (!isActivityCreated(locals.change)) {
     return;
   }
 
   let failureCount = 0;
 
   const getBranchBodies = async office => {
-    return getPlaceIds(office)
-      .then(ids => {
-        const promises = [];
-
-        if (ids.length === 0) {
-          failureCount++;
-
-          if (failureCount > 1) {
-            // Has failed once with the actual office name
-            // and 2nd time even by replacing invalid chars
-            // Give up.
-
-            return Promise
-              .all(promises);
-          }
-
-          const filteredOfficeName = replaceInvalidCharsInOfficeName(office);
-
-          return getBranchBodies(filteredOfficeName);
-        }
-
-        ids
-          .forEach(id => {
-            promises
-              .push(getPlaceName(id));
-          });
-
-        return Promise
-          .all(promises);
-      })
-      .catch(console.error);
-  };
-
-  return Promise
-    .all([
-      getBranchBodies(office),
-      rootCollections
-        .activityTemplates
-        .where('name', '==', 'branch')
-        .limit(1)
-        .get()
-    ])
-    .then(result => {
-      const [
-        branches,
-        templateQuery
-      ] = result;
-
-      const [templateDoc] = templateQuery.docs;
+    return getPlaceIds(office).then(ids => {
       const promises = [];
 
-      branches
-        .forEach(branch => {
-          promises
-            .push(
-              createAutoBranch(branch, locals, templateDoc)
-            );
-        });
+      if (ids.length === 0) {
+        failureCount++;
 
-      return Promise
-        .all(promises);
-    })
-    .catch(console.error);
+        if (failureCount > 1) {
+          // Has failed once with the actual office name
+          // and 2nd time even by replacing invalid chars
+          // Give up.
+
+          return Promise.all(promises);
+        }
+
+        const filteredOfficeName = replaceInvalidCharsInOfficeName(office);
+
+        return getBranchBodies(filteredOfficeName);
+      }
+
+      ids.forEach(id => {
+        promises.push(getFullBranchActivity(id));
+      });
+
+      return Promise.all(promises);
+    });
+  };
+
+  return Promise.all([
+    getBranchBodies(office),
+    rootCollections.activityTemplates
+      .where('name', '==', 'branch')
+      .limit(1)
+      .get(),
+  ]).then(result => {
+    const [branches, templateQuery] = result;
+
+    const [templateDoc] = templateQuery.docs;
+    const promises = [];
+
+    branches.forEach(branch => {
+      promises.push(createAutoBranch(branch, locals, templateDoc));
+    });
+
+    return Promise.all(promises);
+  });
 };
 
 const cancelAdmin = async (officeId, phoneNumber) => {
-  const docs = await rootCollections
-    .activities
+  const docs = await rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'admin')
-    .where('attachment.Admin.value', '==', phoneNumber)
+    .where('attachment.Phone Number.value', '==', phoneNumber)
     .get();
 
-  const doc = docs.docs[0];
+  const [doc] = docs.docs;
 
-  if (!doc
-    || doc.get('status') === 'CANCELLED') {
+  if (!doc || doc.get('status') === 'CANCELLED') {
     return;
   }
 
-  return doc
-    .ref
-    .set({
+  return doc.ref.set(
+    {
       timestamp: Date.now(),
       addendumDocRef: null,
       status: 'CANCELLED',
-    }, {
+    },
+    {
       merge: true,
-    });
+    },
+  );
 };
 
-
 const createFootprintsRecipient = async locals => {
-  const { template } = locals.change.after.data();
-
-  if (template !== 'office') {
-    return;
-  }
-
   const activityRef = rootCollections.activities.doc();
   const officeId = locals.change.after.id;
-  const addendumDocRef = rootCollections
-    .offices
+  const addendumDocRef = rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.ADDENDUM)
     .doc();
@@ -499,30 +456,21 @@ const createFootprintsRecipient = async locals => {
   const [
     recipientTemplateQueryResult,
     recipientActivityQueryResult,
-  ] = await Promise
-    .all([
-      rootCollections
-        .activityTemplates
-        .where('name', '==', 'recipient')
-        .get(),
-      rootCollections
-        .activities
-        .where('template', '==', 'recipient')
-        .where('attachment.Name.value', '==', reportNames.FOOTPRINTS)
-        .limit(1)
-        .get()
-    ]);
+  ] = await Promise.all([
+    rootCollections.activityTemplates.where('name', '==', 'recipient').get(),
+    rootCollections.activities
+      .where('template', '==', 'recipient')
+      .where('attachment.Name.value', '==', reportNames.FOOTPRINTS)
+      .limit(1)
+      .get(),
+  ]);
 
   if (!recipientActivityQueryResult.empty) {
     return;
   }
 
-  const attachment = recipientTemplateQueryResult
-    .docs[0]
-    .get('attachment');
-  attachment
-    .Name
-    .value = 'footprints';
+  const attachment = recipientTemplateQueryResult.docs[0].get('attachment');
+  attachment.Name.value = 'footprints';
 
   const activityData = {
     addendumDocRef,
@@ -541,156 +489,135 @@ const createFootprintsRecipient = async locals => {
     createTimestamp: Date.now(),
   };
 
+  const momentNow = momentTz().tz(locals.change.after.get('timezone'));
+
   const addendumDocData = {
     activityData,
-    user: locals
-      .change
-      .after
-      .get('creator.phoneNumber'),
-    userDisplayName: locals
-      .change
-      .after
-      .get('creator.displayName'),
+    date: momentNow.date(),
+    month: momentNow.month(),
+    year: momentNow.year(),
+    user: locals.change.after.get('creator.phoneNumber'),
+    userDisplayName: locals.change.after.get('creator.displayName'),
     action: httpsActions.create,
     template: 'recipient',
     isAutoGenerated: true,
     timestamp: Date.now(),
-    userDeviceTimestamp: locals
-      .addendumDoc
-      .get('userDeviceTimestamp'),
+    userDeviceTimestamp: locals.addendumDoc.get('userDeviceTimestamp'),
     activityId: activityRef.id,
-    location: locals
-      .addendumDoc
-      .get('location'),
-    isSupportRequest: locals
-      .addendumDoc
-      .get('isSupportRequest') || false,
-    isAdminRequest: locals
-      .addendumDoc
-      .get('isAdminRequest') || false,
+    location: locals.addendumDoc.get('location'),
+    isSupportRequest: locals.addendumDoc.get('isSupportRequest') || false,
+    isAdminRequest: locals.addendumDoc.get('isAdminRequest') || false,
     geopointAccuracy: null,
     provider: null,
   };
 
-  locals
-    .assigneePhoneNumbersArray
-    .forEach(phoneNumber => {
-      const ref = activityRef
-        .collection(subcollectionNames.ASSIGNEES)
-        .doc(phoneNumber);
+  locals.assigneePhoneNumbersArray.forEach(phoneNumber => {
+    batch.set(
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+      {
+        addToInclude: false,
+      },
+    );
+  });
 
-      batch
-        .set(ref, {
-          addToInclude: false,
-        });
-    });
+  batch.set(activityRef, activityData);
 
-  batch
-    .set(activityRef, activityData);
-  batch
-    .set(addendumDocRef, addendumDocData);
+  batch.set(addendumDocRef, addendumDocData);
 
-  return batch
-    .commit();
+  return batch.commit();
 };
 
-
 const cancelSubscriptionOfSubscription = async (officeId, phoneNumber) => {
-  const docs = await rootCollections
-    .activities
+  const [doc] = await rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'subscription')
     .where('attachment.Template.value', '==', 'subscription')
-    .where('attachment.Subscriber.value', '==', phoneNumber)
+    .where('attachment.Phone Number.value', '==', phoneNumber)
     .limit(1)
     .get();
 
-  const doc = docs.docs[0];
-
-  if (!doc
-    || doc.get('status') === 'CANCELLED') {
+  if (!doc || doc.get('status') === 'CANCELLED') {
     return;
   }
 
-  return doc
-    .ref
-    .set({
+  return doc.ref.set(
+    {
       timestamp: Date.now(),
       addendumDocRef: null,
       status: 'CANCELLED',
-    }, {
-      merge: true,
-    });
-};
-
-
-const mangeYouTubeDataApi = async locals => {
-  const {
-    template,
-    attachment,
-  } = locals.change.after.data();
-  const {
-    'Youtube ID': youtubeVideoId,
-  } = attachment;
-
-  if (template !== 'office'
-    || !env.isProduction) {
-    return;
-  }
-
-  const youtube = google.youtube('v3');
-  const auth = await google.auth.getClient({
-    credentials: require('../../admin/cert.json'),
-    scopes: [
-      'https://www.googleapis.com/auth/youtube.force-ssl',
-      'https://www.googleapis.com/auth/youtube'
-    ],
-  });
-
-  if (!youtubeVideoId) {
-    return;
-  }
-
-  const oldTitle = locals
-    .change
-    .before
-    .get('office');
-  const newTitle = locals
-    .change
-    .after
-    .get('office');
-  const oldDescription = locals
-    .change
-    .before
-    .get('attachment.Description.value');
-  const newDescription = locals
-    .change
-    .after
-    .get('attachment.Description.value');
-
-  if (oldTitle === newTitle
-    && oldDescription === newDescription) {
-    return;
-  }
-
-  const opt = {
-    auth,
-    part: 'snippet',
-    requestBody: {
-      id: youtubeVideoId,
-      snippet: {
-        categoryId: 22, // People & Blogs
-        title: newTitle,
-        description: newDescription,
-      },
     },
-  };
-
-  return youtube
-    .videos
-    .update(opt);
+    {
+      merge: true,
+    },
+  );
 };
 
+// const mangeYouTubeDataApi = async locals => {
+//   const {
+//     template,
+//     attachment,
+//   } = locals.change.after.data();
+//   const {
+//     'Youtube ID': youtubeVideoId,
+//   } = attachment;
+
+//   if (template !== 'office' ||
+//     !env.isProduction) {
+//     return;
+//   }
+
+//   const youtube = google.youtube('v3');
+//   const auth = await google.auth.getClient({
+//     credentials: require('../../admin/cert.json'),
+//     scopes: [
+//       'https://www.googleapis.com/auth/youtube.force-ssl',
+//       'https://www.googleapis.com/auth/youtube'
+//     ],
+//   });
+
+//   if (!youtubeVideoId) {
+//     return;
+//   }
+
+//   const oldTitle = locals
+//     .change
+//     .before
+//     .get('office');
+//   const newTitle = locals
+//     .change
+//     .after
+//     .get('office');
+//   const oldDescription = locals
+//     .change
+//     .before
+//     .get('attachment.Description.value');
+//   const newDescription = locals
+//     .change
+//     .after
+//     .get('attachment.Description.value');
+
+//   if (oldTitle === newTitle &&
+//     oldDescription === newDescription) {
+//     return;
+//   }
+
+//   const opt = {
+//     auth,
+//     part: 'snippet',
+//     requestBody: {
+//       id: youtubeVideoId,
+//       snippet: {
+//         categoryId: 22, // People & Blogs
+//         title: newTitle,
+//         description: newDescription,
+//       },
+//     },
+//   };
+
+//   return youtube
+//     .videos
+//     .update(opt);
+// };
 
 const handleSitemap = async locals => {
   const path = 'sitemap';
@@ -698,12 +625,8 @@ const handleSitemap = async locals => {
     .database()
     .ref(path)
     .once('value');
-  const sitemap = sitemapObject
-    .val() || {};
-  const office = locals
-    .change
-    .after
-    .get('office');
+  const sitemap = sitemapObject.val() || {};
+  const office = locals.change.after.get('office');
   const slug = slugify(office);
 
   sitemap[slug] = {
@@ -718,23 +641,19 @@ const handleSitemap = async locals => {
     .set(sitemap);
 };
 
-const isActivityCreated = change => !change.before.data()
-  && change.after.data();
-
-
 const getVid = async () => {
   const vAccountId = crypto
     .randomBytes(16)
     .toString('hex')
     .substring(0, 9);
 
-  const existsAlready = (
-    await rootCollections
-      .offices
-      .where('vAccountId', '==', vAccountId)
-      .limit(1)
-      .get()
-  ).size > 0;
+  const existsAlready =
+    (
+      await rootCollections.offices
+        .where('vAccountId', '==', vAccountId)
+        .limit(1)
+        .get()
+    ).size > 0;
 
   if (existsAlready) {
     return getVid();
@@ -744,27 +663,21 @@ const getVid = async () => {
 };
 
 const createOfficeVirtualAccount = async locals => {
-  const hasBeenCreated = isActivityCreated(locals.change);
-
-  if (!hasBeenCreated) {
+  if (!isActivityCreated(locals.change)) {
     return;
   }
 
-  const {
-    value: firstContact,
-  } = locals.change.after.get('attachment.First Contact');
-  const {
-    value: secondContact,
-  } = locals.change.after.get('attachment.Second Contact');
+  const {value: firstContact} = locals.change.after.get(
+    'attachment.First Contact',
+  );
+  const {value: secondContact} = locals.change.after.get(
+    'attachment.Second Contact',
+  );
 
-  const [
-    firstUserRecord,
-    secondUserRecord
-  ] = await Promise
-    .all([
-      getAuth(firstContact),
-      getAuth(secondContact)
-    ]);
+  const [firstUserRecord, secondUserRecord] = await Promise.all([
+    getAuth(firstContact),
+    getAuth(secondContact),
+  ]);
 
   const {
     displayName: firstDisplayName,
@@ -780,12 +693,10 @@ const createOfficeVirtualAccount = async locals => {
     emailVerified: secondEmailVerified,
   } = secondUserRecord;
 
-  const firstContactRejected = !firstDisplayName
-    || !firstEmail
-    || !firstEmailVerified;
-  const secondContactRejected = !secondDisplayName
-    || !secondEmail
-    || !secondEmailVerified;
+  const firstContactRejected =
+    !firstDisplayName || !firstEmail || !firstEmailVerified;
+  const secondContactRejected =
+    !secondDisplayName || !secondEmail || !secondEmailVerified;
 
   if (!firstContactRejected) {
     name = firstDisplayName;
@@ -801,56 +712,48 @@ const createOfficeVirtualAccount = async locals => {
     emailVerified = secondEmailVerified;
   }
 
-  if (!name
-    || !email
-    || !emailVerified) {
+  if (!name || !email || !emailVerified) {
     return;
   }
+
+  const vAccountId = await getVid();
+  console.log('vAccountId', vAccountId);
 
   return createVirtualAccount({
     name,
     phone,
     email,
-    vAccountId: await getVid(),
+    vAccountId,
   });
 };
 
-
 const handleOffice = async locals => {
-  const firstContactNew = locals
-    .change
-    .after
-    .get('attachment.First Contact.value');
-  const firstContactOld = locals
-    .change
-    .before
-    .get('attachment.First Contact.value');
-  const secondContactNew = locals
-    .change
-    .after
-    .get('attachment.Second Contact.value');
-  const secondContactOld = locals
-    .change
-    .before
-    .get('attachment.Second Contact.value');
+  const {value: firstContactNew} = locals.change.after.get(
+    'attachment.First Contact',
+  );
+  const firstContactOld = locals.change.before.get(
+    'attachment.First Contact.value',
+  );
+  const secondContactNew = locals.change.after.get(
+    'attachment.Second Contact.value',
+  );
+  const secondContactOld = locals.change.before.get(
+    'attachment.Second Contact.value',
+  );
   const officeId = locals.change.after.id;
 
-  if (firstContactOld
-    && firstContactOld !== firstContactNew) {
-    await Promise
-      .all([
-        cancelSubscriptionOfSubscription(officeId, firstContactOld),
-        cancelAdmin(officeId, firstContactOld)
-      ]);
+  if (firstContactOld && firstContactOld !== firstContactNew) {
+    await Promise.all([
+      cancelSubscriptionOfSubscription(officeId, firstContactOld),
+      cancelAdmin(officeId, firstContactOld),
+    ]);
   }
 
-  if (secondContactOld
-    && secondContactOld !== secondContactNew) {
-    await Promise
-      .all([
-        cancelSubscriptionOfSubscription(officeId, secondContactOld),
-        cancelAdmin(officeId, secondContactOld),
-      ]);
+  if (secondContactOld && secondContactOld !== secondContactNew) {
+    await Promise.all([
+      cancelSubscriptionOfSubscription(officeId, secondContactOld),
+      cancelAdmin(officeId, secondContactOld),
+    ]);
   }
 
   await createFootprintsRecipient(locals);
@@ -858,10 +761,10 @@ const handleOffice = async locals => {
   await createAutoSubscription(locals, 'subscription', secondContactNew);
   await createBranches(locals);
   await handleSitemap(locals);
-  // await createOfficeVirtualAccount(locals);
+  await createOfficeVirtualAccount(locals);
 
-  return mangeYouTubeDataApi(locals);
+  // return mangeYouTubeDataApi(locals);
+  return;
 };
-
 
 module.exports = handleOffice;

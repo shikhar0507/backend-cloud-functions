@@ -21,15 +21,9 @@
  *
  */
 
-
 'use strict';
 
-
-const {
-  users,
-  rootCollections,
-  db,
-} = require('../../admin/admin');
+const {users, rootCollections, db} = require('../../admin/admin');
 const {
   reportNames,
   dateFormats,
@@ -112,10 +106,11 @@ module.exports = async change => {
     return;
   }
 
-  const todaysPlus1DayEnd = momentTz().add(1, 'day').endOf('day');
+  const todaysPlus1DayEnd = momentTz()
+    .add(1, 'day')
+    .endOf('day');
 
-  if (momentTz(timestamp).isAfter(todaysPlus1DayEnd)
-    || include.length === 0) {
+  if (momentTz(timestamp).isAfter(todaysPlus1DayEnd) || include.length === 0) {
     console.log('is after +1 day');
 
     return;
@@ -129,7 +124,9 @@ module.exports = async change => {
     }
 
     const timezone = officeDoc.get('attachment.Timezone.value');
-    const fmtDate = momentTz(timestamp).tz(timezone).format(dateFormats.DATE);
+    const fmtDate = momentTz(timestamp)
+      .tz(timezone)
+      .format(dateFormats.DATE);
     const authFetch = [];
 
     const locals = {
@@ -159,7 +156,7 @@ module.exports = async change => {
           name: 'Growthfile',
           email: env.systemEmail,
         },
-        'dynamic_template_data': {
+        dynamic_template_data: {
           office: change.after.get('office'),
           subject: getSubject(report, office, fmtDate),
           date: fmtDate,
@@ -167,11 +164,9 @@ module.exports = async change => {
       },
     };
 
-    include
-      .forEach(phoneNumber => {
-        authFetch
-          .push(users.getUserByPhoneNumber(phoneNumber.trim()));
-      });
+    include.forEach(phoneNumber => {
+      authFetch.push(users.getUserByPhoneNumber(phoneNumber.trim()));
+    });
 
     const userRecords = await Promise.all(authFetch);
 
@@ -190,10 +185,7 @@ module.exports = async change => {
       uidMap.set(phoneNumber, record.uid);
 
       if (!record.email || !record.emailVerified) {
-        const promise = rootCollections
-          .updates
-          .doc(record.uid)
-          .get();
+        const promise = rootCollections.updates.doc(record.uid).get();
 
         unverifiedRecipients.push(phoneNumber);
 
@@ -220,11 +212,7 @@ module.exports = async change => {
     }
 
     if (report === reportNames.REIMBURSEMENT) {
-      await require('./reimbursements-report')(locals);
-    }
-
-    if (report === reportNames.PAYROLL_MASTER) {
-      await require('./payroll-master-report')(locals);
+      await require('./reimbursements')(locals);
     }
 
     if (!env.isProduction) {
@@ -232,8 +220,7 @@ module.exports = async change => {
     }
 
     const momentYesterday = momentTz().subtract(1, 'day');
-    const dailyStatusDocQueryResult = await rootCollections
-      .inits
+    const dailyStatusDocQueryResult = await rootCollections.inits
       .where('date', '==', momentYesterday.date())
       .where('month', '==', momentYesterday.month())
       .where('year', '==', momentYesterday.year())
@@ -243,28 +230,27 @@ module.exports = async change => {
 
     const [dailyStatusDoc] = dailyStatusDocQueryResult.docs;
     const data = dailyStatusDoc.data();
-    const expectedRecipientTriggersCount = dailyStatusDoc
-      .get('expectedRecipientTriggersCount');
-    const recipientsTriggeredToday = dailyStatusDoc
-      .get('recipientsTriggeredToday');
+    const expectedRecipientTriggersCount = dailyStatusDoc.get(
+      'expectedRecipientTriggersCount',
+    );
+    const recipientsTriggeredToday = dailyStatusDoc.get(
+      'recipientsTriggeredToday',
+    );
 
-    data
-      .unverifiedRecipients = {
+    data.unverifiedRecipients = {
       [office]: unverifiedRecipients,
     };
-    data
-      .recipientsTriggeredToday = recipientsTriggeredToday + 1;
+    data.recipientsTriggeredToday = recipientsTriggeredToday + 1;
 
     batch.set(dailyStatusDoc.ref, data, {
       merge: true,
     });
 
     /**
-    * When all recipient function instances have completed their work,
-    * we trigger the daily status report.
-    */
-    if (expectedRecipientTriggersCount
-      === recipientsTriggeredToday) {
+     * When all recipient function instances have completed their work,
+     * we trigger the daily status report.
+     */
+    if (expectedRecipientTriggersCount === recipientsTriggeredToday) {
       await handleDailyStatusReport();
     }
 

@@ -21,34 +21,33 @@
  *
  */
 
-
 'use strict';
 
+const {sendResponse} = require('../admin/utils');
+const {code} = require('../admin/responses');
 
-const { sendResponse } = require('../admin/utils');
-const { code } = require('../admin/responses');
-
-
-module.exports = (conn) => {
+module.exports = conn => {
   if (!conn.requester.customClaims) {
     sendResponse(
       code,
       code.forbidden,
-      'You are unauthorized to perform this operation.'
+      'You are unauthorized to perform this operation.',
     );
 
     return;
   }
 
-  const action = require('url').parse(conn.req.url).path.split('/')[3];
+  const action = require('url')
+    .parse(conn.req.url)
+    .path.split('/')[3];
 
   if (action === 'permissions') {
     if (conn.req.method !== 'PUT') {
       sendResponse(
         conn,
         code.methodNotAllowed,
-        `${conn.req.method} is not allowed for /${action}`
-        + ' endpoint. Use PUT.'
+        `${conn.req.method} is not allowed for /${action}` +
+          ' endpoint. Use PUT.',
       );
 
       return;
@@ -63,6 +62,6 @@ module.exports = (conn) => {
   sendResponse(
     conn,
     code.notFound,
-    `No resource found at the path: ${(conn.req.url)}.`
+    `No resource found at the path: ${conn.req.url}.`,
   );
 };
