@@ -122,9 +122,7 @@ const reimbursementHandler = async (change, context) => {
     amount: newAmount,
   } = reimbursementDocNewState.data();
   const {amount: oldAmount = 0} = reimbursementDocOldState.data() || {};
-  const {
-    docs: [officeDoc],
-  } = await rootCollections.offices.doc(officeId).get();
+  const officeDoc = await rootCollections.offices.doc(officeId).get();
 
   console.log('officeDoc', officeDoc);
   console.log('beneficiaryId', beneficiaryId);
