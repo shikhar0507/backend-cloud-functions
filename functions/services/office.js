@@ -111,7 +111,7 @@ const getAddendumRef = officeId => {
     .doc();
 };
 
-const getWeekdayStartTime = firstResult => {
+const getWeekdayStartTime = (firstResult = {}) => {
   const {opening_hours: openingHours} = firstResult;
 
   if (!openingHours || !openingHours.periods) {
@@ -129,7 +129,7 @@ const getWeekdayStartTime = firstResult => {
   return millitaryToHourMinutes(openingPeriod);
 };
 
-const getWeekdayEndTime = firstResult => {
+const getWeekdayEndTime = (firstResult = {}) => {
   const {opening_hours: openingHours} = firstResult;
 
   if (!openingHours || !openingHours.periods) {
