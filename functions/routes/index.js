@@ -146,6 +146,9 @@ module.exports = req => {
     case 'myGrowthfile':
       func = require('../firestore/my-growthfile/index');
       break;
+    case 'myGrowthfile/batch':
+      func = require('../firestore/my-growthfile/batch');
+      break;
     case 'search':
       checkAdmin = true;
       checkSupport = true;
