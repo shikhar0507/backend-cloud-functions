@@ -1721,7 +1721,7 @@ const getRegTokenMap = async assigneesMap => {
   }
 
   (await db.getAll(...updateDocRefs)).forEach(doc => {
-    const {phoneNumber, registrationToken} = doc.data();
+    const {phoneNumber, registrationToken} = doc.data() || {};
 
     // registrationToken can be null or undefined or a
     // non-empty string.
