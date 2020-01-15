@@ -31,10 +31,6 @@ const sgMail = require('@sendgrid/mail');
 const momentTz = require('moment-timezone');
 const rpn = require('request-promise-native');
 const url = require('url');
-const {
-  maileventInitReport,
-} = require('../firestore/recipients/maileventInit-report');
-const {maileventInitSummaryReport}= require('../firestore/recipients/maileventInitSummary-report');
 sgMail.setApiKey(env.sgMailApiKey);
 
 const sendErrorReport = async () => {
@@ -187,8 +183,6 @@ module.exports = async timerDoc => {
       sgMail.sendMultiple(messages),
       sendErrorReport(),
       fetchExternalTokens(timerDoc),
-      maileventInitReport(),
-      maileventInitSummaryReport(),
     ]);
 
     const momentYesterday = moment()
