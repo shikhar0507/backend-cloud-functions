@@ -31,38 +31,23 @@ const {sendResponse, handleError} = require('../admin/utils');
 const cashFreeWebookHandler = async conn => {
   console.log('cashfree webhook', conn.req.body);
   // const batch = db.batch();
-  // const {
-  //   amount,
-  //   creditRefNo,
-  //   email,
-  //   event,
-  //   paymentTime,
-  //   phone,
-  //   referenceId,
-  //   remitterAccount,
-  //   remiterIfsc,
-  //   remitterName,
-  //   utr,
-  //   vAccountId,
-  //   vAccountNumber,
-  // } = conn.req.body;
+  // const {signature} = conn.req.body;
 
-  // const v = verifyWebhookPost(conn.req.body);
-
-  // if (v) {
-  //   batch.set(rootCollections.instant.doc(), {
-  //     message: 'Cashfree Webhook invalid signature',
-  //     subject: JSON.stringify({
-  //       body: conn.req.body,
-  //       headers: conn.req.headers || {},
-  //       receivedAt: Date.now(),
-  //     }),
+  // // returns a boolean
+  // if (!verifyWebhookPost(conn.req.body)) {
+  //   batch.set(rootCollections.instant.doc);
+  //   await rootCollections.instant.doc({
+  //     subject: 'Invalid Signature in Cashfree webhook',
+  //     messageBody: JSON.stringify(conn.req.body, ' ', 2),
   //   });
-
-  //   await batch.commit();
-
-  // return sendResponse(conn, code.ok);
   // }
+
+  // const depositRef = rootCollections.deposits.doc(conn.req.body.utr);
+  // const paymentRef = rootCollections.payments.doc(conn.req.body.utr);
+
+  // const {docs: [batchDoc]} = rootCollections.batches
+
+  // await batch.commit();
 
   return sendResponse(conn, 200);
 };

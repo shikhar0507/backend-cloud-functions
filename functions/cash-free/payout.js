@@ -125,11 +125,9 @@ const getBearerToken = async () => {
   return `Bearer ${authTokenResponse.data.token}`;
 };
 
-const getHeaders = async () => {
-  return {
-    Authorization: await getBearerToken(),
-  };
-};
+const getHeaders = async () => ({
+  Authorization: await getBearerToken(),
+});
 
 const requestTransfer = async ({remarks, beneId, amount}) => {
   const uri = url.resolve(endpoint, '/payout/v1/requestTransfer');
@@ -148,9 +146,8 @@ const requestTransfer = async ({remarks, beneId, amount}) => {
   });
 };
 
-const getTransferStatus = async options => {
+const getTransferStatus = async ({referenceId, transferId}) => {
   const uri = url.resolve(endpoint, '/payout/v1/getTransferStatus');
-  const {referenceId, transferId} = options;
 
   return rpn(uri, {
     json: true,
@@ -163,9 +160,7 @@ const getTransferStatus = async options => {
   });
 };
 
-const validateBank = async options => {
-  const {name, phone, bankAccount, ifsc} = options;
-
+const validateBank = async ({name, phone, bankAccount, ifsc}) => {
   const uri = url.resolve(endpoint, '/payout/v1/validation/bankDetails');
 
   return rpn(uri, {

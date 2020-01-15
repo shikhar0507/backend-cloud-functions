@@ -34,7 +34,6 @@ const {
 const {subcollectionNames} = require('../../admin/constants');
 const {rootCollections, db} = require('../../admin/admin');
 const currency = require('currency.js');
-// const crypto = require('crypto');
 const env = require('../../admin/env');
 
 const validator = requestBody => {

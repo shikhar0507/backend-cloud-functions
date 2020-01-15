@@ -45,32 +45,28 @@ const endpoint = (() => {
   return 'https://cac-gamma.cashfree.com';
 })();
 
-const encryptWithPublicKey = async keyPath => {
-  const message = `${CLIENT_ID}.${momentTz().unix()}`;
-  const readFile = promisify(fs.readFile);
+const keyPath = (() => {
+  if (env.isProduction) {
+    return path.resolve('./admin', 'payout_prod.pem');
+  }
 
-  return crypto
+  return path.resolve('./admin', 'payout_test.pem');
+})();
+
+const encryptWithPublicKey = async keyPath =>
+  crypto
     .publicEncrypt(
       {
-        key: await readFile(keyPath),
+        key: await promisify(fs.readFile)(keyPath),
         padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
       },
-      Buffer.from(message),
+      Buffer.from(`${CLIENT_ID}.${momentTz().unix()}`),
     )
     .toString('base64');
-};
 
 const getAutocollectToken = async () => {
   const uri = url.resolve(endpoint, '/cac/v1/authorize');
-  const keyPath = (() => {
-    if (env.isProduction) {
-      return path.resolve('./admin', 'payout_prod.pem');
-    }
-
-    return path.resolve('./admin', 'payout_test.pem');
-  })();
-
-  console.log(keyPath);
+  console.log('keyPath', keyPath);
 
   return rpn(uri, {
     method: 'POST',
@@ -133,11 +129,9 @@ const getBearerToken = async () => {
   return `Bearer ${authTokenResponse.data.token}`;
 };
 
-const getHeaders = async () => {
-  return {
-    Authorization: await getBearerToken(),
-  };
-};
+const getHeaders = async () => ({
+  Authorization: await getBearerToken(),
+});
 
 const createVirtualAccount = async ({vAccountId, name, phone, email}) => {
   const uri = url.resolve(endpoint, '/cac/v1/createVA');
