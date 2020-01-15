@@ -34,9 +34,6 @@ const assigneeOnDelete = functions.firestore
   .document('Activities/{activityId}/Assignees/{phoneNumber}')
   .onDelete(require('./firestore/assignees/index'));
 
-const attendanceHandler = functions.firestore
-  .document('Offices/{officeId}/Attendances/{docId}')
-  .onWrite(require('./firestore/attendances'));
 const reimbursementHandler = functions.firestore
   .document('Offices/{officeId}/Reimbursements/{docId}')
   .onWrite(require('./firestore/reimbursements'));
@@ -91,7 +88,6 @@ module.exports = {
   bulkCreateHandler,
   recipientsOnUpdate,
   reimbursementHandler,
-  attendanceHandler,
   temporaryImageHandler,
   activityTemplatesOnUpdate,
 };

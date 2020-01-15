@@ -33,60 +33,6 @@ const {
 const momentTz = require('moment-timezone');
 const Dinero = require('dinero.js');
 
-const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
-  if (roleDoc && roleDoc.id) {
-    return roleDoc.id;
-  }
-
-  const [newRole] = (
-    await rootCollections.activities
-      .where('officeId', '==', officeId)
-      .where('status', '==', 'CONFIRMED')
-      .where('attachment.Phone Number.value', '==', phoneNumber)
-      .get()
-  ).docs.filter(doc => {
-    const {template} = doc.data();
-
-    return template !== 'admin' && template !== 'subscription';
-  });
-
-  if (newRole) {
-    return newRole.id;
-  }
-
-  // query checkIn subscription doc
-  // use that activityId as the role
-  const {
-    docs: [checkInSubscription],
-  } = await rootCollections.activities
-    .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', 'check-in')
-    .where('officeId', '==', officeId)
-    .where('attachment.Phone Number.value', '==', phoneNumber)
-    .limit(1)
-    .get();
-
-  if (checkInSubscription) {
-    return checkInSubscription.id;
-  }
-
-  const {
-    docs: [reimbursementTemplateSubscription],
-  } = await rootCollections.profiles
-    .doc(phoneNumber)
-    .collection(subcollectionNames.SUBSCRIPTIONS)
-    .where('report', '==', 'reimbursement')
-    .where('officeId', '==', officeId)
-    .limit(1)
-    .get();
-
-  if (reimbursementTemplateSubscription) {
-    return reimbursementTemplateSubscription.id;
-  }
-
-  return null;
-};
-
 const getDefaultVoucher = ({
   beneficiaryId,
   office,
@@ -169,40 +115,17 @@ const reimbursementHandler = async (change, context) => {
     currency = 'INR',
     month,
     year,
-    phoneNumber,
-    roleDoc,
     office,
     claimId,
     status,
+    uid: beneficiaryId,
     amount: newAmount,
   } = reimbursementDocNewState.data();
   const {amount: oldAmount = 0} = reimbursementDocOldState.data() || {};
-
-  const [beneficiaryId, officeDoc] = await Promise.all([
-    getBeneficiaryId({
-      phoneNumber,
-      /**
-       * There will be docs where roleDoc is `null`/`undefined`
-       */
-      roleDoc,
-      /**
-       * Some old docs might not have `officeId`.
-       * Don't wanna take the risk of crashes.
-       */
-      officeId,
-    }),
-    rootCollections.offices.doc(officeId).get(),
-  ]);
+  const officeDoc = await rootCollections.offices.doc(officeId).get();
 
   console.log('officeDoc', officeDoc);
   console.log('beneficiaryId', beneficiaryId);
-
-  // This case should currently never happen because
-  // user will have at least one role.
-  // the fallback is check-in subscription activityId
-  if (!beneficiaryId) {
-    return;
-  }
 
   const reimbursementFrequency =
     officeDoc.get('attachment.Reimbursement Frequency.value') ||

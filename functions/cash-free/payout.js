@@ -131,17 +131,8 @@ const getHeaders = async () => {
   };
 };
 
-const requestTransfer = async options => {
+const requestTransfer = async ({remarks, beneId, amount}) => {
   const uri = url.resolve(endpoint, '/payout/v1/requestTransfer');
-  const {remarks, beneId, amount} = options;
-
-  const TRANSFER_MODES = {
-    BANK_TRANSFER: 'banktransfer',
-    UPI: 'upi',
-    PAYTM: 'paytm',
-    AMAZON_PAY: 'amazonpay',
-    CARD: 'card',
-  };
 
   return rpn(uri, {
     headers: await getHeaders(),
@@ -151,7 +142,7 @@ const requestTransfer = async options => {
       beneId,
       amount,
       transferId: crypto.randomBytes(16).toString('hex'),
-      transferMode: options.transferMode || TRANSFER_MODES.BANK_TRANSFER,
+      transferMode: 'banktransfer',
     },
     json: true,
   });
@@ -190,7 +181,15 @@ const validateBank = async options => {
   });
 };
 
-const addBeneficiary = async options => {
+const addBeneficiary = async ({
+  beneId,
+  name,
+  email,
+  phone,
+  bankAccount,
+  ifsc,
+  address1,
+}) => {
   const uri = url.resolve(endpoint, '/payout/v1/addBeneficiary');
 
   return rpn(uri, {
@@ -198,13 +197,13 @@ const addBeneficiary = async options => {
     json: true,
     headers: await getHeaders(),
     body: {
-      beneId: options.beneId,
-      name: options.name,
-      email: options.email,
-      phone: options.phone,
-      bankAccount: options.bankAccount,
-      ifsc: options.ifsc,
-      address1: options.address1,
+      beneId,
+      name,
+      email,
+      phone,
+      bankAccount,
+      ifsc,
+      address1,
     },
   });
 };

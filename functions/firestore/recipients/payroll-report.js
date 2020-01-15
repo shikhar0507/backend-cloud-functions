@@ -292,8 +292,8 @@ const rangeCallback = params => {
   }
 
   const attendanceOnDate = getAttendanceValue(attendance[date]);
-
   const o = sortedAttendanceMap.get(phoneNumber) || [];
+
   o.push(attendanceOnDate || 0);
 
   sortedAttendanceMap.set(phoneNumber, o);
@@ -354,6 +354,7 @@ const getRoleDetails = doc => {
 
   if (roleDoc) {
     return {
+      status: roleDoc.status || '',
       employeeName: roleDoc.attachment.Name.value,
       employeeCode: roleDoc.attachment['Employee Code'].value,
       baseLocation: roleDoc.attachment['Base Location'].value,
@@ -361,6 +362,10 @@ const getRoleDetails = doc => {
       department: roleDoc.attachment.Department.value,
       designation: roleDoc.attachment.Designation.value,
       supervisor: getSupervisor(roleDoc),
+      minimumWorkingHours: roleDoc.attachment['Minimum Working Hours'].value,
+      monthlyOffDays: roleDoc.attachment['Monthly Off Days'].value,
+      minimumDailyActivityCount:
+        roleDoc.attachment['Minimum Daily Activity Count'].value,
     };
   }
 
@@ -371,6 +376,10 @@ const getRoleDetails = doc => {
     region,
     department,
     designation,
+    status: '',
+    minimumDailyActivityCount: '',
+    minimumWorkingHours: '',
+    monthlyOffDays: '',
   };
 };
 
@@ -485,6 +494,7 @@ module.exports = async locals => {
     .where('year', '==', momentYesterday.year());
 
   allAttendanceDocs.push(...(await recursiveFetch(baseQuery, [])));
+  console.log('allAttendanceDocs', allAttendanceDocs.length);
 
   allAttendanceDocs.forEach(doc => {
     const {month, phoneNumber} = doc.data();
@@ -496,6 +506,9 @@ module.exports = async locals => {
   const numberInstance = new NumberGenerator(1);
   const prevMonth = momentPrevMonth.month();
   const currMonth = momentYesterday.month();
+
+  console.log('firstRange', firstRange);
+  console.log('secondRange', secondRange);
 
   employeeData.forEach((_, phoneNumber) => {
     firstRange.forEach(date => {
@@ -574,21 +587,26 @@ module.exports = async locals => {
       department,
       designation,
       supervisor,
+      status,
+      minimumDailyActivityCount,
+      minimumWorkingHours,
+      monthlyOffDays,
     } = val || {}; // the user might not be an employee
 
     const supervisorName =
       employeeData.get(supervisor) && employeeData.get(supervisor).employeeName;
-
-    console.log(supervisor, supervisorName);
-
     const values = [
       employeeName,
       phoneNumber,
       employeeCode,
+      status,
       baseLocation,
       region,
       department,
       designation,
+      minimumDailyActivityCount,
+      minimumWorkingHours,
+      monthlyOffDays,
       supervisorName || supervisor,
       arCountMap.get(phoneNumber) || 0,
       weeklyOffCountMap.get(phoneNumber) || 0,
@@ -641,14 +659,23 @@ module.exports = async locals => {
       });
   });
 
+  // status,
+  //   minimumDailyActivityCount,
+  //   minimumWorkingHours,
+  //   monthlyOffDays,
+  //   baseLocation,
   [
     'Employee Name',
     'Employee Contact',
     'Employee Code',
+    'Status', // change
     'Base Location',
     'Region',
     'Department',
     'Designation',
+    'Minimum Daily Activity Count', // change
+    'Minimum Working Hours',
+    'Monthly Off Days',
     'Supervisor',
     'AR',
     'Weekly Off',
@@ -659,10 +686,14 @@ module.exports = async locals => {
     ...allLeaveTypes,
     ...getHeaderDates(firstRange, secondRange, momentYesterday),
   ].forEach((value, index) => {
-    payrollSummary.cell(`${alphabetsArray[index]}1`).value(value);
+    payrollSummary
+      .cell(`${alphabetsArray[index]}1`)
+      .value(value)
+      .style({
+        fontColor: 'FFFFF',
+        bold: true,
+      });
   });
-
-  await workbookRef.toFileAsync('/tmp/m.xlsx');
 
   locals.messageObject.attachments.push({
     fileName:

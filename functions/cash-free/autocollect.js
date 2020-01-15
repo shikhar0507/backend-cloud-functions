@@ -97,7 +97,6 @@ const verifyAuthToken = async authToken => {
 
 const getBearerToken = async () => {
   const timerDoc = await rootCollections.timers.doc(getISO8601Date()).get();
-
   const {cashFree} = timerDoc.data() || {};
 
   console.log('Timer', timerDoc.ref.path);
@@ -140,9 +139,8 @@ const getHeaders = async () => {
   };
 };
 
-const createVirtualAccount = async options => {
+const createVirtualAccount = async ({vAccountId, name, phone, email}) => {
   const uri = url.resolve(endpoint, '/cac/v1/createVA');
-  const {vAccountId, name, phone, email} = options;
 
   return rpn(uri, {
     method: 'POST',

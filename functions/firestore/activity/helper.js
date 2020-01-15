@@ -345,9 +345,12 @@ const validateVenues = (body, venueDescriptors) => {
  * @returns {Object} `messageObject` containing `message` and `isValid` fields
  * denoting if the attachment is a valid object.
  */
-const filterAttachment = options => {
-  const {bodyAttachment, templateAttachment, template, office} = options;
-
+const filterAttachment = ({
+  bodyAttachment,
+  templateAttachment,
+  template,
+  office,
+}) => {
   const messageObject = {
     isValid: true,
     message: null,
@@ -432,10 +435,11 @@ const filterAttachment = options => {
     if (
       typeof value !== 'number' &&
       typeof value !== 'string' &&
-      typeof value !== 'boolean'
+      typeof value !== 'boolean' &&
+      !Array.isArray(value)
     ) {
       messageObject.isValid = false;
-      messageObject.message = `${field} can only be a number or a string`;
+      messageObject.message = `${field} can only be number/boolean/array`;
       break;
     }
 
@@ -535,13 +539,16 @@ const filterAttachment = options => {
         messageObject.querySnapshotShouldExist.push(
           rootCollections.activities
             .where('attachment.Number.value', '==', value)
+            .where('office', '==', office)
             .limit(1)
             .get(),
         );
-      } else {
+        // Won't be querying an array directly.
+      } else if (!Array.isArray(value)) {
         messageObject.querySnapshotShouldExist.push(
           rootCollections.activities
             .where('attachment.Name.value', '==', value)
+            .where('office', '==', office)
             .where('template', '==', type)
             .limit(1)
             .get(),

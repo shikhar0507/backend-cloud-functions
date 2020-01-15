@@ -35,7 +35,6 @@ const {
 const {
   getName,
   alphabetsArray,
-  employeeInfo,
   getUrl,
   getIdentifier,
 } = require('./report-utils');
@@ -258,6 +257,29 @@ const handleScheduleReport = async (locals, workbook) => {
   return;
 };
 
+const getValueFromRole = (doc, field) => {
+  const {roleDoc, isSupportRequest, userDisplayName = ''} = doc.data();
+
+  if (
+    roleDoc &&
+    roleDoc.attachment &&
+    roleDoc.attachment[field] &&
+    roleDoc.attachment[field].value
+  ) {
+    return roleDoc.attachment[field].value;
+  }
+
+  if (field === 'Name') {
+    if (isSupportRequest) {
+      return 'Growthfile Support';
+    }
+
+    return userDisplayName;
+  }
+
+  return '';
+};
+
 module.exports = async locals => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const timestampFromTimer = locals.change.after.get('timestamp');
@@ -270,9 +292,10 @@ module.exports = async locals => {
   const distanceMap = new Map();
   const prevTemplateForPersonMap = new Map();
   const prevDocTimestampMap = new Map();
-  const employeePhoneNumbersArray = Object.keys(locals.employeesData);
+  // const employeePhoneNumbersArray = Object.keys(locals.employeesData);
   const counterObject = {
-    totalUsers: employeePhoneNumbersArray.length,
+    // totalUsers: employeePhoneNumbersArray.length,
+    totalUsers: 0,
     active: 0,
     notActive: 0,
     notInstalled: 0,
@@ -282,6 +305,7 @@ module.exports = async locals => {
   };
 
   const allCountsData = {
+    office,
     /** Count of addendum */
     totalActions: 0,
     /** Count of phone numbers */
@@ -292,7 +316,6 @@ module.exports = async locals => {
     apiActions: {},
     /** {[template]: [count]} */
     templates: {},
-    office,
     report: reportNames.FOOTPRINTS,
     timestamp: Date.now(),
     officeId: locals.officeDoc.id,
@@ -329,6 +352,7 @@ module.exports = async locals => {
       'Employee Name',
       'Employee Contact',
       'Employee Code',
+      'Designation',
       'Time',
       'Distance Travelled (in KM)',
       'Address',
@@ -350,6 +374,7 @@ module.exports = async locals => {
       allCountsData.apiActions[action]++;
 
       const template = doc.get('activityData.template');
+
       if (template) {
         allCountsData.templates[template] =
           allCountsData.templates[template] || 0;
@@ -358,23 +383,16 @@ module.exports = async locals => {
 
       const columnIndex = count + 2;
       const phoneNumber = doc.get('user');
-      const employeeObject = employeeInfo(locals.employeesData, phoneNumber);
-
       const isSupportRequest = doc.get('isSupportRequest');
+      const department = getValueFromRole(doc, 'Department');
+      const baseLocation = getValueFromRole(doc, 'Base Location');
+      const employeeCode = getValueFromRole(doc, 'Employee Code');
 
       if (isSupportRequest) {
         allCountsData.totalSupport++;
       }
 
-      const name = (() => {
-        if (isSupportRequest) {
-          return 'Growthfile Support';
-        }
-
-        return employeeObject.name || doc.get('userDisplayName') || '';
-      })();
-
-      const {department, baseLocation, employeeCode} = employeeObject;
+      const name = getValueFromRole(doc, 'Name');
       const identifier = getIdentifier(doc);
       const url = getUrl(doc);
       const time = momentTz(doc.get('timestamp'))
@@ -438,12 +456,17 @@ module.exports = async locals => {
       footprintsSheet.cell(`B${columnIndex}`).value(name);
       footprintsSheet.cell(`C${columnIndex}`).value(phoneNumber);
       footprintsSheet.cell(`D${columnIndex}`).value(employeeCode);
-      footprintsSheet.cell(`E${columnIndex}`).value(time);
-      footprintsSheet.cell(`F${columnIndex}`).value(distanceTravelled);
+
+      footprintsSheet
+        .cell(`E${columnIndex}`)
+        .value(getValueFromRole(doc, 'Designation'));
+      footprintsSheet.cell(`F${columnIndex}`).value(time);
+      // distanceTravelled
+      footprintsSheet.cell(`G${columnIndex}`).value(distanceTravelled);
 
       if (identifier && url) {
         footprintsSheet
-          .cell(`G${columnIndex}`)
+          .cell(`H${columnIndex}`)
           .value(identifier)
           .style({
             fontColor: '0563C1',
@@ -451,7 +474,7 @@ module.exports = async locals => {
           })
           .hyperlink(url);
       } else {
-        footprintsSheet.cell(`G${columnIndex}`).value('');
+        footprintsSheet.cell(`H${columnIndex}`).value('');
       }
 
       const comment = getComment(doc);
@@ -461,7 +484,7 @@ module.exports = async locals => {
         doc.get('activityData.attachment.Photo.value').startsWith('http')
       ) {
         footprintsSheet
-          .cell(`H${columnIndex}`)
+          .cell(`I${columnIndex}`)
           .value(comment)
           .style({
             fontColor: '0563C1',
@@ -469,15 +492,15 @@ module.exports = async locals => {
           })
           .hyperlink(doc.get('activityData.attachment.Photo.value'));
       } else {
-        footprintsSheet.cell(`H${columnIndex}`).value(comment);
+        footprintsSheet.cell(`I${columnIndex}`).value(comment);
       }
 
-      footprintsSheet.cell(`I${columnIndex}`).value(department);
-      footprintsSheet.cell(`J${columnIndex}`).value(baseLocation);
+      footprintsSheet.cell(`J${columnIndex}`).value(department);
+      footprintsSheet.cell(`K${columnIndex}`).value(baseLocation);
     });
 
     allCountsData.totalUsers = distanceMap.size;
-
+    counterObject.totalUsers = allCountsData.totalUsers;
     counterObject.active = distanceMap.size;
     counterObject.notActive = counterObject.totalUsers - counterObject.active;
 
@@ -506,6 +529,7 @@ module.exports = async locals => {
     );
 
     if (
+      /** Not sending emails from non-production environment */
       !env.isProduction ||
       /** No activities yesterday */
       addendumDocsQueryResult.empty

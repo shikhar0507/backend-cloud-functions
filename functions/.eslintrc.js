@@ -27,5 +27,6 @@ module.exports = {
     'no-prototype-builtins': 'off',
     'require-atomic-updates': 'off',
     'prefer-const': 'error',
+    'one-var-declaration-per-line': 'error',
   },
 };
