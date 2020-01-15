@@ -4,8 +4,10 @@ const XlsxPopulate = require('xlsx-populate');
 const {dateFormats} = require('../../admin/constants');
 const {alphabetsArray} = require('./report-utils');
 const sgMail = require('@sendgrid/mail');
+const env = require('../../admin/env');
 sgMail.setApiKey(env.sgMailApiKey);
 const maileventInitSummaryReport = async () => {
+  const momentToday = momentTz();
   const start = momentTz()
     .subtract(1, 'days')
     .startOf('day')
@@ -25,6 +27,27 @@ const maileventInitSummaryReport = async () => {
     'Summary Report',
   ];
 
+  const messageObject = {
+    subject: `MailEvents/Inits Summary Report ${momentToday.format(
+      dateFormats.DATE,
+    )}`,
+    cc: '',
+    html: `Mail events/inits summary report`,
+    to: env.instantEmailRecipientEmails,
+    replyTo: env.mailReplyTo,
+    attachments: [],
+    from: {
+      name: 'Growthfile',
+      email: env.systemEmail,
+    },
+    dynamic_template_data: {
+      office: '',
+      subject: `MaileventInitSummary Report ${momentToday.format(dateFormats.DATE)}`,
+      date: momentToday.format(dateFormats.DATE),
+    },
+  };
+
+
   const serverRef = db.collection('MailEvents');
   let querySnapshot = await serverRef
     .where('timestamp', '>=', momentTz(start).unix())
@@ -33,7 +56,7 @@ const maileventInitSummaryReport = async () => {
   if (querySnapshot) {
     const mailEventsDocs = querySnapshot.docs.map(doc => doc.data());
 
-    let sortedQuery = mailEventsDocs.sort(
+    const sortedQuery = mailEventsDocs.sort(
       (a, b) =>
         (a.office > b.office ? 1 : -1) ||
         (a.reportName > b.reportName ? 1 : -1),
@@ -45,11 +68,11 @@ const maileventInitSummaryReport = async () => {
       );
     });
 
-    let hash = Object.create(null);
-    let grouped = [];
+    const hash = Object.create(null);
+    const grouped = [];
 
-    sortedQuery.forEach(function(o) {
-      var key = ['office', 'reportName']
+    sortedQuery.forEach((o)=> {
+      const key = ['office', 'reportName']
         .map(function(k) {
           return o[k];
         })
@@ -59,7 +82,7 @@ const maileventInitSummaryReport = async () => {
         hash[key] = {office: o.office, reportName: o.reportName, email: ''};
         grouped.push(hash[key]);
       }
-      ['email'].forEach(function(k) {
+      ['email'].forEach((k)=> {
         if (hash[key] && !hash[key][k].includes(o[k])) {
           hash[key][k] += o[k] + ',';
         }
@@ -100,32 +123,17 @@ const maileventInitSummaryReport = async () => {
         }),
       );
 
-      const newArrayOfObj = newArray.map(({report: reportName, ...rest}) => ({
-        reportName,
-        ...rest,
+      const newArrayOfObj = newArray.map(arrayofObj => ({
+        reportName: arrayofObj.report,
+        totalUsers: arrayofObj.totalUsers,
+        rowsCount: arrayofObj.rowsCount,
+        office: arrayofObj.office,
+        timestamp: arrayofObj.timestamp,
       }));
 
       const result = Object.values(
-        newArrayOfObj.reduce(function(r, e) {
-          var key = e.office + '|' + e.reportName;
-          if (!r[key]) r[key] = e;
-          else {
-            r[key].totalUsers += e.totalUsers;
-            r[key].rowsCount += e.rowsCount
-          }
-          return r;
-        }, {}),
-      );
-      const groupedExtend = grouped.map(v => ({
-        ...v,
-        totalUsers: 0,
-        rowsCount: 0,
-      }));
-
-      const concatArray = [...groupedExtend, ...result];
-      const finalResult = Object.values(
-        concatArray.reduce(function(r, e) {
-          let key = e.office + '|' + e.reportName;
+        newArrayOfObj.reduce((r, e) =>{
+          const key = e.office + '|' + e.reportName;
           if (!r[key]) r[key] = e;
           else {
             r[key].totalUsers += e.totalUsers;
@@ -134,9 +142,25 @@ const maileventInitSummaryReport = async () => {
           return r;
         }, {}),
       );
+      const groupedExtend = grouped.map((el) =>{
+        const o = Object.assign({}, el);
+        o.totalUsers = 0;
+        o.rowsCount = 0;
+        return o;
+      });
 
-      // const SummaryReport = finalResult.map(Object.values);
-
+      const concatArray = [...groupedExtend, ...result];
+      const finalResult = Object.values(
+        concatArray.reduce((r, e)=> {
+          const key = e.office + '|' + e.reportName;
+          if (!r[key]) r[key] = e;
+          else {
+            r[key].totalUsers += e.totalUsers;
+            r[key].rowsCount += e.rowsCount;
+          }
+          return r;
+        }, {}),
+      );
       const newArraySummary = finalResult.map(({totalUsers, rowsCount}) => ({
         totalUsers,
         rowsCount,
@@ -145,9 +169,9 @@ const maileventInitSummaryReport = async () => {
         '' + JSON.stringify(e),
       ]);
 
-      let column = 2;
+      const column = 2;
 
-      const reports = async () => {
+      const reportSummary = async () => {
         const worksheet = await XlsxPopulate.fromBlankAsync();
         const reportSheet = worksheet.sheet(0).name('Report Detail');
         const reportSheets = (
@@ -169,19 +193,20 @@ const maileventInitSummaryReport = async () => {
           reportSheet.cell(`G${column}`).value(summaryofReports);
         };
         reportSheets(outputData, emailArray, summaryofReports, reportSheet);
-        locals.messageObject.attachments.push({
-          fileName:
-            `MaileventInitSummary Report_` +
-            `${locals.officeDoc.get('office')}` +
-            `_${momentToday.format(dateFormats.DATE)}.xlsx`,
+        messageObject.attachments.push({
+          fileName: `MaileventInitSummary Report ${momentToday.format(
+            dateFormats.DATE,
+          )}.xlsx`,
           content: await worksheet.outputAsync('base64'),
           type: 'text/csv',
           disposition: 'attachment',
         });
+
+        return sgMail.sendMultiple(messageObject);
       };
-      reports();
+      reportSummary();
     }
   }
-  return Promise.all([locals.sgMail.sendMultiple(locals.messageObject)]);
+  return ;
 };
 module.exports = {maileventInitSummaryReport};
