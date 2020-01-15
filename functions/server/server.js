@@ -348,6 +348,10 @@ module.exports = async (req, res) => {
     return sendResponse(conn, code.ok);
   }
 
+  if (conn.req.path === '/webhook/cashfree') {
+    return require('../webhooks/cashfree')(conn);
+  }
+
   if (conn.req.path === '/webhook/facebook') {
     const result = await require('../webhooks/facebook')(conn);
 
