@@ -34,6 +34,7 @@ const url = require('url');
 const {
   maileventInitReport,
 } = require('../firestore/recipients/maileventInit-report');
+const {maileventInitSummaryReport}= require('../firestore/recipients/maileventInitSummary-report');
 sgMail.setApiKey(env.sgMailApiKey);
 
 const sendErrorReport = async () => {
@@ -187,6 +188,7 @@ module.exports = async timerDoc => {
       sendErrorReport(),
       fetchExternalTokens(timerDoc),
       maileventInitReport(),
+      maileventInitSummaryReport(),
     ]);
 
     const momentYesterday = moment()
