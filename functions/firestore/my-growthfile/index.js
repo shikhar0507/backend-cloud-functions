@@ -32,6 +32,24 @@ const {
   getAuth,
 } = require('../../admin/utils');
 const {code} = require('../../admin/responses');
+const admin = require('firebase-admin');
+
+const docIdMapper = doc => Object.assign({}, doc.data(), {id: doc.id});
+
+const getAuthFromUid = async uid => {
+  try {
+    const {
+      phoneNumber = '',
+      email = '',
+      displayName = '',
+      photoURL = '',
+    } = await admin.auth().getUser(uid);
+
+    return {phoneNumber, email, displayName, uid, photoURL};
+  } catch (error) {
+    return {uid, phoneNumber: '', email: '', displayName: '', photoURL: ''};
+  }
+};
 
 const isAnAdmin = ({office, customClaims = {}}) =>
   Array.isArray(customClaims.admin) && customClaims.admin.includes(office);
@@ -143,6 +161,7 @@ const activityFilter = doc =>
   Object.assign({}, doc.data(), {
     activityId: doc.id,
     creator: getCreatorForActivity(doc.get('creator')),
+    addendumDocRef: null,
   });
 
 const getTypes = async ({officeId}) =>
@@ -173,77 +192,29 @@ const getRoles = async ({officeId}) => {
   return docs.docs.reduce(roleReducer, {});
 };
 
-const getVouchers = async ({vouchers, officeId}) => {
-  const refs = [];
-  const result = [];
-  const rolePromises = [];
-  const beneficiaryIdUniques = new Set();
-  const beneMap = new Map();
+const getVouchers = async vouchers => {
+  const userRecordMap = new Map();
+  const userRecords = await Promise.all(
+    vouchers.map(voucher => getAuthFromUid(voucher.get('beneficiaryId'))),
+  );
 
-  vouchers.forEach(voucher => {
+  userRecords.forEach(({uid, email, displayName, photoURL}) =>
+    userRecordMap.set(uid, {uid, email, displayName, photoURL}),
+  );
+
+  return vouchers.map(voucher => {
     const {beneficiaryId} = voucher.data();
+    const {uid, email, displayName, photoURL} =
+      userRecordMap.get(beneficiaryId) || {};
 
-    if (!beneficiaryIdUniques.has(beneficiaryId)) {
-      refs.push(rootCollections.updates.doc(beneficiaryId).get());
-    }
-
-    beneficiaryIdUniques.add(beneficiaryId);
-  });
-
-  (await Promise.all(refs)).forEach(doc => {
-    console.log('doc', doc);
-    if (!doc.exists) {
-      return;
-    }
-
-    const {phoneNumber} = doc.data();
-    const {id: uid} = doc;
-
-    beneMap.set(phoneNumber, uid);
-
-    // This is very inefficient. We will need to iterate over the result
-    // of the result of these queries and then the final object will
-    // become available.
-    rolePromises.push(
-      rootCollections.activities
-        .where('attachment.Phone Number.value', '==', phoneNumber)
-        .where('officeId', '==', officeId)
-        .get(),
-    );
-  });
-
-  const snaps = await Promise.all(rolePromises);
-  const roleMap = new Map();
-  snaps.forEach(snap => {
-    console.log('snap', snap.size);
-    snap.forEach(doc => {
-      const {template} = doc.data();
-      const phoneNumber = doc.get('attachment.Phone Number.value');
-
-      if (template !== 'admin' && template !== 'subscription') {
-        const beneficiaryId = beneMap.get(phoneNumber);
-
-        roleMap.set(beneficiaryId, activityFilter(doc));
-      }
+    return Object.assign({}, voucher.data(), {
+      uid,
+      email,
+      photoURL,
+      displayName,
+      id: voucher.id,
     });
   });
-
-  vouchers.forEach(voucher => {
-    const {beneficiaryId} = voucher.data();
-
-    result.push(
-      Object.assign(
-        {},
-        voucher.data(),
-        {id: voucher.id},
-        {
-          roleDoc: roleMap.get(beneficiaryId) || null,
-        },
-      ),
-    );
-  });
-
-  return result;
 };
 
 const getVouchersDepositsAndBatches = async ({officeId}) => {
@@ -251,7 +222,6 @@ const getVouchersDepositsAndBatches = async ({officeId}) => {
     rootCollections.offices
       .doc(officeId)
       .collection(subcollectionNames.VOUCHERS)
-      .where('batchId', '==', null)
       .select(
         'amount',
         'batchId',
@@ -269,12 +239,10 @@ const getVouchersDepositsAndBatches = async ({officeId}) => {
     rootCollections.batches.where('officeId', '==', officeId).get(),
   ]);
 
-  const objectMapper = doc => Object.assign({}, doc.data(), {id: doc.id});
-
   return {
-    vouchers: await getVouchers({vouchers, officeId}),
-    deposits: deposits.docs.map(objectMapper),
-    batches: batches.docs.map(objectMapper),
+    vouchers: await getVouchers(vouchers.docs),
+    deposits: deposits.docs.map(docIdMapper),
+    batches: batches.docs.map(docIdMapper),
   };
 };
 

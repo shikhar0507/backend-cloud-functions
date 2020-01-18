@@ -1693,8 +1693,15 @@ const locationFilter = doc => {
   };
 };
 
+const createInstantEmail = async ({subject, messageBody}) => {
+  await rootCollections.instant.doc().set({subject, messageBody});
+
+  return;
+};
+
 module.exports = {
   locationFilter,
+  createInstantEmail,
   getAuth,
   slugify,
   sendSMS,

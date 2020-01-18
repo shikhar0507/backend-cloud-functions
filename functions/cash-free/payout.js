@@ -225,22 +225,6 @@ const removeBeneficiary = async beneId => {
   });
 };
 
-const verifyWebhookPost = (webhookData, clientSecret) => {
-  let concatenatedValues = '';
-  const receivedSignature = webhookData.signature;
-  delete webhookData.signature;
-  const sortedKeys = Object.keys(webhookData).sort();
-
-  sortedKeys.forEach(key => (concatenatedValues += `${webhookData[key]}`));
-
-  const calculatedSignature = crypto
-    .createHmac('sha256', clientSecret)
-    .update(concatenatedValues)
-    .digest('base64');
-
-  return calculatedSignature === receivedSignature;
-};
-
 const getBalance = async () => {
   const uri = url.resolve(endpoint, '/payout/v1/getBalance');
 
@@ -250,29 +234,28 @@ const getBalance = async () => {
   });
 };
 
-const selfWithdrawal = async options => {
-  const uri = url.resolve(endpoint, '/payout/v1/selfWithdrawal');
+const requestBatchTransfer = async ({batchTransferId, batch}) => {
+  const uri = url.resolve(endpoint, '/payout/v1/requestBatchTransfer');
 
   return rpn(uri, {
     headers: await getHeaders(),
     json: true,
     method: 'POST',
     body: {
-      amount: options.amount,
-      remarks: options.remarks,
-      withdrawalId: crypto.randomBytes(16).toString('hex'),
+      batch,
+      batchTransferId,
+      batchFormat: 'BANK_ACCOUNT',
     },
   });
 };
 
 module.exports = {
+  requestBatchTransfer,
   getBalance,
   validateBank,
-  selfWithdrawal,
   getBeneficiary,
   addBeneficiary,
   requestTransfer,
-  verifyWebhookPost,
   removeBeneficiary,
   getTransferStatus,
 };

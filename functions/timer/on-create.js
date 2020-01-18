@@ -25,6 +25,12 @@
 
 const {db, rootCollections} = require('../admin/admin');
 const {reportNames, dateFormats} = require('../admin/constants');
+const {
+  maileventInitSummaryReport,
+} = require('../firestore/recipients/maileventInitSummary-report');
+const {
+  maileventInitReport,
+} = require('../firestore/recipients/maileventInit-report');
 const moment = require('moment');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
@@ -233,6 +239,9 @@ module.exports = async timerDoc => {
     }
 
     await batch.commit();
+    await maileventInitReport();
+    await maileventInitSummaryReport();
+
     return deleteInstantDocs();
   } catch (error) {
     console.error(error);

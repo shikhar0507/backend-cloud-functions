@@ -89,14 +89,13 @@ const getVouchers = async ({vouchers, officeId}) => {
 
   for (const doc of voucherDocs) {
     const {exists} = doc;
+    const {batchId} = doc.data();
 
     if (!exists) {
       nonExistingVouchers.push(doc);
 
       continue;
     }
-
-    const {batchId} = doc.data();
 
     if (batchId) {
       batchedVouchers.push(doc);
@@ -121,14 +120,20 @@ const getVirtualAccount = async ({officeDoc, batchId, email, phone}) => {
     };
   }
 
-  const {ifsc, bankAccount} = await createVirtualAccount({
+  const {data} = await createVirtualAccount({
     email,
     phone,
     name: officeDoc.get('office'),
     vAccountId: batchId,
   });
 
-  return {ifsc, bankAccount};
+  if (!data) {
+    return null;
+  }
+
+  const {ifsc, accountNumber} = data;
+
+  return {ifsc, bankAccount: accountNumber};
 };
 
 const getPercentOf = (number, percentage) => (percentage / 100) * number;
@@ -149,10 +154,28 @@ const getBatchesAndDeposits = async ({officeId}) => {
   };
 };
 
+const generateVirtualAccountId = id => id.substring(0, 10).toUpperCase();
+
+const getBatchId = async seed => {
+  const {id: tempId} = rootCollections.batches.doc();
+  const batchId = seed || generateVirtualAccountId(tempId);
+  const {empty} = await rootCollections.batches
+    .where('batchId', '==', batchId)
+    .limit(1)
+    .get();
+
+  if (empty) {
+    return batchId;
+  }
+
+  return getBatchId(null);
+};
+
 const depositsHandler = async conn => {
   const {body} = conn.req;
   const {office, vouchers} = body;
   const batch = db.batch();
+  // const batchRef = await getBatchRef();
   const batchRef = rootCollections.batches.doc();
   const v = validator(body);
 
@@ -168,6 +191,11 @@ const depositsHandler = async conn => {
     );
   }
 
+  /**
+   * A certain percentage of amount is added to the batch
+   * which is created in this instance. This is the `supplier`
+   * voucher.
+   */
   const mainOffice = env.isProduction
     ? 'Growthfile Analytics Private Limited'
     : 'Puja Capital';
@@ -206,10 +234,7 @@ const depositsHandler = async conn => {
     existingVouchers,
     nonExistingVouchers,
     batchedVouchers,
-  } = await getVouchers({
-    vouchers,
-    officeId,
-  });
+  } = await getVouchers({vouchers, officeId});
 
   if (nonExistingVouchers.length > 0) {
     return sendResponse(
@@ -227,12 +252,29 @@ const depositsHandler = async conn => {
     );
   }
 
+  let totalPayableByUser = currency(0);
+  const newVouchers = [];
+  /**
+   * This ID acts just as a seed to generate the 6-10 character
+   * uppercase aplhabetic string. The vAccountId field in the
+   * cashfree api requires it to be uniuque.
+   */
+  const tempId = batchRef.id;
+  const seed = generateVirtualAccountId(tempId);
+  /**
+   * Cashfree requires the batchId to be a 6 to 10 UPPER CASE string
+   */
+  const batchId = await getBatchId(seed);
   const batchObject = {
     office,
     officeId,
+    batchId,
     linkedVouchers: [],
     phoneNumber: conn.requester.phoneNumber,
     uid: conn.requester.uid,
+    displayName: conn.requester.displayName || '',
+    photoURL: conn.requester.photoURL || '',
+    email: conn.requester.email || '',
     /**
      * Start with 0
      */
@@ -241,15 +283,18 @@ const depositsHandler = async conn => {
     updatedAt: Date.now(),
   };
 
-  let totalPayableByUser = currency(0);
-  const newVouchers = [];
-
-  const {bankAccount, ifsc} = await getVirtualAccount({
+  const vaResponse = await getVirtualAccount({
     officeDoc,
-    batchId: batchRef.id,
+    batchId,
     email: conn.requester.email,
     phone: conn.requester.phoneNumber,
   });
+
+  if (!vaResponse) {
+    return sendResponse(conn, code.conflict, 'API unavailable at the moment');
+  }
+
+  const {bankAccount, ifsc} = vaResponse;
 
   existingVouchers.forEach(doc => {
     const {id: voucherId} = doc;
@@ -259,7 +304,7 @@ const depositsHandler = async conn => {
     totalPayableByUser = totalPayableByUser.add(amount);
 
     const voucherUpdate = Object.assign({}, doc.data(), {
-      batchId: batchRef.id,
+      batchId,
       updatedAt: Date.now(),
     });
 
@@ -280,12 +325,12 @@ const depositsHandler = async conn => {
   // serviceVoucher
   batch.set(officeDoc.ref.collection(subcollectionNames.VOUCHERS).doc(), {
     office,
+    batchId,
     officeId,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     type: 'supplier',
     amount: `${convenienceFee.value}`,
-    batchId: batchRef.id,
     beneficiaryId: gapl.id,
   });
 
@@ -305,9 +350,9 @@ const depositsHandler = async conn => {
     Object.assign(
       {},
       {
-        amount: `${payableAmount.value}`,
-        bankAccount,
         ifsc,
+        bankAccount,
+        amount: `${payableAmount.value}`,
         vouchers: newVouchers,
       },
       await getBatchesAndDeposits({officeId}),

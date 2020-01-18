@@ -86,18 +86,18 @@ function addBreadCrumb(breadcrumbName) {
   const ul = document.querySelector('.breadcrumbs ul');
   const li = document.createElement('li');
   li.onclick = function () {
-    const lastLi = ul.lastElementChild
+    const lastLi = ul.lastElementChild;
     if (lastLi == li) return;
-    document.getElementById('actions-section').classList.remove('hidden')
-    const formsParent = document.querySelector('.forms-parent')
-    formsParent.classList.remove('pad')
-    removeAllChildren(formsParent)
+    document.getElementById('actions-section').classList.remove('hidden');
+    const formsParent = document.querySelector('.forms-parent');
+    formsParent.classList.remove('pad');
+    removeAllChildren(formsParent);
     ul.removeChild(ul.lastElementChild);
   };
   const a = document.createElement('a');
   a.textContent = breadcrumbName;
-  li.appendChild(a)
-  ul.appendChild(li)
+  li.appendChild(a);
+  ul.appendChild(li);
 }
 
 
@@ -238,7 +238,7 @@ function handlePhoneNumberChange() {
 
 function handleUpdateAuthRequest() {
   const form = document.querySelector('.forms-parent');
-  const phoneNumber = getPhoneNumber('verify-email-number')
+  const phoneNumber = getPhoneNumber('verify-email-number');
   const displayName = form.querySelector('input[data-display-name=true]').value;
   const email = form.querySelector('input[type="email"]').value;
   const p = form.querySelector('p');
@@ -353,7 +353,7 @@ function handleActivityEditOnClick(doc) {
       // Remove spaces between characters that some people use
       // while writing phone numbers
       value = value.replace(/\s+/g, '');
-      value = formatPhoneNumber(value)
+      value = formatPhoneNumber(value);
       // if (!value.startsWith(window.countryCode)) {
       //   value = `+${window.countryCode}${value}`;
       // }
@@ -454,7 +454,7 @@ function showActivityCancellationWarning(doc) {
     window.warningShownAlready = true;
 
     closeModal();
-  }
+  };
 
 
   document.body.appendChild(modal);
@@ -480,7 +480,7 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
       status: newStatus,
       timestamp: Date.now(),
       geopoint: {},
-    }
+    };
   })();
 
   if (newStatus === 'CANCELLED' &&
@@ -508,10 +508,10 @@ function sendActivityStatusChangeRequest(doc, newStatus) {
 
       console.log('requestBody', requestBody);
 
-      return sendApiRequest(`${requestUrl}`, requestBody, 'PATCH')
+      return sendApiRequest(`${requestUrl}`, requestBody, 'PATCH');
     })
     .then(function (response) {
-      return response.json()
+      return response.json();
     })
     .then(function (response) {
       createSnackbar(response.message || 'Update Successful');
@@ -579,10 +579,10 @@ function addAssigneeToActivity(doc) {
       .then(function (geopoint) {
         requestBody.geopoint = geopoint;
 
-        return sendApiRequest(requestUrl, requestBody, 'PATCH')
+        return sendApiRequest(requestUrl, requestBody, 'PATCH');
       })
       .then(function (response) {
-        return response.json()
+        return response.json();
       })
       .then(function (response) {
         console.log('Response', response);
@@ -839,15 +839,15 @@ function getActivityEditForm(doc) {
   confirmButton
     .onclick = function () {
       sendActivityStatusChangeRequest(doc, 'CONFIRMED');
-    }
+    };
   cancelButton
     .onclick = function () {
       sendActivityStatusChangeRequest(doc, 'CANCELLED');
-    }
+    };
   pendingButton
     .onclick = function () {
       sendActivityStatusChangeRequest(doc, 'PENDING');
-    }
+    };
 
   updateButton
     .onclick = function () {
@@ -873,7 +873,7 @@ function getActivityEditForm(doc) {
 
   addNewAssigneeButton.onclick = function () {
     addAssigneeToActivity(doc);
-  }
+  };
 
   buttonContainer.append(addNewAssigneeButton);
 
@@ -1014,7 +1014,7 @@ function filterResultsForSearchAndUpdate() {
       .catch(function (error) {
         return createSnackbar(error || 'Something went wrong');
       });
-  }
+  };
 
   buttonContainer.append(button);
 
@@ -1033,7 +1033,7 @@ function searchUpdateTemplateSelectOnChange(url) {
   const selectedTemplate = templateSelect.value;
 
   if (!selectedTemplate) return;
-  const activityFilter = document.querySelector('.activity-filter')
+  const activityFilter = document.querySelector('.activity-filter');
   activityFilter.classList.remove('hidden');
 
   const ul = document.querySelector('.activity-list');
@@ -1054,8 +1054,8 @@ function searchUpdateTemplateSelectOnChange(url) {
       console.log('response', response);
       const keys = Object.keys(response);
       if (!keys.length) {
-        createSnackbar('No ' + selectedTemplate + ' Found')
-        return
+        createSnackbar('No ' + selectedTemplate + ' Found');
+        return;
       }
 
       keys
@@ -1082,7 +1082,7 @@ function searchUpdateTemplateSelectOnChange(url) {
           if (index === 0) {
             li.tabIndex = 0;
           }
-          activityFilter.onclick = filterResultsForSearchAndUpdate
+          activityFilter.onclick = filterResultsForSearchAndUpdate;
           ul.appendChild(li);
         });
     })
@@ -1190,16 +1190,16 @@ function populateTemplateSelect(selectElement, defaultValue) {
           return response.json();
         })
         .then(function (response) {
-          const key = Object.keys(response)[0]
+          const key = Object.keys(response)[0];
           createExcelSheet(response[key]);
 
-        }).catch(console.error)
+        }).catch(console.error);
     });
 
   selectElement.onchange = function () {
     removeAllChildren(document.querySelector('.bc-results-list'));
 
-    document.querySelector('.bc-results').classList.add('hidden')
+    document.querySelector('.bc-results').classList.add('hidden');
     document
       .querySelector('.bc-file-drag')
       .classList
@@ -1211,7 +1211,7 @@ function populateTemplateSelect(selectElement, defaultValue) {
       .minHeight = '200px';
   };
   selectElement.value = defaultValue;
-  selectElement.onchange()
+  selectElement.onchange();
 
 }
 
@@ -1222,13 +1222,13 @@ function createExcelSheet(rawTemplate) {
     Subject: `${rawTemplate.name} sheet`,
     Author: 'Growthfile',
     CreatedDate: new Date()
-  }
+  };
 
   const data = [];
 
   if (rawTemplate.name === 'customer' ||
     rawTemplate.name === 'branch') {
-    data.push(['address', 'location'])
+    data.push(['address', 'location']);
   } else {
     const allKeys = Object.keys(rawTemplate.attachment);
 
@@ -1253,7 +1253,7 @@ function createExcelSheet(rawTemplate) {
 
   const ws = XLSX.utils.aoa_to_sheet(data);
 
-  console.log(ws)
+  console.log(ws);
   XLSX.utils.book_append_sheet(wb, ws, "Sheet");
   const about = XLSX.write(wb, {
     bookType: 'xlsx',
@@ -1267,7 +1267,7 @@ function getBulkCreateResultLi(item, originalJson, index) {
   const container = document.createElement('li');
   if (!index) {
     container.tabIndex = 0;
-  };
+  }
 
   container.classList.add('flexed-column', 'raised');
   const firstRow = document.createElement('span');
@@ -1276,7 +1276,7 @@ function getBulkCreateResultLi(item, originalJson, index) {
   firstRow.textContent = item.Name || item['Phone Number'];
 
   if (item.rejected) {
-    container.classList.add('failure')
+    container.classList.add('failure');
     const rowNumber = originalJson[index].__rowNum__ + 1;
     if (item.reason) {
       secondRow.textContent = 'Reason: ' + item.reason;
@@ -1284,7 +1284,7 @@ function getBulkCreateResultLi(item, originalJson, index) {
 
     thirdRow.textContent = 'Result: Error at row number ' + rowNumber;
   } else {
-    container.classList.add('success')
+    container.classList.add('success');
     thirdRow.textContent = 'Result: Success';
   }
   container.append(firstRow, secondRow, thirdRow);
@@ -1293,14 +1293,14 @@ function getBulkCreateResultLi(item, originalJson, index) {
 }
 
 function setMessageForBulkCreate(totalSent, totalCreated, totalRejected) {
-  const resultHeading = document.getElementById('result-meta')
+  const resultHeading = document.getElementById('result-meta');
   const metaDetail = `<div class='result-row'>
   <div class='result-column'>Total Records :  ${totalSent}</div>
   <div class='result-column'> Created  : ${totalCreated}</div>
   <div class='result-column'>Not Created : ${totalRejected}</div>
 
-  </div>`
-  resultHeading.innerHTML = metaDetail
+  </div>`;
+  resultHeading.innerHTML = metaDetail;
 }
 
 function populateBulkCreationResult(response, originalJson) {
@@ -1312,8 +1312,8 @@ function populateBulkCreationResult(response, originalJson) {
 
   removeAllChildren(ul);
 
-  let totalRejected = 0
-  let totalCreated = 0
+  let totalRejected = 0;
+  let totalCreated = 0;
 
   if (response.message) {
     createSnackbar(response.message);
@@ -1333,7 +1333,7 @@ function populateBulkCreationResult(response, originalJson) {
     ul.appendChild(li);
   });
 
-  setMessageForBulkCreate(originalJson.length, totalCreated, totalRejected)
+  setMessageForBulkCreate(originalJson.length, totalCreated, totalRejected);
 }
 
 
@@ -1347,7 +1347,7 @@ function sendBulkCreateJson(result, templateName) {
   let isCreateOffice = false;
 
   if (templateName === 'office') {
-    isCreateOffice = true
+    isCreateOffice = true;
   }
 
   const requestBody = {
@@ -1356,7 +1356,7 @@ function sendBulkCreateJson(result, templateName) {
     data: result, // binary string
     // data: fd,
     template: templateName
-  }
+  };
 
   getLocation()
     .then(function (location) {
@@ -1371,7 +1371,7 @@ function sendBulkCreateJson(result, templateName) {
       return response.json();
     })
     .then(function (response) {
-      removeFileSpinner()
+      removeFileSpinner();
       // console.log(response)
       // populateBulkCreationResult(response, jsonData);
 
@@ -1391,27 +1391,27 @@ function sendBulkCreateJson(result, templateName) {
       console.log('response', response);
     })
     .catch(function (error) {
-      console.log(error)
-      createSnackbar(error.message)
-      removeFileSpinner()
+      console.log(error);
+      createSnackbar(error.message);
+      removeFileSpinner();
     });
 }
 
 function showFileSpinner() {
-  const parent = document.querySelector('.bc-file-drag')
-  parent.appendChild(getSpinnerElement('file-upload-spin').center())
+  const parent = document.querySelector('.bc-file-drag');
+  parent.appendChild(getSpinnerElement('file-upload-spin').center());
   parent.querySelector('i').classList.add('hidden');
 }
 
 function removeFileSpinner() {
   if (document.getElementById("file-upload-spin")) {
-    document.getElementById("file-upload-spin").remove()
+    document.getElementById("file-upload-spin").remove();
     document.querySelector('.bc-file-drag i').classList.remove('hidden');
   }
 }
 
 function handleExcelOrCsvFile(element, templateName) {
-  showFileSpinner()
+  showFileSpinner();
 
   const file = element.target.files[0];
   const fReader = new FileReader();
@@ -1463,7 +1463,7 @@ function bulkdCreateDom() {
           <ul class="bc-results-list"> </ul>
       </div>
   </div>
-</div>`
+</div>`;
 }
 
 function bulkCreate() {
@@ -1479,34 +1479,34 @@ function bulkCreate() {
     })
     .then(function (response) {
       if (!Array.isArray(response)) {
-        createSnackbar('No Subscriptions Found')
-        return
+        createSnackbar('No Subscriptions Found');
+        return;
       }
-      selectElement.firstElementChild.remove()
+      selectElement.firstElementChild.remove();
       addOptionToSelect(response, selectElement);
-      populateTemplateSelect(selectElement, response[0])
-      const fileDragInput = document.getElementById('bulk-upload')
+      populateTemplateSelect(selectElement, response[0]);
+      const fileDragInput = document.getElementById('bulk-upload');
       fileDragInput.onchange = function (event) {
         handleExcelOrCsvFile(event, selectElement.value);
       };
-    }).catch(console.error)
+    }).catch(console.error);
 }
 
 
 function addNewOffice() {
-  addBreadCrumb('Create New Office')
-  document.getElementById('support-office-search').remove()
+  addBreadCrumb('Create New Office');
+  document.getElementById('support-office-search').remove();
   const formParent = document.querySelector('.forms-parent');
   formParent.innerHTML = bulkdCreateDom();
 
   const selectElement = document.getElementById('create-new-template-select');
-  selectElement.classList.add('hidden')
-  selectElement.firstElementChild.remove()
+  selectElement.classList.add('hidden');
+  selectElement.firstElementChild.remove();
 
   addOptionToSelect(['office'], selectElement);
-  populateTemplateSelect(selectElement, 'office')
+  populateTemplateSelect(selectElement, 'office');
 
-  const fileDragInput = document.getElementById('bulk-upload')
+  const fileDragInput = document.getElementById('bulk-upload');
   fileDragInput.onchange = function (event) {
     handleExcelOrCsvFile(event, selectElement.value);
   };
@@ -1585,7 +1585,7 @@ function recipientAssigneeUpdateOnClick(evt) {
       return sendApiRequest(requestUrl, requestBody, 'PATCH');
     })
     .then(function (response) {
-      return response.json()
+      return response.json();
     })
     .then(function (response) {
       createSnackbar(response.message || 'Update Successful');
@@ -1766,7 +1766,7 @@ function updateAuth() {
   const phoneInput = document.createElement('input');
   phoneInput.classList.add('input-field');
   phoneInput.type = 'tel';
-  phoneInput.id = 'verify-email-number'
+  phoneInput.id = 'verify-email-number';
   const nameLabel = document.createElement('label');
   nameLabel.textContent = 'Name';
 
@@ -1857,7 +1857,7 @@ function triggerReports() {
 
   const hiddenReports = {
     'footprints': true
-  }
+  };
   const container = document.createElement('div');
   container.className += ' trigger-reports pad';
   const select = document.createElement('select');
@@ -1909,20 +1909,20 @@ function triggerReports() {
     .then(function (response) {
 
 
-      const nonCancelledReports = []
+      const nonCancelledReports = [];
       Object.keys(response).forEach(function (id) {
         if (hiddenReports[response[id].attachment.Name.value]) return;
-        if (response[id].status === 'CANCELLED') return
-        nonCancelledReports.push(response[id])
-      })
+        if (response[id].status === 'CANCELLED') return;
+        nonCancelledReports.push(response[id]);
+      });
 
       if (!nonCancelledReports.length) {
         description.textContent = 'No Reports Found';
-        description.classList.add('error')
+        description.classList.add('error');
         return;
       }
       description.textContent = 'Select a date to get reports to your email';
-      form.classList.remove('hidden')
+      form.classList.remove('hidden');
 
       nonCancelledReports
         .forEach(function (item) {
@@ -1966,7 +1966,7 @@ function changePhoneNumber() {
   newLabel.textContent = 'New Phone Number';
   const oldInput = document.createElement('input');
   oldInput.type = 'tel';
-  oldInput.id = 'old-phone-number'
+  oldInput.id = 'old-phone-number';
   oldInput.className += ' input-field';
 
   const newInput = document.createElement('input');
@@ -1974,7 +1974,7 @@ function changePhoneNumber() {
 
 
   newInput.className += ' input-field';
-  newInput.id = 'new-phone-number'
+  newInput.id = 'new-phone-number';
   const submit = document.createElement('input');
   submit.type = 'button';
   submit.value = 'Submit';

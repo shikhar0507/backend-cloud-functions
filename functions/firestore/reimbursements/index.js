@@ -23,6 +23,7 @@
 
 'use strict';
 
+const {getAuth} = require('../../admin/utils');
 const {rootCollections, db} = require('../../admin/admin');
 const {
   subcollectionNames,
@@ -120,6 +121,7 @@ const reimbursementHandler = async (change, context) => {
     status,
     uid: beneficiaryId,
     amount: newAmount,
+    phoneNumber,
   } = reimbursementDocNewState.data();
   const {amount: oldAmount = 0} = reimbursementDocOldState.data() || {};
   const officeDoc = await rootCollections.offices.doc(officeId).get();
@@ -216,18 +218,28 @@ const reimbursementHandler = async (change, context) => {
       .getAmount();
   })();
 
+  const userRecord = await getAuth(phoneNumber);
+
   batch.set(
     ref,
     Object.assign({}, data, {
+      createdAt: firstVoucherDoc
+        ? firstVoucherDoc.createTime.toMillis()
+        : Date.now(),
+      updatedAt: Date.now(),
       office,
       officeId,
       beneficiaryId,
       cycleStart,
       cycleEnd,
+      phoneNumber,
       amount: `${Number(data.amount) + Number(amount)}`,
       batchId: data.batchId || null,
       type: addendumTypes.REIMBURSEMENT,
       timestamp: Date.now(),
+      photoURL: userRecord.displayName || '',
+      email: userRecord.email || '',
+      displayName: userRecord.displayName || '',
     }),
     {merge: true},
   );

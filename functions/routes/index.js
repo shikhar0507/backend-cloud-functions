@@ -249,6 +249,9 @@ module.exports = req => {
        */
       func = require('../services/check-check-in-subcription');
       break;
+    case 'services/users':
+      func = require('../services/users');
+      break;
     /**
      * 404 not found
      */

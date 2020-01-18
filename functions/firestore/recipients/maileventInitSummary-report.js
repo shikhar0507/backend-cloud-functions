@@ -42,11 +42,12 @@ const maileventInitSummaryReport = async () => {
     },
     dynamic_template_data: {
       office: '',
-      subject: `MaileventInitSummary Report ${momentToday.format(dateFormats.DATE)}`,
+      subject: `MaileventInitSummary Report ${momentToday.format(
+        dateFormats.DATE,
+      )}`,
       date: momentToday.format(dateFormats.DATE),
     },
   };
-
 
   const serverRef = db.collection('MailEvents');
   let querySnapshot = await serverRef
@@ -71,7 +72,7 @@ const maileventInitSummaryReport = async () => {
     const hash = Object.create(null);
     const grouped = [];
 
-    sortedQuery.forEach((o)=> {
+    sortedQuery.forEach(o => {
       const key = ['office', 'reportName']
         .map(function(k) {
           return o[k];
@@ -82,7 +83,7 @@ const maileventInitSummaryReport = async () => {
         hash[key] = {office: o.office, reportName: o.reportName, email: ''};
         grouped.push(hash[key]);
       }
-      ['email'].forEach((k)=> {
+      ['email'].forEach(k => {
         if (hash[key] && !hash[key][k].includes(o[k])) {
           hash[key][k] += o[k] + ',';
         }
@@ -132,7 +133,7 @@ const maileventInitSummaryReport = async () => {
       }));
 
       const result = Object.values(
-        newArrayOfObj.reduce((r, e) =>{
+        newArrayOfObj.reduce((r, e) => {
           const key = e.office + '|' + e.reportName;
           if (!r[key]) r[key] = e;
           else {
@@ -142,7 +143,7 @@ const maileventInitSummaryReport = async () => {
           return r;
         }, {}),
       );
-      const groupedExtend = grouped.map((el) =>{
+      const groupedExtend = grouped.map(el => {
         const o = Object.assign({}, el);
         o.totalUsers = 0;
         o.rowsCount = 0;
@@ -151,7 +152,7 @@ const maileventInitSummaryReport = async () => {
 
       const concatArray = [...groupedExtend, ...result];
       const finalResult = Object.values(
-        concatArray.reduce((r, e)=> {
+        concatArray.reduce((r, e) => {
           const key = e.office + '|' + e.reportName;
           if (!r[key]) r[key] = e;
           else {
@@ -207,6 +208,6 @@ const maileventInitSummaryReport = async () => {
       reportSummary();
     }
   }
-  return ;
+  return;
 };
 module.exports = {maileventInitSummaryReport};

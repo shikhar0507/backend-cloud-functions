@@ -10,6 +10,7 @@ module.exports = {
   },
   extends: ['eslint:recommended', 'prettier'],
   env: {
+    browser: true,
     // Node.js global variables and Node.js scoping
     node: true,
     // defines `require()` and `define()` as global variables as per the amd spec
