@@ -238,7 +238,9 @@ const rangeCallback = params => {
 
   /** Data might not exist for someone for a certain date. */
   attendance[date] = attendance[date] || {};
+
   const hasAttendanceProperty = attendance[date].hasOwnProperty('attendance');
+
   attendance[date].leave = attendance[date].leave || {};
 
   if (attendance[date].leave.leaveType) {
@@ -694,6 +696,8 @@ module.exports = async locals => {
         bold: true,
       });
   });
+
+  console.log('allLeaveTypes', allLeaveTypes);
 
   locals.messageObject.attachments.push({
     fileName:
