@@ -338,16 +338,6 @@ module.exports = async (req, res) => {
     );
   }
 
-  if (env.isProduction && conn.req.query.cashFreeToken === env.cashFreeToken) {
-    await rootCollections.errors.doc().set({
-      report: 'cashfree',
-      body: conn.req.body || {},
-      timestamp: Date.now(),
-    });
-
-    return sendResponse(conn, code.ok);
-  }
-
   if (conn.req.path === '/webhook/cashfree') {
     return require('../webhooks/cashfree')(conn);
   }
