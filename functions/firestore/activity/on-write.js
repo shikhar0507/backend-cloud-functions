@@ -110,12 +110,17 @@ const getUserRole = async ({addendumDoc}) => {
   const {officeId} = activityData;
 
   if (roleDoc && roleDoc.status) {
-    console.log('old role');
+    console.log('old role', phoneNumber);
+
     return roleDoc;
   }
 
-  console.log('new role');
+  console.log('new role', phoneNumber);
 
+  /**
+   * Destructuring the first element of the array
+   * where the template is not `admin` OR `subscription`.
+   */
   const [roleActivity] = (
     await rootCollections.activities
       .where('officeId', '==', officeId)
@@ -127,14 +132,13 @@ const getUserRole = async ({addendumDoc}) => {
 
     // User's role activity
     // is employee currently.
-    return !new Set(['subscription', 'admin']).has(template);
+    return template !== 'admin' && template !== 'subscription';
   });
 
   const batch = db.batch();
-
-  const role = !roleActivity
-    ? null
-    : getActivityObjectWithMetadata(roleActivity);
+  const role = roleActivity
+    ? getActivityObjectWithMetadata(roleActivity)
+    : null;
 
   // Only the check-in subscription has `roleDoc` value by default.
   if (role) {
@@ -1112,7 +1116,7 @@ const handleAttendanceDocsForPayroll = async locals => {
 };
 
 const updateCheckInSubscriptionRoleField = async locals => {
-  // template is employee
+  // This activity is most probably `employee`
   const {after: activityDoc} = locals.change;
   const {officeId, attachment} = activityDoc.data();
   const {value: phoneNumber} = attachment['Phone Number'];
@@ -1135,7 +1139,6 @@ const updateCheckInSubscriptionRoleField = async locals => {
   }
 
   const batch = db.batch();
-
   const {id: checkInId} = checkInSubscriptionActivity;
 
   console.log('checkInId', checkInId);
@@ -1146,7 +1149,9 @@ const updateCheckInSubscriptionRoleField = async locals => {
       .doc(phoneNumber)
       .collection(subcollectionNames.SUBSCRIPTIONS)
       .doc(checkInId),
-    getActivityObjectWithMetadata(activityDoc),
+    {
+      roleDoc: getActivityObjectWithMetadata(activityDoc),
+    },
     {
       merge: true,
     },
@@ -2816,7 +2821,6 @@ const reimburseClaim = async locals => {
   ).docs;
 
   const roleData = getRoleReportData(locals.roleObject, phoneNumber);
-
   const reimbursementData = Object.assign({}, roleData, {
     status,
     date,
@@ -2824,6 +2828,7 @@ const reimburseClaim = async locals => {
     year,
     office,
     officeId,
+    uid,
     claimId: activityId,
     currency: 'INR',
     timestamp: Date.now(),
