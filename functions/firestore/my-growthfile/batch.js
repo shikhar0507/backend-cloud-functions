@@ -110,22 +110,16 @@ const getVouchers = async ({vouchers, officeId}) => {
 };
 
 const getVirtualAccount = async ({officeDoc, batchId, email, phone}) => {
-  if (!env.isProduction) {
-    /**
-     * @link https://docs.cashfree.com/docs/payout/guide/#test-account-details
-     */
-    return {
-      ifsc: 'YESB0000262',
-      bankAccount: '026291800001191',
-    };
-  }
-
-  const {data} = await createVirtualAccount({
+  const vaResponse = await createVirtualAccount({
     email,
     phone,
     name: officeDoc.get('office'),
     vAccountId: batchId,
   });
+
+  console.log('vaResponse', vaResponse);
+
+  const {data} = vaResponse;
 
   if (!data) {
     return null;

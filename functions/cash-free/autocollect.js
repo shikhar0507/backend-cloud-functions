@@ -53,29 +53,37 @@ const keyPath = (() => {
   return path.resolve('./admin', 'payout_test.pem');
 })();
 
-const encryptWithPublicKey = async keyPath =>
-  crypto
+const encryptWithPublicKey = async keyPath => {
+  const message = `${CLIENT_ID}.${momentTz().unix()}`;
+  const readFile = promisify(fs.readFile);
+
+  return crypto
     .publicEncrypt(
       {
-        key: await promisify(fs.readFile)(keyPath),
+        key: await readFile(keyPath),
         padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
       },
-      Buffer.from(`${CLIENT_ID}.${momentTz().unix()}`),
+      Buffer.from(message),
     )
     .toString('base64');
+};
 
 const getAutocollectToken = async () => {
   const uri = url.resolve(endpoint, '/cac/v1/authorize');
   console.log('keyPath', keyPath);
+  // console.log()
+  const headers = {
+    'X-Client-Id': CLIENT_ID,
+    'X-Client-Secret': CLIENT_SECRET,
+    'X-CF-Signature': await encryptWithPublicKey(keyPath),
+  };
+
+  console.log('headers', headers);
 
   return rpn(uri, {
     method: 'POST',
     json: true,
-    headers: {
-      'X-Client-Id': CLIENT_ID,
-      'X-Client-Secret': CLIENT_SECRET,
-      'X-CF-Signature': await encryptWithPublicKey(keyPath),
-    },
+    headers,
   });
 };
 
