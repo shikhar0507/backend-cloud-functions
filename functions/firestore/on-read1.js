@@ -226,31 +226,33 @@ const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
   } = attendanceDoc.data();
   const timestamp = Date.now();
 
-  Object.entries(attendance || {}).forEach(entry => {
-    const [date, attendanceObjectForDate] = entry;
+  Object.entries(attendance || {}).forEach(
+    ([date, attendanceObjectForDate]) => {
+      // const [date, attendanceObjectForDate] = entry;
 
-    // No need to check for missing dates/or the sequence because
-    // that data is of the past.
-    jsonObject.attendances.push(
-      Object.assign({}, attendanceObjectForDate, {
-        date,
-        month,
-        year,
-        office,
-        officeId,
-        phoneNumber,
-        timestamp,
-        _type: addendumTypes.ATTENDANCE,
-        id: `${date}${month}${year}${officeId}`,
-        key: momentTz()
-          .date(date)
-          .month(month)
-          .year(year)
-          .startOf('date')
-          .valueOf(),
-      }),
-    );
-  });
+      // No need to check for missing dates/or the sequence because
+      // that data is of the past.
+      jsonObject.attendances.push(
+        Object.assign({}, attendanceObjectForDate, {
+          date,
+          month,
+          year,
+          office,
+          officeId,
+          phoneNumber,
+          timestamp,
+          _type: addendumTypes.ATTENDANCE,
+          id: `${date}${month}${year}${officeId}`,
+          key: momentTz()
+            .date(date)
+            .month(month)
+            .year(year)
+            .startOf('date')
+            .valueOf(),
+        }),
+      );
+    },
+  );
 };
 
 const getMonthlyAttendance = async ({officeId, phoneNumber, jsonObject}) => {
@@ -338,7 +340,6 @@ const getSingleReimbursement = doc => {
 const getMonthlyReimbursement = async ({officeId, phoneNumber, jsonObject}) => {
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
-
   const getReimbursementRef = (month, year) => {
     return rootCollections.offices
       .doc(officeId)
@@ -368,14 +369,20 @@ const getMonthlyReimbursement = async ({officeId, phoneNumber, jsonObject}) => {
   return;
 };
 
-const getProfileSubcollectionPromise = ({subcollection, phoneNumber, from}) => {
-  return rootCollections.profiles
+const getActivityQueryByTemplate = ({template, officeId}) =>
+  rootCollections.activities
+    .where('officeId', '==', officeId)
+    .where('template', '==', template)
+    .where('status', '==', 'CONFIRMED')
+    .get();
+
+const getProfileSubcollectionPromise = ({subcollection, phoneNumber, from}) =>
+  rootCollections.profiles
     .doc(phoneNumber)
     .collection(subcollection)
     .where('timestamp', '>', from)
     .orderBy('timestamp', 'asc')
     .get();
-};
 
 const read = async conn => {
   const v = validateRequest(conn);
@@ -437,37 +444,25 @@ const read = async conn => {
     );
 
     officeList.forEach(office => {
+      const officeId = employeeOf[office];
+
       attendancePromises.push(
-        getMonthlyAttendance({
-          phoneNumber,
-          jsonObject,
-          officeId: employeeOf[office],
-        }),
+        getMonthlyAttendance({phoneNumber, jsonObject, officeId}),
       );
 
       reimbursementPromises.push(
-        getMonthlyReimbursement({
-          jsonObject,
-          phoneNumber,
-          officeId: employeeOf[office],
-        }),
+        getMonthlyReimbursement({jsonObject, phoneNumber, officeId}),
       );
     });
   }
 
   if (sendLocations) {
-    officeList.forEach(name => {
+    officeList.forEach(office => {
+      const officeId = employeeOf[office];
+
       locationPromises.push(
-        rootCollections.activities
-          .where('officeId', '==', employeeOf[name])
-          .where('status', '==', 'CONFIRMED')
-          .where('template', '==', 'customer')
-          .get(),
-        rootCollections.activities
-          .where('officeId', '==', employeeOf[name])
-          .where('status', '==', 'CONFIRMED')
-          .where('template', '==', 'branch')
-          .get(),
+        getActivityQueryByTemplate({template: 'customer', officeId}),
+        getActivityQueryByTemplate({template: 'branch', officeId}),
       );
     });
   }
@@ -499,7 +494,9 @@ const read = async conn => {
   });
 
   (await Promise.all(templatePromises)).forEach(templatesSnap => {
-    const [doc] = templatesSnap.docs;
+    const {
+      docs: [doc],
+    } = templatesSnap;
 
     if (!doc) {
       return;
@@ -531,6 +528,7 @@ const read = async conn => {
 
     jsonObject.templates.push(
       Object.assign({}, subscriptionFilter(doc), {
+        activityId: doc.id,
         report: templateDoc.get('report') || null,
         schedule: templateDoc.get('schedule'),
         venue: templateDoc.get('venue'),
@@ -555,12 +553,14 @@ const read = async conn => {
   });
 
   addendum.forEach(doc => {
-    // 'type' is not required most probably. It's just
-    // there for legacy
     const type = doc.get('_type') || doc.get('type');
 
     if (type === addendumTypes.SUBSCRIPTION) {
-      jsonObject.templates.push(subscriptionFilter(doc));
+      jsonObject.templates.push(
+        Object.assign({}, subscriptionFilter(doc), {
+          activityId: doc.get('activityId'),
+        }),
+      );
 
       return;
     }
@@ -594,9 +594,7 @@ const read = async conn => {
     jsonObject.addendum.push(addendumFilter(doc));
   });
 
-  const profileUpdate = {
-    lastQueryFrom: from,
-  };
+  const profileUpdate = {lastQueryFrom: from};
 
   // This is only for keeping the log.
   if (sendLocations) {

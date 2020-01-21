@@ -109,7 +109,6 @@ const handleResult = async (conn, docs) => {
     },
   };
 
-  const promises = [];
   const checkIns = activity.get('checkIns') || {};
   const addendumDocRef = rootCollections.offices
     .doc(activity.get('officeId'))
@@ -148,30 +147,6 @@ const handleResult = async (conn, docs) => {
 
       authPromises.push(getAuth(phoneNumber));
     }
-
-    if (activity.get('canEditRule') === 'EMPLOYEE') {
-      promises.push(
-        rootCollections.offices
-          .doc(activity.get('officeId'))
-          .collection('Activities')
-          .where('attachment.Phone Number.value', '==', phoneNumber)
-          .where('template', '==', 'employee')
-          .limit(1)
-          .get(),
-      );
-    }
-
-    if (activity.get('canEditRule') === 'ADMIN') {
-      promises.push(
-        rootCollections.offices
-          .doc(activity.get('officeId'))
-          .collection('Activities')
-          .where('attachment.Phone Number.value', '==', phoneNumber)
-          .where('template', '==', 'admin')
-          .limit(1)
-          .get(),
-      );
-    }
   });
 
   // All assignees in duty should have `auth`
@@ -190,30 +165,6 @@ const handleResult = async (conn, docs) => {
       );
     }
   }
-
-  const snapShots = await Promise.all(promises);
-
-  snapShots.forEach(snapShot => {
-    if (snapShot.empty) {
-      return;
-    }
-
-    let phoneNumber;
-    const doc = snapShot.docs[0];
-    const template = doc.get('template');
-    const isAdmin = template === 'admin';
-    const isEmployee = template === 'employee';
-
-    if (isAdmin) {
-      phoneNumber = doc.get('attachment.Phone Number.value');
-      locals.objects.permissions[phoneNumber].isAdmin = isAdmin;
-    }
-
-    if (isEmployee) {
-      phoneNumber = doc.get('attachment.Phone Number.value');
-      locals.objects.permissions[phoneNumber].isEmployee = isEmployee;
-    }
-  });
 
   let addToInclude = true;
 
@@ -293,8 +244,6 @@ module.exports = conn => {
     assigneesCollectionRef.doc(conn.requester.phoneNumber).get(),
   ];
 
-  // TODO: Handle large number of phone number of phone numbers in the field
-  // 'share'. Firestore batch only accepts 500 docs at once.
   conn.req.body.share.forEach(phoneNumber =>
     promises.push(assigneesCollectionRef.doc(phoneNumber).get()),
   );

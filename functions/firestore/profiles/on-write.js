@@ -25,7 +25,11 @@
 
 const {db, rootCollections} = require('../../admin/admin');
 const {sendSMS} = require('../../admin/utils');
-const {reportNames, httpsActions} = require('../../admin/constants');
+const {
+  reportNames,
+  httpsActions,
+  subcollectionNames,
+} = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const env = require('../../admin/env');
 
@@ -45,7 +49,7 @@ const manageOldCheckins = async change => {
 
   const batch = db.batch();
   const docs = await change.after.ref
-    .collection('Activities')
+    .collection(subcollectionNames.ACTIVITIES)
     .where('template', '==', 'check-in')
     .where('timestamp', '<', oldFromValue)
     .limit(500)
@@ -71,7 +75,7 @@ const manageAddendum = async change => {
 
   const docs = await rootCollections.updates
     .doc(change.after.get('uid'))
-    .collection('Addendum')
+    .collection(subcollectionNames.ADDENDUM)
     .where('timestamp', '<', oldFromValue)
     .orderBy('timestamp')
     .limit(500)
@@ -79,9 +83,7 @@ const manageAddendum = async change => {
 
   const batch = db.batch();
 
-  docs.forEach(doc => {
-    batch.delete(doc.ref);
-  });
+  docs.forEach(doc => batch.delete(doc.ref));
 
   return batch.commit();
 };
@@ -122,7 +124,7 @@ const handleSignUpAndInstall = options => {
 
       const installsToday = (() => {
         if (snapShot.empty) {
-          return 1;
+          return 0;
         }
 
         /**
@@ -135,7 +137,7 @@ const handleSignUpAndInstall = options => {
       options.batch.set(
         docRef,
         {
-          installsToday,
+          installsToday: installsToday + 1,
           report: reportNames.DAILY_STATUS_REPORT,
           date: momentToday.date,
           month: momentToday.months,
@@ -232,12 +234,12 @@ module.exports = async change => {
   const phoneNumber = after.id;
   const oldOfficesList = Object.keys(before.get('employeeOf') || {});
   const currentOfficesList = Object.keys(after.get('employeeOf') || {});
-  const newOffice = currentOfficesList.filter(
+  const [newOffice] = currentOfficesList.filter(
     officeName => !oldOfficesList.includes(officeName),
-  )[0];
-  const removedOffice = oldOfficesList.filter(
+  );
+  const [removedOffice] = oldOfficesList.filter(
     officeName => !currentOfficesList.includes(officeName),
-  )[0];
+  );
   /**
    * The uid was `undefined` or `null` in the old state, but is available
    * after document `onWrite` event.

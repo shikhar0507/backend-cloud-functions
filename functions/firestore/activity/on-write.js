@@ -640,6 +640,9 @@ const handleSubscription = async locals => {
       Object.assign({}, subscriptionDocData, {
         _type: addendumTypes.SUBSCRIPTION,
         activityId: locals.change.after.id,
+        attachment: templateDoc.get('attachment'),
+        venue: templateDoc.get('venue'),
+        schedule: templateDoc.get('schedule'),
       }),
       {
         merge: true,
@@ -4328,10 +4331,11 @@ const attendanceHandler = async locals => {
     office,
     creator: {phoneNumber},
     schedule,
-    attachment: {
-      Reason: {value: reason},
-    },
+    attachment,
   } = locals.change.after.data();
+  const {
+    Reason: {value: reason},
+  } = attachment;
   const isCancelled = status === 'CANCELLED';
   const [firstSchedule] = schedule;
 
@@ -4391,6 +4395,8 @@ const attendanceHandler = async locals => {
     }
 
     if (template === 'leave') {
+      attendanceData.attendance[date].leave.leaveType =
+        attachment['Leave Type'].value;
       attendanceData.attendance[date].leave.reason = reason;
       attendanceData.attendance[date].onLeave = !isCancelled;
 

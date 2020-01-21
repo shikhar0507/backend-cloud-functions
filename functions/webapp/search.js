@@ -44,8 +44,6 @@ module.exports = (req, requester) => {
   const json = {};
   let failed = false;
 
-  console.log('query', req.query);
-
   let query = rootCollections.activities.where(
     'office',
     '==',

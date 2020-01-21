@@ -47,27 +47,35 @@ const {
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 const fs = require('fs');
-const dinero = require('dinero.js');
+const currency = require('currency.js');
 const admin = require('firebase-admin');
 const googleMapsClient = require('@google/maps').createClient({
   key: env.mapsApiKey,
   Promise: Promise,
 });
 
-const getClaimStatus = async params => {
-  const {claimType, officeId, phoneNumber, timezone} = params;
-  const momentToday = momentTz().tz(timezone);
+const getClaimStatus = async ({claimType, officeId, phoneNumber, timezone}) => {
+  const momentNow = momentTz().tz(timezone);
+  const monthStart = momentNow
+    .clone()
+    .startOf('month')
+    .valueOf();
+  const monthEnd = momentNow
+    .clone()
+    .endOf('month')
+    .valueOf();
 
-  const [claimActivities, claimTypeActivity] = await Promise.all([
-    rootCollections.offices
-      .doc(officeId)
-      .collection(subcollectionNames.ACTIVITIES)
+  const [
+    claimActivities,
+    {
+      docs: [claimTypeDoc],
+    },
+  ] = await Promise.all([
+    rootCollections.activities
       .where('template', '==', 'claim')
+      .where('officeId', '==', officeId)
       .where('creator.phoneNumber', '==', phoneNumber)
       .where('attachment.Claim Type.value', '==', claimType)
-      .where('creationMonth', '==', momentToday.month())
-      .where('creationYear', '==', momentToday.year())
-      .where('isCancelled', '==', false)
       .get(),
     rootCollections.offices
       .doc(officeId)
@@ -78,26 +86,26 @@ const getClaimStatus = async params => {
       .get(),
   ]);
 
-  const [claimTypeDoc] = claimTypeActivity.docs;
   const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
-
-  let claimsThisMonth = dinero({
-    amount: 0,
-  });
+  let claimsThisMonth = currency(0);
 
   claimActivities.forEach(doc => {
-    const amount = parseInt(doc.get('attachment.Amount.value') || 0);
-
-    claimsThisMonth = claimsThisMonth.add(
-      dinero({
-        amount,
-      }),
+    // Start Time of the schedule has a higher priority.
+    const [{startTime}] = doc.get('schedule');
+    const createTime = momentTz(startTime || doc.createTime.toMillis()).tz(
+      timezone,
     );
+    const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
+
+    if (createdThisMonth) {
+      const amount = parseInt(doc.get('attachment.Amount.value') || 0);
+      claimsThisMonth = claimsThisMonth.add(amount);
+    }
   });
 
   return {
     monthlyLimit,
-    claimsThisMonth: claimsThisMonth.getAmount(),
+    claimsThisMonth: claimsThisMonth.value,
   };
 };
 

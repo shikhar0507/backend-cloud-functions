@@ -334,13 +334,13 @@ const handleOfficePage = async (locals, requester) => {
 const fetchOfficeData = async (locals, requester) => {
   const timezone = locals.officeDoc.get('attachment.Timezone.value');
   const [branchQuery, productQuery] = await Promise.all([
-    locals.officeDoc.ref
-      .collection('Activities')
+    rootCollections.activities
+      .where('officeId', '==', locals.officeDoc.id)
       .where('template', '==', 'branch')
       .where('status', '==', 'CONFIRMED')
       .get(),
-    locals.officeDoc.ref
-      .collection('Activities')
+    rootCollections.activities
+      .where('officeId', '==', locals.officeDoc.id)
       .where('template', '==', 'product')
       .where('status', '==', 'CONFIRMED')
       .get(),
