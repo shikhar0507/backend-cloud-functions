@@ -545,6 +545,7 @@ const createObjects = async (locals, trialRun) => {
       schedule: [],
       venue: [],
       attachment: {},
+      report: locals.templateDoc.get('report') || null,
       canEditRule: locals.templateDoc.get('canEditRule'),
       creator: {
         phoneNumber: locals.phoneNumber,

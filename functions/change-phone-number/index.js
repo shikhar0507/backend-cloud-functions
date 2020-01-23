@@ -25,7 +25,6 @@
 
 const {db, rootCollections} = require('../admin/admin');
 const {
-  getAuth,
   handleError,
   sendResponse,
   isE164PhoneNumber,
@@ -34,19 +33,13 @@ const {httpsActions, subcollectionNames} = require('../admin/constants');
 const {code} = require('../admin/responses');
 const admin = require('firebase-admin');
 
-const validator = (body, oldPhoneNumber) => {
+const validator = body => {
   if (!body.hasOwnProperty('newPhoneNumber')) {
-    return `Field 'newPhoneNumber' is missing` + ` from the request body`;
+    return `Missing the field 'newPhoneNumber' from the request body.`;
   }
 
   if (!isE164PhoneNumber(body.newPhoneNumber)) {
-    return (
-      `Invalid phone number:` + ` '${body.newPhoneNumber}' in the request body`
-    );
-  }
-
-  if (body.newPhoneNumber === oldPhoneNumber) {
-    return `Old Phone Number cannot be the same as` + ` the New Phone Number`;
+    return `Invalid phone number: '${body.newPhoneNumber}'`;
   }
 
   return null;
@@ -54,6 +47,7 @@ const validator = (body, oldPhoneNumber) => {
 
 const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
   const updateActivities = async (query, resolve, reject) => {
+    const batch = db.batch();
     const snap = await query.get();
 
     console.log('docs', snap.size);
@@ -61,8 +55,6 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
     if (snap.empty) {
       return resolve();
     }
-
-    const batch = db.batch();
 
     snap.forEach(doc => {
       const activityOld = doc.data();
@@ -139,7 +131,7 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
           timestamp: Date.now(),
           action: httpsActions.update,
           user: newPhoneNumber,
-          activityId: data.activityId,
+          activityId: doc.id,
           userDeviceTimestamp: Date.now(),
           template: data.template,
           isSupportRequest: false,
@@ -156,19 +148,13 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
       delete data.activityId;
       delete data.assignees;
 
-      batch.set(ref, Object.assign({}, data), {
-        merge: true,
-      });
-
+      batch.set(ref, Object.assign({}, data), {merge: true});
       batch.delete(
         ref.collection(subcollectionNames.ASSIGNEES).doc(oldPhoneNumber),
       );
-
       batch.set(
         ref.collection(subcollectionNames.ASSIGNEES).doc(newPhoneNumber),
-        {
-          addToInclude: data.template === 'subscription',
-        },
+        {addToInclude: data.template === 'subscription'},
       );
     });
 
@@ -200,133 +186,31 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
   return new Promise(promiseExecutor);
 };
 
-const populateWebapp = async (oldPhoneNumber, newPhoneNumber) => {
-  const promiseCallback = (resolve, reject) => {
-    const moveWebapp = async (query, resolve, reject) => {
-      const snap = await query.get();
-      const batch = db.batch();
-
-      snap.forEach(doc => {
-        const ref = rootCollections.profiles
-          .doc(newPhoneNumber)
-          .collection(subcollectionNames.WEBAPP)
-          .doc(doc.id);
-        const data = doc.data();
-
-        if (data.phoneNumber === oldPhoneNumber) {
-          data.phoneNumber = newPhoneNumber;
-        }
-
-        batch.set(ref, data, {
-          merge: true,
-        });
-      });
-
-      await batch.commit();
-
-      const lastDoc = snap.docs[snap.size - 1];
-
-      if (!lastDoc) {
-        return resolve();
-      }
-
-      return process.nextTick(() => {
-        const newQuery = query.startAfter(lastDoc.id);
-
-        return moveWebapp(newQuery, resolve, reject);
-      });
-    };
-
-    const query = rootCollections.profiles
-      .doc(oldPhoneNumber)
-      .collection(subcollectionNames.WEBAPP)
-      .orderBy('__name__')
-      .limit(498);
-
-    return moveWebapp(query, resolve, reject);
-  };
-
-  return new Promise(promiseCallback);
-};
-
 module.exports = async conn => {
-  const v = validator(conn.req.body, conn.requester.phoneNumber);
+  const v = validator(conn.req.body);
 
   if (v) {
     return sendResponse(conn, code.badRequest, v);
   }
 
+  const {uid, phoneNumber} = conn.requester;
+
   try {
-    const newAuth = await getAuth(conn.req.body.newPhoneNumber);
-
-    if (newAuth.uid) {
-      return sendResponse(
-        conn,
-        code.badRequest,
-        `The phone number: '${conn.req.body.newPhoneNumber}'` +
-          ` is already in use`,
-      );
-    }
-
-    /**
-     * Disabling user until all the activity
-     * onWrite instances have triggered.
-     */
-    await admin.auth().updateUser(conn.requester.uid, {
-      disabled: true,
-    });
-
-    conn.req.body.oldPhoneNumber =
-      conn.req.body.oldPhoneNumber || conn.requester.phoneNumber;
-
-    await populateActivities(
-      conn.req.body.oldPhoneNumber,
-      conn.req.body.newPhoneNumber,
-    );
-
-    await populateWebapp(
-      conn.req.body.oldPhoneNumber,
-      conn.req.body.newPhoneNumber,
-    );
-
-    const batch = db.batch();
-
-    const profileData =
-      (
-        await rootCollections.profiles.doc(conn.req.body.oldPhoneNumber).get()
-      ).data() || {};
-
-    batch.set(
-      rootCollections.profiles.doc(conn.req.body.newPhoneNumber),
-      Object.assign({}, profileData, {
-        uid: conn.requester.uid,
-      }),
-      {
-        merge: true,
-      },
-    );
-
-    batch.set(
-      rootCollections.updates.doc(conn.requester.uid),
-      {
-        phoneNumber: conn.req.body.newPhoneNumber,
-      },
-      {
-        merge: true,
-      },
-    );
-
-    return batch.commit();
+    return Promise.all([
+      /**
+       * Disabling user until all the activity
+       * onWrite instances have triggered.
+       */
+      admin.auth().updateUser(uid, {disabled: true}),
+      populateActivities(phoneNumber, conn.req.body.newPhoneNumber),
+      rootCollections.updates
+        .doc(uid)
+        .set({phoneNumber: conn.req.body.newPhoneNumber}, {merge: true}),
+    ]);
   } catch (error) {
     return handleError(conn, error);
   } finally {
-    await Promise.all([
-      admin.auth().updateUser(conn.requester.uid, {
-        disabled: false,
-        phoneNumber: conn.req.body.newPhoneNumber,
-      }),
-      admin.auth().revokeRefreshTokens(conn.requester.uid),
-    ]);
+    await admin.auth().updateUser(uid, {disabled: false});
 
     sendResponse(conn, code.accepted, 'Phone Number change is in progress.');
   }

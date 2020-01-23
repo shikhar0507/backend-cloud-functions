@@ -25,31 +25,10 @@
 
 const {rootCollections} = require('../../admin/admin');
 const {subcollectionNames} = require('../../admin/constants');
-const {
-  sendJSON,
-  sendResponse,
-  locationFilter,
-  getAuth,
-} = require('../../admin/utils');
+const {sendJSON, sendResponse, getAuth} = require('../../admin/utils');
 const {code} = require('../../admin/responses');
-const admin = require('firebase-admin');
 
 const docIdMapper = doc => Object.assign({}, doc.data(), {id: doc.id});
-
-const getAuthFromUid = async uid => {
-  try {
-    const {
-      phoneNumber = '',
-      email = '',
-      displayName = '',
-      photoURL = '',
-    } = await admin.auth().getUser(uid);
-
-    return {phoneNumber, email, displayName, uid, photoURL};
-  } catch (error) {
-    return {uid, phoneNumber: '', email: '', displayName: '', photoURL: ''};
-  }
-};
 
 const isAnAdmin = ({office, customClaims = {}}) =>
   Array.isArray(customClaims.admin) && customClaims.admin.includes(office);
@@ -67,7 +46,7 @@ const getFieldQueryParam = query => {
     return [query.field];
   }
 
-  return query.field;
+  return query.field || [];
 };
 
 const activityFieldsSelector = () => [
@@ -91,7 +70,9 @@ const getLocations = async ({officeId}) =>
       .where('template', 'in', ['customer', 'branch'])
       .where('status', '==', 'CONFIRMED')
       .get()
-  ).docs.map(locationFilter);
+  ).docs.map(doc =>
+    Object.assign({}, doc.data(), {addendumDocRef: null, activityId: doc.id}),
+  );
 
 const getRecipients = async ({officeId}) => {
   const authPromises = [];
@@ -119,6 +100,7 @@ const getRecipients = async ({officeId}) => {
   (await Promise.all(authPromises)).forEach(userRecord => {
     const {
       phoneNumber,
+      photoURL = '',
       uid = null,
       displayName = '',
       email = '',
@@ -131,8 +113,10 @@ const getRecipients = async ({officeId}) => {
       displayName,
       email,
       emailVerified,
+      photoURL,
     });
   });
+
   return recipients.docs.map(recipient => {
     const {include: assignees = []} = recipient.data();
 
@@ -160,94 +144,37 @@ const getCreatorForActivity = creator => {
 const activityFilter = doc =>
   Object.assign({}, doc.data(), {
     activityId: doc.id,
-    creator: getCreatorForActivity(doc.get('creator')),
     addendumDocRef: null,
+    creator: getCreatorForActivity(doc.get('creator')),
   });
 
 const getTypes = async ({officeId}) =>
   (
     await rootCollections.activities
       .where('officeId', '==', officeId)
-      .where('isType', '==', true)
+      .where('report', '==', 'type')
       .select(...activityFieldsSelector())
       .get()
   ).docs.map(activityFilter);
 
-const getRoles = async ({officeId}) => {
-  const docs = await rootCollections.activities
-    .where('officeId', '==', officeId)
-    .where('template', 'in', ['employee', 'admin', 'subscription'])
-    .select(...activityFieldsSelector())
-    .get();
-
-  const roleReducer = (prevValue, doc) => {
+const getRoles = async ({officeId}) =>
+  (
+    await rootCollections.activities
+      .where('officeId', '==', officeId)
+      .where('template', 'in', ['employee', 'admin', 'subscription'])
+      .select(...activityFieldsSelector())
+      .get()
+  ).docs.reduce((prevValue, doc) => {
     const {template} = doc.data();
 
     prevValue[template] = prevValue[template] || [];
     prevValue[template].push(activityFilter(doc));
 
     return prevValue;
-  };
-
-  return docs.docs.reduce(roleReducer, {});
-};
-
-const getVouchers = async vouchers => {
-  const userRecordMap = new Map();
-  const userRecords = await Promise.all(
-    vouchers.map(voucher => getAuthFromUid(voucher.get('beneficiaryId'))),
-  );
-
-  userRecords.forEach(({uid, email, displayName, photoURL}) =>
-    userRecordMap.set(uid, {uid, email, displayName, photoURL}),
-  );
-
-  return vouchers.map(voucher => {
-    const {beneficiaryId} = voucher.data();
-    const {uid, email, displayName, photoURL} =
-      userRecordMap.get(beneficiaryId) || {};
-
-    return Object.assign({}, voucher.data(), {
-      uid,
-      email,
-      photoURL,
-      displayName,
-      id: voucher.id,
-    });
-  });
-};
-
-const getVouchersDepositsAndBatches = async ({officeId}) => {
-  const [vouchers, deposits, batches] = await Promise.all([
-    rootCollections.offices
-      .doc(officeId)
-      .collection(subcollectionNames.VOUCHERS)
-      .select(
-        'amount',
-        'batchId',
-        'beneficiaryId',
-        'cycleEnd',
-        'cycleStart',
-        'office',
-        'officeId',
-        'createdAt',
-        'updatedAt',
-        'type',
-      )
-      .get(),
-    rootCollections.deposits.where('officeId', '==', officeId).get(),
-    rootCollections.batches.where('officeId', '==', officeId).get(),
-  ]);
-
-  return {
-    vouchers: await getVouchers(vouchers.docs),
-    deposits: deposits.docs.map(docIdMapper),
-    batches: batches.docs.map(docIdMapper),
-  };
-};
+  }, {});
 
 const handleGetRequest = async conn => {
-  const {office, field: expectedFields} = conn.req.query;
+  const {office} = conn.req.query;
 
   if (!office) {
     return sendResponse(
@@ -255,10 +182,6 @@ const handleGetRequest = async conn => {
       code.badRequest,
       `Missing 'office' in query params`,
     );
-  }
-
-  if (!expectedFields && !Array.isArray(expectedFields)) {
-    return sendResponse(conn, code.badRequest, `Missing query param 'field'`);
   }
 
   if (!isAnAdmin({office, customClaims: conn.requester.customClaims})) {
@@ -286,27 +209,40 @@ const handleGetRequest = async conn => {
     );
   }
 
-  return sendJSON(
-    conn,
-    Object.assign(
-      {},
-      {
-        locations: !field.includes('locations')
-          ? []
-          : await getLocations({officeId}),
-        recipients: !field.includes('recipients')
-          ? []
-          : await getRecipients({officeId}),
-        types: !field.includes('types') ? [] : await getTypes({officeId}),
-        roles: !field.includes('roles') ? [] : await getRoles({officeId}),
-      },
-      /**
-       * Vouchers are sent always.
-       * Optional fields are locations, recipients, types and roles.
-       */
-      await getVouchersDepositsAndBatches({officeId}),
-    ),
-  );
+  const [
+    locations,
+    recipients,
+    types,
+    roles,
+    vouchers,
+    deposits,
+    batches,
+  ] = await Promise.all([
+    !field.includes('locations') ? [] : getLocations({officeId}),
+    !field.includes('recipients') ? [] : getRecipients({officeId}),
+    !field.includes('types') ? [] : getTypes({officeId}),
+    !field.includes('roles') ? [] : getRoles({officeId}),
+    /**
+     * Vouchers are sent always.
+     * Optional fields are locations, recipients, types and roles.
+     */
+    rootCollections.offices
+      .doc(officeId)
+      .collection(subcollectionNames.VOUCHERS)
+      .get(),
+    rootCollections.deposits.where('officeId', '==', officeId).get(),
+    rootCollections.batches.where('officeId', '==', officeId).get(),
+  ]);
+
+  return sendJSON(conn, {
+    locations,
+    recipients,
+    types,
+    roles,
+    vouchers: vouchers.docs.map(docIdMapper),
+    deposits: deposits.docs.map(docIdMapper),
+    batches: batches.docs.map(docIdMapper),
+  });
 };
 
 module.exports = async conn => {

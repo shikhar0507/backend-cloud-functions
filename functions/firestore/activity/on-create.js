@@ -47,7 +47,7 @@ const {
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 const fs = require('fs');
-const currency = require('currency.js');
+const currencyJs = require('currency.js');
 const admin = require('firebase-admin');
 const googleMapsClient = require('@google/maps').createClient({
   key: env.mapsApiKey,
@@ -64,6 +64,11 @@ const getClaimStatus = async ({claimType, officeId, phoneNumber, timezone}) => {
     .clone()
     .endOf('month')
     .valueOf();
+  const baseQuery = rootCollections.activities.where(
+    'officeId',
+    '==',
+    officeId,
+  );
 
   const [
     claimActivities,
@@ -71,15 +76,12 @@ const getClaimStatus = async ({claimType, officeId, phoneNumber, timezone}) => {
       docs: [claimTypeDoc],
     },
   ] = await Promise.all([
-    rootCollections.activities
+    baseQuery
       .where('template', '==', 'claim')
-      .where('officeId', '==', officeId)
       .where('creator.phoneNumber', '==', phoneNumber)
       .where('attachment.Claim Type.value', '==', claimType)
       .get(),
-    rootCollections.offices
-      .doc(officeId)
-      .collection(subcollectionNames.ACTIVITIES)
+    baseQuery
       .where('template', '==', 'claim-type')
       .where('attachment.Name.value', '==', claimType)
       .limit(1)
@@ -87,21 +89,29 @@ const getClaimStatus = async ({claimType, officeId, phoneNumber, timezone}) => {
   ]);
 
   const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
-  let claimsThisMonth = currency(0);
+  let claimsThisMonth = currencyJs(0);
+
+  console.log('monthlyLimit ==>', monthlyLimit);
+  console.log('claimActivities ==>', claimActivities.size);
 
   claimActivities.forEach(doc => {
     // Start Time of the schedule has a higher priority.
+    const isCancelled = doc.get('status') === 'CANCELLED';
     const [{startTime}] = doc.get('schedule');
     const createTime = momentTz(startTime || doc.createTime.toMillis()).tz(
       timezone,
     );
-    const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
 
-    if (createdThisMonth) {
+    const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
+    console.log(doc.id, createTime.toISOString(), createdThisMonth);
+
+    if (createdThisMonth && !isCancelled) {
       const amount = parseInt(doc.get('attachment.Amount.value') || 0);
       claimsThisMonth = claimsThisMonth.add(amount);
     }
   });
+
+  console.log('claimsThisMonth =>', claimsThisMonth.value);
 
   return {
     monthlyLimit,
@@ -738,7 +748,12 @@ const handleClaims = async (conn, locals) => {
     timezone: locals.officeDoc.get('attachment.Timezone.value'),
   });
 
-  if (claimsThisMonth + amount > monthlyLimit) {
+  console.log({claimsThisMonth, monthlyLimit});
+
+  if (
+    currencyJs(claimsThisMonth).add(amount).value >
+    currencyJs(monthlyLimit).value
+  ) {
     return sendResponse(
       conn,
       code.conflict,

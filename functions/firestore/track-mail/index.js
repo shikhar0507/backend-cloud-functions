@@ -50,15 +50,15 @@ module.exports = conn => {
     recipientIdArray.push(eventContext.recipientId);
     contextArray.push(eventContext);
 
-    const promise = rootCollections.recipients
-      .doc(eventContext.recipientId)
-      .collection('MailEvents')
-      .where('timestamp', '>=', dayStart.valueOf())
-      .where('timestamp', '<=', dayEnd.valueOf())
-      .limit(1)
-      .get();
-
-    promises.push(promise);
+    promises.push(
+      rootCollections.recipients
+        .doc(eventContext.recipientId)
+        .collection('MailEvents')
+        .where('timestamp', '>=', dayStart.valueOf())
+        .where('timestamp', '<=', dayEnd.valueOf())
+        .limit(1)
+        .get(),
+    );
   });
 
   return Promise.all(promises)

@@ -871,6 +871,7 @@ const allMonths = {
 };
 
 const addendumTypes = {
+  PRODUCT: 'product',
   ACTIVITY: 'activity',
   REIMBURSEMENT: 'reimbursement',
   ATTENDANCE: 'attendance',

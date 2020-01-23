@@ -61,6 +61,7 @@ const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
     })(),
   );
 
+  // TODO: the argument in `orderBy` can be replaced with `__name__`.
   let query = baseQuery.orderBy(admin.firestore.FieldPath.documentId());
 
   if (previousResult && previousResult.length > 0) {
@@ -71,7 +72,7 @@ const recursiveFetch = async (baseQuery, intermediate, previousResult) => {
     query = query.startAfter(last.id);
   }
 
-  const result = await query.limit(500).get();
+  const result = await query.limit(250).get();
 
   console.log('result', result.size);
 

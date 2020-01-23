@@ -412,6 +412,7 @@ const read = async conn => {
   const jsonObject = {
     from,
     upto: from,
+    products: [],
     addendum: [],
     activities: [],
     templates: [],
@@ -587,6 +588,12 @@ const read = async conn => {
 
     if (type === addendumTypes.REIMBURSEMENT) {
       jsonObject.reimbursements.push(doc.data());
+
+      return;
+    }
+
+    if (type === addendumTypes.PRODUCT) {
+      jsonObject.products.push(doc.data());
 
       return;
     }

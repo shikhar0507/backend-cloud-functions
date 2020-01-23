@@ -28,7 +28,6 @@ const {
   handleError,
   sendResponse,
   getAuth,
-  isE164PhoneNumber,
 } = require('../admin/utils');
 const {code} = require('../admin/responses');
 

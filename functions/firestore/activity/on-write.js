@@ -50,6 +50,7 @@ const {
 const env = require('../../admin/env');
 const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
+const currencyJs = require('currency.js');
 const googleMapsClient = require('@google/maps').createClient({
   key: env.mapsApiKey,
   Promise: Promise,
@@ -2839,7 +2840,9 @@ const reimburseClaim = async locals => {
     relevantActivityId: activityId,
     reimbursementName: locals.change.after.get('attachment.Claim Type.value'),
     photoURL: locals.change.after.get('attachment.Photo URL.value'),
-    amount: locals.change.after.get('attachment.Amount.value'),
+    amount: currencyJs(
+      locals.change.after.get('attachment.Amount.value'),
+    ).toString(),
     claimType: locals.change.after.get('attachment.Claim Type.value'),
     activityDoc: locals.change.after.data(),
   });
@@ -3217,9 +3220,15 @@ const reimburseKmAllowance = async locals => {
     return;
   }
 
-  if (locals.addendumDocData.isSupportRequest) {
+  // Support/admin requests are not eligible for reimbursements
+  if (
+    locals.addendumDocData.isSupportRequest ||
+    locals.addendumDocData.isAdminRequest
+  ) {
     return;
   }
+
+  console.log('in reimburseKmAllowance');
 
   const {timestamp} = locals.addendumDocData;
   let uid = locals.addendumDocData.uid;
@@ -3227,7 +3236,7 @@ const reimburseKmAllowance = async locals => {
   const {template, office, officeId, timezone} = locals.change.after.data();
 
   // Doing this because action=check-in can show up with
-  // non-check-in template activities too.s
+  // non-check-in template activities too.
   const phoneNumber = (() => {
     if (template === 'check-in') {
       return locals.change.after.get('creator.phoneNumber');
@@ -3241,6 +3250,8 @@ const reimburseKmAllowance = async locals => {
   }
 
   const roleDoc = locals.roleObject;
+
+  console.log('roleDoc found for kmallowance', roleDoc);
 
   // Not an employee, km allowance is skipped
   if (!roleDoc) {
@@ -3258,6 +3269,8 @@ const reimburseKmAllowance = async locals => {
   if (scheduledOnly && locals.addendumDocData.action !== httpsActions.checkIn) {
     return;
   }
+
+  console.log('kmRate', kmRate);
 
   if (!kmRate) {
     return;
@@ -3334,6 +3347,8 @@ const reimburseKmAllowance = async locals => {
     baseLocation: roleData.baseLocation,
   });
 
+  console.log('startPointDetails', startPointDetails);
+
   if (!startPointDetails) {
     return;
   }
@@ -3341,6 +3356,11 @@ const reimburseKmAllowance = async locals => {
   const distanceBetweenCurrentAndStartPoint = await getDistanceFromDistanceMatrix(
     startPointDetails.geopoint,
     locals.addendumDocData.location,
+  );
+
+  console.log(
+    'distanceBetweenCurrentAndStartPoint',
+    distanceBetweenCurrentAndStartPoint,
   );
 
   if (distanceBetweenCurrentAndStartPoint < 1) {
@@ -3371,11 +3391,17 @@ const reimburseKmAllowance = async locals => {
       .collection(subcollectionNames.ADDENDUM)
       .doc();
 
+    const amountEarned = currencyJs(kmRate)
+      .multiply(distanceBetweenCurrentAndStartPoint)
+      .toString();
+
+    console.log('in if amountEarned', amountEarned);
+
     // startPoint (previous) to current location(current)
     batch.set(
       r1,
       Object.assign({}, roleData, commonReimObject, {
-        amount: (kmRate * distanceBetweenCurrentAndStartPoint).toFixed(0),
+        amount: amountEarned,
         distance: distanceBetweenCurrentAndStartPoint,
         previousIdentifier: startPointDetails.identifier,
         previousGeopoint: startPointDetails.geopoint,
@@ -3424,7 +3450,7 @@ const reimburseKmAllowance = async locals => {
         currentIdentifier: startPointDetails.identifier,
         currentGeopoint: startPointDetails.geopoint,
         intermediate: true,
-        amount: (kmRate * distanceBetweenCurrentAndStartPoint).toFixed(0),
+        amount: amountEarned,
         distance: distanceBetweenCurrentAndStartPoint,
       }),
     );
@@ -3433,7 +3459,7 @@ const reimburseKmAllowance = async locals => {
     batch.set(
       u1,
       Object.assign({}, commonReimObject, {
-        amount: (kmRate * distanceBetweenCurrentAndStartPoint).toFixed(0),
+        amount: amountEarned,
         _type: addendumTypes.REIMBURSEMENT,
         id: `${date}${month}${year}${r1.id}`,
         key: momentNow
@@ -3466,7 +3492,7 @@ const reimburseKmAllowance = async locals => {
       u2,
       Object.assign({}, commonReimObject, {
         _type: addendumTypes.REIMBURSEMENT,
-        amount: (kmRate * distanceBetweenCurrentAndStartPoint).toFixed(0),
+        amount: amountEarned,
         id: `${date}${month}${year}${r2.id}`,
         key: momentNow
           .clone()
@@ -3494,13 +3520,18 @@ const reimburseKmAllowance = async locals => {
       }),
     );
   } else {
+    console.log(
+      'in else distanceTravelled',
+      locals.addendumDocData.distanceTravelled,
+    );
+
     if (locals.addendumDocData.distanceTravelled < 1) {
       return;
     }
 
-    const amountThisTime =
-      Number(kmRate) * locals.addendumDocData.distanceTravelled;
-
+    const amountThisTime = currencyJs(kmRate)
+      .multiply(locals.addendumDocData.distanceTravelled)
+      .toString();
     const [oldReimbursementDoc] = previousKmReimbursementQuery.docs;
     const [oldUpdatesDoc] = previousReimbursementUpdateQuery.docs;
     const r1 = rootCollections.offices
@@ -3512,12 +3543,14 @@ const reimburseKmAllowance = async locals => {
       .collection(subcollectionNames.ADDENDUM)
       .doc();
 
+    console.log('in else amount', amountThisTime);
+
     // r2
     batch.set(
       oldReimbursementDoc.ref,
       Object.assign({}, roleData, commonReimObject, {
         rate: kmRate,
-        amount: amountThisTime.toFixed(0),
+        amount: amountThisTime,
         intermediate: false,
         currentIdentifier: (() => {
           if (locals.addendumDocData.venueQuery) {
@@ -3564,7 +3597,7 @@ const reimburseKmAllowance = async locals => {
           .year(year)
           .startOf('date')
           .valueOf(),
-        amount: amountThisTime.toFixed(0),
+        amount: amountThisTime,
         _type: addendumTypes.REIMBURSEMENT,
         reimbursementName: null,
         intermediate: false,
@@ -3597,7 +3630,7 @@ const reimburseKmAllowance = async locals => {
       Object.assign({}, roleData, commonReimObject, {
         // cumulativeAmount,
         rate: kmRate,
-        amount: amountThisTime.toFixed(0),
+        amount: amountThisTime,
         currentIdentifier: startPointDetails.identifier,
         currentGeopoint: startPointDetails.geopoint,
         previousIdentifier: (() => {
@@ -3627,7 +3660,7 @@ const reimburseKmAllowance = async locals => {
       u1,
       Object.assign({}, commonReimObject, {
         _type: addendumTypes.REIMBURSEMENT,
-        amount: amountThisTime.toFixed(0),
+        amount: amountThisTime,
         id: `${date}${month}${year}${r1.id}`,
         key: momentTz()
           .date(date)
@@ -3747,6 +3780,7 @@ const newBackfill = async locals => {
      */
     lastTimestamp,
     activityData,
+    uid,
     user: phoneNumber,
   } = locals.addendumDocData;
   const {timezone, office, officeId} = activityData;
@@ -3890,16 +3924,6 @@ const newBackfill = async locals => {
 
   console.log('attendanceData', attendanceData);
 
-  const roleData = getRoleReportData(locals.roleObject, phoneNumber);
-  const update = Object.assign({}, roleData, attendanceData, {
-    officeId,
-    phoneNumber,
-    office,
-    month: momentPrevMonth.month(),
-    year: momentPrevMonth.year(),
-    roleDoc: locals.roleObject || null,
-  });
-
   const ref = attendanceDocPrevMonth
     ? attendanceDocPrevMonth.ref
     : rootCollections.offices
@@ -3909,9 +3933,25 @@ const newBackfill = async locals => {
 
   console.log('backfill ref', ref.path);
 
-  return ref.set(update, {
-    merge: true,
-  });
+  return ref.set(
+    Object.assign(
+      {},
+      getRoleReportData(locals.roleObject, phoneNumber),
+      attendanceData,
+      {
+        uid,
+        officeId,
+        phoneNumber,
+        office,
+        month: momentPrevMonth.month(),
+        year: momentPrevMonth.year(),
+        roleDoc: locals.roleObject || null,
+      },
+    ),
+    {
+      merge: true,
+    },
+  );
 };
 
 // const populateMissingAttendances = async (
@@ -4040,26 +4080,19 @@ const handleWorkday = async locals => {
    * This query might return 0 docs if the date = 1 in the month
    * or the user hasn't done anything since the start of the month
    */
-  const [attendanceDoc] = (
-    await rootCollections.offices
-      .doc(officeId)
-      .collection(subcollectionNames.ATTENDANCES)
-      .where('phoneNumber', '==', phoneNumber)
-      .where('month', '==', month)
-      .where('year', '==', year)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [attendanceDoc],
+  } = await rootCollections.offices
+    .doc(officeId)
+    .collection(subcollectionNames.ATTENDANCES)
+    .where('phoneNumber', '==', phoneNumber)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .limit(1)
+    .get();
 
   console.log('attendanceDoc found', !!attendanceDoc);
   console.log('locals.roleObject', !!locals.roleObject);
-
-  const attendanceDocRef = attendanceDoc
-    ? attendanceDoc.ref
-    : rootCollections.offices
-        .doc(officeId)
-        .collection(subcollectionNames.ATTENDANCES)
-        .doc();
 
   const attendanceObject = attendanceDoc ? attendanceDoc.data() : {};
 
@@ -4092,6 +4125,7 @@ const handleWorkday = async locals => {
   // If we trigger activityOnWrite for check-in, the same addendum object
   // should not be pushed to the array since that will result in duplication
   // and the count of addendum will also be off.
+  // This line handles the idempotency.
   const idx = attendanceObject.attendance[todaysDate].addendum.findIndex(
     val => {
       return val.addendumId === locals.addendumDoc.id;
@@ -4109,7 +4143,7 @@ const handleWorkday = async locals => {
 
   /**
    * Sometimes when the code crashes or when an event is missed
-   * we trigger activityOnWrite by updating the timestamp.
+   * we trigger `activityOnWrite` by updating the timestamp.
    * In that case, the sorting of the timestamps in this array
    * might get messed up. Sorting regardless helps us migitate
    * this case.
@@ -4130,16 +4164,14 @@ const handleWorkday = async locals => {
     true,
   );
 
-  const p = {
+  attendanceObject.attendance[todaysDate].attendance = getStatusForDay({
     // difference between first and last action in hours
     hoursWorked,
     // number of actions done in the day by the user
     numberOfCheckIns,
     minimumDailyActivityCount: roleData.minimumDailyActivityCount,
     minimumWorkingHours: roleData.minimumWorkingHours,
-  };
-
-  attendanceObject.attendance[todaysDate].attendance = getStatusForDay(p);
+  });
 
   if (
     attendanceObject.attendance[todaysDate].onAr ||
@@ -4222,9 +4254,17 @@ const handleWorkday = async locals => {
     );
   });
 
+  const attendanceDocRef = attendanceDoc
+    ? attendanceDoc.ref
+    : rootCollections.offices
+        .doc(officeId)
+        .collection(subcollectionNames.ATTENDANCES)
+        .doc();
+
   batch.set(
     attendanceDocRef,
     Object.assign({}, roleData, attendanceObject, {
+      uid,
       year,
       month,
       office,
@@ -4244,12 +4284,12 @@ const handleWorkday = async locals => {
       .collection(subcollectionNames.ADDENDUM)
       .doc(),
     Object.assign({}, attendanceObject.attendance[todaysDate], {
-      date: todaysDate,
       month,
       year,
       office,
       officeId,
       phoneNumber,
+      date: todaysDate,
       timestamp: Date.now(),
       _type: addendumTypes.ATTENDANCE,
       id: `${todaysDate}${month}${year}${officeId}`,
@@ -4665,21 +4705,24 @@ const handleProfile = async change => {
      * auth, there's no point in putting a check-in their
      * profile.
      */
-    if (template === 'check-in' && !uid) {
-      return;
-    }
+    // if (template === 'check-in' && !uid) {
+    //   return;
+    // }
 
-    // in profile
-    batch.set(
-      rootCollections.profiles
-        .doc(phoneNumber)
-        .collection(subcollectionNames.ACTIVITIES)
-        .doc(activityId),
-      profileActivityObject,
-      {
-        merge: true,
-      },
-    );
+    // Check-ins are sent to users via `Updates/{uid}/Addendum/` collection
+    if (template !== 'check-in') {
+      // in profile
+      batch.set(
+        rootCollections.profiles
+          .doc(phoneNumber)
+          .collection(subcollectionNames.ACTIVITIES)
+          .doc(activityId),
+        profileActivityObject,
+        {
+          merge: true,
+        },
+      );
+    }
 
     if (uid) {
       // in updates only if auth exists

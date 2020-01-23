@@ -32,7 +32,7 @@ const {
   reimbursementsFrequencies,
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
-const Dinero = require('dinero.js');
+const currencyJs = require('currency.js');
 
 const getDefaultVoucher = ({
   beneficiaryId,
@@ -113,7 +113,6 @@ const reimbursementHandler = async (change, context) => {
   const batch = db.batch();
   const {
     date,
-    currency = 'INR',
     month,
     year,
     office,
@@ -125,9 +124,6 @@ const reimbursementHandler = async (change, context) => {
   } = reimbursementDocNewState.data();
   const {amount: oldAmount = 0} = reimbursementDocOldState.data() || {};
   const officeDoc = await rootCollections.offices.doc(officeId).get();
-
-  console.log('officeDoc', officeDoc);
-  console.log('beneficiaryId', beneficiaryId);
 
   const reimbursementFrequency =
     officeDoc.get('attachment.Reimbursement Frequency.value') ||
@@ -172,50 +168,22 @@ const reimbursementHandler = async (change, context) => {
         cycleEnd,
       });
 
-  console.log('ref', ref.path);
-
   data.linkedReimbursements = data.linkedReimbursements || [];
   data.linkedReimbursements.push(change.after.id);
 
   const amount = (() => {
     if (!firstVoucherDoc) {
       // doc will be created in this instance
-      return Dinero({
-        currency,
-        amount: Number(newAmount),
-      }).getAmount();
+      return currencyJs(newAmount);
     }
 
     if (claimId && status === 'CANCELLED') {
-      return Dinero({
-        currency,
-        amount: Number(data.amount),
-      })
-        .subtract(
-          Dinero({
-            currency,
-            amount: Number(newAmount),
-          }),
-        )
-        .getAmount();
+      return currencyJs(data.amount).subtract(currencyJs(newAmount));
     }
 
-    const diff = Dinero({
-      currency,
-      amount: Number(newAmount),
-    }).subtract(
-      Dinero({
-        currency,
-        amount: Number(oldAmount),
-      }),
+    return currencyJs(data.amount).add(
+      currencyJs(newAmount).subtract(oldAmount),
     );
-
-    return Dinero({
-      currency,
-      amount: Number(data.amount),
-    })
-      .add(diff)
-      .getAmount();
   })();
 
   const userRecord = await getAuth(phoneNumber);
@@ -223,21 +191,23 @@ const reimbursementHandler = async (change, context) => {
   batch.set(
     ref,
     Object.assign({}, data, {
-      createdAt: firstVoucherDoc
-        ? firstVoucherDoc.createTime.toMillis()
-        : Date.now(),
-      updatedAt: Date.now(),
       office,
       officeId,
       beneficiaryId,
       cycleStart,
       cycleEnd,
       phoneNumber,
-      amount: `${Number(data.amount) + Number(amount)}`,
+      createdAt: firstVoucherDoc
+        ? firstVoucherDoc.createTime.toMillis()
+        : Date.now(),
+      updatedAt: Date.now(),
+      amount: currencyJs(data.amount)
+        .add(amount)
+        .toString(),
       batchId: data.batchId || null,
       type: addendumTypes.REIMBURSEMENT,
       timestamp: Date.now(),
-      photoURL: userRecord.displayName || '',
+      photoURL: userRecord.photoURL || '',
       email: userRecord.email || '',
       displayName: userRecord.displayName || '',
     }),

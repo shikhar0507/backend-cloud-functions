@@ -33,7 +33,7 @@ const {
 } = require('../../admin/utils');
 const {subcollectionNames} = require('../../admin/constants');
 const {rootCollections, db} = require('../../admin/admin');
-const currency = require('currency.js');
+const currencyJs = require('currency.js');
 const env = require('../../admin/env');
 
 const validator = requestBody => {
@@ -169,7 +169,6 @@ const depositsHandler = async conn => {
   const {body} = conn.req;
   const {office, vouchers} = body;
   const batch = db.batch();
-  // const batchRef = await getBatchRef();
   const batchRef = rootCollections.batches.doc();
   const v = validator(body);
 
@@ -246,7 +245,7 @@ const depositsHandler = async conn => {
     );
   }
 
-  let totalPayableByUser = currency(0);
+  let totalPayableByUser = currencyJs(0);
   const newVouchers = [];
   /**
    * This ID acts just as a seed to generate the 6-10 character
@@ -256,7 +255,7 @@ const depositsHandler = async conn => {
   const tempId = batchRef.id;
   const seed = generateVirtualAccountId(tempId);
   /**
-   * Cashfree requires the batchId to be a 6 to 10 UPPER CASE string
+   * Cashfree requires the `batchId` to be a 6 to 10 UPPER CASE string
    */
   const batchId = await getBatchId(seed);
   const batchObject = {
@@ -272,7 +271,7 @@ const depositsHandler = async conn => {
     /**
      * Start with 0
      */
-    amount: currency(0),
+    amount: currencyJs(0),
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -313,8 +312,10 @@ const depositsHandler = async conn => {
 
   const halfPercentOfTotal = getPercentOf(totalPayableByUser.value, 0.5);
   const calculatedGstOnTotal = getPercentOf(halfPercentOfTotal, 18);
-  const convenienceFee = currency(halfPercentOfTotal).add(calculatedGstOnTotal);
-  const payableAmount = currency(totalPayableByUser).add(convenienceFee);
+  const convenienceFee = currencyJs(halfPercentOfTotal).add(
+    calculatedGstOnTotal,
+  );
+  const payableAmount = currencyJs(totalPayableByUser).add(convenienceFee);
 
   // serviceVoucher
   batch.set(officeDoc.ref.collection(subcollectionNames.VOUCHERS).doc(), {
@@ -324,7 +325,7 @@ const depositsHandler = async conn => {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     type: 'supplier',
-    amount: `${convenienceFee.value}`,
+    amount: convenienceFee.toString(),
     beneficiaryId: gapl.id,
   });
 
@@ -333,7 +334,7 @@ const depositsHandler = async conn => {
     Object.assign({}, batchObject, {
       ifsc,
       bankAccount,
-      amount: `${payableAmount.value}`,
+      amount: payableAmount.toString(),
     }),
   );
 
@@ -346,7 +347,7 @@ const depositsHandler = async conn => {
       {
         ifsc,
         bankAccount,
-        amount: `${payableAmount.value}`,
+        amount: payableAmount.toString(),
         vouchers: newVouchers,
       },
       await getBatchesAndDeposits({officeId}),
