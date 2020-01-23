@@ -32,9 +32,9 @@ const crypto = require('crypto');
 const env = require('../admin/env');
 const CLIENT_ID = env.cashFree.payout.clientId;
 const CLIENT_SECRET = env.cashFree.payout.clientSecret;
-const {promisify} = require('util');
-const {rootCollections} = require('../admin/admin');
-const {getISO8601Date} = require('../admin/utils');
+const { promisify } = require('util');
+const { rootCollections } = require('../admin/admin');
+const { getISO8601Date } = require('../admin/utils');
 
 const endpoint = (() => {
   if (env.isProduction) {
@@ -95,7 +95,7 @@ const verifyAuthToken = async authToken => {
 const getBearerToken = async () => {
   const timerDoc = await rootCollections.timers.doc(getISO8601Date()).get();
 
-  const {cashFree} = timerDoc.data() || {};
+  const { cashFree } = timerDoc.data() || {};
 
   // Token is already present
   if (cashFree && cashFree.payout) {
@@ -129,7 +129,7 @@ const getHeaders = async () => ({
   Authorization: await getBearerToken(),
 });
 
-const requestTransfer = async ({remarks, beneId, amount}) => {
+const requestTransfer = async ({ remarks, beneId, amount }) => {
   const uri = url.resolve(endpoint, '/payout/v1/requestTransfer');
 
   return rpn(uri, {
@@ -146,7 +146,7 @@ const requestTransfer = async ({remarks, beneId, amount}) => {
   });
 };
 
-const getTransferStatus = async ({referenceId, transferId}) => {
+const getTransferStatus = async ({ referenceId, transferId }) => {
   const uri = url.resolve(endpoint, '/payout/v1/getTransferStatus');
 
   return rpn(uri, {
@@ -160,7 +160,7 @@ const getTransferStatus = async ({referenceId, transferId}) => {
   });
 };
 
-const validateBank = async ({name, phone, bankAccount, ifsc}) => {
+const validateBank = async ({ name, phone, bankAccount, ifsc }) => {
   const uri = url.resolve(endpoint, '/payout/v1/validation/bankDetails');
 
   return rpn(uri, {
@@ -234,7 +234,7 @@ const getBalance = async () => {
   });
 };
 
-const requestBatchTransfer = async ({batchTransferId, batch}) => {
+const requestBatchTransfer = async ({ batchTransferId, batch }) => {
   const uri = url.resolve(endpoint, '/payout/v1/requestBatchTransfer');
 
   return rpn(uri, {

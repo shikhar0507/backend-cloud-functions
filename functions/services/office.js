@@ -33,8 +33,8 @@ const {
   // timezonesSet,
   subcollectionNames,
 } = require('../admin/constants');
-const {code} = require('../admin/responses');
-const {db, getGeopointObject, rootCollections} = require('../admin/admin');
+const { code } = require('../admin/responses');
+const { db, getGeopointObject, rootCollections } = require('../admin/admin');
 const {
   isValidDate,
   isValidGeopoint,
@@ -112,7 +112,7 @@ const getAddendumRef = officeId => {
 };
 
 const getWeekdayStartTime = (firstResult = {}) => {
-  const {opening_hours: openingHours} = firstResult;
+  const { opening_hours: openingHours } = firstResult;
 
   if (!openingHours || !openingHours.periods) {
     return '';
@@ -130,7 +130,7 @@ const getWeekdayStartTime = (firstResult = {}) => {
 };
 
 const getWeekdayEndTime = (firstResult = {}) => {
-  const {opening_hours: openingHours} = firstResult;
+  const { opening_hours: openingHours } = firstResult;
 
   if (!openingHours || !openingHours.periods) {
     return '';
@@ -149,13 +149,13 @@ const getWeekdayEndTime = (firstResult = {}) => {
 };
 
 const getWeeklyOff = placeApiResult => {
-  const {opening_hours: openingHours} = placeApiResult.json.result;
+  const { opening_hours: openingHours } = placeApiResult.json.result;
 
   if (!openingHours) {
     return '';
   }
 
-  const {weekday_text: weekdayText} = openingHours;
+  const { weekday_text: weekdayText } = openingHours;
 
   if (!weekdayText) {
     return '';
@@ -284,7 +284,7 @@ const createOffice = async conn => {
     );
   }
 
-  const {phoneNumber, displayName, photoURL} = conn.requester;
+  const { phoneNumber, displayName, photoURL } = conn.requester;
   const batch = db.batch();
   const template = 'office';
   const [
@@ -317,7 +317,7 @@ const createOffice = async conn => {
   }
 
   const activityRef = rootCollections.activities.doc();
-  const {id: activityId} = activityRef;
+  const { id: activityId } = activityRef;
 
   // This api only creates the office activity.
   const officeId = activityId;
@@ -381,7 +381,7 @@ const createOffice = async conn => {
     templateDoc.get('attachment'),
   ).toObject();
 
-  const {date, months: month, years: year} = momentTz().toObject();
+  const { date, months: month, years: year } = momentTz().toObject();
 
   const assignees = Array.from(
     new Set([

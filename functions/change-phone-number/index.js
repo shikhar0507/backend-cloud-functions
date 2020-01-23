@@ -23,14 +23,14 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../admin/admin');
+const { db, rootCollections } = require('../admin/admin');
 const {
   handleError,
   sendResponse,
   isE164PhoneNumber,
 } = require('../admin/utils');
-const {httpsActions, subcollectionNames} = require('../admin/constants');
-const {code} = require('../admin/responses');
+const { httpsActions, subcollectionNames } = require('../admin/constants');
+const { code } = require('../admin/responses');
 const admin = require('firebase-admin');
 
 const validator = body => {
@@ -96,7 +96,7 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
       const fields = Object.keys(attachment);
 
       fields.forEach(field => {
-        const {value, type} = attachment[field];
+        const { value, type } = attachment[field];
 
         if (type !== 'phoneNumber') {
           return;
@@ -114,7 +114,7 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
         data.attachment['Phone Number'] &&
         data.attachment['Phone Number'].value === oldPhoneNumber
       ) {
-        const {officeId} = data;
+        const { officeId } = data;
 
         const ref = rootCollections.offices
           .doc(officeId)
@@ -148,13 +148,13 @@ const populateActivities = async (oldPhoneNumber, newPhoneNumber) => {
       delete data.activityId;
       delete data.assignees;
 
-      batch.set(ref, Object.assign({}, data), {merge: true});
+      batch.set(ref, Object.assign({}, data), { merge: true });
       batch.delete(
         ref.collection(subcollectionNames.ASSIGNEES).doc(oldPhoneNumber),
       );
       batch.set(
         ref.collection(subcollectionNames.ASSIGNEES).doc(newPhoneNumber),
-        {addToInclude: data.template === 'subscription'},
+        { addToInclude: data.template === 'subscription' },
       );
     });
 
@@ -193,7 +193,7 @@ module.exports = async conn => {
     return sendResponse(conn, code.badRequest, v);
   }
 
-  const {uid, phoneNumber} = conn.requester;
+  const { uid, phoneNumber } = conn.requester;
 
   try {
     return Promise.all([
@@ -201,16 +201,16 @@ module.exports = async conn => {
        * Disabling user until all the activity
        * onWrite instances have triggered.
        */
-      admin.auth().updateUser(uid, {disabled: true}),
+      admin.auth().updateUser(uid, { disabled: true }),
       populateActivities(phoneNumber, conn.req.body.newPhoneNumber),
       rootCollections.updates
         .doc(uid)
-        .set({phoneNumber: conn.req.body.newPhoneNumber}, {merge: true}),
+        .set({ phoneNumber: conn.req.body.newPhoneNumber }, { merge: true }),
     ]);
   } catch (error) {
     return handleError(conn, error);
   } finally {
-    await admin.auth().updateUser(uid, {disabled: false});
+    await admin.auth().updateUser(uid, { disabled: false });
 
     sendResponse(conn, code.accepted, 'Phone Number change is in progress.');
   }

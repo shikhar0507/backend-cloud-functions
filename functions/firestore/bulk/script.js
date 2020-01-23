@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
+const { rootCollections } = require('../../admin/admin');
 const env = require('../../admin/env');
 const {
   handleError,
@@ -32,7 +32,7 @@ const {
   isValidGeopoint,
   isNonEmptyString,
 } = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { code } = require('../../admin/responses');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(env.sgMailApiKey);
 const storage = require('firebase-admin').storage();

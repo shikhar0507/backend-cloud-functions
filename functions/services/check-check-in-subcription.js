@@ -23,10 +23,10 @@
 
 'use strict';
 
-const {rootCollections} = require('../admin/admin');
-const {code} = require('../admin/responses');
-const {subcollectionNames} = require('../admin/constants');
-const {sendJSON, sendResponse, handleError} = require('../admin/utils');
+const { rootCollections } = require('../admin/admin');
+const { code } = require('../admin/responses');
+const { subcollectionNames } = require('../admin/constants');
+const { sendJSON, sendResponse, handleError } = require('../admin/utils');
 
 const hasCheckInSubscription = async conn => {
   if (conn.req.method !== 'GET') {

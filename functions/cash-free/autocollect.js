@@ -33,9 +33,9 @@ const crypto = require('crypto');
 const CLIENT_ID = env.cashFree.autocollect.clientId;
 const CLIENT_SECRET = env.cashFree.autocollect.clientSecret;
 
-const {promisify} = require('util');
-const {rootCollections} = require('../admin/admin');
-const {getISO8601Date} = require('../admin/utils');
+const { promisify } = require('util');
+const { rootCollections } = require('../admin/admin');
+const { getISO8601Date } = require('../admin/utils');
 
 const endpoint = (() => {
   if (env.isProduction) {
@@ -101,7 +101,7 @@ const verifyAuthToken = async authToken => {
 
 const getBearerToken = async () => {
   const timerDoc = await rootCollections.timers.doc(getISO8601Date()).get();
-  const {cashFree} = timerDoc.data() || {};
+  const { cashFree } = timerDoc.data() || {};
 
   console.log('Timer', timerDoc.ref.path);
 
@@ -141,7 +141,7 @@ const getHeaders = async () => ({
   Authorization: await getBearerToken(),
 });
 
-const createVirtualAccount = async ({vAccountId, name, phone, email}) => {
+const createVirtualAccount = async ({ vAccountId, name, phone, email }) => {
   const uri = url.resolve(endpoint, '/cac/v1/createVA');
 
   return rpn(uri, {

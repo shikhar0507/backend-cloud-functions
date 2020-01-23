@@ -23,14 +23,14 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
-const {subcollectionNames} = require('../../admin/constants');
-const {sendJSON, sendResponse, getAuth} = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { rootCollections } = require('../../admin/admin');
+const { subcollectionNames } = require('../../admin/constants');
+const { sendJSON, sendResponse, getAuth } = require('../../admin/utils');
+const { code } = require('../../admin/responses');
 
-const docIdMapper = doc => Object.assign({}, doc.data(), {id: doc.id});
+const docIdMapper = doc => Object.assign({}, doc.data(), { id: doc.id });
 
-const isAnAdmin = ({office, customClaims = {}}) =>
+const isAnAdmin = ({ office, customClaims = {} }) =>
   Array.isArray(customClaims.admin) && customClaims.admin.includes(office);
 
 /**
@@ -63,7 +63,7 @@ const activityFieldsSelector = () => [
   'creator',
 ];
 
-const getLocations = async ({officeId}) =>
+const getLocations = async ({ officeId }) =>
   (
     await rootCollections.activities
       .where('officeId', '==', officeId)
@@ -71,10 +71,10 @@ const getLocations = async ({officeId}) =>
       .where('status', '==', 'CONFIRMED')
       .get()
   ).docs.map(doc =>
-    Object.assign({}, doc.data(), {addendumDocRef: null, activityId: doc.id}),
+    Object.assign({}, doc.data(), { addendumDocRef: null, activityId: doc.id }),
   );
 
-const getRecipients = async ({officeId}) => {
+const getRecipients = async ({ officeId }) => {
   const authPromises = [];
   const phoneNumberUniques = new Set();
   const detailsFromAuth = new Map();
@@ -84,7 +84,7 @@ const getRecipients = async ({officeId}) => {
     .get();
 
   recipients.forEach(doc => {
-    const {include = []} = doc.data();
+    const { include = [] } = doc.data();
 
     include.forEach(phoneNumber => {
       // This is to avoid fetching same phoneNumber's auth multiple
@@ -118,7 +118,7 @@ const getRecipients = async ({officeId}) => {
   });
 
   return recipients.docs.map(recipient => {
-    const {include: assignees = []} = recipient.data();
+    const { include: assignees = [] } = recipient.data();
 
     return Object.assign({}, recipient.data(), {
       recipientId: recipient.id,
@@ -148,7 +148,7 @@ const activityFilter = doc =>
     creator: getCreatorForActivity(doc.get('creator')),
   });
 
-const getTypes = async ({officeId}) =>
+const getTypes = async ({ officeId }) =>
   (
     await rootCollections.activities
       .where('officeId', '==', officeId)
@@ -157,7 +157,7 @@ const getTypes = async ({officeId}) =>
       .get()
   ).docs.map(activityFilter);
 
-const getRoles = async ({officeId}) =>
+const getRoles = async ({ officeId }) =>
   (
     await rootCollections.activities
       .where('officeId', '==', officeId)
@@ -165,7 +165,7 @@ const getRoles = async ({officeId}) =>
       .select(...activityFieldsSelector())
       .get()
   ).docs.reduce((prevValue, doc) => {
-    const {template} = doc.data();
+    const { template } = doc.data();
 
     prevValue[template] = prevValue[template] || [];
     prevValue[template].push(activityFilter(doc));
@@ -174,7 +174,7 @@ const getRoles = async ({officeId}) =>
   }, {});
 
 const handleGetRequest = async conn => {
-  const {office} = conn.req.query;
+  const { office } = conn.req.query;
 
   if (!office) {
     return sendResponse(
@@ -184,7 +184,7 @@ const handleGetRequest = async conn => {
     );
   }
 
-  if (!isAnAdmin({office, customClaims: conn.requester.customClaims})) {
+  if (!isAnAdmin({ office, customClaims: conn.requester.customClaims })) {
     return sendResponse(conn, code.unauthorized, `You are not an admin`);
   }
 
@@ -195,7 +195,7 @@ const handleGetRequest = async conn => {
      * Office might not exist since we are expecting user
      * input in the office value.
      */
-    docs: [{id: officeId} = {}],
+    docs: [{ id: officeId } = {}],
   } = await rootCollections.offices
     .where('office', '==', office)
     .limit(1)
@@ -218,10 +218,10 @@ const handleGetRequest = async conn => {
     deposits,
     batches,
   ] = await Promise.all([
-    !field.includes('locations') ? [] : getLocations({officeId}),
-    !field.includes('recipients') ? [] : getRecipients({officeId}),
-    !field.includes('types') ? [] : getTypes({officeId}),
-    !field.includes('roles') ? [] : getRoles({officeId}),
+    !field.includes('locations') ? [] : getLocations({ officeId }),
+    !field.includes('recipients') ? [] : getRecipients({ officeId }),
+    !field.includes('types') ? [] : getTypes({ officeId }),
+    !field.includes('roles') ? [] : getRoles({ officeId }),
     /**
      * Vouchers are sent always.
      * Optional fields are locations, recipients, types and roles.
@@ -246,7 +246,7 @@ const handleGetRequest = async conn => {
 };
 
 module.exports = async conn => {
-  const {method} = conn.req;
+  const { method } = conn.req;
 
   if (method === 'GET') {
     return handleGetRequest(conn);

@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {Attachment, Creator} = require('../admin/protos');
-const {rootCollections, getGeopointObject, db} = require('../admin/admin');
-const {httpsActions, subcollectionNames} = require('../admin/constants');
+const { Attachment, Creator } = require('../admin/protos');
+const { rootCollections, getGeopointObject, db } = require('../admin/admin');
+const { httpsActions, subcollectionNames } = require('../admin/constants');
 const {
   isValidEmail,
   isValidDate,
@@ -34,7 +34,7 @@ const {
   isValidGeopoint,
   handleError,
 } = require('../admin/utils');
-const {code} = require('../admin/responses');
+const { code } = require('../admin/responses');
 const momentTz = require('moment-timezone');
 
 const grantSubscription = async conn => {
@@ -46,8 +46,8 @@ const grantSubscription = async conn => {
     );
   }
 
-  const {phoneNumber, displayName, photoURL, uid} = conn.requester;
-  const {office, geopoint, timestamp, share} = conn.req.body;
+  const { phoneNumber, displayName, photoURL, uid } = conn.requester;
+  const { office, geopoint, timestamp, share } = conn.req.body;
 
   if (!isValidDate(timestamp)) {
     return sendResponse(conn, code.badRequest, `Invalid/missing 'timestamp'`);
@@ -70,7 +70,7 @@ const grantSubscription = async conn => {
   }
 
   const validItems = share.filter(item => {
-    const {phoneNumber, displayName, email} = item;
+    const { phoneNumber, displayName, email } = item;
 
     if (!isNonEmptyString(phoneNumber)) {
       return false;
@@ -131,7 +131,7 @@ const grantSubscription = async conn => {
   });
 
   const [roleDoc] = employeeQuery.docs.filter(doc => {
-    const {template, status} = doc.data();
+    const { template, status } = doc.data();
 
     return (
       template !== 'subscription' &&
@@ -182,10 +182,10 @@ const grantSubscription = async conn => {
   const oldShare = [phoneNumber, ...share.map(item => item.phoneNumber)];
 
   if (roleDoc) {
-    const {attachment} = roleDoc.data();
+    const { attachment } = roleDoc.data();
 
     Object.keys(attachment).forEach(field => {
-      const {value, type} = attachment[field];
+      const { value, type } = attachment[field];
 
       if (type === 'phoneNumber') {
         share.push(value);
@@ -200,7 +200,7 @@ const grantSubscription = async conn => {
     .doc();
   const batch = db.batch();
   const momentNow = momentTz().tz(timezone);
-  const {date, months: month, years: year} = momentNow.toObject();
+  const { date, months: month, years: year } = momentNow.toObject();
 
   const allAssignees = Array.from(oldShare.filter(Boolean));
 

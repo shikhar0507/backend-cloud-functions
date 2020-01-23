@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {code} = require('../../admin/responses');
-const {httpsActions} = require('../../admin/constants');
-const {db, rootCollections, getGeopointObject} = require('../../admin/admin');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
+const { db, rootCollections, getGeopointObject } = require('../../admin/admin');
 const {
   activityName,
   validateVenues,
@@ -46,7 +46,7 @@ const {
 
 const updateDocsWithBatch = async (conn, locals) => {
   const activityRef = rootCollections.activities.doc(conn.req.body.activityId);
-  const {activityUpdateObject} = locals;
+  const { activityUpdateObject } = locals;
 
   if (locals.activityDoc.get('schedule').length > 0) {
     activityUpdateObject.relevantTime = getRelevantTime(conn.req.body.schedule);
@@ -211,7 +211,10 @@ const getUpdatedFields = (conn, locals) => {
 
 const handleAssignees = (conn, locals) => {
   const bodyAttachmentFields = Object.keys(conn.req.body.attachment);
-  const {attachment: activityAttachment, template} = locals.activityDoc.data();
+  const {
+    attachment: activityAttachment,
+    template,
+  } = locals.activityDoc.data();
   bodyAttachmentFields.forEach(field => {
     const item = conn.req.body.attachment[field];
     const type = item.type;
@@ -220,8 +223,8 @@ const handleAssignees = (conn, locals) => {
       return;
     }
 
-    const {value: newPhoneNumber} = item;
-    const {value: oldPhoneNumber} = activityAttachment[field];
+    const { value: newPhoneNumber } = item;
+    const { value: oldPhoneNumber } = activityAttachment[field];
 
     /** Nothing has changed, so no point in creating promises. */
     if (oldPhoneNumber === newPhoneNumber) {
@@ -467,7 +470,7 @@ const handleResult = async (conn, docs) => {
   }
 
   const [activityDoc] = docs;
-  const {template} = activityDoc.data();
+  const { template } = activityDoc.data();
 
   const [templateDoc] = (
     await rootCollections.activityTemplates

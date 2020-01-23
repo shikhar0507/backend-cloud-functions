@@ -25,7 +25,7 @@
 
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
-const {rootCollections} = require('../../admin/admin');
+const { rootCollections } = require('../../admin/admin');
 const env = require('../../admin/env');
 const {
   reportNames,
@@ -258,7 +258,7 @@ const handleScheduleReport = async (locals, workbook) => {
 };
 
 const getValueFromRole = (doc, field) => {
-  const {roleDoc, isSupportRequest, userDisplayName = ''} = doc.data();
+  const { roleDoc, isSupportRequest, userDisplayName = '' } = doc.data();
 
   if (
     roleDoc &&

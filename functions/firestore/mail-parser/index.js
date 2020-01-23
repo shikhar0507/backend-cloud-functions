@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {auth} = require('../../admin/admin');
-const {multipartParser} = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { auth } = require('../../admin/admin');
+const { multipartParser } = require('../../admin/utils');
+const { code } = require('../../admin/responses');
 const XLSX = require('xlsx');
 const env = require('../../admin/env');
 
@@ -127,7 +127,7 @@ module.exports = async conn => {
   };
 
   const userRecord = await getAuth(conn.req.body.senderEmail);
-  const {customClaims} = userRecord;
+  const { customClaims } = userRecord;
 
   if (!toAllowRequest(customClaims, conn.req.body.office)) {
     return {

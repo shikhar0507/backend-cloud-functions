@@ -23,12 +23,16 @@
 
 'use strict';
 
-const {rootCollections} = require('../admin/admin');
-const {sendResponse, handleError, isNonEmptyString} = require('../admin/utils');
-const {code} = require('../admin/responses');
+const { rootCollections } = require('../admin/admin');
+const {
+  sendResponse,
+  handleError,
+  isNonEmptyString,
+} = require('../admin/utils');
+const { code } = require('../admin/responses');
 const admin = require('firebase-admin');
 
-const validator = ({bankAccount, ifsc, address1}) => {
+const validator = ({ bankAccount, ifsc, address1 }) => {
   if (!isNonEmptyString(bankAccount)) {
     return `Invalid 'bankAccount'`;
   }

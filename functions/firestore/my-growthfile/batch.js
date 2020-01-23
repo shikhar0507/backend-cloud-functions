@@ -23,21 +23,21 @@
 
 'use strict';
 
-const {createVirtualAccount} = require('../../cash-free/autocollect');
-const {code} = require('../../admin/responses');
+const { createVirtualAccount } = require('../../cash-free/autocollect');
+const { code } = require('../../admin/responses');
 const {
   sendResponse,
   sendJSON,
   isNonEmptyString,
   handleError,
 } = require('../../admin/utils');
-const {subcollectionNames} = require('../../admin/constants');
-const {rootCollections, db} = require('../../admin/admin');
+const { subcollectionNames } = require('../../admin/constants');
+const { rootCollections, db } = require('../../admin/admin');
 const currencyJs = require('currency.js');
 const env = require('../../admin/env');
 
 const validator = requestBody => {
-  const {office, vouchers} = requestBody;
+  const { office, vouchers } = requestBody;
 
   if (!isNonEmptyString(office)) {
     return `Invalid/Missing field 'office'`;
@@ -51,7 +51,7 @@ const validator = requestBody => {
     return invalidDepositMessage;
   }
 
-  const invalidDepositObjects = vouchers.filter(({voucherId}) =>
+  const invalidDepositObjects = vouchers.filter(({ voucherId }) =>
     isNonEmptyString(voucherId),
   );
 
@@ -62,12 +62,12 @@ const validator = requestBody => {
   return null;
 };
 
-const getVouchers = async ({vouchers, officeId}) => {
+const getVouchers = async ({ vouchers, officeId }) => {
   const voucherIds = new Set();
   const existingVouchers = [];
   const nonExistingVouchers = [];
   const batchedVouchers = [];
-  const voucherRefs = vouchers.reduce((prevIterationResult, {voucherId}) => {
+  const voucherRefs = vouchers.reduce((prevIterationResult, { voucherId }) => {
     // Uniques required.
     const isDuplicate = voucherIds.has(voucherId);
 
@@ -88,8 +88,8 @@ const getVouchers = async ({vouchers, officeId}) => {
   const voucherDocs = await db.getAll(...voucherRefs);
 
   for (const doc of voucherDocs) {
-    const {exists} = doc;
-    const {batchId} = doc.data();
+    const { exists } = doc;
+    const { batchId } = doc.data();
 
     if (!exists) {
       nonExistingVouchers.push(doc);
@@ -106,10 +106,10 @@ const getVouchers = async ({vouchers, officeId}) => {
     existingVouchers.push(doc);
   }
 
-  return {existingVouchers, nonExistingVouchers, batchedVouchers};
+  return { existingVouchers, nonExistingVouchers, batchedVouchers };
 };
 
-const getVirtualAccount = async ({officeDoc, batchId, email, phone}) => {
+const getVirtualAccount = async ({ officeDoc, batchId, email, phone }) => {
   const vaResponse = await createVirtualAccount({
     email,
     phone,
@@ -119,20 +119,20 @@ const getVirtualAccount = async ({officeDoc, batchId, email, phone}) => {
 
   console.log('vaResponse', vaResponse);
 
-  const {data} = vaResponse;
+  const { data } = vaResponse;
 
   if (!data) {
     return null;
   }
 
-  const {ifsc, accountNumber} = data;
+  const { ifsc, accountNumber } = data;
 
-  return {ifsc, bankAccount: accountNumber};
+  return { ifsc, bankAccount: accountNumber };
 };
 
 const getPercentOf = (number, percentage) => (percentage / 100) * number;
 
-const getBatchesAndDeposits = async ({officeId}) => {
+const getBatchesAndDeposits = async ({ officeId }) => {
   const [deposits, batches] = await Promise.all([
     rootCollections.deposits.where('officeId', '==', officeId).get(),
     rootCollections.batches.where('officeId', '==', officeId).get(),
@@ -140,10 +140,10 @@ const getBatchesAndDeposits = async ({officeId}) => {
 
   return {
     deposits: deposits.docs.map(doc =>
-      Object.assign({}, doc.data(), {id: doc.id}),
+      Object.assign({}, doc.data(), { id: doc.id }),
     ),
     batches: batches.docs.map(doc =>
-      Object.assign({}, doc.data(), {id: doc.id}),
+      Object.assign({}, doc.data(), { id: doc.id }),
     ),
   };
 };
@@ -151,9 +151,9 @@ const getBatchesAndDeposits = async ({officeId}) => {
 const generateVirtualAccountId = id => id.substring(0, 10).toUpperCase();
 
 const getBatchId = async seed => {
-  const {id: tempId} = rootCollections.batches.doc();
+  const { id: tempId } = rootCollections.batches.doc();
   const batchId = seed || generateVirtualAccountId(tempId);
-  const {empty} = await rootCollections.batches
+  const { empty } = await rootCollections.batches
     .where('batchId', '==', batchId)
     .limit(1)
     .get();
@@ -166,8 +166,8 @@ const getBatchId = async seed => {
 };
 
 const depositsHandler = async conn => {
-  const {body} = conn.req;
-  const {office, vouchers} = body;
+  const { body } = conn.req;
+  const { office, vouchers } = body;
   const batch = db.batch();
   const batchRef = rootCollections.batches.doc();
   const v = validator(body);
@@ -222,12 +222,12 @@ const depositsHandler = async conn => {
     return sendResponse(conn, code.conflict, `${office} not found`);
   }
 
-  const {id: officeId} = officeDoc;
+  const { id: officeId } = officeDoc;
   const {
     existingVouchers,
     nonExistingVouchers,
     batchedVouchers,
-  } = await getVouchers({vouchers, officeId});
+  } = await getVouchers({ vouchers, officeId });
 
   if (nonExistingVouchers.length > 0) {
     return sendResponse(
@@ -287,11 +287,11 @@ const depositsHandler = async conn => {
     return sendResponse(conn, code.conflict, 'API unavailable at the moment');
   }
 
-  const {bankAccount, ifsc} = vaResponse;
+  const { bankAccount, ifsc } = vaResponse;
 
   existingVouchers.forEach(doc => {
-    const {id: voucherId} = doc;
-    const {amount = 0} = doc.data();
+    const { id: voucherId } = doc;
+    const { amount = 0 } = doc.data();
 
     batchObject.linkedVouchers.push(voucherId);
     totalPayableByUser = totalPayableByUser.add(amount);
@@ -307,7 +307,7 @@ const depositsHandler = async conn => {
       }),
     );
 
-    batch.set(doc.ref, voucherUpdate, {merge: true});
+    batch.set(doc.ref, voucherUpdate, { merge: true });
   });
 
   const halfPercentOfTotal = getPercentOf(totalPayableByUser.value, 0.5);
@@ -350,7 +350,7 @@ const depositsHandler = async conn => {
         amount: payableAmount.toString(),
         vouchers: newVouchers,
       },
-      await getBatchesAndDeposits({officeId}),
+      await getBatchesAndDeposits({ officeId }),
     ),
   );
 };

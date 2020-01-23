@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../../admin/admin');
-const {code} = require('../../admin/responses');
-const {isNonEmptyString} = require('../../admin/utils');
+const { rootCollections, db } = require('../../admin/admin');
+const { code } = require('../../admin/responses');
+const { isNonEmptyString } = require('../../admin/utils');
 const {
   canEditRules,
   templateFields,

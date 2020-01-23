@@ -23,14 +23,17 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../admin/admin');
-const {subcollectionNames, addendumTypes} = require('../admin/constants');
-const {handleError, sendJSON} = require('../admin/utils');
-const {requestBatchTransfer} = require('../cash-free/payout');
+const { rootCollections, db } = require('../admin/admin');
+const {
+  subcollectionNames,
+  // addendumTypes
+} = require('../admin/constants');
+const { handleError, sendJSON } = require('../admin/utils');
+const { requestBatchTransfer } = require('../cash-free/payout');
 const currency = require('currency.js');
 const env = require('../admin/env');
 const crypto = require('crypto');
-const momentTz = require('moment-timezone');
+// const momentTz = require('moment-timezone');
 const MAIN_OFFICE = env.mainOffice;
 const depositEvents = new Set([
   'AMOUNT_SETTLED',
@@ -57,7 +60,7 @@ const getClientSecret = isPaymentEvent => {
 
 const verifyWebhookPost = webhookData => {
   let concatenatedValues = '';
-  const {signature: receivedSignature, event} = webhookData;
+  const { signature: receivedSignature, event } = webhookData;
   const isPaymentEvent = paymentEvents.has(event);
 
   delete webhookData.signature;
@@ -75,46 +78,46 @@ const verifyWebhookPost = webhookData => {
 };
 
 // doc below `Updates/{beneficiaryId}/Addendum/{autoId}`
-const getPaymentObjectForUpdates = ({payment, id}) => {
-  const {
-    createdAt,
-    office,
-    officeId,
-    amount,
-    cycleStart,
-    cycleEnd,
-    ifsc,
-    account, // last 4 digits
-    status,
-  } = payment;
-  const {date, months: month, years: year} = momentTz(createdAt).toObject();
+// const getPaymentObjectForUpdates = ({ payment, id }) => {
+//   const {
+//     createdAt,
+//     office,
+//     officeId,
+//     amount,
+//     cycleStart,
+//     cycleEnd,
+//     ifsc,
+//     account, // last 4 digits
+//     status,
+//   } = payment;
+//   const { date, months: month, years: year } = momentTz(createdAt).toObject();
 
-  return {
-    date,
-    month,
-    year,
-    office,
-    officeId,
-    key: momentTz()
-      .date(date)
-      .month(month)
-      .year(year)
-      .startOf('date')
-      .valueOf(),
-    id: `${date}${month}${year}${id}`,
-    timestamp: Date.now(),
-    _type: addendumTypes.PAYMENT,
-    currency: 'INR',
-    details: {
-      status,
-      account,
-      ifsc,
-      amount,
-      cycleStart,
-      cycleEnd,
-    },
-  };
-};
+//   return {
+//     date,
+//     month,
+//     year,
+//     office,
+//     officeId,
+//     key: momentTz()
+//       .date(date)
+//       .month(month)
+//       .year(year)
+//       .startOf('date')
+//       .valueOf(),
+//     id: `${date}${month}${year}${id}`,
+//     timestamp: Date.now(),
+//     _type: addendumTypes.PAYMENT,
+//     currency: 'INR',
+//     details: {
+//       status,
+//       account,
+//       ifsc,
+//       amount,
+//       cycleStart,
+//       cycleEnd,
+//     },
+//   };
+// };
 
 const handlePayment = async requestBody => {
   // payment
@@ -153,19 +156,19 @@ const handlePayment = async requestBody => {
    */
   const isRepeatedEvent =
     paymentData.events.findIndex(
-      ({signature: payloadSignature}) => payloadSignature === signature,
+      ({ signature: payloadSignature }) => payloadSignature === signature,
     ) > -1;
 
   paymentData.events.push(requestBody);
 
   if (event !== 'TRANSFER_SUCCESS' || isRepeatedEvent) {
-    batch.set(paymentDoc.ref, paymentData, {merge: true});
+    batch.set(paymentDoc.ref, paymentData, { merge: true });
 
     return batch.commit();
   }
 
   // transfer completed successfully.
-  const {officeId} = paymentDoc.data();
+  const { officeId } = paymentDoc.data();
   const voucherDoc = await rootCollections.offices
     .doc(officeId)
     .collection(subcollectionNames.VOUCHERS)
@@ -179,7 +182,7 @@ const handlePayment = async requestBody => {
       cycleEnd: voucherDoc.get('cycleEnd'),
       updatedAt: Date.now(),
     }),
-    {merge: true},
+    { merge: true },
   );
 
   // Voucher update with status
@@ -189,7 +192,7 @@ const handlePayment = async requestBody => {
       status: event,
       updatedAt: Date.now(),
     }),
-    {merge: true},
+    { merge: true },
   );
 
   // const {beneficiaryId} = voucherDoc.data();
@@ -205,7 +208,7 @@ const handlePayment = async requestBody => {
 
 const handleDeposit = async requestBody => {
   const batch = db.batch();
-  const {vAccountId, signature, event, amount: amountInWebhook} = requestBody;
+  const { vAccountId, signature, event, amount: amountInWebhook } = requestBody;
   const {
     docs: [batchDoc],
   } = await rootCollections.batches
@@ -238,7 +241,7 @@ const handleDeposit = async requestBody => {
 
   const isRepeatedEvent =
     depositData.events.findIndex(
-      ({signature: payloadSignature}) => payloadSignature === signature,
+      ({ signature: payloadSignature }) => payloadSignature === signature,
     ) > -1;
 
   depositData.events.push(requestBody);
@@ -253,7 +256,7 @@ const handleDeposit = async requestBody => {
       createdAt: depositData.createdAt || Date.now(),
       updatedAt: Date.now(),
     }),
-    {merge: true},
+    { merge: true },
   );
 
   if (isRepeatedEvent || event !== 'AMOUNT_COLLECTED') {
@@ -261,7 +264,7 @@ const handleDeposit = async requestBody => {
     return batch.commit();
   }
 
-  const {value: receivedAmount} = currency(
+  const { value: receivedAmount } = currency(
     batchDoc.get('receivedAmount') || 0,
   ).add(amountInWebhook);
   let amountThisInstance = currency(currentlyReceivedAmount);
@@ -322,18 +325,18 @@ const handleDeposit = async requestBody => {
 
   const updateCollectionRefs = await db.getAll(
     ...voucherDocs.map(voucher => {
-      const {beneficiaryId} = voucher.data();
+      const { beneficiaryId } = voucher.data();
 
       return rootCollections.updates.doc(beneficiaryId);
     }),
   );
 
   updateCollectionRefs.forEach(updateDoc => {
-    const {id: uid} = updateDoc;
-    const {linkedAccounts = []} = updateDoc.data();
-    const [{bankAccount, ifsc} = {}] = linkedAccounts;
+    const { id: uid } = updateDoc;
+    const { linkedAccounts = [] } = updateDoc.data();
+    const [{ bankAccount, ifsc } = {}] = linkedAccounts;
 
-    bankDetailsMap.set(uid, {bankAccount, ifsc});
+    bankDetailsMap.set(uid, { bankAccount, ifsc });
   });
 
   const bulkTransferApiRequestBody = {
@@ -349,8 +352,8 @@ const handleDeposit = async requestBody => {
       displayName,
       beneficiaryId,
     } = voucher.data();
-    const {id: transferId} = voucher;
-    const {bankAccount, ifsc} = bankDetailsMap.get(beneficiaryId) || {};
+    const { id: transferId } = voucher;
+    const { bankAccount, ifsc } = bankDetailsMap.get(beneficiaryId) || {};
 
     if (!bankAccount || !ifsc) {
       // Money can't be transferred to users without `bankAccount`.
@@ -414,7 +417,7 @@ const handleDeposit = async requestBody => {
 
 const cashfreeWebhookHandler = async conn => {
   console.log('cashfree webhook', conn.req.body);
-  const {signature, event} = conn.req.body;
+  const { signature, event } = conn.req.body;
 
   // Invalid request sent to the API
   if (typeof signature !== 'string') {

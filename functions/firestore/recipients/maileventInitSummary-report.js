@@ -1,8 +1,8 @@
-const {db} = require('../../admin/admin');
+const { db } = require('../../admin/admin');
 const momentTz = require('moment-timezone');
 const XlsxPopulate = require('xlsx-populate');
-const {dateFormats} = require('../../admin/constants');
-const {alphabetsArray} = require('./report-utils');
+const { dateFormats } = require('../../admin/constants');
+const { alphabetsArray } = require('./report-utils');
 const sgMail = require('@sendgrid/mail');
 const env = require('../../admin/env');
 sgMail.setApiKey(env.sgMailApiKey);
@@ -80,7 +80,7 @@ const maileventInitSummaryReport = async () => {
         .join('|');
 
       if (!hash[key]) {
-        hash[key] = {office: o.office, reportName: o.reportName, email: ''};
+        hash[key] = { office: o.office, reportName: o.reportName, email: '' };
         grouped.push(hash[key]);
       }
       ['email'].forEach(k => {
@@ -90,7 +90,7 @@ const maileventInitSummaryReport = async () => {
       });
     });
     const outputData = grouped.map(Object.values);
-    const newArrs = grouped.map(({email}) => ({email}));
+    const newArrs = grouped.map(({ email }) => ({ email }));
     const emailArray = newArrs.map(o => Object.keys(o).map(k => o[k]));
 
     const query = db.collection('Inits');
@@ -115,7 +115,7 @@ const maileventInitSummaryReport = async () => {
       //pick certain fields from array of objects
 
       const newArray = yesterdayData.map(
-        ({report, rowsCount, totalUsers, office, timestamp}) => ({
+        ({ report, rowsCount, totalUsers, office, timestamp }) => ({
           report,
           totalUsers,
           rowsCount,
@@ -162,7 +162,7 @@ const maileventInitSummaryReport = async () => {
           return r;
         }, {}),
       );
-      const newArraySummary = finalResult.map(({totalUsers, rowsCount}) => ({
+      const newArraySummary = finalResult.map(({ totalUsers, rowsCount }) => ({
         totalUsers,
         rowsCount,
       }));
@@ -210,4 +210,4 @@ const maileventInitSummaryReport = async () => {
   }
   return;
 };
-module.exports = {maileventInitSummaryReport};
+module.exports = { maileventInitSummaryReport };

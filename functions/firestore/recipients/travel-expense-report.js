@@ -31,7 +31,7 @@ const {
   getUrl,
   getIdentifier,
 } = require('./report-utils');
-const {dateFormats} = require('../../admin/constants');
+const { dateFormats } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 const xlsxPopulate = require('xlsx-populate');
 

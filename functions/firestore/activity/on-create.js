@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {code} = require('../../admin/responses');
-const {httpsActions, subcollectionNames} = require('../../admin/constants');
-const {db, rootCollections, getGeopointObject} = require('../../admin/admin');
+const { code } = require('../../admin/responses');
+const { httpsActions, subcollectionNames } = require('../../admin/constants');
+const { db, rootCollections, getGeopointObject } = require('../../admin/admin');
 const {
   activityName,
   haversineDistance,
@@ -54,7 +54,12 @@ const googleMapsClient = require('@google/maps').createClient({
   Promise: Promise,
 });
 
-const getClaimStatus = async ({claimType, officeId, phoneNumber, timezone}) => {
+const getClaimStatus = async ({
+  claimType,
+  officeId,
+  phoneNumber,
+  timezone,
+}) => {
   const momentNow = momentTz().tz(timezone);
   const monthStart = momentNow
     .clone()
@@ -97,7 +102,7 @@ const getClaimStatus = async ({claimType, officeId, phoneNumber, timezone}) => {
   claimActivities.forEach(doc => {
     // Start Time of the schedule has a higher priority.
     const isCancelled = doc.get('status') === 'CANCELLED';
-    const [{startTime}] = doc.get('schedule');
+    const [{ startTime }] = doc.get('schedule');
     const createTime = momentTz(startTime || doc.createTime.toMillis()).tz(
       timezone,
     );
@@ -119,7 +124,7 @@ const getClaimStatus = async ({claimType, officeId, phoneNumber, timezone}) => {
   };
 };
 
-const getCustomerVenue = ({templateDoc, firstResult, placeApiResult}) => {
+const getCustomerVenue = ({ templateDoc, firstResult, placeApiResult }) => {
   return templateDoc.get('venue').map((venueDescriptor, index) => {
     const result = {
       venueDescriptor,
@@ -142,14 +147,14 @@ const getCustomerVenue = ({templateDoc, firstResult, placeApiResult}) => {
   });
 };
 
-const getDailyStartTimeFromPlaces = ({placeApiResult}) => {
-  const {opening_hours: openingHours} = placeApiResult.json.result;
+const getDailyStartTimeFromPlaces = ({ placeApiResult }) => {
+  const { opening_hours: openingHours } = placeApiResult.json.result;
 
   if (!openingHours) {
     return '';
   }
 
-  const {periods} = openingHours;
+  const { periods } = openingHours;
 
   const [relevantObject] = periods.filter(item => {
     return item.open && item.open.day === 1;
@@ -158,14 +163,14 @@ const getDailyStartTimeFromPlaces = ({placeApiResult}) => {
   return relevantObject ? relevantObject.open.time : '';
 };
 
-const getDailyEndTimeFormPlaces = ({placeApiResult}) => {
-  const {opening_hours: openingHours} = placeApiResult.json.result;
+const getDailyEndTimeFormPlaces = ({ placeApiResult }) => {
+  const { opening_hours: openingHours } = placeApiResult.json.result;
 
   if (!openingHours) {
     return '';
   }
 
-  const {periods} = openingHours;
+  const { periods } = openingHours;
   const [relevantObject] = periods.filter(item => {
     return item.close && item.close.day === 1;
   });
@@ -173,8 +178,8 @@ const getDailyEndTimeFormPlaces = ({placeApiResult}) => {
   return relevantObject ? relevantObject.close.time : '';
 };
 
-const getWeeklyOffFromPlaces = ({placeApiResult}) => {
-  const {opening_hours: openingHours} = placeApiResult.json.result;
+const getWeeklyOffFromPlaces = ({ placeApiResult }) => {
+  const { opening_hours: openingHours } = placeApiResult.json.result;
 
   if (!openingHours) {
     return '';
@@ -204,7 +209,7 @@ const getWeeklyOffFromPlaces = ({placeApiResult}) => {
   return parts[0].toLowerCase();
 };
 
-const getCustomerSchedule = ({templateDoc}) => {
+const getCustomerSchedule = ({ templateDoc }) => {
   return templateDoc.get('schedule').map(name => {
     return {
       name,
@@ -214,8 +219,8 @@ const getCustomerSchedule = ({templateDoc}) => {
   });
 };
 
-const getCustomerAttachment = ({templateDoc, placeApiResult, location}) => {
-  const {attachment} = templateDoc.data();
+const getCustomerAttachment = ({ templateDoc, placeApiResult, location }) => {
+  const { attachment } = templateDoc.data();
 
   attachment.Name.value = getCustomerName(
     placeApiResult.json.result.address_components,
@@ -240,7 +245,7 @@ const getCustomerAttachment = ({templateDoc, placeApiResult, location}) => {
   return attachment;
 };
 
-const getCustomerObject = async ({address, location}) => {
+const getCustomerObject = async ({ address, location }) => {
   try {
     const placesApiResponse = await googleMapsClient
       .places({
@@ -310,9 +315,9 @@ const createDocsWithBatch = async (conn, locals) => {
   const batch = db.batch();
   const canEditMap = {};
   const activityRef = rootCollections.activities.doc();
-  const {value: timezone} = locals.officeDoc.get('attachment.Timezone');
-  const {id: activityId} = activityRef;
-  const {date, months: month, years: year} = momentTz()
+  const { value: timezone } = locals.officeDoc.get('attachment.Timezone');
+  const { id: activityId } = activityRef;
+  const { date, months: month, years: year } = momentTz()
     .tz(timezone)
     .toObject();
 
@@ -344,7 +349,7 @@ const createDocsWithBatch = async (conn, locals) => {
   };
 
   if (conn.req.body.template === 'customer') {
-    const {address} = conn.req.body.venue[0];
+    const { address } = conn.req.body.venue[0];
 
     const placesQueryResult = await getCustomerObject({
       address,
@@ -529,7 +534,7 @@ const createDocsWithBatch = async (conn, locals) => {
 
 const handleLeaveOrOnDuty = async (conn, locals) => {
   const [firstSchedule] = conn.req.body.schedule;
-  const {startTime, endTime} = firstSchedule;
+  const { startTime, endTime } = firstSchedule;
   const startTimeMoment = momentTz(startTime);
   const endTimeMoment = momentTz(endTime);
   const leavesTakenThisTime = endTimeMoment.diff(startTimeMoment, 'days');
@@ -649,7 +654,7 @@ const handlePayroll = async (conn, locals) => {
   }
 
   leaveActivityQuery.forEach(doc => {
-    const {startTime, endTime} = doc.get('schedule')[0];
+    const { startTime, endTime } = doc.get('schedule')[0];
 
     locals.leavesTakenThisYear += momentTz(
       momentTz(endTime)
@@ -686,7 +691,7 @@ const handleAssignees = async (conn, locals) => {
 
   const key = (() => {
     for (const key of Object.keys(conn.req.body.attachment)) {
-      const {value, type} = conn.req.body.attachment[key];
+      const { value, type } = conn.req.body.attachment[key];
 
       if (type.endsWith('-type') && value === '') {
         return key;
@@ -741,14 +746,14 @@ const handleClaims = async (conn, locals) => {
     );
   }
 
-  const {claimsThisMonth, monthlyLimit} = await getClaimStatus({
+  const { claimsThisMonth, monthlyLimit } = await getClaimStatus({
     claimType,
     officeId: locals.officeDoc.id,
     phoneNumber: conn.requester.phoneNumber,
     timezone: locals.officeDoc.get('attachment.Timezone.value'),
   });
 
-  console.log({claimsThisMonth, monthlyLimit});
+  console.log({ claimsThisMonth, monthlyLimit });
 
   if (
     currencyJs(claimsThisMonth).add(amount).value >
@@ -849,18 +854,18 @@ const resolveProfileCheckPromises = async (conn, locals, result) => {
 };
 
 const handleAttachmentArrays = async (conn, locals, result) => {
-  const {attachment} = conn.req.body;
+  const { attachment } = conn.req.body;
   const typePromises = [];
 
   console.log('in handleAttachmentArrays');
 
-  for (const [, {value: values, type}] of Object.entries(attachment)) {
+  for (const [, { value: values, type }] of Object.entries(attachment)) {
     if (!Array.isArray(values)) {
       continue;
     }
 
     for (const value of values) {
-      const {name, quantity, rate, date} = value;
+      const { name, quantity, rate, date } = value;
 
       // date is a unix timestamp
       if (date !== '' && !momentTz.isDate(new Date(date))) {
@@ -907,8 +912,8 @@ const handleAttachmentArrays = async (conn, locals, result) => {
 
     if (!doc) {
       const [
-        {value: name},
-        {value: type},
+        { value: name },
+        { value: type },
       ] = snap.query._queryOptions.fieldFilters;
 
       return sendResponse(
@@ -943,7 +948,7 @@ const handleAttachment = (conn, locals) => {
    */
   conn.req.body.share.push(...result.phoneNumbers);
 
-  const {isBase64, base64Field} = result;
+  const { isBase64, base64Field } = result;
 
   conn.isBase64 = isBase64;
   conn.base64Field = base64Field;
@@ -961,7 +966,7 @@ const logInvaliCheckIn = async ({
   speed,
   phoneNumber,
 }) => {
-  const {date, months: month, years: year} = momentTz().toObject();
+  const { date, months: month, years: year } = momentTz().toObject();
   const message = 'Invalid CheckIn';
   const [errorDoc] = (
     await rootCollections.errors
@@ -1022,7 +1027,7 @@ const isInvalidCheckIn = async ({
     return false;
   }
 
-  const {template, lastGeopoint, lastTimestamp} = subscriptionDoc.data();
+  const { template, lastGeopoint, lastTimestamp } = subscriptionDoc.data();
 
   if (template !== 'check-in') {
     return false;
@@ -1114,7 +1119,7 @@ const validatePermissions = ({
     );
   }
 
-  const {status} = officeDoc.data();
+  const { status } = officeDoc.data();
 
   if (status === 'CANCELLED') {
     return `The office status is 'CANCELLED'. Cannot create an activity`;

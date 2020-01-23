@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {dateFormats} = require('../../admin/constants');
+const { dateFormats } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
 const momentOffsetObject = timezone => {
@@ -184,7 +184,7 @@ const getExcelHeader = range => {
 
 // https://momentjs.com/docs/#/displaying/format/
 const dateStringWithOffset = options => {
-  const {timezone, timestampToConvert, format} = options;
+  const { timezone, timestampToConvert, format } = options;
 
   if (!timestampToConvert || !timezone) {
     return '';
@@ -196,7 +196,7 @@ const dateStringWithOffset = options => {
 };
 
 const timeStringWithOffset = options => {
-  const {timezone, timestampToConvert, format} = options;
+  const { timezone, timestampToConvert, format } = options;
 
   if (!timestampToConvert || !timezone) return '';
 

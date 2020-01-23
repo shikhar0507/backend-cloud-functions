@@ -25,16 +25,16 @@
 
 // TODO: Check this out: https://oembed.com/
 
-const {auth, db, rootCollections} = require('../admin/admin');
-const {code} = require('../admin/responses');
+const { auth, db, rootCollections } = require('../admin/admin');
+const { code } = require('../admin/responses');
 const {
   isNonEmptyString,
   hasAdminClaims,
   hasSupportClaims,
   getEmployeesMapFromRealtimeDb,
 } = require('../admin/utils');
-const {dateFormats, httpsActions} = require('../admin/constants');
-const {toMapsUrl} = require('../firestore/recipients/report-utils');
+const { dateFormats, httpsActions } = require('../admin/constants');
+const { toMapsUrl } = require('../firestore/recipients/report-utils');
 const url = require('url');
 const env = require('../admin/env');
 const admin = require('firebase-admin');
@@ -77,7 +77,7 @@ const getStaticMapsUrl = branchObjectsArray => {
     `staticmap?center=New+Delhi&zoom=13&maptype=roadmap`;
 
   branchObjectsArray.forEach(branch => {
-    const {gp} = branch;
+    const { gp } = branch;
 
     if (!gp || !gp.latitude || !gp.longitude) return;
 
@@ -862,7 +862,7 @@ const handleEmailVerificationFlow = async conn => {
   if (verificationRequestsCount >= 3) {
     await rootCollections.instant.doc().set({
       subject: `Verification requests count: ${verificationRequestsCount}`,
-      messageBody: `User: ${JSON.stringify({phoneNumber, uid}, ' ', 2)}`,
+      messageBody: `User: ${JSON.stringify({ phoneNumber, uid }, ' ', 2)}`,
     });
 
     return conn.res.status(code.temporaryRedirect).redirect('/');

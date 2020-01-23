@@ -30,7 +30,7 @@ sgMail.setApiKey(env.sgMailApiKey);
 
 module.exports = instantDoc => {
   const messages = [];
-  const {subject, messageBody} = instantDoc.data();
+  const { subject, messageBody } = instantDoc.data();
 
   env.instantEmailRecipientEmails.forEach(recipientObject => {
     messages.push({

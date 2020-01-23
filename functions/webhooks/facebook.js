@@ -23,12 +23,12 @@
 
 'use strict';
 
-const {rootCollections} = require('../admin/admin');
+const { rootCollections } = require('../admin/admin');
 const env = require('../admin/env');
 const momentTz = require('moment-timezone');
 
 const storeEvents = async conn => {
-  const {date, months: month, years: year} = momentTz().toObject();
+  const { date, months: month, years: year } = momentTz().toObject();
   const ref = rootCollections.facebookEvents.doc();
 
   console.log('ref', ref.path);

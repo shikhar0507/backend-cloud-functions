@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
+const { rootCollections } = require('../../admin/admin');
 const {
   handleError,
   sendResponse,
@@ -32,7 +32,7 @@ const {
   isNonEmptyString,
   getCanEditValue,
 } = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { code } = require('../../admin/responses');
 
 const getVenuesWithGp = venues => {
   const result = [];

@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../admin/admin');
+const { rootCollections, db } = require('../admin/admin');
 const {
   getFileHash,
   cloudflareCdnUrl,
@@ -72,7 +72,7 @@ module.exports = async object => {
         const [buffer] = bucketResult;
         const json = JSON.parse(buffer.toString());
 
-        const {canEditMap, activityId, addendumId} = json;
+        const { canEditMap, activityId, addendumId } = json;
 
         requestersPhoneNumber = json.requestersPhoneNumber;
         activityData = json.activityData;

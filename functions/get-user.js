@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {auth} = require('./admin/admin');
-const {isE164PhoneNumber} = require('./admin/utils');
-const {code} = require('./admin/responses');
+const { auth } = require('./admin/admin');
+const { isE164PhoneNumber } = require('./admin/utils');
+const { code } = require('./admin/responses');
 const env = require('./admin/env');
 
 const sendJSON = (res, statusCode, data = {}) =>

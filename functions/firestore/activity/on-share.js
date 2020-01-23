@@ -23,10 +23,10 @@
 
 'use strict';
 
-const {isValidRequestBody, checkActivityAndAssignee} = require('./helper');
-const {code} = require('../../admin/responses');
-const {httpsActions} = require('../../admin/constants');
-const {db, rootCollections, getGeopointObject} = require('../../admin/admin');
+const { isValidRequestBody, checkActivityAndAssignee } = require('./helper');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
+const { db, rootCollections, getGeopointObject } = require('../../admin/admin');
 const {
   getAuth,
   handleError,

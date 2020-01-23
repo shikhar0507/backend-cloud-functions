@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections} = require('../admin/admin');
+const { rootCollections } = require('../admin/admin');
 
 module.exports = (req, requester) => {
   console.log('requester', requester.customClaims.admin);

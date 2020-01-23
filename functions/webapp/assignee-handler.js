@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../admin/admin');
-const {code} = require('../admin/responses');
+const { db, rootCollections } = require('../admin/admin');
+const { code } = require('../admin/responses');
 
 module.exports = (conn, requester) => {
   const isSupport = requester.isSupport;

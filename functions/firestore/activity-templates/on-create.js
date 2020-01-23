@@ -23,15 +23,15 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
-const {code} = require('../../admin/responses');
+const { rootCollections } = require('../../admin/admin');
+const { code } = require('../../admin/responses');
 const {
   canEditRules,
   templateFields,
   activityStatuses,
   reportingActions,
 } = require('../../admin/constants');
-const {isNonEmptyString} = require('../../admin/utils');
+const { isNonEmptyString } = require('../../admin/utils');
 
 const validateTemplate = body => {
   const message = {
@@ -209,7 +209,7 @@ const validateTemplate = body => {
 const createDocs = (conn, locals) => {
   const templateBody = conn.req.body;
   templateBody.timestamp = Date.now();
-  const {messageBody, subject, action} = locals;
+  const { messageBody, subject, action } = locals;
 
   return Promise.all([
     locals.templateDocRef.set(templateBody),

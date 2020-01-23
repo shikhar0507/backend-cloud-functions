@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
-const {sendJSON, handleError, sendResponse} = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { rootCollections } = require('../../admin/admin');
+const { sendJSON, handleError, sendResponse } = require('../../admin/utils');
+const { code } = require('../../admin/responses');
 
 module.exports = conn => {
   if (conn.req.method !== 'GET') {

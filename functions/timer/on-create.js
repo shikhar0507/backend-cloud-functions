@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../admin/admin');
-const {reportNames, dateFormats} = require('../admin/constants');
+const { db, rootCollections } = require('../admin/admin');
+const { reportNames, dateFormats } = require('../admin/constants');
 const {
   maileventInitSummaryReport,
 } = require('../firestore/recipients/maileventInitSummary-report');

@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../../admin/admin');
+const { db, rootCollections } = require('../../admin/admin');
 const env = require('../../admin/env');
 const momentTz = require('moment-timezone');
 

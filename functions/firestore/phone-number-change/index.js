@@ -23,11 +23,7 @@
 
 'use strict';
 
-const {
-  rootCollections,
-  db,
-  // auth,
-} = require('../../admin/admin');
+const { rootCollections, db } = require('../../admin/admin');
 const {
   sendResponse,
   handleError,
@@ -35,8 +31,8 @@ const {
   hasAdminClaims,
   isE164PhoneNumber,
 } = require('../../admin/utils');
-const {code} = require('../../admin/responses');
-const {httpsActions} = require('../../admin/constants');
+const { code } = require('../../admin/responses');
+const { httpsActions } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
 const validateRequest = body => {

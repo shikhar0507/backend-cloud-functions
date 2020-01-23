@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../admin/admin');
-const {sendResponse, handleError} = require('../admin/utils');
-const {code} = require('../admin/responses');
+const { rootCollections, db } = require('../admin/admin');
+const { sendResponse, handleError } = require('../admin/utils');
+const { code } = require('../admin/responses');
 
 const getSubject = message =>
   `Error count` + ` >= 10: '${message}':` + ` ${process.env.GCLOUD_PROJECT}`;
@@ -202,7 +202,7 @@ module.exports = async conn => {
       },
     );
 
-    console.log('Error Log:', {message, id: errorDocRef.id});
+    console.log('Error Log:', { message, id: errorDocRef.id });
 
     await batch.commit();
 

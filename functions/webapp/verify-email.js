@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {code} = require('../admin/responses');
-const {auth, rootCollections} = require('../admin/admin');
-const {isNonEmptyString} = require('../admin/utils');
+const { code } = require('../admin/responses');
+const { auth, rootCollections } = require('../admin/admin');
+const { isNonEmptyString } = require('../admin/utils');
 const admin = require('firebase-admin');
 
 module.exports = async conn => {

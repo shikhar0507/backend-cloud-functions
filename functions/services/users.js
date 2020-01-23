@@ -29,7 +29,7 @@ const {
   sendResponse,
   getAuth,
 } = require('../admin/utils');
-const {code} = require('../admin/responses');
+const { code } = require('../admin/responses');
 
 const getPhoneNumbers = query => {
   if (typeof query.phoneNumber === 'string') {
@@ -40,9 +40,9 @@ const getPhoneNumbers = query => {
 };
 
 const userRecordFilter = userRecord => {
-  const {phoneNumber, displayName = '', photoURL = '', email} = userRecord;
+  const { phoneNumber, displayName = '', photoURL = '', email } = userRecord;
 
-  return {phoneNumber, displayName, photoURL, email};
+  return { phoneNumber, displayName, photoURL, email };
 };
 const getUsers = async conn => {
   if (conn.req.method !== 'GET') {
@@ -82,7 +82,7 @@ const getUsers = async conn => {
   const userRecords = await Promise.all(phoneNumbers.map(getAuth));
   const users = userRecords.map(userRecordFilter);
 
-  return sendJSON(conn, {users});
+  return sendJSON(conn, { users });
 };
 
 module.exports = async conn => {

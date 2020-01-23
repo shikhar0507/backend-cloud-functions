@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../../admin/admin');
+const { rootCollections, db } = require('../../admin/admin');
 const {
   handleError,
   sendResponse,
@@ -32,7 +32,7 @@ const {
   isE164PhoneNumber,
   isValidDate,
 } = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { code } = require('../../admin/responses');
 const admin = require('firebase-admin');
 
 module.exports = conn => {

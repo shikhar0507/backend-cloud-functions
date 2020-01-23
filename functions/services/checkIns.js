@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {db, rootCollections, getGeopointObject} = require('../admin/admin');
+const { db, rootCollections, getGeopointObject } = require('../admin/admin');
 const {
   sendResponse,
   isNonEmptyString,
@@ -34,9 +34,9 @@ const {
 } = require('../admin/utils');
 const momentTz = require('moment-timezone');
 
-const {code} = require('../admin/responses');
-const {Creator, Attachment} = require('../admin/protos');
-const {httpsActions, subcollectionNames} = require('../admin/constants');
+const { code } = require('../admin/responses');
+const { Creator, Attachment } = require('../admin/protos');
+const { httpsActions, subcollectionNames } = require('../admin/constants');
 
 const validator = req => {
   if (req.method !== 'POST') {
@@ -63,7 +63,7 @@ const validator = req => {
       return false;
     }
 
-    const {phoneNumber, displayName, email} = obj;
+    const { phoneNumber, displayName, email } = obj;
 
     if (!isE164PhoneNumber(phoneNumber)) {
       return false;
@@ -126,7 +126,7 @@ const getSubscriptionConflicts = async (phoneNumbers, officeId) => {
       return;
     }
 
-    const {value} = subscription.get('attachment.Phone Number');
+    const { value } = subscription.get('attachment.Phone Number');
 
     allSubscriptionActivities.get(value, subscription);
   });
@@ -143,7 +143,7 @@ module.exports = async conn => {
     return sendResponse(conn, code.badRequest, v);
   }
 
-  const {office} = conn.req.body;
+  const { office } = conn.req.body;
 
   if (!checkIsAdmin(conn.requester, office)) {
     return sendResponse(conn, code.forbidden, `You cannot perform this action`);
@@ -183,7 +183,7 @@ module.exports = async conn => {
   ).toObject();
   const timezone = officeDoc.get('attachment.Timezone.value');
   const templateToSubscribe = 'check-in';
-  const {date, months: month, years: year} = momentTz().toObject();
+  const { date, months: month, years: year } = momentTz().toObject();
   // This is a map
   const allSubscriptionActivities = await getSubscriptionConflicts(
     conn.req.body.phoneNumbers,
@@ -191,7 +191,7 @@ module.exports = async conn => {
   );
 
   conn.req.body.phoneNumbers.forEach(object => {
-    const {phoneNumber, displayName} = object;
+    const { phoneNumber, displayName } = object;
     const oldSubscriptionDoc = allSubscriptionActivities.get(phoneNumber);
 
     if (oldSubscriptionDoc) {
@@ -237,14 +237,14 @@ module.exports = async conn => {
       canEditRule: templateDoc.get('canEditRule'),
       hidden: templateDoc.get('hidden'),
       schedule: templateDoc.get('schedule').map(name => {
-        return {name, startTime: '', endTime: ''};
+        return { name, startTime: '', endTime: '' };
       }),
       venue: templateDoc.get('venue').map(venueDescriptor => {
         return {
           venueDescriptor,
           location: '',
           address: '',
-          geopoint: {latitude: '', longitude: ''},
+          geopoint: { latitude: '', longitude: '' },
         };
       }),
     };

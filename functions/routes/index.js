@@ -26,7 +26,7 @@
 const url = require('url');
 
 module.exports = req => {
-  const {pathname} = url.parse(req.url);
+  const { pathname } = url.parse(req.url);
   let checkSupport = req.query.support === 'true';
   let checkAdmin = false;
   let func;

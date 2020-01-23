@@ -23,14 +23,14 @@
 
 'use strict';
 
-const {rootCollections} = require('../admin/admin');
+const { rootCollections } = require('../admin/admin');
 const {
   isNonEmptyString,
   sendResponse,
   sendJSON,
   handleError,
 } = require('../admin/utils');
-const {code} = require('../admin/responses');
+const { code } = require('../admin/responses');
 
 const searchOffice = async conn => {
   if (conn.req.method !== 'GET') {
@@ -41,7 +41,7 @@ const searchOffice = async conn => {
     );
   }
 
-  const {q: placeId} = conn.req.query;
+  const { q: placeId } = conn.req.query;
 
   if (!isNonEmptyString(placeId)) {
     return sendResponse(conn, code.badRequest, `Query param 'q' is missing`);
@@ -56,7 +56,7 @@ const searchOffice = async conn => {
   const officePromises = [];
 
   branches.forEach(branch => {
-    const {office} = branch.data();
+    const { office } = branch.data();
 
     if (officeNames.has(office)) {
       return;

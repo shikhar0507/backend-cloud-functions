@@ -23,9 +23,9 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../admin/admin');
-const {code} = require('../admin/responses');
-const {subcollectionNames, addendumTypes} = require('../admin/constants');
+const { db, rootCollections } = require('../admin/admin');
+const { code } = require('../admin/responses');
+const { subcollectionNames, addendumTypes } = require('../admin/constants');
 const {
   sendJSON,
   isValidDate,
@@ -255,7 +255,7 @@ const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
   );
 };
 
-const getMonthlyAttendance = async ({officeId, phoneNumber, jsonObject}) => {
+const getMonthlyAttendance = async ({ officeId, phoneNumber, jsonObject }) => {
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
 
@@ -288,7 +288,7 @@ const getMonthlyAttendance = async ({officeId, phoneNumber, jsonObject}) => {
 };
 
 const getSingleReimbursement = doc => {
-  const {date, month, year} = doc.data();
+  const { date, month, year } = doc.data();
 
   const geopointFilter = geopoint => {
     if (!geopoint) {
@@ -337,7 +337,11 @@ const getSingleReimbursement = doc => {
   };
 };
 
-const getMonthlyReimbursement = async ({officeId, phoneNumber, jsonObject}) => {
+const getMonthlyReimbursement = async ({
+  officeId,
+  phoneNumber,
+  jsonObject,
+}) => {
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
   const getReimbursementRef = (month, year) => {
@@ -369,14 +373,14 @@ const getMonthlyReimbursement = async ({officeId, phoneNumber, jsonObject}) => {
   return;
 };
 
-const getActivityQueryByTemplate = ({template, officeId}) =>
+const getActivityQueryByTemplate = ({ template, officeId }) =>
   rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', template)
     .where('status', '==', 'CONFIRMED')
     .get();
 
-const getProfileSubcollectionPromise = ({subcollection, phoneNumber, from}) =>
+const getProfileSubcollectionPromise = ({ subcollection, phoneNumber, from }) =>
   rootCollections.profiles
     .doc(phoneNumber)
     .collection(subcollection)
@@ -448,11 +452,11 @@ const read = async conn => {
       const officeId = employeeOf[office];
 
       attendancePromises.push(
-        getMonthlyAttendance({phoneNumber, jsonObject, officeId}),
+        getMonthlyAttendance({ phoneNumber, jsonObject, officeId }),
       );
 
       reimbursementPromises.push(
-        getMonthlyReimbursement({jsonObject, phoneNumber, officeId}),
+        getMonthlyReimbursement({ jsonObject, phoneNumber, officeId }),
       );
     });
   }
@@ -462,8 +466,8 @@ const read = async conn => {
       const officeId = employeeOf[office];
 
       locationPromises.push(
-        getActivityQueryByTemplate({template: 'customer', officeId}),
-        getActivityQueryByTemplate({template: 'branch', officeId}),
+        getActivityQueryByTemplate({ template: 'customer', officeId }),
+        getActivityQueryByTemplate({ template: 'branch', officeId }),
       );
     });
   }
@@ -484,7 +488,7 @@ const read = async conn => {
   ]);
 
   (subscriptions || []).forEach(doc => {
-    const {template} = doc.data();
+    const { template } = doc.data();
 
     templatePromises.push(
       rootCollections.activityTemplates
@@ -507,7 +511,7 @@ const read = async conn => {
   });
 
   (subscriptions || []).forEach(doc => {
-    const {template, canEditRule} = doc.data();
+    const { template, canEditRule } = doc.data();
 
     templatePromises.push(
       rootCollections.activityTemplates
@@ -601,7 +605,7 @@ const read = async conn => {
     jsonObject.addendum.push(addendumFilter(doc));
   });
 
-  const profileUpdate = {lastQueryFrom: from};
+  const profileUpdate = { lastQueryFrom: from };
 
   // This is only for keeping the log.
   if (sendLocations) {

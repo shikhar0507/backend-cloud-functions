@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {getAuth} = require('../../admin/utils');
-const {rootCollections, db} = require('../../admin/admin');
+const { getAuth } = require('../../admin/utils');
+const { rootCollections, db } = require('../../admin/admin');
 const {
   subcollectionNames,
   dateFormats,
@@ -51,7 +51,7 @@ const getDefaultVoucher = ({
   batchId: null,
 });
 
-const getIterator = ({reimbursementFrequency, date, month, year}) => {
+const getIterator = ({ reimbursementFrequency, date, month, year }) => {
   const momentInstance = momentTz()
     .date(date)
     .month(month)
@@ -77,8 +77,8 @@ const getIterator = ({reimbursementFrequency, date, month, year}) => {
   };
 };
 
-const getCycleDates = ({reimbursementFrequency, date, month, year}) => {
-  const {end: iteratorEnd, start: iteratorStart} = getIterator({
+const getCycleDates = ({ reimbursementFrequency, date, month, year }) => {
+  const { end: iteratorEnd, start: iteratorStart } = getIterator({
     reimbursementFrequency,
     date,
     month,
@@ -105,7 +105,7 @@ const getCycleDates = ({reimbursementFrequency, date, month, year}) => {
 };
 
 const reimbursementHandler = async (change, context) => {
-  const {officeId} = context.params;
+  const { officeId } = context.params;
   const {
     after: reimbursementDocNewState,
     before: reimbursementDocOldState,
@@ -122,7 +122,7 @@ const reimbursementHandler = async (change, context) => {
     amount: newAmount,
     phoneNumber,
   } = reimbursementDocNewState.data();
-  const {amount: oldAmount = 0} = reimbursementDocOldState.data() || {};
+  const { amount: oldAmount = 0 } = reimbursementDocOldState.data() || {};
   const officeDoc = await rootCollections.offices.doc(officeId).get();
 
   const reimbursementFrequency =
@@ -211,7 +211,7 @@ const reimbursementHandler = async (change, context) => {
       email: userRecord.email || '',
       displayName: userRecord.displayName || '',
     }),
-    {merge: true},
+    { merge: true },
   );
 
   return batch.commit();

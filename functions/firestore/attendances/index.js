@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../../admin/admin');
-const {getNumbersbetween} = require('../../admin/utils');
+const { db, rootCollections } = require('../../admin/admin');
+const { getNumbersbetween } = require('../../admin/utils');
 const {
   addendumTypes,
   subcollectionNames,
@@ -32,7 +32,7 @@ const {
 } = require('../../admin/constants');
 const momentTz = require('moment-timezone');
 
-const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
+const getBeneficiaryId = async ({ roleDoc, officeId, phoneNumber }) => {
   if (roleDoc && roleDoc.id) {
     return roleDoc.id;
   }
@@ -44,7 +44,7 @@ const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
       .where('attachment.Phone Number.value', '==', phoneNumber)
       .get()
   ).docs.filter(doc => {
-    const {template} = doc.data();
+    const { template } = doc.data();
 
     return template !== 'admin' && template !== 'subscription';
   });
@@ -68,7 +68,7 @@ const getBeneficiaryId = async ({roleDoc, officeId, phoneNumber}) => {
   return checkInSubscription ? checkInSubscription.id : null;
 };
 
-const getCycle = ({firstDayOfMonthlyCycle, month, year}) => {
+const getCycle = ({ firstDayOfMonthlyCycle, month, year }) => {
   // fdmc =>first day of monthly cycle
   // if fdmc = 1 => start = 1; end = month end.
   // if fdmc !== 1 => start = fdmc; end = (fdmc + 1) in next month
@@ -128,7 +128,7 @@ const getPreviousMonthAttendance = async ({
   return attendanceDoc ? attendanceDoc.get('attendance') || {} : {};
 };
 
-const attendanceHandler = async ({doc, officeId}) => {
+const attendanceHandler = async ({ doc, officeId }) => {
   const batch = db.batch();
   const {
     phoneNumber,
@@ -160,7 +160,7 @@ const attendanceHandler = async ({doc, officeId}) => {
   const firstDayOfMonthlyCycle =
     officeDoc.get('attachment.First Day Of Monthly Cycle.value') || 1;
 
-  const {cycleStart, cycleEnd} = getCycle({
+  const { cycleStart, cycleEnd } = getCycle({
     firstDayOfMonthlyCycle,
     month,
     year,
@@ -205,12 +205,12 @@ const attendanceHandler = async ({doc, officeId}) => {
 
   const attendanceCount =
     firstRange.reduce((prevSum, date) => {
-      const {attendance = 0} = attendanceInPreviousMonth[date] || {};
+      const { attendance = 0 } = attendanceInPreviousMonth[date] || {};
 
       return prevSum + attendance;
     }, 0) +
     secondRange.reduce((prevSum, date) => {
-      const {attendance = 0} = attendanceInCurrentMonth[date] || {};
+      const { attendance = 0 } = attendanceInCurrentMonth[date] || {};
 
       return prevSum + attendance;
     }, 0);
@@ -240,9 +240,9 @@ const attendanceHandler = async ({doc, officeId}) => {
   return batch.commit();
 };
 
-module.exports = async ({after: doc}, {params: {officeId}}) => {
+module.exports = async ({ after: doc }, { params: { officeId } }) => {
   try {
-    return attendanceHandler({doc, officeId});
+    return attendanceHandler({ doc, officeId });
   } catch (error) {
     console.error(error);
   }

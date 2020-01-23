@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {auth, rootCollections} = require('../admin/admin');
-const {code} = require('../admin/responses');
+const { auth, rootCollections } = require('../admin/admin');
+const { code } = require('../admin/responses');
 const {
   sendResponse,
   handleError,
@@ -32,7 +32,7 @@ const {
   hasSupportClaims,
   isE164PhoneNumber,
 } = require('../admin/utils');
-const {sendGridTemplateIds} = require('../admin/constants');
+const { sendGridTemplateIds } = require('../admin/constants');
 const env = require('../admin/env');
 const sgMail = require('@sendgrid/mail');
 
@@ -84,7 +84,7 @@ const getUserFromAuth = phoneNumber => {
   return auth
     .getUserByPhoneNumber(phoneNumber)
     .then(userRecord => {
-      const {uid, displayName, disabled, email, emailVerified} = userRecord;
+      const { uid, displayName, disabled, email, emailVerified } = userRecord;
 
       result.uid = uid;
       result.email = email;

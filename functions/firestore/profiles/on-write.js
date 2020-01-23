@@ -23,8 +23,8 @@
 
 'use strict';
 
-const {db, rootCollections} = require('../../admin/admin');
-const {sendSMS} = require('../../admin/utils');
+const { db, rootCollections } = require('../../admin/admin');
+const { sendSMS } = require('../../admin/utils');
 const {
   reportNames,
   httpsActions,
@@ -220,7 +220,7 @@ const handleCancelledSubscriptions = async change => {
  * @returns {Promise<Batch>} Firestore `Batch` object.
  */
 module.exports = async change => {
-  const {before, after} = change;
+  const { before, after } = change;
 
   /** Only for debugging */
   if (!after.data()) {

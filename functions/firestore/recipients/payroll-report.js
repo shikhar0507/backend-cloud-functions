@@ -23,14 +23,14 @@
 
 'use strict';
 
-const {rootCollections} = require('../../admin/admin');
-const {getNumbersbetween} = require('../../admin/utils');
+const { rootCollections } = require('../../admin/admin');
+const { getNumbersbetween } = require('../../admin/utils');
 const {
   subcollectionNames,
   dateFormats,
   reportNames,
 } = require('../../admin/constants');
-const {alphabetsArray} = require('./report-utils');
+const { alphabetsArray } = require('./report-utils');
 const admin = require('firebase-admin');
 const xlsxPopulate = require('xlsx-populate');
 const momentTz = require('moment-timezone');
@@ -152,7 +152,7 @@ const getDetailsValue = (attendanceDateObject = {}, baseLocation, timezone) => {
     return attendanceDateObject.ar.reason;
   }
 
-  const {firstCheckInTimestamp, lastCheckInTimestamp, numberOfCheckIns} =
+  const { firstCheckInTimestamp, lastCheckInTimestamp, numberOfCheckIns } =
     attendanceDateObject.working || {};
 
   if (!firstCheckInTimestamp) {
@@ -438,7 +438,7 @@ module.exports = async locals => {
   const attendanceSumMap = new Map();
   const sortedAttendanceMap = new Map();
   const docsMap = {};
-  const {workbookRef, payrollSummary, payrollSheet} = await getWorkbook(
+  const { workbookRef, payrollSummary, payrollSheet } = await getWorkbook(
     momentToday.format(dateFormats.DATE),
   );
 
@@ -500,7 +500,7 @@ module.exports = async locals => {
   console.log('allAttendanceDocs', allAttendanceDocs.length);
 
   allAttendanceDocs.forEach(doc => {
-    const {month, phoneNumber} = doc.data();
+    const { month, phoneNumber } = doc.data();
 
     employeeData.set(phoneNumber, getRoleDetails(doc));
     docsMap[`${phoneNumber}__${month}`] = doc;

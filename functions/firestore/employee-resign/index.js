@@ -23,7 +23,7 @@
 
 'use strict';
 
-const {rootCollections, db} = require('../../admin/admin');
+const { rootCollections, db } = require('../../admin/admin');
 const {
   sendResponse,
   isE164PhoneNumber,
@@ -31,7 +31,7 @@ const {
   isNonEmptyString,
   hasAdminClaims,
 } = require('../../admin/utils');
-const {code} = require('../../admin/responses');
+const { code } = require('../../admin/responses');
 
 const validator = body => {
   if (!body.hasOwnProperty('office')) {
@@ -91,7 +91,7 @@ const cancelEmployee = async (conn, officeDoc) => {
       );
     }
 
-    const {id: activityId} = employeeActivityQuery.docs[0];
+    const { id: activityId } = employeeActivityQuery.docs[0];
     const oldStatus = employeeActivityQuery.docs[0].get('status');
     const batch = db.batch();
 
