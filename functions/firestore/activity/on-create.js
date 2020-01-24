@@ -465,6 +465,7 @@ const createDocsWithBatch = async (conn, locals) => {
     /** The `activityId` field is required by `addendumOnCreate` */
     activityId: activityRef.id,
     activityName: activityData.activityName,
+    isAdminRequest: conn.requester.isAdminRequest,
     isSupportRequest: conn.requester.isSupportRequest,
     geopointAccuracy: conn.req.body.geopoint.accuracy || null,
     provider: conn.req.body.geopoint.provider || null,
@@ -654,7 +655,7 @@ const handlePayroll = async (conn, locals) => {
   }
 
   leaveActivityQuery.forEach(doc => {
-    const { startTime, endTime } = doc.get('schedule')[0];
+    const [{ startTime, endTime }] = doc.get('schedule');
 
     locals.leavesTakenThisYear += momentTz(
       momentTz(endTime)

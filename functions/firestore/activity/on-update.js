@@ -24,7 +24,7 @@
 'use strict';
 
 const { code } = require('../../admin/responses');
-const { httpsActions } = require('../../admin/constants');
+const { httpsActions, subcollectionNames } = require('../../admin/constants');
 const { db, rootCollections, getGeopointObject } = require('../../admin/admin');
 const {
   activityName,
@@ -36,7 +36,6 @@ const {
   attendanceConflictHandler,
 } = require('./helper');
 const {
-  handleError,
   sendResponse,
   getRelevantTime,
   getScheduleDates,
@@ -117,13 +116,16 @@ const updateDocsWithBatch = async (conn, locals) => {
       addToInclude = false;
     }
 
-    locals.batch.set(activityRef.collection('Assignees').doc(phoneNumber), {
-      /**
-       * These people are not from the `share` array of the request body.
-       * The update api doesn't accept the `share` array.
-       */
-      addToInclude,
-    });
+    locals.batch.set(
+      activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
+      {
+        /**
+         * These people are not from the `share` array of the request body.
+         * The update api doesn't accept the `share` array.
+         */
+        addToInclude,
+      },
+    );
   });
 
   locals.batch.set(activityRef, activityUpdateObject, {
@@ -241,7 +243,7 @@ const handleAssignees = (conn, locals) => {
       locals.batch.delete(
         rootCollections.activities
           .doc(conn.req.body.activityId)
-          .collection('Assignees')
+          .collection(subcollectionNames.ASSIGNEES)
           .doc(oldPhoneNumber),
       );
 
@@ -260,7 +262,7 @@ const handleAssignees = (conn, locals) => {
       locals.batch.delete(
         rootCollections.activities
           .doc(conn.req.body.activityId)
-          .collection('Assignees')
+          .collection(subcollectionNames.ASSIGNEES)
           .doc(oldPhoneNumber),
       );
     }
@@ -472,15 +474,27 @@ const handleResult = async (conn, docs) => {
   const [activityDoc] = docs;
   const { template } = activityDoc.data();
 
-  const [templateDoc] = (
-    await rootCollections.activityTemplates
-      .where('name', '==', template)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [templateDoc],
+  } = await rootCollections.activityTemplates
+    .where('name', '==', template)
+    .limit(1)
+    .get();
 
   if (!getCanEditValue(activityDoc, conn.requester)) {
     return sendResponse(conn, code.forbidden, `You cannot edit this activity`);
+  }
+
+  if (
+    conn.req.body.attachment['Phone Number'] &&
+    conn.req.body.attachment['Phone Number'].value !==
+      activityDoc.get('attachment.Phone Number.value')
+  ) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `You cannot edit the 'Phone Number'`,
+    );
   }
 
   if (template === 'subscription') {
@@ -500,17 +514,11 @@ const handleResult = async (conn, docs) => {
       timestamp: Date.now(),
       addendumDocRef: rootCollections.offices
         .doc(activityDoc.get('officeId'))
-        .collection('Addendum')
+        .collection(subcollectionNames.ADDENDUM)
         .doc(),
     },
     newPhoneNumbers: [],
     batch: db.batch(),
-    objects: {
-      updatedFields: {
-        timestamp: Date.now(),
-      },
-      attachment: activityDoc.get('attachment'),
-    },
   };
 
   if (template === 'leave' || template === 'attendance regularization') {
@@ -535,7 +543,7 @@ const handleResult = async (conn, docs) => {
   return handleAttachment(conn, locals);
 };
 
-module.exports = conn => {
+module.exports = async conn => {
   if (conn.req.method !== 'PATCH') {
     return sendResponse(
       conn,
@@ -545,20 +553,24 @@ module.exports = conn => {
     );
   }
 
-  const result = isValidRequestBody(conn.req.body, httpsActions.update);
+  const validationResult = isValidRequestBody(
+    conn.req.body,
+    httpsActions.update,
+  );
 
-  if (!result.isValid) {
-    return sendResponse(conn, code.badRequest, result.message);
+  if (!validationResult.isValid) {
+    return sendResponse(conn, code.badRequest, validationResult.message);
   }
 
-  return Promise.all([
-    rootCollections.activities.doc(conn.req.body.activityId).get(),
-    rootCollections.activities
-      .doc(conn.req.body.activityId)
-      .collection('Assignees')
-      .doc(conn.requester.phoneNumber)
-      .get(),
-  ])
-    .then(result => handleResult(conn, result))
-    .catch(error => handleError(conn, error));
+  return handleResult(
+    conn,
+    await Promise.all([
+      rootCollections.activities.doc(conn.req.body.activityId).get(),
+      rootCollections.activities
+        .doc(conn.req.body.activityId)
+        .collection(subcollectionNames.ASSIGNEES)
+        .doc(conn.requester.phoneNumber)
+        .get(),
+    ]),
+  );
 };
