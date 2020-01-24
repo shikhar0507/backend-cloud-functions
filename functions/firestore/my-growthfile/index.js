@@ -121,7 +121,7 @@ const getRecipients = async ({ officeId }) => {
     const { include: assignees = [] } = recipient.data();
 
     return Object.assign({}, recipient.data(), {
-      recipientId: recipient.id,
+      activityId: recipient.id,
       createTime: recipient.createTime.toMillis(),
       updateTime: recipient.updateTime.toMillis(),
       include: assignees.map(phoneNumber => detailsFromAuth.get(phoneNumber)),
