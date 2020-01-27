@@ -104,8 +104,6 @@ const pushUpdatedTemplates = async (query, templateDoc) => {
       .collection(subcollectionNames.ADDENDUM)
       .doc();
 
-    console.log(ref.path);
-
     batch.set(ref, data);
   });
 

@@ -31,7 +31,6 @@ const {
   sendGridTemplateIds,
   reportNames,
   timezonesSet,
-  subcollectionNames,
 } = require('../admin/constants');
 const { alphabetsArray } = require('../firestore/recipients/report-utils');
 const crypto = require('crypto');
@@ -1375,8 +1374,9 @@ const getAuth = async phoneNumber => {
       phoneNumber,
       uid: null,
       email: '',
-      emailVerified: false,
       displayName: '',
+      emailVerified: false,
+      disabled: false,
     };
   });
 };
@@ -1386,30 +1386,6 @@ const findKeyByValue = (obj, value) =>
 
 const getNumbersbetween = (start, end) => {
   return new Array(end - start).fill().map((d, i) => i + start);
-};
-
-const getAttendancesPath = params => {
-  const { startTime, endTime, officeId, phoneNumber, collectionName } = params;
-  const now = momentTz(startTime).clone();
-  const end = momentTz(endTime);
-  const result = [];
-
-  while (now.isSameOrBefore(end)) {
-    const monthYearString = now.format(dateFormats.MONTH_YEAR);
-
-    const ref = rootCollections.offices
-      .doc(officeId)
-      .collection(collectionName || subcollectionNames.ATTENDANCES)
-      .doc(monthYearString)
-      .collection(phoneNumber)
-      .doc(`${now.date()}`);
-
-    result.push(ref.get());
-
-    now.add(1, 'day');
-  }
-
-  return result;
 };
 
 const getCanEditValue = (doc, requester) => {
@@ -1705,7 +1681,6 @@ module.exports = {
   getAuth,
   slugify,
   sendSMS,
-  latLngToTimezone,
   sendJSON,
   isValidUrl,
   getFileHash,
@@ -1734,6 +1709,7 @@ module.exports = {
   getScheduleDates,
   multipartParser,
   hasSupportClaims,
+  latLngToTimezone,
   isNonEmptyString,
   cloudflareCdnUrl,
   adjustedGeopoint,
@@ -1742,7 +1718,6 @@ module.exports = {
   getNumbersbetween,
   getObjectFromSnap,
   hasSuperUserClaims,
-  getAttendancesPath,
   isValidCanEditRule,
   promisifiedRequest,
   promisifiedExecFile,

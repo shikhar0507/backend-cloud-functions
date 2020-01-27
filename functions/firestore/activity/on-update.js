@@ -472,7 +472,7 @@ const handleResult = async (conn, docs) => {
   }
 
   const [activityDoc] = docs;
-  const { template } = activityDoc.data();
+  const { template, office } = activityDoc.data();
 
   const {
     docs: [templateDoc],
@@ -526,9 +526,9 @@ const handleResult = async (conn, docs) => {
       conflictingDate,
       conflictingTemplate,
     } = await attendanceConflictHandler({
+      office,
       schedule: conn.req.body.schedule,
       phoneNumber: conn.requester.phoneNumber,
-      office: activityDoc.get('office'),
     });
 
     if (conflictingDate) {
