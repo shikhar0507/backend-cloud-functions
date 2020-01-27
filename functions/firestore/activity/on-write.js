@@ -541,8 +541,6 @@ const handleSubscription = async locals => {
   ];
 
   if (subscribedTemplate === 'check-in') {
-    console.log('fetching role in subscription');
-
     promises.push(
       rootCollections.activities
         .where('officeId', '==', locals.change.after.get('officeId'))
@@ -645,7 +643,6 @@ const handleSubscription = async locals => {
 };
 
 const removeFromOfficeActivities = async locals => {
-  // const activityDoc = locals.change.after;
   const { status, office } = locals.change.after.data();
 
   /** Only remove when the status is `CANCELLED` */
@@ -864,8 +861,8 @@ const updateCheckInSubscriptionRoleField = async locals => {
   } = await rootCollections.activities
     .where('officeId', '==', officeId)
     .where('template', '==', 'subscription')
-    .where('attachment.Template.value', '==', 'check-in')
     .where('attachment.Phone Number.value', '==', phoneNumber)
+    .where('attachment.Template.value', '==', 'check-in')
     .where('status', '==', 'CONFIRMED')
     .limit(1)
     .get();
@@ -875,8 +872,6 @@ const updateCheckInSubscriptionRoleField = async locals => {
   }
 
   const { id: checkInId } = checkInSubscriptionActivity;
-
-  console.log('checkInId', checkInId);
 
   // Manage doc below profile. Keeps it in sync with role activity.
   batch.set(
@@ -2258,8 +2253,6 @@ const handleScheduledActivities = async locals => {
       locals.addendumDocData.location,
     );
 
-    console.log('haversineDistance', hd);
-
     if (hd > 1) {
       return;
     }
@@ -2349,8 +2342,6 @@ const copyTypeActivityToUserProfile = async (
 
   const docs = await query.get();
 
-  console.log('docs', docs.size);
-
   if (docs.empty) {
     return;
   }
@@ -2418,8 +2409,6 @@ const copyTypeActivityToUserProfile = async (
 
   await batch.commit();
   const lastDoc = docs.docs[docs.size - 1];
-
-  console.log('called again', lastDoc.id);
 
   return copyTypeActivityToUserProfile(
     query.startAfter(lastDoc.id),
@@ -2726,8 +2715,6 @@ const reimburseDailyAllowance = async locals => {
       return;
     }
 
-    console.log('roleObject', locals.roleObject);
-
     const update = Object.assign(
       {},
       getRoleReportData(locals.roleObject, phoneNumber),
@@ -2915,8 +2902,6 @@ const reimburseKmAllowance = async locals => {
     return;
   }
 
-  console.log('in reimburseKmAllowance');
-
   const { timestamp } = locals.addendumDocData;
   let uid = locals.addendumDocData.uid;
 
@@ -2938,8 +2923,6 @@ const reimburseKmAllowance = async locals => {
 
   const roleDoc = locals.roleObject;
 
-  console.log('roleDoc found for kmallowance', roleDoc);
-
   // Not an employee, km allowance is skipped
   if (!roleDoc) {
     return;
@@ -2959,8 +2942,6 @@ const reimburseKmAllowance = async locals => {
   if (scheduledOnly && locals.addendumDocData.action !== httpsActions.checkIn) {
     return;
   }
-
-  console.log('kmRate', kmRate);
 
   if (!kmRate) {
     return;
@@ -3037,8 +3018,6 @@ const reimburseKmAllowance = async locals => {
     baseLocation: roleData.baseLocation,
   });
 
-  console.log('startPointDetails', startPointDetails);
-
   if (!startPointDetails) {
     return;
   }
@@ -3046,11 +3025,6 @@ const reimburseKmAllowance = async locals => {
   const distanceBetweenCurrentAndStartPoint = await getDistanceFromDistanceMatrix(
     startPointDetails.geopoint,
     locals.addendumDocData.location,
-  );
-
-  console.log(
-    'distanceBetweenCurrentAndStartPoint',
-    distanceBetweenCurrentAndStartPoint,
   );
 
   if (distanceBetweenCurrentAndStartPoint < 1) {
@@ -3085,17 +3059,17 @@ const reimburseKmAllowance = async locals => {
      * Amount earned for travelling between start point
      * to the current location.
      */
-    const amountEarned = currencyJs(kmRate)
-      .multiply(distanceBetweenCurrentAndStartPoint)
-      .toString();
+    const amountEarned = currencyJs(kmRate).multiply(
+      distanceBetweenCurrentAndStartPoint,
+    );
 
-    console.log('in if amountEarned', amountEarned);
+    const amountEarnedInString = amountEarned.toString();
 
     // startPoint (previous) to current location(current)
     batch.set(
       r1,
       Object.assign({}, roleData, commonReimObject, {
-        amount: amountEarned,
+        amount: amountEarnedInString,
         distance: distanceBetweenCurrentAndStartPoint,
         previousIdentifier: startPointDetails.identifier,
         previousGeopoint: startPointDetails.geopoint,
@@ -3142,7 +3116,7 @@ const reimburseKmAllowance = async locals => {
         currentIdentifier: startPointDetails.identifier,
         currentGeopoint: startPointDetails.geopoint,
         intermediate: true,
-        amount: amountEarned,
+        amount: amountEarnedInString,
         distance: distanceBetweenCurrentAndStartPoint,
       }),
     );
@@ -3151,7 +3125,7 @@ const reimburseKmAllowance = async locals => {
     batch.set(
       u1,
       Object.assign({}, commonReimObject, {
-        amount: amountEarned,
+        amount: amountEarnedInString,
         _type: addendumTypes.REIMBURSEMENT,
         id: `${date}${month}${year}${r1.id}`,
         key: momentNow
@@ -3184,7 +3158,7 @@ const reimburseKmAllowance = async locals => {
       u2,
       Object.assign({}, commonReimObject, {
         _type: addendumTypes.REIMBURSEMENT,
-        amount: amountEarned,
+        amount: amountEarnedInString,
         id: `${date}${month}${year}${r2.id}`,
         key: momentNow
           .clone()
@@ -3212,11 +3186,6 @@ const reimburseKmAllowance = async locals => {
       }),
     );
   } else {
-    console.log(
-      'in else distanceTravelled',
-      locals.addendumDocData.distanceTravelled,
-    );
-
     if (locals.addendumDocData.distanceTravelled < 1) {
       return;
     }
@@ -3234,8 +3203,6 @@ const reimburseKmAllowance = async locals => {
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc();
-
-    console.log('in else amount', amountThisTime);
 
     // r2
     batch.set(
@@ -3472,9 +3439,6 @@ const newBackfill = async locals => {
     user: phoneNumber,
   } = locals.addendumDocData;
   const { timezone, office, officeId } = activityData;
-
-  console.log('calling backfill');
-
   const prevCheckInMoment = momentTz(lastTimestamp).tz(timezone);
   const momentNow = momentTz().tz(timezone);
   const momentPrevMonth = momentNow.clone().subtract(1, 'month');
@@ -3483,13 +3447,10 @@ const newBackfill = async locals => {
   // momentTz will fallback to the current timestamp.
   // This clause will run, so, our logic is fine.
   if (prevCheckInMoment.month() === momentNow.month()) {
-    console.log('if prevCheckIn is in current month');
-
     return;
   }
 
   if (!locals.roleObject) {
-    console.log('no roleObject');
     return;
   }
 
@@ -3557,11 +3518,8 @@ const newBackfill = async locals => {
 
     while (momentInterator.isSameOrBefore(iterationRangeEnd)) {
       const { date } = momentInterator.toObject();
-      console.log('branch', momentInterator.format());
       const weekdayName = momentInterator.format('dddd').toLowerCase();
       const weeklyOff = weeklyOffFromBranch.toLowerCase() === weekdayName;
-
-      console.log('weekdayName', weekdayName);
       attendanceData.attendance[date] =
         attendanceData.attendance[date] || getDefaultAttendanceObject();
       attendanceData.attendance[date].weeklyOff = weeklyOff;
@@ -3591,8 +3549,6 @@ const newBackfill = async locals => {
   const leaveSnaps = await Promise.all(leavePromises);
   const leaveDates = getAllScheduleDatesFromActivitySnaps(leaveSnaps);
 
-  console.log('leaveDates', leaveDates);
-
   while (secondIterator.isSameOrBefore(iterationRangeEnd)) {
     const { date } = secondIterator.toObject();
     const onLeave = leaveDates.has(secondIterator.format(dateFormats.DATE));
@@ -3608,16 +3564,12 @@ const newBackfill = async locals => {
     secondIterator.add(1, 'day');
   }
 
-  console.log('attendanceData', attendanceData);
-
   const ref = attendanceDocPrevMonth
     ? attendanceDocPrevMonth.ref
     : rootCollections.offices
         .doc(officeId)
         .collection(subcollectionNames.ATTENDANCES)
         .doc();
-
-  console.log('backfill ref', ref.path);
 
   return ref.set(
     Object.assign(
