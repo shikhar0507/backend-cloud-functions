@@ -179,12 +179,12 @@ const getWeeklyOff = placeApiResult => {
 };
 
 const placeIdToBranch = async (placeId, creator) => {
-  const [branchTemplate] = (
-    await rootCollections.activityTemplates
-      .where('name', '==', 'branch')
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [branchTemplate],
+  } = await rootCollections.activityTemplates
+    .where('name', '==', 'branch')
+    .limit(1)
+    .get();
 
   const placeApiResult = await googleMapsClient
     .place({
@@ -198,7 +198,11 @@ const placeIdToBranch = async (placeId, creator) => {
     })
     .asPromise();
 
-  const [firstResult] = placesApiResult.json.results;
+  const {
+    json: {
+      results: [firstResult],
+    },
+  } = placesApiResult;
   const attachment = new Attachment(
     {
       'First Contact': creator.phoneNumber,
@@ -269,12 +273,12 @@ const createOffice = async conn => {
     geopoint,
   } = conn.req.body;
 
-  const [officeDoc] = (
-    await rootCollections.activities
-      .where('office', '==', office)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [officeDoc],
+  } = await rootCollections.activities
+    .where('office', '==', office)
+    .limit(1)
+    .get();
 
   if (officeDoc) {
     return sendResponse(

@@ -31,6 +31,7 @@ const {
   reportNames,
   httpsActions,
   dateFormats,
+  subcollectionNames,
 } = require('../../admin/constants');
 const {
   getName,
@@ -52,10 +53,17 @@ const getComment = doc => {
     return doc.get('activityData.attachment.Comment.value');
   }
 
-  const action = doc.get('action');
+  const { potentialSameDevices = [], action } = doc.data();
 
   if (action === httpsActions.signup) {
     return `Signed up on Growthfile`;
+  }
+
+  if (action === httpsActions.install && potentialSameDevices.length > 0) {
+    return (
+      `Installed Growthfile.` +
+      ` Users using the same phones: ${potentialSameDevices}`
+    );
   }
 
   if (action === httpsActions.install) {
@@ -65,6 +73,7 @@ const getComment = doc => {
   if (action === httpsActions.updatePhoneNumber) {
     const oldPhoneNumber = doc.get('oldPhoneNumber');
     const newPhoneNumber = doc.get('newPhoneNumber');
+
     return `Phone number changed: ${oldPhoneNumber} to ${newPhoneNumber}`;
   }
 
@@ -292,9 +301,7 @@ module.exports = async locals => {
   const distanceMap = new Map();
   const prevTemplateForPersonMap = new Map();
   const prevDocTimestampMap = new Map();
-  // const employeePhoneNumbersArray = Object.keys(locals.employeesData);
   const counterObject = {
-    // totalUsers: employeePhoneNumbersArray.length,
     totalUsers: 0,
     active: 0,
     notActive: 0,
@@ -328,7 +335,7 @@ module.exports = async locals => {
     const [workbook, addendumDocsQueryResult] = await Promise.all([
       xlsxPopulate.fromBlankAsync(),
       locals.officeDoc.ref
-        .collection('Addendum')
+        .collection(subcollectionNames.ADDENDUM)
         .where('date', '==', momentYesterday.date())
         .where('month', '==', momentYesterday.month())
         .where('year', '==', momentYesterday.year())
@@ -369,11 +376,11 @@ module.exports = async locals => {
 
     addendumDocsQueryResult.forEach(doc => {
       const action = doc.get('action');
+      const template = doc.get('activityData.template');
+      const isSupportRequest = doc.get('isSupportRequest');
 
       allCountsData.apiActions[action] = allCountsData.apiActions[action] || 0;
       allCountsData.apiActions[action]++;
-
-      const template = doc.get('activityData.template');
 
       if (template) {
         allCountsData.templates[template] =
@@ -383,7 +390,6 @@ module.exports = async locals => {
 
       const columnIndex = count + 2;
       const phoneNumber = doc.get('user');
-      const isSupportRequest = doc.get('isSupportRequest');
       const department = getValueFromRole(doc, 'Department');
       const baseLocation = getValueFromRole(doc, 'Base Location');
       const employeeCode = getValueFromRole(doc, 'Employee Code');

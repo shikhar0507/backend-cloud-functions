@@ -58,9 +58,9 @@ const googleMapsClient = require('@google/maps').createClient({
 
 const getActivityObjectWithMetadata = doc =>
   Object.assign({}, doc.data(), {
-    id: doc.id,
     addendumDocRef: null,
     createTime: doc.createTime.toMillis(),
+    id: doc.id,
     updateTime: doc.updateTime.toMillis(),
   });
 
@@ -71,22 +71,16 @@ const getProfileActivityObject = ({
   customerObject,
 }) => {
   const { id: activityId } = activityDoc;
-
-  const assigneeCallback = phoneNumber => {
-    const { displayName, photoURL } = assigneesMap.get(phoneNumber) || {};
-
-    return {
-      phoneNumber,
-      displayName: displayName || '',
-      photoURL: photoURL || '',
-    };
-  };
-
   const intermediate = Object.assign({}, activityDoc.data(), {
     activityId,
     addendumDocRef: null,
     timestamp: Date.now(),
-    assignees: assigneePhoneNumbersArray.map(assigneeCallback),
+    assignees: assigneePhoneNumbersArray.map(phoneNumber => {
+      const { displayName = '', photoURL = '' } =
+        assigneesMap.get(phoneNumber) || {};
+
+      return { phoneNumber, displayName, photoURL };
+    }),
   });
 
   if (customerObject) {
@@ -100,7 +94,7 @@ const getUserRole = async ({ addendumDoc }) => {
   const { user: phoneNumber, roleDoc, activityData } = addendumDoc.data();
   const { officeId } = activityData;
 
-  if (roleDoc && roleDoc.status) {
+  if (roleDoc) {
     return roleDoc;
   }
 
@@ -238,7 +232,11 @@ const getLocalityCityState = mapsApiResult => {
     };
   }
 
-  const { address_components: components } = mapsApiResult.json.results[0];
+  const {
+    json: {
+      results: [{ address_components: components }],
+    },
+  } = mapsApiResult;
 
   components.forEach(component => {
     if (component.types.includes('locality')) {
@@ -261,24 +259,23 @@ const getPlaceInformation = (mapsApiResult, geopoint) => {
   const value = toMapsUrl(geopoint);
 
   if (!mapsApiResult) {
-    return {
-      url: value,
-      identifier: value,
-    };
+    return { url: value, identifier: value };
   }
 
-  const [firstResult] = mapsApiResult.json.results;
+  const {
+    json: {
+      results: [firstResult],
+      plus_code: { global_code: globalCode },
+    },
+  } = mapsApiResult;
 
   if (!firstResult) {
-    return {
-      url: value,
-      identifier: value,
-    };
+    return { url: value, identifier: value };
   }
 
   return {
     identifier: firstResult['formatted_address'],
-    url: getLocationUrl(mapsApiResult.json['plus_code']['global_code']),
+    url: getLocationUrl(globalCode),
   };
 };
 
@@ -2874,6 +2871,11 @@ const getStartPointObject = async ({
   };
 };
 
+const getLatLngObject = ({ latLngObject }) => ({
+  latitude: latLngObject.latitude || latLngObject._latitude,
+  longitude: latLngObject.longitude || latLngObject._longitude,
+});
+
 const reimburseKmAllowance = async locals => {
   // if action is create, checkin - then look
   // for scheduled only false in
@@ -2881,14 +2883,14 @@ const reimburseKmAllowance = async locals => {
   // basis same logic of previous checkin is same
   // date then km allowance
   // between the two else km allowance from
-  // startpoint / base location to both
+  // startpoint/base location to both
 
   // if action is checkin - then look for scheduled
   // only true in employee and make km allowance
   // if available basis same logic of previous
   // action == checkin, same date then km
   // allowance between the two else km allowance
-  // from start point / base location from both
+  // from start point/base location from both
 
   if (!locals.addendumDocData) {
     return;
@@ -2902,10 +2904,9 @@ const reimburseKmAllowance = async locals => {
     return;
   }
 
+  const { template, office, officeId, timezone } = locals.change.after.data();
   const { timestamp } = locals.addendumDocData;
   let uid = locals.addendumDocData.uid;
-
-  const { template, office, officeId, timezone } = locals.change.after.data();
 
   // Doing this because action=check-in can show up with
   // non-check-in template activities too.
@@ -3038,19 +3039,19 @@ const reimburseKmAllowance = async locals => {
   if (previousKmReimbursementQuery.empty) {
     // create km allowance for start point to current location
     // create km allowance for current location to start point.
-    const r1 = rootCollections.offices
+    const firstReimbursementRef = rootCollections.offices
       .doc(officeId)
       .collection(subcollectionNames.REIMBURSEMENTS)
       .doc();
-    const r2 = rootCollections.offices
+    const secondReimbursementRef = rootCollections.offices
       .doc(officeId)
       .collection(subcollectionNames.REIMBURSEMENTS)
       .doc();
-    const u1 = rootCollections.updates
+    const firstReimbursementUpdateRef = rootCollections.updates
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc();
-    const u2 = rootCollections.updates
+    const secondReimbursementUpdateRef = rootCollections.updates
       .doc(uid)
       .collection(subcollectionNames.ADDENDUM)
       .doc();
@@ -3067,7 +3068,7 @@ const reimburseKmAllowance = async locals => {
 
     // startPoint (previous) to current location(current)
     batch.set(
-      r1,
+      firstReimbursementRef,
       Object.assign({}, roleData, commonReimObject, {
         amount: amountEarnedInString,
         distance: distanceBetweenCurrentAndStartPoint,
@@ -3080,14 +3081,9 @@ const reimburseKmAllowance = async locals => {
 
           return locals.addendumDocData.identifier;
         })(),
-        currentGeopoint: {
-          latitude:
-            locals.addendumDocData.location.latitude ||
-            locals.addendumDocData.location._latitude,
-          longitude:
-            locals.addendumDocData.location.longitude ||
-            locals.addendumDocData.location._latitude,
-        },
+        currentGeopoint: getLatLngObject({
+          latLngObject: locals.addendumDocData.location,
+        }),
         intermediate: false,
       }),
       { merge: true },
@@ -3095,7 +3091,7 @@ const reimburseKmAllowance = async locals => {
 
     // current location to start point
     batch.set(
-      r2,
+      secondReimbursementRef,
       Object.assign({}, commonReimObject, {
         rate: kmRate,
         previousIdentifier: (() => {
@@ -3105,14 +3101,9 @@ const reimburseKmAllowance = async locals => {
 
           return locals.addendumDocData.identifier;
         })(),
-        previousGeopoint: {
-          latitude:
-            locals.addendumDocData.location.latitude ||
-            locals.addendumDocData.location._latitude,
-          longitude:
-            locals.addendumDocData.location.longitude ||
-            locals.addendumDocData.location._latitude,
-        },
+        previousGeopoint: getLatLngObject({
+          latLngObject: locals.addendumDocData.location,
+        }),
         currentIdentifier: startPointDetails.identifier,
         currentGeopoint: startPointDetails.geopoint,
         intermediate: true,
@@ -3123,11 +3114,11 @@ const reimburseKmAllowance = async locals => {
 
     // start point to current location
     batch.set(
-      u1,
+      firstReimbursementUpdateRef,
       Object.assign({}, commonReimObject, {
         amount: amountEarnedInString,
         _type: addendumTypes.REIMBURSEMENT,
-        id: `${date}${month}${year}${r1.id}`,
+        id: `${date}${month}${year}${firstReimbursementRef.id}`,
         key: momentNow
           .clone()
           .startOf('day')
@@ -3137,14 +3128,9 @@ const reimburseKmAllowance = async locals => {
           rate: kmRate,
           startLocation: startPointDetails.geopoint,
           checkInTimestamp: locals.change.after.get('timestamp'),
-          endLocation: {
-            latitude:
-              locals.addendumDocData.location.latitude ||
-              locals.addendumDocData.location._latitude,
-            longitude:
-              locals.addendumDocData.location.longitude ||
-              locals.addendumDocData.location._latitude,
-          },
+          endLocation: getLatLngObject({
+            latLngObject: locals.addendumDocData.location,
+          }),
           distanceTravelled: distanceBetweenCurrentAndStartPoint,
           photoURL: null,
           status: null,
@@ -3155,11 +3141,11 @@ const reimburseKmAllowance = async locals => {
 
     // curr to start point
     batch.set(
-      u2,
+      secondReimbursementUpdateRef,
       Object.assign({}, commonReimObject, {
         _type: addendumTypes.REIMBURSEMENT,
         amount: amountEarnedInString,
-        id: `${date}${month}${year}${r2.id}`,
+        id: `${date}${month}${year}${secondReimbursementRef.id}`,
         key: momentNow
           .clone()
           .startOf('day')
@@ -3168,14 +3154,9 @@ const reimburseKmAllowance = async locals => {
         intermediate: true,
         details: {
           rate: kmRate,
-          startLocation: {
-            latitude:
-              locals.addendumDocData.location.latitude ||
-              locals.addendumDocData.location._latitude,
-            longitude:
-              locals.addendumDocData.location.longitude ||
-              locals.addendumDocData.location._latitude,
-          },
+          startLocation: getLatLngObject({
+            latLngObject: locals.addendumDocData.location,
+          }),
           checkInTimestamp: locals.change.after.get('timestamp'),
           endLocation: startPointDetails.geopoint,
           distanceTravelled: distanceBetweenCurrentAndStartPoint,
@@ -3218,14 +3199,9 @@ const reimburseKmAllowance = async locals => {
 
           return locals.addendumDocData.identifier;
         })(),
-        currentGeopoint: {
-          latitude:
-            locals.addendumDocData.location.latitude ||
-            locals.addendumDocData.location._latitude,
-          longitude:
-            locals.addendumDocData.location.longitude ||
-            locals.addendumDocData.location._latitude,
-        },
+        currentGeopoint: getLatLngObject({
+          latLngObject: locals.addendumDocData.location,
+        }),
       }),
       { merge: true },
     );
@@ -3266,14 +3242,9 @@ const reimburseKmAllowance = async locals => {
           status: null,
           claimId: null,
           checkInTimestamp: timestamp,
-          endLocation: {
-            latitude:
-              locals.addendumDocData.location.latitude ||
-              locals.addendumDocData.location._latitude,
-            longitude:
-              locals.addendumDocData.location.longitude ||
-              locals.addendumDocData.location._latitude,
-          },
+          endLocation: getLatLngObject({
+            latLngObject: locals.addendumDocData.location,
+          }),
         },
       }),
       { merge: true },
@@ -3295,14 +3266,9 @@ const reimburseKmAllowance = async locals => {
 
           return locals.addendumDocData.identifier;
         })(),
-        previousGeopoint: {
-          latitude:
-            locals.addendumDocData.location.latitude ||
-            locals.addendumDocData.location._latitude,
-          longitude:
-            locals.addendumDocData.location.longitude ||
-            locals.addendumDocData.location._latitude,
-        },
+        previousGeopoint: getLatLngObject({
+          latLngObject: locals.addendumDocData.location,
+        }),
         intermediate: true,
       }),
       { merge: true },
@@ -3325,14 +3291,9 @@ const reimburseKmAllowance = async locals => {
         intermediate: true,
         details: {
           rate: kmRate,
-          startLocation: {
-            latitude:
-              locals.addendumDocData.location.latitude ||
-              locals.addendumDocData.location._latitude,
-            longitude:
-              locals.addendumDocData.location.longitude ||
-              locals.addendumDocData.location._latitude,
-          },
+          startLocation: getLatLngObject({
+            latLngObject: locals.addendumDocData.location,
+          }),
           checkInTimestamp: locals.change.after.get('timestamp'),
           endLocation: startPointDetails.geopoint,
           distanceTravelled: distanceBetweenCurrentAndStartPoint,
@@ -4354,8 +4315,7 @@ const handleProfile = async change => {
     assigneesMap: locals.assigneesMap,
   });
 
-  userRecords.forEach(userRecord => {
-    const { uid, phoneNumber } = userRecord;
+  userRecords.forEach(({ uid, phoneNumber }) => {
     // Check-ins are sent to users via `Updates/{uid}/Addendum/` collection
     if (template !== 'check-in') {
       // in profile
