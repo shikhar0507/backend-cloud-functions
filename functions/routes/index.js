@@ -93,9 +93,6 @@ module.exports = req => {
     case 'activities/change-status':
       func = require('../firestore/activity/on-change-status');
       break;
-    case 'activities/comment':
-      func = require('../firestore/activity/on-comment');
-      break;
     case 'activities/share':
       func = require('../firestore/activity/on-share');
       break;
