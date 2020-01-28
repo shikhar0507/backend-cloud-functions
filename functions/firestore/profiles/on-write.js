@@ -96,7 +96,7 @@ const getPotentialSameDevices = async ({ phoneNumber, uid, offices }) => {
     (await rootCollections.updates.doc(uid).get()).data() || {};
 
   if (!latestDeviceId) {
-    return null;
+    return {};
   }
 
   (

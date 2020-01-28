@@ -59,7 +59,11 @@ const getComment = doc => {
     return `Signed up on Growthfile`;
   }
 
-  if (action === httpsActions.install && potentialSameDevices.length > 0) {
+  if (
+    action === httpsActions.install &&
+    potentialSameDevices &&
+    potentialSameDevices.length > 0
+  ) {
     return (
       `Installed Growthfile.` +
       ` Users using the same phones: ${potentialSameDevices}`
