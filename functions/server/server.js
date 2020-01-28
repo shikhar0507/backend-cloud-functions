@@ -355,6 +355,11 @@ module.exports = async (req, res) => {
     return sendResponse(conn, code.ok);
   }
 
+  /**
+   * Requests from cloudflare worker are intercepted at this block.
+   * In the production env, the header should contain the secret.
+   * Refer to the README to check out the cloudflare worker's code.
+   */
   if (
     env.isProduction &&
     (!conn.req.headers['x-cf-secret'] ||

@@ -270,7 +270,8 @@ module.exports = async conn => {
       ).map(batch => batch.commit()),
       updateProfile({
         newPhoneNumber,
-        oldPhoneNumber: uid,
+        oldPhoneNumber,
+        oldPhoneNumbersUid: uid,
       }),
       admin.auth().revokeRefreshTokens(uid),
       // Clearing registrationToken because the new phone number might not receive
