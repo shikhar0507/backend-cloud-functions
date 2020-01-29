@@ -1955,7 +1955,7 @@ const handleAddendum = async locals => {
 
   /** Phone Number change addendum does not have geopoint */
   if (typeof currentGeopoint === 'undefined') {
-    return handleComments(addendumDoc, locals);
+    return;
   }
 
   const batch = db.batch();
@@ -2050,11 +2050,10 @@ const handleAddendum = async locals => {
 
   await batch.commit();
   await setGeopointAndTimestampInCheckInSubscription({ addendumDoc });
-  await createActivityStats(addendumDoc);
 
   locals.roleObject = await getUserRole({ addendumDoc });
 
-  return handleComments(addendumDoc, locals);
+  return createActivityStats(addendumDoc);
 };
 
 const getMetaBaseQuery = ({ officeId, name, template }) => {
@@ -4395,7 +4394,9 @@ const activityOnWrite = async change => {
   const locals = await handleProfile(change);
   await handleAddendum(locals);
 
-  return templateHandler(locals);
+  await templateHandler(locals);
+
+  return handleComments(locals.addendumDoc, locals);
 };
 
 module.exports = (change, context) => {
