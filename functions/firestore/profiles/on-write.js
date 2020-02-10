@@ -90,7 +90,6 @@ const manageAddendum = async change => {
 };
 
 const getPotentialSameDevices = async ({ phoneNumber, uid, offices }) => {
-  const rolePromises = [];
   const result = {};
   const { latestDeviceId = null } =
     (await rootCollections.updates.doc(uid).get()).data() || {};
@@ -99,15 +98,15 @@ const getPotentialSameDevices = async ({ phoneNumber, uid, offices }) => {
     return {};
   }
 
+  const rolePromises = [];
+
   (
     await rootCollections.updates
       .where('deviceIdsArray', 'array-contains', latestDeviceId)
       .get()
   ).forEach(updatesDoc => {
+    // check-in template document in subscription has the role
     offices.forEach(office => {
-      console.log('office', office);
-
-      // check-in template document in subscription has the role
       rolePromises.push(
         rootCollections.profiles
           .doc(updatesDoc.get('phoneNumber'))
@@ -158,8 +157,6 @@ const handleSignUpAndInstall = async options => {
     offices: options.currentOfficesList,
     uid: options.change.after.get('uid'),
   });
-
-  console.log('potentialSameDevices', potentialSameDevices);
 
   const { date, months: month, years: year } = momentTz().toObject();
   const {

@@ -66,21 +66,6 @@ const getUserFromAuth = phoneNumber => {
     photoURL: null,
   };
 
-  const valuesPolyfill = object => {
-    return Object.keys(object).map(key => object[key]);
-  };
-
-  /**
-   * A temporary polyfill for using `Object.values` since sendgrid has
-   * probably removed support for Node 6, but the Node 8 runtime is still
-   * suffering from "connection error" issue at this time.
-   * Will remove this after a few days.
-   *
-   * @see https://github.com/sendgrid/sendgrid-nodejs/issues/929
-   * @see https://github.com/firebase/firebase-functions/issues/429
-   */
-  Object.values = Object.values || valuesPolyfill;
-
   return auth
     .getUserByPhoneNumber(phoneNumber)
     .then(userRecord => {
@@ -154,7 +139,6 @@ module.exports = conn => {
       if (!authFetchResult.uid) {
         if (authFetchResult.errorCode === 'auth/user-not-found') {
           sendEmail = true;
-          console.log('Creating user:', conn.req.body);
 
           return auth.createUser({
             phoneNumber: conn.req.body.phoneNumber,
@@ -176,16 +160,12 @@ module.exports = conn => {
         authRecord.displayName = conn.req.body.displayName;
       }
 
-      console.log('Updating user:', authRecord);
-
       return auth.updateUser(authFetchResult.uid, authRecord);
     })
     .then(userRecord => {
       if (!sendEmail) {
         return Promise.resolve();
       }
-
-      console.log('sending email for:', userRecord);
 
       const promises = [];
 
@@ -202,9 +182,7 @@ module.exports = conn => {
             // was initiated
             emailVerificationRequestPending: true,
           },
-          {
-            merge: true,
-          },
+          { merge: true },
         );
 
         promises.push(promise);
@@ -212,9 +190,9 @@ module.exports = conn => {
 
       return Promise.all(promises);
     })
-    .then(() => {
-      return sendResponse(conn, code.ok, 'User successfully created/updated.');
-    })
+    .then(() =>
+      sendResponse(conn, code.ok, 'User successfully created/updated.'),
+    )
     .catch(error => {
       if (error.code === 'auth/email-already-exists') {
         return auth

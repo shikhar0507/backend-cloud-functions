@@ -635,8 +635,10 @@ function getTemplatesListJSON(name) {
   });
 }
 
-const handleJsonGetRequest = (conn, requester) => {
+const handleJsonGetRequest = async (conn, requester) => {
   const json = {};
+
+  console.log('requester', requester);
 
   if (!requester.uid) {
     return Promise.resolve({});
@@ -644,7 +646,9 @@ const handleJsonGetRequest = (conn, requester) => {
 
   if (conn.req.query.action === 'office-list' && requester.isSupport) {
     return rootCollections.offices.get().then(docs => {
-      return (json.names = docs.docs.map(doc => doc.get('office')));
+      json.names = docs.docs.map(doc => doc.get('office'));
+
+      return json;
     });
   }
 

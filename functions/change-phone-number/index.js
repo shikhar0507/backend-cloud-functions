@@ -90,8 +90,7 @@ const singleActivityUpdateObject = ({
     attachment['Phone Number'].value === oldPhoneNumber;
 
   if (template === 'check-in') {
-    // null means => delete the activity
-    return null;
+    return {};
   }
 
   const activityUpdate = Object.assign({}, activity.data(), {

@@ -1675,7 +1675,19 @@ const createInstantEmail = async ({ subject, messageBody }) => {
   return;
 };
 
+const maskLastDigits = (
+  input,
+  digitsToReplace = 4,
+  charToReplaceWith = 'X',
+) => {
+  return (
+    `${new Array(input.length - digitsToReplace + 1).join(charToReplaceWith)}` +
+    `${input.slice(-digitsToReplace)}`
+  );
+};
+
 module.exports = {
+  maskLastDigits,
   locationFilter,
   createInstantEmail,
   getAuth,

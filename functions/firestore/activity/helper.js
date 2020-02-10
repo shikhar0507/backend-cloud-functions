@@ -1302,7 +1302,6 @@ const createAutoSubscription = async (locals, templateName, subscriber) => {
 const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
   // Called for templates {leave and attendance regularization}
   const allDateStrings = [];
-  const queries = [];
   let conflictingDate = null;
   let conflictingTemplate = null;
 
@@ -1316,8 +1315,8 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
     );
   });
 
-  allDateStrings.forEach(dateString => {
-    queries.push(
+  const queries = allDateStrings.map(dateString => {
+    return (
       rootCollections.profiles
         .doc(phoneNumber)
         .collection(subcollectionNames.ACTIVITIES)
@@ -1326,22 +1325,18 @@ const attendanceConflictHandler = async ({ schedule, phoneNumber, office }) => {
         /** Leave creator is the person for whom the leave should be checked */
         .where('creator.phoneNumber', '==', phoneNumber)
         .limit(1)
-        .get(),
+        .get()
     );
   });
 
-  const snapShots = await Promise.all(queries);
-
-  for (const snap of snapShots) {
-    const { empty } = snap;
-
+  for (const {
+    empty,
+    docs: [doc],
+  } of await Promise.all(queries)) {
     if (empty) {
       continue;
     }
 
-    const {
-      docs: [doc],
-    } = snap;
     const { schedule, template, status } = doc.data();
 
     if (template !== 'leave' && template !== 'attendance regularization') {

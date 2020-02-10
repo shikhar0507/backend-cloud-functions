@@ -808,6 +808,7 @@ const dateFormats = {
   MONTH_YEAR: 'MMMM YYYY',
   MONTH_DATE: 'MMM DD',
   EXCEL_INPUT: 'D MMMM gggg HH:mm',
+  WEEKDAY: 'dddd',
 };
 
 const reportNames = {

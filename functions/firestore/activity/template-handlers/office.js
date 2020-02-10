@@ -523,9 +523,8 @@ const createFootprintsRecipient = async locals => {
     isSupportRequest: locals.addendumDoc
       ? locals.addendumDoc.get('isSupportRequest')
       : false,
-    isAdminRequest: locals.addendumDoc
-      ? locals.addendumDoc.get('isAdminRequest')
-      : false,
+    isAdminRequest:
+      locals.addendumDoc && locals.addendumDoc.get('isAdminRequest'),
     geopointAccuracy: null,
     provider: null,
   };

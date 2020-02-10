@@ -96,9 +96,6 @@ const getClaimStatus = async ({
   const monthlyLimit = claimTypeDoc.get('attachment.Monthly Limit.value');
   let claimsThisMonth = currencyJs(0);
 
-  console.log('monthlyLimit ==>', monthlyLimit);
-  console.log('claimActivities ==>', claimActivities.size);
-
   claimActivities.forEach(doc => {
     // Start Time of the schedule has a higher priority.
     const isCancelled = doc.get('status') === 'CANCELLED';
@@ -108,15 +105,12 @@ const getClaimStatus = async ({
     );
 
     const createdThisMonth = createTime.isBetween(monthStart, monthEnd);
-    console.log(doc.id, createTime.toISOString(), createdThisMonth);
 
     if (createdThisMonth && !isCancelled) {
       const amount = parseInt(doc.get('attachment.Amount.value') || 0);
       claimsThisMonth = claimsThisMonth.add(amount);
     }
   });
-
-  console.log('claimsThisMonth =>', claimsThisMonth.value);
 
   return {
     monthlyLimit,
@@ -323,13 +317,12 @@ const createDocsWithBatch = async (conn, locals) => {
 
   conn.req.body.share.forEach(phoneNumber => {
     const addToInclude = true;
+
     canEditMap[phoneNumber] = null;
 
     batch.set(
       activityRef.collection(subcollectionNames.ASSIGNEES).doc(phoneNumber),
-      {
-        addToInclude,
-      },
+      { addToInclude },
     );
   });
 
@@ -366,19 +359,15 @@ const createDocsWithBatch = async (conn, locals) => {
       );
     }
 
-    const [probablyExistingCustomer] = (
-      await rootCollections.activities
-        .where('office', '==', conn.req.body.office)
-        .where('template', '==', 'customer')
-        .where('status', '==', 'CONFIRMED')
-        .where(
-          'attachment.Name.value',
-          '==',
-          activityData.attachment.Name.value,
-        )
-        .limit(1)
-        .get()
-    ).docs;
+    const {
+      docs: [probablyExistingCustomer],
+    } = await rootCollections.activities
+      .where('office', '==', conn.req.body.office)
+      .where('template', '==', 'customer')
+      .where('status', '==', 'CONFIRMED')
+      .where('attachment.Name.value', '==', activityData.attachment.Name.value)
+      .limit(1)
+      .get();
 
     if (probablyExistingCustomer) {
       return sendResponse(
@@ -471,8 +460,6 @@ const createDocsWithBatch = async (conn, locals) => {
     provider: conn.req.body.geopoint.provider || null,
     roleDoc: getRoleObject(locals.subscriptionDoc),
   };
-
-  console.log('roleDoc', addendumDocObject.roleDoc);
 
   if (
     conn.req.body.template === 'check-in' &&
@@ -754,8 +741,6 @@ const handleClaims = async (conn, locals) => {
     timezone: locals.officeDoc.get('attachment.Timezone.value'),
   });
 
-  console.log({ claimsThisMonth, monthlyLimit });
-
   if (
     currencyJs(claimsThisMonth).add(amount).value >
     currencyJs(monthlyLimit).value
@@ -857,8 +842,6 @@ const resolveProfileCheckPromises = async (conn, locals, result) => {
 const handleAttachmentArrays = async (conn, locals, result) => {
   const { attachment } = conn.req.body;
   const typePromises = [];
-
-  console.log('in handleAttachmentArrays');
 
   for (const [, { value: values, type }] of Object.entries(attachment)) {
     if (!Array.isArray(values)) {

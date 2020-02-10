@@ -24,17 +24,13 @@
 'use strict';
 
 const { rootCollections, db } = require('../admin/admin');
-const {
-  subcollectionNames,
-  // addendumTypes
-} = require('../admin/constants');
-const { handleError, sendJSON } = require('../admin/utils');
+const { subcollectionNames, addendumTypes } = require('../admin/constants');
+const { handleError, sendJSON, maskLastDigits } = require('../admin/utils');
 const { requestBatchTransfer } = require('../cash-free/payout');
-const currency = require('currency.js');
-const env = require('../admin/env');
+const currencyJs = require('currency.js');
 const crypto = require('crypto');
-// const momentTz = require('moment-timezone');
-const MAIN_OFFICE = env.mainOffice;
+const momentTz = require('moment-timezone');
+const env = require('../admin/env');
 const depositEvents = new Set([
   'AMOUNT_SETTLED',
   'AMOUNT_COLLECTED',
@@ -49,6 +45,8 @@ const paymentEvents = new Set([
   'TRANSFER_ACKNOWLEDGED',
   'INVALID_BENEFICIARY_ACCOUNT',
 ]);
+
+const paymentTypes = { SALARY: 'SALARY', REIMBURSEMENT: 'REIMBURSEMENT' };
 
 const getClientSecret = isPaymentEvent => {
   if (isPaymentEvent) {
@@ -77,47 +75,55 @@ const verifyWebhookPost = webhookData => {
   return calculatedSignature === receivedSignature;
 };
 
-// doc below `Updates/{beneficiaryId}/Addendum/{autoId}`
-// const getPaymentObjectForUpdates = ({ payment, id }) => {
-//   const {
-//     createdAt,
-//     office,
-//     officeId,
-//     amount,
-//     cycleStart,
-//     cycleEnd,
-//     ifsc,
-//     account, // last 4 digits
-//     status,
-//   } = payment;
-//   const { date, months: month, years: year } = momentTz(createdAt).toObject();
+const getPaymentObjectForUpdates = ({ payment, id }) => {
+  const {
+    createdAt,
+    office,
+    officeId,
+    amount,
+    cycleStart,
+    cycleEnd,
+    ifsc,
+    account, // last 4 digits
+    status,
+    paymentType,
+    utr = null,
+  } = payment;
 
-//   return {
-//     date,
-//     month,
-//     year,
-//     office,
-//     officeId,
-//     key: momentTz()
-//       .date(date)
-//       .month(month)
-//       .year(year)
-//       .startOf('date')
-//       .valueOf(),
-//     id: `${date}${month}${year}${id}`,
-//     timestamp: Date.now(),
-//     _type: addendumTypes.PAYMENT,
-//     currency: 'INR',
-//     details: {
-//       status,
-//       account,
-//       ifsc,
-//       amount,
-//       cycleStart,
-//       cycleEnd,
-//     },
-//   };
-// };
+  const { date, months: month, years: year } = momentTz(createdAt).toObject();
+
+  const getPaymentStatus = () => {
+    return '';
+  };
+
+  return {
+    date,
+    month,
+    year,
+    office,
+    officeId,
+    key: momentTz()
+      .date(date)
+      .month(month)
+      .year(year)
+      .startOf('date')
+      .valueOf(),
+    id: `${date}${month}${year}${id}`,
+    timestamp: Date.now(),
+    _type: addendumTypes.PAYMENT,
+    currency: 'INR',
+    details: {
+      utr,
+      ifsc,
+      amount,
+      cycleStart,
+      cycleEnd,
+      status: getPaymentStatus(),
+      account: maskLastDigits(account, 4, 'X'),
+      type: paymentType, // salary/attendance
+    },
+  };
+};
 
 const handlePayment = async requestBody => {
   // payment
@@ -134,7 +140,6 @@ const handlePayment = async requestBody => {
    * Create doc in Updates/{uid}/Addendum/{autoId} with _type = "payment"
    * last 4 digits of bankAccount in `Payroll`.
    */
-  // 'INVALID_BENEFICIARY_ACCOUNT',
   const {
     event,
     // The `transferId` is the same as the `voucherId`
@@ -161,7 +166,7 @@ const handlePayment = async requestBody => {
 
   paymentData.events.push(requestBody);
 
-  if (event !== 'TRANSFER_SUCCESS' || isRepeatedEvent) {
+  if (isRepeatedEvent) {
     batch.set(paymentDoc.ref, paymentData, { merge: true });
 
     return batch.commit();
@@ -195,13 +200,16 @@ const handlePayment = async requestBody => {
     { merge: true },
   );
 
-  // const {beneficiaryId} = voucherDoc.data();
-  // const updatesRef = rootCollections.updates
-  //   .doc(beneficiaryId)
-  //   .collection(subcollectionNames.ADDENDUM)
-  //   .doc();
+  const { beneficiaryId } = voucherDoc.data();
+  const updatesRef = rootCollections.updates
+    .doc(beneficiaryId)
+    .collection(subcollectionNames.ADDENDUM)
+    .doc();
 
-  // batch.set(updatesRef, getPaymentObjectForUpdates(paymentData, paymentDoc.id));
+  batch.set(
+    updatesRef,
+    getPaymentObjectForUpdates({ payment: paymentData, id: paymentDoc.id }),
+  );
 
   return batch.commit();
 };
@@ -221,9 +229,9 @@ const handleDeposit = async requestBody => {
     linkedDeposits = [],
     linkedVouchers = [],
   } = batchDoc.data();
-  const bankDetailsMap = new Map().set(MAIN_OFFICE.officeId, MAIN_OFFICE);
-  const expectedAmount = currency(batchDoc.get('amount'));
-  const currentlyReceivedAmount = currency(amountInWebhook);
+  const bankDetailsMap = new Map().set(env.mainOffice.officeId, env.mainOffice);
+  const expectedAmount = currencyJs(batchDoc.get('amount'));
+  const currentlyReceivedAmount = currencyJs(amountInWebhook);
   const usersWithoutPaymentAccount = [];
   const {
     docs: [depositDoc],
@@ -245,6 +253,7 @@ const handleDeposit = async requestBody => {
     ) > -1;
 
   depositData.events.push(requestBody);
+
   linkedDeposits.push(depositDocRef.id);
 
   batch.set(
@@ -259,15 +268,15 @@ const handleDeposit = async requestBody => {
     { merge: true },
   );
 
-  if (isRepeatedEvent || event !== 'AMOUNT_COLLECTED') {
-    console.log('is repeated', event);
+  if (isRepeatedEvent) {
     return batch.commit();
   }
 
-  const { value: receivedAmount } = currency(
+  const { value: receivedAmount } = currencyJs(
     batchDoc.get('receivedAmount') || 0,
   ).add(amountInWebhook);
-  let amountThisInstance = currency(currentlyReceivedAmount);
+
+  let amountThisInstance = currencyJs(currentlyReceivedAmount);
 
   if (currentlyReceivedAmount.value < expectedAmount.value) {
     // fetch other deposits with same batchId
@@ -280,7 +289,6 @@ const handleDeposit = async requestBody => {
       .where('vAccountId', '==', vAccountId)
       .where('officeId', '==', officeId)
       .get();
-    console.log('fetching old deposits', deposits.size);
 
     deposits.forEach(deposit => {
       amountThisInstance = amountThisInstance.add(deposit.get('amount'));
@@ -293,12 +301,7 @@ const handleDeposit = async requestBody => {
   // another deposit and run this flow again.
   // As soon as the money received is at least the expected value
   // we create payments and payment docs in `Payments/{voucherId}`.
-  console.log('expectedAmount', expectedAmount.value);
-  console.log('amountThisInstance', amountThisInstance.value);
-
   const isInsufficientAmount = amountThisInstance.value < expectedAmount.value;
-
-  console.log('isInsufficientAmount', isInsufficientAmount);
 
   if (isInsufficientAmount) {
     console.log('amt less');
@@ -331,9 +334,9 @@ const handleDeposit = async requestBody => {
     }),
   );
 
-  updateCollectionRefs.forEach(updateDoc => {
-    const { id: uid } = updateDoc;
-    const { linkedAccounts = [] } = updateDoc.data();
+  updateCollectionRefs.forEach(updatesDoc => {
+    const { id: uid } = updatesDoc;
+    const { linkedAccounts = [] } = updatesDoc.data();
     const [{ bankAccount, ifsc } = {}] = linkedAccounts;
 
     bankDetailsMap.set(uid, { bankAccount, ifsc });
@@ -350,6 +353,7 @@ const handleDeposit = async requestBody => {
       amount,
       phoneNumber,
       displayName,
+      type,
       beneficiaryId,
     } = voucher.data();
     const { id: transferId } = voucher;
@@ -362,12 +366,15 @@ const handleDeposit = async requestBody => {
       return;
     }
 
-    // Payment is created when a deposit is done
-    // from a user
+    // Payment is created when a deposit is done from a user
     batch.set(rootCollections.payments.doc(transferId), {
       office,
       officeId,
       amount,
+      paymentType:
+        type === 'attendance'
+          ? paymentTypes.SALARY
+          : paymentTypes.REIMBURSEMENT,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -383,9 +390,6 @@ const handleDeposit = async requestBody => {
     });
   });
 
-  console.log('bulkTransferApiRequestBody', bulkTransferApiRequestBody);
-  console.log('usersWithoutPaymentAccount', usersWithoutPaymentAccount);
-
   batch.set(
     batchDoc.ref,
     Object.assign({}, batchDoc.data(), {
@@ -393,12 +397,8 @@ const handleDeposit = async requestBody => {
       linkedDeposits,
       updatedAt: Date.now(),
     }),
-    {
-      merge: true,
-    },
+    { merge: true },
   );
-
-  console.log('transfers:', bulkTransferApiRequestBody.batch.length);
 
   // Handle case where `bulkTransferApiRequestBody.batch.length` is 0
   // This would be possible in the case where all the beneficiaries
@@ -449,7 +449,7 @@ const cashfreeWebhookHandler = async conn => {
     await handleDeposit(conn.req.body);
   }
 
-  return sendJSON(conn, '');
+  return sendJSON(conn, {});
 };
 
 module.exports = async conn => {

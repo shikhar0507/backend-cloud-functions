@@ -30,6 +30,60 @@ const { code } = require('../../admin/responses');
 
 const docIdMapper = doc => Object.assign({}, doc.data(), { id: doc.id });
 
+const getCanEditRuleValue = ({
+  canEditRule,
+  employeeOf,
+  office,
+  customClaims = {},
+}) => {
+  // ALL, NONE, ADMIN, EMPLOYEE
+  if (canEditRule === 'ALL') {
+    return true;
+  }
+
+  const isEmployee = !!employeeOf[office];
+
+  if (canEditRule === 'EMPLOYEE') {
+    return isEmployee;
+  }
+
+  if (canEditRule === 'ADMIN') {
+    return (
+      Array.isArray(customClaims.admin) && customClaims.admin.includes(office)
+    );
+  }
+
+  // NONE
+  return false;
+};
+
+const getCreatorForActivity = creator => {
+  if (typeof creator === 'string') {
+    return {
+      phoneNumber: creator,
+      displayName: '',
+      email: '',
+    };
+  }
+
+  return creator;
+};
+
+const activityFilter = ({ doc, employeeOf, customClaims }) =>
+  Object.assign({}, doc.data(), {
+    activityId: doc.id,
+    // While sending in the response, this field will be
+    // removed by JSON.stringify method.
+    addendumDocRef: undefined,
+    creator: getCreatorForActivity(doc.get('creator')),
+    canEdit: getCanEditRuleValue({
+      employeeOf,
+      customClaims,
+      canEditRule: doc.get('canEditRule'),
+      office: doc.get('office'),
+    }),
+  });
+
 const isAnAdmin = ({ office, customClaims = {} }) =>
   Array.isArray(customClaims.admin) && customClaims.admin.includes(office);
 
@@ -50,6 +104,7 @@ const getFieldQueryParam = query => {
 };
 
 const activityFieldsSelector = () => [
+  'canEditRule',
   'template',
   'status',
   'schedule',
@@ -63,27 +118,25 @@ const activityFieldsSelector = () => [
   'creator',
 ];
 
-const getLocations = async ({ officeId }) =>
+const getLocations = async ({ officeId, customClaims, employeeOf }) =>
   (
     await rootCollections.activities
       .where('officeId', '==', officeId)
       .where('template', 'in', ['customer', 'branch'])
       .where('status', '==', 'CONFIRMED')
       .get()
-  ).docs.map(doc =>
-    Object.assign({}, doc.data(), { addendumDocRef: null, activityId: doc.id }),
-  );
+  ).docs.map(doc => activityFilter({ doc, customClaims, employeeOf }));
 
 const getRecipients = async ({ officeId }) => {
   const authPromises = [];
   const phoneNumberUniques = new Set();
   const detailsFromAuth = new Map();
-  const recipients = await rootCollections.recipients
+  const { docs } = await rootCollections.recipients
     .where('officeId', '==', officeId)
     .select(...['office', 'officeId', 'include', 'cc', 'report', 'status'])
     .get();
 
-  recipients.forEach(doc => {
+  docs.forEach(doc => {
     const { include = [] } = doc.data();
 
     include.forEach(phoneNumber => {
@@ -117,7 +170,7 @@ const getRecipients = async ({ officeId }) => {
     });
   });
 
-  return recipients.docs.map(recipient => {
+  return docs.map(recipient => {
     const { include: assignees = [] } = recipient.data();
 
     return Object.assign({}, recipient.data(), {
@@ -129,35 +182,16 @@ const getRecipients = async ({ officeId }) => {
   });
 };
 
-const getCreatorForActivity = creator => {
-  if (typeof creator === 'string') {
-    return {
-      phoneNumber: creator,
-      displayName: '',
-      email: '',
-    };
-  }
-
-  return creator;
-};
-
-const activityFilter = doc =>
-  Object.assign({}, doc.data(), {
-    activityId: doc.id,
-    addendumDocRef: null,
-    creator: getCreatorForActivity(doc.get('creator')),
-  });
-
-const getTypes = async ({ officeId }) =>
+const getTypes = async ({ officeId, customClaims, employeeOf }) =>
   (
     await rootCollections.activities
       .where('officeId', '==', officeId)
       .where('report', '==', 'type')
       .select(...activityFieldsSelector())
       .get()
-  ).docs.map(activityFilter);
+  ).docs.map(doc => activityFilter({ doc, customClaims, employeeOf }));
 
-const getRoles = async ({ officeId }) =>
+const getRoles = async ({ officeId, employeeOf, customClaims }) =>
   (
     await rootCollections.activities
       .where('officeId', '==', officeId)
@@ -168,13 +202,16 @@ const getRoles = async ({ officeId }) =>
     const { template } = doc.data();
 
     prevValue[template] = prevValue[template] || [];
-    prevValue[template].push(activityFilter(doc));
+    prevValue[template].push(activityFilter({ doc, employeeOf, customClaims }));
 
     return prevValue;
   }, {});
 
 const handleGetRequest = async conn => {
   const { office } = conn.req.query;
+  const { customClaims = {} } = conn.requester;
+  const { employeeOf = {} } =
+    (conn.profileDoc && conn.profileDoc.get('employeeOf')) || {};
 
   if (!office) {
     return sendResponse(
@@ -184,11 +221,18 @@ const handleGetRequest = async conn => {
     );
   }
 
-  if (!isAnAdmin({ office, customClaims: conn.requester.customClaims })) {
-    return sendResponse(conn, code.unauthorized, `You are not an admin`);
+  const adminAllowed = isAnAdmin({ office, customClaims });
+
+  // User is not an ADMIN and NOT a support person, reject the request.
+  if (!adminAllowed && !conn.requester.isSupportRequest) {
+    return sendResponse(
+      conn,
+      code.unauthorized,
+      `You cannot access this resource.`,
+    );
   }
 
-  const field = getFieldQueryParam(conn.req.query);
+  const fields = getFieldQueryParam(conn.req.query);
 
   const {
     /**
@@ -218,10 +262,16 @@ const handleGetRequest = async conn => {
     deposits,
     batches,
   ] = await Promise.all([
-    !field.includes('locations') ? [] : getLocations({ officeId }),
-    !field.includes('recipients') ? [] : getRecipients({ officeId }),
-    !field.includes('types') ? [] : getTypes({ officeId }),
-    !field.includes('roles') ? [] : getRoles({ officeId }),
+    !fields.includes('locations')
+      ? []
+      : getLocations({ officeId, employeeOf, customClaims }),
+    !fields.includes('recipients') ? [] : getRecipients({ officeId }),
+    !fields.includes('types')
+      ? []
+      : getTypes({ officeId, employeeOf, customClaims }),
+    !fields.includes('roles')
+      ? []
+      : getRoles({ officeId, employeeOf, customClaims }),
     /**
      * Vouchers are sent always.
      * Optional fields are locations, recipients, types and roles.

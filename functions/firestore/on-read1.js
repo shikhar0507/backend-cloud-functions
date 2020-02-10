@@ -31,7 +31,9 @@ const {
   isValidDate,
   handleError,
   sendResponse,
+  getNumbersbetween,
   isNonEmptyString,
+  getDefaultAttendanceObject,
 } = require('../admin/utils');
 const momentTz = require('moment-timezone');
 
@@ -177,8 +179,8 @@ const activityFilter = (doc, customClaims, employeeOf, phoneNumber) => {
   }, result);
 };
 
-const subscriptionFilter = doc => {
-  return [
+const subscriptionFilter = doc =>
+  [
     'template',
     'schedule',
     'venue',
@@ -191,73 +193,86 @@ const subscriptionFilter = doc => {
 
     return prevObject;
   }, {});
-};
 
-const locationFilter = doc => {
-  return {
-    activityId: doc.id,
-    office: doc.get('office'),
-    officeId: doc.get('officeId'),
-    status: doc.get('status'),
-    template: doc.get('template'),
-    timestamp: doc.get('timestamp'),
-    address: doc.get('venue')[0].address,
-    location: doc.get('venue')[0].location,
-    latitude: doc.get('venue')[0].geopoint.latitude,
-    longitude: doc.get('venue')[0].geopoint.longitude,
-    venueDescriptor: doc.get('venue')[0].venueDescriptor,
-  };
-};
+const locationFilter = doc => ({
+  activityId: doc.id,
+  office: doc.get('office'),
+  officeId: doc.get('officeId'),
+  status: doc.get('status'),
+  template: doc.get('template'),
+  timestamp: doc.get('timestamp'),
+  address: doc.get('venue')[0].address,
+  location: doc.get('venue')[0].location,
+  latitude: doc.get('venue')[0].geopoint.latitude,
+  longitude: doc.get('venue')[0].geopoint.longitude,
+  venueDescriptor: doc.get('venue')[0].venueDescriptor,
+});
 
 const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
-  const [attendanceDoc] = attendanceQueryResult.docs;
+  const {
+    docs: [attendanceDoc],
+  } = attendanceQueryResult;
 
   if (!attendanceDoc) {
     return [];
   }
 
   const {
-    attendance,
     month,
     year,
     office,
     officeId,
     phoneNumber,
+    attendance = {},
   } = attendanceDoc.data();
   const timestamp = Date.now();
-
-  Object.entries(attendance || {}).forEach(
-    ([date, attendanceObjectForDate]) => {
-      // const [date, attendanceObjectForDate] = entry;
-
-      // No need to check for missing dates/or the sequence because
-      // that data is of the past.
-      jsonObject.attendances.push(
-        Object.assign({}, attendanceObjectForDate, {
-          date,
-          month,
-          year,
-          office,
-          officeId,
-          phoneNumber,
-          timestamp,
-          _type: addendumTypes.ATTENDANCE,
-          id: `${date}${month}${year}${officeId}`,
-          key: momentTz()
-            .date(date)
-            .month(month)
-            .year(year)
-            .startOf('date')
-            .valueOf(),
-        }),
-      );
-    },
+  const dates = Object.keys(attendance).sort((a, b) => a - b);
+  const lastAvailableDate = Number(dates[dates.length - 1]);
+  const monthEndMoment = momentTz()
+    .month(month)
+    .year(year)
+    .clone()
+    .endOf('month');
+  const probablyMissingDates = getNumbersbetween(
+    lastAvailableDate,
+    monthEndMoment.get('date') + 1,
   );
+
+  probablyMissingDates.forEach(
+    date =>
+      (attendance[date] = attendance[date] || getDefaultAttendanceObject()),
+  );
+
+  Object.entries(attendance).forEach(([date, attendanceObjectForDate]) => {
+    // No need to check for missing dates/or the sequence because
+    // that data is of the past.
+    jsonObject.attendances.push(
+      Object.assign({}, attendanceObjectForDate, {
+        office,
+        officeId,
+        phoneNumber,
+        timestamp,
+        date: Number(date),
+        month: Number(month),
+        year: Number(year),
+        _type: addendumTypes.ATTENDANCE,
+        id: `${date}${month}${year}${officeId}`,
+        key: momentTz()
+          .date(date)
+          .month(month)
+          .year(year)
+          .startOf('date')
+          .valueOf(),
+      }),
+    );
+  });
 };
 
 const getMonthlyAttendance = async ({ officeId, phoneNumber, jsonObject }) => {
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
+
+  console.log('sending attendances', officeId);
 
   const [
     currMonthAttendanceQueryResult,
@@ -342,6 +357,8 @@ const getMonthlyReimbursement = async ({
   phoneNumber,
   jsonObject,
 }) => {
+  console.log('sending reimbursements', officeId);
+
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
   const getReimbursementRef = (month, year) => {
@@ -368,6 +385,41 @@ const getMonthlyReimbursement = async ({
 
   reimbursementsPrevMonth.forEach(doc => {
     jsonObject.reimbursements.push(getSingleReimbursement(doc));
+  });
+
+  return;
+};
+
+const getProducts = async ({
+  jsonObject,
+  phoneNumber,
+  officeId,
+  customClaims,
+  employeeOf,
+}) => {
+  // If user has subscription of duty OR call, send products from
+  // root collection => send products
+  const { empty } = await rootCollections.profiles
+    .doc(phoneNumber)
+    .collection(subcollectionNames.SUBSCRIPTIONS)
+    .where('template', 'in', ['duty', 'call'])
+    .limit(1)
+    .get();
+
+  if (empty) {
+    return [];
+  }
+
+  (
+    await rootCollections.activities
+      .where('officeId', '==', officeId)
+      .where('template', '==', 'product')
+      .where('status', 'in', ['CONFIRMED', 'PENDING'])
+      .get()
+  ).forEach(doc => {
+    jsonObject.products.push(
+      activityFilter(doc, customClaims, employeeOf, phoneNumber),
+    );
   });
 
   return;
@@ -408,8 +460,6 @@ const read = async conn => {
   const isInitRequest = from === 0;
   const locationPromises = [];
   const templatePromises = [];
-  const attendancePromises = [];
-  const reimbursementPromises = [];
   const templatesMap = new Map();
   const sendLocations =
     profileDoc && profileDoc.get('lastLocationMapUpdateTimestamp') > from;
@@ -425,6 +475,7 @@ const read = async conn => {
     attendances: [],
     reimbursements: [],
   };
+
   const promises = [
     rootCollections.updates
       .doc(uid)
@@ -447,18 +498,6 @@ const read = async conn => {
         subcollection: subcollectionNames.SUBSCRIPTIONS,
       }),
     );
-
-    officeList.forEach(office => {
-      const officeId = employeeOf[office];
-
-      attendancePromises.push(
-        getMonthlyAttendance({ phoneNumber, jsonObject, officeId }),
-      );
-
-      reimbursementPromises.push(
-        getMonthlyReimbursement({ jsonObject, phoneNumber, officeId }),
-      );
-    });
   }
 
   if (sendLocations) {
@@ -480,12 +519,7 @@ const read = async conn => {
      * modify the jsonObject which is why we are not using their
      * return values to iterate over the objects.
      **/
-  ] = await Promise.all([
-    Promise.all(promises),
-    Promise.all(locationPromises),
-    Promise.all(attendancePromises),
-    Promise.all(reimbursementPromises),
-  ]);
+  ] = await Promise.all([Promise.all(promises), Promise.all(locationPromises)]);
 
   (subscriptions || []).forEach(doc => {
     const { template } = doc.data();
@@ -621,6 +655,48 @@ const read = async conn => {
 
   if (!addendum.empty) {
     jsonObject.upto = addendum.docs[addendum.size - 1].get('timestamp');
+  }
+
+  if (isInitRequest) {
+    await Promise.all(
+      officeList.map(office =>
+        getProducts({
+          jsonObject,
+          customClaims,
+          employeeOf,
+          phoneNumber,
+          officeId: employeeOf[office],
+        }),
+      ),
+    );
+
+    const attendancePromises = [];
+    const reimbursementPromises = [];
+
+    officeList.forEach(office => {
+      const officeId = employeeOf[office];
+
+      attendancePromises.push(
+        getMonthlyAttendance({
+          phoneNumber,
+          jsonObject,
+          officeId,
+        }),
+      );
+
+      reimbursementPromises.push(
+        getMonthlyReimbursement({
+          jsonObject,
+          phoneNumber,
+          officeId,
+        }),
+      );
+    });
+
+    await Promise.all([
+      Promise.all(attendancePromises),
+      Promise.all(reimbursementPromises),
+    ]);
   }
 
   return sendJSON(conn, jsonObject);
