@@ -815,29 +815,17 @@ const reportNames = {
   CASHFREE: 'cashfree',
   PAYROLL_MASTER: 'payroll master',
   REIMBURSEMENT: 'reimbursement',
-  SCHEDULE: 'schedule',
   COUNTER: 'counter',
   CUSTOMER: 'customer',
   ACTIVIT_REPORT: 'activity report',
-  ON_DUTY: 'on duty',
   ENQUIRY: 'enquiry',
   INSTALL: 'install',
   SIGNUP: 'signup',
-  EXPENSE_CLAIM: 'expense claim',
-  DUTY_ROSTER: 'duty roster',
   CHECK_IN: 'check-in',
-  DSR: 'dsr',
   FOOTPRINTS: 'footprints',
   LEAVE: 'leave',
   PAYROLL: 'payroll',
-  TOUR_PLAN: 'tour plan',
   DAILY_STATUS_REPORT: 'daily status report',
-};
-
-const customMessages = {
-  LEAVE_CANCELLED: `LEAVE CANCELLED`,
-  TOUR_PLAN_CANCELLED: `TOUR PLAN CANCELLED`,
-  ON_DUTY_CANCELLED: `ON DUTY CANCELLED`,
 };
 
 const loggingTags = {
@@ -2879,7 +2867,6 @@ module.exports = {
   canEditRules,
   addendumTypes,
   templateFields,
-  customMessages,
   shareBodyFields,
   activityStatuses,
   reportingActions,
