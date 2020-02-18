@@ -41,6 +41,12 @@ This is the repository for cloud functions running on Firebase Growthfile back-e
 
 - Add the service account key from Firebase console to `/functions/admin/` directory.
 
+- Select firebase project
+
+```bash
+firebase use --add <project-name>
+```
+
 - Deploy the functions
 
   ```bash
