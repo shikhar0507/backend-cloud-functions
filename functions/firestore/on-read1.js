@@ -233,6 +233,9 @@ const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
     .year(year)
     .clone()
     .endOf('month');
+
+  console.log({ lastAvailableDate, date: monthEndMoment.get('date') });
+
   const probablyMissingDates = getNumbersbetween(
     lastAvailableDate,
     monthEndMoment.get('date') + 1,
@@ -271,8 +274,6 @@ const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
 const getMonthlyAttendance = async ({ officeId, phoneNumber, jsonObject }) => {
   const momentToday = momentTz();
   const momentPrevMonth = momentToday.clone().subtract(1, 'month');
-
-  console.log('sending attendances', officeId);
 
   const [
     currMonthAttendanceQueryResult,
