@@ -47,6 +47,7 @@ const {
   haversineDistance,
   createAutoSubscription,
 } = require('../activity/helper');
+const connectionToExternal = require('../../external');
 const env = require('../../admin/env');
 const admin = require('firebase-admin');
 const momentTz = require('moment-timezone');
@@ -784,7 +785,7 @@ const createDefaultSubscriptionsForUser = locals => {
   ]);
 };
 
-const handleAttendanceDocsForPayroll = async locals => {
+const handleAttendanceDocs = async locals => {
   const batch = db.batch();
   const {
     officeId,
@@ -793,7 +794,6 @@ const handleAttendanceDocsForPayroll = async locals => {
   } = locals.change.after.data();
   const { after: activityDoc } = locals.change;
   const { value: phoneNumber } = activityDoc.get('attachment.Phone Number');
-
   const momentNow = momentTz().tz(timezone);
   const month = momentNow.month();
   const year = momentNow.year();
@@ -827,12 +827,15 @@ const handleAttendanceDocsForPayroll = async locals => {
         .collection(subcollectionNames.ATTENDANCES)
         .doc();
 
+  const {uid} =await getAuth(phoneNumber);
+
   batch.set(
     ref,
     Object.assign({}, attendanceUpdate, {
       month,
       year,
       phoneNumber,
+      uid: uid || null,
       employeeName: activityDoc.get('attachment.Name.value') || '',
       employeeCode: activityDoc.get('attachment.Employee Code.value') || '',
       baseLocation: activityDoc.get('attachment.Base Location.value') || '',
@@ -937,7 +940,7 @@ const handleConfig = async locals => {
   }
 
   await createDefaultSubscriptionsForUser(locals);
-  await handleAttendanceDocsForPayroll(locals);
+  await handleAttendanceDocs(locals);
 
   return updateCheckInSubscriptionRoleField(locals);
 };
@@ -955,91 +958,84 @@ const getUsersWithCheckInSubscription = async officeId => {
   );
 };
 
-/**
- * Called for activities which are not of template ='check-in and have venue. At
- * the time of writing this function, those are customer and branch.
- *
- * It writes location activity object in Updates/{uid}/Addendum for all users
- * of the office which have check-in subscription.
- */
-// const mapLocationToUserUpdates = async (locationActivity, prevQuery) => {
-//   const { id: locationActivityId, venue, template, status } = locationActivity;
-//   const { officeId } = locationActivity.data();
+const mapActivityToUserUpdates = async (mappingActivity, prevQuery) => {
+  const { id: mappedActivityId } = mappingActivity;
+  const { officeId, venue, template, status } = mappingActivity.data();
 
-//   // check-in template has venue, but its not a location activity.
-//   if (template === 'check-in' || !venue[0] || status === 'CANCELLED') {
-//     return;
-//   }
+  // check-in template has venue, but its not a location activity.
+  if (template === 'check-in' || !venue[0] || status === 'CANCELLED') {
+    return;
+  }
 
-//   const query =
-//     prevQuery ||
-//     rootCollections.activities
-//       .where('officeId', '==', officeId)
-//       .where('template', '==', 'subscription')
-//       .where('attachment.Template.value', '==', 'check-in')
-//       .where('status', '==', 'CONFIRMED')
-//       .orderBy('__name__')
-//       .limit(200);
+  const query =
+    prevQuery ||
+    rootCollections.activities
+      .where('officeId', '==', officeId)
+      .where('template', '==', 'subscription')
+      .where('attachment.Template.value', '==', 'check-in')
+      .where('status', '==', 'CONFIRMED')
+      .orderBy('__name__')
+      .limit(200);
 
-//   const { docs, size, empty } = query.get();
+  const { docs, size, empty } = query.get();
 
-//   if (empty) {
-//     return;
-//   }
+  if (empty) {
+    return;
+  }
 
-//   const batch = db.batch();
-//   const updateDocPromises = docs.map(doc => {
-//     const { attachment } = doc.data();
-//     const {
-//       'Phone Number': { value: phoneNumber },
-//     } = attachment;
+  const batch = db.batch();
+  const updateDocPromises = docs.map(doc => {
+    const { attachment } = doc.data();
+    const {
+      'Phone Number': { value: phoneNumber },
+    } = attachment;
 
-//     return rootCollections.updates
-//       .where('phoneNumber', '==', phoneNumber)
-//       .limit(1)
-//       .get();
-//   });
+    return rootCollections.updates
+      .where('phoneNumber', '==', phoneNumber)
+      .limit(1)
+      .get();
+  });
 
-//   const uidMap = new Map();
+  const uidMap = new Map();
 
-//   (await Promise.all(updateDocPromises)).forEach(({ docs }) => {
-//     const [doc] = docs;
+  (await Promise.all(updateDocPromises)).forEach(({ docs }) => {
+    const [doc] = docs;
 
-//     if (!doc) {
-//       return;
-//     }
+    if (!doc) {
+      return;
+    }
 
-//     const { uid } = doc;
-//     const { phoneNumber } = doc.data();
+    const { uid } = doc;
+    const { phoneNumber } = doc.data();
 
-//     uidMap.set(phoneNumber, uid);
-//   });
+    uidMap.set(phoneNumber, uid);
+  });
 
-//   docs.forEach(doc => {
-//     const { attachment } = doc.data();
-//     const {
-//       'Phone Number': { value: phoneNumber },
-//     } = attachment;
+  docs.forEach(doc => {
+    const { attachment } = doc.data();
+    const {
+      'Phone Number': { value: phoneNumber },
+    } = attachment;
 
-//     const { uid } = uidMap.get(phoneNumber);
+    const { uid } = uidMap.get(phoneNumber);
 
-//     batch.set(
-//       rootCollections.updates
-//         .doc(uid)
-//         .collection(subcollectionNames.ADDENDUM)
-//         .doc(),
-//       Object.assign({}, location.data(), {
-//         _type: addendumTypes.LOCATION,
-//         activityId: locationActivityId,
-//         timestamp: Date.now(),
-//       }),
-//     );
-//   });
+    batch.set(
+      rootCollections.updates
+        .doc(uid)
+        .collection(subcollectionNames.ADDENDUM)
+        .doc(),
+      Object.assign({}, location.data(), {
+        _type: addendumTypes.LOCATION,
+        activityId: mappedActivityId,
+        timestamp: Date.now(),
+      }),
+    );
+  });
 
-//   const lastDoc = docs[size - 1];
+  const lastDoc = docs[size - 1];
 
-//   return mapLocationToUserUpdates(locationActivity, query.startAfter(lastDoc));
-// };
+  return mapActivityToUserUpdates(mappingActivity, query.startAfter(lastDoc));
+};
 
 const setLocationsReadEvent = async locals => {
   const { officeId, template } = locals.change.after.data();
@@ -1106,9 +1102,8 @@ const setLocationsReadEvent = async locals => {
 
 const handleRecipient = async locals => {
   const batch = db.batch();
-  const recipientsDocRef = rootCollections.recipients.doc(
-    locals.change.after.id,
-  );
+  const { id: activityId } = locals.change.after;
+  const recipientsDocRef = rootCollections.recipients.doc(activityId);
 
   if (
     locals.addendumDoc &&
@@ -1117,32 +1112,34 @@ const handleRecipient = async locals => {
     return;
   }
 
-  const { status } = locals.change.after.data();
+  const { status, office, officeId, attachment } = locals.change.after.data();
+  const { assigneePhoneNumbersArray: include } = locals;
 
-  batch.set(
-    recipientsDocRef,
-    {
-      status,
-      include: locals.assigneePhoneNumbersArray,
-      cc: locals.change.after.get('attachment.cc.value'),
-      office: locals.change.after.get('office'),
-      report: locals.change.after.get('attachment.Name.value'),
-      officeId: locals.change.after.get('officeId'),
-    },
-    {
-      /**
-       * Required since anyone updating the this activity will cause
-       * the report data to be lost.
-       */
-      merge: true,
-    },
-  );
+  const {
+    Name: { value: report },
+    cc: { value: cc },
+  } = attachment;
+  const recipientObject = {
+    status,
+    include,
+    office,
+    officeId,
+    report,
+    cc,
+  };
+
+  batch.set(recipientsDocRef, recipientObject, { merge: true });
 
   if (status === 'CANCELLED') {
     batch.delete(recipientsDocRef);
   }
 
-  return batch.commit();
+  await batch.commit();
+
+  return connectionToExternal(
+    Object.assign({}, recipientObject, { activityId }),
+    'recipients',
+  );
 };
 
 const createNewProfiles = async ({ newPhoneNumbersSet, smsContext }) => {
@@ -1430,9 +1427,7 @@ const getRegTokenMap = async assigneesMap => {
   const regTokenMap = new Map();
   const updateDocRefs = [];
 
-  assigneesMap.forEach(userRecord => {
-    const { uid } = userRecord;
-
+  assigneesMap.forEach(({ uid }) => {
     if (!uid) {
       return;
     }
@@ -1955,7 +1950,7 @@ const handleAddendum = async locals => {
 
   /** Phone Number change addendum does not have geopoint */
   if (typeof currentGeopoint === 'undefined') {
-    return handleComments(addendumDoc, locals);
+    return;
   }
 
   const batch = db.batch();
@@ -2050,11 +2045,10 @@ const handleAddendum = async locals => {
 
   await batch.commit();
   await setGeopointAndTimestampInCheckInSubscription({ addendumDoc });
-  await createActivityStats(addendumDoc);
 
   locals.roleObject = await getUserRole({ addendumDoc });
 
-  return handleComments(addendumDoc, locals);
+  return createActivityStats(addendumDoc);
 };
 
 const getMetaBaseQuery = ({ officeId, name, template }) => {
@@ -3415,18 +3409,20 @@ const newBackfill = async locals => {
     return;
   }
 
+  console.log('backfill called');
+
   // fetch base location
   // fetch leaves with scheduleDates in previousMonth
-  const [attendanceDocPrevMonth] = (
-    await rootCollections.offices
-      .doc(officeId)
-      .collection(subcollectionNames.ATTENDANCES)
-      .where('month', '==', momentPrevMonth.month())
-      .where('year', '==', momentPrevMonth.year())
-      .where('phoneNumber', '==', phoneNumber)
-      .limit(1)
-      .get()
-  ).docs;
+  const {
+    docs: [attendanceDocPrevMonth],
+  } = await rootCollections.offices
+    .doc(officeId)
+    .collection(subcollectionNames.ATTENDANCES)
+    .where('month', '==', momentPrevMonth.month())
+    .where('year', '==', momentPrevMonth.year())
+    .where('phoneNumber', '==', phoneNumber)
+    .limit(1)
+    .get();
 
   const { value: baseLocation } =
     locals.roleObject.attachment['Base Location'] || {};
@@ -3479,8 +3475,11 @@ const newBackfill = async locals => {
 
     while (momentInterator.isSameOrBefore(iterationRangeEnd)) {
       const { date } = momentInterator.toObject();
-      const weekdayName = momentInterator.format('dddd').toLowerCase();
-      const weeklyOff = weeklyOffFromBranch.toLowerCase() === weekdayName;
+      const weekdayName = momentInterator
+        .format(dateFormats.WEEKDAY)
+        .toLowerCase();
+      const weeklyOff =
+        weeklyOffFromBranch.toLowerCase() === weekdayName.toLowerCase();
       attendanceData.attendance[date] =
         attendanceData.attendance[date] || getDefaultAttendanceObject();
       attendanceData.attendance[date].weeklyOff = weeklyOff;
@@ -3491,9 +3490,10 @@ const newBackfill = async locals => {
 
       leavePromises.push(
         rootCollections.activities
-          .where('template', '==', 'leave')
           .where('creator.phoneNumber', '==', phoneNumber)
+          .where('template', '==', 'leave')
           .where('officeId', '==', officeId)
+          .where('status', 'in', ['CONFIRMED', 'PENDING'])
           .where(
             'scheduleDates',
             'array-contains',
@@ -3551,122 +3551,204 @@ const newBackfill = async locals => {
   );
 };
 
-// const populateMissingAttendancesInCurrentMonth = async (
-//   locals,
-//   attendanceObject,
-//   attendanceDocRef,
-//   attendanceDocExistsAlready,
-// ) => {
-//   // fetch this user's leaves, branch
-//   // populate weekly off, holidays and weeklyOffs
-//   // Populate in this month's attendance doc
+const getWeeklyOffDatesInMonth = ({
+  weeklyOff,
+  attendanceMonth,
+  attendanceYear,
+}) => {
+  const result = [];
+  const momentInstance = momentTz()
+    .month(attendanceMonth)
+    .year(attendanceYear);
+  const monthStart = momentInstance.clone().startOf('month');
+  const monthEnd = monthStart.clone().endOf('month');
+  const iterator = monthStart.clone();
 
-//   // Attendance doc was not created in this instance, so there is no
-//   // point of putting branch/leave etc every time.
-//   if (attendanceDocExistsAlready) {
-//     return;
-//   }
+  while (iterator.isSameOrBefore(monthEnd)) {
+    const { date } = iterator.toObject();
 
-//   const batch = db.batch();
+    if (
+      weeklyOff.toLowerCase() ===
+      iterator.format(dateFormats.WEEKDAY).toLowerCase()
+    ) {
+      result.push(date);
+    }
 
-//   const {
-//     timezone = 'Asia/Kolkata',
-//     creator,
-//     officeId,
-//   } = locals.change.after.data();
-//   const { phoneNumber } = creator;
-//   const momentInstance = momentTz().tz(timezone);
-//   const monthStart = momentInstance.clone().startOf('month');
-//   const monthEnd = monthStart.clone().endOf('month');
-//   const iterator = monthStart.clone();
-//   const leavePromises = [];
+    iterator.add(1, 'day');
+  }
 
-//   while (iterator.isSameOrBefore(monthEnd)) {
-//     leavePromises.push(
-//       rootCollections.profiles
-//         .doc(phoneNumber)
-//         .collection(subcollectionNames.ACTIVITIES)
-//         .where('creator.phoneNumber', '==', phoneNumber)
-//         .where('officeId', '==', officeId)
-//         .where('template', '==', 'leave')
-//         .where('status', '==', ['CONFIRMED', 'PENDING'])
-//         .where(
-//           'leaveDates',
-//           'array-contains',
-//           iterator.format(dateFormats.DATE),
-//         )
-//         .get(),
-//     );
+  return result;
+};
 
-//     iterator.add(1, 'day');
-//   }
+const populateMissingAttendancesInCurrentMonth = async (
+  locals,
+  attendanceUpdate,
+  attendanceDocRef,
+  attendanceDocExistsAlready,
+) => {
+  // fetch this user's leaves, branch
+  // populate weekly off, holidays and weeklyOffs
+  // Populate in this month's attendance doc
 
-//   const leaveSnaps = await Promise.all(leavePromises);
-//   const leaveIdUniques = new Set();
-//   const leavesThisMonth = [];
+  // Attendance doc was not created in this instance, so there is no
+  // point of putting branch/leave etc every time.
+  // if (attendanceDocExistsAlready) {
+  //   return;
+  // }
 
-//   leaveSnaps.forEach(leaves => {
-//     leaves.forEach(leave => {
-//       const { id: leaveId } = leave;
-//       const [{ startTime, endTime }] = leave.get('schedule');
-//       const isRepeat = leaveIdUniques.has(leaveId);
-//       const {
-//         attachment: { 'Leave Type': { value } = {} } = {},
-//       } = leave.data();
+  const batch = db.batch();
+  const { month: attendanceMonth, year: attendanceYear } = attendanceUpdate;
 
-//       if (isRepeat) {
-//         return;
-//       }
+  const {
+    officeId,
+    timezone = 'Asia/Kolkata',
+    creator: { phoneNumber },
+  } = locals.change.after.data();
+  const momentInstance = momentTz()
+    .month(attendanceMonth)
+    .year(attendanceYear)
+    .tz(timezone);
+  const monthStart = momentInstance.clone().startOf('month');
+  const monthEnd = monthStart.clone().endOf('month');
+  const iterator = monthStart.clone();
+  const leavePromises = [];
 
-//       leaveIdUniques.add(leaveId);
+  while (iterator.isSameOrBefore(monthEnd)) {
+    leavePromises.push(
+      rootCollections.profiles
+        .doc(phoneNumber)
+        .collection(subcollectionNames.ACTIVITIES)
+        .where('creator.phoneNumber', '==', phoneNumber)
+        .where('officeId', '==', officeId)
+        .where('template', '==', 'leave')
+        .where('status', 'in', ['CONFIRMED', 'PENDING'])
+        .where(
+          'scheduleDates',
+          'array-contains',
+          iterator.format(dateFormats.DATE),
+        )
+        .get(),
+    );
 
-//       if (
-//         momentTz(startTime).isBetween(monthStart, monthEnd) ||
-//         momentTz(endTime).isBetween(monthStart, monthEnd)
-//       ) {
-//         // these activities have schedule in the current month
-//         leavesThisMonth.push({ leaveType: value, startTime, endTime });
-//       }
-//     });
-//   });
+    iterator.add(1, 'day');
+  }
 
-//   leavesThisMonth.forEach(({ leaveType = '', startTime, endTime }) => {
-//     const leaveStartMoment = momentTz(startTime);
-//     const leaveEndMoment = momentTz(endTime);
-//     const iteratorMoment = leaveStartMoment.clone();
+  const leaveIdUniques = new Set();
+  const leavesThisMonth = [];
 
-//     while (iteratorMoment.isSameOrBefore(leaveEndMoment)) {
-//       const { date } = iteratorMoment.toObject();
+  (await Promise.all(leavePromises)).forEach(leaves => {
+    leaves.forEach(leave => {
+      const { id: leaveId } = leave;
+      const [{ startTime, endTime }] = leave.get('schedule');
+      const isRepeat = leaveIdUniques.has(leaveId);
+      const {
+        attachment: { 'Leave Type': { value } = {} } = {},
+      } = leave.data();
 
-//       attendanceObject.attendance = attendanceObject.attendance || {};
-//       attendanceObject.attendance[date] =
-//         attendanceObject.attendance[date] || getDefaultAttendanceObject();
+      // we are using array-contains which can return the same leave activity
+      // if the activity has more than 1 schedule date.
+      if (isRepeat) {
+        return;
+      }
 
-//       attendanceObject.attendance[date].onLeave = true;
-//       attendanceObject.attendance[date].leaveType = leaveType;
-//       attendanceObject.attendance[date].attendance = 1;
+      leaveIdUniques.add(leaveId);
 
-//       iteratorMoment.add(1, 'day');
-//     }
-//   });
+      if (
+        momentTz(startTime).isBetween(monthStart, monthEnd) ||
+        momentTz(endTime).isBetween(monthStart, monthEnd)
+      ) {
+        // these activities have schedule in the current month
+        leavesThisMonth.push({ leaveType: value, startTime, endTime });
+      }
+    });
+  });
 
-//   const baseLocation =
-//     locals.roleObject &&
-//     locals.roleObject.attachment['Base Location'] &&
-//     locals.roleObject.attachment['Base Location'].value;
+  leavesThisMonth.forEach(({ leaveType = '', startTime, endTime }) => {
+    const leaveStartMoment = momentTz(startTime);
+    const leaveEndMoment = momentTz(endTime);
+    const iteratorMoment = leaveStartMoment.clone();
 
-//   const branchDoc = await rootCollections.activities
-//     .where('officeId', '==', officeId)
-//     .where('template', '==', 'branch')
-//     .where('status', '==', 'CONFIRMED')
-//     .where('attachment.Name.value', '==', baseLocation)
-//     .limit(1)
-//     .get();
+    while (iteratorMoment.isSameOrBefore(leaveEndMoment)) {
+      const { date, months: month, years: year } = iteratorMoment.toObject();
 
-//   batch.set(attendanceDocRef, attendanceObject, { merge: true });
+      // If we don't check this, then the loop will overwrite
+      // this month's dates without consideration for the
+      // actual month/year
+      if (attendanceMonth !== month || attendanceYear !== year) {
+        continue;
+      }
 
-//   return batch.commit();
-// };
+      attendanceUpdate.attendance = attendanceUpdate.attendance || {};
+      attendanceUpdate.attendance[date] =
+        attendanceUpdate.attendance[date] || getDefaultAttendanceObject();
+      attendanceUpdate.attendance[date].attendance = 1;
+
+      attendanceUpdate.attendance[date].onLeave = true;
+      attendanceUpdate.attendance[date].leaveType = leaveType;
+
+      iteratorMoment.add(1, 'day');
+    }
+  });
+
+  const baseLocation =
+    locals.roleObject &&
+    locals.roleObject.attachment['Base Location'] &&
+    locals.roleObject.attachment['Base Location'].value;
+
+  if (baseLocation) {
+    const {
+      docs: [branchDoc],
+    } = await rootCollections.activities
+      .where('officeId', '==', officeId)
+      .where(
+        'template',
+        '==',
+        locals.roleObject.attachment['Base Location'].type,
+      )
+      .where('status', '==', 'CONFIRMED')
+      .where('attachment.Name.value', '==', baseLocation)
+      .limit(1)
+      .get();
+
+    if (branchDoc) {
+      const weeklyOff = branchDoc.get('attachment.Weekly Off.value');
+      const weeklyOffThisMonth = getWeeklyOffDatesInMonth({
+        weeklyOff,
+        attendanceMonth,
+        attendanceYear,
+      });
+
+      weeklyOffThisMonth.forEach(date => {
+        attendanceUpdate.attendance = attendanceUpdate.attendance || {};
+        attendanceUpdate.attendance[date] =
+          attendanceUpdate.attendance[date] || getDefaultAttendanceObject();
+        attendanceUpdate.attendance[date].attendance = 1;
+        attendanceUpdate.attendance[date].weeklyOff = true;
+      });
+
+      branchDoc.get('schedule').forEach(({ startTime }) => {
+        if (typeof startTime === 'number') {
+          // stuff
+          const { date, months: month, years: year } = momentTz(startTime)
+            .tz(timezone)
+            .toObject();
+
+          if (attendanceMonth === month && attendanceYear === year) {
+            attendanceUpdate.attendance = attendanceUpdate.attendance || {};
+            attendanceUpdate.attendance[date] =
+              attendanceUpdate.attendance[date] || getDefaultAttendanceObject();
+            attendanceUpdate.attendance[date].attendance = 1;
+            attendanceUpdate.attendance[date].holiday = true;
+          }
+        }
+      });
+    }
+  }
+
+  batch.set(attendanceDocRef, attendanceUpdate, { merge: true });
+
+  return batch.commit();
+};
 
 const handleWorkday = async locals => {
   /**
@@ -3895,20 +3977,18 @@ const handleWorkday = async locals => {
         .collection(subcollectionNames.ATTENDANCES)
         .doc();
 
-  batch.set(
-    attendanceDocRef,
-    Object.assign({}, roleData, attendanceObject, {
-      uid,
-      year,
-      month,
-      office,
-      officeId,
-      phoneNumber,
-      roleDoc: locals.roleObject || null,
-      timestamp: Date.now(),
-    }),
-    { merge: true },
-  );
+  const attendanceUpdate = Object.assign({}, roleData, attendanceObject, {
+    uid,
+    year,
+    month,
+    office,
+    officeId,
+    phoneNumber,
+    roleDoc: locals.roleObject || null,
+    timestamp: Date.now(),
+  });
+
+  batch.set(attendanceDocRef, attendanceUpdate, { merge: true });
 
   batch.set(
     rootCollections.updates
@@ -3937,6 +4017,17 @@ const handleWorkday = async locals => {
 
   await handleScheduledActivities(locals);
 
+  /**
+   * If the attendance doc is created, this function will fetch this user's
+   * leaves, and holidays/weekly off (using branch).
+   */
+  await populateMissingAttendancesInCurrentMonth(
+    locals,
+    attendanceUpdate,
+    attendanceDocRef,
+    !!attendanceDoc,
+  );
+
   /** Only populate the missing attendances when the attendance doc was created */
   if (attendanceDoc) {
     return;
@@ -3945,8 +4036,6 @@ const handleWorkday = async locals => {
   if (!locals.roleObject) {
     return;
   }
-
-  // await populateMissingAttendancesInCurrentMonth(locals, attendanceObject, attendanceDocRef, !!attendanceDoc);
 
   return newBackfill(locals);
 };
@@ -4146,6 +4235,7 @@ const attendanceHandler = async locals => {
   batch.set(
     attendanceRef,
     Object.assign({}, attendanceData, roleData, {
+      uid,
       office,
       officeId,
       month: momentStartTime.month(),
@@ -4202,9 +4292,11 @@ const templateHandler = async locals => {
   await handleTypeActivity(locals);
   await handleMetaUpdate(locals);
 
-  return setLocationsReadEvent(locals);
+  await setLocationsReadEvent(locals);
 
-  // return mapLocationToUserUpdates(locals.change.after, null);
+  // await mapActivityToUserUpdates(locals.change.after, null);
+
+  return;
 };
 
 const handleProfile = async change => {
@@ -4395,7 +4487,9 @@ const activityOnWrite = async change => {
   const locals = await handleProfile(change);
   await handleAddendum(locals);
 
-  return templateHandler(locals);
+  await templateHandler(locals);
+
+  return handleComments(locals.addendumDoc, locals);
 };
 
 module.exports = (change, context) => {

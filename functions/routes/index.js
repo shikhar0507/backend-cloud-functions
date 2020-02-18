@@ -160,7 +160,7 @@ module.exports = req => {
     case 'read1':
       func = require('../firestore/on-read1');
       break;
-    case `trackMail`:
+    case 'trackMail':
       func = require('../webhooks/sendgrid');
       break;
     case `services/office`:
@@ -174,6 +174,31 @@ module.exports = req => {
       break;
     case 'services/checkIns':
       func = require('../services/checkIns');
+      break;
+    case 'services/subscription/checkIn':
+      /**
+       * Accessible by anyone with auth.
+       * Is used to check if the user has a check-in subscription
+       * for any office
+       *
+       * Method: GET
+       * Request body:
+       * `
+       * {}
+       * `
+       *
+       * Response body:
+       * `
+       * {
+       *    "hasCheckInSubscription": <boolean>
+       * }
+       * `
+       * Query Params:
+       * `
+       * {}
+       * `
+       */
+      func = require('../services/check-check-in-subcription');
       break;
     /**
      * Accessible by anyone with auth.
@@ -220,31 +245,6 @@ module.exports = req => {
      */
     case 'services/idProof':
       func = require('../services/id-proof');
-      break;
-    case 'services/subscription/checkIn':
-      /**
-       * Accessible by anyone with auth.
-       * Is used to check if the user has a check-in subscription
-       * for any office
-       *
-       * Method: GET
-       * Request body:
-       * `
-       * {}
-       * `
-       *
-       * Response body:
-       * `
-       * {
-       *    "hasCheckInSubscription": <boolean>
-       * }
-       * `
-       * Query Params:
-       * `
-       * {}
-       * `
-       */
-      func = require('../services/check-check-in-subcription');
       break;
     case 'services/users':
       func = require('../services/users');

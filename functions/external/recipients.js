@@ -23,40 +23,43 @@
 
 'use strict';
 
-const { rootCollections } = require('../admin/admin');
-const { code } = require('../admin/responses');
-const { subcollectionNames } = require('../admin/constants');
-const { sendJSON, sendResponse, handleError } = require('../admin/utils');
+const env = require('../admin/env');
+const rpn = require('request-promise-native');
 
-const hasCheckInSubscription = async conn => {
-  if (conn.req.method !== 'GET') {
-    return sendResponse(
-      conn,
-      code.methodNotAllowed,
-      `${conn.req.method} is not allowed. Use 'GET'`,
-    );
+module.exports = async ({
+  include,
+  office,
+  status,
+  officeId,
+  cc,
+  activityId,
+  report,
+}) => {
+  if (!env.isProduction) {
+    return;
   }
 
-  // Check self subscription of check-in
-  const {
-    docs: [checkInSubscriptionDoc],
-  } = await rootCollections.profiles
-    .doc(conn.requester.phoneNumber)
-    .collection(subcollectionNames.SUBSCRIPTIONS)
-    .where('template', '==', 'check-in')
-    .where('status', '==', 'CONFIRMED')
-    .limit(1)
-    .get();
+  const url = 'https://us-central1-growthfilems.cloudfunctions.net/api/reports';
 
-  return sendJSON(conn, {
-    hasCheckInSubscription: !!checkInSubscriptionDoc,
+  const resp = await rpn(url, {
+    json: true,
+    method: 'PUT',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${env.growthifleMsToken}`,
+    },
+    body: JSON.stringify({
+      activityId,
+      office,
+      status,
+      cc,
+      report,
+      officeId,
+      include,
+    }),
   });
-};
 
-module.exports = async conn => {
-  try {
-    return hasCheckInSubscription(conn);
-  } catch (error) {
-    return handleError(conn, error);
-  }
+  console.log('resp', resp);
+
+  return;
 };

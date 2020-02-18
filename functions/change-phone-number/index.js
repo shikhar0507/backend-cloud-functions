@@ -90,8 +90,7 @@ const singleActivityUpdateObject = ({
     attachment['Phone Number'].value === oldPhoneNumber;
 
   if (template === 'check-in') {
-    // null means => delete the activity
-    return null;
+    return {};
   }
 
   const activityUpdate = Object.assign({}, activity.data(), {
@@ -158,6 +157,7 @@ const migrateUserData = async ({
   oldPhoneNumber,
   newPhoneNumber,
   batches,
+  uniqueOffices = new Set(),
 }) => {
   const batch = db.batch();
   const MAX_ACTIVITIES_AT_ONCE = 100;
@@ -180,12 +180,15 @@ const migrateUserData = async ({
   docs.forEach(activity => {
     // do stuff;
     const { id: activityId } = activity;
+    const { office } = activity.data();
     const activityRef = rootCollections.activities.doc(activityId);
     const { activityUpdate, addendumDocData } = singleActivityUpdateObject({
       activity,
       newPhoneNumber,
       oldPhoneNumber,
     });
+
+    uniqueOffices.add(office);
 
     if (!activityUpdate) {
       batch.delete(activityRef);
@@ -219,6 +222,7 @@ const migrateUserData = async ({
     batches,
     oldPhoneNumber,
     newPhoneNumber,
+    uniqueOffices,
     prevQuery: query.startAfter(lastDoc),
   });
 };
@@ -266,6 +270,7 @@ module.exports = async conn => {
           oldPhoneNumber,
           newPhoneNumber,
           batches: [],
+          uniqueOffices: new Set(),
         })
       ).map(batch => batch.commit()),
       updateProfile({

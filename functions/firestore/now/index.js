@@ -23,22 +23,16 @@
 
 'use strict';
 
-const { sendResponse, getISO8601Date, sendJSON } = require('../../admin/utils');
+const {
+  sendResponse,
+  getISO8601Date,
+  sendJSON,
+  maskLastDigits,
+} = require('../../admin/utils');
 const { subcollectionNames } = require('../../admin/constants');
 const { db, rootCollections } = require('../../admin/admin');
 const { code } = require('../../admin/responses');
 const momentTz = require('moment-timezone');
-
-const maskLastDigits = (
-  input,
-  digitsToReplace = 4,
-  charToReplaceWith = 'X',
-) => {
-  return (
-    `${new Array(input.length - digitsToReplace + 1).join(charToReplaceWith)}` +
-    `${input.slice(-digitsToReplace)}`
-  );
-};
 
 const getUsersWithProbablySameDevice = async (
   deviceId,
