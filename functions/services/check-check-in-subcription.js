@@ -37,15 +37,16 @@ const hasCheckInSubscription = async conn => {
     );
   }
 
-  const [checkInSubscriptionDoc] = (
-    await rootCollections.profiles
-      .doc(conn.requester.phoneNumber)
-      .collection(subcollectionNames.SUBSCRIPTIONS)
-      .where('template', '==', 'check-in')
-      .where('status', '==', 'CONFIRMED')
-      .limit(1)
-      .get()
-  ).docs;
+  // Check self subscription of check-in
+  const {
+    docs: [checkInSubscriptionDoc],
+  } = await rootCollections.profiles
+    .doc(conn.requester.phoneNumber)
+    .collection(subcollectionNames.SUBSCRIPTIONS)
+    .where('template', '==', 'check-in')
+    .where('status', '==', 'CONFIRMED')
+    .limit(1)
+    .get();
 
   return sendJSON(conn, {
     hasCheckInSubscription: !!checkInSubscriptionDoc,

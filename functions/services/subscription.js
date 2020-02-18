@@ -69,9 +69,7 @@ const grantSubscription = async conn => {
     );
   }
 
-  const validItems = share.filter(item => {
-    const { phoneNumber, displayName, email } = item;
-
+  const validItems = share.filter(({ phoneNumber, displayName, email }) => {
     if (!isNonEmptyString(phoneNumber)) {
       return false;
     }
@@ -97,8 +95,12 @@ const grantSubscription = async conn => {
 
   const [
     subcriptionDocQuery,
-    officeDocQuery,
-    templateDocQuery,
+    {
+      docs: [officeDoc],
+    },
+    {
+      docs: [templateDoc],
+    },
     employeeQuery,
   ] = await Promise.all([
     rootCollections.activities
@@ -120,13 +122,6 @@ const grantSubscription = async conn => {
       .where('attachment.Phone Number.value', '==', phoneNumber)
       .get(),
   ]);
-
-  const {
-    docs: [officeDoc],
-  } = officeDocQuery;
-  const {
-    docs: [templateDoc],
-  } = templateDocQuery;
 
   const checkInSubscriptionsMap = new Map();
 
