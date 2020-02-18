@@ -827,7 +827,7 @@ const handleAttendanceDocs = async locals => {
         .collection(subcollectionNames.ATTENDANCES)
         .doc();
 
-  const {uid} =await getAuth(phoneNumber);
+  const { uid } = await getAuth(phoneNumber);
 
   batch.set(
     ref,
@@ -958,84 +958,84 @@ const getUsersWithCheckInSubscription = async officeId => {
   );
 };
 
-const mapActivityToUserUpdates = async (mappingActivity, prevQuery) => {
-  const { id: mappedActivityId } = mappingActivity;
-  const { officeId, venue, template, status } = mappingActivity.data();
+// const mapActivityToUserUpdates = async (mappingActivity, prevQuery) => {
+//   const { id: mappedActivityId } = mappingActivity;
+//   const { officeId, venue, template, status } = mappingActivity.data();
 
-  // check-in template has venue, but its not a location activity.
-  if (template === 'check-in' || !venue[0] || status === 'CANCELLED') {
-    return;
-  }
+//   // check-in template has venue, but its not a location activity.
+//   if (template === 'check-in' || !venue[0] || status === 'CANCELLED') {
+//     return;
+//   }
 
-  const query =
-    prevQuery ||
-    rootCollections.activities
-      .where('officeId', '==', officeId)
-      .where('template', '==', 'subscription')
-      .where('attachment.Template.value', '==', 'check-in')
-      .where('status', '==', 'CONFIRMED')
-      .orderBy('__name__')
-      .limit(200);
+//   const query =
+//     prevQuery ||
+//     rootCollections.activities
+//       .where('officeId', '==', officeId)
+//       .where('template', '==', 'subscription')
+//       .where('attachment.Template.value', '==', 'check-in')
+//       .where('status', '==', 'CONFIRMED')
+//       .orderBy('__name__')
+//       .limit(200);
 
-  const { docs, size, empty } = query.get();
+//   const { docs, size, empty } = query.get();
 
-  if (empty) {
-    return;
-  }
+//   if (empty) {
+//     return;
+//   }
 
-  const batch = db.batch();
-  const updateDocPromises = docs.map(doc => {
-    const { attachment } = doc.data();
-    const {
-      'Phone Number': { value: phoneNumber },
-    } = attachment;
+//   const batch = db.batch();
+//   const updateDocPromises = docs.map(doc => {
+//     const { attachment } = doc.data();
+//     const {
+//       'Phone Number': { value: phoneNumber },
+//     } = attachment;
 
-    return rootCollections.updates
-      .where('phoneNumber', '==', phoneNumber)
-      .limit(1)
-      .get();
-  });
+//     return rootCollections.updates
+//       .where('phoneNumber', '==', phoneNumber)
+//       .limit(1)
+//       .get();
+//   });
 
-  const uidMap = new Map();
+//   const uidMap = new Map();
 
-  (await Promise.all(updateDocPromises)).forEach(({ docs }) => {
-    const [doc] = docs;
+//   (await Promise.all(updateDocPromises)).forEach(({ docs }) => {
+//     const [doc] = docs;
 
-    if (!doc) {
-      return;
-    }
+//     if (!doc) {
+//       return;
+//     }
 
-    const { uid } = doc;
-    const { phoneNumber } = doc.data();
+//     const { uid } = doc;
+//     const { phoneNumber } = doc.data();
 
-    uidMap.set(phoneNumber, uid);
-  });
+//     uidMap.set(phoneNumber, uid);
+//   });
 
-  docs.forEach(doc => {
-    const { attachment } = doc.data();
-    const {
-      'Phone Number': { value: phoneNumber },
-    } = attachment;
+//   docs.forEach(doc => {
+//     const { attachment } = doc.data();
+//     const {
+//       'Phone Number': { value: phoneNumber },
+//     } = attachment;
 
-    const { uid } = uidMap.get(phoneNumber);
+//     const { uid } = uidMap.get(phoneNumber);
 
-    batch.set(
-      rootCollections.updates
-        .doc(uid)
-        .collection(subcollectionNames.ADDENDUM)
-        .doc(),
-      Object.assign({}, location.data(), {
-        _type: addendumTypes.LOCATION,
-        activityId: mappedActivityId,
-        timestamp: Date.now(),
-      }),
-    );
-  });
+//     batch.set(
+//       rootCollections.updates
+//         .doc(uid)
+//         .collection(subcollectionNames.ADDENDUM)
+//         .doc(),
+//       Object.assign({}, location.data(), {
+//         _type: addendumTypes.LOCATION,
+//         activityId: mappedActivityId,
+//         timestamp: Date.now(),
+//       }),
+//     );
+//   });
 
-  const lastDoc = docs[size - 1];
+//   const lastDoc = docs[size - 1];
 
-  return mapActivityToUserUpdates(mappingActivity, query.startAfter(lastDoc));
-};
+//   return mapActivityToUserUpdates(mappingActivity, query.startAfter(lastDoc));
+// };
 
 const setLocationsReadEvent = async locals => {
   const { officeId, template } = locals.change.after.data();
@@ -3592,9 +3592,9 @@ const populateMissingAttendancesInCurrentMonth = async (
 
   // Attendance doc was not created in this instance, so there is no
   // point of putting branch/leave etc every time.
-  // if (attendanceDocExistsAlready) {
-  //   return;
-  // }
+  if (attendanceDocExistsAlready) {
+    return;
+  }
 
   const batch = db.batch();
   const { month: attendanceMonth, year: attendanceYear } = attendanceUpdate;

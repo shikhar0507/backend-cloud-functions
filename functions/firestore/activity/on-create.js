@@ -609,8 +609,8 @@ const handlePayroll = async (conn, locals) => {
   }
 
   const [leaveTypeQuery, leaveActivityQuery] = await Promise.all([
-    locals.officeDoc.ref
-      .collection(subcollectionNames.ACTIVITIES)
+    rootCollections.activities
+      .where('office', '==', locals.officeDoc.get('office'))
       .where('template', '==', 'leave-type')
       .where(
         'attachment.Name.value',

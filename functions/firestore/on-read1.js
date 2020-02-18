@@ -233,6 +233,9 @@ const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
     .year(year)
     .clone()
     .endOf('month');
+
+  console.log({ lastAvailableDate, date: monthEndMoment.get('date') + 1 });
+
   const probablyMissingDates = getNumbersbetween(
     lastAvailableDate,
     monthEndMoment.get('date') + 1,
