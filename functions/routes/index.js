@@ -160,6 +160,9 @@ module.exports = req => {
     case 'read1':
       func = require('../firestore/on-read1');
       break;
+    case 'read':
+      func = require('../firestore/on-read1');
+      break;
     case 'trackMail':
       func = require('../webhooks/sendgrid');
       break;

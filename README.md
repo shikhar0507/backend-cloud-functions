@@ -26,6 +26,13 @@ This is the repository for cloud functions running on Firebase Growthfile back-e
   cd backend-cloud-functions/functions
   ```
 
+- Put cashfree `.pem` keys in `/functions/admin`.
+
+```bash
+# payout_test.pem => non-production
+# payout_prod.pem => production
+```
+
 - Install the dependencies
 
   ```bash
@@ -46,7 +53,7 @@ This is the repository for cloud functions running on Firebase Growthfile back-e
 
 ## Running Local Queries
 
-- Running local queries requires you to have a [service account key](https://firebase.google.com/support/guides/service-accounts). Put the key.json file in the `functions/admin` directory.
+- Running local queries requires you to have a [service account key](https://firebase.google.com/support/guides/service-accounts). Put the `key.json` file in the `functions/admin` directory.
 - Use the `firebase serve` command to run a local http server.
 - The url will look something like this:
 
@@ -93,6 +100,36 @@ sendResponse(conn, 200);
 - Api keys and config is stored in the directory [functions/admin/](./functions/admin/example.env.js).
 - In production, create a copy of this file as `env.js`.
 
+## Mocking a user in `/api`
+
+- Open `server.js` from the path [functions/server/server.js]('./functions/server/server.js').
+- On the bottom, comment out the codeblock
+
+```js
+if (
+  env.isProduction &&
+  (!conn.req.headers["x-cf-secret"] ||
+    conn.req.headers["x-cf-secret"] !== env.cfSecret)
+) {
+  return sendResponse(
+    conn,
+    code.forbidden,
+    `Missing 'X-CF-Secret' header in the request headers`
+  );
+}
+
+return checkAuthorizationToken(conn);
+```
+
+- Replace this with the following:
+
+```js
+const uid = /** uid from auth of the user to mock */;
+return getUserAuthFromIdToken(conn, { uid });
+```
+
+- Mock with curl/postman.
+
 ## Cloudflare Workers
 
 | Route                                                                        | Worker      |
@@ -127,7 +164,6 @@ async function handleRequest(req) {
     "X-CF-Secret": "" // from env.
   };
 
-  console.log("authorization:", req.headers.get("Authorization"));
   newHeaders.Authorization = req.headers.get("Authorization");
 
   if (!partOne || !partTwo) {
@@ -160,8 +196,6 @@ async function handleRequest(req) {
 
   if (req.method !== "GET") {
     const body = await req.json();
-    console.log("body", body);
-
     options.body = JSON.stringify(body);
   }
 
@@ -171,7 +205,6 @@ async function handleRequest(req) {
 }
 
 addEventListener("fetch", event => {
-  console.clear();
   const result = handleRequest(event.request);
 
   event.respondWith(result);
