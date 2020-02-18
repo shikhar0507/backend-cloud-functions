@@ -46,7 +46,7 @@
     "currency.js": "^1.2.2",
     "dinero.js": "^1.6.0",
     "facebook-nodejs-business-sdk": "^4.0.8",
-    "firebase-admin": "^8.9.1",
+    "firebase-admin": "^8.9.2",
     "firebase-functions": "^3.1.0",
     "google-auth-library": "^4.2.5",
     "google-libphonenumber": "^3.2.5",
