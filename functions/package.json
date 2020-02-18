@@ -70,7 +70,7 @@
     "eslint-plugin-import": "^2.20.0",
     "eslint-plugin-jsdoc": "^21.0.0",
     "firebase-functions-test": "^0.1.7",
-    "husky": "^3.1.0",
+    "husky": "^4.2.3",
     "mocha": "^6.2.0",
     "sinon": "^8.1.1"
   },
