@@ -28,10 +28,10 @@ This is the repository for cloud functions running on Firebase Growthfile back-e
 
 - Put cashfree `.pem` keys in `/functions/admin`.
 
-```bash
-# payout_test.pem => non-production
-# payout_prod.pem => production
-```
+  ```bash
+  # payout_test.pem => non-production
+  # payout_prod.pem => production
+  ```
 
 - Install the dependencies
 
@@ -43,9 +43,9 @@ This is the repository for cloud functions running on Firebase Growthfile back-e
 
 - Select firebase project
 
-```bash
-firebase use --add <project-name>
-```
+  ```bash
+  firebase use --add <project-name>
+  ```
 
 - Deploy the functions
 
@@ -63,9 +63,9 @@ firebase use --add <project-name>
 - Use the `firebase serve` command to run a local http server.
 - The url will look something like this:
 
-```curl
-http://localhost:5001/{project-name}/us-central1/api
-```
+  ```curl
+  http://localhost:5001/{project-name}/us-central1/api
+  ```
 
 - Use [Postman](https://www.getpostman.com/) or [curl](https://curl.haxx.se/docs/) to run the api endpoint.
 
@@ -111,28 +111,28 @@ sendResponse(conn, 200);
 - Open `server.js` from the path [functions/server/server.js]('./functions/server/server.js').
 - On the bottom, comment out the codeblock
 
-```js
-if (
-  env.isProduction &&
-  (!conn.req.headers["x-cf-secret"] ||
-    conn.req.headers["x-cf-secret"] !== env.cfSecret)
-) {
-  return sendResponse(
-    conn,
-    code.forbidden,
-    `Missing 'X-CF-Secret' header in the request headers`
-  );
-}
+  ```js
+  if (
+    env.isProduction &&
+    (!conn.req.headers["x-cf-secret"] ||
+      conn.req.headers["x-cf-secret"] !== env.cfSecret)
+  ) {
+    return sendResponse(
+      conn,
+      code.forbidden,
+      `Missing 'X-CF-Secret' header in the request headers`
+    );
+  }
 
-return checkAuthorizationToken(conn);
-```
+  return checkAuthorizationToken(conn);
+  ```
 
 - Replace this with the following:
 
-```js
-const uid = /** uid from auth of the user to mock */;
-return getUserAuthFromIdToken(conn, { uid });
-```
+  ```js
+  const uid = /** uid from auth of the user to mock */;
+  return getUserAuthFromIdToken(conn, { uid });
+  ```
 
 - Mock with curl/postman.
 
