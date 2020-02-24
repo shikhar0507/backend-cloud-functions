@@ -53,7 +53,7 @@
     "googleapis": "^47.0.0",
     "handlebars": "^4.7.2",
     "moment": "^2.24.0",
-    "moment-timezone": "^0.5.26",
+    "moment-timezone": "^0.5.28",
     "mozjpeg": "^6.0.1",
     "request": "^2.88.0",
     "request-promise-native": "^1.0.8",
