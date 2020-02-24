@@ -175,9 +175,6 @@ module.exports = req => {
     case 'services/subscription':
       func = require('../services/subscription');
       break;
-    // case 'services/checkIns':
-    //   func = require('../services/checkIns');
-    //   break;
     case 'services/subscription/checkIn':
       /**
        * Accessible by anyone with auth.

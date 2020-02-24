@@ -227,7 +227,7 @@ const setAttendanceObjects = (attendanceQueryResult, jsonObject) => {
   } = attendanceDoc.data();
   const timestamp = Date.now();
   const dates = Object.keys(attendance).sort((a, b) => a - b);
-  const lastAvailableDate = Number(dates[dates.length - 1]);
+  const lastAvailableDate = Number(dates[dates.length - 1] || 1);
   const monthEndMoment = momentTz()
     .month(month)
     .year(year)

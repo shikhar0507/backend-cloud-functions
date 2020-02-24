@@ -1949,9 +1949,11 @@ const handleAddendum = async locals => {
   }
 
   /** Phone Number change addendum does not have geopoint */
-  if (typeof currentGeopoint === 'undefined') {
+  if (!currentGeopoint) {
     return;
   }
+
+  console.log({ currentGeopoint });
 
   const batch = db.batch();
   const promises = [];
